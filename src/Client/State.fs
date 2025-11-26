@@ -9,6 +9,7 @@ type Model = {
     Counter: RemoteData<Counter>
     IsAnimating: bool
     PreviousValue: int option
+    DataPath: RemoteData<string>
 }
 
 /// Application messages
@@ -18,6 +19,8 @@ type Msg =
     | IncrementCounter
     | CounterIncremented of Result<Counter, string>
     | StopAnimation
+    | LoadDataPath
+    | DataPathLoaded of Result<string, string>
 
 /// Initialize the model and load counter
 let init () : Model * Cmd<Msg> =
@@ -25,8 +28,12 @@ let init () : Model * Cmd<Msg> =
         Counter = NotAsked
         IsAnimating = false
         PreviousValue = None
+        DataPath = NotAsked
     }
-    let cmd = Cmd.ofMsg LoadCounter
+    let cmd = Cmd.batch [
+        Cmd.ofMsg LoadCounter
+        Cmd.ofMsg LoadDataPath
+    ]
     model, cmd
 
 /// Update function following the MVU pattern
@@ -73,3 +80,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | StopAnimation ->
         { model with IsAnimating = false }, Cmd.none
+
+    | LoadDataPath ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.api.getDataPath
+                ()
+                (Ok >> DataPathLoaded)
+                (fun ex -> Error ex.Message |> DataPathLoaded)
+        { model with DataPath = Loading }, cmd
+
+    | DataPathLoaded (Ok path) ->
+        { model with DataPath = Success path }, Cmd.none
+
+    | DataPathLoaded (Error err) ->
+        { model with DataPath = Failure err }, Cmd.none

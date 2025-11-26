@@ -32,6 +32,10 @@ let counterApi : ICounterApi = {
             printfn "Stack trace: %s" ex.StackTrace
             return { Value = 0 }
     }
+
+    getDataPath = fun () -> async {
+        return Persistence.getCounterFilePath()
+    }
 }
 
 let webApp() =

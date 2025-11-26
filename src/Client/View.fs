@@ -150,6 +150,27 @@ let private counterView (model: Model) (dispatch: Msg -> unit) =
                         prop.className "text-white/50 text-sm mt-1"
                         prop.text "Persisted on the backend"
                     ]
+                    // Display data path
+                    match model.DataPath with
+                    | Success path ->
+                        Html.p [
+                            prop.key "data-path"
+                            prop.className "text-white/40 text-xs mt-3 font-mono break-all"
+                            prop.text $"Data file: {path}"
+                        ]
+                    | Loading ->
+                        Html.p [
+                            prop.key "data-path-loading"
+                            prop.className "text-white/40 text-xs mt-3"
+                            prop.text "Loading path..."
+                        ]
+                    | Failure err ->
+                        Html.p [
+                            prop.key "data-path-error"
+                            prop.className "text-red-400/60 text-xs mt-3"
+                            prop.text $"Path error: {err}"
+                        ]
+                    | NotAsked -> Html.none
                 ]
             ]
         ]
@@ -198,6 +219,33 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 prop.className "flex-1 container mx-auto p-8 flex items-center justify-center relative z-10"
                 prop.children [
                     counterView model dispatch
+                ]
+            ]
+
+            // Support banner
+            Html.div [
+                prop.key "support-banner"
+                prop.className "bg-gradient-to-r from-pink-500/20 to-orange-500/20 border-t border-white/10 relative z-10"
+                prop.children [
+                    Html.div [
+                        prop.className "container mx-auto px-6 py-3 flex items-center justify-center gap-3"
+                        prop.children [
+                            Html.span [
+                                prop.className "text-white/80 text-sm"
+                                prop.text "Support the development of this free, open-source project!"
+                            ]
+                            Html.a [
+                                prop.href "https://ko-fi.com/heimeshoff"
+                                prop.target "_blank"
+                                prop.rel "noopener noreferrer"
+                                prop.className "inline-flex items-center gap-2 bg-[#FF5E5B] hover:bg-[#ff4742] text-white font-semibold px-4 py-1.5 rounded-full text-sm transition-colors"
+                                prop.children [
+                                    Html.span [ prop.text "☕" ]
+                                    Html.span [ prop.text "Buy me a coffee on Ko-fi" ]
+                                ]
+                            ]
+                        ]
+                    ]
                 ]
             ]
         ]

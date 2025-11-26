@@ -9,4 +9,7 @@ type ICounterApi = {
 
     /// Increment the counter and return the new value
     incrementCounter: unit -> Async<Counter>
+
+    /// Get the absolute path to the counter data file
+    getDataPath: unit -> Async<string>
 }
