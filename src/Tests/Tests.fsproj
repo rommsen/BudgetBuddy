@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="MathTests.fs" />
+    <Compile Include="EncryptionTests.fs" />
+    <Compile Include="PersistenceTypeConversionTests.fs" />
     <Compile Include="YnabClientTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>

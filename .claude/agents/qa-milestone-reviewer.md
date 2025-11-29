@@ -42,6 +42,48 @@ testCase "list has items" <| fun _ ->
     Expect.equal items.Length 3 "Should have 3 items"  // Tests List, not your code
 ```
 
+**IMPORTANT: Tests to KEEP (NOT Tautologies):**
+
+These are valid and should NOT be removed:
+
+```fsharp
+// GOOD: Documentation tests with commented examples for future implementation
+testCase "documents how to run integration tests" <| fun _ ->
+    // This test documents the approach for integration testing
+    // To run real integration tests:
+    // 1. Set environment variable YNAB_TOKEN...
+    // Example integration test (commented out to avoid requiring a real token):
+    (*
+    let token = Environment.GetEnvironmentVariable("YNAB_TOKEN")
+    ...
+    *)
+    ()  // Passes - this is documentation, not a tautology
+
+// GOOD: Tests that verify setup/teardown for future tests
+testCase "database connection can be established" <| fun _ ->
+    use conn = getConnection()
+    conn.Open()
+    Expect.isTrue (conn.State = ConnectionState.Open) "Connection should open"
+
+// GOOD: Placeholder tests marking future work
+testCase "TODO: implement user authentication flow" <| fun _ ->
+    Tests.skiptest "Not implemented yet - tracked in milestone 5"
+```
+
+**Distinguishing Tautologies from Documentation:**
+
+❌ **Tautology** - Tests that verify what you just set up:
+- Creates a value and immediately asserts it has that value
+- Tests F# language features instead of your code
+- No actual application behavior is verified
+
+✅ **Documentation/Preparation** - Valid tests to keep:
+- Documents how to use a feature (with commented examples)
+- Explains API structure, rate limits, or integration patterns
+- Provides templates for future test implementation
+- Uses `Tests.skiptest` to mark intentionally incomplete tests
+- Verifies infrastructure setup (DB connections, test fixtures)
+
 **Check for Weak Assertions:**
 ```fsharp
 // BAD: Only checks success, not actual behavior
@@ -166,6 +208,7 @@ Before completing your review, verify:
 
 - [ ] No tautological tests (testing what you just set up)
 - [ ] No tests that verify F# language features instead of your code
+- [ ] **Documentation/preparation tests are preserved** (integration test templates, API documentation tests, etc.)
 - [ ] All domain functions have at least one test
 - [ ] Edge cases are covered (empty, null, boundary values)
 - [ ] Error paths are tested, not just happy paths
@@ -181,5 +224,12 @@ Before completing your review, verify:
 4. **Missing error case tests** - only testing happy path
 5. **Duplicate tests** covering the same behavior
 6. **Tests without assertions** or with trivial assertions
+   - **EXCEPT**: Documentation tests that explain patterns or future work are valid even with just `()`
+
+**Important Distinction:**
+- ❌ Remove: Tautological test that creates `let x = 5` and asserts `x = 5`
+- ✅ Keep: Documentation test that explains integration patterns with commented examples
+- ✅ Keep: Placeholder test using `Tests.skiptest` to mark future work
+- ✅ Keep: Test that documents API behavior, rate limits, or response structures
 
 Remember: Your job is to ensure quality and define what needs to be tested. The red-testfixer agent will handle the actual implementation of any missing or corrected tests.

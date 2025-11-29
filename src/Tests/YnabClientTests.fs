@@ -593,37 +593,8 @@ let errorHandlingTests =
             | Ok _ -> failtest "Should fail on malformed JSON"
             | Error err ->
                 Expect.isNotNull err "Should return error message"
-
-        testCase "YnabError types are discriminated correctly" <| fun () ->
-            let errors = [
-                YnabError.Unauthorized "Test"
-                YnabError.BudgetNotFound "budget-123"
-                YnabError.AccountNotFound "account-456"
-                YnabError.CategoryNotFound "category-789"
-                YnabError.RateLimitExceeded 60
-                YnabError.NetworkError "Connection failed"
-                YnabError.InvalidResponse "Bad JSON"
-            ]
-
-            Expect.hasLength errors 7 "Should have all error types"
-
-        testCase "Result type correctly wraps success" <| fun () ->
-            let result: YnabResult<string> = Ok "Success"
-
-            match result with
-            | Ok value -> Expect.equal value "Success" "Should contain success value"
-            | Error _ -> failtest "Should be Ok, not Error"
-
-        testCase "Result type correctly wraps error" <| fun () ->
-            let result: YnabResult<string> = Error (YnabError.Unauthorized "Invalid token")
-
-            match result with
-            | Ok _ -> failtest "Should be Error, not Ok"
-            | Error err ->
-                match err with
-                | YnabError.Unauthorized msg -> Expect.equal msg "Invalid token" "Should contain error message"
-                | _ -> failtest "Should be Unauthorized error"
     ]
+
 
 // ============================================
 // Integration Test Documentation

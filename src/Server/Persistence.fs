@@ -4,9 +4,36 @@ open System
 open System.IO
 open System.Security.Cryptography
 open System.Text
+open System.Data
 open Microsoft.Data.Sqlite
 open Dapper
 open Shared.Domain
+
+// ============================================
+// Dapper TypeHandler for F# Option
+// ============================================
+
+type OptionHandler<'T>() =
+    inherit SqlMapper.TypeHandler<'T option>()
+
+    override _.SetValue(param, value) =
+        let valueOrNull =
+            match value with
+            | Some x -> box x
+            | None -> null
+
+        param.Value <- valueOrNull
+
+    override _.Parse value =
+        if isNull value || value = box DBNull.Value then
+            None
+        else
+            Some (value :?> 'T)
+
+// Register the option handler for common types
+do
+    SqlMapper.AddTypeHandler(OptionHandler<string>())
+    SqlMapper.AddTypeHandler(OptionHandler<DateTime>())
 
 // ============================================
 // Configuration
@@ -178,6 +205,7 @@ let initializeDatabase () =
 // ============================================
 
 module Rules =
+    [<CLIMutable>]
     type RuleRow = {
         id: string
         name: string
@@ -401,6 +429,7 @@ module Settings =
 // ============================================
 
 module SyncSessions =
+    [<CLIMutable>]
     type SyncSessionRow = {
         id: string
         started_at: string
@@ -512,6 +541,7 @@ module SyncSessions =
 // ============================================
 
 module SyncTransactions =
+    [<CLIMutable>]
     type SyncTransactionRow = {
         id: string
         session_id: string
