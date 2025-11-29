@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for F# Counter App
+# Multi-stage Dockerfile for BudgetBuddy
 # Stage 1: Build frontend
 FROM node:22-alpine AS frontend-build
 

@@ -1,0 +1,2063 @@
+# BudgetBuddy - Milestone Implementation Plan
+
+This document provides a comprehensive, step-by-step implementation plan for building BudgetBuddy. Each milestone is designed to be implemented in a single Claude Code session.
+
+## Overview
+
+BudgetBuddy is a self-hosted web application that:
+1. Fetches bank transactions from Comdirect (via OAuth + TAN)
+2. Automatically categorizes transactions using a rules engine
+3. Allows manual review and categorization
+4. Imports confirmed transactions to YNAB
+
+## Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│  Elmish.React + Feliz + TailwindCSS + DaisyUI               │
+│  - SyncFlow UI (transaction list, categorization)           │
+│  - Rules Management                                          │
+│  - Settings Page                                             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Fable.Remoting (type-safe RPC)
+┌──────────────────────────┴──────────────────────────────────┐
+│                        Backend                               │
+│  Giraffe + Fable.Remoting                                   │
+│  - Comdirect API Integration                                │
+│  - YNAB API Integration                                     │
+│  - Rules Engine                                              │
+│  - Session Management                                        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────┴──────────────────────────────────┐
+│                      Persistence                             │
+│  SQLite + JSON Files                                        │
+│  - Rules (SQLite)                                            │
+│  - Settings (SQLite, encrypted secrets)                      │
+│  - Sync History (SQLite)                                     │
+│  - Active Session State (in-memory + temp files)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Milestone 0: Project Foundation Review
+
+**Goal**: Verify existing project structure and ensure all dependencies are in place.
+
+**Prerequisites**: The base F# Full-Stack project should already be set up.
+
+### Tasks
+
+1. **Verify Project Structure**
+   ```
+   src/
+   ├── Shared/
+   │   ├── Domain.fs      # Will contain all domain types
+   │   ├── Api.fs         # Will contain API contracts
+   │   └── Shared.fsproj
+   ├── Client/
+   │   ├── Types.fs       # Client-only types (RemoteData, etc.)
+   │   ├── State.fs       # Elmish Model, Msg, update
+   │   ├── View.fs        # Feliz views
+   │   ├── Api.fs         # Fable.Remoting proxy
+   │   └── App.fs         # Entry point
+   ├── Server/
+   │   ├── Program.fs     # Entry point
+   │   ├── Api.fs         # API implementation
+   │   ├── Persistence.fs # Database operations
+   │   └── Domain.fs      # Business logic (PURE)
+   └── Tests/
+   ```
+
+2. **Add Required NuGet Packages to Server.fsproj**
+   ```xml
+   <PackageReference Include="FsHttp" Version="14.*" />
+   <PackageReference Include="Thoth.Json.Net" Version="12.*" />
+   <PackageReference Include="FsToolkit.ErrorHandling" Version="4.*" />
+   <PackageReference Include="YamlDotNet" Version="15.*" />
+   ```
+
+3. **Verify Frontend Dependencies in package.json**
+   - Tailwind CSS 4.x
+   - DaisyUI
+   - Vite + fable-plugin
+
+### Verification
+- [ ] `dotnet build` succeeds
+- [ ] `npm run dev` starts frontend
+- [ ] `cd src/Server && dotnet watch run` starts backend
+
+---
+
+## Milestone 1: Core Domain Types
+
+**Goal**: Define all shared domain types that will be used across the application.
+
+**Read First**: `/docs/04-SHARED-TYPES.md`
+
+**Invoke Skill**: `fsharp-shared`
+
+### File: `src/Shared/Domain.fs`
+
+```fsharp
+module Shared.Domain
+
+open System
+
+// ============================================
+// Value Types
+// ============================================
+
+type Money = {
+    Amount: decimal
+    Currency: string  // "EUR"
+}
+
+type TransactionId = TransactionId of string
+type RuleId = RuleId of Guid
+type SyncSessionId = SyncSessionId of Guid
+type YnabBudgetId = YnabBudgetId of string
+type YnabAccountId = YnabAccountId of Guid
+type YnabCategoryId = YnabCategoryId of Guid
+
+// ============================================
+// Bank Transaction (from Comdirect)
+// ============================================
+
+type BankTransaction = {
+    Id: TransactionId
+    BookingDate: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string
+    Reference: string  // Comdirect reference for dedup
+    RawData: string    // Original JSON for debugging
+}
+
+// ============================================
+// Transaction Status in Sync Flow
+// ============================================
+
+type TransactionStatus =
+    | Pending           // Newly fetched, no categorization
+    | AutoCategorized   // Rule applied automatically
+    | ManualCategorized // User assigned category
+    | NeedsAttention    // Special case (Amazon, PayPal)
+    | Skipped           // User chose to skip
+    | Imported          // Successfully sent to YNAB
+
+type ExternalLink = {
+    Label: string
+    Url: string
+}
+
+type SyncTransaction = {
+    Transaction: BankTransaction
+    Status: TransactionStatus
+    CategoryId: YnabCategoryId option
+    CategoryName: string option
+    MatchedRuleId: RuleId option
+    PayeeOverride: string option
+    ExternalLinks: ExternalLink list
+    UserNotes: string option
+}
+
+// ============================================
+// Categorization Rules
+// ============================================
+
+type PatternType =
+    | Regex
+    | Contains
+    | Exact
+
+type TargetField =
+    | Payee
+    | Memo
+    | Combined  // Searches both payee and memo
+
+type Rule = {
+    Id: RuleId
+    Name: string
+    Pattern: string
+    PatternType: PatternType
+    TargetField: TargetField
+    CategoryId: YnabCategoryId
+    CategoryName: string  // Cached for display
+    PayeeOverride: string option
+    Priority: int
+    Enabled: bool
+    CreatedAt: DateTime
+    UpdatedAt: DateTime
+}
+
+type RuleCreateRequest = {
+    Name: string
+    Pattern: string
+    PatternType: PatternType
+    TargetField: TargetField
+    CategoryId: YnabCategoryId
+    PayeeOverride: string option
+    Priority: int
+}
+
+type RuleUpdateRequest = {
+    Id: RuleId
+    Name: string option
+    Pattern: string option
+    PatternType: PatternType option
+    TargetField: TargetField option
+    CategoryId: YnabCategoryId option
+    PayeeOverride: string option
+    Priority: int option
+    Enabled: bool option
+}
+
+// ============================================
+// YNAB Types
+// ============================================
+
+type YnabBudget = {
+    Id: YnabBudgetId
+    Name: string
+}
+
+type YnabAccount = {
+    Id: YnabAccountId
+    Name: string
+    Balance: Money
+}
+
+type YnabCategory = {
+    Id: YnabCategoryId
+    Name: string
+    GroupName: string
+}
+
+type YnabBudgetWithAccounts = {
+    Budget: YnabBudget
+    Accounts: YnabAccount list
+    Categories: YnabCategory list
+}
+
+// ============================================
+// Sync Session
+// ============================================
+
+type SyncSessionStatus =
+    | AwaitingBankAuth      // Need to start Comdirect OAuth
+    | AwaitingTan           // Waiting for user to confirm TAN
+    | FetchingTransactions  // Fetching from bank
+    | ReviewingTransactions // User reviewing/categorizing
+    | ImportingToYnab       // Sending to YNAB
+    | Completed             // Done
+    | Failed of string      // Error occurred
+
+type SyncSession = {
+    Id: SyncSessionId
+    StartedAt: DateTime
+    CompletedAt: DateTime option
+    Status: SyncSessionStatus
+    TransactionCount: int
+    ImportedCount: int
+    SkippedCount: int
+}
+
+type SyncSessionSummary = {
+    Session: SyncSession
+    Transactions: SyncTransaction list
+}
+
+// ============================================
+// Settings/Configuration
+// ============================================
+
+type ComdirectSettings = {
+    ClientId: string
+    ClientSecret: string
+    AccountId: string
+}
+
+type YnabSettings = {
+    PersonalAccessToken: string
+    DefaultBudgetId: YnabBudgetId option
+    DefaultAccountId: YnabAccountId option
+}
+
+type SyncSettings = {
+    DaysToFetch: int  // How many days back to fetch
+}
+
+type AppSettings = {
+    Comdirect: ComdirectSettings option
+    Ynab: YnabSettings option
+    Sync: SyncSettings
+}
+
+// ============================================
+// Comdirect Auth State (for TAN flow)
+// ============================================
+
+type ComdirectAuthState =
+    | NotAuthenticated
+    | WaitingForPushTan of challengeId: string
+    | Authenticated of accessToken: string * refreshToken: string
+
+// ============================================
+// API Results
+// ============================================
+
+type ApiResult<'T> = Result<'T, string>
+```
+
+### File: `src/Shared/Api.fs`
+
+```fsharp
+module Shared.Api
+
+open Domain
+
+// ============================================
+// Settings API
+// ============================================
+
+type ISettingsApi = {
+    getSettings: unit -> Async<AppSettings>
+    saveYnabToken: string -> Async<ApiResult<unit>>
+    saveComdirectCredentials: ComdirectSettings -> Async<ApiResult<unit>>
+    saveSyncSettings: SyncSettings -> Async<ApiResult<unit>>
+    testYnabConnection: unit -> Async<ApiResult<YnabBudgetWithAccounts list>>
+}
+
+// ============================================
+// YNAB API
+// ============================================
+
+type IYnabApi = {
+    getBudgets: unit -> Async<ApiResult<YnabBudget list>>
+    getBudgetDetails: YnabBudgetId -> Async<ApiResult<YnabBudgetWithAccounts>>
+    getCategories: YnabBudgetId -> Async<ApiResult<YnabCategory list>>
+    setDefaultBudget: YnabBudgetId -> Async<ApiResult<unit>>
+    setDefaultAccount: YnabAccountId -> Async<ApiResult<unit>>
+}
+
+// ============================================
+// Rules API
+// ============================================
+
+type IRulesApi = {
+    getAllRules: unit -> Async<Rule list>
+    getRule: RuleId -> Async<ApiResult<Rule>>
+    createRule: RuleCreateRequest -> Async<ApiResult<Rule>>
+    updateRule: RuleUpdateRequest -> Async<ApiResult<Rule>>
+    deleteRule: RuleId -> Async<ApiResult<unit>>
+    reorderRules: RuleId list -> Async<ApiResult<unit>>
+    exportRules: unit -> Async<string>  // JSON export
+    importRules: string -> Async<ApiResult<int>>  // Returns count imported
+    testRule: string * PatternType * TargetField * string -> Async<bool>  // pattern, type, field, testInput
+}
+
+// ============================================
+// Sync Flow API
+// ============================================
+
+type ISyncApi = {
+    // Session management
+    startSync: unit -> Async<ApiResult<SyncSession>>
+    getCurrentSession: unit -> Async<SyncSession option>
+    cancelSync: SyncSessionId -> Async<ApiResult<unit>>
+
+    // Comdirect auth flow
+    initiateComdirectAuth: SyncSessionId -> Async<ApiResult<string>>  // Returns challenge info
+    confirmTan: SyncSessionId -> Async<ApiResult<unit>>  // User confirmed push TAN
+
+    // Transaction operations
+    getTransactions: SyncSessionId -> Async<ApiResult<SyncTransaction list>>
+    categorizeTransaction: SyncSessionId * TransactionId * YnabCategoryId option * string option -> Async<ApiResult<SyncTransaction>>
+    skipTransaction: SyncSessionId * TransactionId -> Async<ApiResult<SyncTransaction>>
+    bulkCategorize: SyncSessionId * TransactionId list * YnabCategoryId -> Async<ApiResult<SyncTransaction list>>
+
+    // Import
+    importToYnab: SyncSessionId -> Async<ApiResult<int>>  // Returns count imported
+
+    // History
+    getSyncHistory: int -> Async<SyncSession list>  // Recent N sessions
+}
+
+// ============================================
+// Combined App API
+// ============================================
+
+type IAppApi = {
+    Settings: ISettingsApi
+    Ynab: IYnabApi
+    Rules: IRulesApi
+    Sync: ISyncApi
+}
+```
+
+### Verification Checklist
+- [ ] `src/Shared/Domain.fs` compiles without errors
+- [ ] `src/Shared/Api.fs` compiles without errors
+- [ ] All types match the product specification requirements
+- [ ] `dotnet build src/Shared` succeeds
+
+---
+
+## Milestone 2: Database Schema & Persistence Layer
+
+**Goal**: Set up SQLite database with tables for rules, settings, and sync history.
+
+**Read First**: `/docs/05-PERSISTENCE.md`
+
+**Invoke Skill**: `fsharp-persistence`
+
+### File: `src/Server/Persistence.fs`
+
+Create the persistence module with:
+
+1. **Database Initialization**
+   ```sql
+   -- Rules table
+   CREATE TABLE IF NOT EXISTS rules (
+       id TEXT PRIMARY KEY,
+       name TEXT NOT NULL,
+       pattern TEXT NOT NULL,
+       pattern_type TEXT NOT NULL,  -- 'Regex' | 'Contains' | 'Exact'
+       target_field TEXT NOT NULL,  -- 'Payee' | 'Memo' | 'Combined'
+       category_id TEXT NOT NULL,
+       category_name TEXT NOT NULL,
+       payee_override TEXT,
+       priority INTEGER NOT NULL DEFAULT 0,
+       enabled INTEGER NOT NULL DEFAULT 1,
+       created_at TEXT NOT NULL,
+       updated_at TEXT NOT NULL
+   );
+
+   -- Settings table (key-value with encryption for secrets)
+   CREATE TABLE IF NOT EXISTS settings (
+       key TEXT PRIMARY KEY,
+       value TEXT NOT NULL,
+       encrypted INTEGER NOT NULL DEFAULT 0,
+       updated_at TEXT NOT NULL
+   );
+
+   -- Sync sessions table
+   CREATE TABLE IF NOT EXISTS sync_sessions (
+       id TEXT PRIMARY KEY,
+       started_at TEXT NOT NULL,
+       completed_at TEXT,
+       status TEXT NOT NULL,
+       transaction_count INTEGER NOT NULL DEFAULT 0,
+       imported_count INTEGER NOT NULL DEFAULT 0,
+       skipped_count INTEGER NOT NULL DEFAULT 0
+   );
+
+   -- Sync transactions (for history/audit)
+   CREATE TABLE IF NOT EXISTS sync_transactions (
+       id TEXT PRIMARY KEY,
+       session_id TEXT NOT NULL,
+       transaction_id TEXT NOT NULL,
+       booking_date TEXT NOT NULL,
+       amount REAL NOT NULL,
+       currency TEXT NOT NULL,
+       payee TEXT,
+       memo TEXT NOT NULL,
+       reference TEXT NOT NULL,
+       status TEXT NOT NULL,
+       category_id TEXT,
+       category_name TEXT,
+       matched_rule_id TEXT,
+       payee_override TEXT,
+       created_at TEXT NOT NULL,
+       FOREIGN KEY (session_id) REFERENCES sync_sessions(id)
+   );
+
+   CREATE INDEX IF NOT EXISTS idx_rules_priority ON rules(priority DESC);
+   CREATE INDEX IF NOT EXISTS idx_sync_sessions_started ON sync_sessions(started_at DESC);
+   CREATE INDEX IF NOT EXISTS idx_sync_transactions_session ON sync_transactions(session_id);
+   ```
+
+2. **CRUD Operations**
+   - Rules: getAllRules, getRuleById, insertRule, updateRule, deleteRule, reorderRules
+   - Settings: getSetting, setSetting, getEncryptedSetting, setEncryptedSetting
+   - SyncSessions: createSession, updateSession, getRecentSessions
+   - SyncTransactions: saveTransaction, getTransactionsBySession
+
+3. **Encryption Helper** (for YNAB token, Comdirect secrets)
+   - Use AES-256 with a machine-specific key or environment variable
+
+### Verification Checklist
+- [ ] Database initializes on first run
+- [ ] Rules CRUD operations work
+- [ ] Settings can be stored and retrieved
+- [ ] Encrypted settings are properly protected
+- [ ] `dotnet test` for persistence tests pass
+
+---
+
+## Milestone 3: YNAB API Integration
+
+**Goal**: Implement YNAB API client to fetch budgets, accounts, categories, and create transactions.
+
+**Read First**: `/docs/03-BACKEND-GUIDE.md`
+
+**Invoke Skill**: `fsharp-backend`
+
+### Technical Reference (from legacy code)
+
+The legacy code uses the YNAB SDK. For the web app, we'll use direct HTTP calls via FsHttp:
+
+**YNAB API Endpoints**:
+- `GET /budgets` - List all budgets
+- `GET /budgets/{budget_id}` - Get budget details
+- `GET /budgets/{budget_id}/categories` - Get categories
+- `GET /budgets/{budget_id}/accounts` - Get accounts
+- `POST /budgets/{budget_id}/transactions` - Create transactions
+
+**Authentication**: Bearer token from Personal Access Token
+
+### File: `src/Server/YnabClient.fs`
+
+```fsharp
+module Server.YnabClient
+
+open System
+open FsHttp
+open FsToolkit.ErrorHandling
+open Thoth.Json.Net
+open Shared.Domain
+
+let private baseUrl = "https://api.youneedabudget.com/v1"
+
+// Implement:
+// 1. getBudgets: token -> Async<Result<YnabBudget list, string>>
+// 2. getBudgetWithAccounts: token -> budgetId -> Async<Result<YnabBudgetWithAccounts, string>>
+// 3. getCategories: token -> budgetId -> Async<Result<YnabCategory list, string>>
+// 4. createTransactions: token -> budgetId -> transactions -> Async<Result<int, string>>
+```
+
+**Key Implementation Notes**:
+- Parse JSON responses using Thoth.Json.Net decoders
+- Handle rate limiting (429 responses)
+- Return clear error messages for auth failures
+- Cache category list during sync session
+
+### Verification Checklist
+- [ ] Can fetch budgets list
+- [ ] Can fetch categories for a budget
+- [ ] Can create test transaction
+- [ ] Error handling for invalid token
+- [ ] Error handling for rate limits
+
+---
+
+## Milestone 4: Comdirect API Integration
+
+**Goal**: Implement Comdirect OAuth flow with Push-TAN support.
+
+**Invoke Skill**: `fsharp-backend`
+
+### Technical Reference (from legacy code)
+
+**Authentication Flow** (from `legacy/Comdirect/Login.fs`):
+
+1. **Init OAuth** - `POST /oauth/token` with client credentials + username/password
+2. **Get Session Identifier** - `GET /api/session/clients/user/v1/sessions`
+3. **Request Validation (Push TAN)** - `POST /api/session/clients/user/v1/sessions/{id}/validate`
+4. **Wait for User TAN Confirmation** - User confirms on phone
+5. **Activate Session** - `PATCH /api/session/clients/user/v1/sessions/{id}`
+6. **Get Extended Permissions** - `POST /oauth/token` with `grant_type=cd_secondary`
+
+**Transaction Fetching** (from `legacy/Comdirect/Transactions.fs`):
+- `GET /api/banking/v1/accounts/{accountId}/transactions?transactionState=BOOKED`
+- Supports pagination via `paging-first` parameter
+- Returns JSON with `values` array of transactions
+
+### File: `src/Server/ComdirectClient.fs`
+
+```fsharp
+module Server.ComdirectClient
+
+open System
+open FsHttp
+open FsToolkit.ErrorHandling
+open Thoth.Json.Net
+open Shared.Domain
+
+let private endpoint = "https://api.comdirect.de/"
+
+type Tokens = {
+    Access: string
+    Refresh: string
+}
+
+type Challenge = {
+    Id: string
+    Type: string  // "P_TAN_PUSH"
+}
+
+type AuthSession = {
+    RequestId: string
+    SessionId: string
+    Tokens: Tokens
+    SessionIdentifier: string
+    Challenge: Challenge option
+}
+
+// Implement:
+// 1. initOAuth: credentials -> apiKeys -> Async<Result<Tokens, string>>
+// 2. getSessionIdentifier: requestInfo -> tokens -> Async<Result<string, string>>
+// 3. requestTanChallenge: requestInfo -> tokens -> sessionId -> Async<Result<Challenge, string>>
+// 4. activateSession: requestInfo -> tokens -> sessionId -> challengeId -> Async<Result<unit, string>>
+// 5. getExtendedTokens: tokens -> apiKeys -> Async<Result<Tokens, string>>
+// 6. getTransactions: requestInfo -> tokens -> accountId -> days -> Async<Result<BankTransaction list, string>>
+```
+
+**Important**: The web UI must handle the TAN flow asynchronously:
+1. Start auth flow
+2. Show "Waiting for TAN confirmation" in UI
+3. Poll or use WebSocket for status updates
+4. Continue after user confirms
+
+### File: `src/Server/ComdirectAuthSession.fs`
+
+Manage authentication state during sync:
+
+```fsharp
+module Server.ComdirectAuthSession
+
+// In-memory session management (single user app)
+// Store: AuthSession option ref
+// Functions:
+// - startAuth: credentials -> Async<Result<Challenge, string>>
+// - confirmTan: unit -> Async<Result<Tokens, string>>
+// - getTokens: unit -> Tokens option
+// - clearSession: unit -> unit
+```
+
+### Verification Checklist
+- [ ] OAuth flow initiates correctly
+- [ ] TAN challenge is returned
+- [ ] Can complete auth after simulated TAN confirmation
+- [ ] Transactions are fetched and parsed
+- [ ] Pagination works for large transaction lists
+- [ ] Error handling for auth failures
+- [ ] Session cleanup after use
+
+---
+
+## Milestone 5: Rules Engine
+
+**Goal**: Implement automatic transaction categorization based on user-defined rules.
+
+**Invoke Skill**: `fsharp-validation`
+
+### Technical Reference (from legacy code)
+
+From `legacy/RulesEngine.fs`:
+- Rules are loaded from YAML config
+- Each rule has a regex pattern and target category
+- Categories are matched by normalized name (case-insensitive, umlaut-folded)
+- First matching rule wins (priority order)
+
+### File: `src/Server/RulesEngine.fs`
+
+```fsharp
+module Server.RulesEngine
+
+open System
+open System.Text.RegularExpressions
+open Shared.Domain
+
+type CompiledRule = {
+    Rule: Rule
+    Regex: Regex
+}
+
+// Compile rules at load time for performance
+let compileRule (rule: Rule) : Result<CompiledRule, string> =
+    // Based on PatternType, create appropriate Regex
+    // - Exact: ^pattern$ with RegexOptions.IgnoreCase
+    // - Contains: pattern with RegexOptions.IgnoreCase
+    // - Regex: pattern as-is with RegexOptions.IgnoreCase
+
+let compileRules (rules: Rule list) : Result<CompiledRule list, string list> =
+    // Compile all rules, collect errors
+
+let getMatchText (transaction: BankTransaction) (targetField: TargetField) : string =
+    // Based on targetField, return:
+    // - Payee: transaction.Payee
+    // - Memo: transaction.Memo
+    // - Combined: payee + " " + memo
+
+let classify
+    (compiledRules: CompiledRule list)
+    (transaction: BankTransaction)
+    : (Rule * YnabCategoryId) option =
+    // Find first matching rule by priority order
+    // Return the rule and category ID
+
+let classifyTransactions
+    (rules: Rule list)
+    (transactions: BankTransaction list)
+    : SyncTransaction list =
+    // For each transaction:
+    // 1. Try to classify with rules
+    // 2. Check for special patterns (Amazon, PayPal) -> NeedsAttention
+    // 3. Set appropriate status
+```
+
+### Special Pattern Detection
+
+```fsharp
+let private amazonPatterns = [
+    "AMAZON"
+    "AMZN"
+    "Amazon.de"
+    "AMAZON PAYMENTS"
+]
+
+let private paypalPatterns = [
+    "PAYPAL"
+    "PP."
+]
+
+let detectSpecialTransaction (transaction: BankTransaction) : ExternalLink list =
+    // Check if transaction matches Amazon/PayPal patterns
+    // Return appropriate external links
+```
+
+### Verification Checklist
+- [ ] Rules compile correctly (all pattern types)
+- [ ] Classification returns correct category
+- [ ] Priority ordering works
+- [ ] Amazon transactions detected
+- [ ] PayPal transactions detected
+- [ ] Combined field matching works
+- [ ] Performance acceptable for 100+ rules
+
+---
+
+## Milestone 6: Backend API Implementation
+
+**Goal**: Implement all API endpoints defined in `Shared.Api`.
+
+**Read First**: `/docs/03-BACKEND-GUIDE.md`, `/docs/09-QUICK-REFERENCE.md`
+
+**Invoke Skill**: `fsharp-backend`
+
+### File: `src/Server/Api.fs`
+
+Implement all APIs:
+
+```fsharp
+module Server.Api
+
+open Fable.Remoting.Server
+open Fable.Remoting.Giraffe
+open Shared.Api
+open Shared.Domain
+
+// ============================================
+// Settings API Implementation
+// ============================================
+
+let settingsApi : ISettingsApi = {
+    getSettings = fun () -> async {
+        // Load settings from database
+        // Decrypt secrets as needed
+    }
+
+    saveYnabToken = fun token -> async {
+        // Validate token by calling YNAB API
+        // Encrypt and store if valid
+    }
+
+    saveComdirectCredentials = fun creds -> async {
+        // Encrypt and store credentials
+    }
+
+    saveSyncSettings = fun settings -> async {
+        // Validate and store
+    }
+
+    testYnabConnection = fun () -> async {
+        // Load token, call YNAB API
+        // Return budgets list or error
+    }
+}
+
+// ============================================
+// YNAB API Implementation
+// ============================================
+
+let ynabApi : IYnabApi = {
+    getBudgets = fun () -> async {
+        // Get token from settings
+        // Call YNAB API
+    }
+
+    getBudgetDetails = fun budgetId -> async {
+        // Fetch budget with accounts and categories
+    }
+
+    getCategories = fun budgetId -> async {
+        // Fetch categories, cache for session
+    }
+
+    setDefaultBudget = fun budgetId -> async {
+        // Save to settings
+    }
+
+    setDefaultAccount = fun accountId -> async {
+        // Save to settings
+    }
+}
+
+// ============================================
+// Rules API Implementation
+// ============================================
+
+let rulesApi : IRulesApi = {
+    getAllRules = fun () -> async {
+        // Load from database, ordered by priority
+    }
+
+    getRule = fun ruleId -> async {
+        // Load single rule
+    }
+
+    createRule = fun request -> async {
+        // Validate pattern compiles
+        // Fetch category name from YNAB
+        // Insert to database
+    }
+
+    updateRule = fun request -> async {
+        // Validate, update database
+    }
+
+    deleteRule = fun ruleId -> async {
+        // Delete from database
+    }
+
+    reorderRules = fun ruleIds -> async {
+        // Update priorities based on order
+    }
+
+    exportRules = fun () -> async {
+        // Load all rules, serialize to JSON
+    }
+
+    importRules = fun json -> async {
+        // Parse JSON, validate, insert rules
+    }
+
+    testRule = fun (pattern, patternType, targetField, testInput) -> async {
+        // Compile pattern, test against input
+    }
+}
+
+// ============================================
+// Sync API Implementation
+// ============================================
+
+let syncApi : ISyncApi = {
+    startSync = fun () -> async {
+        // Create new session
+        // Return session info
+    }
+
+    getCurrentSession = fun () -> async {
+        // Get active session if any
+    }
+
+    cancelSync = fun sessionId -> async {
+        // Mark session as cancelled
+        // Clear auth state
+    }
+
+    initiateComdirectAuth = fun sessionId -> async {
+        // Start OAuth flow
+        // Return challenge info for UI
+    }
+
+    confirmTan = fun sessionId -> async {
+        // Complete TAN flow
+        // Fetch transactions
+        // Apply rules engine
+        // Update session status
+    }
+
+    getTransactions = fun sessionId -> async {
+        // Return current session's transactions
+    }
+
+    categorizeTransaction = fun (sessionId, txId, categoryId, payeeOverride) -> async {
+        // Update transaction in session
+    }
+
+    skipTransaction = fun (sessionId, txId) -> async {
+        // Mark transaction as skipped
+    }
+
+    bulkCategorize = fun (sessionId, txIds, categoryId) -> async {
+        // Update multiple transactions
+    }
+
+    importToYnab = fun sessionId -> async {
+        // Get categorized transactions
+        // Create YNAB transactions
+        // Update session status
+        // Return count
+    }
+
+    getSyncHistory = fun count -> async {
+        // Load recent sessions from database
+    }
+}
+
+// ============================================
+// Combined API
+// ============================================
+
+let appApi : IAppApi = {
+    Settings = settingsApi
+    Ynab = ynabApi
+    Rules = rulesApi
+    Sync = syncApi
+}
+
+let webApp =
+    Remoting.createApi()
+    |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
+    |> Remoting.fromValue appApi
+    |> Remoting.buildHttpHandler
+```
+
+### Verification Checklist
+- [ ] All API endpoints implemented
+- [ ] Settings save/load correctly
+- [ ] YNAB connection test works
+- [ ] Rules CRUD works
+- [ ] Sync flow state management works
+- [ ] Error handling returns clear messages
+- [ ] `dotnet build src/Server` succeeds
+
+---
+
+## Milestone 7: Frontend - Base Layout & Navigation
+
+**Goal**: Create the main application shell with navigation.
+
+**Read First**: `/docs/02-FRONTEND-GUIDE.md`
+
+**Invoke Skill**: `fsharp-frontend`
+
+### Pages/Routes
+
+```
+/                 -> Dashboard (start sync, quick stats)
+/sync             -> Active sync flow
+/rules            -> Rules management
+/settings         -> App settings
+```
+
+### File: `src/Client/Types.fs`
+
+```fsharp
+module Client.Types
+
+open Shared.Domain
+
+// RemoteData for async operations
+type RemoteData<'T> =
+    | NotAsked
+    | Loading
+    | Success of 'T
+    | Failure of string
+
+// Application pages
+type Page =
+    | Dashboard
+    | SyncFlow
+    | Rules
+    | Settings
+
+// Toast notifications
+type Toast = {
+    Id: System.Guid
+    Message: string
+    Type: ToastType
+}
+
+and ToastType =
+    | ToastSuccess
+    | ToastError
+    | ToastInfo
+    | ToastWarning
+```
+
+### File: `src/Client/State.fs`
+
+```fsharp
+module Client.State
+
+open Elmish
+open Shared.Domain
+open Shared.Api
+open Types
+
+type Model = {
+    CurrentPage: Page
+    Toasts: Toast list
+
+    // Dashboard
+    CurrentSession: RemoteData<SyncSession option>
+    RecentSessions: RemoteData<SyncSession list>
+
+    // Settings
+    Settings: RemoteData<AppSettings>
+    YnabBudgets: RemoteData<YnabBudget list>
+
+    // Rules
+    Rules: RemoteData<Rule list>
+    EditingRule: Rule option
+
+    // Sync Flow
+    SyncTransactions: RemoteData<SyncTransaction list>
+    SelectedTransactions: Set<TransactionId>
+    Categories: YnabCategory list
+}
+
+type Msg =
+    // Navigation
+    | NavigateTo of Page
+
+    // Toast
+    | ShowToast of string * ToastType
+    | DismissToast of System.Guid
+
+    // Settings
+    | LoadSettings
+    | SettingsLoaded of Result<AppSettings, string>
+    | SaveYnabToken of string
+    | YnabTokenSaved of Result<unit, string>
+    | TestYnabConnection
+    | YnabConnectionTested of Result<YnabBudgetWithAccounts list, string>
+
+    // ... more messages for each feature
+
+let init () : Model * Cmd<Msg> =
+    let model = {
+        CurrentPage = Dashboard
+        Toasts = []
+        CurrentSession = NotAsked
+        RecentSessions = NotAsked
+        Settings = NotAsked
+        YnabBudgets = NotAsked
+        Rules = NotAsked
+        EditingRule = None
+        SyncTransactions = NotAsked
+        SelectedTransactions = Set.empty
+        Categories = []
+    }
+    model, Cmd.ofMsg LoadSettings
+
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
+    match msg with
+    | NavigateTo page ->
+        { model with CurrentPage = page }, Cmd.none
+
+    // ... implement all message handlers
+```
+
+### File: `src/Client/View.fs`
+
+```fsharp
+module Client.View
+
+open Feliz
+open State
+open Types
+
+// Main layout with navigation
+let private navbar (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "navbar bg-base-100 shadow-lg"
+        prop.children [
+            Html.div [
+                prop.className "flex-1"
+                prop.children [
+                    Html.a [
+                        prop.className "btn btn-ghost text-xl"
+                        prop.text "BudgetBuddy"
+                        prop.onClick (fun _ -> dispatch (NavigateTo Dashboard))
+                    ]
+                ]
+            ]
+            Html.div [
+                prop.className "flex-none"
+                prop.children [
+                    Html.ul [
+                        prop.className "menu menu-horizontal px-1"
+                        prop.children [
+                            Html.li [
+                                Html.a [
+                                    prop.text "Rules"
+                                    prop.onClick (fun _ -> dispatch (NavigateTo Rules))
+                                ]
+                            ]
+                            Html.li [
+                                Html.a [
+                                    prop.text "Settings"
+                                    prop.onClick (fun _ -> dispatch (NavigateTo Settings))
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+// Toast container
+let private toasts (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "toast toast-end"
+        prop.children [
+            for toast in model.Toasts do
+                Html.div [
+                    prop.className (
+                        match toast.Type with
+                        | ToastSuccess -> "alert alert-success"
+                        | ToastError -> "alert alert-error"
+                        | ToastInfo -> "alert alert-info"
+                        | ToastWarning -> "alert alert-warning"
+                    )
+                    prop.children [
+                        Html.span [ prop.text toast.Message ]
+                        Html.button [
+                            prop.className "btn btn-ghost btn-xs"
+                            prop.text "×"
+                            prop.onClick (fun _ -> dispatch (DismissToast toast.Id))
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "min-h-screen bg-base-200"
+        prop.children [
+            navbar model dispatch
+            Html.main [
+                prop.className "container mx-auto p-4"
+                prop.children [
+                    match model.CurrentPage with
+                    | Dashboard -> DashboardView.view model dispatch
+                    | SyncFlow -> SyncFlowView.view model dispatch
+                    | Rules -> RulesView.view model dispatch
+                    | Settings -> SettingsView.view model dispatch
+                ]
+            ]
+            toasts model dispatch
+        ]
+    ]
+```
+
+### Verification Checklist
+- [ ] Navigation between pages works
+- [ ] Toast notifications display and dismiss
+- [ ] Layout is responsive
+- [ ] DaisyUI components render correctly
+- [ ] `npm run dev` shows the app
+
+---
+
+## Milestone 8: Frontend - Settings Page
+
+**Goal**: Implement settings page for API credentials and sync configuration.
+
+**Invoke Skill**: `fsharp-frontend`
+
+### UI Components
+
+1. **YNAB Settings Card**
+   - Personal Access Token input (password field)
+   - Test Connection button
+   - Budget/Account selection dropdowns (after successful test)
+   - Save button
+
+2. **Comdirect Settings Card**
+   - Client ID input
+   - Client Secret input (password field)
+   - Account ID input
+   - Save button
+
+3. **Sync Settings Card**
+   - Days to fetch slider/input (7-90 days)
+   - Save button
+
+### File: `src/Client/Views/SettingsView.fs`
+
+```fsharp
+module Client.Views.SettingsView
+
+open Feliz
+open Client.State
+open Client.Types
+open Shared.Domain
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            // Header
+            Html.h1 [
+                prop.className "text-3xl font-bold"
+                prop.text "Settings"
+            ]
+
+            // YNAB Settings Card
+            Html.div [
+                prop.className "card bg-base-100 shadow-xl"
+                prop.children [
+                    Html.div [
+                        prop.className "card-body"
+                        prop.children [
+                            Html.h2 [
+                                prop.className "card-title"
+                                prop.text "YNAB Connection"
+                            ]
+                            // Token input, test button, budget selector
+                            // ...
+                        ]
+                    ]
+                ]
+            ]
+
+            // Comdirect Settings Card
+            // ...
+
+            // Sync Settings Card
+            // ...
+        ]
+    ]
+```
+
+### Verification Checklist
+- [ ] YNAB token can be entered and saved
+- [ ] Test connection shows budgets/accounts
+- [ ] Default budget/account can be selected
+- [ ] Comdirect credentials can be saved
+- [ ] Sync days setting works
+- [ ] Form validation shows errors
+- [ ] Success/error toasts display
+
+---
+
+## Milestone 9: Frontend - Rules Management
+
+**Goal**: Implement rules list, create/edit forms, and testing UI.
+
+**Invoke Skill**: `fsharp-frontend`
+
+### UI Components
+
+1. **Rules List**
+   - Sortable table/list with drag-drop for priority
+   - Columns: Name, Pattern, Category, Enabled toggle
+   - Actions: Edit, Delete, Test
+
+2. **Rule Edit Modal/Form**
+   - Name input
+   - Pattern input with syntax help
+   - Pattern type selector (Regex/Contains/Exact)
+   - Target field selector (Payee/Memo/Combined)
+   - Category dropdown (from YNAB)
+   - Payee override input (optional)
+   - Test area: input sample text, see if it matches
+
+3. **Import/Export Buttons**
+   - Export: Download JSON file
+   - Import: Upload JSON file
+
+### File: `src/Client/Views/RulesView.fs`
+
+```fsharp
+module Client.Views.RulesView
+
+open Feliz
+open Client.State
+open Client.Types
+open Shared.Domain
+
+let private ruleRow (rule: Rule) (dispatch: Msg -> unit) =
+    Html.tr [
+        prop.children [
+            Html.td [ prop.text rule.Name ]
+            Html.td [
+                prop.className "font-mono text-sm"
+                prop.text rule.Pattern
+            ]
+            Html.td [ prop.text rule.CategoryName ]
+            Html.td [
+                Html.input [
+                    prop.type'.checkbox
+                    prop.className "toggle toggle-primary"
+                    prop.isChecked rule.Enabled
+                    prop.onChange (fun _ -> dispatch (ToggleRuleEnabled rule.Id))
+                ]
+            ]
+            Html.td [
+                Html.div [
+                    prop.className "flex gap-2"
+                    prop.children [
+                        Html.button [
+                            prop.className "btn btn-ghost btn-xs"
+                            prop.text "Edit"
+                            prop.onClick (fun _ -> dispatch (EditRule rule.Id))
+                        ]
+                        Html.button [
+                            prop.className "btn btn-ghost btn-xs text-error"
+                            prop.text "Delete"
+                            prop.onClick (fun _ -> dispatch (DeleteRule rule.Id))
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            // Header with Add/Import/Export buttons
+            Html.div [
+                prop.className "flex justify-between items-center"
+                prop.children [
+                    Html.h1 [
+                        prop.className "text-3xl font-bold"
+                        prop.text "Categorization Rules"
+                    ]
+                    Html.div [
+                        prop.className "flex gap-2"
+                        prop.children [
+                            Html.button [
+                                prop.className "btn btn-primary"
+                                prop.text "Add Rule"
+                                prop.onClick (fun _ -> dispatch OpenNewRuleModal)
+                            ]
+                            // Import/Export buttons
+                        ]
+                    ]
+                ]
+            ]
+
+            // Rules table
+            match model.Rules with
+            | NotAsked | Loading ->
+                Html.div [
+                    prop.className "flex justify-center"
+                    prop.children [
+                        Html.span [ prop.className "loading loading-spinner loading-lg" ]
+                    ]
+                ]
+            | Failure error ->
+                Html.div [
+                    prop.className "alert alert-error"
+                    prop.text error
+                ]
+            | Success rules ->
+                Html.div [
+                    prop.className "overflow-x-auto"
+                    prop.children [
+                        Html.table [
+                            prop.className "table table-zebra"
+                            prop.children [
+                                Html.thead [
+                                    Html.tr [
+                                        Html.th [ prop.text "Name" ]
+                                        Html.th [ prop.text "Pattern" ]
+                                        Html.th [ prop.text "Category" ]
+                                        Html.th [ prop.text "Enabled" ]
+                                        Html.th [ prop.text "Actions" ]
+                                    ]
+                                ]
+                                Html.tbody [
+                                    for rule in rules do
+                                        ruleRow rule dispatch
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+
+            // Edit modal (if editing)
+            match model.EditingRule with
+            | Some rule -> ruleEditModal rule model.Categories dispatch
+            | None -> Html.none
+        ]
+    ]
+```
+
+### Verification Checklist
+- [ ] Rules list displays all rules
+- [ ] Create new rule works
+- [ ] Edit existing rule works
+- [ ] Delete rule with confirmation
+- [ ] Toggle enabled/disabled
+- [ ] Drag-drop reorder (or manual priority)
+- [ ] Pattern test shows match result
+- [ ] Export downloads JSON
+- [ ] Import uploads and saves rules
+- [ ] Category dropdown populated from YNAB
+
+---
+
+## Milestone 10: Frontend - Sync Flow UI
+
+**Goal**: Implement the main sync workflow with transaction review.
+
+**Invoke Skill**: `fsharp-frontend`
+
+### Sync Flow Steps
+
+1. **Start Sync**
+   - Show "Start New Sync" button on dashboard
+   - Display loading state
+
+2. **Comdirect Authentication**
+   - Show instructions for TAN
+   - Display waiting indicator
+   - "Confirm TAN" button (user confirms on phone first)
+
+3. **Transaction Review**
+   - List all transactions with color coding:
+     - Green: Auto-categorized
+     - Yellow: Needs attention (Amazon, PayPal)
+     - Red: Uncategorized
+   - Each row shows:
+     - Date, Amount, Payee/Memo
+     - Category dropdown
+     - External links (if applicable)
+     - Checkbox for selection
+
+4. **Bulk Actions**
+   - Select all/none
+   - Bulk categorize selected
+   - Skip selected
+
+5. **Import Confirmation**
+   - Summary: X categorized, Y skipped
+   - "Import to YNAB" button
+   - Final confirmation modal
+
+6. **Success/Summary**
+   - Show results
+   - Option to start another sync
+
+### File: `src/Client/Views/SyncFlowView.fs`
+
+```fsharp
+module Client.Views.SyncFlowView
+
+open Feliz
+open Client.State
+open Client.Types
+open Shared.Domain
+
+let private statusBadge (status: TransactionStatus) =
+    let (color, text) =
+        match status with
+        | Pending -> ("badge-error", "Uncategorized")
+        | AutoCategorized -> ("badge-success", "Auto")
+        | ManualCategorized -> ("badge-info", "Manual")
+        | NeedsAttention -> ("badge-warning", "Review")
+        | Skipped -> ("badge-ghost", "Skipped")
+        | Imported -> ("badge-success", "Imported")
+    Html.span [
+        prop.className $"badge {color}"
+        prop.text text
+    ]
+
+let private transactionRow
+    (tx: SyncTransaction)
+    (categories: YnabCategory list)
+    (isSelected: bool)
+    (dispatch: Msg -> unit) =
+    Html.tr [
+        prop.className (
+            match tx.Status with
+            | NeedsAttention -> "bg-warning/10"
+            | Pending -> "bg-error/10"
+            | _ -> ""
+        )
+        prop.children [
+            // Checkbox
+            Html.td [
+                Html.input [
+                    prop.type'.checkbox
+                    prop.isChecked isSelected
+                    prop.onChange (fun _ -> dispatch (ToggleTransactionSelection tx.Transaction.Id))
+                ]
+            ]
+            // Date
+            Html.td [
+                prop.text (tx.Transaction.BookingDate.ToString("dd.MM.yyyy"))
+            ]
+            // Amount
+            Html.td [
+                prop.className (if tx.Transaction.Amount.Amount < 0m then "text-error" else "text-success")
+                prop.text (sprintf "%.2f €" tx.Transaction.Amount.Amount)
+            ]
+            // Payee/Memo
+            Html.td [
+                Html.div [
+                    Html.div [
+                        prop.className "font-medium"
+                        prop.text (tx.Transaction.Payee |> Option.defaultValue "-")
+                    ]
+                    Html.div [
+                        prop.className "text-sm text-base-content/70 truncate max-w-xs"
+                        prop.text tx.Transaction.Memo
+                    ]
+                ]
+            ]
+            // Status
+            Html.td [ statusBadge tx.Status ]
+            // Category dropdown
+            Html.td [
+                Html.select [
+                    prop.className "select select-bordered select-sm w-full max-w-xs"
+                    prop.value (tx.CategoryId |> Option.map (fun (YnabCategoryId id) -> id.ToString()) |> Option.defaultValue "")
+                    prop.onChange (fun (value: string) ->
+                        if value = "" then
+                            dispatch (CategorizeTransaction (tx.Transaction.Id, None))
+                        else
+                            dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value))))
+                    )
+                    prop.children [
+                        Html.option [
+                            prop.value ""
+                            prop.text "-- Select Category --"
+                        ]
+                        for cat in categories do
+                            Html.option [
+                                prop.value (let (YnabCategoryId id) = cat.Id in id.ToString())
+                                prop.text $"{cat.GroupName}: {cat.Name}"
+                            ]
+                    ]
+                ]
+            ]
+            // External links
+            Html.td [
+                Html.div [
+                    prop.className "flex gap-1"
+                    prop.children [
+                        for link in tx.ExternalLinks do
+                            Html.a [
+                                prop.className "btn btn-ghost btn-xs"
+                                prop.href link.Url
+                                prop.target "_blank"
+                                prop.text link.Label
+                            ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            // Header
+            Html.h1 [
+                prop.className "text-3xl font-bold"
+                prop.text "Sync Transactions"
+            ]
+
+            // Show appropriate content based on session status
+            match model.CurrentSession with
+            | NotAsked ->
+                // Show start button
+                Html.div [
+                    prop.className "card bg-base-100 shadow-xl"
+                    prop.children [
+                        Html.div [
+                            prop.className "card-body items-center text-center"
+                            prop.children [
+                                Html.h2 [
+                                    prop.className "card-title"
+                                    prop.text "Ready to Sync"
+                                ]
+                                Html.p [ prop.text "Start a new sync to fetch transactions from Comdirect" ]
+                                Html.button [
+                                    prop.className "btn btn-primary btn-lg"
+                                    prop.text "Start Sync"
+                                    prop.onClick (fun _ -> dispatch StartSync)
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+
+            | Loading ->
+                Html.div [
+                    prop.className "flex flex-col items-center gap-4"
+                    prop.children [
+                        Html.span [ prop.className "loading loading-spinner loading-lg" ]
+                        Html.span [ prop.text "Starting sync..." ]
+                    ]
+                ]
+
+            | Success (Some session) ->
+                match session.Status with
+                | AwaitingTan ->
+                    // TAN waiting UI
+                    tanWaitingView dispatch
+
+                | ReviewingTransactions ->
+                    // Transaction list
+                    transactionListView model dispatch
+
+                | ImportingToYnab ->
+                    Html.div [
+                        prop.className "flex flex-col items-center gap-4"
+                        prop.children [
+                            Html.span [ prop.className "loading loading-spinner loading-lg" ]
+                            Html.span [ prop.text "Importing to YNAB..." ]
+                        ]
+                    ]
+
+                | Completed ->
+                    completedView session dispatch
+
+                | Failed error ->
+                    Html.div [
+                        prop.className "alert alert-error"
+                        prop.children [
+                            Html.span [ prop.text $"Sync failed: {error}" ]
+                            Html.button [
+                                prop.className "btn btn-sm"
+                                prop.text "Try Again"
+                                prop.onClick (fun _ -> dispatch StartSync)
+                            ]
+                        ]
+                    ]
+
+                | _ ->
+                    Html.div [ prop.text "Processing..." ]
+
+            | Success None ->
+                // No active session, show start button
+                // (same as NotAsked)
+                Html.none
+
+            | Failure error ->
+                Html.div [
+                    prop.className "alert alert-error"
+                    prop.text error
+                ]
+        ]
+    ]
+```
+
+### Verification Checklist
+- [ ] Start sync initiates Comdirect auth
+- [ ] TAN waiting screen displays correctly
+- [ ] Transactions display after TAN confirmation
+- [ ] Color coding works (green/yellow/red)
+- [ ] Category dropdown populated
+- [ ] Can categorize individual transactions
+- [ ] Bulk selection works
+- [ ] Bulk categorize works
+- [ ] Skip transaction works
+- [ ] External links display for Amazon/PayPal
+- [ ] Import button sends to YNAB
+- [ ] Success summary shows results
+- [ ] Can start another sync
+
+---
+
+## Milestone 11: Dashboard & History
+
+**Goal**: Implement dashboard with quick actions and sync history.
+
+**Invoke Skill**: `fsharp-frontend`
+
+### UI Components
+
+1. **Quick Stats Cards**
+   - Last sync date
+   - Total transactions imported
+   - Active rules count
+
+2. **Start Sync Card**
+   - Big "Start New Sync" button
+   - Shows if YNAB is configured
+
+3. **Recent Sync History**
+   - Table of recent syncs
+   - Date, status, transaction count, imported count
+
+### File: `src/Client/Views/DashboardView.fs`
+
+```fsharp
+module Client.Views.DashboardView
+
+open Feliz
+open Client.State
+open Client.Types
+open Shared.Domain
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6"
+        prop.children [
+            Html.h1 [
+                prop.className "text-3xl font-bold"
+                prop.text "Dashboard"
+            ]
+
+            // Stats grid
+            Html.div [
+                prop.className "grid grid-cols-1 md:grid-cols-3 gap-4"
+                prop.children [
+                    // Stats cards
+                ]
+            ]
+
+            // Start sync card
+            Html.div [
+                prop.className "card bg-primary text-primary-content"
+                prop.children [
+                    Html.div [
+                        prop.className "card-body items-center text-center"
+                        prop.children [
+                            Html.h2 [
+                                prop.className "card-title"
+                                prop.text "Ready to Sync?"
+                            ]
+                            Html.button [
+                                prop.className "btn btn-lg"
+                                prop.text "Start New Sync"
+                                prop.onClick (fun _ -> dispatch (NavigateTo SyncFlow))
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // History table
+            Html.div [
+                prop.className "card bg-base-100 shadow-xl"
+                prop.children [
+                    Html.div [
+                        prop.className "card-body"
+                        prop.children [
+                            Html.h2 [
+                                prop.className "card-title"
+                                prop.text "Recent Syncs"
+                            ]
+                            // History table
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+```
+
+### Verification Checklist
+- [ ] Dashboard loads on app start
+- [ ] Stats display correctly
+- [ ] Start sync button navigates to sync flow
+- [ ] History table shows recent syncs
+- [ ] Configuration warnings if not set up
+
+---
+
+## Milestone 12: External Link System
+
+**Goal**: Implement Amazon/PayPal detection and external link generation.
+
+**Invoke Skill**: `fsharp-backend`
+
+### Implementation
+
+1. **Pattern Detection** in `RulesEngine.fs`
+   ```fsharp
+   let private amazonPatterns = [
+       @"AMAZON\s*(PAYMENTS|EU|DE)?"
+       @"AMZN\s*MKTP"
+       @"Amazon\.de"
+   ]
+
+   let private paypalPatterns = [
+       @"PAYPAL\s*\*"
+       @"PP\.\d+"
+   ]
+   ```
+
+2. **Link Generation**
+   ```fsharp
+   let generateAmazonLink (transaction: BankTransaction) : ExternalLink =
+       // Generate deep link to Amazon order history
+       // Optionally filter by date range
+       {
+           Label = "Amazon Orders"
+           Url = "https://www.amazon.de/gp/your-account/order-history"
+       }
+
+   let generatePayPalLink (transaction: BankTransaction) : ExternalLink =
+       {
+           Label = "PayPal Activity"
+           Url = "https://www.paypal.com/activities"
+       }
+   ```
+
+3. **Configurable External Links** (database table)
+   ```sql
+   CREATE TABLE IF NOT EXISTS external_link_patterns (
+       id TEXT PRIMARY KEY,
+       name TEXT NOT NULL,
+       pattern TEXT NOT NULL,
+       link_template TEXT NOT NULL,
+       enabled INTEGER NOT NULL DEFAULT 1
+   );
+   ```
+
+### Verification Checklist
+- [ ] Amazon transactions detected
+- [ ] PayPal transactions detected
+- [ ] External links generated
+- [ ] Links open in new tab
+- [ ] Can add custom patterns via settings
+
+---
+
+## Milestone 13: Duplicate Detection
+
+**Goal**: Detect and handle potential duplicate transactions.
+
+**Invoke Skill**: `fsharp-backend`
+
+### Implementation
+
+1. **Check existing YNAB transactions** before import
+   - Fetch recent transactions from YNAB
+   - Compare by reference ID (stored in memo)
+   - Compare by date + amount + payee
+
+2. **UI Handling**
+   - Mark potential duplicates with warning
+   - Show "Possible duplicate" badge
+   - Allow user to skip or import anyway
+
+### Verification Checklist
+- [ ] Duplicates detected by reference
+- [ ] Duplicates detected by date/amount
+- [ ] Warning displays in UI
+- [ ] Can skip duplicates
+- [ ] Can force import anyway
+
+---
+
+## Milestone 14: Split Transactions
+
+**Goal**: Allow splitting a single transaction into multiple categories.
+
+**Invoke Skill**: `fsharp-feature`
+
+### Domain Types
+
+```fsharp
+type TransactionSplit = {
+    CategoryId: YnabCategoryId
+    CategoryName: string
+    Amount: Money
+    Memo: string option
+}
+
+type SyncTransaction = {
+    // ... existing fields
+    Splits: TransactionSplit list option  // None = single category, Some = split
+}
+```
+
+### UI Components
+
+1. **Split Button** on transaction row
+2. **Split Modal**
+   - List of splits (category + amount)
+   - Add/remove splits
+   - Amounts must sum to transaction total
+   - Save splits
+
+### Verification Checklist
+- [ ] Can open split modal
+- [ ] Can add multiple splits
+- [ ] Amount validation works
+- [ ] Splits saved correctly
+- [ ] Splits sent to YNAB as subtransactions
+
+---
+
+## Milestone 15: Polish & Testing
+
+**Goal**: Final polish, error handling, and comprehensive testing.
+
+**Invoke Skill**: `fsharp-tests`
+
+### Tasks
+
+1. **Error Handling**
+   - All API calls have try/catch
+   - Network errors display friendly messages
+   - Session timeout handling
+
+2. **Loading States**
+   - All async operations show loading indicators
+   - Disable buttons during operations
+
+3. **Form Validation**
+   - All forms validate before submit
+   - Clear error messages
+
+4. **Unit Tests**
+   ```
+   src/Tests/
+   ├── Domain.Tests.fs       # Domain type tests
+   ├── RulesEngine.Tests.fs  # Rules classification tests
+   ├── Validation.Tests.fs   # Input validation tests
+   └── Integration.Tests.fs  # API integration tests
+   ```
+
+5. **Manual Testing Checklist**
+   - [ ] Fresh install works
+   - [ ] Settings save and load
+   - [ ] YNAB connection test works
+   - [ ] Rules CRUD works
+   - [ ] Full sync flow works
+   - [ ] History displays correctly
+   - [ ] Mobile responsive
+
+### Verification Checklist
+- [ ] All tests pass
+- [ ] No console errors
+- [ ] Error messages are user-friendly
+- [ ] App works without network
+- [ ] Data persists across restarts
+
+---
+
+## Milestone 16: Docker & Deployment
+
+**Goal**: Containerize and deploy the application.
+
+**Read First**: `/docs/07-BUILD-DEPLOY.md`, `/docs/08-TAILSCALE-INTEGRATION.md`
+
+**Invoke Skill**: `tailscale-deploy`
+
+### Files
+
+1. **Dockerfile** (multi-stage build)
+2. **docker-compose.yml** (with Tailscale sidecar)
+3. **Volume mounts** for data persistence
+
+### Verification Checklist
+- [ ] Docker build succeeds
+- [ ] Container starts correctly
+- [ ] Data persists in volume
+- [ ] Tailscale connection works
+- [ ] App accessible via Tailscale hostname
+
+---
+
+## Implementation Order Summary
+
+```
+Phase 1: Foundation (Milestones 0-2)
+├── Project setup verification
+├── Domain types
+└── Database schema
+
+Phase 2: Backend APIs (Milestones 3-6)
+├── YNAB integration
+├── Comdirect integration
+├── Rules engine
+└── API implementation
+
+Phase 3: Frontend (Milestones 7-11)
+├── Base layout
+├── Settings page
+├── Rules management
+├── Sync flow UI
+└── Dashboard
+
+Phase 4: Advanced Features (Milestones 12-14)
+├── External links
+├── Duplicate detection
+└── Split transactions
+
+Phase 5: Polish & Deploy (Milestones 15-16)
+├── Testing
+├── Error handling
+└── Docker deployment
+```
+
+---
+
+## Quick Reference: Skill Invocation
+
+| Task | Invoke Skill |
+|------|--------------|
+| Domain types in Shared | `fsharp-shared` |
+| Backend API implementation | `fsharp-backend` |
+| Input validation | `fsharp-validation` |
+| Database operations | `fsharp-persistence` |
+| Frontend state/views | `fsharp-frontend` |
+| Complete feature | `fsharp-feature` |
+| Tests | `fsharp-tests` |
+| Deployment | `tailscale-deploy` |
+
+---
+
+## Notes for Claude Code Sessions
+
+1. **Always read documentation first** - Check the relevant guide in `/docs/` before implementing
+2. **Follow development order** - Shared types → Backend → Frontend
+3. **Keep domain pure** - No I/O in `src/Server/Domain.fs`
+4. **Use Result types** - For all fallible operations
+5. **Test incrementally** - Verify each milestone before moving on
+6. **Commit after each milestone** - Keep progress trackable
+
+---
+
+## Technical Notes from Legacy Code
+
+### Comdirect API Quirks
+- Session ID must be formatted as timestamp substring (9 chars)
+- Request ID is a new GUID per session
+- Push TAN requires "x-once-authentication": "000000" header
+- Extended permissions needed for transaction access
+
+### YNAB API Quirks
+- Category names may contain umlauts - normalize for matching
+- Amounts are in milliunits (multiply by 1000)
+- Memo field limited to 200 chars
+- Import ID prevents duplicates
+
+### Rules Engine
+- First matching rule wins (by priority)
+- Regex patterns should use IgnoreCase
+- Combined field = payee + " " + memo
+- Cache compiled regexes for performance

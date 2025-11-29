@@ -1,14 +1,14 @@
-name: fsharp-counter
+name: budgetbuddy
 
 services:
-  counter-app:
+  budgetbuddy-app:
     build: .
-    image: fsharp-counter-app:latest
-    container_name: fsharp-counter-app
+    image: budgetbuddy:latest
+    container_name: budgetbuddy-app
     # ports removed - accessed via Tailscale only
     # - "5000:5000"
     volumes:
-      - ${HOME}/heimeshoff/fsharp_counter:/app/data
+      - ${HOME}/heimeshoff/budgetbuddy:/app/data
     restart: unless-stopped
     environment:
       - ASPNETCORE_URLS=http://+:5001
@@ -21,15 +21,15 @@ services:
       start_period: 5s
       retries: 3
 
-  tailscale-counter:
+  tailscale-budgetbuddy:
     image: tailscale/tailscale:latest
-    container_name: tailscale_counter
-    network_mode: "service:counter-app"
+    container_name: tailscale_budgetbuddy
+    network_mode: "service:budgetbuddy-app"
     depends_on:
-      - counter-app
+      - budgetbuddy-app
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
-      - TS_EXTRA_ARGS=--hostname=fsharp-counter
+      - TS_EXTRA_ARGS=--hostname=budgetbuddy
       - TS_USERSPACE=true
     volumes:
       - tailscale_state:/var/lib/tailscale

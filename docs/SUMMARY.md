@@ -1,8 +1,8 @@
-# F# Full-Stack Documentation - Summary
+# BudgetBuddy Documentation - Summary
 
-## What I've Created
+## What's Here
 
-I've built a comprehensive documentation set for developing F# web applications with your chosen tech stack. This documentation is specifically designed to guide Claude Code in developing applications autonomously while maintaining consistency and best practices.
+This is a comprehensive documentation set for developing BudgetBuddy, an F# web application that syncs Comdirect bank transactions to YNAB. This documentation is specifically designed to guide Claude Code in developing features autonomously while maintaining consistency and best practices.
 
 ## Documentation Files (11 total)
 
@@ -231,7 +231,7 @@ If you find patterns that should be added or changed, these guides can be update
 
 ## Summary
 
-You now have **11 comprehensive guides** (172KB total) covering every aspect of F# full-stack development with your chosen tech stack. These guides will help Claude Code develop features autonomously while maintaining consistency and following best practices.
+You now have **11 comprehensive guides** covering every aspect of BudgetBuddy development. These guides will help Claude Code develop features autonomously while maintaining consistency and following best practices.
 
 The documentation emphasizes:
 - **Type safety** end-to-end

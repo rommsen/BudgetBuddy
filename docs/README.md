@@ -1,8 +1,8 @@
-# F# Full-Stack Development Guide for Claude Code
+# BudgetBuddy - Development Guide
 
 ## Purpose
 
-This documentation set provides comprehensive guidance for developing F# web applications with:
+This documentation set provides comprehensive guidance for developing BudgetBuddy, an F# web application with:
 - **Frontend**: Elmish.React + Feliz (MVU architecture)
 - **Backend**: Giraffe + Fable.Remoting
 - **Persistence**: SQLite + local files
@@ -33,7 +33,7 @@ These guides are designed to help Claude Code develop applications autonomously 
 ## Documentation Structure
 
 ```
-📁 F# Full-Stack Documentation
+📁 BudgetBuddy Documentation
 ├── 00-ARCHITECTURE.md ⭐ Start here for overview
 ├── 01-PROJECT-SETUP.md - Initialize new projects
 ├── 02-FRONTEND-GUIDE.md - Elmish + Feliz patterns

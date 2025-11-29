@@ -1,29 +1,63 @@
-# F# Full-Stack Blueprint
+# BudgetBuddy
+
+A self-hosted web application that syncs bank transactions from Comdirect to YNAB with automatic categorization and manual review.
 
 Support the development of this free, open-source project!
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/heimeshoff)
 
-**[☕ Buy me a coffee on Ko-fi](https://ko-fi.com/heimeshoff)** — Your support helps keep this project alive and growing!
+**[Buy me a coffee on Ko-fi](https://ko-fi.com/heimeshoff)** — Your support helps keep this project alive and growing!
 
 ---
 
-A production-ready template for building F# web applications with type-safe end-to-end development, MVU architecture, and private deployment via Tailscale.
+## What is BudgetBuddy?
 
-## What You Get
+BudgetBuddy bridges the gap between your German bank account (Comdirect) and YNAB (You Need A Budget). Instead of manually entering transactions or relying on unreliable import files, BudgetBuddy:
 
-- **Frontend**: Elmish.React + Feliz with TailwindCSS 4.3
-- **Backend**: Giraffe + Fable.Remoting (type-safe RPC)
-- **Persistence**: SQLite + JSON files
-- **Deployment**: Docker + Tailscale sidecar (private network, no auth code needed)
-- **Testing**: Expecto
-- **AI-Assisted Development**: Claude Code skills for guided implementation
+1. **Connects directly to Comdirect** using their official API with secure TAN verification
+2. **Automatically categorizes transactions** using your custom rules (regex, contains, or exact match)
+3. **Flags special transactions** like Amazon or PayPal that need manual review
+4. **Lets you review everything** before importing to YNAB
+5. **Imports with one click** to your YNAB budget
+
+## Features
+
+### Phase 1: Core Sync (Current Focus)
+- Comdirect OAuth flow with Push-TAN support
+- YNAB Personal Access Token authentication
+- Transaction review with manual categorization
+- Batch import to YNAB
+
+### Phase 2: Auto-Categorization
+- Rule-based categorization engine
+- Pattern matching (regex, contains, exact)
+- Priority ordering
+- Import/export rules as JSON
+
+### Phase 3: Smart Detection
+- Amazon transaction detection with order history links
+- PayPal transaction detection with activity links
+- Configurable external link templates
+
+### Phase 4: Advanced Features
+- Duplicate detection
+- Transaction history
+- Split transactions (multiple categories)
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Frontend | F# Elmish.React + Feliz + TailwindCSS + DaisyUI |
+| Backend | F# Giraffe + Fable.Remoting |
+| Database | SQLite |
+| Deployment | Docker + Tailscale |
 
 ## Quick Start
 
 ### Prerequisites
 
-- .NET 8+ SDK
+- .NET 9+ SDK
 - Node.js 20+
 - Docker (for deployment)
 
@@ -31,8 +65,8 @@ A production-ready template for building F# web applications with type-safe end-
 
 ```bash
 # Clone and install
-git clone https://github.com/yourname/your-app.git
-cd your-app
+git clone https://github.com/heimeshoff/BudgetBuddy.git
+cd BudgetBuddy
 npm install
 
 # Start backend (Terminal 1)
@@ -47,159 +81,29 @@ dotnet test
 
 Open `http://localhost:5173` for the frontend (proxies API calls to backend on port 5001).
 
-### Build & Deploy
+### Configuration
+
+You'll need:
+1. **Comdirect API credentials** (Client ID, Client Secret from Comdirect developer portal)
+2. **YNAB Personal Access Token** (from YNAB account settings)
+
+These are entered in the Settings page and stored encrypted locally.
+
+## Deployment
+
+### Docker (Recommended)
 
 ```bash
-# Build Docker image
-docker build -t my-app .
+# Build image
+docker build -t budgetbuddy .
 
 # Run locally
-docker run -p 5001:5001 -v $(pwd)/data:/app/data my-app
-
-# Deploy with Tailscale (set TS_AUTHKEY in .env)
-docker-compose up -d
+docker run -p 5001:5001 -v $(pwd)/data:/app/data budgetbuddy
 ```
 
-Your app is now accessible on your Tailnet at `http://my-app:5001`.
+### With Tailscale (Private Access)
 
-## Project Structure
-
-```
-src/
-├── Shared/           # Domain types + API contracts (shared by client & server)
-│   ├── Domain.fs     # Business types (records, unions)
-│   └── Api.fs        # Fable.Remoting API interfaces
-├── Client/           # Elmish frontend
-│   ├── State.fs      # Model, Msg, update (MVU)
-│   ├── View.fs       # UI components (Feliz)
-│   └── App.fs        # Entry point
-├── Server/           # Giraffe backend
-│   ├── Validation.fs # Input validation
-│   ├── Domain.fs     # Business logic (pure, no I/O)
-│   ├── Persistence.fs# Database/file operations
-│   ├── Api.fs        # Fable.Remoting implementation
-│   └── Program.fs    # Entry point
-└── Tests/            # Expecto tests
-docs/                 # Detailed implementation guides
-.claude/skills/       # Claude Code skills for AI-assisted development
-```
-
-## Building Your Application
-
-### Adding a Feature
-
-1. **Define types** in `src/Shared/Domain.fs`
-2. **Add API contract** in `src/Shared/Api.fs`
-3. **Implement backend**: Validation → Domain → Persistence → API
-4. **Build frontend**: State (Model/Msg/update) → View
-5. **Write tests**
-
-### Key Patterns
-
-```fsharp
-// Shared: Define your types
-type Item = { Id: int; Name: string }
-
-type IItemApi = {
-    getAll: unit -> Async<Item list>
-    save: Item -> Async<Result<Item, string>>
-}
-
-// Backend: Implement API
-let api : IItemApi = {
-    getAll = Persistence.getAllItems
-    save = fun item -> async {
-        match Validation.validate item with
-        | Error e -> return Error e
-        | Ok valid ->
-            let! saved = Persistence.save valid
-            return Ok saved
-    }
-}
-
-// Frontend: MVU state management
-type Model = { Items: RemoteData<Item list> }
-type Msg = LoadItems | ItemsLoaded of Result<Item list, string>
-
-let update msg model =
-    match msg with
-    | LoadItems ->
-        { model with Items = Loading },
-        Cmd.OfAsync.either api.getAll () (Ok >> ItemsLoaded) (Error >> ItemsLoaded)
-    | ItemsLoaded (Ok items) ->
-        { model with Items = Success items }, Cmd.none
-```
-
-## Using Claude Code
-
-This repository includes Claude Code skills that guide implementation. Claude understands the architecture and can help you:
-
-- Implement complete features following established patterns
-- Add new domain types with proper validation
-- Create UI components with MVU state management
-- Write tests and fix issues
-- Deploy to production
-
-### Getting Started with Claude
-
-```bash
-# Install Claude Code CLI
-npm install -g @anthropic-ai/claude-code
-
-# Start working on your project
-claude
-
-# Ask Claude to implement features
-> Add a todo list feature with priorities and due dates
-> Fix the validation in the user form
-> Deploy this to my home server with Tailscale
-```
-
-Claude will read the documentation in `/docs/` and follow the patterns defined in the skills.
-
-### Writing Feature Specifications
-
-Create a markdown file describing what you want:
-
-```markdown
-# Feature: Task Management
-
-## Requirements
-- Users can create tasks with title, description, priority
-- Tasks can be marked complete
-- Filter by status (active/completed)
-
-## Domain
-- Priority: Low | Medium | High | Urgent
-- Status: Active | Completed
-
-## Notes
-- Store in SQLite
-- Show task count in header
-```
-
-Then ask Claude: "Implement the feature described in task-management.md"
-
-## Documentation
-
-| Guide | Purpose |
-|-------|---------|
-| [Architecture](docs/00-ARCHITECTURE.md) | System overview and design decisions |
-| [Project Setup](docs/01-PROJECT-SETUP.md) | Initialize new projects |
-| [Frontend Guide](docs/02-FRONTEND-GUIDE.md) | Elmish + Feliz patterns |
-| [Backend Guide](docs/03-BACKEND-GUIDE.md) | Giraffe + Fable.Remoting |
-| [Shared Types](docs/04-SHARED-TYPES.md) | Type design patterns |
-| [Persistence](docs/05-PERSISTENCE.md) | SQLite and file storage |
-| [Testing](docs/06-TESTING.md) | Expecto test patterns |
-| [Build & Deploy](docs/07-BUILD-DEPLOY.md) | Docker deployment |
-| [Tailscale](docs/08-TAILSCALE-INTEGRATION.md) | Private network setup |
-| [Quick Reference](docs/09-QUICK-REFERENCE.md) | Code templates |
-
-## Deployment Options
-
-### Home Server with Tailscale
-
-No public internet exposure. Access only via your Tailnet:
+For secure access from anywhere on your Tailnet:
 
 ```bash
 # Set your Tailscale auth key
@@ -209,27 +113,82 @@ echo "TS_AUTHKEY=tskey-auth-xxx" > .env
 docker-compose up -d
 ```
 
+Your app is now accessible at `https://budgetbuddy.<your-tailnet>.ts.net`.
+
+## Project Structure
+
+```
+src/
+├── Shared/           # Domain types + API contracts
+│   ├── Domain.fs     # Transaction, Rule, SyncSession types
+│   └── Api.fs        # Fable.Remoting API interfaces
+├── Client/           # Elmish frontend
+│   ├── State.fs      # Model, Msg, update (MVU)
+│   ├── View.fs       # UI components (Feliz)
+│   └── Views/        # Page-specific views
+├── Server/           # Giraffe backend
+│   ├── ComdirectClient.fs  # Comdirect API integration
+│   ├── YnabClient.fs       # YNAB API integration
+│   ├── RulesEngine.fs      # Categorization logic
+│   ├── Persistence.fs      # SQLite operations
+│   └── Api.fs              # API implementation
+└── Tests/            # Expecto tests
+
+docs/
+├── MILESTONE-PLAN.md        # Detailed implementation plan
+├── banksync-produktspezifikation.md  # Product requirements
+└── *.md                     # Architecture guides
+
+legacy/               # Original CLI implementation (reference)
+```
+
+## How the Sync Flow Works
+
+```
+1. User clicks "Start Sync"
+2. App initiates Comdirect OAuth
+3. User receives Push-TAN on phone and confirms
+4. App fetches transactions from Comdirect
+5. Rules engine auto-categorizes where possible
+6. User reviews transactions:
+   - Green: Auto-categorized (ready)
+   - Yellow: Needs attention (Amazon, PayPal)
+   - Red: Uncategorized (manual input needed)
+7. User confirms and clicks "Import"
+8. Transactions sent to YNAB
+```
+
+## Security
+
+- **No permanent storage of bank credentials** - TAN required for each sync
+- **YNAB token encrypted** at rest using machine-specific key
+- **No cloud dependency** - runs entirely on your hardware
+- **Tailscale networking** - optional private access without public exposure
+
+## Documentation
+
+| Guide | Purpose |
+|-------|---------|
+| [Milestone Plan](docs/MILESTONE-PLAN.md) | Step-by-step implementation guide |
+| [Architecture](docs/00-ARCHITECTURE.md) | System overview |
+| [Frontend Guide](docs/02-FRONTEND-GUIDE.md) | Elmish + Feliz patterns |
+| [Backend Guide](docs/03-BACKEND-GUIDE.md) | Giraffe + Fable.Remoting |
+| [Persistence](docs/05-PERSISTENCE.md) | SQLite patterns |
+| [Deployment](docs/07-BUILD-DEPLOY.md) | Docker setup |
+| [Tailscale](docs/08-TAILSCALE-INTEGRATION.md) | Private network |
+
+## Roadmap
+
+See [MILESTONE-PLAN.md](docs/MILESTONE-PLAN.md) for the complete implementation roadmap with 16 milestones covering all planned features.
+
+## Contributing
+
+Contributions welcome! Please read the architecture docs first to understand the patterns used in this codebase.
+
 ## License
 
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
+This project is released into the public domain under the Unlicense. See LICENSE for details.
 
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
+---
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-For more information, please refer to <https://unlicense.org>
+**Note**: This project is not affiliated with Comdirect or YNAB. Use at your own risk. Always verify transactions before importing.
