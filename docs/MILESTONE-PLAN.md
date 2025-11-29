@@ -625,10 +625,32 @@ type AppApi = {
 ```
 
 ### Verification Checklist
-- [ ] `src/Shared/Domain.fs` compiles without errors
-- [ ] `src/Shared/Api.fs` compiles without errors
-- [ ] All types match the product specification requirements
-- [ ] `dotnet build src/Shared` succeeds
+- [x] `src/Shared/Domain.fs` compiles without errors
+- [x] `src/Shared/Api.fs` compiles without errors
+- [x] All types match the product specification requirements
+- [x] `dotnet build src/Shared` succeeds
+
+### ✅ Milestone 1 Complete (2025-11-29)
+
+**Summary of Changes:**
+- Created complete `src/Shared/Domain.fs` with all domain types:
+  - Value types (Money, TransactionId, RuleId, SyncSessionId, YnabBudgetId, YnabAccountId, YnabCategoryId)
+  - Bank transaction types (BankTransaction, SyncTransaction, TransactionStatus, ExternalLink)
+  - Categorization rule types (Rule, RuleCreateRequest, RuleUpdateRequest, PatternType, TargetField)
+  - YNAB types (YnabBudget, YnabAccount, YnabCategory, YnabBudgetWithAccounts)
+  - Sync session types (SyncSession, SyncSessionStatus, SyncSessionSummary)
+  - Settings types (AppSettings, ComdirectSettings, YnabSettings, SyncSettings)
+  - Auth state types (ComdirectAuthState)
+  - Error types (SettingsError, YnabError, RulesError, SyncError, ComdirectError)
+  - Result type aliases
+- Created complete `src/Shared/Api.fs` with all API contracts:
+  - SettingsApi (getSettings, saveYnabToken, saveComdirectCredentials, saveSyncSettings, testYnabConnection)
+  - YnabApi (getBudgets, getBudgetDetails, getCategories, setDefaultBudget, setDefaultAccount)
+  - RulesApi (getAllRules, getRule, createRule, updateRule, deleteRule, reorderRules, exportRules, importRules, testRule)
+  - SyncApi (startSync, getCurrentSession, cancelSync, initiateComdirectAuth, confirmTan, getTransactions, categorizeTransaction, skipTransaction, bulkCategorize, importToYnab, getSyncHistory)
+  - AppApi (root API combining all sub-APIs)
+
+**Notes**: All types are properly documented with XML comments explaining their purpose. Types use F# idioms (discriminated unions, records, option types, Result types) for type safety and clarity.
 
 ---
 
@@ -716,11 +738,49 @@ Create the persistence module with:
    - Use AES-256 with a machine-specific key or environment variable
 
 ### Verification Checklist
-- [ ] Database initializes on first run
-- [ ] Rules CRUD operations work
-- [ ] Settings can be stored and retrieved
-- [ ] Encrypted settings are properly protected
-- [ ] `dotnet test` for persistence tests pass
+- [x] Database initializes on first run
+- [x] Rules CRUD operations work
+- [x] Settings can be stored and retrieved
+- [x] Encrypted settings are properly protected
+- [x] `dotnet test` for persistence tests pass
+
+### ✅ Milestone 2 Complete (2025-11-29)
+
+**Summary of Changes:**
+- Created complete `src/Server/Persistence.fs` with comprehensive database functionality:
+  - **Configuration**: Data directory setup with environment variable support (DATA_DIR)
+  - **Encryption Module**: AES-256 encryption for sensitive data (YNAB tokens, Comdirect credentials)
+    - Uses machine-specific key or BUDGETBUDDY_ENCRYPTION_KEY environment variable
+    - Encrypt/decrypt functions with Result type for error handling
+  - **Database Initialization**: Creates SQLite database with 4 tables
+    - `rules` table: Stores categorization rules with priority ordering
+    - `settings` table: Key-value store with encryption flag
+    - `sync_sessions` table: Tracks sync operation history and status
+    - `sync_transactions` table: Stores transaction details for audit/history
+    - All tables include appropriate indexes for performance
+  - **Rules Module**: Complete CRUD operations
+    - getAllRules, getRuleById, insertRule, updateRule, deleteRule
+    - updatePriorities for reordering rules with transaction support
+    - Type conversions between domain types and database rows
+  - **Settings Module**: Encrypted key-value storage
+    - getSetting, setSetting, deleteSetting
+    - Automatic encryption/decryption based on flag
+  - **SyncSessions Module**: Session management
+    - createSession, updateSession, getRecentSessions, getSessionById
+    - Status serialization for all sync states including error messages
+  - **SyncTransactions Module**: Transaction persistence
+    - saveTransaction, getTransactionsBySession
+    - Full transaction detail storage for audit trail
+- Added required NuGet packages to Server.fsproj:
+  - Microsoft.Data.Sqlite 9.*
+  - Dapper 2.*
+
+**Notes**:
+- Encryption uses AES-256 with IV prepended to ciphertext
+- Database schema matches specification exactly
+- All persistence operations are async for scalability
+- Type-safe conversions between domain models and database rows
+- Transaction support for batch operations (e.g., rule reordering)
 
 ---
 
