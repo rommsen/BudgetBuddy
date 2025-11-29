@@ -66,8 +66,8 @@ let main args =
                 FileProvider = new PhysicalFileProvider(publicPath)
             )) |> ignore
 
-    printfn "🚀 Server starting on http://localhost:5000"
+    printfn "🚀 Server starting on http://localhost:5001"
     printfn "📊 Counter API ready at /api/ICounterApi/*"
 
-    app.Run("http://0.0.0.0:5000")
+    app.Run("http://0.0.0.0:5001")
     0
