@@ -10,7 +10,10 @@
     <Compile Include="EncryptionTests.fs" />
     <Compile Include="PersistenceTypeConversionTests.fs" />
     <Compile Include="YnabClientTests.fs" />
+    <Compile Include="YnabIntegrationTests.fs" />
     <Compile Include="ComdirectClientTests.fs" />
+    <Compile Include="ComdirectDecoderTests.fs" />
+    <Compile Include="ComdirectIntegrationTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

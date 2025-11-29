@@ -99,9 +99,6 @@ let private transactionDecoder: Decoder<BankTransaction> =
         // Create transaction ID from reference
         let transactionId = TransactionId reference
 
-        // Store raw JSON for debugging
-        let rawData = Encode.Auto.toString(0, get.Required.Raw)
-
         {
             Id = transactionId
             BookingDate = bookingDate
@@ -109,7 +106,7 @@ let private transactionDecoder: Decoder<BankTransaction> =
             Payee = payee
             Memo = memo
             Reference = reference
-            RawData = rawData
+            RawData = ""  // TODO: Store raw JSON if needed for debugging
         }
     )
 
@@ -156,8 +153,8 @@ let initOAuth (credentials: ComdirectSettings) (apiKeys: ApiKeys) : Async<Comdir
             sprintf "client_id=%s&client_secret=%s&username=%s&password=%s&grant_type=password"
                 apiKeys.ClientId
                 apiKeys.ClientSecret
-                credentials.AccountId  // Using AccountId as username for now
-                "password_placeholder" // TODO: Get password from settings
+                credentials.Username
+                credentials.Password
 
         use content = new StringContent(body)
         content.Headers.ContentType <- MediaTypeHeaderValue("application/x-www-form-urlencoded")

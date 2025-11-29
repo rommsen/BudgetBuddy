@@ -74,12 +74,83 @@ cd src/Server && dotnet watch run
 
 # Start frontend (Terminal 2)
 npm run dev
-
-# Run tests
-dotnet test
 ```
 
 Open `http://localhost:5173` for the frontend (proxies API calls to backend on port 5001).
+
+### Testing
+
+BudgetBuddy has comprehensive test coverage including unit tests, property-based tests, and integration tests.
+
+#### Running Tests
+
+**Unit Tests (default):**
+```bash
+dotnet test
+# Runs all unit tests (82 tests)
+# ✅ No external API calls
+# ✅ Fast (~1 second)
+```
+
+**Integration Tests (with real APIs):**
+
+Integration tests make real API calls to YNAB and Comdirect (including Push-TAN). They are **disabled by default** and must be explicitly enabled.
+
+```bash
+# Option 1: Set in .env file
+echo "RUN_INTEGRATION_TESTS=true" >> .env
+dotnet test
+
+# Option 2: Set as environment variable
+RUN_INTEGRATION_TESTS=true dotnet test
+```
+
+**⚠️ Warning:** Integration tests will:
+- Make real YNAB API requests (consuming your rate limit)
+- Initiate Comdirect OAuth flow with Push-TAN sent to your phone
+- Require valid credentials in `.env` file
+
+#### Interactive Testing Scripts
+
+For manual testing of integrations without the full UI:
+
+```bash
+# Test YNAB API integration
+dotnet fsi scripts/test-ynab.fsx
+# - Fetches budgets, accounts, categories
+# - Validates token
+# - Shows detailed output
+
+# Test Comdirect OAuth flow
+dotnet fsi scripts/test-comdirect.fsx
+# - Initiates OAuth with Push-TAN
+# - Waits for phone confirmation
+# - Fetches transactions (if account ID provided)
+```
+
+**Setup for scripts:**
+1. Copy `.env.example` to `.env`
+2. Fill in your API credentials:
+   ```bash
+   YNAB_TOKEN=your-ynab-token
+   COMDIRECT_CLIENT_ID=your-client-id
+   COMDIRECT_CLIENT_SECRET=your-client-secret
+   COMDIRECT_USERNAME=your-username
+   COMDIRECT_PASSWORD=your-password
+   # COMDIRECT_ACCOUNT_ID=your-account-id  # Optional
+   ```
+3. Run the scripts
+
+See [scripts/README.md](scripts/README.md) for detailed documentation on the test scripts.
+
+#### Test Coverage
+
+| Test Type | Count | Description |
+|-----------|-------|-------------|
+| Unit Tests | 82 | Fast, no I/O, always run |
+| Integration Tests | 6 | Real API calls, opt-in only |
+| Property-Based | 3 | FsCheck tests for edge cases |
+| **Total** | **88** | Full test suite |
 
 ### Configuration
 
@@ -133,6 +204,14 @@ src/
 │   ├── Persistence.fs      # SQLite operations
 │   └── Api.fs              # API implementation
 └── Tests/            # Expecto tests
+    ├── *Tests.fs            # Unit tests
+    └── *IntegrationTests.fs # Integration tests (opt-in)
+
+scripts/
+├── test-ynab.fsx            # Interactive YNAB API tester
+├── test-comdirect.fsx       # Interactive Comdirect OAuth tester
+├── EnvLoader.fsx            # .env file loader
+└── README.md                # Test scripts documentation
 
 docs/
 ├── MILESTONE-PLAN.md        # Detailed implementation plan

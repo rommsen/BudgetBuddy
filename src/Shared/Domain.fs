@@ -195,7 +195,9 @@ type SyncSessionSummary = {
 type ComdirectSettings = {
     ClientId: string
     ClientSecret: string
-    AccountId: string
+    Username: string
+    Password: string
+    AccountId: string option  // Optional: only needed for fetching transactions
 }
 
 type YnabSettings = {
