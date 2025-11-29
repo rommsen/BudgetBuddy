@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="MathTests.fs" />
+    <Compile Include="YnabClientTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 
@@ -16,6 +17,12 @@
     <PackageReference Include="Expecto.FsCheck" Version="10.2.1" />
     <PackageReference Include="YoloDev.Expecto.TestSdk" Version="0.14.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="Thoth.Json.Net" Version="12.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.fsproj" />
+    <ProjectReference Include="..\Server\Server.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -832,11 +832,41 @@ let private baseUrl = "https://api.youneedabudget.com/v1"
 - Cache category list during sync session
 
 ### Verification Checklist
-- [ ] Can fetch budgets list
-- [ ] Can fetch categories for a budget
-- [ ] Can create test transaction
-- [ ] Error handling for invalid token
-- [ ] Error handling for rate limits
+- [x] Can fetch budgets list
+- [x] Can fetch categories for a budget
+- [x] Can create test transaction
+- [x] Error handling for invalid token
+- [x] Error handling for rate limits
+
+### ✅ Milestone 3 Complete (2025-11-29)
+
+**Summary of Changes:**
+- Created `src/Server/YnabClient.fs` with complete YNAB API integration
+- Implemented `getBudgets` function to fetch all budgets with Bearer token authentication
+- Implemented `getBudgetWithAccounts` to fetch budget details including accounts and categories
+- Implemented `getCategories` to fetch and flatten category groups into a single list
+- Implemented `createTransactions` to batch import transactions to YNAB with milliunits conversion
+- Added `validateToken` helper function for token validation
+- Used FsHttp for GET requests and System.Net.Http.HttpClient for POST requests
+- Implemented comprehensive error handling for:
+  - 401 Unauthorized (invalid tokens)
+  - 404 Not Found (missing budgets/accounts)
+  - 429 Rate Limiting (with retry-after support)
+  - Network errors with descriptive messages
+- Used Thoth.Json.Net decoders for type-safe JSON parsing
+- All functions return `YnabResult<'T>` with proper error types
+- Added JSON decoders for Budgets, Accounts, Categories with proper type conversions
+- YNAB milliunits conversion (amount * 1000) for transaction amounts
+- Import ID generation to prevent duplicate transactions
+- Memo truncation to 200 character limit
+- Added YnabClient.fs to Server.fsproj compilation order
+
+**Notes**:
+- Used FsHttp `http { }` CE for GET requests which worked well
+- For POST requests with JSON body, had to fall back to System.Net.Http.HttpClient due to FsHttp CE limitations with `jsonText` construct
+- List.filter and List.map pattern used instead of for-loops in async blocks (F# async CE limitation)
+- All YNAB responses are wrapped in a "data" field which is handled by the decoders
+- Rate limiting returns 60 seconds as default retry-after when header is not present
 
 ---
 
