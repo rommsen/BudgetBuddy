@@ -256,7 +256,7 @@ module Rules =
             use conn = getConnection()
             let (RuleId ruleId) = rule.Id
             let (YnabCategoryId categoryId) = rule.CategoryId
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 """INSERT INTO rules
                    (id, name, pattern, pattern_type, target_field, category_id, category_name,
                     payee_override, priority, enabled, created_at, updated_at)
@@ -276,7 +276,7 @@ module Rules =
                     created_at = rule.CreatedAt.ToString("O")
                     updated_at = rule.UpdatedAt.ToString("O")
                 |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let updateRule (rule: Rule) : Async<unit> =
@@ -284,7 +284,7 @@ module Rules =
             use conn = getConnection()
             let (RuleId ruleId) = rule.Id
             let (YnabCategoryId categoryId) = rule.CategoryId
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 """UPDATE rules
                    SET name = @name, pattern = @pattern, pattern_type = @pattern_type,
                        target_field = @target_field, category_id = @category_id,
@@ -304,16 +304,16 @@ module Rules =
                     enabled = if rule.Enabled then 1 else 0
                     updated_at = rule.UpdatedAt.ToString("O")
                 |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let deleteRule (RuleId ruleId: RuleId) : Async<unit> =
         async {
             use conn = getConnection()
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 "DELETE FROM rules WHERE id = @Id",
                 {| Id = ruleId.ToString() |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let updatePriorities (ruleIds: RuleId list) : Async<unit> =
@@ -325,11 +325,11 @@ module Rules =
             try
                 for i, (RuleId ruleId) in List.indexed ruleIds do
                     let priority = List.length ruleIds - i
-                    do! conn.ExecuteAsync(
+                    do! (conn.ExecuteAsync(
                         "UPDATE rules SET priority = @priority WHERE id = @id",
                         {| id = ruleId.ToString(); priority = priority |},
                         transaction
-                    ) |> Async.AwaitTask |> Async.Ignore
+                    ) |> Async.AwaitTask |> Async.Ignore)
 
                 transaction.Commit()
             with ex ->
@@ -374,7 +374,7 @@ module Settings =
                 else
                     value
 
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 """INSERT INTO settings (key, value, encrypted, updated_at)
                    VALUES (@key, @value, @encrypted, @updated_at)
                    ON CONFLICT(key) DO UPDATE SET value = @value, encrypted = @encrypted, updated_at = @updated_at""",
@@ -384,16 +384,16 @@ module Settings =
                     encrypted = if encrypted then 1 else 0
                     updated_at = DateTime.UtcNow.ToString("O")
                 |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let deleteSetting (key: string) : Async<unit> =
         async {
             use conn = getConnection()
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 "DELETE FROM settings WHERE key = @Key",
                 {| Key = key |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
 // ============================================
@@ -448,7 +448,7 @@ module SyncSessions =
         async {
             use conn = getConnection()
             let (SyncSessionId sessionId) = session.Id
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 """INSERT INTO sync_sessions
                    (id, started_at, completed_at, status, transaction_count, imported_count, skipped_count)
                    VALUES (@id, @started_at, @completed_at, @status, @transaction_count, @imported_count, @skipped_count)""",
@@ -461,14 +461,14 @@ module SyncSessions =
                     imported_count = session.ImportedCount
                     skipped_count = session.SkippedCount
                 |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let updateSession (session: SyncSession) : Async<unit> =
         async {
             use conn = getConnection()
             let (SyncSessionId sessionId) = session.Id
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 """UPDATE sync_sessions
                    SET completed_at = @completed_at, status = @status,
                        transaction_count = @transaction_count, imported_count = @imported_count,
@@ -482,7 +482,7 @@ module SyncSessions =
                     imported_count = session.ImportedCount
                     skipped_count = session.SkippedCount
                 |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let getRecentSessions (count: int) : Async<SyncSession list> =
@@ -536,7 +536,7 @@ module SyncTransactions =
             let (SyncSessionId sid) = sessionId
             let (TransactionId txId) = tx.Transaction.Id
 
-            do! conn.ExecuteAsync(
+            do! (conn.ExecuteAsync(
                 """INSERT OR REPLACE INTO sync_transactions
                    (id, session_id, transaction_id, booking_date, amount, currency, payee, memo,
                     reference, status, category_id, category_name, matched_rule_id, payee_override, created_at)
@@ -548,7 +548,7 @@ module SyncTransactions =
                     session_id = sid.ToString()
                     transaction_id = txId
                     booking_date = tx.Transaction.BookingDate.ToString("O")
-                    amount = decimal.ToDouble tx.Transaction.Amount.Amount
+                    amount = float tx.Transaction.Amount.Amount
                     currency = tx.Transaction.Amount.Currency
                     payee = tx.Transaction.Payee
                     memo = tx.Transaction.Memo
@@ -560,7 +560,7 @@ module SyncTransactions =
                     payee_override = tx.PayeeOverride
                     created_at = DateTime.UtcNow.ToString("O")
                 |}
-            ) |> Async.AwaitTask |> Async.Ignore
+            ) |> Async.AwaitTask |> Async.Ignore)
         }
 
     let getTransactionsBySession (SyncSessionId sessionId: SyncSessionId) : Async<SyncTransaction list> =
