@@ -1,7 +1,6 @@
 module State
 
 open Elmish
-open Types
 
 /// Application model
 type Model = {

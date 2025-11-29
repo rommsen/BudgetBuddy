@@ -85,9 +85,20 @@ BudgetBuddy is a self-hosted web application that:
    - Vite + fable-plugin
 
 ### Verification
-- [ ] `dotnet build` succeeds
-- [ ] `npm run dev` starts frontend
-- [ ] `cd src/Server && dotnet watch run` starts backend
+- [x] `dotnet build` succeeds
+- [x] `npm run dev` starts frontend
+- [x] `cd src/Server && dotnet watch run` starts backend
+
+### ✅ Milestone 0 Complete (2025-11-29)
+
+**Summary of Changes:**
+- Added required NuGet packages: FsHttp, Thoth.Json.Net, FsToolkit.ErrorHandling, YamlDotNet
+- Fixed unused diagnostics warnings in Api.fs, State.fs, View.fs
+- Fixed test runner syntax in Tests/Main.fs (changed to `runTestsInAssemblyWithCLIArgs`)
+- Verified all builds succeed and dev servers start correctly
+- Frontend dependencies confirmed: Tailwind CSS 4.x, DaisyUI 4.12.14, Vite 7.0.0
+
+**Note**: Server.fsproj currently lacks Domain.fs - this will be added in later milestones as needed.
 
 ---
 

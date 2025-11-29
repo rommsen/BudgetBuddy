@@ -65,6 +65,33 @@ When the user provides a specification file (markdown describing a feature):
 9. src/Tests/               → Tests
 ```
 
+## Milestone Tracking
+
+**IMPORTANT**: When implementing milestones from `/docs/MILESTONE-PLAN.md`:
+
+1. **After completing each milestone**, you MUST update `/docs/MILESTONE-PLAN.md`
+2. Mark the milestone's verification checklist items as complete: `- [x]`
+3. Add a completion section with:
+   - `### ✅ Milestone N Complete (YYYY-MM-DD)`
+   - **Summary of Changes**: List all modifications made
+   - **Notes**: Any important observations or deviations from the plan
+4. This provides a clear audit trail of progress through the implementation plan
+
+Example:
+```markdown
+### Verification
+- [x] All verification items completed
+
+### ✅ Milestone 0 Complete (2025-11-29)
+
+**Summary of Changes:**
+- Added required NuGet packages
+- Fixed code warnings
+- Verified builds succeed
+
+**Notes**: Server already had most structure in place.
+```
+
 ## Key Principles
 
 ### Type Safety First
@@ -173,6 +200,7 @@ Before marking a feature complete:
 - [ ] Tests written (at minimum: domain + validation)
 - [ ] `dotnet build` succeeds
 - [ ] `dotnet test` passes
+- [ ] **Update `/docs/MILESTONE-PLAN.md`** with completion status (if working on a milestone)
 
 ## Tech Stack Reference
 

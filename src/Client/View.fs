@@ -4,7 +4,7 @@ open Feliz
 open State
 
 /// Main application view
-let view (model: Model) (dispatch: Msg -> unit) =
+let view (_model: Model) (_dispatch: Msg -> unit) =
     Html.div [
         prop.className "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4"
         prop.children [

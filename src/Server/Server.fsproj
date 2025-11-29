@@ -19,6 +19,10 @@
     <PackageReference Include="Giraffe" Version="6.4.0" />
     <PackageReference Include="Fable.Remoting.Giraffe" Version="5.24.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="FsHttp" Version="14.*" />
+    <PackageReference Include="Thoth.Json.Net" Version="12.*" />
+    <PackageReference Include="FsToolkit.ErrorHandling" Version="4.*" />
+    <PackageReference Include="YamlDotNet" Version="15.*" />
   </ItemGroup>
 
   <ItemGroup>
