@@ -65,11 +65,11 @@ COPY --from=frontend-build /app/dist/public ./dist/public
 RUN mkdir -p /app/data
 
 # Expose port
-EXPOSE 5000
+EXPOSE 5001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/ || exit 1
+  CMD curl -f http://localhost:5001/ || exit 1
 
 # Run the application
 ENTRYPOINT ["dotnet", "Server.dll"]

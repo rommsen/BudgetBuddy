@@ -45,7 +45,7 @@ npm run dev
 dotnet test
 ```
 
-Open `http://localhost:5173` for the frontend (proxies API calls to backend on port 5000).
+Open `http://localhost:5173` for the frontend (proxies API calls to backend on port 5001).
 
 ### Build & Deploy
 
@@ -54,13 +54,13 @@ Open `http://localhost:5173` for the frontend (proxies API calls to backend on p
 docker build -t my-app .
 
 # Run locally
-docker run -p 5000:5000 -v $(pwd)/data:/app/data my-app
+docker run -p 5001:5001 -v $(pwd)/data:/app/data my-app
 
 # Deploy with Tailscale (set TS_AUTHKEY in .env)
 docker-compose up -d
 ```
 
-Your app is now accessible on your Tailnet at `http://my-app:5000`.
+Your app is now accessible on your Tailnet at `http://my-app:5001`.
 
 ## Project Structure
 
