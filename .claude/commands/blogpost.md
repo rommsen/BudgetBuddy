@@ -14,7 +14,7 @@ Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und
    - Welche Probleme wurden gelöst?
    - Welche Tests wurden geschrieben?
 
-2. **Erstelle einen Blogpost** in `diary/posts/YYYY-MM-DD-titel.md` mit:
+2. **Erstelle einen Blogpost** in `diary/_posts/YYYY-MM-DD-titel.md` mit:
 
    ### Struktur:
    - **Titel**: Beschreibend und spezifisch (z.B. "Milestone X: Feature-Name – Hauptthema")
