@@ -15,6 +15,8 @@
     <Compile Include="ComdirectClient.fs" />
     <Compile Include="ComdirectAuthSession.fs" />
     <Compile Include="RulesEngine.fs" />
+    <Compile Include="Validation.fs" />
+    <Compile Include="SyncSessionManager.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

@@ -56,7 +56,7 @@ let main args =
         printfn $"⚠️ Static files directory not found: {publicPath}"
 
     // API routes
-    app.UseGiraffe(Api.webApp())
+    app.UseGiraffe(Server.Api.webApp())
 
     // SPA fallback: serve index.html for non-API routes
     if Directory.Exists(publicPath) then

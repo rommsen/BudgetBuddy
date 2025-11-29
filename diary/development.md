@@ -4,6 +4,125 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-11-29 23:45 - Milestone 6: Backend API Implementation
+
+**What I did:**
+Implemented complete backend API with all 29 endpoints across 4 API modules (SettingsApi, YnabApi, RulesApi, SyncApi), including input validation, session management, and proper error handling.
+
+**Files Added:**
+- `src/Server/Validation.fs` - Input validation module with validators for all API request types
+- `src/Server/SyncSessionManager.fs` - In-memory sync session state management for the single-user application
+- `src/Server/Api.fs` - Complete API implementation with all 29 endpoints
+
+**Files Modified:**
+- `src/Server/Server.fsproj` - Added Validation.fs and SyncSessionManager.fs to compilation order before Api.fs
+- `src/Server/Program.fs` - Updated to use Server.Api.webApp() instead of Api.webApp()
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+Milestone 6 requires implementing all backend API endpoints to connect the frontend with the existing backend services (Persistence, YnabClient, ComdirectClient, RulesEngine). The implementation follows the Fable.Remoting pattern and the MVU architecture principles.
+
+**Implementation Details:**
+
+1. **Validation Module (Validation.fs)**:
+   - Reusable validators: validateRequired, validateLength, validateRange
+   - Settings validation: validateYnabToken, validateComdirectSettings, validateSyncSettings
+   - Rules validation: validateRuleCreateRequest, validateRuleUpdateRequest
+   - Transaction validation: validatePayeeOverride
+   - All validators return Result<'T, string list> for error accumulation
+
+2. **Session Management (SyncSessionManager.fs)**:
+   - In-memory session state using mutable refs (single-user app design)
+   - Session lifecycle: startNewSession, getCurrentSession, updateSession, clearSession, completeSession, failSession
+   - Transaction management: addTransactions, getTransactions, getTransaction, updateTransaction, updateTransactions
+   - Status tracking: getStatusCounts, updateSessionCounts
+   - Validation helpers: validateSession, validateSessionStatus
+
+3. **API Implementation (Api.fs)**:
+   - **SettingsApi** (5 endpoints):
+     - getSettings: Loads all settings from Persistence
+     - saveYnabToken: Validates and tests token before saving (encrypted)
+     - saveComdirectCredentials: Saves all Comdirect credentials (client secret and password encrypted)
+     - saveSyncSettings: Saves sync configuration
+     - testYnabConnection: Tests connection and fetches all budgets with details
+
+   - **YnabApi** (5 endpoints):
+     - getBudgets: Fetches all YNAB budgets
+     - getBudgetDetails: Fetches budget with accounts
+     - getCategories: Fetches categories for a budget
+     - setDefaultBudget: Sets default budget ID
+     - setDefaultAccount: Sets default account ID
+
+   - **RulesApi** (9 endpoints):
+     - getAllRules: Returns all categorization rules
+     - getRule: Fetches a specific rule by ID
+     - createRule: Creates new rule with pattern validation and category name lookup
+     - updateRule: Updates existing rule with selective field updates
+     - deleteRule: Deletes a rule
+     - reorderRules: Updates rule priorities based on list order
+     - exportRules: Exports rules to JSON
+     - importRules: Imports and validates rules from JSON
+     - testRule: Tests a pattern against sample input
+
+   - **SyncApi** (10 endpoints):
+     - startSync: Creates new sync session
+     - getCurrentSession: Returns active session if exists
+     - cancelSync: Cancels and clears active session
+     - initiateComdirectAuth: Starts Comdirect OAuth flow
+     - confirmTan: Confirms TAN and fetches transactions
+     - getTransactions: Returns all transactions for a session
+     - categorizeTransaction: Manually categorizes a transaction
+     - skipTransaction: Marks transaction as skipped
+     - bulkCategorize: Categorizes multiple transactions at once
+     - importToYnab: Imports categorized transactions to YNAB
+     - getSyncHistory: Returns recent sync sessions
+
+   - **AppApi**: Combined API exposing all sub-APIs through a single interface
+
+4. **Error Handling**:
+   - Error type conversions: settingsErrorToString, ynabErrorToString, rulesErrorToString, syncErrorToString, comdirectErrorToString
+   - Proper Result types throughout
+   - Session validation before operations
+   - Transaction state management
+
+5. **Integration**:
+   - Uses Persistence module for database operations (Settings, Rules, SyncSessions, SyncTransactions)
+   - Uses YnabClient for YNAB API calls
+   - Uses ComdirectAuthSession for Comdirect OAuth and transaction fetching
+   - Uses RulesEngine for transaction classification
+   - All async operations properly composed
+
+**Technical Challenges:**
+1. **Module References**: Had to use `Persistence.Settings.setSetting` instead of just `Settings.setSetting` because Persistence has submodules
+2. **Encrypted Settings**: The `setSetting` function requires a boolean `encrypted` parameter - sensitive data (tokens, secrets, passwords) encrypted with true, non-sensitive with false
+3. **ComdirectSettings Type**: Updated to include Username and Password fields with optional AccountId
+4. **Function Signatures**:
+   - `startAuth` now expects full `ComdirectSettings` record
+   - `fetchTransactions` requires accountId and days parameters
+   - `updatePriorities` expects RuleId list (order determines priority)
+   - `classifyTransactions` returns Result, not direct list
+5. **Pattern Validation**: Had to use Result.map to convert Result<CompiledRule, string> to Result<unit, RulesError> for type compatibility
+6. **Async Error Handling**: Complex pattern matching within async blocks required careful indentation and result handling
+
+**Outcomes:**
+- Build: ✅ `dotnet build` succeeds
+- All 29 API endpoints implemented
+- Input validation on all requests
+- Proper error handling and type safety
+- Session management for sync workflow
+- Ready for frontend integration in Milestone 7
+
+**Notes:**
+- Sensitive settings (tokens, passwords, client secrets) are encrypted in the database
+- Session management uses in-memory state (single-user assumption)
+- Transaction classification integrates RulesEngine automatically
+- Category names are fetched from YNAB when creating/updating rules
+- All Persistence operations use proper async/await patterns
+
+---
+
 ## 2025-11-29 22:30 - Milestone 5: Rules Engine Implementation
 
 **What I did:**
