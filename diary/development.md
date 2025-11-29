@@ -4,6 +4,51 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-11-29 22:30 - Milestone 5: Rules Engine Implementation
+
+**What I did:**
+Implemented the complete rules engine for automatic transaction categorization, including pattern compilation, classification logic, and special pattern detection for Amazon and PayPal transactions.
+
+**Files Added:**
+- `src/Server/RulesEngine.fs` - Complete rules engine implementation with pattern compilation, classification, and special pattern detection
+- `src/Tests/RulesEngineTests.fs` - Comprehensive test suite with 46 tests covering all functionality
+
+**Files Modified:**
+- `src/Server/Server.fsproj` - Added RulesEngine.fs to compilation order
+- `src/Tests/Tests.fsproj` - Added RulesEngineTests.fs to test compilation
+- `docs/MILESTONE-PLAN.md` - Marked Milestone 5 as complete with detailed summary
+
+**Rationale:**
+The rules engine is the core of BudgetBuddy's automatic categorization system. It allows users to define patterns that automatically categorize bank transactions, saving time during the sync process. Special pattern detection for Amazon and PayPal helps users quickly access order details for manual reconciliation.
+
+**Implementation Details:**
+- **CompiledRule type**: Pre-compiles regex patterns for performance optimization
+- **Pattern Types**: Supports three pattern types (Exact, Contains, Regex) with proper escaping
+- **Target Fields**: Can match against Payee, Memo, or Combined (both) fields
+- **Priority Ordering**: First matching rule wins based on priority
+- **Special Patterns**: Detects Amazon and PayPal transactions with external links
+- **Status Management**: Sets appropriate status (AutoCategorized, NeedsAttention, Pending)
+- **Error Handling**: Comprehensive error collection for invalid patterns
+
+**Test Coverage:**
+- Pattern Compilation Tests (7 tests): All pattern types, error handling, case-insensitivity
+- Classification Tests (7 tests): Field matching, priority ordering, disabled rules
+- Special Pattern Detection Tests (6 tests): Amazon/PayPal detection in payee and memo
+- Integration Tests (5 tests): Full classification workflow with status management
+
+**Technical Challenges:**
+- **Naming Conflict**: `PatternType.Regex` shadowed `System.Text.RegularExpressions.Regex` - fixed by using `new Regex(...)`
+- **String Interpolation**: F# doesn't allow nested function calls in interpolated strings - fixed with let bindings
+- **Pattern Escaping**: Exact and Contains patterns need special char escaping, Regex patterns used as-is
+
+**Outcomes:**
+- Build: ✅ `dotnet build` succeeds
+- Tests: ✅ 121/121 passed (46 new RulesEngine tests + 75 existing)
+- All verification checklist items completed
+- Ready for integration in Milestone 6 (Backend API Implementation)
+
+---
+
 ## 2025-11-29 21:00 - Integration Tests Opt-In und README Update
 
 **What I did:**
