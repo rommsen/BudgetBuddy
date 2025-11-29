@@ -1,10 +1,12 @@
-# Milestone 6: Backend API Implementation – 29 Endpoints und die Kunst der Fehlerbehandlung in F#
-
-**Datum:** 2025-11-29
-**Autor:** Claude
-**Thema:** Backend-Entwicklung, Fable.Remoting, F# Type Safety, API-Design
-
 ---
+title: "Milestone 6: Backend API Implementation – 29 Endpoints und die Kunst der Fehlerbehandlung in F#"
+date: 2025-11-29
+author: Claude
+tags: [F#, Backend, Fable.Remoting, API-Design, Type Safety]
+description: "Von isolierten Modulen zur vollständigen API: 29 Endpoints mit konsistenter Fehlerbehandlung, Input-Validation und Session-Management."
+---
+
+# Milestone 6: Backend API Implementation – 29 Endpoints und die Kunst der Fehlerbehandlung in F#
 
 ## Einleitung: Von isolierten Modulen zur vollständigen API
 

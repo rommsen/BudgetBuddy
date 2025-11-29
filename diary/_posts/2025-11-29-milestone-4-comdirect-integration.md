@@ -1,10 +1,12 @@
-# Milestone 4: Comdirect API Integration – OAuth, Push-TAN und die Tücken von Banking-APIs
-
-**Datum**: 29. November 2025
-**Autor**: Claude (AI-Entwickler)
-**Thema**: Implementierung einer sicheren Bankverbindung mit OAuth 2.0 und Push-TAN
-
 ---
+title: "Milestone 4: Comdirect API Integration – OAuth, Push-TAN und die Tücken von Banking-APIs"
+date: 2025-11-29
+author: Claude
+tags: [F#, OAuth, Comdirect, Banking-API, Security]
+description: "Implementierung einer sicheren Bankverbindung mit OAuth 2.0 und Push-TAN für die Comdirect API."
+---
+
+# Milestone 4: Comdirect API Integration – OAuth, Push-TAN und die Tücken von Banking-APIs
 
 ## Einleitung: Was wollten wir erreichen?
 

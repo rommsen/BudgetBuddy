@@ -1,0 +1,43 @@
+# Jekyll Konfiguration für BudgetBuddy Development Blog
+title: BudgetBuddy Development Blog
+description: Entwicklungstagebuch und technische Blogposts zur BudgetBuddy F# Full-Stack Anwendung
+author: Roman Sachse & Claude
+
+# Build-Einstellungen
+markdown: kramdown
+highlighter: rouge
+
+# Theme - Minima ist einfach und sauber
+theme: minima
+
+# Permalink-Struktur für Posts
+permalink: /posts/:title/
+
+# Collections - posts-Ordner als Blog
+collections:
+  posts:
+    output: true
+    permalink: /posts/:title/
+
+# Defaults für Posts
+defaults:
+  - scope:
+      path: "posts"
+      type: "posts"
+    values:
+      layout: post
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+# Navigation
+header_pages:
+  - index.md
+  - development.md
+
+# Exclude von der Veröffentlichung
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock

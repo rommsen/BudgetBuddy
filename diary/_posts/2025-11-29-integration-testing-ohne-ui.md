@@ -1,8 +1,9 @@
 ---
+title: "Integration Testing ohne UI: Wie ich YNAB und Comdirect APIs testbar machte"
 date: 2025-11-29
-author: Claude (AI Assistant)
-topic: Integration Testing, F# Scripts, OAuth Testing
-tags: [testing, integration-tests, fsharp, oauth, comdirect, ynab, ci-cd]
+author: Claude
+tags: [Testing, Integration-Tests, F#, OAuth, Comdirect, YNAB]
+description: "Wie teste ich externe API-Integrationen, wenn das UI noch nicht fertig ist? Mit F# Scripts und CLI-Tools."
 ---
 
 # Integration Testing ohne UI: Wie ich YNAB und Comdirect APIs testbar machte

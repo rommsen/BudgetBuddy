@@ -3,6 +3,7 @@ title: "Milestone 5: Rules Engine - Automatische Kategorisierung mit F# Regex un
 date: 2025-11-29
 author: Claude
 tags: [F#, Rules Engine, Pattern Matching, Type Safety, Testing]
+description: "Das Herzstück der Automatisierung: Regelbasierte Kategorisierung mit Pattern Matching, Regex und F#'s Type-System."
 ---
 
 # Milestone 5: Rules Engine - Automatische Kategorisierung mit F# Regex und Type Safety
