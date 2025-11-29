@@ -1,6 +1,4 @@
 module Shared.Domain
 
-/// Counter state representing the current count value
-type Counter = {
-    Value: int
-}
+// Domain types for BudgetBuddy will be defined here
+// See docs/MILESTONE-PLAN.md for the complete type definitions

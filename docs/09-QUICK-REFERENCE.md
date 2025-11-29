@@ -93,7 +93,7 @@ module Shared.Api
 
 open Domain
 
-type IItemApi = {
+type ItemApi = {
     getItems: unit -> Async<Item list>
     getItem: int -> Async<Result<Item, string>>
     saveItem: Item -> Async<Result<Item, string>>
@@ -220,7 +220,7 @@ open Fable.Remoting.Server
 open Fable.Remoting.Giraffe
 open Shared.Api
 
-let itemApi : IItemApi = {
+let itemApi : ItemApi = {
     getItems = fun () -> async {
         return! Persistence.getAllItems()
     }
@@ -396,10 +396,10 @@ prop.className "loading loading-dots"
 | What | Where | Example |
 |------|-------|---------|
 | Domain types | `src/Shared/Domain.fs` | `type Item = { ... }` |
-| API contracts | `src/Shared/Api.fs` | `type IItemApi = { ... }` |
+| API contracts | `src/Shared/Api.fs` | `type ItemApi = { ... }` |
 | Client state | `src/Client/State.fs` | `type Model`, `type Msg` |
 | Client views | `src/Client/View.fs` | `let view model dispatch` |
-| Server API | `src/Server/Api.fs` | `let itemApi : IItemApi` |
+| Server API | `src/Server/Api.fs` | `let itemApi : ItemApi` |
 | Persistence | `src/Server/Persistence.fs` | SQLite + Dapper |
 | Domain logic | `src/Server/Domain.fs` | Pure functions |
 | Validation | `src/Server/Validation.fs` | `validateItem` |

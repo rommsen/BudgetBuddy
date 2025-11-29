@@ -106,7 +106,9 @@ type ApiError =
     | ServerError of message: string
 
 // Common response type
-type ApiResult<'T> = Result<'T, string>
+/// Result type for API operations.
+/// Purpose: Wraps success values or error discriminated unions.
+type ApiResult<'T, 'E> = Result<'T, 'E>
 
 // ============================================
 // DTOs (Data Transfer Objects)
@@ -170,7 +172,7 @@ open Domain
 // Single API Interface
 // ============================================
 
-type IItemApi = {
+type ItemApi = {
     // Queries
     getItems: unit -> Async<Item list>
     getItem: itemId: int -> Async<ApiResult<Item>>
@@ -190,12 +192,12 @@ type IItemApi = {
 // Multiple API Interfaces (if needed)
 // ============================================
 
-type IUserApi = {
+type UserApi = {
     getCurrentUser: unit -> Async<User>
     updateProfile: user: User -> Async<ApiResult<User>>
 }
 
-type IStatsApi = {
+type StatsApi = {
     getDashboard: unit -> Async<DashboardSummary>
     getItemStats: itemId: int -> Async<ItemStats>
 }
@@ -204,10 +206,10 @@ type IStatsApi = {
 // API Grouping (Alternative Pattern)
 // ============================================
 
-type IAppApi = {
-    Items: IItemApi
-    Users: IUserApi
-    Stats: IStatsApi
+type AppApi = {
+    Items: ItemApi
+    Users: UserApi
+    Stats: StatsApi
 }
 ```
 
@@ -288,7 +290,9 @@ getUser (UserId 5)
 
 ```fsharp
 // Use Result for expected failures
-type ApiResult<'T> = Result<'T, string>
+/// Result type for API operations.
+/// Purpose: Wraps success values or error discriminated unions.
+type ApiResult<'T, 'E> = Result<'T, 'E>
 
 // More detailed error types
 type DetailedResult<'T> = Result<'T, ApiError>
@@ -300,7 +304,7 @@ type ApiError =
     | ServerError of message: string
 
 // In API
-type IItemApi = {
+type ItemApi = {
     getItem: itemId: int -> Async<Result<Item, ApiError>>
     saveItem: item: Item -> Async<Result<Item, ApiError>>
 }
@@ -334,14 +338,14 @@ module PagedResult =
 
 ```fsharp
 // Commands (write operations) - return Result
-type ICommandApi = {
+type CommandApi = {
     createItem: CreateItemRequest -> Async<Result<Item, string>>
     updateItem: UpdateItemRequest -> Async<Result<Item, string>>
     deleteItem: int -> Async<Result<unit, string>>
 }
 
 // Queries (read operations) - return data directly or Option
-type IQueryApi = {
+type QueryApi = {
     getItems: unit -> Async<Item list>
     getItem: int -> Async<Item option>
     searchItems: string -> Async<Item list>
@@ -501,14 +505,14 @@ type Item = {
 module V1 =
     type Item = { Id: int; Name: string }
     
-    type IItemApi = {
+    type ItemApi = {
         getItems: unit -> Async<Item list>
     }
 
 module V2 =
     type Item = { Id: int; Name: string; Description: string }
     
-    type IItemApi = {
+    type ItemApi = {
         getItems: unit -> Async<Item list>
         getItemsWithDetails: unit -> Async<Item list>
     }
@@ -526,7 +530,7 @@ type ApiFeatures = {
     SupportsExport: bool
 }
 
-type IAppApi = {
+type AppApi = {
     getFeatures: unit -> Async<ApiFeatures>
     getItems: unit -> Async<Item list>
     // Only call if SupportsAdvancedSearch = true
