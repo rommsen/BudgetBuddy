@@ -69,18 +69,33 @@ When the user provides a specification file (markdown describing a feature):
 
 **IMPORTANT**: When implementing milestones from `/docs/MILESTONE-PLAN.md`:
 
-1. **After completing each milestone**, you MUST update `/docs/MILESTONE-PLAN.md`
+1. **After completing each milestone**, you MUST:
+   a. Invoke the **qa-milestone-reviewer** agent using the Task tool to verify test quality and coverage
+   b. Update `/docs/MILESTONE-PLAN.md` based on the QA review results
 2. Mark the milestone's verification checklist items as complete: `- [x]`
 3. Add a completion section with:
    - `### ✅ Milestone N Complete (YYYY-MM-DD)`
    - **Summary of Changes**: List all modifications made
+   - **Test Quality Review**: Summary from qa-milestone-reviewer agent
    - **Notes**: Any important observations or deviations from the plan
 4. This provides a clear audit trail of progress through the implementation plan
+
+**QA Review Process:**
+After milestone implementation and before marking complete, ALWAYS use:
+```
+Task tool with subagent_type='qa-milestone-reviewer'
+```
+This agent will:
+- Verify tests are meaningful and don't test tautologies
+- Ensure all important behavior is covered by tests
+- Identify any missing test coverage
+- Define missing tests (implementation done by red-test-fixer agent if needed)
 
 Example:
 ```markdown
 ### Verification
 - [x] All verification items completed
+- [x] QA Milestone Reviewer invoked
 
 ### ✅ Milestone 0 Complete (2025-11-29)
 
@@ -88,6 +103,11 @@ Example:
 - Added required NuGet packages
 - Fixed code warnings
 - Verified builds succeed
+
+**Test Quality Review:**
+- All tests verified by qa-milestone-reviewer agent
+- Test coverage is adequate for milestone scope
+- No tautological tests found
 
 **Notes**: Server already had most structure in place.
 ```
@@ -200,7 +220,10 @@ Before marking a feature complete:
 - [ ] Tests written (at minimum: domain + validation)
 - [ ] `dotnet build` succeeds
 - [ ] `dotnet test` passes
-- [ ] **Update `/docs/MILESTONE-PLAN.md`** with completion status (if working on a milestone)
+- [ ] **If working on a milestone:**
+  - [ ] **Invoke qa-milestone-reviewer agent** to verify test quality
+  - [ ] **Address any missing tests** identified by the reviewer
+  - [ ] **Update `/docs/MILESTONE-PLAN.md`** with completion status and QA review summary
 
 ## Tech Stack Reference
 
