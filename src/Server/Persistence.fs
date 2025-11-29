@@ -370,11 +370,17 @@ module Rules =
 // ============================================
 
 module Settings =
+    [<CLIMutable>]
+    type SettingRow = {
+        value: string
+        encrypted: int
+    }
+
     let getSetting (key: string) : Async<string option> =
         async {
             use conn = getConnection()
             let! row =
-                conn.QueryFirstOrDefaultAsync<{| value: string; encrypted: int |}>(
+                conn.QueryFirstOrDefaultAsync<SettingRow>(
                     "SELECT value, encrypted FROM settings WHERE key = @Key",
                     {| Key = key |}
                 ) |> Async.AwaitTask

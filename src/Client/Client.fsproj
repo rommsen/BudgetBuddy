@@ -7,13 +7,17 @@
     <Compile Include="Types.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="State.fs" />
+    <Compile Include="Views/DashboardView.fs" />
+    <Compile Include="Views/SyncFlowView.fs" />
+    <Compile Include="Views/RulesView.fs" />
+    <Compile Include="Views/SettingsView.fs" />
     <Compile Include="View.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Fable.Core" Version="4.3.0" />
-    <PackageReference Include="Fable.Elmish" Version="4.1.0" />
+    <PackageReference Include="Fable.Elmish" Version="4.2.0" />
     <PackageReference Include="Fable.Elmish.React" Version="4.0.0" />
     <PackageReference Include="Fable.Elmish.Debugger" Version="4.1.0" />
     <PackageReference Include="Fable.Elmish.HMR" Version="7.0.0" />

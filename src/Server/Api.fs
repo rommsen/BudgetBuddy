@@ -791,26 +791,41 @@ let syncApi : SyncApi = {
 }
 
 // ============================================
-// Combined App API
-// ============================================
-
-let appApi : AppApi = {
-    Settings = settingsApi
-    Ynab = ynabApi
-    Rules = rulesApi
-    Sync = syncApi
-}
-
-// ============================================
 // HTTP Handler
 // ============================================
 
+open Giraffe
+
+let private routeBuilder typeName methodName = $"/api/{typeName}/{methodName}"
+
+let private errorHandler (ex: exn) (routeInfo: RouteInfo<'a>) =
+    printfn "Fable.Remoting ERROR in %s: %s" routeInfo.methodName ex.Message
+    printfn "Stack trace: %s" ex.StackTrace
+    Propagate ex
+
 let webApp() =
-    Remoting.createApi()
-    |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
-    |> Remoting.withErrorHandler (fun ex routeInfo ->
-        printfn "Fable.Remoting ERROR in %s: %s" routeInfo.methodName ex.Message
-        printfn "Stack trace: %s" ex.StackTrace
-        Propagate ex)
-    |> Remoting.fromValue appApi
-    |> Remoting.buildHttpHandler
+    choose [
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue settingsApi
+        |> Remoting.buildHttpHandler
+
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue ynabApi
+        |> Remoting.buildHttpHandler
+
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue rulesApi
+        |> Remoting.buildHttpHandler
+
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue syncApi
+        |> Remoting.buildHttpHandler
+    ]

@@ -194,22 +194,5 @@ type SyncApi = {
     getSyncHistory: int -> Async<SyncSession list>
 }
 
-// ============================================
-// Combined App API
-// ============================================
-
-/// Root API contract grouping all domain APIs.
-/// Purpose: Single entry point for Fable.Remoting, organizing related operations.
-type AppApi = {
-    /// Settings and configuration management
-    Settings: SettingsApi
-
-    /// YNAB integration operations
-    Ynab: YnabApi
-
-    /// Categorization rules management
-    Rules: RulesApi
-
-    /// Sync workflow operations
-    Sync: SyncApi
-}
+// Note: Each API (SettingsApi, YnabApi, RulesApi, SyncApi) is registered
+// as a separate Fable.Remoting endpoint. See Server/Api.fs for implementation.
