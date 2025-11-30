@@ -4,6 +4,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Design System (must come first) -->
+    <Compile Include="DesignSystem/Tokens.fs" />
+    <Compile Include="DesignSystem/Primitives.fs" />
+    <Compile Include="DesignSystem/Icons.fs" />
+    <Compile Include="DesignSystem/Button.fs" />
+    <Compile Include="DesignSystem/Card.fs" />
+    <Compile Include="DesignSystem/Badge.fs" />
+    <Compile Include="DesignSystem/Input.fs" />
+    <Compile Include="DesignSystem/Stats.fs" />
+    <Compile Include="DesignSystem/Money.fs" />
+    <Compile Include="DesignSystem/Table.fs" />
+    <Compile Include="DesignSystem/Loading.fs" />
+    <Compile Include="DesignSystem/Toast.fs" />
+    <Compile Include="DesignSystem/Modal.fs" />
+    <Compile Include="DesignSystem/Navigation.fs" />
+
     <!-- Shared types -->
     <Compile Include="Types.fs" />
     <Compile Include="Api.fs" />

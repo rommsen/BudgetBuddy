@@ -1,6 +1,38 @@
 @import "tailwindcss";
 
 /* ============================================
+   DaisyUI 5 Plugin Integration
+   ============================================ */
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+/* ============================================
+   Custom Theme Variables (Tailwind CSS 4)
+   ============================================ */
+@theme {
+  /* Neon Color Palette */
+  --color-neon-green: #00ff88;
+  --color-neon-orange: #ff6b2c;
+  --color-neon-teal: #00d4aa;
+  --color-neon-purple: #a855f7;
+  --color-neon-pink: #ff1f8f;
+  --color-neon-red: #ff3b5c;
+
+  /* Glow Shadows */
+  --shadow-glow-green: 0 0 20px rgba(0, 255, 136, 0.5);
+  --shadow-glow-orange: 0 0 20px rgba(255, 107, 44, 0.5);
+  --shadow-glow-teal: 0 0 20px rgba(0, 212, 170, 0.5);
+  --shadow-glow-purple: 0 0 20px rgba(168, 85, 247, 0.5);
+  --shadow-glow-red: 0 0 20px rgba(255, 59, 92, 0.5);
+  --shadow-glow-pink: 0 0 20px rgba(255, 31, 143, 0.5);
+
+  /* Custom Font Families */
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================
    BudgetBuddy - Premium Financial App Design
    ============================================ */
 
@@ -59,8 +91,15 @@ html {
 }
 
 body {
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   min-height: 100vh;
+}
+
+[data-theme="light"] body {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+[data-theme="dark"] body {
+  background: hsl(var(--b1));
 }
 
 /* ============================================
@@ -111,7 +150,7 @@ body {
   --b1: 222 47% 11%;
   --b2: 217 33% 17%;
   --b3: 215 28% 23%;
-  --bc: 213 27% 84%;
+  --bc: 210 40% 96%;
   --su: 158 64% 52%;
   --wa: 43 96% 56%;
   --er: 0 84% 60%;
@@ -240,10 +279,6 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 1.75rem;
-  background: linear-gradient(135deg, hsl(var(--bc)) 0%, hsl(var(--bc) / 0.8) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 /* Form Inputs Premium */
@@ -527,3 +562,4 @@ h1, h2, h3, h4, h5, h6 {
     transition-duration: 0.01ms !important;
   }
 }
+

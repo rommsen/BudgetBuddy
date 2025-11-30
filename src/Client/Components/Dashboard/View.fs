@@ -61,15 +61,15 @@ let private statsCard (icon: string) (title: string) (value: string) (descriptio
                         prop.className "mt-4"
                         prop.children [
                             Html.p [
-                                prop.className "text-sm font-medium text-base-content/60 uppercase tracking-wide"
+                                prop.className "text-sm font-medium uppercase tracking-wide text-slate-400"
                                 prop.text title
                             ]
                             Html.p [
-                                prop.className "text-2xl md:text-3xl font-bold mt-1 font-mono"
+                                prop.className "text-2xl md:text-3xl font-bold mt-1 font-mono text-slate-100"
                                 prop.text value
                             ]
                             Html.p [
-                                prop.className "text-sm text-base-content/50 mt-1"
+                                prop.className "text-sm mt-1 text-slate-500"
                                 prop.text description
                             ]
                         ]
@@ -143,11 +143,11 @@ let private historyCard (session: SyncSession) =
                         prop.className "flex flex-col items-center justify-center w-12 h-12 bg-base-200 rounded-lg"
                         prop.children [
                             Html.span [
-                                prop.className "text-xs font-medium text-base-content/60"
+                                prop.className "text-xs font-medium text-slate-400"
                                 prop.text (session.StartedAt.ToString("MMM"))
                             ]
                             Html.span [
-                                prop.className "text-lg font-bold"
+                                prop.className "text-lg font-bold text-slate-100"
                                 prop.text (session.StartedAt.Day.ToString())
                             ]
                         ]
@@ -158,14 +158,14 @@ let private historyCard (session: SyncSession) =
                                 prop.className "flex items-center gap-2"
                                 prop.children [
                                     Html.span [
-                                        prop.className "font-medium"
+                                        prop.className "font-medium text-slate-200"
                                         prop.text (session.StartedAt.ToString("HH:mm"))
                                     ]
                                     sessionStatusBadge session.Status
                                 ]
                             ]
                             Html.p [
-                                prop.className "text-sm text-base-content/60 mt-0.5"
+                                prop.className "text-sm text-slate-400 mt-0.5"
                                 prop.text $"{session.TransactionCount} transactions"
                             ]
                         ]
@@ -176,12 +176,12 @@ let private historyCard (session: SyncSession) =
                 prop.className "text-right"
                 prop.children [
                     Html.p [
-                        prop.className "font-mono font-medium text-success"
+                        prop.className "font-mono font-medium text-emerald-400"
                         prop.text $"+{session.ImportedCount}"
                     ]
                     if session.SkippedCount > 0 then
                         Html.p [
-                            prop.className "text-xs text-base-content/50"
+                            prop.className "text-xs text-slate-500"
                             prop.text $"{session.SkippedCount} skipped"
                         ]
                 ]
@@ -229,7 +229,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToSync: unit -> unit)
                         prop.text "Dashboard"
                     ]
                     Html.p [
-                        prop.className "text-base-content/60 mt-1"
+                        prop.className "text-slate-400 mt-1"
                         prop.text "Welcome back! Here's your sync overview."
                     ]
                 ]
@@ -313,7 +313,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToSync: unit -> unit)
                             match model.RecentSessions with
                             | NotAsked ->
                                 Html.div [
-                                    prop.className "flex flex-col items-center justify-center py-12 text-base-content/50"
+                                    prop.className "flex flex-col items-center justify-center py-12 text-slate-400"
                                     prop.children [
                                         Html.div [ prop.className "loading loading-spinner loading-lg" ]
                                         Html.p [ prop.className "mt-4"; prop.text "Loading history..." ]
@@ -335,11 +335,11 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToSync: unit -> unit)
                                             prop.children [ Html.span [ prop.text "📋" ] ]
                                         ]
                                         Html.p [
-                                            prop.className "font-medium text-base-content/70"
+                                            prop.className "font-medium text-slate-300"
                                             prop.text "No sync history yet"
                                         ]
                                         Html.p [
-                                            prop.className "text-sm text-base-content/50 mt-1"
+                                            prop.className "text-sm text-slate-500 mt-1"
                                             prop.text "Start your first sync to see your activity here."
                                         ]
                                     ]

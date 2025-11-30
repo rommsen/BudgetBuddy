@@ -4,6 +4,336 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-11-30 17:10 - Upgraded Tailwind CSS 4.0 + DaisyUI 5
+
+**What I did:**
+Upgraded from Tailwind CSS 4.0.0-beta.5 + DaisyUI 4.12.14 to the latest stable versions (Tailwind CSS 4.1.17 + DaisyUI 5.5.5) to resolve compatibility issues and properly define custom colors.
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `package.json` - Updated dependencies:
+  - tailwindcss: ^4.0.0-beta.5 → 4.1.17
+  - @tailwindcss/vite: ^4.0.0-beta.5 → 4.1.17
+  - daisyui: ^4.12.14 → 5.5.5
+
+- `src/Client/styles.css` - Added CSS-first configuration:
+  - `@plugin "daisyui"` directive with light/dark themes
+  - `@theme` block defining:
+    - Custom neon colors (neon-green, neon-orange, neon-teal, neon-purple, neon-pink, neon-red)
+    - Custom glow shadows (shadow-glow-green, shadow-glow-orange, etc.)
+    - Custom font families (font-display, font-mono)
+
+**Files Deleted:**
+- `tailwind.config.js` - Removed entirely (Tailwind 4 uses CSS-first config)
+
+**Rationale:**
+- Tailwind CSS 4.0.0-beta was unstable
+- DaisyUI 4 was incompatible with Tailwind 4 (designed for Tailwind 3)
+- The `require('daisyui')` syntax in tailwind.config.js caused ESM module errors
+- Custom neon colors were referenced in components but never defined
+
+**Outcomes:**
+- Build: ✅ Successful
+- Tests: Not affected (frontend-only change)
+- All pages verified working: Dashboard, Settings, Rules, Sync
+- Custom colors now properly defined and available as Tailwind utilities
+- Form controls and inputs render correctly with DaisyUI 5
+
+**Sources:**
+- DaisyUI 5 Upgrade Guide: https://daisyui.com/docs/upgrade/
+- Tailwind CSS 4.0 Migration: https://tailwindcss.com/docs/upgrade-guide
+- DaisyUI 5 Release Notes: https://daisyui.com/docs/v5/
+
+---
+
+## 2025-11-30 22:30 - Milestone R4: Feedback & Navigation Components
+
+**What I did:**
+Implemented Milestone R4 of the UI refactoring plan - created Toast, Modal, and Navigation components, and integrated them into the main View.fs to replace inline navigation and toast code.
+
+**Files Added:**
+- `src/Client/DesignSystem/Navigation.fs` - Navigation component with:
+  - NavPage type: Dashboard, SyncFlow, Rules, Settings (mirrors Types.Page)
+  - NavItem record with Page, Label, and Icon
+  - Desktop top navbar (hidden on mobile, h-16, glassmorphism effect)
+  - Mobile bottom navbar (fixed, h-14, safe area padding)
+  - Mobile header bar with brand logo
+  - Brand component with gradient logo and "BudgetBuddy" text
+  - SVG icons from Icons.fs (dashboard, sync, rules, settings)
+  - Active state styling with neon teal color
+  - Navigation helper functions: navigation (combined), desktopNav, mobileNav, mobileHeader
+  - Layout helpers: pageContent (with proper padding), appWrapper (dark gradient background)
+
+**Files Modified:**
+- `src/Client/DesignSystem/Toast.fs` - Simplified Toast API:
+  - Removed dependency on Types.fs (was causing circular dependency)
+  - Replaced `fromAppToasts` and `renderToasts` with simpler `renderList` function
+  - `renderList` takes tuples of (Guid, string, ToastVariant) for flexibility
+
+- `src/Client/Client.fsproj` - Added DesignSystem files to compilation:
+  - DesignSystem/Toast.fs
+  - DesignSystem/Modal.fs
+  - DesignSystem/Navigation.fs
+
+- `src/Client/View.fs` - Complete rewrite to use new components:
+  - Removed all inline navigation code (~150 lines)
+  - Removed inline toast rendering code
+  - Added type conversion functions:
+    - `toNavPage`: Types.Page → Navigation.NavPage
+    - `fromNavPage`: Navigation.NavPage → Types.Page
+    - `toToastVariant`: Types.ToastType → Toast.ToastVariant
+  - Main view now uses:
+    - `Navigation.appWrapper` for dark gradient background
+    - `Navigation.navigation` for combined desktop/mobile nav
+    - `Navigation.pageContent` for proper padding
+    - `Toast.renderList` for toast notifications
+
+**Files Already Present (created earlier but not in fsproj):**
+- `src/Client/DesignSystem/Toast.fs` - Toast notification component (was created but not added to fsproj)
+- `src/Client/DesignSystem/Modal.fs` - Modal dialog component (was created but not added to fsproj)
+
+**Rationale:**
+Milestone R4 completes Phase 2 of the UI refactoring by adding feedback and navigation components. The implementation:
+1. Creates a reusable Navigation component for consistent nav across the app
+2. Integrates the Toast component with the main View.fs
+3. Follows mobile-first design (bottom nav on mobile, top nav on desktop)
+4. Uses the Neon Glow Dark Theme with glassmorphism effects
+5. Separates concerns by having Navigation define its own NavPage type to avoid circular dependencies
+
+**Technical Challenges:**
+1. **Circular Dependency**: Toast.fs and Navigation.fs are compiled before Types.fs, so they can't reference Types.Page or Types.ToastType directly. Solution: Define NavPage in Navigation.fs and add type conversion functions in View.fs.
+2. **Type Conversion**: View.fs now handles the mapping between Types.Page and Navigation.NavPage, keeping the DesignSystem components decoupled from application-specific types.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 unit + 6 skipped integration)
+- View.fs reduced from ~240 lines to ~76 lines
+- Navigation code is now reusable and follows design system
+
+**Notes:**
+- Modal.fs was already complete and just needed to be added to fsproj
+- Toast.fs was refactored to remove Types.fs dependency
+- Navigation uses SVG icons from Icons.fs instead of emoji
+
+---
+
+## 2025-11-30 21:45 - Milestone R3: Data Display Components
+
+**What I did:**
+Implemented Milestone R3 of the UI refactoring plan - created data display components (Stats, Money, Table, Loading) for the Neon Glow Dark Mode Theme design system.
+
+**Files Added:**
+- `src/Client/DesignSystem/Stats.fs` - Statistics card component with:
+  - StatProps record with Label, Value, Icon, Trend, Accent, Size, Description
+  - Trend type: Up/Down (with percentage), Neutral
+  - StatAccent type: Teal, Green, Orange, Purple, Pink, Gradient
+  - StatSize type: Compact, Normal, Large
+  - Gradient accent line at top of card (decorative)
+  - Trend indicators with colored arrows
+  - Convenience functions: simple, withIcon, withTrend, withIconAndTrend, compact, hero, withAccent
+  - Responsive grid layouts: grid (1/2/3 cols), gridTwoCol, gridFourCol
+  - Specialized stats: transactionCount, syncCount, moneyStat, categoryStat, rulesCount
+
+- `src/Client/DesignSystem/Money.fs` - Money display component with:
+  - MoneyProps record with Amount, Currency, Size, Glow, ShowSign, ShowCurrency
+  - MoneySize type: Small, Medium, Large, Hero
+  - GlowStyle type: NoGlow, GlowPositive, GlowAll
+  - Positive amounts in neon green (with optional text glow)
+  - Negative amounts in neon red
+  - JetBrains Mono font for consistent number display
+  - Convenience functions: simple, amountOnly, small, large, hero, noSign, noGlow
+  - Context displays: withLabel, withInlineLabel, balance, netChange
+  - Transaction formatting: transaction, transactionWithCurrency
+  - Integration with Shared.Domain.Money type
+
+- `src/Client/DesignSystem/Table.fs` - Responsive table component with:
+  - TableProps record with Variant, Size, Responsive, Sticky
+  - TableVariant type: Default, Zebra, Hover, ZebraHover
+  - TableSize type: Compact, Normal, Spacious
+  - SortDirection type: Ascending, Descending, Unsorted
+  - Header cells with sortable indicators
+  - Row variants: tr, trClickable, trSelected, trHighlighted
+  - Cell variants: td, tdRight, tdCenter, tdMono, tdTruncate, tdEmpty
+  - Empty states with optional action buttons
+  - Mobile card view alternative for small screens
+  - Responsive wrapper that switches between table and cards
+  - Loading row skeletons
+
+- `src/Client/DesignSystem/Loading.fs` - Loading state components with:
+  - SpinnerSize type: XS, SM, MD, LG, XL
+  - SpinnerColor type: Default, Teal, Orange, Green, Purple
+  - Spinner variants: spinner, ring, dots
+  - Custom neonPulse spinner with glow effect
+  - SkeletonShape type: Line, Circle, Square, Card, Custom
+  - Skeleton placeholders with shimmer animation
+  - Skeleton groups: textBlock, avatarWithText, cardSkeleton, statsGridSkeleton, tableSkeleton
+  - Loading states: inlineWithText, centered, pageOverlay, cardLoading
+  - Progress indicators: progressBar, progressBarWithLabel, progressIndeterminate
+  - Shimmer effect utilities
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Added new component files to compilation:
+  - DesignSystem/Stats.fs
+  - DesignSystem/Money.fs
+  - DesignSystem/Table.fs
+  - DesignSystem/Loading.fs
+- `docs/UI-REFACTORING-MILESTONES.md` - Marked R3 verification items complete and added completion section
+
+**Rationale:**
+Phase 2 of the UI refactoring plan continues with data display components. These components will be used to display financial data, transaction tables, and loading states throughout the application. The Stats component provides consistent stat card styling, Money component ensures correct color-coding for positive/negative amounts, Table component handles responsive data display, and Loading component provides consistent loading UX.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 passed, 6 skipped integration tests)
+- Issues fixed during implementation:
+  - Added explicit type annotations for `prop.text` to resolve F# type inference
+  - Used `IconColor.Default` to disambiguate from other `Default` types
+  - Renamed `inline'` to `inlineWithText` (inline is F# reserved keyword)
+  - Used `React.fragment` instead of `Html.fragment` (doesn't exist in Feliz)
+
+---
+
+## 2025-11-30 19:30 - Milestone R2: Core UI Components
+
+**What I did:**
+Implemented Milestone R2 of the UI refactoring plan - created reusable Feliz components for buttons, cards, badges, and inputs following the Neon Glow Dark Mode Theme design system.
+
+**Files Added:**
+- `src/Client/DesignSystem/Button.fs` - Button component with:
+  - ButtonVariant type: Primary (neon orange gradient), Secondary (teal outline), Ghost (transparent), Danger (red outline)
+  - ButtonSize type: Small, Medium, Large
+  - ButtonProps record with Text, Variant, Size, IsLoading, IsDisabled, OnClick, FullWidth, Icon, IconPosition
+  - Loading state with spinner
+  - Mobile-first (48px min-height touch targets on mobile)
+  - Convenience functions: primary, secondary, ghost, danger, primaryWithIcon, editButton, deleteButton, addButton
+  - Button groups for horizontal/vertical layouts
+
+- `src/Client/DesignSystem/Card.fs` - Card component with:
+  - CardVariant type: Standard (dark bg, subtle border), Glass (glassmorphism blur), Glow (neon teal border with glow), Elevated (stronger shadow)
+  - CardSize type: Compact, Normal, Spacious
+  - Hover effects with translate and shadow transitions
+  - Card parts: header (with title, subtitle, action), body, footer
+  - Specialized cards: withAccent (gradient top line), action (for CTAs), stat (with icon), emptyState
+
+- `src/Client/DesignSystem/Badge.fs` - Badge component with:
+  - BadgeVariant type: Success (green), Warning (pink), Error (red), Info (teal), Neutral (gray), Orange, Purple
+  - BadgeStyle type: Filled, Outline, Soft (subtle background)
+  - BadgeSize type: Small, Medium, Large
+  - Convenience functions for all variants and styles
+  - Status-specific badges: imported, pendingReview, autoCategorized, manual, uncategorized, skipped, failed
+  - Count badge for notifications
+  - Dot badges (static and pulsing for live status)
+
+- `src/Client/DesignSystem/Input.fs` - Input components with:
+  - InputSize type: Small, Medium, Large
+  - InputState type: Normal, Error (with message), Success
+  - Text input with neon teal focus glow
+  - Password, email, number input variants
+  - Textarea with resize
+  - Select dropdown with custom arrow styling
+  - Checkbox with label and simple variants
+  - Toggle/switch component
+  - Input groups (label + input + error message)
+  - Form sections and rows for organized layouts
+  - Mobile-optimized (16px font to prevent iOS zoom, 48px min-height)
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Added new DesignSystem component files in correct compilation order
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+This milestone creates the core reusable UI components that will be used throughout the application. All components:
+1. Follow the Neon Glow Dark Mode Theme design system
+2. Are mobile-first with proper touch targets (48px minimum)
+3. Have consistent hover/focus states with neon glow effects
+4. Support multiple variants for different use cases
+5. Provide convenient helper functions for common patterns
+
+**Technical Notes:**
+- Fixed IconColor type confusion in Button.fs (used IconColor.Primary instead of ButtonVariant.Primary)
+- Moved URL-encoded SVG arrow from interpolated string to avoid F# format specifier conflict
+- Used backtick escaping for `checked` property access (reserved F# keyword)
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 unit + 6 skipped integration)
+- All four new DesignSystem components compile and are ready for use
+
+---
+
+## 2025-11-30 18:00 - Milestone R1: Design Tokens & UI Primitives Module
+
+**What I did:**
+Implemented Milestone R1 of the UI refactoring plan - created F# modules for design tokens and reusable UI primitives that match the Neon Glow Dark Mode Theme design system.
+
+**Files Added:**
+- `src/Client/DesignSystem/Tokens.fs` - Complete design token system with:
+  - Colors module: Neon colors (green, orange, teal, purple, pink, red) and text colors
+  - Backgrounds module: Dark backgrounds and neon subtle backgrounds
+  - Borders module: Subtle, default, strong borders plus neon borders
+  - Glows module: Box shadow glow effects for all neon colors
+  - TextGlows module: Text glow effects
+  - Fonts module: Font family tokens (sans, display, mono)
+  - FontSizes module: Mobile-first type scale
+  - FontWeights module: Regular, medium, semibold, bold
+  - Spacing module: Gap tokens (xs through xxl)
+  - Padding/Margin modules: Responsive padding and margin tokens
+  - Radius module: Border radius tokens
+  - Animations module: Animation class tokens (fadeIn, slideUp, scaleIn, neonPulse)
+  - Transitions module: Transition timing tokens
+  - ZIndex module: Z-index layer tokens
+  - TouchTargets module: Mobile touch target minimum sizes
+  - Presets module: Pre-built class combinations for common patterns
+
+- `src/Client/DesignSystem/Primitives.fs` - Layout primitive components:
+  - Container module: Responsive containers (view, narrow, medium)
+  - Stack module: Vertical spacing (xs, sm, md, lg, xl)
+  - HStack module: Horizontal spacing with alignment options
+  - Grid module: Responsive grid layouts (1-4 columns, auto-fit)
+  - Spacer module: Empty space components (xs through xl, flex)
+  - Divider module: Horizontal/vertical dividers with gradient option
+  - Center module: Centering utilities
+  - Page module: Page layout helpers (content, header, section)
+  - Responsive module: Visibility utilities (mobileOnly, desktopOnly)
+  - ScrollContainer module: Scroll containers for overflow content
+
+- `src/Client/DesignSystem/Icons.fs` - Icon component system:
+  - IconSize type: XS, SM, MD, LG, XL sizes
+  - IconColor type: Default, Primary, and all neon colors + semantic (Success, Warning, Error, Info)
+  - SVG Icons (Heroicons outline): dashboard, sync, rules, settings, plus, check, x, edit, trash, warning, info, checkCircle, xCircle, chevronDown, chevronRight, externalLink, download, upload, search, dollar, banknotes, creditCard
+  - Spinner: Animated loading spinner
+  - Emoji fallbacks: Consistent emoji icons for quick prototyping
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Added DesignSystem folder with compilation order (must come before other client files)
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+This milestone establishes the foundation for the new design system by:
+1. Creating type-safe design tokens in F# that match the CSS custom properties
+2. Providing reusable layout primitives to reduce code duplication
+3. Establishing an icon system with consistent sizing and coloring
+4. Following mobile-first responsive design principles
+
+**Technical Notes:**
+- Had to rename `base` to `body` in FontSizes (F# reserved keyword)
+- Had to rename `base` to `normal` in Transitions (F# reserved keyword)
+- Had to rename `fixed` to `fixed'` in ZIndex (F# reserved keyword)
+- Used backtick escaping for `void'` and `default'` in other modules
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 unit + 6 skipped integration)
+- All three DesignSystem modules compile and are ready for use
+
+---
+
 ## 2025-11-30 17:30 - Created UI Refactoring Milestone Plan
 
 **What I did:**
