@@ -323,7 +323,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 ComdirectAccountIdInput = settings.Comdirect |> Option.bind (fun c -> c.AccountId) |> Option.defaultValue ""
                 SyncDaysInput = settings.Sync.DaysToFetch
         }
-        updatedModel, Cmd.none
+        // Reload categories if we have a DefaultBudgetId and are on a page that needs categories
+        let categoriesCmd =
+            match settings.Ynab with
+            | Some ynab when ynab.DefaultBudgetId.IsSome && (model.CurrentPage = Rules || model.CurrentPage = SyncFlow) ->
+                Cmd.ofMsg LoadCategories
+            | _ -> Cmd.none
+        updatedModel, categoriesCmd
 
     | SettingsLoaded (Error err) ->
         let model', cmd = addToast $"Failed to load settings: {err}" ToastError model
@@ -434,7 +440,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | DefaultBudgetSet (Ok _) ->
         let model', cmd = addToast "Default budget set" ToastSuccess model
-        model', Cmd.batch [ cmd; Cmd.ofMsg LoadSettings ]
+        // Reload settings and categories - categories depend on DefaultBudgetId
+        model', Cmd.batch [ cmd; Cmd.ofMsg LoadSettings; Cmd.ofMsg LoadCategories ]
 
     | DefaultBudgetSet (Error err) ->
         addToast (ynabErrorToString err) ToastError model

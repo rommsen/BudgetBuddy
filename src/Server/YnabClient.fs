@@ -32,12 +32,34 @@ module Decoders =
             }
         })
 
+    /// Decoder for categories when category_group_name is present (from /categories endpoint)
     let categoryDecoder : Decoder<YnabCategory> =
         Decode.object (fun get -> {
             Id = get.Required.Field "id" Decode.guid |> YnabCategoryId
             Name = get.Required.Field "name" Decode.string
             GroupName = get.Required.Field "category_group_name" Decode.string
         })
+
+    /// Decoder for categories nested within category_groups (from /budgets/{id} endpoint)
+    let categoryInGroupDecoder (groupName: string) : Decoder<YnabCategory> =
+        Decode.object (fun get -> {
+            Id = get.Required.Field "id" Decode.guid |> YnabCategoryId
+            Name = get.Required.Field "name" Decode.string
+            GroupName = groupName
+        })
+
+    /// Decoder for category groups containing nested categories
+    /// Note: Some category groups (like "Internal Master Category") may not have a categories field
+    let categoryGroupsDecoder : Decoder<YnabCategory list> =
+        Decode.list (
+            Decode.object (fun get ->
+                let groupName = get.Required.Field "name" Decode.string
+                // Categories field may be missing for internal/special category groups
+                let categories = get.Optional.Field "categories" (Decode.list (categoryInGroupDecoder groupName))
+                categories |> Option.defaultValue []
+            )
+        )
+        |> Decode.map List.concat
 
     let budgetDetailDecoder : Decoder<YnabBudgetWithAccounts> =
         Decode.object (fun get -> {
@@ -46,7 +68,8 @@ module Decoders =
                 Name = get.Required.Field "name" Decode.string
             }
             Accounts = get.Required.Field "accounts" (Decode.list accountDecoder)
-            Categories = get.Required.Field "categories" (Decode.list categoryDecoder)
+            // Categories come from category_groups, not a flat categories list
+            Categories = get.Optional.Field "category_groups" categoryGroupsDecoder |> Option.defaultValue []
         })
 
 // ============================================

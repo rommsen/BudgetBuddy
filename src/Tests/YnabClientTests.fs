@@ -28,6 +28,8 @@ module SampleData =
     }
     """
 
+    // Budget detail JSON with category_groups (matches real YNAB API format)
+    // Note: Internal Master Category has no "categories" field - this matches real YNAB API behavior
     let budgetDetailJson = """
     {
         "data": {
@@ -46,21 +48,36 @@ module SampleData =
                         "balance": 1500000
                     }
                 ],
-                "categories": [
+                "category_groups": [
                     {
-                        "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
-                        "name": "Groceries",
-                        "category_group_name": "Essential Expenses"
+                        "id": "group-internal",
+                        "name": "Internal Master Category",
+                        "hidden": false,
+                        "deleted": false
                     },
                     {
-                        "id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
-                        "name": "Rent",
-                        "category_group_name": "Essential Expenses"
+                        "id": "group-1",
+                        "name": "Essential Expenses",
+                        "categories": [
+                            {
+                                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                                "name": "Groceries"
+                            },
+                            {
+                                "id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
+                                "name": "Rent"
+                            }
+                        ]
                     },
                     {
-                        "id": "e1f2a3b4-c5d6-7890-1234-567890fedcba",
-                        "name": "Entertainment",
-                        "category_group_name": "Fun Money"
+                        "id": "group-2",
+                        "name": "Fun Money",
+                        "categories": [
+                            {
+                                "id": "e1f2a3b4-c5d6-7890-1234-567890fedcba",
+                                "name": "Entertainment"
+                            }
+                        ]
                     }
                 ]
             }

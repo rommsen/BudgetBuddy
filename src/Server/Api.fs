@@ -197,8 +197,10 @@ let settingsApi : SettingsApi = {
                     let mutable results = []
                     for budget in budgets do
                         match! YnabClient.getBudgetWithAccounts token budget.Id with
-                        | Ok details -> results <- details :: results
-                        | Error _ -> () // Skip budgets that fail to load
+                        | Ok details ->
+                            results <- details :: results
+                        | Error _ ->
+                            () // Skip budgets that fail to load
                     return results |> List.rev
                 }
                 return Ok budgetsWithDetails

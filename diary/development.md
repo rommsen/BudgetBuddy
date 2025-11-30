@@ -4,71 +4,88 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-## 2025-11-30 13:15 - Fixed Rules Modal Transparency and Readability
+## 2025-11-30 14:30 - Fixed YNAB Budget Details Decoder for category_groups Structure
 
 **What I did:**
-Completely rebuilt the Rules edit modal UI to fix transparency issues that made the modal unreadable. The modal now has proper styling consistent with the rest of the app.
+Fixed a critical bug where the YNAB budget dropdown in Settings was missing budgets. The `budgetDetailDecoder` expected a flat `categories` list, but the YNAB API returns `category_groups` with nested categories. Additionally, some category groups (like "Internal Master Category") don't have a `categories` field at all.
 
 **Files Added:**
 - None
 
 **Files Modified:**
-- `src/Client/Views/RulesView.fs`:
-  - Replaced `Html.dialog` element (which requires `open` attribute) with standard `Html.div` using fixed positioning
-  - Changed modal structure to use `fixed inset-0 z-50 flex items-center justify-center`
-  - Added proper backdrop with `bg-black/60 backdrop-blur-sm`
-  - Modal content uses `bg-base-100 shadow-2xl p-6 rounded-2xl`
-  - Added consistent `text-base-content` classes to all text elements for readability
-  - Form controls now match Settings page styling (`form-control`, `input input-bordered`, `select select-bordered`)
-  - Header includes icon with gradient background matching app design language
-  - Action buttons at bottom with proper spacing
+- `src/Server/YnabClient.fs`:
+  - Added `categoryInGroupDecoder` for categories nested within groups
+  - Added `categoryGroupsDecoder` to handle the nested `category_groups` structure
+  - Made `categories` field optional in category groups using `Optional.Field`
+  - Changed `budgetDetailDecoder` to use `category_groups` instead of flat `categories`
+- `src/Server/Api.fs`:
+  - Added debug logging to diagnose the issue (now removed)
+  - Removed debug `printfn` statements after fix verified
+- `src/Tests/YnabClientTests.fs`:
+  - Updated test data to match real YNAB API format with `category_groups`
+  - Added "Internal Master Category" group without `categories` field to test optional handling
 
 **Files Deleted:**
 - None
 
 **Rationale:**
-User reported the Rules modal was "too transparent" and "impossible to read" - the text didn't match the background and the modal didn't fit the app's design. After multiple fix attempts:
-1. First try: Added `bg-black/70 backdrop-blur-sm` to backdrop - still unreadable
-2. Second try: Changed `bg-base-100` to `bg-white dark:bg-gray-800` - improved but text colors wrong
-3. Final fix: Complete rebuild using fixed div positioning instead of dialog element, with consistent DaisyUI styling
+User reported that they couldn't select YNAB categories in the Rules page. Investigation revealed:
+1. The "My Budget" (with 159 categories) wasn't appearing in the Settings dropdown
+2. Server logs showed: `Expecting an object with a field named "categories" but instead got: {"id": "...", "name": "Internal Master Category", ...}`
+3. Root cause: YNAB's `/budgets/{id}` endpoint returns `category_groups` with nested categories, not a flat `categories` list
+4. Some category groups (like "Internal Master Category") don't have the `categories` field at all
 
-The `Html.dialog` element wasn't working because it requires the `open` attribute to be visible, and the `modal modal-open` class alone doesn't make it appear in React/Feliz.
+The fix:
+1. Created new decoder `categoryInGroupDecoder` that takes the group name as a parameter
+2. Created `categoryGroupsDecoder` that iterates over groups, extracts group names, and decodes nested categories
+3. Made `categories` field optional with `Option.defaultValue []` for groups without it
+4. Updated `budgetDetailDecoder` to use `category_groups` instead of `categories`
 
 **Outcomes:**
 - Build: ✅
-- Modal opens correctly when clicking edit button
-- Modal has solid white background with proper contrast
-- All text is readable with `text-base-content` classes
-- Backdrop blur works correctly
-- Close button, Cancel, and backdrop click all dismiss the modal
+- Tests: 115 passed, 6 skipped
+- Bug fixed: All 3 budgets now appear in Settings dropdown
+- Verified: 159 categories from "My Budget" now load correctly in Rules edit modal
+
+**Technical Notes:**
+- YNAB API structure: `/budgets/{id}` returns `category_groups` array, each containing `categories` array
+- Some special groups (Internal Master Category) don't have nested categories
+- The `/categories` endpoint returns flat categories with `category_group_name` field (different structure)
 
 ---
 
-## 2025-11-30 12:30 - Bugfix: Rules Edit Modal Not Displaying
+## 2025-11-30 12:15 - Fixed LoadCategories Race Condition in Rules Page
 
 **What I did:**
-Fixed a CSS/z-index issue that prevented the Rules edit modal from being visible when clicking the edit button. The modal was present in the DOM but visually hidden.
+Fixed a race condition that prevented YNAB categories from loading in the Rules edit modal. Users reported that after setting a Default Budget in Settings, navigating to the Rules page would show "No categories loaded" in the category dropdown.
 
 **Files Added:**
 - None
 
 **Files Modified:**
-- `src/Client/Views/RulesView.fs`:
-  - Replaced DaisyUI `modal modal-open` structure with standard fixed positioning
-  - Changed container to `fixed inset-0 z-50 flex items-center justify-center`
-  - Added explicit z-index to modal content with `relative z-10`
-  - Moved backdrop before modal content with `fixed inset-0 bg-black/50`
+- `src/Client/State.fs`:
+  - Updated `DefaultBudgetSet (Ok _)` handler (line 435-438) to also trigger `LoadCategories` after saving the default budget
+  - Updated `SettingsLoaded (Ok settings)` handler (line 314-332) to trigger `LoadCategories` when settings contain a DefaultBudgetId and user is on Rules or SyncFlow page
 
 **Files Deleted:**
 - None
 
 **Rationale:**
-The DaisyUI modal structure had a stacking context issue where the `modal-backdrop` element (placed after the `modal-box` in the DOM) was visually covering the modal content. Browser investigation using DevTools confirmed the modal was in the accessibility tree but not visible on screen.
+The bug occurred due to a race condition in the state management:
+1. When navigating to the Rules page, `LoadCategories` is triggered
+2. But `LoadCategories` requires `model.Settings` to have `DefaultBudgetId` set
+3. If the user just set the DefaultBudgetId in Settings, the model may not be updated yet
+4. After `DefaultBudgetSet` succeeds, it triggered `LoadSettings` but NOT `LoadCategories`
+5. When `SettingsLoaded` completed, it didn't trigger category reload either
+
+The fix ensures categories are loaded in two scenarios:
+1. **After setting default budget**: `DefaultBudgetSet (Ok _)` now triggers both `LoadSettings` AND `LoadCategories`
+2. **After settings refresh**: `SettingsLoaded` now checks if we're on a page that needs categories (Rules or SyncFlow) and triggers `LoadCategories` if DefaultBudgetId is present
 
 **Outcomes:**
-- Build: ✅
-- Modal now displays correctly when clicking edit button on rules
-- All form fields visible: Rule Name, Pattern Type, Match Field, Pattern, Category, Payee Override, Enabled toggle, Test Pattern section
+- Build: ✅ 0 warnings, 0 errors (both Client and Server)
+- Tests: ✅ 121/121 passed (115 unit + 6 skipped integration)
+- Bug fixed: Categories now load correctly after setting default budget
 
 ---
 
