@@ -1,7 +1,7 @@
-module Views.DashboardView
+module Components.Dashboard.View
 
 open Feliz
-open State
+open Components.Dashboard.Types
 open Types
 open Shared.Domain
 
@@ -83,7 +83,7 @@ let private statsCard (icon: string) (title: string) (value: string) (descriptio
 // Quick Action Card
 // ============================================
 
-let private quickActionCard (dispatch: Msg -> unit) =
+let private quickActionCard (onNavigateToSync: unit -> unit) =
     Html.div [
         prop.className "card bg-gradient-to-br from-primary via-primary to-secondary text-primary-content shadow-xl overflow-hidden relative animate-slide-up"
         prop.children [
@@ -114,7 +114,7 @@ let private quickActionCard (dispatch: Msg -> unit) =
                             ]
                             Html.button [
                                 prop.className "btn btn-lg bg-white/20 hover:bg-white/30 border-none text-white gap-2 group"
-                                prop.onClick (fun _ -> dispatch (NavigateTo SyncFlow))
+                                prop.onClick (fun _ -> onNavigateToSync())
                                 prop.children [
                                     Html.span [ prop.className "text-xl"; prop.text "🔄" ]
                                     Html.span [ prop.text "Start Sync" ]
@@ -193,7 +193,7 @@ let private historyCard (session: SyncSession) =
 // Warning Alert Component
 // ============================================
 
-let private warningAlert (message: string) (linkText: string) (dispatch: Msg -> unit) =
+let private warningAlert (message: string) (linkText: string) (onNavigateToSettings: unit -> unit) =
     Html.div [
         prop.className "alert bg-warning/10 border border-warning/20 animate-slide-up"
         prop.children [
@@ -207,7 +207,7 @@ let private warningAlert (message: string) (linkText: string) (dispatch: Msg -> 
             Html.a [
                 prop.className "btn btn-sm btn-warning"
                 prop.text linkText
-                prop.onClick (fun _ -> dispatch (NavigateTo Settings))
+                prop.onClick (fun _ -> onNavigateToSettings())
             ]
         ]
     ]
@@ -216,7 +216,7 @@ let private warningAlert (message: string) (linkText: string) (dispatch: Msg -> 
 // Main View
 // ============================================
 
-let view (model: Model) (dispatch: Msg -> unit) =
+let view (model: Model) (dispatch: Msg -> unit) (onNavigateToSync: unit -> unit) (onNavigateToSettings: unit -> unit) =
     Html.div [
         prop.className "space-y-6 md:space-y-8"
         prop.children [
@@ -239,9 +239,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
             match model.Settings with
             | Success settings ->
                 if settings.Ynab.IsNone then
-                    warningAlert "YNAB is not configured." "Configure YNAB" dispatch
+                    warningAlert "YNAB is not configured." "Configure YNAB" onNavigateToSettings
                 elif settings.Comdirect.IsNone then
-                    warningAlert "Comdirect is not configured." "Configure Comdirect" dispatch
+                    warningAlert "Comdirect is not configured." "Configure Comdirect" onNavigateToSettings
                 else
                     Html.none
             | _ -> Html.none
@@ -291,7 +291,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             ]
 
             // Quick Action Card
-            quickActionCard dispatch
+            quickActionCard onNavigateToSync
 
             // Recent sync history
             Html.div [

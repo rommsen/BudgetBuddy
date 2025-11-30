@@ -4,6 +4,144 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-11-30 16:00 - Fixed Categories Not Loading After Component Refactoring
+
+**What I did:**
+Fixed a regression where YNAB categories weren't loading in the Rules and SyncFlow pages after the frontend component refactoring. The child components' `LoadCategories` handlers were placeholders that did nothing, and the parent wasn't loading categories properly.
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `src/Client/State.fs`:
+  - Added special handling for `LoadCategories` messages from both Rules and SyncFlow components
+  - Parent now intercepts `LoadCategories` messages and loads categories using Settings from its own state
+  - Added settings initialization on app startup to ensure DefaultBudgetId is available
+  - API result (`YnabResult<YnabCategory list>`) is now correctly passed to child components
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+After the component refactoring, child components (Rules, SyncFlow) no longer had access to the Settings state needed to determine which budget's categories to load. The `LoadCategories` message handlers in child components were stub implementations expecting the parent to handle the actual loading. The fix:
+1. Parent intercepts `LoadCategories` messages before delegating to child components
+2. Parent uses its Settings state to get the DefaultBudgetId
+3. Parent calls the API and sends `CategoriesLoaded` result to the child component
+4. Settings are now loaded on app startup (not just when navigating to Settings page)
+
+**Outcomes:**
+- Build: ✅
+- Categories now load correctly in Rules and SyncFlow pages
+- Settings are initialized at app startup for cross-component availability
+
+---
+
+## 2025-11-30 15:30 - Refactored Frontend to MVU Component Architecture
+
+**What I did:**
+Refactored the monolithic frontend application into semantic MVU components following the pattern of Types.fs, State.fs, View.fs for each component. The application now has four separate components (Dashboard, Settings, SyncFlow, Rules) organized in a Components folder, with the main State.fs composing child components using the standard Elmish composition pattern.
+
+**Files Added:**
+- `src/Client/Components/Dashboard/Types.fs` - Dashboard-specific model and message types
+- `src/Client/Components/Dashboard/State.fs` - Dashboard init and update functions
+- `src/Client/Components/Dashboard/View.fs` - Dashboard view with stats, quick actions, and history
+- `src/Client/Components/Settings/Types.fs` - Settings-specific model, messages, and ExternalMsg for parent communication
+- `src/Client/Components/Settings/State.fs` - Settings state management with YNAB/Comdirect credentials
+- `src/Client/Components/Settings/View.fs` - Settings view with YNAB, Comdirect, and sync settings cards
+- `src/Client/Components/SyncFlow/Types.fs` - SyncFlow-specific model, messages, and ExternalMsg
+- `src/Client/Components/SyncFlow/State.fs` - Complete sync workflow state management
+- `src/Client/Components/SyncFlow/View.fs` - TAN waiting, transaction list, completion views
+- `src/Client/Components/Rules/Types.fs` - Rules-specific model, messages, and ExternalMsg
+- `src/Client/Components/Rules/State.fs` - Rules CRUD and form state management
+- `src/Client/Components/Rules/View.fs` - Rules list and edit modal
+
+**Files Modified:**
+- `src/Client/State.fs` - Refactored from monolithic 1000+ line file to composed Model with child component models, delegating to child update functions and handling ExternalMsg for cross-component communication (toasts, navigation)
+- `src/Client/View.fs` - Updated to pass child models and mapped dispatch functions to component views
+- `src/Client/Client.fsproj` - Updated compilation order with Components/* files before main State.fs and View.fs
+
+**Files Deleted:**
+- `src/Client/Views/DashboardView.fs` - Replaced by Components/Dashboard/View.fs
+- `src/Client/Views/SettingsView.fs` - Replaced by Components/Settings/View.fs
+- `src/Client/Views/SyncFlowView.fs` - Replaced by Components/SyncFlow/View.fs
+- `src/Client/Views/RulesView.fs` - Replaced by Components/Rules/View.fs
+
+**Rationale:**
+The monolithic State.fs file had grown to over 1000 lines with all state, messages, and update logic for the entire application in a single file. This made it difficult to:
+1. Understand individual feature implementations
+2. Make changes without affecting unrelated features
+3. Test components in isolation
+4. Follow the separation of concerns principle
+
+The refactoring follows MVU component best practices:
+- Each component has its own Types.fs (Model + Msg), State.fs (init + update), and View.fs
+- Components communicate with parent via ExternalMsg pattern (ShowToast, NavigateToDashboard)
+- Parent composes child models and dispatches to child update functions using Cmd.map
+- Navigation and toast handling remain at the root level for centralized control
+
+**Implementation Details:**
+
+1. **Component Structure**:
+   Each component follows the pattern:
+   ```
+   Components/
+   └── ComponentName/
+       ├── Types.fs    - Model, Msg, ExternalMsg types
+       ├── State.fs    - init() and update() functions
+       └── View.fs     - view() function with Feliz
+   ```
+
+2. **ExternalMsg Pattern**:
+   Components return `Model * Cmd<Msg> * ExternalMsg` from update, allowing them to:
+   - Request parent to show toasts: `ShowToast of string * ToastType`
+   - Request navigation: `NavigateToDashboard` (SyncFlow only)
+   - Signal nothing: `NoOp`
+
+3. **Main State Composition**:
+   ```fsharp
+   type Model = {
+       CurrentPage: Page
+       Toasts: Toast list
+       Dashboard: Components.Dashboard.Types.Model
+       Settings: Components.Settings.Types.Model
+       SyncFlow: Components.SyncFlow.Types.Model
+       Rules: Components.Rules.Types.Model
+   }
+
+   type Msg =
+       | NavigateTo of Page
+       | ShowToast of string * ToastType
+       | DashboardMsg of Components.Dashboard.Types.Msg
+       | SettingsMsg of Components.Settings.Types.Msg
+       | SyncFlowMsg of Components.SyncFlow.Types.Msg
+       | RulesMsg of Components.Rules.Types.Msg
+   ```
+
+4. **View Composition**:
+   Views receive their specific model and a mapped dispatch function:
+   ```fsharp
+   Components.Dashboard.View.view
+       model.Dashboard
+       (DashboardMsg >> dispatch)
+       (fun () -> dispatch (NavigateTo SyncFlow))
+       (fun () -> dispatch (NavigateTo Settings))
+   ```
+
+**Outcomes:**
+- Build: ✅ All projects compile successfully (Client, Server, Tests)
+- Tests: ✅ 115 passed, 6 skipped (all existing tests still pass)
+- Code Organization: 4 separate components with clear boundaries
+- Main State.fs: Reduced from ~1000 lines to ~190 lines
+- Each component is now self-contained and easier to maintain
+
+**Technical Notes:**
+- F# compilation order requires Types.fs → State.fs → View.fs within each component
+- Components must be compiled before main State.fs (which references them)
+- Dashboard component doesn't need ExternalMsg (no parent notifications needed)
+- The Api module is shared across components (defined in src/Client/Api.fs)
+
+---
+
 ## 2025-11-30 14:30 - Fixed YNAB Budget Details Decoder for category_groups Structure
 
 **What I did:**

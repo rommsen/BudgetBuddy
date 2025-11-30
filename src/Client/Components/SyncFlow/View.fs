@@ -1,7 +1,7 @@
-module Views.SyncFlowView
+module Components.SyncFlow.View
 
 open Feliz
-open State
+open Components.SyncFlow.Types
 open Types
 open Shared.Domain
 
@@ -294,7 +294,6 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                 let categorized = transactions |> List.filter (fun tx -> match tx.Status with | AutoCategorized | ManualCategorized | NeedsAttention -> tx.CategoryId.IsSome | _ -> false) |> List.length
                 let uncategorized = transactions |> List.filter (fun tx -> tx.Status = Pending) |> List.length
                 let skipped = transactions |> List.filter (fun tx -> tx.Status = Skipped) |> List.length
-                let needsAttention = transactions |> List.filter (fun tx -> tx.Status = NeedsAttention) |> List.length
                 let total = transactions.Length
 
                 Html.div [
@@ -469,7 +468,7 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
 // Completed View
 // ============================================
 
-let private completedView (session: SyncSession) (dispatch: Msg -> unit) =
+let private completedView (session: SyncSession) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> unit) =
     Html.div [
         prop.className "max-w-lg mx-auto animate-scale-in"
         prop.children [
@@ -563,7 +562,7 @@ let private completedView (session: SyncSession) (dispatch: Msg -> unit) =
                                     ]
                                     Html.button [
                                         prop.className "btn btn-ghost flex-1"
-                                        prop.onClick (fun _ -> dispatch (NavigateTo Dashboard))
+                                        prop.onClick (fun _ -> onNavigateToDashboard())
                                         prop.text "Back to Dashboard"
                                     ]
                                 ]
@@ -789,7 +788,7 @@ let private errorView (error: string) (dispatch: Msg -> unit) =
 // Main View
 // ============================================
 
-let view (model: Model) (dispatch: Msg -> unit) =
+let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> unit) =
     Html.div [
         prop.className "space-y-6"
         prop.children [
@@ -834,7 +833,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     loadingView "Importing to YNAB..."
 
                 | Completed ->
-                    completedView session dispatch
+                    completedView session dispatch onNavigateToDashboard
 
                 | Failed error ->
                     errorView error dispatch

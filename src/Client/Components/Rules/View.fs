@@ -1,7 +1,7 @@
-module Views.RulesView
+module Components.Rules.View
 
 open Feliz
-open State
+open Components.Rules.Types
 open Types
 open Shared.Domain
 

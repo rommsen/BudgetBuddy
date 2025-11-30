@@ -4,7 +4,7 @@ description: Erstellt einen Blogpost über die Arbeit im aktuellen Context Windo
 
 # BlogPost Command
 
-Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und Arbeit in dieser Conversation) und erstelle einen ausführlichen Blogpost.
+Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und Arbeit in dieser Conversation) und erstelle einen ausführlichen Blogpost. Wenn dein Context Window sehr leer ist, nehme die nicht committeten Änderungen in diary/development.md und die nicht committeten Dateien als Basis für den Posts.
 
 ## Anweisungen
 

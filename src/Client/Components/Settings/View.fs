@@ -1,7 +1,7 @@
-module Views.SettingsView
+module Components.Settings.View
 
 open Feliz
-open State
+open Components.Settings.Types
 open Types
 open Shared.Domain
 

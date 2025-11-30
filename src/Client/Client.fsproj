@@ -4,13 +4,32 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Shared types -->
     <Compile Include="Types.fs" />
     <Compile Include="Api.fs" />
+
+    <!-- Component: Dashboard -->
+    <Compile Include="Components/Dashboard/Types.fs" />
+    <Compile Include="Components/Dashboard/State.fs" />
+    <Compile Include="Components/Dashboard/View.fs" />
+
+    <!-- Component: Settings -->
+    <Compile Include="Components/Settings/Types.fs" />
+    <Compile Include="Components/Settings/State.fs" />
+    <Compile Include="Components/Settings/View.fs" />
+
+    <!-- Component: SyncFlow -->
+    <Compile Include="Components/SyncFlow/Types.fs" />
+    <Compile Include="Components/SyncFlow/State.fs" />
+    <Compile Include="Components/SyncFlow/View.fs" />
+
+    <!-- Component: Rules -->
+    <Compile Include="Components/Rules/Types.fs" />
+    <Compile Include="Components/Rules/State.fs" />
+    <Compile Include="Components/Rules/View.fs" />
+
+    <!-- Main application -->
     <Compile Include="State.fs" />
-    <Compile Include="Views/DashboardView.fs" />
-    <Compile Include="Views/SyncFlowView.fs" />
-    <Compile Include="Views/RulesView.fs" />
-    <Compile Include="Views/SettingsView.fs" />
     <Compile Include="View.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>

@@ -210,10 +210,25 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 prop.className "container mx-auto px-4 pt-20 pb-24 md:pb-8 animate-fade-in"
                 prop.children [
                     match model.CurrentPage with
-                    | Dashboard -> Views.DashboardView.view model dispatch
-                    | SyncFlow -> Views.SyncFlowView.view model dispatch
-                    | Rules -> Views.RulesView.view model dispatch
-                    | Settings -> Views.SettingsView.view model dispatch
+                    | Dashboard ->
+                        Components.Dashboard.View.view
+                            model.Dashboard
+                            (DashboardMsg >> dispatch)
+                            (fun () -> dispatch (NavigateTo SyncFlow))
+                            (fun () -> dispatch (NavigateTo Settings))
+                    | SyncFlow ->
+                        Components.SyncFlow.View.view
+                            model.SyncFlow
+                            (SyncFlowMsg >> dispatch)
+                            (fun () -> dispatch (NavigateTo Dashboard))
+                    | Rules ->
+                        Components.Rules.View.view
+                            model.Rules
+                            (RulesMsg >> dispatch)
+                    | Settings ->
+                        Components.Settings.View.view
+                            model.Settings
+                            (SettingsMsg >> dispatch)
                 ]
             ]
 
