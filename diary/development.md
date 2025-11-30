@@ -4,6 +4,46 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-11-30 17:30 - Created UI Refactoring Milestone Plan
+
+**What I did:**
+Created a comprehensive milestone plan for refactoring the entire frontend UI to implement the Neon Glow Dark Mode Theme design system.
+
+**Files Added:**
+- `docs/UI-REFACTORING-MILESTONES.md` - Complete 12-milestone plan for UI refactoring
+
+**Files Modified:**
+- None
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+The user requested a structured plan to refactor the application's UI components to follow the new design system defined in `docs/DESIGN-SYSTEM.md`. The plan:
+
+1. **Analyzed current state**: 4 component directories (Dashboard, Settings, SyncFlow, Rules), CSS-only theming, no shared component library
+
+2. **Created 5-phase plan**:
+   - **Phase 1 (R0-R1)**: Foundation - Tailwind config, CSS custom properties, design tokens in F#
+   - **Phase 2 (R2-R4)**: Component Library - Buttons, Cards, Badges, Inputs, Stats, Tables, Navigation
+   - **Phase 3 (R5-R9)**: View Migrations - Dashboard, Settings, SyncFlow, Rules pages
+   - **Phase 4 (R10-R11)**: Polish - Animations, micro-interactions, mobile optimization
+   - **Phase 5 (R12)**: Documentation and cleanup
+
+3. **Key deliverables**:
+   - `src/Client/DesignSystem/` folder with reusable F# components
+   - Design tokens (colors, spacing, typography) in F#
+   - Mobile-first responsive navigation (bottom nav mobile, top nav desktop)
+   - Neon glow effects, glassmorphism, animations
+   - Complete migration of all 4 view modules
+
+**Outcomes:**
+- Planning document: ✅ Created with 12 milestones
+- Each milestone has clear tasks, files to create/modify, and verification checklist
+- Ready for implementation
+
+---
+
 ## 2025-11-30 16:00 - Fixed Categories Not Loading After Component Refactoring
 
 **What I did:**
