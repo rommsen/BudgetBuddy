@@ -129,6 +129,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                             Html.button [
                                                 prop.className "btn btn-primary gap-2"
                                                 prop.onClick (fun _ -> dispatch SaveYnabToken)
+                                                prop.disabled (System.String.IsNullOrWhiteSpace(model.YnabTokenInput))
                                                 prop.children [
                                                     Html.span [ prop.text "💾" ]
                                                     Html.span [ prop.text "Save" ]
@@ -444,9 +445,16 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             ]
 
                             // Save button
+                            let isFormValid =
+                                not (System.String.IsNullOrWhiteSpace(model.ComdirectClientIdInput)) &&
+                                not (System.String.IsNullOrWhiteSpace(model.ComdirectClientSecretInput)) &&
+                                not (System.String.IsNullOrWhiteSpace(model.ComdirectUsernameInput)) &&
+                                not (System.String.IsNullOrWhiteSpace(model.ComdirectPasswordInput))
+
                             Html.button [
                                 prop.className "btn btn-primary gap-2"
                                 prop.onClick (fun _ -> dispatch SaveComdirectCredentials)
+                                prop.disabled (not isFormValid)
                                 prop.children [
                                     Html.span [ prop.text "💾" ]
                                     Html.span [ prop.text "Save Credentials" ]

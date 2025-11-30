@@ -36,7 +36,20 @@ type Model = {
     // Rules
     Rules: RemoteData<Rule list>
     EditingRule: Rule option
+    IsNewRule: bool
     Categories: YnabCategory list
+
+    // Rule form state
+    RuleFormName: string
+    RuleFormPattern: string
+    RuleFormPatternType: PatternType
+    RuleFormTargetField: TargetField
+    RuleFormCategoryId: YnabCategoryId option
+    RuleFormPayeeOverride: string
+    RuleFormEnabled: bool
+    RuleFormTestInput: string
+    RuleFormTestResult: string option
+    RuleSaving: bool
 
     // Sync Flow
     SyncTransactions: RemoteData<SyncTransaction list>
@@ -91,6 +104,25 @@ type Msg =
     | RuleToggled of Result<Rule, RulesError>
     | LoadCategories
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
+
+    // Rule form
+    | UpdateRuleFormName of string
+    | UpdateRuleFormPattern of string
+    | UpdateRuleFormPatternType of PatternType
+    | UpdateRuleFormTargetField of TargetField
+    | UpdateRuleFormCategoryId of YnabCategoryId option
+    | UpdateRuleFormPayeeOverride of string
+    | UpdateRuleFormEnabled of bool
+    | UpdateRuleFormTestInput of string
+    | TestRulePattern
+    | RulePatternTested of Result<bool, RulesError>
+    | SaveRule
+    | RuleSaved of Result<Rule, RulesError>
+    | ExportRules
+    | RulesExported of Result<string, RulesError>
+    | ImportRulesStart
+    | ImportRules of string
+    | RulesImported of Result<int, RulesError>
 
     // Sync Flow
     | LoadCurrentSession
@@ -172,7 +204,20 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
 // Init
 // ============================================
 
+let private emptyRuleForm () = {|
+    Name = ""
+    Pattern = ""
+    PatternType = Contains
+    TargetField = Combined
+    CategoryId = None
+    PayeeOverride = ""
+    Enabled = true
+    TestInput = ""
+    TestResult = None
+|}
+
 let init () : Model * Cmd<Msg> =
+    let emptyForm = emptyRuleForm ()
     let model = {
         CurrentPage = Dashboard
         Toasts = []
@@ -189,7 +234,18 @@ let init () : Model * Cmd<Msg> =
         SyncDaysInput = 30
         Rules = NotAsked
         EditingRule = None
+        IsNewRule = false
         Categories = []
+        RuleFormName = emptyForm.Name
+        RuleFormPattern = emptyForm.Pattern
+        RuleFormPatternType = emptyForm.PatternType
+        RuleFormTargetField = emptyForm.TargetField
+        RuleFormCategoryId = emptyForm.CategoryId
+        RuleFormPayeeOverride = emptyForm.PayeeOverride
+        RuleFormEnabled = emptyForm.Enabled
+        RuleFormTestInput = emptyForm.TestInput
+        RuleFormTestResult = emptyForm.TestResult
+        RuleSaving = false
         SyncTransactions = NotAsked
         SelectedTransactions = Set.empty
     }
@@ -414,18 +470,64 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         { model with Rules = Success rules }, Cmd.none
 
     | OpenNewRuleModal ->
-        // For now, just show a toast - full implementation in Milestone 9
-        addToast "Rule creation form will be implemented in Milestone 9" ToastInfo model
+        let emptyForm = emptyRuleForm ()
+        let nextPriority =
+            match model.Rules with
+            | Success rules -> (rules |> List.map (fun r -> r.Priority) |> List.fold max 0) + 1
+            | _ -> 1
+        { model with
+            EditingRule = None
+            IsNewRule = true
+            RuleFormName = emptyForm.Name
+            RuleFormPattern = emptyForm.Pattern
+            RuleFormPatternType = emptyForm.PatternType
+            RuleFormTargetField = emptyForm.TargetField
+            RuleFormCategoryId = emptyForm.CategoryId
+            RuleFormPayeeOverride = emptyForm.PayeeOverride
+            RuleFormEnabled = emptyForm.Enabled
+            RuleFormTestInput = emptyForm.TestInput
+            RuleFormTestResult = emptyForm.TestResult
+            RuleSaving = false
+        }, Cmd.ofMsg LoadCategories
 
     | EditRule ruleId ->
         match model.Rules with
         | Success rules ->
-            let rule = rules |> List.tryFind (fun r -> r.Id = ruleId)
-            { model with EditingRule = rule }, Cmd.none
+            match rules |> List.tryFind (fun r -> r.Id = ruleId) with
+            | Some rule ->
+                { model with
+                    EditingRule = Some rule
+                    IsNewRule = false
+                    RuleFormName = rule.Name
+                    RuleFormPattern = rule.Pattern
+                    RuleFormPatternType = rule.PatternType
+                    RuleFormTargetField = rule.TargetField
+                    RuleFormCategoryId = Some rule.CategoryId
+                    RuleFormPayeeOverride = rule.PayeeOverride |> Option.defaultValue ""
+                    RuleFormEnabled = rule.Enabled
+                    RuleFormTestInput = ""
+                    RuleFormTestResult = None
+                    RuleSaving = false
+                }, Cmd.ofMsg LoadCategories
+            | None -> model, Cmd.none
         | _ -> model, Cmd.none
 
     | CloseRuleModal ->
-        { model with EditingRule = None }, Cmd.none
+        let emptyForm = emptyRuleForm ()
+        { model with
+            EditingRule = None
+            IsNewRule = false
+            RuleFormName = emptyForm.Name
+            RuleFormPattern = emptyForm.Pattern
+            RuleFormPatternType = emptyForm.PatternType
+            RuleFormTargetField = emptyForm.TargetField
+            RuleFormCategoryId = emptyForm.CategoryId
+            RuleFormPayeeOverride = emptyForm.PayeeOverride
+            RuleFormEnabled = emptyForm.Enabled
+            RuleFormTestInput = emptyForm.TestInput
+            RuleFormTestResult = emptyForm.TestResult
+            RuleSaving = false
+        }, Cmd.none
 
     | DeleteRule ruleId ->
         let cmd =
@@ -498,6 +600,177 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | CategoriesLoaded (Error _) ->
         model, Cmd.none
+
+    // ============================================
+    // Rule Form
+    // ============================================
+    | UpdateRuleFormName value ->
+        { model with RuleFormName = value }, Cmd.none
+
+    | UpdateRuleFormPattern value ->
+        { model with RuleFormPattern = value; RuleFormTestResult = None }, Cmd.none
+
+    | UpdateRuleFormPatternType value ->
+        { model with RuleFormPatternType = value; RuleFormTestResult = None }, Cmd.none
+
+    | UpdateRuleFormTargetField value ->
+        { model with RuleFormTargetField = value }, Cmd.none
+
+    | UpdateRuleFormCategoryId value ->
+        { model with RuleFormCategoryId = value }, Cmd.none
+
+    | UpdateRuleFormPayeeOverride value ->
+        { model with RuleFormPayeeOverride = value }, Cmd.none
+
+    | UpdateRuleFormEnabled value ->
+        { model with RuleFormEnabled = value }, Cmd.none
+
+    | UpdateRuleFormTestInput value ->
+        { model with RuleFormTestInput = value; RuleFormTestResult = None }, Cmd.none
+
+    | TestRulePattern ->
+        if String.IsNullOrWhiteSpace(model.RuleFormPattern) || String.IsNullOrWhiteSpace(model.RuleFormTestInput) then
+            addToast "Please enter both a pattern and test input" ToastWarning model
+        else
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.rules.testRule
+                    (model.RuleFormPattern, model.RuleFormPatternType, model.RuleFormTargetField, model.RuleFormTestInput)
+                    (Ok >> RulePatternTested)
+                    (fun ex -> Error (RulesError.InvalidPattern (model.RuleFormPattern, ex.Message)) |> RulePatternTested)
+            model, cmd
+
+    | RulePatternTested (Ok matches) ->
+        let resultText = if matches then "✅ Pattern matches!" else "❌ Pattern does not match"
+        { model with RuleFormTestResult = Some resultText }, Cmd.none
+
+    | RulePatternTested (Error err) ->
+        { model with RuleFormTestResult = Some $"⚠️ {rulesErrorToString err}" }, Cmd.none
+
+    | SaveRule ->
+        match model.RuleFormCategoryId with
+        | None ->
+            addToast "Please select a category" ToastWarning model
+        | Some categoryId ->
+            if String.IsNullOrWhiteSpace(model.RuleFormName) then
+                addToast "Please enter a rule name" ToastWarning model
+            elif String.IsNullOrWhiteSpace(model.RuleFormPattern) then
+                addToast "Please enter a pattern" ToastWarning model
+            else
+                let payeeOverride = if String.IsNullOrWhiteSpace(model.RuleFormPayeeOverride) then None else Some model.RuleFormPayeeOverride
+                if model.IsNewRule then
+                    let nextPriority =
+                        match model.Rules with
+                        | Success rules -> (rules |> List.map (fun r -> r.Priority) |> List.fold max 0) + 1
+                        | _ -> 1
+                    let request : RuleCreateRequest = {
+                        Name = model.RuleFormName
+                        Pattern = model.RuleFormPattern
+                        PatternType = model.RuleFormPatternType
+                        TargetField = model.RuleFormTargetField
+                        CategoryId = categoryId
+                        PayeeOverride = payeeOverride
+                        Priority = nextPriority
+                    }
+                    let cmd =
+                        Cmd.OfAsync.either
+                            Api.rules.createRule
+                            request
+                            RuleSaved
+                            (fun ex -> Error (RulesError.DatabaseError ("create", ex.Message)) |> RuleSaved)
+                    { model with RuleSaving = true }, cmd
+                else
+                    match model.EditingRule with
+                    | Some rule ->
+                        let request : RuleUpdateRequest = {
+                            Id = rule.Id
+                            Name = Some model.RuleFormName
+                            Pattern = Some model.RuleFormPattern
+                            PatternType = Some model.RuleFormPatternType
+                            TargetField = Some model.RuleFormTargetField
+                            CategoryId = Some categoryId
+                            PayeeOverride = payeeOverride
+                            Priority = None
+                            Enabled = Some model.RuleFormEnabled
+                        }
+                        let cmd =
+                            Cmd.OfAsync.either
+                                Api.rules.updateRule
+                                request
+                                RuleSaved
+                                (fun ex -> Error (RulesError.DatabaseError ("update", ex.Message)) |> RuleSaved)
+                        { model with RuleSaving = true }, cmd
+                    | None -> model, Cmd.none
+
+    | RuleSaved (Ok _) ->
+        let action = if model.IsNewRule then "created" else "updated"
+        let model', cmd = addToast $"Rule {action} successfully" ToastSuccess model
+        let emptyForm = emptyRuleForm ()
+        { model' with
+            EditingRule = None
+            IsNewRule = false
+            RuleFormName = emptyForm.Name
+            RuleFormPattern = emptyForm.Pattern
+            RuleFormPatternType = emptyForm.PatternType
+            RuleFormTargetField = emptyForm.TargetField
+            RuleFormCategoryId = emptyForm.CategoryId
+            RuleFormPayeeOverride = emptyForm.PayeeOverride
+            RuleFormEnabled = emptyForm.Enabled
+            RuleFormTestInput = emptyForm.TestInput
+            RuleFormTestResult = emptyForm.TestResult
+            RuleSaving = false
+        }, Cmd.batch [ cmd; Cmd.ofMsg LoadRules ]
+
+    | RuleSaved (Error err) ->
+        let model', cmd = addToast (rulesErrorToString err) ToastError model
+        { model' with RuleSaving = false }, cmd
+
+    | ExportRules ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.rules.exportRules
+                ()
+                (Ok >> RulesExported)
+                (fun ex -> Error (RulesError.DatabaseError ("export", ex.Message)) |> RulesExported)
+        model, cmd
+
+    | RulesExported (Ok json) ->
+        // Trigger browser download using direct JS interop
+        Fable.Core.JS.eval(sprintf """
+            (function() {
+                var blob = new Blob([%s], {type: 'application/json'});
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'budgetbuddy-rules.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            })();
+        """ (Fable.Core.JS.JSON.stringify json)) |> ignore
+        addToast "Rules exported successfully" ToastSuccess model
+
+    | RulesExported (Error err) ->
+        addToast (rulesErrorToString err) ToastError model
+
+    | ImportRulesStart ->
+        // This message triggers file input click from the view
+        model, Cmd.none
+
+    | ImportRules json ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.rules.importRules
+                json
+                RulesImported
+                (fun ex -> Error (RulesError.DatabaseError ("import", ex.Message)) |> RulesImported)
+        model, cmd
+
+    | RulesImported (Ok count) ->
+        let model', cmd = addToast $"Imported {count} rule(s) successfully" ToastSuccess model
+        model', Cmd.batch [ cmd; Cmd.ofMsg LoadRules ]
+
+    | RulesImported (Error err) ->
+        addToast (rulesErrorToString err) ToastError model
 
     // ============================================
     // Sync Flow
