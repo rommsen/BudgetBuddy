@@ -1,4 +1,529 @@
 @import "tailwindcss";
 
-/* BudgetBuddy custom styles */
-/* Add your custom CSS here */
+/* ============================================
+   BudgetBuddy - Premium Financial App Design
+   ============================================ */
+
+/* Custom Fonts - Using Inter for UI and JetBrains Mono for numbers */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+/* ============================================
+   CSS Custom Properties (Design Tokens)
+   ============================================ */
+:root {
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+
+  /* Border radius */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-glow: 0 0 20px rgb(59 130 246 / 0.3);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  min-height: 100vh;
+}
+
+/* ============================================
+   DaisyUI Theme Customization
+   ============================================ */
+[data-theme="light"] {
+  --p: 234 89% 60%;
+  --pf: 234 89% 50%;
+  --pc: 0 0% 100%;
+  --s: 280 84% 63%;
+  --sf: 280 84% 53%;
+  --sc: 0 0% 100%;
+  --a: 173 80% 40%;
+  --af: 173 80% 30%;
+  --ac: 0 0% 100%;
+  --n: 219 14% 28%;
+  --nf: 219 14% 18%;
+  --nc: 0 0% 100%;
+  --b1: 0 0% 100%;
+  --b2: 220 14% 96%;
+  --b3: 220 13% 91%;
+  --bc: 219 14% 28%;
+  --su: 158 64% 52%;
+  --wa: 43 96% 56%;
+  --er: 0 84% 60%;
+  --in: 198 93% 60%;
+  --rounded-box: 1rem;
+  --rounded-btn: 0.5rem;
+  --rounded-badge: 9999px;
+  --animation-btn: 0.25s;
+  --animation-input: 0.2s;
+  --btn-focus-scale: 0.97;
+}
+
+[data-theme="dark"] {
+  --p: 234 89% 60%;
+  --pf: 234 89% 70%;
+  --pc: 0 0% 100%;
+  --s: 280 84% 63%;
+  --sf: 280 84% 73%;
+  --sc: 0 0% 100%;
+  --a: 173 80% 40%;
+  --af: 173 80% 50%;
+  --ac: 0 0% 100%;
+  --n: 220 13% 91%;
+  --nf: 220 14% 96%;
+  --nc: 219 14% 28%;
+  --b1: 222 47% 11%;
+  --b2: 217 33% 17%;
+  --b3: 215 28% 23%;
+  --bc: 213 27% 84%;
+  --su: 158 64% 52%;
+  --wa: 43 96% 56%;
+  --er: 0 84% 60%;
+  --in: 198 93% 60%;
+}
+
+/* ============================================
+   Typography Enhancements
+   ============================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.font-mono, code, pre, .stat-value {
+  font-family: var(--font-mono);
+}
+
+/* ============================================
+   Custom Component Styles
+   ============================================ */
+
+/* Premium Card */
+.card {
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Glass morphism effect */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="dark"] .glass-card {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Premium Button Styles */
+.btn {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: all var(--transition-base);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, hsl(var(--p)) 0%, hsl(var(--pf)) 100%);
+  border: none;
+  box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.35);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, hsl(var(--pf)) 0%, hsl(var(--p)) 100%);
+  box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, hsl(var(--s)) 0%, hsl(var(--sf)) 100%);
+  box-shadow: 0 4px 14px 0 rgba(168, 85, 247, 0.35);
+}
+
+/* Navbar Premium Styling */
+.navbar {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: var(--space-sm) var(--space-lg);
+}
+
+[data-theme="dark"] .navbar {
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Stats Premium */
+.stats {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+
+.stat {
+  padding: var(--space-lg) var(--space-xl);
+  position: relative;
+}
+
+.stat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, hsl(var(--p)), hsl(var(--s)), hsl(var(--a)));
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.stat:hover::before {
+  opacity: 1;
+}
+
+.stat-title {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.75rem;
+  background: linear-gradient(135deg, hsl(var(--bc)) 0%, hsl(var(--bc) / 0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Form Inputs Premium */
+.input, .select, .textarea {
+  font-family: var(--font-sans);
+  transition: all var(--transition-base);
+  border: 2px solid hsl(var(--b3));
+}
+
+.input:focus, .select:focus, .textarea:focus {
+  border-color: hsl(var(--p));
+  box-shadow: 0 0 0 3px hsl(var(--p) / 0.15);
+  outline: none;
+}
+
+/* Table Premium */
+.table {
+  font-family: var(--font-sans);
+}
+
+.table th {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+  color: hsl(var(--bc) / 0.6);
+  background: hsl(var(--b2));
+  padding: var(--space-md) var(--space-lg);
+}
+
+.table td {
+  padding: var(--space-md) var(--space-lg);
+  vertical-align: middle;
+}
+
+.table tr {
+  transition: background-color var(--transition-fast);
+}
+
+.table tr:hover {
+  background: hsl(var(--p) / 0.05);
+}
+
+/* Badge Premium */
+.badge {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.3em 0.8em;
+}
+
+.badge-success {
+  background: linear-gradient(135deg, hsl(var(--su)) 0%, hsl(var(--su) / 0.8) 100%);
+}
+
+.badge-error {
+  background: linear-gradient(135deg, hsl(var(--er)) 0%, hsl(var(--er) / 0.8) 100%);
+}
+
+.badge-warning {
+  background: linear-gradient(135deg, hsl(var(--wa)) 0%, hsl(var(--wa) / 0.8) 100%);
+}
+
+/* Alert Premium */
+.alert {
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Modal Premium */
+.modal-box {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-xl);
+}
+
+[data-theme="dark"] .modal-box {
+  background: rgba(30, 41, 59, 0.95);
+}
+
+/* ============================================
+   Custom Utility Classes
+   ============================================ */
+
+/* Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--p)) 0%, hsl(var(--s)) 50%, hsl(var(--a)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated Gradient Background */
+.gradient-bg {
+  background: linear-gradient(-45deg, #667eea, #764ba2, #6B8DD6, #8E37D7);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Pulse animation for loading states */
+.pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Slide up animation */
+.animate-slide-up {
+  animation: slideUp 0.5s var(--transition-spring) forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in animation */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Scale in animation */
+.animate-scale-in {
+  animation: scaleIn 0.3s var(--transition-spring) forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Shimmer loading effect */
+.shimmer {
+  background: linear-gradient(90deg, hsl(var(--b2)) 0%, hsl(var(--b3)) 50%, hsl(var(--b2)) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   Money Display
+   ============================================ */
+.money-positive {
+  color: hsl(var(--su));
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.money-negative {
+  color: hsl(var(--er));
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--b2));
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.2);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--bc) / 0.4);
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+
+/* Mobile first - base styles are mobile */
+@media (max-width: 640px) {
+  .navbar {
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .stat {
+    padding: var(--space-md);
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .card-body {
+    padding: var(--space-md);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .table th, .table td {
+    padding: var(--space-sm);
+  }
+}
+
+/* Tablet and up */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .stat-value {
+    font-size: 1.5rem;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1025px) {
+  .container {
+    max-width: 1280px;
+  }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+@media print {
+  .navbar, .toast, .btn {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}
+
+/* ============================================
+   Reduced Motion Support
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
