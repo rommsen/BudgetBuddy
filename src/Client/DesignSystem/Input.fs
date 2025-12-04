@@ -33,7 +33,7 @@ let private sizeToClass = function
 
 let private stateToClass = function
     | Normal -> ""
-    | Error _ -> "border-neon-red focus:border-neon-red focus:shadow-[0_0_0_2px_rgba(255,59,92,0.3)]"
+    | Error _ -> "border-neon-red focus:border-neon-red focus:shadow-[0_0_0_2px_rgba(255,59,92,0.3)] animate-shake"
     | Success -> "border-neon-green focus:border-neon-green focus:shadow-[0_0_0_2px_rgba(0,255,136,0.3)]"
 
 // ============================================

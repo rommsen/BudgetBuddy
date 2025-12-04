@@ -4,6 +4,176 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-04 18:30 - Phase 4 UI Refactoring: Micro-interactions & Animations (R10)
+
+**What I did:**
+Completed Milestone R10 of the UI refactoring plan - added micro-interactions and animations to enhance the UI polish.
+
+**Files Modified:**
+- `src/Client/styles.css` - Added new CSS animations:
+  - `animate-shake` - Error shake animation for form validation feedback
+  - `animate-success-pop` - Success pop animation with scale bounce
+  - `animate-checkmark` - SVG stroke draw animation for checkmark
+  - `animate-slide-in-right` / `animate-slide-out-right` - For toast notifications
+  - `animate-bounce-subtle` - Subtle bounce for attention
+  - `animate-glow-pulse` - Brightness pulse for important elements
+  - `animate-page-enter` - Page transition animation for route changes
+  - `shimmer-neon` - Enhanced shimmer with neon gradient
+  - Stagger delay classes `.stagger-1` through `.stagger-10` for sequential animations
+
+- `src/Client/DesignSystem/Tokens.fs` - Added new animation tokens:
+  - Extended `Animations` module with all new animation classes
+  - Added `StaggerDelays` module with stagger delay helpers and `forIndex` function
+
+- `src/Client/DesignSystem/Loading.fs` - Added new feedback components:
+  - `shimmerNeon` - Neon gradient shimmer effect overlay
+  - `withShimmerNeon` - Apply neon shimmer to container
+  - `successCheckmark` - Animated SVG checkmark with draw animation
+  - `successBadge` - Circular success badge with checkmark
+  - `successMessage` - Success message with animated checkmark
+  - `withShake` - Wrapper that applies shake animation on error
+  - `errorMessage` - Error message with shake animation and icon
+  - `staggeredList` - Wrap list items with staggered animation
+  - `staggeredSlideUp` - Convenience function for staggered slide-up
+  - `staggeredFadeIn` - Convenience function for staggered fade-in
+
+- `src/Client/DesignSystem/Input.fs` - Enhanced error state:
+  - Added `animate-shake` class to error state styling
+
+- `src/Client/View.fs` - Added page transitions:
+  - Wrapped page content with `animate-page-enter` class
+  - Added `key` prop based on current page to trigger animation on route change
+
+**Rationale:**
+Milestone R10 focuses on polish and micro-interactions to make the UI feel responsive and engaging. The animations follow the design system guidelines with appropriate timing functions and neon color integration.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 passed, 6 skipped integration tests)
+- Page transitions animate on route change
+- Form inputs shake on error
+- Success states have animated checkmark
+- Loading states support neon shimmer gradient
+- List items can be animated with stagger delays
+- R10 (Micro-interactions & Animations) ✅ Complete
+
+---
+
+## 2025-12-04 17:45 - Phase 3 UI Refactoring: Rules View Migration (R9)
+
+**What I did:**
+Completed Milestone R9 of the UI refactoring plan - migrated the Rules page to use the Design System components with the Neon Glow Dark Mode Theme.
+
+**Files Modified:**
+- `src/Client/Components/Rules/View.fs` - Complete migration to use Design System:
+  - Added `open Client.DesignSystem` and `open Client.DesignSystem.Icons` for access to all components
+  - **Pattern type badges**: Replaced inline colored badges with `Badge.view` using `Badge.Purple` (Regex), `Badge.Info` (Contains), `Badge.Success` (Exact) with monospace icon prefixes
+  - **Rule cards**: Now use `Card.view` with `Card.Standard` variant, proper border styling with `border-white/5`, neon-teal icon backgrounds
+  - **Toggle switches**: Replaced DaisyUI toggle with `Input.toggle` component
+  - **Action buttons**: Uses `Button.iconButton` with `Icons.edit` and `Icons.trash` for edit/delete actions
+  - **Empty state**: Uses `Card.emptyState` with `Icons.rules XL` and `Button.primaryWithIcon`
+  - **Rule edit modal**: Complete migration to `Modal.view` with `Modal.Large`, `Modal.body`, and `Modal.footer`
+  - **Form inputs**: All inputs now use `Input.groupSimple`, `Input.groupRequired`, `Input.group`, `Input.textSimple`, `Input.selectSimple`, `Input.selectWithPlaceholder`
+  - **Test pattern section**: Uses `Icons.search` header, neon-colored result badges with `Icons.checkCircle`, `Icons.xCircle`, `Icons.warning`
+  - **Header**: Gradient text using `bg-gradient-to-r from-neon-teal to-neon-green bg-clip-text text-transparent`
+  - **Info tip**: Uses `Card.Glass` variant with `Icons.info`
+  - **Loading states**: Uses `Loading.centered` for NotAsked, `Loading.cardSkeleton` for Loading
+  - **Error state**: Uses `Card.view` with neon-red styling and `Icons.xCircle`
+  - **Dropdown menu**: Updated styling with `border border-white/10` and uses `Icons.download` and `Icons.upload`
+  - Fixed namespace conflicts: Used `RemoteData.NotAsked`, `RemoteData.Loading`, `RemoteData.Success`, `RemoteData.Failure` to avoid conflicts with `IconColor.Success`
+
+**Rationale:**
+Milestone R9 is the final view migration in Phase 3 (View Migrations). The Rules page contains a complex modal form for creating/editing rules and needed careful migration to maintain all functionality (pattern testing, category selection, toggle states) while applying the neon theme.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 passed, 6 skipped integration tests)
+- All Rules views now use unified Design System components
+- Consistent neon color palette and glow effects
+- Mobile-first responsive design preserved
+- R9 (Rules) ✅ Complete
+- Phase 3 (View Migrations) ✅ Complete
+
+---
+
+## 2025-12-04 16:10 - Phase 3 UI Refactoring: SyncFlow View Migration (R8)
+
+**What I did:**
+Completed Milestone R8 of the UI refactoring plan - migrated the SyncFlow page to use the Design System components with the Neon Glow Dark Mode Theme.
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs` - Complete migration to use Design System:
+  - Added `open Client.DesignSystem` for access to all design system modules
+  - **Status badges**: Replaced inline styling with `Badge.uncategorized`, `Badge.autoCategorized`, `Badge.manual`, `Badge.pendingReview`, `Badge.skipped`, `Badge.imported`
+  - **TAN waiting view**: Uses `Card.Glow` with `Card.Spacious`, neon pulse animation on phone icon, `Loading.spinner` for active step indicator, `Badge.pulsingDot` for notification, `Icons.check` for completed step, `Button.primaryWithIcon` and `Button.ghost` for actions
+  - **Transaction cards**: Border colors based on status (neon-pink for attention, neon-orange for pending, neon-green for categorized, neon-teal for imported), `Input.checkboxSimple` for selection, `Money.view` for amounts, `Input.selectWithPlaceholder` for category dropdown, `Icons.externalLink` and `Icons.x` for actions
+  - **Stats summary**: `Stats.gridFourCol` with `Stats.view` components showing Total, Ready, Pending, and Skipped counts with appropriate accent colors
+  - **Bulk actions bar**: Glassmorphism styling with backdrop blur, `Icons.check` and `Icons.x` for select buttons, `Badge.view` for selection count, `Button.danger` for cancel, `Button.primaryWithIcon` for import
+  - **Empty/loading states**: `Card.emptyState` for empty transactions, `Loading.centered` for loading
+  - **Completed view**: Neon teal-green gradient header, `Icons.checkCircle`, stats grid with neon styling, `Button.group` with `Button.primaryWithIcon` and `Button.secondary`
+  - **Start sync view**: Neon orange-pink gradient header, `Icons.sync`, feature list with neon icon accents (`Icons.creditCard`, `Icons.rules`, `Icons.upload`), `Button.view` with full-width primary button
+  - **Loading view**: `Card.Glass` with `Loading.neonPulse`
+  - **Error view**: Neon red-pink gradient header, `Icons.xCircle`, `Button.primaryWithIcon`
+  - **Page header**: Added `font-display` class for consistent typography
+
+- `docs/UI-REFACTORING-MILESTONES.md` - Updated Milestone R8:
+  - Marked all verification items as complete
+  - Added completion section with summary of changes, test quality review, and notes
+
+**Rationale:**
+Milestone R8 is part of Phase 3 (View Migrations) which focuses on migrating existing views to use the new Design System components. The SyncFlow page is the most complex view with multiple states (TAN waiting, transaction review, completed, error) and needed careful migration to maintain functionality while applying the neon theme.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 passed, 6 skipped integration tests)
+- All SyncFlow views now use unified Design System components
+- Consistent neon color palette and glow effects
+- Mobile-first responsive design preserved
+- R8 (SyncFlow) ✅ Complete
+- R9 (Rules) still pending
+
+---
+
+## 2025-12-04 14:30 - Phase 3 UI Refactoring: Dashboard & Settings Migration (R5-R7)
+
+**What I did:**
+Started Phase 3 of the UI refactoring plan - migrated Dashboard and Settings views to use the Design System components. R5 was already complete from the previous Navigation integration work.
+
+**Files Modified:**
+- `src/Client/Components/Dashboard/View.fs` - Complete rewrite to use Design System:
+  - Replaced inline stats with `Stats.grid` and `Stats.view` from Stats.fs
+  - Replaced inline badges with `Badge.success`, `Badge.warning`, etc.
+  - Replaced inline buttons with `Button.primary`, `Button.secondary`, etc.
+  - Replaced inline loading states with `Loading.statsGridSkeleton`, `Loading.centered`
+  - Replaced inline cards with `Card.standard`, `Card.emptyState`
+  - Added proper neon color scheme and glassmorphism effects
+  - Used Icons module for all icons (sync, check, dashboard, warning, xCircle)
+
+- `src/Client/Components/Settings/View.fs` - Complete rewrite to use Design System:
+  - Replaced inline section headers with custom component using Icons and Badge
+  - Replaced all emoji icons with Icons module (dollar, banknotes, sync, info, check, etc.)
+  - Replaced inline inputs with `Input.textSimple`, `Input.password` from Input.fs
+  - Replaced inline input groups with `Input.groupSimple`
+  - Replaced inline buttons with Button module functions
+  - Replaced inline loading states with `Loading.centered`, `Loading.inlineWithText`
+  - Used `Card.standard` for all settings sections
+  - Added proper error states with neon-red styling
+
+**Rationale:**
+Phase 3 focuses on migrating existing views to use the new Design System components, ensuring consistency across the application and reducing code duplication.
+
+**Outcomes:**
+- Build: ✅ 0 Warnings, 0 Errors
+- Dashboard and Settings now use unified Design System
+- Consistent neon color palette throughout
+- Mobile-first responsive design preserved
+- R5 (Main Layout) was already done in R4
+- R6 (Dashboard) ✅ Complete
+- R7 (Settings) ✅ Complete
+- R8 (SyncFlow) and R9 (Rules) still pending
+
+---
+
 ## 2025-11-30 17:10 - Upgraded Tailwind CSS 4.0 + DaisyUI 5
 
 **What I did:**

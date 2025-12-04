@@ -179,6 +179,41 @@ module Animations =
     let slideUp = "animate-slide-up"
     let scaleIn = "animate-scale-in"
     let neonPulse = "animate-neon-pulse"
+    let pageEnter = "animate-page-enter"
+    let shake = "animate-shake"
+    let successPop = "animate-success-pop"
+    let checkmark = "animate-checkmark"
+    let slideInRight = "animate-slide-in-right"
+    let slideOutRight = "animate-slide-out-right"
+    let bounceSubtle = "animate-bounce-subtle"
+    let glowPulse = "animate-glow-pulse"
+
+/// Stagger delays for sequential animations
+module StaggerDelays =
+    let stagger1 = "stagger-1"
+    let stagger2 = "stagger-2"
+    let stagger3 = "stagger-3"
+    let stagger4 = "stagger-4"
+    let stagger5 = "stagger-5"
+    let stagger6 = "stagger-6"
+    let stagger7 = "stagger-7"
+    let stagger8 = "stagger-8"
+    let stagger9 = "stagger-9"
+    let stagger10 = "stagger-10"
+
+    /// Get stagger class for index (0-based)
+    let forIndex (i: int) =
+        match i % 10 with
+        | 0 -> stagger1
+        | 1 -> stagger2
+        | 2 -> stagger3
+        | 3 -> stagger4
+        | 4 -> stagger5
+        | 5 -> stagger6
+        | 6 -> stagger7
+        | 7 -> stagger8
+        | 8 -> stagger9
+        | _ -> stagger10
 
 /// Transition tokens
 module Transitions =

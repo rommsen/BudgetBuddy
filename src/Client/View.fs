@@ -46,26 +46,33 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
         // Main content with padding for fixed navbar
         Navigation.pageContent [
-            match model.CurrentPage with
-            | Dashboard ->
-                Components.Dashboard.View.view
-                    model.Dashboard
-                    (DashboardMsg >> dispatch)
-                    (fun () -> dispatch (NavigateTo SyncFlow))
-                    (fun () -> dispatch (NavigateTo Settings))
-            | SyncFlow ->
-                Components.SyncFlow.View.view
-                    model.SyncFlow
-                    (SyncFlowMsg >> dispatch)
-                    (fun () -> dispatch (NavigateTo Dashboard))
-            | Rules ->
-                Components.Rules.View.view
-                    model.Rules
-                    (RulesMsg >> dispatch)
-            | Settings ->
-                Components.Settings.View.view
-                    model.Settings
-                    (SettingsMsg >> dispatch)
+            // Each page has enter animation using key for re-triggering on page change
+            Html.div [
+                prop.key (model.CurrentPage.ToString())
+                prop.className "animate-page-enter"
+                prop.children [
+                    match model.CurrentPage with
+                    | Dashboard ->
+                        Components.Dashboard.View.view
+                            model.Dashboard
+                            (DashboardMsg >> dispatch)
+                            (fun () -> dispatch (NavigateTo SyncFlow))
+                            (fun () -> dispatch (NavigateTo Settings))
+                    | SyncFlow ->
+                        Components.SyncFlow.View.view
+                            model.SyncFlow
+                            (SyncFlowMsg >> dispatch)
+                            (fun () -> dispatch (NavigateTo Dashboard))
+                    | Rules ->
+                        Components.Rules.View.view
+                            model.Rules
+                            (RulesMsg >> dispatch)
+                    | Settings ->
+                        Components.Settings.View.view
+                            model.Settings
+                            (SettingsMsg >> dispatch)
+                ]
+            ]
         ]
 
         // Toast notifications using new Toast component

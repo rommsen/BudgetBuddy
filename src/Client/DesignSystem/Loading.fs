@@ -443,6 +443,12 @@ let shimmer =
         prop.className "absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"
     ]
 
+/// Neon shimmer effect overlay (enhanced with neon gradient)
+let shimmerNeon =
+    Html.div [
+        prop.className "absolute inset-0 shimmer-neon"
+    ]
+
 /// Apply shimmer effect to a container
 let withShimmer (children: ReactElement list) =
     Html.div [
@@ -452,3 +458,130 @@ let withShimmer (children: ReactElement list) =
             shimmer
         ]
     ]
+
+/// Apply neon shimmer effect to a container
+let withShimmerNeon (children: ReactElement list) =
+    Html.div [
+        prop.className "relative overflow-hidden"
+        prop.children [
+            yield! children
+            shimmerNeon
+        ]
+    ]
+
+// ============================================
+// Success Feedback Components
+// ============================================
+
+/// Animated success checkmark (SVG with draw animation)
+let successCheckmark (size: SpinnerSize) =
+    let sizeClass =
+        match size with
+        | XS -> "w-4 h-4"
+        | SM -> "w-5 h-5"
+        | MD -> "w-6 h-6"
+        | LG -> "w-8 h-8"
+        | XL -> "w-12 h-12"
+
+    Html.div [
+        prop.className "animate-success-pop"
+        prop.children [
+            Svg.svg [
+                svg.className $"{sizeClass} text-neon-green"
+                svg.viewBox (0, 0, 24, 24)
+                svg.fill "none"
+                svg.stroke "currentColor"
+                svg.strokeWidth 3
+                svg.custom ("strokeLinecap", "round")
+                svg.custom ("strokeLinejoin", "round")
+                svg.children [
+                    Svg.path [
+                        svg.d "M5 13l4 4L19 7"
+                        svg.className "animate-checkmark"
+                        svg.custom ("strokeDasharray", "24")
+                        svg.custom ("strokeDashoffset", "24")
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+/// Success badge with checkmark (circular background)
+let successBadge (size: SpinnerSize) =
+    let sizeClass =
+        match size with
+        | XS -> "w-6 h-6"
+        | SM -> "w-8 h-8"
+        | MD -> "w-10 h-10"
+        | LG -> "w-12 h-12"
+        | XL -> "w-16 h-16"
+
+    Html.div [
+        prop.className $"animate-success-pop {sizeClass} rounded-full bg-neon-green/20 flex items-center justify-center shadow-glow-green"
+        prop.children [
+            successCheckmark size
+        ]
+    ]
+
+/// Success message with animated checkmark
+let successMessage (message: string) =
+    Html.div [
+        prop.className "flex items-center gap-3 p-4 rounded-xl bg-neon-green/10 border border-neon-green/30 animate-scale-in"
+        prop.children [
+            successBadge SM
+            Html.span [
+                prop.className "text-neon-green font-medium"
+                prop.text message
+            ]
+        ]
+    ]
+
+// ============================================
+// Error Feedback Components
+// ============================================
+
+/// Error shake wrapper - wraps content and shakes on error
+let withShake (isError: bool) (children: ReactElement list) =
+    Html.div [
+        prop.className (if isError then "animate-shake" else "")
+        prop.children children
+    ]
+
+/// Error message with icon
+let errorMessage (message: string) =
+    Html.div [
+        prop.className "flex items-center gap-3 p-4 rounded-xl bg-neon-red/10 border border-neon-red/30 animate-shake"
+        prop.children [
+            Icons.xCircle Icons.MD Icons.Error
+            Html.span [
+                prop.className "text-neon-red font-medium"
+                prop.text message
+            ]
+        ]
+    ]
+
+// ============================================
+// Staggered List Animation
+// ============================================
+
+/// Wrap list items with staggered animation
+let staggeredList (animation: string) (items: ReactElement list) =
+    Html.div [
+        prop.className "space-y-2"
+        prop.children [
+            for i, item in items |> List.indexed do
+                Html.div [
+                    prop.key (string i)
+                    prop.className $"{animation} opacity-0 {Tokens.StaggerDelays.forIndex i}"
+                    prop.children [ item ]
+                ]
+        ]
+    ]
+
+/// Staggered slide-up list
+let staggeredSlideUp (items: ReactElement list) =
+    staggeredList "animate-slide-up" items
+
+/// Staggered fade-in list
+let staggeredFadeIn (items: ReactElement list) =
+    staggeredList "animate-fade-in" items
