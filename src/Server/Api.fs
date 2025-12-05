@@ -507,13 +507,19 @@ let syncApi : SyncApi = {
 
     startSync = fun () -> async {
         try
-            // Create new session
-            let session = SyncSessionManager.startNewSession()
+            // First check if Comdirect credentials are configured
+            let! settings = settingsApi.getSettings()
+            match settings.Comdirect with
+            | None ->
+                return Error (SyncError.ComdirectAuthFailed "Comdirect credentials not configured. Please configure them in Settings first.")
+            | Some _ ->
+                // Create new session
+                let session = SyncSessionManager.startNewSession()
 
-            // Persist session to database
-            do! Persistence.SyncSessions.createSession session
+                // Persist session to database
+                do! Persistence.SyncSessions.createSession session
 
-            return Ok session
+                return Ok session
         with ex ->
             return Error (SyncError.DatabaseError ("start_sync", ex.Message))
     }

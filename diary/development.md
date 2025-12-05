@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-04 19:15 - Fixed Modal Display Issue with React Portals
+
+**What I did:**
+Fixed a critical bug where the modal window for editing Rules appeared black/empty. The modal was being rendered inside the scrollable `Html.main` container, causing `position: fixed` CSS to be calculated relative to that container rather than the viewport.
+
+**Files Modified:**
+- `src/Client/DesignSystem/Modal.fs` - Implemented React Portal rendering:
+  - Added `open Fable.Core` import for the `[<Import>]` attribute
+  - Added `createPortal` interop function from `react-dom`
+  - Created `renderToBody` helper function that wraps elements with portal
+  - Modified `view` function to render modal via portal to `document.body`
+  - Modified `loading` function to render via portal as well
+  - Added comments explaining the portal pattern
+
+**Rationale:**
+The modal was rendered inside `Html.main` which has `container mx-auto` and overflow handling. This caused the `fixed inset-0` positioning to be affected by CSS containment, resulting in the modal being positioned at `top: 80px` with a height equal to the entire scrollable content (`30779px`) instead of being fixed to the viewport. React Portals solve this by rendering directly to `document.body`, bypassing any CSS containment issues.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Modal now displays correctly centered on screen
+- All form fields visible (Rule Name, Pattern Type, Match Field, Pattern, Category, Payee Override)
+- Close button and action buttons work correctly
+- Both `view` and `loading` modals use portal rendering
+
+---
+
 ## 2025-12-04 18:30 - Phase 4 UI Refactoring: Micro-interactions & Animations (R10)
 
 **What I did:**

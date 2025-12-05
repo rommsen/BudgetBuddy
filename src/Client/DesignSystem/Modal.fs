@@ -1,8 +1,20 @@
 module Client.DesignSystem.Modal
 
 open Feliz
+open Fable.Core
+open Fable.Core.JsInterop
 open Client.DesignSystem.Tokens
 open Client.DesignSystem.Icons
+
+// ============================================
+// Portal Helper (renders children to document.body)
+// ============================================
+
+[<Import("createPortal", from="react-dom")>]
+let private createPortal (element: ReactElement) (container: Browser.Types.Element) : ReactElement = jsNative
+
+let private renderToBody (element: ReactElement) =
+    createPortal element Browser.Dom.document.body
 
 // ============================================
 // Modal Types
@@ -51,8 +63,8 @@ let private sizeToClass = function
     | Full -> "max-w-4xl"
 
 let private sizeToMobileClass = function
-    | Full -> "min-h-screen md:min-h-0 md:rounded-xl md:m-4"
-    | _ -> "m-4 rounded-xl"
+    | Full -> "min-h-screen md:min-h-0 md:rounded-xl"
+    | _ -> "rounded-xl"
 
 // ============================================
 // Modal Components
@@ -147,61 +159,65 @@ let footerWithLeft (leftContent: ReactElement) (rightContent: ReactElement list)
 // Main Modal Component
 // ============================================
 
-/// Complete modal with props and children
+/// Complete modal with props and children (renders via portal to body)
 let view (props: ModalProps) (children: ReactElement list) =
     if not props.IsOpen then
         Html.none
     else
-        Html.div [
-            prop.className "fixed inset-0 z-50 overflow-y-auto"
-            prop.children [
-                // Backdrop
-                backdrop props.OnClose props.CloseOnBackdropClick
+        // Use portal to render directly to document.body
+        // This prevents issues with CSS containment, overflow, and z-index
+        renderToBody (
+            Html.div [
+                prop.className "fixed inset-0 z-50 overflow-hidden"
+                prop.children [
+                    // Backdrop
+                    backdrop props.OnClose props.CloseOnBackdropClick
 
-                // Modal container (centered)
-                Html.div [
-                    prop.className "flex min-h-full items-end sm:items-center justify-center"
-                    prop.children [
-                        // Modal content
-                        Html.div [
-                            prop.className (
-                                "relative z-50 w-full bg-base-100 border border-white/10 shadow-2xl " +
-                                "animate-scale-in flex flex-col max-h-[90vh] " +
-                                sizeToClass props.Size + " " +
-                                sizeToMobileClass props.Size
-                            )
-                            prop.onClick (fun e -> e.stopPropagation())
-                            prop.children [
-                                // Header (if title provided)
-                                match props.Title with
-                                | Some title ->
-                                    header title props.Subtitle props.ShowCloseButton props.OnClose
-                                | None ->
-                                    // Just show close button if no title
-                                    if props.ShowCloseButton then
-                                        Html.div [
-                                            prop.className "absolute top-4 right-4 z-10"
-                                            prop.children [
-                                                Html.button [
-                                                    prop.className (
-                                                        "p-2 rounded-lg transition-colors " +
-                                                        "text-base-content/50 hover:text-base-content hover:bg-white/5"
-                                                    )
-                                                    prop.onClick (fun _ -> props.OnClose())
-                                                    prop.ariaLabel "Close modal"
-                                                    prop.children [ x MD IconColor.Default ]
+                    // Modal container (centered)
+                    Html.div [
+                        prop.className "fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-y-auto"
+                        prop.children [
+                            // Modal content
+                            Html.div [
+                                prop.className (
+                                    "relative z-50 w-full bg-base-100 border border-white/10 shadow-2xl " +
+                                    "animate-scale-in flex flex-col max-h-[90vh] " +
+                                    sizeToClass props.Size + " " +
+                                    sizeToMobileClass props.Size
+                                )
+                                prop.onClick (fun e -> e.stopPropagation())
+                                prop.children [
+                                    // Header (if title provided)
+                                    match props.Title with
+                                    | Some title ->
+                                        header title props.Subtitle props.ShowCloseButton props.OnClose
+                                    | None ->
+                                        // Just show close button if no title
+                                        if props.ShowCloseButton then
+                                            Html.div [
+                                                prop.className "absolute top-4 right-4 z-10"
+                                                prop.children [
+                                                    Html.button [
+                                                        prop.className (
+                                                            "p-2 rounded-lg transition-colors " +
+                                                            "text-base-content/50 hover:text-base-content hover:bg-white/5"
+                                                        )
+                                                        prop.onClick (fun _ -> props.OnClose())
+                                                        prop.ariaLabel "Close modal"
+                                                        prop.children [ x MD IconColor.Default ]
+                                                    ]
                                                 ]
                                             ]
-                                        ]
 
-                                // Content
-                                yield! children
+                                    // Content
+                                    yield! children
+                                ]
                             ]
                         ]
                     ]
                 ]
             ]
-        ]
+        )
 
 // ============================================
 // Convenience Functions
@@ -342,31 +358,33 @@ let alert
 // Loading Modal
 // ============================================
 
-/// Loading overlay modal (no close button)
+/// Loading overlay modal (no close button, renders via portal)
 let loading (isOpen: bool) (message: string) =
     if not isOpen then
         Html.none
     else
-        Html.div [
-            prop.className "fixed inset-0 z-50 flex items-center justify-center"
-            prop.children [
-                // Backdrop (no click to close)
-                Html.div [
-                    prop.className "absolute inset-0 bg-black/70 backdrop-blur-sm"
-                ]
-                // Content
-                Html.div [
-                    prop.className "relative z-10 flex flex-col items-center gap-4 p-8 bg-base-100 rounded-xl border border-white/10 shadow-2xl animate-scale-in"
-                    prop.children [
-                        // Spinner
-                        Html.div [
-                            prop.className "loading loading-spinner loading-lg text-neon-teal"
-                        ]
-                        Html.p [
-                            prop.className "text-base-content/80 text-center"
-                            prop.text message
+        renderToBody (
+            Html.div [
+                prop.className "fixed inset-0 z-50 flex items-center justify-center"
+                prop.children [
+                    // Backdrop (no click to close)
+                    Html.div [
+                        prop.className "absolute inset-0 bg-black/70 backdrop-blur-sm"
+                    ]
+                    // Content
+                    Html.div [
+                        prop.className "relative z-10 flex flex-col items-center gap-4 p-8 bg-base-100 rounded-xl border border-white/10 shadow-2xl animate-scale-in"
+                        prop.children [
+                            // Spinner
+                            Html.div [
+                                prop.className "loading loading-spinner loading-lg text-neon-teal"
+                            ]
+                            Html.p [
+                                prop.className "text-base-content/80 text-center"
+                                prop.text message
+                            ]
                         ]
                     ]
                 ]
             ]
-        ]
+        )
