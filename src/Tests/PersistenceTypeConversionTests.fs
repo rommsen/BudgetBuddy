@@ -53,6 +53,7 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
         PayeeOverride = None
         ExternalLinks = []
         UserNotes = None
+        DuplicateStatus = NotDuplicate
     }
 
 [<Tests>]

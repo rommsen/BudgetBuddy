@@ -12,6 +12,7 @@ open Server.ComdirectAuthSession
 open Server.RulesEngine
 open Server.Validation
 open Server.SyncSessionManager
+open Server.DuplicateDetection
 open Thoth.Json.Net
 
 // ============================================
@@ -611,8 +612,33 @@ let syncApi : SyncApi = {
                         SyncSessionManager.failSession errorMsg
                         return Error (SyncError.TransactionFetchFailed errorMsg)
                     | Ok syncTransactions ->
+                        // Detect duplicates by fetching existing YNAB transactions
+                        let! syncTransactionsWithDuplicates = async {
+                            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+                            let! budgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+                            let! accountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
+
+                            match tokenOpt, budgetIdOpt, accountIdOpt with
+                            | Some token, Some budgetId, Some accountIdStr ->
+                                match Guid.TryParse(accountIdStr: string) with
+                                | true, accountIdGuid ->
+                                    // Fetch existing YNAB transactions for duplicate detection
+                                    match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (settings.Sync.DaysToFetch + 7) with
+                                    | Ok ynabTransactions ->
+                                        // Mark duplicates
+                                        return DuplicateDetection.markDuplicates ynabTransactions syncTransactions
+                                    | Error _ ->
+                                        // If we can't fetch YNAB transactions, proceed without duplicate detection
+                                        return syncTransactions
+                                | false, _ ->
+                                    return syncTransactions
+                            | _ ->
+                                // YNAB not configured, proceed without duplicate detection
+                                return syncTransactions
+                        }
+
                         // Add transactions to session
-                        SyncSessionManager.addTransactions syncTransactions
+                        SyncSessionManager.addTransactions syncTransactionsWithDuplicates
 
                         // Update session status
                         SyncSessionManager.updateSessionStatus ReviewingTransactions

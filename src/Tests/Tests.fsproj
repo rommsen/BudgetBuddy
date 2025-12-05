@@ -15,6 +15,7 @@
     <Compile Include="ComdirectDecoderTests.fs" />
     <Compile Include="ComdirectIntegrationTests.fs" />
     <Compile Include="RulesEngineTests.fs" />
+    <Compile Include="DuplicateDetectionTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

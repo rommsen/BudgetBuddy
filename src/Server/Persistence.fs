@@ -635,6 +635,7 @@ module SyncTransactions =
                     PayeeOverride = row.payee_override
                     ExternalLinks = []
                     UserNotes = None
+                    DuplicateStatus = NotDuplicate  // Duplicate status is not persisted, always reset to NotDuplicate
                 }
             )
         }

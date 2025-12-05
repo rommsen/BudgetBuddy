@@ -216,6 +216,7 @@ let classifyTransactions
                         PayeeOverride = matchedRule.PayeeOverride
                         ExternalLinks = externalLinks
                         UserNotes = None
+                        DuplicateStatus = NotDuplicate  // Will be updated by DuplicateDetection
                     }
                 | None ->
                     {
@@ -227,6 +228,7 @@ let classifyTransactions
                         PayeeOverride = None
                         ExternalLinks = externalLinks
                         UserNotes = None
+                        DuplicateStatus = NotDuplicate  // Will be updated by DuplicateDetection
                     }
             )
 

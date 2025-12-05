@@ -4,6 +4,60 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-05 16:30 - Milestone 13: Duplicate Detection
+
+**What I did:**
+Implemented duplicate detection for bank transactions to prevent importing the same transactions multiple times to YNAB. The system checks existing YNAB transactions and marks new transactions as potential or confirmed duplicates.
+
+**Files Added:**
+- `src/Server/DuplicateDetection.fs` - Core duplicate detection logic with:
+  - Reference extraction from YNAB memo format (`Ref: <reference>`)
+  - Matching by reference (confirmed duplicates)
+  - Matching by import_id (confirmed duplicates)
+  - Fuzzy matching by date/amount/payee (possible duplicates)
+  - Configuration for date tolerance and amount tolerance
+- `src/Tests/DuplicateDetectionTests.fs` - Comprehensive tests for all detection methods (30+ test cases)
+
+**Files Modified:**
+- `src/Shared/Domain.fs`:
+  - Added `DuplicateStatus` discriminated union: `NotDuplicate`, `PossibleDuplicate`, `ConfirmedDuplicate`
+  - Added `YnabTransaction` type for existing YNAB transactions
+  - Added `DuplicateStatus` field to `SyncTransaction` record
+- `src/Server/YnabClient.fs`:
+  - Added `transactionDecoder` for parsing YNAB transactions
+  - Added `getAccountTransactions` function to fetch recent transactions from YNAB account
+- `src/Server/RulesEngine.fs`:
+  - Updated `classifyTransactions` to initialize `DuplicateStatus = NotDuplicate`
+- `src/Server/Api.fs`:
+  - Added duplicate detection in `confirmTan` after fetching transactions
+  - Fetches YNAB transactions and marks duplicates before review
+- `src/Server/Persistence.fs`:
+  - Updated `getTransactionsBySession` to include `DuplicateStatus` field
+- `src/Server/Server.fsproj`:
+  - Added `DuplicateDetection.fs` to compilation
+- `src/Client/Components/SyncFlow/View.fs`:
+  - Added `duplicateStatusBadge` component for visual indicators
+  - Updated `transactionCard` to show duplicate warnings with colored banners
+  - Updated `transactionListView` to show duplicate count warning banner
+  - Updated border colors to reflect duplicate status (red for confirmed, orange for possible)
+- `src/Tests/Tests.fsproj`:
+  - Added `DuplicateDetectionTests.fs` to compilation
+- `src/Tests/YnabClientTests.fs`:
+  - Updated all SyncTransaction test fixtures with `DuplicateStatus = NotDuplicate`
+- `src/Tests/PersistenceTypeConversionTests.fs`:
+  - Updated SyncTransaction test fixture with `DuplicateStatus = NotDuplicate`
+
+**Rationale:**
+Duplicate detection is essential to prevent accidentally importing the same bank transactions multiple times to YNAB. The legacy codebase stored references in the memo field as `Ref: <reference>`, which we now parse to detect confirmed duplicates. Fuzzy matching by date/amount/payee catches cases where the reference wasn't stored.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 144/144 passed (6 skipped integration tests)
+- UI shows clear visual indicators for duplicates
+- Three detection methods: reference, import_id, fuzzy (date/amount/payee)
+
+---
+
 ## 2025-12-05 14:30 - Phase 5 UI Refactoring: Documentation & Cleanup (R12)
 
 **What I did:**

@@ -72,6 +72,20 @@ module Decoders =
             Categories = get.Optional.Field "category_groups" categoryGroupsDecoder |> Option.defaultValue []
         })
 
+    /// Decoder for YNAB transactions (for duplicate detection)
+    let transactionDecoder : Decoder<YnabTransaction> =
+        Decode.object (fun get -> {
+            Id = get.Required.Field "id" Decode.string
+            Date = get.Required.Field "date" Decode.datetimeUtc
+            Amount = {
+                Amount = get.Required.Field "amount" Decode.int64 |> decimal |> fun milliunits -> milliunits / 1000m
+                Currency = "EUR"
+            }
+            Payee = get.Optional.Field "payee_name" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            ImportId = get.Optional.Field "import_id" Decode.string
+        })
+
 // ============================================
 // YNAB API Functions
 // ============================================
@@ -289,4 +303,49 @@ let validateToken (token: string) : Async<YnabResult<unit>> =
     async {
         let! result = getBudgets token
         return result |> Result.map (fun _ -> ())
+    }
+
+/// Fetches recent transactions from a specific account
+/// Used for duplicate detection before importing
+let getAccountTransactions
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (YnabAccountId accountId: YnabAccountId)
+    (sinceDays: int)
+    : Async<YnabResult<YnabTransaction list>> =
+    async {
+        try
+            let sinceDate = DateTime.Today.AddDays(float -sinceDays).ToString("yyyy-MM-dd")
+            let! response =
+                http {
+                    GET $"{baseUrl}/budgets/{budgetId}/accounts/{accountId}/transactions?since_date={sinceDate}"
+                    Authorization $"Bearer {token}"
+                }
+                |> Request.sendAsync
+
+            let! bodyText = response |> Response.toTextAsync
+            let statusCode = response.statusCode |> int
+
+            match statusCode with
+            | 200 ->
+                let decoder = Decode.field "data" (Decode.field "transactions" (Decode.list Decoders.transactionDecoder))
+                match Decode.fromString decoder bodyText with
+                | Ok transactions -> return Ok transactions
+                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse transactions: {err}")
+
+            | 401 ->
+                return Error (YnabError.Unauthorized "Invalid YNAB token")
+
+            | 404 ->
+                return Error (YnabError.AccountNotFound (accountId.ToString()))
+
+            | 429 ->
+                return Error (YnabError.RateLimitExceeded 60)
+
+            | _ ->
+                return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+
+        with
+        | ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch transactions: {ex.Message}")
     }

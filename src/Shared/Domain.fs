@@ -71,6 +71,12 @@ type ExternalLink = {
     Url: string
 }
 
+/// Indicates whether a transaction is a potential duplicate
+type DuplicateStatus =
+    | NotDuplicate                        // No duplicate detected
+    | PossibleDuplicate of reason: string // Might be a duplicate (date/amount/payee match)
+    | ConfirmedDuplicate of reference: string  // Definite duplicate (reference match in YNAB)
+
 type SyncTransaction = {
     Transaction: BankTransaction
     Status: TransactionStatus
@@ -80,6 +86,7 @@ type SyncTransaction = {
     PayeeOverride: string option
     ExternalLinks: ExternalLink list
     UserNotes: string option
+    DuplicateStatus: DuplicateStatus  // Duplicate detection status
 }
 
 // ============================================
@@ -158,6 +165,16 @@ type YnabBudgetWithAccounts = {
     Budget: YnabBudget
     Accounts: YnabAccount list
     Categories: YnabCategory list
+}
+
+/// Represents an existing transaction in YNAB (for duplicate detection)
+type YnabTransaction = {
+    Id: string
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    ImportId: string option  // Used for dedup
 }
 
 // ============================================

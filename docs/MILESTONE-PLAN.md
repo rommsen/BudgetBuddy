@@ -2340,11 +2340,40 @@ let view (model: Model) (dispatch: Msg -> unit) =
    - Allow user to skip or import anyway
 
 ### Verification Checklist
-- [ ] Duplicates detected by reference
-- [ ] Duplicates detected by date/amount
-- [ ] Warning displays in UI
-- [ ] Can skip duplicates
-- [ ] Can force import anyway
+- [x] Duplicates detected by reference
+- [x] Duplicates detected by date/amount
+- [x] Warning displays in UI
+- [x] Can skip duplicates
+- [x] Can force import anyway
+- [x] QA Milestone Reviewer invoked
+
+### ✅ Milestone 13 Complete (2025-12-05)
+
+**Summary of Changes:**
+- Added `DuplicateStatus` discriminated union to Domain.fs (`NotDuplicate`, `PossibleDuplicate`, `ConfirmedDuplicate`)
+- Added `YnabTransaction` type for existing YNAB transactions
+- Added `DuplicateStatus` field to `SyncTransaction` record
+- Created `DuplicateDetection.fs` module with:
+  - Reference extraction from YNAB memo format
+  - Matching by reference (confirmed duplicates)
+  - Matching by import_id (confirmed duplicates)
+  - Fuzzy matching by date/amount/payee (possible duplicates)
+- Added `getAccountTransactions` to YnabClient for fetching existing transactions
+- Updated Api.fs to detect duplicates after fetching bank transactions
+- Updated frontend with:
+  - `duplicateStatusBadge` component for visual indicators
+  - Warning banners on transaction cards for duplicates
+  - Summary banner showing duplicate count
+  - Color-coded borders (red for confirmed, orange for possible)
+- Added comprehensive tests (30+ test cases for duplicate detection)
+
+**Test Quality Review:**
+- 144/144 tests pass
+- Duplicate detection module has comprehensive coverage
+- Reference extraction, matching logic, and edge cases tested
+- No tautological tests
+
+**Notes**: The duplicate detection follows the legacy codebase pattern where references are stored as `Ref: <reference>` in the YNAB memo field. Fuzzy matching provides a fallback for cases where the reference wasn't stored.
 
 ---
 

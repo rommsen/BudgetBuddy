@@ -131,22 +131,94 @@ let private tanWaitingView (dispatch: Msg -> unit) =
 // Transaction Card Component (Mobile-first)
 // ============================================
 
+/// Duplicate status badge component
+let private duplicateStatusBadge (status: DuplicateStatus) =
+    match status with
+    | NotDuplicate -> Html.none
+    | PossibleDuplicate reason ->
+        Html.div [
+            prop.className "inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-neon-orange/20 text-neon-orange text-xs border border-neon-orange/30"
+            prop.title reason
+            prop.children [
+                Icons.warning Icons.XS Icons.NeonOrange
+                Html.span [ prop.text "Possible Duplicate" ]
+            ]
+        ]
+    | ConfirmedDuplicate _ ->
+        Html.div [
+            prop.className "inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-neon-red/20 text-neon-red text-xs border border-neon-red/30"
+            prop.children [
+                Icons.xCircle Icons.XS Icons.Error
+                Html.span [ prop.text "Duplicate" ]
+            ]
+        ]
+
 let private transactionCard
     (tx: SyncTransaction)
     (categories: YnabCategory list)
     (isSelected: bool)
     (dispatch: Msg -> unit) =
+    // Check for duplicate status first
+    let isDuplicate =
+        match tx.DuplicateStatus with
+        | ConfirmedDuplicate _ -> true
+        | _ -> false
+
+    let isPossibleDuplicate =
+        match tx.DuplicateStatus with
+        | PossibleDuplicate _ -> true
+        | _ -> false
+
     let borderClass =
-        match tx.Status with
-        | NeedsAttention -> "border-l-4 border-l-neon-pink bg-neon-pink/5"
-        | Pending -> "border-l-4 border-l-neon-orange bg-neon-orange/5"
-        | Skipped -> "opacity-50 border-l-4 border-l-transparent"
-        | AutoCategorized | ManualCategorized -> "border-l-4 border-l-neon-green/50"
-        | Imported -> "border-l-4 border-l-neon-teal/50"
+        if isDuplicate then
+            "border-l-4 border-l-neon-red bg-neon-red/5"
+        elif isPossibleDuplicate then
+            "border-l-4 border-l-neon-orange bg-neon-orange/5"
+        else
+            match tx.Status with
+            | NeedsAttention -> "border-l-4 border-l-neon-pink bg-neon-pink/5"
+            | Pending -> "border-l-4 border-l-neon-orange bg-neon-orange/5"
+            | Skipped -> "opacity-50 border-l-4 border-l-transparent"
+            | AutoCategorized | ManualCategorized -> "border-l-4 border-l-neon-green/50"
+            | Imported -> "border-l-4 border-l-neon-teal/50"
 
     Html.div [
         prop.className $"bg-base-100 border border-white/5 rounded-xl p-4 hover:border-white/10 transition-all {borderClass}"
         prop.children [
+            // Duplicate warning banner (if applicable)
+            match tx.DuplicateStatus with
+            | NotDuplicate -> ()
+            | PossibleDuplicate reason ->
+                Html.div [
+                    prop.className "flex items-center gap-2 mb-3 p-2 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
+                    prop.children [
+                        Icons.warning Icons.SM Icons.NeonOrange
+                        Html.span [
+                            prop.className "text-sm text-neon-orange flex-1"
+                            prop.text reason
+                        ]
+                        Html.span [
+                            prop.className "text-xs text-neon-orange/70"
+                            prop.text "You can still import this transaction if it's not a duplicate."
+                        ]
+                    ]
+                ]
+            | ConfirmedDuplicate reference ->
+                Html.div [
+                    prop.className "flex items-center gap-2 mb-3 p-2 rounded-lg bg-neon-red/10 border border-neon-red/30"
+                    prop.children [
+                        Icons.xCircle Icons.SM Icons.Error
+                        Html.span [
+                            prop.className "text-sm text-neon-red flex-1"
+                            prop.text $"This transaction was already imported (Ref: {reference})"
+                        ]
+                        Html.span [
+                            prop.className "text-xs text-neon-red/70"
+                            prop.text "Consider skipping this transaction."
+                        ]
+                    ]
+                ]
+
             // Top row: Checkbox, Payee/Date, Amount/Status
             Html.div [
                 prop.className "flex items-start justify-between gap-3"
@@ -180,6 +252,7 @@ let private transactionCard
                                     Glow = Money.NoGlow
                             }
                             statusBadge tx.Status
+                            duplicateStatusBadge tx.DuplicateStatus
                         ]
                     ]
                 ]
@@ -250,36 +323,63 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                 let categorized = transactions |> List.filter (fun tx -> match tx.Status with | AutoCategorized | ManualCategorized | NeedsAttention -> tx.CategoryId.IsSome | _ -> false) |> List.length
                 let uncategorized = transactions |> List.filter (fun tx -> tx.Status = Pending) |> List.length
                 let skipped = transactions |> List.filter (fun tx -> tx.Status = Skipped) |> List.length
+                let duplicates = transactions |> List.filter (fun tx -> match tx.DuplicateStatus with | ConfirmedDuplicate _ -> true | PossibleDuplicate _ -> true | _ -> false) |> List.length
                 let total = transactions.Length
 
-                Stats.gridFourCol [
-                    Stats.view {
-                        Stats.defaultProps with
-                            Label = "Total"
-                            Value = string total
-                            Accent = Stats.Gradient
-                            Size = Stats.Compact
-                    }
-                    Stats.view {
-                        Stats.defaultProps with
-                            Label = "Ready"
-                            Value = string categorized
-                            Accent = Stats.Green
-                            Size = Stats.Compact
-                    }
-                    Stats.view {
-                        Stats.defaultProps with
-                            Label = "Pending"
-                            Value = string uncategorized
-                            Accent = if uncategorized > 0 then Stats.Orange else Stats.Gradient
-                            Size = Stats.Compact
-                    }
-                    Stats.view {
-                        Stats.defaultProps with
-                            Label = "Skipped"
-                            Value = string skipped
-                            Size = Stats.Compact
-                    }
+                Html.div [
+                    prop.className "space-y-3"
+                    prop.children [
+                        Stats.gridFourCol [
+                            Stats.view {
+                                Stats.defaultProps with
+                                    Label = "Total"
+                                    Value = string total
+                                    Accent = Stats.Gradient
+                                    Size = Stats.Compact
+                            }
+                            Stats.view {
+                                Stats.defaultProps with
+                                    Label = "Ready"
+                                    Value = string categorized
+                                    Accent = Stats.Green
+                                    Size = Stats.Compact
+                            }
+                            Stats.view {
+                                Stats.defaultProps with
+                                    Label = "Pending"
+                                    Value = string uncategorized
+                                    Accent = if uncategorized > 0 then Stats.Orange else Stats.Gradient
+                                    Size = Stats.Compact
+                            }
+                            Stats.view {
+                                Stats.defaultProps with
+                                    Label = "Skipped"
+                                    Value = string skipped
+                                    Size = Stats.Compact
+                            }
+                        ]
+                        // Duplicate warning banner
+                        if duplicates > 0 then
+                            Html.div [
+                                prop.className "flex items-center gap-3 p-3 rounded-xl bg-neon-orange/10 border border-neon-orange/30"
+                                prop.children [
+                                    Icons.warning Icons.MD Icons.NeonOrange
+                                    Html.div [
+                                        prop.className "flex-1"
+                                        prop.children [
+                                            Html.p [
+                                                prop.className "text-sm font-medium text-neon-orange"
+                                                prop.text $"{duplicates} potential duplicate(s) detected"
+                                            ]
+                                            Html.p [
+                                                prop.className "text-xs text-base-content/60"
+                                                prop.text "Review transactions marked in orange or red before importing."
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                    ]
                 ]
             | _ -> Html.none
 
