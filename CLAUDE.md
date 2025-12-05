@@ -323,3 +323,291 @@ Before marking a feature complete:
 | Tests | Expecto |
 | Runtime | .NET 8+ |
 | Deployment | Docker + Tailscale |
+
+## Design System Components
+
+The project includes a complete F# Design System in `src/Client/DesignSystem/`. **Always use these components** instead of inline Feliz code for UI.
+
+### Component Quick Reference
+
+| Component | Import | Usage |
+|-----------|--------|-------|
+| Button | `Client.DesignSystem.Button` | `Button.primary "Save" onClick` |
+| Card | `Client.DesignSystem.Card` | `Card.standard [ ... children ... ]` |
+| Badge | `Client.DesignSystem.Badge` | `Badge.success "Active"` |
+| Input | `Client.DesignSystem.Input` | `Input.text props` |
+| Modal | `Client.DesignSystem.Modal` | `Modal.view props [ ... ]` |
+| Toast | `Client.DesignSystem.Toast` | `Toast.renderList toasts onDismiss` |
+| Stats | `Client.DesignSystem.Stats` | `Stats.view props` |
+| Money | `Client.DesignSystem.Money` | `Money.view props` |
+| Table | `Client.DesignSystem.Table` | `Table.view props [ ... ]` |
+| Loading | `Client.DesignSystem.Loading` | `Loading.spinner MD Teal` |
+| Icons | `Client.DesignSystem.Icons` | `Icons.check MD Green` |
+| Navigation | `Client.DesignSystem.Navigation` | (used in main View.fs) |
+| Primitives | `Client.DesignSystem.Primitives` | `Primitives.container [ ... ]` |
+| Tokens | `Client.DesignSystem.Tokens` | `Tokens.Colors.neonGreen` |
+
+### Button Examples
+
+```fsharp
+open Client.DesignSystem.Button
+
+// Primary (orange glow)
+Button.primary "Save" (fun () -> dispatch Save)
+
+// With loading state
+Button.primaryLoading "Saving..." isLoading (fun () -> dispatch Save)
+
+// With icon
+Button.primaryWithIcon "Add" (Icons.plus SM Primary) (fun () -> dispatch Add)
+
+// Secondary (teal outline)
+Button.secondary "Cancel" (fun () -> dispatch Cancel)
+
+// Ghost (transparent)
+Button.ghost "Skip" (fun () -> dispatch Skip)
+
+// Danger (red)
+Button.danger "Delete" (fun () -> dispatch Delete)
+
+// Full-width (mobile forms)
+Button.primaryFullWidth "Submit" (fun () -> dispatch Submit)
+
+// Button group
+Button.group [
+    Button.secondary "Cancel" (fun () -> dispatch Cancel)
+    Button.primary "Confirm" (fun () -> dispatch Confirm)
+]
+```
+
+### Card Examples
+
+```fsharp
+open Client.DesignSystem.Card
+
+// Standard card
+Card.standard [
+    Card.headerSimple "Card Title"
+    Card.body [
+        Html.p [ prop.text "Content here" ]
+    ]
+]
+
+// Glass card (blur effect)
+Card.glass [ ... ]
+
+// Glow card (neon border)
+Card.glow [ ... ]
+
+// Card with accent line
+Card.withAccent [ ... ]
+
+// Empty state card
+Card.emptyState
+    (Icons.inbox XL Default)
+    "No items"
+    "Get started by adding your first item."
+    (Some (Button.primary "Add Item" onClick))
+```
+
+### Input Examples
+
+```fsharp
+open Client.DesignSystem.Input
+
+// Simple text input
+Input.textSimple value onChange "Enter name..."
+
+// Input group with label and error
+Input.group
+    "Email"
+    true  // required
+    (Input.text { Input.textInputDefaults with
+        Value = model.Email
+        OnChange = fun v -> dispatch (SetEmail v)
+        Placeholder = "email@example.com"
+        State = if hasError then Error "Invalid email" else Normal })
+
+// Select dropdown
+Input.selectSimple value onChange [
+    "", "Select option..."
+    "a", "Option A"
+    "b", "Option B"
+]
+
+// Toggle switch
+Input.toggle isChecked onChange "Enable feature"
+
+// Form section
+Input.formSection "Settings" [
+    Input.groupSimple "Name" (Input.textSimple name setName "")
+    Input.groupSimple "Email" (Input.textSimple email setEmail "")
+]
+```
+
+### Badge Examples
+
+```fsharp
+open Client.DesignSystem.Badge
+
+// Semantic badges
+Badge.success "Active"
+Badge.warning "Pending"
+Badge.error "Failed"
+Badge.info "New"
+
+// Status badges (for transactions)
+Badge.imported
+Badge.pendingReview
+Badge.autoCategorized
+Badge.uncategorized
+
+// Count badge
+Badge.count 5
+```
+
+### Modal Examples
+
+```fsharp
+open Client.DesignSystem.Modal
+
+// Simple modal
+Modal.simple model.IsOpen "Edit Item" (fun () -> dispatch CloseModal) [
+    Modal.body [
+        Input.groupSimple "Name" (Input.textSimple ...)
+    ]
+    Modal.footer [
+        Button.secondary "Cancel" (fun () -> dispatch CloseModal)
+        Button.primary "Save" (fun () -> dispatch Save)
+    ]
+]
+
+// Confirmation dialog
+Modal.confirm
+    isOpen
+    "Delete Item?"
+    "This action cannot be undone."
+    "Delete"
+    (fun () -> dispatch ConfirmDelete)
+    (fun () -> dispatch CancelDelete)
+
+// Full-screen modal (mobile)
+Modal.fullScreen isOpen "Full Title" onClose [ ... ]
+```
+
+### Money Display
+
+```fsharp
+open Client.DesignSystem.Money
+
+// Simple amount
+Money.simple amount
+
+// Large display
+Money.large amount
+
+// With label
+Money.withLabel "Balance" amount
+
+// Balance display (hero size, glow)
+Money.balance amount currency
+```
+
+### Stats Cards
+
+```fsharp
+open Client.DesignSystem.Stats
+
+// With icon
+Stats.withIcon (Icons.chart MD Teal) "Transactions" "1,234"
+
+// With trend
+Stats.withTrend "Revenue" "$12,345" (Some (Trend.Up 12.5))
+
+// Specialized stats
+Stats.transactionCount 150
+Stats.syncCount 42
+
+// Stats grid
+Stats.grid [
+    Stats.withIcon icon1 "Label 1" "Value 1"
+    Stats.withIcon icon2 "Label 2" "Value 2"
+    Stats.withIcon icon3 "Label 3" "Value 3"
+]
+```
+
+### Loading States
+
+```fsharp
+open Client.DesignSystem.Loading
+
+// Spinner
+Loading.spinner MD Teal
+
+// Centered loading (full container)
+Loading.centered (Loading.spinner LG Teal) "Loading data..."
+
+// Neon pulse animation
+Loading.neonPulse "Processing..."
+
+// Skeleton loaders
+Loading.skeleton Line Normal
+Loading.tableSkeleton 5 3  // 5 rows, 3 columns
+```
+
+### Design Tokens
+
+```fsharp
+open Client.DesignSystem.Tokens
+
+// Use tokens for consistent styling
+Html.div [
+    prop.className $"{Colors.neonTeal} {Fonts.mono} {Spacing.md}"
+    prop.children [ ... ]
+]
+
+// Preset combinations
+Html.h1 [
+    prop.className Presets.pageHeader
+    prop.text "Page Title"
+]
+```
+
+### Layout Primitives
+
+```fsharp
+open Client.DesignSystem.Primitives
+
+// Container (max-width, padding)
+Primitives.container [
+    Primitives.pageHeader "Dashboard"
+    Primitives.stack [ ... ]  // Vertical stack
+]
+
+// Grid layouts
+Primitives.grid2 [ col1; col2 ]
+Primitives.grid3 [ col1; col2; col3 ]
+
+// Responsive visibility
+Primitives.mobileOnly [ ... ]
+Primitives.desktopOnly [ ... ]
+```
+
+### Icons
+
+```fsharp
+open Client.DesignSystem.Icons
+
+// Size: XS, SM, MD, LG, XL
+// Color: Default, Teal, Green, Orange, Purple, Pink, Red, Error, Primary
+
+Icons.check MD Green
+Icons.x SM Default
+Icons.plus MD Primary
+Icons.trash SM Error
+Icons.edit MD Default
+Icons.settings LG Default
+Icons.sync MD Teal
+Icons.chart MD Orange
+Icons.calendar MD Purple
+```

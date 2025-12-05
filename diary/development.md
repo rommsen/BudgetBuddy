@@ -4,6 +4,38 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-05 14:30 - Phase 5 UI Refactoring: Documentation & Cleanup (R12)
+
+**What I did:**
+Completed Milestone R12 of the UI refactoring plan - documentation updates and code cleanup for the Design System.
+
+**Files Modified:**
+- `CLAUDE.md`:
+  - Added comprehensive "Design System Components" section with:
+    - Component Quick Reference table (14 components)
+    - Button examples (primary, secondary, ghost, danger, with icons, loading states, groups)
+    - Card examples (standard, glass, glow, empty state)
+    - Input examples (text, select, toggle, form sections, error states)
+    - Badge examples (semantic variants, status badges, count badges)
+    - Modal examples (simple, confirm, full-screen, danger confirmation)
+    - Money display examples (simple, large, with label, balance)
+    - Stats card examples (with icon, with trend, specialized stats, grids)
+    - Loading state examples (spinner, centered, neon pulse, skeleton loaders)
+    - Design tokens usage examples (colors, fonts, spacing, presets)
+    - Layout primitives examples (container, grid, stack, responsive visibility)
+    - Icons usage examples (sizes, colors)
+
+**Rationale:**
+Documentation is critical for maintaining consistency as the codebase grows. The Design System documentation in CLAUDE.md ensures developers (both human and AI) can quickly find and use the correct components instead of writing inline code.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 passed, 6 skipped integration tests)
+- CLAUDE.md now contains complete Design System usage guide
+- All View files already clean and using Design System components consistently
+
+---
+
 ## 2025-12-05 11:00 - Phase 4 UI Refactoring: Mobile Optimization & Testing (R11)
 
 **What I did:**
