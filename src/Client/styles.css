@@ -189,6 +189,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Glass morphism effect */
 .glass-card {
   background: rgba(255, 255, 255, 0.7);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: var(--shadow-lg);
@@ -197,6 +198,81 @@ h1, h2, h3, h4, h5, h6 {
 [data-theme="dark"] .glass-card {
   background: rgba(30, 41, 59, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Fallback for browsers that don't support backdrop-filter */
+@supports not (backdrop-filter: blur(20px)) {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.95);
+  }
+  [data-theme="dark"] .glass-card {
+    background: rgba(30, 41, 59, 0.98);
+  }
+}
+
+/* ============================================
+   Keyboard Focus Styles
+   ============================================ */
+/* Remove default focus outline and add custom focus-visible styles */
+*:focus {
+  outline: none;
+}
+
+/* Focus-visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--color-neon-teal);
+  outline-offset: 2px;
+}
+
+/* Button focus */
+.btn:focus-visible {
+  outline: 2px solid var(--color-neon-teal);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.3);
+}
+
+/* Link focus */
+a:focus-visible {
+  outline: 2px solid var(--color-neon-teal);
+  outline-offset: 2px;
+}
+
+/* Input focus - keep existing styles, enhance for keyboard */
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  border-color: var(--color-neon-teal);
+  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.3);
+}
+
+/* Card focus */
+.card:focus-visible {
+  outline: 2px solid var(--color-neon-teal);
+  outline-offset: 2px;
+}
+
+/* Nav item focus */
+nav a:focus-visible {
+  outline: 2px solid var(--color-neon-teal);
+  outline-offset: -2px;
+  border-radius: 0.5rem;
+}
+
+/* Skip to main content link (for screen readers) */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-neon-teal);
+  color: #0a0a0f;
+  padding: 8px 16px;
+  z-index: 100;
+  font-weight: 500;
+  transition: top 0.2s ease;
+}
+
+.skip-to-content:focus {
+  top: 0;
 }
 
 /* Premium Button Styles */
@@ -627,6 +703,33 @@ h1, h2, h3, h4, h5, h6 {
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--bc) / 0.4);
+}
+
+/* ============================================
+   Safe Area Support (iOS notch/home indicator)
+   ============================================ */
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Combined safe area padding */
+.safe-area-inset {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* ============================================

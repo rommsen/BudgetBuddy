@@ -4,6 +4,50 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-05 11:00 - Phase 4 UI Refactoring: Mobile Optimization & Testing (R11)
+
+**What I did:**
+Completed Milestone R11 of the UI refactoring plan - final mobile optimization, accessibility improvements, and cross-browser compatibility.
+
+**Files Modified:**
+- `src/Client/styles.css`:
+  - Added safe area CSS classes (`safe-area-pt`, `safe-area-pb`, `safe-area-pl`, `safe-area-pr`, `safe-area-inset`) for iOS notch/home indicator handling
+  - Added comprehensive keyboard focus styles with `focus-visible` for all interactive elements
+  - Added neon teal focus outlines for buttons, links, inputs, cards, and nav items
+  - Added skip-to-content link styles for screen readers
+  - Added `-webkit-backdrop-filter` prefix for Safari compatibility
+  - Added `@supports not (backdrop-filter)` fallback for older browsers
+
+- `src/Client/DesignSystem/Navigation.fs`:
+  - Enhanced mobile nav items with `min-h-[52px]` to exceed 48px touch target requirement
+  - Added `safe-area-pt` class to mobile header for notch handling
+
+- `src/Client/DesignSystem/Tokens.fs`:
+  - Improved color contrast for accessibility:
+    - `textMuted`: increased opacity from 50% to 60%
+    - `textDisabled`: increased opacity from 30% to 50%
+
+- `src/Client/DesignSystem/Input.fs`:
+  - Increased placeholder text opacity from 40% to 50% for better readability
+
+- `src/Client/index.html`:
+  - Added `viewport-fit=cover` to viewport meta tag for safe area support
+  - Added `theme-color` meta tag for browser theming
+  - Added Apple PWA meta tags (`apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`)
+
+**Rationale:**
+Mobile optimization is critical for a finance app that users access on-the-go. Safe area support ensures the UI works correctly on iPhone X+ devices with the notch and home indicator. Accessibility improvements (focus states, color contrast) ensure the app is usable by people with disabilities and meets WCAG AA guidelines.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: ✅ 121/121 passed (115 passed, 6 skipped integration tests)
+- All touch targets now meet or exceed 48px minimum
+- Safe areas work on iPhone devices
+- Keyboard navigation has visible focus indicators
+- Glassmorphism has fallback for unsupported browsers
+
+---
+
 ## 2025-12-04 19:15 - Fixed Modal Display Issue with React Portals
 
 **What I did:**

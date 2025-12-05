@@ -24,7 +24,7 @@ type InputState =
 // ============================================
 
 let private baseInputClass =
-    "w-full bg-[#252836] text-base-content border border-white/10 rounded-lg transition-all duration-200 focus:border-neon-teal focus:shadow-[0_0_0_2px_rgba(0,212,170,0.3)] focus:outline-none placeholder:text-base-content/40"
+    "w-full bg-[#252836] text-base-content border border-white/10 rounded-lg transition-all duration-200 focus:border-neon-teal focus:shadow-[0_0_0_2px_rgba(0,212,170,0.3)] focus:outline-none placeholder:text-base-content/50"
 
 let private sizeToClass = function
     | Small -> "text-sm px-3 py-2 min-h-[36px]"

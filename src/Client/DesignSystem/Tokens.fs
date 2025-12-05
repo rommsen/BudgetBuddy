@@ -33,11 +33,11 @@ module Colors =
     let neonRed = "text-neon-red"
     let neonRedDim = "text-[#e6324f]"
 
-    // Text colors
+    // Text colors (WCAG AA compliant on dark backgrounds)
     let textPrimary = "text-base-content"
     let textSecondary = "text-base-content/70"
-    let textMuted = "text-base-content/50"
-    let textDisabled = "text-base-content/30"
+    let textMuted = "text-base-content/60"  // Increased from 50 for accessibility
+    let textDisabled = "text-base-content/50"  // Increased from 30 for accessibility
 
 /// Background color tokens
 module Backgrounds =

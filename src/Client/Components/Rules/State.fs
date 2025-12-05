@@ -65,6 +65,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | OpenNewRuleModal ->
         let emptyForm = emptyRuleForm ()
+        let loadCategoriesCmd =
+            if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
         { model with
             EditingRule = None
             IsNewRule = true
@@ -78,13 +80,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             RuleFormTestInput = emptyForm.TestInput
             RuleFormTestResult = emptyForm.TestResult
             RuleSaving = false
-        }, Cmd.ofMsg LoadCategories, NoOp
+        }, loadCategoriesCmd, NoOp
 
     | EditRule ruleId ->
         match model.Rules with
         | Success rules ->
             match rules |> List.tryFind (fun r -> r.Id = ruleId) with
             | Some rule ->
+                let loadCategoriesCmd =
+                    if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
                 { model with
                     EditingRule = Some rule
                     IsNewRule = false
@@ -98,7 +102,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     RuleFormTestInput = ""
                     RuleFormTestResult = None
                     RuleSaving = false
-                }, Cmd.ofMsg LoadCategories, NoOp
+                }, loadCategoriesCmd, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 

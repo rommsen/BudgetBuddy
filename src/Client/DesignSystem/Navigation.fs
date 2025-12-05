@@ -127,8 +127,8 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
     let isActive = item.Page = currentPage
     Html.a [
         prop.className (
-            "flex flex-col items-center justify-center gap-0.5 py-2 px-4 " +
-            "rounded-lg transition-all duration-200 cursor-pointer min-w-[64px] " +
+            "flex flex-col items-center justify-center gap-0.5 py-2.5 px-4 " +
+            "rounded-lg transition-all duration-200 cursor-pointer min-w-[64px] min-h-[52px] " +
             if isActive then
                 "text-neon-teal"
             else
@@ -172,7 +172,8 @@ let mobileHeader (onNavigate: NavPage -> unit) =
         prop.className (
             "md:hidden fixed top-0 left-0 right-0 z-50 " +
             "h-14 px-4 flex items-center " +
-            "bg-base-100/95 backdrop-blur-xl border-b border-white/5"
+            "bg-base-100/95 backdrop-blur-xl border-b border-white/5 " +
+            "safe-area-pt"
         )
         prop.children [
             Html.a [
