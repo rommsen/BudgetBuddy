@@ -64,10 +64,14 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         prop.className "flex flex-col sm:flex-row gap-2"
                         prop.children [
                             Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "Enter your YNAB Personal Access Token"
-                            Button.primaryLoading
-                                "Save"
-                                false
-                                (fun () -> dispatch SaveYnabToken)
+                            let isTokenEmpty = System.String.IsNullOrWhiteSpace(model.YnabTokenInput)
+                            Button.view {
+                                Button.defaultProps with
+                                    Text = "Save"
+                                    OnClick = (fun () -> dispatch SaveYnabToken)
+                                    Variant = Button.Primary
+                                    IsDisabled = isTokenEmpty
+                            }
                         ]
                     ])
 
@@ -89,7 +93,19 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 ]
 
                 // Test connection button
-                Button.secondary "Test Connection" (fun () -> dispatch TestYnabConnection)
+                let hasYnabToken =
+                    match model.Settings with
+                    | Success s -> s.Ynab.IsSome
+                    | _ -> false
+                if hasYnabToken then
+                    Button.secondary "Test Connection" (fun () -> dispatch TestYnabConnection)
+                else
+                    Button.view {
+                        Button.defaultProps with
+                            Text = "Test Connection"
+                            Variant = Button.Secondary
+                            IsDisabled = true
+                    }
 
                 // Budget/Account selection (shown after successful test)
                 match model.YnabBudgets with

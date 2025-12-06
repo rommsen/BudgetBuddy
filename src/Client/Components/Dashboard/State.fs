@@ -21,25 +21,33 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     | LoadCurrentSession ->
         let cmd =
-            Cmd.OfAsync.perform
+            Cmd.OfAsync.either
                 Api.sync.getCurrentSession
                 ()
-                CurrentSessionLoaded
+                (Ok >> CurrentSessionLoaded)
+                (fun ex -> Error ex.Message |> CurrentSessionLoaded)
         { model with CurrentSession = Loading }, cmd
 
-    | CurrentSessionLoaded session ->
+    | CurrentSessionLoaded (Ok session) ->
         { model with CurrentSession = Success session }, Cmd.none
+
+    | CurrentSessionLoaded (Error err) ->
+        { model with CurrentSession = Failure err }, Cmd.none
 
     | LoadRecentSessions ->
         let cmd =
-            Cmd.OfAsync.perform
+            Cmd.OfAsync.either
                 Api.sync.getSyncHistory
                 10
-                RecentSessionsLoaded
+                (Ok >> RecentSessionsLoaded)
+                (fun ex -> Error ex.Message |> RecentSessionsLoaded)
         { model with RecentSessions = Loading }, cmd
 
-    | RecentSessionsLoaded sessions ->
+    | RecentSessionsLoaded (Ok sessions) ->
         { model with RecentSessions = Success sessions }, Cmd.none
+
+    | RecentSessionsLoaded (Error err) ->
+        { model with RecentSessions = Failure err }, Cmd.none
 
     | LoadSettings ->
         let cmd =

@@ -13,8 +13,8 @@ type Model = {
 /// Dashboard-specific messages
 type Msg =
     | LoadCurrentSession
-    | CurrentSessionLoaded of SyncSession option
+    | CurrentSessionLoaded of Result<SyncSession option, string>
     | LoadRecentSessions
-    | RecentSessionsLoaded of SyncSession list
+    | RecentSessionsLoaded of Result<SyncSession list, string>
     | LoadSettings
     | SettingsLoaded of Result<AppSettings, string>

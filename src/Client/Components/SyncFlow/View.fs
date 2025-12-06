@@ -422,7 +422,26 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 prop.className "flex gap-2"
                                 prop.children [
                                     Button.danger "Cancel" (fun () -> dispatch CancelSync)
-                                    Button.primaryWithIcon "Import to YNAB" (Icons.upload Icons.SM Icons.Primary) (fun () -> dispatch ImportToYnab)
+                                    // Disable import if no transactions are selected or none have categories
+                                    let canImport =
+                                        match model.SyncTransactions with
+                                        | Success transactions ->
+                                            let readyTransactions =
+                                                transactions
+                                                |> List.filter (fun tx ->
+                                                    model.SelectedTransactions.Contains(tx.Transaction.Id) &&
+                                                    tx.Status <> Skipped &&
+                                                    tx.CategoryId.IsSome)
+                                            not readyTransactions.IsEmpty
+                                        | _ -> false
+                                    Button.view {
+                                        Button.defaultProps with
+                                            Text = "Import to YNAB"
+                                            Variant = Button.Primary
+                                            Icon = Some (Icons.upload Icons.SM Icons.Primary)
+                                            OnClick = fun () -> dispatch ImportToYnab
+                                            IsDisabled = not canImport
+                                    }
                                 ]
                             ]
                         ]

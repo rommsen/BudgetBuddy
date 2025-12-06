@@ -26,7 +26,7 @@ type Model = {
 /// Rules-specific messages
 type Msg =
     | LoadRules
-    | RulesLoaded of Rule list
+    | RulesLoaded of Result<Rule list, string>
     | OpenNewRuleModal
     | EditRule of RuleId
     | CloseRuleModal

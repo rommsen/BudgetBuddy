@@ -54,14 +54,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadRules ->
         let cmd =
-            Cmd.OfAsync.perform
+            Cmd.OfAsync.either
                 Api.rules.getAllRules
                 ()
-                RulesLoaded
+                (Ok >> RulesLoaded)
+                (fun ex -> Error ex.Message |> RulesLoaded)
         { model with Rules = Loading }, cmd, NoOp
 
-    | RulesLoaded rules ->
+    | RulesLoaded (Ok rules) ->
         { model with Rules = Success rules }, Cmd.none, NoOp
+
+    | RulesLoaded (Error err) ->
+        { model with Rules = Failure err }, Cmd.none, ShowToast ($"Failed to load rules: {err}", ToastError)
 
     | OpenNewRuleModal ->
         let emptyForm = emptyRuleForm ()
