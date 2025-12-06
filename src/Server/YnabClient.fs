@@ -217,8 +217,25 @@ let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<
             return Error (YnabError.NetworkError $"Failed to fetch categories: {ex.Message}")
     }
 
+/// Helper to truncate memo to YNAB's 200 character limit
+let private truncateMemo (memo: string) =
+    if memo.Length > 200 then
+        memo.Substring(0, 197) + "..."
+    else
+        memo
+
+/// Helper to create a subtransaction for a split
+let private createSubtransaction (split: TransactionSplit) =
+    let (YnabCategoryId categoryIdGuid) = split.CategoryId
+    {|
+        amount = int64 (split.Amount.Amount * 1000m)  // Convert to milliunits
+        category_id = categoryIdGuid.ToString()
+        memo = split.Memo |> Option.map truncateMemo |> Option.defaultValue null
+    |}
+
 /// Creates transactions in YNAB
 /// Returns the number of successfully created transactions
+/// Handles both regular transactions and split transactions (with subtransactions)
 let createTransactions
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
@@ -228,18 +245,21 @@ let createTransactions
 
     async {
         try
-            // Convert SyncTransactions to YNAB transaction format
-            let ynabTransactions =
+            // Filter valid transactions (not skipped and either has category or splits)
+            let validTransactions =
                 transactions
                 |> List.filter (fun tx ->
-                    // Only import categorized transactions that aren't skipped
-                    tx.Status <> Skipped && tx.CategoryId.IsSome
+                    tx.Status <> Skipped &&
+                    (tx.CategoryId.IsSome || (tx.Splits |> Option.map (fun s -> s.Length >= 2) |> Option.defaultValue false))
                 )
+
+            // Convert SyncTransactions to YNAB transaction format
+            let ynabTransactions =
+                validTransactions
                 |> List.map (fun tx ->
                     let (TransactionId txId) = tx.Transaction.Id
-                    let (YnabCategoryId categoryIdGuid) = tx.CategoryId.Value
 
-                    {|
+                    let baseTransaction = {|
                         account_id = accountId.ToString()
                         date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
                         amount = int64 (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
@@ -247,15 +267,40 @@ let createTransactions
                             tx.PayeeOverride
                             |> Option.orElse tx.Transaction.Payee
                             |> Option.defaultValue "Unknown"
-                        category_id = categoryIdGuid.ToString()
-                        memo =
-                            if tx.Transaction.Memo.Length > 200 then
-                                tx.Transaction.Memo.Substring(0, 197) + "..."
-                            else
-                                tx.Transaction.Memo
+                        memo = truncateMemo tx.Transaction.Memo
                         cleared = "cleared"
                         import_id = $"BUDGETBUDDY:{txId}:{tx.Transaction.BookingDate.Ticks}"  // Prevents duplicates
                     |}
+
+                    // Check if this is a split transaction
+                    match tx.Splits with
+                    | Some splits when splits.Length >= 2 ->
+                        // Split transaction: use subtransactions array, no category_id on parent
+                        let subtransactions = splits |> List.map createSubtransaction
+                        {|
+                            account_id = baseTransaction.account_id
+                            date = baseTransaction.date
+                            amount = baseTransaction.amount
+                            payee_name = baseTransaction.payee_name
+                            memo = baseTransaction.memo
+                            cleared = baseTransaction.cleared
+                            import_id = baseTransaction.import_id
+                            category_id = null :> obj  // No category on parent for split transactions
+                            subtransactions = subtransactions |> List.toArray
+                        |} :> obj
+                    | _ ->
+                        // Regular transaction: use category_id directly
+                        let (YnabCategoryId categoryIdGuid) = tx.CategoryId.Value
+                        {|
+                            account_id = baseTransaction.account_id
+                            date = baseTransaction.date
+                            amount = baseTransaction.amount
+                            payee_name = baseTransaction.payee_name
+                            category_id = categoryIdGuid.ToString()
+                            memo = baseTransaction.memo
+                            cleared = baseTransaction.cleared
+                            import_id = baseTransaction.import_id
+                        |} :> obj
                 )
 
             if ynabTransactions.IsEmpty then
@@ -282,7 +327,7 @@ let createTransactions
                 match response.statusCode with
                 | 201 ->
                     // Successfully created
-                    return Ok ynabTransactions.Length
+                    return Ok validTransactions.Length
                 | 400 ->
                     return Error (YnabError.InvalidResponse $"Bad request: {response.bodyText}")
                 | 401 ->

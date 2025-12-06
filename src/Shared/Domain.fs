@@ -71,6 +71,19 @@ type ExternalLink = {
     Url: string
 }
 
+/// Represents a single split within a transaction for multi-category allocation.
+/// Purpose: Allows splitting a single bank transaction into multiple YNAB categories.
+type TransactionSplit = {
+    /// The category to assign to this split
+    CategoryId: YnabCategoryId
+    /// Cached category name for display
+    CategoryName: string
+    /// The amount for this split (must sum to transaction total)
+    Amount: Money
+    /// Optional memo for this specific split
+    Memo: string option
+}
+
 /// Indicates whether a transaction is a potential duplicate
 type DuplicateStatus =
     | NotDuplicate                        // No duplicate detected
@@ -87,6 +100,11 @@ type SyncTransaction = {
     ExternalLinks: ExternalLink list
     UserNotes: string option
     DuplicateStatus: DuplicateStatus  // Duplicate detection status
+    /// Optional list of splits for multi-category transactions.
+    /// None = single category transaction (uses CategoryId)
+    /// Some [] = invalid state (splits must have at least 2 items)
+    /// Some [split1; split2; ...] = split transaction (splits must sum to transaction amount)
+    Splits: TransactionSplit list option
 }
 
 // ============================================

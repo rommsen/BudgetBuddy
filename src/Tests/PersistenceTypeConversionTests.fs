@@ -54,6 +54,7 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
         ExternalLinks = []
         UserNotes = None
         DuplicateStatus = NotDuplicate
+        Splits = None
     }
 
 [<Tests>]

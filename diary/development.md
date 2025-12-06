@@ -4,6 +4,69 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-06 - Milestone 14: Split Transactions
+
+**What I did:**
+Implemented split transaction functionality allowing users to allocate a single bank transaction across multiple YNAB categories. This is essential for transactions like grocery shopping that may include items from different budget categories.
+
+**Files Added:**
+- `src/Tests/SplitTransactionTests.fs` - 15 comprehensive tests covering:
+  - Split type creation and validation
+  - Amount sum validation (splits must equal transaction total)
+  - Import readiness checks for split vs single-category transactions
+  - Currency consistency validation
+
+**Files Modified:**
+- `src/Shared/Domain.fs`:
+  - Added `TransactionSplit` type with CategoryId, CategoryName, Amount, and optional Memo
+  - Added `Splits` field to `SyncTransaction` record (`TransactionSplit list option`)
+- `src/Shared/Api.fs`:
+  - Added `splitTransaction` endpoint to SyncApi
+  - Added `clearSplit` endpoint to SyncApi
+- `src/Server/YnabClient.fs`:
+  - Added `truncateMemo` helper function
+  - Added `createSubtransaction` helper for YNAB subtransaction format
+  - Updated `createTransactions` to handle split transactions using YNAB's `subtransactions` array
+  - Updated filtering to include transactions with valid splits (2+ categories)
+- `src/Server/Api.fs`:
+  - Implemented `splitTransaction` handler with validation (min 2 splits, amounts sum to total)
+  - Implemented `clearSplit` handler to remove splits and reset to pending
+  - Updated `importToYnab` filtering to include split transactions
+- `src/Server/RulesEngine.fs`:
+  - Added `Splits = None` to SyncTransaction creation
+- `src/Server/Persistence.fs`:
+  - Added `Splits = None` to transaction reconstruction
+- `src/Client/Components/SyncFlow/Types.fs`:
+  - Added `SplitEditState` type for tracking split editing state
+  - Added `SplitEdit` field to Model
+  - Added split-related messages: StartSplitEdit, CancelSplitEdit, AddSplit, RemoveSplit, UpdateSplitAmount, UpdateSplitMemo, SaveSplits, ClearSplit, SplitsSaved, SplitCleared
+- `src/Client/Components/SyncFlow/State.fs`:
+  - Added `SplitEdit = None` to init
+  - Implemented handlers for all split messages:
+    - Start/cancel split editing
+    - Add/remove splits with amount tracking
+    - Update split amounts and memos
+    - Save splits to server with validation
+    - Clear splits to revert to single-category mode
+- `src/Tests/YnabClientTests.fs`:
+  - Updated all SyncTransaction fixtures with `Splits = None`
+- `src/Tests/DuplicateDetectionTests.fs`:
+  - Updated all SyncTransaction fixtures with `Splits = None`
+- `src/Tests/PersistenceTypeConversionTests.fs`:
+  - Updated SyncTransaction fixture with `Splits = None`
+- `src/Tests/Tests.fsproj`:
+  - Added `SplitTransactionTests.fs` to compilation
+
+**Rationale:**
+Split transactions are a common requirement when a single payment covers multiple budget categories (e.g., grocery store purchases that include food, household items, and personal care). YNAB supports this via subtransactions, and this implementation mirrors that capability.
+
+**Outcomes:**
+- Build: ✅ 0 warnings, 0 errors
+- Tests: 163/163 passed (was 148, +15 new split tests)
+- Issues: None - all existing tests continue to pass with the new Splits field
+
+---
+
 ## 2025-12-05 16:30 - Milestone 13: Duplicate Detection
 
 **What I did:**

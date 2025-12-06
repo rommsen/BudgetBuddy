@@ -217,6 +217,7 @@ let classifyTransactions
                         ExternalLinks = externalLinks
                         UserNotes = None
                         DuplicateStatus = NotDuplicate  // Will be updated by DuplicateDetection
+                        Splits = None
                     }
                 | None ->
                     {
@@ -229,6 +230,7 @@ let classifyTransactions
                         ExternalLinks = externalLinks
                         UserNotes = None
                         DuplicateStatus = NotDuplicate  // Will be updated by DuplicateDetection
+                        Splits = None
                     }
             )
 

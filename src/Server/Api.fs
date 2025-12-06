@@ -754,6 +754,49 @@ let syncApi : SyncApi = {
             return Ok (List.rev updatedTransactions)
     }
 
+    splitTransaction = fun (sessionId, txId, splits) -> async {
+        match SyncSessionManager.validateSession sessionId with
+        | Error err -> return Error err
+        | Ok _ ->
+            match SyncSessionManager.getTransaction txId with
+            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
+            | Some tx ->
+                // Validate splits
+                if splits.Length < 2 then
+                    return Error (SyncError.InvalidSessionState ("split", "Splits must have at least 2 items"))
+                else
+                    // Validate that split amounts sum to transaction amount
+                    let totalSplitAmount = splits |> List.sumBy (fun s -> s.Amount.Amount)
+                    if abs (totalSplitAmount - tx.Transaction.Amount.Amount) > 0.01m then
+                        return Error (SyncError.InvalidSessionState ("split", $"Split amounts ({totalSplitAmount}) must sum to transaction amount ({tx.Transaction.Amount.Amount})"))
+                    else
+                        let updated = {
+                            tx with
+                                Status = ManualCategorized
+                                CategoryId = None  // No single category for split transactions
+                                CategoryName = None
+                                Splits = Some splits
+                        }
+                        SyncSessionManager.updateTransaction updated
+                        return Ok updated
+    }
+
+    clearSplit = fun (sessionId, txId) -> async {
+        match SyncSessionManager.validateSession sessionId with
+        | Error err -> return Error err
+        | Ok _ ->
+            match SyncSessionManager.getTransaction txId with
+            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
+            | Some tx ->
+                let updated = {
+                    tx with
+                        Status = Pending  // Reset to pending so user can categorize
+                        Splits = None
+                }
+                SyncSessionManager.updateTransaction updated
+                return Ok updated
+    }
+
     // ============================================
     // Import
     // ============================================
@@ -765,12 +808,15 @@ let syncApi : SyncApi = {
             // Get all transactions
             let transactions = SyncSessionManager.getTransactions()
 
-            // Filter to categorized transactions only
+            // Filter to categorized transactions only (single category OR splits)
             let categorized =
                 transactions
                 |> List.filter (fun tx ->
                     match tx.Status with
-                    | AutoCategorized | ManualCategorized | NeedsAttention -> tx.CategoryId.IsSome
+                    | AutoCategorized | ManualCategorized | NeedsAttention ->
+                        // Transaction is ready if it has a category OR valid splits
+                        tx.CategoryId.IsSome ||
+                        (tx.Splits |> Option.map (fun s -> s.Length >= 2) |> Option.defaultValue false)
                     | _ -> false
                 )
 

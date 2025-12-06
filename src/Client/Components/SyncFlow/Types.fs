@@ -3,12 +3,22 @@ module Components.SyncFlow.Types
 open Shared.Domain
 open Types
 
+/// Split editing state for a single transaction
+type SplitEditState = {
+    TransactionId: TransactionId
+    Splits: TransactionSplit list
+    RemainingAmount: decimal
+    Currency: string
+}
+
 /// SyncFlow-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
     SyncTransactions: RemoteData<SyncTransaction list>
     SelectedTransactions: Set<TransactionId>
     Categories: YnabCategory list
+    /// Active split editing state (None when not editing splits)
+    SplitEdit: SplitEditState option
 }
 
 /// SyncFlow-specific messages
@@ -32,6 +42,18 @@ type Msg =
     | TransactionSkipped of Result<SyncTransaction, SyncError>
     | BulkCategorize of YnabCategoryId
     | BulkCategorized of Result<SyncTransaction list, SyncError>
+    // Split transaction messages
+    | StartSplitEdit of TransactionId
+    | CancelSplitEdit
+    | AddSplit of YnabCategoryId * string * decimal  // categoryId, categoryName, amount
+    | RemoveSplit of int  // index
+    | UpdateSplitAmount of int * decimal  // index, amount
+    | UpdateSplitMemo of int * string option  // index, memo
+    | SaveSplits
+    | SplitsSaved of Result<SyncTransaction, SyncError>
+    | ClearSplit of TransactionId
+    | SplitCleared of Result<SyncTransaction, SyncError>
+    // Import
     | ImportToYnab
     | ImportCompleted of Result<int, SyncError>
     | CancelSync

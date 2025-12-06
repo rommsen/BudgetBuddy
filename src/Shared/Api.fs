@@ -176,6 +176,18 @@ type SyncApi = {
     /// Returns: Updated transactions or SyncError (SessionNotFound, InvalidSessionState).
     bulkCategorize: SyncSessionId * TransactionId list * YnabCategoryId -> Async<SyncResult<SyncTransaction list>>
 
+    /// Splits a transaction into multiple categories.
+    /// Purpose: Allows allocating a single transaction across multiple YNAB categories.
+    /// Parameters: (sessionId, transactionId, splits)
+    /// Constraints: Splits must have at least 2 items and their amounts must sum to the transaction total.
+    /// Returns: Updated transaction with splits or SyncError (SessionNotFound, InvalidSessionState).
+    splitTransaction: SyncSessionId * TransactionId * TransactionSplit list -> Async<SyncResult<SyncTransaction>>
+
+    /// Clears splits from a transaction, reverting to single-category mode.
+    /// Purpose: Allows user to undo a split and use regular categorization.
+    /// Returns: Updated transaction without splits or SyncError (SessionNotFound).
+    clearSplit: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
+
     // ============================================
     // Import
     // ============================================

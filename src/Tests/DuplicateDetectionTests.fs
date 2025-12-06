@@ -324,7 +324,8 @@ let markDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate }
+                  DuplicateStatus = NotDuplicate
+                  Splits = None }
                 { Transaction = bankTx2
                   Status = Pending
                   CategoryId = None
@@ -333,7 +334,8 @@ let markDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate }
+                  DuplicateStatus = NotDuplicate
+                  Splits = None }
                 { Transaction = bankTx3
                   Status = Pending
                   CategoryId = None
@@ -342,7 +344,8 @@ let markDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate }
+                  DuplicateStatus = NotDuplicate
+                  Splits = None }
             ]
 
             let ynabTransactions = [
@@ -412,6 +415,7 @@ let additionalEdgeCaseTests =
                 ExternalLinks = [{ Label = "Link"; Url = "https://example.com" }]
                 UserNotes = Some "User note"
                 DuplicateStatus = NotDuplicate
+                Splits = None
             }
 
             // YNAB transaction that matches
@@ -472,7 +476,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = ConfirmedDuplicate "ref1" }
+                  DuplicateStatus = ConfirmedDuplicate "ref1"
+                  Splits = None }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -481,7 +486,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = PossibleDuplicate "reason" }
+                  DuplicateStatus = PossibleDuplicate "reason"
+                  Splits = None }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -490,7 +496,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate }
+                  DuplicateStatus = NotDuplicate
+                  Splits = None }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -499,7 +506,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate }
+                  DuplicateStatus = NotDuplicate
+                  Splits = None }
             ]
 
             let result = countDuplicates syncTransactions

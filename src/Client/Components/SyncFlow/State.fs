@@ -31,6 +31,7 @@ let init () : Model * Cmd<Msg> =
         SyncTransactions = NotAsked
         SelectedTransactions = Set.empty
         Categories = []
+        SplitEdit = None
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -199,6 +200,120 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with SelectedTransactions = Set.empty }, Cmd.ofMsg LoadTransactions, NoOp
 
     | BulkCategorized (Error err) ->
+        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+
+    // Split transaction handlers
+    | StartSplitEdit txId ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            match transactions |> List.tryFind (fun tx -> tx.Transaction.Id = txId) with
+            | Some tx ->
+                let initialSplits =
+                    tx.Splits
+                    |> Option.defaultValue []
+                let splitEdit = {
+                    TransactionId = txId
+                    Splits = initialSplits
+                    RemainingAmount = tx.Transaction.Amount.Amount - (initialSplits |> List.sumBy (fun s -> s.Amount.Amount))
+                    Currency = tx.Transaction.Amount.Currency
+                }
+                { model with SplitEdit = Some splitEdit }, Cmd.none, NoOp
+            | None -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | CancelSplitEdit ->
+        { model with SplitEdit = None }, Cmd.none, NoOp
+
+    | AddSplit (categoryId, categoryName, amount) ->
+        match model.SplitEdit with
+        | Some splitEdit ->
+            let newSplit = {
+                CategoryId = categoryId
+                CategoryName = categoryName
+                Amount = { Amount = amount; Currency = splitEdit.Currency }
+                Memo = None
+            }
+            let newSplits = splitEdit.Splits @ [ newSplit ]
+            let remaining = splitEdit.RemainingAmount - amount
+            let updated = { splitEdit with Splits = newSplits; RemainingAmount = remaining }
+            { model with SplitEdit = Some updated }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | RemoveSplit index ->
+        match model.SplitEdit with
+        | Some splitEdit when index >= 0 && index < splitEdit.Splits.Length ->
+            let removedAmount = splitEdit.Splits.[index].Amount.Amount
+            let newSplits = splitEdit.Splits |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd
+            let updated = { splitEdit with Splits = newSplits; RemainingAmount = splitEdit.RemainingAmount + removedAmount }
+            { model with SplitEdit = Some updated }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | UpdateSplitAmount (index, amount) ->
+        match model.SplitEdit with
+        | Some splitEdit when index >= 0 && index < splitEdit.Splits.Length ->
+            let oldAmount = splitEdit.Splits.[index].Amount.Amount
+            let newSplits =
+                splitEdit.Splits
+                |> List.indexed
+                |> List.map (fun (i, s) ->
+                    if i = index then { s with Amount = { s.Amount with Amount = amount } }
+                    else s
+                )
+            let diff = oldAmount - amount
+            let updated = { splitEdit with Splits = newSplits; RemainingAmount = splitEdit.RemainingAmount + diff }
+            { model with SplitEdit = Some updated }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | UpdateSplitMemo (index, memo) ->
+        match model.SplitEdit with
+        | Some splitEdit when index >= 0 && index < splitEdit.Splits.Length ->
+            let newSplits =
+                splitEdit.Splits
+                |> List.indexed
+                |> List.map (fun (i, s) ->
+                    if i = index then { s with Memo = memo }
+                    else s
+                )
+            let updated = { splitEdit with Splits = newSplits }
+            { model with SplitEdit = Some updated }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | SaveSplits ->
+        match model.SplitEdit, model.CurrentSession with
+        | Some splitEdit, Success (Some session) when splitEdit.Splits.Length >= 2 ->
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.sync.splitTransaction
+                    (session.Id, splitEdit.TransactionId, splitEdit.Splits)
+                    SplitsSaved
+                    (fun ex -> Error (SyncError.DatabaseError ("split", ex.Message)) |> SplitsSaved)
+            model, cmd, NoOp
+        | Some splitEdit, _ when splitEdit.Splits.Length < 2 ->
+            model, Cmd.none, ShowToast ("At least 2 splits are required", ToastWarning)
+        | _ -> model, Cmd.none, NoOp
+
+    | SplitsSaved (Ok _) ->
+        { model with SplitEdit = None }, Cmd.ofMsg LoadTransactions, ShowToast ("Transaction split saved", ToastSuccess)
+
+    | SplitsSaved (Error err) ->
+        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+
+    | ClearSplit txId ->
+        match model.CurrentSession with
+        | Success (Some session) ->
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.sync.clearSplit
+                    (session.Id, txId)
+                    SplitCleared
+                    (fun ex -> Error (SyncError.DatabaseError ("clear_split", ex.Message)) |> SplitCleared)
+            model, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | SplitCleared (Ok _) ->
+        model, Cmd.ofMsg LoadTransactions, ShowToast ("Split cleared", ToastInfo)
+
+    | SplitCleared (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | ImportToYnab ->

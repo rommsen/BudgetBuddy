@@ -386,6 +386,7 @@ let transactionConversionTests =
                 ExternalLinks = []
                 UserNotes = None
                 DuplicateStatus = NotDuplicate
+                Splits = None
             }
 
             // Simulate the conversion logic from createTransactions
@@ -434,6 +435,7 @@ let transactionConversionTests =
                 ExternalLinks = []
                 UserNotes = None
                 DuplicateStatus = NotDuplicate
+                Splits = None
             }
 
             let payeeName =
@@ -484,6 +486,7 @@ let transactionConversionTests =
                     ExternalLinks = []
                     UserNotes = None
                     DuplicateStatus = NotDuplicate
+                    Splits = None
                 }
             ]
 
@@ -513,6 +516,7 @@ let transactionConversionTests =
                     ExternalLinks = []
                     UserNotes = None
                     DuplicateStatus = NotDuplicate
+                    Splits = None
                 }
             ]
 
@@ -549,6 +553,7 @@ let importIdGenerationTests =
                 ExternalLinks = []
                 UserNotes = None
                 DuplicateStatus = NotDuplicate
+                Splits = None
             }
 
             let tx2 = {
@@ -569,6 +574,7 @@ let importIdGenerationTests =
                 ExternalLinks = []
                 UserNotes = None
                 DuplicateStatus = NotDuplicate
+                Splits = None
             }
 
             let (TransactionId id1) = tx1.Transaction.Id

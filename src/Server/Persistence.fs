@@ -636,6 +636,7 @@ module SyncTransactions =
                     ExternalLinks = []
                     UserNotes = None
                     DuplicateStatus = NotDuplicate  // Duplicate status is not persisted, always reset to NotDuplicate
+                    Splits = None  // Splits are not persisted yet
                 }
             )
         }
