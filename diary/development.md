@@ -4,6 +4,29 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 22:45 - Entferne Comdirect Zeilennummern-Präfixe aus Memos
+
+**What I did:**
+Comdirect sendet den Verwendungszweck (remittanceInfo) mit Zeilennummern-Präfixen wie "01", "02", etc. Diese erschienen in der UI vor jedem Memo (z.B. "01REWE..." statt "REWE..."). Eine Regex-Funktion hinzugefügt, die diese Präfixe beim Parsen entfernt.
+
+**Files Modified:**
+- `src/Server/ComdirectClient.fs` - Neue Funktion `removeLineNumberPrefixes` hinzugefügt und beim Parsen von `remittanceInfo` angewendet
+- `src/Server/Server.fsproj` - `InternalsVisibleTo` für Tests hinzugefügt
+- `src/Tests/ComdirectDecoderTests.fs` - 10 Unit-Tests für die neue Funktion hinzugefügt
+
+**Technische Details:**
+- Regex-Pattern: `(^|\n)\d{2}(?=[A-Za-zÄÖÜäöüß])` - matcht 2-stellige Zahlen am Anfang oder nach Zeilenumbruch, gefolgt von Buchstaben
+- Unterstützt deutsche Umlaute
+- Trim() entfernt übrige Leerzeichen
+- Funktion ist `internal` um direktes Unit-Testing zu ermöglichen
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped (integration tests) - 10 neue Tests
+- Memos erscheinen jetzt ohne "01"-Präfix
+
+---
+
 ## 2025-12-07 21:15 - Legacy Rules Import Script
 
 **What I did:**

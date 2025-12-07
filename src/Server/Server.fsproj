@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Watch Remove="data\**\*.*" />
     <Watch Remove="..\..\data\**\*.*" />
   </ItemGroup>

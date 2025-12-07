@@ -1,7 +1,7 @@
 module ComdirectDecoderTests
 
 open Expecto
-open Thoth.Json.Net
+open Server.ComdirectClient
 
 // Mock JSON responses for testing decoders
 // Note: These are based on Comdirect's actual API structure
@@ -115,4 +115,58 @@ let transactionFieldTests =
             // The reference field becomes the TransactionId
             Expect.isNotEmpty reference "Reference should not be empty"
             Expect.isTrue (reference.Length > 0) "Reference should have content"
+    ]
+
+[<Tests>]
+let lineNumberPrefixTests =
+    testList "Comdirect Line Number Prefix Removal" [
+        // This test prevents regression of the bug where Comdirect memos displayed
+        // with line number prefixes like "01REWE..." instead of "REWE..."
+        testCase "removes 01 prefix from memo start" <| fun () ->
+            let input = "01BARGELDEINZAHLUNG"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "BARGELDEINZAHLUNG" "Should remove 01 prefix"
+
+        testCase "removes various line numbers (01, 02, 20)" <| fun () ->
+            Expect.equal (removeLineNumberPrefixes "01REWE") "REWE" "Should remove 01"
+            Expect.equal (removeLineNumberPrefixes "02Amazon") "Amazon" "Should remove 02"
+            Expect.equal (removeLineNumberPrefixes "20Sparkasse") "Sparkasse" "Should remove 20"
+
+        testCase "removes line numbers from multiline memos" <| fun () ->
+            let input = "01Erste Zeile\n02Zweite Zeile"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "Erste Zeile\nZweite Zeile" "Should remove prefixes from all lines"
+
+        testCase "preserves numbers that are part of text" <| fun () ->
+            let input = "01Amazon 25 EUR"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "Amazon 25 EUR" "Should keep numbers in middle of text"
+
+        testCase "preserves numbers not followed by letters" <| fun () ->
+            let input = "25.50"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "25.50" "Should not remove numbers followed by punctuation"
+
+        testCase "handles German umlauts correctly" <| fun () ->
+            let input = "01Überweisung"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "Überweisung" "Should handle Ü"
+
+        testCase "handles empty string" <| fun () ->
+            let result = removeLineNumberPrefixes ""
+            Expect.equal result "" "Should handle empty input"
+
+        testCase "handles string with only spaces" <| fun () ->
+            let result = removeLineNumberPrefixes "   "
+            Expect.equal result "" "Should trim whitespace"
+
+        testCase "real-world example: REWE payment" <| fun () ->
+            let input = "01REWE Jens Wechsler oHG//OSNABRUECK/DE"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "REWE Jens Wechsler oHG//OSNABRUECK/DE" "Should handle real REWE memo"
+
+        testCase "real-world example: Brinkhege payment" <| fun () ->
+            let input = "01Brinkhege Treffpunkt (Rewe)//OSNABRUECK/DE"
+            let result = removeLineNumberPrefixes input
+            Expect.equal result "Brinkhege Treffpunkt (Rewe)//OSNABRUECK/DE" "Should handle real Brinkhege memo"
     ]

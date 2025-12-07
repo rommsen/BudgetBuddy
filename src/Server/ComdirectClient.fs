@@ -75,6 +75,15 @@ let private challengeDecoder: Decoder<Challenge> =
         Type = get.Required.Field "typ" Decode.string
     })
 
+/// Removes Comdirect line number prefixes from remittance info.
+/// Comdirect formats memo lines as "01TEXT", "02TEXT", etc.
+let internal removeLineNumberPrefixes (text: string) : string =
+    System.Text.RegularExpressions.Regex.Replace(
+        text,
+        @"(^|\n)\d{2}(?=[A-Za-zÄÖÜäöüß])",
+        "$1"
+    ).Trim()
+
 let private transactionDecoder: Decoder<BankTransaction> =
     Decode.object (fun get ->
         // Extract name (can be remitter or creditor)
@@ -94,7 +103,9 @@ let private transactionDecoder: Decoder<BankTransaction> =
 
         // Get reference and memo
         let reference = get.Required.Field "reference" Decode.string
-        let memo = get.Required.Field "remittanceInfo" Decode.string
+        let memo =
+            get.Required.Field "remittanceInfo" Decode.string
+            |> removeLineNumberPrefixes
 
         // Create transaction ID from reference
         let transactionId = TransactionId reference
