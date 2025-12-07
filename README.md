@@ -143,6 +143,36 @@ dotnet fsi scripts/test-comdirect.fsx
 
 See [scripts/README.md](scripts/README.md) for detailed documentation on the test scripts.
 
+#### Import Legacy Rules
+
+If you have categorization rules from a legacy system in YAML format, you can import them:
+
+```bash
+# List available YNAB budgets
+dotnet fsi scripts/import-rules.fsx --list
+
+# Import rules for a specific budget
+dotnet fsi scripts/import-rules.fsx "My Budget"
+
+# Clear all rules and reimport (useful after DB reset)
+dotnet fsi scripts/import-rules.fsx --clear "My Budget"
+```
+
+**Expected YAML format** (`rules.yml` in project root):
+```yaml
+rules:
+  - match: "REWE"
+    category: "Groceries"
+  - match: "Netflix"
+    category: "Entertainment"
+```
+
+The script:
+- Fetches categories from YNAB and matches by name
+- Creates rules with `Contains` pattern type (substring match)
+- Skips duplicates (unless `--clear` is used)
+- Reports which categories couldn't be matched
+
 #### Test Coverage
 
 | Test Type | Count | Description |
@@ -210,6 +240,7 @@ src/
 scripts/
 ├── test-ynab.fsx            # Interactive YNAB API tester
 ├── test-comdirect.fsx       # Interactive Comdirect OAuth tester
+├── import-rules.fsx         # Import rules from legacy YAML file
 ├── EnvLoader.fsx            # .env file loader
 └── README.md                # Test scripts documentation
 

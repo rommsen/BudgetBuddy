@@ -4,6 +4,38 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 21:15 - Legacy Rules Import Script
+
+**What I did:**
+Created a reusable F# script to import categorization rules from the legacy `rules.yml` file into the BudgetBuddy database.
+
+**Files Added:**
+- `scripts/import-rules.fsx` - Import script that:
+  - Parses YAML rules (match/category pairs)
+  - Fetches YNAB categories to match names to IDs
+  - Inserts rules into SQLite database
+  - Supports `--list` flag to show available budgets
+  - Supports budget selection by name parameter
+
+**Usage:**
+```bash
+dotnet fsi scripts/import-rules.fsx --list              # List budgets
+dotnet fsi scripts/import-rules.fsx "My Budget"         # Import with specific budget
+dotnet fsi scripts/import-rules.fsx --clear "My Budget" # Clear all + reimport
+```
+
+**Features:**
+- Category matching: exact name, GroupName/Name format, case-insensitive
+- Duplicate detection: skips rules that already exist
+- Clear reporting: shows imported/skipped counts and missing categories
+
+**Outcomes:**
+- Successfully imported 55 of 56 rules from rules.yml
+- 1 category not found in YNAB: "Krankenversicherung Lena Debeka"
+- Script is reusable for future database resets
+
+---
+
 ## 2025-12-07 19:50 - Increased Memo Limit to 300 + Whitespace Compression
 
 **What I did:**
