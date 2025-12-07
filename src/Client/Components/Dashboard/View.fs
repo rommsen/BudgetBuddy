@@ -304,18 +304,33 @@ let private warningAlert (message: string) (linkText: string) (onNavigateToSetti
 // Page Header
 // ============================================
 
-let private pageHeader =
+let private pageHeader (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "animate-fade-in"
+        prop.className "flex items-center justify-between animate-fade-in"
         prop.children [
-            Html.h1 [
-                prop.className "text-2xl md:text-3xl font-bold font-display"
-                prop.text "Dashboard"
+            Html.div [
+                prop.children [
+                    Html.h1 [
+                        prop.className "text-2xl md:text-3xl font-bold font-display"
+                        prop.text "Dashboard"
+                    ]
+                    Html.p [
+                        prop.className "text-base-content/50 mt-1 text-sm md:text-base"
+                        prop.text "Welcome back! Here's your sync overview."
+                    ]
+                ]
             ]
-            Html.p [
-                prop.className "text-base-content/50 mt-1 text-sm md:text-base"
-                prop.text "Welcome back! Here's your sync overview."
-            ]
+            Button.view {
+                Button.defaultProps with
+                    Text = ""
+                    OnClick = fun () ->
+                        dispatch LoadRecentSessions
+                        dispatch LoadCurrentSession
+                        dispatch LoadSettings
+                    Variant = Button.Ghost
+                    Icon = Some (Icons.sync Icons.SM Icons.Default)
+                    Title = Some "Refresh data"
+            }
         ]
     ]
 
@@ -328,7 +343,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToSync: unit -> unit)
         prop.className "space-y-5 md:space-y-6"
         prop.children [
             // Header
-            pageHeader
+            pageHeader dispatch
 
             // Configuration warnings
             match model.Settings with

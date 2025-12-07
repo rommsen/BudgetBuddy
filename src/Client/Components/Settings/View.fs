@@ -390,18 +390,30 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // Page Header
 // ============================================
 
-let private pageHeader =
+let private pageHeader (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "animate-fade-in"
+        prop.className "flex items-center justify-between animate-fade-in"
         prop.children [
-            Html.h1 [
-                prop.className "text-2xl md:text-3xl font-bold font-display"
-                prop.text "Settings"
+            Html.div [
+                prop.children [
+                    Html.h1 [
+                        prop.className "text-2xl md:text-3xl font-bold font-display"
+                        prop.text "Settings"
+                    ]
+                    Html.p [
+                        prop.className "text-base-content/50 mt-1 text-sm md:text-base"
+                        prop.text "Configure your connections and preferences."
+                    ]
+                ]
             ]
-            Html.p [
-                prop.className "text-base-content/50 mt-1 text-sm md:text-base"
-                prop.text "Configure your connections and preferences."
-            ]
+            Button.view {
+                Button.defaultProps with
+                    Text = ""
+                    OnClick = fun () -> dispatch LoadSettings
+                    Variant = Button.Ghost
+                    Icon = Some (Icons.sync Icons.SM Icons.Default)
+                    Title = Some "Refresh settings"
+            }
         ]
     ]
 
@@ -414,7 +426,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
         prop.className "space-y-5 md:space-y-6 max-w-3xl mx-auto"
         prop.children [
             // Header
-            pageHeader
+            pageHeader dispatch
 
             // Loading state
             match model.Settings with

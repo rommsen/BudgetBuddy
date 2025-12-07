@@ -320,10 +320,21 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
             // Stats summary card using design system
             match model.SyncTransactions with
             | Success transactions ->
-                let categorized = transactions |> List.filter (fun tx -> match tx.Status with | AutoCategorized | ManualCategorized | NeedsAttention -> tx.CategoryId.IsSome | _ -> false) |> List.length
-                let uncategorized = transactions |> List.filter (fun tx -> tx.Status = Pending) |> List.length
-                let skipped = transactions |> List.filter (fun tx -> tx.Status = Skipped) |> List.length
-                let duplicates = transactions |> List.filter (fun tx -> match tx.DuplicateStatus with | ConfirmedDuplicate _ -> true | PossibleDuplicate _ -> true | _ -> false) |> List.length
+                // Calculate all counts in a single pass for better performance
+                let (categorized, uncategorized, skipped, duplicates) =
+                    transactions |> List.fold (fun (cat, uncat, skip, dup) tx ->
+                        let cat' =
+                            match tx.Status with
+                            | AutoCategorized | ManualCategorized | NeedsAttention when tx.CategoryId.IsSome -> cat + 1
+                            | _ -> cat
+                        let uncat' = if tx.Status = Pending then uncat + 1 else uncat
+                        let skip' = if tx.Status = Skipped then skip + 1 else skip
+                        let dup' =
+                            match tx.DuplicateStatus with
+                            | ConfirmedDuplicate _ | PossibleDuplicate _ -> dup + 1
+                            | _ -> dup
+                        (cat', uncat', skip', dup')
+                    ) (0, 0, 0, 0)
                 let total = transactions.Length
 
                 Html.div [
@@ -732,16 +743,30 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
         prop.children [
             // Header with neon styling
             Html.div [
-                prop.className "animate-fade-in"
+                prop.className "flex items-center justify-between animate-fade-in"
                 prop.children [
-                    Html.h1 [
-                        prop.className "text-2xl md:text-4xl font-bold font-display text-base-content"
-                        prop.text "Sync Transactions"
+                    Html.div [
+                        prop.children [
+                            Html.h1 [
+                                prop.className "text-2xl md:text-4xl font-bold font-display text-base-content"
+                                prop.text "Sync Transactions"
+                            ]
+                            Html.p [
+                                prop.className "text-base-content/60 mt-1"
+                                prop.text "Fetch and categorize your bank transactions."
+                            ]
+                        ]
                     ]
-                    Html.p [
-                        prop.className "text-base-content/60 mt-1"
-                        prop.text "Fetch and categorize your bank transactions."
-                    ]
+                    Button.view {
+                        Button.defaultProps with
+                            Text = ""
+                            OnClick = fun () ->
+                                dispatch LoadTransactions
+                                dispatch LoadCurrentSession
+                            Variant = Button.Ghost
+                            Icon = Some (Icons.sync Icons.SM Icons.Default)
+                            Title = Some "Refresh transactions"
+                    }
                 ]
             ]
 

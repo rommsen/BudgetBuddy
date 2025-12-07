@@ -36,6 +36,7 @@ type ButtonProps = {
     Icon: ReactElement option
     IconPosition: IconPosition
     ClassName: string option
+    Title: string option  // Tooltip/accessibility title
 }
 
 and IconPosition = Left | Right
@@ -52,6 +53,7 @@ let defaultProps = {
     Icon = None
     IconPosition = Left
     ClassName = None
+    Title = None
 }
 
 // ============================================
@@ -84,6 +86,7 @@ let view (props: ButtonProps) =
         prop.className $"btn {variantClass} {sizeClass} {widthClass} {extraClass} transition-all duration-200"
         prop.disabled (props.IsLoading || props.IsDisabled)
         prop.onClick (fun _ -> props.OnClick())
+        if props.Title.IsSome then prop.title props.Title.Value
         prop.children [
             // Loading spinner
             if props.IsLoading then

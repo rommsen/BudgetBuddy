@@ -156,8 +156,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | TransactionCategorized (Ok _) ->
-        model, Cmd.ofMsg LoadTransactions, NoOp
+    | TransactionCategorized (Ok updatedTx) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let newTxs = transactions |> List.map (fun tx ->
+                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
+            { model with SyncTransactions = Success newTxs }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | TransactionCategorized (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
@@ -174,8 +179,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | TransactionSkipped (Ok _) ->
-        model, Cmd.ofMsg LoadTransactions, NoOp
+    | TransactionSkipped (Ok updatedTx) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let newTxs = transactions |> List.map (fun tx ->
+                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
+            { model with SyncTransactions = Success newTxs }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | TransactionSkipped (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
@@ -196,8 +206,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | BulkCategorized (Ok _) ->
-        { model with SelectedTransactions = Set.empty }, Cmd.ofMsg LoadTransactions, NoOp
+    | BulkCategorized (Ok updatedTxs) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let updatedMap = updatedTxs |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
+            let newTxs = transactions |> List.map (fun tx ->
+                match Map.tryFind tx.Transaction.Id updatedMap with
+                | Some updated -> updated
+                | None -> tx)
+            { model with SyncTransactions = Success newTxs; SelectedTransactions = Set.empty }, Cmd.none, NoOp
+        | _ -> { model with SelectedTransactions = Set.empty }, Cmd.none, NoOp
 
     | BulkCategorized (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
@@ -292,8 +310,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, Cmd.none, ShowToast ("At least 2 splits are required", ToastWarning)
         | _ -> model, Cmd.none, NoOp
 
-    | SplitsSaved (Ok _) ->
-        { model with SplitEdit = None }, Cmd.ofMsg LoadTransactions, ShowToast ("Transaction split saved", ToastSuccess)
+    | SplitsSaved (Ok updatedTx) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let newTxs = transactions |> List.map (fun tx ->
+                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
+            { model with SyncTransactions = Success newTxs; SplitEdit = None }, Cmd.none, ShowToast ("Transaction split saved", ToastSuccess)
+        | _ -> { model with SplitEdit = None }, Cmd.none, ShowToast ("Transaction split saved", ToastSuccess)
 
     | SplitsSaved (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
@@ -310,8 +333,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | SplitCleared (Ok _) ->
-        model, Cmd.ofMsg LoadTransactions, ShowToast ("Split cleared", ToastInfo)
+    | SplitCleared (Ok updatedTx) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let newTxs = transactions |> List.map (fun tx ->
+                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
+            { model with SyncTransactions = Success newTxs }, Cmd.none, ShowToast ("Split cleared", ToastInfo)
+        | _ -> model, Cmd.none, ShowToast ("Split cleared", ToastInfo)
 
     | SplitCleared (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)

@@ -79,7 +79,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | YnabTokenSaved (Ok _) ->
-        model, Cmd.ofMsg LoadSettings, ShowToast ("YNAB token saved successfully", ToastSuccess)
+        // Update local state with the saved token
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                let newYnab: YnabSettings = {
+                    PersonalAccessToken = model.YnabTokenInput
+                    DefaultBudgetId = settings.Ynab |> Option.bind (fun y -> y.DefaultBudgetId)
+                    DefaultAccountId = settings.Ynab |> Option.bind (fun y -> y.DefaultAccountId)
+                }
+                Success { settings with Ynab = Some newYnab }
+            | other -> other
+        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("YNAB token saved successfully", ToastSuccess)
 
     | YnabTokenSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -131,7 +142,20 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | ComdirectCredentialsSaved (Ok _) ->
-        model, Cmd.ofMsg LoadSettings, ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
+        // Update local state with the saved credentials
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                let newComdirect: ComdirectSettings = {
+                    ClientId = model.ComdirectClientIdInput
+                    ClientSecret = model.ComdirectClientSecretInput
+                    Username = model.ComdirectUsernameInput
+                    Password = model.ComdirectPasswordInput
+                    AccountId = if String.IsNullOrWhiteSpace(model.ComdirectAccountIdInput) then None else Some model.ComdirectAccountIdInput
+                }
+                Success { settings with Comdirect = Some newComdirect }
+            | other -> other
+        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
 
     | ComdirectCredentialsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -150,7 +174,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | SyncSettingsSaved (Ok _) ->
-        model, Cmd.ofMsg LoadSettings, ShowToast ("Sync settings saved successfully", ToastSuccess)
+        // Update local state with the saved sync settings
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                Success { settings with Sync = { DaysToFetch = model.SyncDaysInput } }
+            | other -> other
+        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Sync settings saved successfully", ToastSuccess)
 
     | SyncSettingsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -160,14 +190,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             Cmd.OfAsync.either
                 Api.ynab.setDefaultBudget
                 budgetId
-                DefaultBudgetSet
-                (fun ex -> Error (YnabError.NetworkError ex.Message) |> DefaultBudgetSet)
+                (fun result -> DefaultBudgetSet (budgetId, result))
+                (fun ex -> DefaultBudgetSet (budgetId, Error (YnabError.NetworkError ex.Message)))
         model, cmd, NoOp
 
-    | DefaultBudgetSet (Ok _) ->
-        model, Cmd.ofMsg LoadSettings, ShowToast ("Default budget set", ToastSuccess)
+    | DefaultBudgetSet (budgetId, Ok _) ->
+        // Update local state with the new default budget
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                match settings.Ynab with
+                | Some ynab ->
+                    Success { settings with Ynab = Some { ynab with DefaultBudgetId = Some budgetId } }
+                | None -> Success settings
+            | other -> other
+        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default budget set", ToastSuccess)
 
-    | DefaultBudgetSet (Error err) ->
+    | DefaultBudgetSet (_, Error err) ->
         model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
 
     | SetDefaultAccount accountId ->
@@ -175,12 +214,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             Cmd.OfAsync.either
                 Api.ynab.setDefaultAccount
                 accountId
-                DefaultAccountSet
-                (fun ex -> Error (YnabError.NetworkError ex.Message) |> DefaultAccountSet)
+                (fun result -> DefaultAccountSet (accountId, result))
+                (fun ex -> DefaultAccountSet (accountId, Error (YnabError.NetworkError ex.Message)))
         model, cmd, NoOp
 
-    | DefaultAccountSet (Ok _) ->
-        model, Cmd.ofMsg LoadSettings, ShowToast ("Default account set", ToastSuccess)
+    | DefaultAccountSet (accountId, Ok _) ->
+        // Update local state with the new default account
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                match settings.Ynab with
+                | Some ynab ->
+                    Success { settings with Ynab = Some { ynab with DefaultAccountId = Some accountId } }
+                | None -> Success settings
+            | other -> other
+        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default account set", ToastSuccess)
 
-    | DefaultAccountSet (Error err) ->
+    | DefaultAccountSet (_, Error err) ->
         model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)

@@ -419,6 +419,16 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "flex gap-2"
                         prop.children [
+                            // Refresh button
+                            Button.view {
+                                Button.defaultProps with
+                                    Text = ""
+                                    OnClick = fun () -> dispatch LoadRules
+                                    Variant = Button.Ghost
+                                    Icon = Some (Icons.sync SM Icons.Default)
+                                    Title = Some "Refresh rules"
+                            }
+
                             Button.primaryWithIcon
                                 "Add Rule"
                                 (Icons.plus SM Icons.IconColor.Primary)

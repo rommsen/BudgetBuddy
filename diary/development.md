@@ -4,7 +4,65 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-<<<<<<< Updated upstream
+## 2025-12-07 15:00 - Fix Frontend Flicker: Local State Updates & Refresh Buttons
+
+**What I did:**
+Fixed the frontend flickering issue where the entire list would reload from the server after every mutation (categorize, skip, toggle, save). Now mutations update the local state directly, eliminating unnecessary API calls and providing a smoother UX. Also added manual refresh buttons to all pages.
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/State.fs`:
+  - `TransactionCategorized`: Now updates local list instead of `Cmd.ofMsg LoadTransactions`
+  - `TransactionSkipped`: Now updates local list instead of reload
+  - `BulkCategorized`: Now updates multiple transactions locally using Map
+  - `SplitsSaved`: Now updates local list and closes modal without reload
+  - `SplitCleared`: Now updates local list without reload
+
+- `src/Client/Components/Settings/State.fs`:
+  - `YnabTokenSaved`: Updates local state with saved token
+  - `ComdirectCredentialsSaved`: Updates local state with saved credentials
+  - `SyncSettingsSaved`: Updates local state with saved sync settings
+  - `DefaultBudgetSet`: Now takes (budgetId, Result) and updates local state
+  - `DefaultAccountSet`: Now takes (accountId, Result) and updates local state
+
+- `src/Client/Components/Settings/Types.fs`:
+  - Changed `DefaultBudgetSet` to include `YnabBudgetId` for local updates
+  - Changed `DefaultAccountSet` to include `YnabAccountId` for local updates
+
+- `src/Client/Components/Dashboard/View.fs`:
+  - Added refresh button in page header (dispatches LoadRecentSessions, LoadCurrentSession, LoadSettings)
+
+- `src/Client/Components/Rules/View.fs`:
+  - Added refresh button in page header (dispatches LoadRules)
+
+- `src/Client/Components/SyncFlow/View.fs`:
+  - Added refresh button in page header (dispatches LoadTransactions, LoadCurrentSession)
+  - Optimized stats calculation: Replaced 4x List.filter with single List.fold
+
+- `src/Client/Components/Settings/View.fs`:
+  - Added refresh button in page header (dispatches LoadSettings)
+
+- `src/Client/DesignSystem/Button.fs`:
+  - Added `Title: string option` field to `ButtonProps` for tooltip/accessibility
+  - Updated `defaultProps` with `Title = None`
+  - Updated `view` function to render `prop.title` when Title is set
+
+**Rationale:**
+The MVU (Model-View-Update) pattern with Virtual DOM should only re-render changed parts of the UI. Reloading entire lists from the server after every mutation causes:
+1. Visual flickering as the list briefly shows loading state
+2. Unnecessary network requests
+3. Poor perceived performance
+
+Since the API already returns the updated object(s) after mutations, we can use these to update the local state directly.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 215/215 passed
+- No more flickering when categorizing, skipping, or editing transactions
+- No more flickering when saving settings
+- Manual refresh available via icon button on each page
+
+---
+
 ## 2025-12-07 11:30 - Documentation: Test Isolation Patterns for Future Projects
 
 **What I did:**
@@ -56,8 +114,6 @@ The experience with the 236 test rules in production taught valuable lessons abo
 
 ---
 
-=======
->>>>>>> Stashed changes
 ## 2025-12-07 - Fix: Rules list no longer reloads on every change
 
 **What I did:**

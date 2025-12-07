@@ -38,9 +38,9 @@ type Msg =
     | SaveSyncSettings
     | SyncSettingsSaved of Result<unit, SettingsError>
     | SetDefaultBudget of YnabBudgetId
-    | DefaultBudgetSet of Result<unit, YnabError>
+    | DefaultBudgetSet of YnabBudgetId * Result<unit, YnabError>
     | SetDefaultAccount of YnabAccountId
-    | DefaultAccountSet of Result<unit, YnabError>
+    | DefaultAccountSet of YnabAccountId * Result<unit, YnabError>
 
 /// External message to notify parent of events (like showing toasts)
 type ExternalMsg =
