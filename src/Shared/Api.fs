@@ -113,6 +113,19 @@ type RulesApi = {
 }
 
 // ============================================
+// Import Result Types
+// ============================================
+
+/// Result of importing transactions to YNAB.
+/// Contains both success count and list of transactions rejected as duplicates.
+type ImportResult = {
+    /// Number of transactions actually created in YNAB
+    CreatedCount: int
+    /// Transaction IDs that were rejected because they already exist in YNAB
+    DuplicateTransactionIds: TransactionId list
+}
+
+// ============================================
 // Sync Flow API
 // ============================================
 
@@ -199,8 +212,14 @@ type SyncApi = {
 
     /// Sends all categorized transactions to YNAB.
     /// Purpose: Final step that creates transactions in YNAB budget.
+    /// Returns: ImportResult with created count and duplicate transaction IDs, or SyncError (YnabImportFailed).
+    importToYnab: SyncSessionId -> Async<SyncResult<ImportResult>>
+
+    /// Force re-imports transactions that were previously rejected as duplicates.
+    /// Purpose: Allows re-importing transactions that were deleted in YNAB.
+    /// Uses new import_ids to bypass YNAB's duplicate detection.
     /// Returns: Count of successfully imported transactions or SyncError (YnabImportFailed).
-    importToYnab: SyncSessionId -> Async<SyncResult<int>>
+    forceImportDuplicates: SyncSessionId * TransactionId list -> Async<SyncResult<int>>
 
     // ============================================
     // History

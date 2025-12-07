@@ -1,6 +1,7 @@
 module Components.SyncFlow.Types
 
 open Shared.Domain
+open Shared.Api
 open Types
 
 /// Split editing state for a single transaction
@@ -18,6 +19,8 @@ type Model = {
     Categories: YnabCategory list
     /// Active split editing state (None when not editing splits)
     SplitEdit: SplitEditState option
+    /// Transaction IDs that were rejected as duplicates by YNAB
+    DuplicateTransactionIds: TransactionId list
 }
 
 /// SyncFlow-specific messages
@@ -51,7 +54,10 @@ type Msg =
     | SplitCleared of Result<SyncTransaction, SyncError>
     // Import
     | ImportToYnab
-    | ImportCompleted of Result<int, SyncError>
+    | ImportCompleted of Result<ImportResult, SyncError>
+    // Force re-import duplicates
+    | ForceImportDuplicates
+    | ForceImportCompleted of Result<int, SyncError>
     | CancelSync
     | SyncCancelled of Result<unit, SyncError>
     | LoadCategories

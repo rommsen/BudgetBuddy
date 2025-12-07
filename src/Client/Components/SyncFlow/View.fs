@@ -421,6 +421,29 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     OnClick = fun () -> dispatch ImportToYnab
                                     IsDisabled = not canImport
                             }
+                            // Show force import button if there are duplicates
+                            // Check both: explicit duplicate list OR non-imported categorized transactions
+                            let duplicateCount =
+                                if not model.DuplicateTransactionIds.IsEmpty then
+                                    model.DuplicateTransactionIds.Length
+                                else
+                                    match model.SyncTransactions with
+                                    | Success transactions ->
+                                        transactions
+                                        |> List.filter (fun tx ->
+                                            tx.Status <> Imported &&
+                                            tx.Status <> Skipped &&
+                                            (tx.CategoryId.IsSome || tx.Splits.IsSome))
+                                        |> List.length
+                                    | _ -> 0
+                            if duplicateCount > 0 then
+                                Button.view {
+                                    Button.defaultProps with
+                                        Text = $"Re-import {duplicateCount} Duplicate(s)"
+                                        Variant = Button.Secondary
+                                        Icon = Some (Icons.sync Icons.SM Icons.NeonTeal)
+                                        OnClick = fun () -> dispatch ForceImportDuplicates
+                                }
                         ]
                     ]
                 ]

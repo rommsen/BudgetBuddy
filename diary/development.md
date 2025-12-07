@@ -4,6 +4,110 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 - Add Force Re-Import for YNAB Duplicates
+
+**What I did:**
+Implemented a complete "Force Re-Import" feature for transactions that YNAB rejects as duplicates. This solves the problem where deleted transactions in YNAB can't be re-imported because YNAB remembers the import_id forever.
+
+**Flow:**
+1. User clicks "Import to YNAB"
+2. YNAB responds with duplicates
+3. Toast shows "Imported X transaction(s). Y already exist in YNAB."
+4. Button appears: "Re-import Y Duplicate(s)"
+5. User clicks → transactions are sent with new UUIDs
+6. Success!
+
+**Files Modified:**
+- `src/Server/YnabClient.fs`:
+  - Added `forceNewImportId: bool` parameter to `createTransactions`
+  - Normal import uses Transaction-ID based import_id (duplicate protection)
+  - Force import uses new UUID (bypasses YNAB's duplicate detection)
+
+- `src/Shared/Api.fs`:
+  - Added `ImportResult` type with `CreatedCount` and `DuplicateTransactionIds`
+  - Changed `importToYnab` return type from `int` to `ImportResult`
+  - Added new `forceImportDuplicates` endpoint
+
+- `src/Server/Api.fs`:
+  - Updated `importToYnab` to return `ImportResult` with duplicate transaction IDs
+  - Implemented `forceImportDuplicates` endpoint using `forceNewImportId = true`
+
+- `src/Client/Components/SyncFlow/Types.fs`:
+  - Added `DuplicateTransactionIds: TransactionId list` to Model
+  - Added `ForceImportDuplicates` and `ForceImportCompleted` messages
+
+- `src/Client/Components/SyncFlow/State.fs`:
+  - Handle `ImportCompleted` with `ImportResult`
+  - Handle `ForceImportDuplicates` and `ForceImportCompleted`
+
+- `src/Client/Components/SyncFlow/View.fs`:
+  - Added "Re-import X Duplicate(s)" button when duplicates exist
+
+**Outcomes:**
+- Build: ✅ (Server + Client)
+- Tests: 221/221 passed
+- Feature working end-to-end
+
+**Final Cleanup (17:45):**
+- Removed all debug `printfn` statements from `Api.fs`
+- Verified all tests still pass after cleanup
+
+---
+
+## 2025-12-07 - Fix YNAB False Success Reports + Duplicate Handling
+
+**What I did:**
+Fixed two related bugs:
+1. The app reported successful transaction transfer even when YNAB rejected them as duplicates
+2. Duplicate transactions were still marked as "Imported" in the UI
+
+**Problem 1 - False Success Count:**
+The `createTransactions` function returned the count of **sent** transactions instead of **actually created** ones.
+
+**Problem 2 - Incorrect Status Marking:**
+Even when YNAB rejected transactions as duplicates, they were marked as `Imported` in the local state because the code blindly marked all categorized transactions as imported.
+
+**Solution:**
+1. **New type `TransactionCreateResult`** in `YnabClient.fs`:
+   - `CreatedCount: int` - actual number of created transactions
+   - `DuplicateImportIds: string list` - import IDs that were rejected
+
+2. **Updated `Api.fs` import logic:**
+   - Parse `duplicate_import_ids` from YNAB response
+   - Only mark transactions as `Imported` if they weren't in the duplicates list
+   - Duplicate transactions keep their original status (not marked as imported)
+
+3. **Added logging** to see YNAB request/response for debugging
+
+**Files Modified:**
+- `src/Server/YnabClient.fs`:
+  - Added `TransactionCreateResult` type
+  - Changed `createTransactions` return type from `int` to `TransactionCreateResult`
+  - Added request/response logging
+  - Parse and return duplicate import IDs
+
+- `src/Server/Api.fs`:
+  - Parse duplicate import IDs to match against transaction IDs
+  - Only mark actually-created transactions as `Imported`
+  - Duplicates retain their original status
+
+- `src/Tests/YnabClientTests.fs`:
+  - Added 4 regression tests for response parsing
+
+**Tests Added:**
+- `correctly counts created transactions from YNAB response`
+- `correctly identifies duplicate transactions from YNAB response`
+- `handles response with all transactions rejected as duplicates`
+- `handles response missing duplicate_import_ids field`
+
+**Outcomes:**
+- Build: ✅
+- Tests: 221/221 passed (6 integration tests skipped)
+- UI now correctly shows actual imported count
+- Duplicate transactions are no longer falsely marked as imported
+
+---
+
 ## 2025-12-08 01:15 - Add Mandatory Bug Fix Protocol to CLAUDE.md
 
 **What I did:**

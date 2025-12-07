@@ -845,6 +845,112 @@ let syncApi : SyncApi = {
                 )
 
             if categorized.IsEmpty then
+                return Ok { CreatedCount = 0; DuplicateTransactionIds = [] }
+            else
+                // Get YNAB settings
+                let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+                let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+                let! defaultAccountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
+
+                match tokenOpt, defaultBudgetIdOpt, defaultAccountIdOpt with
+                | None, _, _ | _, None, _ | _, _, None ->
+                    return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
+                | Some token, Some budgetId, Some accountId ->
+                    // Import transactions (forceNewImportId = false for normal import)
+                    match! YnabClient.createTransactions token (YnabBudgetId budgetId) (YnabAccountId (Guid.Parse(accountId: string))) categorized false with
+                    | Error ynabError ->
+                        return Error (SyncError.YnabImportFailed (categorized.Length, ynabErrorToString ynabError))
+                    | Ok result ->
+                        // Parse duplicate import IDs to find which transactions were duplicates
+                        // Import ID format: "BB:{txIdNoDashes}" where txIdNoDashes is GUID without dashes
+                        let duplicateTxIdStrings =
+                            result.DuplicateImportIds
+                            |> List.choose (fun importId ->
+                                if importId.StartsWith("BB:") then
+                                    let txIdPart = importId.Substring(3)  // Remove "BB:" prefix
+                                    // The txIdPart might contain "/" or other suffixes from old format
+                                    let cleanId = txIdPart.Split('/') |> Array.head
+                                    Some cleanId
+                                else
+                                    None
+                            )
+
+                        let duplicateTxIdSet = duplicateTxIdStrings |> Set.ofList
+
+                        // Find actual TransactionIds that are duplicates
+                        // If we can't map the duplicate import_ids to our transaction IDs
+                        // (e.g., old format from legacy system), assume all non-created are duplicates
+                        let duplicateTransactionIds =
+                            let mapped =
+                                categorized
+                                |> List.choose (fun tx ->
+                                    let (TransactionId txId) = tx.Transaction.Id
+                                    let txIdNoDashes = txId.ToString().Replace("-", "")
+                                    if duplicateTxIdSet.Contains(txIdNoDashes) then
+                                        Some tx.Transaction.Id
+                                    else
+                                        None
+                                )
+                            // If we couldn't map any but there ARE duplicates reported,
+                            // return all categorized transactions as potential duplicates
+                            if mapped.IsEmpty && not result.DuplicateImportIds.IsEmpty then
+                                categorized |> List.map (fun tx -> tx.Transaction.Id)
+                            else
+                                mapped
+
+                        // Mark transactions based on whether they were actually created or were duplicates
+                        let duplicateTxIdList = duplicateTransactionIds |> Set.ofList
+                        let updatedTransactions =
+                            categorized
+                            |> List.map (fun tx ->
+                                if duplicateTxIdList.Contains(tx.Transaction.Id) then
+                                    // This transaction already exists in YNAB - keep as is (don't mark as imported)
+                                    // The user can try again or skip it
+                                    tx
+                                else
+                                    // Actually imported to YNAB
+                                    { tx with Status = Imported }
+                            )
+
+                        SyncSessionManager.updateTransactions updatedTransactions
+
+                        // Only complete session if all transactions were imported (no duplicates left)
+                        if duplicateTransactionIds.IsEmpty then
+                            SyncSessionManager.completeSession()
+
+                        // Update session in database
+                        match SyncSessionManager.getCurrentSession() with
+                        | Some session ->
+                            do! Persistence.SyncSessions.updateSession session
+
+                            // Save all transactions to database
+                            for tx in transactions do
+                                do! Persistence.SyncTransactions.saveTransaction session.Id tx
+
+                            // Return ImportResult with created count and duplicate IDs
+                            return Ok {
+                                CreatedCount = result.CreatedCount
+                                DuplicateTransactionIds = duplicateTransactionIds
+                            }
+                        | None ->
+                            return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
+    }
+
+    // ============================================
+    // Force Import Duplicates
+    // ============================================
+
+    forceImportDuplicates = fun (sessionId, transactionIds) -> async {
+        match SyncSessionManager.validateSession sessionId with
+        | Error err -> return Error err
+        | Ok _ ->
+            // Get all transactions and filter to only the specified ones
+            let allTransactions = SyncSessionManager.getTransactions()
+            let transactionsToForce =
+                allTransactions
+                |> List.filter (fun tx -> transactionIds |> List.contains tx.Transaction.Id)
+
+            if transactionsToForce.IsEmpty then
                 return Ok 0
             else
                 // Get YNAB settings
@@ -856,31 +962,42 @@ let syncApi : SyncApi = {
                 | None, _, _ | _, None, _ | _, _, None ->
                     return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
                 | Some token, Some budgetId, Some accountId ->
-                    // Import transactions
-                    match! YnabClient.createTransactions token (YnabBudgetId budgetId) (YnabAccountId (Guid.Parse(accountId: string))) categorized with
+                    // Force import with NEW import_ids (forceNewImportId = true)
+                    match! YnabClient.createTransactions token (YnabBudgetId budgetId) (YnabAccountId (Guid.Parse(accountId: string))) transactionsToForce true with
                     | Error ynabError ->
-                        return Error (SyncError.YnabImportFailed (categorized.Length, ynabErrorToString ynabError))
-                    | Ok count ->
-                        // Mark transactions as imported
-                        let imported =
-                            categorized
+                        return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorToString ynabError))
+                    | Ok result ->
+                        // Mark force-imported transactions as Imported
+                        let updatedTransactions =
+                            transactionsToForce
                             |> List.map (fun tx -> { tx with Status = Imported })
 
-                        SyncSessionManager.updateTransactions imported
+                        SyncSessionManager.updateTransactions updatedTransactions
 
-                        // Complete session
-                        SyncSessionManager.completeSession()
+                        // Check if all transactions are now imported
+                        let allUpdated = SyncSessionManager.getTransactions()
+                        let allCategorizedImported =
+                            allUpdated
+                            |> List.filter (fun tx ->
+                                match tx.Status with
+                                | AutoCategorized | ManualCategorized | NeedsAttention -> true
+                                | Imported | Skipped | Pending -> false
+                            )
+                            |> List.isEmpty
+
+                        if allCategorizedImported then
+                            SyncSessionManager.completeSession()
 
                         // Update session in database
                         match SyncSessionManager.getCurrentSession() with
                         | Some session ->
                             do! Persistence.SyncSessions.updateSession session
 
-                            // Save all transactions to database
-                            for tx in transactions do
+                            // Save updated transactions
+                            for tx in updatedTransactions do
                                 do! Persistence.SyncTransactions.saveTransaction session.Id tx
 
-                            return Ok count
+                            return Ok result.CreatedCount
                         | None ->
                             return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
     }

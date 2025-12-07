@@ -783,3 +783,129 @@ let jsonEncodingTests =
             Expect.stringContains json "\"amount\":-25000" "Subtransaction amount must be a JSON number"
             Expect.isFalse (json.Contains("\"amount\":\"-25000\"")) "Subtransaction amount must NOT be serialized as string"
     ]
+
+// ============================================
+// YNAB Response Parsing Tests (Critical - prevents false success reports)
+// ============================================
+
+[<Tests>]
+let ynabResponseParsingTests =
+    testList "YNAB Response Parsing Tests" [
+        testCase "correctly counts created transactions from YNAB response" <| fun () ->
+            // This test prevents regression of the bug where we reported success
+            // based on sent transaction count instead of actual YNAB response.
+            let ynabResponse = """
+            {
+                "data": {
+                    "transactions": [
+                        { "id": "tx-1", "amount": -50000 },
+                        { "id": "tx-2", "amount": -30000 }
+                    ],
+                    "duplicate_import_ids": []
+                }
+            }
+            """
+
+            let createdCountDecoder =
+                Decode.field "data" (
+                    Decode.object (fun get ->
+                        let transactions = get.Optional.Field "transactions" (Decode.list (Decode.succeed ())) |> Option.defaultValue []
+                        let duplicates = get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string) |> Option.defaultValue []
+                        (transactions.Length, duplicates)
+                    )
+                )
+
+            match Decode.fromString createdCountDecoder ynabResponse with
+            | Ok (createdCount, duplicates) ->
+                Expect.equal createdCount 2 "Should report 2 created transactions"
+                Expect.isEmpty duplicates "Should have no duplicates"
+            | Error err ->
+                failtest $"Failed to parse YNAB response: {err}"
+
+        testCase "correctly identifies duplicate transactions from YNAB response" <| fun () ->
+            // This test ensures we detect when YNAB silently rejects transactions
+            // as duplicates (which it reports in duplicate_import_ids).
+            let ynabResponse = """
+            {
+                "data": {
+                    "transactions": [
+                        { "id": "tx-1", "amount": -50000 }
+                    ],
+                    "duplicate_import_ids": ["BB:abc123", "BB:def456"]
+                }
+            }
+            """
+
+            let createdCountDecoder =
+                Decode.field "data" (
+                    Decode.object (fun get ->
+                        let transactions = get.Optional.Field "transactions" (Decode.list (Decode.succeed ())) |> Option.defaultValue []
+                        let duplicates = get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string) |> Option.defaultValue []
+                        (transactions.Length, duplicates)
+                    )
+                )
+
+            match Decode.fromString createdCountDecoder ynabResponse with
+            | Ok (createdCount, duplicates) ->
+                Expect.equal createdCount 1 "Should report only 1 created transaction"
+                Expect.hasLength duplicates 2 "Should have 2 duplicate import IDs"
+                Expect.contains duplicates "BB:abc123" "Should contain first duplicate ID"
+                Expect.contains duplicates "BB:def456" "Should contain second duplicate ID"
+            | Error err ->
+                failtest $"Failed to parse YNAB response: {err}"
+
+        testCase "handles response with all transactions rejected as duplicates" <| fun () ->
+            // When all transactions are duplicates, YNAB returns empty transactions array
+            let ynabResponse = """
+            {
+                "data": {
+                    "transactions": [],
+                    "duplicate_import_ids": ["BB:abc123", "BB:def456", "BB:ghi789"]
+                }
+            }
+            """
+
+            let createdCountDecoder =
+                Decode.field "data" (
+                    Decode.object (fun get ->
+                        let transactions = get.Optional.Field "transactions" (Decode.list (Decode.succeed ())) |> Option.defaultValue []
+                        let duplicates = get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string) |> Option.defaultValue []
+                        (transactions.Length, duplicates)
+                    )
+                )
+
+            match Decode.fromString createdCountDecoder ynabResponse with
+            | Ok (createdCount, duplicates) ->
+                Expect.equal createdCount 0 "Should report 0 created transactions when all are duplicates"
+                Expect.hasLength duplicates 3 "Should have 3 duplicate import IDs"
+            | Error err ->
+                failtest $"Failed to parse YNAB response: {err}"
+
+        testCase "handles response missing duplicate_import_ids field" <| fun () ->
+            // Older YNAB API responses might not include duplicate_import_ids
+            let ynabResponse = """
+            {
+                "data": {
+                    "transactions": [
+                        { "id": "tx-1", "amount": -50000 }
+                    ]
+                }
+            }
+            """
+
+            let createdCountDecoder =
+                Decode.field "data" (
+                    Decode.object (fun get ->
+                        let transactions = get.Optional.Field "transactions" (Decode.list (Decode.succeed ())) |> Option.defaultValue []
+                        let duplicates = get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string) |> Option.defaultValue []
+                        (transactions.Length, duplicates)
+                    )
+                )
+
+            match Decode.fromString createdCountDecoder ynabResponse with
+            | Ok (createdCount, duplicates) ->
+                Expect.equal createdCount 1 "Should report 1 created transaction"
+                Expect.isEmpty duplicates "Should default to empty list when field is missing"
+            | Error err ->
+                failtest $"Failed to parse YNAB response: {err}"
+    ]

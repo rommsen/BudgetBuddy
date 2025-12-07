@@ -228,6 +228,12 @@ let private truncateMemo (memo: string) =
 // YNAB Transaction Types for JSON Encoding
 // ============================================
 
+/// Result of creating transactions in YNAB
+type TransactionCreateResult = {
+    CreatedCount: int
+    DuplicateImportIds: string list
+}
+
 /// Subtransaction for split transactions
 type YnabSubtransactionRequest = {
     Amount: int  // Milliunits (int32 is sufficient for amounts up to ~2.1 million EUR)
@@ -287,14 +293,16 @@ let private createSubtransaction (split: TransactionSplit) : YnabSubtransactionR
     }
 
 /// Creates transactions in YNAB
-/// Returns the number of successfully created transactions
+/// Returns the number of successfully created transactions and any duplicate import IDs
 /// Handles both regular transactions and split transactions (with subtransactions)
+/// If forceNewImportId is true, generates new UUIDs to bypass YNAB's duplicate detection
 let createTransactions
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
     (YnabAccountId accountId: YnabAccountId)
     (transactions: SyncTransaction list)
-    : Async<YnabResult<int>> =
+    (forceNewImportId: bool)
+    : Async<YnabResult<TransactionCreateResult>> =
 
     async {
         try
@@ -312,9 +320,17 @@ let createTransactions
                 |> List.map (fun tx ->
                     let (TransactionId txId) = tx.Transaction.Id
 
-                    // YNAB import_id max 36 chars. GUID without dashes = 32 chars + "BB:" = 35 chars
-                    let txIdNoDashes = txId.ToString().Replace("-", "")
-                    let importId = $"BB:{txIdNoDashes}"
+                    // Generate import_id:
+                    // - Normal: Based on transaction ID (prevents accidental duplicates)
+                    // - Force: New UUID (allows re-import after deletion in YNAB)
+                    // Format: "BB:{32 chars}" = 35 chars (max 36 allowed)
+                    let importId =
+                        if forceNewImportId then
+                            let newGuid = Guid.NewGuid().ToString("N")
+                            $"BB:{newGuid}"
+                        else
+                            let txIdNoDashes = txId.ToString().Replace("-", "")
+                            $"BB:{txIdNoDashes}"
 
                     let baseFields = {
                         AccountId = accountId.ToString()
@@ -344,7 +360,7 @@ let createTransactions
                 )
 
             if ynabTransactions.IsEmpty then
-                return Ok 0
+                return Ok { CreatedCount = 0; DuplicateImportIds = [] }
             else
                 // Encode to JSON using manual encoder
                 let requestBody =
@@ -364,10 +380,34 @@ let createTransactions
                 let response =
                     {| statusCode = statusCode; bodyText = bodyText |}
 
+                // Log request and response for debugging
+                printfn "[YNAB] POST /budgets/%s/transactions - Sending %d transactions" budgetId ynabTransactions.Length
+                printfn "[YNAB] Response Status: %d" response.statusCode
+                printfn "[YNAB] Response Body: %s" response.bodyText
+
                 match response.statusCode with
                 | 201 ->
-                    // Successfully created
-                    return Ok validTransactions.Length
+                    // Parse response to get actual created transactions count
+                    // YNAB returns: { data: { transactions: [...], duplicate_import_ids: [...] } }
+                    let createdCountDecoder =
+                        Decode.field "data" (
+                            Decode.object (fun get ->
+                                let transactions = get.Optional.Field "transactions" (Decode.list (Decode.succeed ())) |> Option.defaultValue []
+                                let duplicates = get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string) |> Option.defaultValue []
+                                (transactions.Length, duplicates)
+                            )
+                        )
+
+                    match Decode.fromString createdCountDecoder response.bodyText with
+                    | Ok (createdCount, duplicateIds) ->
+                        if duplicateIds.Length > 0 then
+                            printfn "[YNAB] WARNING: %d transactions were rejected as duplicates: %A" duplicateIds.Length duplicateIds
+                        printfn "[YNAB] Successfully created %d transactions (sent: %d, duplicates: %d)" createdCount ynabTransactions.Length duplicateIds.Length
+                        return Ok { CreatedCount = createdCount; DuplicateImportIds = duplicateIds }
+                    | Error parseErr ->
+                        // If we can't parse, fall back to assuming all were created (old behavior)
+                        printfn "[YNAB] WARNING: Could not parse response, assuming all %d transactions created. Parse error: %s" ynabTransactions.Length parseErr
+                        return Ok { CreatedCount = validTransactions.Length; DuplicateImportIds = [] }
                 | 400 ->
                     return Error (YnabError.InvalidResponse $"Bad request: {response.bodyText}")
                 | 401 ->

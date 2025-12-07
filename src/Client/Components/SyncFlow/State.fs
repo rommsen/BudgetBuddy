@@ -31,6 +31,7 @@ let init () : Model * Cmd<Msg> =
         SyncTransactions = NotAsked
         Categories = []
         SplitEdit = None
+        DuplicateTransactionIds = []
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -330,10 +331,36 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | ImportCompleted (Ok count) ->
-        model, Cmd.ofMsg LoadCurrentSession, ShowToast ($"Successfully imported {count} transaction(s) to YNAB!", ToastSuccess)
+    | ImportCompleted (Ok result) ->
+        let model' = { model with DuplicateTransactionIds = result.DuplicateTransactionIds }
+        let toastMsg =
+            if result.DuplicateTransactionIds.IsEmpty then
+                $"Successfully imported {result.CreatedCount} transaction(s) to YNAB!"
+            else
+                $"Imported {result.CreatedCount} transaction(s). {result.DuplicateTransactionIds.Length} already exist in YNAB."
+        let toastType = if result.DuplicateTransactionIds.IsEmpty then ToastSuccess else ToastWarning
+        model', Cmd.ofMsg LoadCurrentSession, ShowToast (toastMsg, toastType)
 
     | ImportCompleted (Error err) ->
+        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+
+    | ForceImportDuplicates ->
+        match model.CurrentSession with
+        | Success (Some session) when not model.DuplicateTransactionIds.IsEmpty ->
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.sync.forceImportDuplicates
+                    (session.Id, model.DuplicateTransactionIds)
+                    ForceImportCompleted
+                    (fun ex -> Error (SyncError.DatabaseError ("force_import", ex.Message)) |> ForceImportCompleted)
+            model, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | ForceImportCompleted (Ok count) ->
+        let model' = { model with DuplicateTransactionIds = [] }
+        model', Cmd.batch [Cmd.ofMsg LoadCurrentSession; Cmd.ofMsg LoadTransactions], ShowToast ($"Successfully force-imported {count} transaction(s)!", ToastSuccess)
+
+    | ForceImportCompleted (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | CancelSync ->
