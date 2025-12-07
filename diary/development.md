@@ -4,6 +4,80 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 22:15 - Fix SyncFlow Category Loading Race Condition
+
+**What I did:**
+Fixed a bug where categories could not be selected in the SyncFlow transaction review. The category dropdown was always empty because categories were never loaded.
+
+**Problem:**
+1. `LoadCategories` in `SyncFlow/State.fs` did nothing (`Cmd.none`) - it was marked as "simplified for now"
+2. The parent `Client/State.fs` intercepted `LoadCategories` but only loaded categories if Settings were already loaded (race condition)
+3. If Settings weren't loaded yet when navigating to SyncFlow, categories never loaded
+
+**Solution:**
+1. Made `LoadCategories` in SyncFlow self-sufficient - it now fetches settings first to get the budget ID, then loads categories from YNAB API
+2. Removed the parent interception - `LoadCategories` is now passed through to the child component
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/State.fs` - Implemented `LoadCategories` handler to fetch settings and categories independently
+- `src/Client/State.fs` - Removed special handling for `LoadCategories`, now passes message to child
+
+**Outcomes:**
+- Build: ✅
+- Category selection now works in SyncFlow
+- Skip button confirmed working
+
+---
+
+## 2025-12-07 18:30 - Simplify Transaction Import Flow (Remove Selection, Add Unskip)
+
+**What I did:**
+Simplified the transaction import flow by removing the confusing checkbox selection mechanism and adding proper Skip/Unskip functionality with auto-skip for confirmed duplicates.
+
+**Problem:**
+The previous UI had two conflicting mechanisms:
+1. Checkbox selection (Select All/None)
+2. Skip button per transaction
+
+This was confusing because the frontend validated based on selection, but the backend ignored selection entirely and just imported all categorized transactions. Users didn't know which transactions would actually be imported.
+
+**Solution:**
+1. **Removed selection UI entirely** - no more checkboxes, Select All/None buttons, or selection count badge
+2. **Added Unskip functionality** - skipped transactions can now be restored
+3. **Auto-skip confirmed duplicates** - transactions with `ConfirmedDuplicate` status are automatically skipped during sync
+4. **Simplified import logic** - all non-skipped transactions with categories are imported
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `src/Shared/Api.fs` - Added `unskipTransaction` API endpoint
+- `src/Server/Api.fs` - Added auto-skip for ConfirmedDuplicate, implemented `unskipTransaction` endpoint
+- `src/Client/Components/SyncFlow/Types.fs` - Removed `SelectedTransactions` from Model, removed selection Msg types, added `UnskipTransaction` and `TransactionUnskipped`
+- `src/Client/Components/SyncFlow/State.fs` - Removed selection handlers, added Unskip handlers
+- `src/Client/Components/SyncFlow/View.fs` - Removed checkbox, Select All/None buttons, selection badge; updated `canImport` logic; added Skip/Unskip toggle button
+- `src/Client/DesignSystem/Icons.fs` - Added `undo` icon for Unskip button
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+- The dual selection+skip mechanism was confusing and the frontend/backend were inconsistent
+- Auto-skipping confirmed duplicates reduces user effort and prevents accidental duplicate imports
+- Unskip allows users to correct mistakes or import transactions that were auto-skipped
+
+**New Import Logic:**
+- Import all transactions where:
+  - `Status != Skipped`
+  - `CategoryId.IsSome`
+
+**Outcomes:**
+- Build: ✅
+- Tests: 215/215 passed (6 skipped - integration tests)
+- UI is now simpler and more intuitive
+
+---
+
 ## 2025-12-07 17:00 - Fix Modal Animation Flicker
 
 **What I did:**

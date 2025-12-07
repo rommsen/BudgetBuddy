@@ -95,6 +95,26 @@ let sync (size: IconSize) (color: IconColor) =
         ]
     ]
 
+/// Undo icon (arrow uturn left)
+let undo (size: IconSize) (color: IconColor) =
+    svgIcon size color [
+        Svg.path [
+            svg.strokeLineCap "round"
+            svg.strokeLineJoin "round"
+            svg.d "M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"
+        ]
+    ]
+
+/// Forward/Skip icon (double chevron right)
+let forward (size: IconSize) (color: IconColor) =
+    svgIcon size color [
+        Svg.path [
+            svg.strokeLineCap "round"
+            svg.strokeLineJoin "round"
+            svg.d "m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"
+        ]
+    ]
+
 /// Rules icon (list bullet)
 let rules (size: IconSize) (color: IconColor) =
     svgIcon size color [

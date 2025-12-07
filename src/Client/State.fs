@@ -160,37 +160,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // SyncFlow Component
     // ============================================
     | SyncFlowMsg syncFlowMsg ->
-        // Special handling for LoadCategories - parent needs to load them
-        match syncFlowMsg with
-        | Components.SyncFlow.Types.LoadCategories ->
-            // Load categories from Settings context
-            match model.Settings.Settings with
-            | Success settings ->
-                match settings.Ynab with
-                | Some ynab ->
-                    match ynab.DefaultBudgetId with
-                    | Some budgetId ->
-                        let cmd =
-                            Cmd.OfAsync.either
-                                Api.ynab.getCategories
-                                budgetId
-                                (fun result -> SyncFlowMsg (Components.SyncFlow.Types.CategoriesLoaded result))
-                                (fun ex -> SyncFlowMsg (Components.SyncFlow.Types.CategoriesLoaded (Error (YnabError.NetworkError ex.Message))))
-                        model, cmd
-                    | None -> model, Cmd.none
-                | None -> model, Cmd.none
-            | _ -> model, Cmd.none
-        | _ ->
-            let syncFlowModel', syncFlowCmd, externalMsg = Components.SyncFlow.State.update syncFlowMsg model.SyncFlow
+        let syncFlowModel', syncFlowCmd, externalMsg = Components.SyncFlow.State.update syncFlowMsg model.SyncFlow
 
-            // Handle external messages from SyncFlow component
-            let externalCmd =
-                match externalMsg with
-                | Components.SyncFlow.Types.NoOp -> Cmd.none
-                | Components.SyncFlow.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
-                | Components.SyncFlow.Types.NavigateToDashboard -> Cmd.ofMsg (NavigateTo Dashboard)
+        // Handle external messages from SyncFlow component
+        let externalCmd =
+            match externalMsg with
+            | Components.SyncFlow.Types.NoOp -> Cmd.none
+            | Components.SyncFlow.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+            | Components.SyncFlow.Types.NavigateToDashboard -> Cmd.ofMsg (NavigateTo Dashboard)
 
-            { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd ]
+        { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd ]
 
     // ============================================
     // Rules Component

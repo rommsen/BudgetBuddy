@@ -15,7 +15,6 @@ type SplitEditState = {
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
     SyncTransactions: RemoteData<SyncTransaction list>
-    SelectedTransactions: Set<TransactionId>
     Categories: YnabCategory list
     /// Active split editing state (None when not editing splits)
     SplitEdit: SplitEditState option
@@ -33,15 +32,12 @@ type Msg =
     | TanConfirmed of Result<unit, SyncError>
     | LoadTransactions
     | TransactionsLoaded of Result<SyncTransaction list, SyncError>
-    | ToggleTransactionSelection of TransactionId
-    | SelectAllTransactions
-    | DeselectAllTransactions
     | CategorizeTransaction of TransactionId * YnabCategoryId option
     | TransactionCategorized of Result<SyncTransaction, SyncError>
     | SkipTransaction of TransactionId
     | TransactionSkipped of Result<SyncTransaction, SyncError>
-    | BulkCategorize of YnabCategoryId
-    | BulkCategorized of Result<SyncTransaction list, SyncError>
+    | UnskipTransaction of TransactionId
+    | TransactionUnskipped of Result<SyncTransaction, SyncError>
     // Split transaction messages
     | StartSplitEdit of TransactionId
     | CancelSplitEdit

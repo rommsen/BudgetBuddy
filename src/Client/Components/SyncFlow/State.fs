@@ -29,7 +29,6 @@ let init () : Model * Cmd<Msg> =
     let model = {
         CurrentSession = NotAsked
         SyncTransactions = NotAsked
-        SelectedTransactions = Set.empty
         Categories = []
         SplitEdit = None
     }
@@ -126,24 +125,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | TransactionsLoaded (Error err) ->
         { model with SyncTransactions = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
-    | ToggleTransactionSelection txId ->
-        let newSelection =
-            if model.SelectedTransactions.Contains(txId) then
-                model.SelectedTransactions.Remove(txId)
-            else
-                model.SelectedTransactions.Add(txId)
-        { model with SelectedTransactions = newSelection }, Cmd.none, NoOp
-
-    | SelectAllTransactions ->
-        match model.SyncTransactions with
-        | Success transactions ->
-            let allIds = transactions |> List.map (fun tx -> tx.Transaction.Id) |> Set.ofList
-            { model with SelectedTransactions = allIds }, Cmd.none, NoOp
-        | _ -> model, Cmd.none, NoOp
-
-    | DeselectAllTransactions ->
-        { model with SelectedTransactions = Set.empty }, Cmd.none, NoOp
-
     | CategorizeTransaction (txId, categoryId) ->
         match model.CurrentSession with
         | Success (Some session) ->
@@ -190,34 +171,27 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | TransactionSkipped (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
-    | BulkCategorize categoryId ->
+    | UnskipTransaction txId ->
         match model.CurrentSession with
         | Success (Some session) ->
-            let txIds = model.SelectedTransactions |> Set.toList
-            if txIds.IsEmpty then
-                model, Cmd.none, ShowToast ("No transactions selected", ToastWarning)
-            else
-                let cmd =
-                    Cmd.OfAsync.either
-                        Api.sync.bulkCategorize
-                        (session.Id, txIds, categoryId)
-                        BulkCategorized
-                        (fun ex -> Error (SyncError.DatabaseError ("bulk", ex.Message)) |> BulkCategorized)
-                model, cmd, NoOp
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.sync.unskipTransaction
+                    (session.Id, txId)
+                    TransactionUnskipped
+                    (fun ex -> Error (SyncError.DatabaseError ("unskip", ex.Message)) |> TransactionUnskipped)
+            model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | BulkCategorized (Ok updatedTxs) ->
+    | TransactionUnskipped (Ok updatedTx) ->
         match model.SyncTransactions with
         | Success transactions ->
-            let updatedMap = updatedTxs |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
             let newTxs = transactions |> List.map (fun tx ->
-                match Map.tryFind tx.Transaction.Id updatedMap with
-                | Some updated -> updated
-                | None -> tx)
-            { model with SyncTransactions = Success newTxs; SelectedTransactions = Set.empty }, Cmd.none, NoOp
-        | _ -> { model with SelectedTransactions = Set.empty }, Cmd.none, NoOp
+                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
+            { model with SyncTransactions = Success newTxs }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
-    | BulkCategorized (Error err) ->
+    | TransactionUnskipped (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     // Split transaction handlers
@@ -379,7 +353,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model with
                 CurrentSession = Success None
                 SyncTransactions = NotAsked
-                SelectedTransactions = Set.empty
         }
         model', Cmd.none, ShowToast ("Sync cancelled", ToastInfo)
 
@@ -387,9 +360,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | LoadCategories ->
-        // This would need to get the budget ID from settings - simplified for now
-        // In the real implementation, this should get the budget ID from the parent
-        model, Cmd.none, NoOp
+        // Load categories by first getting settings to obtain budget ID
+        let loadCategoriesAsync () = async {
+            let! settings = Api.settings.getSettings()
+            match settings.Ynab with
+            | Some ynab ->
+                match ynab.DefaultBudgetId with
+                | Some budgetId ->
+                    return! Api.ynab.getCategories budgetId
+                | None -> return Error (YnabError.Unauthorized "No default budget configured")
+            | None -> return Error (YnabError.Unauthorized "YNAB not configured")
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                loadCategoriesAsync
+                ()
+                CategoriesLoaded
+                (fun ex -> CategoriesLoaded (Error (YnabError.NetworkError ex.Message)))
+        model, cmd, NoOp
 
     | CategoriesLoaded (Ok categories) ->
         { model with Categories = categories }, Cmd.none, NoOp

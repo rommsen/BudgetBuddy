@@ -156,7 +156,6 @@ let private duplicateStatusBadge (status: DuplicateStatus) =
 let private transactionCard
     (tx: SyncTransaction)
     (categories: YnabCategory list)
-    (isSelected: bool)
     (dispatch: Msg -> unit) =
     // Check for duplicate status first
     let isDuplicate =
@@ -219,25 +218,19 @@ let private transactionCard
                     ]
                 ]
 
-            // Top row: Checkbox, Payee/Date, Amount/Status
+            // Top row: Payee/Date, Amount/Status
             Html.div [
                 prop.className "flex items-start justify-between gap-3"
                 prop.children [
                     Html.div [
-                        prop.className "flex items-center gap-3"
                         prop.children [
-                            Input.checkboxSimple isSelected (fun _ -> dispatch (ToggleTransactionSelection tx.Transaction.Id))
-                            Html.div [
-                                prop.children [
-                                    Html.p [
-                                        prop.className "font-medium text-base-content"
-                                        prop.text (tx.Transaction.Payee |> Option.defaultValue "Unknown")
-                                    ]
-                                    Html.p [
-                                        prop.className "text-sm text-base-content/60"
-                                        prop.text (formatDate tx.Transaction.BookingDate)
-                                    ]
-                                ]
+                            Html.p [
+                                prop.className "font-medium text-base-content"
+                                prop.text (tx.Transaction.Payee |> Option.defaultValue "Unknown")
+                            ]
+                            Html.p [
+                                prop.className "text-sm text-base-content/60"
+                                prop.text (formatDate tx.Transaction.BookingDate)
                             ]
                         ]
                     ]
@@ -293,12 +286,21 @@ let private transactionCard
                                     prop.target "_blank"
                                     prop.children [ Icons.externalLink Icons.SM Icons.NeonTeal ]
                                 ]
-                            if tx.Status <> Skipped then
+                            if tx.Status = Skipped then
+                                Html.button [
+                                    prop.className "btn btn-ghost btn-sm text-neon-green hover:text-neon-green hover:bg-neon-green/10"
+                                    prop.onClick (fun _ -> dispatch (UnskipTransaction tx.Transaction.Id))
+                                    prop.children [
+                                        Icons.undo Icons.SM Icons.NeonGreen
+                                        Html.span [ prop.className "hidden sm:inline ml-1"; prop.text "Unskip" ]
+                                    ]
+                                ]
+                            else
                                 Html.button [
                                     prop.className "btn btn-ghost btn-sm text-base-content/60 hover:text-neon-pink"
                                     prop.onClick (fun _ -> dispatch (SkipTransaction tx.Transaction.Id))
                                     prop.children [
-                                        Icons.x Icons.SM Icons.Default
+                                        Icons.forward Icons.SM Icons.Default
                                         Html.span [ prop.className "hidden sm:inline ml-1"; prop.text "Skip" ]
                                     ]
                                 ]
@@ -394,67 +396,31 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                 ]
             | _ -> Html.none
 
-            // Bulk actions bar (sticky with glassmorphism)
+            // Actions bar (sticky with glassmorphism)
             Html.div [
                 prop.className "sticky top-16 z-40 bg-base-100/80 backdrop-blur-xl rounded-xl shadow-lg p-3 md:p-4 border border-white/10"
                 prop.children [
                     Html.div [
-                        prop.className "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3"
+                        prop.className "flex justify-end gap-2"
                         prop.children [
-                            Html.div [
-                                prop.className "flex items-center gap-2 flex-wrap"
-                                prop.children [
-                                    Html.button [
-                                        prop.className "btn btn-sm btn-ghost text-neon-teal hover:bg-neon-teal/10"
-                                        prop.onClick (fun _ -> dispatch SelectAllTransactions)
-                                        prop.children [
-                                            Icons.check Icons.SM Icons.NeonTeal
-                                            Html.span [ prop.className "ml-1"; prop.text "All" ]
-                                        ]
-                                    ]
-                                    Html.button [
-                                        prop.className "btn btn-sm btn-ghost text-base-content/60 hover:text-base-content"
-                                        prop.onClick (fun _ -> dispatch DeselectAllTransactions)
-                                        prop.children [
-                                            Icons.x Icons.SM Icons.Default
-                                            Html.span [ prop.className "ml-1"; prop.text "None" ]
-                                        ]
-                                    ]
-                                    Badge.view {
-                                        Badge.defaultProps with
-                                            Text = $"{model.SelectedTransactions.Count} selected"
-                                            Variant = Badge.Info
-                                            Style = Badge.Filled
-                                            Size = Badge.Medium
-                                    }
-                                ]
-                            ]
-                            Html.div [
-                                prop.className "flex gap-2"
-                                prop.children [
-                                    Button.danger "Cancel" (fun () -> dispatch CancelSync)
-                                    // Disable import if no transactions are selected or none have categories
-                                    let canImport =
-                                        match model.SyncTransactions with
-                                        | Success transactions ->
-                                            let readyTransactions =
-                                                transactions
-                                                |> List.filter (fun tx ->
-                                                    model.SelectedTransactions.Contains(tx.Transaction.Id) &&
-                                                    tx.Status <> Skipped &&
-                                                    tx.CategoryId.IsSome)
-                                            not readyTransactions.IsEmpty
-                                        | _ -> false
-                                    Button.view {
-                                        Button.defaultProps with
-                                            Text = "Import to YNAB"
-                                            Variant = Button.Primary
-                                            Icon = Some (Icons.upload Icons.SM Icons.Primary)
-                                            OnClick = fun () -> dispatch ImportToYnab
-                                            IsDisabled = not canImport
-                                    }
-                                ]
-                            ]
+                            Button.danger "Cancel" (fun () -> dispatch CancelSync)
+                            // Enable import if any non-skipped transaction has a category
+                            let canImport =
+                                match model.SyncTransactions with
+                                | Success transactions ->
+                                    transactions
+                                    |> List.exists (fun tx ->
+                                        tx.Status <> Skipped &&
+                                        tx.CategoryId.IsSome)
+                                | _ -> false
+                            Button.view {
+                                Button.defaultProps with
+                                    Text = "Import to YNAB"
+                                    Variant = Button.Primary
+                                    Icon = Some (Icons.upload Icons.SM Icons.Primary)
+                                    OnClick = fun () -> dispatch ImportToYnab
+                                    IsDisabled = not canImport
+                            }
                         ]
                     ]
                 ]
@@ -481,8 +447,7 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                     prop.className "space-y-3"
                     prop.children [
                         for tx in transactions do
-                            let isSelected = model.SelectedTransactions.Contains(tx.Transaction.Id)
-                            transactionCard tx model.Categories isSelected dispatch
+                            transactionCard tx model.Categories dispatch
                     ]
                 ]
             | Failure error ->

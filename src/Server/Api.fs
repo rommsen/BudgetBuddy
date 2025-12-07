@@ -637,8 +637,17 @@ let syncApi : SyncApi = {
                                 return syncTransactions
                         }
 
+                        // Auto-skip confirmed duplicates
+                        let syncTransactionsWithAutoSkip =
+                            syncTransactionsWithDuplicates
+                            |> List.map (fun tx ->
+                                match tx.DuplicateStatus with
+                                | ConfirmedDuplicate _ -> { tx with Status = Skipped }
+                                | _ -> tx
+                            )
+
                         // Add transactions to session
-                        SyncSessionManager.addTransactions syncTransactionsWithDuplicates
+                        SyncSessionManager.addTransactions syncTransactionsWithAutoSkip
 
                         // Update session status
                         SyncSessionManager.updateSessionStatus ReviewingTransactions
@@ -711,6 +720,21 @@ let syncApi : SyncApi = {
             | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
             | Some tx ->
                 let updated = { tx with Status = Skipped }
+                SyncSessionManager.updateTransaction updated
+                return Ok updated
+    }
+
+    unskipTransaction = fun (sessionId, txId) -> async {
+        match SyncSessionManager.validateSession sessionId with
+        | Error err -> return Error err
+        | Ok _ ->
+            match SyncSessionManager.getTransaction txId with
+            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
+            | Some tx ->
+                let newStatus =
+                    if tx.CategoryId.IsSome then ManualCategorized
+                    else Pending
+                let updated = { tx with Status = newStatus }
                 SyncSessionManager.updateTransaction updated
                 return Ok updated
     }

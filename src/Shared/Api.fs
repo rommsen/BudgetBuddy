@@ -171,6 +171,11 @@ type SyncApi = {
     /// Returns: Updated transaction or SyncError (SessionNotFound).
     skipTransaction: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
 
+    /// Restores a skipped transaction to active status.
+    /// Purpose: Allows user to re-include a previously skipped transaction.
+    /// Returns: Updated transaction or SyncError (SessionNotFound).
+    unskipTransaction: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
+
     /// Categorizes multiple transactions at once.
     /// Purpose: Bulk operation for efficiency when user selects multiple.
     /// Returns: Updated transactions or SyncError (SessionNotFound, InvalidSessionState).
