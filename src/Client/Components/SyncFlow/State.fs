@@ -32,6 +32,7 @@ let init () : Model * Cmd<Msg> =
         Categories = []
         SplitEdit = None
         DuplicateTransactionIds = []
+        IsTanConfirming = false
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -91,22 +92,26 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with CurrentSession = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | ConfirmTan ->
-        match model.CurrentSession with
-        | Success (Some session) ->
-            let cmd =
-                Cmd.OfAsync.either
-                    Api.sync.confirmTan
-                    session.Id
-                    TanConfirmed
-                    (fun _ -> Error SyncError.TanTimeout |> TanConfirmed)
-            model, cmd, NoOp
-        | _ -> model, Cmd.none, NoOp
+        // Prevent double-clicks: ignore if already confirming
+        if model.IsTanConfirming then
+            model, Cmd.none, NoOp
+        else
+            match model.CurrentSession with
+            | Success (Some session) ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.sync.confirmTan
+                        session.Id
+                        TanConfirmed
+                        (fun _ -> Error SyncError.TanTimeout |> TanConfirmed)
+                { model with IsTanConfirming = true }, cmd, NoOp
+            | _ -> model, Cmd.none, NoOp
 
     | TanConfirmed (Ok _) ->
-        model, Cmd.batch [ Cmd.ofMsg LoadCurrentSession; Cmd.ofMsg LoadTransactions ], ShowToast ("TAN confirmed, fetching transactions...", ToastSuccess)
+        { model with IsTanConfirming = false }, Cmd.batch [ Cmd.ofMsg LoadCurrentSession; Cmd.ofMsg LoadTransactions ], ShowToast ("TAN confirmed, fetching transactions...", ToastSuccess)
 
     | TanConfirmed (Error err) ->
-        model, Cmd.ofMsg LoadCurrentSession, ShowToast (syncErrorToString err, ToastError)
+        { model with IsTanConfirming = false }, Cmd.ofMsg LoadCurrentSession, ShowToast (syncErrorToString err, ToastError)
 
     | LoadTransactions ->
         match model.CurrentSession with

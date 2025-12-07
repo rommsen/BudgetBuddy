@@ -21,6 +21,8 @@ type Model = {
     SplitEdit: SplitEditState option
     /// Transaction IDs that were rejected as duplicates by YNAB
     DuplicateTransactionIds: TransactionId list
+    /// Whether TAN confirmation is in progress (prevents double-clicks)
+    IsTanConfirming: bool
 }
 
 /// SyncFlow-specific messages

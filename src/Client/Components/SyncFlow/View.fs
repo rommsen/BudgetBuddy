@@ -30,7 +30,7 @@ let private statusBadge (status: TransactionStatus) =
 // TAN Waiting View
 // ============================================
 
-let private tanWaitingView (dispatch: Msg -> unit) =
+let private tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "max-w-lg mx-auto animate-fade-in"
         prop.children [
@@ -117,7 +117,10 @@ let private tanWaitingView (dispatch: Msg -> unit) =
                         Html.div [
                             prop.className "flex flex-col sm:flex-row gap-3 mt-8 w-full sm:w-auto"
                             prop.children [
-                                Button.primaryWithIcon "I've Confirmed" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch ConfirmTan)
+                                if isConfirming then
+                                    Button.primaryLoading "Importing..." true (fun () -> ())
+                                else
+                                    Button.primaryWithIcon "I've Confirmed" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch ConfirmTan)
                                 Button.ghost "Cancel" (fun () -> dispatch CancelSync)
                             ]
                         ]
@@ -772,7 +775,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
                     loadingView "Connecting to Comdirect..."
 
                 | AwaitingTan ->
-                    tanWaitingView dispatch
+                    tanWaitingView model.IsTanConfirming dispatch
 
                 | FetchingTransactions ->
                     loadingView "Fetching transactions..."

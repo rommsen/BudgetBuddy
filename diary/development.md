@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 - Fix TAN Confirmation Double-Click Bug
+
+**What I did:**
+Fixed a race condition bug where clicking the "I've Confirmed" button twice during TAN confirmation caused an error toast "Invalid session state. Expected: AwaitingTan, Actual: FetchingTransactions". The issue was that the button had no loading state, so users would click again thinking nothing happened.
+
+**Root Cause:**
+1. User clicks "I've Confirmed" → `ConfirmTan` message sent
+2. Backend receives request, immediately changes session status to `FetchingTransactions`
+3. Button remains active (no loading state)
+4. User clicks again → second `ConfirmTan` sent
+5. Backend validates session is in `AwaitingTan` state, but it's already `FetchingTransactions` → Error
+
+**Fix:**
+Added `IsTanConfirming: bool` flag to track when TAN confirmation is in progress. The button now shows a loading state and subsequent clicks are ignored.
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Types.fs`:
+  - Added `IsTanConfirming: bool` to Model
+
+- `src/Client/Components/SyncFlow/State.fs`:
+  - Initialize `IsTanConfirming = false` in `init`
+  - Set `IsTanConfirming = true` when `ConfirmTan` is dispatched (ignore if already true)
+  - Reset `IsTanConfirming = false` when `TanConfirmed` is received (success or error)
+
+- `src/Client/Components/SyncFlow/View.fs`:
+  - Updated `tanWaitingView` to accept `isConfirming: bool` parameter
+  - Button shows "Importing..." with loading spinner when confirming
+  - Button shows normal "I've Confirmed" when idle
+
+**Outcomes:**
+- Build: success
+- Tests: 220/227 passed (1 unrelated failure in Persistence Type Conversions test, 6 skipped integration tests)
+- Button now shows loading state, preventing double-clicks
+
+---
+
 ## 2025-12-07 - Add Force Re-Import for YNAB Duplicates
 
 **What I did:**
