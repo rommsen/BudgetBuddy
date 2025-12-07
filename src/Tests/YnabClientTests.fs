@@ -719,3 +719,67 @@ let propertyBasedTests =
             else
                 true
     ]
+
+// ============================================
+// JSON Encoding Tests (Critical - prevents regression of amount serialization bug)
+// ============================================
+
+[<Tests>]
+let jsonEncodingTests =
+    testList "YNAB JSON Encoding Tests" [
+        testCase "amount is serialized as JSON number, not string" <| fun () ->
+            // This test prevents regression of the bug where Encode.int64 serialized
+            // amounts as strings (e.g., "-50250" instead of -50250), causing YNAB
+            // to silently reject transactions.
+            let testTx : YnabTransactionRequest = {
+                AccountId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                Date = "2025-12-07"
+                Amount = -50250  // -50.25 EUR in milliunits
+                PayeeName = "Test Store"
+                Memo = "Test purchase"
+                Cleared = "cleared"
+                ImportId = "BB:tx123"
+                CategoryId = Some "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
+                Subtransactions = None
+            }
+
+            let requestBody =
+                Encode.object [
+                    "transactions", Encode.list ([testTx] |> List.map (fun tx ->
+                        Encode.object [
+                            "account_id", Encode.string tx.AccountId
+                            "date", Encode.string tx.Date
+                            "amount", Encode.int tx.Amount  // Must be Encode.int, NOT Encode.int64!
+                            "payee_name", Encode.string tx.PayeeName
+                            "memo", Encode.string tx.Memo
+                            "cleared", Encode.string tx.Cleared
+                            "import_id", Encode.string tx.ImportId
+                            match tx.CategoryId with
+                            | Some catId -> "category_id", Encode.string catId
+                            | None -> ()
+                        ]
+                    ))
+                ]
+                |> Encode.toString 0
+
+            // Critical: Amount must NOT have quotes around it
+            Expect.stringContains requestBody "\"amount\":-50250" "Amount must be a JSON number, not a string"
+            Expect.isFalse (requestBody.Contains("\"amount\":\"-50250\"")) "Amount must NOT be serialized as string"
+
+        testCase "subtransaction amount is serialized as JSON number" <| fun () ->
+            let testSub : YnabSubtransactionRequest = {
+                Amount = -25000  // -25.00 EUR in milliunits
+                CategoryId = "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
+                Memo = Some "Split 1"
+            }
+
+            let json =
+                Encode.object [
+                    "amount", Encode.int testSub.Amount
+                    "category_id", Encode.string testSub.CategoryId
+                ]
+                |> Encode.toString 0
+
+            Expect.stringContains json "\"amount\":-25000" "Subtransaction amount must be a JSON number"
+            Expect.isFalse (json.Contains("\"amount\":\"-25000\"")) "Subtransaction amount must NOT be serialized as string"
+    ]

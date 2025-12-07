@@ -4,6 +4,69 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-08 01:00 - Fix YNAB Transactions Not Being Created (JSON Encoding Bug)
+
+**What I did:**
+Fixed a critical bug where transactions were not actually being created in YNAB despite the API appearing to succeed.
+
+**Problem:**
+`Encode.int64` in Thoth.Json.Net serializes 64-bit integers as **strings** (because JavaScript can't handle 64-bit integers):
+```json
+"amount": "-50250"   // WRONG - string with quotes
+```
+But YNAB API expects a **number**:
+```json
+"amount": -50250     // CORRECT - number without quotes
+```
+The YNAB API was likely rejecting the transactions silently or misinterpreting the amount.
+
+**Solution:**
+1. Changed `Amount` field from `int64` to `int` in `YnabTransactionRequest` and `YnabSubtransactionRequest` types
+2. Changed `Encode.int64` to `Encode.int` in encoders
+3. Changed `int64` to `int` in amount conversion code
+4. Added regression tests to verify amounts are serialized as JSON numbers
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - Changed int64 to int for Amount fields and encoders
+- `src/Tests/YnabClientTests.fs` - Added 2 new tests for JSON encoding verification
+
+**Outcomes:**
+- Build: ✅
+- Tests: 217/217 passed (2 new tests)
+- YNAB transactions should now be created correctly
+
+**Test Coverage Gap Identified:**
+There were no tests verifying the JSON format sent to YNAB. The bug existed because:
+1. Tests only verified data transformations, not the actual HTTP request body format
+2. No integration test with YNAB API mocking
+
+---
+
+## 2025-12-08 00:30 - Fix Sync Complete Screen Showing Wrong Import Counts
+
+**What I did:**
+Fixed a bug where the "Sync Complete" screen always showed 0 IMPORTED and 0 SKIPPED even when transactions were successfully imported to YNAB.
+
+**Problem:**
+In `SyncSessionManager.fs`, the `completeSession()` function had a stale reference bug:
+1. It matched on `currentSession.Value` and captured `state`
+2. Called `updateSessionCounts()` which updated `currentSession.Value` with correct counts
+3. Then used the OLD `state.Session` (with 0 counts) to create the completed session
+4. This overwrote the updated counts with 0
+
+**Solution:**
+Re-read `currentSession.Value` after calling `updateSessionCounts()` to get the session with the updated ImportedCount and SkippedCount.
+
+**Files Modified:**
+- `src/Server/SyncSessionManager.fs` - Fixed `completeSession()` to re-read session state after `updateSessionCounts()`
+
+**Outcomes:**
+- Build: ✅
+- Tests: 215/215 passed
+- Sync Complete screen should now show correct import/skipped counts
+
+---
+
 ## 2025-12-07 23:45 - Fix YNAB JSON Serialization Error for Transactions
 
 **What I did:**

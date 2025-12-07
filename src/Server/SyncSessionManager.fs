@@ -142,14 +142,18 @@ let updateSessionCounts () : unit =
 /// Completes the current session
 let completeSession () : unit =
     match currentSession.Value with
-    | Some state ->
+    | Some _ ->
         updateSessionCounts()
-        let updated = {
-            state.Session with
-                CompletedAt = Some DateTime.UtcNow
-                Status = Completed
-        }
-        currentSession := Some { state with Session = updated }
+        // Re-read currentSession after updateSessionCounts() to get the updated counts
+        match currentSession.Value with
+        | Some updatedState ->
+            let completed = {
+                updatedState.Session with
+                    CompletedAt = Some DateTime.UtcNow
+                    Status = Completed
+            }
+            currentSession := Some { updatedState with Session = completed }
+        | None -> ()
     | None -> ()
 
 /// Fails the current session with an error message

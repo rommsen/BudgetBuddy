@@ -230,7 +230,7 @@ let private truncateMemo (memo: string) =
 
 /// Subtransaction for split transactions
 type YnabSubtransactionRequest = {
-    Amount: int64
+    Amount: int  // Milliunits (int32 is sufficient for amounts up to ~2.1 million EUR)
     CategoryId: string
     Memo: string option
 }
@@ -239,7 +239,7 @@ type YnabSubtransactionRequest = {
 type YnabTransactionRequest = {
     AccountId: string
     Date: string
-    Amount: int64
+    Amount: int  // Milliunits (int32 is sufficient for amounts up to ~2.1 million EUR)
     PayeeName: string
     Memo: string
     Cleared: string
@@ -251,7 +251,7 @@ type YnabTransactionRequest = {
 /// Encoder for subtransactions
 let private encodeSubtransaction (sub: YnabSubtransactionRequest) =
     Encode.object [
-        "amount", Encode.int64 sub.Amount
+        "amount", Encode.int sub.Amount  // Use int for proper JSON number serialization
         "category_id", Encode.string sub.CategoryId
         match sub.Memo with
         | Some m -> "memo", Encode.string m
@@ -263,7 +263,7 @@ let private encodeTransaction (tx: YnabTransactionRequest) =
     Encode.object [
         "account_id", Encode.string tx.AccountId
         "date", Encode.string tx.Date
-        "amount", Encode.int64 tx.Amount
+        "amount", Encode.int tx.Amount  // Use int for proper JSON number serialization
         "payee_name", Encode.string tx.PayeeName
         "memo", Encode.string tx.Memo
         "cleared", Encode.string tx.Cleared
@@ -281,7 +281,7 @@ let private encodeTransaction (tx: YnabTransactionRequest) =
 let private createSubtransaction (split: TransactionSplit) : YnabSubtransactionRequest =
     let (YnabCategoryId categoryIdGuid) = split.CategoryId
     {
-        Amount = int64 (split.Amount.Amount * 1000m)  // Convert to milliunits
+        Amount = int (split.Amount.Amount * 1000m)  // Convert to milliunits
         CategoryId = categoryIdGuid.ToString()
         Memo = split.Memo |> Option.map truncateMemo
     }
@@ -319,7 +319,7 @@ let createTransactions
                     let baseFields = {
                         AccountId = accountId.ToString()
                         Date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
-                        Amount = int64 (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
+                        Amount = int (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
                         PayeeName =
                             tx.PayeeOverride
                             |> Option.orElse tx.Transaction.Payee
