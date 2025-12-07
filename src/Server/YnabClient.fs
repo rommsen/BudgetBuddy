@@ -306,13 +306,11 @@ let createTransactions
 
     async {
         try
-            // Filter valid transactions (not skipped and either has category or splits)
+            // Filter valid transactions (not skipped)
+            // Category is optional - uncategorized transactions will be imported without category_id
             let validTransactions =
                 transactions
-                |> List.filter (fun tx ->
-                    tx.Status <> Skipped &&
-                    (tx.CategoryId.IsSome || (tx.Splits |> Option.map (fun s -> s.Length >= 2) |> Option.defaultValue false))
-                )
+                |> List.filter (fun tx -> tx.Status <> Skipped)
 
             // Convert SyncTransactions to YNAB transaction request format
             let ynabTransactions : YnabTransactionRequest list =
@@ -341,7 +339,7 @@ let createTransactions
                             |> Option.orElse tx.Transaction.Payee
                             |> Option.defaultValue "Unknown"
                         Memo = truncateMemo tx.Transaction.Memo
-                        Cleared = "cleared"
+                        Cleared = "uncleared"
                         ImportId = importId  // Prevents duplicates (max 36 chars)
                         CategoryId = None
                         Subtransactions = None
@@ -354,9 +352,13 @@ let createTransactions
                         let subtransactions = splits |> List.map createSubtransaction
                         { baseFields with Subtransactions = Some subtransactions }
                     | _ ->
-                        // Regular transaction: use category_id directly
-                        let (YnabCategoryId categoryIdGuid) = tx.CategoryId.Value
-                        { baseFields with CategoryId = Some (categoryIdGuid.ToString()) }
+                        // Regular transaction: use category_id if present
+                        match tx.CategoryId with
+                        | Some (YnabCategoryId categoryIdGuid) ->
+                            { baseFields with CategoryId = Some (categoryIdGuid.ToString()) }
+                        | None ->
+                            // No category - will appear as uncategorized in YNAB
+                            baseFields
                 )
 
             if ynabTransactions.IsEmpty then

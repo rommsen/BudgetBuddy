@@ -399,6 +399,41 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                 ]
             | _ -> Html.none
 
+            // Uncategorized warning banner
+            match model.SyncTransactions with
+            | Success transactions ->
+                let uncategorizedCount =
+                    transactions
+                    |> List.filter (fun tx ->
+                        tx.Status <> Skipped &&
+                        tx.Status <> Imported &&
+                        tx.CategoryId.IsNone &&
+                        (tx.Splits |> Option.map List.isEmpty |> Option.defaultValue true))
+                    |> List.length
+                if uncategorizedCount > 0 then
+                    Html.div [
+                        prop.className "flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30 mb-4"
+                        prop.children [
+                            Icons.warning Icons.MD Icons.Warning
+                            Html.div [
+                                prop.className "flex-1"
+                                prop.children [
+                                    Html.p [
+                                        prop.className "text-sm font-medium text-warning"
+                                        prop.text $"{uncategorizedCount} Transaktion(en) ohne Kategorie"
+                                    ]
+                                    Html.p [
+                                        prop.className "text-xs text-base-content/60"
+                                        prop.text "Diese werden als 'Uncategorized' in YNAB importiert."
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                else
+                    Html.none
+            | _ -> Html.none
+
             // Actions bar (sticky with glassmorphism)
             Html.div [
                 prop.className "sticky top-16 z-40 bg-base-100/80 backdrop-blur-xl rounded-xl shadow-lg p-3 md:p-4 border border-white/10"
@@ -407,14 +442,14 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                         prop.className "flex justify-end gap-2"
                         prop.children [
                             Button.danger "Cancel" (fun () -> dispatch CancelSync)
-                            // Enable import if any non-skipped transaction has a category
+                            // Enable import if any non-skipped, non-imported transaction exists
                             let canImport =
                                 match model.SyncTransactions with
                                 | Success transactions ->
                                     transactions
                                     |> List.exists (fun tx ->
                                         tx.Status <> Skipped &&
-                                        tx.CategoryId.IsSome)
+                                        tx.Status <> Imported)
                                 | _ -> false
                             Button.view {
                                 Button.defaultProps with

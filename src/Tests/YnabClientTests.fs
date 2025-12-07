@@ -400,7 +400,7 @@ let transactionConversionTests =
                 payee_name = syncTransaction.Transaction.Payee |> Option.defaultValue "Unknown"
                 category_id = categoryIdGuid.ToString()
                 memo = syncTransaction.Transaction.Memo
-                cleared = "cleared"
+                cleared = "uncleared"
                 import_id = $"BUDGETBUDDY:{txId}:{syncTransaction.Transaction.BookingDate.Ticks}"
             |}
 
@@ -408,7 +408,7 @@ let transactionConversionTests =
             Expect.equal ynabTransaction.amount -50250L "Amount should be converted to milliunits"
             Expect.equal ynabTransaction.payee_name "Test Store" "Payee should match"
             Expect.equal ynabTransaction.memo "Test purchase" "Memo should match"
-            Expect.equal ynabTransaction.cleared "cleared" "Should be marked as cleared"
+            Expect.equal ynabTransaction.cleared "uncleared" "Should be marked as uncleared"
             Expect.stringContains ynabTransaction.import_id "BUDGETBUDDY:tx-123" "Import ID should contain transaction ID"
 
         testCase "uses PayeeOverride when provided" <| fun () ->
@@ -496,7 +496,9 @@ let transactionConversionTests =
 
             Expect.hasLength filtered 0 "Skipped transactions should be filtered out"
 
-        testCase "filters out uncategorized transactions" <| fun () ->
+        testCase "uncategorized transactions pass filter (category is optional)" <| fun () ->
+            // This test ensures uncategorized transactions are NOT filtered out.
+            // Uncategorized transactions should be importable to YNAB's Uncategorized view.
             let transactions = [
                 {
                     Transaction = {
@@ -520,11 +522,12 @@ let transactionConversionTests =
                 }
             ]
 
+            // New filter: only skip Skipped transactions, category is optional
             let filtered =
                 transactions
-                |> List.filter (fun tx -> tx.Status <> Skipped && tx.CategoryId.IsSome)
+                |> List.filter (fun tx -> tx.Status <> Skipped)
 
-            Expect.hasLength filtered 0 "Uncategorized transactions should be filtered out"
+            Expect.hasLength filtered 1 "Uncategorized transactions should pass the filter"
     ]
 
 // ============================================
@@ -737,7 +740,7 @@ let jsonEncodingTests =
                 Amount = -50250  // -50.25 EUR in milliunits
                 PayeeName = "Test Store"
                 Memo = "Test purchase"
-                Cleared = "cleared"
+                Cleared = "uncleared"
                 ImportId = "BB:tx123"
                 CategoryId = Some "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
                 Subtransactions = None
@@ -782,6 +785,64 @@ let jsonEncodingTests =
 
             Expect.stringContains json "\"amount\":-25000" "Subtransaction amount must be a JSON number"
             Expect.isFalse (json.Contains("\"amount\":\"-25000\"")) "Subtransaction amount must NOT be serialized as string"
+
+        testCase "transaction is encoded with cleared=uncleared" <| fun () ->
+            // This test ensures all transactions are imported as "uncleared" to YNAB,
+            // allowing users to review and clear them manually in YNAB.
+            let testTx : YnabTransactionRequest = {
+                AccountId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                Date = "2025-12-07"
+                Amount = -50250
+                PayeeName = "Test Store"
+                Memo = "Test purchase"
+                Cleared = "uncleared"
+                ImportId = "BB:tx123"
+                CategoryId = Some "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
+                Subtransactions = None
+            }
+
+            let json =
+                Encode.object [
+                    "cleared", Encode.string testTx.Cleared
+                ]
+                |> Encode.toString 0
+
+            Expect.stringContains json "\"cleared\":\"uncleared\"" "Transaction must be encoded as uncleared"
+            Expect.isFalse (json.Contains("\"cleared\":\"cleared\"")) "Transaction must NOT be encoded as cleared"
+
+        testCase "uncategorized transaction is encoded without category_id" <| fun () ->
+            // This test ensures transactions without a category are encoded correctly -
+            // the category_id field should be omitted entirely (not set to null or empty).
+            // This allows importing uncategorized transactions to YNAB's Uncategorized view.
+            let testTx : YnabTransactionRequest = {
+                AccountId = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                Date = "2025-12-07"
+                Amount = -50250
+                PayeeName = "Test Store"
+                Memo = "Test purchase"
+                Cleared = "uncleared"
+                ImportId = "BB:tx123"
+                CategoryId = None  // No category
+                Subtransactions = None
+            }
+
+            let json =
+                Encode.object [
+                    "account_id", Encode.string testTx.AccountId
+                    "date", Encode.string testTx.Date
+                    "amount", Encode.int testTx.Amount
+                    "payee_name", Encode.string testTx.PayeeName
+                    "memo", Encode.string testTx.Memo
+                    "cleared", Encode.string testTx.Cleared
+                    "import_id", Encode.string testTx.ImportId
+                    match testTx.CategoryId with
+                    | Some catId -> "category_id", Encode.string catId
+                    | None -> ()  // Omit field entirely
+                ]
+                |> Encode.toString 0
+
+            Expect.isFalse (json.Contains("category_id")) "JSON should NOT contain category_id when None"
+            Expect.stringContains json "\"cleared\":\"uncleared\"" "Uncategorized transaction should still be uncleared"
     ]
 
 // ============================================

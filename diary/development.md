@@ -4,6 +4,50 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 - YNAB Import: Uncleared Transactions + Optional Categories
+
+**What I did:**
+Implemented two high-priority features from the backlog that allow more flexible YNAB imports:
+1. All transactions are now imported as "uncleared" instead of "cleared"
+2. Transactions without categories can now be imported (appear in YNAB's Uncategorized view)
+
+**Why:**
+- **Uncleared**: Users can review and manually clear transactions in YNAB after import
+- **Optional categories**: Supports YNAB's native uncategorized workflow - users can categorize later in YNAB
+
+**Files Modified:**
+- `src/Server/YnabClient.fs`:
+  - Changed `Cleared = "cleared"` to `Cleared = "uncleared"` (line 342)
+  - Removed category requirement from filter (lines 309-313)
+  - Handle `CategoryId = None` case without throwing (lines 354-361)
+
+- `src/Server/Api.fs`:
+  - Updated import filter to include `Pending` status (lines 835-843)
+  - Renamed `categorized` variable to `toImport` for clarity
+  - Updated all references throughout the function
+
+- `src/Client/Components/SyncFlow/View.fs`:
+  - Import button now enabled for any non-skipped, non-imported transaction (lines 410-418)
+  - Added warning banner for uncategorized transactions (lines 402-435)
+
+- `src/Tests/YnabClientTests.fs`:
+  - Added test "transaction is encoded with cleared=uncleared"
+  - Added test "uncategorized transaction is encoded without category_id"
+  - Updated "uncategorized transactions pass filter" test (previously verified filter-out)
+  - Updated existing tests to use "uncleared" instead of "cleared"
+
+**UI Changes:**
+- Warning banner appears when importing uncategorized transactions
+- Shows count: "X Transaktion(en) ohne Kategorie"
+- Subtitle: "Diese werden als 'Uncategorized' in YNAB importiert."
+
+**Outcomes:**
+- Build: ✅ success
+- Tests: 260/266 passed (6 skipped integration tests)
+- Both features working as expected
+
+---
+
 ## 2025-12-07 - Add Comprehensive Tests for SyncSessionManager
 
 **What I did:**

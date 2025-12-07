@@ -832,19 +832,17 @@ let syncApi : SyncApi = {
             // Get all transactions
             let transactions = SyncSessionManager.getTransactions()
 
-            // Filter to categorized transactions only (single category OR splits)
-            let categorized =
+            // Filter to transactions ready for import (category is optional)
+            let toImport =
                 transactions
                 |> List.filter (fun tx ->
                     match tx.Status with
-                    | AutoCategorized | ManualCategorized | NeedsAttention ->
-                        // Transaction is ready if it has a category OR valid splits
-                        tx.CategoryId.IsSome ||
-                        (tx.Splits |> Option.map (fun s -> s.Length >= 2) |> Option.defaultValue false)
+                    | AutoCategorized | ManualCategorized | NeedsAttention | Pending ->
+                        true  // Category is optional - uncategorized will appear in YNAB's Uncategorized view
                     | _ -> false
                 )
 
-            if categorized.IsEmpty then
+            if toImport.IsEmpty then
                 return Ok { CreatedCount = 0; DuplicateTransactionIds = [] }
             else
                 // Get YNAB settings
@@ -857,9 +855,9 @@ let syncApi : SyncApi = {
                     return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
                 | Some token, Some budgetId, Some accountId ->
                     // Import transactions (forceNewImportId = false for normal import)
-                    match! YnabClient.createTransactions token (YnabBudgetId budgetId) (YnabAccountId (Guid.Parse(accountId: string))) categorized false with
+                    match! YnabClient.createTransactions token (YnabBudgetId budgetId) (YnabAccountId (Guid.Parse(accountId: string))) toImport false with
                     | Error ynabError ->
-                        return Error (SyncError.YnabImportFailed (categorized.Length, ynabErrorToString ynabError))
+                        return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorToString ynabError))
                     | Ok result ->
                         // Parse duplicate import IDs to find which transactions were duplicates
                         // Import ID format: "BB:{txIdNoDashes}" where txIdNoDashes is GUID without dashes
@@ -882,7 +880,7 @@ let syncApi : SyncApi = {
                         // (e.g., old format from legacy system), assume all non-created are duplicates
                         let duplicateTransactionIds =
                             let mapped =
-                                categorized
+                                toImport
                                 |> List.choose (fun tx ->
                                     let (TransactionId txId) = tx.Transaction.Id
                                     let txIdNoDashes = txId.ToString().Replace("-", "")
@@ -892,16 +890,16 @@ let syncApi : SyncApi = {
                                         None
                                 )
                             // If we couldn't map any but there ARE duplicates reported,
-                            // return all categorized transactions as potential duplicates
+                            // return all toImport transactions as potential duplicates
                             if mapped.IsEmpty && not result.DuplicateImportIds.IsEmpty then
-                                categorized |> List.map (fun tx -> tx.Transaction.Id)
+                                toImport |> List.map (fun tx -> tx.Transaction.Id)
                             else
                                 mapped
 
                         // Mark transactions based on whether they were actually created or were duplicates
                         let duplicateTxIdList = duplicateTransactionIds |> Set.ofList
                         let updatedTransactions =
-                            categorized
+                            toImport
                             |> List.map (fun tx ->
                                 if duplicateTxIdList.Contains(tx.Transaction.Id) then
                                     // This transaction already exists in YNAB - keep as is (don't mark as imported)
