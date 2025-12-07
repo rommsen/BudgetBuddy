@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-08 01:15 - Add Mandatory Bug Fix Protocol to CLAUDE.md
+
+**What I did:**
+Added a new "Bug Fix Protocol (MANDATORY)" section to CLAUDE.md that requires regression tests for every bug fix.
+
+**Motivation:**
+Two bugs were fixed today that could have been caught earlier with proper tests:
+1. Stale reference bug in `completeSession()`
+2. JSON encoding bug using `Encode.int64` instead of `Encode.int`
+
+Neither would have regressed if the original code had proper tests.
+
+**Files Modified:**
+- `CLAUDE.md` - Added "Bug Fix Protocol (MANDATORY)" section with:
+  - 5-step process for fixing bugs
+  - Test requirements for bug fixes
+  - Example test comment format
+  - Explanation of why this matters
+
+**Key Points Added:**
+1. Every bug fix MUST include a regression test
+2. Write failing test FIRST, then fix
+3. Test should include comment explaining what bug it prevents
+4. Run full test suite to verify no regressions
+
+---
+
 ## 2025-12-08 01:00 - Fix YNAB Transactions Not Being Created (JSON Encoding Bug)
 
 **What I did:**

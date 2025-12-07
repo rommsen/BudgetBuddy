@@ -192,6 +192,41 @@ let update msg model =
 - **Skipping validation** - Validate at API boundary
 - **Not reading documentation** - Check guides before implementing
 - **Tests writing to production database** - NEVER write tests that persist data to the production database. Always use in-memory SQLite (`Data Source=:memory:`) or temporary test databases for integration tests
+- **Bug fixes without regression tests** - See mandatory rule below
+
+## Bug Fix Protocol (MANDATORY)
+
+**CRITICAL**: Every bug fix MUST include a regression test. No exceptions.
+
+### When Fixing a Bug:
+
+1. **Understand the root cause** - Don't just fix symptoms
+2. **Write a failing test FIRST** that reproduces the bug
+3. **Fix the bug** - Make the test pass
+4. **Verify no regressions** - Run full test suite
+5. **Document in diary** - Include what test was added
+
+### Test Requirements for Bug Fixes:
+
+- Test must **fail before the fix** and **pass after**
+- Test must verify the **specific behavior** that was broken
+- Test should include a comment explaining **what bug it prevents**
+- Consider edge cases that might cause similar bugs
+
+### Example Test Comment:
+```fsharp
+testCase "amount is serialized as JSON number, not string" <| fun () ->
+    // This test prevents regression of the bug where Encode.int64 serialized
+    // amounts as strings (e.g., "-50250" instead of -50250), causing YNAB
+    // to silently reject transactions.
+    ...
+```
+
+### Why This Matters:
+- Bugs that aren't tested **will come back**
+- Tests document **what the correct behavior is**
+- Future developers understand **why code exists**
+- Prevents the same debugging session twice
 
 ## Quick Commands
 
