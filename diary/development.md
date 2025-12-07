@@ -4,6 +4,7 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+<<<<<<< Updated upstream
 ## 2025-12-07 11:30 - Documentation: Test Isolation Patterns for Future Projects
 
 **What I did:**
@@ -52,6 +53,50 @@ The experience with the 236 test rules in production taught valuable lessons abo
 - Build: ✅
 - All documentation updated with complete patterns
 - Future projects will have clear guidance on test isolation
+
+---
+
+=======
+>>>>>>> Stashed changes
+## 2025-12-07 - Fix: Rules list no longer reloads on every change
+
+**What I did:**
+Fixed a performance and UX issue where toggling a rule's enabled state, saving, or deleting a rule caused the entire Rules list to reload from the server.
+
+**Problem:**
+- Every change to a single rule triggered `Cmd.ofMsg LoadRules`
+- This caused unnecessary network traffic
+- Visible UI flickering due to RemoteData going to Loading state
+- Poor user experience
+
+**Root Cause:**
+The MVU update handlers for `RuleToggled`, `RuleSaved`, and `RuleDeleted` all dispatched `LoadRules` instead of updating the local state with the returned data.
+
+**Files Modified:**
+- `src/Client/Components/Rules/Types.fs`:
+  - Changed `RuleDeleted of Result<unit, RulesError>` to `RuleDeleted of Result<RuleId, RulesError>` to pass the deleted rule's ID
+
+- `src/Client/Components/Rules/State.fs`:
+  - `RuleToggled`: Now uses the returned `updatedRule` to update the local state via `List.map`
+  - `RuleSaved`: Now uses the returned `savedRule` - adds to list for new rules, replaces for updates
+  - `DeleteRule`: Modified to pass `ruleId` through the success result
+  - `RuleDeleted`: Now filters out the deleted rule locally via `List.filter`
+
+- `src/Client/Components/Rules/View.fs`:
+  - Added `prop.key` to rule list items for efficient React reconciliation
+
+**Rationale:**
+The API already returns the updated/created Rule, so reloading the entire list was wasteful. Local state updates are:
+- Faster (no network round-trip)
+- Smoother (no UI flickering)
+- More efficient (single item update vs full list fetch)
+
+**Outcomes:**
+- Build: ✅
+- Tests: 215/215 passed (6 skipped integration tests)
+- Toggling a rule no longer causes list reload
+- Creating/updating a rule updates in-place
+- Deleting a rule removes it immediately from UI
 
 ---
 

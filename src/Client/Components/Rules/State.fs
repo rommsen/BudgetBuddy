@@ -132,12 +132,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             Cmd.OfAsync.either
                 Api.rules.deleteRule
                 ruleId
-                RuleDeleted
+                (fun result ->
+                    match result with
+                    | Ok () -> Ok ruleId |> RuleDeleted
+                    | Error err -> Error err |> RuleDeleted)
                 (fun ex -> Error (RulesError.DatabaseError ("delete", ex.Message)) |> RuleDeleted)
         model, cmd, NoOp
 
-    | RuleDeleted (Ok _) ->
-        model, Cmd.ofMsg LoadRules, ShowToast ("Rule deleted", ToastSuccess)
+    | RuleDeleted (Ok deletedRuleId) ->
+        match model.Rules with
+        | Success rules ->
+            let newRules = rules |> List.filter (fun r -> r.Id <> deletedRuleId)
+            { model with Rules = Success newRules }, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
+        | _ -> model, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
 
     | RuleDeleted (Error err) ->
         model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
@@ -168,8 +175,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | RuleToggled (Ok _) ->
-        model, Cmd.ofMsg LoadRules, NoOp
+    | RuleToggled (Ok updatedRule) ->
+        match model.Rules with
+        | Success rules ->
+            let newRules = rules |> List.map (fun r ->
+                if r.Id = updatedRule.Id then updatedRule else r)
+            { model with Rules = Success newRules }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | RuleToggled (Error err) ->
         model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
@@ -283,10 +295,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                         { model with RuleSaving = true }, cmd, NoOp
                     | None -> model, Cmd.none, NoOp
 
-    | RuleSaved (Ok _) ->
+    | RuleSaved (Ok savedRule) ->
         let action = if model.IsNewRule then "created" else "updated"
         let emptyForm = emptyRuleForm ()
+        let newRules =
+            match model.Rules with
+            | Success rules ->
+                if model.IsNewRule then
+                    Success (savedRule :: rules)
+                else
+                    Success (rules |> List.map (fun r -> if r.Id = savedRule.Id then savedRule else r))
+            | other -> other
         { model with
+            Rules = newRules
             EditingRule = None
             IsNewRule = false
             RuleFormName = emptyForm.Name
@@ -299,7 +320,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             RuleFormTestInput = emptyForm.TestInput
             RuleFormTestResult = emptyForm.TestResult
             RuleSaving = false
-        }, Cmd.ofMsg LoadRules, ShowToast ($"Rule {action} successfully", ToastSuccess)
+        }, Cmd.none, ShowToast ($"Rule {action} successfully", ToastSuccess)
 
     | RuleSaved (Error err) ->
         { model with RuleSaving = false }, Cmd.none, ShowToast (rulesErrorToString err, ToastError)

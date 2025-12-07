@@ -31,7 +31,7 @@ type Msg =
     | EditRule of RuleId
     | CloseRuleModal
     | DeleteRule of RuleId
-    | RuleDeleted of Result<unit, RulesError>
+    | RuleDeleted of Result<RuleId, RulesError>
     | ToggleRuleEnabled of RuleId
     | RuleToggled of Result<Rule, RulesError>
     | LoadCategories

@@ -523,7 +523,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     prop.className "grid gap-3"
                     prop.children [
                         for rule in rules do
-                            ruleCard rule dispatch
+                            let (RuleId id) = rule.Id
+                            Html.div [
+                                prop.key (string id)
+                                prop.children [ ruleCard rule dispatch ]
+                            ]
                     ]
                 ]
 
