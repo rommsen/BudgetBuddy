@@ -18,6 +18,7 @@
     <Compile Include="DuplicateDetectionTests.fs" />
     <Compile Include="SplitTransactionTests.fs" />
     <Compile Include="ValidationTests.fs" />
+    <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

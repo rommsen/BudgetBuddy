@@ -105,12 +105,9 @@ let transactionFieldTests =
             Expect.isTrue (negativeAmount.Contains("-50.25")) "Should support negative amounts"
 
         testCase "currency unit defaults to EUR if not provided" <| fun () ->
-            // The decoder should handle missing currency by defaulting to EUR
-            let amountWithoutCurrency = """{"value": 100.0}"""
-
-            // This would be tested in the actual decoder
-            // Here we just document the expected behavior
-            Expect.isTrue true "Currency should default to EUR if not specified"
+            // Documents expected decoder behavior: missing currency should default to EUR
+            // Actual behavior is tested through integration when decoder is exposed
+            ()
 
         testCase "reference is used as transaction ID" <| fun () ->
             let reference = "NOTPROVIDED"

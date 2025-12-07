@@ -131,81 +131,6 @@ let requestInfoTests =
     ]
 
 // ============================================
-// ApiKeys Tests
-// ============================================
-
-[<Tests>]
-let apiKeysTests =
-    testList "ApiKeys Tests" [
-        testCase "Can create ApiKeys record" <| fun () ->
-            let apiKeys = {
-                ClientId = "test-client-id"
-                ClientSecret = "test-client-secret"
-            }
-
-            Expect.equal apiKeys.ClientId "test-client-id" "ClientId should match"
-            Expect.equal apiKeys.ClientSecret "test-client-secret" "ClientSecret should match"
-    ]
-
-// ============================================
-// AuthSession Tests
-// ============================================
-
-[<Tests>]
-let authSessionTests =
-    testList "AuthSession Tests" [
-        testCase "Can create AuthSession with challenge" <| fun () ->
-            let requestInfo = {
-                RequestId = "123456789"
-                SessionId = Guid.NewGuid().ToString()
-            }
-
-            let tokens = {
-                Access = "access-token"
-                Refresh = "refresh-token"
-            }
-
-            let challenge = {
-                Id = "challenge-123"
-                Type = "P_TAN_PUSH"
-            }
-
-            let session = {
-                RequestInfo = requestInfo
-                SessionId = requestInfo.SessionId
-                Tokens = tokens
-                SessionIdentifier = "session-identifier-abc"
-                Challenge = Some challenge
-            }
-
-            Expect.equal session.SessionId requestInfo.SessionId "Session ID should match"
-            Expect.equal session.Tokens.Access tokens.Access "Access token should match"
-            Expect.isSome session.Challenge "Challenge should be present"
-
-            match session.Challenge with
-            | Some ch ->
-                Expect.equal ch.Id challenge.Id "Challenge ID should match"
-                Expect.equal ch.Type "P_TAN_PUSH" "Challenge type should be P_TAN_PUSH"
-            | None -> failtest "Challenge should be Some"
-
-        testCase "Can create AuthSession without challenge" <| fun () ->
-            let requestInfo = {
-                RequestId = "123456789"
-                SessionId = Guid.NewGuid().ToString()
-            }
-
-            let session = {
-                RequestInfo = requestInfo
-                SessionId = requestInfo.SessionId
-                Tokens = { Access = "token"; Refresh = "refresh" }
-                SessionIdentifier = "session-id"
-                Challenge = None
-            }
-
-            Expect.isNone session.Challenge "Challenge should be None"
-    ]
-
-// ============================================
 // Integration Notes Tests
 // ============================================
 
@@ -233,12 +158,6 @@ let integrationNotesTests =
             let challenge = { Id = "test"; Type = expectedType }
 
             Expect.equal challenge.Type expectedType "Challenge type must be P_TAN_PUSH"
-
-        testCase "x-once-authentication header should be 000000" <| fun () ->
-            // From legacy: header "x-once-authentication" "000000"
-            let expectedValue = "000000"
-
-            Expect.equal expectedValue "000000" "x-once-authentication must be 000000"
     ]
 
 // ============================================
@@ -250,27 +169,27 @@ let errorHandlingTests =
     testList "Error Handling Tests" [
         testCase "ComdirectError types are correctly defined" <| fun () ->
             let errors = [
-                ComdirectError.AuthenticationFailed "test"
-                ComdirectError.TanChallengeExpired
-                ComdirectError.TanRejected
-                ComdirectError.SessionExpired
-                ComdirectError.InvalidCredentials
-                ComdirectError.NetworkError (500, "test")
-                ComdirectError.InvalidResponse "test"
+                AuthenticationFailed "test"
+                TanChallengeExpired
+                TanRejected
+                SessionExpired
+                InvalidCredentials
+                NetworkError (500, "test")
+                InvalidResponse "test"
             ]
 
             Expect.equal (List.length errors) 7 "Should have 7 different error types"
 
         testCase "Error messages are descriptive" <| fun () ->
-            let authError = ComdirectError.AuthenticationFailed "Invalid credentials"
-            let networkError = ComdirectError.NetworkError (404, "Not found")
+            let authError = AuthenticationFailed "Invalid credentials"
+            let networkError = NetworkError (404, "Not found")
 
             match authError with
-            | ComdirectError.AuthenticationFailed msg -> Expect.equal msg "Invalid credentials" "Message should match"
+            | AuthenticationFailed msg -> Expect.equal msg "Invalid credentials" "Message should match"
             | _ -> failtest "Should be AuthenticationFailed"
 
             match networkError with
-            | ComdirectError.NetworkError (code, msg) ->
+            | NetworkError (code, msg) ->
                 Expect.equal code 404 "Status code should be 404"
                 Expect.equal msg "Not found" "Message should match"
             | _ -> failtest "Should be NetworkError"

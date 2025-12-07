@@ -8,13 +8,31 @@ Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und
 
 ## Anweisungen
 
-1. **Analysiere die aktuelle Arbeit**:
+### Phase 1: Änderungen analysieren und zur Auswahl stellen
+
+1. **Sammle alle Änderungen** aus dem aktuellen Context:
+   - Schau dir den Context Window an (alle Nachrichten, Code-Änderungen)
+   - Lies `diary/development.md` für dokumentierte Änderungen
+   - Führe `git diff --stat` und `git log --oneline -10` aus für nicht-committete und kürzliche Änderungen
+   - Gruppiere die Änderungen in logische Themenblöcke (z.B. "Feature X", "Bugfix Y", "Refactoring Z")
+
+2. **Präsentiere die Änderungen dem User**:
+   - Verwende das `AskUserQuestion` Tool mit `multiSelect: true`
+   - Liste alle gefundenen Themenblöcke als Optionen auf
+   - Jede Option sollte einen kurzen Titel und eine Beschreibung haben
+   - Beispiel-Frage: "Welche Themen sollen in den Blogpost aufgenommen werden?"
+
+3. **Warte auf die Auswahl** des Users bevor du weitermachst
+
+### Phase 2: Blogpost erstellen (nur mit ausgewählten Themen)
+
+4. **Analysiere die ausgewählten Themen im Detail**:
    - Welche Milestones/Features wurden umgesetzt?
    - Welche Dateien wurden erstellt/geändert?
    - Welche Probleme wurden gelöst?
    - Welche Tests wurden geschrieben?
 
-2. **Erstelle einen Blogpost** in `diary/_posts/YYYY-MM-DD-titel.md` mit:
+5. **Erstelle einen Blogpost** in `diary/_posts/YYYY-MM-DD-titel.md` mit:
 
    ### Struktur:
    - **Titel**: Beschreibend und spezifisch (z.B. "Milestone X: Feature-Name – Hauptthema")
@@ -48,11 +66,11 @@ Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und
    - **Type-Safety**: Warum F#-Features (DUs, Options, Result) verwendet wurden
    - **Testing**: Wie wurde getestet? Warum diese Test-Strategie?
 
-3. **Dateiname**:
+6. **Dateiname**:
    - Format: `YYYY-MM-DD-kurzbeschreibung.md`
    - Beispiel: `2025-11-29-milestone-4-comdirect-integration.md`
 
-4. **Nach dem Schreiben**:
+7. **Nach dem Schreiben**:
    - Gib eine kurze Zusammenfassung aus
    - Zeige den Dateipfad an
    - Liste die Haupt-Sections auf
@@ -100,4 +118,4 @@ Wie speichern wir den Session-State?
 - **Ehrlichkeit**: Auch Fehler/Umwege erwähnen ("Lessons Learned")
 - **Technische Tiefe**: Für Neulinge verständlich, aber technisch fundiert
 
-Beginne jetzt mit der Analyse und dem Schreiben des Blogposts!
+Beginne jetzt mit Phase 1: Sammle die Änderungen und präsentiere sie dem User zur Auswahl!
