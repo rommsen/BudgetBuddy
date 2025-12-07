@@ -500,8 +500,9 @@ nav a:focus-visible {
 }
 
 /* Scale in animation */
+/* Using 'both' fill-mode to apply initial styles BEFORE animation starts (prevents flicker) */
 .animate-scale-in {
-  animation: scaleIn 0.3s var(--transition-spring) forwards;
+  animation: scaleIn 0.3s var(--transition-spring) both;
 }
 
 @keyframes scaleIn {

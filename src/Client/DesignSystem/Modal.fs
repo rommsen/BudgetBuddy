@@ -71,12 +71,10 @@ let private sizeToMobileClass = function
 // ============================================
 
 /// Modal backdrop (dark overlay with blur)
+/// Note: No animation on backdrop to prevent flicker - animation is on modal content only
 let private backdrop (onClick: unit -> unit) (closeOnClick: bool) =
     Html.div [
-        prop.className (
-            "fixed inset-0 bg-black/70 backdrop-blur-sm z-40 " +
-            "animate-fade-in"
-        )
+        prop.className "fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
         if closeOnClick then
             prop.onClick (fun e ->
                 e.stopPropagation()
@@ -156,21 +154,41 @@ let footerWithLeft (leftContent: ReactElement) (rightContent: ReactElement list)
     ]
 
 // ============================================
-// Main Modal Component
+// Internal Modal Component (with animation tracking)
 // ============================================
 
-/// Complete modal with props and children (renders via portal to body)
-let view (props: ModalProps) (children: ReactElement list) =
+/// Internal props for the functional component
+type private ModalInternalProps = {
+    Props: ModalProps
+    Children: ReactElement list
+}
+
+/// Internal modal component that tracks animation state
+let private ModalInternal = React.functionComponent("ModalInternal", fun (input: ModalInternalProps) ->
+    let props = input.Props
+    let children = input.Children
+
+    // Track if animation has already played (prevents re-animation on re-renders)
+    let hasAnimated = React.useRef false
+
+    // Only set hasAnimated when actually showing the modal
+    let shouldAnimate =
+        if not props.IsOpen then
+            false  // Don't track animation state when closed
+        elif hasAnimated.current then
+            false
+        else
+            hasAnimated.current <- true
+            true
+
     if not props.IsOpen then
         Html.none
     else
-        // Use portal to render directly to document.body
-        // This prevents issues with CSS containment, overflow, and z-index
         renderToBody (
             Html.div [
                 prop.className "fixed inset-0 z-50 overflow-hidden"
                 prop.children [
-                    // Backdrop
+                    // Backdrop (no animation - prevents flicker)
                     backdrop props.OnClose props.CloseOnBackdropClick
 
                     // Modal container (centered)
@@ -181,7 +199,8 @@ let view (props: ModalProps) (children: ReactElement list) =
                             Html.div [
                                 prop.className (
                                     "relative z-50 w-full bg-base-100 border border-white/10 shadow-2xl " +
-                                    "animate-scale-in flex flex-col max-h-[90vh] " +
+                                    (if shouldAnimate then "animate-scale-in " else "") +
+                                    "flex flex-col max-h-[90vh] " +
                                     sizeToClass props.Size + " " +
                                     sizeToMobileClass props.Size
                                 )
@@ -218,6 +237,16 @@ let view (props: ModalProps) (children: ReactElement list) =
                 ]
             ]
         )
+)
+
+// ============================================
+// Main Modal Component
+// ============================================
+
+/// Complete modal with props and children (renders via portal to body)
+/// Animation only plays on first render, not on re-renders
+let view (props: ModalProps) (children: ReactElement list) =
+    ModalInternal { Props = props; Children = children }
 
 // ============================================
 // Convenience Functions
