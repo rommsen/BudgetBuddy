@@ -224,14 +224,67 @@ let private truncateMemo (memo: string) =
     else
         memo
 
+// ============================================
+// YNAB Transaction Types for JSON Encoding
+// ============================================
+
+/// Subtransaction for split transactions
+type YnabSubtransactionRequest = {
+    Amount: int64
+    CategoryId: string
+    Memo: string option
+}
+
+/// Transaction request for YNAB API
+type YnabTransactionRequest = {
+    AccountId: string
+    Date: string
+    Amount: int64
+    PayeeName: string
+    Memo: string
+    Cleared: string
+    ImportId: string
+    CategoryId: string option
+    Subtransactions: YnabSubtransactionRequest list option
+}
+
+/// Encoder for subtransactions
+let private encodeSubtransaction (sub: YnabSubtransactionRequest) =
+    Encode.object [
+        "amount", Encode.int64 sub.Amount
+        "category_id", Encode.string sub.CategoryId
+        match sub.Memo with
+        | Some m -> "memo", Encode.string m
+        | None -> ()
+    ]
+
+/// Encoder for transaction requests
+let private encodeTransaction (tx: YnabTransactionRequest) =
+    Encode.object [
+        "account_id", Encode.string tx.AccountId
+        "date", Encode.string tx.Date
+        "amount", Encode.int64 tx.Amount
+        "payee_name", Encode.string tx.PayeeName
+        "memo", Encode.string tx.Memo
+        "cleared", Encode.string tx.Cleared
+        "import_id", Encode.string tx.ImportId
+        match tx.CategoryId with
+        | Some catId -> "category_id", Encode.string catId
+        | None -> ()
+        match tx.Subtransactions with
+        | Some subs when subs.Length > 0 ->
+            "subtransactions", Encode.list (subs |> List.map encodeSubtransaction)
+        | _ -> ()
+    ]
+
 /// Helper to create a subtransaction for a split
-let private createSubtransaction (split: TransactionSplit) =
+let private createSubtransaction (split: TransactionSplit) : YnabSubtransactionRequest =
     let (YnabCategoryId categoryIdGuid) = split.CategoryId
-    {|
-        amount = int64 (split.Amount.Amount * 1000m)  // Convert to milliunits
-        category_id = categoryIdGuid.ToString()
-        memo = split.Memo |> Option.map truncateMemo |> Option.defaultValue null
-    |}
+    {
+        Amount = int64 (split.Amount.Amount * 1000m)  // Convert to milliunits
+        CategoryId = categoryIdGuid.ToString()
+        Memo = split.Memo |> Option.map truncateMemo
+    }
 
 /// Creates transactions in YNAB
 /// Returns the number of successfully created transactions
@@ -253,63 +306,50 @@ let createTransactions
                     (tx.CategoryId.IsSome || (tx.Splits |> Option.map (fun s -> s.Length >= 2) |> Option.defaultValue false))
                 )
 
-            // Convert SyncTransactions to YNAB transaction format
-            let ynabTransactions =
+            // Convert SyncTransactions to YNAB transaction request format
+            let ynabTransactions : YnabTransactionRequest list =
                 validTransactions
                 |> List.map (fun tx ->
                     let (TransactionId txId) = tx.Transaction.Id
 
-                    let baseTransaction = {|
-                        account_id = accountId.ToString()
-                        date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
-                        amount = int64 (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
-                        payee_name =
+                    // YNAB import_id max 36 chars. GUID without dashes = 32 chars + "BB:" = 35 chars
+                    let txIdNoDashes = txId.ToString().Replace("-", "")
+                    let importId = $"BB:{txIdNoDashes}"
+
+                    let baseFields = {
+                        AccountId = accountId.ToString()
+                        Date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
+                        Amount = int64 (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
+                        PayeeName =
                             tx.PayeeOverride
                             |> Option.orElse tx.Transaction.Payee
                             |> Option.defaultValue "Unknown"
-                        memo = truncateMemo tx.Transaction.Memo
-                        cleared = "cleared"
-                        import_id = $"BUDGETBUDDY:{txId}:{tx.Transaction.BookingDate.Ticks}"  // Prevents duplicates
-                    |}
+                        Memo = truncateMemo tx.Transaction.Memo
+                        Cleared = "cleared"
+                        ImportId = importId  // Prevents duplicates (max 36 chars)
+                        CategoryId = None
+                        Subtransactions = None
+                    }
 
                     // Check if this is a split transaction
                     match tx.Splits with
                     | Some splits when splits.Length >= 2 ->
                         // Split transaction: use subtransactions array, no category_id on parent
                         let subtransactions = splits |> List.map createSubtransaction
-                        {|
-                            account_id = baseTransaction.account_id
-                            date = baseTransaction.date
-                            amount = baseTransaction.amount
-                            payee_name = baseTransaction.payee_name
-                            memo = baseTransaction.memo
-                            cleared = baseTransaction.cleared
-                            import_id = baseTransaction.import_id
-                            category_id = null :> obj  // No category on parent for split transactions
-                            subtransactions = subtransactions |> List.toArray
-                        |} :> obj
+                        { baseFields with Subtransactions = Some subtransactions }
                     | _ ->
                         // Regular transaction: use category_id directly
                         let (YnabCategoryId categoryIdGuid) = tx.CategoryId.Value
-                        {|
-                            account_id = baseTransaction.account_id
-                            date = baseTransaction.date
-                            amount = baseTransaction.amount
-                            payee_name = baseTransaction.payee_name
-                            category_id = categoryIdGuid.ToString()
-                            memo = baseTransaction.memo
-                            cleared = baseTransaction.cleared
-                            import_id = baseTransaction.import_id
-                        |} :> obj
+                        { baseFields with CategoryId = Some (categoryIdGuid.ToString()) }
                 )
 
             if ynabTransactions.IsEmpty then
                 return Ok 0
             else
-                // Encode to JSON
+                // Encode to JSON using manual encoder
                 let requestBody =
                     Encode.object [
-                        "transactions", (Encode.Auto.generateEncoder() ynabTransactions)
+                        "transactions", Encode.list (ynabTransactions |> List.map encodeTransaction)
                     ]
                     |> Encode.toString 2
 

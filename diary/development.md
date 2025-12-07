@@ -4,6 +4,29 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 23:45 - Fix YNAB JSON Serialization Error for Transactions
+
+**What I did:**
+Fixed a bug where syncing transactions to YNAB failed with "Could not determine JSON object type for type <>f__AnonymousType...".
+
+**Problem:**
+The `createTransactions` function in `YnabClient.fs` used F# anonymous types (`{| ... |}`) that were cast to `obj` and passed to `Encode.Auto.generateEncoder()`. Thoth.Json cannot automatically serialize anonymous types.
+
+**Solution:**
+1. Defined proper F# record types `YnabTransactionRequest` and `YnabSubtransactionRequest`
+2. Created manual encoders `encodeTransaction` and `encodeSubtransaction` using `Encode.object`
+3. Replaced `Encode.Auto.generateEncoder()` with `Encode.list (ynabTransactions |> List.map encodeTransaction)`
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - Added record types and manual encoders, refactored `createTransactions` to use them
+
+**Outcomes:**
+- Build: ✅
+- Tests: 215/215 passed
+- YNAB sync should now work correctly
+
+---
+
 ## 2025-12-07 22:15 - Fix SyncFlow Category Loading Race Condition
 
 **What I did:**
