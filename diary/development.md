@@ -4,6 +4,93 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 11:30 - Documentation: Test Isolation Patterns for Future Projects
+
+**What I did:**
+Updated project documentation and Claude Code skills to capture the knowledge about F# test isolation patterns, particularly around environment variables and lazy loading for database configuration.
+
+**Files Modified:**
+- `.claude/skills/fsharp-persistence/SKILL.md`:
+  - Replaced simple static connection string with lazy-loading pattern
+  - Added "Why Lazy Loading?" section explaining F# module initialization
+  - Added "Connection Management for Tests" section about In-Memory SQLite lifecycle
+  - Updated Best Practices with test isolation requirements
+  - Updated Verification Checklist
+
+- `.claude/skills/fsharp-tests/SKILL.md`:
+  - Updated Program.fs section with `USE_MEMORY_DB` environment variable setup
+  - Added "Test Files Using Persistence" section with `do` before `open` pattern
+  - Added "Testing Persistence (In-Memory SQLite)" section with complete example
+  - Added "F# Module Initialization Gotchas" section
+  - Updated Best Practices with test isolation dos/don'ts
+  - Updated Verification Checklist
+
+- `docs/05-PERSISTENCE.md`:
+  - Replaced simple connection string pattern with full lazy-loading example
+  - Added "Why Lazy Loading?" section
+  - Added "Connection Management for In-Memory SQLite" section
+  - Added Best Practices items 11-13 for test isolation
+
+- `docs/06-TESTING.md`:
+  - Completely rewrote "Testing Persistence (with In-Memory DB)" section
+  - Added "Setting Up Test Mode" with Main.fs and test file examples
+  - Added "Why This Pattern Works" explanation
+  - Added "Common Pitfalls" section with wrong/correct examples
+  - Added "Verifying Test Isolation" with verification commands
+  - Added Best Practices items 11-13 for test isolation
+
+**Rationale:**
+The experience with the 236 test rules in production taught valuable lessons about F# module initialization order and test isolation. This knowledge should be preserved for future projects so the same mistakes aren't repeated.
+
+**Key Lessons Documented:**
+1. F# modules initialize by dependency graph, not by `open` order
+2. `lazy` is required for configuration that tests need to override
+3. In-Memory SQLite needs a shared connection kept alive
+4. `do` before `open` in test files allows setting env vars before module init
+
+**Outcomes:**
+- Build: ✅
+- All documentation updated with complete patterns
+- Future projects will have clear guidance on test isolation
+
+---
+
+## 2025-12-07 - Fix: Tests no longer write to Production Database
+
+**What I did:**
+Fixed a critical bug where persistence tests were writing test data (Rules, Sessions, Transactions) to the production database. Implemented in-memory SQLite support for tests.
+
+**Problem:**
+- `PersistenceTypeConversionTests.fs` was inserting test Rules into the production SQLite database
+- Every test run added 6 new "Test Rule" entries
+- Accumulated 236 duplicate test rules in production
+
+**Files Modified:**
+- `CLAUDE.md` - Added anti-pattern: "Tests writing to production database - NEVER write tests that persist data to the production database. Always use in-memory SQLite"
+- `src/Server/Persistence.fs`:
+  - Added lazy-loading for DB configuration (`dbConfig = lazy (...)`)
+  - Added `USE_MEMORY_DB` environment variable support
+  - When `USE_MEMORY_DB=true`, uses `Data Source=:memory:;Mode=Memory;Cache=Shared`
+  - Shared connection for in-memory mode (keeps DB alive across operations)
+  - Changed all `use conn = getConnection()` to `let conn = getConnection()` to prevent disposing shared connection
+- `src/Tests/PersistenceTypeConversionTests.fs`:
+  - Added `Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")` at module initialization (before `open Persistence`)
+- `src/Tests/Main.fs`:
+  - Also sets `USE_MEMORY_DB=true` for safety
+
+**Files Deleted:**
+- `src/Tests/TestSetup.fs` - Removed (approach didn't work due to F# module initialization order)
+
+**Rationale:**
+Tests must NEVER write to production databases. The in-memory SQLite approach provides complete isolation - each test run starts fresh, and no data persists after tests complete.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 215/215 passed (6 skipped integration tests)
+- Production DB: ✅ Verified unchanged after test runs
+
+---
+
 ## 2025-12-06 - Milestone 15: Polish & Testing - Complete
 
 **What I did:**

@@ -72,16 +72,48 @@ src/Tests/
 </Project>
 ```
 
-### Program.fs
+### Program.fs (Main.fs)
+
+**CRITICAL**: Set `USE_MEMORY_DB` environment variable to prevent tests from writing to production database!
+
 ```fsharp
 module Program
 
+open System
 open Expecto
 
 [<EntryPoint>]
 let main args =
+    // CRITICAL: Set test mode BEFORE any Persistence module access
+    Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
     runTestsInAssembly defaultConfig args
 ```
+
+### Test Files Using Persistence
+
+For test files that `open Persistence`, set the environment variable at module initialization:
+
+```fsharp
+module PersistenceTests
+
+open System
+
+// CRITICAL: Set test mode BEFORE importing Persistence module
+// F# modules initialize by dependency graph, not by open order
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+
+open Expecto
+open Persistence  // Now this will use in-memory SQLite
+
+[<Tests>]
+let tests = testList "Persistence" [
+    // tests here...
+]
+```
+
+**Why `do` before `open Persistence`?**
+
+F# evaluates module-level `do` bindings in source order, but module *initialization* follows the dependency graph. By placing `do Environment.SetEnvironmentVariable(...)` before `open Persistence`, the environment variable is set before `Persistence` module's lazy configuration is first accessed.
 
 ## Testing Domain Logic
 
@@ -340,6 +372,61 @@ dotnet test --filter "FullyQualifiedName~Validation"
 dotnet test --logger "console;verbosity=detailed"
 ```
 
+## Testing Persistence (In-Memory SQLite)
+
+**CRITICAL**: Never write tests that persist to production database!
+
+```fsharp
+module PersistenceTypeConversionTests
+
+open System
+
+// MUST be before 'open Persistence'
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+
+open Expecto
+open Persistence
+
+let private createTestRule () = {
+    Id = Guid.NewGuid()
+    Name = "Test Rule"
+    // ...
+}
+
+[<Tests>]
+let tests =
+    testList "Persistence Type Conversions" [
+        testCase "Rule roundtrip" <| fun () ->
+            // Initialize schema in memory DB
+            Rules.initializeDatabase()
+
+            let rule = createTestRule()
+            Rules.insertRule rule |> Async.RunSynchronously
+
+            let retrieved = Rules.getRuleById rule.Id |> Async.RunSynchronously
+
+            match retrieved with
+            | Some r -> Expect.equal r.Name rule.Name "Should roundtrip"
+            | None -> failtest "Should find inserted rule"
+    ]
+```
+
+### F# Module Initialization Gotchas
+
+1. **`open` order doesn't control initialization** - Modules are initialized by dependency graph
+2. **`do` bindings run in source order** - Use `do` before `open` to set env vars
+3. **Lazy loading is required** - The Persistence module must use `lazy` for configuration
+
+```fsharp
+// ❌ WRONG - TestSetup won't run before Persistence initializes
+open TestSetup       // Has: do Environment.SetEnvironmentVariable(...)
+open Persistence     // Already initialized based on dependency graph!
+
+// ✅ CORRECT - Set env var in same file before open
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+open Persistence     // Now reads the env var via lazy config
+```
+
 ## Best Practices
 
 ### ✅ Do
@@ -350,6 +437,8 @@ dotnet test --logger "console;verbosity=detailed"
 - Keep tests independent
 - Use test fixtures for common data
 - Test state transitions
+- Set `USE_MEMORY_DB=true` for persistence tests
+- Use `do` before `open Persistence` to set env vars
 
 ### ❌ Don't
 - Test implementation details
@@ -358,6 +447,8 @@ dotnet test --logger "console;verbosity=detailed"
 - Make tests dependent on external services
 - Write slow tests without async
 - Forget boundary conditions
+- Write tests that persist to production database
+- Rely on `open` order for initialization control
 
 ## Verification Checklist
 
@@ -368,9 +459,12 @@ dotnet test --logger "console;verbosity=detailed"
 - [ ] Error conditions tested
 - [ ] Async operations tested
 - [ ] State transitions tested (if frontend)
+- [ ] Persistence tests use `USE_MEMORY_DB=true`
+- [ ] Environment variable set via `do` before `open Persistence`
 - [ ] All tests pass
 - [ ] Tests are independent
 - [ ] Descriptive test names
+- [ ] Production database unchanged after test run
 
 ## Related Skills
 

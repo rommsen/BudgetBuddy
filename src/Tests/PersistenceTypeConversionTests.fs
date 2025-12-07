@@ -1,6 +1,11 @@
 module PersistenceTypeConversionTests
 
 open System
+
+// CRITICAL: Set test mode BEFORE importing Persistence module
+// F# module initialization happens on first access, so we must set this first
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+
 open Expecto
 open Shared.Domain
 open Persistence

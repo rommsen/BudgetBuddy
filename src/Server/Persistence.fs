@@ -36,24 +36,61 @@ do
     SqlMapper.AddTypeHandler(OptionHandler<DateTime>())
 
 // ============================================
-// Configuration
+// Configuration (Lazy-loaded for test isolation)
 // ============================================
 
-// Data directory is configurable via DATA_DIR environment variable
-let private dataDir =
-    match Environment.GetEnvironmentVariable("DATA_DIR") with
-    | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "heimeshoff", "budgetbuddy")
-    | path -> path
+// Use Lazy<T> to defer configuration loading until first database access
+// This allows tests to set USE_MEMORY_DB before any persistence operations
+type private DbConfig = {
+    IsTestMode: bool
+    ConnectionString: string
+    SharedConnection: SqliteConnection option
+}
 
-/// Ensure the data directory exists
-let ensureDataDir () =
-    if not (Directory.Exists dataDir) then
+let private dbConfig = lazy (
+    let isTestMode =
+        match Environment.GetEnvironmentVariable("USE_MEMORY_DB") with
+        | "true" | "1" -> true
+        | _ -> false
+
+    let dataDir =
+        match Environment.GetEnvironmentVariable("DATA_DIR") with
+        | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "heimeshoff", "budgetbuddy")
+        | path -> path
+
+    // Ensure the data directory exists (only for file-based mode)
+    if not isTestMode && not (Directory.Exists dataDir) then
         Directory.CreateDirectory dataDir |> ignore
 
-let private dbPath = Path.Combine(dataDir, "budgetbuddy.db")
-let private connectionString = $"Data Source={dbPath}"
+    let connectionString =
+        if isTestMode then
+            "Data Source=:memory:;Mode=Memory;Cache=Shared"
+        else
+            let dbPath = Path.Combine(dataDir, "budgetbuddy.db")
+            $"Data Source={dbPath}"
 
-let private getConnection () = new SqliteConnection(connectionString)
+    // For in-memory mode, we need a persistent connection to keep the database alive
+    let sharedConnection =
+        if isTestMode then
+            let conn = new SqliteConnection(connectionString)
+            conn.Open()
+            Some conn
+        else
+            None
+
+    { IsTestMode = isTestMode; ConnectionString = connectionString; SharedConnection = sharedConnection }
+)
+
+/// Ensure the data directory exists (call this for production mode)
+let ensureDataDir () =
+    let _ = dbConfig.Force() // This triggers directory creation if needed
+    ()
+
+let private getConnection () =
+    let config = dbConfig.Force()
+    match config.SharedConnection with
+    | Some conn -> conn // Return the shared connection directly (caller must NOT dispose)
+    | None -> new SqliteConnection(config.ConnectionString)
 
 // ============================================
 // Encryption Helper
@@ -124,8 +161,8 @@ module Encryption =
 
 let initializeDatabase () =
     ensureDataDir()
-    use conn = getConnection()
-    conn.Open()
+    let conn = getConnection()
+    if conn.State <> Data.ConnectionState.Open then conn.Open()
 
     // Rules table
     use cmd1 = new SqliteCommand("""
@@ -263,14 +300,14 @@ module Rules =
 
     let getAllRules () : Async<Rule list> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let! rows = conn.QueryAsync<RuleRow>("SELECT * FROM rules ORDER BY priority DESC") |> Async.AwaitTask
             return rows |> Seq.map rowToRule |> Seq.toList
         }
 
     let getRuleById (RuleId ruleId: RuleId) : Async<Rule option> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let! row =
                 conn.QueryFirstOrDefaultAsync<RuleRow>(
                     "SELECT * FROM rules WHERE id = @Id",
@@ -281,7 +318,7 @@ module Rules =
 
     let insertRule (rule: Rule) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let (RuleId ruleId) = rule.Id
             let (YnabCategoryId categoryId) = rule.CategoryId
             do! (conn.ExecuteAsync(
@@ -309,7 +346,7 @@ module Rules =
 
     let updateRule (rule: Rule) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let (RuleId ruleId) = rule.Id
             let (YnabCategoryId categoryId) = rule.CategoryId
             do! (conn.ExecuteAsync(
@@ -337,7 +374,7 @@ module Rules =
 
     let deleteRule (RuleId ruleId: RuleId) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             do! (conn.ExecuteAsync(
                 "DELETE FROM rules WHERE id = @Id",
                 {| Id = ruleId.ToString() |}
@@ -346,7 +383,7 @@ module Rules =
 
     let updatePriorities (ruleIds: RuleId list) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             conn.Open()
             use transaction = conn.BeginTransaction()
 
@@ -378,7 +415,7 @@ module Settings =
 
     let getSetting (key: string) : Async<string option> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let! row =
                 conn.QueryFirstOrDefaultAsync<SettingRow>(
                     "SELECT value, encrypted FROM settings WHERE key = @Key",
@@ -398,7 +435,7 @@ module Settings =
 
     let setSetting (key: string) (value: string) (encrypted: bool) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
 
             let valueToStore =
                 if encrypted then
@@ -423,7 +460,7 @@ module Settings =
 
     let deleteSetting (key: string) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             do! (conn.ExecuteAsync(
                 "DELETE FROM settings WHERE key = @Key",
                 {| Key = key |}
@@ -481,7 +518,7 @@ module SyncSessions =
 
     let createSession (session: SyncSession) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let (SyncSessionId sessionId) = session.Id
             do! (conn.ExecuteAsync(
                 """INSERT INTO sync_sessions
@@ -501,7 +538,7 @@ module SyncSessions =
 
     let updateSession (session: SyncSession) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let (SyncSessionId sessionId) = session.Id
             do! (conn.ExecuteAsync(
                 """UPDATE sync_sessions
@@ -522,7 +559,7 @@ module SyncSessions =
 
     let getRecentSessions (count: int) : Async<SyncSession list> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let! rows =
                 conn.QueryAsync<SyncSessionRow>(
                     "SELECT * FROM sync_sessions ORDER BY started_at DESC LIMIT @Count",
@@ -533,7 +570,7 @@ module SyncSessions =
 
     let getSessionById (SyncSessionId sessionId: SyncSessionId) : Async<SyncSession option> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let! row =
                 conn.QueryFirstOrDefaultAsync<SyncSessionRow>(
                     "SELECT * FROM sync_sessions WHERE id = @Id",
@@ -568,7 +605,7 @@ module SyncTransactions =
 
     let saveTransaction (sessionId: SyncSessionId) (tx: SyncTransaction) : Async<unit> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let (SyncSessionId sid) = sessionId
             let (TransactionId txId) = tx.Transaction.Id
 
@@ -601,7 +638,7 @@ module SyncTransactions =
 
     let getTransactionsBySession (SyncSessionId sessionId: SyncSessionId) : Async<SyncTransaction list> =
         async {
-            use conn = getConnection()
+            let conn = getConnection()
             let! rows =
                 conn.QueryAsync<SyncTransactionRow>(
                     "SELECT * FROM sync_transactions WHERE session_id = @SessionId ORDER BY booking_date DESC",

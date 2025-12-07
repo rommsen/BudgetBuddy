@@ -21,28 +21,93 @@ Activate when:
 
 ## SQLite with Dapper
 
-### Setup
+### Setup with Test-Isolation Support
 
 **Location:** `src/Server/Persistence.fs`
+
+**CRITICAL**: Always use lazy loading for database configuration to support test-isolation via environment variables.
 
 ```fsharp
 module Persistence
 
-open System.Data
+open System
+open System.IO
 open Microsoft.Data.Sqlite
 open Dapper
 open Shared.Domain
 
-let connectionString = "Data Source=./data/app.db;Mode=ReadWriteCreate"
+let private dataDir = "./data"
 
-let getConnection () : SqliteConnection =
-    new SqliteConnection(connectionString)
+// Use lazy loading to allow tests to set USE_MEMORY_DB before first access
+type private DbConfig = {
+    IsTestMode: bool
+    ConnectionString: string
+    SharedConnection: SqliteConnection option
+}
+
+let private dbConfig = lazy (
+    let isTestMode =
+        match Environment.GetEnvironmentVariable("USE_MEMORY_DB") with
+        | "true" | "1" -> true
+        | _ -> false
+
+    let connectionString =
+        if isTestMode then
+            // In-memory SQLite with shared cache (stays alive across connections)
+            "Data Source=:memory:;Mode=Memory;Cache=Shared"
+        else
+            let dbPath = Path.Combine(dataDir, "app.db")
+            $"Data Source={dbPath}"
+
+    // For In-Memory: Keep a shared connection alive
+    let sharedConnection =
+        if isTestMode then
+            let conn = new SqliteConnection(connectionString)
+            conn.Open()
+            Some conn
+        else
+            None
+
+    { IsTestMode = isTestMode; ConnectionString = connectionString; SharedConnection = sharedConnection }
+)
+
+let private getConnection () =
+    let config = dbConfig.Force()
+    match config.SharedConnection with
+    | Some conn -> conn  // Shared connection for tests - don't dispose!
+    | None -> new SqliteConnection(config.ConnectionString)
 
 let ensureDataDir () =
-    let dir = "./data"
-    if not (System.IO.Directory.Exists dir) then
-        System.IO.Directory.CreateDirectory dir |> ignore
+    if not (Directory.Exists dataDir) then
+        Directory.CreateDirectory dataDir |> ignore
 ```
+
+### Why Lazy Loading?
+
+F# modules are initialized when the assembly loads, **before** `Main()` runs. Without lazy loading:
+1. Tests cannot set `USE_MEMORY_DB` before the connection string is evaluated
+2. Tests will write to the production database
+3. `open TestSetup` before `open Persistence` does NOT help - F# initializes by dependency graph, not `open` order
+
+### Connection Management for Tests
+
+**IMPORTANT**: For In-Memory SQLite, don't use `use conn = getConnection()`:
+
+```fsharp
+// ❌ WRONG - Connection disposed, In-Memory DB lost
+let getAllItems () = async {
+    use conn = getConnection()  // Disposed at end = DB gone!
+    // ...
+}
+
+// ✅ CORRECT - Don't dispose shared connection
+let getAllItems () = async {
+    let conn = getConnection()  // No dispose for shared connection
+    // ...
+}
+```
+
+In-Memory SQLite databases only exist while the connection is open. For test isolation, we keep one shared connection alive for the entire test run.
 
 ### Initialize Database
 
@@ -320,17 +385,19 @@ let rebuildState () : Async<Map<int, TodoItem>> =
 - Create indexes for frequently queried columns
 - Use transactions for multi-step operations
 - Always use `async` for I/O
-- Dispose connections (`use` keyword)
+- Use `lazy` for database configuration (test isolation!)
 - Store DateTimes as ISO 8601 strings
 - Return options for "not found" cases
+- Support `USE_MEMORY_DB` environment variable for tests
 
 ### ❌ Don't
 - Use string concatenation for queries
-- Forget to dispose connections
+- Use static connection strings evaluated at module load
 - Use JSON files for large datasets (use SQLite)
 - Use JSON files for high-frequency writes
 - Modify past events in event sourcing
 - Rebuild from events every time (use snapshots)
+- Write tests that persist to production database
 
 ## Verification Checklist
 
@@ -339,10 +406,12 @@ let rebuildState () : Async<Map<int, TodoItem>> =
 - [ ] Parameterized queries used
 - [ ] Proper error handling
 - [ ] Async operations used
-- [ ] Connections disposed properly
+- [ ] Lazy loading for DB configuration (test isolation)
+- [ ] `USE_MEMORY_DB` environment variable supported
 - [ ] Indexes created for queries
 - [ ] Transactions used for multi-step operations
 - [ ] DateTime serialization handled
+- [ ] Tests use in-memory SQLite (don't pollute production DB)
 
 ## Related Skills
 

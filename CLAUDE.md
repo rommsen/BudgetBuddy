@@ -191,6 +191,7 @@ let update msg model =
 - **Classes for domain types** - Use records and unions
 - **Skipping validation** - Validate at API boundary
 - **Not reading documentation** - Check guides before implementing
+- **Tests writing to production database** - NEVER write tests that persist data to the production database. Always use in-memory SQLite (`Data Source=:memory:`) or temporary test databases for integration tests
 
 ## Quick Commands
 

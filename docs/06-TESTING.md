@@ -410,40 +410,47 @@ let validationTests =
 
 ### Testing Persistence (with In-Memory DB)
 
+**CRITICAL**: Tests must NEVER write to the production database!
+
+Use the `USE_MEMORY_DB` environment variable pattern to ensure complete test isolation.
+
+#### Setting Up Test Mode
+
+**In Main.fs (test entry point):**
+```fsharp
+module Program
+
+open System
+open Expecto
+
+[<EntryPoint>]
+let main args =
+    // CRITICAL: Set before any Persistence module access
+    Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+    runTestsInAssembly defaultConfig args
+```
+
+**In test files that use Persistence:**
 ```fsharp
 module Tests.PersistenceTests
 
-open Expecto
-open System.IO
-open Microsoft.Data.Sqlite
-open Persistence
+open System
 
-// Helper to create test database
-let createTestDb () =
-    let conn = new SqliteConnection("Data Source=:memory:")
-    conn.Open()
-    
-    // Initialize schema
-    use cmd = new SqliteCommand("""
-        CREATE TABLE items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-    """, conn)
-    cmd.ExecuteNonQuery() |> ignore
-    
-    conn
+// CRITICAL: Set BEFORE importing Persistence module!
+// F# modules initialize by dependency graph, not by open order.
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+
+open Expecto
+open Persistence
+open Shared.Domain
 
 [<Tests>]
 let persistenceTests =
     testList "Persistence" [
         testCase "Insert and retrieve item" <| fun () ->
-            use conn = createTestDb()
-            
-            // Insert
+            // Initialize schema in memory DB
+            Persistence.initializeDatabase()
+
             let item = {
                 Id = 0
                 Name = "Test"
@@ -451,23 +458,66 @@ let persistenceTests =
                 CreatedAt = DateTime.UtcNow
                 UpdatedAt = DateTime.UtcNow
             }
-            
+
             let insertedItem =
-                // Use your actual persistence functions with the test connection
-                // You may need to adapt your persistence layer to accept connections
-                item
-            
+                Persistence.insertItem item
+                |> Async.RunSynchronously
+
             Expect.isGreaterThan insertedItem.Id 0 "Should assign ID"
-        
+
         testCase "Get non-existent item returns None" <| fun () ->
-            use conn = createTestDb()
-            
+            Persistence.initializeDatabase()
+
             let result =
-                // Your getItemById function
-                None
-            
+                Persistence.getItemById 99999
+                |> Async.RunSynchronously
+
             Expect.isNone result "Should return None"
     ]
+```
+
+#### Why This Pattern Works
+
+1. **Lazy Loading in Persistence.fs**: Database configuration uses `lazy`, evaluated on first access
+2. **`do` before `open`**: Environment variable is set before `Persistence` module's config is evaluated
+3. **Shared Connection**: In-memory SQLite needs one connection kept alive (DB disappears when connection closes)
+
+#### Common Pitfalls
+
+```fsharp
+// ❌ WRONG - TestSetup module doesn't help
+module TestSetup
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+
+// In test file:
+open TestSetup       // This doesn't control initialization order!
+open Persistence     // Already initialized by dependency graph
+
+// ❌ WRONG - Main.fs is too late
+[<EntryPoint>]
+let main args =
+    Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")  // Modules already loaded!
+    runTestsInAssembly defaultConfig args
+
+// ✅ CORRECT - do before open in each test file
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+open Persistence
+
+// ✅ ALSO CORRECT - Use lazy loading in Persistence.fs (see 05-PERSISTENCE.md)
+```
+
+#### Verifying Test Isolation
+
+After running tests, verify production database is unchanged:
+```bash
+# Count items before
+sqlite3 ./data/app.db "SELECT COUNT(*) FROM items"
+
+# Run tests
+dotnet test
+
+# Count items after - should be same
+sqlite3 ./data/app.db "SELECT COUNT(*) FROM items"
 ```
 
 ### Testing API Layer
@@ -683,6 +733,9 @@ dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 8. **Keep tests fast**: Use in-memory databases, mock I/O
 9. **Tests should be independent**: No shared state between tests
 10. **Test behavior, not implementation**: Focus on what, not how
+11. **Never write to production database**: Use `USE_MEMORY_DB=true`
+12. **Set env vars via `do` before `open`**: F# module initialization quirk
+13. **Use lazy loading in Persistence**: Required for test isolation
 
 ## Test Pyramid
 

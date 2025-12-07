@@ -17,25 +17,109 @@ Add to `Server.fsproj`:
 <PackageReference Include="Dapper" Version="2.1.35" />
 ```
 
-### Connection String Pattern
+### Connection String Pattern with Test Isolation
+
+**CRITICAL**: Always use lazy loading for database configuration to support test isolation!
 
 ```fsharp
 module Persistence
 
+open System
 open System.IO
 open Microsoft.Data.Sqlite
 
 let private dataDir = "./data"
-let private dbPath = Path.Combine(dataDir, "app.db")
-let private connectionString = $"Data Source={dbPath}"
+
+// ============================================
+// Database Configuration with Test Isolation
+// ============================================
+
+type private DbConfig = {
+    IsTestMode: bool
+    ConnectionString: string
+    SharedConnection: SqliteConnection option
+}
+
+// CRITICAL: Use lazy loading!
+// F# modules initialize at assembly load, BEFORE Main() runs.
+// Tests need to set USE_MEMORY_DB before this is evaluated.
+let private dbConfig = lazy (
+    let isTestMode =
+        match Environment.GetEnvironmentVariable("USE_MEMORY_DB") with
+        | "true" | "1" -> true
+        | _ -> false
+
+    let connectionString =
+        if isTestMode then
+            // In-memory with shared cache - DB survives across connections
+            "Data Source=:memory:;Mode=Memory;Cache=Shared"
+        else
+            let dbPath = Path.Combine(dataDir, "app.db")
+            $"Data Source={dbPath}"
+
+    // For In-Memory: Keep one connection alive or DB disappears!
+    let sharedConnection =
+        if isTestMode then
+            let conn = new SqliteConnection(connectionString)
+            conn.Open()
+            Some conn
+        else
+            None
+
+    { IsTestMode = isTestMode; ConnectionString = connectionString; SharedConnection = sharedConnection }
+)
+
+let private getConnection () =
+    let config = dbConfig.Force()
+    match config.SharedConnection with
+    | Some conn -> conn  // Shared connection for tests - DON'T dispose!
+    | None -> new SqliteConnection(config.ConnectionString)
 
 let ensureDataDir () =
     if not (Directory.Exists dataDir) then
         Directory.CreateDirectory dataDir |> ignore
-
-let getConnection () =
-    new SqliteConnection(connectionString)
 ```
+
+### Why Lazy Loading?
+
+Without lazy loading, the connection string is evaluated when the module loads:
+
+```fsharp
+// ❌ WRONG - Evaluated at module load, before tests can set env var
+let private connectionString =
+    if Environment.GetEnvironmentVariable("USE_MEMORY_DB") = "true"
+    then ":memory:"
+    else $"Data Source={dbPath}"
+
+// ✅ CORRECT - Evaluated on first access, after tests set env var
+let private dbConfig = lazy (
+    if Environment.GetEnvironmentVariable("USE_MEMORY_DB") = "true"
+    // ...
+)
+```
+
+### Connection Management for In-Memory SQLite
+
+In-Memory SQLite databases only exist while the connection is open. Once disposed, all data is lost.
+
+```fsharp
+// ❌ WRONG for In-Memory SQLite
+let getAllItems () = async {
+    use conn = getConnection()  // Disposed at end!
+    let! items = conn.QueryAsync<Item>("SELECT * FROM items")
+    return items |> Seq.toList
+    // Connection disposed here - entire In-Memory DB is gone!
+}
+
+// ✅ CORRECT - Don't dispose shared connection
+let getAllItems () = async {
+    let conn = getConnection()  // No 'use' = no dispose
+    let! items = conn.QueryAsync<Item>("SELECT * FROM items")
+    return items |> Seq.toList
+}
+```
+
+For production (file-based SQLite), connection pooling handles cleanup automatically.
 
 ### Database Initialization
 
@@ -818,6 +902,9 @@ module Backup =
 8. **Test migrations** on copy of production data
 9. **Use async/await** for all I/O operations
 10. **Validate before persisting** (use Validation module)
+11. **Use lazy loading** for database configuration (test isolation!)
+12. **Support `USE_MEMORY_DB`** environment variable for tests
+13. **Never dispose shared connections** in test mode
 
 ## Next Steps
 
