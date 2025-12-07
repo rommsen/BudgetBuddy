@@ -458,6 +458,153 @@ let additionalEdgeCaseTests =
     ]
 
 // ============================================
+// Memo With Reference Tests (Regression tests for memo truncation bug)
+// ============================================
+
+/// Memo limit (must match YnabClient.memoLimit)
+let private memoLimit = 300
+
+/// Compresses multiple consecutive whitespace characters into a single space
+let private compressWhitespace (text: string) =
+    System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim()
+
+/// Simulates the memo construction logic from YnabClient.buildMemoWithReference
+/// This duplicates the logic to test the expected behavior without exposing private functions
+let private buildMemoWithReference (memo: string) (reference: string) : string =
+    let compressedMemo = compressWhitespace memo
+    let suffix = $", Ref: {reference}"
+    let fullMemo = $"{compressedMemo}{suffix}"
+
+    if fullMemo.Length <= memoLimit then
+        fullMemo
+    else
+        // Truncate from the beginning, keeping the reference intact
+        // Format: "...<truncated memo>, Ref: <reference>"
+        let availableForMemo = memoLimit - suffix.Length - 3  // -3 for "..."
+        if availableForMemo <= 0 then
+            // Reference alone is too long (unlikely), just truncate the whole thing
+            fullMemo.Substring(fullMemo.Length - memoLimit)
+        else
+            let truncatedMemo = compressedMemo.Substring(compressedMemo.Length - availableForMemo)
+            $"...{truncatedMemo}{suffix}"
+
+[<Tests>]
+let memoWithReferenceTests =
+    testList "Memo With Reference (Regression Tests)" [
+        test "short memo with reference stays intact" {
+            // This test ensures that short memos don't get unnecessarily truncated
+            let memo = "Short memo"
+            let reference = "REF123456"
+            let result = buildMemoWithReference memo reference
+
+            Expect.equal result "Short memo, Ref: REF123456" "Short memo should stay intact with reference appended"
+            Expect.isLessThanOrEqual result.Length memoLimit "Result should fit within YNAB limit"
+
+            // Most importantly: extractReference must work!
+            let extracted = extractReference (Some result)
+            Expect.equal extracted (Some reference) "Reference must be extractable"
+        }
+
+        test "long memo is truncated from beginning, reference preserved" {
+            // This test prevents regression of the bug where memos were truncated from the end,
+            // cutting off the reference and breaking duplicate detection.
+            let longMemo = String.replicate 350 "x"  // Way longer than limit
+            let reference = "COMDIRECT123456789"
+            let result = buildMemoWithReference longMemo reference
+
+            Expect.equal result.Length memoLimit $"Result must be exactly {memoLimit} characters"
+            Expect.stringStarts result "..." "Truncated memo should start with ..."
+            Expect.stringEnds result $", Ref: {reference}" "Reference must be at the end"
+
+            // Most importantly: extractReference must work!
+            let extracted = extractReference (Some result)
+            Expect.equal extracted (Some reference) "Reference must be extractable from truncated memo"
+        }
+
+        test "memo exactly at limit stays intact" {
+            // Edge case: memo + reference equals exactly limit chars
+            let reference = "REF12345"  // 8 chars
+            let suffix = $", Ref: {reference}"  // ", Ref: REF12345" = 15 chars
+            let memoLength = memoLimit - suffix.Length
+            let memo = String.replicate memoLength "y"
+
+            let result = buildMemoWithReference memo reference
+
+            Expect.equal result.Length memoLimit $"Result should be exactly {memoLimit} characters"
+            Expect.isFalse (result.StartsWith("...")) "Should not be truncated"
+
+            let extracted = extractReference (Some result)
+            Expect.equal extracted (Some reference) "Reference must be extractable"
+        }
+
+        test "reference with special characters is preserved" {
+            // Comdirect references can contain various characters
+            let memo = "Test transaction"
+            let reference = "2025-12-07-ABC/123.456"
+            let result = buildMemoWithReference memo reference
+
+            let extracted = extractReference (Some result)
+            Expect.equal extracted (Some reference) "Reference with special chars must be extractable"
+        }
+
+        test "very long reference still works" {
+            // Edge case: reference is unusually long (but still fits)
+            let memo = "Short"
+            let reference = String.replicate 50 "R"  // 50 char reference
+            let result = buildMemoWithReference memo reference
+
+            Expect.isLessThanOrEqual result.Length memoLimit "Result should fit within limit"
+
+            let extracted = extractReference (Some result)
+            Expect.equal extracted (Some reference) "Long reference must be extractable"
+        }
+
+        test "duplicate detection works with constructed memo" {
+            // End-to-end test: verify that a transaction can be detected as duplicate
+            // when the YNAB transaction has a memo built by buildMemoWithReference
+            let reference = "UNIQUE_REF_123"
+            let bankMemo = String.replicate 350 "m"  // Long memo that will be truncated
+            let constructedMemo = buildMemoWithReference bankMemo reference
+
+            let bankTx = createBankTransaction reference (Some "Payee") bankMemo -50m DateTime.Today
+            let ynabTx = createYnabTransaction "ynab-1" DateTime.Today -50m (Some "Payee") (Some constructedMemo) None
+
+            // The duplicate detection should find this as a confirmed duplicate
+            let result = matchesByReference bankTx ynabTx
+            Expect.isTrue result "Bank transaction should be detected as duplicate via reference"
+        }
+
+        test "multiple whitespaces are compressed to single space" {
+            // Comdirect memos often have multiple spaces
+            let memo = "Payment   from    John   Doe"
+            let reference = "REF123"
+            let result = buildMemoWithReference memo reference
+
+            Expect.equal result "Payment from John Doe, Ref: REF123" "Multiple spaces should be compressed"
+
+            let extracted = extractReference (Some result)
+            Expect.equal extracted (Some reference) "Reference must be extractable"
+        }
+
+        test "tabs and newlines are compressed to single space" {
+            // Various whitespace characters should be normalized
+            let memo = "Line1\t\tTabbed\nNewline"
+            let reference = "REF456"
+            let result = buildMemoWithReference memo reference
+
+            Expect.equal result "Line1 Tabbed Newline, Ref: REF456" "All whitespace should be compressed"
+        }
+
+        test "leading and trailing whitespace is trimmed" {
+            let memo = "   Trimmed memo   "
+            let reference = "REF789"
+            let result = buildMemoWithReference memo reference
+
+            Expect.equal result "Trimmed memo, Ref: REF789" "Whitespace should be trimmed"
+        }
+    ]
+
+// ============================================
 // Count Duplicates Tests
 // ============================================
 

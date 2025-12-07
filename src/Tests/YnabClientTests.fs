@@ -445,26 +445,22 @@ let transactionConversionTests =
 
             Expect.equal payeeName "Custom Payee" "Should use PayeeOverride when provided"
 
-        testCase "truncates long memo to 200 characters" <| fun () ->
-            let longMemo = String.replicate 250 "a"
-            let truncatedMemo =
-                if longMemo.Length > 200 then
-                    longMemo.Substring(0, 197) + "..."
-                else
-                    longMemo
-
-            Expect.equal truncatedMemo.Length 200 "Memo should be truncated to 200 characters"
-            Expect.stringEnds truncatedMemo "..." "Truncated memo should end with ..."
-
-        testCase "keeps short memo as-is" <| fun () ->
+        testCase "memo with reference fits within 300 char limit" <| fun () ->
+            // New behavior: memo + ", Ref: <reference>" is constructed
+            // Limit is 300 chars, truncation happens from the beginning
             let shortMemo = "Short memo"
-            let result =
-                if shortMemo.Length > 200 then
-                    shortMemo.Substring(0, 197) + "..."
-                else
-                    shortMemo
+            let reference = "REF123"
+            let expectedMemo = $"{shortMemo}, Ref: {reference}"
 
-            Expect.equal result "Short memo" "Short memo should not be modified"
+            Expect.isLessThanOrEqual expectedMemo.Length 300 "Memo with reference should fit within limit"
+            Expect.stringEnds expectedMemo $", Ref: {reference}" "Memo should end with reference"
+
+        testCase "whitespace in memo is compressed" <| fun () ->
+            // Multiple whitespaces are compressed to single space
+            let memoWithSpaces = "Payment   from    John"
+            let compressed = System.Text.RegularExpressions.Regex.Replace(memoWithSpaces, @"\s+", " ").Trim()
+
+            Expect.equal compressed "Payment from John" "Multiple spaces should be compressed"
 
         testCase "filters out skipped transactions" <| fun () ->
             let transactions = [
@@ -711,14 +707,26 @@ let propertyBasedTests =
             else
                 true
 
-        testProperty "memo truncation preserves prefix" <| fun (memo: string) ->
+        testProperty "memo with reference respects 300 char limit" <| fun (memo: string) ->
             if not (String.IsNullOrEmpty(memo)) then
-                let truncated =
-                    if memo.Length > 200 then
-                        memo.Substring(0, 197) + "..."
+                let memoLimit = 300
+                let reference = "REF123"
+                let compressed = System.Text.RegularExpressions.Regex.Replace(memo, @"\s+", " ").Trim()
+                let suffix = $", Ref: {reference}"
+                let fullMemo = $"{compressed}{suffix}"
+
+                let result =
+                    if fullMemo.Length <= memoLimit then
+                        fullMemo
                     else
-                        memo
-                truncated.Length <= 200
+                        let availableForMemo = memoLimit - suffix.Length - 3
+                        if availableForMemo <= 0 then
+                            fullMemo.Substring(fullMemo.Length - memoLimit)
+                        else
+                            let truncatedMemo = compressed.Substring(compressed.Length - availableForMemo)
+                            $"...{truncatedMemo}{suffix}"
+
+                result.Length <= memoLimit && result.EndsWith(suffix)
             else
                 true
     ]

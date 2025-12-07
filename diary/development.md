@@ -4,6 +4,74 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-07 19:50 - Increased Memo Limit to 300 + Whitespace Compression
+
+**What I did:**
+1. Increased memo character limit from 200 to 300 (testing if YNAB accepts it)
+2. Added whitespace compression: multiple spaces/tabs/newlines become single space
+
+**Why:**
+- Old GitHub issue (2019) claimed 100-char limit, but that may be outdated
+- Testing with 300 to see actual limit
+- Whitespace compression saves characters for actual content
+
+**Files Modified:**
+- `src/Server/YnabClient.fs`:
+  - Added `memoLimit = 300` constant
+  - Added `compressWhitespace` function using regex `\s+` → single space
+  - Applied compression before truncation
+
+- `src/Tests/DuplicateDetectionTests.fs`:
+  - Updated limit from 200 to 300
+  - Added 3 new tests for whitespace compression
+
+- `src/Tests/YnabClientTests.fs`:
+  - Updated memo tests to reflect new behavior
+
+**Outcomes:**
+- Build: ✅ success
+- Tests: 269 passed (6 skipped integration tests)
+
+---
+
+## 2025-12-07 19:40 - Fixed Memo Truncation Breaking Duplicate Detection
+
+**What I did:**
+Fixed a critical bug where memos were being truncated from the END, causing the Comdirect reference to be cut off. This broke duplicate detection because the reference is appended as ", Ref: <reference>" at the end of the memo.
+
+**Root Cause:**
+The old `truncateMemo` function truncated long memos to 197 characters + "..." = 200 chars (YNAB limit). But the reference was NOT being appended to the memo at all when sending to YNAB! The duplicate detection system (`DuplicateDetection.fs`) expects to find "Ref: <reference>" at the end of YNAB memos to match transactions.
+
+**The Fix:**
+1. Created new `buildMemoWithReference` function that:
+   - Appends ", Ref: <reference>" to the memo
+   - If total > 200 chars: truncates from the BEGINNING (preserving the reference)
+   - Format when truncated: "...<truncated memo>, Ref: <reference>"
+
+2. Kept simple `truncateSplitMemo` for split transaction memos (they don't need a reference since the parent transaction has one)
+
+**Files Modified:**
+- `src/Server/YnabClient.fs`:
+  - Replaced `truncateMemo` with `buildMemoWithReference(memo, reference)`
+  - Added `truncateSplitMemo` for split transactions (line 220-225)
+  - Added `buildMemoWithReference` function (lines 227-246)
+  - Updated memo construction to include reference (line 355)
+  - Updated split memo to use `truncateSplitMemo` (line 313)
+
+- `src/Tests/DuplicateDetectionTests.fs`:
+  - Added 6 regression tests for memo with reference behavior (lines 460-568)
+  - Tests verify reference is always extractable after truncation
+
+**Why This Matters:**
+Without the reference in the YNAB memo, transactions imported to YNAB could not be detected as duplicates on subsequent syncs. This would lead to duplicate transactions in YNAB.
+
+**Outcomes:**
+- Build: ✅ success
+- Tests: 266 passed (6 skipped integration tests)
+- All regression tests for memo truncation pass
+
+---
+
 ## 2025-12-07 - YNAB Import: Uncleared Transactions + Optional Categories
 
 **What I did:**

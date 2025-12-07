@@ -217,12 +217,41 @@ let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<
             return Error (YnabError.NetworkError $"Failed to fetch categories: {ex.Message}")
     }
 
-/// Helper to truncate memo to YNAB's 200 character limit
-let private truncateMemo (memo: string) =
-    if memo.Length > 200 then
-        memo.Substring(0, 197) + "..."
+/// YNAB memo character limit (testing with 300, may need adjustment)
+let private memoLimit = 300
+
+/// Compresses multiple consecutive whitespace characters into a single space
+let private compressWhitespace (text: string) =
+    System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim()
+
+/// Simple truncation for split memos (no reference needed - parent has it)
+let private truncateSplitMemo (memo: string) =
+    let compressed = compressWhitespace memo
+    if compressed.Length > memoLimit then
+        compressed.Substring(0, memoLimit - 3) + "..."
     else
-        memo
+        compressed
+
+/// Builds memo with reference suffix for YNAB, ensuring reference is never truncated.
+/// Format: "<memo>, Ref: <reference>"
+/// If memo exceeds limit, truncates from the BEGINNING to preserve the reference.
+let private buildMemoWithReference (memo: string) (reference: string) : string =
+    let compressedMemo = compressWhitespace memo
+    let suffix = $", Ref: {reference}"
+    let fullMemo = $"{compressedMemo}{suffix}"
+
+    if fullMemo.Length <= memoLimit then
+        fullMemo
+    else
+        // Truncate from the beginning, keeping the reference intact
+        // Format: "...<truncated memo>, Ref: <reference>"
+        let availableForMemo = memoLimit - suffix.Length - 3  // -3 for "..."
+        if availableForMemo <= 0 then
+            // Reference alone is too long (unlikely), just truncate the whole thing
+            fullMemo.Substring(fullMemo.Length - memoLimit)
+        else
+            let truncatedMemo = compressedMemo.Substring(compressedMemo.Length - availableForMemo)
+            $"...{truncatedMemo}{suffix}"
 
 // ============================================
 // YNAB Transaction Types for JSON Encoding
@@ -289,7 +318,7 @@ let private createSubtransaction (split: TransactionSplit) : YnabSubtransactionR
     {
         Amount = int (split.Amount.Amount * 1000m)  // Convert to milliunits
         CategoryId = categoryIdGuid.ToString()
-        Memo = split.Memo |> Option.map truncateMemo
+        Memo = split.Memo |> Option.map truncateSplitMemo
     }
 
 /// Creates transactions in YNAB
@@ -338,7 +367,7 @@ let createTransactions
                             tx.PayeeOverride
                             |> Option.orElse tx.Transaction.Payee
                             |> Option.defaultValue "Unknown"
-                        Memo = truncateMemo tx.Transaction.Memo
+                        Memo = buildMemoWithReference tx.Transaction.Memo tx.Transaction.Reference
                         Cleared = "uncleared"
                         ImportId = importId  // Prevents duplicates (max 36 chars)
                         CategoryId = None
