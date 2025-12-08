@@ -26,6 +26,10 @@ Ideen und Features für spätere Implementierung.
 - [x] **Import ohne Kategorie**: Transaktionen müssen auch ohne Kategorie importiert werden können. Diese dürfen dann auf keinen Fall gecleared sein (Uncategorized-Workflow in YNAB) ✅ (2025-12-07)
 - [ ] **Regel aus Zuweisungs-Dialog erstellen**: Direkt aus dem Dialog, in dem Transaktionen Kategorien zugeordnet werden, soll eine Regel erstellt werden können, sodass ähnliche Transaktionen beim nächsten Mal automatisch kategorisiert werden.
 
+### Mittel-Hohe Priorität
+
+- [ ] **Optionale Comdirect-PIN (On-Demand Abfrage)**: Die Comdirect-PIN soll nicht zwingend in den Settings gespeichert werden müssen. Wenn keine PIN gespeichert ist, wird sie bei jedem Sync-Abruf über ein Modal abgefragt. Wenn eine PIN gespeichert ist, wird diese automatisch verwendet. Optional: "PIN merken" Checkbox im Modal zum nachträglichen Speichern. Vorteil: Mehr Sicherheit für Benutzer, die sensible Daten nicht persistent speichern wollen.
+
 ### Mittlere Priorität
 
 - [ ] **Cleared-Setting**: In den Settings einstellen können, ob YNAB Transaktionen beim Import als "cleared" oder "uncleared" markiert werden
