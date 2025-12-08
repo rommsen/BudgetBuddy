@@ -132,8 +132,42 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with SyncTransactions = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | CategorizeTransaction (txId, categoryId) ->
-        match model.CurrentSession with
-        | Success (Some session) ->
+        match model.CurrentSession, model.SyncTransactions with
+        | Success (Some session), Success transactions ->
+            // Optimistic UI: Update locally first for instant feedback
+            let updatedTransactions =
+                transactions
+                |> List.map (fun tx ->
+                    if tx.Transaction.Id = txId then
+                        // Find category name for display
+                        let categoryName =
+                            categoryId
+                            |> Option.bind (fun catId ->
+                                model.Categories |> List.tryFind (fun c -> c.Id = catId))
+                            |> Option.map (fun c -> $"{c.GroupName}: {c.Name}")
+                        // Update status based on category selection
+                        let newStatus =
+                            match tx.Status, categoryId with
+                            | Skipped, _ -> Skipped  // Keep skipped status
+                            | _, Some _ -> ManualCategorized
+                            | _, None -> Pending
+                        { tx with
+                            CategoryId = categoryId
+                            CategoryName = categoryName
+                            Status = newStatus
+                            Splits = None }  // Clear splits when changing category
+                    else tx)
+
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.sync.categorizeTransaction
+                    (session.Id, txId, categoryId, None)
+                    TransactionCategorized
+                    (fun ex -> Error (SyncError.DatabaseError ("categorize", ex.Message)) |> TransactionCategorized)
+
+            { model with SyncTransactions = Success updatedTransactions }, cmd, NoOp
+        | Success (Some session), _ ->
+            // Transactions not loaded yet, just make the API call
             let cmd =
                 Cmd.OfAsync.either
                     Api.sync.categorizeTransaction
@@ -152,7 +186,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | _ -> model, Cmd.none, NoOp
 
     | TransactionCategorized (Error err) ->
-        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+        // Rollback: reload transactions from server to restore correct state
+        model, Cmd.ofMsg LoadTransactions, ShowToast (syncErrorToString err, ToastError)
 
     | SkipTransaction txId ->
         match model.CurrentSession with

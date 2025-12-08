@@ -8,7 +8,7 @@ Ideen und Features für spätere Implementierung.
 
 ### Hohe Priorität
 
-- [ ] **Langsame Kategorie-Auswahl**: Während der Zuordnung von Kategorien zu Transaktionen: Die Auswahl einer Kategorie in der Selectbox dauert fast eine Sekunde bis sie als ausgewählt angezeigt wird. Möglicherweise wird zu viel gerendert oder es passiert ein unnötiger Request im Hintergrund.
+(keine)
 
 ### Mittlere Priorität
 
@@ -48,4 +48,8 @@ Ideen und Features für spätere Implementierung.
 ---
 
 ## Abgeschlossen
+
+### Bugs
+
+- [x] **Langsame Kategorie-Auswahl**: Optimistisches UI implementiert - UI aktualisiert sofort lokal statt auf Backend-Antwort zu warten ✅ (2025-12-08)
 

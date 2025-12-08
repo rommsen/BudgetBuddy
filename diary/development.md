@@ -4,6 +4,40 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-08 - Fix: Langsame Kategorie-Auswahl (Optimistisches UI)
+
+**What I did:**
+Bug behoben, bei dem die Auswahl einer Kategorie in der Selectbox fast eine Sekunde dauerte. Die Ursache war, dass das UI auf die Backend-Antwort gewartet hat, bevor die Kategorie-Auswahl angezeigt wurde ("pessimistisches UI"). Jetzt wird das Model sofort lokal aktualisiert (optimistisches UI) und der API-Call läuft im Hintergrund.
+
+**Problem:**
+- Bei `CategorizeTransaction` wurde das Model NICHT aktualisiert, nur ein API-Call gestartet
+- Erst bei `TransactionCategorized` (nach ~500-1000ms) wurde das Model aktualisiert
+- Benutzer musste auf jede Kategorie-Auswahl warten
+
+**Lösung:**
+- Optimistisches UI: Model wird sofort lokal aktualisiert mit der neuen Kategorie
+- API-Call läuft im Hintergrund
+- Bei Fehler: Rollback durch Neuladen der Transaktionen
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/State.fs`
+  - `CategorizeTransaction` aktualisiert jetzt sofort das lokale Model
+  - `TransactionCategorized (Error _)` löst jetzt `LoadTransactions` aus für Rollback
+
+**Technische Details:**
+- Die Kategorie-Auswahl aktualisiert jetzt sofort:
+  - `CategoryId` und `CategoryName`
+  - `Status` zu `ManualCategorized` (oder `Pending` bei Leer-Auswahl)
+  - `Splits` wird auf `None` gesetzt
+- Bei Fehler werden Transaktionen vom Server neu geladen (konsistenter Zustand)
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped
+- Kategorie-Auswahl ist jetzt sofort sichtbar (keine Verzögerung mehr)
+
+---
+
 ## 2025-12-07 22:45 - Entferne Comdirect Zeilennummern-Präfixe aus Memos
 
 **What I did:**

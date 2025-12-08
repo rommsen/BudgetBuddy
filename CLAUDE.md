@@ -65,9 +65,26 @@ When the user provides a specification file (markdown describing a feature):
 9. src/Tests/               → Tests
 ```
 
-## Milestone Tracking
+## Milestone & Backlog Tracking
 
-**IMPORTANT**: When implementing milestones from `/docs/MILESTONE-PLAN.md`:
+**IMPORTANT**: Die folgenden Qualitätskriterien gelten für ALLE Implementierungen:
+- Milestones aus `/docs/MILESTONE-PLAN.md`
+- Features und Bugs aus `/backlog.md`
+- Jede andere signifikante Code-Änderung
+
+### Qualitätskriterien (MANDATORY)
+
+Bei jeder Feature-Implementierung oder Bug-Fix MÜSSEN folgende Schritte eingehalten werden:
+
+1. **QA Review**: Nach Abschluss den **qa-milestone-reviewer** Agent aufrufen
+2. **Tests**: Alle neuen Features/Fixes müssen Tests haben
+3. **Diary**: Development Diary aktualisieren (`diary/development.md`)
+4. **Build & Test**: `dotnet build` und `dotnet test` müssen erfolgreich sein
+5. **Backlog Update**: Erledigte Items in `/backlog.md` abhaken mit Datum
+
+### Milestone-spezifisch
+
+Wenn du Milestones aus `/docs/MILESTONE-PLAN.md` implementierst:
 
 1. **After completing each milestone**, you MUST:
    a. Invoke the **qa-milestone-reviewer** agent using the Task tool to verify test quality and coverage
@@ -78,10 +95,21 @@ When the user provides a specification file (markdown describing a feature):
    - **Summary of Changes**: List all modifications made
    - **Test Quality Review**: Summary from qa-milestone-reviewer agent
    - **Notes**: Any important observations or deviations from the plan
-4. This provides a clear audit trail of progress through the implementation plan
 
-**QA Review Process:**
-After milestone implementation and before marking complete, ALWAYS use:
+### Backlog-spezifisch
+
+Wenn du Features oder Bugs aus `/backlog.md` implementierst:
+
+1. **Vor der Implementierung**: Lies das Backlog-Item sorgfältig
+2. **Nach der Implementierung**:
+   a. Invoke den **qa-milestone-reviewer** Agent für Test-Coverage
+   b. Markiere das Item als erledigt: `- [x] **Feature Name** ... ✅ (YYYY-MM-DD)`
+   c. Verschiebe abgeschlossene Items in den "Abgeschlossen" Abschnitt
+3. **Diary Entry**: Dokumentiere was implementiert wurde
+
+### QA Review Process
+
+Nach jeder Implementierung und vor dem Abschluss, ALWAYS use:
 ```
 Task tool with subagent_type='qa-milestone-reviewer'
 ```
@@ -91,7 +119,8 @@ This agent will:
 - Identify any missing test coverage
 - Define missing tests (implementation done by red-test-fixer agent if needed)
 
-Example:
+### Beispiel: Milestone Completion
+
 ```markdown
 ### Verification
 - [x] All verification items completed
@@ -110,6 +139,15 @@ Example:
 - No tautological tests found
 
 **Notes**: Server already had most structure in place.
+```
+
+### Beispiel: Backlog Item Completion
+
+In `/backlog.md`:
+```markdown
+## Abgeschlossen
+
+- [x] **Optionale Comdirect-PIN**: On-Demand PIN-Abfrage implementiert ✅ (2025-12-08)
 ```
 
 ## Key Principles
