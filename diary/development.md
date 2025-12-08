@@ -4,6 +4,59 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-08 - Feature: Suchbare Kategorie-Selectboxen mit Keyboard-Navigation
+
+**What I did:**
+Neue SearchableSelect Komponente implementiert, die eine durchsuchbare Dropdown-Liste für Kategorien bereitstellt. Beim Öffnen erscheint ein Textfeld mit Auto-Fokus, das die Kategorien mit "contains"-Logik filtert (case-insensitive Suche in der Mitte des Namens möglich). Vollständige Keyboard-Navigation hinzugefügt.
+
+**Files Added:**
+- Keine neuen Dateien
+
+**Files Modified:**
+- `src/Client/DesignSystem/Input.fs`
+  - Neue `SearchableSelectProps` Type-Definition
+  - Neue `SearchableSelect` React-Komponente mit:
+    - Click-outside Detection zum Schließen
+    - Auto-Focus auf Suchfeld beim Öffnen
+    - Case-insensitive Contains-Filter
+    - **Vollständige Keyboard-Navigation:**
+      - ⬆️⬇️ Arrow Up/Down zum Navigieren
+      - ↵ Enter zum Auswählen
+      - ⎋ Escape zum Schließen
+      - ⇥ Tab zum Schließen
+      - Wrap-around an Liste-Enden
+    - Visuelles Highlighting der aktuell hervorgehobenen Option
+    - Auto-Scroll zur hervorgehobenen Option (nur bei Tastatur-Navigation)
+    - Mouse-Hover aktualisiert auch den Highlight-Index
+  - Neue `searchableSelect` Helper-Funktion
+  - SVG-Warnungen behoben (Html.svg → Svg.svg)
+- `src/Client/Components/SyncFlow/View.fs`
+  - `selectWithPlaceholder` ersetzt durch `searchableSelect` für Kategorie-Auswahl
+- `src/Client/Components/Rules/View.fs`
+  - `selectWithPlaceholder` ersetzt durch `searchableSelect` für Kategorie-Auswahl
+
+**Technische Details:**
+- React Hooks: `useState` für isOpen/searchText/highlightedIndex/isKeyboardNav, `useRef` für Container/Input/List
+- useEffect für Click-outside-Detection, Auto-Focus, und Auto-Scroll
+- Filter: `label.ToLowerInvariant().Contains(searchLower)`
+- Index 0 = Clear/Placeholder Option, Index 1+ = gefilterte Optionen
+- Dropdown zeigt "No matches found" bei leerer Ergebnisliste
+- `data-option-index` Attribut für DOM-Abfrage beim Scrolling
+
+**Bug-Fix: Scroll-Verhalten in Modals:**
+- Problem: Mouse-Hover triggerte `scrollIntoView()`, was das gesamte Modal/Fenster scrollte
+- Lösung: Neuer `isKeyboardNav` State unterscheidet zwischen Maus- und Tastatur-Navigation
+- Auto-Scroll nur bei Tastatur-Navigation via manuelles `list.scrollTop` (scrollt nur innerhalb der Dropdown-Liste)
+- `setHighlightFromMouse` Helper setzt `isKeyboardNav = false` bei Mouse-Events
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped
+- Beide Kategorie-Selectboxen sind jetzt durchsuchbar und per Tastatur navigierbar
+- Maus-Scrollen funktioniert ohne unerwünschtes Seiten-/Modal-Scrolling
+
+---
+
 ## 2025-12-08 - Fix: Langsame Kategorie-Auswahl (Optimistisches UI)
 
 **What I did:**

@@ -253,7 +253,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                         Children =
                             Html.div [
                                 prop.children [
-                                    Input.selectWithPlaceholder
+                                    Input.searchableSelect
                                         (match model.RuleFormCategoryId with
                                          | Some (YnabCategoryId id) -> id.ToString()
                                          | None -> "")

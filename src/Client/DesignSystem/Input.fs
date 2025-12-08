@@ -407,3 +407,306 @@ let formSection (title: string) (children: ReactElement list) =
             ]
         ]
     ]
+
+// ============================================
+// Searchable Select (Combobox)
+// ============================================
+
+type SearchableSelectProps = {
+    Value: string
+    OnChange: string -> unit
+    Options: (string * string) list  // (value, label) pairs
+    Placeholder: string
+    Size: InputSize
+    Disabled: bool
+}
+
+let searchableSelectDefaults = {
+    Value = ""
+    OnChange = ignore
+    Options = []
+    Placeholder = "Select..."
+    Size = Medium
+    Disabled = false
+}
+
+/// Searchable select dropdown with filter functionality and keyboard navigation
+[<ReactComponent>]
+let SearchableSelect (props: SearchableSelectProps) =
+    let isOpen, setIsOpen = React.useState false
+    let searchText, setSearchText = React.useState ""
+    let highlightedIndex, setHighlightedIndex = React.useState -1
+    let isKeyboardNav, setIsKeyboardNav = React.useState false  // Track if navigation is via keyboard
+    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
+    let inputRef = React.useRef<Browser.Types.HTMLInputElement option> None
+    let listRef = React.useRef<Browser.Types.HTMLElement option> None
+
+    // Find current label for display
+    let currentLabel =
+        props.Options
+        |> List.tryFind (fun (v, _) -> v = props.Value)
+        |> Option.map snd
+        |> Option.defaultValue ""
+
+    // Filter options based on search (case-insensitive contains)
+    let filteredOptions =
+        if System.String.IsNullOrWhiteSpace searchText then
+            props.Options
+        else
+            let searchLower = searchText.ToLowerInvariant()
+            props.Options
+            |> List.filter (fun (_, label) ->
+                label.ToLowerInvariant().Contains searchLower)
+
+    // Total items: 1 (placeholder/clear) + filtered options
+    let totalItems = 1 + filteredOptions.Length
+
+    // Reset highlighted index when search changes
+    React.useEffect (fun () ->
+        setHighlightedIndex -1
+    , [| searchText :> obj |])
+
+    // Close dropdown when clicking outside
+    React.useEffect (fun () ->
+        let handleClickOutside (e: Browser.Types.Event) =
+            match containerRef.current with
+            | Some container ->
+                let target = e.target :?> Browser.Types.HTMLElement
+                if not (container.contains target) then
+                    setIsOpen false
+                    setSearchText ""
+                    setHighlightedIndex -1
+            | None -> ()
+
+        Browser.Dom.document.addEventListener("mousedown", handleClickOutside)
+        { new System.IDisposable with
+            member _.Dispose() =
+                Browser.Dom.document.removeEventListener("mousedown", handleClickOutside)
+        }
+    , [| isOpen :> obj |])
+
+    // Focus input when dropdown opens
+    React.useEffect (fun () ->
+        if isOpen then
+            match inputRef.current with
+            | Some input -> input.focus()
+            | None -> ()
+            setHighlightedIndex -1
+    , [| isOpen :> obj |])
+
+    // Scroll highlighted item into view - ONLY for keyboard navigation
+    // This prevents the page/modal from scrolling when using mouse
+    React.useEffect (fun () ->
+        if highlightedIndex >= 0 && isKeyboardNav then
+            match listRef.current with
+            | Some list ->
+                let items = list.querySelectorAll("[data-option-index]")
+                if highlightedIndex < int items.length then
+                    let item = items.[highlightedIndex] :?> Browser.Types.HTMLElement
+                    // Manual scroll within list container only
+                    let itemTop = item.offsetTop
+                    let itemHeight = item.offsetHeight
+                    let listScrollTop = list.scrollTop
+                    let listHeight = list.clientHeight
+
+                    // Scroll up if item is above visible area
+                    if itemTop < listScrollTop then
+                        list.scrollTop <- itemTop
+                    // Scroll down if item is below visible area
+                    elif itemTop + itemHeight > listScrollTop + listHeight then
+                        list.scrollTop <- itemTop + itemHeight - listHeight
+            | None -> ()
+    , [| highlightedIndex :> obj; isKeyboardNav :> obj |])
+
+    let selectOption index =
+        if index = 0 then
+            // Placeholder = clear selection
+            props.OnChange ""
+        elif index > 0 && index <= filteredOptions.Length then
+            let value, _ = filteredOptions.[index - 1]
+            props.OnChange value
+        setIsOpen false
+        setSearchText ""
+        setHighlightedIndex -1
+        setIsKeyboardNav false
+
+    let handleKeyDown (e: Browser.Types.KeyboardEvent) =
+        match e.key with
+        | "Escape" ->
+            e.preventDefault()
+            setIsOpen false
+            setSearchText ""
+            setHighlightedIndex -1
+            setIsKeyboardNav false
+        | "ArrowDown" ->
+            e.preventDefault()
+            setIsKeyboardNav true  // Mark as keyboard navigation
+            let nextIndex =
+                if highlightedIndex < totalItems - 1 then highlightedIndex + 1
+                else 0  // Wrap to top
+            setHighlightedIndex nextIndex
+        | "ArrowUp" ->
+            e.preventDefault()
+            setIsKeyboardNav true  // Mark as keyboard navigation
+            let nextIndex =
+                if highlightedIndex > 0 then highlightedIndex - 1
+                else totalItems - 1  // Wrap to bottom
+            setHighlightedIndex nextIndex
+        | "Enter" ->
+            e.preventDefault()
+            if highlightedIndex >= 0 then
+                selectOption highlightedIndex
+            elif filteredOptions.Length = 1 then
+                // Auto-select single match
+                selectOption 1
+        | "Tab" ->
+            // Close on tab
+            setIsOpen false
+            setSearchText ""
+            setHighlightedIndex -1
+            setIsKeyboardNav false
+        | _ -> ()
+
+    // Helper to set highlight from mouse without triggering scroll
+    let setHighlightFromMouse index =
+        setIsKeyboardNav false
+        setHighlightedIndex index
+
+    let sizeClass = sizeToClass props.Size
+    let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
+
+    Html.div [
+        prop.className "relative"
+        prop.ref containerRef
+        prop.children [
+            // Display button (shows current selection or placeholder)
+            Html.button [
+                prop.type' "button"
+                prop.className $"{baseInputClass} {sizeClass} {disabledClass} text-left flex items-center justify-between gap-2 cursor-pointer"
+                prop.disabled props.Disabled
+                prop.onClick (fun e ->
+                    e.preventDefault()
+                    if not props.Disabled then
+                        setIsOpen (not isOpen)
+                        setSearchText ""
+                )
+                prop.onKeyDown (fun e ->
+                    // Open dropdown on arrow keys when closed
+                    if not isOpen && (e.key = "ArrowDown" || e.key = "ArrowUp" || e.key = "Enter") then
+                        e.preventDefault()
+                        setIsOpen true
+                )
+                prop.children [
+                    Html.span [
+                        prop.className (if props.Value = "" then "text-base-content/50" else "text-base-content truncate")
+                        prop.text (if props.Value = "" then props.Placeholder else currentLabel)
+                    ]
+                    // Chevron icon
+                    let rotateClass = if isOpen then "rotate-180" else ""
+                    Svg.svg [
+                        svg.className $"w-4 h-4 text-base-content/50 flex-shrink-0 transition-transform {rotateClass}"
+                        svg.fill "none"
+                        svg.viewBox (0, 0, 24, 24)
+                        svg.stroke "currentColor"
+                        svg.custom ("strokeWidth", "2")
+                        svg.children [
+                            Svg.path [
+                                svg.custom ("strokeLinecap", "round")
+                                svg.custom ("strokeLinejoin", "round")
+                                svg.d "M19 9l-7 7-7-7"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // Dropdown
+            if isOpen then
+                Html.div [
+                    prop.className "absolute z-50 w-full mt-1 bg-[#252836] border border-white/10 rounded-lg shadow-xl overflow-hidden"
+                    prop.children [
+                        // Search input
+                        Html.div [
+                            prop.className "p-2 border-b border-white/10"
+                            prop.children [
+                                Html.input [
+                                    prop.ref inputRef
+                                    prop.type' "text"
+                                    prop.className "w-full bg-base-100 text-base-content border border-white/10 rounded-md px-3 py-2 text-sm focus:border-neon-teal focus:outline-none placeholder:text-base-content/50"
+                                    prop.placeholder "Type to search..."
+                                    prop.value searchText
+                                    prop.autoFocus true
+                                    prop.onChange setSearchText
+                                    prop.onKeyDown handleKeyDown
+                                    prop.style [ style.fontSize 16 ]
+                                ]
+                            ]
+                        ]
+
+                        // Options list
+                        Html.div [
+                            prop.className "max-h-60 overflow-y-auto"
+                            prop.ref listRef
+                            prop.children [
+                                // Empty option (clear selection) - index 0
+                                let clearHighlighted = highlightedIndex = 0
+                                let clearClass =
+                                    if clearHighlighted then
+                                        "w-full text-left px-3 py-2 text-sm italic bg-neon-teal/20 text-neon-teal"
+                                    else
+                                        "w-full text-left px-3 py-2 text-sm text-base-content/50 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
+                                Html.button [
+                                    prop.type' "button"
+                                    prop.className clearClass
+                                    prop.custom ("data-option-index", "0")
+                                    prop.onClick (fun _ -> selectOption 0)
+                                    prop.onMouseEnter (fun _ -> setHighlightFromMouse 0)
+                                    prop.text props.Placeholder
+                                ]
+
+                                if filteredOptions.IsEmpty then
+                                    Html.div [
+                                        prop.className "px-3 py-4 text-sm text-base-content/50 text-center"
+                                        prop.text "No matches found"
+                                    ]
+                                else
+                                    for i, (value, label) in filteredOptions |> List.indexed do
+                                        let optionIndex = i + 1  // +1 because 0 is the clear option
+                                        let isSelected = value = props.Value
+                                        let isHighlighted = highlightedIndex = optionIndex
+                                        let optionClass =
+                                            if isHighlighted then
+                                                "w-full text-left px-3 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
+                                            elif isSelected then
+                                                "w-full text-left px-3 py-2 text-sm transition-colors bg-neon-teal/10 text-neon-teal"
+                                            else
+                                                "w-full text-left px-3 py-2 text-sm transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
+                                        Html.button [
+                                            prop.type' "button"
+                                            prop.className optionClass
+                                            prop.custom ("data-option-index", string optionIndex)
+                                            prop.onClick (fun _ -> selectOption optionIndex)
+                                            prop.onMouseEnter (fun _ -> setHighlightFromMouse optionIndex)
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "truncate block"
+                                                    prop.text label
+                                                ]
+                                            ]
+                                        ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
+/// Simple searchable select with placeholder
+let searchableSelect value onChange placeholder (options: (string * string) list) =
+    SearchableSelect {
+        searchableSelectDefaults with
+            Value = value
+            OnChange = onChange
+            Placeholder = placeholder
+            Options = options
+    }

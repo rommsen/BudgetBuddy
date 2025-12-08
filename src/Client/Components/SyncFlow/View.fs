@@ -266,7 +266,7 @@ let private transactionCard
             Html.div [
                 prop.className "flex flex-col sm:flex-row sm:items-center gap-2 mt-3"
                 prop.children [
-                    Input.selectWithPlaceholder
+                    Input.searchableSelect
                         (tx.CategoryId
                          |> Option.map (fun (YnabCategoryId id) -> id.ToString())
                          |> Option.defaultValue "")

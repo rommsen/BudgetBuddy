@@ -36,7 +36,6 @@ Ideen und Features für spätere Implementierung.
 - [ ] **Automatisch geskippte Transaktionen rot statt ausgegraut**: Transaktionen die automatisch als Duplikate erkannt und geskippt werden, werden rot dargestellt. Diese sollten stattdessen ausgegraut sein (wie andere geskippte Transaktionen).
 - [ ] **Transfer-Unterstützung bei Payees**: Neben der Kategorie soll man auch "Transfer to/from" als Payee hinterlegen können. Nützlich z.B. für Barabhebungen, die nur eine Verschiebung zwischen Konten sind (Transfer to Bar) und keine Budget-Auswirkung haben.
 - [ ] **Einzeilige Rules-Darstellung**: Rules werden aktuell zweizeilig dargestellt und nehmen viel Platz ein. Der gesamte Inhalt soll kompakt in einer Zeile angezeigt werden.
-- [ ] **Suchbare Kategorie-Selectboxen**: Beide Category Select Boxen (im Zuweisungs-Dialog und Rules) sollen durchsuchbar sein. Beim Öffnen der Selectbox soll der Fokus direkt auf einem Textfeld liegen, das die Kategorien mit "contains"-Logik filtert (Suche auch in der Mitte des Namens möglich).
 
 ### Niedrige Priorität
 
@@ -52,4 +51,8 @@ Ideen und Features für spätere Implementierung.
 ### Bugs
 
 - [x] **Langsame Kategorie-Auswahl**: Optimistisches UI implementiert - UI aktualisiert sofort lokal statt auf Backend-Antwort zu warten ✅ (2025-12-08)
+
+### Features
+
+- [x] **Suchbare Kategorie-Selectboxen**: SearchableSelect Komponente mit Textfeld-Filter (contains-Logik) für SyncFlow und Rules ✅ (2025-12-08)
 
