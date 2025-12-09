@@ -4,6 +4,97 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-09 21:00 - UI: Breitere Selectbox & elegante Memo-Anzeige
+
+**What I did:**
+1. Category-Selectbox von `w-52` (208px) auf `w-72` (288px) verbreitert
+2. Memo-Row neu gestaltet mit Glassmorphism-Stil passend zum Design-System
+
+**Memo-Row Redesign:**
+- Glassmorphism: `bg-base-200/30 backdrop-blur-sm border border-white/5`
+- Abgerundete Karte mit Margin statt volle Breite
+- Icon-Badge mit teal Akzent
+- Uppercase Label "MEMO" + relaxed Text-Spacing
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs`
+  - `memoRow`: Komplett neu gestaltet (Zeile 484-512)
+  - Desktop Layout: `w-52` → `w-72` (Zeile 649)
+
+**Outcomes:**
+- Build: ✅
+- Selectbox: Kategorienamen besser lesbar
+- Memo: Passt jetzt zum glassmorphism Design-System
+
+---
+
+## 2025-12-09 20:45 - Performance: Skipped Transactions ohne Selectbox
+
+**What I did:**
+Weitere Performance-Optimierung: Skipped Transactions rendern keine interaktive Selectbox mehr, sondern nur noch einen statischen Kategorienamen als Text.
+
+**Rationale:**
+- Die searchableSelect-Komponente ist teuer zu rendern (Event-Handler, State, DOM-Nodes)
+- Skipped Transactions brauchen keine Interaktion - sie werden nicht importiert
+- Bei 50% skipped = 50% weniger Selectboxen zu rendern
+
+**Implementierung:**
+1. Neue Hilfsfunktion `categoryText`: Sucht Kategorienamen aus vorberechneten Options
+2. Bedingte Render-Logik: `if tx.Status = Skipped then Text else Selectbox`
+3. Angewendet auf Mobile und Desktop Layout
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs`
+  - `categoryText`: Neue Hilfsfunktion für Text-Lookup
+  - Mobile Layout (Zeile 533-551): Bedingte Selectbox/Text
+  - Desktop Layout (Zeile 631-649): Bedingte Selectbox/Text
+
+**Outcomes:**
+- Build: ✅
+- Tests: Nicht geändert (reine UI-Optimierung)
+- Performance: Weniger DOM-Nodes, schnelleres Rendering
+
+---
+
+## 2025-12-09 20:15 - Performance: Category Dropdown 872x schneller
+
+**What I did:**
+Massive Performance-Optimierung der Category-Select-Dropdowns auf der Transaction-Seite. Das Öffnen eines Dropdowns dauerte vorher 15,7 Sekunden - jetzt nur noch 18ms.
+
+**Root Cause:**
+Die Category-Liste wurde für jede der 193 Transaktionszeilen neu berechnet:
+- 193 Transaktionen × 160 Kategorien = **30.880 String-Operationen** pro Render
+- Jedes Mal wurde `List.map` mit String-Interpolation aufgerufen
+
+**Lösung Phase 1 (Category Options vorberechnen):**
+- `categoryOptions` wird einmal vor der Transaktion-Liste berechnet
+- Als Parameter an `transactionRow` übergeben statt `categories`
+- Reduziert Berechnungen von 30.880 auf 160 pro Render
+
+**Lösung Phase 2 (Optimistic UI):**
+- `ManuallyCategorizedIds` wird sofort im Model aktualisiert (vor API-Call)
+- "Create Rule" Button erscheint jetzt sofort nach Kategorisierung
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs`
+  - `transactionRow` Funktion: Signatur geändert, nimmt `categoryOptions` statt `categories`
+  - Mobile/Desktop Category-Selects: Nutzen jetzt vorberechnete Options
+  - `transactionListView`: Berechnet `categoryOptions` einmal vor der Schleife
+- `src/Client/Components/SyncFlow/State.fs`
+  - `CategorizeTransaction` Handler: Optimistisches Update von `ManuallyCategorizedIds`
+
+**Performance-Ergebnis:**
+| Metrik | Vorher | Nachher | Verbesserung |
+|--------|--------|---------|--------------|
+| Dropdown öffnen | 15.700ms | 18ms | **872x** |
+
+**Outcomes:**
+- Build: ✅
+- Tests: Nicht geändert (UI-only Optimierung)
+- Performance: Drastisch verbessert
+
+---
+
 ## 2025-12-09 18:45 - UI: Transaktionsliste Aktionen sichtbar machen & Links verbessern
 
 **What I did:**

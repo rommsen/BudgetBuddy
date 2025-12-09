@@ -452,6 +452,18 @@ let private inlineRuleForm
 let private formatDateCompact (date: System.DateTime) =
     date.ToString("dd.MM")
 
+/// Category display for skipped transactions (text only, no selectbox)
+/// Returns the category name if found, otherwise a placeholder
+let private categoryText (categoryId: YnabCategoryId option) (categoryOptions: (string * string) list) =
+    match categoryId with
+    | Some (YnabCategoryId id) ->
+        let idStr = id.ToString()
+        categoryOptions
+        |> List.tryFind (fun (optId, _) -> optId = idStr)
+        |> Option.map snd
+        |> Option.defaultValue "Unknown"
+    | None -> "—"
+
 /// Expand chevron button (only shown when memo exists)
 let private expandChevron (tx: SyncTransaction) (isExpanded: bool) (dispatch: Msg -> unit) =
     let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
@@ -469,20 +481,41 @@ let private expandChevron (tx: SyncTransaction) (isExpanded: bool) (dispatch: Ms
     else
         Html.div [ prop.className "w-4 flex-shrink-0" ]  // Placeholder for alignment
 
-/// Memo detail row (shown when expanded)
+/// Memo detail row (shown when expanded) - glassmorphism style
 let private memoRow (tx: SyncTransaction) =
     Html.div [
-        prop.className "px-4 py-2 bg-base-200/50 text-sm text-base-content/70 border-t border-white/5"
+        prop.className "mx-3 my-2 px-4 py-3 rounded-lg bg-base-200/30 backdrop-blur-sm border border-white/5"
         prop.children [
-            Html.span [ prop.className "font-medium mr-2"; prop.text "Memo:" ]
-            Html.span [ prop.text tx.Transaction.Memo ]
+            Html.div [
+                prop.className "flex items-start gap-3"
+                prop.children [
+                    Html.div [
+                        prop.className "flex-shrink-0 w-6 h-6 rounded-md bg-neon-teal/10 flex items-center justify-center"
+                        prop.children [ Icons.info Icons.XS Icons.NeonTeal ]
+                    ]
+                    Html.div [
+                        prop.className "flex-1 min-w-0"
+                        prop.children [
+                            Html.p [
+                                prop.className "text-xs font-medium text-base-content/50 uppercase tracking-wider mb-1"
+                                prop.text "Memo"
+                            ]
+                            Html.p [
+                                prop.className "text-sm text-base-content/80 leading-relaxed"
+                                prop.text tx.Transaction.Memo
+                            ]
+                        ]
+                    ]
+                ]
+            ]
         ]
     ]
 
 /// NEW: Compact Transaction Row (Mobile-First)
+/// categoryOptions is pre-computed once, not per row
 let private transactionRow
     (tx: SyncTransaction)
-    (categories: YnabCategory list)
+    (categoryOptions: (string * string) list)
     (expandedIds: Set<TransactionId>)
     (inlineRuleFormState: InlineRuleFormState option)
     (manuallyCategorizedIds: Set<TransactionId>)
@@ -513,23 +546,29 @@ let private transactionRow
                             expandChevron tx isExpanded dispatch
                             statusDot tx
                             duplicateIndicator tx.DuplicateStatus
-                            // Category selector (FOCAL) - full width
+                            // Category: Selectbox for active, text for skipped
                             Html.div [
                                 prop.className "flex-1 min-w-0"
                                 prop.children [
-                                    Input.searchableSelect
-                                        (tx.CategoryId
-                                         |> Option.map (fun (YnabCategoryId id) -> id.ToString())
-                                         |> Option.defaultValue "")
-                                        (fun (value: string) ->
-                                            if value = "" then
-                                                dispatch (CategorizeTransaction (tx.Transaction.Id, None))
-                                            else
-                                                dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
-                                        "Category..."
-                                        [ for cat in categories ->
-                                            let (YnabCategoryId id) = cat.Id
-                                            (id.ToString(), $"{cat.GroupName}: {cat.Name}") ]
+                                    if tx.Status = Skipped then
+                                        // Skipped: render as plain text (fast)
+                                        Html.span [
+                                            prop.className "text-sm text-base-content/50 truncate block py-2"
+                                            prop.text (categoryText tx.CategoryId categoryOptions)
+                                        ]
+                                    else
+                                        // Active: render selectbox (interactive)
+                                        Input.searchableSelect
+                                            (tx.CategoryId
+                                             |> Option.map (fun (YnabCategoryId id) -> id.ToString())
+                                             |> Option.defaultValue "")
+                                            (fun (value: string) ->
+                                                if value = "" then
+                                                    dispatch (CategorizeTransaction (tx.Transaction.Id, None))
+                                                else
+                                                    dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
+                                            "Category..."
+                                            categoryOptions
                                 ]
                             ]
                             // Amount (fixed width for alignment)
@@ -605,23 +644,29 @@ let private transactionRow
                             skipToggleIcon tx dispatch
                         ]
                     ]
-                    // Category selector (FOCAL) - fixed width
+                    // Category: Selectbox for active, text for skipped - fixed width
                     Html.div [
-                        prop.className "w-52 flex-shrink-0"
+                        prop.className "w-96 flex-shrink-0"
                         prop.children [
-                            Input.searchableSelect
-                                (tx.CategoryId
-                                 |> Option.map (fun (YnabCategoryId id) -> id.ToString())
-                                 |> Option.defaultValue "")
-                                (fun (value: string) ->
-                                    if value = "" then
-                                        dispatch (CategorizeTransaction (tx.Transaction.Id, None))
-                                    else
-                                        dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
-                                "Category..."
-                                [ for cat in categories ->
-                                    let (YnabCategoryId id) = cat.Id
-                                    (id.ToString(), $"{cat.GroupName}: {cat.Name}") ]
+                            if tx.Status = Skipped then
+                                // Skipped: render as plain text (fast)
+                                Html.span [
+                                    prop.className "text-sm text-base-content/50 truncate block py-2"
+                                    prop.text (categoryText tx.CategoryId categoryOptions)
+                                ]
+                            else
+                                // Active: render selectbox (interactive)
+                                Input.searchableSelect
+                                    (tx.CategoryId
+                                     |> Option.map (fun (YnabCategoryId id) -> id.ToString())
+                                     |> Option.defaultValue "")
+                                    (fun (value: string) ->
+                                        if value = "" then
+                                            dispatch (CategorizeTransaction (tx.Transaction.Id, None))
+                                        else
+                                            dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
+                                    "Category..."
+                                    categoryOptions
                         ]
                     ]
                     // Payee (as link if external link exists)
@@ -1028,12 +1073,20 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                     "Try adjusting the date range in settings."
                     None
             | Success transactions ->
+                // Pre-compute category options ONCE instead of per row
+                // This reduces 193 x 160 = 30,880 string operations to just 160
+                let categoryOptions =
+                    model.Categories
+                    |> List.map (fun cat ->
+                        let (YnabCategoryId id) = cat.Id
+                        (id.ToString(), $"{cat.GroupName}: {cat.Name}"))
+
                 // NEW: Compact list container with card styling
                 Html.div [
                     prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
                     prop.children [
                         for tx in transactions do
-                            transactionRow tx model.Categories model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch
+                            transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch
                     ]
                 ]
             | Failure error ->

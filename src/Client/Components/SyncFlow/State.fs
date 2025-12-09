@@ -191,6 +191,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                             Splits = None }  // Clear splits when changing category
                     else tx)
 
+            // Optimistic UI: Also update ManuallyCategorizedIds immediately
+            // so the "Create Rule" button appears instantly without waiting for server
+            let newManuallyCategorized =
+                match categoryId with
+                | Some _ -> model.ManuallyCategorizedIds.Add txId
+                | None -> model.ManuallyCategorizedIds.Remove txId
+
             let cmd =
                 Cmd.OfAsync.either
                     Api.sync.categorizeTransaction
@@ -198,7 +205,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     TransactionCategorized
                     (fun ex -> Error (SyncError.DatabaseError ("categorize", ex.Message)) |> TransactionCategorized)
 
-            { model with SyncTransactions = Success updatedTransactions }, cmd, NoOp
+            { model with
+                SyncTransactions = Success updatedTransactions
+                ManuallyCategorizedIds = newManuallyCategorized }, cmd, NoOp
         | Success (Some session), _ ->
             // Transactions not loaded yet, just make the API call
             let cmd =
