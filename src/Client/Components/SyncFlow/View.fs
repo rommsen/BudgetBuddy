@@ -230,6 +230,223 @@ let private skipToggleIcon (tx: SyncTransaction) (dispatch: Msg -> unit) =
             prop.children [ Icons.forward Icons.SM Icons.Default ]
         ]
 
+/// "Create Rule" button - shown for manually categorized transactions
+let private createRuleButton (tx: SyncTransaction) (showForm: bool) (manuallyCategorizedIds: Set<TransactionId>) (dispatch: Msg -> unit) =
+    // Only show for manually categorized transactions with a category, and when form is not open
+    let shouldShow =
+        manuallyCategorizedIds.Contains tx.Transaction.Id &&
+        tx.CategoryId.IsSome &&
+        not showForm
+    if shouldShow then
+        Html.button [
+            prop.className "p-2 rounded-lg hover:bg-neon-teal/10 text-neon-teal/70 hover:text-neon-teal transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            prop.title "Create categorization rule from this transaction"
+            prop.onClick (fun e ->
+                e.stopPropagation()
+                dispatch (OpenInlineRuleForm tx.Transaction.Id))
+            prop.children [ Icons.rules Icons.SM Icons.NeonTeal ]
+        ]
+    else
+        Html.none
+
+/// Inline rule creation form (expands below transaction row)
+let private inlineRuleForm
+    (formState: InlineRuleFormState)
+    (dispatch: Msg -> unit) =
+
+    let patternTypeToString pt =
+        match pt with
+        | Contains -> "Contains"
+        | Exact -> "Exact"
+        | PatternType.Regex -> "Regex"
+
+    let stringToPatternType s =
+        match s with
+        | "Exact" -> Exact
+        | "Regex" -> PatternType.Regex
+        | _ -> Contains
+
+    let targetFieldToString tf =
+        match tf with
+        | Combined -> "Combined"
+        | Payee -> "Payee"
+        | Memo -> "Memo"
+
+    let stringToTargetField s =
+        match s with
+        | "Payee" -> Payee
+        | "Memo" -> Memo
+        | _ -> Combined
+
+    Html.div [
+        prop.className "border-t border-white/5 bg-base-200/50 p-4 animate-fade-in"
+        prop.children [
+            // Header
+            Html.div [
+                prop.className "flex items-center justify-between mb-4"
+                prop.children [
+                    Html.div [
+                        prop.className "flex items-center gap-2"
+                        prop.children [
+                            Icons.rules Icons.SM Icons.NeonTeal
+                            Html.span [
+                                prop.className "text-sm font-medium text-base-content"
+                                prop.text "Create Categorization Rule"
+                            ]
+                        ]
+                    ]
+                    Html.button [
+                        prop.className "p-1 rounded hover:bg-white/10 text-base-content/50 hover:text-base-content"
+                        prop.onClick (fun _ -> dispatch CloseInlineRuleForm)
+                        prop.children [ Icons.x Icons.SM Icons.Default ]
+                    ]
+                ]
+            ]
+
+            // Form content - responsive grid
+            Html.div [
+                prop.className "space-y-3"
+                prop.children [
+                    // Row 1: Rule name + Category display
+                    Html.div [
+                        prop.className "grid grid-cols-1 md:grid-cols-2 gap-3"
+                        prop.children [
+                            // Rule name input
+                            Html.div [
+                                prop.className "space-y-1.5"
+                                prop.children [
+                                    Html.label [
+                                        prop.className "block text-sm font-medium text-base-content/80"
+                                        prop.text "Rule Name"
+                                    ]
+                                    Input.textSimple
+                                        formState.RuleName
+                                        (UpdateInlineRuleName >> dispatch)
+                                        "e.g., Amazon Purchases"
+                                ]
+                            ]
+                            // Category display (read-only)
+                            Html.div [
+                                prop.className "space-y-1.5"
+                                prop.children [
+                                    Html.label [
+                                        prop.className "block text-sm font-medium text-base-content/80"
+                                        prop.text "Category"
+                                    ]
+                                    Html.div [
+                                        prop.className "flex items-center gap-2 px-3 py-2 bg-neon-teal/10 border border-neon-teal/30 rounded-lg text-neon-teal"
+                                        prop.children [
+                                            Icons.check Icons.SM Icons.NeonTeal
+                                            Html.span [ prop.text formState.CategoryName ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    // Row 2: Pattern + Type + Field
+                    Html.div [
+                        prop.className "grid grid-cols-1 md:grid-cols-12 gap-3"
+                        prop.children [
+                            // Pattern (spans 6 cols on desktop)
+                            Html.div [
+                                prop.className "md:col-span-6"
+                                prop.children [
+                                    Html.div [
+                                        prop.className "space-y-1.5"
+                                        prop.children [
+                                            Html.label [
+                                                prop.className "block text-sm font-medium text-base-content/80"
+                                                prop.children [
+                                                    Html.text "Pattern "
+                                                    Html.span [ prop.className "text-neon-orange"; prop.text "*" ]
+                                                ]
+                                            ]
+                                            Html.input [
+                                                prop.type' "text"
+                                                prop.className "w-full px-3 py-2 bg-base-200 border border-white/10 rounded-lg text-base-content font-mono text-sm focus:border-neon-teal focus:ring-1 focus:ring-neon-teal/50 outline-none transition-all placeholder:text-base-content/30"
+                                                prop.value formState.Pattern
+                                                prop.onChange (UpdateInlineRulePattern >> dispatch)
+                                                prop.placeholder "Text to match..."
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                            // Pattern Type (spans 3 cols)
+                            Html.div [
+                                prop.className "md:col-span-3"
+                                prop.children [
+                                    Html.div [
+                                        prop.className "space-y-1.5"
+                                        prop.children [
+                                            Html.label [
+                                                prop.className "block text-sm font-medium text-base-content/80"
+                                                prop.text "Type"
+                                            ]
+                                            Input.selectSimple
+                                                (patternTypeToString formState.PatternType)
+                                                (fun value -> dispatch (UpdateInlineRulePatternType (stringToPatternType value)))
+                                                [
+                                                    ("Contains", "Contains")
+                                                    ("Exact", "Exact Match")
+                                                    ("Regex", "Regex")
+                                                ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                            // Target Field (spans 3 cols)
+                            Html.div [
+                                prop.className "md:col-span-3"
+                                prop.children [
+                                    Html.div [
+                                        prop.className "space-y-1.5"
+                                        prop.children [
+                                            Html.label [
+                                                prop.className "block text-sm font-medium text-base-content/80"
+                                                prop.text "Match In"
+                                            ]
+                                            Input.selectSimple
+                                                (targetFieldToString formState.TargetField)
+                                                (fun value -> dispatch (UpdateInlineRuleTargetField (stringToTargetField value)))
+                                                [
+                                                    ("Combined", "Payee & Memo")
+                                                    ("Payee", "Payee only")
+                                                    ("Memo", "Memo only")
+                                                ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    // Row 3: Actions
+                    Html.div [
+                        prop.className "flex flex-col sm:flex-row justify-end gap-2 pt-2"
+                        prop.children [
+                            Button.ghost "Cancel" (fun () -> dispatch CloseInlineRuleForm)
+                            Button.view {
+                                Button.defaultProps with
+                                    Text = "Create Rule"
+                                    Variant = Button.Primary
+                                    IsLoading = formState.IsSaving
+                                    IsDisabled =
+                                        formState.IsSaving ||
+                                        System.String.IsNullOrWhiteSpace formState.Pattern ||
+                                        System.String.IsNullOrWhiteSpace formState.RuleName
+                                    OnClick = fun () -> dispatch SaveInlineRule
+                                    Icon = Some (Icons.check Icons.SM Icons.Primary)
+                            }
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
 /// Compact date format for row display
 let private formatDateCompact (date: System.DateTime) =
     date.ToString("dd.MM")
@@ -266,6 +483,8 @@ let private transactionRow
     (tx: SyncTransaction)
     (categories: YnabCategory list)
     (expandedIds: Set<TransactionId>)
+    (inlineRuleFormState: InlineRuleFormState option)
+    (manuallyCategorizedIds: Set<TransactionId>)
     (dispatch: Msg -> unit) =
 
     let rowClasses = getRowStateClasses tx
@@ -273,6 +492,11 @@ let private transactionRow
     let dateStr = formatDateCompact tx.Transaction.BookingDate
     let isExpanded = expandedIds.Contains tx.Transaction.Id
     let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
+
+    // Check if the inline rule form is open for THIS transaction
+    let showRuleForm =
+        inlineRuleFormState
+        |> Option.exists (fun f -> f.TransactionId = tx.Transaction.Id)
 
     Html.div [
         prop.className $"group border-b border-white/5 last:border-b-0 transition-all duration-200 {rowClasses}"
@@ -350,6 +574,7 @@ let private transactionRow
                             Html.div [
                                 prop.className "flex items-center gap-1"
                                 prop.children [
+                                    createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
                                     skipToggleIcon tx dispatch
                                 ]
                             ]
@@ -425,6 +650,7 @@ let private transactionRow
                     Html.div [
                         prop.className "flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                         prop.children [
+                            createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
                             skipToggleIcon tx dispatch
                         ]
                     ]
@@ -434,6 +660,12 @@ let private transactionRow
             // Memo row (when expanded and memo exists)
             if isExpanded && hasExpandableContent then
                 memoRow tx
+
+            // Inline rule form (when active for this transaction)
+            match inlineRuleFormState with
+            | Some form when form.TransactionId = tx.Transaction.Id ->
+                inlineRuleForm form dispatch
+            | _ -> ()
         ]
     ]
 
@@ -794,7 +1026,7 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                     prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
                     prop.children [
                         for tx in transactions do
-                            transactionRow tx model.Categories model.ExpandedTransactionIds dispatch
+                            transactionRow tx model.Categories model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch
                     ]
                 ]
             | Failure error ->

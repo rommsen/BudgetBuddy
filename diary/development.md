@@ -4,6 +4,67 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-09 16:30 - Feature: Regel aus Zuweisungs-Dialog erstellen
+
+**What I did:**
+Implementierung eines neuen Features, das es ermöglicht, direkt beim manuellen Kategorisieren einer Transaktion eine Regel zu erstellen. Nach dem Kategorisieren erscheint ein "Create Rule" Button, der ein Inline-Formular expandiert.
+
+**Key Features:**
+- Button erscheint nach manueller Kategorisierung einer Transaktion
+- Inline-Formular expandiert unter der Transaktion (kein Modal-Unterbrechung)
+- Pre-filled: Pattern (Payee), Kategorie, auto-generierter Rule Name
+- Default: Contains-Regel (umschaltbar zu Exact/Regex)
+- TargetField wählbar: Combined (default), Payee only, Memo only
+- Auto-Apply: Neue Regel wird sofort auf andere pending Transaktionen angewandt
+- Responsive: Gestackt auf Mobile, Grid auf Desktop
+
+**Files Added:**
+- Keine neuen Dateien
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Types.fs`
+  - Neuer Type: `InlineRuleFormState` für Formular-State
+  - Model erweitert um `InlineRuleForm` und `ManuallyCategorizedIds`
+  - 12 neue Msg-Varianten für Inline-Rule-Creation Flow
+
+- `src/Client/Components/SyncFlow/State.fs`
+  - `init()` erweitert mit neuen Model-Feldern
+  - `TransactionCategorized` trackt nun manuell kategorisierte IDs
+  - Neue Helper-Funktionen: `matchesRule`, `rulesErrorToString`
+  - Handler für alle neuen Messages: OpenInlineRuleForm, CloseInlineRuleForm, UpdateInlineRule*, SaveInlineRule, InlineRuleSaved, ApplyNewRuleToTransactions, TransactionsUpdatedByRule
+
+- `src/Client/Components/SyncFlow/View.fs`
+  - Neue Komponente: `createRuleButton` (Icon-Button für manuell kategorisierte Transaktionen)
+  - Neue Komponente: `inlineRuleForm` (responsive Formular mit Name, Pattern, Type, TargetField)
+  - `transactionRow` akzeptiert nun `InlineRuleForm` und `ManuallyCategorizedIds` Parameter
+  - Mobile + Desktop: createRuleButton in Actions-Bereich integriert
+  - Inline-Formular wird unter Transaktion angezeigt wenn aktiv
+
+**UI-Flow:**
+```
+1. User kategorisiert Transaktion → [✓] ManualCategorized
+2. "Create Rule" Button erscheint (🔧-Icon)
+3. Klick → Inline-Formular expandiert
+4. Pre-filled: Pattern="REWE", Name="Auto: REWE", Category=ausgewählte
+5. User kann anpassen: PatternType, TargetField
+6. "Create Rule" → API-Call → Toast "Rule created!"
+7. Auto-Apply auf andere pending Transaktionen mit passendem Pattern
+```
+
+**Responsive Layout:**
+- Mobile: Alle Felder vertikal gestackt, Buttons full-width
+- Desktop: 12-Column Grid (Pattern: 6 cols, Type: 3 cols, TargetField: 3 cols)
+
+**Rationale:**
+Dieses Feature ermöglicht einen schnelleren Workflow beim Kategorisieren von Transaktionen. Statt in den Rules-Bereich zu wechseln, kann der User direkt aus dem Kontext heraus eine Regel erstellen.
+
+**Outcomes:**
+- Build: ✅ (Server + Client)
+- Tests: 279/279 passed, 6 skipped
+- Keine neuen Tests hinzugefügt (RulesEngine bereits umfassend getestet)
+
+---
+
 ## 2025-12-09 - Fix: UI-Verbesserungen für kompakte Transaktionsliste
 
 **What I did:**

@@ -12,6 +12,27 @@ type SplitEditState = {
     Currency: string
 }
 
+/// State for inline rule creation from a transaction
+type InlineRuleFormState = {
+    TransactionId: TransactionId
+    /// Pre-filled from transaction payee
+    Pattern: string
+    /// Default: Contains
+    PatternType: PatternType
+    /// Default: Combined
+    TargetField: TargetField
+    /// Pre-filled from selected category
+    CategoryId: YnabCategoryId
+    /// The category name for display
+    CategoryName: string
+    /// Optional payee override
+    PayeeOverride: string
+    /// Auto-generated from pattern
+    RuleName: string
+    /// Is the rule being saved?
+    IsSaving: bool
+}
+
 /// SyncFlow-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
@@ -25,6 +46,10 @@ type Model = {
     IsTanConfirming: bool
     /// Transaction IDs with expanded details (showing memo)
     ExpandedTransactionIds: Set<TransactionId>
+    /// Active inline rule creation form (None when not creating rule)
+    InlineRuleForm: InlineRuleFormState option
+    /// Set of transaction IDs that have been manually categorized (show "Create Rule" button)
+    ManuallyCategorizedIds: Set<TransactionId>
 }
 
 /// SyncFlow-specific messages
@@ -68,6 +93,18 @@ type Msg =
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
     // UI interactions
     | ToggleTransactionExpand of TransactionId
+    // Inline rule creation
+    | OpenInlineRuleForm of TransactionId
+    | CloseInlineRuleForm
+    | UpdateInlineRulePattern of string
+    | UpdateInlineRulePatternType of PatternType
+    | UpdateInlineRuleTargetField of TargetField
+    | UpdateInlineRulePayeeOverride of string
+    | UpdateInlineRuleName of string
+    | SaveInlineRule
+    | InlineRuleSaved of Result<Rule, RulesError>
+    | ApplyNewRuleToTransactions of Rule
+    | TransactionsUpdatedByRule of Result<SyncTransaction list, SyncError>
 
 /// External message to notify parent of events
 type ExternalMsg =

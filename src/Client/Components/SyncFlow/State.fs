@@ -25,6 +25,36 @@ let private ynabErrorToString (error: YnabError) : string =
     | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
     | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
 
+let private rulesErrorToString (error: RulesError) : string =
+    match error with
+    | RulesError.RuleNotFound ruleId -> $"Rule not found: {ruleId}"
+    | RulesError.InvalidPattern (pattern, reason) -> $"Invalid pattern '{pattern}': {reason}"
+    | RulesError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
+    | RulesError.DuplicateRule pattern -> $"A rule with pattern '{pattern}' already exists"
+    | RulesError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
+
+/// Check if a rule matches a transaction (client-side approximation for auto-apply)
+let private matchesRule (rule: Rule) (tx: BankTransaction) : bool =
+    let textToMatch =
+        match rule.TargetField with
+        | Payee -> tx.Payee |> Option.defaultValue ""
+        | Memo -> tx.Memo
+        | Combined ->
+            let payee = tx.Payee |> Option.defaultValue ""
+            $"{payee} {tx.Memo}"
+
+    let textLower = textToMatch.ToLowerInvariant()
+    let patternLower = rule.Pattern.ToLowerInvariant()
+
+    match rule.PatternType with
+    | Contains -> textLower.Contains patternLower
+    | Exact -> textLower = patternLower
+    | PatternType.Regex ->
+        try
+            System.Text.RegularExpressions.Regex.IsMatch(textToMatch, rule.Pattern,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+        with _ -> false
+
 let init () : Model * Cmd<Msg> =
     let model = {
         CurrentSession = NotAsked
@@ -34,6 +64,8 @@ let init () : Model * Cmd<Msg> =
         DuplicateTransactionIds = []
         IsTanConfirming = false
         ExpandedTransactionIds = Set.empty
+        InlineRuleForm = None
+        ManuallyCategorizedIds = Set.empty
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -183,7 +215,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Success transactions ->
             let newTxs = transactions |> List.map (fun tx ->
                 if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
-            { model with SyncTransactions = Success newTxs }, Cmd.none, NoOp
+            // Track this as manually categorized (for showing "Create Rule" button)
+            let newManuallyCategorized =
+                if updatedTx.Status = ManualCategorized && updatedTx.CategoryId.IsSome then
+                    model.ManuallyCategorizedIds.Add updatedTx.Transaction.Id
+                else
+                    model.ManuallyCategorizedIds.Remove updatedTx.Transaction.Id
+            { model with
+                SyncTransactions = Success newTxs
+                ManuallyCategorizedIds = newManuallyCategorized }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | TransactionCategorized (Error err) ->
@@ -461,3 +501,152 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             else
                 model.ExpandedTransactionIds.Add txId
         { model with ExpandedTransactionIds = newExpandedIds }, Cmd.none, NoOp
+
+    // Inline rule creation handlers
+    | OpenInlineRuleForm txId ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            match transactions |> List.tryFind (fun tx -> tx.Transaction.Id = txId) with
+            | Some tx when tx.CategoryId.IsSome ->
+                let categoryId = tx.CategoryId.Value
+                let categoryName = tx.CategoryName |> Option.defaultValue "Unknown"
+                let payee = tx.Transaction.Payee |> Option.defaultValue ""
+
+                // Auto-generate a rule name from the payee
+                let ruleName =
+                    if System.String.IsNullOrWhiteSpace payee then "New Rule"
+                    else
+                        let truncated = if payee.Length > 30 then payee.Substring(0, 30) + "..." else payee
+                        $"Auto: {truncated}"
+
+                let formState : InlineRuleFormState = {
+                    TransactionId = txId
+                    Pattern = payee
+                    PatternType = Contains
+                    TargetField = Combined
+                    CategoryId = categoryId
+                    CategoryName = categoryName
+                    PayeeOverride = ""
+                    RuleName = ruleName
+                    IsSaving = false
+                }
+                { model with InlineRuleForm = Some formState }, Cmd.none, NoOp
+            | _ -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | CloseInlineRuleForm ->
+        { model with InlineRuleForm = None }, Cmd.none, NoOp
+
+    | UpdateInlineRulePattern value ->
+        match model.InlineRuleForm with
+        | Some form ->
+            { model with InlineRuleForm = Some { form with Pattern = value } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | UpdateInlineRulePatternType patternType ->
+        match model.InlineRuleForm with
+        | Some form ->
+            { model with InlineRuleForm = Some { form with PatternType = patternType } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | UpdateInlineRuleTargetField targetField ->
+        match model.InlineRuleForm with
+        | Some form ->
+            { model with InlineRuleForm = Some { form with TargetField = targetField } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | UpdateInlineRulePayeeOverride value ->
+        match model.InlineRuleForm with
+        | Some form ->
+            { model with InlineRuleForm = Some { form with PayeeOverride = value } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | UpdateInlineRuleName value ->
+        match model.InlineRuleForm with
+        | Some form ->
+            { model with InlineRuleForm = Some { form with RuleName = value } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | SaveInlineRule ->
+        match model.InlineRuleForm with
+        | Some form when not (System.String.IsNullOrWhiteSpace form.Pattern) ->
+            let payeeOverride =
+                if System.String.IsNullOrWhiteSpace form.PayeeOverride then None
+                else Some form.PayeeOverride
+
+            let request : RuleCreateRequest = {
+                Name = form.RuleName
+                Pattern = form.Pattern
+                PatternType = form.PatternType
+                TargetField = form.TargetField
+                CategoryId = form.CategoryId
+                PayeeOverride = payeeOverride
+                Priority = 1  // Highest priority for new rules
+            }
+
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.rules.createRule
+                    request
+                    InlineRuleSaved
+                    (fun ex -> Error (RulesError.DatabaseError ("create", ex.Message)) |> InlineRuleSaved)
+
+            { model with InlineRuleForm = Some { form with IsSaving = true } }, cmd, NoOp
+        | Some _ -> model, Cmd.none, ShowToast ("Please enter a pattern", ToastWarning)
+        | None -> model, Cmd.none, NoOp
+
+    | InlineRuleSaved (Ok rule) ->
+        // Close form and apply rule to pending transactions
+        { model with InlineRuleForm = None },
+        Cmd.ofMsg (ApplyNewRuleToTransactions rule),
+        ShowToast ($"Rule '{rule.Name}' created!", ToastSuccess)
+
+    | InlineRuleSaved (Error err) ->
+        let errorMsg = rulesErrorToString err
+        match model.InlineRuleForm with
+        | Some form ->
+            { model with InlineRuleForm = Some { form with IsSaving = false } },
+            Cmd.none,
+            ShowToast (errorMsg, ToastError)
+        | None -> model, Cmd.none, ShowToast (errorMsg, ToastError)
+
+    | ApplyNewRuleToTransactions rule ->
+        match model.CurrentSession, model.SyncTransactions with
+        | Success (Some session), Success transactions ->
+            // Find pending transactions that match the new rule
+            let matchingTxIds =
+                transactions
+                |> List.filter (fun tx ->
+                    tx.Status = Pending &&
+                    tx.CategoryId.IsNone &&
+                    matchesRule rule tx.Transaction)
+                |> List.map (fun tx -> tx.Transaction.Id)
+
+            if matchingTxIds.IsEmpty then
+                model, Cmd.none, NoOp
+            else
+                // Bulk categorize matching transactions
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.sync.bulkCategorize
+                        (session.Id, matchingTxIds, rule.CategoryId)
+                        TransactionsUpdatedByRule
+                        (fun ex -> Error (SyncError.DatabaseError ("bulk_categorize", ex.Message)) |> TransactionsUpdatedByRule)
+                model, cmd, ShowToast ($"Applying rule to {matchingTxIds.Length} transaction(s)...", ToastInfo)
+        | _ -> model, Cmd.none, NoOp
+
+    | TransactionsUpdatedByRule (Ok updatedTxs) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let txMap = updatedTxs |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
+            let newTxs = transactions |> List.map (fun tx ->
+                match Map.tryFind tx.Transaction.Id txMap with
+                | Some updated -> updated
+                | None -> tx)
+            { model with SyncTransactions = Success newTxs },
+            Cmd.none,
+            ShowToast ($"Rule applied to {updatedTxs.Length} transaction(s)", ToastSuccess)
+        | _ -> model, Cmd.none, NoOp
+
+    | TransactionsUpdatedByRule (Error err) ->
+        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
