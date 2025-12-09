@@ -23,6 +23,8 @@ type Model = {
     DuplicateTransactionIds: TransactionId list
     /// Whether TAN confirmation is in progress (prevents double-clicks)
     IsTanConfirming: bool
+    /// Transaction IDs with expanded details (showing memo)
+    ExpandedTransactionIds: Set<TransactionId>
 }
 
 /// SyncFlow-specific messages
@@ -64,6 +66,8 @@ type Msg =
     | SyncCancelled of Result<unit, SyncError>
     | LoadCategories
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
+    // UI interactions
+    | ToggleTransactionExpand of TransactionId
 
 /// External message to notify parent of events
 type ExternalMsg =

@@ -645,16 +645,16 @@ let SearchableSelect (props: SearchableSelectProps) =
 
                         // Options list
                         Html.div [
-                            prop.className "max-h-60 overflow-y-auto"
+                            prop.className "max-h-80 overflow-y-auto"
                             prop.ref listRef
                             prop.children [
                                 // Empty option (clear selection) - index 0
                                 let clearHighlighted = highlightedIndex = 0
                                 let clearClass =
                                     if clearHighlighted then
-                                        "w-full text-left px-3 py-2 text-sm italic bg-neon-teal/20 text-neon-teal"
+                                        "w-full text-left px-4 py-3 text-base italic bg-neon-teal/20 text-neon-teal"
                                     else
-                                        "w-full text-left px-3 py-2 text-sm text-base-content/50 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
+                                        "w-full text-left px-4 py-3 text-base text-base-content/50 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
                                 Html.button [
                                     prop.type' "button"
                                     prop.className clearClass
@@ -676,11 +676,11 @@ let SearchableSelect (props: SearchableSelectProps) =
                                         let isHighlighted = highlightedIndex = optionIndex
                                         let optionClass =
                                             if isHighlighted then
-                                                "w-full text-left px-3 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
+                                                "w-full text-left px-4 py-3 text-base transition-colors bg-neon-teal/20 text-neon-teal"
                                             elif isSelected then
-                                                "w-full text-left px-3 py-2 text-sm transition-colors bg-neon-teal/10 text-neon-teal"
+                                                "w-full text-left px-4 py-3 text-base transition-colors bg-neon-teal/10 text-neon-teal"
                                             else
-                                                "w-full text-left px-3 py-2 text-sm transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
+                                                "w-full text-left px-4 py-3 text-base transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
                                         Html.button [
                                             prop.type' "button"
                                             prop.className optionClass

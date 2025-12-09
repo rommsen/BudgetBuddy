@@ -70,7 +70,12 @@ let private getGlowClass amount glow =
 let private formatAmount showSign showCurrency amount currency =
     let sign = if showSign && amount >= 0m then "+" else ""
     let currencyPart = if showCurrency then $" {currency}" else ""
-    $"{sign}{amount:F2}{currencyPart}"
+    // Note: F# format specifier :F2 doesn't work correctly with Fable transpilation
+    // Using explicit rounding and ToString instead
+    let absAmount = abs amount
+    let formattedAmount = System.Math.Round(float absAmount, 2).ToString("0.00")
+    let signPrefix = if amount < 0m then "-" else sign
+    $"{signPrefix}{formattedAmount}{currencyPart}"
 
 /// Create a money display with the specified props
 let view (props: MoneyProps) =
@@ -81,7 +86,7 @@ let view (props: MoneyProps) =
     let formatted = formatAmount props.ShowSign props.ShowCurrency props.Amount props.Currency
 
     Html.span [
-        prop.className $"font-mono font-semibold tabular-nums {sizeClass} {colorClass} {glowClass} {extraClass}"
+        prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {sizeClass} {colorClass} {glowClass} {extraClass}"
         prop.text formatted
     ]
 

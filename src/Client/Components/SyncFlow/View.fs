@@ -134,7 +134,7 @@ let private tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
 // Transaction Card Component (Mobile-first)
 // ============================================
 
-/// Duplicate status badge component
+/// Duplicate status badge component (kept for backwards compatibility)
 let private duplicateStatusBadge (status: DuplicateStatus) =
     match status with
     | NotDuplicate -> Html.none
@@ -155,6 +155,291 @@ let private duplicateStatusBadge (status: DuplicateStatus) =
                 Html.span [ prop.text "Duplicate" ]
             ]
         ]
+
+// ============================================
+// NEW: Compact Transaction Row Components
+// ============================================
+
+/// Status dot - small colored indicator based on transaction state
+/// Priority: Skipped > DuplicateStatus > TransactionStatus
+let private statusDot (tx: SyncTransaction) =
+    let (dotColor, shouldPulse) =
+        // Skipped always shows gray, regardless of duplicate status
+        if tx.Status = Skipped then
+            ("bg-base-content/30", false)
+        else
+            match tx.DuplicateStatus with
+            | ConfirmedDuplicate _ -> ("bg-neon-red", false)
+            | PossibleDuplicate _ -> ("bg-neon-orange", true)
+            | NotDuplicate ->
+                match tx.Status with
+                | Pending | NeedsAttention -> ("bg-neon-orange", false)  // Same color for all uncategorized
+                | AutoCategorized -> ("bg-neon-teal", false)
+                | ManualCategorized -> ("bg-neon-green", false)
+                | Skipped -> ("bg-base-content/30", false)  // Fallback
+                | Imported -> ("bg-neon-green", false)
+
+    let pulseClass = if shouldPulse then "animate-pulse" else ""
+    Html.div [
+        prop.className $"w-2 h-2 rounded-full flex-shrink-0 {dotColor} {pulseClass}"
+    ]
+
+/// Row state classes for background/border styling
+/// Priority: Skipped > DuplicateStatus > TransactionStatus
+let private getRowStateClasses (tx: SyncTransaction) =
+    // Skipped always shows faded, regardless of duplicate status
+    if tx.Status = Skipped then
+        "opacity-50"
+    else
+        match tx.DuplicateStatus with
+        | ConfirmedDuplicate _ -> "bg-neon-red/5 border-l-2 border-l-neon-red"
+        | PossibleDuplicate _ -> "bg-neon-orange/5 border-l-2 border-l-neon-orange"
+        | NotDuplicate -> ""  // No special styling for NeedsAttention anymore
+
+/// Duplicate indicator with tooltip (icon only)
+let private duplicateIndicator (status: DuplicateStatus) =
+    match status with
+    | NotDuplicate -> Html.none
+    | PossibleDuplicate reason ->
+        Html.span [
+            prop.className "cursor-help text-neon-orange"
+            prop.title reason
+            prop.children [ Icons.warning Icons.XS Icons.NeonOrange ]
+        ]
+    | ConfirmedDuplicate reference ->
+        Html.span [
+            prop.className "cursor-help text-neon-red"
+            prop.title $"Already imported: {reference}"
+            prop.children [ Icons.xCircle Icons.XS Icons.Error ]
+        ]
+
+/// Skip toggle as icon button
+let private skipToggleIcon (tx: SyncTransaction) (dispatch: Msg -> unit) =
+    if tx.Status = Skipped then
+        Html.button [
+            prop.className "p-2 rounded-lg hover:bg-neon-green/10 text-neon-green/70 hover:text-neon-green transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            prop.title "Unskip transaction"
+            prop.onClick (fun _ -> dispatch (UnskipTransaction tx.Transaction.Id))
+            prop.children [ Icons.undo Icons.SM Icons.NeonGreen ]
+        ]
+    else
+        Html.button [
+            prop.className "p-2 rounded-lg hover:bg-base-content/10 text-base-content/40 hover:text-base-content/70 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            prop.title "Skip transaction"
+            prop.onClick (fun _ -> dispatch (SkipTransaction tx.Transaction.Id))
+            prop.children [ Icons.forward Icons.SM Icons.Default ]
+        ]
+
+/// Compact date format for row display
+let private formatDateCompact (date: System.DateTime) =
+    date.ToString("dd.MM")
+
+/// Expand chevron button (only shown when memo exists)
+let private expandChevron (tx: SyncTransaction) (isExpanded: bool) (dispatch: Msg -> unit) =
+    let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
+    if hasExpandableContent then
+        Html.button [
+            prop.className "p-1 -ml-1 text-base-content/40 hover:text-base-content/70 transition-colors flex-shrink-0"
+            prop.onClick (fun e ->
+                e.stopPropagation()
+                dispatch (ToggleTransactionExpand tx.Transaction.Id))
+            prop.children [
+                if isExpanded then Icons.chevronDown Icons.XS Icons.Default
+                else Icons.chevronRight Icons.XS Icons.Default
+            ]
+        ]
+    else
+        Html.div [ prop.className "w-4 flex-shrink-0" ]  // Placeholder for alignment
+
+/// Memo detail row (shown when expanded)
+let private memoRow (tx: SyncTransaction) =
+    Html.div [
+        prop.className "px-4 py-2 bg-base-200/50 text-sm text-base-content/70 border-t border-white/5"
+        prop.children [
+            Html.span [ prop.className "font-medium mr-2"; prop.text "Memo:" ]
+            Html.span [ prop.text tx.Transaction.Memo ]
+        ]
+    ]
+
+/// NEW: Compact Transaction Row (Mobile-First)
+let private transactionRow
+    (tx: SyncTransaction)
+    (categories: YnabCategory list)
+    (expandedIds: Set<TransactionId>)
+    (dispatch: Msg -> unit) =
+
+    let rowClasses = getRowStateClasses tx
+    let payee = tx.Transaction.Payee |> Option.defaultValue "Unknown"
+    let dateStr = formatDateCompact tx.Transaction.BookingDate
+    let isExpanded = expandedIds.Contains tx.Transaction.Id
+    let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
+
+    Html.div [
+        prop.className $"group border-b border-white/5 last:border-b-0 transition-all duration-200 {rowClasses}"
+        prop.children [
+            // Mobile Layout (Default - shown below md breakpoint)
+            Html.div [
+                prop.className "md:hidden flex flex-col gap-2 p-3"
+                prop.children [
+                    // Line 1: Expand + Status + Category + Amount
+                    Html.div [
+                        prop.className "flex items-center gap-2"
+                        prop.children [
+                            expandChevron tx isExpanded dispatch
+                            statusDot tx
+                            duplicateIndicator tx.DuplicateStatus
+                            // Category selector (FOCAL) - full width
+                            Html.div [
+                                prop.className "flex-1 min-w-0"
+                                prop.children [
+                                    Input.searchableSelect
+                                        (tx.CategoryId
+                                         |> Option.map (fun (YnabCategoryId id) -> id.ToString())
+                                         |> Option.defaultValue "")
+                                        (fun (value: string) ->
+                                            if value = "" then
+                                                dispatch (CategorizeTransaction (tx.Transaction.Id, None))
+                                            else
+                                                dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
+                                        "Category..."
+                                        [ for cat in categories ->
+                                            let (YnabCategoryId id) = cat.Id
+                                            (id.ToString(), $"{cat.GroupName}: {cat.Name}") ]
+                                ]
+                            ]
+                            // Amount (fixed width for alignment)
+                            Html.div [
+                                prop.className "flex-shrink-0 w-24 text-right"
+                                prop.children [
+                                    Money.view {
+                                        Money.defaultProps with
+                                            Amount = tx.Transaction.Amount.Amount
+                                            Currency = tx.Transaction.Amount.Currency
+                                            Size = Money.Small
+                                            Glow = Money.NoGlow
+                                    }
+                                ]
+                            ]
+                        ]
+                    ]
+                    // Line 2: Payee + Date + Actions
+                    Html.div [
+                        prop.className "flex items-center gap-2 pl-4 text-sm"
+                        prop.children [
+                            // Payee (as link if external link exists)
+                            match tx.ExternalLinks |> List.tryHead with
+                            | Some link ->
+                                Html.a [
+                                    prop.className "flex-1 truncate text-base-content/70 hover:text-neon-teal transition-colors"
+                                    prop.href link.Url
+                                    prop.target "_blank"
+                                    prop.title $"{payee} - {link.Label}"
+                                    prop.text payee
+                                ]
+                            | None ->
+                                Html.span [
+                                    prop.className "flex-1 truncate text-base-content/70"
+                                    prop.title payee
+                                    prop.text payee
+                                ]
+                            Html.span [
+                                prop.className "text-xs text-base-content/40 tabular-nums"
+                                prop.text dateStr
+                            ]
+                            // Actions (always visible on mobile for touch)
+                            Html.div [
+                                prop.className "flex items-center gap-1"
+                                prop.children [
+                                    skipToggleIcon tx dispatch
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+
+            // Desktop Layout (shown at md breakpoint and above)
+            Html.div [
+                prop.className "hidden md:flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors"
+                prop.children [
+                    // Expand chevron
+                    expandChevron tx isExpanded dispatch
+                    // Status dot
+                    statusDot tx
+                    // Duplicate indicator
+                    duplicateIndicator tx.DuplicateStatus
+                    // Category selector (FOCAL) - fixed width
+                    Html.div [
+                        prop.className "w-52 flex-shrink-0"
+                        prop.children [
+                            Input.searchableSelect
+                                (tx.CategoryId
+                                 |> Option.map (fun (YnabCategoryId id) -> id.ToString())
+                                 |> Option.defaultValue "")
+                                (fun (value: string) ->
+                                    if value = "" then
+                                        dispatch (CategorizeTransaction (tx.Transaction.Id, None))
+                                    else
+                                        dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
+                                "Category..."
+                                [ for cat in categories ->
+                                    let (YnabCategoryId id) = cat.Id
+                                    (id.ToString(), $"{cat.GroupName}: {cat.Name}") ]
+                        ]
+                    ]
+                    // Payee (as link if external link exists)
+                    match tx.ExternalLinks |> List.tryHead with
+                    | Some link ->
+                        Html.a [
+                            prop.className "flex-1 truncate text-sm text-base-content hover:text-neon-teal transition-colors"
+                            prop.href link.Url
+                            prop.target "_blank"
+                            prop.title $"{payee} - {link.Label}"
+                            prop.text payee
+                        ]
+                    | None ->
+                        Html.span [
+                            prop.className "flex-1 truncate text-sm text-base-content"
+                            prop.title payee
+                            prop.text payee
+                        ]
+                    // Date
+                    Html.span [
+                        prop.className "w-16 text-xs text-base-content/50 text-right tabular-nums"
+                        prop.text dateStr
+                    ]
+                    // Amount
+                    Html.div [
+                        prop.className "w-24 text-right"
+                        prop.children [
+                            Money.view {
+                                Money.defaultProps with
+                                    Amount = tx.Transaction.Amount.Amount
+                                    Currency = tx.Transaction.Amount.Currency
+                                    Size = Money.Small
+                                    Glow = Money.NoGlow
+                            }
+                        ]
+                    ]
+                    // Actions (visible on hover)
+                    Html.div [
+                        prop.className "flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                        prop.children [
+                            skipToggleIcon tx dispatch
+                        ]
+                    ]
+                ]
+            ]
+
+            // Memo row (when expanded and memo exists)
+            if isExpanded && hasExpandableContent then
+                memoRow tx
+        ]
+    ]
+
+// ============================================
+// OLD: Transaction Card Component (DEPRECATED)
+// ============================================
 
 let private transactionCard
     (tx: SyncTransaction)
@@ -504,11 +789,12 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                     "Try adjusting the date range in settings."
                     None
             | Success transactions ->
+                // NEW: Compact list container with card styling
                 Html.div [
-                    prop.className "space-y-3"
+                    prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
                     prop.children [
                         for tx in transactions do
-                            transactionCard tx model.Categories dispatch
+                            transactionRow tx model.Categories model.ExpandedTransactionIds dispatch
                     ]
                 ]
             | Failure error ->

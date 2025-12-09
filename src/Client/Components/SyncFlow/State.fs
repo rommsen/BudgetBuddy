@@ -33,6 +33,7 @@ let init () : Model * Cmd<Msg> =
         SplitEdit = None
         DuplicateTransactionIds = []
         IsTanConfirming = false
+        ExpandedTransactionIds = Set.empty
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -451,3 +452,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | CategoriesLoaded (Error _) ->
         model, Cmd.none, NoOp
+
+    // UI interactions
+    | ToggleTransactionExpand txId ->
+        let newExpandedIds =
+            if model.ExpandedTransactionIds.Contains txId then
+                model.ExpandedTransactionIds.Remove txId
+            else
+                model.ExpandedTransactionIds.Add txId
+        { model with ExpandedTransactionIds = newExpandedIds }, Cmd.none, NoOp

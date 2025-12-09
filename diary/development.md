@@ -4,6 +4,112 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-09 - Fix: UI-Verbesserungen für kompakte Transaktionsliste
+
+**What I did:**
+Mehrere UI-Probleme behoben, die nach dem initialen Redesign der Transaktionsliste aufgefallen sind:
+
+1. **Betrag-Formatierung**: Fable transpiliert `:F2` zu `%P(F2)` statt `.toFixed(2)` - jetzt explizites Rounding
+2. **Status-Farben**: Skipped-Transaktionen jetzt immer grau (statt rot bei Duplicates)
+3. **NeedsAttention gleiche Farbe**: Amazon/PayPal Transaktionen haben jetzt dieselbe Farbe wie andere Uncategorized
+4. **Mobile Actions**: Buttons auf Mobile immer sichtbar (nicht hover-only)
+5. **Größere Dropdown-Options**: Kategorie-Auswahl mit größerem Touch-Target
+6. **Expand-Feature**: Chevron-Icon zum Anzeigen von Memo-Text
+
+**Files Modified:**
+- `src/Client/DesignSystem/Money.fs`
+  - `formatAmount` nutzt jetzt `System.Math.Round(float absAmount, 2).ToString("0.00")` statt `:F2`
+  - Kommentar hinzugefügt, der das Fable-Transpilations-Problem erklärt
+
+- `src/Client/Components/SyncFlow/View.fs`
+  - `statusDot`: Skipped hat jetzt Priorität über DuplicateStatus
+  - `statusDot`: NeedsAttention nutzt jetzt `bg-neon-orange` (wie Pending)
+  - `getRowStateClasses`: Skipped-Check vor Duplicate-Check
+  - Mobile Actions: `md:opacity-0 md:group-hover:opacity-100` statt `opacity-0 group-hover:opacity-100`
+  - Neue `expandChevron` Funktion für Memo-Expand-Icon
+  - Neue `memoRow` Funktion für expandierbaren Memo-Text
+  - `transactionRow` akzeptiert jetzt `expandedIds: Set<TransactionId>` Parameter
+  - Layout enthält jetzt Chevron-Icon links vom Status-Dot
+
+- `src/Client/DesignSystem/Input.fs`
+  - Dropdown-Options: `px-4 py-3 text-base` statt `px-3 py-2 text-sm`
+  - Max-Höhe: `max-h-80` statt `max-h-60`
+
+- `src/Client/Components/SyncFlow/Types.fs`
+  - Model erweitert um `ExpandedTransactionIds: Set<TransactionId>`
+  - Neue Message: `ToggleTransactionExpand of TransactionId`
+
+- `src/Client/Components/SyncFlow/State.fs`
+  - `init()` erweitert mit `ExpandedTransactionIds = Set.empty`
+  - Handler für `ToggleTransactionExpand`: Toggle Set-Membership
+
+**Layout-Änderung Desktop:**
+```
+[▶/▼] [●] [Kategorie-Dropdown] [Payee...] [Datum] [Betrag] [Actions]
+```
+
+**Prioritäten für Farben:**
+1. Skipped → immer grau (opacity-50)
+2. ConfirmedDuplicate → rot (nur wenn nicht skipped)
+3. PossibleDuplicate → orange pulsierend (nur wenn nicht skipped)
+4. Pending/NeedsAttention → orange (gleiche Farbe!)
+5. AutoCategorized → teal
+6. ManualCategorized/Imported → grün
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped
+- Beträge werden korrekt formatiert: `-25.99 EUR`
+- Skipped Duplicates sind grau
+- Mobile Actions immer sichtbar
+- Memo-Text durch Expand abrufbar
+
+---
+
+## 2025-12-09 - Redesign: Kompakte Transaktionsliste im Import-Flow
+
+**What I did:**
+Komplettes Redesign der Transaktions-Import-UI von unstrukturierten Karten (~100-120px Höhe) zu einer kompakten, scanbaren Liste (~44px Desktop, ~72px Mobile). Das neue Design folgt dem Mobile-First Ansatz aus dem Design System und stellt die Kategorie als zentrales Interaktionselement in den Fokus.
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs`
+  - Neue Helper-Funktionen: `statusDot`, `getRowStateClasses`, `duplicateIndicator`, `skipToggleIcon`, `externalLinkIcon`, `formatDateCompact`
+  - Neue Komponente: `transactionRow` mit Mobile/Desktop responsive Layout
+  - Container von `space-y-3` auf Card-Style mit `border-white/5 divide-y` umgestellt
+  - Alte `transactionCard` Funktion als DEPRECATED markiert (noch vorhanden für Referenz)
+
+**Design-Änderungen:**
+- **Status-Anzeige**: Von großen Badges zu kleinen farbigen Dots (8px)
+  - Grün: Kategorisiert (manual/auto)
+  - Teal: Auto-kategorisiert
+  - Orange: Pending
+  - Rot: Duplicate
+  - Grau: Skipped
+  - Pink (pulsierend): Needs Attention
+- **Duplicate-Handling**: Inline-Banner entfernt, stattdessen Tooltip auf Icon
+- **Kategorie-Auswahl**: Prominent links positioniert (FOKUS)
+- **Actions**: Hover-only auf Desktop, immer sichtbar auf Mobile
+
+**Layout-Struktur:**
+```
+Desktop: [●] [Category-Dropdown] [Payee...] [Date] [Amount] [Actions]
+Mobile:  Line 1: [●] [Category-Dropdown] [Amount]
+         Line 2: [Payee ...] [Date] [Actions]
+```
+
+**Touch-Optimierung:**
+- Skip-Button: `min-w-[44px] min-h-[44px]` für Touch-Targets
+- Kategorie-Dropdown nutzt existierenden `searchableSelect` mit Touch-Support
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped
+- ~2.5x mehr Transaktionen auf Desktop sichtbar
+- ~1.5x mehr Transaktionen auf Mobile sichtbar
+- Klarer Scan-Pfad: Status → Kategorie → Details → Betrag
+
+---
+
 ## 2025-12-09 - Feature: Inline-Bestätigung für Rule-Löschen
 
 **What I did:**
