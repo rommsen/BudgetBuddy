@@ -43,6 +43,7 @@ let init () : Model * Cmd<Msg> =
         RuleFormTestInput = emptyForm.TestInput
         RuleFormTestResult = emptyForm.TestResult
         RuleSaving = false
+        ConfirmingDeleteRuleId = None
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadRules
@@ -127,7 +128,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             RuleSaving = false
         }, Cmd.none, NoOp
 
+    | ConfirmDeleteRule ruleId ->
+        // Show confirm button and start 3 second timeout
+        let timeoutCmd =
+            Cmd.OfAsync.perform
+                (fun () -> async { do! Async.Sleep 3000 })
+                ()
+                (fun () -> CancelConfirmDelete)
+        { model with ConfirmingDeleteRuleId = Some ruleId }, timeoutCmd, NoOp
+
+    | CancelConfirmDelete ->
+        // Timeout expired - hide confirm button
+        { model with ConfirmingDeleteRuleId = None }, Cmd.none, NoOp
+
     | DeleteRule ruleId ->
+        // Reset confirm state and actually delete
         let cmd =
             Cmd.OfAsync.either
                 Api.rules.deleteRule
@@ -137,7 +152,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     | Ok () -> Ok ruleId |> RuleDeleted
                     | Error err -> Error err |> RuleDeleted)
                 (fun ex -> Error (RulesError.DatabaseError ("delete", ex.Message)) |> RuleDeleted)
-        model, cmd, NoOp
+        { model with ConfirmingDeleteRuleId = None }, cmd, NoOp
 
     | RuleDeleted (Ok deletedRuleId) ->
         match model.Rules with

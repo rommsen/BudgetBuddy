@@ -54,79 +54,86 @@ let private targetFieldText (targetField: TargetField) =
     | Combined -> "Combined"
 
 // ============================================
-// Rule Card Component (Mobile-first)
+// Pattern Type Icon (compact, single character)
 // ============================================
 
-let private ruleCard (rule: Rule) (dispatch: Msg -> unit) =
+let private patternTypeIcon (patternType: PatternType) =
+    let (icon, color, title) =
+        match patternType with
+        | PatternType.Regex -> (".*", "text-neon-purple", "Regex pattern")
+        | Contains -> ("~", "text-neon-teal", "Contains substring")
+        | Exact -> ("=", "text-neon-green", "Exact match")
+    Html.span [
+        prop.className $"font-mono text-[10px] font-bold {color} bg-white/5 px-1 rounded"
+        prop.title title
+        prop.text icon
+    ]
+
+// ============================================
+// Single-Line Rule Row (Compact Display)
+// ============================================
+
+let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
     let opacityClass = if not rule.Enabled then "opacity-50" else ""
+    let isConfirmingDelete = model.ConfirmingDeleteRuleId = Some rule.Id
 
     Html.div [
-        prop.className $"animate-fade-in {opacityClass}"
+        prop.className $"group flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-base-100 border border-white/5 rounded-lg hover:border-white/10 transition-colors {opacityClass}"
         prop.children [
-            Card.view { Card.defaultProps with Variant = Card.Standard; Size = Card.Normal } [
-                // Header row
-                Html.div [
-                    prop.className "flex items-start justify-between gap-3"
-                    prop.children [
-                        Html.div [
-                            prop.className "flex-1 min-w-0"
-                            prop.children [
-                                Html.div [
-                                    prop.className "flex items-center gap-2 flex-wrap"
-                                    prop.children [
-                                        Html.h3 [
-                                            prop.className "font-semibold text-base-content truncate"
-                                            prop.text rule.Name
-                                        ]
-                                        patternTypeBadge rule.PatternType
-                                    ]
-                                ]
-                                Html.p [
-                                    prop.className "text-sm text-base-content/60 mt-1 font-mono truncate"
-                                    prop.title rule.Pattern
-                                    prop.text rule.Pattern
-                                ]
-                            ]
-                        ]
-                        Input.toggle rule.Enabled (fun _ -> dispatch (ToggleRuleEnabled rule.Id)) None
-                    ]
+            // Toggle (compact)
+            Html.div [
+                prop.className "flex-shrink-0"
+                prop.children [
+                    Input.toggle rule.Enabled (fun _ -> dispatch (ToggleRuleEnabled rule.Id)) None
                 ]
+            ]
 
-                // Category and target field
-                Html.div [
-                    prop.className "flex items-center justify-between mt-4 pt-4 border-t border-white/5"
-                    prop.children [
-                        Html.div [
-                            prop.className "flex items-center gap-3"
+            // Pattern type icon
+            Html.div [
+                prop.className "flex-shrink-0 hidden sm:block"
+                prop.children [ patternTypeIcon rule.PatternType ]
+            ]
+
+            // Name (truncated)
+            Html.span [
+                prop.className "font-medium text-sm text-base-content truncate min-w-[60px] max-w-[120px] sm:max-w-[160px]"
+                prop.title $"{rule.Name}\nPattern: {rule.Pattern}"
+                prop.text rule.Name
+            ]
+
+            // Arrow separator
+            Html.span [
+                prop.className "text-base-content/30 text-xs flex-shrink-0"
+                prop.text "→"
+            ]
+
+            // Category (flexible, truncated)
+            Html.span [
+                prop.className "flex-1 text-sm text-base-content/70 truncate min-w-0"
+                prop.title rule.CategoryName
+                prop.text rule.CategoryName
+            ]
+
+            // Actions (always visible on mobile, hover on desktop)
+            Html.div [
+                prop.className "flex-shrink-0 flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                prop.children [
+                    Button.iconButton (Icons.edit SM Icons.Default) Button.Ghost (fun () -> dispatch (EditRule rule.Id))
+
+                    // Delete button with inline confirmation
+                    if isConfirmingDelete then
+                        // Red confirm button (auto-resets after 3s)
+                        Html.button [
+                            prop.className "btn btn-xs btn-error gap-1 animate-pulse"
+                            prop.onClick (fun _ -> dispatch (DeleteRule rule.Id))
                             prop.children [
-                                Html.div [
-                                    prop.className "w-9 h-9 rounded-lg bg-neon-teal/10 flex items-center justify-center"
-                                    prop.children [
-                                        Icons.rules SM Icons.NeonTeal
-                                    ]
-                                ]
-                                Html.div [
-                                    prop.children [
-                                        Html.p [
-                                            prop.className "text-sm font-medium text-base-content"
-                                            prop.text rule.CategoryName
-                                        ]
-                                        Html.p [
-                                            prop.className "text-xs text-base-content/50"
-                                            prop.text $"Match in: {targetFieldText rule.TargetField}"
-                                        ]
-                                    ]
-                                ]
+                                Icons.trash XS Icons.IconColor.Primary
+                                Html.span [ prop.text "Löschen?" ]
                             ]
                         ]
-                        Html.div [
-                            prop.className "flex gap-1"
-                            prop.children [
-                                Button.iconButton (Icons.edit SM Icons.Default) Button.Ghost (fun () -> dispatch (EditRule rule.Id))
-                                Button.iconButton (Icons.trash SM Icons.Error) Button.Ghost (fun () -> dispatch (DeleteRule rule.Id))
-                            ]
-                        ]
-                    ]
+                    else
+                        // Normal trash icon
+                        Button.iconButton (Icons.trash SM Icons.Error) Button.Ghost (fun () -> dispatch (ConfirmDeleteRule rule.Id))
                 ]
             ]
         ]
@@ -492,20 +499,53 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
 
-            // Info tip
+            // Info tip with pattern type legend
             Card.view { Card.defaultProps with Variant = Card.Glass; Size = Card.Compact; Hoverable = false } [
                 Html.div [
-                    prop.className "flex items-start gap-3"
+                    prop.className "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                     prop.children [
+                        // Info text
                         Html.div [
-                            prop.className "w-8 h-8 rounded-lg bg-neon-teal/10 flex items-center justify-center flex-shrink-0"
+                            prop.className "flex items-start gap-3"
                             prop.children [
-                                Icons.info SM Icons.NeonTeal
+                                Html.div [
+                                    prop.className "w-8 h-8 rounded-lg bg-neon-teal/10 flex items-center justify-center flex-shrink-0"
+                                    prop.children [
+                                        Icons.info SM Icons.NeonTeal
+                                    ]
+                                ]
+                                Html.p [
+                                    prop.className "text-sm text-base-content/70"
+                                    prop.text "Rules are applied in priority order. The first matching rule will be used."
+                                ]
                             ]
                         ]
-                        Html.p [
-                            prop.className "text-sm text-base-content/70"
-                            prop.text "Rules are applied in priority order. The first matching rule will be used to categorize a transaction."
+                        // Pattern type legend
+                        Html.div [
+                            prop.className "flex items-center gap-3 text-xs text-base-content/50 pl-11 sm:pl-0"
+                            prop.children [
+                                Html.span [
+                                    prop.className "flex items-center gap-1"
+                                    prop.children [
+                                        Html.span [ prop.className "font-mono text-[10px] font-bold text-neon-teal bg-white/5 px-1 rounded"; prop.text "~" ]
+                                        Html.span [ prop.text "Contains" ]
+                                    ]
+                                ]
+                                Html.span [
+                                    prop.className "flex items-center gap-1"
+                                    prop.children [
+                                        Html.span [ prop.className "font-mono text-[10px] font-bold text-neon-green bg-white/5 px-1 rounded"; prop.text "=" ]
+                                        Html.span [ prop.text "Exact" ]
+                                    ]
+                                ]
+                                Html.span [
+                                    prop.className "flex items-center gap-1"
+                                    prop.children [
+                                        Html.span [ prop.className "font-mono text-[10px] font-bold text-neon-purple bg-white/5 px-1 rounded"; prop.text ".*" ]
+                                        Html.span [ prop.text "Regex" ]
+                                    ]
+                                ]
+                            ]
                         ]
                     ]
                 ]
@@ -530,13 +570,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             | RemoteData.Success rules ->
                 Html.div [
-                    prop.className "grid gap-3"
+                    prop.className "space-y-1.5"
                     prop.children [
                         for rule in rules do
                             let (RuleId id) = rule.Id
                             Html.div [
                                 prop.key (string id)
-                                prop.children [ ruleCard rule dispatch ]
+                                prop.children [ ruleRow model rule dispatch ]
                             ]
                     ]
                 ]

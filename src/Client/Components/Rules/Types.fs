@@ -21,6 +21,9 @@ type Model = {
     RuleFormTestInput: string
     RuleFormTestResult: string option
     RuleSaving: bool
+
+    // Delete confirmation state
+    ConfirmingDeleteRuleId: RuleId option
 }
 
 /// Rules-specific messages
@@ -30,7 +33,9 @@ type Msg =
     | OpenNewRuleModal
     | EditRule of RuleId
     | CloseRuleModal
-    | DeleteRule of RuleId
+    | ConfirmDeleteRule of RuleId    // First click on trash - shows confirm button
+    | CancelConfirmDelete            // Timeout expired - hide confirm button
+    | DeleteRule of RuleId           // Second click - actually delete
     | RuleDeleted of Result<RuleId, RulesError>
     | ToggleRuleEnabled of RuleId
     | RuleToggled of Result<Rule, RulesError>

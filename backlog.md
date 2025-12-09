@@ -35,7 +35,6 @@ Ideen und Features für spätere Implementierung.
 - [ ] **Cleared-Setting**: In den Settings einstellen können, ob YNAB Transaktionen beim Import als "cleared" oder "uncleared" markiert werden
 - [ ] **Automatisch geskippte Transaktionen rot statt ausgegraut**: Transaktionen die automatisch als Duplikate erkannt und geskippt werden, werden rot dargestellt. Diese sollten stattdessen ausgegraut sein (wie andere geskippte Transaktionen).
 - [ ] **Transfer-Unterstützung bei Payees**: Neben der Kategorie soll man auch "Transfer to/from" als Payee hinterlegen können. Nützlich z.B. für Barabhebungen, die nur eine Verschiebung zwischen Konten sind (Transfer to Bar) und keine Budget-Auswirkung haben.
-- [ ] **Einzeilige Rules-Darstellung**: Rules werden aktuell zweizeilig dargestellt und nehmen viel Platz ein. Der gesamte Inhalt soll kompakt in einer Zeile angezeigt werden.
 
 ### Niedrige Priorität
 
@@ -54,5 +53,6 @@ Ideen und Features für spätere Implementierung.
 
 ### Features
 
+- [x] **Einzeilige Rules-Darstellung**: Kompakte Single-Line Darstellung für Rules implementiert ✅ (2025-12-09)
 - [x] **Suchbare Kategorie-Selectboxen**: SearchableSelect Komponente mit Textfeld-Filter (contains-Logik) für SyncFlow und Rules ✅ (2025-12-08)
 

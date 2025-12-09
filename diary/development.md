@@ -4,6 +4,72 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-09 - Feature: Inline-Bestätigung für Rule-Löschen
+
+**What I did:**
+Schutz vor versehentlichem Löschen von Rules durch Inline-Bestätigung (MVU-konform). Beim Klick auf das Trash-Icon erscheint ein roter "Löschen?"-Button, der nach 3 Sekunden automatisch zurück zum normalen Icon wechselt.
+
+**Files Modified:**
+- `src/Client/Components/Rules/Types.fs`
+  - Neues Model-Feld: `ConfirmingDeleteRuleId: RuleId option`
+  - Neue Messages: `ConfirmDeleteRule of RuleId`, `CancelConfirmDelete`
+- `src/Client/Components/Rules/State.fs`
+  - `init()` erweitert mit `ConfirmingDeleteRuleId = None`
+  - Handler für `ConfirmDeleteRule`: Setzt State + startet 3s Timeout-Cmd
+  - Handler für `CancelConfirmDelete`: Setzt State zurück
+  - `DeleteRule` setzt ebenfalls `ConfirmingDeleteRuleId = None`
+- `src/Client/Components/Rules/View.fs`
+  - `ruleRow` bekommt `model` als ersten Parameter
+  - Delete-Button zeigt konditionell: Trash-Icon oder roten "Löschen?"-Button
+  - Button hat `animate-pulse` für visuelle Aufmerksamkeit
+
+**Technische Details:**
+- Vollständig MVU-konform: Kein lokaler React-State, alle Änderungen über Messages
+- Timeout via `Cmd.OfAsync.perform` mit `Async.Sleep 3000`
+- Nur eine Rule kann gleichzeitig im Confirm-Modus sein
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped
+- Versehentliches Löschen wird durch Zwei-Klick-Mechanismus verhindert
+
+---
+
+## 2025-12-09 - Feature: Einzeilige Rules-Darstellung + Legende
+
+**What I did:**
+Rules-Darstellung von mehrzeiliger Card-Ansicht auf kompakte einzeilige Zeilen umgestellt. Die neue Darstellung zeigt alle wichtigen Informationen in einer Zeile: Toggle, Pattern-Type-Icon, Name, Pfeil, Kategorie, und Aktions-Buttons. Zusätzlich wurde eine Legende für die Pattern-Type-Icons hinzugefügt.
+
+**Files Added:**
+- Keine neuen Dateien
+
+**Files Modified:**
+- `src/Client/Components/Rules/View.fs`
+  - Neue `patternTypeIcon` Funktion für kompakte Pattern-Type-Anzeige (Regex: `.*`, Contains: `~`, Exact: `=`)
+  - `ruleCard` ersetzt durch kompakte `ruleRow` Komponente
+  - Single-Line Layout: `[Toggle] [PatternIcon] [Name...] → [Category...] [Edit][Delete]`
+  - Pattern-Type-Icon auf kleinen Screens versteckt (`hidden sm:block`)
+  - Actions auf Desktop nur bei Hover sichtbar (`sm:opacity-0 sm:group-hover:opacity-100`)
+  - Name und Pattern als Tooltip verfügbar
+  - Spacing reduziert: `space-y-1.5` statt `gap-3`
+  - **Legende im Info-Tip hinzugefügt**: Zeigt alle Pattern-Types mit Icons (`~ Contains`, `= Exact`, `.* Regex`)
+
+**Technische Details:**
+- Pattern-Type als kompaktes Icon-Badge: farbcodiert (Purple=Regex, Teal=Contains, Green=Exact)
+- Flexbox-Layout mit truncate für Überlauf-Handling
+- Responsive: Auf Mobile immer Actions sichtbar, auf Desktop nur bei Hover
+- Tooltip zeigt vollständigen Namen und Pattern bei Hover über Namen
+- Legende responsive: Auf Desktop neben Info-Text, auf Mobile darunter
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed, 6 skipped
+- Rules nehmen jetzt deutlich weniger Platz ein (ca. 1/3 der vorherigen Höhe)
+- Mehr Rules auf einen Blick sichtbar
+- Pattern-Type-Icons sind durch Legende erklärt
+
+---
+
 ## 2025-12-08 - Feature: Suchbare Kategorie-Selectboxen mit Keyboard-Navigation
 
 **What I did:**
