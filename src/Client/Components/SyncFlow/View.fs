@@ -239,7 +239,7 @@ let private createRuleButton (tx: SyncTransaction) (showForm: bool) (manuallyCat
         not showForm
     if shouldShow then
         Html.button [
-            prop.className "p-2 rounded-lg hover:bg-neon-teal/10 text-neon-teal/70 hover:text-neon-teal transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            prop.className "p-2 rounded-lg hover:bg-neon-teal/10 text-neon-teal/70 hover:text-neon-teal transition-colors w-[32px] h-[32px] flex items-center justify-center"
             prop.title "Create categorization rule from this transaction"
             prop.onClick (fun e ->
                 e.stopPropagation()
@@ -247,7 +247,8 @@ let private createRuleButton (tx: SyncTransaction) (showForm: bool) (manuallyCat
             prop.children [ Icons.rules Icons.SM Icons.NeonTeal ]
         ]
     else
-        Html.none
+        // Placeholder to maintain consistent layout
+        Html.div [ prop.className "w-[32px] h-[32px]" ]
 
 /// Inline rule creation form (expands below transaction row)
 let private inlineRuleForm
@@ -554,11 +555,14 @@ let private transactionRow
                             match tx.ExternalLinks |> List.tryHead with
                             | Some link ->
                                 Html.a [
-                                    prop.className "flex-1 truncate text-base-content/70 hover:text-neon-teal transition-colors"
+                                    prop.className "flex-1 flex items-center gap-1 min-w-0 text-neon-teal hover:text-neon-teal/80 transition-colors"
                                     prop.href link.Url
                                     prop.target "_blank"
                                     prop.title $"{payee} - {link.Label}"
-                                    prop.text payee
+                                    prop.children [
+                                        Html.span [ prop.className "truncate"; prop.text payee ]
+                                        Icons.externalLink Icons.XS Icons.NeonTeal
+                                    ]
                                 ]
                             | None ->
                                 Html.span [
@@ -570,9 +574,9 @@ let private transactionRow
                                 prop.className "text-xs text-base-content/40 tabular-nums"
                                 prop.text dateStr
                             ]
-                            // Actions (always visible on mobile for touch)
+                            // Actions (always visible on mobile for touch, fixed width)
                             Html.div [
-                                prop.className "flex items-center gap-1"
+                                prop.className "flex items-center gap-0.5 w-16 flex-shrink-0"
                                 prop.children [
                                     createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
                                     skipToggleIcon tx dispatch
@@ -593,6 +597,14 @@ let private transactionRow
                     statusDot tx
                     // Duplicate indicator
                     duplicateIndicator tx.DuplicateStatus
+                    // Actions (always visible, fixed width for layout stability)
+                    Html.div [
+                        prop.className "flex items-center gap-0.5 w-16 flex-shrink-0"
+                        prop.children [
+                            createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
+                            skipToggleIcon tx dispatch
+                        ]
+                    ]
                     // Category selector (FOCAL) - fixed width
                     Html.div [
                         prop.className "w-52 flex-shrink-0"
@@ -616,11 +628,14 @@ let private transactionRow
                     match tx.ExternalLinks |> List.tryHead with
                     | Some link ->
                         Html.a [
-                            prop.className "flex-1 truncate text-sm text-base-content hover:text-neon-teal transition-colors"
+                            prop.className "flex-1 flex items-center gap-1.5 min-w-0 text-sm text-neon-teal hover:text-neon-teal/80 transition-colors"
                             prop.href link.Url
                             prop.target "_blank"
                             prop.title $"{payee} - {link.Label}"
-                            prop.text payee
+                            prop.children [
+                                Html.span [ prop.className "truncate"; prop.text payee ]
+                                Icons.externalLink Icons.XS Icons.NeonTeal
+                            ]
                         ]
                     | None ->
                         Html.span [
@@ -644,14 +659,6 @@ let private transactionRow
                                     Size = Money.Small
                                     Glow = Money.NoGlow
                             }
-                        ]
-                    ]
-                    // Actions (visible on hover)
-                    Html.div [
-                        prop.className "flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                        prop.children [
-                            createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
-                            skipToggleIcon tx dispatch
                         ]
                     ]
                 ]

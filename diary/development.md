@@ -4,6 +4,41 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-09 18:45 - UI: Transaktionsliste Aktionen sichtbar machen & Links verbessern
+
+**What I did:**
+Verbesserung der Transaktionslisten-UI: Aktions-Buttons (Skip, Create Rule) sind jetzt immer sichtbar statt nur bei Hover, und externe Links (Amazon, PayPal) sind klar als Links erkennbar.
+
+**Probleme vorher:**
+- Hover-Aktionen waren unsichtbar aber nahmen Platz ein → Geldbeträge nicht bündig
+- Create Rule Button erschien/verschwand → Layout-Shift
+- Amazon/PayPal-Links sahen aus wie normaler Text
+
+**Lösung:**
+1. **Aktionen nach vorne verschoben**: Jetzt zwischen Status-Indikatoren und Kategorie-Dropdown
+2. **Feste Container-Breite**: `w-16` für Aktions-Container → stabile Layouts
+3. **Platzhalter**: Wenn Create Rule Button nicht aktiv, wird ein unsichtbarer Platzhalter gerendert
+4. **Link-Styling**: Teal-Farbe + External-Link-Icon für erkennbare Links
+
+**Neues Layout (Desktop):**
+```
+[▶] [●] [⚠] | [Skip][Rule] | [Category ▾] | [Payee 🔗] | [Date] | [Amount]
+```
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs`
+  - `createRuleButton`: Gibt jetzt Platzhalter-div statt `Html.none` zurück
+  - Desktop-Layout: Aktionen nach vorne verschoben, `opacity-0` entfernt, feste Breite
+  - Mobile-Layout: Gleiche Änderungen für Konsistenz
+  - External Links: Teal-Farbe + `Icons.externalLink` Icon
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/279 passed
+- UI: Aktionen immer sichtbar, Beträge bündig, Links erkennbar
+
+---
+
 ## 2025-12-09 16:30 - Feature: Regel aus Zuweisungs-Dialog erstellen
 
 **What I did:**
