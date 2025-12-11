@@ -4,6 +4,64 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-09 23:00 - Refactor: Stats Filter Semantics and Duplicate Banner
+
+**What I did:**
+Refactored the Stats-Filter system for clearer semantics and improved the Duplicate Banner.
+
+**Changes:**
+1. Renamed filter types for clarity:
+   - `ReadyTransactions` → `CategorizedTransactions`
+   - `PendingTransactions` → `UncategorizedTransactions`
+   - `DuplicateTransactions` → `ConfirmedDuplicates`
+2. Fixed count logic:
+   - Categorized: Has CategoryId AND not Skipped/Imported
+   - Uncategorized: No CategoryId AND not Skipped/Imported
+   - ConfirmedDuplicates: Only `ConfirmedDuplicate` status (not `PossibleDuplicate`)
+3. Updated Stats labels: "Ready" → "Categorized", "Pending" → "Uncategorized"
+4. Improved Duplicate Banner: Now only shows ConfirmedDuplicates with better German explanation
+5. Removed redundant "Transaktionen ohne Kategorie" warning banner (info now in Uncategorized stat)
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Types.fs` - Renamed TransactionFilter cases
+- `src/Client/Components/SyncFlow/View.fs` - Updated filterTransactions, count logic, labels, banner
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/285 passed (6 skipped integration tests)
+- UI: Clearer semantics, less clutter
+
+---
+
+## 2025-12-09 22:15 - Feature: Clickable Stats Filters for Transaction List
+
+**What I did:**
+Implemented clickable filter functionality for the Stats cards on the Sync Transactions page. Users can now click on Total, Ready, Pending, Skipped, or the Duplicates banner to filter the transaction list.
+
+**Implementation:**
+1. Added `TransactionFilter` discriminated union type with 5 filter options:
+   - AllTransactions, ReadyTransactions, PendingTransactions, SkippedTransactions, DuplicateTransactions
+2. Added `ActiveFilter` field to the SyncFlow Model
+3. Added `SetFilter` message to Msg type
+4. Extended Stats component with `OnClick` and `IsActive` props for interactivity
+5. Added `filterTransactions` helper function to filter by status
+6. Stats cards now show active state with teal ring highlight
+7. Filter indicator shows "X of Y transactions" with "Show all" link
+8. Empty state when filter matches no transactions
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Types.fs` - Added TransactionFilter DU, ActiveFilter field, SetFilter message
+- `src/Client/Components/SyncFlow/State.fs` - Initialized ActiveFilter, added SetFilter handler
+- `src/Client/Components/SyncFlow/View.fs` - Added filterTransactions, clickable Stats, filter UI
+- `src/Client/DesignSystem/Stats.fs` - Added OnClick and IsActive props to StatProps
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/285 passed (6 skipped integration tests)
+- UX: Users can quickly filter to see only pending, ready, skipped, or duplicate transactions
+
+---
+
 ## 2025-12-09 21:00 - UI: Breitere Selectbox & elegante Memo-Anzeige
 
 **What I did:**

@@ -66,6 +66,7 @@ let init () : Model * Cmd<Msg> =
         ExpandedTransactionIds = Set.empty
         InlineRuleForm = None
         ManuallyCategorizedIds = Set.empty
+        ActiveFilter = AllTransactions
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -510,6 +511,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             else
                 model.ExpandedTransactionIds.Add txId
         { model with ExpandedTransactionIds = newExpandedIds }, Cmd.none, NoOp
+
+    | SetFilter filter ->
+        { model with ActiveFilter = filter }, Cmd.none, NoOp
 
     // Inline rule creation handlers
     | OpenInlineRuleForm txId ->

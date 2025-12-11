@@ -13,6 +13,32 @@ open Client.DesignSystem
 let private formatDate (date: System.DateTime) =
     date.ToString("dd.MM.yyyy")
 
+/// Filter transactions based on the active filter
+let private filterTransactions (filter: TransactionFilter) (transactions: SyncTransaction list) =
+    match filter with
+    | AllTransactions -> transactions
+    | CategorizedTransactions ->
+        transactions
+        |> List.filter (fun tx ->
+            tx.CategoryId.IsSome &&
+            tx.Status <> Skipped &&
+            tx.Status <> Imported)
+    | UncategorizedTransactions ->
+        transactions
+        |> List.filter (fun tx ->
+            tx.CategoryId.IsNone &&
+            tx.Status <> Skipped &&
+            tx.Status <> Imported)
+    | SkippedTransactions ->
+        transactions
+        |> List.filter (fun tx -> tx.Status = Skipped)
+    | ConfirmedDuplicates ->
+        transactions
+        |> List.filter (fun tx ->
+            match tx.DuplicateStatus with
+            | ConfirmedDuplicate _ -> true
+            | _ -> false)
+
 // ============================================
 // Status Badge Component (using Design System)
 // ============================================
@@ -895,17 +921,24 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
             match model.SyncTransactions with
             | Success transactions ->
                 // Calculate all counts in a single pass for better performance
-                let (categorized, uncategorized, skipped, duplicates) =
+                let (categorized, uncategorized, skipped, confirmedDuplicates) =
                     transactions |> List.fold (fun (cat, uncat, skip, dup) tx ->
+                        // Categorized: has CategoryId, not Skipped/Imported
                         let cat' =
-                            match tx.Status with
-                            | AutoCategorized | ManualCategorized | NeedsAttention when tx.CategoryId.IsSome -> cat + 1
-                            | _ -> cat
-                        let uncat' = if tx.Status = Pending then uncat + 1 else uncat
+                            if tx.CategoryId.IsSome && tx.Status <> Skipped && tx.Status <> Imported then
+                                cat + 1
+                            else cat
+                        // Uncategorized: no CategoryId, not Skipped/Imported
+                        let uncat' =
+                            if tx.CategoryId.IsNone && tx.Status <> Skipped && tx.Status <> Imported then
+                                uncat + 1
+                            else uncat
+                        // Skipped: Status = Skipped
                         let skip' = if tx.Status = Skipped then skip + 1 else skip
+                        // ConfirmedDuplicates only (not PossibleDuplicate)
                         let dup' =
                             match tx.DuplicateStatus with
-                            | ConfirmedDuplicate _ | PossibleDuplicate _ -> dup + 1
+                            | ConfirmedDuplicate _ -> dup + 1
                             | _ -> dup
                         (cat', uncat', skip', dup')
                     ) (0, 0, 0, 0)
@@ -921,32 +954,45 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     Value = string total
                                     Accent = Stats.Gradient
                                     Size = Stats.Compact
+                                    OnClick = Some (fun () -> dispatch (SetFilter AllTransactions))
+                                    IsActive = model.ActiveFilter = AllTransactions
                             }
                             Stats.view {
                                 Stats.defaultProps with
-                                    Label = "Ready"
+                                    Label = "Categorized"
                                     Value = string categorized
                                     Accent = Stats.Green
                                     Size = Stats.Compact
+                                    OnClick = Some (fun () -> dispatch (SetFilter CategorizedTransactions))
+                                    IsActive = model.ActiveFilter = CategorizedTransactions
                             }
                             Stats.view {
                                 Stats.defaultProps with
-                                    Label = "Pending"
+                                    Label = "Uncategorized"
                                     Value = string uncategorized
                                     Accent = if uncategorized > 0 then Stats.Orange else Stats.Gradient
                                     Size = Stats.Compact
+                                    OnClick = Some (fun () -> dispatch (SetFilter UncategorizedTransactions))
+                                    IsActive = model.ActiveFilter = UncategorizedTransactions
                             }
                             Stats.view {
                                 Stats.defaultProps with
                                     Label = "Skipped"
                                     Value = string skipped
                                     Size = Stats.Compact
+                                    OnClick = Some (fun () -> dispatch (SetFilter SkippedTransactions))
+                                    IsActive = model.ActiveFilter = SkippedTransactions
                             }
                         ]
-                        // Duplicate warning banner
-                        if duplicates > 0 then
+                        // Confirmed duplicates info banner (clickable filter)
+                        if confirmedDuplicates > 0 then
+                            let activeClass =
+                                if model.ActiveFilter = ConfirmedDuplicates then
+                                    "ring-2 ring-neon-orange ring-offset-2 ring-offset-base-100"
+                                else ""
                             Html.div [
-                                prop.className "flex items-center gap-3 p-3 rounded-xl bg-neon-orange/10 border border-neon-orange/30"
+                                prop.className $"flex items-center gap-3 p-3 rounded-xl bg-neon-orange/10 border border-neon-orange/30 cursor-pointer hover:bg-neon-orange/20 transition-colors {activeClass}"
+                                prop.onClick (fun _ -> dispatch (SetFilter ConfirmedDuplicates))
                                 prop.children [
                                     Icons.warning Icons.MD Icons.NeonOrange
                                     Html.div [
@@ -954,11 +1000,11 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                                         prop.children [
                                             Html.p [
                                                 prop.className "text-sm font-medium text-neon-orange"
-                                                prop.text $"{duplicates} potential duplicate(s) detected"
+                                                prop.text $"{confirmedDuplicates} bekannte Duplikate (automatisch übersprungen)"
                                             ]
                                             Html.p [
                                                 prop.className "text-xs text-base-content/60"
-                                                prop.text "Review transactions marked in orange or red before importing."
+                                                prop.text "Diese Transaktionen wurden durch Reference oder Import-ID als bereits in YNAB vorhanden erkannt."
                                             ]
                                         ]
                                     ]
@@ -966,41 +1012,6 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                             ]
                     ]
                 ]
-            | _ -> Html.none
-
-            // Uncategorized warning banner
-            match model.SyncTransactions with
-            | Success transactions ->
-                let uncategorizedCount =
-                    transactions
-                    |> List.filter (fun tx ->
-                        tx.Status <> Skipped &&
-                        tx.Status <> Imported &&
-                        tx.CategoryId.IsNone &&
-                        (tx.Splits |> Option.map List.isEmpty |> Option.defaultValue true))
-                    |> List.length
-                if uncategorizedCount > 0 then
-                    Html.div [
-                        prop.className "flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30 mb-4"
-                        prop.children [
-                            Icons.warning Icons.MD Icons.Warning
-                            Html.div [
-                                prop.className "flex-1"
-                                prop.children [
-                                    Html.p [
-                                        prop.className "text-sm font-medium text-warning"
-                                        prop.text $"{uncategorizedCount} Transaktion(en) ohne Kategorie"
-                                    ]
-                                    Html.p [
-                                        prop.className "text-xs text-base-content/60"
-                                        prop.text "Diese werden als 'Uncategorized' in YNAB importiert."
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                else
-                    Html.none
             | _ -> Html.none
 
             // Actions bar (sticky with glassmorphism)
@@ -1081,12 +1092,47 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                         let (YnabCategoryId id) = cat.Id
                         (id.ToString(), $"{cat.GroupName}: {cat.Name}"))
 
-                // NEW: Compact list container with card styling
+                // Apply active filter to transactions
+                let filteredTransactions = filterTransactions model.ActiveFilter transactions
+
+                // Show filter info when not showing all
                 Html.div [
-                    prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
+                    prop.className "space-y-3"
                     prop.children [
-                        for tx in transactions do
-                            transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch
+                        // Filter indicator
+                        if model.ActiveFilter <> AllTransactions then
+                            Html.div [
+                                prop.className "flex items-center justify-between px-4 py-2 rounded-lg bg-neon-teal/10 border border-neon-teal/30"
+                                prop.children [
+                                    Html.span [
+                                        prop.className "text-sm text-neon-teal"
+                                        prop.children [
+                                            Html.text $"Showing {filteredTransactions.Length} of {transactions.Length} transactions"
+                                        ]
+                                    ]
+                                    Html.button [
+                                        prop.className "text-xs text-neon-teal hover:text-neon-teal/80 underline"
+                                        prop.onClick (fun _ -> dispatch (SetFilter AllTransactions))
+                                        prop.text "Show all"
+                                    ]
+                                ]
+                            ]
+
+                        // Compact list container with card styling
+                        if filteredTransactions.IsEmpty then
+                            Card.emptyState
+                                (Icons.search Icons.XL Icons.Default)
+                                "No matching transactions"
+                                "Try selecting a different filter above."
+                                (Some (Button.ghost "Show all" (fun () -> dispatch (SetFilter AllTransactions))))
+                        else
+                            Html.div [
+                                prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
+                                prop.children [
+                                    for tx in filteredTransactions do
+                                        transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch
+                                ]
+                            ]
                     ]
                 ]
             | Failure error ->

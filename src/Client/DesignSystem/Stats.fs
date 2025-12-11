@@ -42,6 +42,8 @@ type StatProps = {
     Size: StatSize
     Description: string option
     ClassName: string option
+    OnClick: (unit -> unit) option
+    IsActive: bool
 }
 
 let defaultProps = {
@@ -53,6 +55,8 @@ let defaultProps = {
     Size = Normal
     Description = None
     ClassName = None
+    OnClick = None
+    IsActive = false
 }
 
 // ============================================
@@ -123,9 +127,19 @@ let view (props: StatProps) =
     let padding, valueSize, labelSize = sizeToClasses props.Size
     let gradientClass = accentToGradient props.Accent
     let extraClass = props.ClassName |> Option.defaultValue ""
+    let clickableClass =
+        match props.OnClick with
+        | Some _ -> "cursor-pointer hover:scale-[1.02]"
+        | None -> ""
+    let activeClass =
+        if props.IsActive then "ring-2 ring-neon-teal ring-offset-2 ring-offset-base-100"
+        else ""
 
     Html.div [
-        prop.className $"bg-base-100 border border-white/5 rounded-xl {padding} relative overflow-hidden transition-all hover:border-white/10 hover:-translate-y-0.5 {extraClass}"
+        prop.className $"bg-base-100 border border-white/5 rounded-xl {padding} relative overflow-hidden transition-all hover:border-white/10 hover:-translate-y-0.5 {clickableClass} {activeClass} {extraClass}"
+        match props.OnClick with
+        | Some onClick -> prop.onClick (fun _ -> onClick ())
+        | None -> ()
         prop.children [
             // Decorative gradient accent line at top
             Html.div [

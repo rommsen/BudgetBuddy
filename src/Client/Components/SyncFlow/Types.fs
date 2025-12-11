@@ -12,6 +12,14 @@ type SplitEditState = {
     Currency: string
 }
 
+/// Filter options for transaction list
+type TransactionFilter =
+    | AllTransactions
+    | CategorizedTransactions    // Has CategoryId, not Skipped/Imported
+    | UncategorizedTransactions  // No CategoryId, not Skipped/Imported
+    | SkippedTransactions        // Status = Skipped
+    | ConfirmedDuplicates        // DuplicateStatus = ConfirmedDuplicate
+
 /// State for inline rule creation from a transaction
 type InlineRuleFormState = {
     TransactionId: TransactionId
@@ -50,6 +58,8 @@ type Model = {
     InlineRuleForm: InlineRuleFormState option
     /// Set of transaction IDs that have been manually categorized (show "Create Rule" button)
     ManuallyCategorizedIds: Set<TransactionId>
+    /// Active filter for the transaction list
+    ActiveFilter: TransactionFilter
 }
 
 /// SyncFlow-specific messages
@@ -93,6 +103,7 @@ type Msg =
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
     // UI interactions
     | ToggleTransactionExpand of TransactionId
+    | SetFilter of TransactionFilter
     // Inline rule creation
     | OpenInlineRuleForm of TransactionId
     | CloseInlineRuleForm
