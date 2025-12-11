@@ -291,7 +291,6 @@ let specialPatternTests =
             let links = detectSpecialTransaction transaction
 
             Expect.isNonEmpty links "Should detect Amazon transaction"
-            Expect.exists links (fun l -> l.Label = "Amazon Orders") "Should have Amazon link"
             Expect.exists links (fun l -> l.Url.Contains("amazon.de")) "Should link to Amazon"
 
         testCase "Detects Amazon in memo" <| fun () ->
@@ -299,7 +298,47 @@ let specialPatternTests =
             let links = detectSpecialTransaction transaction
 
             Expect.isNonEmpty links "Should detect Amazon transaction"
-            Expect.exists links (fun l -> l.Label = "Amazon Orders") "Should have Amazon link"
+            Expect.exists links (fun l -> l.Url.Contains("amazon.de")) "Should link to Amazon"
+
+        testCase "Amazon order ID in memo generates deep link" <| fun () ->
+            // Order ID format: ABC-1234567-1234567
+            let transaction = createTransaction "TX1" (Some "AMAZON EU") "Order ABC-1234567-7654321" -29.99m
+            let links = detectSpecialTransaction transaction
+
+            Expect.isNonEmpty links "Should detect Amazon transaction"
+            let amazonLink = links |> List.find (fun l -> l.Url.Contains("amazon.de"))
+            Expect.stringContains amazonLink.Url "order-details" "Should link to order details"
+            Expect.stringContains amazonLink.Url "orderID=ABC-1234567-7654321" "Should contain order ID in URL"
+            Expect.stringContains amazonLink.Label "ABC-1234567-7654321" "Label should contain order ID"
+
+        testCase "Amazon order ID in payee generates deep link" <| fun () ->
+            let transaction = createTransaction "TX1" (Some "AMAZON 123-4567890-1234567") "Some memo" -29.99m
+            let links = detectSpecialTransaction transaction
+
+            Expect.isNonEmpty links "Should detect Amazon transaction"
+            let amazonLink = links |> List.find (fun l -> l.Url.Contains("amazon.de"))
+            Expect.stringContains amazonLink.Url "orderID=123-4567890-1234567" "Should contain order ID in URL"
+
+        testCase "Amazon order ID with Comdirect line prefix generates deep link" <| fun () ->
+            // Comdirect adds 2-digit line prefixes like 01, 02, etc.
+            // This test verifies we extract order ID correctly from "01305-0831755-7604349"
+            let transaction = createTransaction "TX1" (Some "Amazon.de") "01305-0831755-7604349 AMZN Mktp DE" -29.99m
+            let links = detectSpecialTransaction transaction
+
+            Expect.isNonEmpty links "Should detect Amazon transaction"
+            let amazonLink = links |> List.find (fun l -> l.Url.Contains("amazon.de"))
+            Expect.stringContains amazonLink.Url "order-details" "Should link to order details"
+            Expect.stringContains amazonLink.Url "orderID=305-0831755-7604349" "Should extract order ID without prefix"
+            Expect.stringContains amazonLink.Label "305-0831755-7604349" "Label should contain order ID without prefix"
+
+        testCase "Amazon without order ID generates history link" <| fun () ->
+            let transaction = createTransaction "TX1" (Some "AMAZON PAYMENTS") "Generic purchase" -29.99m
+            let links = detectSpecialTransaction transaction
+
+            Expect.isNonEmpty links "Should detect Amazon transaction"
+            let amazonLink = links |> List.find (fun l -> l.Url.Contains("amazon.de"))
+            Expect.stringContains amazonLink.Url "order-history" "Should link to order history"
+            Expect.equal amazonLink.Label "Amazon Orders" "Label should be generic"
 
         testCase "Detects PayPal in payee" <| fun () ->
             let transaction = createTransaction "TX1" (Some "PAYPAL *EBAY") "Payment" -15.50m

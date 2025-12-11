@@ -36,13 +36,35 @@ let private paypalPatterns = [
     @"PAYPAL"
 ]
 
-/// Generates an Amazon order history link for transactions.
-/// Purpose: Provides quick access to Amazon order history for manual matching.
+/// Regex pattern for Amazon order IDs (e.g., ABC-1234567-1234567)
+/// Handles optional 2-digit Comdirect line number prefix (e.g., 01305-...)
+let private amazonOrderIdPattern = @"(?:(?:^|\s)\d{2})?([A-Z0-9]{3}-\d{7}-\d{7})"
+
+/// Extracts Amazon order ID from transaction text (payee + memo)
+let private extractAmazonOrderId (transaction: BankTransaction) : string option =
+    let text =
+        match transaction.Payee with
+        | Some payee -> payee + " " + transaction.Memo
+        | None -> transaction.Memo
+
+    let regex = new Regex(amazonOrderIdPattern, RegexOptions.None)
+    let matchResult = regex.Match(text)
+    if matchResult.Success then Some matchResult.Groups.[1].Value
+    else None
+
+/// Generates Amazon link - deep link to specific order if ID found, else order history
 let private generateAmazonLink (transaction: BankTransaction) : ExternalLink =
-    {
-        Label = "Amazon Orders"
-        Url = "https://www.amazon.de/gp/your-account/order-history"
-    }
+    match extractAmazonOrderId transaction with
+    | Some orderId ->
+        {
+            Label = $"Bestellung {orderId}"
+            Url = $"https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID={orderId}"
+        }
+    | None ->
+        {
+            Label = "Amazon Orders"
+            Url = "https://www.amazon.de/gp/your-account/order-history"
+        }
 
 /// Generates a PayPal activity link for transactions.
 /// Purpose: Provides quick access to PayPal activity for transaction lookup.

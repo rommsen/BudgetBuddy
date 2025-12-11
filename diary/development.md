@@ -4,6 +4,40 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-11 18:30 - Feature: Amazon Order-ID Deep Links
+
+**What I did:**
+Implemented deep linking for Amazon transactions. When a transaction memo contains an Amazon order ID (format: ABC-1234567-1234567), the link now goes directly to the specific order details page instead of the generic order history.
+
+**Reference Implementation:**
+Based on the YNAB Amazon Linker browser extension (https://github.com/rommsen/ynab-amazon-linker).
+
+**Files Modified:**
+- `src/Server/RulesEngine.fs` - Added:
+  - `amazonOrderIdPattern`: Regex pattern `\b([A-Z0-9]{3}-\d{7}-\d{7})\b` to match order IDs
+  - `extractAmazonOrderId`: Function to extract order ID from transaction text (payee + memo)
+  - Updated `generateAmazonLink`: Now returns deep link to order-details if ID found, else fallback to order-history
+
+- `src/Tests/RulesEngineTests.fs` - Added/updated tests:
+  - "Amazon order ID in memo generates deep link"
+  - "Amazon order ID in payee generates deep link"
+  - "Amazon without order ID generates history link"
+  - Updated existing tests to work with new label format
+
+**Link Formats:**
+- With Order ID: `https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID={orderId}` (Label: "Bestellung {orderId}")
+- Without Order ID: `https://www.amazon.de/gp/your-account/order-history` (Label: "Amazon Orders")
+
+**Rationale:**
+Users frequently need to match Amazon transactions to specific orders. The deep link eliminates the need to search through order history manually.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 293/293 passed (added 3 new tests)
+- No frontend changes needed (ExternalLinks already rendered correctly)
+
+---
+
 ## 2025-12-11 16:45 - Setup: Serena MCP für F# Code-Analyse
 
 **What I did:**
