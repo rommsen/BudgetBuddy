@@ -4,6 +4,39 @@
 
 You are developing F# web applications using this blueprint. The codebase uses Elmish.React + Feliz (frontend), Giraffe + Fable.Remoting (backend), SQLite (persistence), and deploys via Docker + Tailscale.
 
+## Tool Priority: Serena First (MANDATORY)
+
+**ALWAYS use Serena's MCP tools when possible.** Serena provides semantic code analysis that is more efficient and accurate than reading entire files.
+
+### When to Use Serena
+
+- **Exploring code**: Use `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`
+- **Searching patterns**: Use `search_for_pattern` instead of Grep
+- **Editing code**: Use `replace_symbol_body`, `insert_before_symbol`, `insert_after_symbol`
+- **Renaming**: Use `rename_symbol` for codebase-wide refactoring
+
+### When NOT to Use Serena
+
+- Reading non-code files (markdown, JSON, config)
+- When you need the entire file context
+- For files Serena doesn't support
+
+### Benefits
+
+- **Token-efficient**: Only reads what's needed, not entire files
+- **Semantic accuracy**: Understands code structure, not just text
+- **Safe refactoring**: `rename_symbol` updates all references correctly
+
+### Example Workflow
+
+```
+1. get_symbols_overview("src/Server/Api.fs")     → See file structure
+2. find_symbol("myFunction", include_body=True)  → Read specific function
+3. replace_symbol_body(...)                       → Edit just that function
+```
+
+**Do NOT read entire files unless absolutely necessary!**
+
 ## Before Implementing Anything
 
 **Always read the relevant documentation first:**
