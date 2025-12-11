@@ -157,6 +157,87 @@ let private tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
     ]
 
 // ============================================
+// Fetching View (with progress indicator)
+// ============================================
+
+let private fetchingView () =
+    Html.div [
+        prop.className "max-w-lg mx-auto animate-fade-in"
+        prop.children [
+            Card.view { Card.defaultProps with Variant = Card.Glow; Size = Card.Spacious } [
+                Html.div [
+                    prop.className "flex flex-col items-center text-center"
+                    prop.children [
+                        // Animated sync icon with neon glow
+                        Html.div [
+                            prop.className "relative"
+                            prop.children [
+                                Html.div [
+                                    prop.className "w-24 h-24 rounded-2xl bg-gradient-to-br from-neon-teal to-neon-green flex items-center justify-center shadow-glow-teal animate-neon-pulse"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "animate-spin"
+                                            prop.children [ Icons.sync Icons.XL Icons.Primary ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+
+                        Html.h2 [
+                            prop.className "text-xl md:text-2xl font-bold font-display mt-6 text-base-content"
+                            prop.text "Fetching Transactions"
+                        ]
+                        Html.p [
+                            prop.className "text-base-content/60 mt-2 max-w-sm"
+                            prop.text "Retrieving your transactions from Comdirect. This may take a moment..."
+                        ]
+
+                        // Steps indicator with neon styling - Fetch is now active
+                        Html.div [
+                            prop.className "flex items-center gap-3 mt-6 text-sm"
+                            prop.children [
+                                Html.div [
+                                    prop.className "flex items-center gap-2 text-neon-green"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "w-6 h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.children [ Icons.check Icons.XS Icons.Primary ]
+                                        ]
+                                        Html.span [ prop.text "Connected" ]
+                                    ]
+                                ]
+                                Html.div [ prop.className "w-8 h-0.5 bg-neon-green" ]
+                                Html.div [
+                                    prop.className "flex items-center gap-2 text-neon-green"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "w-6 h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.children [ Icons.check Icons.XS Icons.Primary ]
+                                        ]
+                                        Html.span [ prop.text "TAN" ]
+                                    ]
+                                ]
+                                Html.div [ prop.className "w-8 h-0.5 bg-neon-teal/30" ]
+                                Html.div [
+                                    prop.className "flex items-center gap-2 text-neon-teal"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "w-6 h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
+                                            prop.children [ Loading.spinner Loading.XS Loading.Teal ]
+                                        ]
+                                        Html.span [ prop.className "font-medium"; prop.text "Fetch" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+// ============================================
 // Transaction Card Component (Mobile-first)
 // ============================================
 
@@ -1591,7 +1672,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
                     tanWaitingView model.IsTanConfirming dispatch
 
                 | FetchingTransactions ->
-                    loadingView "Fetching transactions..."
+                    fetchingView ()
 
                 | ReviewingTransactions ->
                     transactionListView model dispatch

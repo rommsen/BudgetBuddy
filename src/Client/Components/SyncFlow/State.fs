@@ -132,13 +132,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         else
             match model.CurrentSession with
             | Success (Some session) ->
+                // Optimistic UI: Show FetchingTransactions immediately while API call runs
+                // The API call does: TAN confirmation + fetch transactions + apply rules
+                // This can take a while, so we show the fetching state right away
+                let updatedSession = { session with Status = FetchingTransactions }
                 let cmd =
                     Cmd.OfAsync.either
                         Api.sync.confirmTan
                         session.Id
                         TanConfirmed
                         (fun _ -> Error SyncError.TanTimeout |> TanConfirmed)
-                { model with IsTanConfirming = true }, cmd, NoOp
+                { model with
+                    IsTanConfirming = true
+                    CurrentSession = Success (Some updatedSession) }, cmd, NoOp
             | _ -> model, Cmd.none, NoOp
 
     | TanConfirmed (Ok _) ->
