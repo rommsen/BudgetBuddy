@@ -80,6 +80,11 @@ type Msg =
     | TransactionSkipped of Result<SyncTransaction, SyncError>
     | UnskipTransaction of TransactionId
     | TransactionUnskipped of Result<SyncTransaction, SyncError>
+    // Bulk skip/unskip
+    | SkipAllVisible
+    | UnskipAllVisible
+    | BulkSkipCompleted of Result<SyncTransaction list, SyncError>
+    | BulkUnskipCompleted of Result<SyncTransaction list, SyncError>
     // Split transaction messages
     | StartSplitEdit of TransactionId
     | CancelSplitEdit

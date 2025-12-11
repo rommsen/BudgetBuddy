@@ -4,6 +4,46 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-11 20:45 - Feature: Skip All / Unskip All Buttons
+
+**What I did:**
+Added "Skip All" and "Unskip All" buttons to the Sync Flow transaction review. These buttons allow users to quickly skip or unskip all visible transactions based on the currently active filter.
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Types.fs` - Added new Msg types:
+  - `SkipAllVisible`: Triggers bulk skip of visible transactions
+  - `UnskipAllVisible`: Triggers bulk unskip of visible transactions
+  - `BulkSkipCompleted`: Handles completion of individual skip operations
+  - `BulkUnskipCompleted`: Handles completion of individual unskip operations
+
+- `src/Client/Components/SyncFlow/State.fs` - Added:
+  - `filterTransactions` helper (duplicated from View.fs for state logic)
+  - Handler for `SkipAllVisible`: Gets visible non-skipped transactions, applies optimistic UI update, sends parallel API calls
+  - Handler for `UnskipAllVisible`: Gets visible skipped transactions, restores status, sends parallel API calls
+  - Handlers for `BulkSkipCompleted` / `BulkUnskipCompleted`: Silent success, rollback on error
+
+- `src/Client/Components/SyncFlow/View.fs` - Added to action bar:
+  - "Skip All (N)" ghost button - shows count, only visible when there are skippable transactions
+  - "Unskip All (N)" ghost button with green icon - shows count, only visible when there are unskippable transactions
+  - Buttons respect the active filter (All, Categorized, Uncategorized, Skipped, Confirmed Duplicates)
+
+**Implementation Details:**
+- Optimistic UI: Local state updates immediately for responsive feel
+- Parallel API calls: Each transaction skip/unskip is sent in parallel for performance
+- Filter-aware: Buttons only affect visible transactions based on current filter
+- Error handling: On any error, reloads all transactions from server (rollback)
+- Dynamic counts: Button text shows exact number of affected transactions
+
+**Rationale:**
+Users with many transactions needed a way to quickly skip/unskip batches instead of clicking individual skip buttons.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed
+- No new tests needed (UI-only feature using existing skip/unskip API)
+
+---
+
 ## 2025-12-11 18:30 - Feature: Amazon Order-ID Deep Links
 
 **What I did:**

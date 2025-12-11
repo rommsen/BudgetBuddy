@@ -36,6 +36,32 @@ let private rulesErrorToString (error: RulesError) : string =
     | RulesError.DuplicateRule pattern -> $"A rule with pattern '{pattern}' already exists"
     | RulesError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
+/// Filter transactions based on the active filter (duplicated from View.fs for state logic)
+let private filterTransactions (filter: TransactionFilter) (transactions: SyncTransaction list) =
+    match filter with
+    | AllTransactions -> transactions
+    | CategorizedTransactions ->
+        transactions
+        |> List.filter (fun tx ->
+            tx.CategoryId.IsSome &&
+            tx.Status <> Skipped &&
+            tx.Status <> Imported)
+    | UncategorizedTransactions ->
+        transactions
+        |> List.filter (fun tx ->
+            tx.CategoryId.IsNone &&
+            tx.Status <> Skipped &&
+            tx.Status <> Imported)
+    | SkippedTransactions ->
+        transactions
+        |> List.filter (fun tx -> tx.Status = Skipped)
+    | ConfirmedDuplicates ->
+        transactions
+        |> List.filter (fun tx ->
+            match tx.DuplicateStatus with
+            | ConfirmedDuplicate _ -> true
+            | _ -> false)
+
 /// Check if a rule matches a transaction (client-side approximation for auto-apply)
 let private matchesRule (rule: Rule) (tx: BankTransaction) : bool =
     let textToMatch =
@@ -294,6 +320,101 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | TransactionUnskipped (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+
+    // Bulk skip/unskip handlers
+    | SkipAllVisible ->
+        match model.CurrentSession, model.SyncTransactions with
+        | Success (Some session), Success transactions ->
+            // Get visible transactions that can be skipped (not already skipped or imported)
+            let visibleTransactions = filterTransactions model.ActiveFilter transactions
+            let toSkip =
+                visibleTransactions
+                |> List.filter (fun tx -> tx.Status <> Skipped && tx.Status <> Imported)
+                |> List.map (fun tx -> tx.Transaction.Id)
+
+            if toSkip.IsEmpty then
+                model, Cmd.none, ShowToast ("No transactions to skip", ToastInfo)
+            else
+                // Optimistic UI: Update locally first
+                let updatedTransactions =
+                    transactions
+                    |> List.map (fun tx ->
+                        if List.contains tx.Transaction.Id toSkip then
+                            { tx with Status = Skipped }
+                        else tx)
+
+                // Create batch of skip commands
+                let cmds =
+                    toSkip
+                    |> List.map (fun txId ->
+                        Cmd.OfAsync.either
+                            Api.sync.skipTransaction
+                            (session.Id, txId)
+                            (fun result -> BulkSkipCompleted (result |> Result.map List.singleton))
+                            (fun ex -> Error (SyncError.DatabaseError ("bulk_skip", ex.Message)) |> BulkSkipCompleted))
+                    |> Cmd.batch
+
+                { model with SyncTransactions = Success updatedTransactions },
+                cmds,
+                ShowToast ($"Skipping {toSkip.Length} transaction(s)...", ToastInfo)
+        | _ -> model, Cmd.none, NoOp
+
+    | UnskipAllVisible ->
+        match model.CurrentSession, model.SyncTransactions with
+        | Success (Some session), Success transactions ->
+            // Get visible transactions that can be unskipped (currently skipped)
+            let visibleTransactions = filterTransactions model.ActiveFilter transactions
+            let toUnskip =
+                visibleTransactions
+                |> List.filter (fun tx -> tx.Status = Skipped)
+                |> List.map (fun tx -> tx.Transaction.Id)
+
+            if toUnskip.IsEmpty then
+                model, Cmd.none, ShowToast ("No transactions to unskip", ToastInfo)
+            else
+                // Optimistic UI: Update locally first
+                let updatedTransactions =
+                    transactions
+                    |> List.map (fun tx ->
+                        if List.contains tx.Transaction.Id toUnskip then
+                            // Restore to Pending or appropriate status
+                            let newStatus =
+                                if tx.CategoryId.IsSome then ManualCategorized
+                                else Pending
+                            { tx with Status = newStatus }
+                        else tx)
+
+                // Create batch of unskip commands
+                let cmds =
+                    toUnskip
+                    |> List.map (fun txId ->
+                        Cmd.OfAsync.either
+                            Api.sync.unskipTransaction
+                            (session.Id, txId)
+                            (fun result -> BulkUnskipCompleted (result |> Result.map List.singleton))
+                            (fun ex -> Error (SyncError.DatabaseError ("bulk_unskip", ex.Message)) |> BulkUnskipCompleted))
+                    |> Cmd.batch
+
+                { model with SyncTransactions = Success updatedTransactions },
+                cmds,
+                ShowToast ($"Unskipping {toUnskip.Length} transaction(s)...", ToastInfo)
+        | _ -> model, Cmd.none, NoOp
+
+    | BulkSkipCompleted (Ok _) ->
+        // Individual skip completed - no action needed since we did optimistic update
+        model, Cmd.none, NoOp
+
+    | BulkSkipCompleted (Error err) ->
+        // Rollback on error by reloading from server
+        model, Cmd.ofMsg LoadTransactions, ShowToast (syncErrorToString err, ToastError)
+
+    | BulkUnskipCompleted (Ok _) ->
+        // Individual unskip completed - no action needed since we did optimistic update
+        model, Cmd.none, NoOp
+
+    | BulkUnskipCompleted (Error err) ->
+        // Rollback on error by reloading from server
+        model, Cmd.ofMsg LoadTransactions, ShowToast (syncErrorToString err, ToastError)
 
     // Split transaction handlers
     | StartSplitEdit txId ->

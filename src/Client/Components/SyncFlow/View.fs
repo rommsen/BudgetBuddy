@@ -1257,46 +1257,90 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                 prop.className "sticky top-16 z-40 bg-base-100/80 backdrop-blur-xl rounded-xl shadow-lg p-3 md:p-4 border border-white/10"
                 prop.children [
                     Html.div [
-                        prop.className "flex justify-end gap-2"
+                        prop.className "flex flex-wrap justify-between gap-2"
                         prop.children [
-                            Button.danger "Cancel" (fun () -> dispatch CancelSync)
-                            // Enable import if any non-skipped, non-imported transaction exists
-                            let canImport =
-                                match model.SyncTransactions with
-                                | Success transactions ->
-                                    transactions
-                                    |> List.exists (fun tx ->
-                                        tx.Status <> Skipped &&
-                                        tx.Status <> Imported)
-                                | _ -> false
-                            Button.view {
-                                Button.defaultProps with
-                                    Text = "Import to YNAB"
-                                    Variant = Button.Primary
-                                    Icon = Some (Icons.upload Icons.SM Icons.Primary)
-                                    OnClick = fun () -> dispatch ImportToYnab
-                                    IsDisabled = not canImport
-                            }
-                            // Show force import button ONLY if YNAB rejected transactions during import
-                            // This button should NOT appear before any import has been attempted
-                            let ynabRejectedCount =
-                                match model.SyncTransactions with
-                                | Success transactions ->
-                                    transactions
-                                    |> List.filter (fun tx ->
-                                        match tx.YnabImportStatus with
-                                        | RejectedByYnab _ -> true
-                                        | _ -> false)
-                                    |> List.length
-                                | _ -> 0
-                            if ynabRejectedCount > 0 then
-                                Button.view {
-                                    Button.defaultProps with
-                                        Text = $"Re-import {ynabRejectedCount} Rejected"
-                                        Variant = Button.Secondary
-                                        Icon = Some (Icons.sync Icons.SM Icons.NeonTeal)
-                                        OnClick = fun () -> dispatch ForceImportDuplicates
-                                }
+                            // Skip/Unskip All buttons (left side)
+                            Html.div [
+                                prop.className "flex gap-2"
+                                prop.children [
+                                    // Calculate counts for button states
+                                    let (skippableCount, unskippableCount) =
+                                        match model.SyncTransactions with
+                                        | Success transactions ->
+                                            let filtered = filterTransactions model.ActiveFilter transactions
+                                            let skippable = filtered |> List.filter (fun tx -> tx.Status <> Skipped && tx.Status <> Imported) |> List.length
+                                            let unskippable = filtered |> List.filter (fun tx -> tx.Status = Skipped) |> List.length
+                                            (skippable, unskippable)
+                                        | _ -> (0, 0)
+
+                                    // Skip All button - shown when there are skippable transactions
+                                    if skippableCount > 0 then
+                                        Button.view {
+                                            Button.defaultProps with
+                                                Text = $"Skip All ({skippableCount})"
+                                                Variant = Button.Ghost
+                                                Size = Button.Small
+                                                Icon = Some (Icons.forward Icons.SM Icons.Default)
+                                                OnClick = fun () -> dispatch SkipAllVisible
+                                        }
+
+                                    // Unskip All button - shown when there are unskippable transactions
+                                    if unskippableCount > 0 then
+                                        Button.view {
+                                            Button.defaultProps with
+                                                Text = $"Unskip All ({unskippableCount})"
+                                                Variant = Button.Ghost
+                                                Size = Button.Small
+                                                Icon = Some (Icons.undo Icons.SM Icons.NeonGreen)
+                                                OnClick = fun () -> dispatch UnskipAllVisible
+                                        }
+                                ]
+                            ]
+
+                            // Right side buttons
+                            Html.div [
+                                prop.className "flex gap-2"
+                                prop.children [
+                                    Button.danger "Cancel" (fun () -> dispatch CancelSync)
+                                    // Enable import if any non-skipped, non-imported transaction exists
+                                    let canImport =
+                                        match model.SyncTransactions with
+                                        | Success transactions ->
+                                            transactions
+                                            |> List.exists (fun tx ->
+                                                tx.Status <> Skipped &&
+                                                tx.Status <> Imported)
+                                        | _ -> false
+                                    Button.view {
+                                        Button.defaultProps with
+                                            Text = "Import to YNAB"
+                                            Variant = Button.Primary
+                                            Icon = Some (Icons.upload Icons.SM Icons.Primary)
+                                            OnClick = fun () -> dispatch ImportToYnab
+                                            IsDisabled = not canImport
+                                    }
+                                    // Show force import button ONLY if YNAB rejected transactions during import
+                                    // This button should NOT appear before any import has been attempted
+                                    let ynabRejectedCount =
+                                        match model.SyncTransactions with
+                                        | Success transactions ->
+                                            transactions
+                                            |> List.filter (fun tx ->
+                                                match tx.YnabImportStatus with
+                                                | RejectedByYnab _ -> true
+                                                | _ -> false)
+                                            |> List.length
+                                        | _ -> 0
+                                    if ynabRejectedCount > 0 then
+                                        Button.view {
+                                            Button.defaultProps with
+                                                Text = $"Re-import {ynabRejectedCount} Rejected"
+                                                Variant = Button.Secondary
+                                                Icon = Some (Icons.sync Icons.SM Icons.NeonTeal)
+                                                OnClick = fun () -> dispatch ForceImportDuplicates
+                                        }
+                                ]
+                            ]
                         ]
                     ]
                 ]
