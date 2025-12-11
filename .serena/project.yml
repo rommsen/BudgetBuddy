@@ -1,0 +1,17 @@
+# Serena Project Configuration for BudgetBuddy
+# F# Full-Stack Application
+
+project_name: BudgetBuddy
+languages:
+  - fsharp
+ignored_paths:
+  - node_modules
+  - .git
+  - bin
+  - obj
+  - .fable
+  - dist
+read_only: false
+ignore_all_files_in_gitignore: true
+initial_prompt: ""
+encoding: utf-8

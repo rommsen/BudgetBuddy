@@ -4,6 +4,58 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-11 16:45 - Setup: Serena MCP für F# Code-Analyse
+
+**What I did:**
+Konfigurierte Serena MCP (Model Context Protocol) für semantische F#-Code-Analyse. Serena ermöglicht symbolbasiertes Navigieren, Refactoring und intelligente Code-Bearbeitung.
+
+**Problem:**
+Serena MCP startete nicht korrekt - der F# Language Server (fsautocomplete) konnte nicht initialisiert werden.
+
+**Root Causes:**
+1. **Falsches project.yml Format**: Die Konfiguration verwendete `language_servers: fsharp: command: ...` statt dem erwarteten `languages: - fsharp`
+2. **Fehlende Solution-Datei**: `fsautocomplete` benötigt eine `.sln`-Datei, die im Projekt fehlte
+
+**Files Added:**
+- `BudgetBuddy.sln` - Solution-Datei mit allen 4 Projekten (Shared, Client, Server, Tests)
+- `.serena/memories/project_overview.md` - Projektübersicht
+- `.serena/memories/tech_stack.md` - Technologie-Stack
+- `.serena/memories/codebase_structure.md` - Codebase-Struktur
+- `.serena/memories/code_style.md` - Code-Stil und Konventionen
+- `.serena/memories/suggested_commands.md` - Entwicklungs-Commands
+- `.serena/memories/task_completion.md` - Task-Completion Checklist
+
+**Files Modified:**
+- `.serena/project.yml` - Korrigiertes Format:
+  ```yaml
+  project_name: BudgetBuddy
+  languages:
+    - fsharp
+  ignored_paths:
+    - node_modules
+    - .git
+    - bin
+    - obj
+    - .fable
+    - dist
+  ```
+
+**Rationale:**
+Serena bietet semantische Code-Analyse über Language Server Protocol (LSP). Für F# wird `fsautocomplete` verwendet, das bereits als globales dotnet tool installiert war. Die Konfiguration musste nur angepasst werden.
+
+**Key Learnings:**
+- Serena erwartet einfaches `languages: - fsharp` Format (nicht verschachteltes `language_servers:`)
+- F# Language Server benötigt zwingend eine `.sln`-Datei
+- `.serena/` Ordner sollte eingecheckt werden (außer `/cache`)
+- Nach Konfigurationsänderungen muss Claude Code komplett neu gestartet werden
+
+**Outcomes:**
+- Build: ✅
+- Serena: ✅ Funktioniert - kann F#-Symbole analysieren
+- Onboarding: ✅ 6 Memory-Dateien erstellt
+
+---
+
 ## 2025-12-11 16:30 - Fix: JSON-Fehlermeldung bei frühem Import-Klick
 
 **What I did:**
