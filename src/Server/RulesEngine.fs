@@ -216,7 +216,8 @@ let classifyTransactions
                         PayeeOverride = matchedRule.PayeeOverride
                         ExternalLinks = externalLinks
                         UserNotes = None
-                        DuplicateStatus = NotDuplicate  // Will be updated by DuplicateDetection
+                        DuplicateStatus = NotDuplicate (emptyDetectionDetails transaction.Reference)  // Will be updated by DuplicateDetection
+                        YnabImportStatus = NotAttempted
                         Splits = None
                     }
                 | None ->
@@ -229,7 +230,8 @@ let classifyTransactions
                         PayeeOverride = None
                         ExternalLinks = externalLinks
                         UserNotes = None
-                        DuplicateStatus = NotDuplicate  // Will be updated by DuplicateDetection
+                        DuplicateStatus = NotDuplicate (emptyDetectionDetails transaction.Reference)  // Will be updated by DuplicateDetection
+                        YnabImportStatus = NotAttempted
                         Splits = None
                     }
             )

@@ -247,7 +247,7 @@ let detectDuplicateTests =
 
             let result = detectDuplicate defaultConfig ynabTransactions bankTx
             match result with
-            | ConfirmedDuplicate ref -> Expect.equal ref "REF123" "Should be confirmed duplicate"
+            | ConfirmedDuplicate (ref, _) -> Expect.equal ref "REF123" "Should be confirmed duplicate"
             | _ -> failwith "Expected ConfirmedDuplicate"
         }
 
@@ -260,7 +260,7 @@ let detectDuplicateTests =
 
             let result = detectDuplicate defaultConfig ynabTransactions bankTx
             match result with
-            | ConfirmedDuplicate _ -> ()
+            | ConfirmedDuplicate (_, _) -> ()
             | _ -> failwith "Expected ConfirmedDuplicate"
         }
 
@@ -273,7 +273,7 @@ let detectDuplicateTests =
 
             let result = detectDuplicate defaultConfig ynabTransactions bankTx
             match result with
-            | PossibleDuplicate reason ->
+            | PossibleDuplicate (reason, _) ->
                 Expect.stringContains reason "AMAZON EU" "Reason should mention payee"
             | _ -> failwith "Expected PossibleDuplicate"
         }
@@ -288,7 +288,7 @@ let detectDuplicateTests =
 
             let result = detectDuplicate defaultConfig ynabTransactions bankTx
             match result with
-            | NotDuplicate -> ()
+            | NotDuplicate _ -> ()
             | _ -> failwith "Expected NotDuplicate"
         }
 
@@ -296,7 +296,7 @@ let detectDuplicateTests =
             let bankTx = createBankTransaction "REF123" (Some "Payee") "Memo" -50m DateTime.Today
             let result = detectDuplicate defaultConfig [] bankTx
             match result with
-            | NotDuplicate -> ()
+            | NotDuplicate _ -> ()
             | _ -> failwith "Expected NotDuplicate"
         }
     ]
@@ -324,7 +324,8 @@ let markDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate
+                  DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
                 { Transaction = bankTx2
                   Status = Pending
@@ -334,7 +335,8 @@ let markDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate
+                  DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
                 { Transaction = bankTx3
                   Status = Pending
@@ -344,7 +346,8 @@ let markDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate
+                  DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF3")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
             ]
 
@@ -356,16 +359,16 @@ let markDuplicatesTests =
 
             // First transaction should be confirmed duplicate
             match result.[0].DuplicateStatus with
-            | ConfirmedDuplicate ref -> Expect.equal ref "REF1" "First should be confirmed duplicate"
+            | ConfirmedDuplicate (ref, _) -> Expect.equal ref "REF1" "First should be confirmed duplicate"
             | _ -> failwith "Expected ConfirmedDuplicate for first"
 
             // Second and third should be not duplicate
             match result.[1].DuplicateStatus with
-            | NotDuplicate -> ()
+            | NotDuplicate _ -> ()
             | _ -> failwith "Expected NotDuplicate for second"
 
             match result.[2].DuplicateStatus with
-            | NotDuplicate -> ()
+            | NotDuplicate _ -> ()
             | _ -> failwith "Expected NotDuplicate for third"
         }
     ]
@@ -414,7 +417,8 @@ let additionalEdgeCaseTests =
                 PayeeOverride = Some "Override Payee"
                 ExternalLinks = [{ Label = "Link"; Url = "https://example.com" }]
                 UserNotes = Some "User note"
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF999")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
 
@@ -436,7 +440,7 @@ let additionalEdgeCaseTests =
             Expect.equal resultTx.UserNotes (Some "User note") "UserNotes should be preserved"
             // DuplicateStatus should be updated
             match resultTx.DuplicateStatus with
-            | ConfirmedDuplicate _ -> ()
+            | ConfirmedDuplicate (_, _) -> ()
             | _ -> failwith "DuplicateStatus should be ConfirmedDuplicate"
         }
 
@@ -623,7 +627,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = ConfirmedDuplicate "ref1"
+                  DuplicateStatus = ConfirmedDuplicate ("ref1", emptyDetectionDetails "ref1")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
                 { Transaction = bankTx
                   Status = Pending
@@ -633,7 +638,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = PossibleDuplicate "reason"
+                  DuplicateStatus = PossibleDuplicate ("reason", emptyDetectionDetails "ref")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
                 { Transaction = bankTx
                   Status = Pending
@@ -643,7 +649,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate
+                  DuplicateStatus = NotDuplicate (emptyDetectionDetails "ref")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
                 { Transaction = bankTx
                   Status = Pending
@@ -653,7 +660,8 @@ let countDuplicatesTests =
                   PayeeOverride = None
                   ExternalLinks = []
                   UserNotes = None
-                  DuplicateStatus = NotDuplicate
+                  DuplicateStatus = NotDuplicate (emptyDetectionDetails "ref")
+                  YnabImportStatus = NotAttempted
                   Splits = None }
             ]
 

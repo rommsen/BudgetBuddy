@@ -84,11 +84,64 @@ type TransactionSplit = {
     Memo: string option
 }
 
-/// Indicates whether a transaction is a potential duplicate
+// ============================================
+// Duplicate Detection (BudgetBuddy's pre-import analysis)
+// ============================================
+
+/// Details about why BudgetBuddy detected (or didn't detect) this as a duplicate.
+/// Purpose: Provides transparency into the duplicate detection algorithm for debugging.
+type DuplicateDetectionDetails = {
+    /// The bank transaction's Reference field from Comdirect
+    TransactionReference: string
+    /// Did we find this Reference in any YNAB transaction memo ("Ref: X")?
+    ReferenceFoundInYnab: bool
+    /// Did we find an ImportId starting with "BUDGETBUDDY:{txId}" in YNAB?
+    ImportIdFoundInYnab: bool
+    /// If fuzzy matched: matched YNAB transaction date
+    FuzzyMatchDate: DateTime option
+    /// If fuzzy matched: matched YNAB transaction amount
+    FuzzyMatchAmount: decimal option
+    /// If fuzzy matched: matched YNAB transaction payee
+    FuzzyMatchPayee: string option
+}
+
+/// Default empty detection details (used when no YNAB data available for comparison)
+let emptyDetectionDetails reference = {
+    TransactionReference = reference
+    ReferenceFoundInYnab = false
+    ImportIdFoundInYnab = false
+    FuzzyMatchDate = None
+    FuzzyMatchAmount = None
+    FuzzyMatchPayee = None
+}
+
+/// Indicates whether a transaction is a potential duplicate (BudgetBuddy's analysis BEFORE import)
 type DuplicateStatus =
-    | NotDuplicate                        // No duplicate detected
-    | PossibleDuplicate of reason: string // Might be a duplicate (date/amount/payee match)
-    | ConfirmedDuplicate of reference: string  // Definite duplicate (reference match in YNAB)
+    | NotDuplicate of details: DuplicateDetectionDetails
+    | PossibleDuplicate of reason: string * details: DuplicateDetectionDetails
+    | ConfirmedDuplicate of reference: string * details: DuplicateDetectionDetails
+
+/// Helper to extract details from any DuplicateStatus
+let getDuplicateDetails (status: DuplicateStatus) : DuplicateDetectionDetails =
+    match status with
+    | NotDuplicate details -> details
+    | PossibleDuplicate (_, details) -> details
+    | ConfirmedDuplicate (_, details) -> details
+
+// ============================================
+// YNAB Import Status (what happened DURING import)
+// ============================================
+
+/// Why YNAB rejected a transaction during import
+type YnabRejectionReason =
+    | DuplicateImportId of importId: string  // YNAB already has this import_id
+    | UnknownRejection of rawResponse: string option
+
+/// Status of YNAB's import attempt for a transaction
+type YnabImportStatus =
+    | NotAttempted            // Import not yet tried
+    | YnabImported            // Successfully imported to YNAB
+    | RejectedByYnab of YnabRejectionReason  // YNAB rejected it
 
 type SyncTransaction = {
     Transaction: BankTransaction
@@ -99,7 +152,10 @@ type SyncTransaction = {
     PayeeOverride: string option
     ExternalLinks: ExternalLink list
     UserNotes: string option
-    DuplicateStatus: DuplicateStatus  // Duplicate detection status
+    /// BudgetBuddy's pre-import duplicate detection (analyzed BEFORE sending to YNAB)
+    DuplicateStatus: DuplicateStatus
+    /// What happened when we tried to import to YNAB (set AFTER import attempt)
+    YnabImportStatus: YnabImportStatus
     /// Optional list of splits for multi-category transactions.
     /// None = single category transaction (uses CategoryId)
     /// Some [] = invalid state (splits must have at least 2 items)

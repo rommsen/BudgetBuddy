@@ -56,7 +56,8 @@ let splitTypeTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-1")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
             Expect.isNone syncTx.Splits "Splits should be None"
@@ -72,7 +73,8 @@ let splitTypeTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-2")
+                YnabImportStatus = NotAttempted
                 Splits = Some []
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
@@ -93,7 +95,8 @@ let splitTypeTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-3")
+                YnabImportStatus = NotAttempted
                 Splits = Some splits
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
@@ -168,7 +171,8 @@ let splitImportReadyTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-ready")
+                YnabImportStatus = NotAttempted
                 Splits = Some splits
             }
 
@@ -192,7 +196,8 @@ let splitImportReadyTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-single")
+                YnabImportStatus = NotAttempted
                 Splits = Some splits
             }
 
@@ -218,7 +223,8 @@ let splitImportReadyTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-skipped")
+                YnabImportStatus = NotAttempted
                 Splits = Some splits
             }
 
@@ -240,7 +246,8 @@ let splitImportReadyTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-cat")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
 

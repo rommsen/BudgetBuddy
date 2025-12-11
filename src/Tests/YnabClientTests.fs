@@ -385,7 +385,8 @@ let transactionConversionTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
 
@@ -434,7 +435,8 @@ let transactionConversionTests =
                 PayeeOverride = Some "Custom Payee"
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF456")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
 
@@ -481,7 +483,8 @@ let transactionConversionTests =
                     PayeeOverride = None
                     ExternalLinks = []
                     UserNotes = None
-                    DuplicateStatus = NotDuplicate
+                    DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
+                    YnabImportStatus = NotAttempted
                     Splits = None
                 }
             ]
@@ -513,7 +516,8 @@ let transactionConversionTests =
                     PayeeOverride = None
                     ExternalLinks = []
                     UserNotes = None
-                    DuplicateStatus = NotDuplicate
+                    DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
+                    YnabImportStatus = NotAttempted
                     Splits = None
                 }
             ]
@@ -551,7 +555,8 @@ let importIdGenerationTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
 
@@ -572,7 +577,8 @@ let importIdGenerationTests =
                 PayeeOverride = None
                 ExternalLinks = []
                 UserNotes = None
-                DuplicateStatus = NotDuplicate
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
+                YnabImportStatus = NotAttempted
                 Splits = None
             }
 

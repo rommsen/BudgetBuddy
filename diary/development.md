@@ -4,6 +4,106 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-11 - Feature: Transparent Duplicate Detection with Debug Info
+
+**What I did:**
+Implemented a major improvement to the duplicate detection workflow to provide full transparency into how duplicates are detected. The system now clearly distinguishes between two separate mechanisms:
+1. **BudgetBuddy's pre-import detection** (Reference/ImportId/Fuzzy matching BEFORE sending to YNAB)
+2. **YNAB's rejection** (when YNAB rejects during import due to duplicate import_id)
+
+**Key Changes:**
+
+1. **Domain Types Extended** (`src/Shared/Domain.fs`)
+   - Added `DuplicateDetectionDetails` record with diagnostic fields:
+     - TransactionReference, ReferenceFoundInYnab, ImportIdFoundInYnab
+     - FuzzyMatchDate, FuzzyMatchAmount, FuzzyMatchPayee
+   - Updated `DuplicateStatus` to include details in all variants
+   - Added `YnabImportStatus` type (NotAttempted | YnabImported | RejectedByYnab)
+   - Added `YnabImportStatus` field to `SyncTransaction`
+
+2. **Detection Logic Updated** (`src/Server/DuplicateDetection.fs`)
+   - `detectDuplicate` now returns full diagnostic details
+   - All three checks (Reference, ImportId, Fuzzy) are run and results captured
+
+3. **API Updated** (`src/Server/Api.fs`)
+   - `importToYnab` now sets `YnabImportStatus` on each transaction after YNAB response
+   - `forceImportDuplicates` also sets `YnabImported` status
+
+4. **UI Improvements** (`src/Client/Components/SyncFlow/View.fs`)
+   - **Debug Info Panel**: Always visible when transaction expanded, shows:
+     - Reference and whether found in YNAB
+     - ImportId status (New vs Exists)
+     - Fuzzy match details if applicable
+     - YNAB import result with "BudgetBuddy missed this!" warning if applicable
+   - **Separate Banners**:
+     - Teal banner: "X pre-detected duplicates (BudgetBuddy)" [Pre-Import badge]
+     - Red banner: "X rejected by YNAB" [Post-Import badge] with Force Re-import button
+   - Count now includes `ynabRejected` for transactions rejected during import
+
+**Files Added:**
+- None (all changes to existing files)
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - New types: DuplicateDetectionDetails, YnabRejectionReason, YnabImportStatus
+- `src/Server/DuplicateDetection.fs` - detectDuplicate returns diagnostic details
+- `src/Server/Persistence.fs` - Updated SyncTransaction creation with new fields
+- `src/Server/RulesEngine.fs` - Updated SyncTransaction creation with new fields
+- `src/Server/Api.fs` - importToYnab and forceImportDuplicates set YnabImportStatus
+- `src/Client/Components/SyncFlow/View.fs` - Debug info panel, separate banners, updated counts
+- `src/Tests/*.fs` - Updated all tests to use new DuplicateStatus format with details
+
+**Rationale:**
+Users were confused about why some transactions showed "Möchtest du X reimportieren?" because the two duplicate detection systems were not clearly distinguished. Now:
+- Pre-import detection is clearly labeled and auto-skips confirmed duplicates
+- Post-import rejections from YNAB are shown separately with explanation
+- Each transaction shows exactly why BudgetBuddy made its detection decision
+
+**Outcomes:**
+- Build: All projects compile successfully
+- Tests: 279/285 passed (6 integration tests skipped due to missing env)
+- Issues: None
+
+---
+
+## 2025-12-11 - Bugfix: Force Re-import Button erschien vor YNAB-Import
+
+**What I did:**
+Fixed a bug where the "Re-import X Duplicate(s)" button appeared in the action bar BEFORE any import to YNAB had been attempted. The button was incorrectly counting all categorized, non-skipped, non-imported transactions instead of only YNAB-rejected transactions.
+
+**Bug Details:**
+- The action bar had a fallback logic that counted transactions where:
+  - `Status <> Imported && Status <> Skipped && (CategoryId.IsSome || Splits.IsSome)`
+- This was wrong because it showed the button for transactions that were simply ready to import, not rejected by YNAB
+
+**Fix:**
+Changed the `duplicateCount` calculation to only count transactions with `YnabImportStatus = RejectedByYnab _`:
+
+```fsharp
+let ynabRejectedCount =
+    match model.SyncTransactions with
+    | Success transactions ->
+        transactions
+        |> List.filter (fun tx ->
+            match tx.YnabImportStatus with
+            | RejectedByYnab _ -> true
+            | _ -> false)
+        |> List.length
+    | _ -> 0
+```
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs` - Fixed action bar button logic (lines 1199-1218)
+
+**Rationale:**
+The "Re-import Rejected" button should only appear AFTER a YNAB import has been attempted AND YNAB has rejected some transactions. Before import, `YnabImportStatus = NotAttempted` for all transactions, so the count is 0 and the button is hidden.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 279/285 passed (6 skipped integration tests)
+- Issues: None - button now only appears when appropriate
+
+---
+
 ## 2025-12-09 23:00 - Refactor: Stats Filter Semantics and Duplicate Banner
 
 **What I did:**

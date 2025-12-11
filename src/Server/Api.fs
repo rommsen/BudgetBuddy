@@ -903,11 +903,14 @@ let syncApi : SyncApi = {
                             |> List.map (fun tx ->
                                 if duplicateTxIdList.Contains(tx.Transaction.Id) then
                                     // This transaction already exists in YNAB - keep as is (don't mark as imported)
-                                    // The user can try again or skip it
-                                    tx
+                                    // Set YnabImportStatus to show YNAB rejected it
+                                    let (TransactionId txId) = tx.Transaction.Id
+                                    let txIdNoDashes = txId.ToString().Replace("-", "")
+                                    let importId = $"BB:{txIdNoDashes}"
+                                    { tx with YnabImportStatus = RejectedByYnab (DuplicateImportId importId) }
                                 else
                                     // Actually imported to YNAB
-                                    { tx with Status = Imported }
+                                    { tx with Status = Imported; YnabImportStatus = YnabImported }
                             )
 
                         SyncSessionManager.updateTransactions updatedTransactions
@@ -968,7 +971,7 @@ let syncApi : SyncApi = {
                         // Mark force-imported transactions as Imported
                         let updatedTransactions =
                             transactionsToForce
-                            |> List.map (fun tx -> { tx with Status = Imported })
+                            |> List.map (fun tx -> { tx with Status = Imported; YnabImportStatus = YnabImported })
 
                         SyncSessionManager.updateTransactions updatedTransactions
 

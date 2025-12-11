@@ -672,7 +672,8 @@ module SyncTransactions =
                     PayeeOverride = row.payee_override
                     ExternalLinks = []
                     UserNotes = None
-                    DuplicateStatus = NotDuplicate  // Duplicate status is not persisted, always reset to NotDuplicate
+                    DuplicateStatus = NotDuplicate (emptyDetectionDetails row.reference)  // Duplicate status is not persisted, always reset to NotDuplicate
+                    YnabImportStatus = NotAttempted  // YnabImportStatus is not persisted
                     Splits = None  // Splits are not persisted yet
                 }
             )

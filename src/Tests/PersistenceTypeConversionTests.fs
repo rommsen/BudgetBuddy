@@ -58,7 +58,8 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
         PayeeOverride = None
         ExternalLinks = []
         UserNotes = None
-        DuplicateStatus = NotDuplicate
+        DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
+        YnabImportStatus = NotAttempted
         Splits = None
     }
 

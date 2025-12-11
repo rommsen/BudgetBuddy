@@ -85,35 +85,47 @@ let matchesByImportId (bankTx: BankTransaction) (ynabTx: YnabTransaction) : bool
         importId.StartsWith($"BUDGETBUDDY:{txId}:")
 
 /// Detects the duplicate status of a bank transaction against existing YNAB transactions
+/// Returns both the status and detailed diagnostic information about all checks performed
 let detectDuplicate
     (config: DuplicateMatchConfig)
     (ynabTransactions: YnabTransaction list)
     (bankTx: BankTransaction)
     : DuplicateStatus =
 
-    // First: Check for exact reference match (confirmed duplicate)
+    // Check for exact reference match (confirmed duplicate)
     let referenceMatch =
         ynabTransactions
         |> List.tryFind (matchesByReference bankTx)
 
-    match referenceMatch with
-    | Some ynabTx ->
-        ConfirmedDuplicate bankTx.Reference
-    | None ->
-        // Second: Check for import_id match (confirmed duplicate)
-        let importIdMatch =
-            ynabTransactions
-            |> List.tryFind (matchesByImportId bankTx)
+    // Check for import_id match (confirmed duplicate)
+    let importIdMatch =
+        ynabTransactions
+        |> List.tryFind (matchesByImportId bankTx)
 
+    // Check for fuzzy match by date/amount/payee (possible duplicate)
+    let fuzzyMatch =
+        ynabTransactions
+        |> List.tryFind (matchesByDateAmountPayee config bankTx)
+
+    // Build diagnostic details about all checks
+    let details: DuplicateDetectionDetails = {
+        TransactionReference = bankTx.Reference
+        ReferenceFoundInYnab = referenceMatch.IsSome
+        ImportIdFoundInYnab = importIdMatch.IsSome
+        FuzzyMatchDate = fuzzyMatch |> Option.map (fun tx -> tx.Date)
+        FuzzyMatchAmount = fuzzyMatch |> Option.map (fun tx -> tx.Amount.Amount)
+        FuzzyMatchPayee = fuzzyMatch |> Option.bind (fun tx -> tx.Payee)
+    }
+
+    // Determine status with priority: Reference > ImportId > Fuzzy > None
+    match referenceMatch with
+    | Some _ ->
+        ConfirmedDuplicate (bankTx.Reference, details)
+    | None ->
         match importIdMatch with
         | Some _ ->
-            ConfirmedDuplicate bankTx.Reference
+            ConfirmedDuplicate (bankTx.Reference, details)
         | None ->
-            // Third: Check for fuzzy match by date/amount/payee (possible duplicate)
-            let fuzzyMatch =
-                ynabTransactions
-                |> List.tryFind (matchesByDateAmountPayee config bankTx)
-
             match fuzzyMatch with
             | Some ynabTx ->
                 let reason =
@@ -121,9 +133,9 @@ let detectDuplicate
                         (ynabTx.Payee |> Option.defaultValue "Unknown")
                         (ynabTx.Date.ToString("yyyy-MM-dd"))
                         ynabTx.Amount.Amount
-                PossibleDuplicate reason
+                PossibleDuplicate (reason, details)
             | None ->
-                NotDuplicate
+                NotDuplicate details
 
 /// Marks all sync transactions with their duplicate status
 let markDuplicates
@@ -143,7 +155,7 @@ let countDuplicates (transactions: SyncTransaction list) : {| Confirmed: int; Po
         transactions
         |> List.filter (fun tx ->
             match tx.DuplicateStatus with
-            | ConfirmedDuplicate _ -> true
+            | ConfirmedDuplicate (_, _) -> true
             | _ -> false)
         |> List.length
 
@@ -151,7 +163,7 @@ let countDuplicates (transactions: SyncTransaction list) : {| Confirmed: int; Po
         transactions
         |> List.filter (fun tx ->
             match tx.DuplicateStatus with
-            | PossibleDuplicate _ -> true
+            | PossibleDuplicate (_, _) -> true
             | _ -> false)
         |> List.length
 
