@@ -12,7 +12,7 @@ Ideen und Features für spätere Implementierung.
 
 ### Mittlere Priorität
 
-- [ ] **JSON-Fehlermeldung bei frühem Import-Klick**: Wenn man auf den Import-Button klickt bevor die TAN-Bestätigung erfolgt ist, wird nur rohes JSON als Fehlermeldung angezeigt. Stattdessen sollte eine verständliche Fehlermeldung erscheinen.
+(keine)
 
 ### Niedrige Priorität
 
@@ -49,6 +49,7 @@ Ideen und Features für spätere Implementierung.
 
 ### Bugs
 
+- [x] **JSON-Fehlermeldung bei frühem Import-Klick**: Comdirect-JSON-Fehlermeldungen werden jetzt geparst und benutzerfreundliche Nachrichten angezeigt. Bei TAN_UNGUELTIG wird z.B. "TAN-Freigabe über die App wurde noch nicht erteilt." angezeigt statt rohem JSON. ✅ (2025-12-11)
 - [x] **Langsame Kategorie-Auswahl**: Optimistisches UI implementiert - UI aktualisiert sofort lokal statt auf Backend-Antwort zu warten ✅ (2025-12-08)
 
 ### Features

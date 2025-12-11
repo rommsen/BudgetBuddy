@@ -4,6 +4,7 @@ open System
 open Expecto
 open Thoth.Json.Net
 open Server.ComdirectClient
+open Server.Api
 open Shared.Domain
 
 // ============================================
@@ -193,4 +194,96 @@ let errorHandlingTests =
                 Expect.equal code 404 "Status code should be 404"
                 Expect.equal msg "Not found" "Message should match"
             | _ -> failtest "Should be NetworkError"
+    ]
+
+// ============================================
+// Comdirect Error JSON Parsing Tests
+// These tests prevent regression of the bug where Comdirect JSON error
+// responses were displayed as raw JSON instead of user-friendly messages.
+// ============================================
+
+[<Tests>]
+let comdirectErrorParsingTests =
+    testList "Comdirect Error JSON Parsing Tests" [
+        testCase "parses TAN_UNGUELTIG error with German message" <| fun () ->
+            // This is the exact error format returned by Comdirect when TAN is not yet confirmed
+            let json = """{"code":"TAN_UNGUELTIG","messages":[{"severity":"INFO","key":"PUSHTAN_ANGEFORDERT","message":"TAN-Freigabe über die App wurde noch nicht erteilt.","args":{},"origin":[]}]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should parse the error JSON"
+            Expect.equal result.Value "TAN-Freigabe über die App wurde noch nicht erteilt." "Should extract the message field"
+
+        testCase "parses error JSON with multiple messages, takes first" <| fun () ->
+            let json = """{"code":"SOME_ERROR","messages":[{"message":"First message"},{"message":"Second message"}]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should parse the error JSON"
+            Expect.equal result.Value "First message" "Should extract the first message"
+
+        testCase "handles TAN_UNGUELTIG with missing message field" <| fun () ->
+            let json = """{"code":"TAN_UNGUELTIG","messages":[{"severity":"INFO"}]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should return a default message for TAN_UNGUELTIG"
+            Expect.equal result.Value "Please confirm the TAN in your banking app first." "Should use default message"
+
+        testCase "handles unknown error code with message" <| fun () ->
+            let json = """{"code":"UNKNOWN_ERROR","messages":[{"message":"Something went wrong"}]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should parse unknown error codes"
+            Expect.equal result.Value "Something went wrong" "Should extract the message"
+
+        testCase "handles unknown error code without message" <| fun () ->
+            let json = """{"code":"MYSTERY_ERROR","messages":[]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should handle missing message"
+            Expect.equal result.Value "Error: MYSTERY_ERROR" "Should show error code"
+
+        testCase "handles SESSION_EXPIRED error code" <| fun () ->
+            let json = """{"code":"SESSION_EXPIRED","messages":[{"message":"ignored"}]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should parse SESSION_EXPIRED"
+            Expect.equal result.Value "Your session has expired. Please start a new sync." "Should use predefined message"
+
+        testCase "handles UNAUTHORIZED error code" <| fun () ->
+            let json = """{"code":"UNAUTHORIZED","messages":[]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should parse UNAUTHORIZED"
+            Expect.equal result.Value "Authorization failed. Please check your credentials." "Should use predefined message"
+
+        testCase "returns None for non-JSON string" <| fun () ->
+            let result = parseComdirectErrorJson "This is not JSON"
+
+            Expect.isNone result "Should return None for non-JSON"
+
+        testCase "returns None for empty string" <| fun () ->
+            let result = parseComdirectErrorJson ""
+
+            Expect.isNone result "Should return None for empty string"
+
+        testCase "returns None for invalid JSON structure" <| fun () ->
+            let json = """{"foo": "bar"}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isNone result "Should return None when no code or messages"
+
+        testCase "handles JSON with only message, no code" <| fun () ->
+            let json = """{"messages":[{"message":"Just a message"}]}"""
+
+            let result = parseComdirectErrorJson json
+
+            Expect.isSome result "Should parse when only message is present"
+            Expect.equal result.Value "Just a message" "Should extract the message"
     ]

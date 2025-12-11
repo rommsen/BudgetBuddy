@@ -4,6 +4,83 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-11 16:30 - Fix: JSON-Fehlermeldung bei frühem Import-Klick
+
+**What I did:**
+Fixed the bug where Comdirect JSON error responses were displayed as raw JSON instead of user-friendly messages. When clicking "I've Confirmed" before actually confirming the TAN in the banking app, users previously saw:
+
+```
+Network error (HTTP 400): {"code":"TAN_UNGUELTIG","messages":[{"severity":"INFO","key":"PUSHTAN_ANGEFORDERT","message":"TAN-Freigabe über die App wurde noch nicht erteilt.",...}]}
+```
+
+Now they see the clean message:
+```
+TAN-Freigabe über die App wurde noch nicht erteilt.
+```
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `src/Server/Api.fs`:
+  - Added `parseComdirectErrorJson` function (lines 68-110) that parses Comdirect's structured JSON error format
+  - Extracts the `message` field from the `messages` array
+  - Provides predefined messages for known error codes (TAN_UNGUELTIG, SESSION_EXPIRED, UNAUTHORIZED)
+  - Updated `comdirectErrorToString` to use the parser for NetworkError cases
+  - Also improved error messages for other ComdirectError variants
+
+- `src/Client/Components/SyncFlow/State.fs`:
+  - Updated `syncErrorToString` for `ComdirectAuthFailed` to pass through the reason directly (no redundant prefix)
+  - Backend now provides user-friendly messages, so frontend just displays them
+
+- `src/Tests/ComdirectClientTests.fs`:
+  - Added 11 regression tests for `parseComdirectErrorJson`
+  - Tests cover: TAN_UNGUELTIG with German message, multiple messages, missing fields, unknown codes, predefined codes, invalid JSON, empty input
+
+**Rationale:**
+Comdirect API returns errors in a structured JSON format with a `code` field and `messages` array. Previously, this JSON was passed through as-is, making it unreadable for users. The parser now extracts meaningful messages.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 45/46 Comdirect tests pass (1 skipped integration test)
+- Backlog updated: Bug marked as completed
+
+---
+
+## 2025-12-11 15:35 - Fix: Sync Flow Progress Indicator for Fetching Step
+
+**What I did:**
+Fixed the sync flow progress indicator to show the correct step when fetching transactions. The issue had two parts:
+
+1. **View Issue**: No dedicated view for `FetchingTransactions` status - only a generic loading view was shown
+2. **State Issue**: The `confirmTan` API call runs synchronously (TAN confirm + fetch + rules + duplicate detection), so the client never saw the intermediate `FetchingTransactions` status
+
+**Solution:**
+- Added `fetchingView` component showing the progress indicator with "Fetch" as active step
+- Added **optimistic UI update** in State.fs: When user clicks "I've Confirmed", we immediately set the local session status to `FetchingTransactions` before the API call starts
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs`:
+  - Added `fetchingView` component (lines 163-238) that shows:
+    - Animated sync icon with neon glow
+    - "Fetching Transactions" title and description
+    - Progress indicator showing: Connected ✓ → TAN ✓ → Fetch (active with spinner)
+  - Updated main view to use `fetchingView ()` for `FetchingTransactions` status
+
+- `src/Client/Components/SyncFlow/State.fs`:
+  - Modified `ConfirmTan` handler to optimistically update session status to `FetchingTransactions`
+  - This ensures the UI shows the fetching view immediately while the API call runs
+
+**Rationale:**
+The `confirmTan` backend API runs all operations synchronously, so the intermediate status was never visible to the client. Optimistic UI update solves this by showing the expected state immediately.
+
+**Outcomes:**
+- Build: Server ✓, Client ✓
+- Tests: Not applicable (UI-only change)
+- Issues: None
+
+---
+
 ## 2025-12-11 - Feature: Transparent Duplicate Detection with Debug Info
 
 **What I did:**

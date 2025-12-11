@@ -63,15 +63,66 @@ let private syncErrorToString (error: SyncError) : string =
     | SyncError.InvalidSessionState (expected, actual) -> $"Invalid session state. Expected: {expected}, Actual: {actual}"
     | SyncError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
-/// Converts ComdirectError to string
+/// Parses Comdirect API error JSON and extracts user-friendly message
+/// Comdirect errors have format: {"code":"TAN_UNGUELTIG","messages":[{"message":"TAN-Freigabe..."}]}
+/// This function is internal (not private) to allow testing
+let internal parseComdirectErrorJson (json: string) : string option =
+    try
+        let decoder =
+            Decode.object (fun get ->
+                let code = get.Optional.Field "code" Decode.string
+                let messages =
+                    get.Optional.Field "messages" (Decode.list (
+                        Decode.object (fun msgGet ->
+                            msgGet.Optional.Field "message" Decode.string
+                        )
+                    ))
+                code, messages
+            )
+
+        match Decode.fromString decoder json with
+        | Ok (codeOpt, messagesOpt) ->
+            // Extract the first message from the messages array
+            let messageText =
+                messagesOpt
+                |> Option.bind (List.tryHead)
+                |> Option.flatten
+
+            // Provide user-friendly messages for known error codes
+            match codeOpt with
+            | Some "TAN_UNGUELTIG" ->
+                // TAN not yet confirmed - give clear instructions
+                messageText
+                |> Option.defaultValue "Please confirm the TAN in your banking app first."
+                |> Some
+            | Some "SESSION_EXPIRED" ->
+                Some "Your session has expired. Please start a new sync."
+            | Some "UNAUTHORIZED" ->
+                Some "Authorization failed. Please check your credentials."
+            | Some code ->
+                // Use the message if available, otherwise show the code
+                messageText
+                |> Option.orElse (Some $"Error: {code}")
+            | None ->
+                messageText
+        | Error _ ->
+            None
+    with _ ->
+        None
+
+/// Converts ComdirectError to string with proper parsing of error JSON
 let private comdirectErrorToString (error: ComdirectError) : string =
     match error with
     | ComdirectError.AuthenticationFailed msg -> $"Authentication failed: {msg}"
-    | ComdirectError.TanChallengeExpired -> "TAN challenge expired"
-    | ComdirectError.TanRejected -> "TAN was rejected"
-    | ComdirectError.SessionExpired -> "Session expired"
-    | ComdirectError.InvalidCredentials -> "Invalid credentials"
-    | ComdirectError.NetworkError (status, msg) -> $"Network error (HTTP {status}): {msg}"
+    | ComdirectError.TanChallengeExpired -> "TAN challenge expired. Please start a new sync and confirm within the time limit."
+    | ComdirectError.TanRejected -> "TAN was rejected. Please try again."
+    | ComdirectError.SessionExpired -> "Session expired. Please start a new sync."
+    | ComdirectError.InvalidCredentials -> "Invalid credentials. Please check your Comdirect settings."
+    | ComdirectError.NetworkError (status, msg) ->
+        // Try to parse the JSON error response for a user-friendly message
+        match parseComdirectErrorJson msg with
+        | Some userMessage -> userMessage
+        | None -> $"Network error (HTTP {status}): {msg}"
     | ComdirectError.InvalidResponse msg -> $"Invalid response: {msg}"
 
 // ============================================

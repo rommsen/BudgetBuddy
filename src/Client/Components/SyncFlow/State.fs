@@ -8,8 +8,11 @@ open Shared.Domain
 let private syncErrorToString (error: SyncError) : string =
     match error with
     | SyncError.SessionNotFound sessionId -> $"Session not found: {sessionId}"
-    | SyncError.ComdirectAuthFailed reason -> $"Comdirect authentication failed: {reason}"
-    | SyncError.TanTimeout -> "TAN confirmation timed out"
+    | SyncError.ComdirectAuthFailed reason ->
+        // The backend now parses Comdirect JSON errors and returns user-friendly messages
+        // So we just pass through the reason without adding a redundant prefix
+        reason
+    | SyncError.TanTimeout -> "TAN confirmation timed out. Please start a new sync."
     | SyncError.TransactionFetchFailed msg -> $"Failed to fetch transactions: {msg}"
     | SyncError.YnabImportFailed (count, msg) -> $"Failed to import {count} transactions: {msg}"
     | SyncError.InvalidSessionState (expected, actual) -> $"Invalid session state. Expected: {expected}, Actual: {actual}"
