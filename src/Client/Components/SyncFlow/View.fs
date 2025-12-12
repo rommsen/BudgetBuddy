@@ -1400,7 +1400,11 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
                                 prop.children [
                                     for tx in filteredTransactions do
-                                        transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch
+                                        let (TransactionId id) = tx.Transaction.Id
+                                        Html.div [
+                                            prop.key id
+                                            prop.children [ transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch ]
+                                        ]
                                 ]
                             ]
                     ]
