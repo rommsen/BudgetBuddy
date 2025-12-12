@@ -34,6 +34,7 @@ let private paypalPatterns = [
     @"PAYPAL\s*\*"
     @"PP\.\d+"
     @"PAYPAL"
+    @"LU96ZZZ0000000000000000058"  // PayPal Luxembourg Gläubiger-ID
 ]
 
 /// Regex pattern for Amazon order IDs (e.g., ABC-1234567-1234567)
