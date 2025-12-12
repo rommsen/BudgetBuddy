@@ -1184,68 +1184,78 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     IsActive = model.ActiveFilter = SkippedTransactions
                             }
                         ]
-                        // Banner 1: BudgetBuddy pre-detected duplicates (teal - these were auto-skipped)
-                        if confirmedDuplicates > 0 then
-                            let activeClass =
-                                if model.ActiveFilter = ConfirmedDuplicates then
-                                    "ring-2 ring-neon-teal ring-offset-2 ring-offset-base-100"
-                                else ""
+                        // Compact summary: Skipped transactions (duplicates + YNAB rejected)
+                        if confirmedDuplicates > 0 || ynabRejected > 0 then
+                            let totalSkippedIssues = confirmedDuplicates + ynabRejected
                             Html.div [
-                                prop.className $"flex items-center gap-3 p-3 rounded-xl bg-neon-teal/10 border border-neon-teal/30 cursor-pointer hover:bg-neon-teal/20 transition-colors {activeClass}"
-                                prop.onClick (fun _ -> dispatch (SetFilter ConfirmedDuplicates))
+                                prop.className "rounded-xl bg-base-200/50 border-l-4 border-neon-teal overflow-hidden"
                                 prop.children [
-                                    Icons.search Icons.MD Icons.NeonTeal
+                                    // Header
                                     Html.div [
-                                        prop.className "flex-1"
+                                        prop.className "px-4 py-3 flex items-center gap-3"
                                         prop.children [
-                                            Html.p [
-                                                prop.className "text-sm font-medium text-neon-teal"
-                                                prop.text (sprintf "%d pre-detected duplicates (BudgetBuddy)" confirmedDuplicates)
-                                            ]
-                                            Html.p [
-                                                prop.className "text-xs text-base-content/60"
-                                                prop.text "Found by Reference or Import-ID match before import. Auto-skipped."
+                                            Icons.info Icons.MD Icons.NeonTeal
+                                            Html.span [
+                                                prop.className "text-sm font-medium text-base-content"
+                                                prop.text (sprintf "%d transaction%s won't be imported" totalSkippedIssues (if totalSkippedIssues = 1 then "" else "s"))
                                             ]
                                         ]
                                     ]
-                                    Html.span [
-                                        prop.className "px-2 py-1 rounded-md text-xs bg-neon-teal/20 text-neon-teal border border-neon-teal/30"
-                                        prop.text "Pre-Import"
-                                    ]
-                                ]
-                            ]
-
-                        // Banner 2: YNAB-rejected duplicates (red - these were rejected during import)
-                        if ynabRejected > 0 then
-                            Html.div [
-                                prop.className "flex items-center gap-3 p-3 rounded-xl bg-neon-red/10 border border-neon-red/30"
-                                prop.children [
-                                    Icons.xCircle Icons.MD Icons.Error
+                                    // Details list
                                     Html.div [
-                                        prop.className "flex-1"
+                                        prop.className "px-4 pb-3 space-y-2"
                                         prop.children [
-                                            Html.p [
-                                                prop.className "text-sm font-medium text-neon-red"
-                                                prop.text (sprintf "%d rejected by YNAB" ynabRejected)
-                                            ]
-                                            Html.p [
-                                                prop.className "text-xs text-base-content/60"
-                                                prop.text "YNAB rejected these during import (duplicate import_id). Expand transactions for details."
-                                            ]
+                                            // Pre-detected duplicates
+                                            if confirmedDuplicates > 0 then
+                                                let activeClass =
+                                                    if model.ActiveFilter = ConfirmedDuplicates then
+                                                        "ring-1 ring-neon-teal"
+                                                    else ""
+                                                Html.div [
+                                                    prop.className $"flex items-center gap-2 px-3 py-2 rounded-lg bg-base-100/50 cursor-pointer hover:bg-base-100 transition-colors {activeClass}"
+                                                    prop.onClick (fun _ -> dispatch (SetFilter ConfirmedDuplicates))
+                                                    prop.children [
+                                                        Html.span [
+                                                            prop.className "text-base-content/40"
+                                                            prop.text "├"
+                                                        ]
+                                                        Html.span [
+                                                            prop.className "text-sm text-base-content/80"
+                                                            prop.text (sprintf "%d duplicate%s (auto-detected)" confirmedDuplicates (if confirmedDuplicates = 1 then "" else "s"))
+                                                        ]
+                                                    ]
+                                                ]
+                                            // YNAB rejected
+                                            if ynabRejected > 0 then
+                                                Html.div [
+                                                    prop.className "flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-neon-orange/5 border border-neon-orange/20"
+                                                    prop.children [
+                                                        Html.div [
+                                                            prop.className "flex items-center gap-2"
+                                                            prop.children [
+                                                                Html.span [
+                                                                    prop.className "text-base-content/40"
+                                                                    prop.text "└"
+                                                                ]
+                                                                Html.span [
+                                                                    prop.className "text-sm text-neon-orange"
+                                                                    prop.text (sprintf "%d rejected by YNAB" ynabRejected)
+                                                                ]
+                                                            ]
+                                                        ]
+                                                        // Inline force re-import button
+                                                        Html.button [
+                                                            prop.className "text-xs text-neon-teal hover:text-neon-teal/80 flex items-center gap-1"
+                                                            prop.onClick (fun _ -> dispatch ForceImportDuplicates)
+                                                            prop.children [
+                                                                Icons.sync Icons.XS Icons.NeonTeal
+                                                                Html.span [ prop.text "Force import" ]
+                                                            ]
+                                                        ]
+                                                    ]
+                                                ]
                                         ]
                                     ]
-                                    Html.span [
-                                        prop.className "px-2 py-1 rounded-md text-xs bg-neon-red/20 text-neon-red border border-neon-red/30"
-                                        prop.text "Post-Import"
-                                    ]
-                                    Button.view {
-                                        Button.defaultProps with
-                                            Text = sprintf "Force Re-import %d" ynabRejected
-                                            Variant = Button.Secondary
-                                            Size = Button.Small
-                                            Icon = Some (Icons.sync Icons.SM Icons.NeonTeal)
-                                            OnClick = fun () -> dispatch ForceImportDuplicates
-                                    }
                                 ]
                             ]
                     ]
@@ -1301,44 +1311,25 @@ let private transactionListView (model: Model) (dispatch: Msg -> unit) =
                             Html.div [
                                 prop.className "flex gap-2"
                                 prop.children [
-                                    Button.danger "Cancel" (fun () -> dispatch CancelSync)
+                                    Button.secondary "Cancel" (fun () -> dispatch CancelSync)
                                     // Enable import if any non-skipped, non-imported transaction exists
-                                    let canImport =
-                                        match model.SyncTransactions with
-                                        | Success transactions ->
-                                            transactions
-                                            |> List.exists (fun tx ->
-                                                tx.Status <> Skipped &&
-                                                tx.Status <> Imported)
-                                        | _ -> false
-                                    Button.view {
-                                        Button.defaultProps with
-                                            Text = "Import to YNAB"
-                                            Variant = Button.Primary
-                                            Icon = Some (Icons.upload Icons.SM Icons.Primary)
-                                            OnClick = fun () -> dispatch ImportToYnab
-                                            IsDisabled = not canImport
-                                    }
-                                    // Show force import button ONLY if YNAB rejected transactions during import
-                                    // This button should NOT appear before any import has been attempted
-                                    let ynabRejectedCount =
+                                    let importableCount =
                                         match model.SyncTransactions with
                                         | Success transactions ->
                                             transactions
                                             |> List.filter (fun tx ->
-                                                match tx.YnabImportStatus with
-                                                | RejectedByYnab _ -> true
-                                                | _ -> false)
+                                                tx.Status <> Skipped &&
+                                                tx.Status <> Imported)
                                             |> List.length
                                         | _ -> 0
-                                    if ynabRejectedCount > 0 then
-                                        Button.view {
-                                            Button.defaultProps with
-                                                Text = $"Re-import {ynabRejectedCount} Rejected"
-                                                Variant = Button.Secondary
-                                                Icon = Some (Icons.sync Icons.SM Icons.NeonTeal)
-                                                OnClick = fun () -> dispatch ForceImportDuplicates
-                                        }
+                                    Button.view {
+                                        Button.defaultProps with
+                                            Text = if importableCount > 0 then sprintf "Import %d to YNAB" importableCount else "Import to YNAB"
+                                            Variant = Button.Primary
+                                            Icon = Some (Icons.upload Icons.SM Icons.Primary)
+                                            OnClick = fun () -> dispatch ImportToYnab
+                                            IsDisabled = importableCount = 0
+                                    }
                                 ]
                             ]
                         ]
