@@ -1,3 +1,25 @@
+# ⚠️ CRITICAL: SERENA TOOLS ARE MANDATORY ⚠️
+
+**STOP** before using `Read`, `Grep`, or `Glob` on code files (.fs, .fsx, .fsproj).
+
+**USE SERENA INSTEAD** - this is NON-NEGOTIABLE for this project.
+
+| Instead of... | Use Serena... |
+|---------------|---------------|
+| `Read` on .fs files | `get_symbols_overview` or `find_symbol` with `include_body=True` |
+| `Grep` for code search | `search_for_pattern` |
+| `Glob` for finding files | `find_file` or `list_dir` |
+| Manual edits with `Edit` | `replace_symbol_body`, `insert_before_symbol`, `insert_after_symbol` |
+
+**FORBIDDEN for .fs/.fsx files:**
+- ❌ `Read` tool (use `find_symbol` with `include_body=True`)
+- ❌ `Grep` tool (use `search_for_pattern`)
+- ❌ `Edit` tool for symbol changes (use `replace_symbol_body`)
+
+If you catch yourself reaching for Read/Grep/Glob/Edit on F# code, **STOP and use Serena**.
+
+---
+
 # F# Full-Stack Blueprint - Claude Code Instructions
 
 ## Your Role
@@ -310,7 +332,25 @@ dotnet test                         # Run tests
 # Build
 docker build -t app .               # Build image
 docker-compose up -d                # Deploy with Tailscale
+
+# Deploy Rules to Live Database
+./scripts/deploy-rules.sh --list              # List available budgets
+./scripts/deploy-rules.sh "My Budget"         # Add new rules
+./scripts/deploy-rules.sh "My Budget" --clear # Clear all & reimport
 ```
+
+### Deploy Rules Script
+
+The `deploy-rules.sh` script imports categorization rules from `rules.yml` to the live Docker database:
+
+1. Stops the app container
+2. Runs `import-rules.fsx` with `DATA_DIR` pointing to the Docker volume
+3. Restarts the app container
+
+**Prerequisites:**
+- `.env` with `YNAB_TOKEN`
+- Docker container running
+- Volume mounted at `~/my_apps/budgetbuddy/`
 
 ## Development Diary
 
