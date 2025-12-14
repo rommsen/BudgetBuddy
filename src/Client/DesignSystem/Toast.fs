@@ -79,7 +79,7 @@ let toast (props: ToastProps) =
     Html.div [
         prop.key (props.Id.ToString())
         prop.className (
-            "flex items-start gap-3 p-4 rounded-lg border-l-4 border border-white/10 " +
+            "pointer-events-auto flex items-start gap-3 p-4 rounded-lg border-l-4 border border-white/10 " +
             "bg-base-300 shadow-xl backdrop-blur-sm " +
             "animate-slide-up " +
             variantToClasses props.Variant
@@ -157,7 +157,7 @@ let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastV
 let container (position: ToastPosition) (children: ReactElement list) =
     Html.div [
         prop.className (
-            "fixed z-50 flex flex-col gap-2 w-full max-w-sm px-4 md:px-0 " +
+            "fixed z-50 flex flex-col gap-2 w-full max-w-sm px-4 md:px-0 pointer-events-none " +
             // On mobile, position at top to avoid bottom nav
             "top-16 md:top-auto " +
             positionToClasses position
