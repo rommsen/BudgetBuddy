@@ -199,7 +199,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                         Html.option [
                                                             let (YnabAccountId id) = account.Id
                                                             prop.value (id.ToString())
-                                                            prop.text $"{account.Name} ({account.Balance.Amount:N2} {account.Balance.Currency})"
+                                                            prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
                                                         ]
                                                 ]
                                             ])
