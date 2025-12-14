@@ -114,26 +114,37 @@ let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
                 prop.text rule.CategoryName
             ]
 
-            // Actions (always visible on mobile, hover on desktop)
+            // Actions (always visible on mobile, hover on desktop - except confirm button)
             Html.div [
-                prop.className "flex-shrink-0 flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                prop.className "flex-shrink-0 flex gap-0.5"
                 prop.children [
-                    Button.iconButton (Icons.edit SM Icons.Default) Button.Ghost (fun () -> dispatch (EditRule rule.Id))
+                    // Edit button - hidden until hover on desktop
+                    Html.div [
+                        prop.className "sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                        prop.children [
+                            Button.iconButton (Icons.edit SM Icons.Default) Button.Ghost (fun () -> dispatch (EditRule rule.Id))
+                        ]
+                    ]
 
                     // Delete button with inline confirmation
                     if isConfirmingDelete then
-                        // Red confirm button (auto-resets after 3s)
+                        // Red confirm button - ALWAYS visible (no opacity transition)
                         Html.button [
                             prop.className "btn btn-xs btn-error gap-1 animate-pulse"
                             prop.onClick (fun _ -> dispatch (DeleteRule rule.Id))
                             prop.children [
                                 Icons.trash XS Icons.IconColor.Primary
-                                Html.span [ prop.text "Löschen?" ]
+                                Html.span [ prop.text "Delete" ]
                             ]
                         ]
                     else
-                        // Normal trash icon
-                        Button.iconButton (Icons.trash SM Icons.Error) Button.Ghost (fun () -> dispatch (ConfirmDeleteRule rule.Id))
+                        // Normal trash icon - hidden until hover on desktop
+                        Html.div [
+                            prop.className "sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                            prop.children [
+                                Button.iconButton (Icons.trash SM Icons.Error) Button.Ghost (fun () -> dispatch (ConfirmDeleteRule rule.Id))
+                            ]
+                        ]
                 ]
             ]
         ]
