@@ -14,6 +14,7 @@ services:
       - ASPNETCORE_URLS=http://+:5001
       - ASPNETCORE_ENVIRONMENT=Production
       - DATA_DIR=/app/data
+      - BUDGETBUDDY_ENCRYPTION_KEY=${BUDGETBUDDY_ENCRYPTION_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/"]
       interval: 30s

@@ -207,14 +207,22 @@ docker run -p 5001:5001 -v $(pwd)/data:/app/data budgetbuddy
 For secure access from anywhere on your Tailnet:
 
 ```bash
-# Set your Tailscale auth key
-echo "TS_AUTHKEY=tskey-auth-xxx" > .env
+# 1. Generate an encryption key for settings (REQUIRED)
+openssl rand -base64 32
 
-# Deploy
+# 2. Create .env file with required secrets
+cat > .env << EOF
+TS_AUTHKEY=tskey-auth-xxx
+BUDGETBUDDY_ENCRYPTION_KEY=<paste-generated-key-here>
+EOF
+
+# 3. Deploy
 docker-compose up -d
 ```
 
 Your app is now accessible at `https://budgetbuddy.<your-tailnet>.ts.net`.
+
+> **⚠️ Important:** The `BUDGETBUDDY_ENCRYPTION_KEY` is required for settings to persist across container rebuilds. Without it, encrypted settings (YNAB token, Comdirect credentials) will be lost on each `docker-compose up --build`. Back up this key securely!
 
 ## Project Structure
 
@@ -271,7 +279,7 @@ legacy/               # Original CLI implementation (reference)
 ## Security
 
 - **No permanent storage of bank credentials** - TAN required for each sync
-- **YNAB token encrypted** at rest using machine-specific key
+- **Sensitive settings encrypted** at rest using AES-256 with your `BUDGETBUDDY_ENCRYPTION_KEY`
 - **No cloud dependency** - runs entirely on your hardware
 - **Tailscale networking** - optional private access without public exposure
 

@@ -20,7 +20,7 @@ RUN npm install
 # Copy source files
 COPY src/Client ./src/Client
 COPY src/Shared ./src/Shared
-COPY vite.config.js tailwind.config.js ./
+COPY vite.config.js ./
 
 # Restore .NET dependencies
 RUN dotnet restore src/Client/Client.fsproj

@@ -27,8 +27,9 @@ let main args =
 
     let app = builder.Build()
 
-    // Initialize data directory
-    Persistence.ensureDataDir()
+    // Initialize database (creates tables if they don't exist)
+    Persistence.initializeDatabase()
+    printfn "✅ Database initialized"
 
     if app.Environment.IsDevelopment() then
         app.UseDeveloperExceptionPage() |> ignore

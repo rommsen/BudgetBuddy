@@ -4,6 +4,91 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-13 19:45 - Fix: Encrypted Settings Lost After Docker Rebuild
+
+**What I did:**
+Fixed critical bug where encrypted settings (YNAB token, Comdirect credentials) were lost after every `docker-compose up -d --build`. The root cause was that the encryption key was derived from `Environment.MachineName`, which changes with each Docker container rebuild.
+
+**Root Cause Analysis:**
+```fsharp
+// In Persistence.fs - getEncryptionKey()
+let machineKey = Environment.MachineName + "BudgetBuddy2025"
+```
+Docker containers get a new hostname on each rebuild → different encryption key → previously encrypted settings become unreadable.
+
+**Files Modified:**
+- `docker-compose.yml` - Added `BUDGETBUDDY_ENCRYPTION_KEY` environment variable
+- `README.md` - Added documentation for the encryption key setup
+- `.env` - Added generated encryption key (not committed)
+
+**Solution:**
+1. Generate a stable encryption key: `openssl rand -base64 32`
+2. Add to `.env`: `BUDGETBUDDY_ENCRYPTION_KEY=<your-key>`
+3. Reference in docker-compose.yml: `BUDGETBUDDY_ENCRYPTION_KEY=${BUDGETBUDDY_ENCRYPTION_KEY}`
+
+**Important:** After applying this fix, existing encrypted settings are lost and must be re-entered. The encryption key in `.env` must be kept secret and backed up.
+
+**Outcomes:**
+- Build: ✅
+- Tests: N/A (configuration fix)
+- Settings now persist across Docker rebuilds
+
+---
+
+## 2025-12-12 14:45 - Script: deploy-rules.sh for Live Database Import
+
+**What I did:**
+Created automation script to import categorization rules from `rules.yml` to the live Docker database. The script handles stopping/starting the container and sets the correct `DATA_DIR` environment variable.
+
+**Files Added:**
+- `scripts/deploy-rules.sh` - Bash script that:
+  - Accepts budget name and optional `--clear` flag
+  - Stops the Docker container
+  - Runs `import-rules.fsx` with `DATA_DIR=~/my_apps/budgetbuddy`
+  - Restarts the container and waits for health check
+  - Supports `--list` to show available YNAB budgets
+
+**Files Modified:**
+- `CLAUDE.md` - Added documentation for the deploy-rules script under "Quick Commands"
+
+**Rationale:**
+Manual rule imports to the live database required multiple steps (stop app, set DATA_DIR, run script, start app). This script automates the entire process with a single command.
+
+**Usage:**
+```bash
+./scripts/deploy-rules.sh --list              # List available budgets
+./scripts/deploy-rules.sh "My Budget"         # Add new rules
+./scripts/deploy-rules.sh "My Budget" --clear # Clear all & reimport
+```
+
+**Outcomes:**
+- Build: N/A (script only)
+- Tests: N/A
+- Successfully imported 55 rules to live database
+
+---
+
+## 2025-12-12 10:30 - Bugfix: Database not initialized in Docker
+
+**What I did:**
+Fixed critical bug where database tables were not created when running in Docker. The `initializeDatabase()` function was defined but never called at server startup.
+
+**Files Modified:**
+- `src/Server/Program.fs` - Added call to `Persistence.initializeDatabase()` at server startup (replaced `Persistence.ensureDataDir()` which only created the directory but not the tables)
+
+**Rationale:**
+When deploying via Docker, the database file was created but without any tables. All API calls failed with "no such table: settings" errors. The `initializeDatabase()` function creates all required tables (`rules`, `settings`, `sync_sessions`, `sync_transactions`) with `CREATE TABLE IF NOT EXISTS`.
+
+**Root Cause:**
+`Persistence.ensureDataDir()` only creates the `/app/data` directory. The actual table creation in `initializeDatabase()` was never called - it was only invoked in tests.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed
+- Database tables will now be created automatically on first server start
+
+---
+
 ## 2025-12-11 20:45 - Feature: Skip All / Unskip All Buttons
 
 **What I did:**
