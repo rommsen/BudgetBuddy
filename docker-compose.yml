@@ -40,7 +40,7 @@ services:
         sleep 5 &&
         tailscale up --authkey=$$TS_AUTHKEY $$TS_EXTRA_ARGS &&
         sleep 2 &&
-        tailscale serve --http=80 http://127.0.0.1:5001 &&
+        tailscale serve --https=443 http://127.0.0.1:5001 &&
         tail -f /dev/null
       "
     restart: unless-stopped
