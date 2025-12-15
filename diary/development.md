@@ -4,6 +4,49 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 22:00 - Frontend Architecture: SyncFlow View Modularisierung (Milestone 2)
+
+**What I did:**
+Completed Milestone 2 from the Frontend Architecture Improvement plan. Split the large SyncFlow/View.fs (1700+ lines) into smaller, maintainable modules. Created a new Views/ subfolder with focused components.
+
+**Files Added:**
+- `src/Client/Components/SyncFlow/Views/StatusViews.fs` - Contains: `tanWaitingView`, `fetchingView`, `loadingView`, `errorView`, `completedView`, `startSyncView` (~350 lines)
+- `src/Client/Components/SyncFlow/Views/InlineRuleForm.fs` - Contains: `inlineRuleForm` with pattern type conversions (~200 lines)
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - Contains: `transactionRow`, `statusDot`, `duplicateIndicator`, `expandChevron`, `skipToggleIcon`, `createRuleButton`, `memoRow`, `duplicateDebugInfo`, helper functions (~450 lines)
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` - Contains: `transactionListView`, `filterTransactions` (~310 lines)
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/View.fs` - Reduced from ~1700 to ~90 lines, now only contains composition
+- `src/Client/Client.fsproj` - Added new files in correct compilation order
+- `docs/FRONTEND-ARCHITECTURE-MILESTONES.md` - Marked Milestone 2 as complete
+
+**Module Dependencies:**
+```
+StatusViews.fs      → Types, Shared.Domain, DesignSystem
+InlineRuleForm.fs   → Types, Shared.Domain, DesignSystem
+TransactionRow.fs   → Types, Shared.Domain, DesignSystem, InlineRuleForm
+TransactionList.fs  → Types, Shared.Domain, DesignSystem, TransactionRow
+View.fs             → Types, Shared.Domain, DesignSystem, StatusViews, TransactionList
+```
+
+**Rationale:**
+Large monolithic view files are difficult to maintain, navigate, and understand. Splitting into focused modules:
+- Improves code organization and readability
+- Makes it easier to find and modify specific components
+- Enables better code reuse
+- Reduces cognitive load when working on specific features
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed (6 skipped integration tests)
+- No functional changes (purely structural refactoring)
+
+**Notes:**
+- `SplitEditor.fs` was not created - no split transaction UI exists in codebase
+- `CategorySelector.fs` was not created separately - integrated into `TransactionRow.fs` using `Input.searchableSelect`
+
+---
+
 ## 2025-12-15 21:15 - Frontend Architecture: React Key Props (Milestone 1)
 
 **What I did:**

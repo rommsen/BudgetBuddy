@@ -66,15 +66,15 @@ for tx in transactions do
 
 ### Aufgaben
 
-- [ ] **2.1** Neuen Ordner `src/Client/Components/SyncFlow/Views/` erstellen
-- [ ] **2.2** `TransactionRow.fs` extrahieren - Einzelne Transaktionszeile
-- [ ] **2.3** `TransactionList.fs` extrahieren - Liste mit Header und Pagination
-- [ ] **2.4** `SplitEditor.fs` extrahieren - Split-Transaction UI
-- [ ] **2.5** `InlineRuleForm.fs` extrahieren - Inline-Regel-Erstellung
-- [ ] **2.6** `StatusViews.fs` extrahieren - Loading, Error, Completed States
-- [ ] **2.7** `CategorySelector.fs` extrahieren - Kategorie-Auswahl Komponente
-- [ ] **2.8** Haupt-View.fs auf Komposition reduzieren
-- [ ] **2.9** SyncFlow.fsproj aktualisieren mit neuen Dateien
+- [x] **2.1** Neuen Ordner `src/Client/Components/SyncFlow/Views/` erstellen
+- [x] **2.2** `TransactionRow.fs` extrahieren - Einzelne Transaktionszeile
+- [x] **2.3** `TransactionList.fs` extrahieren - Liste mit Header und Pagination
+- [x] ~~**2.4** `SplitEditor.fs` extrahieren - Split-Transaction UI~~ *(nicht implementiert - kein Split-Editor vorhanden)*
+- [x] **2.5** `InlineRuleForm.fs` extrahieren - Inline-Regel-Erstellung
+- [x] **2.6** `StatusViews.fs` extrahieren - Loading, Error, Completed States
+- [x] ~~**2.7** `CategorySelector.fs` extrahieren - Kategorie-Auswahl Komponente~~ *(in TransactionRow.fs integriert)*
+- [x] **2.8** Haupt-View.fs auf Komposition reduzieren
+- [x] **2.9** Client.fsproj aktualisieren mit neuen Dateien
 
 ### Neue Dateistruktur
 
@@ -82,22 +82,40 @@ for tx in transactions do
 src/Client/Components/SyncFlow/
 ├── Types.fs
 ├── State.fs
-├── View.fs              # Hauptkomposition, ~200 Zeilen
+├── View.fs              # Hauptkomposition, ~90 Zeilen
 └── Views/
-    ├── TransactionRow.fs
-    ├── TransactionList.fs
-    ├── SplitEditor.fs
-    ├── InlineRuleForm.fs
-    ├── StatusViews.fs
-    └── CategorySelector.fs
+    ├── StatusViews.fs   # ~350 Zeilen - Alle Status-Views
+    ├── InlineRuleForm.fs # ~200 Zeilen - Inline Rule Creation
+    ├── TransactionRow.fs # ~450 Zeilen - Einzelne Transaktionszeile
+    └── TransactionList.fs # ~310 Zeilen - Transaktionsliste
 ```
 
 ### Verifikation
 
-- [ ] `dotnet build` erfolgreich
-- [ ] Keine funktionalen Änderungen (rein strukturell)
-- [ ] Alle SyncFlow-Funktionen weiterhin korrekt
-- [ ] Development Diary aktualisiert
+- [x] `dotnet build` erfolgreich
+- [x] Keine funktionalen Änderungen (rein strukturell)
+- [x] Alle SyncFlow-Funktionen weiterhin korrekt
+- [x] Development Diary aktualisiert
+
+### ✅ Milestone 2 Complete (2025-12-15)
+
+**Summary of Changes:**
+- Created `src/Client/Components/SyncFlow/Views/` folder
+- Extracted `StatusViews.fs` with: `tanWaitingView`, `fetchingView`, `loadingView`, `errorView`, `completedView`, `startSyncView`
+- Extracted `InlineRuleForm.fs` with the inline rule creation form
+- Extracted `TransactionRow.fs` with: `transactionRow`, `statusDot`, `duplicateIndicator`, `expandChevron`, `skipToggleIcon`, `createRuleButton`, `memoRow`, `duplicateDebugInfo` and helpers
+- Extracted `TransactionList.fs` with: `transactionListView`, `filterTransactions`
+- Reduced main `View.fs` from ~1700 lines to ~90 lines (composition only)
+- Updated `Client.fsproj` with correct compilation order
+
+**Test Quality Review:**
+- Build successful with 0 errors
+- All 294 tests passed
+- No functional changes - purely structural refactoring
+
+**Notes:**
+- `SplitEditor.fs` was not created because there is no split transaction UI in the current codebase
+- `CategorySelector.fs` was not created separately as category selection is integrated into `TransactionRow.fs` using `Input.searchableSelect`
 
 ---
 
@@ -391,7 +409,7 @@ module PageHeader =
 | Milestone | Priorität | Aufwand | Status |
 |-----------|-----------|---------|--------|
 | 1. React Key Props | P1 | Klein | ✅ Complete (2025-12-15) |
-| 2. SyncFlow Modularisierung | P1 | Mittel | [ ] Offen |
+| 2. SyncFlow Modularisierung | P1 | Mittel | ✅ Complete (2025-12-15) |
 | 3. Rules Form State | P2 | Klein | [ ] Offen |
 | 4. ErrorDisplay Komponente | P2 | Klein | [ ] Offen |
 | 5. Dashboard Hero Button | P2 | Klein | [ ] Offen |

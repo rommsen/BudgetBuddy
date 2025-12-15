@@ -38,6 +38,10 @@
     <!-- Component: SyncFlow -->
     <Compile Include="Components/SyncFlow/Types.fs" />
     <Compile Include="Components/SyncFlow/State.fs" />
+    <Compile Include="Components/SyncFlow/Views/StatusViews.fs" />
+    <Compile Include="Components/SyncFlow/Views/InlineRuleForm.fs" />
+    <Compile Include="Components/SyncFlow/Views/TransactionRow.fs" />
+    <Compile Include="Components/SyncFlow/Views/TransactionList.fs" />
     <Compile Include="Components/SyncFlow/View.fs" />
 
     <!-- Component: Rules -->
