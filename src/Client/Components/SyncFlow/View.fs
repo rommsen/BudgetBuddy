@@ -530,7 +530,10 @@ let private inlineRuleForm
                                 prop.children [
                                     Html.label [
                                         prop.className "block text-sm font-medium text-base-content/80"
-                                        prop.text "Rule Name"
+                                        prop.children [
+                                            Html.text "Rule Name "
+                                            Html.span [ prop.className "text-neon-red"; prop.text "*" ]
+                                        ]
                                     ]
                                     Input.textSimple
                                         formState.RuleName
@@ -573,7 +576,7 @@ let private inlineRuleForm
                                                 prop.className "block text-sm font-medium text-base-content/80"
                                                 prop.children [
                                                     Html.text "Pattern "
-                                                    Html.span [ prop.className "text-neon-orange"; prop.text "*" ]
+                                                    Html.span [ prop.className "text-neon-red"; prop.text "*" ]
                                                 ]
                                             ]
                                             Html.input [
@@ -641,18 +644,14 @@ let private inlineRuleForm
                         prop.className "flex flex-col sm:flex-row justify-end gap-2 pt-2"
                         prop.children [
                             Button.ghost "Cancel" (fun () -> dispatch CloseInlineRuleForm)
-                            Button.view {
-                                Button.defaultProps with
-                                    Text = "Create Rule"
-                                    Variant = Button.Primary
-                                    IsLoading = formState.IsSaving
-                                    IsDisabled =
-                                        formState.IsSaving ||
-                                        System.String.IsNullOrWhiteSpace formState.Pattern ||
-                                        System.String.IsNullOrWhiteSpace formState.RuleName
-                                    OnClick = fun () -> dispatch SaveInlineRule
-                                    Icon = Some (Icons.check Icons.SM Icons.Primary)
-                            }
+                            Form.submitButton
+                                "Create Rule"
+                                (fun () -> dispatch SaveInlineRule)
+                                formState.IsSaving
+                                [
+                                    ("Rule Name", formState.RuleName)
+                                    ("Pattern", formState.Pattern)
+                                ]
                         ]
                     ]
                 ]

@@ -19,6 +19,7 @@
     <Compile Include="DesignSystem/Toast.fs" />
     <Compile Include="DesignSystem/Modal.fs" />
     <Compile Include="DesignSystem/Navigation.fs" />
+    <Compile Include="DesignSystem/Form.fs" />
 
     <!-- Shared types -->
     <Compile Include="Types.fs" />

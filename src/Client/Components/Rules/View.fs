@@ -394,19 +394,15 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
 
         Modal.footer [
             Button.ghost "Cancel" (fun () -> dispatch CloseRuleModal)
-            Button.view {
-                Button.defaultProps with
-                    Text = if isNew then "Create Rule" else "Save Changes"
-                    Variant = Button.Primary
-                    IsLoading = model.RuleSaving
-                    IsDisabled =
-                        model.RuleSaving ||
-                        System.String.IsNullOrWhiteSpace(model.RuleFormName) ||
-                        System.String.IsNullOrWhiteSpace(model.RuleFormPattern) ||
-                        model.RuleFormCategoryId.IsNone
-                    OnClick = fun () -> dispatch SaveRule
-                    Icon = Some (Icons.check SM Icons.IconColor.Primary)
-            }
+            Form.submitButton
+                (if isNew then "Create Rule" else "Save Changes")
+                (fun () -> dispatch SaveRule)
+                model.RuleSaving
+                [
+                    ("Rule Name", model.RuleFormName)
+                    ("Pattern", model.RuleFormPattern)
+                    ("Category", model.RuleFormCategoryId |> Option.map (fun _ -> "selected") |> Option.defaultValue "")
+                ]
         ]
     ]
 

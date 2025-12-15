@@ -59,21 +59,16 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
             prop.className "space-y-4"
             prop.children [
                 // Token input with label
-                Input.groupSimple "Personal Access Token" (
-                    Html.div [
-                        prop.className "flex flex-col sm:flex-row gap-2"
-                        prop.children [
-                            Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "Enter your YNAB Personal Access Token"
-                            let isTokenEmpty = System.String.IsNullOrWhiteSpace(model.YnabTokenInput)
-                            Button.view {
-                                Button.defaultProps with
-                                    Text = "Save"
-                                    OnClick = (fun () -> dispatch SaveYnabToken)
-                                    Variant = Button.Primary
-                                    IsDisabled = isTokenEmpty
-                            }
-                        ]
-                    ])
+                Input.groupRequired "Personal Access Token" (
+                    Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "Enter your YNAB Personal Access Token"
+                )
+
+                // Save button with validation
+                Form.submitButton
+                    "Save Token"
+                    (fun () -> dispatch SaveYnabToken)
+                    false
+                    [("Personal Access Token", model.YnabTokenInput)]
 
                 // Link to YNAB
                 Html.div [
@@ -246,10 +241,10 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "grid gap-4 sm:grid-cols-2"
                     prop.children [
-                        Input.groupSimple "Client ID" (
+                        Input.groupRequired "Client ID" (
                             Input.textSimple model.ComdirectClientIdInput (UpdateComdirectClientIdInput >> dispatch) "Your API Client ID")
 
-                        Input.groupSimple "Client Secret" (
+                        Input.groupRequired "Client Secret" (
                             Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Your API Client Secret")
                     ]
                 ]
@@ -258,10 +253,10 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "grid gap-4 sm:grid-cols-2"
                     prop.children [
-                        Input.groupSimple "Username (Zugangsnummer)" (
+                        Input.groupRequired "Username (Zugangsnummer)" (
                             Input.textSimple model.ComdirectUsernameInput (UpdateComdirectUsernameInput >> dispatch) "Your access number")
 
-                        Input.groupSimple "PIN" (
+                        Input.groupRequired "PIN" (
                             Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Your Comdirect PIN")
                     ]
                 ]
@@ -271,22 +266,18 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     Input.textSimple model.ComdirectAccountIdInput (UpdateComdirectAccountIdInput >> dispatch) "Your Comdirect account ID"
                 )
 
-                // Save button - now also validates Account ID
-                let isFormValid =
-                    not (System.String.IsNullOrWhiteSpace(model.ComdirectClientIdInput)) &&
-                    not (System.String.IsNullOrWhiteSpace(model.ComdirectClientSecretInput)) &&
-                    not (System.String.IsNullOrWhiteSpace(model.ComdirectUsernameInput)) &&
-                    not (System.String.IsNullOrWhiteSpace(model.ComdirectPasswordInput)) &&
-                    not (System.String.IsNullOrWhiteSpace(model.ComdirectAccountIdInput))
-
-                Button.view {
-                    Button.defaultProps with
-                        Text = "Save Credentials"
-                        OnClick = (fun () -> dispatch SaveComdirectCredentials)
-                        Variant = Button.Primary
-                        IsDisabled = not isFormValid
-                        Icon = Some (Icons.check Icons.SM Icons.Primary)
-                }
+                // Save button with validation feedback
+                Form.submitButton
+                    "Save Credentials"
+                    (fun () -> dispatch SaveComdirectCredentials)
+                    false
+                    [
+                        ("Client ID", model.ComdirectClientIdInput)
+                        ("Client Secret", model.ComdirectClientSecretInput)
+                        ("Username", model.ComdirectUsernameInput)
+                        ("PIN", model.ComdirectPasswordInput)
+                        ("Account ID", model.ComdirectAccountIdInput)
+                    ]
 
                 // Info tip
                 Html.div [

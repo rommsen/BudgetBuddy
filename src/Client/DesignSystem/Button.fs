@@ -81,9 +81,10 @@ let view (props: ButtonProps) =
     let variantClass = variantToClass props.Variant
     let widthClass = if props.FullWidth then "w-full md:w-auto" else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
+    let disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:shadow-none disabled:hover:translate-y-0"
 
     Html.button [
-        prop.className $"btn {variantClass} {sizeClass} {widthClass} {extraClass} transition-all duration-200"
+        prop.className $"btn {variantClass} {sizeClass} {widthClass} {disabledClass} {extraClass} transition-all duration-200"
         prop.disabled (props.IsLoading || props.IsDisabled)
         prop.onClick (fun _ -> props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value

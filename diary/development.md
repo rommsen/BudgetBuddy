@@ -4,6 +4,37 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 16:00 - Feature: Verbessertes Formular-Handling mit Validierungsfeedback
+
+**What I did:**
+Implemented consistent form validation UX across all forms. Disabled buttons now have clear visual distinction (50% opacity), and a validation message appears under the button showing which required fields are missing. All required fields are now marked with a red asterisk.
+
+**Files Added:**
+- `src/Client/DesignSystem/Form.fs` - New form validation component with `submitButton`, `submitButtonWithIcon`, and `submitButtonSecondary` functions
+
+**Files Modified:**
+- `src/Client/DesignSystem/Button.fs` - Added disabled styling (`disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none`)
+- `src/Client/Client.fsproj` - Added Form.fs to compilation
+- `src/Client/Components/Settings/View.fs` - Changed YNAB Token + all 5 Comdirect fields to use `Input.groupRequired`, replaced buttons with `Form.submitButton`
+- `src/Client/Components/Rules/View.fs` - Replaced footer button with `Form.submitButton`
+- `src/Client/Components/SyncFlow/View.fs` - Added required marker to Rule Name, replaced button with `Form.submitButton`, changed Pattern asterisk to neon-red for consistency
+
+**UX Changes:**
+1. **Disabled buttons**: Now visually distinct with 50% opacity and cursor-not-allowed
+2. **Validation message**: Orange text under button shows "Bitte ausfüllen: Field1, Field2" when fields are missing
+3. **Required field markers**: Red asterisk (*) on all required fields (consistent across all forms)
+4. **Consistent pattern**: `Form.submitButton` used in Settings, Rules modal, and Inline rule form
+
+**Rationale:**
+User feedback indicated that disabled buttons had no visual distinction and no feedback about why they were disabled. This made forms confusing to use.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed (6 skipped integration tests)
+- Visual: Buttons clearly distinguishable, validation feedback visible
+
+---
+
 ## 2025-12-15 - Feature: Comdirect Connection Test in Settings
 
 **What I did:**
