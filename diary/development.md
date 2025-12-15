@@ -4,6 +4,67 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 23:00 - Frontend Architecture: Rules Form State Konsolidierung (Milestone 3)
+
+**What I did:**
+Completed Milestone 3 from the Frontend Architecture Improvement plan. Consolidated the 9 separate form fields in the Rules Model into a dedicated `RuleFormState` record type, improving code organization and maintainability.
+
+**Files Modified:**
+- `src/Client/Components/Rules/Types.fs` - Added `RuleFormState` record type and `RuleFormState` module with `empty` and `fromRule` helper functions. Updated `Model` type to use `Form: RuleFormState` instead of 10 separate fields.
+- `src/Client/Components/Rules/State.fs` - Removed `emptyRuleForm` function (now `RuleFormState.empty`), updated `init` and `update` functions to use the new consolidated form state.
+- `src/Client/Components/Rules/View.fs` - Updated all form field accesses from `model.RuleFormFieldName` to `model.Form.FieldName` and `model.RuleSaving` to `model.Form.IsSaving`.
+
+**Before (10 separate fields):**
+```fsharp
+type Model = {
+    RuleFormName: string
+    RuleFormPattern: string
+    RuleFormPatternType: PatternType
+    RuleFormTargetField: TargetField
+    RuleFormCategoryId: YnabCategoryId option
+    RuleFormPayeeOverride: string
+    RuleFormEnabled: bool
+    RuleFormTestInput: string
+    RuleFormTestResult: string option
+    RuleSaving: bool
+    // ... other fields
+}
+```
+
+**After (1 consolidated form state):**
+```fsharp
+type RuleFormState = {
+    Name: string
+    Pattern: string
+    PatternType: PatternType
+    TargetField: TargetField
+    CategoryId: YnabCategoryId option
+    PayeeOverride: string
+    Enabled: bool
+    TestInput: string
+    TestResult: string option
+    IsSaving: bool
+}
+
+type Model = {
+    Form: RuleFormState
+    // ... other fields
+}
+```
+
+**Rationale:**
+- Reduces cognitive load by grouping related form state
+- Helper functions (`empty`, `fromRule`) reduce duplication and make code cleaner
+- Consistent naming pattern (`model.Form.X`) improves readability
+- Easier to add new form fields in the future
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed (6 skipped integration tests)
+- No functional changes (purely structural refactoring)
+
+---
+
 ## 2025-12-15 22:00 - Frontend Architecture: SyncFlow View Modularisierung (Milestone 2)
 
 **What I did:**

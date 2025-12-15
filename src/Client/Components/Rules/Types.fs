@@ -3,6 +3,49 @@ module Components.Rules.Types
 open Shared.Domain
 open Types
 
+/// State for the rule editor form
+type RuleFormState = {
+    Name: string
+    Pattern: string
+    PatternType: PatternType
+    TargetField: TargetField
+    CategoryId: YnabCategoryId option
+    PayeeOverride: string
+    Enabled: bool
+    TestInput: string
+    TestResult: string option
+    IsSaving: bool
+}
+
+module RuleFormState =
+    /// Empty form state for new rules
+    let empty : RuleFormState = {
+        Name = ""
+        Pattern = ""
+        PatternType = Contains
+        TargetField = Combined
+        CategoryId = None
+        PayeeOverride = ""
+        Enabled = true
+        TestInput = ""
+        TestResult = None
+        IsSaving = false
+    }
+
+    /// Populate form from an existing rule for editing
+    let fromRule (rule: Rule) : RuleFormState = {
+        Name = rule.Name
+        Pattern = rule.Pattern
+        PatternType = rule.PatternType
+        TargetField = rule.TargetField
+        CategoryId = Some rule.CategoryId
+        PayeeOverride = rule.PayeeOverride |> Option.defaultValue ""
+        Enabled = rule.Enabled
+        TestInput = ""
+        TestResult = None
+        IsSaving = false
+    }
+
 /// Rules-specific model state
 type Model = {
     Rules: RemoteData<Rule list>
@@ -10,17 +53,8 @@ type Model = {
     IsNewRule: bool
     Categories: YnabCategory list
 
-    // Rule form state
-    RuleFormName: string
-    RuleFormPattern: string
-    RuleFormPatternType: PatternType
-    RuleFormTargetField: TargetField
-    RuleFormCategoryId: YnabCategoryId option
-    RuleFormPayeeOverride: string
-    RuleFormEnabled: bool
-    RuleFormTestInput: string
-    RuleFormTestResult: string option
-    RuleSaving: bool
+    // Consolidated form state
+    Form: RuleFormState
 
     // Delete confirmation state
     ConfirmingDeleteRuleId: RuleId option

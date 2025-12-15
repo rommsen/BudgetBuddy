@@ -14,35 +14,13 @@ let private rulesErrorToString (error: RulesError) : string =
     | RulesError.DuplicateRule pattern -> $"Duplicate rule pattern: {pattern}"
     | RulesError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
-let private emptyRuleForm () = {|
-    Name = ""
-    Pattern = ""
-    PatternType = Contains
-    TargetField = Combined
-    CategoryId = None
-    PayeeOverride = ""
-    Enabled = true
-    TestInput = ""
-    TestResult = None
-|}
-
 let init () : Model * Cmd<Msg> =
-    let emptyForm = emptyRuleForm ()
     let model = {
         Rules = NotAsked
         EditingRule = None
         IsNewRule = false
         Categories = []
-        RuleFormName = emptyForm.Name
-        RuleFormPattern = emptyForm.Pattern
-        RuleFormPatternType = emptyForm.PatternType
-        RuleFormTargetField = emptyForm.TargetField
-        RuleFormCategoryId = emptyForm.CategoryId
-        RuleFormPayeeOverride = emptyForm.PayeeOverride
-        RuleFormEnabled = emptyForm.Enabled
-        RuleFormTestInput = emptyForm.TestInput
-        RuleFormTestResult = emptyForm.TestResult
-        RuleSaving = false
+        Form = RuleFormState.empty
         ConfirmingDeleteRuleId = None
     }
     let cmd = Cmd.batch [
@@ -69,22 +47,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with Rules = Failure err }, Cmd.none, ShowToast ($"Failed to load rules: {err}", ToastError)
 
     | OpenNewRuleModal ->
-        let emptyForm = emptyRuleForm ()
         let loadCategoriesCmd =
             if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
         { model with
             EditingRule = None
             IsNewRule = true
-            RuleFormName = emptyForm.Name
-            RuleFormPattern = emptyForm.Pattern
-            RuleFormPatternType = emptyForm.PatternType
-            RuleFormTargetField = emptyForm.TargetField
-            RuleFormCategoryId = emptyForm.CategoryId
-            RuleFormPayeeOverride = emptyForm.PayeeOverride
-            RuleFormEnabled = emptyForm.Enabled
-            RuleFormTestInput = emptyForm.TestInput
-            RuleFormTestResult = emptyForm.TestResult
-            RuleSaving = false
+            Form = RuleFormState.empty
         }, loadCategoriesCmd, NoOp
 
     | EditRule ruleId ->
@@ -97,35 +65,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 { model with
                     EditingRule = Some rule
                     IsNewRule = false
-                    RuleFormName = rule.Name
-                    RuleFormPattern = rule.Pattern
-                    RuleFormPatternType = rule.PatternType
-                    RuleFormTargetField = rule.TargetField
-                    RuleFormCategoryId = Some rule.CategoryId
-                    RuleFormPayeeOverride = rule.PayeeOverride |> Option.defaultValue ""
-                    RuleFormEnabled = rule.Enabled
-                    RuleFormTestInput = ""
-                    RuleFormTestResult = None
-                    RuleSaving = false
+                    Form = RuleFormState.fromRule rule
                 }, loadCategoriesCmd, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | CloseRuleModal ->
-        let emptyForm = emptyRuleForm ()
         { model with
             EditingRule = None
             IsNewRule = false
-            RuleFormName = emptyForm.Name
-            RuleFormPattern = emptyForm.Pattern
-            RuleFormPatternType = emptyForm.PatternType
-            RuleFormTargetField = emptyForm.TargetField
-            RuleFormCategoryId = emptyForm.CategoryId
-            RuleFormPayeeOverride = emptyForm.PayeeOverride
-            RuleFormEnabled = emptyForm.Enabled
-            RuleFormTestInput = emptyForm.TestInput
-            RuleFormTestResult = emptyForm.TestResult
-            RuleSaving = false
+            Form = RuleFormState.empty
         }, Cmd.none, NoOp
 
     | ConfirmDeleteRule ruleId ->
@@ -213,69 +162,69 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     // Rule form messages
     | UpdateRuleFormName value ->
-        { model with RuleFormName = value }, Cmd.none, NoOp
+        { model with Form = { model.Form with Name = value } }, Cmd.none, NoOp
 
     | UpdateRuleFormPattern value ->
-        { model with RuleFormPattern = value; RuleFormTestResult = None }, Cmd.none, NoOp
+        { model with Form = { model.Form with Pattern = value; TestResult = None } }, Cmd.none, NoOp
 
     | UpdateRuleFormPatternType value ->
-        { model with RuleFormPatternType = value; RuleFormTestResult = None }, Cmd.none, NoOp
+        { model with Form = { model.Form with PatternType = value; TestResult = None } }, Cmd.none, NoOp
 
     | UpdateRuleFormTargetField value ->
-        { model with RuleFormTargetField = value }, Cmd.none, NoOp
+        { model with Form = { model.Form with TargetField = value } }, Cmd.none, NoOp
 
     | UpdateRuleFormCategoryId value ->
-        { model with RuleFormCategoryId = value }, Cmd.none, NoOp
+        { model with Form = { model.Form with CategoryId = value } }, Cmd.none, NoOp
 
     | UpdateRuleFormPayeeOverride value ->
-        { model with RuleFormPayeeOverride = value }, Cmd.none, NoOp
+        { model with Form = { model.Form with PayeeOverride = value } }, Cmd.none, NoOp
 
     | UpdateRuleFormEnabled value ->
-        { model with RuleFormEnabled = value }, Cmd.none, NoOp
+        { model with Form = { model.Form with Enabled = value } }, Cmd.none, NoOp
 
     | UpdateRuleFormTestInput value ->
-        { model with RuleFormTestInput = value; RuleFormTestResult = None }, Cmd.none, NoOp
+        { model with Form = { model.Form with TestInput = value; TestResult = None } }, Cmd.none, NoOp
 
     | TestRulePattern ->
-        if String.IsNullOrWhiteSpace(model.RuleFormPattern) || String.IsNullOrWhiteSpace(model.RuleFormTestInput) then
+        if String.IsNullOrWhiteSpace(model.Form.Pattern) || String.IsNullOrWhiteSpace(model.Form.TestInput) then
             model, Cmd.none, ShowToast ("Please enter both a pattern and test input", ToastWarning)
         else
             let cmd =
                 Cmd.OfAsync.either
                     Api.rules.testRule
-                    (model.RuleFormPattern, model.RuleFormPatternType, model.RuleFormTargetField, model.RuleFormTestInput)
+                    (model.Form.Pattern, model.Form.PatternType, model.Form.TargetField, model.Form.TestInput)
                     (Ok >> RulePatternTested)
-                    (fun ex -> Error (RulesError.InvalidPattern (model.RuleFormPattern, ex.Message)) |> RulePatternTested)
+                    (fun ex -> Error (RulesError.InvalidPattern (model.Form.Pattern, ex.Message)) |> RulePatternTested)
             model, cmd, NoOp
 
     | RulePatternTested (Ok matches) ->
         let resultText = if matches then "✅ Pattern matches!" else "❌ Pattern does not match"
-        { model with RuleFormTestResult = Some resultText }, Cmd.none, NoOp
+        { model with Form = { model.Form with TestResult = Some resultText } }, Cmd.none, NoOp
 
     | RulePatternTested (Error err) ->
-        { model with RuleFormTestResult = Some $"⚠️ {rulesErrorToString err}" }, Cmd.none, NoOp
+        { model with Form = { model.Form with TestResult = Some $"⚠️ {rulesErrorToString err}" } }, Cmd.none, NoOp
 
     | SaveRule ->
-        match model.RuleFormCategoryId with
+        match model.Form.CategoryId with
         | None ->
             model, Cmd.none, ShowToast ("Please select a category", ToastWarning)
         | Some categoryId ->
-            if String.IsNullOrWhiteSpace(model.RuleFormName) then
+            if String.IsNullOrWhiteSpace(model.Form.Name) then
                 model, Cmd.none, ShowToast ("Please enter a rule name", ToastWarning)
-            elif String.IsNullOrWhiteSpace(model.RuleFormPattern) then
+            elif String.IsNullOrWhiteSpace(model.Form.Pattern) then
                 model, Cmd.none, ShowToast ("Please enter a pattern", ToastWarning)
             else
-                let payeeOverride = if String.IsNullOrWhiteSpace(model.RuleFormPayeeOverride) then None else Some model.RuleFormPayeeOverride
+                let payeeOverride = if String.IsNullOrWhiteSpace(model.Form.PayeeOverride) then None else Some model.Form.PayeeOverride
                 if model.IsNewRule then
                     let nextPriority =
                         match model.Rules with
                         | Success rules -> (rules |> List.map (fun r -> r.Priority) |> List.fold max 0) + 1
                         | _ -> 1
                     let request : RuleCreateRequest = {
-                        Name = model.RuleFormName
-                        Pattern = model.RuleFormPattern
-                        PatternType = model.RuleFormPatternType
-                        TargetField = model.RuleFormTargetField
+                        Name = model.Form.Name
+                        Pattern = model.Form.Pattern
+                        PatternType = model.Form.PatternType
+                        TargetField = model.Form.TargetField
                         CategoryId = categoryId
                         PayeeOverride = payeeOverride
                         Priority = nextPriority
@@ -286,20 +235,20 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                             request
                             RuleSaved
                             (fun ex -> Error (RulesError.DatabaseError ("create", ex.Message)) |> RuleSaved)
-                    { model with RuleSaving = true }, cmd, NoOp
+                    { model with Form = { model.Form with IsSaving = true } }, cmd, NoOp
                 else
                     match model.EditingRule with
                     | Some rule ->
                         let request : RuleUpdateRequest = {
                             Id = rule.Id
-                            Name = Some model.RuleFormName
-                            Pattern = Some model.RuleFormPattern
-                            PatternType = Some model.RuleFormPatternType
-                            TargetField = Some model.RuleFormTargetField
+                            Name = Some model.Form.Name
+                            Pattern = Some model.Form.Pattern
+                            PatternType = Some model.Form.PatternType
+                            TargetField = Some model.Form.TargetField
                             CategoryId = Some categoryId
                             PayeeOverride = payeeOverride
                             Priority = None
-                            Enabled = Some model.RuleFormEnabled
+                            Enabled = Some model.Form.Enabled
                         }
                         let cmd =
                             Cmd.OfAsync.either
@@ -307,12 +256,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                                 request
                                 RuleSaved
                                 (fun ex -> Error (RulesError.DatabaseError ("update", ex.Message)) |> RuleSaved)
-                        { model with RuleSaving = true }, cmd, NoOp
+                        { model with Form = { model.Form with IsSaving = true } }, cmd, NoOp
                     | None -> model, Cmd.none, NoOp
 
     | RuleSaved (Ok savedRule) ->
         let action = if model.IsNewRule then "created" else "updated"
-        let emptyForm = emptyRuleForm ()
         let newRules =
             match model.Rules with
             | Success rules ->
@@ -325,20 +273,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             Rules = newRules
             EditingRule = None
             IsNewRule = false
-            RuleFormName = emptyForm.Name
-            RuleFormPattern = emptyForm.Pattern
-            RuleFormPatternType = emptyForm.PatternType
-            RuleFormTargetField = emptyForm.TargetField
-            RuleFormCategoryId = emptyForm.CategoryId
-            RuleFormPayeeOverride = emptyForm.PayeeOverride
-            RuleFormEnabled = emptyForm.Enabled
-            RuleFormTestInput = emptyForm.TestInput
-            RuleFormTestResult = emptyForm.TestResult
-            RuleSaving = false
+            Form = RuleFormState.empty
         }, Cmd.none, ShowToast ($"Rule {action} successfully", ToastSuccess)
 
     | RuleSaved (Error err) ->
-        { model with RuleSaving = false }, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
+        { model with Form = { model.Form with IsSaving = false } }, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
 
     | ExportRules ->
         let cmd =

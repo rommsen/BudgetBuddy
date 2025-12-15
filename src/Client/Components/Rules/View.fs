@@ -190,7 +190,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                     // Name input
                     Input.groupRequired "Rule Name" (
                         Input.textSimple
-                            model.RuleFormName
+                            model.Form.Name
                             (UpdateRuleFormName >> dispatch)
                             "e.g., Amazon Purchases"
                     )
@@ -202,7 +202,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                             // Pattern type
                             Input.groupSimple "Pattern Type" (
                                 Input.selectSimple
-                                    (patternTypeText model.RuleFormPatternType)
+                                    (patternTypeText model.Form.PatternType)
                                     (fun value ->
                                         let patternType =
                                             match value with
@@ -220,7 +220,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                             // Target field
                             Input.groupSimple "Match Field" (
                                 Input.selectSimple
-                                    (targetFieldText model.RuleFormTargetField)
+                                    (targetFieldText model.Form.TargetField)
                                     (fun value ->
                                         let targetField =
                                             match value with
@@ -243,7 +243,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                         Required = true
                         Error = None
                         HelpText = Some (
-                            match model.RuleFormPatternType with
+                            match model.Form.PatternType with
                             | PatternType.Regex -> "Use regular expressions for complex patterns"
                             | Contains -> "Matches if the text contains this substring (case-insensitive)"
                             | Exact -> "Matches only if the entire text equals this (case-insensitive)"
@@ -251,10 +251,10 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                         Children =
                             Input.text {
                                 Input.textInputDefaults with
-                                    Value = model.RuleFormPattern
+                                    Value = model.Form.Pattern
                                     OnChange = (UpdateRuleFormPattern >> dispatch)
                                     Placeholder =
-                                        match model.RuleFormPatternType with
+                                        match model.Form.PatternType with
                                         | PatternType.Regex -> "e.g., AMAZON\\.\\w+"
                                         | Contains -> "e.g., amazon"
                                         | Exact -> "e.g., AMAZON MARKETPLACE"
@@ -272,7 +272,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                             Html.div [
                                 prop.children [
                                     Input.searchableSelect
-                                        (match model.RuleFormCategoryId with
+                                        (match model.Form.CategoryId with
                                          | Some (YnabCategoryId id) -> id.ToString()
                                          | None -> "")
                                         (fun value ->
@@ -312,7 +312,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                         prop.className "flex-1"
                                         prop.children [
                                             Input.textSimple
-                                                model.RuleFormPayeeOverride
+                                                model.Form.PayeeOverride
                                                 (UpdateRuleFormPayeeOverride >> dispatch)
                                                 "Override payee name in YNAB"
                                         ]
@@ -332,7 +332,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                         Html.div [
                             prop.className "flex items-center gap-3 p-3 bg-base-200/50 rounded-lg"
                             prop.children [
-                                Input.toggle model.RuleFormEnabled (fun checked' -> dispatch (UpdateRuleFormEnabled checked')) (Some "Rule enabled")
+                                Input.toggle model.Form.Enabled (fun checked' -> dispatch (UpdateRuleFormEnabled checked')) (Some "Rule enabled")
                             ]
                         ]
 
@@ -357,7 +357,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                                 prop.className "flex-1"
                                                 prop.children [
                                                     Input.textSimple
-                                                        model.RuleFormTestInput
+                                                        model.Form.TestInput
                                                         (UpdateRuleFormTestInput >> dispatch)
                                                         "Enter sample text to test pattern"
                                                 ]
@@ -367,7 +367,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                                 (fun () -> dispatch TestRulePattern)
                                         ]
                                     ]
-                                    match model.RuleFormTestResult with
+                                    match model.Form.TestResult with
                                     | Some result ->
                                         let (bgClass, iconEl) =
                                             if result.StartsWith("✅") then
@@ -397,11 +397,11 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
             Form.submitButton
                 (if isNew then "Create Rule" else "Save Changes")
                 (fun () -> dispatch SaveRule)
-                model.RuleSaving
+                model.Form.IsSaving
                 [
-                    ("Rule Name", model.RuleFormName)
-                    ("Pattern", model.RuleFormPattern)
-                    ("Category", model.RuleFormCategoryId |> Option.map (fun _ -> "selected") |> Option.defaultValue "")
+                    ("Rule Name", model.Form.Name)
+                    ("Pattern", model.Form.Pattern)
+                    ("Category", model.Form.CategoryId |> Option.map (fun _ -> "selected") |> Option.defaultValue "")
                 ]
         ]
     ]
