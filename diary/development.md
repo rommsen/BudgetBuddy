@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 21:15 - Frontend Architecture: React Key Props (Milestone 1)
+
+**What I did:**
+Completed Milestone 1 from the Frontend Architecture Improvement plan. Added React key props to all list renderings to ensure efficient React reconciliation and prevent potential rendering issues.
+
+**Files Modified:**
+- `src/Client/Components/Settings/View.fs` - Added `prop.key` to Budget dropdown options (line 150-155), Added `prop.key` to Account dropdown options (line 194-199)
+- `src/Client/Components/Rules/View.fs` - Added `prop.key` to Skeleton loader items (line 570-574)
+- `docs/FRONTEND-ARCHITECTURE-MILESTONES.md` - Marked Milestone 1 as complete with summary
+
+**Verified Existing Implementations:**
+- SyncFlow/View.fs: Transaction list already had proper keys via `prop.key id` pattern
+- Rules/View.fs: Rule list already had proper keys via `prop.key (string id)` pattern
+
+**Pattern Applied:**
+```fsharp
+// Before
+for bwa in budgets do
+    Html.option [ prop.value id; prop.text bwa.Budget.Name ]
+
+// After
+for bwa in budgets do
+    let (YnabBudgetId id) = bwa.Budget.Id
+    Html.option [ prop.key id; prop.value id; prop.text bwa.Budget.Name ]
+```
+
+**Rationale:**
+React keys help React identify which items have changed, been added, or removed. Without keys, React may re-render the entire list unnecessarily or cause subtle UI bugs when items are reordered.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed (6 skipped integration tests)
+- No functional changes (structural improvement only)
+
+---
+
 ## 2025-12-15 18:30 - Refactor: Minimalistisches Dashboard Redesign
 
 **What I did:**

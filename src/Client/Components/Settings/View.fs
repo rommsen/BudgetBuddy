@@ -148,8 +148,9 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                     prop.text "Select budget..."
                                                 ]
                                                 for bwa in budgets do
+                                                    let (YnabBudgetId id) = bwa.Budget.Id
                                                     Html.option [
-                                                        let (YnabBudgetId id) = bwa.Budget.Id
+                                                        prop.key id
                                                         prop.value id
                                                         prop.text bwa.Budget.Name
                                                     ]
@@ -191,8 +192,9 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                                         prop.text "Select account..."
                                                     ]
                                                     for account in bwa.Accounts do
+                                                        let (YnabAccountId id) = account.Id
                                                         Html.option [
-                                                            let (YnabAccountId id) = account.Id
+                                                            prop.key (id.ToString())
                                                             prop.value (id.ToString())
                                                             prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
                                                         ]

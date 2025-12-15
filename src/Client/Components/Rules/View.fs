@@ -567,8 +567,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Html.div [
                     prop.className "space-y-3"
                     prop.children [
-                        for _ in 1..3 do
-                            Loading.cardSkeleton
+                        for i in 1..3 do
+                            Html.div [
+                                prop.key (string i)
+                                prop.children [ Loading.cardSkeleton ]
+                            ]
                     ]
                 ]
 
