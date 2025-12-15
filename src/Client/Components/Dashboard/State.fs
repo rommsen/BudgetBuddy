@@ -7,12 +7,12 @@ open Types
 let init () : Model * Cmd<Msg> =
     let model = {
         CurrentSession = NotAsked
-        RecentSessions = NotAsked
+        LastSession = NotAsked
         Settings = NotAsked
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadSettings
-        Cmd.ofMsg LoadRecentSessions
+        Cmd.ofMsg LoadLastSession
         Cmd.ofMsg LoadCurrentSession
     ]
     model, cmd
@@ -34,20 +34,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | CurrentSessionLoaded (Error err) ->
         { model with CurrentSession = Failure err }, Cmd.none
 
-    | LoadRecentSessions ->
+    | LoadLastSession ->
+        let loadLast () = async {
+            let! sessions = Api.sync.getSyncHistory 1
+            return List.tryHead sessions
+        }
         let cmd =
             Cmd.OfAsync.either
-                Api.sync.getSyncHistory
-                10
-                (Ok >> RecentSessionsLoaded)
-                (fun ex -> Error ex.Message |> RecentSessionsLoaded)
-        { model with RecentSessions = Loading }, cmd
+                loadLast
+                ()
+                (Ok >> LastSessionLoaded)
+                (fun ex -> Error ex.Message |> LastSessionLoaded)
+        { model with LastSession = Loading }, cmd
 
-    | RecentSessionsLoaded (Ok sessions) ->
-        { model with RecentSessions = Success sessions }, Cmd.none
+    | LastSessionLoaded (Ok session) ->
+        { model with LastSession = Success session }, Cmd.none
 
-    | RecentSessionsLoaded (Error err) ->
-        { model with RecentSessions = Failure err }, Cmd.none
+    | LastSessionLoaded (Error err) ->
+        { model with LastSession = Failure err }, Cmd.none
 
     | LoadSettings ->
         let cmd =

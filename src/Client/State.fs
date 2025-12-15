@@ -94,7 +94,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match page with
             | Dashboard ->
                 Cmd.batch [
-                    Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadRecentSessions)
+                    Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadLastSession)
                     Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadCurrentSession)
                     Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadSettings)
                 ]

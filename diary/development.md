@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 18:30 - Refactor: Minimalistisches Dashboard Redesign
+
+**What I did:**
+Completely redesigned the Dashboard to be minimalistic and focused. Removed the stats grid (Last Sync, Total Imported, Sync Sessions cards), removed the Recent Activity history list, and replaced everything with a single centered "Start Sync" button with last sync information below it.
+
+**Files Modified:**
+- `src/Client/Components/Dashboard/Types.fs` - Simplified model: `RecentSessions: RemoteData<SyncSession list>` → `LastSession: RemoteData<SyncSession option>`, renamed messages accordingly
+- `src/Client/Components/Dashboard/State.fs` - Updated init and update functions to use `LoadLastSession` instead of `LoadRecentSessions`, now fetches only the most recent session via `getSyncHistory 1`
+- `src/Client/Components/Dashboard/View.fs` - Complete rewrite: removed `statsSection`, `historyItem`, `historySection`, `pageHeader`, kept `warningAlert` for config warnings, new centered layout with large sync button and last sync info
+- `src/Client/State.fs` - Updated navigation handler to use `LoadLastSession` instead of `LoadRecentSessions`
+
+**Design Changes:**
+1. **Before**: Dashboard with 3 stats cards + quick action card + 5-item history list
+2. **After**: Single centered "Start Sync" button with glow effect, last sync info below (date + transaction count)
+3. Config warnings remain visible when YNAB/Comdirect not configured
+
+**Rationale:**
+User feedback: Dashboard statistics were not actionable. The history list couldn't be clicked, and the numbers (total imported, sync sessions count) provided no real value. A minimalistic dashboard that focuses on the main action (starting a sync) is more useful.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed (6 skipped integration tests)
+- Visual: Clean, focused dashboard with prominent sync button
+
+---
+
 ## 2025-12-15 16:00 - Feature: Verbessertes Formular-Handling mit Validierungsfeedback
 
 **What I did:**

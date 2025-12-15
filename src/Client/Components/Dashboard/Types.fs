@@ -6,7 +6,7 @@ open Types
 /// Dashboard-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
-    RecentSessions: RemoteData<SyncSession list>
+    LastSession: RemoteData<SyncSession option>
     Settings: RemoteData<AppSettings>
 }
 
@@ -14,7 +14,7 @@ type Model = {
 type Msg =
     | LoadCurrentSession
     | CurrentSessionLoaded of Result<SyncSession option, string>
-    | LoadRecentSessions
-    | RecentSessionsLoaded of Result<SyncSession list, string>
+    | LoadLastSession
+    | LastSessionLoaded of Result<SyncSession option, string>
     | LoadSettings
     | SettingsLoaded of Result<AppSettings, string>
