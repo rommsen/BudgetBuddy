@@ -18,22 +18,11 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
     Html.div [
         prop.className "space-y-6"
         prop.children [
-            // Header with neon styling
-            Html.div [
-                prop.className "flex items-center justify-between animate-fade-in"
-                prop.children [
-                    Html.div [
-                        prop.children [
-                            Html.h1 [
-                                prop.className "text-2xl md:text-4xl font-bold font-display text-base-content"
-                                prop.text "Sync Transactions"
-                            ]
-                            Html.p [
-                                prop.className "text-base-content/60 mt-1"
-                                prop.text "Fetch and categorize your bank transactions."
-                            ]
-                        ]
-                    ]
+            // Header
+            PageHeader.withActions
+                "Sync Transactions"
+                (Some "Fetch and categorize your bank transactions.")
+                [
                     Button.view {
                         Button.defaultProps with
                             Text = ""
@@ -45,7 +34,6 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
                             Title = Some "Refresh transactions"
                     }
                 ]
-            ]
 
             // Show appropriate content based on session status
             match model.CurrentSession with

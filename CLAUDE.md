@@ -523,6 +523,7 @@ The project includes a complete F# Design System in `src/Client/DesignSystem/`. 
 | ErrorDisplay | `Client.DesignSystem.ErrorDisplay` | `ErrorDisplay.card "Error" onRetry` |
 | Icons | `Client.DesignSystem.Icons` | `Icons.check MD Green` |
 | Navigation | `Client.DesignSystem.Navigation` | (used in main View.fs) |
+| PageHeader | `Client.DesignSystem.PageHeader` | `PageHeader.withActions title subtitle actions` |
 | Primitives | `Client.DesignSystem.Primitives` | `Primitives.container [ ... ]` |
 | Tokens | `Client.DesignSystem.Tokens` | `Tokens.Colors.neonGreen` |
 
@@ -831,4 +832,45 @@ Icons.settings LG Default
 Icons.sync MD Teal
 Icons.chart MD Orange
 Icons.calendar MD Purple
+```
+
+### PageHeader Examples
+
+```fsharp
+open Client.DesignSystem.PageHeader
+
+// Simple header with just title
+PageHeader.simple "Dashboard"
+
+// Header with subtitle
+PageHeader.withSubtitle "Settings" "Configure your connections and preferences."
+
+// Header with gradient title (neon-teal to neon-green)
+PageHeader.gradient "Categorization Rules"
+
+// Gradient header with subtitle
+PageHeader.gradientWithSubtitle "Categorization Rules" "Automate transaction categorization."
+
+// Header with action buttons
+PageHeader.withActions
+    "Settings"
+    (Some "Configure your connections and preferences.")
+    [
+        Button.view {
+            Button.defaultProps with
+                Text = ""
+                OnClick = fun () -> dispatch Refresh
+                Variant = Button.Ghost
+                Icon = Some (Icons.sync Icons.SM Icons.Default)
+        }
+    ]
+
+// Gradient header with actions
+PageHeader.gradientWithActions
+    "Categorization Rules"
+    (Some "Automate transaction categorization.")
+    [
+        Button.ghost "Refresh" (fun () -> dispatch Refresh)
+        Button.primaryWithIcon "Add Rule" (Icons.plus SM Primary) (fun () -> dispatch AddRule)
+    ]
 ```

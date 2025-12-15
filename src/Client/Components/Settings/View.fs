@@ -425,21 +425,10 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // ============================================
 
 let private pageHeader (dispatch: Msg -> unit) =
-    Html.div [
-        prop.className "flex items-center justify-between animate-fade-in"
-        prop.children [
-            Html.div [
-                prop.children [
-                    Html.h1 [
-                        prop.className "text-2xl md:text-3xl font-bold font-display"
-                        prop.text "Settings"
-                    ]
-                    Html.p [
-                        prop.className "text-base-content/50 mt-1 text-sm md:text-base"
-                        prop.text "Configure your connections and preferences."
-                    ]
-                ]
-            ]
+    PageHeader.withActions
+        "Settings"
+        (Some "Configure your connections and preferences.")
+        [
             Button.view {
                 Button.defaultProps with
                     Text = ""
@@ -449,7 +438,6 @@ let private pageHeader (dispatch: Msg -> unit) =
                     Title = Some "Refresh settings"
             }
         ]
-    ]
 
 // ============================================
 // Main View

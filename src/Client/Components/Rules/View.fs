@@ -410,101 +410,91 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
 // Main View
 // ============================================
 
-let view (model: Model) (dispatch: Msg -> unit) =
+
+// ============================================
+// Page Header Actions
+// ============================================
+
+let private rulesHeaderActions (dispatch: Msg -> unit) = [
+    // Refresh button
+    Button.view {
+        Button.defaultProps with
+            Text = ""
+            OnClick = fun () -> dispatch LoadRules
+            Variant = Button.Ghost
+            Icon = Some (Icons.sync SM Icons.Default)
+            Title = Some "Refresh rules"
+    }
+
+    Button.primaryWithIcon
+        "Add Rule"
+        (Icons.plus SM Icons.IconColor.Primary)
+        (fun () -> dispatch OpenNewRuleModal)
+
+    // Dropdown menu
     Html.div [
-        prop.className "space-y-6 animate-fade-in"
+        prop.className "dropdown dropdown-end"
         prop.children [
-            // Header
-            Html.div [
-                prop.className "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
+            Html.label [
+                prop.className "btn btn-ghost btn-square text-base-content/70 hover:text-base-content"
+                prop.tabIndex 0
                 prop.children [
-                    Html.div [
-                        prop.children [
-                            Html.h1 [
-                                prop.className "text-2xl md:text-4xl font-bold font-display bg-gradient-to-r from-neon-teal to-neon-green bg-clip-text text-transparent"
-                                prop.text "Categorization Rules"
-                            ]
-                            Html.p [
-                                prop.className "text-base-content/60 mt-1"
-                                prop.text "Automate transaction categorization."
+                    Html.span [ prop.className "text-xl"; prop.text "⋮" ]
+                ]
+            ]
+            Html.ul [
+                prop.className "dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 border border-white/10 rounded-xl w-52"
+                prop.tabIndex 0
+                prop.children [
+                    Html.li [
+                        Html.a [
+                            prop.className "flex items-center gap-2"
+                            prop.onClick (fun _ -> dispatch ExportRules)
+                            prop.children [
+                                Icons.download SM Icons.Default
+                                Html.span [ prop.text "Export Rules" ]
                             ]
                         ]
                     ]
-                    Html.div [
-                        prop.className "flex gap-2"
-                        prop.children [
-                            // Refresh button
-                            Button.view {
-                                Button.defaultProps with
-                                    Text = ""
-                                    OnClick = fun () -> dispatch LoadRules
-                                    Variant = Button.Ghost
-                                    Icon = Some (Icons.sync SM Icons.Default)
-                                    Title = Some "Refresh rules"
-                            }
-
-                            Button.primaryWithIcon
-                                "Add Rule"
-                                (Icons.plus SM Icons.IconColor.Primary)
-                                (fun () -> dispatch OpenNewRuleModal)
-
-                            // Dropdown menu
-                            Html.div [
-                                prop.className "dropdown dropdown-end"
-                                prop.children [
-                                    Html.label [
-                                        prop.className "btn btn-ghost btn-square text-base-content/70 hover:text-base-content"
-                                        prop.tabIndex 0
-                                        prop.children [
-                                            Html.span [ prop.className "text-xl"; prop.text "⋮" ]
-                                        ]
-                                    ]
-                                    Html.ul [
-                                        prop.className "dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 border border-white/10 rounded-xl w-52"
-                                        prop.tabIndex 0
-                                        prop.children [
-                                            Html.li [
-                                                Html.a [
-                                                    prop.className "flex items-center gap-2"
-                                                    prop.onClick (fun _ -> dispatch ExportRules)
-                                                    prop.children [
-                                                        Icons.download SM Icons.Default
-                                                        Html.span [ prop.text "Export Rules" ]
-                                                    ]
-                                                ]
-                                            ]
-                                            Html.li [
-                                                Html.label [
-                                                    prop.className "flex items-center gap-2 cursor-pointer"
-                                                    prop.children [
-                                                        Icons.upload SM Icons.Default
-                                                        Html.span [ prop.text "Import Rules" ]
-                                                        Html.input [
-                                                            prop.type'.file
-                                                            prop.accept ".json"
-                                                            prop.className "hidden"
-                                                            prop.onChange (fun (e: Browser.Types.Event) ->
-                                                                let input = e.target :?> Browser.Types.HTMLInputElement
-                                                                if input.files.length > 0 then
-                                                                    let file = input.files.[0]
-                                                                    let reader = Browser.Dom.FileReader.Create()
-                                                                    reader.onload <- fun _ ->
-                                                                        let content = reader.result :?> string
-                                                                        dispatch (ImportRules content)
-                                                                    reader.readAsText(file)
-                                                            )
-                                                        ]
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
-                                    ]
+                    Html.li [
+                        Html.label [
+                            prop.className "flex items-center gap-2 cursor-pointer"
+                            prop.children [
+                                Icons.upload SM Icons.Default
+                                Html.span [ prop.text "Import Rules" ]
+                                Html.input [
+                                    prop.type'.file
+                                    prop.accept ".json"
+                                    prop.className "hidden"
+                                    prop.onChange (fun (e: Browser.Types.Event) ->
+                                        let input = e.target :?> Browser.Types.HTMLInputElement
+                                        if input.files.length > 0 then
+                                            let file = input.files.[0]
+                                            let reader = Browser.Dom.FileReader.Create()
+                                            reader.onload <- fun _ ->
+                                                let content = reader.result :?> string
+                                                dispatch (ImportRules content)
+                                            reader.readAsText(file)
+                                    )
                                 ]
                             ]
                         ]
                     ]
                 ]
             ]
+        ]
+    ]
+]
+
+let view (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-6 animate-fade-in"
+        prop.children [
+            // Header
+            PageHeader.gradientWithActions
+                "Categorization Rules"
+                (Some "Automate transaction categorization.")
+                (rulesHeaderActions dispatch)
 
             // Info tip with pattern type legend
             Card.view { Card.defaultProps with Variant = Card.Glass; Size = Card.Compact; Hoverable = false } [
