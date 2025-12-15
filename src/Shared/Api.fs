@@ -31,6 +31,16 @@ type SettingsApi = {
     /// Purpose: Validates credentials and populates budget selection UI.
     /// Returns: List of budgets or SettingsError (YnabConnectionFailed).
     testYnabConnection: unit -> Async<SettingsResult<YnabBudgetWithAccounts list>>
+
+    /// Initiates Comdirect TAN authentication to test connection.
+    /// Purpose: Starts the OAuth + TAN flow for credential validation.
+    /// Returns: Challenge ID for TAN confirmation or SettingsError.
+    testComdirectConnection: unit -> Async<SettingsResult<string>>
+
+    /// Confirms TAN to complete credential validation.
+    /// Purpose: Completes auth flow, confirming credentials are valid.
+    /// Returns: Unit on success or SettingsError (TAN timeout, auth failed).
+    confirmComdirectTan: unit -> Async<SettingsResult<unit>>
 }
 
 // ============================================

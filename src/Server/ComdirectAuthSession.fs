@@ -101,3 +101,12 @@ let fetchTransactions (accountId: string) (days: int) : Async<ComdirectResult<Ba
         | Some session ->
             return! getTransactions session.RequestInfo session.Tokens accountId days
     }
+
+/// Fetch available accounts using the current session (requires completed TAN auth)
+let fetchAccounts () : Async<ComdirectResult<ComdirectAccount list>> =
+    asyncResult {
+        match !currentSession with
+        | None -> return! Error (ComdirectError.SessionExpired)
+        | Some session ->
+            return! getAccounts session.RequestInfo session.Tokens
+    }

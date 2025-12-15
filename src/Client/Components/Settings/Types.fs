@@ -16,6 +16,10 @@ type Model = {
     ComdirectPasswordInput: string
     ComdirectAccountIdInput: string
     SyncDaysInput: int
+
+    // Comdirect connection test state
+    ComdirectConnectionValid: RemoteData<unit>
+    ComdirectAuthPending: bool
 }
 
 /// Settings-specific messages
@@ -41,6 +45,11 @@ type Msg =
     | DefaultBudgetSet of YnabBudgetId * Result<unit, YnabError>
     | SetDefaultAccount of YnabAccountId
     | DefaultAccountSet of YnabAccountId * Result<unit, YnabError>
+    // Comdirect connection test
+    | TestComdirectConnection
+    | ComdirectAuthStarted of Result<string, SettingsError>
+    | ConfirmComdirectTan
+    | ComdirectTanConfirmed of Result<unit, SettingsError>
 
 /// External message to notify parent of events (like showing toasts)
 type ExternalMsg =

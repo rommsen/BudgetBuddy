@@ -266,34 +266,18 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     ]
                 ]
 
-                // Account ID (optional)
-                Html.div [
-                    prop.className "space-y-1"
-                    prop.children [
-                        Html.div [
-                            prop.className "flex items-center gap-2"
-                            prop.children [
-                                Html.label [
-                                    prop.className "text-sm font-medium text-base-content/70"
-                                    prop.text "Account ID"
-                                ]
-                                Badge.neutral "Optional"
-                            ]
-                        ]
-                        Input.textSimple model.ComdirectAccountIdInput (UpdateComdirectAccountIdInput >> dispatch) "Leave empty to use default account"
-                        Html.p [
-                            prop.className "text-xs text-base-content/40"
-                            prop.text "Only needed if you have multiple accounts"
-                        ]
-                    ]
-                ]
+                // Account ID input (required)
+                Input.groupRequired "Account ID" (
+                    Input.textSimple model.ComdirectAccountIdInput (UpdateComdirectAccountIdInput >> dispatch) "Your Comdirect account ID"
+                )
 
-                // Save button
+                // Save button - now also validates Account ID
                 let isFormValid =
                     not (System.String.IsNullOrWhiteSpace(model.ComdirectClientIdInput)) &&
                     not (System.String.IsNullOrWhiteSpace(model.ComdirectClientSecretInput)) &&
                     not (System.String.IsNullOrWhiteSpace(model.ComdirectUsernameInput)) &&
-                    not (System.String.IsNullOrWhiteSpace(model.ComdirectPasswordInput))
+                    not (System.String.IsNullOrWhiteSpace(model.ComdirectPasswordInput)) &&
+                    not (System.String.IsNullOrWhiteSpace(model.ComdirectAccountIdInput))
 
                 Button.view {
                     Button.defaultProps with
@@ -325,6 +309,81 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 Html.text " to request access."
                             ]
                         ]
+                    ]
+                ]
+
+                // Connection test section
+                Html.div [
+                    prop.className "space-y-4 pt-4 border-t border-white/5"
+                    prop.children [
+                        let hasCredentials =
+                            match model.Settings with
+                            | Success s -> s.Comdirect.IsSome
+                            | _ -> false
+
+                        if hasCredentials then
+                            if model.ComdirectAuthPending then
+                                // Waiting for TAN confirmation
+                                Html.div [
+                                    prop.className "space-y-3"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "flex items-center gap-3 p-4 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
+                                            prop.children [
+                                                Loading.spinner Loading.MD Loading.Orange
+                                                Html.div [
+                                                    prop.className "flex-1"
+                                                    prop.children [
+                                                        Html.p [
+                                                            prop.className "text-sm font-medium text-neon-orange"
+                                                            prop.text "Waiting for TAN confirmation..."
+                                                        ]
+                                                        Html.p [
+                                                            prop.className "text-xs text-base-content/60"
+                                                            prop.text "Please confirm the Push-TAN on your Comdirect app"
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                        Button.primary "I've Confirmed the TAN" (fun () -> dispatch ConfirmComdirectTan)
+                                    ]
+                                ]
+                            else
+                                match model.ComdirectConnectionValid with
+                                | Loading ->
+                                    Loading.inlineWithText "Testing connection..."
+                                | Success _ ->
+                                    // Connection verified successfully
+                                    Html.div [
+                                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
+                                        prop.children [
+                                            Icons.checkCircle Icons.SM Icons.NeonGreen
+                                            Html.span [
+                                                prop.className "text-sm text-neon-green"
+                                                prop.text "Credentials verified successfully!"
+                                            ]
+                                        ]
+                                    ]
+                                | Failure error ->
+                                    Html.div [
+                                        prop.className "space-y-3"
+                                        prop.children [
+                                            Html.div [
+                                                prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-red/10 border border-neon-red/30"
+                                                prop.children [
+                                                    Icons.xCircle Icons.SM Icons.Error
+                                                    Html.span [
+                                                        prop.className "text-sm text-neon-red"
+                                                        prop.text error
+                                                    ]
+                                                ]
+                                            ]
+                                            Button.secondary "Test Connection" (fun () -> dispatch TestComdirectConnection)
+                                        ]
+                                    ]
+                                | NotAsked ->
+                                    Button.secondary "Test Connection" (fun () -> dispatch TestComdirectConnection)
                     ]
                 ]
             ]

@@ -124,6 +124,29 @@ let private transactionDecoder: Decoder<BankTransaction> =
 let private transactionsDecoder: Decoder<BankTransaction list> =
     Decode.field "values" (Decode.list transactionDecoder)
 
+// Account decoder for Comdirect accounts endpoint
+let private accountDecoder: Decoder<ComdirectAccount> =
+    Decode.object (fun get ->
+        let accountId = get.Required.Field "accountId" Decode.string
+        let iban = get.Optional.Field "iban" Decode.string |> Option.defaultValue ""
+        let accountDisplayId = get.Optional.Field "accountDisplayId" Decode.string |> Option.defaultValue accountId
+        let accountType = get.Optional.At ["accountType"; "text"] Decode.string |> Option.defaultValue "UNKNOWN"
+        let currency = get.Optional.At ["balance"; "unit"] Decode.string |> Option.defaultValue "EUR"
+        let balanceAmount = get.Optional.At ["balance"; "value"] Decode.decimal
+
+        {
+            AccountId = accountId
+            Iban = iban
+            AccountDisplayId = accountDisplayId
+            AccountType = accountType
+            Currency = currency
+            Balance = balanceAmount |> Option.map (fun amt -> { Amount = amt; Currency = currency })
+        }
+    )
+
+let private accountsDecoder: Decoder<ComdirectAccount list> =
+    Decode.field "values" (Decode.list accountDecoder)
+
 // ============================================
 // HTTP Helper Functions
 // ============================================
@@ -353,6 +376,52 @@ let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: stri
         }
 
     fetchWithPaging 0 []
+
+// ============================================
+// Account Fetching
+// ============================================
+
+/// Fetch all available accounts (requires extended tokens after TAN)
+let getAccounts (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<ComdirectAccount list>> =
+    async {
+        use client = createHttpClient()
+
+        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", tokens.Access)
+        client.DefaultRequestHeaders.Add("x-http-request-info", requestInfo.Encode())
+
+        // Try multiple endpoint variants
+        let endpoints = [
+            "api/banking/v1/accounts"
+            "api/banking/clients/user/v1/accounts"
+            "banking/v1/accounts"
+        ]
+
+        let rec tryEndpoints (eps: string list) =
+            async {
+                match eps with
+                | [] -> return Error (ComdirectError.NetworkError (404, "No valid accounts endpoint found"))
+                | ep :: rest ->
+                    try
+                        let url = sprintf "%s%s" endpoint ep
+                        printfn "Trying accounts endpoint: %s" url
+                        let! response = client.GetAsync(url) |> Async.AwaitTask
+                        let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
+                        printfn "Response status: %d, content: %s" (int response.StatusCode) (if content.Length > 200 then content.Substring(0, 200) + "..." else content)
+
+                        if response.IsSuccessStatusCode then
+                            match Decode.fromString accountsDecoder content with
+                            | Ok value -> return Ok value
+                            | Error err -> return Error (ComdirectError.InvalidResponse err)
+                        else
+                            return! tryEndpoints rest
+                    with
+                    | ex ->
+                        printfn "Error: %s" ex.Message
+                        return! tryEndpoints rest
+            }
+
+        return! tryEndpoints endpoints
+    }
 
 // ============================================
 // High-Level Auth Flow

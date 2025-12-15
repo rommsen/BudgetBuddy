@@ -291,6 +291,19 @@ type ComdirectSettings = {
     AccountId: string option  // Optional: only needed for fetching transactions
 }
 
+/// Comdirect bank account information retrieved from API
+type ComdirectAccount = {
+    AccountId: string
+    Iban: string
+    AccountDisplayId: string  // Masked account number for display
+    AccountType: string       // e.g., "GIRO", "DEPOT", "TAGESGELD"
+    Currency: string
+    Balance: Money option
+}
+
+/// Type-safe wrapper for Comdirect Account ID
+type ComdirectAccountId = ComdirectAccountId of string
+
 type YnabSettings = {
     PersonalAccessToken: string
     DefaultBudgetId: YnabBudgetId option

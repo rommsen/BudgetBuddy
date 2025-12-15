@@ -4,6 +4,45 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 - Feature: Comdirect Connection Test in Settings
+
+**What I did:**
+Implemented Comdirect connection test in Settings. The "Test Connection" button initiates the full OAuth + Push-TAN flow to validate credentials. Originally planned to include account discovery via `/api/banking/v1/accounts`, but discovered that Comdirect doesn't provide a public accounts endpoint (returns 404 for all endpoint variants).
+
+**Architectural Decision:**
+Account-ID remains a manual input field. The connection test validates that credentials are correct through the TAN flow, but users must enter their Account-ID manually.
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - Added `ComdirectAccount` type and `ComdirectAccountId` wrapper type (unused but kept for future)
+- `src/Shared/Api.fs` - Extended `SettingsApi` with `testComdirectConnection` and `confirmComdirectTan` functions
+- `src/Server/ComdirectClient.fs` - Added `accountDecoder`, `accountsDecoder`, and `getAccounts` function (unused, kept for future)
+- `src/Server/ComdirectAuthSession.fs` - Added `fetchAccounts` function (unused, kept for future)
+- `src/Server/Api.fs` - Implemented connection test and TAN confirmation endpoints
+- `src/Client/Components/Settings/Types.fs` - Added `ComdirectConnectionValid` and `ComdirectAuthPending` to Model
+- `src/Client/Components/Settings/State.fs` - Added init fields and update handlers for connection test
+- `src/Client/Components/Settings/View.fs` - Added TAN flow UI with success/error display
+
+**UX Flow:**
+1. User saves Comdirect credentials and Account-ID
+2. "Test Connection" button appears (only if credentials saved)
+3. Clicking starts TAN authentication → orange waiting UI
+4. User confirms Push-TAN in Comdirect app
+5. Clicking "I've Confirmed the TAN" completes validation
+6. Green success message: "Credentials verified successfully!"
+
+**Rationale:**
+Originally a high-priority backlog item for account discovery. Simplified to credential validation after discovering Comdirect doesn't expose an accounts API.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 294/294 passed (6 skipped integration tests)
+- Backlog item updated to reflect actual implementation
+
+---
+
 ## 2025-12-13 19:45 - Fix: Encrypted Settings Lost After Docker Rebuild
 
 **What I did:**

@@ -35,6 +35,8 @@ let init () : Model * Cmd<Msg> =
         ComdirectPasswordInput = ""
         ComdirectAccountIdInput = ""
         SyncDaysInput = 30
+        ComdirectConnectionValid = NotAsked
+        ComdirectAuthPending = false
     }
     model, Cmd.ofMsg LoadSettings
 
@@ -232,3 +234,41 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | DefaultAccountSet (_, Error err) ->
         model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
+
+    // Comdirect connection test
+    | TestComdirectConnection ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.settings.testComdirectConnection
+                ()
+                ComdirectAuthStarted
+                (fun ex -> Error (SettingsError.ComdirectCredentialsInvalid ("network", ex.Message)) |> ComdirectAuthStarted)
+        { model with ComdirectConnectionValid = Loading }, cmd, NoOp
+
+    | ComdirectAuthStarted (Ok _challengeId) ->
+        // TAN challenge started - show waiting UI
+        { model with ComdirectAuthPending = true; ComdirectConnectionValid = NotAsked }, Cmd.none, ShowToast ("Please confirm the TAN on your phone", ToastInfo)
+
+    | ComdirectAuthStarted (Error err) ->
+        { model with ComdirectConnectionValid = Failure (settingsErrorToString err); ComdirectAuthPending = false }, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+
+    | ConfirmComdirectTan ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.settings.confirmComdirectTan
+                ()
+                ComdirectTanConfirmed
+                (fun ex -> Error (SettingsError.ComdirectCredentialsInvalid ("tan", ex.Message)) |> ComdirectTanConfirmed)
+        { model with ComdirectConnectionValid = Loading }, cmd, NoOp
+
+    | ComdirectTanConfirmed (Ok _) ->
+        { model with
+            ComdirectConnectionValid = Success ()
+            ComdirectAuthPending = false
+        }, Cmd.none, ShowToast ("Comdirect credentials verified successfully!", ToastSuccess)
+
+    | ComdirectTanConfirmed (Error err) ->
+        { model with
+            ComdirectConnectionValid = Failure (settingsErrorToString err)
+            ComdirectAuthPending = false
+        }, Cmd.none, ShowToast (settingsErrorToString err, ToastError)

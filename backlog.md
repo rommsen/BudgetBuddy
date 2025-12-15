@@ -22,6 +22,7 @@ Ideen und Features für spätere Implementierung.
 
 ### Hohe Priorität
 
+(keine)
 - [x] **Uncleared Transaktionen**: YNAB Transaktionen bzw. Transaktionen die zu YNAB importiert werden, dürfen noch nicht gecleared sein ✅ (2025-12-07)
 - [x] **Import ohne Kategorie**: Transaktionen müssen auch ohne Kategorie importiert werden können. Diese dürfen dann auf keinen Fall gecleared sein (Uncategorized-Workflow in YNAB) ✅ (2025-12-07)
 - [x] **Regel aus Zuweisungs-Dialog erstellen**: Direkt aus dem Dialog, in dem Transaktionen Kategorien zugeordnet werden, soll eine Regel erstellt werden können, sodass ähnliche Transaktionen beim nächsten Mal automatisch kategorisiert werden. ✅ (2025-12-09)
@@ -55,6 +56,7 @@ Ideen und Features für spätere Implementierung.
 
 ### Features
 
+- [x] **Comdirect Connection Test**: "Test Connection" Button mit TAN-Flow zur Validierung der Credentials. Account-ID bleibt manuelles Eingabefeld (Comdirect bietet keinen öffentlichen Account-Endpoint). ✅ (2025-12-15)
 - [x] **Regel aus Zuweisungs-Dialog erstellen**: Inline-Regel-Erstellung direkt beim Kategorisieren. Button + expandierendes Formular, Auto-Apply auf andere pending Transaktionen ✅ (2025-12-09)
 - [x] **Einzeilige Rules-Darstellung**: Kompakte Single-Line Darstellung für Rules implementiert ✅ (2025-12-09)
 - [x] **Suchbare Kategorie-Selectboxen**: SearchableSelect Komponente mit Textfeld-Filter (contains-Logik) für SyncFlow und Rules ✅ (2025-12-08)

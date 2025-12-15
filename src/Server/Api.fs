@@ -257,6 +257,43 @@ let settingsApi : SettingsApi = {
                 }
                 return Ok budgetsWithDetails
     }
+
+    testComdirectConnection = fun () -> async {
+        // Get Comdirect credentials from settings
+        let! clientId = Persistence.Settings.getSetting "comdirect_client_id"
+        let! clientSecret = Persistence.Settings.getSetting "comdirect_client_secret"
+        let! username = Persistence.Settings.getSetting "comdirect_username"
+        let! password = Persistence.Settings.getSetting "comdirect_password"
+        let! accountId = Persistence.Settings.getSetting "comdirect_account_id"
+
+        match clientId, clientSecret, username, password with
+        | Some cid, Some cs, Some un, Some pw ->
+            let credentials: ComdirectSettings = {
+                ClientId = cid
+                ClientSecret = cs
+                Username = un
+                Password = pw
+                AccountId = accountId
+            }
+            // Start auth flow
+            match! ComdirectAuthSession.startAuth credentials with
+            | Error comdirectError ->
+                return Error (SettingsError.ComdirectCredentialsInvalid ("auth", comdirectErrorToString comdirectError))
+            | Ok challenge ->
+                return Ok challenge.Id
+        | _ ->
+            return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect credentials not configured"))
+    }
+
+    confirmComdirectTan = fun () -> async {
+        // Complete TAN flow
+        match! ComdirectAuthSession.confirmTan() with
+        | Error comdirectError ->
+            return Error (SettingsError.ComdirectCredentialsInvalid ("tan", comdirectErrorToString comdirectError))
+        | Ok _ ->
+            // TAN confirmed successfully, credentials are valid
+            return Ok ()
+    }
 }
 
 // ============================================
