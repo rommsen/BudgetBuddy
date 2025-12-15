@@ -521,6 +521,18 @@ Button.danger "Delete" (fun () -> dispatch Delete)
 // Full-width (mobile forms)
 Button.primaryFullWidth "Submit" (fun () -> dispatch Submit)
 
+// Hero button (large CTA with prominent glow)
+Button.hero "Get Started" (fun () -> dispatch Start)
+
+// Hero with icon
+Button.heroWithIcon "Start Sync" (Icons.sync MD Primary) (fun () -> dispatch StartSync)
+
+// Hero with loading state
+Button.heroLoading "Processing..." isLoading (fun () -> dispatch Process)
+
+// Teal hero variant
+Button.heroTeal "Continue" (fun () -> dispatch Continue)
+
 // Button group
 Button.group [
     Button.secondary "Cancel" (fun () -> dispatch Cancel)

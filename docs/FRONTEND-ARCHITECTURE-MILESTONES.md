@@ -281,39 +281,49 @@ module ErrorDisplay =
 
 ### Aufgaben
 
-- [ ] **5.1** `Button.hero` Variante in Button.fs hinzufügen
-- [ ] **5.2** Glow-Effekte als wiederverwendbare Klassen in Tokens definieren
-- [ ] **5.3** Dashboard/View.fs syncButton durch Button.hero ersetzen
-- [ ] **5.4** Dokumentation in CLAUDE.md aktualisieren
+- [x] **5.1** `Button.hero` Variante in Button.fs hinzufügen
+- [x] **5.2** Glow-Effekte als wiederverwendbare Klassen in Tokens definieren
+- [x] **5.3** Dashboard/View.fs syncButton durch Button.hero ersetzen
+- [x] **5.4** Dokumentation in CLAUDE.md aktualisieren
 
-### Button.hero API
+### Implementierte API
 
 ```fsharp
-/// Hero button with glow effect for prominent CTAs
-let hero (text: string) (icon: ReactElement option) (onClick: unit -> unit) =
-    Html.button [
-        prop.className [
-            "group relative px-12 py-5 rounded-xl"
-            "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-            "text-base-100 font-bold text-lg md:text-xl font-display"
-            Tokens.Effects.glowOrange
-            "hover:scale-105 transition-all duration-300"
-        ] |> String.concat " "
-        prop.onClick (fun _ -> onClick())
-        prop.children [
-            match icon with
-            | Some i -> i
-            | None -> Html.none
-            Html.span [ prop.text text ]
-        ]
-    ]
+// Hero button - large CTA with prominent glow
+Button.hero "Get Started" onClick
+
+// Hero with icon (icon before text)
+Button.heroWithIcon "Start Sync" (Icons.sync MD Primary) onClick
+
+// Hero with loading state
+Button.heroLoading "Processing..." isLoading onClick
+
+// Teal variant for secondary prominent actions
+Button.heroTeal "Continue" onClick
 ```
 
 ### Verifikation
 
-- [ ] Dashboard sieht identisch aus wie vorher
-- [ ] Button ist wiederverwendbar
-- [ ] Hover-Effekte funktionieren
+- [x] Dashboard sieht identisch aus wie vorher
+- [x] Button ist wiederverwendbar
+- [x] Hover-Effekte funktionieren
+
+### ✅ Milestone 5 Complete (2025-12-15)
+
+**Summary of Changes:**
+- Added `Glows.orangeLg`, `Glows.orangeHoverLg`, `Glows.tealLg`, `Glows.tealHoverLg`, `Glows.greenLg`, `Glows.greenHoverLg` to Tokens.fs
+- Added `Button.hero`, `Button.heroWithIcon`, `Button.heroLoading`, `Button.heroTeal` to Button.fs
+- Replaced inline-styled `syncButton` in Dashboard/View.fs with `Button.heroWithIcon`
+- Updated CLAUDE.md with hero button documentation
+
+**Test Quality Review:**
+- Build successful with 0 errors
+- All 294 tests passed
+- No functional changes - purely refactoring for Design System consistency
+
+**Notes:**
+- The API differs slightly from the original plan: instead of `Option<ReactElement>` for icon, we have separate `hero` and `heroWithIcon` functions for clearer usage
+- Large glow effects use inline shadow definitions since Tailwind utility classes weren't sufficient for the hero-sized glow
 
 ---
 
@@ -454,7 +464,7 @@ module PageHeader =
 | 2. SyncFlow Modularisierung | P1 | Mittel | ✅ Complete (2025-12-15) |
 | 3. Rules Form State | P2 | Klein | ✅ Complete (2025-12-15) |
 | 4. ErrorDisplay Komponente | P2 | Klein | ✅ Complete (2025-12-15) |
-| 5. Dashboard Hero Button | P2 | Klein | [ ] Offen |
+| 5. Dashboard Hero Button | P2 | Klein | ✅ Complete (2025-12-15) |
 | 6. RemoteData Helpers | P3 | Klein | [ ] Offen |
 | 7. PageHeader Komponente | P3 | Klein | [ ] Offen |
 | 8. Debouncing | P3 | Mittel | [ ] Offen |

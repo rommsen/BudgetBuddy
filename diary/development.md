@@ -4,6 +4,40 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-16 00:15 - Frontend Architecture: Dashboard Hero Button Design System (Milestone 5)
+
+**What I did:**
+Completed Milestone 5 from the Frontend Architecture Improvement plan. Integrated the Dashboard Sync button into the Design System by creating reusable `Button.hero` variants and replacing inline styles with Design System components.
+
+**Files Modified:**
+- `src/Client/DesignSystem/Tokens.fs` - Added large glow effect variants to the `Glows` module:
+  - `orangeLg` / `orangeHoverLg` - Large orange glow for hero buttons
+  - `tealLg` / `tealHoverLg` - Large teal glow for secondary hero actions
+  - `greenLg` / `greenHoverLg` - Large green glow for success actions
+
+- `src/Client/DesignSystem/Button.fs` - Added Hero Button section with four variants:
+  - `hero` - Large CTA button with prominent orange glow
+  - `heroWithIcon` - Hero button with icon before text
+  - `heroLoading` - Hero button with loading spinner state
+  - `heroTeal` - Teal variant for secondary prominent actions
+
+- `src/Client/Components/Dashboard/View.fs` - Replaced 17-line inline-styled `syncButton` with single-line `Button.heroWithIcon "Start Sync" (Icons.sync MD Primary) onNavigateToSync`
+
+- `CLAUDE.md` - Added hero button documentation to the Button Examples section
+
+**Rationale:**
+The Dashboard Sync button used inline Tailwind styles with custom shadow values that weren't reusable. Moving these to the Design System ensures:
+- Consistent hero button styling across the application
+- Reusable glow effects for other prominent CTAs
+- Easier maintenance of visual effects in one place
+
+**Outcomes:**
+- Build: ✅ (0 errors, 2 warnings - unrelated to this change)
+- Tests: 294/294 passed (6 skipped)
+- Issues: None
+
+---
+
 ## 2025-12-15 23:45 - Frontend Architecture: ErrorDisplay Design System Komponente (Milestone 4)
 
 **What I did:**

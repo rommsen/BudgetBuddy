@@ -87,6 +87,14 @@ module Glows =
     let tealHover = "hover:shadow-glow-teal"
     let purpleHover = "hover:shadow-glow-purple"
 
+    // Large glow variants for hero buttons
+    let orangeLg = "shadow-[0_0_30px_rgba(255,107,44,0.4)]"
+    let orangeHoverLg = "hover:shadow-[0_0_50px_rgba(255,107,44,0.6)]"
+    let tealLg = "shadow-[0_0_30px_rgba(45,212,191,0.4)]"
+    let tealHoverLg = "hover:shadow-[0_0_50px_rgba(45,212,191,0.6)]"
+    let greenLg = "shadow-[0_0_30px_rgba(74,222,128,0.4)]"
+    let greenHoverLg = "hover:shadow-[0_0_50px_rgba(74,222,128,0.6)]"
+
 /// Text glow effects (text-shadow)
 module TextGlows =
     let green = "text-glow-green"

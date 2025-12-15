@@ -204,3 +204,96 @@ let groupMobile (buttons: ReactElement list) =
         prop.className "flex flex-col gap-2 sm:flex-row sm:gap-3"
         prop.children buttons
     ]
+
+
+// ============================================
+// Hero Button
+// ============================================
+
+/// Large hero button with prominent glow effect for main CTAs
+/// Use sparingly - typically one per page for the primary action
+let hero (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.className (
+            [
+                "group relative px-12 py-5 rounded-xl"
+                "bg-gradient-to-r from-neon-orange to-neon-orange/80"
+                "text-base-100 font-bold text-lg md:text-xl font-display"
+                Glows.orangeLg
+                Glows.orangeHoverLg
+                "hover:scale-105 transition-all duration-300"
+            ] |> String.concat " "
+        )
+        prop.onClick (fun _ -> onClick())
+        prop.children [
+            Html.span [ prop.text text ]
+        ]
+    ]
+
+/// Hero button with icon (icon appears before text)
+let heroWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) =
+    Html.button [
+        prop.className (
+            [
+                "group relative px-12 py-5 rounded-xl"
+                "bg-gradient-to-r from-neon-orange to-neon-orange/80"
+                "text-base-100 font-bold text-lg md:text-xl font-display"
+                Glows.orangeLg
+                Glows.orangeHoverLg
+                "hover:scale-105 transition-all duration-300"
+            ] |> String.concat " "
+        )
+        prop.onClick (fun _ -> onClick())
+        prop.children [
+            Html.div [
+                prop.className "flex items-center gap-3"
+                prop.children [
+                    icon
+                    Html.span [ prop.text text ]
+                ]
+            ]
+        ]
+    ]
+
+/// Hero button with loading state
+let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.className (
+            [
+                "group relative px-12 py-5 rounded-xl"
+                "bg-gradient-to-r from-neon-orange to-neon-orange/80"
+                "text-base-100 font-bold text-lg md:text-xl font-display"
+                Glows.orangeLg
+                Glows.orangeHoverLg
+                "hover:scale-105 transition-all duration-300"
+                "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            ] |> String.concat " "
+        )
+        prop.disabled isLoading
+        prop.onClick (fun _ -> onClick())
+        prop.children [
+            if isLoading then
+                Html.span [ prop.className "loading loading-spinner loading-md" ]
+            else
+                Html.span [ prop.text text ]
+        ]
+    ]
+
+/// Teal variant hero button for secondary prominent actions
+let heroTeal (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.className (
+            [
+                "group relative px-12 py-5 rounded-xl"
+                "bg-gradient-to-r from-neon-teal to-neon-teal/80"
+                "text-base-100 font-bold text-lg md:text-xl font-display"
+                Glows.tealLg
+                Glows.tealHoverLg
+                "hover:scale-105 transition-all duration-300"
+            ] |> String.concat " "
+        )
+        prop.onClick (fun _ -> onClick())
+        prop.children [
+            Html.span [ prop.text text ]
+        ]
+    ]

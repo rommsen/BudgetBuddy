@@ -101,21 +101,7 @@ let private lastSyncInfo (model: Model) =
 // ============================================
 
 let private syncButton (onNavigateToSync: unit -> unit) =
-    Html.button [
-        prop.className "group relative px-12 py-5 rounded-xl bg-gradient-to-r from-neon-orange to-neon-orange/80 text-base-100 font-bold text-lg md:text-xl font-display shadow-[0_0_30px_rgba(255,107,44,0.4)] hover:shadow-[0_0_50px_rgba(255,107,44,0.6)] hover:scale-105 transition-all duration-300"
-        prop.onClick (fun _ -> onNavigateToSync())
-        prop.children [
-            Html.div [
-                prop.className "flex items-center gap-3"
-                prop.children [
-                    Icons.sync Icons.MD Icons.Primary
-                    Html.span [
-                        prop.text "Start Sync"
-                    ]
-                ]
-            ]
-        ]
-    ]
+    Button.heroWithIcon "Start Sync" (Icons.sync Icons.MD Icons.Primary) onNavigateToSync
 
 // ============================================
 // Main View
