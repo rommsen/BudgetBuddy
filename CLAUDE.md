@@ -228,6 +228,37 @@ type RemoteData<'T> = NotAsked | Loading | Success of 'T | Failure of string
 ```
 Use this for all async operations in frontend state.
 
+#### RemoteData Helpers
+
+The `RemoteData` module in `Types.fs` provides utility functions:
+
+```fsharp
+open Types
+
+// Transformations
+let mapped = RemoteData.map (fun x -> x + 1) (Success 5)  // Success 6
+let bound = RemoteData.bind (fun x -> if x > 0 then Success x else Failure "invalid") (Success 5)
+
+// State checks
+if RemoteData.isLoading model.Data then showSpinner()
+if RemoteData.isSuccess model.Data then showContent()
+
+// Extraction
+let value = RemoteData.withDefault 0 model.Data  // Returns 0 if not Success
+let opt = RemoteData.toOption model.Data         // Some x or None
+
+// Error handling
+let recovered = RemoteData.recover [] (Failure "err")           // Success []
+let transformed = RemoteData.mapError (sprintf "Error: %s") rd  // Transform error message
+
+// Combining
+let combined = RemoteData.map2 (+) (Success 1) (Success 2)  // Success 3
+
+// Conversion
+let fromRes = RemoteData.fromResult (Ok 42)     // Success 42
+let fromOpt = RemoteData.fromOption (Some 42)   // Success 42
+```
+
 ### Validate Early
 - Validate at API boundary before any processing
 - Return clear error messages

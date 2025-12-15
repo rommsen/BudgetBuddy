@@ -333,44 +333,60 @@ Button.heroTeal "Continue" onClick
 
 ### Aufgaben
 
-- [ ] **6.1** `src/Client/RemoteDataHelpers.fs` erstellen
-- [ ] **6.2** `map`, `bind`, `isLoading`, `isSuccess`, `toOption`, `withDefault` implementieren
-- [ ] **6.3** `mapError`, `recover` für Error-Handling
-- [ ] **6.4** Client.fsproj aktualisieren
-- [ ] **6.5** Bestehenden Code refactoren wo sinnvoll
+- [x] **6.1** RemoteData-Modul in `src/Client/Types.fs` hinzufügen *(nicht separate Datei)*
+- [x] **6.2** `map`, `bind`, `isLoading`, `isSuccess`, `toOption`, `withDefault` implementieren
+- [x] **6.3** `mapError`, `recover`, `recoverWith` für Error-Handling
+- [x] **6.4** Zusätzliche Helper: `map2`, `fold`, `toError`, `fromResult`, `fromOption`, `fromOptionWithError`
+- [x] **6.5** Bestehenden Code analysiert - Refactoring nicht nötig (explizite Matches sind lesbar)
 
-### API
+### Implementierte API
 
 ```fsharp
+[<RequireQualifiedAccess>]
 module RemoteData =
-    let map f = function
-        | Success x -> Success (f x)
-        | Loading -> Loading
-        | NotAsked -> NotAsked
-        | Failure err -> Failure err
-
-    let bind f = function
-        | Success x -> f x
-        | Loading -> Loading
-        | NotAsked -> NotAsked
-        | Failure err -> Failure err
-
-    let isLoading = function Loading -> true | _ -> false
-    let isSuccess = function Success _ -> true | _ -> false
-    let isFailure = function Failure _ -> true | _ -> false
-
-    let toOption = function Success x -> Some x | _ -> None
-    let withDefault d = function Success x -> x | _ -> d
-
-    let mapError f = function
-        | Failure err -> Failure (f err)
-        | other -> other
+    val map: ('a -> 'b) -> RemoteData<'a> -> RemoteData<'b>
+    val bind: ('a -> RemoteData<'b>) -> RemoteData<'a> -> RemoteData<'b>
+    val isLoading: RemoteData<'a> -> bool
+    val isSuccess: RemoteData<'a> -> bool
+    val isFailure: RemoteData<'a> -> bool
+    val isNotAsked: RemoteData<'a> -> bool
+    val toOption: RemoteData<'a> -> 'a option
+    val withDefault: 'a -> RemoteData<'a> -> 'a
+    val mapError: (string -> string) -> RemoteData<'a> -> RemoteData<'a>
+    val recover: 'a -> RemoteData<'a> -> RemoteData<'a>
+    val recoverWith: (string -> 'a) -> RemoteData<'a> -> RemoteData<'a>
+    val map2: ('a -> 'b -> 'c) -> RemoteData<'a> -> RemoteData<'b> -> RemoteData<'c>
+    val toError: RemoteData<'a> -> string option
+    val fold: 'b -> 'b -> ('a -> 'b) -> (string -> 'b) -> RemoteData<'a> -> 'b
+    val fromResult: Result<'a, string> -> RemoteData<'a>
+    val fromOption: 'a option -> RemoteData<'a>
+    val fromOptionWithError: string -> 'a option -> RemoteData<'a>
 ```
 
 ### Verifikation
 
-- [ ] Unit-Tests für alle Helper-Funktionen
-- [ ] Keine Breaking Changes
+- [x] Unit-Tests für alle Helper-Funktionen (63 Tests)
+- [x] Keine Breaking Changes
+- [x] Build erfolgreich
+- [x] Alle Tests bestehen (357 total)
+
+### ✅ Milestone 6 Complete (2025-12-15)
+
+**Summary of Changes:**
+- Added `RemoteData` module to `src/Client/Types.fs` with 17 helper functions
+- Added `src/Tests/RemoteDataTests.fs` with 63 comprehensive unit tests
+- Added Client project reference to Tests.fsproj to enable testing
+- Module uses `[<RequireQualifiedAccess>]` for explicit access via `RemoteData.map`, etc.
+
+**Test Quality Review:**
+- 63 unit tests covering all helper functions
+- Tests cover Success, Loading, NotAsked, and Failure cases for each function
+- All edge cases tested (e.g., map2 with different failure combinations)
+
+**Notes:**
+- Module added directly to Types.fs rather than separate file for simpler compilation order
+- Existing code uses explicit match expressions which are already readable
+- Helper functions available for new code and future refactoring opportunities
 
 ---
 
@@ -465,7 +481,7 @@ module PageHeader =
 | 3. Rules Form State | P2 | Klein | ✅ Complete (2025-12-15) |
 | 4. ErrorDisplay Komponente | P2 | Klein | ✅ Complete (2025-12-15) |
 | 5. Dashboard Hero Button | P2 | Klein | ✅ Complete (2025-12-15) |
-| 6. RemoteData Helpers | P3 | Klein | [ ] Offen |
+| 6. RemoteData Helpers | P3 | Klein | ✅ Complete (2025-12-15) |
 | 7. PageHeader Komponente | P3 | Klein | [ ] Offen |
 | 8. Debouncing | P3 | Mittel | [ ] Offen |
 

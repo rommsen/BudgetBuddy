@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="RemoteDataTests.fs" />
     <Compile Include="EncryptionTests.fs" />
     <Compile Include="PersistenceTypeConversionTests.fs" />
     <Compile Include="YnabClientTests.fs" />
@@ -33,6 +34,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Shared\Shared.fsproj" />
     <ProjectReference Include="..\Server\Server.fsproj" />
+    <ProjectReference Include="..\Client\Client.fsproj" />
   </ItemGroup>
 
 </Project>
