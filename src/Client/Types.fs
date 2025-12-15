@@ -133,6 +133,32 @@ type Page =
     | Rules
     | Settings
 
+
+/// URL routing helpers for hash-based navigation
+module Routing =
+    open Feliz.Router
+
+    /// Parse URL segments to Page
+    let parseUrl (segments: string list) : Page =
+        match segments with
+        | [] -> Dashboard
+        | ["sync"] -> SyncFlow
+        | ["rules"] -> Rules
+        | ["settings"] -> Settings
+        | _ -> Dashboard  // Fallback to dashboard for unknown routes
+
+    /// Convert Page to URL segments (for navigation)
+    let toUrlSegments (page: Page) : string list =
+        match page with
+        | Dashboard -> []
+        | SyncFlow -> ["sync"]
+        | Rules -> ["rules"]
+        | Settings -> ["settings"]
+
+    /// Get current page from URL (for initialization)
+    let currentPage () : Page =
+        Router.currentUrl () |> parseUrl
+
 /// Toast notification types
 type ToastType =
     | ToastSuccess

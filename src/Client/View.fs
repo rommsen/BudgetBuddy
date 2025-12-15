@@ -1,6 +1,7 @@
 module View
 
 open Feliz
+open Feliz.Router
 open State
 open Types
 open Client.DesignSystem
@@ -38,45 +39,50 @@ let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
 // ============================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
-    Navigation.appWrapper [
-        // Navigation (desktop top + mobile header/bottom)
-        Navigation.navigation
-            (toNavPage model.CurrentPage)
-            (fun navPage -> dispatch (NavigateTo (fromNavPage navPage)))
+    React.router [
+        router.onUrlChanged (UrlChanged >> dispatch)
+        router.children [
+            Navigation.appWrapper [
+                // Navigation (desktop top + mobile header/bottom)
+                Navigation.navigation
+                    (toNavPage model.CurrentPage)
+                    (fun navPage -> dispatch (NavigateTo (fromNavPage navPage)))
 
-        // Main content with padding for fixed navbar
-        Navigation.pageContent [
-            // Each page has enter animation using key for re-triggering on page change
-            Html.div [
-                prop.key (model.CurrentPage.ToString())
-                prop.className "animate-page-enter"
-                prop.children [
-                    match model.CurrentPage with
-                    | Dashboard ->
-                        Components.Dashboard.View.view
-                            model.Dashboard
-                            (DashboardMsg >> dispatch)
-                            (fun () -> dispatch (NavigateTo SyncFlow))
-                            (fun () -> dispatch (NavigateTo Settings))
-                    | SyncFlow ->
-                        Components.SyncFlow.View.view
-                            model.SyncFlow
-                            (SyncFlowMsg >> dispatch)
-                            (fun () -> dispatch (NavigateTo Dashboard))
-                    | Rules ->
-                        Components.Rules.View.view
-                            model.Rules
-                            (RulesMsg >> dispatch)
-                    | Settings ->
-                        Components.Settings.View.view
-                            model.Settings
-                            (SettingsMsg >> dispatch)
+                // Main content with padding for fixed navbar
+                Navigation.pageContent [
+                    // Each page has enter animation using key for re-triggering on page change
+                    Html.div [
+                        prop.key (model.CurrentPage.ToString())
+                        prop.className "animate-page-enter"
+                        prop.children [
+                            match model.CurrentPage with
+                            | Dashboard ->
+                                Components.Dashboard.View.view
+                                    model.Dashboard
+                                    (DashboardMsg >> dispatch)
+                                    (fun () -> dispatch (NavigateTo SyncFlow))
+                                    (fun () -> dispatch (NavigateTo Settings))
+                            | SyncFlow ->
+                                Components.SyncFlow.View.view
+                                    model.SyncFlow
+                                    (SyncFlowMsg >> dispatch)
+                                    (fun () -> dispatch (NavigateTo Dashboard))
+                            | Rules ->
+                                Components.Rules.View.view
+                                    model.Rules
+                                    (RulesMsg >> dispatch)
+                            | Settings ->
+                                Components.Settings.View.view
+                                    model.Settings
+                                    (SettingsMsg >> dispatch)
+                        ]
+                    ]
                 ]
+
+                // Toast notifications using new Toast component
+                Toast.renderList
+                    (model.Toasts |> List.map (fun t -> (t.Id, t.Message, toToastVariant t.Type)))
+                    (fun id -> dispatch (DismissToast id))
             ]
         ]
-
-        // Toast notifications using new Toast component
-        Toast.renderList
-            (model.Toasts |> List.map (fun t -> (t.Id, t.Message, toToastVariant t.Type)))
-            (fun id -> dispatch (DismissToast id))
     ]

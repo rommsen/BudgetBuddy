@@ -4,6 +4,7 @@ open System
 open Elmish
 open Shared.Domain
 open Types
+open Feliz.Router
 
 // ============================================
 // Model - Composed from child component models
@@ -29,7 +30,8 @@ type Model = {
 
 type Msg =
     // Navigation
-    | NavigateTo of Page
+    | NavigateTo of Page        // Triggers URL change (does NOT directly change state)
+    | UrlChanged of string list // Handles URL changes from router or initial load
 
     // Toast
     | ShowToast of string * ToastType
@@ -65,8 +67,11 @@ let init () : Model * Cmd<Msg> =
     let syncFlowModel, syncFlowCmd = Components.SyncFlow.State.init ()
     let rulesModel, rulesCmd = Components.Rules.State.init ()
 
+    // Parse initial page from current URL (enables deep linking)
+    let initialPage = Routing.currentPage ()
+
     let model = {
-        CurrentPage = Dashboard
+        CurrentPage = initialPage
         Toasts = []
         Dashboard = dashboardModel
         Settings = settingsModel
@@ -74,9 +79,13 @@ let init () : Model * Cmd<Msg> =
         Rules = rulesModel
     }
 
+    // Trigger page-specific load commands for the initial (deep-linked) page
+    let initialPageCmd = Cmd.ofMsg (UrlChanged (Routing.toUrlSegments initialPage))
+
     let cmd = Cmd.batch [
         Cmd.map DashboardMsg dashboardCmd
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
+        initialPageCmd
     ]
     model, cmd
 
@@ -89,28 +98,39 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // ============================================
     // Navigation
     // ============================================
+    // NavigateTo now only triggers URL change - UrlChanged handles actual state change
     | NavigateTo page ->
-        let extraCmds =
-            match page with
-            | Dashboard ->
-                Cmd.batch [
-                    Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadLastSession)
-                    Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadCurrentSession)
-                    Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadSettings)
-                ]
-            | SyncFlow ->
-                Cmd.batch [
-                    Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
-                    Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
-                ]
-            | Rules ->
-                Cmd.batch [
-                    Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadRules)
-                    Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
-                ]
-            | Settings ->
-                Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
-        { model with CurrentPage = page }, extraCmds
+        let segments = Routing.toUrlSegments page
+        model, Cmd.navigate(segments |> List.toArray)
+
+    // UrlChanged is the single place where page state actually changes
+    | UrlChanged segments ->
+        let page = Routing.parseUrl segments
+        // Only update if page actually changed (avoids unnecessary re-renders)
+        if page = model.CurrentPage then
+            model, Cmd.none
+        else
+            let extraCmds =
+                match page with
+                | Dashboard ->
+                    Cmd.batch [
+                        Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadLastSession)
+                        Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadCurrentSession)
+                        Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadSettings)
+                    ]
+                | SyncFlow ->
+                    Cmd.batch [
+                        Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
+                        Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
+                    ]
+                | Rules ->
+                    Cmd.batch [
+                        Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadRules)
+                        Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
+                    ]
+                | Settings ->
+                    Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
+            { model with CurrentPage = page }, extraCmds
 
     // ============================================
     // Toast

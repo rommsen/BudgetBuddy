@@ -4,6 +4,63 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 - URL-Based Routing with Feliz.Router
+
+**What I did:**
+Implemented hash-based URL routing using Feliz.Router to enable browser back/forward navigation and deep linking. Users can now navigate directly to pages via URLs like `#/sync`, `#/rules`, `#/settings`.
+
+**Files Added:**
+- `src/Tests/RoutingTests.fs` - 14 unit tests for URL parsing and roundtrip verification
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Added Feliz.Router 4.0.0 package reference
+- `src/Client/Types.fs` - Added `Routing` module with URL parsing functions:
+  - `parseUrl`: Converts URL segments to `Page` type
+  - `toUrlSegments`: Converts `Page` to URL segments
+  - `currentPage`: Gets current page from browser URL
+- `src/Client/State.fs`:
+  - Added `open Feliz.Router` import
+  - Added `UrlChanged of string list` message
+  - Updated `init` to parse initial URL (enables deep linking)
+  - Changed `NavigateTo` to trigger URL change via `Cmd.navigate`
+  - Added `UrlChanged` handler for actual state changes
+- `src/Client/View.fs`:
+  - Added `open Feliz.Router` import
+  - Wrapped view with `React.router` component
+  - Added `router.onUrlChanged` handler
+- `src/Tests/Tests.fsproj` - Added RoutingTests.fs to compilation
+
+**URL Schema:**
+| URL | Page |
+|-----|------|
+| `#/` | Dashboard |
+| `#/sync` | SyncFlow |
+| `#/rules` | Rules |
+| `#/settings` | Settings |
+| `#/invalid` | Dashboard (fallback) |
+
+**Architecture:**
+The URL is now the single source of truth for navigation:
+1. `NavigateTo page` triggers `Cmd.navigate` (changes URL)
+2. URL change fires `router.onUrlChanged`
+3. `UrlChanged segments` updates `CurrentPage` and triggers page-specific load commands
+
+**Features:**
+- Browser back/forward buttons work correctly
+- Deep linking (e.g., opening `#/settings` directly)
+- All existing navigation patterns still work
+- Guard against redundant updates if page hasn't changed
+
+**Rationale:**
+Before this change, navigation was purely in-memory state. Users couldn't bookmark pages, share URLs, or use browser history. With Feliz.Router, the app now behaves like a standard web application with proper URL routing.
+
+**Outcomes:**
+- Build: ✅ (0 errors, 2 warnings - unrelated Modal.fs deprecation)
+- Tests: 371/377 passed (6 skipped integration tests)
+- 14 new routing tests added
+
+---
+
 ## 2025-12-15 - Frontend Architecture: Category Selection Debouncing (Milestone 8)
 
 **What I did:**
