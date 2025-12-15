@@ -60,6 +60,9 @@ type Model = {
     ManuallyCategorizedIds: Set<TransactionId>
     /// Active filter for the transaction list
     ActiveFilter: TransactionFilter
+    /// Version counter per transaction for debouncing category changes.
+    /// Used to ensure only the latest change triggers an API call.
+    PendingCategoryVersions: Map<TransactionId, int>
 }
 
 /// SyncFlow-specific messages
@@ -76,6 +79,8 @@ type Msg =
     | TransactionsLoaded of Result<SyncTransaction list, SyncError>
     | CategorizeTransaction of TransactionId * YnabCategoryId option
     | TransactionCategorized of Result<SyncTransaction, SyncError>
+    /// Debounced category change commit - only triggers API call if version matches
+    | CommitCategoryChange of TransactionId * YnabCategoryId option * int
     | SkipTransaction of TransactionId
     | TransactionSkipped of Result<SyncTransaction, SyncError>
     | UnskipTransaction of TransactionId

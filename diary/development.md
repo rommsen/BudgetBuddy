@@ -4,6 +4,54 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 - Frontend Architecture: Category Selection Debouncing (Milestone 8)
+
+**What I did:**
+Completed Milestone 8 from the Frontend Architecture Improvement plan. Implemented debouncing for category selection to reduce server load when users rapidly change categories.
+
+**Files Added:**
+- `src/Client/Debounce.fs` - Generic debounce utilities for Elmish:
+  - `delayed` function to create delayed commands with custom delay
+  - `delayedDefault` function with 400ms default delay
+  - Version-based approach that works with Elmish architecture
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Added Debounce.fs to compilation
+- `src/Client/Components/SyncFlow/Types.fs`:
+  - Added `PendingCategoryVersions: Map<TransactionId, int>` to Model
+  - Added `CommitCategoryChange of TransactionId * YnabCategoryId option * int` message
+- `src/Client/Components/SyncFlow/State.fs`:
+  - Added `open Client` import
+  - Refactored `CategorizeTransaction` to use version-based debouncing
+  - Added `CommitCategoryChange` handler that only commits if version is current
+  - Updated `init` to include `PendingCategoryVersions = Map.empty`
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs`:
+  - Added `isPendingSave: bool` parameter to `transactionRow` function
+  - Added orange pulsing dot indicator when save is pending
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs`:
+  - Updated `transactionRow` call to compute and pass `isPendingSave`
+- `docs/Frontend-Architecture-milestones.md` - Marked Milestone 8 as complete
+
+**Rationale:**
+Users can rapidly change categories while reviewing transactions, which caused unnecessary API calls to the server. The debouncing implementation:
+- Uses version tracking to ensure only the latest change triggers an API call
+- Maintains optimistic UI updates for instant feedback
+- Shows a visual indicator that the change is pending
+- Works within the Elmish architecture without external state or timers
+
+**Design Decisions:**
+- 400ms delay balances responsiveness with server load reduction
+- Version-based approach prevents race conditions naturally
+- Orange pulsing dot provides clear pending state feedback
+- Debounce module is generic and reusable for other use cases
+
+**Outcomes:**
+- Build: ✅ (0 errors, 2 warnings - unrelated Modal.fs deprecation)
+- Tests: 357/357 passed (6 skipped)
+- Issues: None
+
+---
+
 ## 2025-12-15 - Frontend Architecture: PageHeader Design System Component (Milestone 7)
 
 **What I did:**

@@ -277,6 +277,7 @@ let transactionRow
     (expandedIds: Set<TransactionId>)
     (inlineRuleFormState: InlineRuleFormState option)
     (manuallyCategorizedIds: Set<TransactionId>)
+    (isPendingSave: bool)
     (dispatch: Msg -> unit) =
 
     let rowClasses = getRowStateClasses tx
@@ -289,6 +290,17 @@ let transactionRow
     let showRuleForm =
         inlineRuleFormState
         |> Option.exists (fun f -> f.TransactionId = tx.Transaction.Id)
+
+    // Pending save indicator component
+    let pendingSaveIndicator =
+        if isPendingSave then
+            Html.span [
+                prop.className "ml-2 text-xs text-neon-orange animate-pulse"
+                prop.title "Saving category..."
+                prop.text "●"
+            ]
+        else
+            Html.none
 
     Html.div [
         prop.className $"group border-b border-white/5 last:border-b-0 transition-all duration-200 {rowClasses}"
@@ -306,7 +318,7 @@ let transactionRow
                             duplicateIndicator tx.DuplicateStatus
                             // Category: Selectbox for active, text for skipped
                             Html.div [
-                                prop.className "flex-1 min-w-0"
+                                prop.className "flex-1 min-w-0 flex items-center"
                                 prop.children [
                                     if tx.Status = Skipped then
                                         // Skipped: render as plain text (fast)
@@ -327,6 +339,7 @@ let transactionRow
                                                     dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
                                             "Category..."
                                             categoryOptions
+                                    pendingSaveIndicator
                                 ]
                             ]
                             // Amount (fixed width for alignment)
@@ -404,7 +417,7 @@ let transactionRow
                     ]
                     // Category: Selectbox for active, text for skipped - fixed width
                     Html.div [
-                        prop.className "w-96 flex-shrink-0"
+                        prop.className "w-96 flex-shrink-0 flex items-center"
                         prop.children [
                             if tx.Status = Skipped then
                                 // Skipped: render as plain text (fast)
@@ -425,6 +438,7 @@ let transactionRow
                                             dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
                                     "Category..."
                                     categoryOptions
+                            pendingSaveIndicator
                         ]
                     ]
                     // Payee (as link if external link exists)

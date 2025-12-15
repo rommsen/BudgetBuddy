@@ -23,6 +23,9 @@
     <Compile Include="DesignSystem/PageHeader.fs" />
     <Compile Include="DesignSystem/Form.fs" />
 
+    <!-- Utilities -->
+    <Compile Include="Debounce.fs" />
+
     <!-- Shared types -->
     <Compile Include="Types.fs" />
     <Compile Include="Api.fs" />

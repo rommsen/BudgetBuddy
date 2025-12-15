@@ -4,6 +4,7 @@ open Elmish
 open Components.SyncFlow.Types
 open Types
 open Shared.Domain
+open Client
 
 let private syncErrorToString (error: SyncError) : string =
     match error with
@@ -96,6 +97,7 @@ let init () : Model * Cmd<Msg> =
         InlineRuleForm = None
         ManuallyCategorizedIds = Set.empty
         ActiveFilter = AllTransactions
+        PendingCategoryVersions = Map.empty
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -202,7 +204,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | CategorizeTransaction (txId, categoryId) ->
         match model.CurrentSession, model.SyncTransactions with
-        | Success (Some session), Success transactions ->
+        | Success (Some _session), Success transactions ->
             // Optimistic UI: Update locally first for instant feedback
             let updatedTransactions =
                 transactions
@@ -234,18 +236,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 | Some _ -> model.ManuallyCategorizedIds.Add txId
                 | None -> model.ManuallyCategorizedIds.Remove txId
 
-            let cmd =
-                Cmd.OfAsync.either
-                    Api.sync.categorizeTransaction
-                    (session.Id, txId, categoryId, None)
-                    TransactionCategorized
-                    (fun ex -> Error (SyncError.DatabaseError ("categorize", ex.Message)) |> TransactionCategorized)
+            // Debouncing: Increment version and schedule delayed API call
+            let currentVersion =
+                model.PendingCategoryVersions
+                |> Map.tryFind txId
+                |> Option.defaultValue 0
+            let newVersion = currentVersion + 1
+            let newPendingVersions = model.PendingCategoryVersions |> Map.add txId newVersion
+
+            // Delayed command - will only execute API call if version is still current
+            let debouncedCmd =
+                Debounce.delayedDefault (CommitCategoryChange (txId, categoryId, newVersion))
 
             { model with
                 SyncTransactions = Success updatedTransactions
-                ManuallyCategorizedIds = newManuallyCategorized }, cmd, NoOp
+                ManuallyCategorizedIds = newManuallyCategorized
+                PendingCategoryVersions = newPendingVersions }, debouncedCmd, NoOp
         | Success (Some session), _ ->
-            // Transactions not loaded yet, just make the API call
+            // Transactions not loaded yet, just make the API call directly (no debounce needed)
             let cmd =
                 Cmd.OfAsync.either
                     Api.sync.categorizeTransaction
@@ -254,6 +262,31 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     (fun ex -> Error (SyncError.DatabaseError ("categorize", ex.Message)) |> TransactionCategorized)
             model, cmd, NoOp
         | _ -> model, Cmd.none, NoOp
+
+    | CommitCategoryChange (txId, categoryId, version) ->
+        // Only execute API call if version is still current (not superseded by newer change)
+        let currentVersion =
+            model.PendingCategoryVersions
+            |> Map.tryFind txId
+            |> Option.defaultValue 0
+
+        if version <> currentVersion then
+            // Stale change - a newer change has been made, ignore this one
+            model, Cmd.none, NoOp
+        else
+            // Version matches - execute the API call
+            match model.CurrentSession with
+            | Success (Some session) ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.sync.categorizeTransaction
+                        (session.Id, txId, categoryId, None)
+                        TransactionCategorized
+                        (fun ex -> Error (SyncError.DatabaseError ("categorize", ex.Message)) |> TransactionCategorized)
+                // Clear version after committing (change is in flight)
+                let newPendingVersions = model.PendingCategoryVersions |> Map.remove txId
+                { model with PendingCategoryVersions = newPendingVersions }, cmd, NoOp
+            | _ -> model, Cmd.none, NoOp
 
     | TransactionCategorized (Ok updatedTx) ->
         match model.SyncTransactions with

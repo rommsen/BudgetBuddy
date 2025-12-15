@@ -333,9 +333,12 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 prop.children [
                                     for tx in filteredTransactions do
                                         let (TransactionId id) = tx.Transaction.Id
+                                        // Check if this transaction has a pending category save
+                                        let isPendingSave =
+                                            model.PendingCategoryVersions |> Map.containsKey tx.Transaction.Id
                                         Html.div [
                                             prop.key id
-                                            prop.children [ transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds dispatch ]
+                                            prop.children [ transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds isPendingSave dispatch ]
                                         ]
                                 ]
                             ]
