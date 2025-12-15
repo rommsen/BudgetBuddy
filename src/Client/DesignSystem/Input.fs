@@ -576,7 +576,7 @@ let SearchableSelect (props: SearchableSelectProps) =
     let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
 
     Html.div [
-        prop.className "relative"
+        prop.className "relative w-full"
         prop.ref containerRef
         prop.children [
             // Display button (shows current selection or placeholder)

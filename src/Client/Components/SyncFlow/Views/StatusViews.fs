@@ -11,7 +11,7 @@ open Client.DesignSystem
 
 let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "max-w-lg mx-auto animate-fade-in"
+        prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
             Card.view { Card.defaultProps with Variant = Card.Glow; Size = Card.Spacious } [
                 Html.div [
@@ -56,37 +56,37 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                             prop.text "Please open your banking app and confirm the push TAN notification to authorize the connection."
                         ]
 
-                        // Steps indicator with neon styling
+                        // Steps indicator with neon styling (responsive)
                         Html.div [
-                            prop.className "flex items-center gap-3 mt-6 text-sm"
+                            prop.className "flex items-center gap-2 sm:gap-3 mt-6 text-xs sm:text-sm"
                             prop.children [
                                 Html.div [
-                                    prop.className "flex items-center gap-2 text-neon-green"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-6 h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
-                                        Html.span [ prop.text "Connected" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Connected" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-8 h-0.5 bg-neon-teal/30" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-teal/30" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-2 text-neon-teal"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-teal"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-6 h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
                                             prop.children [ Loading.spinner Loading.XS Loading.Teal ]
                                         ]
                                         Html.span [ prop.className "font-medium"; prop.text "TAN" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-8 h-0.5 bg-base-content/10" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-base-content/10" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-2 text-base-content/40"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-base-content/40"
                                     prop.children [
-                                        Html.div [ prop.className "w-6 h-6 rounded-full bg-base-200 flex items-center justify-center text-xs font-bold"; prop.text "3" ]
-                                        Html.span [ prop.text "Fetch" ]
+                                        Html.div [ prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-base-200 flex items-center justify-center text-xs font-bold"; prop.text "3" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Fetch" ]
                                     ]
                                 ]
                             ]
@@ -115,7 +115,7 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
 
 let fetchingView () =
     Html.div [
-        prop.className "max-w-lg mx-auto animate-fade-in"
+        prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
             Card.view { Card.defaultProps with Variant = Card.Glow; Size = Card.Spacious } [
                 Html.div [
@@ -146,37 +146,37 @@ let fetchingView () =
                             prop.text "Retrieving your transactions from Comdirect. This may take a moment..."
                         ]
 
-                        // Steps indicator with neon styling - Fetch is now active
+                        // Steps indicator with neon styling - Fetch is now active (responsive)
                         Html.div [
-                            prop.className "flex items-center gap-3 mt-6 text-sm"
+                            prop.className "flex items-center gap-2 sm:gap-3 mt-6 text-xs sm:text-sm"
                             prop.children [
                                 Html.div [
-                                    prop.className "flex items-center gap-2 text-neon-green"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-6 h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
-                                        Html.span [ prop.text "Connected" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Connected" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-8 h-0.5 bg-neon-green" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-green" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-2 text-neon-green"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-6 h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
-                                        Html.span [ prop.text "TAN" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "TAN" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-8 h-0.5 bg-neon-teal/30" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-teal/30" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-2 text-neon-teal"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-neon-teal"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-6 h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
+                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
                                             prop.children [ Loading.spinner Loading.XS Loading.Teal ]
                                         ]
                                         Html.span [ prop.className "font-medium"; prop.text "Fetch" ]
@@ -196,7 +196,7 @@ let fetchingView () =
 
 let loadingView (message: string) =
     Html.div [
-        prop.className "max-w-md mx-auto animate-fade-in"
+        prop.className "max-w-md mx-auto px-4 animate-fade-in"
         prop.children [
             Card.view { Card.defaultProps with Variant = Card.Glass; Size = Card.Spacious } [
                 Html.div [
@@ -226,7 +226,7 @@ let errorView (error: string) (dispatch: Msg -> unit) =
 
 let completedView (session: SyncSession) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> unit) =
     Html.div [
-        prop.className "max-w-lg mx-auto animate-fade-in"
+        prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
             Html.div [
                 prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
@@ -299,7 +299,7 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) (onNavigateToDa
 
 let startSyncView (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "max-w-lg mx-auto animate-fade-in"
+        prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
             Html.div [
                 prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
