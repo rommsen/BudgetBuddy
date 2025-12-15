@@ -342,12 +342,6 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                     ]
                 ]
             | Failure error ->
-                Html.div [
-                    prop.className "rounded-xl bg-neon-red/10 border border-neon-red/30 p-4 flex items-center gap-3"
-                    prop.children [
-                        Icons.warning Icons.MD Icons.Error
-                        Html.span [ prop.className "text-neon-red"; prop.text error ]
-                    ]
-                ]
+                ErrorDisplay.cardCompact error None
         ]
     ]

@@ -207,16 +207,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     ]
 
                 | Failure error ->
-                    Html.div [
-                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-red/10 border border-neon-red/30"
-                        prop.children [
-                            Icons.xCircle Icons.SM Icons.Error
-                            Html.span [
-                                prop.className "text-sm text-neon-red"
-                                prop.text error
-                            ]
-                        ]
-                    ]
+                    ErrorDisplay.cardCompact error None
 
                 | _ -> Html.none
             ]
@@ -362,16 +353,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     Html.div [
                                         prop.className "space-y-3"
                                         prop.children [
-                                            Html.div [
-                                                prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-red/10 border border-neon-red/30"
-                                                prop.children [
-                                                    Icons.xCircle Icons.SM Icons.Error
-                                                    Html.span [
-                                                        prop.className "text-sm text-neon-red"
-                                                        prop.text error
-                                                    ]
-                                                ]
-                                            ]
+                                            ErrorDisplay.cardCompact error None
                                             Button.secondary "Test Connection" (fun () -> dispatch TestComdirectConnection)
                                         ]
                                     ]
@@ -486,22 +468,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Loading.centered "Loading settings..."
 
             | Failure error ->
-                Html.div [
-                    prop.className "flex items-center gap-3 p-4 rounded-xl bg-neon-red/10 border border-neon-red/30"
-                    prop.children [
-                        Icons.xCircle Icons.MD Icons.Error
-                        Html.div [
-                            prop.className "flex-1"
-                            prop.children [
-                                Html.span [
-                                    prop.className "text-neon-red text-sm"
-                                    prop.text $"Failed to load settings: {error}"
-                                ]
-                            ]
-                        ]
-                        Button.secondary "Retry" (fun () -> dispatch LoadSettings)
-                    ]
-                ]
+                ErrorDisplay.cardCompact $"Failed to load settings: {error}" (Some (fun () -> dispatch LoadSettings))
 
             | _ ->
                 Html.div [

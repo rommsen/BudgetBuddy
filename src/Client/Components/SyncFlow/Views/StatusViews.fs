@@ -218,40 +218,7 @@ let loadingView (message: string) =
 // ============================================
 
 let errorView (error: string) (dispatch: Msg -> unit) =
-    Html.div [
-        prop.className "max-w-md mx-auto animate-fade-in"
-        prop.children [
-            Html.div [
-                prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
-                prop.children [
-                    // Error header with neon red
-                    Html.div [
-                        prop.className "bg-gradient-to-br from-neon-red to-neon-pink p-6 text-center"
-                        prop.children [
-                            Html.div [
-                                prop.className "w-16 h-16 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3"
-                                prop.children [ Icons.xCircle Icons.XL Icons.Primary ]
-                            ]
-                            Html.h2 [
-                                prop.className "text-xl font-bold font-display text-white"
-                                prop.text "Sync Failed"
-                            ]
-                        ]
-                    ]
-                    Html.div [
-                        prop.className "p-6 text-center"
-                        prop.children [
-                            Html.p [
-                                prop.className "text-base-content/70 mb-4"
-                                prop.text error
-                            ]
-                            Button.primaryWithIcon "Try Again" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]
+    ErrorDisplay.hero "Sync Failed" error "Try Again" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
 
 // ============================================
 // Completed View

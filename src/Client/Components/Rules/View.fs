@@ -592,33 +592,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
 
             | RemoteData.Failure error ->
-                Card.view { Card.defaultProps with Variant = Card.Standard; Hoverable = false } [
-                    Html.div [
-                        prop.className "flex items-center gap-3"
-                        prop.children [
-                            Html.div [
-                                prop.className "w-10 h-10 rounded-lg bg-neon-red/10 flex items-center justify-center flex-shrink-0"
-                                prop.children [
-                                    Icons.xCircle MD Icons.NeonRed
-                                ]
-                            ]
-                            Html.div [
-                                prop.className "flex-1"
-                                prop.children [
-                                    Html.p [
-                                        prop.className "font-medium text-neon-red"
-                                        prop.text "Error loading rules"
-                                    ]
-                                    Html.p [
-                                        prop.className "text-sm text-base-content/60"
-                                        prop.text error
-                                    ]
-                                ]
-                            ]
-                            Button.secondary "Retry" (fun () -> dispatch LoadRules)
-                        ]
-                    ]
-                ]
+                ErrorDisplay.cardWithTitle "Error loading rules" error (Some (fun () -> dispatch LoadRules))
 
             // Edit/Create modal
             if model.IsNewRule || model.EditingRule.IsSome then

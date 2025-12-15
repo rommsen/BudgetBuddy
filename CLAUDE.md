@@ -489,6 +489,7 @@ The project includes a complete F# Design System in `src/Client/DesignSystem/`. 
 | Money | `Client.DesignSystem.Money` | `Money.view props` |
 | Table | `Client.DesignSystem.Table` | `Table.view props [ ... ]` |
 | Loading | `Client.DesignSystem.Loading` | `Loading.spinner MD Teal` |
+| ErrorDisplay | `Client.DesignSystem.ErrorDisplay` | `ErrorDisplay.card "Error" onRetry` |
 | Icons | `Client.DesignSystem.Icons` | `Icons.check MD Green` |
 | Navigation | `Client.DesignSystem.Navigation` | (used in main View.fs) |
 | Primitives | `Client.DesignSystem.Primitives` | `Primitives.container [ ... ]` |
@@ -700,6 +701,36 @@ Loading.neonPulse "Processing..."
 // Skeleton loaders
 Loading.skeleton Line Normal
 Loading.tableSkeleton 5 3  // 5 rows, 3 columns
+```
+
+### Error Display
+
+```fsharp
+open Client.DesignSystem.ErrorDisplay
+
+// Inline error (for form validation)
+ErrorDisplay.inline' "Invalid email address"
+
+// Compact card (for inline contexts)
+ErrorDisplay.cardCompact "Failed to load data" None
+ErrorDisplay.cardCompact "Failed to save" (Some (fun () -> dispatch Retry))
+
+// Standard error card
+ErrorDisplay.card "Connection failed" (Some (fun () -> dispatch Retry))
+ErrorDisplay.cardWithTitle "Error loading rules" error (Some (fun () -> dispatch LoadRules))
+
+// Hero error (for major operation failures)
+ErrorDisplay.hero "Sync Failed" error "Try Again" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
+ErrorDisplay.heroSimple "Operation Failed" "Please try again later" (fun () -> dispatch Retry)
+
+// Full-page error
+ErrorDisplay.fullPage "Something went wrong" "We couldn't load the page" (Some (fun () -> dispatch Reload))
+
+// For RemoteData.Failure
+ErrorDisplay.forRemoteData error (fun () -> dispatch Reload)
+
+// Warning style (yellow instead of red)
+ErrorDisplay.warning "This action cannot be undone" None
 ```
 
 ### Design Tokens

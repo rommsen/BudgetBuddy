@@ -4,6 +4,40 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-15 23:45 - Frontend Architecture: ErrorDisplay Design System Komponente (Milestone 4)
+
+**What I did:**
+Completed Milestone 4 from the Frontend Architecture Improvement plan. Created a new `ErrorDisplay` Design System component providing standardized error displays across the application with consistent styling and behavior.
+
+**Files Added:**
+- `src/Client/DesignSystem/ErrorDisplay.fs` - New Design System component with multiple error display variants:
+  - `inline'` / `inlineWithIcon` - Compact inline errors for form validation
+  - `card` / `cardWithTitle` / `cardCompact` - Card-based errors with optional retry buttons
+  - `hero` / `heroSimple` - Large hero-style errors for major operations (like sync failures)
+  - `fullPage` / `fullPageWithAction` - Full-page error states for critical failures
+  - `forRemoteData` / `simple` / `warning` - Convenience functions
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Added `ErrorDisplay.fs` to compilation (after Button.fs)
+- `src/Client/Components/SyncFlow/Views/StatusViews.fs` - Replaced inline `errorView` with `ErrorDisplay.hero`
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` - Replaced inline error with `ErrorDisplay.cardCompact`
+- `src/Client/Components/Settings/View.fs` - Replaced 3 inline error displays with `ErrorDisplay.cardCompact`
+- `src/Client/Components/Rules/View.fs` - Replaced inline error with `ErrorDisplay.cardWithTitle`
+
+**Rationale:**
+The Frontend Architecture Review identified inconsistent error handling across the application. This component standardizes error displays with:
+- Consistent visual design using the neon color palette
+- ARIA roles for accessibility (`role="alert"`)
+- Optional retry functionality
+- Multiple variants for different contexts (inline, card, hero, full-page)
+
+**Outcomes:**
+- Build: ✅ (0 errors, 2 warnings - unrelated to this change)
+- Tests: 294/294 passed (6 skipped)
+- Issues: None
+
+---
+
 ## 2025-12-15 23:00 - Frontend Architecture: Rules Form State Konsolidierung (Milestone 3)
 
 **What I did:**

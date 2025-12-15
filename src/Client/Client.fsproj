@@ -9,6 +9,7 @@
     <Compile Include="DesignSystem/Primitives.fs" />
     <Compile Include="DesignSystem/Icons.fs" />
     <Compile Include="DesignSystem/Button.fs" />
+    <Compile Include="DesignSystem/ErrorDisplay.fs" />
     <Compile Include="DesignSystem/Card.fs" />
     <Compile Include="DesignSystem/Badge.fs" />
     <Compile Include="DesignSystem/Input.fs" />
