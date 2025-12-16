@@ -90,7 +90,7 @@ let matchCategory (categoryName: string) (categories: YnabCategory list) : YnabC
 let getDbPath () =
     let dataDir =
         match Environment.GetEnvironmentVariable("DATA_DIR") with
-        | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "heimeshoff", "budgetbuddy")
+        | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "my_apps", "budgetbuddy")
         | path -> path
     Path.Combine(dataDir, "budgetbuddy.db")
 

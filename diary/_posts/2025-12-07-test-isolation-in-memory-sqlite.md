@@ -18,7 +18,7 @@ In diesem Post erkläre ich, wie ich das Problem diagnostiziert, welche Lösungs
 
 ## Ausgangslage
 
-BudgetBuddy verwendet SQLite als Datenbank, mit einer Datei unter `~/heimeshoff/budgetbuddy/budgetbuddy.db`. Die Persistence-Schicht in `Persistence.fs` verwaltet alle Datenbankoperationen – Rules, Settings, Sync-Sessions und Transactions.
+BudgetBuddy verwendet SQLite als Datenbank, mit einer Datei unter `~/my_apps/budgetbuddy/budgetbuddy.db`. Die Persistence-Schicht in `Persistence.fs` verwaltet alle Datenbankoperationen – Rules, Settings, Sync-Sessions und Transactions.
 
 Für die Test-Coverage hatte ich `PersistenceTypeConversionTests.fs` erstellt, die sicherstellen, dass F#-Typen (wie `PatternType`, `TargetField`, `TransactionStatus`) korrekt in die Datenbank geschrieben und wieder gelesen werden können ("Roundtrip-Tests").
 
@@ -41,7 +41,7 @@ Der Benutzer meldete: "Kann es sein, dass Rules bei jedem Testdurchlauf erstellt
 Meine erste Reaktion war: "Das kann nicht sein, die Tests erstellen doch In-Memory-Objekte." Aber ein schneller Check bewies das Gegenteil:
 
 ```bash
-sqlite3 ~/heimeshoff/budgetbuddy/budgetbuddy.db \
+sqlite3 ~/my_apps/budgetbuddy/budgetbuddy.db \
   "SELECT name, pattern, COUNT(*) FROM rules GROUP BY name, pattern HAVING COUNT(*) > 1"
 
 # Ergebnis:
@@ -254,14 +254,14 @@ Nach dem Fix:
 
 ```bash
 # Vor Tests:
-sqlite3 ~/heimeshoff/budgetbuddy/budgetbuddy.db "SELECT COUNT(*) FROM rules"
+sqlite3 ~/my_apps/budgetbuddy/budgetbuddy.db "SELECT COUNT(*) FROM rules"
 # -> 0
 
 # Tests laufen:
 dotnet test src/Tests/Tests.fsproj
 
 # Nach Tests:
-sqlite3 ~/heimeshoff/budgetbuddy/budgetbuddy.db "SELECT COUNT(*) FROM rules"
+sqlite3 ~/my_apps/budgetbuddy/budgetbuddy.db "SELECT COUNT(*) FROM rules"
 # -> 0  (unverändert!)
 ```
 
