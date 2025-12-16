@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-16 16:45 - Added "To be imported" Filter on Sync Page
+
+**What I did:**
+Added a new filter "To be imported" (ToBeImported) to the Sync Transactions page. This filter shows only transactions that will actually be imported to YNAB (not skipped and not already imported).
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Types.fs` - Added `ToBeImported` case to `TransactionFilter` discriminated union
+- `src/Client/Components/SyncFlow/State.fs` - Added filter logic for `ToBeImported` in `filterTransactions` function
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` - Added filter logic, count calculation, and new stat card
+- `src/Client/DesignSystem/Stats.fs` - Added `gridFiveCol` function for 5-column responsive grid layout
+
+**Rationale:**
+User requested a filter to see only transactions that will be imported. The existing filters (Total, Categorized, Uncategorized, Skipped) didn't provide a direct way to see which transactions are queued for import.
+
+**Implementation Details:**
+- Filter logic: `tx.Status <> Skipped && tx.Status <> Imported`
+- New stat card with Teal accent color between "Total" and "Categorized"
+- Responsive 5-column grid: 2 cols (mobile), 3 cols (tablet), 5 cols (desktop)
+
+**Outcomes:**
+- Build: ✅ (2 pre-existing warnings)
+- Tests: 377/377 passed (6 skipped - integration tests)
+- Issues: None
+
+---
+
 ## 2025-12-16 - Fixed Import ID Slash Parsing Bug (Critical, Follow-up)
 
 **What I did:**

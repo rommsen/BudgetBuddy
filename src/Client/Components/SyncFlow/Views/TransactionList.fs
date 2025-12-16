@@ -14,6 +14,11 @@ open Components.SyncFlow.Views.TransactionRow
 let filterTransactions (filter: TransactionFilter) (transactions: SyncTransaction list) =
     match filter with
     | AllTransactions -> transactions
+    | ToBeImported ->
+        transactions
+        |> List.filter (fun tx ->
+            tx.Status <> Skipped &&
+            tx.Status <> Imported)
     | CategorizedTransactions ->
         transactions
         |> List.filter (fun tx ->
@@ -48,8 +53,13 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
             match model.SyncTransactions with
             | Success transactions ->
                 // Calculate all counts in a single pass for better performance
-                let (categorized, uncategorized, skipped, confirmedDuplicates, ynabRejected) =
-                    transactions |> List.fold (fun (cat, uncat, skip, dup, rej) tx ->
+                let (toBeImported, categorized, uncategorized, skipped, confirmedDuplicates, ynabRejected) =
+                    transactions |> List.fold (fun (toImport, cat, uncat, skip, dup, rej) tx ->
+                        // ToBeImported: not Skipped and not Imported
+                        let toImport' =
+                            if tx.Status <> Skipped && tx.Status <> Imported then
+                                toImport + 1
+                            else toImport
                         // Categorized: has CategoryId, not Skipped/Imported
                         let cat' =
                             if tx.CategoryId.IsSome && tx.Status <> Skipped && tx.Status <> Imported then
@@ -72,14 +82,14 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                             match tx.YnabImportStatus with
                             | RejectedByYnab _ -> rej + 1
                             | _ -> rej
-                        (cat', uncat', skip', dup', rej')
-                    ) (0, 0, 0, 0, 0)
+                        (toImport', cat', uncat', skip', dup', rej')
+                    ) (0, 0, 0, 0, 0, 0)
                 let total = transactions.Length
 
                 Html.div [
                     prop.className "space-y-3"
                     prop.children [
-                        Stats.gridFourCol [
+                        Stats.gridFiveCol [
                             Stats.view {
                                 Stats.defaultProps with
                                     Label = "Total"
@@ -88,6 +98,15 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     Size = Stats.Compact
                                     OnClick = Some (fun () -> dispatch (SetFilter AllTransactions))
                                     IsActive = model.ActiveFilter = AllTransactions
+                            }
+                            Stats.view {
+                                Stats.defaultProps with
+                                    Label = "To Import"
+                                    Value = string toBeImported
+                                    Accent = Stats.Teal
+                                    Size = Stats.Compact
+                                    OnClick = Some (fun () -> dispatch (SetFilter ToBeImported))
+                                    IsActive = model.ActiveFilter = ToBeImported
                             }
                             Stats.view {
                                 Stats.defaultProps with

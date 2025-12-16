@@ -258,6 +258,13 @@ let gridFourCol (stats: ReactElement list) =
         prop.children stats
     ]
 
+/// Five-column responsive grid (2 cols on mobile, 3 on tablet, 5 on desktop)
+let gridFiveCol (stats: ReactElement list) =
+    Html.div [
+        prop.className "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4"
+        prop.children stats
+    ]
+
 // ============================================
 // Specialized Stat Cards
 // ============================================

@@ -41,6 +41,11 @@ let private rulesErrorToString (error: RulesError) : string =
 let private filterTransactions (filter: TransactionFilter) (transactions: SyncTransaction list) =
     match filter with
     | AllTransactions -> transactions
+    | ToBeImported ->
+        transactions
+        |> List.filter (fun tx ->
+            tx.Status <> Skipped &&
+            tx.Status <> Imported)
     | CategorizedTransactions ->
         transactions
         |> List.filter (fun tx ->

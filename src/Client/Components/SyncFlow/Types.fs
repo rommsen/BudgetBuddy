@@ -15,10 +15,11 @@ type SplitEditState = {
 /// Filter options for transaction list
 type TransactionFilter =
     | AllTransactions
+    | ToBeImported               // Status <> Skipped && Status <> Imported
     | CategorizedTransactions    // Has CategoryId, not Skipped/Imported
     | UncategorizedTransactions  // No CategoryId, not Skipped/Imported
     | SkippedTransactions        // Status = Skipped
-    | ConfirmedDuplicates        // DuplicateStatus = ConfirmedDuplicate
+    | ConfirmedDuplicates        // DuplicateStatus = ConfirmedDuplicate        // DuplicateStatus = ConfirmedDuplicate
 
 /// State for inline rule creation from a transaction
 type InlineRuleFormState = {
