@@ -292,6 +292,104 @@ Am Ende war es ein simpler Fix: ~50 Zeilen neuer Code in Domain.fs, einige Zeile
 **Build:** Erfolgreich
 **Tests:** 375/375 bestanden
 
+Aber die Geschichte war noch nicht zu Ende...
+
+## Der Follow-up Bug: Comdirect IDs mit Slashes
+
+### Das Problem kehrt zurück
+
+Nur wenige Stunden nach dem Fix meldete sich das gleiche Symptom zurück: Force Import funktionierte nicht, alle Transaktionen wurden als Duplikate markiert.
+
+Die Docker-Logs zeigten eine alarmierende Meldung:
+```
+[WARNING] Could not map 41 duplicate import IDs to transaction IDs
+```
+
+Moment – diese Warnung hatte ich gerade erst eingebaut. Wenn sie erscheint, bedeutet das, dass das Mapping zwischen YNAB-Duplikat-IDs und lokalen Transaktions-IDs fehlschlägt. Aber wie konnte das sein, wenn ich gerade erst das Format vereinheitlicht hatte?
+
+### Die Spurensuche
+
+Ich schaute mir die `Api.fs` genauer an. Dort fand ich diese Zeile:
+
+```fsharp
+// ALTE VERSION
+let cleanId = txIdPart.Split('/') |> Array.head
+```
+
+Diese Zeile sollte das Prefix `BB:` von der Import-ID abtrennen. Aber warum wurde an `/` gesplittet?
+
+Dann fiel es mir wie Schuppen von den Augen: **Comdirect Transaktions-IDs enthalten Slashes!**
+
+Eine typische Comdirect-ID sieht so aus:
+```
+3I2C21XS1ZXDAP9P/33825
+```
+
+Der Slash ist Teil der ID, nicht ein Trennzeichen. Aber der Code `Split('/')` zerlegte diese ID in zwei Teile und behielt nur den ersten:
+```
+Input:  "BB:3I2C21XS1ZXDAP9P/33825"
+Nach Split('/'):  ["BB:3I2C21XS1ZXDAP9P", "33825"]
+Array.head:  "BB:3I2C21XS1ZXDAP9P"  // FALSCH - Suffix fehlt!
+```
+
+Die lokalen Transaktionen hatten aber die vollständige ID `3I2C21XS1ZXDAP9P/33825`. Da YNAB die abgeschnittene Version zurückgab, fand das Mapping nie einen Match.
+
+### Warum dieser Code überhaupt existierte
+
+Ich habe im Git-Log nachgeschaut. Der `Split('/')` Code war ein Überbleibsel aus einer früheren Version, als Import-IDs ein anderes Format hatten. Jemand (wahrscheinlich ich selbst) hatte angenommen, dass `/` ein Format-Trennzeichen war, das sicher entfernt werden konnte.
+
+**Lesson Learned:** Wenn du Code kopierst oder anpasst, verstehe WARUM er so geschrieben wurde. Ein `Split('/')` sieht harmlos aus, kann aber katastrophale Auswirkungen haben, wenn deine IDs dieses Zeichen enthalten.
+
+### Der Fix
+
+Die Lösung war simpel – das fehlerhafte Split entfernen:
+
+```fsharp
+// NEUE VERSION
+// Don't split on '/' - Comdirect IDs contain slashes as part of the ID!
+let cleanId = txIdPart
+```
+
+Und natürlich habe ich Regression-Tests hinzugefügt:
+
+```fsharp
+testCase "handles Comdirect IDs with slashes" <| fun () ->
+    let txId = TransactionId "3I2C21XS1ZXDAP9P/33825"
+    let importId = generateImportId txId
+
+    Expect.isTrue (matchesImportId txId importId) "Should match Comdirect ID with slash"
+
+testCase "Comdirect IDs with slashes round-trip correctly" <| fun () ->
+    let txId = TransactionId "ABC123DEF/99999"
+    let importId = generateImportId txId
+
+    // Simulate what YNAB returns - should still match
+    Expect.isTrue (matchesImportId txId importId) "Round-trip should work"
+```
+
+**Änderungen:**
+- `src/Server/Api.fs` – Fehlerhaften `Split('/')` entfernt
+- `src/Tests/DuplicateDetectionTests.fs` – 2 neue Regression-Tests für Comdirect IDs
+
+**Build:** Erfolgreich
+**Tests:** 377/377 bestanden (+2 neue Regression-Tests)
+
+## Die Meta-Lesson
+
+Dieser Follow-up Bug zeigt ein wichtiges Muster:
+
+**Ein Bug kommt selten allein.**
+
+Wenn du einen Bug findest, der sich lange versteckt hat, prüfe die umgebenden Code-Pfade. Oft gibt es verwandte Bugs, die aus derselben falschen Annahme entstanden sind.
+
+In diesem Fall:
+1. **Bug 1:** Format-Mismatch zwischen `BB:` und `BUDGETBUDDY:`
+2. **Bug 2:** Slash-Parsing zerstört Comdirect IDs
+
+Beide Bugs hatten dieselbe Root Cause: Code, der Annahmen über das ID-Format machte, ohne diese Annahmen explizit zu dokumentieren oder zentral zu definieren.
+
+---
+
 Der Bug existierte wahrscheinlich seit der ersten Implementation des Duplikat-Checks. Er wurde nie gefunden, weil:
 1. Der normale Import-Flow trotzdem funktionierte (andere Heuristiken)
 2. Die Tests "grün" waren
@@ -306,3 +404,7 @@ Das ist das Heimtückische an solchen Bugs: sie verstecken sich in Edge Cases un
 2. **Tautologische Tests erkennen:** Wenn dein Test und dein Produktionscode beide ein Format/eine Logik hardcoden, ist der Test wertlos. Der Test muss eine unabhängige Quelle der Wahrheit haben.
 
 3. **"Defensiv programmieren" heißt nicht "alle Fehler verstecken".** Ehrliches Scheitern mit gutem Logging ist fast immer besser als stilles Fehlverhalten.
+
+4. **Ein Bug kommt selten allein.** Wenn du einen lange versteckten Bug findest, prüfe verwandte Code-Pfade. Oft gibt es weitere Bugs mit derselben Root Cause.
+
+5. **Verstehe den Code, bevor du ihn änderst.** Ein harmlos aussehender `Split('/')` kann katastrophale Auswirkungen haben, wenn deine Daten dieses Zeichen enthalten. Frage dich immer: "Warum wurde das so geschrieben?"

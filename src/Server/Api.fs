@@ -948,15 +948,14 @@ let syncApi : SyncApi = {
                         return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorToString ynabError))
                     | Ok result ->
                         // Parse duplicate import IDs to find which transactions were duplicates
-                        // Import ID format: "BB:{txIdNoDashes}" where txIdNoDashes is GUID without dashes
+                        // Import ID format: "BB:{txId}" where txId is the Comdirect transaction ID (may contain "/")
                         let duplicateTxIdStrings =
                             result.DuplicateImportIds
                             |> List.choose (fun importId ->
                                 if importId.StartsWith("BB:") then
-                                    let txIdPart = importId.Substring(3)  // Remove "BB:" prefix
-                                    // The txIdPart might contain "/" or other suffixes from old format
-                                    let cleanId = txIdPart.Split('/') |> Array.head
-                                    Some cleanId
+                                    // Remove "BB:" prefix to get the transaction ID part
+                                    // Keep the full ID including "/" - it's part of the Comdirect transaction ID
+                                    Some (importId.Substring(3))
                                 else
                                     None
                             )

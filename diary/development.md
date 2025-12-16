@@ -4,6 +4,38 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-16 - Fixed Import ID Slash Parsing Bug (Critical, Follow-up)
+
+**What I did:**
+Fixed a follow-up bug in the Import ID duplicate detection where Comdirect transaction IDs containing "/" were not being matched correctly. The previous fix addressed format consistency between `generateImportId` and `matchesImportId`, but `Api.fs` still had incorrect parsing logic.
+
+**Root Cause:**
+In `Api.fs` line 958, when parsing YNAB's `duplicate_import_ids` response:
+```fsharp
+let cleanId = txIdPart.Split('/') |> Array.head  // BUG: stripped "/33825" suffix
+```
+
+This incorrectly split Comdirect IDs like `3I2C21XS1ZXDAP9P/33825` at the "/" and only kept `3I2C21XS1ZXDAP9P`. But the local transaction IDs still had the full ID with the "/33825" part, so they never matched.
+
+**Symptoms:**
+- Import always showed "0 imported" even when transactions existed
+- Force Import option never appeared (because `ynabRejected` count was always 0)
+- Docker logs showed: `[WARNING] Could not map 41 duplicate import IDs to transaction IDs`
+
+**Files Modified:**
+- `src/Server/Api.fs` - Removed the erroneous `Split('/')` that stripped the Comdirect ID suffix
+- `src/Tests/DuplicateDetectionTests.fs` - Added 2 regression tests for Comdirect IDs with slashes
+
+**Rationale:**
+Comdirect transaction IDs have the format `{base}/{number}` where the "/" and number are integral parts of the ID. The previous "fix" assumed "/" was an old format suffix that could be stripped, but it's actually part of the current Comdirect ID format.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 377/377 passed (+2 new regression tests)
+- Issues: None remaining
+
+---
+
 ## 2025-12-16 - Fixed Force Import Duplicate Bug (Critical)
 
 **What I did:**

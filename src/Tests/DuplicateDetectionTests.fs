@@ -150,6 +150,39 @@ let matchByImportIdTests =
             let result = matchesByImportId bankTx ynabTx
             Expect.isFalse result "Should not match when import ID is None"
         }
+
+        test "matchesByImportId handles Comdirect IDs with slashes correctly" {
+            // Regression test: Comdirect transaction IDs contain "/" which must be preserved
+            // Bug: Previously the "/" part was stripped during duplicate detection,
+            // causing all imports to fail matching and showing 0 imported
+            let comdirectId = "3I2C21XS1ZXDAP9P/33825"
+            let txId = TransactionId comdirectId
+            let bankTx = createBankTransaction "ref" (Some "Payee") "Memo" -50m DateTime.Today
+            let bankTx' = { bankTx with Id = txId }
+            let importId = generateImportId txId  // "BB:3I2C21XS1ZXDAP9P/33825"
+            let ynabTx = createYnabTransaction "id1" DateTime.Today -50m (Some "Payee") None (Some importId)
+
+            let result = matchesByImportId bankTx' ynabTx
+            Expect.isTrue result "Should match Comdirect IDs with slashes"
+        }
+
+        test "matchesByImportId handles various Comdirect ID formats" {
+            // Test multiple real-world Comdirect ID formats
+            let testCases = [
+                "CT5C21XS1QDXBSSR/1"      // Short number suffix
+                "812C21XO44C45GZB/71930"  // Long number suffix
+                "8I2C21XR2FFTBT7T/24249"  // Another format
+            ]
+            for comdirectId in testCases do
+                let txId = TransactionId comdirectId
+                let bankTx = createBankTransaction "ref" (Some "Payee") "Memo" -50m DateTime.Today
+                let bankTx' = { bankTx with Id = txId }
+                let importId = generateImportId txId
+                let ynabTx = createYnabTransaction "id1" DateTime.Today -50m (Some "Payee") None (Some importId)
+
+                let result = matchesByImportId bankTx' ynabTx
+                Expect.isTrue result (sprintf "Should match Comdirect ID: %s" comdirectId)
+        }
     ]
 
 // ============================================
