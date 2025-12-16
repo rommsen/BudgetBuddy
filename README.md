@@ -4,9 +4,12 @@ A self-hosted web application that syncs bank transactions from Comdirect to YNA
 
 Support the development of this free, open-source project!
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/heimeshoff)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Me-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/the_dev_owl)
+[![Blog](https://img.shields.io/badge/Blog-Development%20Diary-00D084?style=for-the-badge&logo=jekyll&logoColor=white)](https://rommsen.github.io/BudgetBuddy/)
 
-**[Buy me a coffee on Ko-fi](https://ko-fi.com/heimeshoff)** — Your support helps keep this project alive and growing!
+**[Buy me a coffee on Ko-fi](https://ko-fi.com/the_dev_owl)** — Your support helps keep this project alive and growing!
+
+**[Read the Development Blog](https://rommsen.github.io/BudgetBuddy/)** — Follow along with the development journey and technical insights.
 
 ---
 
