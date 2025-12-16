@@ -4,6 +4,43 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-16 - Fixed Force Import Duplicate Bug (Critical)
+
+**What I did:**
+Fixed a critical bug where Force Import caused transactions to be imported multiple times to YNAB. The root cause was a format mismatch between Import ID generation and detection - `YnabClient.fs` generated `BB:{txId}` format but `DuplicateDetection.fs` searched for `BUDGETBUDDY:{txId}:` format. This meant `matchesByImportId` NEVER matched anything, causing the fallback logic to mark ALL transactions as duplicates.
+
+**Root Cause:**
+1. Import ID format mismatch: `BB:` vs `BUDGETBUDDY:`
+2. Tests were tautological - they tested the wrong format against the wrong format
+3. Dangerous fallback in Api.fs: if ID mapping failed, ALL transactions were marked as duplicates
+
+**Files Added:**
+- None
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - Added `ImportIdPrefix` constant, `generateImportId` and `matchesImportId` helper functions
+- `src/Server/YnabClient.fs` - Changed to use `Domain.generateImportId` and `Domain.ImportIdPrefix`
+- `src/Server/DuplicateDetection.fs` - Changed `matchesByImportId` to use `Domain.matchesImportId`
+- `src/Server/Api.fs` - Removed dangerous fallback that marked ALL transactions as duplicates
+- `src/Tests/DuplicateDetectionTests.fs` - Fixed tests to use `Domain.generateImportId` instead of hardcoded format
+- `src/Tests/YnabClientTests.fs` - Fixed all tautological tests:
+  - `importIdGenerationTests`: Replaced with meaningful tests that call `Domain.generateImportId` and `Domain.matchesImportId`
+  - `transactionConversionTests`: Changed to use `Domain.generateImportId` instead of hardcoded wrong format
+  - `propertyBasedTests`: Changed to use `Domain.generateImportId` with proper TransactionId types
+
+**Files Deleted:**
+- None
+
+**Rationale:**
+The bug caused users to see duplicate transactions in YNAB when using Force Import. By centralizing the Import ID format in a constant, we prevent future format mismatches and ensure tests always use the same format as production code.
+
+**Outcomes:**
+- Build: Success
+- Tests: 375/375 passed
+- Issues: None remaining
+
+---
+
 ## 2025-12-15 - URL-Based Routing with Feliz.Router
 
 **What I did:**

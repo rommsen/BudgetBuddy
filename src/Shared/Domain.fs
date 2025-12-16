@@ -20,6 +20,27 @@ type Money = {
 /// Purpose: Prevents mixing transaction IDs with other ID types at compile time.
 type TransactionId = TransactionId of string
 
+// ============================================
+// Import ID Utilities (for YNAB duplicate detection)
+// ============================================
+
+/// Import ID prefix used for YNAB transactions to prevent duplicates.
+/// MUST be used in both YnabClient (generation) and DuplicateDetection (matching).
+[<Literal>]
+let ImportIdPrefix = "BB"
+
+/// Generates an import ID from a transaction ID.
+/// Format: "BB:{transactionId}" (max 36 chars for YNAB)
+let generateImportId (TransactionId txId) : string =
+    let txIdNoDashes = txId.Replace("-", "")
+    $"{ImportIdPrefix}:{txIdNoDashes}"
+
+/// Checks if an import ID matches a transaction ID.
+/// Used in duplicate detection to identify transactions we previously imported.
+let matchesImportId (TransactionId txId) (importId: string) : bool =
+    let txIdNoDashes = txId.Replace("-", "")
+    importId.StartsWith($"{ImportIdPrefix}:{txIdNoDashes}")
+
 /// Unique identifier for categorization rules.
 /// Purpose: Type-safe reference to rules in database and UI operations.
 type RuleId = RuleId of Guid
@@ -95,7 +116,7 @@ type DuplicateDetectionDetails = {
     TransactionReference: string
     /// Did we find this Reference in any YNAB transaction memo ("Ref: X")?
     ReferenceFoundInYnab: bool
-    /// Did we find an ImportId starting with "BUDGETBUDDY:{txId}" in YNAB?
+    /// Did we find an ImportId matching our format (BB:{txId}) in YNAB?
     ImportIdFoundInYnab: bool
     /// If fuzzy matched: matched YNAB transaction date
     FuzzyMatchDate: DateTime option

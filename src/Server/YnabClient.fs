@@ -345,19 +345,16 @@ let createTransactions
             let ynabTransactions : YnabTransactionRequest list =
                 validTransactions
                 |> List.map (fun tx ->
-                    let (TransactionId txId) = tx.Transaction.Id
-
                     // Generate import_id:
                     // - Normal: Based on transaction ID (prevents accidental duplicates)
                     // - Force: New UUID (allows re-import after deletion in YNAB)
-                    // Format: "BB:{32 chars}" = 35 chars (max 36 allowed)
+                    // Uses Domain.ImportIdPrefix to ensure consistency with DuplicateDetection
                     let importId =
                         if forceNewImportId then
                             let newGuid = Guid.NewGuid().ToString("N")
-                            $"BB:{newGuid}"
+                            $"{Shared.Domain.ImportIdPrefix}:{newGuid}"
                         else
-                            let txIdNoDashes = txId.ToString().Replace("-", "")
-                            $"BB:{txIdNoDashes}"
+                            Shared.Domain.generateImportId tx.Transaction.Id
 
                     let baseFields = {
                         AccountId = accountId.ToString()

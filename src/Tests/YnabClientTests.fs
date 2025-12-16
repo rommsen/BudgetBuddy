@@ -391,7 +391,7 @@ let transactionConversionTests =
             }
 
             // Simulate the conversion logic from createTransactions
-            let (TransactionId txId) = syncTransaction.Transaction.Id
+            // Use Domain.generateImportId to match actual production code
             let (YnabCategoryId categoryIdGuid) = syncTransaction.CategoryId.Value
 
             let ynabTransaction = {|
@@ -402,7 +402,7 @@ let transactionConversionTests =
                 category_id = categoryIdGuid.ToString()
                 memo = syncTransaction.Transaction.Memo
                 cleared = "uncleared"
-                import_id = $"BUDGETBUDDY:{txId}:{syncTransaction.Transaction.BookingDate.Ticks}"
+                import_id = generateImportId syncTransaction.Transaction.Id
             |}
 
             Expect.equal ynabTransaction.date "2025-11-29" "Date should be formatted correctly"
@@ -410,7 +410,8 @@ let transactionConversionTests =
             Expect.equal ynabTransaction.payee_name "Test Store" "Payee should match"
             Expect.equal ynabTransaction.memo "Test purchase" "Memo should match"
             Expect.equal ynabTransaction.cleared "uncleared" "Should be marked as uncleared"
-            Expect.stringContains ynabTransaction.import_id "BUDGETBUDDY:tx-123" "Import ID should contain transaction ID"
+            Expect.stringStarts ynabTransaction.import_id $"{ImportIdPrefix}:" "Import ID should use correct prefix"
+            Expect.stringContains ynabTransaction.import_id "tx123" "Import ID should contain transaction ID without dashes"
 
         testCase "uses PayeeOverride when provided" <| fun () ->
             let transactionId = TransactionId "tx-456"
@@ -537,79 +538,61 @@ let transactionConversionTests =
 [<Tests>]
 let importIdGenerationTests =
     testList "Import ID Generation Tests" [
-        testCase "generates unique import IDs for different transactions" <| fun () ->
-            let tx1 = {
-                Transaction = {
-                    Id = TransactionId "tx-1"
-                    BookingDate = DateTime(2025, 11, 29, 10, 0, 0)
-                    Amount = { Amount = -10m; Currency = "EUR" }
-                    Payee = Some "Store"
-                    Memo = "Test"
-                    Reference = "REF1"
-                    RawData = "{}"
-                }
-                Status = ManualCategorized
-                CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
-                CategoryName = Some "Category"
-                MatchedRuleId = None
-                PayeeOverride = None
-                ExternalLinks = []
-                UserNotes = None
-                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
-                YnabImportStatus = NotAttempted
-                Splits = None
-            }
+        testCase "generateImportId produces correct format with BB prefix" <| fun () ->
+            let txId = TransactionId "TX-123-456"
+            let importId = generateImportId txId
 
-            let tx2 = {
-                Transaction = {
-                    Id = TransactionId "tx-2"
-                    BookingDate = DateTime(2025, 11, 29, 11, 0, 0)
-                    Amount = { Amount = -20m; Currency = "EUR" }
-                    Payee = Some "Store"
-                    Memo = "Test"
-                    Reference = "REF2"
-                    RawData = "{}"
-                }
-                Status = ManualCategorized
-                CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
-                CategoryName = Some "Category"
-                MatchedRuleId = None
-                PayeeOverride = None
-                ExternalLinks = []
-                UserNotes = None
-                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
-                YnabImportStatus = NotAttempted
-                Splits = None
-            }
+            Expect.stringStarts importId $"{ImportIdPrefix}:" "Import ID should start with BB:"
+            Expect.stringContains importId "TX123456" "Import ID should contain transaction ID without dashes"
 
-            let (TransactionId id1) = tx1.Transaction.Id
-            let importId1 = $"BUDGETBUDDY:{id1}:{tx1.Transaction.BookingDate.Ticks}"
+        testCase "generateImportId removes dashes from transaction ID" <| fun () ->
+            let txId = TransactionId "abc-def-ghi"
+            let importId = generateImportId txId
 
-            let (TransactionId id2) = tx2.Transaction.Id
-            let importId2 = $"BUDGETBUDDY:{id2}:{tx2.Transaction.BookingDate.Ticks}"
+            Expect.equal importId "BB:abcdefghi" "Dashes should be removed from transaction ID"
 
-            Expect.notEqual importId1 importId2 "Import IDs should be unique for different transactions"
+        testCase "generateImportId generates unique IDs for different transactions" <| fun () ->
+            let txId1 = TransactionId "tx-1"
+            let txId2 = TransactionId "tx-2"
 
-        testCase "generates consistent import IDs for same transaction" <| fun () ->
-            let transactionId = TransactionId "tx-123"
-            let bookingDate = DateTime(2025, 11, 29)
+            let importId1 = generateImportId txId1
+            let importId2 = generateImportId txId2
 
-            let (TransactionId id) = transactionId
-            let importId1 = $"BUDGETBUDDY:{id}:{bookingDate.Ticks}"
-            let importId2 = $"BUDGETBUDDY:{id}:{bookingDate.Ticks}"
+            Expect.notEqual importId1 importId2 "Different transactions should have different import IDs"
 
-            Expect.equal importId1 importId2 "Same transaction should generate same import ID"
+        testCase "generateImportId generates consistent IDs for same transaction" <| fun () ->
+            let txId = TransactionId "tx-123"
 
-        testCase "import ID contains transaction ID and timestamp" <| fun () ->
-            let transactionId = TransactionId "tx-456"
-            let bookingDate = DateTime(2025, 11, 29)
+            let importId1 = generateImportId txId
+            let importId2 = generateImportId txId
 
-            let (TransactionId id) = transactionId
-            let importId = $"BUDGETBUDDY:{id}:{bookingDate.Ticks}"
+            Expect.equal importId1 importId2 "Same transaction should always generate same import ID"
 
-            Expect.stringContains importId "BUDGETBUDDY" "Import ID should contain prefix"
-            Expect.stringContains importId "tx-456" "Import ID should contain transaction ID"
-            Expect.stringContains importId (bookingDate.Ticks.ToString()) "Import ID should contain timestamp"
+        testCase "matchesImportId correctly matches generated import ID" <| fun () ->
+            // This test ensures generateImportId and matchesImportId are in sync
+            let txId = TransactionId "TX-789-ABC"
+            let generatedImportId = generateImportId txId
+
+            let matches = matchesImportId txId generatedImportId
+
+            Expect.isTrue matches "matchesImportId must match IDs created by generateImportId"
+
+        testCase "matchesImportId returns false for non-matching transaction" <| fun () ->
+            let txId1 = TransactionId "TX-111"
+            let txId2 = TransactionId "TX-222"
+            let importIdForTx1 = generateImportId txId1
+
+            let matches = matchesImportId txId2 importIdForTx1
+
+            Expect.isFalse matches "Should not match import ID from different transaction"
+
+        testCase "matchesImportId returns false for wrong prefix" <| fun () ->
+            let txId = TransactionId "TX-123"
+            let wrongPrefixImportId = "WRONG:TX123"
+
+            let matches = matchesImportId txId wrongPrefixImportId
+
+            Expect.isFalse matches "Should not match import ID with wrong prefix"
     ]
 
 // ============================================
@@ -705,10 +688,14 @@ let propertyBasedTests =
             else
                 true
 
-        testProperty "import ID uniqueness with different dates" <| fun (id: string) (ticks1: int64) (ticks2: int64) ->
-            if ticks1 <> ticks2 then
-                let importId1 = $"BUDGETBUDDY:{id}:{ticks1}"
-                let importId2 = $"BUDGETBUDDY:{id}:{ticks2}"
+        testProperty "import ID uniqueness for different transaction IDs" <| fun (id1: string) (id2: string) ->
+            // Test that different transaction IDs produce different import IDs
+            // Uses the actual Domain.generateImportId function
+            if id1 <> id2 && not (String.IsNullOrEmpty id1) && not (String.IsNullOrEmpty id2) then
+                let txId1 = TransactionId id1
+                let txId2 = TransactionId id2
+                let importId1 = generateImportId txId1
+                let importId2 = generateImportId txId2
                 importId1 <> importId2
             else
                 true

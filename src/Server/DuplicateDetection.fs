@@ -75,14 +75,13 @@ let matchesByDateAmountPayee (config: DuplicateMatchConfig) (bankTx: BankTransac
     dateMatches && amountMatches && payeeMatches
 
 /// Checks if a bank transaction might match a YNAB transaction by import_id
-/// YNAB's import_id format: BUDGETBUDDY:<transactionId>:<ticks>
+/// Import ID format: BB:<transactionId> (defined in Domain.ImportIdPrefix)
 let matchesByImportId (bankTx: BankTransaction) (ynabTx: YnabTransaction) : bool =
     match ynabTx.ImportId with
     | None -> false
     | Some importId ->
-        let (TransactionId txId) = bankTx.Id
-        // Check if our import ID format matches
-        importId.StartsWith($"BUDGETBUDDY:{txId}:")
+        // Uses Domain.matchesImportId to ensure format consistency with YnabClient
+        Shared.Domain.matchesImportId bankTx.Id importId
 
 /// Detects the duplicate status of a bank transaction against existing YNAB transactions
 /// Returns both the status and detailed diagnostic information about all checks performed

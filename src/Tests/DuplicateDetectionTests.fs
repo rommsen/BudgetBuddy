@@ -124,10 +124,12 @@ let matchByReferenceTests =
 let matchByImportIdTests =
     testList "Match By Import ID" [
         test "matchesByImportId returns true when import IDs match" {
-            let txId = "TX123"
+            let txId = TransactionId "TX123"
             let bankTx = createBankTransaction "ref" (Some "Payee") "Memo" -50m DateTime.Today
-            let bankTx' = { bankTx with Id = TransactionId txId }
-            let ynabTx = createYnabTransaction "id1" DateTime.Today -50m (Some "Payee") None (Some $"BUDGETBUDDY:{txId}:12345")
+            let bankTx' = { bankTx with Id = txId }
+            // Use Domain.generateImportId to ensure test uses same format as production code
+            let importId = generateImportId txId
+            let ynabTx = createYnabTransaction "id1" DateTime.Today -50m (Some "Payee") None (Some importId)
 
             let result = matchesByImportId bankTx' ynabTx
             Expect.isTrue result "Should match by import ID"
@@ -252,10 +254,12 @@ let detectDuplicateTests =
         }
 
         test "detectDuplicate returns ConfirmedDuplicate for import ID match" {
-            let txId = "TX789"
-            let bankTx = { createBankTransaction "REF456" (Some "Payee") "Memo" -50m DateTime.Today with Id = TransactionId txId }
+            let txId = TransactionId "TX789"
+            let bankTx = { createBankTransaction "REF456" (Some "Payee") "Memo" -50m DateTime.Today with Id = txId }
+            // Use Domain.generateImportId to ensure test uses same format as production code
+            let importId = generateImportId txId
             let ynabTransactions = [
-                createYnabTransaction "id1" DateTime.Today -50m (Some "Payee") None (Some $"BUDGETBUDDY:{txId}:12345")
+                createYnabTransaction "id1" DateTime.Today -50m (Some "Payee") None (Some importId)
             ]
 
             let result = detectDuplicate defaultConfig ynabTransactions bankTx

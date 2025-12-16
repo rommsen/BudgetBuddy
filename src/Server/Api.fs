@@ -977,12 +977,12 @@ let syncApi : SyncApi = {
                                     else
                                         None
                                 )
-                            // If we couldn't map any but there ARE duplicates reported,
-                            // return all toImport transactions as potential duplicates
+                            // Log warning if we couldn't map duplicates (but don't fall back to all)
                             if mapped.IsEmpty && not result.DuplicateImportIds.IsEmpty then
-                                toImport |> List.map (fun tx -> tx.Transaction.Id)
-                            else
-                                mapped
+                                printfn "[WARNING] Could not map %d duplicate import IDs to transaction IDs: %A"
+                                    result.DuplicateImportIds.Length result.DuplicateImportIds
+                            // Only return actually mapped duplicates, never all transactions
+                            mapped
 
                         // Mark transactions based on whether they were actually created or were duplicates
                         let duplicateTxIdList = duplicateTransactionIds |> Set.ofList
