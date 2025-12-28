@@ -61,6 +61,10 @@ type YnabAccountId = YnabAccountId of Guid
 /// Purpose: Maps transactions to budget categories during categorization.
 type YnabCategoryId = YnabCategoryId of Guid
 
+/// YNAB payee identifier.
+/// Purpose: Identifies payees for transaction editing and autocomplete.
+type YnabPayeeId = YnabPayeeId of Guid
+
 // ============================================
 // Bank Transaction (from Comdirect)
 // ============================================
@@ -254,6 +258,15 @@ type YnabCategory = {
     Id: YnabCategoryId
     Name: string
     GroupName: string
+}
+
+/// YNAB payee for transaction assignment.
+/// Purpose: Used in payee dropdown for transaction editing.
+type YnabPayee = {
+    Id: YnabPayeeId
+    Name: string
+    /// If set, this payee is a transfer payee to the specified account.
+    TransferAccountId: YnabAccountId option
 }
 
 type YnabBudgetWithAccounts = {

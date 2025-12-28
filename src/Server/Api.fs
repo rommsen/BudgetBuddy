@@ -325,6 +325,14 @@ let ynabApi : YnabApi = {
             return! YnabClient.getCategories token budgetId
     }
 
+    getPayees = fun budgetId -> async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        match tokenOpt with
+        | None -> return Error (YnabError.Unauthorized "No YNAB token configured")
+        | Some token ->
+            return! YnabClient.getPayees token budgetId
+    }
+
     setDefaultBudget = fun budgetId -> async {
         try
             let (YnabBudgetId id) = budgetId

@@ -710,3 +710,214 @@ let searchableSelect value onChange placeholder (options: (string * string) list
             Placeholder = placeholder
             Options = options
     }
+
+// ============================================================================
+// COMBOBOX - Text input with dropdown suggestions (allows custom values)
+// ============================================================================
+
+type ComboBoxProps = {
+    Value: string
+    OnChange: string -> unit
+    Options: (string * string) list  // (id, label) pairs for suggestions
+    Placeholder: string
+    Size: InputSize
+    Disabled: bool
+}
+
+let comboBoxDefaults = {
+    Value = ""
+    OnChange = ignore
+    Options = []
+    Placeholder = ""
+    Size = Medium
+    Disabled = false
+}
+
+/// ComboBox: A text input with dropdown suggestions.
+/// Unlike SearchableSelect, this allows custom text input (not just selection).
+/// The Value is the actual text, not an option id.
+[<ReactComponent>]
+let ComboBox (props: ComboBoxProps) =
+    let isOpen, setIsOpen = React.useState false
+    let highlightedIndex, setHighlightedIndex = React.useState -1
+    let isKeyboardNav, setIsKeyboardNav = React.useState false
+    let containerRef = React.useRef<Browser.Types.HTMLElement option> None
+    let inputRef = React.useRef<Browser.Types.HTMLInputElement option> None
+    let listRef = React.useRef<Browser.Types.HTMLElement option> None
+
+    // Filter options based on current value (case-insensitive contains)
+    let filteredOptions =
+        if System.String.IsNullOrWhiteSpace props.Value then
+            props.Options
+        else
+            let searchLower = props.Value.ToLowerInvariant()
+            props.Options
+            |> List.filter (fun (_, label) ->
+                label.ToLowerInvariant().Contains searchLower)
+
+    let totalItems = filteredOptions.Length
+
+    // Reset highlighted index when value changes
+    React.useEffect (fun () ->
+        setHighlightedIndex -1
+    , [| props.Value :> obj |])
+
+    // Close dropdown when clicking outside
+    React.useEffect (fun () ->
+        let handleClickOutside (e: Browser.Types.Event) =
+            match containerRef.current with
+            | Some container ->
+                let target = e.target :?> Browser.Types.HTMLElement
+                if not (container.contains target) then
+                    setIsOpen false
+                    setHighlightedIndex -1
+            | None -> ()
+
+        Browser.Dom.document.addEventListener("mousedown", handleClickOutside)
+        { new System.IDisposable with
+            member _.Dispose() =
+                Browser.Dom.document.removeEventListener("mousedown", handleClickOutside)
+        }
+    , [| isOpen :> obj |])
+
+    // Scroll highlighted item into view - ONLY for keyboard navigation
+    React.useEffect (fun () ->
+        if highlightedIndex >= 0 && isKeyboardNav then
+            match listRef.current with
+            | Some list ->
+                let items = list.querySelectorAll("[data-option-index]")
+                if highlightedIndex < int items.length then
+                    let item = items.[highlightedIndex] :?> Browser.Types.HTMLElement
+                    let itemTop = item.offsetTop
+                    let itemHeight = item.offsetHeight
+                    let listScrollTop = list.scrollTop
+                    let listHeight = list.clientHeight
+
+                    if itemTop < listScrollTop then
+                        list.scrollTop <- itemTop
+                    elif itemTop + itemHeight > listScrollTop + listHeight then
+                        list.scrollTop <- itemTop + itemHeight - listHeight
+            | None -> ()
+    , [| highlightedIndex :> obj; isKeyboardNav :> obj |])
+
+    let selectOption index =
+        if index >= 0 && index < filteredOptions.Length then
+            let _, label = filteredOptions.[index]
+            props.OnChange label
+        setIsOpen false
+        setHighlightedIndex -1
+        setIsKeyboardNav false
+
+    let handleKeyDown (e: Browser.Types.KeyboardEvent) =
+        match e.key with
+        | "Escape" ->
+            e.preventDefault()
+            setIsOpen false
+            setHighlightedIndex -1
+            setIsKeyboardNav false
+        | "ArrowDown" ->
+            e.preventDefault()
+            if not isOpen && filteredOptions.Length > 0 then
+                setIsOpen true
+            setIsKeyboardNav true
+            let nextIndex =
+                if highlightedIndex < totalItems - 1 then highlightedIndex + 1
+                else 0
+            setHighlightedIndex nextIndex
+        | "ArrowUp" ->
+            e.preventDefault()
+            if not isOpen && filteredOptions.Length > 0 then
+                setIsOpen true
+            setIsKeyboardNav true
+            let nextIndex =
+                if highlightedIndex > 0 then highlightedIndex - 1
+                else totalItems - 1
+            setHighlightedIndex nextIndex
+        | "Enter" ->
+            if highlightedIndex >= 0 then
+                e.preventDefault()
+                selectOption highlightedIndex
+            // If no selection, allow form submission (don't prevent default)
+        | "Tab" ->
+            setIsOpen false
+            setHighlightedIndex -1
+            setIsKeyboardNav false
+        | _ -> ()
+
+    let setHighlightFromMouse index =
+        setIsKeyboardNav false
+        setHighlightedIndex index
+
+    let sizeClass = sizeToClass props.Size
+    let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
+
+    Html.div [
+        prop.className "relative w-full"
+        prop.ref containerRef
+        prop.children [
+            // Text input (always visible and editable)
+            Html.input [
+                prop.ref inputRef
+                prop.type' "text"
+                prop.className $"{baseInputClass} {sizeClass} {disabledClass}"
+                prop.placeholder props.Placeholder
+                prop.value props.Value
+                prop.disabled props.Disabled
+                prop.onChange (fun v ->
+                    props.OnChange v
+                    if not isOpen && filteredOptions.Length > 0 then
+                        setIsOpen true
+                )
+                prop.onFocus (fun _ ->
+                    if filteredOptions.Length > 0 then
+                        setIsOpen true
+                )
+                prop.onKeyDown handleKeyDown
+                prop.style [ style.fontSize 16 ]
+            ]
+
+            // Dropdown with suggestions
+            if isOpen && filteredOptions.Length > 0 then
+                Html.div [
+                    prop.className "absolute z-50 w-full mt-1 bg-[#252836] border border-white/10 rounded-lg shadow-xl overflow-hidden"
+                    prop.children [
+                        Html.div [
+                            prop.className "max-h-60 overflow-y-auto"
+                            prop.ref listRef
+                            prop.children [
+                                for i, (_, label) in filteredOptions |> List.indexed do
+                                    let isHighlighted = highlightedIndex = i
+                                    let optionClass =
+                                        if isHighlighted then
+                                            "w-full text-left px-4 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
+                                        else
+                                            "w-full text-left px-4 py-2 text-sm transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
+                                    Html.button [
+                                        prop.type' "button"
+                                        prop.className optionClass
+                                        prop.custom ("data-option-index", string i)
+                                        prop.onClick (fun _ -> selectOption i)
+                                        prop.onMouseEnter (fun _ -> setHighlightFromMouse i)
+                                        prop.children [
+                                            Html.span [
+                                                prop.className "truncate block"
+                                                prop.text label
+                                            ]
+                                        ]
+                                    ]
+                            ]
+                        ]
+                    ]
+                ]
+        ]
+    ]
+
+/// Simple helper for ComboBox with common defaults.
+let comboBox value onChange placeholder (options: (string * string) list) =
+    ComboBox {
+        comboBoxDefaults with
+            Value = value
+            OnChange = onChange
+            Placeholder = placeholder
+            Options = options
+    }

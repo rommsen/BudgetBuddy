@@ -274,14 +274,22 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
 let transactionRow
     (tx: SyncTransaction)
     (categoryOptions: (string * string) list)
+    (payeeOptions: (string * string) list)
     (expandedIds: Set<TransactionId>)
     (inlineRuleFormState: InlineRuleFormState option)
     (manuallyCategorizedIds: Set<TransactionId>)
-    (isPendingSave: bool)
+    (isPendingCategorySave: bool)
+    (isPendingPayeeSave: bool)
     (dispatch: Msg -> unit) =
 
     let rowClasses = getRowStateClasses tx
-    let payee = tx.Transaction.Payee |> Option.defaultValue "Unknown"
+    let originalPayee = tx.Transaction.Payee |> Option.defaultValue ""
+    // Use override if set (including empty string), otherwise fall back to original
+    // PayeeOverride = None means "not edited", Some "" means "user cleared it"
+    let displayPayee =
+        match tx.PayeeOverride with
+        | Some p -> p  // User has edited (even if empty)
+        | None -> originalPayee  // Not edited, use original
     let dateStr = formatDateCompact tx.Transaction.BookingDate
     let isExpanded = expandedIds.Contains tx.Transaction.Id
     let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
@@ -291,12 +299,23 @@ let transactionRow
         inlineRuleFormState
         |> Option.exists (fun f -> f.TransactionId = tx.Transaction.Id)
 
-    // Pending save indicator component
-    let pendingSaveIndicator =
-        if isPendingSave then
+    // Pending save indicator component for category
+    let pendingCategorySaveIndicator =
+        if isPendingCategorySave then
             Html.span [
                 prop.className "ml-2 text-xs text-neon-orange animate-pulse"
                 prop.title "Saving category..."
+                prop.text "●"
+            ]
+        else
+            Html.none
+
+    // Pending save indicator component for payee
+    let pendingPayeeSaveIndicator =
+        if isPendingPayeeSave then
+            Html.span [
+                prop.className "ml-1 text-xs text-neon-orange animate-pulse"
+                prop.title "Saving payee..."
                 prop.text "●"
             ]
         else
@@ -339,7 +358,7 @@ let transactionRow
                                                     dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
                                             "Category..."
                                             categoryOptions
-                                    pendingSaveIndicator
+                                    pendingCategorySaveIndicator
                                 ]
                             ]
                             // Amount (fixed width for alignment)
@@ -357,31 +376,35 @@ let transactionRow
                             ]
                         ]
                     ]
-                    // Line 2: Payee + Date + Actions
+                    // Line 2: Payee (editable) + Date + Actions
                     Html.div [
                         prop.className "flex items-center gap-2 pl-4 text-sm"
                         prop.children [
-                            // Payee (as link if external link exists)
-                            match tx.ExternalLinks |> List.tryHead with
-                            | Some link ->
-                                Html.a [
-                                    prop.className "flex-1 flex items-center gap-1 min-w-0 text-neon-teal hover:text-neon-teal/80 transition-colors"
-                                    prop.href link.Url
-                                    prop.target "_blank"
-                                    prop.title $"{payee} - {link.Label}"
-                                    prop.children [
-                                        Html.span [ prop.className "truncate"; prop.text payee ]
-                                        Icons.externalLink Icons.XS Icons.NeonTeal
-                                    ]
+                            // Payee ComboBox (editable with suggestions)
+                            Html.div [
+                                prop.className "flex-1 min-w-0 flex items-center"
+                                prop.children [
+                                    if tx.Status = Skipped then
+                                        // Skipped: render as plain text
+                                        Html.span [
+                                            prop.className "text-sm text-base-content/50 truncate"
+                                            prop.title displayPayee
+                                            prop.text (if displayPayee = "" then "—" else displayPayee)
+                                        ]
+                                    else
+                                        // Active: render ComboBox (interactive)
+                                        Input.comboBox
+                                            displayPayee
+                                            (fun value ->
+                                                // Always store as Some - even empty string means "user edited"
+                                                dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
+                                            "Payee..."
+                                            payeeOptions
+                                    pendingPayeeSaveIndicator
                                 ]
-                            | None ->
-                                Html.span [
-                                    prop.className "flex-1 truncate text-base-content/70"
-                                    prop.title payee
-                                    prop.text payee
-                                ]
+                            ]
                             Html.span [
-                                prop.className "text-xs text-base-content/40 tabular-nums"
+                                prop.className "text-xs text-base-content/40 tabular-nums flex-shrink-0"
                                 prop.text dateStr
                             ]
                             // Actions (always visible on mobile for touch, fixed width)
@@ -438,28 +461,32 @@ let transactionRow
                                             dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
                                     "Category..."
                                     categoryOptions
-                            pendingSaveIndicator
+                            pendingCategorySaveIndicator
                         ]
                     ]
-                    // Payee (as link if external link exists)
-                    match tx.ExternalLinks |> List.tryHead with
-                    | Some link ->
-                        Html.a [
-                            prop.className "flex-1 flex items-center gap-1.5 min-w-0 text-sm text-neon-teal hover:text-neon-teal/80 transition-colors"
-                            prop.href link.Url
-                            prop.target "_blank"
-                            prop.title $"{payee} - {link.Label}"
-                            prop.children [
-                                Html.span [ prop.className "truncate"; prop.text payee ]
-                                Icons.externalLink Icons.XS Icons.NeonTeal
-                            ]
+                    // Payee ComboBox (editable with suggestions)
+                    Html.div [
+                        prop.className "w-48 flex-shrink-0 flex items-center"
+                        prop.children [
+                            if tx.Status = Skipped then
+                                // Skipped: render as plain text
+                                Html.span [
+                                    prop.className "text-sm text-base-content/50 truncate block py-2"
+                                    prop.title displayPayee
+                                    prop.text (if displayPayee = "" then "—" else displayPayee)
+                                ]
+                            else
+                                // Active: render ComboBox (interactive)
+                                Input.comboBox
+                                    displayPayee
+                                    (fun value ->
+                                        // Always store as Some - even empty string means "user edited"
+                                        dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
+                                    "Payee..."
+                                    payeeOptions
+                            pendingPayeeSaveIndicator
                         ]
-                    | None ->
-                        Html.span [
-                            prop.className "flex-1 truncate text-sm text-base-content"
-                            prop.title payee
-                            prop.text payee
-                        ]
+                    ]
                     // Date
                     Html.span [
                         prop.className "w-16 text-xs text-base-content/50 text-right tabular-nums"

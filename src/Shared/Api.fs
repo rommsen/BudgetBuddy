@@ -64,6 +64,11 @@ type YnabApi = {
     /// Returns: Category list or YnabError (BudgetNotFound, NetworkError).
     getCategories: YnabBudgetId -> Async<YnabResult<YnabCategory list>>
 
+    /// Fetches all payees for transaction editing.
+    /// Purpose: Populates payee dropdown for transaction payee override.
+    /// Returns: Payee list or YnabError (BudgetNotFound, NetworkError).
+    getPayees: YnabBudgetId -> Async<YnabResult<YnabPayee list>>
+
     /// Persists the default budget selection for sync operations.
     /// Purpose: Simplifies UX by pre-selecting budget for imports.
     setDefaultBudget: YnabBudgetId -> Async<YnabResult<unit>>

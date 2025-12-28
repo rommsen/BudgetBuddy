@@ -85,6 +85,7 @@ let init () : Model * Cmd<Msg> =
     let cmd = Cmd.batch [
         Cmd.map DashboardMsg dashboardCmd
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
+        Cmd.map SyncFlowMsg syncFlowCmd  // Load categories and payees on startup
         initialPageCmd
     ]
     model, cmd

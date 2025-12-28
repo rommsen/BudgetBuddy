@@ -47,6 +47,8 @@ type Model = {
     CurrentSession: RemoteData<SyncSession option>
     SyncTransactions: RemoteData<SyncTransaction list>
     Categories: YnabCategory list
+    /// YNAB payees for payee dropdown in transaction editing
+    Payees: YnabPayee list
     /// Active split editing state (None when not editing splits)
     SplitEdit: SplitEditState option
     /// Transaction IDs that were rejected as duplicates by YNAB
@@ -64,6 +66,8 @@ type Model = {
     /// Version counter per transaction for debouncing category changes.
     /// Used to ensure only the latest change triggers an API call.
     PendingCategoryVersions: Map<TransactionId, int>
+    /// Version counter per transaction for debouncing payee changes.
+    PendingPayeeVersions: Map<TransactionId, int>
 }
 
 /// SyncFlow-specific messages
@@ -112,6 +116,13 @@ type Msg =
     | SyncCancelled of Result<unit, SyncError>
     | LoadCategories
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
+    // Payee loading and editing
+    | LoadPayees
+    | PayeesLoaded of Result<YnabPayee list, YnabError>
+    /// Set payee override for a transaction (optimistic update + debounce)
+    | SetPayeeOverride of TransactionId * string option
+    /// Debounced payee change commit - only triggers API call if version matches
+    | CommitPayeeChange of TransactionId * string option * int
     // UI interactions
     | ToggleTransactionExpand of TransactionId
     | SetFilter of TransactionFilter

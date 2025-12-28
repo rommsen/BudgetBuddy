@@ -313,6 +313,14 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                         let (YnabCategoryId id) = cat.Id
                         (id.ToString(), $"{cat.GroupName}: {cat.Name}"))
 
+                // Pre-compute payee options ONCE (exclude transfer payees)
+                let payeeOptions =
+                    model.Payees
+                    |> List.filter (fun p -> p.TransferAccountId.IsNone)
+                    |> List.map (fun p ->
+                        let (YnabPayeeId id) = p.Id
+                        (id.ToString(), p.Name))
+
                 // Apply active filter to transactions
                 let filteredTransactions = filterTransactions model.ActiveFilter transactions
 
@@ -352,12 +360,14 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 prop.children [
                                     for tx in filteredTransactions do
                                         let (TransactionId id) = tx.Transaction.Id
-                                        // Check if this transaction has a pending category save
-                                        let isPendingSave =
+                                        // Check if this transaction has pending saves
+                                        let isPendingCategorySave =
                                             model.PendingCategoryVersions |> Map.containsKey tx.Transaction.Id
+                                        let isPendingPayeeSave =
+                                            model.PendingPayeeVersions |> Map.containsKey tx.Transaction.Id
                                         Html.div [
                                             prop.key id
-                                            prop.children [ transactionRow tx categoryOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds isPendingSave dispatch ]
+                                            prop.children [ transactionRow tx categoryOptions payeeOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds isPendingCategorySave isPendingPayeeSave dispatch ]
                                         ]
                                 ]
                             ]

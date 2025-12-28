@@ -40,6 +40,15 @@ module Decoders =
             GroupName = get.Required.Field "category_group_name" Decode.string
         })
 
+    let payeeDecoder : Decoder<YnabPayee> =
+        Decode.object (fun get ->
+            let isDeleted = get.Optional.Field "deleted" Decode.bool |> Option.defaultValue false
+            {
+                Id = get.Required.Field "id" Decode.guid |> YnabPayeeId
+                Name = get.Required.Field "name" Decode.string
+                TransferAccountId = get.Optional.Field "transfer_account_id" Decode.guid |> Option.map YnabAccountId
+            })
+
     /// Decoder for categories nested within category_groups (from /budgets/{id} endpoint)
     let categoryInGroupDecoder (groupName: string) : Decoder<YnabCategory> =
         Decode.object (fun get -> {
@@ -215,6 +224,65 @@ let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<
         with
         | ex ->
             return Error (YnabError.NetworkError $"Failed to fetch categories: {ex.Message}")
+    }
+
+/// Fetches all payees from YNAB for the given budget.
+let getPayees (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabPayee list>> =
+    async {
+        try
+            let! response =
+                http {
+                    GET $"{baseUrl}/budgets/{budgetId}/payees"
+                    Authorization $"Bearer {token}"
+                }
+                |> Request.sendAsync
+
+            let! bodyText = response |> Response.toTextAsync
+            let statusCode = response.statusCode |> int
+
+            match statusCode with
+            | 200 ->
+                // YNAB payees response structure includes deleted field
+                let payeeDecoderWithDeleted : Decoder<YnabPayee option> =
+                    Decode.object (fun get ->
+                        let isDeleted = get.Optional.Field "deleted" Decode.bool |> Option.defaultValue false
+                        if isDeleted then
+                            None
+                        else
+                            Some {
+                                Id = get.Required.Field "id" Decode.guid |> YnabPayeeId
+                                Name = get.Required.Field "name" Decode.string
+                                TransferAccountId = get.Optional.Field "transfer_account_id" Decode.guid |> Option.map YnabAccountId
+                            })
+                
+                let decoder =
+                    Decode.field "data" (
+                        Decode.field "payees" (Decode.list payeeDecoderWithDeleted)
+                    )
+
+                match Decode.fromString decoder bodyText with
+                | Ok payeesWithNone ->
+                    // Filter out deleted payees (None values) and unwrap
+                    let activePayees = payeesWithNone |> List.choose id
+                    return Ok activePayees
+                | Error err ->
+                    return Error (YnabError.InvalidResponse $"Failed to parse payees: {err}")
+
+            | 401 ->
+                return Error (YnabError.Unauthorized "Invalid YNAB token")
+
+            | 404 ->
+                return Error (YnabError.BudgetNotFound budgetId)
+
+            | 429 ->
+                return Error (YnabError.RateLimitExceeded 60)
+
+            | _ ->
+                return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+
+        with
+        | ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch payees: {ex.Message}")
     }
 
 /// YNAB memo character limit (testing with 300, may need adjustment)

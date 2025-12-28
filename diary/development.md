@@ -4,6 +4,88 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-28 14:00 - Fixed Payee Loading Bug
+
+**What I did:**
+Fixed a bug where payees weren't being loaded in the Sync Flow, causing the ComboBox dropdown to show no suggestions.
+
+**Root Cause:**
+In `src/Client/State.fs`, the `syncFlowCmd` returned from `SyncFlow.State.init()` was not included in the parent's `Cmd.batch`. This meant the `LoadPayees` (and `LoadCategories`) commands were never dispatched.
+
+**Files Modified:**
+- `src/Client/State.fs` - Added `Cmd.map SyncFlowMsg syncFlowCmd` to the init Cmd.batch
+
+**The Bug:**
+```fsharp
+// BEFORE (broken):
+let cmd = Cmd.batch [
+    Cmd.map DashboardMsg dashboardCmd
+    Cmd.map SettingsMsg settingsCmd
+    initialPageCmd
+]
+
+// AFTER (fixed):
+let cmd = Cmd.batch [
+    Cmd.map DashboardMsg dashboardCmd
+    Cmd.map SettingsMsg settingsCmd
+    Cmd.map SyncFlowMsg syncFlowCmd  // <-- was missing!
+    initialPageCmd
+]
+```
+
+**How it was found:**
+Added debug logging throughout the LoadPayees flow. Discovered that `LoadCategories` was being dispatched but `LoadPayees` was not - even though both were in the same `Cmd.batch` in `SyncFlow.State.init()`. This pointed to the parent not dispatching the SyncFlow commands at all.
+
+**Outcomes:**
+- Build: ✅
+- Payee ComboBox now shows YNAB payee suggestions correctly
+
+---
+
+## 2025-12-28 - Added Payee Select Field to Sync Flow
+
+**What I did:**
+Added an editable Payee field to the transaction row in the Sync Flow. Users can now select from existing YNAB payees via a searchable dropdown OR enter custom payee text. The payee is saved as a PayeeOverride and sent to YNAB when importing transactions.
+
+**Files Added:**
+- None (new component added inline in existing file)
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - Added `YnabPayeeId` and `YnabPayee` types
+- `src/Shared/Api.fs` - Added `getPayees` method to `YnabApi` interface
+- `src/Server/YnabClient.fs` - Added `payeeDecoder` and `getPayees` function for YNAB API
+- `src/Server/Api.fs` - Implemented `getPayees` in `ynabApi`
+- `src/Client/DesignSystem/Input.fs` - Added new `ComboBox` component (text input with dropdown suggestions)
+- `src/Client/Components/SyncFlow/Types.fs` - Added `Payees`, `PendingPayeeVersions` to Model; added `LoadPayees`, `PayeesLoaded`, `SetPayeeOverride`, `CommitPayeeChange` messages
+- `src/Client/Components/SyncFlow/State.fs` - Added handlers for payee loading and editing with debouncing
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` - Added `payeeOptions` computation and passing to `transactionRow`
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - Replaced static payee display with editable ComboBox
+
+**New Component: ComboBox**
+Unlike SearchableSelect (which only allows selection from a list), ComboBox:
+- Has an always-editable text input
+- Shows filtered suggestions from YNAB payees
+- Allows custom text input (not just selection)
+- Uses the same styling and keyboard navigation as SearchableSelect
+
+**Implementation Details:**
+- Payees loaded at session start via `LoadPayees` command
+- Transfer payees filtered out (only regular payees shown)
+- Debouncing applied to payee changes (same pattern as category changes)
+- Both category and payee changes use the same API endpoint (`categorizeTransaction`)
+- Desktop: Payee ComboBox appears next to Category (w-48)
+- Mobile: Payee ComboBox appears on second row
+
+**Rationale:**
+User requested the ability to see and edit payees in the Sync Flow, similar to how they can edit categories. The YNAB payee list provides autocomplete suggestions while still allowing custom payee names.
+
+**Outcomes:**
+- Build: ✅ (2 pre-existing warnings about deprecated Modal component)
+- Tests: 377/377 passed (6 skipped - integration tests)
+- Issues: None
+
+---
+
 ## 2025-12-16 16:45 - Added "To be imported" Filter on Sync Page
 
 **What I did:**

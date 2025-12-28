@@ -95,6 +95,7 @@ let init () : Model * Cmd<Msg> =
         CurrentSession = NotAsked
         SyncTransactions = NotAsked
         Categories = []
+        Payees = []
         SplitEdit = None
         DuplicateTransactionIds = []
         IsTanConfirming = false
@@ -103,10 +104,12 @@ let init () : Model * Cmd<Msg> =
         ManuallyCategorizedIds = Set.empty
         ActiveFilter = AllTransactions
         PendingCategoryVersions = Map.empty
+        PendingPayeeVersions = Map.empty
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
         Cmd.ofMsg LoadCategories
+        Cmd.ofMsg LoadPayees
     ]
     model, cmd
 
@@ -280,12 +283,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, Cmd.none, NoOp
         else
             // Version matches - execute the API call
-            match model.CurrentSession with
-            | Success (Some session) ->
+            match model.CurrentSession, model.SyncTransactions with
+            | Success (Some session), Success transactions ->
+                // Get current payeeOverride to preserve it when updating category
+                let payeeOverride =
+                    transactions
+                    |> List.tryFind (fun tx -> tx.Transaction.Id = txId)
+                    |> Option.bind (fun tx -> tx.PayeeOverride)
+
                 let cmd =
                     Cmd.OfAsync.either
                         Api.sync.categorizeTransaction
-                        (session.Id, txId, categoryId, None)
+                        (session.Id, txId, categoryId, payeeOverride)
                         TransactionCategorized
                         (fun ex -> Error (SyncError.DatabaseError ("categorize", ex.Message)) |> TransactionCategorized)
                 // Clear version after committing (change is in flight)
@@ -670,6 +679,87 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | CategoriesLoaded (Error _) ->
         model, Cmd.none, NoOp
+
+    | LoadPayees ->
+        // Load payees by first getting settings to obtain budget ID
+        let loadPayeesAsync () = async {
+            let! settings = Api.settings.getSettings()
+            match settings.Ynab with
+            | Some ynab ->
+                match ynab.DefaultBudgetId with
+                | Some budgetId ->
+                    return! Api.ynab.getPayees budgetId
+                | None -> return Error (YnabError.Unauthorized "No default budget configured")
+            | None -> return Error (YnabError.Unauthorized "YNAB not configured")
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                loadPayeesAsync
+                ()
+                PayeesLoaded
+                (fun ex -> PayeesLoaded (Error (YnabError.NetworkError ex.Message)))
+        model, cmd, NoOp
+
+    | PayeesLoaded (Ok payees) ->
+        { model with Payees = payees }, Cmd.none, NoOp
+
+    | PayeesLoaded (Error _) ->
+        model, Cmd.none, NoOp
+
+    | SetPayeeOverride (txId, payeeOverride) ->
+        // Optimistic UI update + debouncing (similar to CategorizeTransaction)
+        match model.SyncTransactions with
+        | Success transactions ->
+            let updatedTransactions =
+                transactions
+                |> List.map (fun tx ->
+                    if tx.Transaction.Id = txId then
+                        { tx with PayeeOverride = payeeOverride }
+                    else tx)
+
+            let currentVersion =
+                model.PendingPayeeVersions
+                |> Map.tryFind txId
+                |> Option.defaultValue 0
+            let newVersion = currentVersion + 1
+            let newPendingVersions = model.PendingPayeeVersions |> Map.add txId newVersion
+
+            let debouncedCmd =
+                Debounce.delayedDefault (CommitPayeeChange (txId, payeeOverride, newVersion))
+
+            { model with
+                SyncTransactions = Success updatedTransactions
+                PendingPayeeVersions = newPendingVersions }, debouncedCmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | CommitPayeeChange (txId, payeeOverride, version) ->
+        let currentVersion =
+            model.PendingPayeeVersions
+            |> Map.tryFind txId
+            |> Option.defaultValue 0
+
+        if version <> currentVersion then
+            // Stale version, skip API call
+            model, Cmd.none, NoOp
+        else
+            match model.CurrentSession, model.SyncTransactions with
+            | Success (Some session), Success transactions ->
+                // Get current category for this transaction
+                let categoryId =
+                    transactions
+                    |> List.tryFind (fun tx -> tx.Transaction.Id = txId)
+                    |> Option.bind (fun tx -> tx.CategoryId)
+
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.sync.categorizeTransaction
+                        (session.Id, txId, categoryId, payeeOverride)
+                        TransactionCategorized
+                        (fun ex -> TransactionCategorized (Error (SyncError.DatabaseError ("payee", ex.Message))))
+
+                let newPendingVersions = model.PendingPayeeVersions |> Map.remove txId
+                { model with PendingPayeeVersions = newPendingVersions }, cmd, NoOp
+            | _ -> model, Cmd.none, NoOp
 
     // UI interactions
     | ToggleTransactionExpand txId ->
