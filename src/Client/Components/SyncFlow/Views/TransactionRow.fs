@@ -112,6 +112,21 @@ let private skipToggleIcon (tx: SyncTransaction) (dispatch: Msg -> unit) =
             prop.children [ Icons.forward Icons.SM Icons.Default ]
         ]
 
+
+/// External link button - shows first external link if available
+let private externalLinkButton (externalLinks: ExternalLink list) =
+    match externalLinks |> List.tryHead with
+    | Some link ->
+        Html.a [
+            prop.className "p-1 rounded hover:bg-neon-teal/10 text-neon-teal/60 hover:text-neon-teal transition-colors flex-shrink-0"
+            prop.href link.Url
+            prop.target "_blank"
+            prop.rel "noopener noreferrer"
+            prop.title link.Label
+            prop.children [ Icons.externalLink Icons.XS Icons.NeonTeal ]
+        ]
+    | None -> Html.none
+
 let private createRuleButton (tx: SyncTransaction) (showForm: bool) (manuallyCategorizedIds: Set<TransactionId>) (dispatch: Msg -> unit) =
     // Only show for manually categorized transactions with a category, and when form is not open
     let shouldShow =
@@ -380,26 +395,47 @@ let transactionRow
                     Html.div [
                         prop.className "flex items-center gap-2 pl-4 text-sm"
                         prop.children [
-                            // Payee ComboBox (editable with suggestions)
+                            // Payee ComboBox (editable with suggestions) + External Link
                             Html.div [
-                                prop.className "flex-1 min-w-0 flex items-center"
+                                prop.className "flex-1 min-w-0 flex items-center gap-1"
                                 prop.children [
-                                    if tx.Status = Skipped then
-                                        // Skipped: render as plain text
-                                        Html.span [
-                                            prop.className "text-sm text-base-content/50 truncate"
-                                            prop.title displayPayee
-                                            prop.text (if displayPayee = "" then "—" else displayPayee)
+                                    Html.div [
+                                        prop.className "flex-1 min-w-0"
+                                        prop.children [
+                                            if tx.Status = Skipped then
+                                                // Skipped: Payee als Link wenn ExternalLink vorhanden
+                                                match tx.ExternalLinks |> List.tryHead with
+                                                | Some link ->
+                                                    Html.a [
+                                                        prop.className "text-sm text-neon-teal/60 hover:text-neon-teal truncate flex items-center gap-1"
+                                                        prop.href link.Url
+                                                        prop.target "_blank"
+                                                        prop.title $"{displayPayee} - {link.Label}"
+                                                        prop.children [
+                                                            Html.span [ prop.className "truncate"; prop.text (if displayPayee = "" then "—" else displayPayee) ]
+                                                            Icons.externalLink Icons.XS Icons.NeonTeal
+                                                        ]
+                                                    ]
+                                                | None ->
+                                                    Html.span [
+                                                        prop.className "text-sm text-base-content/50 truncate"
+                                                        prop.title displayPayee
+                                                        prop.text (if displayPayee = "" then "—" else displayPayee)
+                                                    ]
+                                            else
+                                                // Active: render ComboBox (interactive)
+                                                Input.comboBoxGrouped
+                                                    displayPayee
+                                                    (fun value ->
+                                                        // Always store as Some - even empty string means "user edited"
+                                                        dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
+                                                    "Payee..."
+                                                    payeeOptions
                                         ]
-                                    else
-                                        // Active: render ComboBox (interactive)
-                                        Input.comboBoxGrouped
-                                            displayPayee
-                                            (fun value ->
-                                                // Always store as Some - even empty string means "user edited"
-                                                dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
-                                            "Payee..."
-                                            payeeOptions
+                                    ]
+                                    // External link icon für aktive Transaktionen
+                                    if tx.Status <> Skipped then
+                                        externalLinkButton tx.ExternalLinks
                                     pendingPayeeSaveIndicator
                                 ]
                             ]
@@ -464,26 +500,47 @@ let transactionRow
                             pendingCategorySaveIndicator
                         ]
                     ]
-                    // Payee ComboBox (editable with suggestions)
+                    // Payee ComboBox (editable with suggestions) + External Link
                     Html.div [
-                        prop.className "w-48 flex-shrink-0 flex items-center"
+                        prop.className "w-52 flex-shrink-0 flex items-center gap-1"
                         prop.children [
-                            if tx.Status = Skipped then
-                                // Skipped: render as plain text
-                                Html.span [
-                                    prop.className "text-sm text-base-content/50 truncate block py-2"
-                                    prop.title displayPayee
-                                    prop.text (if displayPayee = "" then "—" else displayPayee)
+                            Html.div [
+                                prop.className "flex-1 min-w-0"
+                                prop.children [
+                                    if tx.Status = Skipped then
+                                        // Skipped: Payee als Link wenn ExternalLink vorhanden
+                                        match tx.ExternalLinks |> List.tryHead with
+                                        | Some link ->
+                                            Html.a [
+                                                prop.className "text-sm text-neon-teal/60 hover:text-neon-teal truncate flex items-center gap-1 py-2"
+                                                prop.href link.Url
+                                                prop.target "_blank"
+                                                prop.title $"{displayPayee} - {link.Label}"
+                                                prop.children [
+                                                    Html.span [ prop.className "truncate"; prop.text (if displayPayee = "" then "—" else displayPayee) ]
+                                                    Icons.externalLink Icons.XS Icons.NeonTeal
+                                                ]
+                                            ]
+                                        | None ->
+                                            Html.span [
+                                                prop.className "text-sm text-base-content/50 truncate block py-2"
+                                                prop.title displayPayee
+                                                prop.text (if displayPayee = "" then "—" else displayPayee)
+                                            ]
+                                    else
+                                        // Active: render ComboBox (interactive)
+                                        Input.comboBoxGrouped
+                                            displayPayee
+                                            (fun value ->
+                                                // Always store as Some - even empty string means "user edited"
+                                                dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
+                                            "Payee..."
+                                            payeeOptions
                                 ]
-                            else
-                                // Active: render ComboBox (interactive)
-                                Input.comboBoxGrouped
-                                    displayPayee
-                                    (fun value ->
-                                        // Always store as Some - even empty string means "user edited"
-                                        dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
-                                    "Payee..."
-                                    payeeOptions
+                            ]
+                            // External link icon für aktive Transaktionen
+                            if tx.Status <> Skipped then
+                                externalLinkButton tx.ExternalLinks
                             pendingPayeeSaveIndicator
                         ]
                     ]

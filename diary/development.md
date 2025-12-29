@@ -4,6 +4,37 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-29 - Restored Amazon Order Links in Sync Flow
+
+**What I did:**
+Fixed a regression where Amazon Order Links (ExternalLinks) were lost when the Payee ComboBox was added. The links are now visible again next to the payee field.
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs`:
+  - Added `externalLinkButton` helper function to render external link icons
+  - **Mobile Layout**:
+    - Skipped transactions: Payee text is now a clickable teal link (when ExternalLink available)
+    - Active transactions: External link icon appears next to the ComboBox
+  - **Desktop Layout**:
+    - Same logic as mobile
+    - Increased payee column width from `w-48` to `w-52` to accommodate the icon
+
+**Rationale:**
+The previous commit (b44542f) that added transfer payees to the ComboBox accidentally removed the ExternalLinks rendering. Users could no longer click on Amazon transactions to see the original order. The backend was still calculating the links correctly, they just weren't being displayed.
+
+**Technical Details:**
+- ExternalLinks (Amazon order deep links, PayPal activity links) are still generated in `RulesEngine.fs`
+- For skipped transactions: Payee text itself becomes a clickable link with external icon
+- For active transactions: Separate icon button appears next to the editable ComboBox
+- Only the first ExternalLink is displayed (most transactions only have one)
+
+**Outcomes:**
+- Build: ✅
+- Tests: 377 passed, 6 skipped
+- Issues: None
+
+---
+
 ## 2025-12-29 - Added Transfer-Payees to Sync Flow ComboBox
 
 **What I did:**
