@@ -715,14 +715,30 @@ let searchableSelect value onChange placeholder (options: (string * string) list
 // COMBOBOX - Text input with dropdown suggestions (allows custom values)
 // ============================================================================
 
+/// Option for ComboBox with support for disabled items (section headers)
+type ComboBoxOption = {
+    Id: string
+    Label: string
+    IsDisabled: bool  // True for section headers (non-selectable)
+}
+
 type ComboBoxProps = {
     Value: string
     OnChange: string -> unit
-    Options: (string * string) list  // (id, label) pairs for suggestions
+    Options: ComboBoxOption list  // Supports grouped options with disabled headers
     Placeholder: string
     Size: InputSize
     Disabled: bool
 }
+
+/// Create a section header (non-selectable) for grouping options
+let sectionHeader label : ComboBoxOption =
+    { Id = ""; Label = label; IsDisabled = true }
+
+/// Convert simple (id, label) tuples to ComboBoxOption list
+let toComboBoxOptions (options: (string * string) list) : ComboBoxOption list =
+    options |> List.map (fun (id, label) ->
+        { Id = id; Label = label; IsDisabled = false })
 
 let comboBoxDefaults = {
     Value = ""
@@ -746,14 +762,45 @@ let ComboBox (props: ComboBoxProps) =
     let listRef = React.useRef<Browser.Types.HTMLElement option> None
 
     // Filter options based on current value (case-insensitive contains)
+    // Section headers are always included if any of their following items match
     let filteredOptions =
         if System.String.IsNullOrWhiteSpace props.Value then
             props.Options
         else
             let searchLower = props.Value.ToLowerInvariant()
-            props.Options
-            |> List.filter (fun (_, label) ->
-                label.ToLowerInvariant().Contains searchLower)
+            // Keep section headers if any following non-header matches
+            let rec filterWithHeaders (opts: ComboBoxOption list) (acc: ComboBoxOption list) =
+                match opts with
+                | [] -> List.rev acc
+                | header :: rest when header.IsDisabled ->
+                    // Find all items until next header
+                    let itemsUntilNextHeader =
+                        rest |> List.takeWhile (fun o -> not o.IsDisabled)
+                    let hasMatchingItems =
+                        itemsUntilNextHeader
+                        |> List.exists (fun o -> o.Label.ToLowerInvariant().Contains searchLower)
+                    if hasMatchingItems then
+                        // Include header and matching items
+                        let matchingItems =
+                            itemsUntilNextHeader
+                            |> List.filter (fun o -> o.Label.ToLowerInvariant().Contains searchLower)
+                        filterWithHeaders (rest |> List.skip itemsUntilNextHeader.Length) (List.rev matchingItems @ header :: acc)
+                    else
+                        // Skip header and its items
+                        filterWithHeaders (rest |> List.skip itemsUntilNextHeader.Length) acc
+                | opt :: rest ->
+                    if opt.Label.ToLowerInvariant().Contains searchLower then
+                        filterWithHeaders rest (opt :: acc)
+                    else
+                        filterWithHeaders rest acc
+            filterWithHeaders props.Options []
+
+    // Get only selectable (non-disabled) options for keyboard navigation
+    let selectableIndices =
+        filteredOptions
+        |> List.indexed
+        |> List.filter (fun (_, opt) -> not opt.IsDisabled)
+        |> List.map fst
 
     let totalItems = filteredOptions.Length
 
@@ -802,11 +849,27 @@ let ComboBox (props: ComboBoxProps) =
 
     let selectOption index =
         if index >= 0 && index < filteredOptions.Length then
-            let _, label = filteredOptions.[index]
-            props.OnChange label
+            let opt = filteredOptions.[index]
+            if not opt.IsDisabled then
+                props.OnChange opt.Label
         setIsOpen false
         setHighlightedIndex -1
         setIsKeyboardNav false
+
+    // Find next/previous selectable index (skipping disabled items)
+    let findNextSelectable currentIndex direction =
+        if selectableIndices.IsEmpty then -1
+        else
+            match direction with
+            | 1 -> // Down
+                selectableIndices
+                |> List.tryFind (fun i -> i > currentIndex)
+                |> Option.defaultValue (List.head selectableIndices)
+            | _ -> // Up
+                selectableIndices
+                |> List.rev
+                |> List.tryFind (fun i -> i < currentIndex)
+                |> Option.defaultValue (List.last selectableIndices)
 
     let handleKeyDown (e: Browser.Types.KeyboardEvent) =
         match e.key with
@@ -820,18 +883,14 @@ let ComboBox (props: ComboBoxProps) =
             if not isOpen && filteredOptions.Length > 0 then
                 setIsOpen true
             setIsKeyboardNav true
-            let nextIndex =
-                if highlightedIndex < totalItems - 1 then highlightedIndex + 1
-                else 0
+            let nextIndex = findNextSelectable highlightedIndex 1
             setHighlightedIndex nextIndex
         | "ArrowUp" ->
             e.preventDefault()
             if not isOpen && filteredOptions.Length > 0 then
                 setIsOpen true
             setIsKeyboardNav true
-            let nextIndex =
-                if highlightedIndex > 0 then highlightedIndex - 1
-                else totalItems - 1
+            let nextIndex = findNextSelectable highlightedIndex -1
             setHighlightedIndex nextIndex
         | "Enter" ->
             if highlightedIndex >= 0 then
@@ -845,8 +904,10 @@ let ComboBox (props: ComboBoxProps) =
         | _ -> ()
 
     let setHighlightFromMouse index =
-        setIsKeyboardNav false
-        setHighlightedIndex index
+        // Only highlight if not disabled
+        if index >= 0 && index < filteredOptions.Length && not filteredOptions.[index].IsDisabled then
+            setIsKeyboardNav false
+            setHighlightedIndex index
 
     let sizeClass = sizeToClass props.Size
     let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
@@ -885,26 +946,36 @@ let ComboBox (props: ComboBoxProps) =
                             prop.className "max-h-60 overflow-y-auto"
                             prop.ref listRef
                             prop.children [
-                                for i, (_, label) in filteredOptions |> List.indexed do
-                                    let isHighlighted = highlightedIndex = i
-                                    let optionClass =
-                                        if isHighlighted then
-                                            "w-full text-left px-4 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
-                                        else
-                                            "w-full text-left px-4 py-2 text-sm transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
-                                    Html.button [
-                                        prop.type' "button"
-                                        prop.className optionClass
-                                        prop.custom ("data-option-index", string i)
-                                        prop.onClick (fun _ -> selectOption i)
-                                        prop.onMouseEnter (fun _ -> setHighlightFromMouse i)
-                                        prop.children [
-                                            Html.span [
-                                                prop.className "truncate block"
-                                                prop.text label
+                                for i, opt in filteredOptions |> List.indexed do
+                                    if opt.IsDisabled then
+                                        // Section header (non-selectable)
+                                        Html.div [
+                                            prop.key $"header-{i}"
+                                            prop.className "px-4 py-2 text-xs font-semibold uppercase tracking-wider text-base-content/40 bg-base-100/50 select-none"
+                                            prop.text opt.Label
+                                        ]
+                                    else
+                                        // Regular option (selectable)
+                                        let isHighlighted = highlightedIndex = i
+                                        let optionClass =
+                                            if isHighlighted then
+                                                "w-full text-left px-4 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
+                                            else
+                                                "w-full text-left px-4 py-2 text-sm transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
+                                        Html.button [
+                                            prop.key $"opt-{i}"
+                                            prop.type' "button"
+                                            prop.className optionClass
+                                            prop.custom ("data-option-index", string i)
+                                            prop.onClick (fun _ -> selectOption i)
+                                            prop.onMouseEnter (fun _ -> setHighlightFromMouse i)
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className "truncate block"
+                                                    prop.text opt.Label
+                                                ]
                                             ]
                                         ]
-                                    ]
                             ]
                         ]
                     ]
@@ -913,7 +984,19 @@ let ComboBox (props: ComboBoxProps) =
     ]
 
 /// Simple helper for ComboBox with common defaults.
+/// Converts (id, label) tuples to ComboBoxOption list automatically.
 let comboBox value onChange placeholder (options: (string * string) list) =
+    ComboBox {
+        comboBoxDefaults with
+            Value = value
+            OnChange = onChange
+            Placeholder = placeholder
+            Options = toComboBoxOptions options
+    }
+
+/// ComboBox with support for grouped options (including section headers).
+/// Use sectionHeader to create non-selectable group headers.
+let comboBoxGrouped value onChange placeholder (options: ComboBoxOption list) =
     ComboBox {
         comboBoxDefaults with
             Value = value

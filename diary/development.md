@@ -4,6 +4,46 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-29 - Added Transfer-Payees to Sync Flow ComboBox
+
+**What I did:**
+Implemented grouped payee options in the Sync Flow ComboBox, allowing users to select Transfer Payees (for transfers between YNAB accounts) in addition to regular payees. Transfers are now displayed in a separate group at the top of the dropdown with a "Transfers" header, followed by regular "Payees".
+
+**Files Modified:**
+- `src/Client/DesignSystem/Input.fs`:
+  - Moved `ComboBoxOption` type definition before `ComboBoxProps` (F# type ordering requirement)
+  - Updated `ComboBox` component to properly handle `ComboBoxOption list` instead of tuple list
+  - Added support for disabled items (section headers) - rendered as non-clickable, uppercase, grey text
+  - Updated keyboard navigation to skip disabled items (section headers)
+  - Updated filtering to preserve section headers when their group has matching items
+  - Added `comboBoxGrouped` helper function for direct `ComboBoxOption list` usage
+  - Fixed `comboBox` helper to convert tuples to `ComboBoxOption` using `toComboBoxOptions`
+
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs`:
+  - Changed `payeeOptions` from excluding transfers to including them
+  - Added grouping: Transfers first (sorted by name), then Payees (sorted by name)
+  - Uses `Input.sectionHeader` for group headers
+
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs`:
+  - Updated type signature to accept `Input.ComboBoxOption list` instead of tuple list
+  - Changed `Input.comboBox` calls to `Input.comboBoxGrouped`
+
+**Rationale:**
+Users needed the ability to categorize bank transactions as transfers between accounts (e.g., "Transfer : Tagesgeld ING"). Previously, transfer payees were filtered out, making it impossible to select them. The grouped dropdown provides clear visual separation between transfer and regular payees.
+
+**Technical Details:**
+- Section headers use `IsDisabled = true` in `ComboBoxOption`
+- Keyboard navigation (ArrowUp/ArrowDown) automatically skips disabled items
+- Search filtering preserves headers if any of their children match
+- YNAB recognizes the "Transfer : Account Name" format and processes it as a transfer
+
+**Outcomes:**
+- Build: ✅
+- Tests: 377 passed, 6 skipped
+- Issues: None
+
+---
+
 ## 2025-12-28 14:00 - Fixed Payee Loading Bug
 
 **What I did:**

@@ -274,7 +274,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
 let transactionRow
     (tx: SyncTransaction)
     (categoryOptions: (string * string) list)
-    (payeeOptions: (string * string) list)
+    (payeeOptions: Input.ComboBoxOption list)
     (expandedIds: Set<TransactionId>)
     (inlineRuleFormState: InlineRuleFormState option)
     (manuallyCategorizedIds: Set<TransactionId>)
@@ -393,7 +393,7 @@ let transactionRow
                                         ]
                                     else
                                         // Active: render ComboBox (interactive)
-                                        Input.comboBox
+                                        Input.comboBoxGrouped
                                             displayPayee
                                             (fun value ->
                                                 // Always store as Some - even empty string means "user edited"
@@ -477,7 +477,7 @@ let transactionRow
                                 ]
                             else
                                 // Active: render ComboBox (interactive)
-                                Input.comboBox
+                                Input.comboBoxGrouped
                                     displayPayee
                                     (fun value ->
                                         // Always store as Some - even empty string means "user edited"

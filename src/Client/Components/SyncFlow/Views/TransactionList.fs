@@ -313,13 +313,23 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                         let (YnabCategoryId id) = cat.Id
                         (id.ToString(), $"{cat.GroupName}: {cat.Name}"))
 
-                // Pre-compute payee options ONCE (exclude transfer payees)
-                let payeeOptions =
-                    model.Payees
-                    |> List.filter (fun p -> p.TransferAccountId.IsNone)
-                    |> List.map (fun p ->
-                        let (YnabPayeeId id) = p.Id
-                        (id.ToString(), p.Name))
+                // Pre-compute payee options ONCE with Transfers grouped first
+                let payeeOptions : Input.ComboBoxOption list =
+                    let transfers, regularPayees =
+                        model.Payees |> List.partition (fun p -> p.TransferAccountId.IsSome)
+                    [
+                        if not transfers.IsEmpty then
+                            yield Input.sectionHeader "Transfers"
+                            for p in transfers |> List.sortBy (fun p -> p.Name) do
+                                let (YnabPayeeId id) = p.Id
+                                yield { Input.ComboBoxOption.Id = id.ToString(); Label = p.Name; IsDisabled = false }
+
+                        if not regularPayees.IsEmpty then
+                            if not transfers.IsEmpty then yield Input.sectionHeader "Payees"
+                            for p in regularPayees |> List.sortBy (fun p -> p.Name) do
+                                let (YnabPayeeId id) = p.Id
+                                yield { Input.ComboBoxOption.Id = id.ToString(); Label = p.Name; IsDisabled = false }
+                    ]
 
                 // Apply active filter to transactions
                 let filteredTransactions = filterTransactions model.ActiveFilter transactions
