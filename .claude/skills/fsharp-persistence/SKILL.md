@@ -1,424 +1,229 @@
 ---
 name: fsharp-persistence
 description: |
-  Implement data persistence using SQLite with Dapper, JSON file storage, or event sourcing patterns.
-  Use when adding database tables, CRUD operations, file storage, or event logs.
-  Creates code in src/Server/Persistence.fs with patterns for queries, transactions, relationships, and async I/O.
-  Includes SQLite schema creation, parameterized queries, and proper connection management.
-allowed-tools: Read, Edit, Write, Grep, Bash
+  Implement persistence layer using SQLite (Dapper) or file storage in F#.
+  Use when adding database operations, file I/O, or data storage.
+  Ensures proper separation: all I/O isolated in Persistence.fs, away from pure domain logic.
+  Creates code in src/Server/Persistence.fs.
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash
+standards:
+  required-reading:
+    - standards/backend/persistence-sqlite.md
+  optional:
+    - standards/backend/persistence-files.md
+  workflow:
+    - step: 1
+      file: standards/backend/persistence-sqlite.md
+      purpose: Database operations with Dapper
+      output: src/Server/Persistence.fs
+    - step: 2
+      file: standards/backend/persistence-files.md
+      purpose: File storage (if needed)
+      output: src/Server/Persistence.fs
 ---
 
-# F# Persistence Patterns
+# F# Persistence Layer
 
 ## When to Use This Skill
 
 Activate when:
-- User requests "add database table", "save X to database"
-- Implementing CRUD operations
-- Need file-based storage
-- Implementing event sourcing or audit logs
-- Creating persistence layer for domain entities
+- User requests "add database operations"
+- Need to store/retrieve data
+- Implementing file storage
+- Adding CRUD operations
+- Project has src/Server/Persistence.fs
 
-## SQLite with Dapper
+## Persistence Options
 
-### Setup with Test-Isolation Support
+1. **SQLite + Dapper** - Recommended for structured data
+2. **File Storage** - For files, logs, event sourcing
 
-**Location:** `src/Server/Persistence.fs`
+## Implementation Workflow
 
-**CRITICAL**: Always use lazy loading for database configuration to support test-isolation via environment variables.
+### Step 1: SQLite Persistence
+
+**Read:** `standards/backend/persistence-sqlite.md`
+**Edit:** `src/Server/Persistence.fs`
 
 ```fsharp
 module Persistence
 
-open System
-open System.IO
-open Microsoft.Data.Sqlite
 open Dapper
-open Shared.Domain
+open Microsoft.Data.Sqlite
+open System.IO
 
-let private dataDir = "./data"
-
-// Use lazy loading to allow tests to set USE_MEMORY_DB before first access
-type private DbConfig = {
-    IsTestMode: bool
-    ConnectionString: string
-    SharedConnection: SqliteConnection option
-}
-
-let private dbConfig = lazy (
-    let isTestMode =
-        match Environment.GetEnvironmentVariable("USE_MEMORY_DB") with
-        | "true" | "1" -> true
-        | _ -> false
-
-    let connectionString =
-        if isTestMode then
-            // In-memory SQLite with shared cache (stays alive across connections)
-            "Data Source=:memory:;Mode=Memory;Cache=Shared"
-        else
-            let dbPath = Path.Combine(dataDir, "app.db")
-            $"Data Source={dbPath}"
-
-    // For In-Memory: Keep a shared connection alive
-    let sharedConnection =
-        if isTestMode then
-            let conn = new SqliteConnection(connectionString)
-            conn.Open()
-            Some conn
-        else
-            None
-
-    { IsTestMode = isTestMode; ConnectionString = connectionString; SharedConnection = sharedConnection }
-)
-
+// Connection factory
 let private getConnection () =
-    let config = dbConfig.Force()
-    match config.SharedConnection with
-    | Some conn -> conn  // Shared connection for tests - don't dispose!
-    | None -> new SqliteConnection(config.ConnectionString)
+    let dataDir = Environment.GetEnvironmentVariable("DATA_DIR") ?? "./data"
+    Directory.CreateDirectory(dataDir) |> ignore
+    let connStr = $"Data Source={dataDir}/app.db"
+    new SqliteConnection(connStr)
 
-let ensureDataDir () =
-    if not (Directory.Exists dataDir) then
-        Directory.CreateDirectory dataDir |> ignore
-```
-
-### Why Lazy Loading?
-
-F# modules are initialized when the assembly loads, **before** `Main()` runs. Without lazy loading:
-1. Tests cannot set `USE_MEMORY_DB` before the connection string is evaluated
-2. Tests will write to the production database
-3. `open TestSetup` before `open Persistence` does NOT help - F# initializes by dependency graph, not `open` order
-
-### Connection Management for Tests
-
-**IMPORTANT**: For In-Memory SQLite, don't use `use conn = getConnection()`:
-
-```fsharp
-// ❌ WRONG - Connection disposed, In-Memory DB lost
-let getAllItems () = async {
-    use conn = getConnection()  // Disposed at end = DB gone!
-    // ...
-}
-
-// ✅ CORRECT - Don't dispose shared connection
-let getAllItems () = async {
-    let conn = getConnection()  // No dispose for shared connection
-    // ...
-}
-```
-
-In-Memory SQLite databases only exist while the connection is open. For test isolation, we keep one shared connection alive for the entire test run.
-
-### Initialize Database
-
-```fsharp
-let initializeDatabase () =
-    ensureDataDir()
+// Setup tables
+let ensureTables () = async {
     use conn = getConnection()
-
-    // Create tables
-    conn.Execute("""
-        CREATE TABLE IF NOT EXISTS TodoItems (
+    do! conn.ExecuteAsync("""
+        CREATE TABLE IF NOT EXISTS Items (
             Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Title TEXT NOT NULL,
-            Description TEXT,
-            Priority INTEGER NOT NULL,
-            Status INTEGER NOT NULL,
-            CreatedAt TEXT NOT NULL,
-            UpdatedAt TEXT NOT NULL
+            Name TEXT NOT NULL,
+            Amount DECIMAL NOT NULL,
+            CreatedAt TEXT NOT NULL
         )
-    """) |> ignore
+    """) |> Async.AwaitTask |> Async.Ignore
+}
 
-    // Create indexes
-    conn.Execute("""
-        CREATE INDEX IF NOT EXISTS idx_todos_status
-        ON TodoItems(Status)
-    """) |> ignore
+// Read operations
+let getItems () : Async<Item list> = async {
+    use conn = getConnection()
+    let! items = conn.QueryAsync<Item>("SELECT * FROM Items ORDER BY CreatedAt DESC")
+                 |> Async.AwaitTask
+    return items |> Seq.toList
+}
+
+let getById (id: int) : Async<Item option> = async {
+    use conn = getConnection()
+    let! item = conn.QueryFirstOrDefaultAsync<Item>(
+                    "SELECT * FROM Items WHERE Id = @Id",
+                    {| Id = id |})
+                |> Async.AwaitTask
+    return if isNull (box item) then None else Some item
+}
+
+// Write operations
+let save (item: Item) : Async<unit> = async {
+    use conn = getConnection()
+    if item.Id = 0 then
+        // Insert
+        do! conn.ExecuteAsync(
+                "INSERT INTO Items (Name, Amount, CreatedAt) VALUES (@Name, @Amount, @CreatedAt)",
+                item)
+            |> Async.AwaitTask |> Async.Ignore
+    else
+        // Update
+        do! conn.ExecuteAsync(
+                "UPDATE Items SET Name = @Name, Amount = @Amount WHERE Id = @Id",
+                item)
+            |> Async.AwaitTask |> Async.Ignore
+}
+
+let delete (id: int) : Async<unit> = async {
+    use conn = getConnection()
+    do! conn.ExecuteAsync("DELETE FROM Items WHERE Id = @Id", {| Id = id |})
+        |> Async.AwaitTask |> Async.Ignore
+}
 ```
 
-### CRUD Operations
+**Key Points:**
+- Always `async` for I/O
+- Parameterized queries (never string concat!)
+- `use` for connection disposal
+- Check `DATA_DIR` environment variable
 
-#### Read All
-```fsharp
-let getAllTodos () : Async<TodoItem list> =
-    async {
-        use conn = getConnection()
-        let! todos = conn.QueryAsync<TodoItem>(
-            "SELECT * FROM TodoItems ORDER BY CreatedAt DESC"
-        ) |> Async.AwaitTask
-        return todos |> Seq.toList
-    }
-```
+---
 
-#### Read with Filter
-```fsharp
-let getActiveTodos () : Async<TodoItem list> =
-    async {
-        use conn = getConnection()
-        let! todos = conn.QueryAsync<TodoItem>(
-            "SELECT * FROM TodoItems WHERE Status = @Status",
-            {| Status = int Active |}
-        ) |> Async.AwaitTask
-        return todos |> Seq.toList
-    }
-```
+### Step 2: File Persistence (Optional)
 
-#### Read Single
-```fsharp
-let getTodoById (id: int) : Async<TodoItem option> =
-    async {
-        use conn = getConnection()
-        let! todo = conn.QuerySingleOrDefaultAsync<TodoItem>(
-            "SELECT * FROM TodoItems WHERE Id = @Id",
-            {| Id = id |}
-        ) |> Async.AwaitTask
-        return if isNull (box todo) then None else Some todo
-    }
-```
-
-#### Insert
-```fsharp
-let insertTodo (todo: TodoItem) : Async<TodoItem> =
-    async {
-        use conn = getConnection()
-        let! id = conn.ExecuteScalarAsync<int64>(
-            """INSERT INTO TodoItems (Title, Description, Priority, Status, CreatedAt, UpdatedAt)
-               VALUES (@Title, @Description, @Priority, @Status, @CreatedAt, @UpdatedAt)
-               RETURNING Id""",
-            {|
-                Title = todo.Title
-                Description = todo.Description
-                Priority = int todo.Priority
-                Status = int todo.Status
-                CreatedAt = todo.CreatedAt.ToString("o")
-                UpdatedAt = todo.UpdatedAt.ToString("o")
-            |}
-        ) |> Async.AwaitTask
-        return { todo with Id = int id }
-    }
-```
-
-#### Update
-```fsharp
-let updateTodo (todo: TodoItem) : Async<unit> =
-    async {
-        use conn = getConnection()
-        let! _ = conn.ExecuteAsync(
-            """UPDATE TodoItems
-               SET Title = @Title, Description = @Description,
-                   Priority = @Priority, Status = @Status, UpdatedAt = @UpdatedAt
-               WHERE Id = @Id""",
-            todo
-        ) |> Async.AwaitTask
-        return ()
-    }
-```
-
-#### Delete
-```fsharp
-let deleteTodo (id: int) : Async<unit> =
-    async {
-        use conn = getConnection()
-        let! _ = conn.ExecuteAsync(
-            "DELETE FROM TodoItems WHERE Id = @Id",
-            {| Id = id |}
-        ) |> Async.AwaitTask
-        return ()
-    }
-```
-
-### Transactions
+**Read:** `standards/backend/persistence-files.md`
+**When:** Event sourcing, logs, or file-based data
 
 ```fsharp
-let transferTodo (todoId: int) (fromListId: int) (toListId: int) : Async<Result<unit, string>> =
-    async {
-        use conn = getConnection()
-        use transaction = conn.BeginTransaction()
+module FilePersistence
 
-        try
-            let! _ = conn.ExecuteAsync(
-                "DELETE FROM TodoListItems WHERE TodoId = @TodoId AND ListId = @ListId",
-                {| TodoId = todoId; ListId = fromListId |},
-                transaction
-            ) |> Async.AwaitTask
-
-            let! _ = conn.ExecuteAsync(
-                "INSERT INTO TodoListItems (TodoId, ListId) VALUES (@TodoId, @ListId)",
-                {| TodoId = todoId; ListId = toListId |},
-                transaction
-            ) |> Async.AwaitTask
-
-            transaction.Commit()
-            return Ok ()
-        with
-        | ex ->
-            transaction.Rollback()
-            return Error $"Transfer failed: {ex.Message}"
-    }
-```
-
-## JSON File Persistence
-
-### Single File
-
-```fsharp
 open System.IO
 open System.Text.Json
 
-let dataDir = "./data"
-let todosFile = Path.Combine(dataDir, "todos.json")
+let private dataDir =
+    let dir = Environment.GetEnvironmentVariable("DATA_DIR") ?? "./data"
+    Directory.CreateDirectory(dir) |> ignore
+    dir
 
-let ensureDataDir () =
-    if not (Directory.Exists dataDir) then
-        Directory.CreateDirectory dataDir |> ignore
+let saveToFile<'T> (filename: string) (data: 'T) : Async<unit> = async {
+    let path = Path.Combine(dataDir, filename)
+    let json = JsonSerializer.Serialize(data)
+    do! File.WriteAllTextAsync(path, json) |> Async.AwaitTask
+}
 
-let loadTodos () : Async<TodoItem list> =
-    async {
-        ensureDataDir()
-        if File.Exists todosFile then
-            let! json = File.ReadAllTextAsync todosFile |> Async.AwaitTask
-            let options = JsonSerializerOptions()
-            options.PropertyNameCaseInsensitive <- true
-            return JsonSerializer.Deserialize<TodoItem list>(json, options)
-        else
-            return []
-    }
-
-let saveTodos (todos: TodoItem list) : Async<unit> =
-    async {
-        ensureDataDir()
-        let options = JsonSerializerOptions(WriteIndented = true)
-        let json = JsonSerializer.Serialize(todos, options)
-        do! File.WriteAllTextAsync(todosFile, json) |> Async.AwaitTask
-    }
-
-// CRUD operations
-let addTodo (todo: TodoItem) : Async<TodoItem> =
-    async {
-        let! todos = loadTodos()
-        let newId = if todos.IsEmpty then 1 else (todos |> List.map (fun t -> t.Id) |> List.max) + 1
-        let newTodo = { todo with Id = newId }
-        do! saveTodos (newTodo :: todos)
-        return newTodo
-    }
-
-let updateTodo (todo: TodoItem) : Async<unit> =
-    async {
-        let! todos = loadTodos()
-        let updated = todos |> List.map (fun t -> if t.Id = todo.Id then todo else t)
-        do! saveTodos updated
-    }
-```
-
-## Event Sourcing
-
-### Event Types
-```fsharp
-type TodoEvent =
-    | TodoCreated of TodoItem
-    | TodoUpdated of TodoItem
-    | TodoCompleted of todoId: int
-    | TodoDeleted of todoId: int
-
-type EventEnvelope = {
-    Id: System.Guid
-    Timestamp: System.DateTime
-    Event: TodoEvent
+let loadFromFile<'T> (filename: string) : Async<'T option> = async {
+    let path = Path.Combine(dataDir, filename)
+    if File.Exists(path) then
+        let! json = File.ReadAllTextAsync(path) |> Async.AwaitTask
+        return Some (JsonSerializer.Deserialize<'T>(json))
+    else
+        return None
 }
 ```
 
-### Append Event
-```fsharp
-let eventLogFile = Path.Combine(dataDir, "events.jsonl")
+---
 
-let appendEvent (event: TodoEvent) : Async<unit> =
-    async {
-        ensureDataDir()
-        let envelope = {
-            Id = System.Guid.NewGuid()
-            Timestamp = System.DateTime.UtcNow
-            Event = event
-        }
-        let json = JsonSerializer.Serialize(envelope)
-        do! File.AppendAllTextAsync(eventLogFile, json + "\n") |> Async.AwaitTask
-    }
+## Quick Reference
+
+### SQLite Patterns
+
+```fsharp
+// Query single
+conn.QueryFirstOrDefaultAsync<'T>(sql, params)
+
+// Query list
+conn.QueryAsync<'T>(sql, params) |> Seq.toList
+
+// Execute (INSERT, UPDATE, DELETE)
+conn.ExecuteAsync(sql, params)
+
+// Parameters (always use!)
+{| Id = id; Name = name |}
 ```
 
-### Rebuild State
+### Common Queries
+
 ```fsharp
-let readAllEvents () : Async<EventEnvelope list> =
-    async {
-        if File.Exists eventLogFile then
-            let! lines = File.ReadAllLinesAsync eventLogFile |> Async.AwaitTask
-            return
-                lines
-                |> Array.filter (not << String.IsNullOrWhiteSpace)
-                |> Array.map (fun line -> JsonSerializer.Deserialize<EventEnvelope>(line))
-                |> Array.toList
-        else
-            return []
-    }
+// Get all
+"SELECT * FROM Table ORDER BY CreatedAt DESC"
 
-let rebuildState () : Async<Map<int, TodoItem>> =
-    async {
-        let! events = readAllEvents()
+// Get by ID
+"SELECT * FROM Table WHERE Id = @Id"
 
-        let applyEvent state envelope =
-            match envelope.Event with
-            | TodoCreated todo -> Map.add todo.Id todo state
-            | TodoUpdated todo -> Map.add todo.Id todo state
-            | TodoCompleted todoId ->
-                state
-                |> Map.tryFind todoId
-                |> Option.map (fun todo -> Map.add todoId { todo with Status = Completed } state)
-                |> Option.defaultValue state
-            | TodoDeleted todoId -> Map.remove todoId state
+// Insert
+"INSERT INTO Table (Col1, Col2) VALUES (@Col1, @Col2)"
 
-        return events |> List.fold applyEvent Map.empty
-    }
+// Update
+"UPDATE Table SET Col = @Col WHERE Id = @Id"
+
+// Delete
+"DELETE FROM Table WHERE Id = @Id"
 ```
-
-## Best Practices
-
-### ✅ Do
-- Use parameterized queries (SQL injection prevention)
-- Create indexes for frequently queried columns
-- Use transactions for multi-step operations
-- Always use `async` for I/O
-- Use `lazy` for database configuration (test isolation!)
-- Store DateTimes as ISO 8601 strings
-- Return options for "not found" cases
-- Support `USE_MEMORY_DB` environment variable for tests
-
-### ❌ Don't
-- Use string concatenation for queries
-- Use static connection strings evaluated at module load
-- Use JSON files for large datasets (use SQLite)
-- Use JSON files for high-frequency writes
-- Modify past events in event sourcing
-- Rebuild from events every time (use snapshots)
-- Write tests that persist to production database
 
 ## Verification Checklist
 
-- [ ] Data directory created
-- [ ] Database initialized (if using SQLite)
-- [ ] Parameterized queries used
-- [ ] Proper error handling
-- [ ] Async operations used
-- [ ] Lazy loading for DB configuration (test isolation)
-- [ ] `USE_MEMORY_DB` environment variable supported
-- [ ] Indexes created for queries
-- [ ] Transactions used for multi-step operations
-- [ ] DateTime serialization handled
-- [ ] Tests use in-memory SQLite (don't pollute production DB)
+- [ ] **Read standards** (persistence-sqlite.md)
+- [ ] Connection factory with DATA_DIR support
+- [ ] `ensureTables()` for schema setup
+- [ ] All functions return `Async<'T>`
+- [ ] Parameterized queries (NO string concat!)
+- [ ] `use` for connection disposal
+- [ ] Error handling for missing records
+- [ ] `dotnet build` succeeds
+- [ ] Integration tests written
+
+## Common Pitfalls
+
+**Most Critical:**
+- ❌ SQL injection (string concat)
+- ❌ Forgetting `async` wrapper
+- ❌ Not disposing connections
+- ❌ Hardcoded connection strings
+- ✅ Parameterized queries
+- ✅ Environment variable for DATA_DIR
+- ✅ `use` for disposables
 
 ## Related Skills
 
-- **fsharp-backend** - Integration with API
-- **fsharp-shared** - Type definitions
-- **fsharp-tests** - Testing persistence
+- **fsharp-backend** - Uses persistence in API
+- **fsharp-tests** - Testing persistence layer
+- **fsharp-feature** - Full-stack workflow
 
-## Related Documentation
+## Detailed Documentation
 
-- `/docs/05-PERSISTENCE.md` - Detailed persistence guide
+For complete patterns and examples:
+- `standards/backend/persistence-sqlite.md` - SQLite + Dapper
+- `standards/backend/persistence-files.md` - File storage
+- `standards/backend/error-handling.md` - Error patterns

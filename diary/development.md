@@ -4,6 +4,87 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2025-12-31 - Created standards/ Directory for Reusable F# Blueprint
+
+**What I did:**
+Created a comprehensive `standards/` directory structure to reorganize documentation from `docs/` into reusable, AI-agent-optimized standards for new F# full-stack projects. This enables minimal context window usage with maximum impact when using Claude Code or other AI agents.
+
+**Files Added:**
+- `standards/README.md` - Main entry point with task-based and skill-based navigation
+- `standards/global/architecture.md` - Tech stack, core principles, project structure
+- `standards/global/development-workflow.md` - 9-step development order, bug fix protocol, diary format
+- `standards/global/claude-tools.md` - Serena MCP tool usage (MANDATORY for F# code)
+- `standards/global/quick-reference.md` - Copy-paste ready code templates
+- `standards/global/anti-patterns.md` - Critical production bugs and lessons learned
+- `standards/global/learnings.md` - Why this stack works, proven patterns
+- `standards/shared/types.md` - Domain type design, value objects, discriminated unions
+- `standards/shared/api-contracts.md` - Fable.Remoting patterns, command/query separation
+- `standards/shared/validation.md` - Field validators, error accumulation
+- `standards/backend/overview.md` - Giraffe HttpHandler basics, Program.fs setup
+- `standards/backend/api-implementation.md` - Fable.Remoting implementation, orchestration
+- `standards/backend/domain-logic.md` - Pure business logic, event sourcing, no I/O
+- `standards/backend/persistence-sqlite.md` - SQLite config, Dapper CRUD, OptionHandler
+- `standards/backend/persistence-files.md` - JSON persistence, event sourcing files
+- `standards/backend/error-handling.md` - Result types, async patterns
+- `standards/frontend/overview.md` - MVU architecture, core concepts
+- `standards/frontend/state-management.md` - Model, Msg, update patterns, optimistic UI
+- `standards/frontend/view-patterns.md` - Component organization, list rendering, RemoteData
+- `standards/frontend/remotedata.md` - RemoteData type, helpers, usage patterns
+- `standards/frontend/routing.md` - Feliz.Router patterns, page definition
+- `standards/testing/overview.md` - Expecto basics, test organization
+- `standards/testing/domain-tests.md` - Testing pure functions, event replay
+- `standards/testing/api-tests.md` - API endpoint testing, validation
+- `standards/testing/persistence-tests.md` - In-memory SQLite, USE_MEMORY_DB
+- `standards/testing/frontend-tests.md` - Elmish update testing, state transitions
+- `standards/testing/property-tests.md` - FsCheck property-based testing
+- `standards/deployment/docker.md` - Multi-stage builds, Dockerfile patterns
+- `standards/deployment/docker-compose.md` - Stack configuration, environment setup
+- `standards/deployment/tailscale.md` - Tailscale sidecar setup, ACLs
+- `standards/deployment/production.md` - Production config, health checks, monitoring
+
+**Rationale:**
+The existing `docs/` directory (~220KB across 18 files) was comprehensive but project-specific and not optimized for AI agent consumption. By extracting and reorganizing the content into focused, self-contained standards files, future projects can benefit from:
+- **Minimal context usage**: Each file is concise (typically <100 lines) and self-contained
+- **Task-based navigation**: README maps tasks directly to relevant files
+- **Skill integration**: Maps Claude Code skills to primary documentation files
+- **Reusable patterns**: Excludes project-specific content (milestones, design system)
+- **Consistent structure**: Every file follows template (Overview, When to Use, Patterns, Checklist, See Also)
+
+**Structure:**
+```
+standards/
+├── README.md              # Navigation hub
+├── global/                # Architecture, workflow, tools (6 files)
+├── shared/                # Types, API contracts, validation (3 files)
+├── backend/               # API, domain, persistence, errors (6 files)
+├── frontend/              # MVU, state, views, RemoteData (5 files)
+├── testing/               # Domain, API, persistence, frontend, property tests (6 files)
+└── deployment/            # Docker, compose, Tailscale, production (4 files)
+```
+
+**Content Sources:**
+- `docs/00-ARCHITECTURE.md` → `global/architecture.md`, `backend/overview.md`, `frontend/overview.md`
+- `docs/01-PROJECT-SETUP.md` → Excluded (project-specific)
+- `docs/02-FRONTEND-GUIDE.md` → `frontend/state-management.md`, `frontend/view-patterns.md`, `frontend/routing.md`
+- `docs/03-BACKEND-GUIDE.md` → `backend/api-implementation.md`, `backend/domain-logic.md`
+- `docs/04-SHARED-TYPES.md` → `shared/types.md`, `shared/api-contracts.md`
+- `docs/05-PERSISTENCE.md` → `backend/persistence-sqlite.md`, `backend/persistence-files.md`
+- `docs/06-TESTING.md` → `testing/*` files
+- `docs/07-BUILD-DEPLOY.md` → `deployment/docker.md`, `deployment/docker-compose.md`, `deployment/production.md`
+- `docs/08-TAILSCALE-INTEGRATION.md` → `deployment/tailscale.md`
+- `docs/09-QUICK-REFERENCE.md` → `global/quick-reference.md`
+- `docs/LEARNINGS.md` → `global/learnings.md`, `global/anti-patterns.md`
+- `CLAUDE.md` → `global/claude-tools.md`, `global/development-workflow.md`
+
+**Outcomes:**
+- Build: N/A (documentation only)
+- Tests: N/A
+- Issues: None
+- Total files created: 31 (1 README + 30 content files)
+- Total lines: ~2,800 lines across all standards files
+
+---
+
 ## 2025-12-29 - Restored Amazon Order Links in Sync Flow
 
 **What I did:**

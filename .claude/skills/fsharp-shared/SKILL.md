@@ -1,451 +1,204 @@
 ---
 name: fsharp-shared
 description: |
-  Define shared domain types and API contracts for F# full-stack applications using records, discriminated unions, and Fable.Remoting interfaces.
-  Use when starting new features, defining data structures, or creating API contracts shared between client and server.
-  Creates types in src/Shared/Domain.fs and API interfaces in src/Shared/Api.fs.
-  Ensures type safety across the stack with compile-time checking.
+  Define shared types and API contracts in src/Shared/ for F# full-stack apps.
+  Use when defining domain models or API interfaces shared between client and server.
+  Ensures type safety across the stack with Fable.Remoting contracts.
+  Creates code in src/Shared/: Domain.fs, Api.fs.
 allowed-tools: Read, Edit, Write, Grep, Glob
+standards:
+  required-reading:
+    - standards/shared/types.md
+    - standards/shared/api-contracts.md
+  workflow:
+    - step: 1
+      file: standards/shared/types.md
+      purpose: Define domain types
+      output: src/Shared/Domain.fs
+    - step: 2
+      file: standards/shared/api-contracts.md
+      purpose: Define API interfaces
+      output: src/Shared/Api.fs
 ---
 
-# F# Shared Types and API Contracts
+# Shared Types & API Contracts
 
 ## When to Use This Skill
 
 Activate when:
-- Starting any new feature (always define types first)
-- User requests "add X entity", "define Y types"
-- Need to create API contracts between client and server
-- Modifying existing domain types
-- Creating shared data structures
+- User requests "define types for X"
+- Starting a new feature (ALWAYS define types first)
+- Need to add API endpoints
+- Defining domain models
+- Project has src/Shared/ directory
 
-## Prerequisites
+## Architecture Overview
 
-Project must have:
-- `src/Shared/Domain.fs` for domain types
-- `src/Shared/Api.fs` for API contracts
-- Fable.Remoting package installed
+```
+src/Shared/Domain.fs    - Domain types (shared by client & server)
+src/Shared/Api.fs       - API contracts (Fable.Remoting interfaces)
+```
 
-## Type Design Patterns
+**Key Principle:** Define types BEFORE implementing any logic
 
-### Simple Entity (Records)
+## Implementation Workflow
 
-**Use for:** Basic data structures with named fields
+### Step 1: Define Domain Types
+
+**Read:** `standards/shared/types.md`
+**Edit:** `src/Shared/Domain.fs`
 
 ```fsharp
-// src/Shared/Domain.fs
-module Shared.Domain
+namespace Shared
 
 open System
 
-type TodoItem = {
-    Id: int
-    Title: string
-    Description: string option
-    IsCompleted: bool
-    CreatedAt: DateTime
-    UpdatedAt: DateTime
-}
-```
-
-**Key points:**
-- Use records (not classes)
-- Use `option` for nullable fields
-- Include timestamps for auditing
-- Immutable by default
-
-### Discriminated Unions
-
-**Use for:** Fixed sets of values or state machines
-
-```fsharp
-type Priority =
-    | Low
-    | Medium
-    | High
-    | Urgent
-
-type TodoStatus =
-    | NotStarted
-    | InProgress
-    | Completed
-    | Cancelled
-
-type TodoItem = {
-    Id: int
-    Title: string
-    Priority: Priority
-    Status: TodoStatus
-    CreatedAt: DateTime
-}
-```
-
-**Key points:**
-- Exhaustive pattern matching
-- Compiler-enforced state transitions
-- Self-documenting code
-
-### Smart Constructors (Constrained Types)
-
-**Use for:** Types with validation rules
-
-```fsharp
-type EmailAddress = private EmailAddress of string
-
-module EmailAddress =
-    let create (s: string) : Result<EmailAddress, string> =
-        if s.Contains("@") && s.Length > 3 then
-            Ok (EmailAddress s)
-        else
-            Error "Invalid email format"
-
-    let value (EmailAddress s) = s
-
-type User = {
-    Id: int
-    Name: string
-    Email: EmailAddress  // Guaranteed valid
-}
-```
-
-**Key points:**
-- Private constructor prevents invalid instances
-- Factory function enforces validation
-- Type system ensures correctness
-
-### Collections and Nested Types
-
-```fsharp
-type TodoList = {
-    Id: int
-    Name: string
-    Items: TodoItem list
-    Owner: User
-    CreatedAt: DateTime
-}
-
-type Dashboard = {
-    User: User
-    Lists: TodoList list
-    TotalItems: int
-}
-```
-
-## API Contract Patterns
-
-### Basic CRUD API
-
-**Location:** `src/Shared/Api.fs`
-
-```fsharp
-module Shared.Api
-
-open Domain
-
-type ITodoApi = {
-    // Queries (always succeed, return empty on no data)
-    getAll: unit -> Async<TodoItem list>
-
-    // Queries that may fail (use Result)
-    getById: int -> Async<Result<TodoItem, string>>
-
-    // Commands that may fail
-    create: TodoItem -> Async<Result<TodoItem, string>>
-    update: TodoItem -> Async<Result<TodoItem, string>>
-    delete: int -> Async<Result<unit, string>>
-}
-```
-
-**Return type guide:**
-- `Async<'T list>` - Always returns (empty list if none)
-- `Async<Result<'T, string>>` - May fail (not found, validation error)
-- `Async<Result<unit, string>>` - Success with no data to return
-
-### API with DTOs (Create/Update Models)
-
-**Use when:** Create and update have different fields
-
-```fsharp
-type CreateTodoRequest = {
-    Title: string
-    Description: string option
-    Priority: Priority
-}
-
-type UpdateTodoRequest = {
-    Id: int
-    Title: string
-    Description: string option
-    Priority: Priority
-    Status: TodoStatus
-}
-
-type ITodoApi = {
-    getAll: unit -> Async<TodoItem list>
-    getById: int -> Async<Result<TodoItem, string>>
-    create: CreateTodoRequest -> Async<Result<TodoItem, string>>
-    update: UpdateTodoRequest -> Async<Result<TodoItem, string>>
-    delete: int -> Async<Result<unit, string>>
-}
-```
-
-**Key points:**
-- Separate request models from domain entities
-- Client doesn't set server-managed fields (Id, timestamps)
-- Clearer intent (create vs update)
-
-### Multiple API Interfaces
-
-**Use when:** Logically separate concerns
-
-```fsharp
-type ITodoApi = {
-    getAll: unit -> Async<TodoItem list>
-    save: TodoItem -> Async<Result<TodoItem, string>>
-}
-
-type IUserApi = {
-    getCurrent: unit -> Async<User>
-    updateProfile: User -> Async<Result<User, string>>
-}
-
-type IAppApi = {
-    getInfo: unit -> Async<AppInfo>
-    getConfig: unit -> Async<Config>
-}
-```
-
-**Key points:**
-- One interface per domain area
-- Keep APIs focused and cohesive
-- Easier to test and maintain
-
-### Custom Result Types
-
-**Use when:** Multiple possible outcomes
-
-```fsharp
-type SaveResult =
-    | Created of TodoItem
-    | Updated of TodoItem
-    | ValidationError of string list
-    | Conflict of existingItem: TodoItem
-
-type ITodoApi = {
-    save: TodoItem -> Async<SaveResult>
-}
-```
-
-## Type Design Guidelines
-
-### ✅ Do
-
-**Use Records for Data:**
-```fsharp
+// Simple types
 type Item = {
     Id: int
     Name: string
-}
-```
-
-**Use Option for Nullable:**
-```fsharp
-type User = {
-    Email: string
-    Phone: string option  // May not have phone
-}
-```
-
-**Use Result for Fallible Operations:**
-```fsharp
-getById: int -> Async<Result<Item, string>>
-```
-
-**Use DateTime from System:**
-```fsharp
-open System
-
-type Event = {
-    OccurredAt: DateTime  // Serializes correctly
-}
-```
-
-**Descriptive Names:**
-```fsharp
-type OrderStatus = Pending | Confirmed | Shipped | Delivered
-// NOT: type Status = A | B | C | D
-```
-
-### ❌ Don't
-
-**Don't Use Classes:**
-```fsharp
-// ❌ BAD
-type Item() =
-    member val Id = 0 with get, set
-    member val Name = "" with get, set
-
-// ✅ GOOD
-type Item = { Id: int; Name: string }
-```
-
-**Don't Use Null:**
-```fsharp
-// ❌ BAD
-type User = { Email: string; Phone: string }  // null for no phone?
-
-// ✅ GOOD
-type User = { Email: string; Phone: string option }
-```
-
-**Don't Use Nullable<'T>:**
-```fsharp
-// ❌ BAD
-type User = { Age: Nullable<int> }
-
-// ✅ GOOD
-type User = { Age: int option }
-```
-
-**Don't Add Logic to Types:**
-```fsharp
-// ❌ BAD - Keep types pure
-type User = {
-    Name: string
-    member this.IsValid() = not (String.IsNullOrEmpty this.Name)
-}
-
-// ✅ GOOD - Separate logic
-type User = { Name: string }
-module User =
-    let isValid user = not (String.IsNullOrEmpty user.Name)
-```
-
-## Common Type Patterns
-
-### Timestamps
-```fsharp
-type Entity = {
-    // ... fields
+    Amount: decimal
     CreatedAt: DateTime
-    UpdatedAt: DateTime
 }
+
+// Enums as Discriminated Unions
+type Status =
+    | Active
+    | Inactive
+    | Archived
+
+// Complex types
+type Transaction = {
+    Id: int
+    Amount: int64  // milliunits (YNAB convention)
+    Date: DateTime
+    Status: TransactionStatus
+    CategoryId: string option  // optional
+}
+
+and TransactionStatus =
+    | Imported
+    | PendingReview
+    | AutoCategorized
+    | Uncategorized
 ```
 
-### Soft Delete
-```fsharp
-type Entity = {
-    // ... fields
-    DeletedAt: DateTime option
-    IsDeleted: bool
-}
-```
+**Key Points:**
+- Use records for data structures
+- Use discriminated unions for enums/variants
+- Use `option` for nullable fields
+- Keep DTOs simple (no methods)
 
-### Audit Trail
-```fsharp
-type Entity = {
-    // ... fields
-    CreatedBy: string
-    CreatedAt: DateTime
-    UpdatedBy: string option
-    UpdatedAt: DateTime option
-}
-```
+---
 
-### Pagination
-```fsharp
-type PageRequest = {
-    PageNumber: int
-    PageSize: int
-}
+### Step 2: Define API Contracts
 
-type PagedResult<'T> = {
-    Items: 'T list
-    TotalCount: int
-    PageNumber: int
-    PageSize: int
-    TotalPages: int
-}
-```
-
-## Complete Example
+**Read:** `standards/shared/api-contracts.md`
+**Edit:** `src/Shared/Api.fs`
 
 ```fsharp
-// src/Shared/Domain.fs
-module Shared.Domain
+namespace Shared
 
 open System
 
-type Priority = Low | Medium | High
-type TodoStatus = Active | Completed
+type IItemApi = {
+    // Query operations
+    getAll: unit -> Async<Item list>
+    getById: int -> Async<Result<Item, string>>
 
-type TodoItem = {
-    Id: int
-    Title: string
-    Description: string option
-    Priority: Priority
-    Status: TodoStatus
-    CreatedAt: DateTime
-    UpdatedAt: DateTime
-}
-
-type CreateTodoRequest = {
-    Title: string
-    Description: string option
-    Priority: Priority
-}
-
-type TodoList = {
-    Id: int
-    Name: string
-    Items: TodoItem list
-}
-
-// src/Shared/Api.fs
-module Shared.Api
-
-open Domain
-
-type ITodoApi = {
-    getAll: unit -> Async<TodoItem list>
-    getActive: unit -> Async<TodoItem list>
-    getById: int -> Async<Result<TodoItem, string>>
-    create: CreateTodoRequest -> Async<Result<TodoItem, string>>
-    complete: int -> Async<Result<TodoItem, string>>
+    // Command operations
+    save: Item -> Async<Result<Item, string>>
     delete: int -> Async<Result<unit, string>>
 }
 
-type IListApi = {
-    getAllLists: unit -> Async<TodoList list>
-    getListById: int -> Async<Result<TodoList, string>>
-    addItemToList: listId: int * item: TodoItem -> Async<Result<unit, string>>
+// Group related operations
+type ITransactionApi = {
+    getRecent: DateTime -> Async<Transaction list>
+    categorize: int * string -> Async<Result<Transaction, string>>
 }
+
+// Root API
+type IApi = {
+    items: IItemApi
+    transactions: ITransactionApi
+}
+```
+
+**Pattern:**
+- Return `Async<'T>` for all operations
+- Use `Result<'T, string>` for fallible operations
+- Group related operations in separate interfaces
+
+---
+
+## Quick Reference
+
+### Domain Type Patterns
+
+```fsharp
+// Record (data structure)
+type Entity = { Id: int; Name: string }
+
+// Discriminated Union (variants)
+type Status = Active | Pending | Completed
+
+// Optional fields
+type User = { Id: int; Email: string option }
+
+// Nested types
+type Order = { Items: OrderItem list }
+and OrderItem = { ProductId: int; Quantity: int }
+```
+
+### API Contract Patterns
+
+```fsharp
+// Read operations (no Result needed)
+getAll: unit -> Async<'T list>
+getById: 'Id -> Async<'T option>
+
+// Write operations (use Result for validation errors)
+save: 'T -> Async<Result<'T, string>>
+update: 'T -> Async<Result<'T, string>>
+delete: 'Id -> Async<Result<unit, string>>
+
+// Complex operations
+process: Input -> Async<Result<Output, string>>
 ```
 
 ## Verification Checklist
 
-- [ ] Types defined in `src/Shared/Domain.fs`
+- [ ] **Read standards** (types.md, api-contracts.md)
+- [ ] Types in `src/Shared/Domain.fs`
 - [ ] API contracts in `src/Shared/Api.fs`
-- [ ] Used records (not classes)
-- [ ] Used `option` for nullable fields
-- [ ] Used `Result<'T, string>` for fallible operations
-- [ ] All types immutable
-- [ ] No logic in type definitions
-- [ ] Meaningful, descriptive names
-- [ ] Compile succeeds (`dotnet build`)
+- [ ] Records for data structures
+- [ ] Discriminated unions for enums
+- [ ] All API operations return `Async<'T>`
+- [ ] Fallible operations use `Result<'T, string>`
+- [ ] No business logic in types (pure data)
+- [ ] `dotnet build` succeeds
 
-## Next Steps
+## Common Pitfalls
 
-After defining shared types:
-1. Implement backend with **fsharp-backend** skill
-2. Or implement specific layers:
-   - Validation: **fsharp-validation**
-   - Persistence: **fsharp-persistence**
-   - Frontend: **fsharp-frontend**
+**Most Critical:**
+- ❌ Starting implementation before defining types
+- ❌ Putting logic in Domain.fs (only types!)
+- ❌ Using `null` instead of `option`
+- ❌ Forgetting `Async<>` in API contracts
+- ✅ Define types first, implement later
+- ✅ Keep Domain.fs pure (no functions)
+- ✅ Use option for nullable fields
 
-## Related Documentation
+## Related Skills
 
-Check project docs:
-- `/docs/04-SHARED-TYPES.md` - Detailed type design guide
-- `/docs/09-QUICK-REFERENCE.md` - Quick code templates
-- `CLAUDE.md` - Project-specific conventions
+- **fsharp-feature** - Uses types in full-stack workflow
+- **fsharp-backend** - Implements API contracts
+- **fsharp-frontend** - Uses domain types in state
+- **fsharp-validation** - Validates domain types
+
+## Detailed Documentation
+
+For complete patterns and examples:
+- `standards/shared/types.md` - Domain type patterns
+- `standards/shared/api-contracts.md` - Fable.Remoting contracts
+- `standards/shared/validation.md` - Validation patterns

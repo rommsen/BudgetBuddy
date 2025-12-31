@@ -1,10 +1,13 @@
 ---
 name: fsharp-feature
 description: |
-  Orchestrates end-to-end F# full-stack feature development following Elmish MVU + Giraffe + Fable.Remoting patterns.
-  Use when user requests "add X feature", "implement Y", or needs guidance through complete stack implementation.
-  Guides through: Shared types → Backend (validation/domain/persistence/API) → Frontend (state/view) → Tests.
-  Requires project with src/Shared, src/Server, src/Client structure.
+  Orchestrates end-to-end F# full-stack feature development.
+  Use when user requests complete features ("add X", "implement Y").
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash, mcp__serena__*
+standards:
+  - standards/global/development-workflow.md
+  - standards/global/quick-reference.md
+  - standards/global/architecture.md
 ---
 
 # F# Full-Stack Feature Development
@@ -12,402 +15,187 @@ description: |
 ## When to Use This Skill
 
 Activate when:
-- User requests complete new feature ("add todo feature", "implement user management")
-- Need structured guidance through entire stack
+- User requests complete new feature ("add todo feature", "implement budgets")
 - Building feature from scratch with types, backend, frontend, and tests
+- Need structured guidance through entire stack
 - Project follows F# full-stack blueprint with Elmish + Giraffe
 
 ## Prerequisites
 
-Project structure:
+**Read First:**
+- `standards/global/development-workflow.md` - Development process
+- `standards/global/quick-reference.md` - Code templates
+- Project-specific docs in `/docs/` (if any)
+
+**Project Structure:**
 ```
-src/
-├── Shared/        # Domain types and API contracts
-├── Server/        # Giraffe backend
-├── Client/        # Elmish.React + Feliz frontend
-└── Tests/         # Expecto tests
-```
-
-## Development Process
-
-### 1. Read Documentation First
-
-Before implementing any feature:
-```bash
-# Check for project-specific patterns
-Read: /docs/README.md
-Read: /docs/09-QUICK-REFERENCE.md
-Read: CLAUDE.md
+src/Shared/   - Domain types & API contracts
+src/Server/   - Backend (validation, domain, persistence, API)
+src/Client/   - Frontend (state, view)
+src/Tests/    - Expecto tests
 ```
 
-### 2. Define Shared Contracts
+## Quick Start Workflow
 
-**Location**: `src/Shared/`
+### Step 1: Define Shared Contracts
+**Read:** `standards/global/quick-reference.md#shared-domain-type`
+**Edit:** `src/Shared/Domain.fs` and `src/Shared/Api.fs`
 
-Define domain types in `Domain.fs`:
+Define domain types and API contract:
 ```fsharp
-module Shared.Domain
+// Domain.fs
+type Item = { Id: int; Name: string; CreatedAt: DateTime }
 
-open System
-
-type TodoItem = {
-    Id: int
-    Title: string
-    Description: string option
-    Priority: Priority
-    Status: TodoStatus
-    CreatedAt: DateTime
-    UpdatedAt: DateTime
-}
-
-and Priority = Low | Medium | High | Urgent
-and TodoStatus = Active | Completed
-```
-
-Define API contract in `Api.fs`:
-```fsharp
-module Shared.Api
-
-open Domain
-
-type ITodoApi = {
-    getAll: unit -> Async<TodoItem list>
-    getById: int -> Async<Result<TodoItem, string>>
-    create: CreateTodoRequest -> Async<Result<TodoItem, string>>
-    update: TodoItem -> Async<Result<TodoItem, string>>
-    delete: int -> Async<Result<unit, string>>
-}
-
-type CreateTodoRequest = {
-    Title: string
-    Description: string option
-    Priority: Priority
+// Api.fs
+type IItemApi = {
+    getAll: unit -> Async<Item list>
+    save: Item -> Async<Result<Item, string>>
 }
 ```
 
-### 3. Implement Backend
+---
 
-**Location**: `src/Server/`
+### Step 2: Implement Backend
+**Read:** `standards/backend/api-implementation.md`, `standards/backend/domain-logic.md`
+**Skills:** Use `fsharp-backend` for detailed backend implementation
 
-**Step 3a: Validation** (`Validation.fs`)
+**Order:**
+1. **Validation** (`Validation.fs`) - Validate input at API boundary
+2. **Domain** (`Domain.fs`) - Pure business logic (NO I/O)
+3. **Persistence** (`Persistence.fs`) - Database/file operations
+4. **API** (`Api.fs`) - Wire it together with Fable.Remoting
+
 ```fsharp
-module Validation
+// Api.fs - Wire validation → domain → persistence
+let itemApi : IItemApi = {
+    getAll = Persistence.getAllItems
 
-let validateCreateRequest (req: CreateTodoRequest) =
-    let errors = [
-        if String.IsNullOrWhiteSpace(req.Title) then "Title required"
-        if req.Title.Length > 100 then "Title too long"
-    ]
-    if errors.IsEmpty then Ok req else Error errors
-```
-
-**Step 3b: Domain Logic** (`Domain.fs` - PURE, NO I/O)
-```fsharp
-module Domain
-
-open System
-open Shared.Domain
-
-let processNewTodo (req: CreateTodoRequest) : TodoItem =
-    {
-        Id = 0  // Set by persistence
-        Title = req.Title.Trim()
-        Description = req.Description |> Option.map (fun d -> d.Trim())
-        Priority = req.Priority
-        Status = Active
-        CreatedAt = DateTime.UtcNow
-        UpdatedAt = DateTime.UtcNow
-    }
-
-let completeTodo (todo: TodoItem) : TodoItem =
-    { todo with Status = Completed; UpdatedAt = DateTime.UtcNow }
-```
-
-**Step 3c: Persistence** (`Persistence.fs`)
-```fsharp
-module Persistence
-
-open Dapper
-open Microsoft.Data.Sqlite
-open Shared.Domain
-
-let connectionString = "Data Source=./data/app.db"
-let getConnection () = new SqliteConnection(connectionString)
-
-let getAllTodos () : Async<TodoItem list> =
-    async {
-        use conn = getConnection()
-        let! todos = conn.QueryAsync<TodoItem>(
-            "SELECT * FROM TodoItems ORDER BY CreatedAt DESC"
-        ) |> Async.AwaitTask
-        return todos |> Seq.toList
-    }
-
-let insertTodo (todo: TodoItem) : Async<TodoItem> =
-    async {
-        use conn = getConnection()
-        let! id = conn.ExecuteScalarAsync<int64>(
-            """INSERT INTO TodoItems (Title, Description, Priority, Status, CreatedAt, UpdatedAt)
-               VALUES (@Title, @Description, @Priority, @Status, @CreatedAt, @UpdatedAt)
-               RETURNING Id""",
-            todo
-        ) |> Async.AwaitTask
-        return { todo with Id = int id }
-    }
-```
-
-**Step 3d: API Implementation** (`Api.fs`)
-```fsharp
-module Api
-
-open Fable.Remoting.Server
-open Fable.Remoting.Giraffe
-open Shared.Api
-
-let todoApi : ITodoApi = {
-    getAll = Persistence.getAllTodos
-
-    getById = fun id -> async {
-        match! Persistence.getTodoById id with
-        | Some todo -> return Ok todo
-        | None -> return Error "Not found"
-    }
-
-    create = fun request -> async {
-        match Validation.validateCreateRequest request with
-        | Error errs -> return Error (String.concat "; " errs)
+    save = fun item -> async {
+        match Validation.validate item with
+        | Error errs -> return Error (String.concat ", " errs)
         | Ok valid ->
-            let todo = Domain.processNewTodo valid
-            let! saved = Persistence.insertTodo todo
-            return Ok saved
+            let processed = Domain.process valid
+            do! Persistence.save processed
+            return Ok processed
     }
 }
-
-let webApp =
-    Remoting.createApi()
-    |> Remoting.fromValue todoApi
-    |> Remoting.buildHttpHandler
 ```
 
-### 4. Implement Frontend
+---
 
-**Location**: `src/Client/`
+### Step 3: Implement Frontend
+**Read:** `standards/frontend/state-management.md`, `standards/frontend/view-patterns.md`
+**Skills:** Use `fsharp-frontend` for detailed frontend patterns
 
-**Step 4a: State Management** (`State.fs`)
+**Order:**
+1. **State** (`State.fs`) - Model, Msg, init, update
+2. **View** (`View.fs`) - Feliz components
+
+Use `RemoteData<'T>` for async operations:
 ```fsharp
-module State
-
-open Elmish
-open Shared.Domain
-open Types
-
-type Model = {
-    Todos: RemoteData<TodoItem list>
-    NewTodoTitle: string
-    NewTodoDescription: string
-}
+type Model = { Items: RemoteData<Item list> }
 
 type Msg =
-    | LoadTodos
-    | TodosLoaded of Result<TodoItem list, string>
-    | UpdateNewTodoTitle of string
-    | UpdateNewTodoDescription of string
-    | CreateTodo
-    | TodoCreated of Result<TodoItem, string>
+    | LoadItems
+    | ItemsLoaded of Result<Item list, string>
 
-let init () : Model * Cmd<Msg> =
-    let model = {
-        Todos = NotAsked
-        NewTodoTitle = ""
-        NewTodoDescription = ""
-    }
-    model, Cmd.ofMsg LoadTodos
-
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
+let update msg model =
     match msg with
-    | LoadTodos ->
-        let cmd = Cmd.OfAsync.either
-            Api.todoApi.getAll ()
-            (Ok >> TodosLoaded)
-            (fun ex -> Error ex.Message |> TodosLoaded)
-        { model with Todos = Loading }, cmd
-
-    | TodosLoaded (Ok todos) ->
-        { model with Todos = Success todos }, Cmd.none
-
-    | TodosLoaded (Error err) ->
-        { model with Todos = Failure err }, Cmd.none
-
-    | UpdateNewTodoTitle title ->
-        { model with NewTodoTitle = title }, Cmd.none
-
-    | UpdateNewTodoDescription desc ->
-        { model with NewTodoDescription = desc }, Cmd.none
-
-    | CreateTodo ->
-        let request = {
-            Title = model.NewTodoTitle
-            Description = if String.IsNullOrWhiteSpace(model.NewTodoDescription)
-                         then None else Some model.NewTodoDescription
-            Priority = Medium
-        }
-        let cmd = Cmd.OfAsync.either
-            Api.todoApi.create request
-            TodoCreated
-            (fun ex -> Error ex.Message |> TodoCreated)
-        model, cmd
-
-    | TodoCreated (Ok _) ->
-        { model with NewTodoTitle = ""; NewTodoDescription = "" },
-        Cmd.ofMsg LoadTodos
-
-    | TodoCreated (Error _) ->
-        model, Cmd.none
+    | LoadItems ->
+        { model with Items = Loading },
+        Cmd.OfAsync.either Api.api.getAll () (Ok >> ItemsLoaded) (Error >> ItemsLoaded)
+    | ItemsLoaded (Ok items) ->
+        { model with Items = Success items }, Cmd.none
 ```
 
-**Step 4b: View** (`View.fs`)
-```fsharp
-module View
+---
 
-open Feliz
-open State
-open Types
+### Step 4: Write Tests
+**Read:** `standards/testing/domain-tests.md`
+**Skills:** Use `fsharp-tests` for testing patterns
 
-let private todoCard (todo: TodoItem) (dispatch: Msg -> unit) =
-    Html.div [
-        prop.className "card bg-base-100 shadow-xl"
-        prop.children [
-            Html.div [
-                prop.className "card-body"
-                prop.children [
-                    Html.h2 [ prop.className "card-title"; prop.text todo.Title ]
-                    match todo.Description with
-                    | Some desc -> Html.p [ prop.text desc ]
-                    | None -> Html.none
-                ]
-            ]
-        ]
-    ]
-
-let view (model: Model) (dispatch: Msg -> unit) =
-    Html.div [
-        prop.className "container mx-auto p-4"
-        prop.children [
-            Html.h1 [ prop.className "text-4xl font-bold mb-8"; prop.text "Todos" ]
-
-            // Form
-            Html.input [
-                prop.className "input input-bordered w-full mb-2"
-                prop.placeholder "Title"
-                prop.value model.NewTodoTitle
-                prop.onChange (UpdateNewTodoTitle >> dispatch)
-            ]
-            Html.button [
-                prop.className "btn btn-primary"
-                prop.text "Create"
-                prop.onClick (fun _ -> dispatch CreateTodo)
-            ]
-
-            // List
-            match model.Todos with
-            | NotAsked -> Html.div "Loading..."
-            | Loading -> Html.span [ prop.className "loading loading-spinner" ]
-            | Success todos ->
-                Html.div [
-                    prop.className "grid grid-cols-3 gap-4 mt-8"
-                    prop.children [ for todo in todos -> todoCard todo dispatch ]
-                ]
-            | Failure err -> Html.div [ prop.className "alert alert-error"; prop.text err ]
-        ]
-    ]
-```
-
-### 5. Write Tests
-
-**Location**: `src/Tests/`
+Test at minimum:
+- Domain logic (pure functions)
+- Validation rules
+- API integration (if complex)
 
 ```fsharp
-module Tests.TodoTests
-
-open Expecto
-open Shared.Domain
-
 [<Tests>]
-let tests =
-    testList "Todo Feature" [
-        testList "Domain" [
-            testCase "processNewTodo trims title" <| fun () ->
-                let request = { Title = "  Test  "; Description = None; Priority = Low }
-                let result = Domain.processNewTodo request
-                Expect.equal result.Title "Test" "Should trim"
-
-            testCase "completeTodo changes status" <| fun () ->
-                let todo = { baseTodo with Status = Active }
-                let result = Domain.completeTodo todo
-                Expect.equal result.Status Completed "Should be completed"
-        ]
-
-        testList "Validation" [
-            testCase "validates empty title" <| fun () ->
-                let request = { Title = ""; Description = None; Priority = Low }
-                let result = Validation.validateCreateRequest request
-                Expect.isError result "Should fail"
-        ]
-    ]
+let tests = testList "Feature" [
+    testCase "domain logic works" <| fun () ->
+        let result = Domain.process input
+        Expect.equal result.Name "Expected" "Should process"
+]
 ```
 
-## Key Principles
+---
 
-**Critical Rules:**
-1. **Type Safety** - Define all types in `src/Shared/Domain.fs` first
-2. **Pure Domain** - NO I/O in `src/Server/Domain.fs` (pure functions only)
-3. **MVU Pattern** - All state changes through `update` function
-4. **Explicit Errors** - Use `Result<'T, string>` for fallible operations
-5. **Validate Early** - At API boundary before any processing
-6. **RemoteData** - Use for async operations in frontend state
+### Step 5: Verify & Document
+**Commands:**
+```bash
+dotnet build          # Must succeed
+dotnet test           # Must pass
+```
+
+**Update:**
+- `diary/development.md` - Document what you implemented
+- Invoke `qa-milestone-reviewer` agent if part of milestone
+
+## Quick Reference
 
 **Development Order:**
 ```
-Shared Types → Backend (Validation → Domain → Persistence → API) → Frontend (State → View) → Tests
+Shared (types, API) → Backend (validation → domain → persistence → API)
+→ Frontend (state → view) → Tests
 ```
+
+**Critical Rules:**
+- Define types in `src/Shared/` FIRST
+- NO I/O in `Domain.fs` (pure functions only)
+- Use `Result<'T, string>` for errors
+- Use `RemoteData<'T>` for async state
 
 ## Verification Checklist
 
-Before marking feature complete:
-- [ ] Types defined in `src/Shared/Domain.fs`
-- [ ] API contract in `src/Shared/Api.fs`
-- [ ] Validation in `src/Server/Validation.fs`
-- [ ] Domain logic pure (no I/O) in `src/Server/Domain.fs`
-- [ ] Persistence in `src/Server/Persistence.fs`
-- [ ] API implementation in `src/Server/Api.fs`
-- [ ] Frontend state (Model/Msg/update) in `src/Client/State.fs`
-- [ ] Frontend view in `src/Client/View.fs`
-- [ ] Tests written (minimum: domain + validation)
+- [ ] Read standards documentation
+- [ ] Types defined in `src/Shared/`
+- [ ] Validation at API boundary
+- [ ] Domain logic pure (no I/O)
+- [ ] Persistence handles I/O
+- [ ] Frontend uses RemoteData
+- [ ] Tests written (domain + validation minimum)
 - [ ] `dotnet build` succeeds
 - [ ] `dotnet test` passes
+- [ ] Development diary updated
 
-## Common Pitfalls
+## Common Mistakes
 
 ❌ **Don't:**
+- Start coding before defining types
 - Put I/O operations in Domain.fs
 - Skip validation
-- Use classes for domain types (use records)
 - Ignore Result/RemoteData error states
-- Start coding without defining types first
 
 ✅ **Do:**
 - Read documentation first
 - Define types before implementation
 - Keep domain logic pure
 - Handle all error cases explicitly
-- Test domain logic thoroughly
 
 ## Related Skills
 
-For deeper implementation:
-- **fsharp-shared** - Detailed type patterns
-- **fsharp-backend** - Backend layer details
+- **fsharp-backend** - Backend implementation details
 - **fsharp-frontend** - Frontend patterns
+- **fsharp-shared** - Type patterns
 - **fsharp-validation** - Complex validation
-- **fsharp-persistence** - Database patterns
 - **fsharp-tests** - Testing patterns
+
+## Detailed Documentation
+
+For complete patterns and examples:
+- `standards/global/development-workflow.md` - Full development process
+- `standards/global/quick-reference.md` - All code templates
+- `standards/global/architecture.md` - Architecture principles
+- `standards/backend/` - Backend patterns
+- `standards/frontend/` - Frontend patterns
+- `standards/testing/` - Testing patterns

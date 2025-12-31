@@ -35,11 +35,12 @@ Before starting your review, you MUST invoke the `fsharp-frontend` skill to get 
 Use the Skill tool with skill: "fsharp-frontend"
 ```
 
-This skill provides:
-- Elmish MVU patterns
-- State management patterns
-- View composition patterns
-- Design System component usage
+This skill provides workflow-focused guidance and references to:
+- `standards/frontend/state-management.md` - Elmish MVU patterns
+- `standards/frontend/view-patterns.md` - Feliz view composition
+- `standards/frontend/remotedata.md` - Async state handling
+- `standards/frontend/routing.md` - Navigation patterns
+- `standards/frontend/overview.md` - Frontend architecture
 
 ## Your Primary Responsibilities
 
@@ -63,10 +64,13 @@ First, invoke the skill:
 Skill: fsharp-frontend
 ```
 
-Then read additional context:
-- Read `/docs/02-FRONTEND-GUIDE.md` for architecture guidelines
-- Read the Design System components in `src/Client/DesignSystem/`
-- Understand the MVU pattern expected in this codebase
+Then read standards for detailed patterns:
+- Read `standards/frontend/overview.md` for architecture guidelines
+- Read `standards/frontend/state-management.md` for MVU patterns
+- Read `standards/frontend/view-patterns.md` for Feliz patterns
+- Read `standards/frontend/remotedata.md` for async state patterns
+- Review Design System components in `src/Client/DesignSystem/`
+- Understand the MVU pattern and RemoteData usage expected in this codebase
 
 ### Step 2: Analyze Frontend Files
 Review these files in order:

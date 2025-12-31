@@ -6,6 +6,26 @@ description: |
   Ensures validation at boundaries, pure domain functions, and proper error handling with Result types.
   Creates code in src/Server/ files: Validation.fs, Domain.fs, Persistence.fs, Api.fs.
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash
+standards:
+  required-reading:
+    - standards/backend/overview.md
+  workflow:
+    - step: 1
+      file: standards/shared/validation.md
+      purpose: Input validation
+      output: src/Server/Validation.fs
+    - step: 2
+      file: standards/backend/domain-logic.md
+      purpose: Pure business logic
+      output: src/Server/Domain.fs
+    - step: 3
+      file: standards/backend/persistence-sqlite.md
+      purpose: Database operations
+      output: src/Server/Persistence.fs
+    - step: 4
+      file: standards/backend/api-implementation.md
+      purpose: Implement API endpoints
+      output: src/Server/Api.fs
 ---
 
 # F# Backend Implementation
@@ -19,301 +39,137 @@ Activate when:
 - Creating server-side functionality
 - Project has src/Server/ directory with Giraffe
 
-## Architecture Layers
+## Architecture Overview
 
 ```
-API (Fable.Remoting)
-    ↓
-Validation (Input checking)
-    ↓
-Domain (Pure business logic - NO I/O)
-    ↓
-Persistence (Database/File I/O)
+API (Fable.Remoting)          ← src/Server/Api.fs
+    ↓ orchestrates
+Validation (Input checking)   ← src/Server/Validation.fs
+    ↓ validates
+Domain (Pure logic, NO I/O)   ← src/Server/Domain.fs
+    ↓ uses results from
+Persistence (Database/File)   ← src/Server/Persistence.fs
 ```
 
-## Layer 1: Validation (`src/Server/Validation.fs`)
+## Implementation Workflow
 
-**Purpose:** Validate input at API boundary before processing
+### Step 1: Input Validation
 
-### Pattern
+**Read:** `standards/shared/validation.md`
+**Create:** `src/Server/Validation.fs`
+
 ```fsharp
 module Validation
 
-open System
-
-// Reusable validators
-let validateRequired (fieldName: string) (value: string) =
-    if String.IsNullOrWhiteSpace(value) then
-        Some $"{fieldName} is required"
-    else
-        None
-
-let validateLength (fieldName: string) (minLen: int) (maxLen: int) (value: string) =
-    let len = value.Length
-    if len < minLen || len > maxLen then
-        Some $"{fieldName} must be between {minLen} and {maxLen} characters"
-    else
-        None
-
-// Entity validation
-let validateTodoItem (item: TodoItem) : Result<TodoItem, string list> =
+let validateItem (item: Item) : Result<Item, string list> =
     let errors = [
-        validateRequired "Title" item.Title
-        validateLength "Title" 1 100 item.Title
-
-        match item.Description with
-        | Some desc -> validateLength "Description" 0 500 desc
-        | None -> None
+        if String.IsNullOrWhiteSpace(item.Name) then "Name required"
+        if item.Name.Length > 100 then "Name too long"
     ] |> List.choose id
-
     if errors.IsEmpty then Ok item else Error errors
 ```
 
-**Key points:**
-- Return `Option<string>` from validators (None = valid)
-- Accumulate all errors (don't stop at first)
-- Use `Result<'T, string list>` for multiple errors
-- Convert to `Result<'T, string>` if needed
+**Key:** Return `Result<'T, string list>` for multiple errors
 
-## Layer 2: Domain (`src/Server/Domain.fs`)
+---
 
-**Purpose:** Pure business logic - NO side effects, NO I/O
+### Step 2: Domain Logic (Pure Functions)
 
-### Pattern
+**Read:** `standards/backend/domain-logic.md`
+**Create:** `src/Server/Domain.fs`
+
 ```fsharp
 module Domain
 
-open System
-open Shared.Domain
+// ✅ PURE - no I/O, no side effects
+let processItem (item: Item) : Item =
+    { item with Name = item.Name.Trim() }
 
-// ✅ PURE transformations only
-let processNewTodo (request: CreateTodoRequest) : TodoItem =
-    {
-        Id = 0  // Will be set by persistence
-        Title = request.Title.Trim()
-        Description = request.Description |> Option.map (fun d -> d.Trim())
-        Priority = request.Priority
-        Status = Active
-        CreatedAt = DateTime.UtcNow
-        UpdatedAt = DateTime.UtcNow
-    }
-
-let completeTodo (item: TodoItem) : TodoItem =
-    { item with Status = Completed; UpdatedAt = DateTime.UtcNow }
-
-let updateTodo (existing: TodoItem) (updates: CreateTodoRequest) : TodoItem =
-    {
-        existing with
-            Title = updates.Title.Trim()
-            Description = updates.Description |> Option.map (fun d -> d.Trim())
-            Priority = updates.Priority
-            UpdatedAt = DateTime.UtcNow
-    }
-
-// ✅ PURE calculations
-let calculatePriority (items: TodoItem list) : Priority =
-    items
-    |> List.map (fun item -> item.Priority)
-    |> List.maxBy (function Urgent -> 4 | High -> 3 | Medium -> 2 | Low -> 1)
+let calculateScore (items: Item list) : int =
+    items |> List.sumBy (fun i -> i.Name.Length)
 ```
 
-**CRITICAL:**
-```fsharp
-// ❌ BAD - I/O in domain
-let processItem itemId =
-    let item = Persistence.getItem itemId  // NO!
-    { item with Status = Processed }
+**CRITICAL:** NO I/O operations in Domain.fs!
 
-// ✅ GOOD - Pure function
-let processItem item =
-    { item with Status = Processed }
-```
+---
 
-## Layer 3: Persistence (`src/Server/Persistence.fs`)
+### Step 3: Persistence Layer
 
-**Purpose:** All database and file I/O operations
+**Read:** `standards/backend/persistence-sqlite.md`
+**Create:** `src/Server/Persistence.fs`
 
-### SQLite with Dapper
 ```fsharp
 module Persistence
 
-open System.Data
-open Microsoft.Data.Sqlite
 open Dapper
-open Shared.Domain
+open Microsoft.Data.Sqlite
 
-let connectionString = "Data Source=./data/app.db"
-let getConnection () = new SqliteConnection(connectionString)
+let getConnection () = new SqliteConnection("Data Source=./data/app.db")
 
-let initializeDatabase () =
+let getItems () : Async<Item list> = async {
     use conn = getConnection()
-    conn.Execute("""
-        CREATE TABLE IF NOT EXISTS TodoItems (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Title TEXT NOT NULL,
-            Description TEXT,
-            Priority INTEGER NOT NULL,
-            Status INTEGER NOT NULL,
-            CreatedAt TEXT NOT NULL,
-            UpdatedAt TEXT NOT NULL
-        )
-    """) |> ignore
-
-// READ operations
-let getAllTodos () : Async<TodoItem list> =
-    async {
-        use conn = getConnection()
-        let! todos = conn.QueryAsync<TodoItem>(
-            "SELECT * FROM TodoItems ORDER BY CreatedAt DESC"
-        ) |> Async.AwaitTask
-        return todos |> Seq.toList
-    }
-
-let getTodoById (id: int) : Async<TodoItem option> =
-    async {
-        use conn = getConnection()
-        let! todo = conn.QuerySingleOrDefaultAsync<TodoItem>(
-            "SELECT * FROM TodoItems WHERE Id = @Id",
-            {| Id = id |}
-        ) |> Async.AwaitTask
-        return if isNull (box todo) then None else Some todo
-    }
-
-// WRITE operations
-let insertTodo (todo: TodoItem) : Async<TodoItem> =
-    async {
-        use conn = getConnection()
-        let! id = conn.ExecuteScalarAsync<int64>(
-            """INSERT INTO TodoItems (Title, Description, Priority, Status, CreatedAt, UpdatedAt)
-               VALUES (@Title, @Description, @Priority, @Status, @CreatedAt, @UpdatedAt)
-               RETURNING Id""",
-            {|
-                Title = todo.Title
-                Description = todo.Description
-                Priority = int todo.Priority
-                Status = int todo.Status
-                CreatedAt = todo.CreatedAt.ToString("o")
-                UpdatedAt = todo.UpdatedAt.ToString("o")
-            |}
-        ) |> Async.AwaitTask
-        return { todo with Id = int id }
-    }
-
-let updateTodo (todo: TodoItem) : Async<unit> =
-    async {
-        use conn = getConnection()
-        let! _ = conn.ExecuteAsync(
-            """UPDATE TodoItems
-               SET Title = @Title, Description = @Description,
-                   Priority = @Priority, Status = @Status, UpdatedAt = @UpdatedAt
-               WHERE Id = @Id""",
-            todo
-        ) |> Async.AwaitTask
-        return ()
-    }
-
-let deleteTodo (id: int) : Async<unit> =
-    async {
-        use conn = getConnection()
-        let! _ = conn.ExecuteAsync(
-            "DELETE FROM TodoItems WHERE Id = @Id",
-            {| Id = id |}
-        ) |> Async.AwaitTask
-        return ()
-    }
+    let! items = conn.QueryAsync<Item>("SELECT * FROM Items") |> Async.AwaitTask
+    return items |> Seq.toList
+}
 ```
 
-**Key points:**
-- Use parameterized queries (SQL injection prevention)
-- Always use `async` for I/O
-- Dispose connections (`use` keyword)
-- Return options for "not found" cases
+**Key:** Always `async`, use parameterized queries
 
-## Layer 4: API (`src/Server/Api.fs`)
+---
 
-**Purpose:** Implement Fable.Remoting contracts, orchestrate layers
+### Step 4: API Implementation
 
-### Pattern
+**Read:** `standards/backend/api-implementation.md`
+**Create:** `src/Server/Api.fs`
+
 ```fsharp
 module Api
 
 open Fable.Remoting.Server
 open Fable.Remoting.Giraffe
 open Shared.Api
-open Shared.Domain
 
-let todoApi : ITodoApi = {
-    getAll = fun () ->
-        Persistence.getAllTodos()
-
-    getById = fun id -> async {
-        match! Persistence.getTodoById id with
-        | Some todo -> return Ok todo
-        | None -> return Error "Todo not found"
-    }
-
-    create = fun request -> async {
+let itemApi : IItemApi = {
+    save = fun item -> async {
         // 1. Validate
-        match Validation.validateCreateRequest request with
-        | Error errors -> return Error (String.concat "; " errors)
-        | Ok validRequest ->
-            // 2. Process with domain logic
-            let newTodo = Domain.processNewTodo validRequest
-
+        match Validation.validateItem item with
+        | Error errs -> return Error (String.concat ", " errs)
+        | Ok valid ->
+            // 2. Domain logic (pure)
+            let processed = Domain.processItem valid
             // 3. Persist
-            let! saved = Persistence.insertTodo newTodo
-            return Ok saved
-    }
-
-    update = fun todo -> async {
-        // 1. Validate
-        match Validation.validateTodoItem todo with
-        | Error errors -> return Error (String.concat "; " errors)
-        | Ok validTodo ->
-            // 2. Check exists
-            match! Persistence.getTodoById todo.Id with
-            | None -> return Error "Todo not found"
-            | Some existing ->
-                // 3. Process with domain logic
-                let updated = Domain.updateTodo existing validTodo
-
-                // 4. Persist
-                do! Persistence.updateTodo updated
-                return Ok updated
-    }
-
-    complete = fun id -> async {
-        match! Persistence.getTodoById id with
-        | None -> return Error "Todo not found"
-        | Some todo ->
-            let completed = Domain.completeTodo todo
-            do! Persistence.updateTodo completed
-            return Ok completed
-    }
-
-    delete = fun id -> async {
-        do! Persistence.deleteTodo id
-        return Ok ()
+            do! Persistence.save processed
+            return Ok processed
     }
 }
 
-// Create HTTP handler
 let webApp =
     Remoting.createApi()
-    |> Remoting.fromValue todoApi
+    |> Remoting.fromValue itemApi
     |> Remoting.buildHttpHandler
 ```
 
-**Orchestration pattern:**
-1. Validate input
-2. Return error if invalid
-3. Transform with domain logic (pure)
-4. Perform persistence operations
-5. Return result
+**Pattern:** Validate → Domain → Persist
 
-### Error Handling Patterns
+---
 
-**Not Found:**
+## Quick Reference
+
+### Standard API Endpoint Pattern
+
+```fsharp
+save = fun entity -> async {
+    match Validation.validate entity with
+    | Error errs -> return Error (String.concat ", " errs)
+    | Ok valid ->
+        let processed = Domain.process valid
+        do! Persistence.save processed
+        return Ok processed
+}
+```
+
+### Not Found Pattern
+
 ```fsharp
 getById = fun id -> async {
     match! Persistence.getById id with
@@ -322,141 +178,41 @@ getById = fun id -> async {
 }
 ```
 
-**Validation Errors:**
-```fsharp
-save = fun item -> async {
-    match Validation.validate item with
-    | Error errs -> return Error (String.concat "; " errs)
-    | Ok valid ->
-        do! Persistence.save valid
-        return Ok valid
-}
-```
-
-**Exception Handling:**
-```fsharp
-save = fun item -> async {
-    try
-        do! Persistence.save item
-        return Ok item
-    with
-    | ex -> return Error $"Failed to save: {ex.Message}"
-}
-```
-
-## Integration with Program.fs
-
-```fsharp
-module Program
-
-open Microsoft.AspNetCore.Builder
-open Giraffe
-
-let configureApp (app: IApplicationBuilder) =
-    // Initialize persistence
-    Persistence.ensureDataDir()
-    Persistence.initializeDatabase()
-
-    app.UseStaticFiles() |> ignore
-    app.UseRouting() |> ignore
-    app.UseGiraffe(Api.webApp)
-
-[<EntryPoint>]
-let main args =
-    let builder = WebApplication.CreateBuilder(args)
-    builder.Services.AddGiraffe() |> ignore
-
-    let app = builder.Build()
-    configureApp app
-    app.Run()
-    0
-```
-
-## Complete Example
-
-```fsharp
-// Validation.fs
-module Validation
-open Shared.Domain
-
-let validateCreateRequest (req: CreateTodoRequest) =
-    let errors = [
-        if String.IsNullOrWhiteSpace(req.Title) then "Title required"
-        if req.Title.Length > 100 then "Title too long"
-    ]
-    if errors.IsEmpty then Ok req else Error errors
-
-// Domain.fs
-module Domain
-open System
-open Shared.Domain
-
-let processNewTodo (req: CreateTodoRequest) : TodoItem =
-    {
-        Id = 0
-        Title = req.Title.Trim()
-        Description = req.Description
-        Priority = req.Priority
-        Status = Active
-        CreatedAt = DateTime.UtcNow
-        UpdatedAt = DateTime.UtcNow
-    }
-
-// Persistence.fs (SQLite example above)
-
-// Api.fs
-module Api
-open Shared.Api
-
-let todoApi : ITodoApi = {
-    create = fun request -> async {
-        match Validation.validateCreateRequest request with
-        | Error errs -> return Error (String.concat "; " errs)
-        | Ok valid ->
-            let todo = Domain.processNewTodo valid
-            let! saved = Persistence.insertTodo todo
-            return Ok saved
-    }
-}
-```
-
 ## Verification Checklist
 
+- [ ] **Read workflow standards** (step 1-4 above)
 - [ ] Validation in `src/Server/Validation.fs`
-- [ ] Domain logic in `src/Server/Domain.fs` (PURE - no I/O)
+- [ ] Domain logic in `src/Server/Domain.fs` (PURE - no I/O!)
 - [ ] Persistence in `src/Server/Persistence.fs`
 - [ ] API implementation in `src/Server/Api.fs`
-- [ ] Proper error handling (Result types)
-- [ ] Database initialized (if using SQLite)
-- [ ] All async operations used for I/O
-- [ ] No I/O in domain layer
-- [ ] Parameterized queries (SQL injection prevention)
+- [ ] All async operations for I/O
+- [ ] Parameterized SQL queries
+- [ ] Error handling with Result types
+- [ ] `dotnet build` succeeds
+- [ ] Tests written
 
 ## Common Pitfalls
 
-❌ **Don't:**
-- Put database calls in Domain.fs
-- Skip validation
-- Use string concatenation for SQL queries
-- Forget to dispose database connections
-- Mix concerns across layers
+See `standards/global/anti-patterns.md` for full list.
 
-✅ **Do:**
-- Keep domain logic pure
-- Validate at API boundary
-- Use parameterized queries
-- Handle all error cases explicitly
-- Follow layer responsibilities strictly
+**Most Critical:**
+- ❌ I/O in Domain.fs
+- ❌ Skipping validation
+- ❌ String concatenation in SQL
+- ✅ Keep layers separated
 
 ## Related Skills
 
-- **fsharp-validation** - Detailed validation patterns
-- **fsharp-persistence** - More persistence patterns
+- **fsharp-validation** - Complex validation patterns
+- **fsharp-persistence** - Advanced persistence patterns
 - **fsharp-tests** - Testing backend logic
 - **fsharp-shared** - Type definitions
 
-## Related Documentation
+## Detailed Documentation
 
-- `/docs/03-BACKEND-GUIDE.md` - Detailed backend guide
-- `/docs/05-PERSISTENCE.md` - Persistence patterns
-- `/docs/09-QUICK-REFERENCE.md` - Quick templates
+For in-depth patterns and examples, refer to:
+- `standards/backend/overview.md` - Architecture
+- `standards/backend/api-implementation.md` - API patterns
+- `standards/backend/domain-logic.md` - Pure functions
+- `standards/backend/persistence-sqlite.md` - Database
+- `standards/backend/error-handling.md` - Error patterns

@@ -1,11 +1,27 @@
 ---
 name: fsharp-tests
 description: |
-  Write comprehensive tests using Expecto for F# applications including domain logic, validation, async operations, and state transitions.
-  Use when implementing tests, ensuring code quality, or verifying functionality.
-  Creates test files in src/Tests/ with patterns for unit tests, property tests, and async tests.
-  Tests domain logic (pure functions), validation rules, persistence operations, and Elmish state management.
-allowed-tools: Read, Edit, Write, Grep, Bash
+  Write F# tests using Expecto framework for domain, API, and persistence layers.
+  Use when adding tests for new features, fixing bugs, or ensuring code quality.
+  Ensures regression prevention and documentation of expected behavior.
+  Creates code in src/Tests/.
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash
+standards:
+  required-reading:
+    - standards/testing/overview.md
+  workflow:
+    - step: 1
+      file: standards/testing/domain-tests.md
+      purpose: Test pure business logic
+      output: src/Tests/DomainTests.fs
+    - step: 2
+      file: standards/testing/api-tests.md
+      purpose: Test API endpoints
+      output: src/Tests/ApiTests.fs
+    - step: 3
+      file: standards/testing/persistence-tests.md
+      purpose: Test database operations
+      output: src/Tests/PersistenceTests.fs
 ---
 
 # F# Testing with Expecto
@@ -13,146 +29,68 @@ allowed-tools: Read, Edit, Write, Grep, Bash
 ## When to Use This Skill
 
 Activate when:
-- User requests "add tests for X", "test Y"
-- Implementing any new feature (always write tests)
-- Need to verify domain logic
-- Testing validation rules
-- Testing API contracts
-- Testing state transitions (Elmish)
+- User requests "add tests for X"
+- Implementing new features (ALWAYS add tests)
+- Fixing bugs (MUST add regression test)
+- Need to verify behavior
+- Project has src/Tests/ directory with Expecto
 
-## Test Project Structure
+## Testing Priority
 
-```
-src/Tests/
-├── Shared.Tests/
-│   ├── DomainTests.fs
-│   ├── ValidationTests.fs
-│   ├── Program.fs
-│   └── Shared.Tests.fsproj
-│
-├── Server.Tests/
-│   ├── DomainTests.fs
-│   ├── ValidationTests.fs
-│   ├── PersistenceTests.fs
-│   ├── Program.fs
-│   └── Server.Tests.fsproj
-│
-└── Client.Tests/
-    ├── StateTests.fs
-    ├── Program.fs
-    └── Client.Tests.fsproj
-```
+**MANDATORY:**
+1. **Domain tests** - Pure business logic (ALWAYS)
+2. **Validation tests** - Input validation rules (ALWAYS)
+3. **Bug regression tests** - Prevent bug recurrence (ALWAYS)
 
-## Project Setup
+**Optional (as needed):**
+4. API integration tests
+5. Persistence tests (use in-memory SQLite)
+6. Frontend tests
 
-### Test Project File
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <IsPackable>false</IsPackable>
-    <GenerateProgramFile>false</GenerateProgramFile>
-  </PropertyGroup>
+## Implementation Workflow
 
-  <ItemGroup>
-    <Compile Include="DomainTests.fs" />
-    <Compile Include="ValidationTests.fs" />
-    <Compile Include="Program.fs" />
-  </ItemGroup>
+### Step 1: Domain Tests (Pure Logic)
 
-  <ItemGroup>
-    <PackageReference Include="Expecto" Version="10.2.1" />
-    <PackageReference Include="Expecto.FsCheck" Version="10.2.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../../Server/Server.fsproj" />
-    <ProjectReference Include="../../Shared/Shared.fsproj" />
-  </ItemGroup>
-</Project>
-```
-
-### Program.fs (Main.fs)
-
-**CRITICAL**: Set `USE_MEMORY_DB` environment variable to prevent tests from writing to production database!
-
-```fsharp
-module Program
-
-open System
-open Expecto
-
-[<EntryPoint>]
-let main args =
-    // CRITICAL: Set test mode BEFORE any Persistence module access
-    Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
-    runTestsInAssembly defaultConfig args
-```
-
-### Test Files Using Persistence
-
-For test files that `open Persistence`, set the environment variable at module initialization:
-
-```fsharp
-module PersistenceTests
-
-open System
-
-// CRITICAL: Set test mode BEFORE importing Persistence module
-// F# modules initialize by dependency graph, not by open order
-do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
-
-open Expecto
-open Persistence  // Now this will use in-memory SQLite
-
-[<Tests>]
-let tests = testList "Persistence" [
-    // tests here...
-]
-```
-
-**Why `do` before `open Persistence`?**
-
-F# evaluates module-level `do` bindings in source order, but module *initialization* follows the dependency graph. By placing `do Environment.SetEnvironmentVariable(...)` before `open Persistence`, the environment variable is set before `Persistence` module's lazy configuration is first accessed.
-
-## Testing Domain Logic
+**Read:** `standards/testing/domain-tests.md`
+**Create:** `src/Tests/DomainTests.fs`
 
 ```fsharp
 module DomainTests
 
 open Expecto
-open Shared.Domain
+open Domain
 
 [<Tests>]
-let tests =
-    testList "Domain Logic" [
-        testCase "processNewTodo trims title" <| fun () ->
-            let request = { Title = "  Test  "; Description = None; Priority = Low }
-            let result = Domain.processNewTodo request
-            Expect.equal result.Title "Test" "Should trim whitespace"
+let tests = testList "Domain" [
+    testCase "processItem trims name" <| fun () ->
+        let input = { Id = 1; Name = "  test  " }
+        let result = Domain.processItem input
+        Expect.equal result.Name "test" "Should trim whitespace"
 
-        testCase "completeTodo changes status" <| fun () ->
-            let todo = { baseTodo with Status = Active }
-            let result = Domain.completeTodo todo
-            Expect.equal result.Status Completed "Should be completed"
+    testCase "calculateTotal sums amounts" <| fun () ->
+        let items = [
+            { Id = 1; Amount = 10.0m }
+            { Id = 2; Amount = 20.0m }
+        ]
+        let total = Domain.calculateTotal items
+        Expect.equal total 30.0m "Should sum all amounts"
 
-        testCase "completeTodo updates timestamp" <| fun () ->
-            let before = System.DateTime.UtcNow
-            let todo = { baseTodo with UpdatedAt = before }
-            let result = Domain.completeTodo todo
-            Expect.isGreaterThan result.UpdatedAt before "Should update timestamp"
-
-        testCase "calculateTotal sums correctly" <| fun () ->
-            let items = [
-                { Item = "A"; Price = 10.0m; Quantity = 2 }
-                { Item = "B"; Price = 5.0m; Quantity = 3 }
-            ]
-            let total = Domain.calculateTotal items
-            Expect.equal total 35.0m "Should sum correctly"
-    ]
+    // Bug regression test
+    testCase "handles empty list without error" <| fun () ->
+        // Regression: This used to throw NullReferenceException
+        let result = Domain.calculateTotal []
+        Expect.equal result 0.0m "Should return 0 for empty list"
+]
 ```
 
-## Testing Validation
+**Key:** Test pure functions, fast, no I/O
+
+---
+
+### Step 2: Validation Tests
+
+**Read:** `standards/testing/domain-tests.md` (validation section)
+**Create:** `src/Tests/ValidationTests.fs`
 
 ```fsharp
 module ValidationTests
@@ -161,318 +99,147 @@ open Expecto
 open Validation
 
 [<Tests>]
-let tests =
-    testList "Validation" [
-        testCase "Valid todo passes" <| fun () ->
-            let todo = {
-                Id = 1
-                Title = "Valid Title"
-                Description = Some "Description"
-                Priority = Medium
-                Status = Active
-                CreatedAt = System.DateTime.UtcNow
-                UpdatedAt = System.DateTime.UtcNow
-            }
-            let result = validateTodoItem todo
-            Expect.isOk result "Should pass validation"
+let tests = testList "Validation" [
+    testCase "rejects empty name" <| fun () ->
+        let item = { Id = 0; Name = "" }
+        match Validation.validateItem item with
+        | Error errs -> Expect.contains errs "Name required" "Should reject empty name"
+        | Ok _ -> failtest "Should have failed"
 
-        testCase "Empty title fails" <| fun () ->
-            let todo = { validTodo with Title = "" }
-            let result = validateTodoItem todo
-            Expect.isError result "Should fail validation"
+    testCase "accepts valid item" <| fun () ->
+        let item = { Id = 0; Name = "Valid" }
+        match Validation.validateItem item with
+        | Ok _ -> ()
+        | Error errs -> failtestf "Should be valid: %A" errs
 
-        testCase "Title too long fails" <| fun () ->
-            let todo = { validTodo with Title = String.replicate 101 "a" }
-            let result = validateTodoItem todo
-            Expect.isError result "Should fail validation"
-
-        testCase "Multiple errors accumulated" <| fun () ->
-            let todo = { validTodo with Title = ""; Id = -1 }
-            match validateTodoItem todo with
-            | Error errors ->
-                Expect.isGreaterThan errors.Length 1 "Should have multiple errors"
-                Expect.contains errors "Title is required" "Should mention title"
-            | Ok _ ->
-                failtest "Should have failed validation"
-    ]
+    testCase "accumulates multiple errors" <| fun () ->
+        let item = { Id = 0; Name = "" }
+        match Validation.validateItem item with
+        | Error errs ->
+            Expect.isGreaterThan errs.Length 0 "Should have errors"
+        | Ok _ -> failtest "Should have failed"
+]
 ```
 
-## Testing Result Types
+**Key:** Test all validation rules, including edge cases
+
+---
+
+### Step 3: Integration Tests (Optional)
+
+**Read:** `standards/testing/persistence-tests.md`
+**Create:** `src/Tests/PersistenceTests.fs`
 
 ```fsharp
-[<Tests>]
-let resultTests =
-    testList "Result Handling" [
-        testCase "Successful operation returns Ok" <| fun () ->
-            let result = Operation.performAction validInput
-            Expect.isOk result "Should succeed"
-
-            match result with
-            | Ok value ->
-                Expect.equal value.Status Success "Should be successful"
-            | Error _ ->
-                failtest "Should not fail"
-
-        testCase "Invalid input returns Error" <| fun () ->
-            let result = Operation.performAction invalidInput
-            Expect.isError result "Should fail"
-
-            match result with
-            | Error msg ->
-                Expect.stringContains msg "invalid" "Should mention invalid input"
-            | Ok _ ->
-                failtest "Should not succeed"
-    ]
-```
-
-## Testing Async Operations
-
-```fsharp
-[<Tests>]
-let asyncTests =
-    testList "Async Operations" [
-        testCaseAsync "getAllTodos returns list" <| async {
-            let! result = Persistence.getAllTodos()
-            Expect.isNotNull result "Should return list"
-        }
-
-        testCaseAsync "getTodoById returns todo" <| async {
-            let! result = Persistence.getTodoById 1
-            match result with
-            | Some todo ->
-                Expect.equal todo.Id 1 "Should have correct ID"
-            | None ->
-                failtest "Should find todo"
-        }
-
-        testCaseAsync "getTodoById returns None for nonexistent" <| async {
-            let! result = Persistence.getTodoById 99999
-            Expect.isNone result "Should not find todo"
-        }
-    ]
-```
-
-## Testing State Transitions (Elmish)
-
-```fsharp
-module StateTests
-
-open Expecto
-open State
-open Types
-
-[<Tests>]
-let tests =
-    testList "State Management" [
-        testCase "Init creates correct initial state" <| fun () ->
-            let model, cmd = State.init()
-            Expect.equal model.Todos NotAsked "Should start as NotAsked"
-            Expect.equal model.NewTodoTitle "" "Should have empty title"
-
-        testCase "LoadTodos sets Loading state" <| fun () ->
-            let model = { initialModel with Todos = NotAsked }
-            let newModel, _ = State.update LoadTodos model
-            Expect.equal newModel.Todos Loading "Should set to Loading"
-
-        testCase "TodosLoaded with Ok sets Success" <| fun () ->
-            let model = { initialModel with Todos = Loading }
-            let todos = [ todo1; todo2 ]
-            let newModel, _ = State.update (TodosLoaded (Ok todos)) model
-
-            match newModel.Todos with
-            | Success loadedTodos ->
-                Expect.equal loadedTodos todos "Should contain loaded todos"
-            | _ ->
-                failtest "Should be Success state"
-
-        testCase "TodosLoaded with Error sets Failure" <| fun () ->
-            let model = { initialModel with Todos = Loading }
-            let newModel, _ = State.update (TodosLoaded (Error "Failed")) model
-
-            match newModel.Todos with
-            | Failure msg ->
-                Expect.equal msg "Failed" "Should contain error message"
-            | _ ->
-                failtest "Should be Failure state"
-
-        testCase "UpdateNewTodoTitle updates model" <| fun () ->
-            let model = initialModel
-            let newModel, _ = State.update (UpdateNewTodoTitle "New Title") model
-            Expect.equal newModel.NewTodoTitle "New Title" "Should update title"
-    ]
-```
-
-## Property-Based Testing
-
-```fsharp
-open FsCheck
-
-[<Tests>]
-let propertyTests =
-    testList "Property Tests" [
-        testProperty "Trimming is idempotent" <| fun (s: string) ->
-            let trimmed = s.Trim()
-            trimmed.Trim() = trimmed
-
-        testProperty "Adding then removing returns original count" <| fun (items: int list) (newItem: int) ->
-            let withItem = newItem :: items
-            let afterRemoval = withItem |> List.filter (fun x -> x <> newItem)
-            afterRemoval.Length <= items.Length + 1
-    ]
-```
-
-## Test Fixtures
-
-```fsharp
-module TestData =
-    let validTodo = {
-        Id = 1
-        Title = "Test Todo"
-        Description = Some "Description"
-        Priority = Medium
-        Status = Active
-        CreatedAt = System.DateTime(2024, 1, 1)
-        UpdatedAt = System.DateTime(2024, 1, 1)
-    }
-
-    let createTodo id title =
-        { validTodo with Id = id; Title = title }
-
-    let testTodos = [
-        createTodo 1 "First"
-        createTodo 2 "Second"
-        createTodo 3 "Third"
-    ]
-
-[<Tests>]
-let tests =
-    testList "Using Test Data" [
-        testCase "Uses valid todo" <| fun () ->
-            let result = Domain.processTodo TestData.validTodo
-            Expect.isOk result "Should process valid todo"
-    ]
-```
-
-## Running Tests
-
-```bash
-# Run all tests
-dotnet test
-
-# Run specific test project
-dotnet test src/Tests/Server.Tests/
-
-# Run with watch mode
-dotnet test --watch
-
-# Run with filter
-dotnet test --filter "FullyQualifiedName~Validation"
-
-# Verbose output
-dotnet test --logger "console;verbosity=detailed"
-```
-
-## Testing Persistence (In-Memory SQLite)
-
-**CRITICAL**: Never write tests that persist to production database!
-
-```fsharp
-module PersistenceTypeConversionTests
-
-open System
-
-// MUST be before 'open Persistence'
-do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+module PersistenceTests
 
 open Expecto
 open Persistence
 
-let private createTestRule () = {
-    Id = Guid.NewGuid()
-    Name = "Test Rule"
-    // ...
-}
+// Use in-memory SQLite for tests
+let private getTestConnection () =
+    new SqliteConnection("Data Source=:memory:")
 
 [<Tests>]
-let tests =
-    testList "Persistence Type Conversions" [
-        testCase "Rule roundtrip" <| fun () ->
-            // Initialize schema in memory DB
-            Rules.initializeDatabase()
+let tests = testList "Persistence" [
+    testAsync "saves and retrieves item" {
+        use conn = getTestConnection()
+        do! Persistence.ensureTables conn |> Async.RunSynchronously
 
-            let rule = createTestRule()
-            Rules.insertRule rule |> Async.RunSynchronously
+        let item = { Id = 0; Name = "Test" }
+        do! Persistence.save conn item
 
-            let retrieved = Rules.getRuleById rule.Id |> Async.RunSynchronously
-
-            match retrieved with
-            | Some r -> Expect.equal r.Name rule.Name "Should roundtrip"
-            | None -> failtest "Should find inserted rule"
-    ]
+        let! retrieved = Persistence.getAll conn
+        Expect.hasLength retrieved 1 "Should have 1 item"
+        Expect.equal retrieved.[0].Name "Test" "Should match saved name"
+    }
+]
 ```
 
-### F# Module Initialization Gotchas
+**Key:** Use in-memory database, NEVER write to production DB
 
-1. **`open` order doesn't control initialization** - Modules are initialized by dependency graph
-2. **`do` bindings run in source order** - Use `do` before `open` to set env vars
-3. **Lazy loading is required** - The Persistence module must use `lazy` for configuration
+---
+
+## Quick Reference
+
+### Expecto Test Patterns
 
 ```fsharp
-// ❌ WRONG - TestSetup won't run before Persistence initializes
-open TestSetup       // Has: do Environment.SetEnvironmentVariable(...)
-open Persistence     // Already initialized based on dependency graph!
+// Single test
+testCase "description" <| fun () ->
+    let result = function input
+    Expect.equal result expected "message"
 
-// ✅ CORRECT - Set env var in same file before open
-do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
-open Persistence     // Now reads the env var via lazy config
+// Async test
+testAsync "description" {
+    let! result = asyncFunction()
+    Expect.equal result expected "message"
+}
+
+// Test list
+testList "Group" [
+    testCase "test1" <| fun () -> ...
+    testCase "test2" <| fun () -> ...
+]
 ```
 
-## Best Practices
+### Expect Assertions
 
-### ✅ Do
-- Test domain logic thoroughly (it's pure)
-- Test validation rules
-- Use descriptive test names
-- Test edge cases and error conditions
-- Keep tests independent
-- Use test fixtures for common data
-- Test state transitions
-- Set `USE_MEMORY_DB=true` for persistence tests
-- Use `do` before `open Persistence` to set env vars
+```fsharp
+Expect.equal actual expected "message"
+Expect.isTrue condition "message"
+Expect.isFalse condition "message"
+Expect.isNone option "message"
+Expect.isSome option "message"
+Expect.contains list item "message"
+Expect.hasLength list count "message"
+Expect.throws (fun () -> ...) "message"
+```
 
-### ❌ Don't
-- Test implementation details
-- Make tests dependent on order
-- Skip testing error cases
-- Make tests dependent on external services
-- Write slow tests without async
-- Forget boundary conditions
-- Write tests that persist to production database
-- Rely on `open` order for initialization control
+### Bug Regression Template
+
+```fsharp
+testCase "description of what bug it prevents" <| fun () ->
+    // Comment explaining the bug and what was broken
+    // Regression: [Bug description]
+    let result = functionThatWasBroken input
+    Expect.equal result expected "Should work correctly"
+```
 
 ## Verification Checklist
 
-- [ ] Test project created and configured
+- [ ] **Read standards** (testing/overview.md)
 - [ ] Domain logic tests written
-- [ ] Validation tests written
-- [ ] Edge cases tested
-- [ ] Error conditions tested
-- [ ] Async operations tested
-- [ ] State transitions tested (if frontend)
-- [ ] Persistence tests use `USE_MEMORY_DB=true`
-- [ ] Environment variable set via `do` before `open Persistence`
-- [ ] All tests pass
-- [ ] Tests are independent
-- [ ] Descriptive test names
-- [ ] Production database unchanged after test run
+- [ ] Validation rules tested
+- [ ] Bug fixes have regression tests
+- [ ] Tests use in-memory DB (if persistence)
+- [ ] All tests pass (`dotnet test`)
+- [ ] Test names describe behavior
+- [ ] Failure messages are clear
+
+## Common Pitfalls
+
+**Most Critical:**
+- ❌ Writing tests that touch production database
+- ❌ Bug fixes without regression tests
+- ❌ Testing implementation details
+- ❌ Unclear test names
+- ✅ Test behavior, not implementation
+- ✅ Use in-memory SQLite for integration tests
+- ✅ Every bug fix gets a test
 
 ## Related Skills
 
-- **fsharp-backend** - Testing backend logic
-- **fsharp-frontend** - Testing state management
-- **fsharp-validation** - Testing validation
-- **fsharp-persistence** - Testing persistence
+- **fsharp-backend** - Code being tested
+- **fsharp-feature** - Tests are part of workflow
+- **red-test-fixer** - Use when tests fail
 
-## Related Documentation
+## Detailed Documentation
 
-- `/docs/06-TESTING.md` - Detailed testing guide
+For complete patterns and examples:
+- `standards/testing/overview.md` - Testing philosophy
+- `standards/testing/domain-tests.md` - Pure function tests
+- `standards/testing/api-tests.md` - API integration tests
+- `standards/testing/persistence-tests.md` - Database tests
+- `standards/testing/frontend-tests.md` - UI tests
+- `standards/testing/property-tests.md` - Property-based tests

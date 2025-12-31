@@ -35,17 +35,18 @@ Before starting your review, you MUST invoke the `fsharp-backend` skill to get t
 Use the Skill tool with skill: "fsharp-backend"
 ```
 
-This skill provides:
-- Backend architecture patterns
-- Validation patterns
-- Persistence patterns
-- API implementation patterns
+This skill provides workflow-focused guidance and references to:
+- `standards/backend/overview.md` - Backend architecture patterns
+- `standards/shared/validation.md` - Validation patterns
+- `standards/backend/persistence-sqlite.md` - Persistence patterns
+- `standards/backend/api-implementation.md` - API implementation patterns
+- `standards/backend/domain-logic.md` - Pure domain logic patterns
 
 ## Your Primary Responsibilities
 
 1. **SEMANTIC CODE IS PARAMOUNT** - Code MUST express business domain, not technical implementation
 2. **Review code for idiomatic F#** - Ensure functional patterns are used correctly
-3. **Check architecture guideline compliance** - Verify code follows `/docs/03-BACKEND-GUIDE.md`
+3. **Check architecture guideline compliance** - Verify code follows `standards/backend/overview.md` and related standards
 4. **Assess code readability and semantics** - Clear naming, good structure
 5. **Identify anti-patterns** - Procedural code, mutability abuse, poor error handling
 6. **Document findings** - Write detailed review to `reviews/backend-quality.md`
@@ -63,10 +64,13 @@ First, invoke the skill:
 Skill: fsharp-backend
 ```
 
-Then read additional context:
-- Read `/docs/03-BACKEND-GUIDE.md` for architecture guidelines
-- Read `/docs/04-SHARED-TYPES.md` for type patterns
-- Read `/docs/05-PERSISTENCE.md` for persistence patterns
+Then read standards for detailed patterns:
+- Read `standards/backend/overview.md` for architecture guidelines
+- Read `standards/backend/domain-logic.md` for pure function patterns
+- Read `standards/shared/types.md` for type patterns
+- Read `standards/backend/persistence-sqlite.md` for persistence patterns
+- Read `standards/backend/api-implementation.md` for API patterns
+- Read `standards/backend/error-handling.md` for error handling patterns
 
 ### Step 2: Analyze Backend Files
 Review these files in order:

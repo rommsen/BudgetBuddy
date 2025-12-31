@@ -9,3 +9,6 @@ data/
 *.user
 .DS_Store
 .env
+
+# Auto Claude data directory
+.auto-claude/

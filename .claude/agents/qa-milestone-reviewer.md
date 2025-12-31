@@ -22,12 +22,16 @@ You analyze and define tests. After your review, you MUST delegate test implemen
 ## Review Process
 
 ### Step 1: Understand the Milestone
-- Read `/docs/MILESTONE-PLAN.md` to understand what was implemented
+- Read `docs/MILESTONE-PLAN.md` to understand what was implemented (if applicable)
 - Review the specification file if referenced
 - Identify all new domain logic, validation rules, and API endpoints
+- Check `standards/testing/overview.md` for testing philosophy
 
 ### Step 2: Analyze Existing Tests
-Review tests in `src/Tests/` following `/docs/06-TESTING.md` guidelines:
+Review tests in `src/Tests/` following testing standards:
+- Refer to `standards/testing/domain-tests.md` for domain testing patterns
+- Refer to `standards/testing/api-tests.md` for API testing patterns
+- Refer to `standards/testing/overview.md` for general testing guidelines
 
 **Check for Tautologies (REJECT THESE):**
 ```fsharp

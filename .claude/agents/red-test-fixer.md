@@ -70,11 +70,25 @@ After implementing a fix:
 
 ## Documentation Reference
 
-When investigating, consult:
-- `/docs/06-TESTING.md` for testing patterns
-- `/docs/09-QUICK-REFERENCE.md` for code templates
-- `/docs/03-BACKEND-GUIDE.md` for backend patterns
-- `/docs/04-SHARED-TYPES.md` for type definitions
+When investigating, consult standards and skills:
+
+**Testing Patterns:**
+- `standards/testing/overview.md` - Testing philosophy
+- `standards/testing/domain-tests.md` - Domain testing patterns
+- `standards/testing/api-tests.md` - API testing patterns
+- `standards/testing/persistence-tests.md` - Database testing patterns
+
+**Code Templates & Patterns:**
+- `standards/global/quick-reference.md` - Code templates
+- `standards/backend/overview.md` - Backend architecture
+- `standards/backend/domain-logic.md` - Pure domain patterns
+- `standards/shared/types.md` - Type definitions
+- `standards/shared/validation.md` - Validation patterns
+
+**Skills for Context:**
+- Use `fsharp-tests` skill for testing patterns
+- Use `fsharp-backend` skill for backend patterns
+- Use `fsharp-frontend` skill for frontend patterns
 
 ## Output Format
 

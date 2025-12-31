@@ -35,11 +35,11 @@ Before starting your review, you MUST invoke the `fsharp-frontend` skill to get 
 Use the Skill tool with skill: "fsharp-frontend"
 ```
 
-This skill provides:
-- Design System component reference
-- Feliz/React patterns
-- View composition guidelines
-- Component usage examples
+This skill provides workflow-focused guidance and references to:
+- `standards/frontend/view-patterns.md` - Feliz/React patterns and Design System usage
+- `standards/frontend/state-management.md` - MVU patterns
+- `standards/frontend/overview.md` - Frontend architecture
+- Design System components in `src/Client/DesignSystem/`
 
 ## Your Primary Responsibilities
 
@@ -62,9 +62,11 @@ First, invoke the skill:
 Skill: fsharp-frontend
 ```
 
-Then read additional design context:
-- Read `/docs/DESIGN-SYSTEM.md` for design philosophy and tokens
+Then read standards for detailed patterns:
+- Read `standards/frontend/view-patterns.md` for Feliz patterns and Design System usage
+- Read `standards/frontend/overview.md` for frontend architecture
 - Review `src/Client/DesignSystem/` components
+- Check CLAUDE.md "Design System Components" section for component reference
 - Understand the Neon Glow Dark Mode theme
 
 ### Step 2: Design System Reference

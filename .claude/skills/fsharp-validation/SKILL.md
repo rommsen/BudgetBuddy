@@ -1,350 +1,225 @@
 ---
 name: fsharp-validation
 description: |
-  Create comprehensive validation logic for F# backends with field validators, entity validation, error accumulation, and async validation.
-  Use when implementing input validation, complex validation rules, or need to validate API requests before processing.
-  Creates reusable validators in src/Server/Validation.fs with patterns for required fields, length checks, email, business rules, and database checks.
-allowed-tools: Read, Edit, Write, Grep
+  Implement input validation patterns for F# API boundaries.
+  Use when validating user input, API requests, or form data.
+  Ensures early validation with clear error messages using Result types.
+  Creates code in src/Server/Validation.fs.
+allowed-tools: Read, Edit, Write, Grep, Glob
+standards:
+  - standards/shared/validation.md
 ---
 
-# F# Validation Patterns
+# Input Validation Patterns
 
 ## When to Use This Skill
 
 Activate when:
 - User requests "add validation for X"
-- Implementing API endpoints (always validate at boundary)
-- Need complex validation rules
-- Validating create/update requests
-- Checking business rules or constraints
+- Implementing API endpoints (ALWAYS validate at boundary)
+- Need to check user input
+- Defining validation rules
+- Project has src/Server/Validation.fs
 
-## Core Principle
+## Validation Principles
 
-**Validate at the API boundary, before any processing.**
+1. **Validate at API boundary** - Before any processing
+2. **Accumulate all errors** - Return ALL validation errors, not just first
+3. **Clear error messages** - User-friendly, specific messages
+4. **Use Result type** - `Result<'T, string list>` for multiple errors
 
-## Basic Validator Helpers
+## Implementation Workflow
 
-**Location:** `src/Server/Validation.fs`
+### Step 1: Define Validators
+
+**Read:** `standards/shared/validation.md`
+**Edit:** `src/Server/Validation.fs`
 
 ```fsharp
 module Validation
 
 open System
-open System.Text.RegularExpressions
 
-// Single field validators return Option<string>
-// None = valid, Some errorMessage = invalid
+// Helper to build error list
+let private errors conditions =
+    conditions
+    |> List.choose id
+    |> function
+        | [] -> None
+        | errs -> Some errs
 
-let validateRequired (fieldName: string) (value: string) : string option =
-    if String.IsNullOrWhiteSpace(value) then
-        Some $"{fieldName} is required"
-    else
-        None
+// Validate single entity
+let validateItem (item: Item) : Result<Item, string list> =
+    match errors [
+        if String.IsNullOrWhiteSpace(item.Name) then
+            Some "Name is required"
 
-let validateLength (fieldName: string) (minLen: int) (maxLen: int) (value: string) : string option =
-    let len = value.Length
-    if len < minLen then
-        Some $"{fieldName} must be at least {minLen} characters"
-    elif len > maxLen then
-        Some $"{fieldName} must be at most {maxLen} characters"
-    else
-        None
+        if item.Name.Length > 100 then
+            Some "Name must be 100 characters or less"
 
-let validateRange (fieldName: string) (min: int) (max: int) (value: int) : string option =
-    if value < min || value > max then
-        Some $"{fieldName} must be between {min} and {max}"
-    else
-        None
+        if item.Amount < 0m then
+            Some "Amount must be positive"
+    ] with
+    | None -> Ok item
+    | Some errs -> Error errs
 
-let validateEmail (email: string) : string option =
-    let emailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-    if Regex.IsMatch(email, emailPattern) then None
-    else Some "Invalid email format"
+// Validate with dependencies (e.g., check uniqueness)
+let validateItemUnique (item: Item) (existingNames: string list) : Result<Item, string list> =
+    match errors [
+        if String.IsNullOrWhiteSpace(item.Name) then
+            Some "Name is required"
 
-let validateUrl (url: string) : string option =
-    match Uri.TryCreate(url, UriKind.Absolute) with
-    | true, _ -> None
-    | false, _ -> Some "Invalid URL format"
-
-let validatePositive (fieldName: string) (value: int) : string option =
-    if value > 0 then None else Some $"{fieldName} must be positive"
-
-let validateNonNegative (fieldName: string) (value: int) : string option =
-    if value >= 0 then None else Some $"{fieldName} cannot be negative"
-
-let validatePattern (fieldName: string) (pattern: string) (value: string) : string option =
-    if Regex.IsMatch(value, pattern) then None
-    else Some $"{fieldName} has invalid format"
+        if existingNames |> List.contains item.Name then
+            Some "Name already exists"
+    ] with
+    | None -> Ok item
+    | Some errs -> Error errs
 ```
 
-## Entity Validation
+**Key Pattern:** Accumulate errors, return all at once
 
-### Multiple Errors (Accumulate All)
-```fsharp
-let validateTodoItem (item: TodoItem) : Result<TodoItem, string list> =
-    let errors = [
-        validateRequired "Title" item.Title
-        validateLength "Title" 1 100 item.Title
+---
 
-        match item.Description with
-        | Some desc -> validateLength "Description" 0 500 desc
-        | None -> None
+### Step 2: Use in API
 
-        validatePositive "Id" item.Id
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok item else Error errors
-
-// Convert to single error string for API
-let validateTodoItemString (item: TodoItem) : Result<TodoItem, string> =
-    match validateTodoItem item with
-    | Ok item -> Ok item
-    | Error errors -> Error (String.concat "; " errors)
-```
-
-### Conditional Validation
-```fsharp
-let validateUser (user: User) : Result<User, string list> =
-    let errors = [
-        validateRequired "Name" user.Name
-        validateEmail (EmailAddress.value user.Email)
-
-        // Only validate password if it's being changed
-        if user.IsPasswordChange then
-            yield! [
-                validateLength "Password" 8 100 user.Password
-                if not (Regex.IsMatch(user.Password, @"[A-Z]")) then
-                    Some "Password must contain uppercase letter"
-                if not (Regex.IsMatch(user.Password, @"[0-9]")) then
-                    Some "Password must contain number"
-            ] |> List.choose id
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok user else Error errors
-```
-
-### Cross-Field Validation
-```fsharp
-let validateDateRange (start: DateTime) (endDate: DateTime) : string option =
-    if endDate < start then
-        Some "End date must be after start date"
-    else
-        None
-
-let validateEvent (event: Event) : Result<Event, string list> =
-    let errors = [
-        validateRequired "Title" event.Title
-        validateDateRange event.StartDate event.EndDate
-
-        // Custom business rule
-        if event.MaxParticipants < event.CurrentParticipants then
-            Some "Max participants cannot be less than current participants"
-        else
-            None
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok event else Error errors
-```
-
-## Request Validation
-
-### Create Request
-```fsharp
-type CreateTodoRequest = {
-    Title: string
-    Description: string option
-    Priority: Priority
-}
-
-let validateCreateRequest (req: CreateTodoRequest) : Result<CreateTodoRequest, string list> =
-    let errors = [
-        validateRequired "Title" req.Title
-        validateLength "Title" 1 100 req.Title
-
-        match req.Description with
-        | Some desc when not (String.IsNullOrWhiteSpace(desc)) ->
-            validateLength "Description" 1 500 desc
-        | _ -> None
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok req else Error errors
-```
-
-### Update Request
-```fsharp
-let validateUpdateRequest (req: UpdateTodoRequest) : Result<UpdateTodoRequest, string list> =
-    let errors = [
-        validatePositive "Id" req.Id
-
-        match req.Title with
-        | Some title ->
-            yield! [
-                validateRequired "Title" title
-                validateLength "Title" 1 100 title
-            ] |> List.choose id
-        | None -> ()
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok req else Error errors
-```
-
-## Business Rules
+**Pattern:** Validate before processing
 
 ```fsharp
-let validateBusinessRule (order: Order) : Result<Order, string list> =
-    let errors = [
-        // Check inventory
-        if order.Quantity > order.AvailableStock then
-            Some "Insufficient stock"
+// In Api.fs
+let itemApi : IItemApi = {
+    save = fun item -> async {
+        // Validate first
+        match Validation.validateItem item with
+        | Error errs ->
+            return Error (String.concat ", " errs)
 
-        // Check minimum order
-        if order.TotalAmount < 10.0m then
-            Some "Minimum order amount is $10"
-
-        // Check business hours
-        let now = DateTime.Now
-        if now.Hour < 9 || now.Hour > 17 then
-            Some "Orders can only be placed during business hours (9 AM - 5 PM)"
-
-        // Check discount eligibility
-        if order.DiscountPercent > 0 && not order.Customer.IsEligibleForDiscount then
-            Some "Customer is not eligible for discount"
-    ] |> List.choose id
-
-    if errors.IsEmpty then Ok order else Error errors
-```
-
-## Async Validation (Database Checks)
-
-```fsharp
-let checkEmailUnique (email: string) : Async<string option> =
-    async {
-        let! existing = Persistence.getUserByEmail email
-        return
-            match existing with
-            | Some _ -> Some "Email already registered"
-            | None -> None
-    }
-
-let validateUserRegistration (req: RegisterRequest) : Async<Result<RegisterRequest, string list>> =
-    async {
-        // Sync validations first
-        let syncErrors = [
-            validateRequired "Username" req.Username
-            validateLength "Username" 3 20 req.Username
-            validateEmail req.Email
-            validateLength "Password" 8 100 req.Password
-        ] |> List.choose id
-
-        if not syncErrors.IsEmpty then
-            return Error syncErrors
-        else
-            // Async validations
-            let! emailCheck = checkEmailUnique req.Email
-
-            let asyncErrors = [emailCheck] |> List.choose id
-
-            if asyncErrors.IsEmpty then
-                return Ok req
-            else
-                return Error asyncErrors
-    }
-```
-
-## Integration with API
-
-```fsharp
-// src/Server/Api.fs
-let todoApi : ITodoApi = {
-    create = fun request -> async {
-        // Validate request
-        match Validation.validateCreateRequest request with
-        | Error errors ->
-            return Error (String.concat "; " errors)
-        | Ok validRequest ->
-            let todo = Domain.processNewTodo validRequest
-            let! saved = Persistence.insertTodo todo
-            return Ok saved
-    }
-
-    update = fun request -> async {
-        match Validation.validateUpdateRequest request with
-        | Error errors ->
-            return Error (String.concat "; " errors)
-        | Ok validRequest ->
-            match! Persistence.getTodoById validRequest.Id with
-            | None -> return Error "Todo not found"
-            | Some existing ->
-                let updated = Domain.updateTodo existing validRequest
-                do! Persistence.updateTodo updated
-                return Ok updated
+        | Ok validItem ->
+            // Now process
+            let processed = Domain.processItem validItem
+            do! Persistence.save processed
+            return Ok processed
     }
 }
 ```
 
-## Testing Validation
+---
+
+## Quick Reference
+
+### Common Validation Patterns
 
 ```fsharp
-// src/Tests/Server.Tests/ValidationTests.fs
-module ValidationTests
+// Required field
+if String.IsNullOrWhiteSpace(value) then
+    Some "Field is required"
 
-open Expecto
-open Validation
+// Length constraints
+if value.Length > 100 then
+    Some "Must be 100 characters or less"
+if value.Length < 3 then
+    Some "Must be at least 3 characters"
 
-[<Tests>]
-let tests =
-    testList "Validation" [
-        testCase "Valid todo passes" <| fun () ->
-            let todo = validTodo
-            let result = validateTodoItem todo
-            Expect.isOk result "Should be valid"
+// Numeric constraints
+if amount < 0 then
+    Some "Must be positive"
+if amount > 1000 then
+    Some "Must be 1000 or less"
 
-        testCase "Missing title fails" <| fun () ->
-            let todo = { validTodo with Title = "" }
-            let result = validateTodoItem todo
-            Expect.isError result "Should fail"
+// Format validation
+if not (value.Contains("@")) then
+    Some "Must be a valid email"
 
-        testCase "Multiple errors accumulated" <| fun () ->
-            let todo = { validTodo with Title = ""; Id = -1 }
-            match validateTodoItem todo with
-            | Error errors ->
-                Expect.isGreaterThan errors.Length 1 "Should have multiple errors"
-            | Ok _ -> failtest "Should have failed"
-    ]
+// List constraints
+if items.IsEmpty then
+    Some "Must have at least one item"
+if items.Length > 10 then
+    Some "Cannot have more than 10 items"
 ```
 
-## Best Practices
+### Validation Builder Pattern
 
-### ✅ Do
-- Validate at API boundary
-- Accumulate all errors
-- Return specific error messages
-- Use reusable validators
-- Test validation thoroughly
+```fsharp
+let validate entity =
+    match errors [
+        // Add all validation rules here
+        if condition then Some "error"
+    ] with
+    | None -> Ok entity
+    | Some errs -> Error errs
+```
 
-### ❌ Don't
-- Skip validation on updates
-- Return generic errors
-- Validate in domain logic
-- Let invalid data reach persistence
-- Use exceptions for validation
+### Using in API
+
+```fsharp
+// Single entity
+match Validation.validate entity with
+| Error errs -> return Error (String.concat ", " errs)
+| Ok valid -> // process valid entity
+
+// With dependencies
+let! existing = Persistence.getAll()
+match Validation.validateUnique entity existing with
+| Error errs -> return Error (String.concat ", " errs)
+| Ok valid -> // process
+```
 
 ## Verification Checklist
 
-- [ ] Validation helpers defined
-- [ ] Entity validators created
-- [ ] Required fields validated
-- [ ] Length/range constraints checked
-- [ ] Format validation (email, URL, etc.)
-- [ ] Business rules validated
-- [ ] Async validation if needed
-- [ ] Errors accumulated
-- [ ] Clear error messages
-- [ ] Integrated with API layer
-- [ ] Tests written
+- [ ] **Read standards** (shared/validation.md)
+- [ ] Validation in `src/Server/Validation.fs`
+- [ ] Returns `Result<'T, string list>`
+- [ ] Accumulates ALL errors (not just first)
+- [ ] Clear, user-friendly error messages
+- [ ] Validated at API boundary (before domain logic)
+- [ ] Tests written for all validation rules
+- [ ] `dotnet build` succeeds
+
+## Common Pitfalls
+
+**Most Critical:**
+- ❌ Stopping at first error
+- ❌ Vague error messages ("Invalid input")
+- ❌ Validating inside domain logic
+- ❌ Using exceptions for validation errors
+- ✅ Accumulate all errors
+- ✅ Specific messages ("Name is required")
+- ✅ Validate at API boundary
+- ✅ Use Result type
+
+## Validation Test Example
+
+```fsharp
+[<Tests>]
+let tests = testList "Validation" [
+    testCase "rejects empty name" <| fun () ->
+        let item = { Id = 0; Name = "" }
+        match Validation.validateItem item with
+        | Error errs -> Expect.contains errs "Name is required" "Should reject empty"
+        | Ok _ -> failtest "Should have failed"
+
+    testCase "accepts valid item" <| fun () ->
+        let item = { Id = 0; Name = "Valid"; Amount = 10.0m }
+        match Validation.validateItem item with
+        | Ok _ -> ()
+        | Error errs -> failtestf "Should be valid: %A" errs
+
+    testCase "accumulates multiple errors" <| fun () ->
+        let item = { Id = 0; Name = ""; Amount = -5.0m }
+        match Validation.validateItem item with
+        | Error errs ->
+            Expect.isGreaterThan errs.Length 1 "Should have multiple errors"
+        | Ok _ -> failtest "Should have failed"
+]
+```
 
 ## Related Skills
 
-- **fsharp-backend** - Integration with API
-- **fsharp-shared** - Type definitions
-- **fsharp-tests** - Testing validation
+- **fsharp-backend** - Uses validation in API
+- **fsharp-feature** - Validation is step 1 in backend workflow
+- **fsharp-tests** - Testing validation rules
+
+## Detailed Documentation
+
+For complete patterns and examples:
+- `standards/shared/validation.md` - All validation patterns
+- `standards/backend/error-handling.md` - Error handling strategies

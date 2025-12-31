@@ -1,268 +1,219 @@
-# F# Full-Stack Development Skills
+# BudgetBuddy Skills
 
-This directory contains specialized skills for Claude Code when developing F# full-stack applications following the blueprint patterns.
+This directory contains **Claude Code skills** for F# full-stack development using the BudgetBuddy blueprint.
 
-## Skill Structure
+## What Are Skills?
 
-Each skill is a directory containing a `SKILL.md` file with:
-- **YAML frontmatter** - name, description, allowed-tools
-- **When to Use** - Activation scenarios
-- **Complete patterns** - Working code examples
-- **Best practices** - Dos and don'ts
-- **Checklists** - Verification steps
+Skills are **workflow-focused guides** that:
+- Orchestrate development tasks (e.g., "implement backend API")
+- Reference detailed `standards/` files for patterns
+- Provide quick-reference code snippets
+- Include checklists and common pitfalls
+
+**Key Principle**: Skills are **entry points**, `standards/` are **single source of truth**.
+
+## Architecture
+
+```
+.claude/skills/          ← Workflow guides (~100-250 lines each)
+    ├── fsharp-feature/  ← Orchestrates full-stack features
+    ├── fsharp-backend/  ← Backend implementation
+    └── ...
+
+standards/               ← Detailed patterns & examples
+    ├── global/          ← Architecture, workflows
+    ├── shared/          ← Types, API contracts
+    ├── backend/         ← Domain, persistence, API
+    ├── frontend/        ← State, views, routing
+    ├── testing/         ← Test patterns
+    └── deployment/      ← Docker, Tailscale
+```
 
 ## Available Skills
 
-### 🎯 `fsharp-feature/` - Complete Feature Development
-**Orchestrates** end-to-end feature implementation
+### Core Workflow Skills
 
-**Use when:**
-- "Add X feature", "Implement Y"
-- Building complete feature from scratch
-- Need guidance through entire stack
+**Use these for complete development workflows:**
 
-**Guides through:** Shared types → Backend (validation/domain/persistence/API) → Frontend (state/view) → Tests
+| Skill | Purpose | Size | Standards |
+|-------|---------|------|-----------|
+| **fsharp-feature** | End-to-end feature implementation | 201 lines | `global/development-workflow.md` |
+| **fsharp-backend** | Backend (validation → domain → persistence → API) | 218 lines | `backend/*.md` |
+| **fsharp-frontend** | Frontend (Model, Msg, update, view) | 240 lines | `frontend/*.md` |
+| **fsharp-shared** | Domain types and API contracts | 204 lines | `shared/*.md` |
+| **fsharp-tests** | Writing tests (domain, API, persistence) | 245 lines | `testing/*.md` |
 
----
+### Specialized Skills
 
-### 📦 `fsharp-shared/` - Types and API Contracts
-**Defines** domain types and API interfaces
+**Use these for specific patterns:**
 
-**Use when:**
-- Starting new features (always start here)
-- "Define X types", "Create Y entity"
-- Modifying existing types
+| Skill | Purpose | Size | Standards |
+|-------|---------|------|-----------|
+| **fsharp-validation** | Input validation with Result types | 225 lines | `shared/validation.md` |
+| **fsharp-persistence** | SQLite + Dapper, file storage | 229 lines | `backend/persistence-*.md` |
+| **fsharp-remotedata** | Async state handling (Loading/Success/Failure) | 160 lines | `frontend/remotedata.md` |
+| **fsharp-routing** | URL routing with Elmish | 186 lines | `frontend/routing.md` |
+| **fsharp-error-handling** | Result types, error propagation | 205 lines | `backend/error-handling.md` |
+| **fsharp-property-tests** | FsCheck property-based testing | 186 lines | `testing/property-tests.md` |
+| **fsharp-docker** | Multi-stage Docker builds | 250 lines | `deployment/docker.md` |
+| **tailscale-deploy** | Docker + Tailscale deployment | 285 lines | `deployment/*.md` |
 
-**Creates:** Records, discriminated unions, Fable.Remoting interfaces in `src/Shared/`
+### Project-Specific
 
----
+| Skill | Purpose | Size |
+|-------|---------|------|
+| **blogpost** | Generate blog posts from development diary | ~200 lines |
 
-### ⚙️ `fsharp-backend/` - Backend Implementation
-**Implements** server-side logic with proper separation
+## How to Use Skills
 
-**Use when:**
-- "Implement backend for X"
-- Adding API endpoints
-- Creating business logic
+### 1. Automatic Selection
 
-**Creates:** Validation → Domain (pure) → Persistence (I/O) → API in `src/Server/`
+Claude automatically selects skills based on context:
+- User asks "implement backend API" → `fsharp-backend`
+- User asks "add routing" → `fsharp-routing`
+- User asks "write tests" → `fsharp-tests`
 
----
+### 2. Manual Invocation
 
-### ✅ `fsharp-validation/` - Validation Patterns
-**Creates** comprehensive input validation
+You can invoke skills manually using the Skill tool:
 
-**Use when:**
-- "Add validation for X"
-- Implementing API endpoints (always validate)
-- Complex validation rules
-
-**Creates:** Field validators, entity validation, error accumulation in `src/Server/Validation.fs`
-
----
-
-### 💾 `fsharp-persistence/` - Data Persistence
-**Implements** database and file operations
-
-**Use when:**
-- "Add database table", "Save X to database"
-- CRUD operations
-- File storage or event sourcing
-
-**Creates:** SQLite/Dapper, JSON files, event sourcing patterns in `src/Server/Persistence.fs`
-
----
-
-### 🎨 `fsharp-frontend/` - Frontend (Elmish + Feliz)
-**Implements** UI with MVU architecture
-
-**Use when:**
-- "Add UI for X", "Create component"
-- Managing client state
-- Interactive features
-
-**Creates:** Model/Msg/Update/View in `src/Client/` with RemoteData pattern
-
----
-
-### 🧪 `fsharp-tests/` - Testing with Expecto
-**Writes** comprehensive tests
-
-**Use when:**
-- "Add tests for X"
-- Implementing any feature (always write tests)
-- Ensuring code quality
-
-**Creates:** Unit tests, async tests, property tests in `src/Tests/`
-
----
-
-### 🚀 `tailscale-deploy/` - Tailscale Deployment
-**Deploys** applications with Tailscale sidecar
-
-**Use when:**
-- "Deploy to production", "Set up Tailscale"
-- Need Docker compose deployment configuration
-- Setting up private networking
-- Deploying to Portainer or home server
-
-**Creates:** docker-compose.yml with app + Tailscale sidecar for private network access
-
----
-
-## Quick Selection Guide
-
-### By Task Type
-
-| User Request | Primary Skill | Supporting Skills |
-|--------------|---------------|-------------------|
-| "Add todo feature" | `fsharp-feature` | All others as needed |
-| "Define user types" | `fsharp-shared` | - |
-| "Add validation" | `fsharp-validation` | `fsharp-backend` |
-| "Add database table" | `fsharp-persistence` | `fsharp-backend` |
-| "Implement API" | `fsharp-backend` | `fsharp-validation`, `fsharp-persistence` |
-| "Add UI component" | `fsharp-frontend` | `fsharp-shared` |
-| "Write tests" | `fsharp-tests` | Depends on what's tested |
-| "Deploy to production" | `tailscale-deploy` | Complete application |
-| "Set up Tailscale" | `tailscale-deploy` | - |
-
-### By Project Layer
-
-| File Path | Skill |
-|-----------|-------|
-| `src/Shared/Domain.fs` | `fsharp-shared` |
-| `src/Shared/Api.fs` | `fsharp-shared` |
-| `src/Server/Validation.fs` | `fsharp-validation` |
-| `src/Server/Domain.fs` | `fsharp-backend` |
-| `src/Server/Persistence.fs` | `fsharp-persistence` |
-| `src/Server/Api.fs` | `fsharp-backend` |
-| `src/Client/State.fs` | `fsharp-frontend` |
-| `src/Client/View.fs` | `fsharp-frontend` |
-| `src/Tests/` | `fsharp-tests` |
-
-## Usage Pattern
-
-### For New Features
-1. Invoke `fsharp-feature` for overview
-2. Use specific skills as you work through each layer
-3. Follow development order: **Shared → Backend → Frontend → Tests**
-
-### For Specific Tasks
-- Directly invoke the relevant skill
-- Example: Need validation? → `fsharp-validation`
-- Example: Need database? → `fsharp-persistence`
-
-## Skill Activation
-
-Claude Code automatically activates skills based on:
-- **User requests** matching skill descriptions
-- **Context** (files being edited, project structure)
-- **Task type** (explicit skill invocation)
-
-Each skill's `description` field in YAML frontmatter helps Claude recognize when to activate it.
-
-## Key Principles (All Skills)
-
-1. **Type Safety** - Define types in `src/Shared/` first
-2. **Pure Domain** - NO I/O in `src/Server/Domain.fs`
-3. **MVU Pattern** - All state through `update` function (frontend)
-4. **Explicit Errors** - Use `Result<'T, string>` and `RemoteData<'T>`
-5. **Validate Early** - At API boundary (backend)
-6. **Test Coverage** - Especially domain logic and validation
-
-## Common Workflows
-
-**Adding a CRUD feature:**
 ```
-fsharp-shared → fsharp-backend → fsharp-frontend → fsharp-tests
+Use fsharp-backend skill to implement API
 ```
 
-**Adding validation:**
-```
-fsharp-validation → integrate with fsharp-backend
-```
+### 3. Via CLAUDE.md
 
-**Adding UI component:**
-```
-fsharp-frontend (View section)
-```
+The main `CLAUDE.md` file tells Claude when to use each skill. See the "Using Skills" section.
 
-**Adding database table:**
-```
-fsharp-persistence → fsharp-backend
-```
+## Skill Structure
 
-## Tool Restrictions
-
-Skills use `allowed-tools` to control capabilities:
-- Read-only skills: `Read, Grep, Glob`
-- Edit skills: `Read, Edit, Write, Grep, Glob`
-- Build skills: `Read, Edit, Write, Grep, Glob, Bash`
-
-This ensures skills only access tools they need.
-
-## Documentation Reference
-
-Skills complement `/docs/`:
-- **Skills** - Focused, task-oriented, code-heavy
-- **Docs** - Comprehensive guides with explanations
-
-**When implementing:**
-1. Use relevant skill for immediate patterns
-2. Check `/docs/09-QUICK-REFERENCE.md` for quick lookups
-3. Consult specific `/docs/` guide for deep dives
-
-## Benefits
-
-✅ **Focused** - Each skill covers one area deeply
-✅ **Discoverable** - Descriptions help Claude activate automatically
-✅ **Complete** - Working examples with best practices
-✅ **Layered** - Matches project architecture
-✅ **Testable** - Easy to verify skill activation
-
-## Skill Format
-
-Each `SKILL.md` follows this structure:
+Each skill follows this template:
 
 ```markdown
 ---
 name: skill-name
 description: |
-  What it does and when to use it.
-  Include trigger phrases users might say.
-allowed-tools: Read, Edit, Write
+  One-liner what this skill does.
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash
+standards:
+  - standards/path/to/standard.md
 ---
 
 # Skill Title
 
 ## When to Use This Skill
-Activation scenarios...
+- Situation 1
+- Situation 2
 
-## Content
-Patterns, examples, best practices...
+## Quick Start
+### Step 1: [Action]
+**Read:** `standards/path.md`
+**Create:** `src/File.fs`
 
-## Verification Checklist
-Steps to verify completion...
+[Minimal code example]
+
+## Quick Reference
+[2-3 most common patterns]
+
+## Checklist
+- [ ] Read standards
+- [ ] Implementation steps
+
+## Common Mistakes
+❌ Don't...
+✅ Do...
 
 ## Related Skills
-Other relevant skills...
+- **other-skill** - Description
+
+## Detailed Documentation
+- `standards/path.md` - Complete patterns
 ```
 
-## Testing Skills
+## Development
 
-To test if a skill activates:
-1. Ask questions matching the description
-2. Use `claude --debug` to see skill activation
-3. Check that YAML frontmatter is valid
-4. Verify file paths are correct
+### Adding a New Skill
 
-## Contributing Skills
+1. **Check standards first**: Does a standard exist for this pattern?
+2. **Create skill directory**: `.claude/skills/new-skill/`
+3. **Write skill.md**: Follow template above (~100-250 lines)
+4. **Keep it focused**: Workflow-oriented, reference standards
+5. **Don't duplicate**: Reference standards for details
+6. **Update CLAUDE.md**: Add to skills table
 
-When adding new skills:
-1. Create directory with `SKILL.md`
-2. Include YAML frontmatter (name + description)
-3. Write specific, trigger-rich description
-4. Include complete working examples
-5. Add best practices and checklists
-6. Cross-reference related skills
-7. Update this README
+### Refactoring an Existing Skill
+
+1. **Read current skill**: Identify redundant content
+2. **Check standards**: What can be referenced instead?
+3. **Create skill-optimized.md**: Refactored version
+4. **Test**: Verify workflow still works
+5. **Replace**: `cp skill-optimized.md skill.md`
+
+## Migration History
+
+### Phase 1: Refactored Skills (2025-12-31)
+
+**Goal:** Eliminate redundancy, make skills workflow-focused
+
+**Before:** 3,551 lines (avg 443 lines/skill)
+**After:** 1,847 lines (avg 231 lines/skill)
+**Reduction:** 48%
+
+**Refactored:**
+- fsharp-backend (218 lines)
+- fsharp-feature (201 lines)
+- fsharp-frontend (240 lines)
+- fsharp-shared (204 lines)
+- fsharp-persistence (229 lines)
+- fsharp-tests (245 lines)
+- fsharp-validation (225 lines)
+- tailscale-deploy (285 lines)
+
+### Phase 2: New Skills (2025-12-31)
+
+**Goal:** Create focused skills for specific patterns
+
+**Created:** 5 new skills (987 lines total, avg 197 lines/skill)
+
+- fsharp-remotedata (160 lines) - Async state handling
+- fsharp-routing (186 lines) - URL routing
+- fsharp-error-handling (205 lines) - Result types
+- fsharp-property-tests (186 lines) - FsCheck testing
+- fsharp-docker (250 lines) - Multi-stage builds
+
+### Phase 3: Documentation (2025-12-31)
+
+- ✅ Updated CLAUDE.md with complete skill table
+- ✅ Updated all `/docs/` references to `standards/`
+- ✅ Created this comprehensive README
+
+## Benefits
+
+### Before Migration
+- ❌ 463 lines per skill (too long to read quickly)
+- ❌ Redundant with docs/ content
+- ❌ Hard to maintain (changes needed in multiple places)
+- ❌ 22.1k tokens in context
+
+### After Migration
+- ✅ ~200 lines per skill (quick to scan)
+- ✅ Single source of truth (`standards/`)
+- ✅ Easy to maintain (change once in standards)
+- ✅ Workflow-oriented (actionable steps)
+- ✅ ~50% token reduction
+
+## See Also
+
+- **[MIGRATION-PLAN.md](MIGRATION-PLAN.md)** - Migration strategy and status
+- **[CLAUDE.md](../../CLAUDE.md)** - Main Claude Code instructions
+- **[standards/](../../standards/)** - Detailed pattern documentation
+- **[docs/MILESTONE-PLAN.md](../../docs/MILESTONE-PLAN.md)** - Project milestones
+
+## Quick Start
+
+**New to BudgetBuddy development?**
+
+1. Read `CLAUDE.md` - Main instructions
+2. Browse `standards/global/architecture.md` - Understand the stack
+3. Check `standards/global/quick-reference.md` - Code templates
+4. Use `fsharp-feature` skill for your first feature

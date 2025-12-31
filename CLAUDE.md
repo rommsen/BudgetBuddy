@@ -63,7 +63,7 @@ You are developing F# web applications using this blueprint. The codebase uses E
 
 **Always read the relevant documentation first:**
 
-1. Check `/docs/09-QUICK-REFERENCE.md` for code templates
+1. Check `standards/global/quick-reference.md` for code templates
 2. Read the specific guide for your task (see Documentation Map below)
 3. Look at existing code to match patterns
 
@@ -71,37 +71,49 @@ You are developing F# web applications using this blueprint. The codebase uses E
 
 | Task | Read This First |
 |------|-----------------|
-| Complete new feature | `/docs/09-QUICK-REFERENCE.md` + specific guides below |
-| Domain types/API contracts | `/docs/04-SHARED-TYPES.md` |
-| Frontend (UI, state) | `/docs/02-FRONTEND-GUIDE.md` |
-| Backend (API, logic) | `/docs/03-BACKEND-GUIDE.md` |
-| Database/files | `/docs/05-PERSISTENCE.md` |
-| Tests | `/docs/06-TESTING.md` |
-| Docker/deployment | `/docs/07-BUILD-DEPLOY.md` |
-| Tailscale networking | `/docs/08-TAILSCALE-INTEGRATION.md` |
-| Architecture overview | `/docs/00-ARCHITECTURE.md` |
+| Complete new feature | `standards/global/quick-reference.md` + specific guides below |
+| Domain types/API contracts | `standards/shared/types.md`, `standards/shared/api-contracts.md` |
+| Frontend (UI, state) | `standards/frontend/overview.md`, `standards/frontend/state-management.md` |
+| Backend (API, logic) | `standards/backend/overview.md`, `standards/backend/api-implementation.md` |
+| Database/files | `standards/backend/persistence-sqlite.md`, `standards/backend/persistence-files.md` |
+| Tests | `standards/testing/overview.md`, `standards/testing/domain-tests.md` |
+| Docker/deployment | `standards/deployment/docker.md`, `standards/deployment/production.md` |
+| Tailscale networking | `standards/deployment/tailscale.md` |
+| Architecture overview | `standards/global/architecture.md` |
 
 ## Using Skills
 
-Skills provide focused guidance. Invoke them based on the task:
+Skills orchestrate workflows and reference `standards/` for detailed patterns. Invoke based on the task:
 
-| Skill | When to Use |
-|-------|-------------|
-| `fsharp-feature` | Complete feature implementation (orchestrates all layers) |
-| `fsharp-shared` | Defining types and API contracts in `src/Shared/` |
-| `fsharp-backend` | Backend implementation (validation, domain, persistence, API) |
-| `fsharp-validation` | Input validation patterns |
-| `fsharp-persistence` | Database tables, file storage, event sourcing |
-| `fsharp-frontend` | Elmish state and Feliz views |
-| `fsharp-tests` | Writing Expecto tests |
-| `tailscale-deploy` | Docker + Tailscale deployment |
+### Core Workflow Skills
+
+| Skill | When to Use | Standards Referenced |
+|-------|-------------|---------------------|
+| `fsharp-feature` | Complete feature implementation (orchestrates all layers) | `standards/global/development-workflow.md` |
+| `fsharp-backend` | Backend implementation (validation, domain, persistence, API) | `standards/backend/*.md` |
+| `fsharp-frontend` | Elmish state and Feliz views | `standards/frontend/*.md` |
+| `fsharp-shared` | Defining types and API contracts in `src/Shared/` | `standards/shared/*.md` |
+| `fsharp-tests` | Writing Expecto tests | `standards/testing/*.md` |
+
+### Specialized Skills
+
+| Skill | When to Use | Standards Referenced |
+|-------|-------------|---------------------|
+| `fsharp-validation` | Input validation patterns | `standards/shared/validation.md` |
+| `fsharp-persistence` | Database tables, file storage | `standards/backend/persistence-*.md` |
+| `fsharp-remotedata` | Async state handling with RemoteData pattern | `standards/frontend/remotedata.md` |
+| `fsharp-routing` | URL routing and navigation | `standards/frontend/routing.md` |
+| `fsharp-error-handling` | Result types and error propagation | `standards/backend/error-handling.md` |
+| `fsharp-property-tests` | FsCheck property-based testing | `standards/testing/property-tests.md` |
+| `fsharp-docker` | Multi-stage Docker builds | `standards/deployment/docker.md` |
+| `tailscale-deploy` | Docker + Tailscale deployment | `standards/deployment/*.md` |
 
 ## Implementing User Specifications
 
 When the user provides a specification file (markdown describing a feature):
 
 1. **Read the specification file** thoroughly
-2. **Read `/docs/09-QUICK-REFERENCE.md`** for patterns
+2. **Read `standards/global/quick-reference.md`** for patterns
 3. **Plan the implementation** using the development order below
 4. **Implement each layer**, testing as you go
 5. **Verify with build and tests**

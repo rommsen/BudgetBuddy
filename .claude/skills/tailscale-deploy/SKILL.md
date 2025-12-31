@@ -1,450 +1,285 @@
 ---
 name: tailscale-deploy
 description: |
-  Deploy F# full-stack applications with Tailscale sidecar for private network access without public ports or authentication.
-  Use when deploying to production, setting up Docker compose with Tailscale, or need private networking setup.
-  Creates docker-compose.yml with app + Tailscale sidecar pattern for secure private access.
-  Includes Portainer deployment, troubleshooting, and configuration for F# Giraffe + Elmish applications.
-allowed-tools: Read, Edit, Write, Grep, Bash
+  Deploy F# full-stack app using Docker + Tailscale for secure remote access.
+  Use when deploying to production or setting up Docker-based deployment.
+  Ensures proper containerization, volume management, and secure networking.
+  Creates Dockerfile and docker-compose.yml.
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash
+standards:
+  required-reading:
+    - standards/deployment/production.md
+  workflow:
+    - step: 1
+      file: standards/deployment/docker.md
+      purpose: Create Dockerfile
+      output: Dockerfile
+    - step: 2
+      file: standards/deployment/docker-compose.md
+      purpose: Define services
+      output: docker-compose.yml
+    - step: 3
+      file: standards/deployment/tailscale.md
+      purpose: Configure Tailscale sidecar
+      output: docker-compose.yml (updated)
 ---
 
-# Tailscale Sidecar Deployment
+# Docker + Tailscale Deployment
 
 ## When to Use This Skill
 
 Activate when:
-- User requests "deploy to production", "set up Tailscale"
-- Need to create Docker deployment configuration
-- Setting up private networking for F# application
-- Deploying to Portainer or home server
-- User mentions "docker-compose", "deployment", or "Tailscale"
+- User requests "deploy the app"
+- Setting up production deployment
+- Need secure remote access
+- Configuring Docker containers
+- Project needs containerization
 
-## Prerequisites
-
-- Docker and Docker Compose installed
-- Tailscale account (https://tailscale.com)
-- F# application with Dockerfile (multi-stage build)
-- Target deployment server (Linux recommended)
-
-## Architecture
+## Deployment Overview
 
 ```
-Internet
-    ↓ (blocked - no public ports)
-Tailscale Network (WireGuard encrypted)
-    ↓
-Tailscale Sidecar Container
-    ↓ (internal network)
-F# Application Container
+Docker Container (App)
+    ├── Multi-stage build (optimized)
+    ├── Volume mount (persistent data)
+    └── Tailscale sidecar (secure access)
 ```
 
-**Key Benefits:**
-- No public ports exposed
-- No authentication needed (Tailscale handles it)
-- Access from any device on your Tailnet
-- Encrypted WireGuard connections
-- Device authorization at network level
+**Key Features:**
+- Multi-stage Docker build (small image)
+- Persistent data with volumes
+- Secure access via Tailscale
+- Environment variable configuration
 
-## docker-compose.yml
+## Implementation Workflow
 
-**Location:** Project root
+### Step 1: Create Dockerfile
+
+**Read:** `standards/deployment/docker.md`
+**Create:** `Dockerfile`
+
+```dockerfile
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /app
+
+# Copy and restore
+COPY src/Server/Server.fsproj src/Server/
+COPY src/Shared/Shared.fsproj src/Shared/
+WORKDIR /app/src/Server
+RUN dotnet restore
+
+# Copy source and build
+WORKDIR /app
+COPY . .
+WORKDIR /app/src/Server
+RUN dotnet publish -c Release -o /app/publish
+
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /app/publish .
+
+# Data directory
+ENV DATA_DIR=/app/data
+RUN mkdir -p /app/data
+
+EXPOSE 5000
+ENTRYPOINT ["dotnet", "Server.dll"]
+```
+
+**Key:** Multi-stage build keeps image small
+
+---
+
+### Step 2: Create docker-compose.yml
+
+**Read:** `standards/deployment/docker-compose.md`
+**Create:** `docker-compose.yml`
 
 ```yaml
 version: '3.8'
 
 services:
-  # F# Application
   app:
     build: .
-    container_name: my-fsharp-app
+    container_name: budgetbuddy
     restart: unless-stopped
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:5000
     volumes:
-      # Persist SQLite database and files
-      - ./data:/app/data
-    networks:
-      - app-network
-    depends_on:
-      - tailscale
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+      - app-data:/app/data
+    environment:
+      - ASPNETCORE_URLS=http://+:5000
+      - DATA_DIR=/app/data
+      - YNAB_TOKEN=${YNAB_TOKEN}
+    network_mode: service:tailscale
 
-  # Tailscale Sidecar
   tailscale:
     image: tailscale/tailscale:latest
-    container_name: my-fsharp-app-tailscale
-    hostname: my-fsharp-app
+    container_name: budgetbuddy-tailscale
+    hostname: budgetbuddy
     restart: unless-stopped
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_HOSTNAME=my-fsharp-app
-      - TS_ACCEPT_DNS=true
-      - TS_USERSPACE=false
+      - TS_SERVE_CONFIG=/config/serve.json
     volumes:
-      - tailscale-data:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
+      - tailscale-state:/var/lib/tailscale
+      - ./serve.json:/config/serve.json:ro
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "tailscale", "status"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-networks:
-  app-network:
-    driver: bridge
 
 volumes:
-  tailscale-data:
+  app-data:
+  tailscale-state:
 ```
 
-**Configuration Notes:**
-- `hostname` - Name that appears in Tailscale admin console
-- `TS_HOSTNAME` - DNS name on Tailnet (access via `http://my-fsharp-app`)
-- `TS_AUTHKEY` - One-time auth key from Tailscale admin
-- `/dev/net/tun` - Required for Tailscale networking
-- `cap_add` - Required Linux capabilities for VPN
+**Key:** App shares network with Tailscale sidecar
 
-## Environment Configuration
+---
 
-### .env File
+### Step 3: Configure Tailscale Serve
 
-**Location:** Project root (same directory as docker-compose.yml)
+**Read:** `standards/deployment/tailscale.md`
+**Create:** `serve.json`
 
-```bash
-# Tailscale authentication key
-TS_AUTHKEY=tskey-auth-xxxxxxxxxxxxx
-
-# Application settings (optional)
-ASPNETCORE_ENVIRONMENT=Production
+```json
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://127.0.0.1:5000"
+        }
+      }
+    }
+  }
+}
 ```
 
-**Important:**
-- Add `.env` to `.gitignore` (never commit secrets)
-- Auth key is one-time use
-- Generate new key for each deployment
+**Key:** Tailscale handles HTTPS, proxies to app
 
-### Generate Tailscale Auth Key
+---
 
-1. Go to https://login.tailscale.com/admin/settings/keys
-2. Click "Generate auth key"
-3. **Settings:**
-   - ✅ Reusable (if deploying multiple times)
-   - ✅ Ephemeral (device removed when container stops)
-   - Set expiration (recommend 90 days)
-4. Copy key to `.env` file
+### Step 4: Deploy
 
-## Deployment Steps
-
-### Local Development Testing
+**Commands:**
 
 ```bash
-# 1. Build application
-dotnet build
+# 1. Set environment variables
+export YNAB_TOKEN="your-token"
+export TS_AUTHKEY="your-tailscale-auth-key"
 
-# 2. Build Docker image
-docker build -t my-fsharp-app:latest .
-
-# 3. Start stack
+# 2. Build and start
 docker-compose up -d
 
-# 4. Check logs
-docker-compose logs -f
-
-# 5. Verify Tailscale connection
-docker exec my-fsharp-app-tailscale tailscale status
-
-# 6. Access application
-# Open browser: http://my-fsharp-app (from any device on Tailnet)
-```
-
-### Production Deployment (Portainer)
-
-**Option 1: Using Portainer UI**
-
-1. Login to Portainer (usually `http://server:9000`)
-2. Go to **Stacks** → **Add stack**
-3. **Name:** `my-fsharp-app`
-4. **Build method:** Web editor
-5. Paste `docker-compose.yml` content
-6. **Environment variables:**
-   - Add: `TS_AUTHKEY` = `tskey-auth-xxxxx`
-7. Click **Deploy the stack**
-
-**Option 2: Using Git Repository**
-
-1. Push docker-compose.yml to Git repository
-2. In Portainer: **Stacks** → **Add stack**
-3. **Build method:** Repository
-4. Enter Git URL and branch
-5. Set environment variables
-6. Enable **Automatic updates** (optional)
-7. Click **Deploy the stack**
-
-### Verify Deployment
-
-```bash
-# Check container status
-docker ps
-
-# Check app logs
-docker logs my-fsharp-app
-
-# Check Tailscale logs
-docker logs my-fsharp-app-tailscale
-
-# Verify Tailscale connection
-docker exec my-fsharp-app-tailscale tailscale status
-
-# Check health
-docker inspect my-fsharp-app | grep -A 5 Health
-
-# Test app endpoint
-curl http://localhost:5000/health  # From server
-curl http://my-fsharp-app/health    # From Tailnet device
-```
-
-## Accessing the Application
-
-### From Tailnet Devices
-
-**Any device on your Tailnet can access:**
-```
-http://my-fsharp-app
-http://my-fsharp-app:5000
-```
-
-**Install Tailscale on devices:**
-- Desktop: https://tailscale.com/download
-- Mobile: App Store / Google Play
-- Login with same Tailscale account
-
-### From Server (Local)
-
-```bash
-# Use localhost
-curl http://localhost:5000
-
-# Or use Tailscale hostname
-curl http://my-fsharp-app:5000
-```
-
-## Updating the Application
-
-### Update Code and Redeploy
-
-```bash
-# 1. Pull latest code
-git pull origin main
-
-# 2. Rebuild Docker image
-docker-compose build
-
-# 3. Restart containers
-docker-compose up -d
-
-# 4. Check logs
+# 3. Check logs
 docker-compose logs -f app
+
+# 4. Access via Tailscale URL
+# https://budgetbuddy.your-tailnet.ts.net
 ```
 
-### In Portainer
+---
 
-1. Go to **Stacks** → your stack
-2. Click **Editor**
-3. Click **Update the stack**
-4. Select **Re-pull image and redeploy**
-5. Click **Update**
+## Quick Reference
 
-## Troubleshooting
-
-### Tailscale Connection Issues
+### Docker Commands
 
 ```bash
-# Check Tailscale status
-docker exec my-fsharp-app-tailscale tailscale status
+# Build and start
+docker-compose up -d
 
-# Check Tailscale logs
-docker logs my-fsharp-app-tailscale
+# View logs
+docker-compose logs -f app
+docker-compose logs -f tailscale
 
-# Verify /dev/net/tun exists
-ls -la /dev/net/tun
+# Restart
+docker-compose restart app
 
-# Restart Tailscale container
-docker restart my-fsharp-app-tailscale
+# Stop
+docker-compose down
 
-# Check network capabilities
-docker exec my-fsharp-app-tailscale ip addr show
+# Rebuild after code changes
+docker-compose up -d --build
 ```
 
-**Common Issues:**
+### Environment Variables
 
-| Issue | Solution |
-|-------|----------|
-| `/dev/net/tun` not found | Host needs TUN/TAP support: `modprobe tun` |
-| Permission denied | Container needs `NET_ADMIN` capability |
-| Auth key expired | Generate new key in Tailscale admin |
-| Can't reach app | Check app is running: `docker logs my-fsharp-app` |
+Required in `.env` or export:
+```bash
+YNAB_TOKEN=your-ynab-token
+TS_AUTHKEY=your-tailscale-auth-key
+DATA_DIR=/app/data  # Inside container
+```
 
-### Application Issues
+### Data Persistence
 
 ```bash
-# Check app is running
-docker ps | grep my-fsharp-app
+# Backup data
+docker run --rm -v budgetbuddy_app-data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/data-backup.tar.gz -C /data .
 
-# Check app logs
-docker logs my-fsharp-app --tail 100
-
-# Check app health
-docker exec my-fsharp-app curl -f http://localhost:5000/health
-
-# Check data volume
-docker exec my-fsharp-app ls -la /app/data
-
-# Restart app
-docker restart my-fsharp-app
+# Restore data
+docker run --rm -v budgetbuddy_app-data:/data -v $(pwd):/backup \
+  alpine tar xzf /backup/data-backup.tar.gz -C /data
 ```
-
-### Network Issues
-
-```bash
-# Check network exists
-docker network ls | grep app-network
-
-# Inspect network
-docker network inspect app-network
-
-# Check containers can communicate
-docker exec my-fsharp-app-tailscale ping -c 3 my-fsharp-app
-```
-
-### Data Persistence Issues
-
-```bash
-# Check volume exists
-docker volume ls | grep tailscale
-
-# Check data directory
-ls -la ./data
-
-# Fix permissions (if needed)
-sudo chown -R $(id -u):$(id -g) ./data
-```
-
-## Multiple Applications
-
-Deploy multiple F# apps on same server:
-
-```yaml
-# app1/docker-compose.yml
-services:
-  app:
-    container_name: todo-app
-    # ... config
-  tailscale:
-    container_name: todo-app-tailscale
-    hostname: todo-app
-    environment:
-      - TS_HOSTNAME=todo-app
-    # ... config
-
-# app2/docker-compose.yml
-services:
-  app:
-    container_name: notes-app
-    # ... config
-  tailscale:
-    container_name: notes-app-tailscale
-    hostname: notes-app
-    environment:
-      - TS_HOSTNAME=notes-app
-    # ... config
-```
-
-Access:
-- `http://todo-app`
-- `http://notes-app`
-
-## Best Practices
-
-### ✅ Do
-- Use unique hostnames for each application
-- Set auth key expiration (security)
-- Use ephemeral keys for temporary deployments
-- Monitor Tailscale connection health
-- Keep Tailscale image updated
-- Persist data in volumes (not containers)
-- Use health checks
-- Test locally before production deployment
-
-### ❌ Don't
-- Expose ports to public internet (defeats Tailscale purpose)
-- Commit `.env` file to Git
-- Reuse auth keys across environments
-- Run without `NET_ADMIN` capability
-- Forget to mount `/dev/net/tun`
-- Skip health checks
-- Deploy without testing locally first
-
-## Security Considerations
-
-**Tailscale Provides:**
-- Network-level authentication (device authorization)
-- WireGuard encryption
-- Access control via Tailscale ACLs
-- Automatic certificate management
-
-**Application Still Needs:**
-- Input validation (SQL injection, XSS prevention)
-- Authorization (who can do what in the app)
-- Secure data storage
-- Audit logging
-
-**Tailscale Admin:**
-- Review connected devices regularly
-- Disable/remove unused devices
-- Use ACLs to restrict access by group
-- Enable MFA for Tailscale account
 
 ## Verification Checklist
 
-- [ ] `docker-compose.yml` created
-- [ ] `.env` file created with `TS_AUTHKEY`
-- [ ] `.env` added to `.gitignore`
-- [ ] Tailscale auth key generated
-- [ ] Application Dockerfile exists
-- [ ] Data directory created
-- [ ] Containers start successfully
-- [ ] Tailscale shows connected
-- [ ] Application accessible via Tailscale hostname
-- [ ] Health checks passing
+- [ ] **Read standards** (production.md, docker.md)
+- [ ] Dockerfile with multi-stage build
+- [ ] docker-compose.yml with app + tailscale
+- [ ] serve.json for Tailscale HTTPS
+- [ ] Environment variables configured
+- [ ] Data volumes defined
+- [ ] `.env` file with secrets (not committed!)
+- [ ] App accessible via Tailscale URL
 - [ ] Logs show no errors
+
+## Common Pitfalls
+
+**Most Critical:**
+- ❌ Committing secrets to git (.env, auth keys)
+- ❌ Not mounting data volume (data loss on restart)
+- ❌ Wrong network mode (app can't reach Tailscale)
+- ❌ Missing environment variables
+- ✅ Use .env file (add to .gitignore)
+- ✅ Mount volumes for persistent data
+- ✅ Use `network_mode: service:tailscale`
+
+## Troubleshooting
+
+```bash
+# Check container status
+docker-compose ps
+
+# Check app is running
+docker-compose exec app dotnet --version
+
+# Check Tailscale status
+docker-compose exec tailscale tailscale status
+
+# View all logs
+docker-compose logs
+
+# Restart everything
+docker-compose down && docker-compose up -d
+```
 
 ## Related Skills
 
-- **fsharp-feature** - Complete application to deploy
-- **fsharp-backend** - Backend that gets deployed
-- **fsharp-frontend** - Frontend that gets deployed
+- **fsharp-backend** - App being deployed
+- **fsharp-feature** - Features deployed to production
 
-## Related Documentation
+## Detailed Documentation
 
-- `/docs/07-BUILD-DEPLOY.md` - Docker build and deployment guide
-- `/docs/08-TAILSCALE-INTEGRATION.md` - Detailed Tailscale integration
-- `CLAUDE.md` - Deployment model overview
-
-## Additional Resources
-
-- [Tailscale Documentation](https://tailscale.com/kb/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Portainer Documentation](https://docs.portainer.io/)
-- [ASP.NET Core Deployment](https://docs.microsoft.com/en-us/aspnet/core/host-and-deploy/)
+For complete patterns and examples:
+- `standards/deployment/production.md` - Production checklist
+- `standards/deployment/docker.md` - Dockerfile patterns
+- `standards/deployment/docker-compose.md` - Compose configuration
+- `standards/deployment/tailscale.md` - Tailscale setup
