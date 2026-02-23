@@ -80,7 +80,7 @@ let private challengeDecoder: Decoder<Challenge> =
 let internal removeLineNumberPrefixes (text: string) : string =
     System.Text.RegularExpressions.Regex.Replace(
         text,
-        @"(^|\n)\d{2}(?=[A-Za-zÄÖÜäöüß])",
+        @"(^|\n)\d{2}(?=[A-Za-zÄÖÜäöüß0-9])",
         "$1"
     ).Trim()
 

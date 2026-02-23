@@ -169,4 +169,11 @@ let lineNumberPrefixTests =
             let input = "01Brinkhege Treffpunkt (Rewe)//OSNABRUECK/DE"
             let result = removeLineNumberPrefixes input
             Expect.equal result "Brinkhege Treffpunkt (Rewe)//OSNABRUECK/DE" "Should handle real Brinkhege memo"
+
+        testCase "removes prefix before Amazon order number starting with digits" <| fun () ->
+            // This test prevents regression of the bug where Comdirect line prefix "01"
+            // was not removed before Amazon order numbers (which start with digits),
+            // causing "01028-8901796-9573138" to appear in YNAB memos instead of "028-8901796-9573138".
+            Expect.equal (removeLineNumberPrefixes "01028-8901796-9573138 AMZN Mktp DE") "028-8901796-9573138 AMZN Mktp DE" "Should remove prefix before digit-starting order number"
+            Expect.equal (removeLineNumberPrefixes "01305-0831755-7604349 AMZN Mktp DE") "305-0831755-7604349 AMZN Mktp DE" "Should remove prefix before another order number"
     ]
