@@ -49,7 +49,9 @@ let private statusDot (tx: SyncTransaction) =
             | PossibleDuplicate (_, _) -> ("bg-neon-orange", true)
             | NotDuplicate _ ->
                 match tx.Status with
-                | Pending | NeedsAttention -> ("bg-neon-orange", false)  // Same color for all uncategorized
+                | Pending | NeedsAttention ->
+                    if tx.SuggestedByOrderId.IsSome then ("bg-neon-purple", false)  // Order-ID suggestion
+                    else ("bg-neon-orange", false)  // Uncategorized
                 | AutoCategorized -> ("bg-neon-teal", false)
                 | ManualCategorized -> ("bg-neon-green", false)
                 | Skipped -> ("bg-base-content/30", false)  // Fallback
@@ -314,6 +316,17 @@ let transactionRow
         inlineRuleFormState
         |> Option.exists (fun f -> f.TransactionId = tx.Transaction.Id)
 
+    // Order-ID suggestion badge (shows when category was suggested by matching Amazon Order ID)
+    let orderIdSuggestionBadge =
+        match tx.SuggestedByOrderId with
+        | Some orderId ->
+            Html.span [
+                prop.className "ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-neon-purple/20 text-neon-purple border border-neon-purple/30"
+                prop.title $"Kategorie übernommen von Bestellung {orderId}"
+                prop.text "Bestellung"
+            ]
+        | None -> Html.none
+
     // Pending save indicator component for category
     let pendingCategorySaveIndicator =
         if isPendingCategorySave then
@@ -373,6 +386,7 @@ let transactionRow
                                                     dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
                                             "Category..."
                                             categoryOptions
+                                    orderIdSuggestionBadge
                                     pendingCategorySaveIndicator
                                 ]
                             ]
@@ -497,6 +511,7 @@ let transactionRow
                                             dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
                                     "Category..."
                                     categoryOptions
+                            orderIdSuggestionBadge
                             pendingCategorySaveIndicator
                         ]
                     ]

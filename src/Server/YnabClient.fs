@@ -93,6 +93,8 @@ module Decoders =
             Payee = get.Optional.Field "payee_name" Decode.string
             Memo = get.Optional.Field "memo" Decode.string
             ImportId = get.Optional.Field "import_id" Decode.string
+            CategoryId = get.Optional.Field "category_id" Decode.string
+            CategoryName = get.Optional.Field "category_name" Decode.string
         })
 
 // ============================================
@@ -408,6 +410,14 @@ let createTransactions
             let validTransactions =
                 transactions
                 |> List.filter (fun tx -> tx.Status <> Skipped)
+
+            // Filter out future-dated transactions (YNAB rejects dates in the future)
+            let today = DateTime.Today
+            let futureSkipped, validTransactions =
+                validTransactions
+                |> List.partition (fun tx -> tx.Transaction.BookingDate.Date > today)
+            for tx in futureSkipped do
+                printfn "[YNAB] Skipping future-dated transaction: %s (date=%s)" (tx.Transaction.Id |> fun (TransactionId id) -> id) (tx.Transaction.BookingDate.ToString("yyyy-MM-dd"))
 
             // Convert SyncTransactions to YNAB transaction request format
             let ynabTransactions : YnabTransactionRequest list =

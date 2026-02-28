@@ -388,6 +388,7 @@ let transactionConversionTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
                 YnabImportStatus = NotAttempted
                 Splits = None
+                SuggestedByOrderId = None
             }
 
             // Simulate the conversion logic from createTransactions
@@ -439,6 +440,7 @@ let transactionConversionTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF456")
                 YnabImportStatus = NotAttempted
                 Splits = None
+                SuggestedByOrderId = None
             }
 
             let payeeName =
@@ -487,6 +489,7 @@ let transactionConversionTests =
                     DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
                     YnabImportStatus = NotAttempted
                     Splits = None
+                    SuggestedByOrderId = None
                 }
             ]
 
@@ -520,6 +523,7 @@ let transactionConversionTests =
                     DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
                     YnabImportStatus = NotAttempted
                     Splits = None
+                    SuggestedByOrderId = None
                 }
             ]
 
@@ -529,6 +533,80 @@ let transactionConversionTests =
                 |> List.filter (fun tx -> tx.Status <> Skipped)
 
             Expect.hasLength filtered 1 "Uncategorized transactions should pass the filter"
+
+        testCase "future-dated transactions are filtered out before YNAB import" <| fun () ->
+            // This test prevents regression of the bug where Comdirect pre-notified transactions
+            // (Vormerkbuchungen) had future booking dates, causing YNAB to reject the entire batch
+            // with "date must not be in the future or over 5 years ago".
+            let today = DateTime.Today
+            let makeTx id date = {
+                Transaction = {
+                    Id = TransactionId id
+                    BookingDate = date
+                    Amount = { Amount = -10m; Currency = "EUR" }
+                    Payee = Some "Store"
+                    Memo = "Test"
+                    Reference = id
+                    RawData = "{}"
+                }
+                Status = AutoCategorized
+                CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
+                CategoryName = Some "Category"
+                MatchedRuleId = None
+                PayeeOverride = None
+                ExternalLinks = []
+                UserNotes = None
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails id)
+                YnabImportStatus = NotAttempted
+                Splits = None
+                SuggestedByOrderId = None
+            }
+
+            let transactions = [
+                makeTx "tx-today" today
+                makeTx "tx-yesterday" (today.AddDays(-1.0))
+                makeTx "tx-tomorrow" (today.AddDays(1.0))
+                makeTx "tx-next-week" (today.AddDays(7.0))
+            ]
+
+            // Replicate the filter logic from createTransactions
+            let futureSkipped, valid =
+                transactions
+                |> List.filter (fun tx -> tx.Status <> Skipped)
+                |> List.partition (fun tx -> tx.Transaction.BookingDate.Date > today)
+
+            Expect.hasLength valid 2 "Only today and past transactions should pass"
+            Expect.hasLength futureSkipped 2 "Future-dated transactions should be filtered out"
+            Expect.all valid (fun tx -> tx.Transaction.BookingDate.Date <= today) "All valid transactions should have date <= today"
+
+        testCase "transaction dated today is not filtered out" <| fun () ->
+            // Edge case: a transaction booked today should be accepted
+            let today = DateTime.Today
+            let tx = {
+                Transaction = {
+                    Id = TransactionId "tx-today-edge"
+                    BookingDate = today
+                    Amount = { Amount = -25m; Currency = "EUR" }
+                    Payee = Some "Today Store"
+                    Memo = "Today purchase"
+                    Reference = "REF-TODAY"
+                    RawData = "{}"
+                }
+                Status = ManualCategorized
+                CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
+                CategoryName = Some "Groceries"
+                MatchedRuleId = None
+                PayeeOverride = None
+                ExternalLinks = []
+                UserNotes = None
+                DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-TODAY")
+                YnabImportStatus = NotAttempted
+                Splits = None
+                SuggestedByOrderId = None
+            }
+
+            let isFuture = tx.Transaction.BookingDate.Date > today
+            Expect.isFalse isFuture "Transaction dated today should not be considered future"
     ]
 
 // ============================================

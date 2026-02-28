@@ -4,6 +4,66 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-02-28 - Fix: Skip future-dated transactions before YNAB import
+
+**What I did:**
+Fixed a bug where Comdirect pre-notified transactions (Vormerkbuchungen) with future booking dates caused YNAB to reject the entire import batch with "date must not be in the future or over 5 years ago". Transactions with booking dates after today are now automatically filtered out before sending to YNAB.
+
+**Root Cause:**
+Comdirect returns transactions with future booking dates (e.g., a standing order for March 2nd visible on February 28th). YNAB's API rejects any transaction with a future date, and since transactions are sent as a batch, the entire batch of 38 transactions failed.
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - Added future-date filter in `createTransactions` with logging for skipped transactions
+- `src/Tests/YnabClientTests.fs` - Added 2 regression tests: future-dated transactions are filtered out, today's date is accepted
+
+**Outcomes:**
+- Build: ✅
+- Tests: 410/410 passed
+- Import works again, future-dated transactions are silently skipped
+
+---
+
+## 2026-02-23 - Amazon Order-ID Category Suggestion Feature
+
+**What I did:**
+Implemented automatic category suggestions for Amazon transactions based on Order ID matching. When a transaction with a specific Amazon Order ID has been categorized (either in YNAB history or in the current session), other transactions with the same Order ID automatically receive the same category as a suggestion.
+
+Two sources of suggestions:
+- **Source B (YNAB History)**: Existing YNAB transactions with categories are scanned for Amazon Order IDs during sync initialization. Matching Order IDs propagate categories to new uncategorized transactions.
+- **Source A (In-Session)**: When a user manually categorizes a transaction, other transactions with the same Amazon Order ID in the current session immediately receive the same category.
+
+**Files Added:**
+- `src/Server/OrderIdMatcher.fs` - New pure-logic module with `buildYnabOrderIdMap`, `applySuggestions`, and `propagateInSession` functions
+- `src/Tests/OrderIdMatcherTests.fs` - Comprehensive tests for all three OrderIdMatcher functions
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - Added `CategoryId`/`CategoryName` to `YnabTransaction`, `SuggestedByOrderId` to `SyncTransaction`
+- `src/Shared/Api.fs` - Changed `categorizeTransaction` return type from `SyncResult<SyncTransaction>` to `SyncResult<SyncTransaction list>` (first = categorized, rest = propagated)
+- `src/Server/YnabClient.fs` - Extended `transactionDecoder` to decode `category_id` and `category_name` from YNAB API
+- `src/Server/RulesEngine.fs` - Made `amazonOrderIdPattern` and `extractAmazonOrderId` public, added `extractAmazonOrderIdFromText` helper, added `SuggestedByOrderId = None` to `classifyTransactions`
+- `src/Server/Server.fsproj` - Added `OrderIdMatcher.fs` compile include
+- `src/Server/Api.fs` - Integrated OrderIdMatcher in sync flow (after duplicate detection) and in `categorizeTransaction` (in-session propagation), added `SuggestedByOrderId = None` to manual categorize and bulk categorize
+- `src/Server/Persistence.fs` - Added `SuggestedByOrderId = None` to session restore record
+- `src/Client/Components/SyncFlow/Types.fs` - Changed `TransactionCategorized` msg to accept `SyncTransaction list`
+- `src/Client/Components/SyncFlow/State.fs` - Updated handler to process list of updated transactions, primary tx tracked for manual categorization
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - Added purple "Bestellung" badge for Order-ID suggestions, purple status dot color for suggested transactions
+- `src/Tests/Tests.fsproj` - Added `OrderIdMatcherTests.fs` compile include
+- `src/Tests/DuplicateDetectionTests.fs` - Added `SuggestedByOrderId = None` and `CategoryId`/`CategoryName` to record constructions
+- `src/Tests/SplitTransactionTests.fs` - Added `SuggestedByOrderId = None` to record constructions
+- `src/Tests/YnabClientTests.fs` - Added `SuggestedByOrderId = None` to record constructions
+- `src/Tests/SyncSessionManagerTests.fs` - Added `SuggestedByOrderId = None` to record construction
+- `src/Tests/PersistenceTypeConversionTests.fs` - Added `SuggestedByOrderId = None` to record construction
+
+**Rationale:**
+Amazon transactions frequently come in multiple parts (partial deliveries, returns) with the same Order ID. Manually categorizing each one is tedious. This feature automates the process by propagating categories between transactions sharing the same Order ID.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 399/399 passed (6 integration tests skipped)
+- Issues: None
+
+---
+
 ## 2025-12-31 - Created standards/ Directory for Reusable F# Blueprint
 
 **What I did:**

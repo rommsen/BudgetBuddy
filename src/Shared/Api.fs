@@ -188,11 +188,11 @@ type SyncApi = {
     /// Returns: Transaction list or SyncError (SessionNotFound, InvalidSessionState).
     getTransactions: SyncSessionId -> Async<SyncResult<SyncTransaction list>>
 
-    /// Manually categorizes a single transaction.
+    /// Manually categorizes a single transaction and propagates category to other transactions with the same Amazon Order ID.
     /// Purpose: Allows user to override auto-categorization or categorize uncategorized.
     /// Parameters: (sessionId, transactionId, categoryId, payeeOverride)
-    /// Returns: Updated transaction or SyncError (SessionNotFound, InvalidSessionState).
-    categorizeTransaction: SyncSessionId * TransactionId * YnabCategoryId option * string option -> Async<SyncResult<SyncTransaction>>
+    /// Returns: List of updated transactions (first = categorized, rest = propagated) or SyncError.
+    categorizeTransaction: SyncSessionId * TransactionId * YnabCategoryId option * string option -> Async<SyncResult<SyncTransaction list>>
 
     /// Marks a transaction to be skipped during import.
     /// Purpose: Excludes duplicates or unwanted transactions.

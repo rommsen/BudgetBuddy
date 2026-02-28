@@ -35,6 +35,7 @@ let createSyncTransaction () =
         DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
         YnabImportStatus = NotAttempted
         Splits = None
+        SuggestedByOrderId = None
     }
 
 /// Creates a sync transaction with a specific status

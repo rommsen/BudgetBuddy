@@ -59,6 +59,7 @@ let splitTypeTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-1")
                 YnabImportStatus = NotAttempted
                 Splits = None
+                SuggestedByOrderId = None
             }
             Expect.isNone syncTx.Splits "Splits should be None"
 
@@ -76,6 +77,7 @@ let splitTypeTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-2")
                 YnabImportStatus = NotAttempted
                 Splits = Some []
+                SuggestedByOrderId = None
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
             Expect.isEmpty syncTx.Splits.Value "Splits list should be empty"
@@ -98,6 +100,7 @@ let splitTypeTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-3")
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
+                SuggestedByOrderId = None
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
             Expect.equal syncTx.Splits.Value.Length 2 "Should have 2 splits"
@@ -174,6 +177,7 @@ let splitImportReadyTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-ready")
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
+                SuggestedByOrderId = None
             }
 
             // Check import readiness logic
@@ -199,6 +203,7 @@ let splitImportReadyTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-single")
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
+                SuggestedByOrderId = None
             }
 
             let isReadyForImport =
@@ -226,6 +231,7 @@ let splitImportReadyTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-skipped")
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
+                SuggestedByOrderId = None
             }
 
             let isReadyForImport =
@@ -249,6 +255,7 @@ let splitImportReadyTests =
                 DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF-tx-cat")
                 YnabImportStatus = NotAttempted
                 Splits = None
+                SuggestedByOrderId = None
             }
 
             let isReadyForImport =

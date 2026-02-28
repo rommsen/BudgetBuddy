@@ -708,8 +708,8 @@ let syncApi : SyncApi = {
                         SyncSessionManager.failSession errorMsg
                         return Error (SyncError.TransactionFetchFailed errorMsg)
                     | Ok syncTransactions ->
-                        // Detect duplicates by fetching existing YNAB transactions
-                        let! syncTransactionsWithDuplicates = async {
+                        // Detect duplicates and apply Order-ID suggestions by fetching existing YNAB transactions
+                        let! syncTransactionsWithDuplicatesAndSuggestions = async {
                             let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
                             let! budgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
                             let! accountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
@@ -722,7 +722,10 @@ let syncApi : SyncApi = {
                                     match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (settings.Sync.DaysToFetch + 7) with
                                     | Ok ynabTransactions ->
                                         // Mark duplicates
-                                        return DuplicateDetection.markDuplicates ynabTransactions syncTransactions
+                                        let withDuplicates = DuplicateDetection.markDuplicates ynabTransactions syncTransactions
+                                        // Apply Order-ID based category suggestions from YNAB history
+                                        let orderIdMap = OrderIdMatcher.buildYnabOrderIdMap ynabTransactions
+                                        return OrderIdMatcher.applySuggestions orderIdMap withDuplicates
                                     | Error _ ->
                                         // If we can't fetch YNAB transactions, proceed without duplicate detection
                                         return syncTransactions
@@ -735,7 +738,7 @@ let syncApi : SyncApi = {
 
                         // Auto-skip confirmed duplicates
                         let syncTransactionsWithAutoSkip =
-                            syncTransactionsWithDuplicates
+                            syncTransactionsWithDuplicatesAndSuggestions
                             |> List.map (fun tx ->
                                 match tx.DuplicateStatus with
                                 | ConfirmedDuplicate _ -> { tx with Status = Skipped }
@@ -802,10 +805,18 @@ let syncApi : SyncApi = {
                         CategoryId = categoryId
                         CategoryName = categoryName
                         PayeeOverride = payeeOverride
+                        SuggestedByOrderId = None  // Manual override clears any suggestion
                 }
 
                 SyncSessionManager.updateTransaction updated
-                return Ok updated
+
+                // Propagate category to other transactions with the same Amazon Order ID
+                let allTransactions = SyncSessionManager.getTransactions()
+                let propagated = OrderIdMatcher.propagateInSession updated allTransactions
+                for propagatedTx in propagated do
+                    SyncSessionManager.updateTransaction propagatedTx
+
+                return Ok (updated :: propagated)
     }
 
     skipTransaction = fun (sessionId, txId) -> async {
@@ -866,6 +877,7 @@ let syncApi : SyncApi = {
                             Status = ManualCategorized
                             CategoryId = Some categoryId
                             CategoryName = categoryName
+                            SuggestedByOrderId = None  // Manual override clears any suggestion
                     }
                     SyncSessionManager.updateTransaction updated
                     updatedTransactions <- updated :: updatedTransactions

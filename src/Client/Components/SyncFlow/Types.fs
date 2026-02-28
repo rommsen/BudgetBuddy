@@ -83,7 +83,7 @@ type Msg =
     | LoadTransactions
     | TransactionsLoaded of Result<SyncTransaction list, SyncError>
     | CategorizeTransaction of TransactionId * YnabCategoryId option
-    | TransactionCategorized of Result<SyncTransaction, SyncError>
+    | TransactionCategorized of Result<SyncTransaction list, SyncError>
     /// Debounced category change commit - only triggers API call if version matches
     | CommitCategoryChange of TransactionId * YnabCategoryId option * int
     | SkipTransaction of TransactionId

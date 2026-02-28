@@ -186,6 +186,8 @@ type SyncTransaction = {
     /// Some [] = invalid state (splits must have at least 2 items)
     /// Some [split1; split2; ...] = split transaction (splits must sum to transaction amount)
     Splits: TransactionSplit list option
+    /// If set, this transaction's category was suggested based on another transaction with the same Amazon Order ID
+    SuggestedByOrderId: string option
 }
 
 // ============================================
@@ -283,6 +285,8 @@ type YnabTransaction = {
     Payee: string option
     Memo: string option
     ImportId: string option  // Used for dedup
+    CategoryId: string option
+    CategoryName: string option
 }
 
 // ============================================

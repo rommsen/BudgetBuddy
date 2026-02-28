@@ -302,17 +302,27 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 { model with PendingCategoryVersions = newPendingVersions }, cmd, NoOp
             | _ -> model, Cmd.none, NoOp
 
-    | TransactionCategorized (Ok updatedTx) ->
+    | TransactionCategorized (Ok updatedTxs) ->
         match model.SyncTransactions with
         | Success transactions ->
+            // Build a map of updated transactions for efficient lookup
+            let updatedMap =
+                updatedTxs
+                |> List.map (fun tx -> tx.Transaction.Id, tx)
+                |> Map.ofList
             let newTxs = transactions |> List.map (fun tx ->
-                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
-            // Track this as manually categorized (for showing "Create Rule" button)
+                match Map.tryFind tx.Transaction.Id updatedMap with
+                | Some updated -> updated
+                | None -> tx)
+            // Track only the primary transaction (first element) as manually categorized
             let newManuallyCategorized =
-                if updatedTx.Status = ManualCategorized && updatedTx.CategoryId.IsSome then
-                    model.ManuallyCategorizedIds.Add updatedTx.Transaction.Id
-                else
-                    model.ManuallyCategorizedIds.Remove updatedTx.Transaction.Id
+                match updatedTxs with
+                | primaryTx :: _ ->
+                    if primaryTx.Status = ManualCategorized && primaryTx.CategoryId.IsSome then
+                        model.ManuallyCategorizedIds.Add primaryTx.Transaction.Id
+                    else
+                        model.ManuallyCategorizedIds.Remove primaryTx.Transaction.Id
+                | [] -> model.ManuallyCategorizedIds
             { model with
                 SyncTransactions = Success newTxs
                 ManuallyCategorizedIds = newManuallyCategorized }, Cmd.none, NoOp

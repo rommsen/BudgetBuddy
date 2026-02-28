@@ -61,6 +61,7 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
         DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
         YnabImportStatus = NotAttempted
         Splits = None
+        SuggestedByOrderId = None
     }
 
 [<Tests>]

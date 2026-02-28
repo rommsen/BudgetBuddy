@@ -39,10 +39,10 @@ let private paypalPatterns = [
 
 /// Regex pattern for Amazon order IDs (e.g., ABC-1234567-1234567)
 /// Handles optional 2-digit Comdirect line number prefix (e.g., 01305-...)
-let private amazonOrderIdPattern = @"(?:(?:^|\s)\d{2})?([A-Z0-9]{3}-\d{7}-\d{7})"
+let amazonOrderIdPattern = @"(?:(?:^|\s)\d{2})?([A-Z0-9]{3}-\d{7}-\d{7})"
 
 /// Extracts Amazon order ID from transaction text (payee + memo)
-let private extractAmazonOrderId (transaction: BankTransaction) : string option =
+let extractAmazonOrderId (transaction: BankTransaction) : string option =
     let text =
         match transaction.Payee with
         | Some payee -> payee + " " + transaction.Memo
@@ -52,6 +52,12 @@ let private extractAmazonOrderId (transaction: BankTransaction) : string option 
     let matchResult = regex.Match(text)
     if matchResult.Success then Some matchResult.Groups.[1].Value
     else None
+
+/// Extracts Amazon order ID from arbitrary text (memo, payee, etc.)
+let extractAmazonOrderIdFromText (text: string) : string option =
+    let regex = new Regex(amazonOrderIdPattern, RegexOptions.None)
+    let m = regex.Match(text)
+    if m.Success then Some m.Groups.[1].Value else None
 
 /// Generates Amazon link - deep link to specific order if ID found, else order history
 let private generateAmazonLink (transaction: BankTransaction) : ExternalLink =
@@ -242,6 +248,7 @@ let classifyTransactions
                         DuplicateStatus = NotDuplicate (emptyDetectionDetails transaction.Reference)  // Will be updated by DuplicateDetection
                         YnabImportStatus = NotAttempted
                         Splits = None
+                        SuggestedByOrderId = None
                     }
                 | None ->
                     {
@@ -256,6 +263,7 @@ let classifyTransactions
                         DuplicateStatus = NotDuplicate (emptyDetectionDetails transaction.Reference)  // Will be updated by DuplicateDetection
                         YnabImportStatus = NotAttempted
                         Splits = None
+                        SuggestedByOrderId = None
                     }
             )
 

@@ -675,6 +675,7 @@ module SyncTransactions =
                     DuplicateStatus = NotDuplicate (emptyDetectionDetails row.reference)  // Duplicate status is not persisted, always reset to NotDuplicate
                     YnabImportStatus = NotAttempted  // YnabImportStatus is not persisted
                     Splits = None  // Splits are not persisted yet
+                    SuggestedByOrderId = None  // Suggestions are session-only, not persisted
                 }
             )
         }
