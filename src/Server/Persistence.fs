@@ -55,7 +55,7 @@ let private dbConfig = lazy (
 
     let dataDir =
         match Environment.GetEnvironmentVariable("DATA_DIR") with
-        | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "my_apps", "budgetbuddy")
+        | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "my_apps", "budgetbuddy-dev")
         | path -> path
 
     // Ensure the data directory exists (only for file-based mode)
