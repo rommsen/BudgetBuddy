@@ -1,0 +1,2319 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>BudgetBuddy — Unified Responsive Design</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       DESIGN TOKENS
+       ============================================================ */
+    :root {
+      --bg-app: #08081a;
+      --bg-card: #111128;
+      --bg-elevated: #1a1a36;
+      --bg-input: #16162e;
+      --bg-hover: #1e1e3c;
+      --border: #2a2a4a;
+      --border-subtle: #1c1c38;
+
+      --text-primary: #e8e8f0;
+      --text-secondary: #7a7a98;
+      --text-muted: #4a4a68;
+
+      --neon-teal: #00d4aa;
+      --neon-teal-dim: rgba(0, 212, 170, 0.15);
+      --neon-teal-glow: rgba(0, 212, 170, 0.3);
+      --neon-orange: #ff6b2c;
+      --neon-orange-dim: rgba(255, 107, 44, 0.15);
+      --neon-green: #00ff88;
+      --neon-purple: #a855f7;
+      --neon-red: #ff3b5c;
+
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      /* Easing — sorted weak to strong */
+      --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+      --ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+      --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+
+      /* Duration */
+      --duration-micro: 100ms;
+      --duration-fast: 150ms;
+      --duration-base: 200ms;
+      --duration-slow: 300ms;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+
+      /* Layout */
+      --nav-height-mobile: 56px;
+      --nav-height-desktop: 56px;
+      --bottom-nav-height: 64px;
+      --content-max-width: 960px;
+      --content-padding: 16px;
+    }
+
+    @media (min-width: 768px) {
+      :root {
+        --content-padding: 24px;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      :root {
+        --content-padding: 32px;
+      }
+    }
+
+    /* ============================================================
+       RESET & BASE
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-app);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+      min-height: 100vh;
+      min-height: 100dvh;
+    }
+
+    button { font-family: inherit; border: none; cursor: pointer; background: none; color: inherit; }
+    input { font-family: inherit; border: none; outline: none; background: none; color: inherit; }
+
+    /* ============================================================
+       PAGE MANAGEMENT (tab simulation)
+       ============================================================ */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ============================================================
+       DESKTOP TOP NAV
+       ============================================================ */
+    .top-nav {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--nav-height-desktop);
+      background: rgba(8, 8, 26, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+      z-index: 100;
+      align-items: center;
+      padding: 0 var(--content-padding);
+    }
+
+    @media (min-width: 768px) {
+      .top-nav { display: flex; }
+    }
+
+    .top-nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: 40px;
+    }
+
+    .top-nav-brand .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--bg-app);
+    }
+
+    .top-nav-brand span {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--neon-teal);
+    }
+
+    .top-nav-links {
+      display: flex;
+      gap: 4px;
+    }
+
+    .top-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: all var(--duration-fast) ease;
+      text-decoration: none;
+    }
+
+    .top-nav-link:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .top-nav-link.active {
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+
+    .top-nav-link svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+    }
+
+    .top-nav-link.active svg {
+      opacity: 1;
+    }
+
+    /* ============================================================
+       MOBILE HEADER + BOTTOM NAV
+       ============================================================ */
+    .mobile-header {
+      display: flex;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--nav-height-mobile);
+      background: rgba(8, 8, 26, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+      z-index: 100;
+      align-items: center;
+      padding: 0 16px;
+    }
+
+    @media (min-width: 768px) {
+      .mobile-header { display: none; }
+    }
+
+    .mobile-header .logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--bg-app);
+      margin-right: 10px;
+    }
+
+    .mobile-header span {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--neon-teal);
+    }
+
+    .bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: var(--bottom-nav-height);
+      background: rgba(8, 8, 26, 0.9);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border-subtle);
+      z-index: 100;
+      padding: 0 8px;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    @media (min-width: 768px) {
+      .bottom-nav { display: none; }
+    }
+
+    .bottom-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 500;
+      transition: color var(--duration-fast) ease;
+    }
+
+    .bottom-nav-item.active {
+      color: var(--neon-teal);
+    }
+
+    .bottom-nav-item svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* ============================================================
+       CONTENT AREA
+       ============================================================ */
+    .content {
+      padding-top: var(--nav-height-mobile);
+      padding-bottom: calc(var(--bottom-nav-height) + 8px);
+    }
+
+    @media (min-width: 768px) {
+      .content {
+        padding-top: var(--nav-height-desktop);
+        padding-bottom: 24px;
+      }
+    }
+
+    .content-inner {
+      max-width: var(--content-max-width);
+      margin: 0 auto;
+      padding: 0 var(--content-padding);
+    }
+
+    /* ============================================================
+       PAGE HEADER (shared)
+       ============================================================ */
+    .page-header {
+      padding: 20px 0 16px;
+    }
+
+    .page-header h1 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .page-header .subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .page-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    @media (min-width: 768px) {
+      .page-header {
+        padding: 28px 0 20px;
+      }
+      .page-header h1 {
+        font-size: 26px;
+      }
+    }
+
+    /* ============================================================
+       CARDS (shared)
+       ============================================================ */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-header h2 {
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .card-body {
+      padding: 16px;
+    }
+
+    @media (min-width: 768px) {
+      .card-header { padding: 16px 20px; }
+      .card-body { padding: 20px; }
+    }
+
+    /* ============================================================
+       BUTTONS (shared)
+       ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      transition: all var(--duration-fast) ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      color: var(--bg-app);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 4px 20px rgba(0, 212, 170, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--neon-teal);
+      background: var(--neon-teal-dim);
+    }
+
+    .btn-ghost {
+      color: var(--text-secondary);
+      padding: 8px 12px;
+    }
+
+    .btn-ghost:hover {
+      color: var(--neon-teal);
+      background: var(--neon-teal-dim);
+    }
+
+    .btn-danger {
+      background: rgba(255, 59, 92, 0.1);
+      border: 1px solid rgba(255, 59, 92, 0.2);
+      color: var(--neon-red);
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    /* ============================================================
+       BADGES (shared)
+       ============================================================ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-teal {
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+
+    .badge-orange {
+      background: var(--neon-orange-dim);
+      color: var(--neon-orange);
+      border: 1px dashed rgba(255, 107, 44, 0.3);
+    }
+
+    .badge-muted {
+      background: rgba(74, 74, 104, 0.2);
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       TOGGLE (shared)
+       ============================================================ */
+    .toggle {
+      position: relative;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .toggle input { display: none; }
+
+    .toggle-track {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: all var(--duration-fast) ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toggle input:checked + .toggle-track {
+      background: var(--neon-teal);
+      border-color: var(--neon-teal);
+    }
+
+    .toggle-check {
+      width: 10px;
+      height: 10px;
+      opacity: 0;
+      transition: opacity var(--duration-fast) ease;
+    }
+
+    .toggle input:checked + .toggle-track .toggle-check {
+      opacity: 1;
+    }
+
+    /* ============================================================
+       INPUT FIELDS (shared)
+       ============================================================ */
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-group label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: border-color var(--duration-fast) ease;
+    }
+
+    .input-field:focus {
+      border-color: var(--neon-teal);
+      box-shadow: 0 0 0 2px var(--neon-teal-glow);
+    }
+
+    .input-field::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       ===  PAGE: DASHBOARD (simple sync button)  ===
+       ============================================================ */
+    .dashboard-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 24px;
+    }
+
+    .hero-sync-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px 40px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      color: var(--bg-app);
+      box-shadow: 0 4px 30px rgba(0, 212, 170, 0.3);
+      transition: all var(--duration-base) ease;
+    }
+
+    .hero-sync-btn:hover {
+      box-shadow: 0 6px 40px rgba(0, 212, 170, 0.45);
+      transform: translateY(-2px);
+      transition: transform var(--duration-fast) var(--ease-out-quart),
+                  box-shadow var(--duration-base) ease;
+    }
+
+    .last-sync-info {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .last-sync-info strong {
+      color: var(--text-secondary);
+    }
+
+    /* ============================================================
+       ===  PAGE: SYNC (Transaction Review)  ===
+       ============================================================ */
+
+    /* -- Sync header (replaces page-header during review) -- */
+    .sync-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0;
+    }
+
+    .sync-header .back-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--duration-fast) ease;
+    }
+
+    .sync-header .back-btn:hover {
+      background: var(--bg-hover);
+    }
+
+    .sync-header h1 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .sync-header .header-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sync-header .header-meta .dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    @media (min-width: 768px) {
+      .sync-header h1 { font-size: 22px; }
+    }
+
+    /* -- Filters -- */
+    .filters {
+      display: flex;
+      gap: 8px;
+      padding: 4px 0 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filters::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      transition: all var(--duration-fast) ease;
+      flex-shrink: 0;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
+
+    .filter-btn.active {
+      background: var(--neon-teal-dim);
+      border-color: rgba(0, 212, 170, 0.25);
+      color: var(--neon-teal);
+    }
+
+    .filter-btn .count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      min-width: 20px;
+      text-align: center;
+      padding: 1px 5px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .filter-btn.active .count {
+      background: rgba(0, 212, 170, 0.2);
+    }
+
+    .filter-btn.has-attention .count {
+      background: var(--neon-orange-dim);
+      color: var(--neon-orange);
+    }
+
+    /* -- Top action bar -- */
+    .top-action-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+
+    .top-action-bar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .top-action-bar-count {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .top-action-bar-count strong {
+      color: var(--text-primary);
+    }
+
+    .btn-import-sm {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      transition: all var(--duration-fast) ease;
+    }
+
+    .btn-import-sm.ready {
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      border-color: transparent;
+      color: var(--bg-app);
+    }
+
+    .top-action-bar-bulk {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .bulk-action-link {
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: color var(--duration-fast) ease;
+    }
+
+    .bulk-action-link:hover {
+      color: var(--neon-teal);
+    }
+
+    .bulk-action-dot {
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    /* -- Info banner -- */
+    .info-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(0, 212, 170, 0.06);
+      border: 1px solid rgba(0, 212, 170, 0.1);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .info-banner-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .info-banner strong {
+      color: var(--text-primary);
+    }
+
+    /* -- Date group headers -- */
+    .date-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 16px 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .date-total {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    /* -- Transaction rows -- */
+    .tx-row {
+      display: flex;
+      align-items: stretch;
+      margin-bottom: 2px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: background var(--duration-fast) ease;
+    }
+
+    .tx-row:hover {
+      background: var(--bg-hover);
+    }
+
+    .tx-status-bar {
+      width: 3px;
+      flex-shrink: 0;
+      transition: background var(--duration-base) ease;
+    }
+
+    .tx-row.status-ready .tx-status-bar { background: var(--neon-teal); }
+    .tx-row.status-attention .tx-status-bar { background: var(--neon-orange); }
+    .tx-row.status-duplicate .tx-status-bar { background: var(--text-muted); }
+    .tx-row.status-skipped .tx-status-bar { background: transparent; }
+
+    .tx-content {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tx-line1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .tx-payee {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .tx-amount {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      color: var(--text-secondary);
+    }
+
+    .tx-amount.positive {
+      color: var(--neon-teal);
+    }
+
+    .tx-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tx-category {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all var(--duration-fast) ease;
+    }
+
+    .tx-category.badge-ready {
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+
+    .tx-category.badge-attention {
+      background: var(--neon-orange-dim);
+      color: var(--neon-orange);
+      border: 1px dashed rgba(255, 107, 44, 0.3);
+    }
+
+    .tx-category.badge-duplicate {
+      background: rgba(74, 74, 104, 0.2);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .tx-create-rule {
+      font-size: 11px;
+      color: var(--neon-purple);
+      font-weight: 500;
+      opacity: 0.7;
+      transition: opacity var(--duration-fast) ease;
+    }
+
+    .tx-create-rule:hover { opacity: 1; }
+
+    .tx-date {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .tx-spacer { flex: 1; }
+
+    .tx-chevron {
+      font-size: 14px;
+      color: var(--text-muted);
+      transition: transform var(--duration-base) ease;
+    }
+
+    /* -- Desktop: show memo inline -- */
+    .tx-memo-inline {
+      display: none;
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    @media (min-width: 768px) {
+      .tx-memo-inline { display: block; }
+      .tx-content { padding: 12px 16px; }
+    }
+
+    /* -- Bottom action bar (sticky, not phone-frame) -- */
+    .action-bar {
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 0;
+      padding-bottom: calc(var(--bottom-nav-height) + 12px);
+      background: linear-gradient(to top, var(--bg-app) 70%, transparent);
+      z-index: 20;
+      margin-top: 8px;
+    }
+
+    @media (min-width: 768px) {
+      .action-bar {
+        padding-bottom: 12px;
+      }
+    }
+
+    .action-bar-inner {
+      background: rgba(10, 10, 28, 0.9);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+    }
+
+    .action-bar-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .action-bar-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .action-bar-attention {
+      font-size: 12px;
+      color: var(--neon-orange);
+    }
+
+    .progress-track {
+      height: 3px;
+      background: var(--bg-input);
+      border-radius: 2px;
+      display: flex;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .progress-segment { height: 100%; transition: width var(--duration-slow) ease; }
+    .progress-ready { background: var(--neon-teal); }
+    .progress-attention { background: var(--neon-orange); }
+    .progress-skipped { background: var(--text-muted); }
+
+    .action-bar-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-cancel {
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      transition: all var(--duration-fast) ease;
+    }
+
+    .btn-cancel:hover { border-color: var(--text-muted); }
+
+    .btn-import {
+      flex: 1;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      transition: all var(--duration-fast) ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-import.ready {
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      border-color: transparent;
+      color: var(--bg-app);
+    }
+
+    .btn-import.ready:hover {
+      box-shadow: 0 4px 20px rgba(0, 212, 170, 0.3);
+    }
+
+    /* ============================================================
+       ===  PAGE: RULES  ===
+       ============================================================ */
+    .rules-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* Compact single-row: Toggle | Name → Category | Actions */
+    .rule-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--duration-fast) ease;
+    }
+
+    .rule-row:hover {
+      background: var(--bg-hover);
+    }
+
+    @media (min-width: 768px) {
+      .rule-row {
+        gap: 12px;
+        padding: 12px 20px;
+      }
+    }
+
+    .rule-toggle {
+      flex-shrink: 0;
+    }
+
+    .rule-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 60px;
+      max-width: 140px;
+    }
+
+    @media (min-width: 768px) {
+      .rule-name { max-width: 200px; }
+    }
+
+    .rule-arrow {
+      color: var(--text-muted);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .rule-category {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .rule-pattern-hint {
+      display: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-input);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    @media (min-width: 768px) {
+      .rule-pattern-hint { display: block; }
+    }
+
+    .rule-actions {
+      display: flex;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .rule-action-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: all var(--duration-fast) ease;
+      opacity: 0.5;
+    }
+
+    .rule-row:hover .rule-action-btn {
+      opacity: 1;
+    }
+
+    .rule-action-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .rule-action-btn.danger:hover {
+      background: rgba(255, 59, 92, 0.1);
+      color: var(--neon-red);
+    }
+
+    /* ============================================================
+       MODAL (Rule Edit Form)
+       ============================================================ */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: fadeInUp var(--duration-slow) var(--ease-out-quint);
+    }
+
+    .modal-header {
+      padding: 20px 20px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .modal-header h2 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .modal-header .subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: all var(--duration-fast) ease;
+      flex-shrink: 0;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 480px) {
+      .form-row { grid-template-columns: 1fr; }
+    }
+
+    .select-field {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: var(--font-body);
+      transition: border-color var(--duration-fast) ease;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a7a98' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    .select-field:focus {
+      border-color: var(--neon-teal);
+      box-shadow: 0 0 0 2px var(--neon-teal-glow);
+      outline: none;
+    }
+
+    .test-section {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 16px;
+    }
+
+    .test-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .test-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .test-row .input-field { flex: 1; }
+
+    .test-result {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .test-result.match {
+      background: rgba(0, 255, 136, 0.08);
+      border: 1px solid rgba(0, 255, 136, 0.2);
+      color: var(--neon-green);
+    }
+
+    /* ============================================================
+       ===  PAGE: SETTINGS  ===
+       ============================================================ */
+    .settings-content {
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    @media (min-width: 768px) {
+      .settings-content { gap: 20px; }
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .setting-label {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .setting-description {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .setting-value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--neon-teal);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-dot.connected { background: var(--neon-green); }
+    .status-dot.disconnected { background: var(--neon-red); }
+
+    .status-label {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ============================================================
+       ANIMATION SYSTEM
+       ============================================================
+
+       Principles:
+       1. ease-out for enter/exit (user-initiated: modals, dropdowns, pages)
+       2. ease-in-out for on-screen movement (progress bars, toggles)
+       3. ease for hover/color transitions
+       4. Under 300ms for all UI animations
+       5. Exit ~20% faster than entrance
+       6. Paired elements share easing + duration
+       ============================================================ */
+
+    /* --- Keyframes --- */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInScale {
+      from { opacity: 0; transform: scale(0.96); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes slideInFromBottom {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes statusFlash {
+      0%   { opacity: 1; }
+      50%  { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 4px 25px rgba(0, 212, 170, 0.25); }
+      50%      { box-shadow: 0 6px 40px rgba(0, 212, 170, 0.45); }
+    }
+
+    @keyframes progressShimmer {
+      0%   { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* --- Page transitions --- */
+    .page.active {
+      animation: fadeInUp var(--duration-base) var(--ease-out-quint) both;
+    }
+
+    /* --- Staggered list entrance (tx rows, rule rows) --- */
+    .tx-row, .rule-row {
+      animation: fadeInUp var(--duration-slow) var(--ease-out-quart) both;
+    }
+
+    .tx-row:nth-child(1), .rule-row:nth-child(1) { animation-delay: 30ms; }
+    .tx-row:nth-child(2), .rule-row:nth-child(2) { animation-delay: 60ms; }
+    .tx-row:nth-child(3), .rule-row:nth-child(3) { animation-delay: 90ms; }
+    .tx-row:nth-child(4), .rule-row:nth-child(4) { animation-delay: 120ms; }
+    .tx-row:nth-child(5), .rule-row:nth-child(5) { animation-delay: 150ms; }
+    .tx-row:nth-child(6), .rule-row:nth-child(6) { animation-delay: 180ms; }
+    .tx-row:nth-child(7), .rule-row:nth-child(7) { animation-delay: 210ms; }
+    .tx-row:nth-child(8), .rule-row:nth-child(8) { animation-delay: 240ms; }
+    .tx-row:nth-child(9), .rule-row:nth-child(9) { animation-delay: 270ms; }
+    .tx-row:nth-child(10), .rule-row:nth-child(10) { animation-delay: 300ms; }
+
+    /* --- Date headers stagger with their group --- */
+    .date-header {
+      animation: fadeInUp var(--duration-base) var(--ease-out-cubic) both;
+    }
+
+    /* --- Button press feedback (scale on :active) --- */
+    .btn, .btn-primary, .btn-secondary, .btn-ghost,
+    .btn-import, .btn-import-sm, .btn-cancel,
+    .filter-btn, .hero-sync-btn {
+      will-change: transform;
+    }
+
+    .btn:active, .btn-primary:active, .btn-secondary:active,
+    .btn-import:active, .btn-import-sm:active, .filter-btn:active {
+      transform: scale(0.97);
+      transition: transform var(--duration-micro) var(--ease-out-cubic);
+    }
+
+    .hero-sync-btn:active {
+      transform: scale(0.96) translateY(1px);
+      transition: transform var(--duration-micro) var(--ease-out-cubic);
+    }
+
+    /* --- Hero sync button glow pulse --- */
+    .hero-sync-btn {
+      animation: glowPulse 3s ease-in-out infinite;
+    }
+
+    /* --- Toggle checkbox: smooth check with ease-in-out (on-screen movement) --- */
+    .toggle-track {
+      transition: background var(--duration-fast) var(--ease-in-out-cubic),
+                  border-color var(--duration-fast) var(--ease-in-out-cubic);
+    }
+
+    .toggle-check {
+      transition: opacity var(--duration-micro) var(--ease-out-cubic),
+                  transform var(--duration-fast) var(--ease-out-quint);
+      transform: scale(0.5);
+    }
+
+    .toggle input:checked + .toggle-track .toggle-check {
+      transform: scale(1);
+    }
+
+    /* --- Transaction row hover: ease for color (desktop only) --- */
+    @media (hover: hover) and (pointer: fine) {
+      .tx-row {
+        transition: background var(--duration-fast) ease;
+      }
+
+      .tx-row:hover {
+        background: var(--bg-hover);
+      }
+
+      .rule-row {
+        transition: background var(--duration-fast) ease;
+      }
+
+      .rule-action-btn {
+        transition: color var(--duration-fast) ease,
+                    background var(--duration-fast) ease,
+                    opacity var(--duration-fast) ease;
+      }
+    }
+
+    /* --- Transaction status bar: smooth color transition (on-screen) --- */
+    .tx-status-bar {
+      transition: background var(--duration-base) var(--ease-in-out-cubic);
+      will-change: background-color;
+    }
+
+    /* --- Chevron rotation (on-screen movement) --- */
+    .tx-chevron {
+      transition: transform var(--duration-base) var(--ease-in-out-cubic);
+    }
+
+    .tx-row.expanded .tx-chevron {
+      transform: rotate(90deg);
+    }
+
+    /* --- Progress bar segments: smooth width (on-screen movement) --- */
+    .progress-segment {
+      transition: width var(--duration-slow) var(--ease-in-out-cubic);
+      will-change: width;
+    }
+
+    /* Ready button shimmer when all categorized */
+    .btn-import.ready {
+      background-size: 200% 100%;
+      background-image: linear-gradient(
+        90deg,
+        var(--neon-teal) 0%,
+        var(--neon-green) 30%,
+        rgba(255,255,255,0.15) 50%,
+        var(--neon-green) 70%,
+        var(--neon-teal) 100%
+      );
+      animation: progressShimmer 3s ease infinite;
+    }
+
+    /* --- Filter pills: ease for color/bg hover --- */
+    .filter-btn {
+      transition: background var(--duration-fast) ease,
+                  border-color var(--duration-fast) ease,
+                  color var(--duration-fast) ease;
+    }
+
+    /* --- Nav links: ease for hover --- */
+    .top-nav-link {
+      transition: background var(--duration-fast) ease,
+                  color var(--duration-fast) ease;
+    }
+
+    .bottom-nav-item {
+      transition: color var(--duration-fast) ease;
+    }
+
+    /* --- Modal: enter with ease-out from scale(0.96) --- */
+    .modal-overlay {
+      transition: opacity var(--duration-base) var(--ease-out-cubic);
+    }
+
+    .modal-overlay.active {
+      animation: none; /* overlay fades via display toggle */
+    }
+
+    .modal {
+      animation: fadeInScale var(--duration-slow) var(--ease-out-quint) both;
+      transform-origin: center top;
+    }
+
+    /* --- Input focus glow: ease for color --- */
+    .input-field, .select-field {
+      transition: border-color var(--duration-fast) ease,
+                  box-shadow var(--duration-fast) ease;
+    }
+
+    /* --- Cards: stagger on page enter --- */
+    .card {
+      animation: fadeInUp var(--duration-slow) var(--ease-out-quart) both;
+    }
+
+    .settings-content .card:nth-child(1) { animation-delay: 50ms; }
+    .settings-content .card:nth-child(2) { animation-delay: 120ms; }
+    .settings-content .card:nth-child(3) { animation-delay: 190ms; }
+
+    /* --- Stats grid stagger --- */
+    .stat-card {
+      animation: fadeInUp var(--duration-slow) var(--ease-out-quart) both;
+    }
+
+    .stat-card:nth-child(1) { animation-delay: 0ms; }
+    .stat-card:nth-child(2) { animation-delay: 50ms; }
+    .stat-card:nth-child(3) { animation-delay: 100ms; }
+    .stat-card:nth-child(4) { animation-delay: 150ms; }
+
+    /* --- Info banner entrance --- */
+    .info-banner {
+      animation: slideInFromBottom var(--duration-slow) var(--ease-out-quart) both;
+      animation-delay: 100ms;
+    }
+
+    /* --- Action bar slide up on page load --- */
+    .action-bar {
+      animation: slideInFromBottom var(--duration-slow) var(--ease-out-quint) both;
+      animation-delay: 200ms;
+    }
+
+    /* --- Status dot pulse for connected state --- */
+    .status-dot.connected {
+      animation: statusFlash 3s ease-in-out infinite;
+    }
+
+    /* ============================================================
+       REDUCED MOTION — disable all animations
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+        transition-duration: 0s !important;
+      }
+    }
+
+    /* ============================================================
+       UTILITY
+       ============================================================ */
+    .gap-12 { gap: 12px; }
+    .gap-16 { gap: 16px; }
+    .mt-8 { margin-top: 8px; }
+    .mt-16 { margin-top: 16px; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .text-muted { color: var(--text-muted); }
+    .text-secondary { color: var(--text-secondary); }
+    .font-mono { font-family: var(--font-mono); }
+    .text-sm { font-size: 13px; }
+  </style>
+</head>
+<body>
+
+  <!-- ========== DESKTOP TOP NAV ========== -->
+  <nav class="top-nav">
+    <div class="top-nav-brand">
+      <div class="logo">B</div>
+      <span>BudgetBuddy</span>
+    </div>
+    <div class="top-nav-links">
+      <a class="top-nav-link active" data-page="dashboard" onclick="showPage('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a class="top-nav-link" data-page="sync" onclick="showPage('sync')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Sync
+      </a>
+      <a class="top-nav-link" data-page="rules" onclick="showPage('rules')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Rules
+      </a>
+      <a class="top-nav-link" data-page="settings" onclick="showPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </a>
+    </div>
+  </nav>
+
+  <!-- ========== MOBILE HEADER ========== -->
+  <header class="mobile-header">
+    <div class="logo">B</div>
+    <span>BudgetBuddy</span>
+  </header>
+
+  <!-- ========== MOBILE BOTTOM NAV ========== -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </button>
+    <button class="bottom-nav-item" data-page="sync" onclick="showPage('sync')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Sync
+    </button>
+    <button class="bottom-nav-item" data-page="rules" onclick="showPage('rules')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Rules
+    </button>
+    <button class="bottom-nav-item" data-page="settings" onclick="showPage('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <!-- ========== CONTENT ========== -->
+  <main class="content">
+    <div class="content-inner">
+
+      <!-- ============================
+           PAGE: DASHBOARD
+           ============================ -->
+      <div id="page-dashboard" class="page active">
+        <div class="dashboard-center">
+          <button class="hero-sync-btn" onclick="showPage('sync')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Start Sync
+          </button>
+          <div class="last-sync-info">
+            <p><strong>Letzter Sync:</strong> Heute, 10:31</p>
+            <p style="margin-top: 4px; font-size: 12px;">187 Transaktionen &middot; 144 importiert &middot; 43 ubersprungen</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================
+           PAGE: SYNC (Transaction Review)
+           ============================ -->
+      <div id="page-sync" class="page">
+        <div class="sync-header">
+          <button class="back-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div>
+            <h1>Import prufen</h1>
+            <div class="header-meta">
+              <span>187 Transaktionen</span>
+              <span class="dot"></span>
+              <span>Comdirect</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+          <button class="filter-btn active">Alle <span class="count">187</span></button>
+          <button class="filter-btn has-attention">Prufen <span class="count">43</span></button>
+          <button class="filter-btn">Duplikate <span class="count">141</span></button>
+          <button class="filter-btn">Ubersprungen <span class="count">3</span></button>
+        </div>
+
+        <!-- Top action bar -->
+        <div class="top-action-bar">
+          <div class="top-action-bar-row">
+            <span class="top-action-bar-count"><strong>46</strong>/187 importieren</span>
+            <button class="btn-import-sm ready">Importieren &uarr;</button>
+          </div>
+          <div class="top-action-bar-bulk">
+            <button class="bulk-action-link">Alle uberspringen</button>
+            <span class="bulk-action-dot">&middot;</span>
+            <button class="bulk-action-link">Alle einschliessen</button>
+          </div>
+        </div>
+
+        <!-- Info banner -->
+        <div class="info-banner">
+          <span class="info-banner-icon">i</span>
+          <span><strong>141 Duplikate</strong> automatisch erkannt und ubersprungen</span>
+        </div>
+
+        <!-- Transaction list -->
+        <div class="tx-list">
+          <div class="date-header">
+            <span>20. Marz 2026</span>
+            <span class="date-total">&minus;194,06 &euro;</span>
+          </div>
+
+          <div class="tx-row status-ready">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Studentenwerk Hannover</span>
+                <span class="tx-memo-inline">Mensa Mittagessen</span>
+                <span class="tx-amount">&minus;20,00 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-ready">Alltag: Essen Arbeit</span>
+                <span class="tx-create-rule">+ Regel</span>
+                <span class="tx-date">20.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-attention">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Restaurant Monte Collo</span>
+                <span class="tx-memo-inline"></span>
+                <span class="tx-amount">&minus;40,80 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-attention">Kategorie&hellip;</span>
+                <span class="tx-date">20.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-attention">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Kantine Hellmann</span>
+                <span class="tx-memo-inline">Mittagessen</span>
+                <span class="tx-amount">&minus;6,70 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-attention">Kategorie&hellip;</span>
+                <span class="tx-date">20.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-attention">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Rossmann 2800</span>
+                <span class="tx-memo-inline">Drogerieartikel</span>
+                <span class="tx-amount">&minus;30,56 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-attention">Kategorie&hellip;</span>
+                <span class="tx-date">20.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-attention">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">PayPal Europe S.a.r.l. et Cie S.C.A</span>
+                <span class="tx-memo-inline">PP.1234.PP</span>
+                <span class="tx-amount">&minus;96,00 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-attention">Kategorie&hellip;</span>
+                <span class="tx-date">20.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="date-header">
+            <span>19. Marz 2026</span>
+            <span class="date-total">&minus;199,45 &euro;</span>
+          </div>
+
+          <div class="tx-row status-ready">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">REWE Sagt Danke</span>
+                <span class="tx-memo-inline">Lebensmittel</span>
+                <span class="tx-amount">&minus;47,82 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-ready">Alltag: Lebensmittel</span>
+                <span class="tx-create-rule">+ Regel</span>
+                <span class="tx-date">19.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-duplicate">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Amazon.de</span>
+                <span class="tx-memo-inline">Bestellung #302-123456</span>
+                <span class="tx-amount">&minus;29,99 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-duplicate">Duplikat</span>
+                <span class="tx-date">19.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox">
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-ready">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">DHL Paketshop</span>
+                <span class="tx-memo-inline">Versandkosten</span>
+                <span class="tx-amount">&minus;5,49 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-ready">Shopping: Versand</span>
+                <span class="tx-date">19.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-ready">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Spotify AB</span>
+                <span class="tx-memo-inline">Premium Abo</span>
+                <span class="tx-amount">&minus;9,99 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-ready">Abos: Musik</span>
+                <span class="tx-date">19.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-row status-attention">
+            <div class="tx-status-bar"></div>
+            <div class="tx-content">
+              <div class="tx-line1">
+                <span class="tx-payee">Tankstelle Aral</span>
+                <span class="tx-memo-inline">Super E10</span>
+                <span class="tx-amount">&minus;56,16 &euro;</span>
+              </div>
+              <div class="tx-line2">
+                <span class="tx-category badge-attention">Kategorie&hellip;</span>
+                <span class="tx-date">19.03</span>
+                <span class="tx-spacer"></span>
+                <span class="tx-chevron">&rsaquo;</span>
+                <label class="toggle" onclick="event.stopPropagation()">
+                  <input type="checkbox" checked>
+                  <span class="toggle-track">
+                    <svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom action bar -->
+        <div class="action-bar">
+          <div class="action-bar-inner">
+            <div class="action-bar-info">
+              <span class="action-bar-label">46 von 187 importieren</span>
+              <span class="action-bar-attention">43 ohne Kategorie</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-ready" style="width: 25%"></div>
+              <div class="progress-attention" style="width: 23%"></div>
+              <div class="progress-skipped" style="width: 52%"></div>
+            </div>
+            <div class="action-bar-buttons">
+              <button class="btn-cancel">Abbrechen</button>
+              <button class="btn-import">Importieren &uarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================
+           PAGE: RULES
+           ============================ -->
+      <div id="page-rules" class="page">
+        <div class="page-header">
+          <div class="page-header-row">
+            <div>
+              <h1>Kategorisierungsregeln</h1>
+              <p class="subtitle">Automatische Kategorisierung deiner Transaktionen</p>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="toggleModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Neue Regel
+            </button>
+          </div>
+        </div>
+
+        <div class="rules-list">
+          <div class="rule-row" onclick="toggleModal()">
+            <label class="toggle rule-toggle" onclick="event.stopPropagation()"><input type="checkbox" checked><span class="toggle-track"><svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label>
+            <span class="rule-name">REWE</span>
+            <span class="rule-arrow">&rarr;</span>
+            <span class="rule-category">Alltag: Lebensmittel</span>
+            <span class="rule-pattern-hint">REWE.*DANKE</span>
+            <div class="rule-actions">
+              <button class="rule-action-btn" onclick="event.stopPropagation(); toggleModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="rule-action-btn danger" onclick="event.stopPropagation()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <label class="toggle rule-toggle" onclick="event.stopPropagation()"><input type="checkbox" checked><span class="toggle-track"><svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label>
+            <span class="rule-name">Spotify</span>
+            <span class="rule-arrow">&rarr;</span>
+            <span class="rule-category">Abos: Musik</span>
+            <span class="rule-pattern-hint">SPOTIFY</span>
+            <div class="rule-actions">
+              <button class="rule-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="rule-action-btn danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <label class="toggle rule-toggle" onclick="event.stopPropagation()"><input type="checkbox" checked><span class="toggle-track"><svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label>
+            <span class="rule-name">Amazon</span>
+            <span class="rule-arrow">&rarr;</span>
+            <span class="rule-category">Shopping: Online</span>
+            <span class="rule-pattern-hint">AMAZON\.DE</span>
+            <div class="rule-actions">
+              <button class="rule-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="rule-action-btn danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <label class="toggle rule-toggle" onclick="event.stopPropagation()"><input type="checkbox" checked><span class="toggle-track"><svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label>
+            <span class="rule-name">Tankstellen</span>
+            <span class="rule-arrow">&rarr;</span>
+            <span class="rule-category">Auto: Tanken</span>
+            <span class="rule-pattern-hint">ARAL|SHELL|ESSO</span>
+            <div class="rule-actions">
+              <button class="rule-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="rule-action-btn danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <label class="toggle rule-toggle" onclick="event.stopPropagation()"><input type="checkbox" checked><span class="toggle-track"><svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label>
+            <span class="rule-name">Studentenwerk</span>
+            <span class="rule-arrow">&rarr;</span>
+            <span class="rule-category">Alltag: Essen Arbeit</span>
+            <span class="rule-pattern-hint">STUDENTENWERK</span>
+            <div class="rule-actions">
+              <button class="rule-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="rule-action-btn danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-row" style="opacity: 0.5;">
+            <label class="toggle rule-toggle" onclick="event.stopPropagation()"><input type="checkbox"><span class="toggle-track"><svg class="toggle-check" viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label>
+            <span class="rule-name">DM Drogerie</span>
+            <span class="rule-arrow">&rarr;</span>
+            <span class="rule-category">Alltag: Drogerie</span>
+            <span class="rule-pattern-hint">DM(-DROGERIE)?</span>
+            <div class="rule-actions">
+              <button class="rule-action-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+              <button class="rule-action-btn danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================
+           MODAL: Rule Edit Form
+           ============================ -->
+      <div id="rule-modal" class="modal-overlay" onclick="if(event.target===this)toggleModal()">
+        <div class="modal">
+          <div class="modal-header">
+            <div>
+              <h2>Regel bearbeiten</h2>
+              <p class="subtitle">Automatische Kategorisierung einrichten</p>
+            </div>
+            <button class="modal-close" onclick="toggleModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="input-group">
+              <label>Regelname</label>
+              <input class="input-field" type="text" value="REWE" placeholder="z.B. Amazon Einkaufe">
+            </div>
+
+            <div class="form-row">
+              <div class="input-group">
+                <label>Muster-Typ</label>
+                <select class="select-field">
+                  <option>Contains</option>
+                  <option>Exact</option>
+                  <option selected>Regex</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Feld</label>
+                <select class="select-field">
+                  <option selected>Combined</option>
+                  <option>Payee</option>
+                  <option>Memo</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label>Muster</label>
+              <input class="input-field" type="text" value="REWE.*DANKE" placeholder="z.B. AMAZON\.DE" style="font-family: var(--font-mono);">
+            </div>
+
+            <div class="input-group">
+              <label>Kategorie</label>
+              <select class="select-field">
+                <option value="">Kategorie wahlen...</option>
+                <option selected>Alltag: Lebensmittel</option>
+                <option>Alltag: Essen Arbeit</option>
+                <option>Alltag: Drogerie</option>
+                <option>Shopping: Online</option>
+                <option>Auto: Tanken</option>
+                <option>Abos: Musik</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label>Payee-Override <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
+              <input class="input-field" type="text" placeholder="Payee in YNAB uberschreiben">
+            </div>
+
+            <div class="test-section">
+              <div class="test-section-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--neon-teal)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Muster testen
+              </div>
+              <div class="test-row">
+                <input class="input-field" type="text" placeholder="Beispieltext eingeben..." value="REWE SAGT DANKE 12345">
+                <button class="btn btn-secondary btn-sm">Test</button>
+              </div>
+              <div class="test-result match">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                Match gefunden
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="toggleModal()">Abbrechen</button>
+            <button class="btn btn-primary" onclick="toggleModal()">Speichern</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================
+           PAGE: SETTINGS
+           ============================ -->
+      <div id="page-settings" class="page">
+        <div class="page-header">
+          <h1>Einstellungen</h1>
+          <p class="subtitle">Verbindungen und Konfiguration</p>
+        </div>
+
+        <div class="settings-content">
+          <!-- YNAB Connection -->
+          <div class="card">
+            <div class="card-header">
+              <h2>YNAB Verbindung</h2>
+              <span class="status-label" style="color: var(--neon-green)">
+                <span class="status-dot connected"></span>
+                Verbunden
+              </span>
+            </div>
+            <div class="card-body">
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">Budget</div>
+                  <div class="setting-description">Aktives YNAB Budget fur den Import</div>
+                </div>
+                <span class="setting-value">Mein Budget</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">Account</div>
+                  <div class="setting-description">YNAB Konto fur Transaktionen</div>
+                </div>
+                <span class="setting-value">Girokonto</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">API Token</div>
+                  <div class="setting-description">Personlicher YNAB Access Token</div>
+                </div>
+                <span class="setting-value">****...a3f2</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Comdirect Connection -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Comdirect Verbindung</h2>
+              <span class="status-label" style="color: var(--neon-green)">
+                <span class="status-dot connected"></span>
+                Konfiguriert
+              </span>
+            </div>
+            <div class="card-body">
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">Client ID</div>
+                  <div class="setting-description">Comdirect API Client ID</div>
+                </div>
+                <span class="setting-value">****...b7e1</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">Authentifizierung</div>
+                  <div class="setting-description">OAuth2 + photoTAN</div>
+                </div>
+                <button class="btn btn-secondary btn-sm">Testen</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- General Settings -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Allgemein</h2>
+            </div>
+            <div class="card-body">
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">Transaktionszeitraum</div>
+                  <div class="setting-description">Wie weit zuruckliegende Transaktionen synchronisiert werden</div>
+                </div>
+                <span class="setting-value">90 Tage</span>
+              </div>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <div class="setting-label">Duplikat-Erkennung</div>
+                  <div class="setting-description">Automatische Erkennung bereits importierter Transaktionen</div>
+                </div>
+                <span class="badge badge-teal">Aktiv</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    function toggleModal() {
+      document.getElementById('rule-modal').classList.toggle('active');
+    }
+
+    function showPage(pageName) {
+      // Hide all pages
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      // Show target page
+      document.getElementById('page-' + pageName).classList.add('active');
+
+      // Update top nav
+      document.querySelectorAll('.top-nav-link').forEach(l => {
+        l.classList.toggle('active', l.dataset.page === pageName);
+      });
+
+      // Update bottom nav
+      document.querySelectorAll('.bottom-nav-item').forEach(l => {
+        l.classList.toggle('active', l.dataset.page === pageName);
+      });
+    }
+  </script>
+</body>
+</html>
