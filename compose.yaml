@@ -1,0 +1,46 @@
+name: budgetbuddy
+
+services:
+  budgetbuddy-app:
+    image: budgetbuddy:latest
+    container_name: budgetbuddy-app
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_URLS=http://+:5001
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DATA_DIR=/app/data
+      - BUDGETBUDDY_ENCRYPTION_KEY=${BUDGETBUDDY_ENCRYPTION_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  tailscale-budgetbuddy:
+    image: tailscale/tailscale:latest
+    container_name: tailscale_budgetbuddy
+    network_mode: "service:budgetbuddy-app"
+    depends_on:
+      - budgetbuddy-app
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_EXTRA_ARGS=--hostname=budgetbuddy
+      - TS_USERSPACE=true
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+    command: >
+      sh -c "
+        tailscaled --state=/var/lib/tailscale/tailscaled.state --tun=userspace-networking &
+        sleep 5 &&
+        tailscale up --authkey=$$TS_AUTHKEY $$TS_EXTRA_ARGS &&
+        sleep 2 &&
+        tailscale serve --https=443 http://127.0.0.1:5001 &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
+
+volumes:
+  tailscale_state:
