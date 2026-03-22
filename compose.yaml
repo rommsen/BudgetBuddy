@@ -8,12 +8,12 @@ services:
       - ./data:/app/data
     restart: unless-stopped
     environment:
-      - ASPNETCORE_URLS=http://+:5001
+      - ASPNETCORE_URLS=http://+:5081
       - ASPNETCORE_ENVIRONMENT=Production
       - DATA_DIR=/app/data
       - BUDGETBUDDY_ENCRYPTION_KEY=${BUDGETBUDDY_ENCRYPTION_KEY}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      test: ["CMD", "curl", "-f", "http://localhost:5081/"]
       interval: 30s
       timeout: 3s
       start_period: 5s
@@ -37,7 +37,7 @@ services:
         sleep 5 &&
         tailscale up --authkey=$$TS_AUTHKEY $$TS_EXTRA_ARGS &&
         sleep 2 &&
-        tailscale serve --https=443 http://127.0.0.1:5001 &&
+        tailscale serve --https=443 http://127.0.0.1:5081 &&
         tail -f /dev/null
       "
     restart: unless-stopped
