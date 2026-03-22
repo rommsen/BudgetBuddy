@@ -18,7 +18,6 @@ type Model = {
     Toasts: Toast list
 
     // Child component models
-    Dashboard: Components.Dashboard.Types.Model
     Settings: Components.Settings.Types.Model
     SyncFlow: Components.SyncFlow.Types.Model
     Rules: Components.Rules.Types.Model
@@ -39,7 +38,6 @@ type Msg =
     | AutoDismissToast of Guid
 
     // Child component messages
-    | DashboardMsg of Components.Dashboard.Types.Msg
     | SettingsMsg of Components.Settings.Types.Msg
     | SyncFlowMsg of Components.SyncFlow.Types.Msg
     | RulesMsg of Components.Rules.Types.Msg
@@ -62,7 +60,6 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
 // ============================================
 
 let init () : Model * Cmd<Msg> =
-    let dashboardModel, dashboardCmd = Components.Dashboard.State.init ()
     let settingsModel, settingsCmd = Components.Settings.State.init ()
     let syncFlowModel, syncFlowCmd = Components.SyncFlow.State.init ()
     let rulesModel, rulesCmd = Components.Rules.State.init ()
@@ -73,7 +70,6 @@ let init () : Model * Cmd<Msg> =
     let model = {
         CurrentPage = initialPage
         Toasts = []
-        Dashboard = dashboardModel
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel
@@ -83,7 +79,6 @@ let init () : Model * Cmd<Msg> =
     let initialPageCmd = Cmd.ofMsg (UrlChanged (Routing.toUrlSegments initialPage))
 
     let cmd = Cmd.batch [
-        Cmd.map DashboardMsg dashboardCmd
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
         Cmd.map SyncFlowMsg syncFlowCmd  // Load categories and payees on startup
         initialPageCmd
@@ -113,12 +108,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         else
             let extraCmds =
                 match page with
-                | Dashboard ->
-                    Cmd.batch [
-                        Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadLastSession)
-                        Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadCurrentSession)
-                        Cmd.map DashboardMsg (Cmd.ofMsg Components.Dashboard.Types.LoadSettings)
-                    ]
                 | SyncFlow ->
                     Cmd.batch [
                         Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
@@ -144,13 +133,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
     | AutoDismissToast id ->
         { model with Toasts = model.Toasts |> List.filter (fun t -> t.Id <> id) }, Cmd.none
-
-    // ============================================
-    // Dashboard Component
-    // ============================================
-    | DashboardMsg dashboardMsg ->
-        let dashboardModel', dashboardCmd = Components.Dashboard.State.update dashboardMsg model.Dashboard
-        { model with Dashboard = dashboardModel' }, Cmd.map DashboardMsg dashboardCmd
 
     // ============================================
     // Settings Component
@@ -188,7 +170,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match externalMsg with
             | Components.SyncFlow.Types.NoOp -> Cmd.none
             | Components.SyncFlow.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
-            | Components.SyncFlow.Types.NavigateToDashboard -> Cmd.ofMsg (NavigateTo Dashboard)
 
         { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd ]
 

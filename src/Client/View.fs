@@ -13,7 +13,6 @@ open Client.DesignSystem
 /// Convert Types.Page to Navigation.NavPage
 let private toNavPage (page: Page) : Navigation.NavPage =
     match page with
-    | Dashboard -> Navigation.Dashboard
     | SyncFlow -> Navigation.SyncFlow
     | Rules -> Navigation.Rules
     | Settings -> Navigation.Settings
@@ -21,7 +20,6 @@ let private toNavPage (page: Page) : Navigation.NavPage =
 /// Convert Navigation.NavPage to Types.Page
 let private fromNavPage (navPage: Navigation.NavPage) : Page =
     match navPage with
-    | Navigation.Dashboard -> Dashboard
     | Navigation.SyncFlow -> SyncFlow
     | Navigation.Rules -> Rules
     | Navigation.Settings -> Settings
@@ -68,17 +66,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.className "animate-page-enter"
                         prop.children [
                             match model.CurrentPage with
-                            | Dashboard ->
-                                Components.Dashboard.View.view
-                                    model.Dashboard
-                                    (DashboardMsg >> dispatch)
-                                    (fun () -> dispatch (NavigateTo SyncFlow))
-                                    (fun () -> dispatch (NavigateTo Settings))
                             | SyncFlow ->
                                 Components.SyncFlow.View.view
                                     model.SyncFlow
                                     (SyncFlowMsg >> dispatch)
-                                    (fun () -> dispatch (NavigateTo Dashboard))
                             | Rules ->
                                 Components.Rules.View.view
                                     model.Rules

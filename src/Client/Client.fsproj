@@ -31,11 +31,6 @@
     <Compile Include="Types.fs" />
     <Compile Include="Api.fs" />
 
-    <!-- Component: Dashboard -->
-    <Compile Include="Components/Dashboard/Types.fs" />
-    <Compile Include="Components/Dashboard/State.fs" />
-    <Compile Include="Components/Dashboard/View.fs" />
-
     <!-- Component: Settings -->
     <Compile Include="Components/Settings/Types.fs" />
     <Compile Include="Components/Settings/State.fs" />

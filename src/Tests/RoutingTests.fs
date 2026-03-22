@@ -8,13 +8,9 @@ let routingTests =
     testList "Routing" [
 
         testList "parseUrl" [
-            testCase "empty segments returns Dashboard" <| fun () ->
+            testCase "empty segments returns SyncFlow" <| fun () ->
                 let result = Routing.parseUrl []
-                Expect.equal result Dashboard "Empty URL should route to Dashboard"
-
-            testCase "sync segment returns SyncFlow" <| fun () ->
-                let result = Routing.parseUrl ["sync"]
-                Expect.equal result SyncFlow "sync URL should route to SyncFlow"
+                Expect.equal result SyncFlow "Empty URL should route to SyncFlow"
 
             testCase "rules segment returns Rules" <| fun () ->
                 let result = Routing.parseUrl ["rules"]
@@ -24,23 +20,19 @@ let routingTests =
                 let result = Routing.parseUrl ["settings"]
                 Expect.equal result Settings "settings URL should route to Settings"
 
-            testCase "unknown segment returns Dashboard (fallback)" <| fun () ->
+            testCase "unknown segment returns SyncFlow (fallback)" <| fun () ->
                 let result = Routing.parseUrl ["unknown"]
-                Expect.equal result Dashboard "Unknown URL should fallback to Dashboard"
+                Expect.equal result SyncFlow "Unknown URL should fallback to SyncFlow"
 
-            testCase "multiple unknown segments returns Dashboard" <| fun () ->
+            testCase "multiple unknown segments returns SyncFlow" <| fun () ->
                 let result = Routing.parseUrl ["foo"; "bar"; "baz"]
-                Expect.equal result Dashboard "Multiple unknown segments should fallback to Dashboard"
+                Expect.equal result SyncFlow "Multiple unknown segments should fallback to SyncFlow"
         ]
 
         testList "toUrlSegments" [
-            testCase "Dashboard returns empty list" <| fun () ->
-                let result = Routing.toUrlSegments Dashboard
-                Expect.equal result [] "Dashboard should be empty segments (root)"
-
-            testCase "SyncFlow returns sync" <| fun () ->
+            testCase "SyncFlow returns empty list" <| fun () ->
                 let result = Routing.toUrlSegments SyncFlow
-                Expect.equal result ["sync"] "SyncFlow should be ['sync']"
+                Expect.equal result [] "SyncFlow should be empty segments (root)"
 
             testCase "Rules returns rules" <| fun () ->
                 let result = Routing.toUrlSegments Rules
@@ -52,11 +44,6 @@ let routingTests =
         ]
 
         testList "roundtrip (parseUrl <-> toUrlSegments)" [
-            testCase "Dashboard roundtrips correctly" <| fun () ->
-                let segments = Routing.toUrlSegments Dashboard
-                let parsed = Routing.parseUrl segments
-                Expect.equal parsed Dashboard "Dashboard should roundtrip correctly"
-
             testCase "SyncFlow roundtrips correctly" <| fun () ->
                 let segments = Routing.toUrlSegments SyncFlow
                 let parsed = Routing.parseUrl segments

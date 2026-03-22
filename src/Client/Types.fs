@@ -128,7 +128,6 @@ module RemoteData =
 
 /// Application pages/routes
 type Page =
-    | Dashboard
     | SyncFlow
     | Rules
     | Settings
@@ -141,17 +140,15 @@ module Routing =
     /// Parse URL segments to Page
     let parseUrl (segments: string list) : Page =
         match segments with
-        | [] -> Dashboard
-        | ["sync"] -> SyncFlow
+        | [] -> SyncFlow
         | ["rules"] -> Rules
         | ["settings"] -> Settings
-        | _ -> Dashboard  // Fallback to dashboard for unknown routes
+        | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
     let toUrlSegments (page: Page) : string list =
         match page with
-        | Dashboard -> []
-        | SyncFlow -> ["sync"]
+        | SyncFlow -> []
         | Rules -> ["rules"]
         | Settings -> ["settings"]
 
