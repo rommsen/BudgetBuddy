@@ -64,7 +64,7 @@ let private patternTypeIcon (patternType: PatternType) =
         | Contains -> ("~", "text-neon-teal", "Contains substring")
         | Exact -> ("=", "text-neon-green", "Exact match")
     Html.span [
-        prop.className $"font-mono text-[10px] font-bold {color} bg-white/5 px-1 rounded"
+        prop.className $"font-mono text-[10px] font-bold {color} bg-surface-elevated/50 px-1 rounded"
         prop.title title
         prop.text icon
     ]
@@ -78,7 +78,7 @@ let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
     let isConfirmingDelete = model.ConfirmingDeleteRuleId = Some rule.Id
 
     Html.div [
-        prop.className $"group flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-base-100 border border-white/5 rounded-lg hover:border-white/10 transition-colors {opacityClass}"
+        prop.className $"rule-row group flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-surface-card border border-border-subtle rounded-lg hover:border-border-default transition-colors {opacityClass}"
         prop.children [
             // Toggle (compact)
             Html.div [
@@ -88,28 +88,29 @@ let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
                 ]
             ]
 
-            // Pattern type icon
-            Html.div [
-                prop.className "flex-shrink-0 hidden sm:block"
-                prop.children [ patternTypeIcon rule.PatternType ]
+            // Pattern hint (desktop only)
+            Html.span [
+                prop.className "hidden sm:block font-mono text-[11px] text-text-muted bg-surface-elevated/50 px-1.5 py-0.5 rounded truncate max-w-[180px]"
+                prop.title rule.Pattern
+                prop.text rule.Pattern
             ]
 
             // Name (truncated)
             Html.span [
-                prop.className "font-medium text-sm text-base-content truncate min-w-[60px] max-w-[120px] sm:max-w-[160px]"
+                prop.className "font-medium text-sm text-text-primary truncate min-w-[60px] max-w-[120px] sm:max-w-[160px]"
                 prop.title $"{rule.Name}\nPattern: {rule.Pattern}"
                 prop.text rule.Name
             ]
 
             // Arrow separator
             Html.span [
-                prop.className "text-base-content/30 text-xs flex-shrink-0"
+                prop.className "text-text-muted text-xs flex-shrink-0"
                 prop.text "→"
             ]
 
             // Category (flexible, truncated)
             Html.span [
-                prop.className "flex-1 text-sm text-base-content/70 truncate min-w-0"
+                prop.className "flex-1 text-sm text-text-secondary truncate min-w-0"
                 prop.title rule.CategoryName
                 prop.text rule.CategoryName
             ]
@@ -130,11 +131,11 @@ let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
                     if isConfirmingDelete then
                         // Red confirm button - ALWAYS visible (no opacity transition)
                         Html.button [
-                            prop.className "btn btn-xs btn-error gap-1 animate-pulse"
+                            prop.className "flex items-center gap-1 px-2 py-1 text-xs font-medium text-neon-red bg-neon-red/10 border border-neon-red/30 rounded-lg hover:bg-neon-red/20 animate-pulse transition-colors"
                             prop.onClick (fun _ -> dispatch (DeleteRule rule.Id))
                             prop.children [
                                 Icons.trash XS Icons.IconColor.Primary
-                                Html.span [ prop.text "Delete" ]
+                                Html.span [ prop.text "Löschen" ]
                             ]
                         ]
                     else
@@ -157,11 +158,11 @@ let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
 let private emptyState (dispatch: Msg -> unit) =
     Card.emptyState
         (Icons.rules XL Icons.Default)
-        "No Rules Yet"
-        "Create categorization rules to automatically categorize your transactions when syncing."
+        "Keine Regeln"
+        "Erstelle deine erste Regel, um Transaktionen beim Sync automatisch zu kategorisieren."
         (Some (
             Button.primaryWithIcon
-                "Add Your First Rule"
+                "Erstelle deine erste Regel"
                 (Icons.plus SM Icons.IconColor.Primary)
                 (fun () -> dispatch OpenNewRuleModal)
         ))
@@ -172,8 +173,8 @@ let private emptyState (dispatch: Msg -> unit) =
 
 let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
     let isNew = model.IsNewRule
-    let title = if isNew then "Create New Rule" else "Edit Rule"
-    let subtitle = if isNew then "Set up automatic categorization" else "Modify rule settings"
+    let title = if isNew then "Neue Regel erstellen" else "Regel bearbeiten"
+    let subtitle = if isNew then "Automatische Kategorisierung einrichten" else "Regeleinstellungen anpassen"
 
     Modal.view {
         Modal.defaultProps with
@@ -188,11 +189,11 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                 prop.className "space-y-5"
                 prop.children [
                     // Name input
-                    Input.groupRequired "Rule Name" (
+                    Input.groupRequired "Regelname" (
                         Input.textSimple
                             model.Form.Name
                             (UpdateRuleFormName >> dispatch)
-                            "e.g., Amazon Purchases"
+                            "z.B. Amazon Einkäufe"
                     )
 
                     // Pattern type and target field row
@@ -200,7 +201,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                         prop.className "grid grid-cols-1 sm:grid-cols-2 gap-4"
                         prop.children [
                             // Pattern type
-                            Input.groupSimple "Pattern Type" (
+                            Input.groupSimple "Muster-Typ" (
                                 Input.selectSimple
                                     (patternTypeText model.Form.PatternType)
                                     (fun value ->
@@ -211,14 +212,14 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                             | _ -> Contains
                                         dispatch (UpdateRuleFormPatternType patternType))
                                     [
-                                        ("Contains", "Contains - Match substring")
-                                        ("Exact", "Exact - Match full text")
-                                        ("Regex", "Regex - Regular expression")
+                                        ("Contains", "Enthält - Teiltext")
+                                        ("Exact", "Exakt - Volltext")
+                                        ("Regex", "Regex - Regulärer Ausdruck")
                                     ]
                             )
 
                             // Target field
-                            Input.groupSimple "Match Field" (
+                            Input.groupSimple "Feld" (
                                 Input.selectSimple
                                     (targetFieldText model.Form.TargetField)
                                     (fun value ->
@@ -229,9 +230,9 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                             | _ -> Combined
                                         dispatch (UpdateRuleFormTargetField targetField))
                                     [
-                                        ("Combined", "Combined - Payee & Memo")
-                                        ("Payee", "Payee only")
-                                        ("Memo", "Memo only")
+                                        ("Combined", "Kombiniert - Empfänger & Memo")
+                                        ("Payee", "Nur Empfänger")
+                                        ("Memo", "Nur Memo")
                                     ]
                             )
                         ]
@@ -239,14 +240,14 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
 
                     // Pattern input
                     Input.group {
-                        Label = "Pattern"
+                        Label = "Muster"
                         Required = true
                         Error = None
                         HelpText = Some (
                             match model.Form.PatternType with
-                            | PatternType.Regex -> "Use regular expressions for complex patterns"
-                            | Contains -> "Matches if the text contains this substring (case-insensitive)"
-                            | Exact -> "Matches only if the entire text equals this (case-insensitive)"
+                            | PatternType.Regex -> "Reguläre Ausdrücke für komplexe Muster"
+                            | Contains -> "Trifft zu wenn der Text diesen Teiltext enthält (Groß-/Kleinschreibung egal)"
+                            | Exact -> "Trifft nur zu wenn der gesamte Text übereinstimmt"
                         )
                         Children =
                             Input.text {
@@ -255,16 +256,16 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                     OnChange = (UpdateRuleFormPattern >> dispatch)
                                     Placeholder =
                                         match model.Form.PatternType with
-                                        | PatternType.Regex -> "e.g., AMAZON\\.\\w+"
-                                        | Contains -> "e.g., amazon"
-                                        | Exact -> "e.g., AMAZON MARKETPLACE"
+                                        | PatternType.Regex -> "z.B. AMAZON\\.DE"
+                                        | Contains -> "z.B. amazon"
+                                        | Exact -> "z.B. AMAZON MARKETPLACE"
                                     ClassName = Some "font-mono"
                             }
                     }
 
                     // Category dropdown
                     Input.group {
-                        Label = "Category"
+                        Label = "Kategorie"
                         Required = true
                         Error = None
                         HelpText = None
@@ -280,7 +281,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                                 dispatch (UpdateRuleFormCategoryId None)
                                             else
                                                 dispatch (UpdateRuleFormCategoryId (Some (YnabCategoryId (System.Guid.Parse value)))))
-                                        "Select a category..."
+                                        "Kategorie wählen..."
                                         (model.Categories
                                          |> List.map (fun category ->
                                              let (YnabCategoryId id) = category.Id
@@ -291,7 +292,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                             prop.className "flex items-center gap-2 mt-2 px-3 py-2 bg-neon-orange/10 text-neon-orange rounded-lg text-sm"
                                             prop.children [
                                                 Icons.warning SM Icons.NeonOrange
-                                                Html.span [ prop.text "No categories loaded. Please configure YNAB first." ]
+                                                Html.span [ prop.text "Keine Kategorien geladen. Bitte zuerst YNAB konfigurieren." ]
                                             ]
                                         ]
                                 ]
@@ -300,10 +301,10 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
 
                     // Payee override (optional)
                     Input.group {
-                        Label = "Payee Override"
+                        Label = "Payee-Override"
                         Required = false
                         Error = None
-                        HelpText = Some "Leave empty to use original payee"
+                        HelpText = Some "Leer lassen für Original-Empfänger"
                         Children =
                             Html.div [
                                 prop.className "flex items-center gap-2"
@@ -330,21 +331,21 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                     // Enabled toggle (only for editing)
                     if not isNew then
                         Html.div [
-                            prop.className "flex items-center gap-3 p-3 bg-base-200/50 rounded-lg"
+                            prop.className "flex items-center gap-3 p-3 bg-surface-elevated/50 rounded-lg"
                             prop.children [
-                                Input.toggle model.Form.Enabled (fun checked' -> dispatch (UpdateRuleFormEnabled checked')) (Some "Rule enabled")
+                                Input.toggle model.Form.Enabled (fun checked' -> dispatch (UpdateRuleFormEnabled checked')) (Some "Regel aktiv")
                             ]
                         ]
 
                     // Test pattern section
                     Html.div [
-                        prop.className "pt-4 border-t border-white/10"
+                        prop.className "pt-4 border-t border-border-default"
                         prop.children [
                             Html.div [
                                 prop.className "flex items-center gap-2 mb-4"
                                 prop.children [
                                     Icons.search SM Icons.NeonTeal
-                                    Html.span [ prop.className "font-medium text-base-content"; prop.text "Test Your Pattern" ]
+                                    Html.span [ prop.className "font-medium text-text-primary"; prop.text "Muster testen" ]
                                 ]
                             ]
                             Html.div [
@@ -359,7 +360,7 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
                                                     Input.textSimple
                                                         model.Form.TestInput
                                                         (UpdateRuleFormTestInput >> dispatch)
-                                                        "Enter sample text to test pattern"
+                                                        "Beispieltext eingeben..."
                                                 ]
                                             ]
                                             Button.secondary
@@ -393,9 +394,9 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
         ]
 
         Modal.footer [
-            Button.ghost "Cancel" (fun () -> dispatch CloseRuleModal)
+            Button.ghost "Abbrechen" (fun () -> dispatch CloseRuleModal)
             Form.submitButton
-                (if isNew then "Create Rule" else "Save Changes")
+                (if isNew then "Regel erstellen" else "Speichern")
                 (fun () -> dispatch SaveRule)
                 model.Form.IsSaving
                 [
@@ -427,41 +428,41 @@ let private rulesHeaderActions (dispatch: Msg -> unit) = [
     }
 
     Button.primaryWithIcon
-        "Add Rule"
+        "Neue Regel"
         (Icons.plus SM Icons.IconColor.Primary)
         (fun () -> dispatch OpenNewRuleModal)
 
-    // Dropdown menu
+    // Overflow menu
     Html.div [
-        prop.className "dropdown dropdown-end"
+        prop.className "relative group"
         prop.children [
-            Html.label [
-                prop.className "btn btn-ghost btn-square text-base-content/70 hover:text-base-content"
+            Html.button [
+                prop.className "flex items-center justify-center w-8 h-8 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors"
                 prop.tabIndex 0
                 prop.children [
                     Html.span [ prop.className "text-xl"; prop.text "⋮" ]
                 ]
             ]
             Html.ul [
-                prop.className "dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 border border-white/10 rounded-xl w-52"
+                prop.className "invisible group-focus-within:visible absolute right-0 top-full mt-1 z-50 p-2 shadow-lg bg-surface-card border border-border-default rounded-xl w-52"
                 prop.tabIndex 0
                 prop.children [
                     Html.li [
                         Html.a [
-                            prop.className "flex items-center gap-2"
+                            prop.className "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
                             prop.onClick (fun _ -> dispatch ExportRules)
                             prop.children [
                                 Icons.download SM Icons.Default
-                                Html.span [ prop.text "Export Rules" ]
+                                Html.span [ prop.text "Regeln exportieren" ]
                             ]
                         ]
                     ]
                     Html.li [
                         Html.label [
-                            prop.className "flex items-center gap-2 cursor-pointer"
+                            prop.className "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
                             prop.children [
                                 Icons.upload SM Icons.Default
-                                Html.span [ prop.text "Import Rules" ]
+                                Html.span [ prop.text "Regeln importieren" ]
                                 Html.input [
                                     prop.type'.file
                                     prop.accept ".json"
@@ -492,66 +493,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             // Header
             PageHeader.gradientWithActions
-                "Categorization Rules"
-                (Some "Automate transaction categorization.")
+                "Kategorisierungsregeln"
+                (Some "Automatische Kategorisierung deiner Transaktionen")
                 (rulesHeaderActions dispatch)
-
-            // Info tip with pattern type legend
-            Card.view { Card.defaultProps with Variant = Card.Glass; Size = Card.Compact; Hoverable = false } [
-                Html.div [
-                    prop.className "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                    prop.children [
-                        // Info text
-                        Html.div [
-                            prop.className "flex items-start gap-3"
-                            prop.children [
-                                Html.div [
-                                    prop.className "w-8 h-8 rounded-lg bg-neon-teal/10 flex items-center justify-center flex-shrink-0"
-                                    prop.children [
-                                        Icons.info SM Icons.NeonTeal
-                                    ]
-                                ]
-                                Html.p [
-                                    prop.className "text-sm text-base-content/70"
-                                    prop.text "Rules are applied in priority order. The first matching rule will be used."
-                                ]
-                            ]
-                        ]
-                        // Pattern type legend
-                        Html.div [
-                            prop.className "flex items-center gap-3 text-xs text-base-content/50 pl-11 sm:pl-0"
-                            prop.children [
-                                Html.span [
-                                    prop.className "flex items-center gap-1"
-                                    prop.children [
-                                        Html.span [ prop.className "font-mono text-[10px] font-bold text-neon-teal bg-white/5 px-1 rounded"; prop.text "~" ]
-                                        Html.span [ prop.text "Contains" ]
-                                    ]
-                                ]
-                                Html.span [
-                                    prop.className "flex items-center gap-1"
-                                    prop.children [
-                                        Html.span [ prop.className "font-mono text-[10px] font-bold text-neon-green bg-white/5 px-1 rounded"; prop.text "=" ]
-                                        Html.span [ prop.text "Exact" ]
-                                    ]
-                                ]
-                                Html.span [
-                                    prop.className "flex items-center gap-1"
-                                    prop.children [
-                                        Html.span [ prop.className "font-mono text-[10px] font-bold text-neon-purple bg-white/5 px-1 rounded"; prop.text ".*" ]
-                                        Html.span [ prop.text "Regex" ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
 
             // Rules content
             match model.Rules with
             | RemoteData.NotAsked ->
-                Loading.centered "Loading rules..."
+                Loading.centered "Regeln werden geladen..."
 
             | RemoteData.Loading ->
                 Html.div [
@@ -582,7 +531,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
 
             | RemoteData.Failure error ->
-                ErrorDisplay.cardWithTitle "Error loading rules" error (Some (fun () -> dispatch LoadRules))
+                ErrorDisplay.cardWithTitle "Fehler beim Laden der Regeln" error (Some (fun () -> dispatch LoadRules))
 
             // Edit/Create modal
             if model.IsNewRule || model.EditingRule.IsSome then

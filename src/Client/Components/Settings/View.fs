@@ -10,35 +10,50 @@ open Client.DesignSystem
 // Settings Section Header
 // ============================================
 
-let private sectionHeader (icon: ReactElement) (title: string) (subtitle: string) (isConfigured: bool) =
+let private sectionHeader (title: string) (isConfigured: bool) =
     Html.div [
-        prop.className "flex items-start justify-between mb-5"
+        prop.className "card-header flex items-center justify-between p-4 border-b border-border-subtle"
         prop.children [
-            Html.div [
-                prop.className "flex items-start gap-3"
+            Html.h2 [
+                prop.className "text-sm font-semibold font-display"
+                prop.text title
+            ]
+            Html.span [
+                prop.className (sprintf "status-label %s" (if isConfigured then "text-neon-green" else "text-neon-orange"))
                 prop.children [
-                    Html.div [
-                        prop.className "w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-neon-teal/20 to-neon-green/10 flex items-center justify-center"
-                        prop.children [ icon ]
+                    Html.span [
+                        prop.className (if isConfigured then "status-dot connected" else "status-dot disconnected")
                     ]
-                    Html.div [
-                        prop.children [
-                            Html.h2 [
-                                prop.className "text-base md:text-lg font-semibold font-display"
-                                prop.text title
-                            ]
-                            Html.p [
-                                prop.className "text-xs md:text-sm text-base-content/50"
-                                prop.text subtitle
-                            ]
-                        ]
-                    ]
+                    Html.text (if isConfigured then "Verbunden" else "Nicht konfiguriert")
                 ]
             ]
-            if isConfigured then
-                Badge.success "Connected"
-            else
-                Badge.warning "Not configured"
+        ]
+    ]
+
+// ============================================
+// Read-Only Display Helpers
+// ============================================
+
+let private maskValue (value: string) =
+    if System.String.IsNullOrEmpty value then "\u2014"
+    elif value.Length <= 4 then "****"
+    else "****..." + value.[value.Length-4..]
+
+let private settingRow (label: string) (description: string) (value: string) =
+    Html.div [
+        prop.className "setting-row"
+        prop.children [
+            Html.div [
+                prop.className "setting-info"
+                prop.children [
+                    Html.div [ prop.className "setting-label"; prop.text label ]
+                    Html.div [ prop.className "setting-description"; prop.text description ]
+                ]
+            ]
+            Html.span [
+                prop.className "setting-value"
+                prop.text value
+            ]
         ]
     ]
 
@@ -52,166 +67,223 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
         | Success s -> s.Ynab.IsSome
         | _ -> false
 
+    let isEditing = model.EditingSection = Some YnabSection
+
     Card.standard [
-        sectionHeader (Icons.dollar Icons.MD Icons.NeonTeal) "YNAB Connection" "Connect your YNAB budget for automatic imports" isConfigured
+        sectionHeader "YNAB Verbindung" isConfigured
 
-        Html.div [
-            prop.className "space-y-4"
-            prop.children [
-                // Token input with label
-                Input.groupRequired "Personal Access Token" (
-                    Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "Enter your YNAB Personal Access Token"
-                )
+        if isConfigured && not isEditing then
+            // READ-ONLY DISPLAY
+            Html.div [
+                prop.className "p-4"
+                prop.children [
+                    match model.Settings with
+                    | Success settings ->
+                        match settings.Ynab with
+                        | Some ynab ->
+                            let budgetName =
+                                match model.YnabBudgets with
+                                | Success budgets ->
+                                    ynab.DefaultBudgetId
+                                    |> Option.bind (fun bid -> budgets |> List.tryFind (fun b -> b.Budget.Id = bid))
+                                    |> Option.map (fun b -> b.Budget.Name)
+                                    |> Option.defaultValue "\u2014"
+                                | _ -> "\u2014"
+                            let accountName =
+                                match model.YnabBudgets with
+                                | Success budgets ->
+                                    ynab.DefaultBudgetId
+                                    |> Option.bind (fun bid -> budgets |> List.tryFind (fun b -> b.Budget.Id = bid))
+                                    |> Option.bind (fun bwa ->
+                                        ynab.DefaultAccountId
+                                        |> Option.bind (fun aid -> bwa.Accounts |> List.tryFind (fun a -> a.Id = aid))
+                                        |> Option.map (fun a -> a.Name))
+                                    |> Option.defaultValue "\u2014"
+                                | _ -> "\u2014"
 
-                // Save button with validation
-                Form.submitButton
-                    "Save Token"
-                    (fun () -> dispatch SaveYnabToken)
-                    false
-                    [("Personal Access Token", model.YnabTokenInput)]
+                            settingRow "Budget" "Aktives YNAB Budget" budgetName
+                            settingRow "Konto" "YNAB Konto f\u00fcr Transaktionen" accountName
+                            settingRow "API Token" "Pers\u00f6nlicher Access Token" (maskValue ynab.PersonalAccessToken)
 
-                // Link to YNAB
-                Html.div [
-                    prop.className "text-xs text-base-content/50"
-                    prop.children [
-                        Html.text "Get your token from "
-                        Html.a [
-                            prop.href "https://app.youneedabudget.com/settings/developer"
-                            prop.target "_blank"
-                            prop.className "text-neon-teal hover:underline inline-flex items-center gap-1"
-                            prop.children [
-                                Html.span [ prop.text "YNAB Developer Settings" ]
-                                Icons.externalLink Icons.XS Icons.NeonTeal
+                            Html.div [
+                                prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
+                                prop.children [
+                                    Button.secondary "Bearbeiten" (fun () -> dispatch (StartEditing YnabSection))
+                                    Button.secondary "Verbindung testen" (fun () -> dispatch TestYnabConnection)
+                                ]
+                            ]
+                        | None -> ()
+                    | _ -> ()
+                ]
+            ]
+        else
+            // EDIT MODE - existing form code
+            Html.div [
+                prop.className "space-y-4 p-4"
+                prop.children [
+                    // Token input with label
+                    Input.groupRequired "Pers\u00f6nlicher Access Token" (
+                        Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB Personal Access Token eingeben"
+                    )
+
+                    // Save button with validation
+                    Form.submitButton
+                        "Token speichern"
+                        (fun () -> dispatch SaveYnabToken)
+                        false
+                        [("Pers\u00f6nlicher Access Token", model.YnabTokenInput)]
+
+                    // Link to YNAB
+                    Html.div [
+                        prop.className "text-xs text-text-muted/70"
+                        prop.children [
+                            Html.text "Token erh\u00e4ltlich unter "
+                            Html.a [
+                                prop.href "https://app.youneedabudget.com/settings/developer"
+                                prop.target "_blank"
+                                prop.className "text-neon-teal hover:underline inline-flex items-center gap-1"
+                                prop.children [
+                                    Html.span [ prop.text "YNAB Entwicklereinstellungen" ]
+                                    Icons.externalLink Icons.XS Icons.NeonTeal
+                                ]
                             ]
                         ]
                     ]
-                ]
 
-                // Test connection button
-                let hasYnabToken =
-                    match model.Settings with
-                    | Success s -> s.Ynab.IsSome
-                    | _ -> false
-                if hasYnabToken then
-                    Button.secondary "Test Connection" (fun () -> dispatch TestYnabConnection)
-                else
-                    Button.view {
-                        Button.defaultProps with
-                            Text = "Test Connection"
-                            Variant = Button.Secondary
-                            IsDisabled = true
-                    }
+                    // Test connection button
+                    let hasYnabToken =
+                        match model.Settings with
+                        | Success s -> s.Ynab.IsSome
+                        | _ -> false
+                    if hasYnabToken then
+                        Button.secondary "Verbindung testen" (fun () -> dispatch TestYnabConnection)
+                    else
+                        Button.view {
+                            Button.defaultProps with
+                                Text = "Verbindung testen"
+                                Variant = Button.Secondary
+                                IsDisabled = true
+                        }
 
-                // Budget/Account selection (shown after successful test)
-                match model.YnabBudgets with
-                | Loading ->
-                    Loading.inlineWithText "Testing connection..."
+                    // Budget/Account selection (shown after successful test)
+                    match model.YnabBudgets with
+                    | Loading ->
+                        Loading.inlineWithText "Verbindung wird getestet..."
 
-                | Success budgets when not budgets.IsEmpty ->
-                    Html.div [
-                        prop.className "space-y-4 pt-4 border-t border-white/5"
-                        prop.children [
-                            Html.div [
-                                prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
-                                prop.children [
-                                    Icons.checkCircle Icons.SM Icons.NeonGreen
-                                    Html.span [
-                                        prop.className "text-sm text-neon-green"
-                                        prop.text $"Connected! Found {budgets.Length} budget(s)"
+                    | Success budgets when not budgets.IsEmpty ->
+                        Html.div [
+                            prop.className "space-y-4 pt-4 border-t border-border-subtle"
+                            prop.children [
+                                Html.div [
+                                    prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
+                                    prop.children [
+                                        Icons.checkCircle Icons.SM Icons.NeonGreen
+                                        Html.span [
+                                            prop.className "text-sm text-neon-green"
+                                            prop.text $"Verbunden! {budgets.Length} Budget(s) gefunden"
+                                        ]
                                     ]
                                 ]
-                            ]
 
-                            // Budget selection
-                            Html.div [
-                                prop.className "grid gap-4 sm:grid-cols-2"
-                                prop.children [
-                                    Input.groupSimple "Default Budget" (
-                                        Html.select [
-                                            prop.className "select select-bordered w-full bg-base-200/50 border-white/10 focus:border-neon-teal focus:shadow-[0_0_15px_rgba(0,212,170,0.3)]"
-                                            prop.value (
-                                                match model.Settings with
-                                                | Success s ->
-                                                    s.Ynab
-                                                    |> Option.bind (fun y -> y.DefaultBudgetId)
-                                                    |> Option.map (fun (YnabBudgetId id) -> id)
-                                                    |> Option.defaultValue ""
-                                                | _ -> ""
-                                            )
-                                            prop.onChange (fun (value: string) ->
-                                                if not (System.String.IsNullOrWhiteSpace(value)) then
-                                                    dispatch (SetDefaultBudget (YnabBudgetId value))
-                                            )
-                                            prop.children [
-                                                Html.option [
-                                                    prop.value ""
-                                                    prop.text "Select budget..."
-                                                ]
-                                                for bwa in budgets do
-                                                    let (YnabBudgetId id) = bwa.Budget.Id
-                                                    Html.option [
-                                                        prop.key id
-                                                        prop.value id
-                                                        prop.text bwa.Budget.Name
-                                                    ]
-                                            ]
-                                        ])
-
-                                    // Account selection (based on selected budget)
-                                    let selectedBudget =
-                                        match model.Settings with
-                                        | Success s ->
-                                            s.Ynab
-                                            |> Option.bind (fun y -> y.DefaultBudgetId)
-                                            |> Option.bind (fun bid ->
-                                                budgets |> List.tryFind (fun b -> b.Budget.Id = bid)
-                                            )
-                                        | _ -> None
-
-                                    match selectedBudget with
-                                    | Some bwa when not bwa.Accounts.IsEmpty ->
-                                        Input.groupSimple "Default Account" (
+                                // Budget selection
+                                Html.div [
+                                    prop.className "grid gap-4 sm:grid-cols-2"
+                                    prop.children [
+                                        Input.groupSimple "Standard-Budget" (
                                             Html.select [
-                                                prop.className "select select-bordered w-full bg-base-200/50 border-white/10 focus:border-neon-teal focus:shadow-[0_0_15px_rgba(0,212,170,0.3)]"
+                                                prop.className "select-field"
                                                 prop.value (
                                                     match model.Settings with
                                                     | Success s ->
                                                         s.Ynab
-                                                        |> Option.bind (fun y -> y.DefaultAccountId)
-                                                        |> Option.map (fun (YnabAccountId id) -> id.ToString())
+                                                        |> Option.bind (fun y -> y.DefaultBudgetId)
+                                                        |> Option.map (fun (YnabBudgetId id) -> id)
                                                         |> Option.defaultValue ""
                                                     | _ -> ""
                                                 )
                                                 prop.onChange (fun (value: string) ->
                                                     if not (System.String.IsNullOrWhiteSpace(value)) then
-                                                        dispatch (SetDefaultAccount (YnabAccountId (System.Guid.Parse value)))
+                                                        dispatch (SetDefaultBudget (YnabBudgetId value))
                                                 )
                                                 prop.children [
                                                     Html.option [
                                                         prop.value ""
-                                                        prop.text "Select account..."
+                                                        prop.text "Budget w\u00e4hlen..."
                                                     ]
-                                                    for account in bwa.Accounts do
-                                                        let (YnabAccountId id) = account.Id
+                                                    for bwa in budgets do
+                                                        let (YnabBudgetId id) = bwa.Budget.Id
                                                         Html.option [
-                                                            prop.key (id.ToString())
-                                                            prop.value (id.ToString())
-                                                            prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
+                                                            prop.key id
+                                                            prop.value id
+                                                            prop.text bwa.Budget.Name
                                                         ]
                                                 ]
                                             ])
-                                    | _ -> Html.none
+
+                                        // Account selection (based on selected budget)
+                                        let selectedBudget =
+                                            match model.Settings with
+                                            | Success s ->
+                                                s.Ynab
+                                                |> Option.bind (fun y -> y.DefaultBudgetId)
+                                                |> Option.bind (fun bid ->
+                                                    budgets |> List.tryFind (fun b -> b.Budget.Id = bid)
+                                                )
+                                            | _ -> None
+
+                                        match selectedBudget with
+                                        | Some bwa when not bwa.Accounts.IsEmpty ->
+                                            Input.groupSimple "Standard-Konto" (
+                                                Html.select [
+                                                    prop.className "select-field"
+                                                    prop.value (
+                                                        match model.Settings with
+                                                        | Success s ->
+                                                            s.Ynab
+                                                            |> Option.bind (fun y -> y.DefaultAccountId)
+                                                            |> Option.map (fun (YnabAccountId id) -> id.ToString())
+                                                            |> Option.defaultValue ""
+                                                        | _ -> ""
+                                                    )
+                                                    prop.onChange (fun (value: string) ->
+                                                        if not (System.String.IsNullOrWhiteSpace(value)) then
+                                                            dispatch (SetDefaultAccount (YnabAccountId (System.Guid.Parse value)))
+                                                    )
+                                                    prop.children [
+                                                        Html.option [
+                                                            prop.value ""
+                                                            prop.text "Konto w\u00e4hlen..."
+                                                        ]
+                                                        for account in bwa.Accounts do
+                                                            let (YnabAccountId id) = account.Id
+                                                            Html.option [
+                                                                prop.key (id.ToString())
+                                                                prop.value (id.ToString())
+                                                                prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
+                                                            ]
+                                                    ]
+                                                ])
+                                        | _ -> Html.none
+                                    ]
                                 ]
                             ]
                         ]
-                    ]
 
-                | Failure error ->
-                    ErrorDisplay.cardCompact error None
+                    | Failure error ->
+                        ErrorDisplay.cardCompact error None
 
-                | _ -> Html.none
+                    | _ -> Html.none
+
+                    // Cancel button if editing (not for initial setup)
+                    if isEditing then
+                        Html.div [
+                            prop.className "pt-2"
+                            prop.children [
+                                Button.ghost "Abbrechen" (fun () -> dispatch CancelEditing)
+                            ]
+                        ]
+                ]
             ]
-        ]
     ]
 
 // ============================================
@@ -224,145 +296,181 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
         | Success s -> s.Comdirect.IsSome
         | _ -> false
 
+    let isEditing = model.EditingSection = Some ComdirectSection
+
     Card.standard [
-        sectionHeader (Icons.banknotes Icons.MD Icons.NeonOrange) "Comdirect Connection" "Connect your Comdirect bank account" isConfigured
+        sectionHeader "Comdirect Verbindung" isConfigured
 
-        Html.div [
-            prop.className "space-y-4"
-            prop.children [
-                // API Credentials row
-                Html.div [
-                    prop.className "grid gap-4 sm:grid-cols-2"
-                    prop.children [
-                        Input.groupRequired "Client ID" (
-                            Input.textSimple model.ComdirectClientIdInput (UpdateComdirectClientIdInput >> dispatch) "Your API Client ID")
+        if isConfigured && not isEditing then
+            // READ-ONLY DISPLAY
+            Html.div [
+                prop.className "p-4"
+                prop.children [
+                    match model.Settings with
+                    | Success settings ->
+                        match settings.Comdirect with
+                        | Some comdirect ->
+                            settingRow "Client-ID" "Comdirect API Client-ID" (maskValue comdirect.ClientId)
+                            settingRow "Authentifizierung" "OAuth2 + photoTAN" "\u2014"
 
-                        Input.groupRequired "Client Secret" (
-                            Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Your API Client Secret")
-                    ]
-                ]
-
-                // Login Credentials row
-                Html.div [
-                    prop.className "grid gap-4 sm:grid-cols-2"
-                    prop.children [
-                        Input.groupRequired "Username (Zugangsnummer)" (
-                            Input.textSimple model.ComdirectUsernameInput (UpdateComdirectUsernameInput >> dispatch) "Your access number")
-
-                        Input.groupRequired "PIN" (
-                            Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Your Comdirect PIN")
-                    ]
-                ]
-
-                // Account ID input (required)
-                Input.groupRequired "Account ID" (
-                    Input.textSimple model.ComdirectAccountIdInput (UpdateComdirectAccountIdInput >> dispatch) "Your Comdirect account ID"
-                )
-
-                // Save button with validation feedback
-                Form.submitButton
-                    "Save Credentials"
-                    (fun () -> dispatch SaveComdirectCredentials)
-                    false
-                    [
-                        ("Client ID", model.ComdirectClientIdInput)
-                        ("Client Secret", model.ComdirectClientSecretInput)
-                        ("Username", model.ComdirectUsernameInput)
-                        ("PIN", model.ComdirectPasswordInput)
-                        ("Account ID", model.ComdirectAccountIdInput)
-                    ]
-
-                // Info tip
-                Html.div [
-                    prop.className "flex items-start gap-3 p-3 rounded-lg bg-neon-teal/5 border border-neon-teal/20"
-                    prop.children [
-                        Icons.info Icons.MD Icons.NeonTeal
-                        Html.p [
-                            prop.className "text-xs md:text-sm text-base-content/60"
-                            prop.children [
-                                Html.text "You need a Comdirect API access. Visit "
-                                Html.a [
-                                    prop.href "https://www.comdirect.de/cms/kontakt-zugaenge-api.html"
-                                    prop.target "_blank"
-                                    prop.className "text-neon-teal hover:underline inline-flex items-center gap-1"
-                                    prop.children [
-                                        Html.span [ prop.text "Comdirect API" ]
-                                        Icons.externalLink Icons.XS Icons.NeonTeal
-                                    ]
+                            Html.div [
+                                prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
+                                prop.children [
+                                    Button.secondary "Bearbeiten" (fun () -> dispatch (StartEditing ComdirectSection))
+                                    Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
                                 ]
-                                Html.text " to request access."
+                            ]
+                        | None -> ()
+                    | _ -> ()
+                ]
+            ]
+        else
+            // EDIT MODE - existing form code
+            Html.div [
+                prop.className "space-y-4 p-4"
+                prop.children [
+                    // API Credentials row
+                    Html.div [
+                        prop.className "grid gap-4 sm:grid-cols-2"
+                        prop.children [
+                            Input.groupRequired "Client-ID" (
+                                Input.textSimple model.ComdirectClientIdInput (UpdateComdirectClientIdInput >> dispatch) "Deine API Client-ID")
+
+                            Input.groupRequired "Client-Secret" (
+                                Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Dein API Client-Secret")
+                        ]
+                    ]
+
+                    // Login Credentials row
+                    Html.div [
+                        prop.className "grid gap-4 sm:grid-cols-2"
+                        prop.children [
+                            Input.groupRequired "Benutzername (Zugangsnummer)" (
+                                Input.textSimple model.ComdirectUsernameInput (UpdateComdirectUsernameInput >> dispatch) "Deine Zugangsnummer")
+
+                            Input.groupRequired "PIN" (
+                                Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Deine Comdirect-PIN")
+                        ]
+                    ]
+
+                    // Account ID input (required)
+                    Input.groupRequired "Konto-ID" (
+                        Input.textSimple model.ComdirectAccountIdInput (UpdateComdirectAccountIdInput >> dispatch) "Deine Comdirect Konto-ID"
+                    )
+
+                    // Save button with validation feedback
+                    Form.submitButton
+                        "Zugangsdaten speichern"
+                        (fun () -> dispatch SaveComdirectCredentials)
+                        false
+                        [
+                            ("Client-ID", model.ComdirectClientIdInput)
+                            ("Client-Secret", model.ComdirectClientSecretInput)
+                            ("Benutzername", model.ComdirectUsernameInput)
+                            ("PIN", model.ComdirectPasswordInput)
+                            ("Konto-ID", model.ComdirectAccountIdInput)
+                        ]
+
+                    // Info tip
+                    Html.div [
+                        prop.className "flex items-start gap-3 p-3 rounded-lg bg-neon-teal/5 border border-neon-teal/20"
+                        prop.children [
+                            Icons.info Icons.MD Icons.NeonTeal
+                            Html.p [
+                                prop.className "text-xs md:text-sm text-text-muted"
+                                prop.children [
+                                    Html.text "Du ben\u00f6tigst Zugang zur Comdirect API. Besuche "
+                                    Html.a [
+                                        prop.href "https://www.comdirect.de/cms/kontakt-zugaenge-api.html"
+                                        prop.target "_blank"
+                                        prop.className "text-neon-teal hover:underline inline-flex items-center gap-1"
+                                        prop.children [
+                                            Html.span [ prop.text "Comdirect API" ]
+                                            Icons.externalLink Icons.XS Icons.NeonTeal
+                                        ]
+                                    ]
+                                    Html.text " um Zugang zu beantragen."
+                                ]
                             ]
                         ]
                     ]
-                ]
 
-                // Connection test section
-                Html.div [
-                    prop.className "space-y-4 pt-4 border-t border-white/5"
-                    prop.children [
-                        let hasCredentials =
-                            match model.Settings with
-                            | Success s -> s.Comdirect.IsSome
-                            | _ -> false
+                    // Connection test section
+                    Html.div [
+                        prop.className "space-y-4 pt-4 border-t border-border-subtle"
+                        prop.children [
+                            let hasCredentials =
+                                match model.Settings with
+                                | Success s -> s.Comdirect.IsSome
+                                | _ -> false
 
-                        if hasCredentials then
-                            if model.ComdirectAuthPending then
-                                // Waiting for TAN confirmation
-                                Html.div [
-                                    prop.className "space-y-3"
-                                    prop.children [
-                                        Html.div [
-                                            prop.className "flex items-center gap-3 p-4 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
-                                            prop.children [
-                                                Loading.spinner Loading.MD Loading.Orange
-                                                Html.div [
-                                                    prop.className "flex-1"
-                                                    prop.children [
-                                                        Html.p [
-                                                            prop.className "text-sm font-medium text-neon-orange"
-                                                            prop.text "Waiting for TAN confirmation..."
-                                                        ]
-                                                        Html.p [
-                                                            prop.className "text-xs text-base-content/60"
-                                                            prop.text "Please confirm the Push-TAN on your Comdirect app"
+                            if hasCredentials then
+                                if model.ComdirectAuthPending then
+                                    // Waiting for TAN confirmation
+                                    Html.div [
+                                        prop.className "space-y-3"
+                                        prop.children [
+                                            Html.div [
+                                                prop.className "flex items-center gap-3 p-4 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
+                                                prop.children [
+                                                    Loading.spinner Loading.MD Loading.Orange
+                                                    Html.div [
+                                                        prop.className "flex-1"
+                                                        prop.children [
+                                                            Html.p [
+                                                                prop.className "text-sm font-medium text-neon-orange"
+                                                                prop.text "Warte auf TAN-Best\u00e4tigung..."
+                                                            ]
+                                                            Html.p [
+                                                                prop.className "text-xs text-text-muted"
+                                                                prop.text "Bitte best\u00e4tige die Push-TAN in deiner Comdirect App"
+                                                            ]
                                                         ]
                                                     ]
                                                 ]
                                             ]
+                                            Button.primary "TAN best\u00e4tigt" (fun () -> dispatch ConfirmComdirectTan)
                                         ]
-                                        Button.primary "I've Confirmed the TAN" (fun () -> dispatch ConfirmComdirectTan)
                                     ]
-                                ]
-                            else
-                                match model.ComdirectConnectionValid with
-                                | Loading ->
-                                    Loading.inlineWithText "Testing connection..."
-                                | Success _ ->
-                                    // Connection verified successfully
-                                    Html.div [
-                                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
-                                        prop.children [
-                                            Icons.checkCircle Icons.SM Icons.NeonGreen
-                                            Html.span [
-                                                prop.className "text-sm text-neon-green"
-                                                prop.text "Credentials verified successfully!"
+                                else
+                                    match model.ComdirectConnectionValid with
+                                    | Loading ->
+                                        Loading.inlineWithText "Verbindung wird getestet..."
+                                    | Success _ ->
+                                        // Connection verified successfully
+                                        Html.div [
+                                            prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
+                                            prop.children [
+                                                Icons.checkCircle Icons.SM Icons.NeonGreen
+                                                Html.span [
+                                                    prop.className "text-sm text-neon-green"
+                                                    prop.text "Zugangsdaten erfolgreich verifiziert!"
+                                                ]
                                             ]
                                         ]
-                                    ]
-                                | Failure error ->
-                                    Html.div [
-                                        prop.className "space-y-3"
-                                        prop.children [
-                                            ErrorDisplay.cardCompact error None
-                                            Button.secondary "Test Connection" (fun () -> dispatch TestComdirectConnection)
+                                    | Failure error ->
+                                        Html.div [
+                                            prop.className "space-y-3"
+                                            prop.children [
+                                                ErrorDisplay.cardCompact error None
+                                                Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
+                                            ]
                                         ]
-                                    ]
-                                | NotAsked ->
-                                    Button.secondary "Test Connection" (fun () -> dispatch TestComdirectConnection)
+                                    | NotAsked ->
+                                        Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
+                        ]
                     ]
+
+                    // Cancel button if editing (not for initial setup)
+                    if isEditing then
+                        Html.div [
+                            prop.className "pt-2"
+                            prop.children [
+                                Button.ghost "Abbrechen" (fun () -> dispatch CancelEditing)
+                            ]
+                        ]
                 ]
             ]
-        ]
     ]
 
 // ============================================
@@ -370,54 +478,86 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // ============================================
 
 let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
-    Card.standard [
-        sectionHeader (Icons.sync Icons.MD Icons.NeonPurple) "Sync Settings" "Configure how transactions are fetched" true
+    let isEditing = model.EditingSection = Some SyncSection
 
-        Html.div [
-            prop.className "space-y-5"
-            prop.children [
-                // Days to fetch with visual slider
-                Html.div [
-                    prop.className "space-y-3"
-                    prop.children [
-                        Html.div [
-                            prop.className "flex items-center justify-between"
-                            prop.children [
-                                Html.label [
-                                    prop.className "text-sm font-medium text-base-content/70"
-                                    prop.text "Days to Fetch"
-                                ]
-                                Html.span [
-                                    prop.className "text-xl md:text-2xl font-bold font-mono text-neon-teal"
-                                    prop.text $"{model.SyncDaysInput}"
-                                ]
-                            ]
-                        ]
-                        Html.input [
-                            prop.className "range range-sm w-full accent-neon-teal"
-                            prop.type'.range
-                            prop.min 7
-                            prop.max 90
-                            prop.step 1
-                            prop.value model.SyncDaysInput
-                            prop.onChange (fun (value: int) -> dispatch (UpdateSyncDaysInput value))
-                        ]
-                        Html.div [
-                            prop.className "flex justify-between text-[10px] md:text-xs text-base-content/40 px-1"
-                            prop.children [
-                                Html.span [ prop.text "7 days" ]
-                                Html.span [ prop.text "30 days" ]
-                                Html.span [ prop.text "60 days" ]
-                                Html.span [ prop.text "90 days" ]
-                            ]
+    let daysToFetch =
+        match model.Settings with
+        | Success settings -> settings.Sync.DaysToFetch
+        | _ -> model.SyncDaysInput
+
+    Card.standard [
+        sectionHeader "Sync-Einstellungen" true
+
+        if not isEditing then
+            // READ-ONLY DISPLAY
+            Html.div [
+                prop.className "p-4"
+                prop.children [
+                    settingRow "Transaktionszeitraum" "Wie weit zur\u00fcckliegende Transaktionen synchronisiert werden" (sprintf "%d Tage" daysToFetch)
+
+                    Html.div [
+                        prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
+                        prop.children [
+                            Button.secondary "Bearbeiten" (fun () -> dispatch (StartEditing SyncSection))
                         ]
                     ]
                 ]
-
-                // Save button
-                Button.primaryWithIcon "Save Settings" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch SaveSyncSettings)
             ]
-        ]
+        else
+            // EDIT MODE - existing form code
+            Html.div [
+                prop.className "space-y-5 p-4"
+                prop.children [
+                    // Days to fetch with visual slider
+                    Html.div [
+                        prop.className "space-y-3"
+                        prop.children [
+                            Html.div [
+                                prop.className "flex items-center justify-between"
+                                prop.children [
+                                    Html.label [
+                                        prop.className "text-sm font-medium text-text-secondary"
+                                        prop.text "Transaktionszeitraum"
+                                    ]
+                                    Html.span [
+                                        prop.className "text-xl md:text-2xl font-bold font-mono text-neon-teal"
+                                        prop.text $"{model.SyncDaysInput}"
+                                    ]
+                                ]
+                            ]
+                            Html.input [
+                                prop.className "range range-sm w-full accent-neon-teal"
+                                prop.type'.range
+                                prop.min 7
+                                prop.max 90
+                                prop.step 1
+                                prop.value model.SyncDaysInput
+                                prop.onChange (fun (value: int) -> dispatch (UpdateSyncDaysInput value))
+                            ]
+                            Html.div [
+                                prop.className "flex justify-between text-[10px] md:text-xs text-text-muted px-1"
+                                prop.children [
+                                    Html.span [ prop.text "7 Tage" ]
+                                    Html.span [ prop.text "30 Tage" ]
+                                    Html.span [ prop.text "60 Tage" ]
+                                    Html.span [ prop.text "90 Tage" ]
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    // Save button
+                    Button.primaryWithIcon "Einstellungen speichern" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch SaveSyncSettings)
+
+                    // Cancel button
+                    Html.div [
+                        prop.className "pt-2"
+                        prop.children [
+                            Button.ghost "Abbrechen" (fun () -> dispatch CancelEditing)
+                        ]
+                    ]
+                ]
+            ]
     ]
 
 // ============================================
@@ -425,9 +565,9 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // ============================================
 
 let private pageHeader (dispatch: Msg -> unit) =
-    PageHeader.withActions
-        "Settings"
-        (Some "Configure your connections and preferences.")
+    PageHeader.gradientWithActions
+        "Einstellungen"
+        (Some "Verbindungen und Konfiguration")
         [
             Button.view {
                 Button.defaultProps with
@@ -435,7 +575,7 @@ let private pageHeader (dispatch: Msg -> unit) =
                     OnClick = fun () -> dispatch LoadSettings
                     Variant = Button.Ghost
                     Icon = Some (Icons.sync Icons.SM Icons.Default)
-                    Title = Some "Refresh settings"
+                    Title = Some "Einstellungen aktualisieren"
             }
         ]
 
@@ -453,18 +593,30 @@ let view (model: Model) (dispatch: Msg -> unit) =
             // Loading state
             match model.Settings with
             | Loading ->
-                Loading.centered "Loading settings..."
+                Loading.centered "Einstellungen werden geladen..."
 
             | Failure error ->
-                ErrorDisplay.cardCompact $"Failed to load settings: {error}" (Some (fun () -> dispatch LoadSettings))
+                ErrorDisplay.cardCompact $"Einstellungen konnten nicht geladen werden: {error}" (Some (fun () -> dispatch LoadSettings))
 
             | _ ->
                 Html.div [
                     prop.className "space-y-5"
                     prop.children [
-                        ynabSettingsCard model dispatch
-                        comdirectSettingsCard model dispatch
-                        syncSettingsCard model dispatch
+                        Html.div [
+                            prop.className "animate-slide-up"
+                            prop.style [ style.custom ("animationDelay", "50ms") ]
+                            prop.children [ ynabSettingsCard model dispatch ]
+                        ]
+                        Html.div [
+                            prop.className "animate-slide-up"
+                            prop.style [ style.custom ("animationDelay", "120ms") ]
+                            prop.children [ comdirectSettingsCard model dispatch ]
+                        ]
+                        Html.div [
+                            prop.className "animate-slide-up"
+                            prop.style [ style.custom ("animationDelay", "190ms") ]
+                            prop.children [ syncSettingsCard model dispatch ]
+                        ]
                     ]
                 ]
         ]

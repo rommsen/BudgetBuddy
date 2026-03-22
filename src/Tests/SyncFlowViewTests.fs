@@ -356,9 +356,13 @@ let newFunctionTests =
                 let result = titleCasePayee "REWE"
                 Expect.equal result "Rewe" "Single all-caps word should become title case"
 
-            testCase "3-char ALL CAPS word becomes title case" <| fun () ->
+            testCase "known abbreviation DHL is preserved" <| fun () ->
                 let result = titleCasePayee "DHL"
-                Expect.equal result "Dhl" "3-char all-caps word should become title case"
+                Expect.equal result "DHL" "Known abbreviation should be preserved"
+
+            testCase "unknown 3-char ALL CAPS word becomes title case" <| fun () ->
+                let result = titleCasePayee "ABC"
+                Expect.equal result "Abc" "Unknown 3-char all-caps word should become title case"
         ]
 
         testList "calculateImportCounts" [
@@ -435,7 +439,7 @@ let newFunctionTests =
                 Expect.floatClose Accuracy.medium segments.SkippedPct 0.0 "SkippedPct should be 0"
         ]
 
-        testList "formatDailyTotal" [
+        testList "sumDailyMilliunits" [
             testCase "sums amounts as int64 milliunits" <| fun () ->
                 let day = DateTime(2025, 3, 15)
                 let txs = [
@@ -443,12 +447,12 @@ let newFunctionTests =
                     mkSimpleTx "b" day -40.800m (Some "B") Pending None
                     mkSimpleTx "c" day -13.990m (Some "C") Pending None
                 ]
-                let result = formatDailyTotal txs
+                let result = sumDailyMilliunits txs
                 // -20000 + -40800 + -13990 = -74790 milliunits
                 Expect.equal result -74790L "Should sum to -74790 milliunits"
 
             testCase "empty list returns 0" <| fun () ->
-                let result = formatDailyTotal []
+                let result = sumDailyMilliunits []
                 Expect.equal result 0L "Empty list should return 0"
 
             testCase "mixed positive and negative amounts sum correctly" <| fun () ->
@@ -458,7 +462,7 @@ let newFunctionTests =
                     mkSimpleTx "b" day -30.500m (Some "Expense") Pending None
                     mkSimpleTx "c" day -20.250m (Some "Expense2") Pending None
                 ]
-                let result = formatDailyTotal txs
+                let result = sumDailyMilliunits txs
                 // 100000 + -30500 + -20250 = 49250 milliunits
                 Expect.equal result 49250L "Should correctly sum mixed positive and negative amounts"
         ]

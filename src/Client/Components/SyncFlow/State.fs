@@ -622,6 +622,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | ImportCompleted (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
+    // NOTE: UI trigger removed during mobile-first redesign (2026-03). Handler kept for potential re-introduction.
     | ForceImportDuplicates ->
         match model.CurrentSession with
         | Success (Some session) when not model.DuplicateTransactionIds.IsEmpty ->

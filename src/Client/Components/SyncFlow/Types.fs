@@ -143,4 +143,3 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
-    | NavigateToDashboard

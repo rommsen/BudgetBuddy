@@ -102,6 +102,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 ]
                                 Html.button [
                                     prop.className (if counts.NeedCategory = 0 then "btn-import-sm ready" else "btn-import-sm")
+                                    prop.disabled (counts.ToImport = 0)
                                     prop.onClick (fun _ -> dispatch ImportToYnab)
                                     prop.children [
                                         Html.span [ prop.text "Importieren" ]
@@ -174,9 +175,9 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                 if filteredTransactions.IsEmpty then
                     Card.emptyState
                         (Icons.search Icons.XL Icons.Default)
-                        "No matching transactions"
-                        "Try selecting a different filter above."
-                        (Some (Button.ghost "Show all" (fun () -> dispatch (SetFilter AllTransactions))))
+                        "Keine passenden Transaktionen"
+                        "Versuche einen anderen Filter auszuw\u00E4hlen."
+                        (Some (Button.ghost "Alle anzeigen" (fun () -> dispatch (SetFilter AllTransactions))))
                 else
                     Html.div [
                         prop.className "tx-list"
@@ -193,7 +194,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                                 ]
                                                 Html.span [
                                                     prop.className "date-total"
-                                                    let total = ViewHelpers.formatDailyTotal txGroup
+                                                    let total = ViewHelpers.sumDailyMilliunits txGroup
                                                     let totalDecimal = decimal total / 1000m
                                                     prop.text (sprintf "%s \u20AC" (totalDecimal.ToString("N2", System.Globalization.CultureInfo("de-DE"))))
                                                 ]
@@ -203,22 +204,20 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                             let (TransactionId id) = tx.Transaction.Id
                                             let isPendingCategorySave =
                                                 model.PendingCategoryVersions |> Map.containsKey tx.Transaction.Id
-                                            let isPendingPayeeSave =
-                                                model.PendingPayeeVersions |> Map.containsKey tx.Transaction.Id
                                             Html.div [
                                                 prop.key id
                                                 prop.children [
-                                                    TransactionRow.transactionRow
-                                                        tx
-                                                        categoryOptions
-                                                        payeeOptions
-                                                        model.ExpandedTransactionIds
-                                                        model.InlineRuleForm
-                                                        model.ManuallyCategorizedIds
-                                                        isPendingCategorySave
-                                                        isPendingPayeeSave
-                                                        dispatch
-                                                        onOpenCategoryPicker
+                                                    TransactionRow.transactionRow {
+                                                        Transaction = tx
+                                                        CategoryOptions = categoryOptions
+                                                        PayeeOptions = payeeOptions
+                                                        ExpandedIds = model.ExpandedTransactionIds
+                                                        InlineRuleFormState = model.InlineRuleForm
+                                                        ManuallyCategorizedIds = model.ManuallyCategorizedIds
+                                                        IsPendingCategorySave = isPendingCategorySave
+                                                        Dispatch = dispatch
+                                                        OnOpenCategoryPicker = onOpenCategoryPicker
+                                                    }
                                                 ]
                                             ]
                                     ]
@@ -271,6 +270,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 ]
                                 Html.button [
                                     prop.className (if counts.NeedCategory = 0 then "btn-import ready" else "btn-import")
+                                    prop.disabled (counts.ToImport = 0)
                                     prop.onClick (fun _ -> dispatch ImportToYnab)
                                     prop.children [
                                         Html.span [ prop.text "Importieren" ]
@@ -325,8 +325,8 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
             | NotAsked ->
                 Card.emptyState
                     (Icons.creditCard Icons.XL Icons.Default)
-                    "No transactions loaded"
-                    "Start a sync to fetch transactions from your bank."
+                    "Keine Transaktionen geladen"
+                    "Starte eine Synchronisierung, um Transaktionen von deiner Bank abzurufen."
                     None
             | Loading ->
                 Loading.centered "Loading transactions..."

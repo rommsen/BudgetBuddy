@@ -100,7 +100,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                             Svg.svg [
                                                 svg.viewBox (0, 0, 24, 24)
                                                 svg.custom ("fill", "none")
-                                                svg.custom ("stroke", "#08081a")
+                                                svg.custom ("stroke", "currentColor")
                                                 svg.custom ("strokeWidth", "3")
                                                 svg.custom ("strokeLinecap", "round")
                                                 svg.custom ("strokeLinejoin", "round")

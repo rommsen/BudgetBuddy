@@ -6,6 +6,7 @@ open Types
 open Shared.Domain
 open Client.DesignSystem
 open Components.SyncFlow.Views.InlineRuleForm
+open Components.SyncFlow.Views.ViewHelpers
 
 // ============================================
 // Helper Functions
@@ -50,17 +51,6 @@ let getCategoryBadgeClass (tx: SyncTransaction) =
             | Some _ -> "tx-category badge-ready"
             | None -> "tx-category badge-attention"
 
-let titleCasePayee (name: string) =
-    if System.String.IsNullOrWhiteSpace name then name
-    elif name.Length <= 2 then name
-    elif name = name.ToUpperInvariant() then
-        name.Split(' ')
-        |> Array.map (fun word ->
-            if word.Length <= 2 then word
-            else word.[0..0].ToUpper() + word.[1..].ToLower())
-        |> String.concat " "
-    else name
-
 let private formatAmountForRow (amount: decimal) (currency: string) =
     let absAmount = abs amount
     let formattedAmount = System.Math.Round(float absAmount, 2).ToString("0.00")
@@ -87,11 +77,11 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
     let details = getDuplicateDetails tx.DuplicateStatus
 
     Html.div [
-        prop.className "mt-3 px-3 py-2.5 rounded-lg bg-base-200/50 text-xs font-mono space-y-2 border border-white/5"
+        prop.className "mt-3 px-3 py-2.5 rounded-lg bg-surface-elevated/50 text-xs font-mono space-y-2 border border-border-subtle"
         prop.children [
             // Section header: BudgetBuddy Detection
             Html.div [
-                prop.className "flex items-center gap-2 text-neon-teal/80 font-medium pb-1 border-b border-white/5"
+                prop.className "flex items-center gap-2 text-neon-teal/80 font-medium pb-1 border-b border-border-subtle"
                 prop.children [
                     Icons.search Icons.XS Icons.NeonTeal
                     Html.span [ prop.text "BudgetBuddy Duplicate Detection" ]
@@ -102,8 +92,8 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
             Html.div [
                 prop.className "flex items-center gap-2 flex-wrap"
                 prop.children [
-                    Html.span [ prop.className "text-base-content/50"; prop.text "Reference:" ]
-                    Html.code [ prop.className "text-base-content bg-base-300/50 px-1 rounded"; prop.text details.TransactionReference ]
+                    Html.span [ prop.className "text-text-muted/70"; prop.text "Reference:" ]
+                    Html.code [ prop.className "text-text-primary bg-surface-input/50 px-1 rounded"; prop.text details.TransactionReference ]
                     if details.ReferenceFoundInYnab then
                         Html.span [
                             prop.className "px-1.5 py-0.5 rounded text-[10px] bg-neon-green/20 text-neon-green border border-neon-green/30"
@@ -111,7 +101,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
                         ]
                     else
                         Html.span [
-                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-base-content/10 text-base-content/50 border border-white/10"
+                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-surface-hover text-text-muted/70 border border-border-default"
                             prop.text "Not in YNAB"
                         ]
                 ]
@@ -121,7 +111,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
             Html.div [
                 prop.className "flex items-center gap-2"
                 prop.children [
-                    Html.span [ prop.className "text-base-content/50"; prop.text "Import ID:" ]
+                    Html.span [ prop.className "text-text-muted/70"; prop.text "Import ID:" ]
                     if details.ImportIdFoundInYnab then
                         Html.span [
                             prop.className "px-1.5 py-0.5 rounded text-[10px] bg-neon-green/20 text-neon-green border border-neon-green/30"
@@ -129,7 +119,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
                         ]
                     else
                         Html.span [
-                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-base-content/10 text-base-content/50 border border-white/10"
+                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-surface-hover text-text-muted/70 border border-border-default"
                             prop.text "New"
                         ]
                 ]
@@ -142,7 +132,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
                 let payeeStr = payee |> Option.defaultValue "?"
                 let amountStr = sprintf "%.2f" amount
                 Html.div [
-                    prop.className "flex items-center gap-2 text-neon-orange/90 pt-1 border-t border-white/5"
+                    prop.className "flex items-center gap-2 text-neon-orange/90 pt-1 border-t border-border-subtle"
                     prop.children [
                         Icons.warning Icons.XS Icons.NeonOrange
                         Html.span [
@@ -157,7 +147,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
             | NotAttempted -> Html.none
             | YnabImported ->
                 Html.div [
-                    prop.className "flex items-center gap-2 text-neon-green pt-2 mt-1 border-t border-white/10"
+                    prop.className "flex items-center gap-2 text-neon-green pt-2 mt-1 border-t border-border-default"
                     prop.children [
                         Icons.checkCircle Icons.XS Icons.NeonGreen
                         Html.span [ prop.text "YNAB: Successfully imported" ]
@@ -169,7 +159,7 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
                     | DuplicateImportId id -> sprintf "YNAB rejected: duplicate import_id (%s)" id
                     | UnknownRejection msg -> sprintf "YNAB rejected: %s" (msg |> Option.defaultValue "unknown reason")
                 Html.div [
-                    prop.className "flex items-center gap-2 text-neon-red pt-2 mt-1 border-t border-white/10 flex-wrap"
+                    prop.className "flex items-center gap-2 text-neon-red pt-2 mt-1 border-t border-border-default flex-wrap"
                     prop.children [
                         Icons.xCircle Icons.XS Icons.Error
                         Html.span [ prop.text reasonText ]
@@ -190,17 +180,28 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
 // Main Transaction Row Component
 // ============================================
 
-let transactionRow
-    (tx: SyncTransaction)
-    (categoryOptions: (string * string) list)
-    (payeeOptions: Input.ComboBoxOption list)
-    (expandedIds: Set<TransactionId>)
-    (inlineRuleFormState: InlineRuleFormState option)
-    (manuallyCategorizedIds: Set<TransactionId>)
-    (isPendingCategorySave: bool)
-    (isPendingPayeeSave: bool)
-    (dispatch: Msg -> unit)
-    (onOpenCategoryPicker: TransactionId -> string -> unit) =
+type TransactionRowProps = {
+    Transaction: SyncTransaction
+    CategoryOptions: (string * string) list
+    PayeeOptions: Input.ComboBoxOption list
+    ExpandedIds: Set<TransactionId>
+    InlineRuleFormState: InlineRuleFormState option
+    ManuallyCategorizedIds: Set<TransactionId>
+    IsPendingCategorySave: bool
+    Dispatch: Msg -> unit
+    OnOpenCategoryPicker: TransactionId -> string -> unit
+}
+
+let transactionRow (props: TransactionRowProps) =
+    let tx = props.Transaction
+    let categoryOptions = props.CategoryOptions
+    let payeeOptions = props.PayeeOptions
+    let expandedIds = props.ExpandedIds
+    let inlineRuleFormState = props.InlineRuleFormState
+    let manuallyCategorizedIds = props.ManuallyCategorizedIds
+    let isPendingCategorySave = props.IsPendingCategorySave
+    let dispatch = props.Dispatch
+    let onOpenCategoryPicker = props.OnOpenCategoryPicker
 
     let rowClasses = getRowStateClasses tx
     let originalPayee = tx.Transaction.Payee |> Option.defaultValue ""
@@ -234,7 +235,7 @@ let transactionRow
         if isPendingCategorySave then
             Html.span [
                 prop.className "ml-1 text-xs text-neon-orange animate-pulse"
-                prop.title "Saving category..."
+                prop.title "Kategorie wird gespeichert..."
                 prop.text "\u25CF"
             ]
         else
@@ -333,7 +334,7 @@ let transactionRow
                                                     Svg.path [
                                                         svg.d "M2 5l2.5 2.5L8 3"
                                                         svg.fill "none"
-                                                        svg.stroke "#08081a"
+                                                        svg.stroke "currentColor"
                                                         svg.strokeWidth 2
                                                         svg.custom ("strokeLinecap", "round")
                                                         svg.custom ("strokeLinejoin", "round")
@@ -426,6 +427,21 @@ let transactionRow
                                                             prop.text link.Label
                                                         ]
                                                     | None -> ()
+
+                                                    // Force re-import for duplicates (e.g. deleted in YNAB)
+                                                    match tx.DuplicateStatus with
+                                                    | ConfirmedDuplicate _ | PossibleDuplicate _ ->
+                                                        Html.button [
+                                                            prop.className "action-chip"
+                                                            prop.onClick (fun e ->
+                                                                e.stopPropagation()
+                                                                dispatch ForceImportDuplicates)
+                                                            prop.children [
+                                                                Icons.sync Icons.XS Icons.NeonTeal
+                                                                Html.span [ prop.text "Erneut importieren" ]
+                                                            ]
+                                                        ]
+                                                    | _ -> ()
 
                                                     if tx.Status <> Skipped then
                                                         Html.button [

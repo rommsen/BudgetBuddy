@@ -10,11 +10,14 @@ open Client.DesignSystem
 open Components.SyncFlow.Views.StatusViews
 open Components.SyncFlow.Views.TransactionList
 
+// TODO: derive from session model when bank name is available
+let private bankName = "Comdirect"
+
 // ============================================
 // Main View (Composition)
 // ============================================
 
-let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> unit) =
+let view (model: Model) (dispatch: Msg -> unit) =
     // Check if we're in the reviewing state to use a custom header
     let isReviewing =
         match model.CurrentSession with
@@ -25,14 +28,14 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
         | _ -> false
 
     if isReviewing then
-        // Custom review header + content wrapped in sync-flow-active
+        // Custom review header + content wrapped in sf-app
         let transactionCount =
             match model.SyncTransactions with
             | Success txs -> txs.Length
             | _ -> 0
 
         Html.div [
-            prop.className "sync-flow-active"
+            prop.className "sf-app"
             prop.children [
                 // Custom review header matching prototype
                 Html.header [
@@ -67,7 +70,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
                                     prop.children [
                                         Html.span [ prop.text (sprintf "%d Transaktionen" transactionCount) ]
                                         Html.span [ prop.className "dot" ]
-                                        Html.span [ prop.text "Comdirect" ]
+                                        Html.span [ prop.text bankName ]
                                     ]
                                 ]
                             ]
@@ -84,23 +87,6 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
         Html.div [
             prop.className "space-y-6"
             prop.children [
-                // Header
-                PageHeader.withActions
-                    "Sync Transactions"
-                    (Some "Fetch and categorize your bank transactions.")
-                    [
-                        Button.view {
-                            Button.defaultProps with
-                                Text = ""
-                                OnClick = fun () ->
-                                    dispatch LoadTransactions
-                                    dispatch LoadCurrentSession
-                                Variant = Button.Ghost
-                                Icon = Some (Icons.sync Icons.SM Icons.Default)
-                                Title = Some "Refresh transactions"
-                        }
-                    ]
-
                 // Show appropriate content based on session status
                 match model.CurrentSession with
                 | NotAsked ->
@@ -112,7 +98,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
                 | Success (Some session) ->
                     match session.Status with
                     | AwaitingBankAuth ->
-                        loadingView "Connecting to Comdirect..."
+                        loadingView (sprintf "Verbindung zu %s..." bankName)
 
                     | AwaitingTan ->
                         tanWaitingView model.IsTanConfirming dispatch
@@ -128,7 +114,7 @@ let view (model: Model) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> 
                         loadingView "Importing to YNAB..."
 
                     | Completed ->
-                        completedView session dispatch onNavigateToDashboard
+                        completedView session dispatch
 
                     | Failed error ->
                         errorView error dispatch

@@ -26,14 +26,20 @@ let groupTransactionsByDate (transactions: SyncTransaction list) : (DateTime * S
     |> List.groupBy (fun tx -> tx.Transaction.BookingDate.Date)
     |> List.sortByDescending fst
 
-/// Re-export titleCasePayee for convenience (original lives in TransactionRow)
+/// Common German abbreviations that should not be title-cased
+let private commonAbbreviations =
+    Set.ofList [ "DHL"; "BMW"; "ING"; "DKB"; "VW"; "SAP"; "ADAC"; "DB"; "TUI"; "AOK"; "HUK"; "LVM" ]
+
+/// Converts ALL-CAPS payee names to title case, preserving known abbreviations.
 let titleCasePayee (name: string) =
     if String.IsNullOrWhiteSpace name then name
     elif name.Length <= 2 then name
+    elif commonAbbreviations.Contains(name.Trim().ToUpperInvariant()) then name
     elif name = name.ToUpperInvariant() then
         name.Split(' ')
         |> Array.map (fun word ->
             if word.Length <= 2 then word
+            elif commonAbbreviations.Contains(word.ToUpperInvariant()) then word
             else word.[0..0].ToUpper() + word.[1..].ToLower())
         |> String.concat " "
     else name
@@ -44,32 +50,30 @@ let titleCasePayee (name: string) =
 /// Duplicates = ConfirmedDuplicate (any status).
 /// Skipped = Status = Skipped.
 let calculateImportCounts (transactions: SyncTransaction list) : ImportCounts =
-    let mutable toImport = 0
-    let mutable needCat = 0
-    let mutable dups = 0
-    let mutable skipped = 0
-    for tx in transactions do
-        // Count duplicates regardless of skip status
-        match tx.DuplicateStatus with
-        | ConfirmedDuplicate _ -> dups <- dups + 1
-        | _ -> ()
-        // Count skipped
-        if tx.Status = Skipped then
-            skipped <- skipped + 1
-        elif tx.Status <> Imported then
-            // ToImport: not skipped, not imported
-            toImport <- toImport + 1
-            // NeedCategory: no category assigned AND not a confirmed duplicate
-            // (confirmed duplicates will be auto-skipped, so they don't need a category)
-            match tx.DuplicateStatus with
-            | ConfirmedDuplicate _ -> ()
-            | _ ->
-                match tx.CategoryId with
-                | Some _ -> ()
-                | None ->
-                    match tx.Status with
-                    | AutoCategorized | ManualCategorized -> ()
-                    | _ -> needCat <- needCat + 1
+    let (toImport, needCat, dups, skipped) =
+        transactions
+        |> List.fold (fun (ti, nc, d, s) tx ->
+            let d' =
+                match tx.DuplicateStatus with
+                | ConfirmedDuplicate _ -> d + 1
+                | _ -> d
+            if tx.Status = Skipped then
+                (ti, nc, d', s + 1)
+            elif tx.Status <> Imported then
+                let nc' =
+                    match tx.DuplicateStatus with
+                    | ConfirmedDuplicate _ -> nc
+                    | _ ->
+                        match tx.CategoryId with
+                        | Some _ -> nc
+                        | None ->
+                            match tx.Status with
+                            | AutoCategorized | ManualCategorized -> nc
+                            | _ -> nc + 1
+                (ti + 1, nc', d', s)
+            else
+                (ti, nc, d', s)
+        ) (0, 0, 0, 0)
     { Total = transactions.Length
       ToImport = toImport
       NeedCategory = needCat
@@ -88,6 +92,6 @@ let calculateProgressSegments (counts: ImportCounts) : ProgressSegments =
 
 /// Sums the amounts of a list of transactions, returning the total in milliunits (int64).
 /// Decimal amounts are multiplied by 1000 and rounded to int64.
-let formatDailyTotal (transactions: SyncTransaction list) : int64 =
+let sumDailyMilliunits (transactions: SyncTransaction list) : int64 =
     transactions
     |> List.sumBy (fun tx -> int64 (tx.Transaction.Amount.Amount * 1000m))

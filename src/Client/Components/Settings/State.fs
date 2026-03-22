@@ -37,6 +37,7 @@ let init () : Model * Cmd<Msg> =
         SyncDaysInput = 30
         ComdirectConnectionValid = NotAsked
         ComdirectAuthPending = false
+        EditingSection = None
     }
     model, Cmd.ofMsg LoadSettings
 
@@ -92,7 +93,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 }
                 Success { settings with Ynab = Some newYnab }
             | other -> other
-        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("YNAB token saved successfully", ToastSuccess)
+        { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("YNAB token saved successfully", ToastSuccess)
 
     | YnabTokenSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -157,7 +158,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 }
                 Success { settings with Comdirect = Some newComdirect }
             | other -> other
-        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
+        { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
 
     | ComdirectCredentialsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -182,7 +183,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             | Success settings ->
                 Success { settings with Sync = { DaysToFetch = model.SyncDaysInput } }
             | other -> other
-        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Sync settings saved successfully", ToastSuccess)
+        { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("Sync settings saved successfully", ToastSuccess)
 
     | SyncSettingsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -272,3 +273,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             ComdirectConnectionValid = Failure (settingsErrorToString err)
             ComdirectAuthPending = false
         }, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+
+    // Edit mode toggling
+    | StartEditing section ->
+        { model with EditingSection = Some section }, Cmd.none, NoOp
+
+    | CancelEditing ->
+        { model with EditingSection = None }, Cmd.none, NoOp

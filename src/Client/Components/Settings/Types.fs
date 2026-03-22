@@ -3,6 +3,9 @@ module Components.Settings.Types
 open Shared.Domain
 open Types
 
+/// Which settings section is being edited
+type SettingsSection = | YnabSection | ComdirectSection | SyncSection
+
 /// Settings-specific model state
 type Model = {
     Settings: RemoteData<AppSettings>
@@ -20,6 +23,9 @@ type Model = {
     // Comdirect connection test state
     ComdirectConnectionValid: RemoteData<unit>
     ComdirectAuthPending: bool
+
+    // Edit mode: None = read-only, Some X = editing that section
+    EditingSection: SettingsSection option
 }
 
 /// Settings-specific messages
@@ -50,6 +56,9 @@ type Msg =
     | ComdirectAuthStarted of Result<string, SettingsError>
     | ConfirmComdirectTan
     | ComdirectTanConfirmed of Result<unit, SettingsError>
+    // Edit mode toggling
+    | StartEditing of SettingsSection
+    | CancelEditing
 
 /// External message to notify parent of events (like showing toasts)
 type ExternalMsg =

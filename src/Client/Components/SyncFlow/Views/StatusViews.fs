@@ -48,12 +48,12 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                         ]
 
                         Html.h2 [
-                            prop.className "text-xl md:text-2xl font-bold font-display mt-6 text-base-content"
-                            prop.text "TAN Confirmation Required"
+                            prop.className "text-xl md:text-2xl font-bold font-display mt-6 text-text-primary"
+                            prop.text "TAN-Bestätigung erforderlich"
                         ]
                         Html.p [
-                            prop.className "text-base-content/60 mt-2 max-w-sm"
-                            prop.text "Please open your banking app and confirm the push TAN notification to authorize the connection."
+                            prop.className "text-text-muted mt-2 max-w-sm"
+                            prop.text "Bitte öffne deine Banking-App und bestätige die Push-TAN-Benachrichtigung, um die Verbindung zu autorisieren."
                         ]
 
                         // Steps indicator with neon styling (responsive)
@@ -67,7 +67,7 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                                             prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
-                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Connected" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Verbunden" ]
                                     ]
                                 ]
                                 Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-teal/30" ]
@@ -81,12 +81,12 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                                         Html.span [ prop.className "font-medium"; prop.text "TAN" ]
                                     ]
                                 ]
-                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-base-content/10" ]
+                                Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-surface-hover" ]
                                 Html.div [
-                                    prop.className "flex items-center gap-1 sm:gap-2 text-base-content/40"
+                                    prop.className "flex items-center gap-1 sm:gap-2 text-text-muted"
                                     prop.children [
-                                        Html.div [ prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-base-200 flex items-center justify-center text-xs font-bold"; prop.text "3" ]
-                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Fetch" ]
+                                        Html.div [ prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-surface-elevated flex items-center justify-center text-xs font-bold"; prop.text "3" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Abruf" ]
                                     ]
                                 ]
                             ]
@@ -97,10 +97,10 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                             prop.className "flex flex-col sm:flex-row gap-3 mt-8 w-full sm:w-auto"
                             prop.children [
                                 if isConfirming then
-                                    Button.primaryLoading "Importing..." true (fun () -> ())
+                                    Button.primaryLoading "Importiere..." true (fun () -> ())
                                 else
-                                    Button.primaryWithIcon "I've Confirmed" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch ConfirmTan)
-                                Button.ghost "Cancel" (fun () -> dispatch CancelSync)
+                                    Button.primaryWithIcon "Ich habe bestätigt" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch ConfirmTan)
+                                Button.ghost "Abbrechen" (fun () -> dispatch CancelSync)
                             ]
                         ]
                     ]
@@ -138,12 +138,12 @@ let fetchingView () =
                         ]
 
                         Html.h2 [
-                            prop.className "text-xl md:text-2xl font-bold font-display mt-6 text-base-content"
-                            prop.text "Fetching Transactions"
+                            prop.className "text-xl md:text-2xl font-bold font-display mt-6 text-text-primary"
+                            prop.text "Transaktionen werden abgerufen"
                         ]
                         Html.p [
-                            prop.className "text-base-content/60 mt-2 max-w-sm"
-                            prop.text "Retrieving your transactions from Comdirect. This may take a moment..."
+                            prop.className "text-text-muted mt-2 max-w-sm"
+                            prop.text "Deine Transaktionen werden von Comdirect abgerufen. Das kann einen Moment dauern..."
                         ]
 
                         // Steps indicator with neon styling - Fetch is now active (responsive)
@@ -157,7 +157,7 @@ let fetchingView () =
                                             prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
-                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Connected" ]
+                                        Html.span [ prop.className "hidden sm:inline"; prop.text "Verbunden" ]
                                     ]
                                 ]
                                 Html.div [ prop.className "w-4 sm:w-8 h-0.5 bg-neon-green" ]
@@ -179,7 +179,7 @@ let fetchingView () =
                                             prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-teal/20 border border-neon-teal flex items-center justify-center"
                                             prop.children [ Loading.spinner Loading.XS Loading.Teal ]
                                         ]
-                                        Html.span [ prop.className "font-medium"; prop.text "Fetch" ]
+                                        Html.span [ prop.className "font-medium"; prop.text "Abruf" ]
                                     ]
                                 ]
                             ]
@@ -204,7 +204,7 @@ let loadingView (message: string) =
                     prop.children [
                         Loading.neonPulse Loading.Teal
                         Html.p [
-                            prop.className "mt-6 font-medium text-base-content/80"
+                            prop.className "mt-6 font-medium text-text-secondary"
                             prop.text message
                         ]
                     ]
@@ -218,18 +218,18 @@ let loadingView (message: string) =
 // ============================================
 
 let errorView (error: string) (dispatch: Msg -> unit) =
-    ErrorDisplay.hero "Sync Failed" error "Try Again" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
+    ErrorDisplay.hero "Synchronisierung fehlgeschlagen" error "Erneut versuchen" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
 
 // ============================================
 // Completed View
 // ============================================
 
-let completedView (session: SyncSession) (dispatch: Msg -> unit) (onNavigateToDashboard: unit -> unit) =
+let completedView (session: SyncSession) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
             Html.div [
-                prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
+                prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                 prop.children [
                     // Success header with neon gradient
                     Html.div [
@@ -241,11 +241,11 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) (onNavigateToDa
                             ]
                             Html.h2 [
                                 prop.className "text-2xl md:text-3xl font-bold font-display text-[#0a0a0f]"
-                                prop.text "Sync Complete!"
+                                prop.text "Synchronisierung abgeschlossen!"
                             ]
                             Html.p [
                                 prop.className "text-[#0a0a0f]/70 mt-2"
-                                prop.text "Your transactions have been imported to YNAB."
+                                prop.text "Deine Transaktionen wurden in YNAB importiert."
                             ]
                         ]
                     ]
@@ -258,34 +258,31 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) (onNavigateToDa
                                 prop.className "grid grid-cols-3 gap-3 -mt-12 mb-6"
                                 prop.children [
                                     Html.div [
-                                        prop.className "bg-base-100 rounded-xl border border-white/5 shadow-lg p-4 text-center"
+                                        prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
-                                            Html.p [ prop.className "text-2xl font-bold font-mono text-base-content"; prop.text (string session.TransactionCount) ]
-                                            Html.p [ prop.className "text-xs text-base-content/60 uppercase tracking-wider"; prop.text "Total" ]
+                                            Html.p [ prop.className "text-2xl font-bold font-mono text-text-primary"; prop.text (string session.TransactionCount) ]
+                                            Html.p [ prop.className "text-xs text-text-muted uppercase tracking-wider"; prop.text "Gesamt" ]
                                         ]
                                     ]
                                     Html.div [
-                                        prop.className "bg-base-100 rounded-xl border border-neon-green/30 shadow-lg p-4 text-center"
+                                        prop.className "bg-surface-card rounded-xl border border-neon-green/30 shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-neon-green"; prop.text (string session.ImportedCount) ]
-                                            Html.p [ prop.className "text-xs text-base-content/60 uppercase tracking-wider"; prop.text "Imported" ]
+                                            Html.p [ prop.className "text-xs text-text-muted uppercase tracking-wider"; prop.text "Importiert" ]
                                         ]
                                     ]
                                     Html.div [
-                                        prop.className "bg-base-100 rounded-xl border border-white/5 shadow-lg p-4 text-center"
+                                        prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
-                                            Html.p [ prop.className "text-2xl font-bold font-mono text-base-content/40"; prop.text (string session.SkippedCount) ]
-                                            Html.p [ prop.className "text-xs text-base-content/60 uppercase tracking-wider"; prop.text "Skipped" ]
+                                            Html.p [ prop.className "text-2xl font-bold font-mono text-text-muted"; prop.text (string session.SkippedCount) ]
+                                            Html.p [ prop.className "text-xs text-text-muted uppercase tracking-wider"; prop.text "Übersprungen" ]
                                         ]
                                     ]
                                 ]
                             ]
 
-                            // Actions
-                            Button.group [
-                                Button.primaryWithIcon "Sync Again" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
-                                Button.secondary "Back to Dashboard" (fun () -> onNavigateToDashboard())
-                            ]
+                            // Actions - just the sync again button, no dashboard navigation needed
+                            Button.primaryWithIcon "Erneut synchronisieren" (Icons.sync Icons.SM Icons.Primary) (fun () -> dispatch StartSync)
                         ]
                     ]
                 ]
@@ -302,7 +299,7 @@ let startSyncView (dispatch: Msg -> unit) =
         prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
             Html.div [
-                prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
+                prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                 prop.children [
                     // Header with neon gradient
                     Html.div [
@@ -314,11 +311,11 @@ let startSyncView (dispatch: Msg -> unit) =
                             ]
                             Html.h2 [
                                 prop.className "text-2xl md:text-3xl font-bold font-display text-white"
-                                prop.text "Ready to Sync"
+                                prop.text "Bereit zur Synchronisierung"
                             ]
                             Html.p [
                                 prop.className "text-white/80 mt-2"
-                                prop.text "Connect to your bank and import transactions."
+                                prop.text "Verbinde dich mit deiner Bank und importiere Transaktionen."
                             ]
                         ]
                     ]
@@ -339,8 +336,8 @@ let startSyncView (dispatch: Msg -> unit) =
                                             ]
                                             Html.div [
                                                 prop.children [
-                                                    Html.p [ prop.className "font-medium text-base-content"; prop.text "Secure Connection" ]
-                                                    Html.p [ prop.className "text-sm text-base-content/60"; prop.text "Bank-level encryption for your data" ]
+                                                    Html.p [ prop.className "font-medium text-text-primary"; prop.text "Sichere Verbindung" ]
+                                                    Html.p [ prop.className "text-sm text-text-muted"; prop.text "Bankensichere Verschlüsselung" ]
                                                 ]
                                             ]
                                         ]
@@ -354,8 +351,8 @@ let startSyncView (dispatch: Msg -> unit) =
                                             ]
                                             Html.div [
                                                 prop.children [
-                                                    Html.p [ prop.className "font-medium text-base-content"; prop.text "Auto-Categorization" ]
-                                                    Html.p [ prop.className "text-sm text-base-content/60"; prop.text "Rules automatically categorize transactions" ]
+                                                    Html.p [ prop.className "font-medium text-text-primary"; prop.text "Auto-Kategorisierung" ]
+                                                    Html.p [ prop.className "text-sm text-text-muted"; prop.text "Regeln kategorisieren Transaktionen automatisch" ]
                                                 ]
                                             ]
                                         ]
@@ -369,8 +366,8 @@ let startSyncView (dispatch: Msg -> unit) =
                                             ]
                                             Html.div [
                                                 prop.children [
-                                                    Html.p [ prop.className "font-medium text-base-content"; prop.text "YNAB Import" ]
-                                                    Html.p [ prop.className "text-sm text-base-content/60"; prop.text "Direct import to your YNAB budget" ]
+                                                    Html.p [ prop.className "font-medium text-text-primary"; prop.text "YNAB Import" ]
+                                                    Html.p [ prop.className "text-sm text-text-muted"; prop.text "Direkter Import in dein YNAB Budget" ]
                                                 ]
                                             ]
                                         ]
@@ -380,7 +377,7 @@ let startSyncView (dispatch: Msg -> unit) =
 
                             Button.view {
                                 Button.defaultProps with
-                                    Text = "Start Sync"
+                                    Text = "Sync starten"
                                     Variant = Button.Primary
                                     Size = Button.Large
                                     FullWidth = true
