@@ -37,14 +37,14 @@ type SkeletonShape =
 // ============================================
 
 let private spinnerSizeToClass = function
-    | XS -> "loading-xs"
-    | SM -> "loading-sm"
-    | MD -> "loading-md"
-    | LG -> "loading-lg"
-    | XL -> "loading-lg scale-150"
+    | XS -> "sm"
+    | SM -> "sm"
+    | MD -> ""
+    | LG -> "lg"
+    | XL -> "lg scale-150"
 
 let private spinnerColorToClass = function
-    | Default -> "text-base-content/70"
+    | Default -> "text-text-secondary"
     | Teal -> "text-neon-teal"
     | Orange -> "text-neon-orange"
     | Green -> "text-neon-green"
@@ -52,8 +52,16 @@ let private spinnerColorToClass = function
 
 /// Create a loading spinner
 let spinner (size: SpinnerSize) (color: SpinnerColor) =
+    let sizeClass =
+        match size with
+        | XS -> "sm"
+        | SM -> "sm"
+        | MD -> ""
+        | LG -> "lg"
+        | XL -> "lg"
+    let spinnerClass = if sizeClass = "" then "proto-spinner" else $"proto-spinner {sizeClass}"
     Html.span [
-        prop.className $"loading loading-spinner {spinnerSizeToClass size} {spinnerColorToClass color}"
+        prop.className $"{spinnerClass} {spinnerColorToClass color}"
     ]
 
 /// Default medium teal spinner
@@ -71,8 +79,16 @@ let spinnerLarge = spinner XL Teal
 
 /// Ring-style loading spinner
 let ring (size: SpinnerSize) (color: SpinnerColor) =
+    let sizeClass =
+        match size with
+        | XS -> "sm"
+        | SM -> "sm"
+        | MD -> ""
+        | LG -> "lg"
+        | XL -> "lg"
+    let spinnerClass = if sizeClass = "" then "proto-spinner" else $"proto-spinner {sizeClass}"
     Html.span [
-        prop.className $"loading loading-ring {spinnerSizeToClass size} {spinnerColorToClass color}"
+        prop.className $"{spinnerClass} {spinnerColorToClass color}"
     ]
 
 // ============================================
@@ -81,8 +97,16 @@ let ring (size: SpinnerSize) (color: SpinnerColor) =
 
 /// Dots-style loading spinner
 let dots (size: SpinnerSize) (color: SpinnerColor) =
+    let sizeClass =
+        match size with
+        | XS -> "sm"
+        | SM -> "sm"
+        | MD -> ""
+        | LG -> "lg"
+        | XL -> "lg"
+    let spinnerClass = if sizeClass = "" then "proto-spinner" else $"proto-spinner {sizeClass}"
     Html.span [
-        prop.className $"loading loading-dots {spinnerSizeToClass size} {spinnerColorToClass color}"
+        prop.className $"{spinnerClass} {spinnerColorToClass color}"
     ]
 
 // ============================================
@@ -142,7 +166,7 @@ let skeleton (props: SkeletonProps) =
         |> List.choose id
 
     Html.div [
-        prop.className $"bg-base-200 animate-pulse {shapeClass} {extraClass}"
+        prop.className $"bg-surface-elevated animate-pulse {shapeClass} {extraClass}"
         if not styleProps.IsEmpty then prop.style styleProps
     ]
 
@@ -200,7 +224,7 @@ let avatarWithText =
 /// Card skeleton with content
 let cardSkeleton =
     Html.div [
-        prop.className "bg-base-100 border border-white/5 rounded-xl p-4 space-y-3"
+        prop.className "bg-surface-card border border-border-subtle rounded-xl p-4 space-y-3"
         prop.children [
             Html.div [
                 prop.className "flex justify-between items-center"
@@ -228,10 +252,10 @@ let statsGridSkeleton count =
         prop.children [
             for _ in 1..count do
                 Html.div [
-                    prop.className "bg-base-100 border border-white/5 rounded-xl p-4 space-y-3"
+                    prop.className "bg-surface-card border border-border-subtle rounded-xl p-4 space-y-3"
                     prop.children [
                         line "40"
-                        Html.div [ prop.className "h-8 bg-base-200 rounded animate-pulse w-24" ]
+                        Html.div [ prop.className "h-8 bg-surface-elevated rounded animate-pulse w-24" ]
                     ]
                 ]
         ]
@@ -244,7 +268,7 @@ let tableRowSkeleton colCount =
             for _ in 1..colCount do
                 Html.td [
                     Html.div [
-                        prop.className "h-4 bg-base-200 rounded animate-pulse"
+                        prop.className "h-4 bg-surface-elevated rounded animate-pulse"
                     ]
                 ]
         ]
@@ -253,7 +277,7 @@ let tableRowSkeleton colCount =
 /// Table skeleton
 let tableSkeleton colCount rowCount =
     Html.div [
-        prop.className "overflow-x-auto rounded-xl border border-white/5 bg-base-100"
+        prop.className "overflow-x-auto rounded-xl border border-border-subtle bg-surface-card"
         prop.children [
             Html.table [
                 prop.className "table w-full"
@@ -263,7 +287,7 @@ let tableSkeleton colCount rowCount =
                             for _ in 1..colCount do
                                 Html.th [
                                     Html.div [
-                                        prop.className "h-3 bg-base-200 rounded animate-pulse w-16"
+                                        prop.className "h-3 bg-surface-elevated rounded animate-pulse w-16"
                                     ]
                                 ]
                         ]
@@ -284,7 +308,7 @@ let tableSkeleton colCount rowCount =
 /// Inline loading indicator with text
 let inlineWithText (text: string) =
     Html.div [
-        prop.className "flex items-center gap-2 text-base-content/70"
+        prop.className "flex items-center gap-2 text-text-secondary"
         prop.children [
             spinnerInline
             Html.span [
@@ -301,7 +325,7 @@ let centered (message: string) =
         prop.children [
             spinnerLarge
             Html.p [
-                prop.className "text-base-content/60 text-sm"
+                prop.className "text-text-muted text-sm"
                 prop.text message
             ]
         ]
@@ -319,7 +343,7 @@ let pageOverlay (message: string option) =
                     match message with
                     | Some msg ->
                         Html.p [
-                            prop.className "text-base-content/70 text-sm animate-pulse"
+                            prop.className "text-text-secondary text-sm animate-pulse"
                             prop.text msg
                         ]
                     | None -> Html.none
@@ -331,14 +355,14 @@ let pageOverlay (message: string option) =
 /// Card with loading state
 let cardLoading =
     Html.div [
-        prop.className "bg-base-100 border border-white/5 rounded-xl p-6 flex items-center justify-center min-h-[200px]"
+        prop.className "bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center justify-center min-h-[200px]"
         prop.children [
             Html.div [
                 prop.className "flex flex-col items-center gap-3"
                 prop.children [
                     spinnerDefault
                     Html.span [
-                        prop.className "text-sm text-base-content/50"
+                        prop.className "text-sm text-text-muted/70"
                         prop.text "Loading..."
                     ]
                 ]
@@ -353,7 +377,7 @@ let cardLoading =
 /// Button with loading spinner (to be used with Button module)
 let buttonSpinner =
     Html.span [
-        prop.className "loading loading-spinner loading-sm"
+        prop.className "proto-spinner sm"
     ]
 
 // ============================================
@@ -368,7 +392,7 @@ let progressBar (percent: int) (color: SpinnerColor) =
         | Orange -> "bg-neon-orange"
         | Green -> "bg-neon-green"
         | Purple -> "bg-neon-purple"
-        | Default -> "bg-base-content"
+        | Default -> "bg-text-primary"
 
     let glowClass =
         match color with
@@ -379,7 +403,7 @@ let progressBar (percent: int) (color: SpinnerColor) =
         | Default -> ""
 
     Html.div [
-        prop.className "w-full h-2 bg-base-200 rounded-full overflow-hidden"
+        prop.className "w-full h-2 bg-surface-elevated rounded-full overflow-hidden"
         prop.children [
             Html.div [
                 prop.className $"{colorClass} {glowClass} h-full rounded-full transition-all duration-300"
@@ -397,11 +421,11 @@ let progressBarWithLabel (label: string) (percent: int) (color: SpinnerColor) =
                 prop.className "flex justify-between text-sm"
                 prop.children [
                     Html.span [
-                        prop.className "text-base-content/70"
+                        prop.className "text-text-secondary"
                         prop.text label
                     ]
                     Html.span [
-                        prop.className "text-base-content/50 font-mono"
+                        prop.className "text-text-muted/70 font-mono"
                         prop.text $"{percent}%%"
                     ]
                 ]
@@ -418,10 +442,10 @@ let progressIndeterminate (color: SpinnerColor) =
         | Orange -> "bg-neon-orange"
         | Green -> "bg-neon-green"
         | Purple -> "bg-neon-purple"
-        | Default -> "bg-base-content"
+        | Default -> "bg-text-primary"
 
     Html.div [
-        prop.className "w-full h-2 bg-base-200 rounded-full overflow-hidden"
+        prop.className "w-full h-2 bg-surface-elevated rounded-full overflow-hidden"
         prop.children [
             Html.div [
                 prop.className $"{colorClass} h-full rounded-full animate-[shimmer_1.5s_infinite]"

@@ -60,7 +60,7 @@ let private variantToSoftClass = function
     | Warning -> "bg-neon-pink/10 text-neon-pink border-neon-pink/30"
     | Error -> "bg-neon-red/10 text-neon-red border-neon-red/30"
     | Info -> "bg-neon-teal/10 text-neon-teal border-neon-teal/30"
-    | Neutral -> "bg-base-content/10 text-base-content/70 border-base-content/20"
+    | Neutral -> "bg-text-muted/10 text-text-secondary border-text-muted/20"
     | Orange -> "bg-neon-orange/10 text-neon-orange border-neon-orange/30"
     | Purple -> "bg-neon-purple/10 text-neon-purple border-neon-purple/30"
 
@@ -69,7 +69,7 @@ let private variantToFilledClass = function
     | Warning -> "bg-neon-pink text-[#0a0a0f] border-transparent"
     | Error -> "bg-neon-red text-white border-transparent"
     | Info -> "bg-neon-teal text-[#0a0a0f] border-transparent"
-    | Neutral -> "bg-base-content/20 text-base-content border-transparent"
+    | Neutral -> "bg-text-muted/20 text-text-primary border-transparent"
     | Orange -> "bg-neon-orange text-[#0a0a0f] border-transparent"
     | Purple -> "bg-neon-purple text-[#0a0a0f] border-transparent"
 
@@ -78,7 +78,7 @@ let private variantToOutlineClass = function
     | Warning -> "bg-transparent text-neon-pink border-neon-pink"
     | Error -> "bg-transparent text-neon-red border-neon-red"
     | Info -> "bg-transparent text-neon-teal border-neon-teal"
-    | Neutral -> "bg-transparent text-base-content/70 border-base-content/30"
+    | Neutral -> "bg-transparent text-text-secondary border-text-muted/30"
     | Orange -> "bg-transparent text-neon-orange border-neon-orange"
     | Purple -> "bg-transparent text-neon-purple border-neon-purple"
 
@@ -242,7 +242,7 @@ let dot variant =
         | Warning -> "bg-neon-pink"
         | Error -> "bg-neon-red"
         | Info -> "bg-neon-teal"
-        | Neutral -> "bg-base-content/30"
+        | Neutral -> "bg-text-muted/30"
         | Orange -> "bg-neon-orange"
         | Purple -> "bg-neon-purple"
 
@@ -258,7 +258,7 @@ let pulsingDot variant =
         | Warning -> "bg-neon-pink"
         | Error -> "bg-neon-red"
         | Info -> "bg-neon-teal"
-        | Neutral -> "bg-base-content/30"
+        | Neutral -> "bg-text-muted/30"
         | Orange -> "bg-neon-orange"
         | Purple -> "bg-neon-purple"
 

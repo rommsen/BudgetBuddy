@@ -85,19 +85,19 @@ let private backdrop (onClick: unit -> unit) (closeOnClick: bool) =
 /// Modal header with title, subtitle, and close button
 let header (title: string) (subtitle: string option) (showClose: bool) (onClose: unit -> unit) =
     Html.div [
-        prop.className "flex items-start justify-between gap-4 p-4 md:p-6 border-b border-white/10"
+        prop.className "flex items-start justify-between gap-4 p-4 md:p-6 border-b border-border-default"
         prop.children [
             Html.div [
                 prop.className "flex-1 min-w-0"
                 prop.children [
                     Html.h2 [
-                        prop.className "text-lg md:text-xl font-semibold font-display text-base-content"
+                        prop.className "text-lg md:text-xl font-semibold font-display text-text-primary"
                         prop.text title
                     ]
                     match subtitle with
                     | Some sub ->
                         Html.p [
-                            prop.className "text-sm text-base-content/60 mt-1"
+                            prop.className "text-sm text-text-muted mt-1"
                             prop.text sub
                         ]
                     | None -> ()
@@ -107,7 +107,7 @@ let header (title: string) (subtitle: string option) (showClose: bool) (onClose:
                 Html.button [
                     prop.className (
                         "flex-shrink-0 p-2 -m-2 rounded-lg transition-colors " +
-                        "text-base-content/50 hover:text-base-content hover:bg-white/5"
+                        "text-text-muted/70 hover:text-text-primary hover:bg-surface-hover"
                     )
                     prop.onClick (fun _ -> onClose())
                     prop.ariaLabel "Close modal"
@@ -133,14 +133,14 @@ let bodyNoPadding (children: ReactElement list) =
 /// Modal footer (for action buttons)
 let footer (children: ReactElement list) =
     Html.div [
-        prop.className "flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 p-4 md:p-6 border-t border-white/10 bg-base-200/50"
+        prop.className "flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 p-4 md:p-6 border-t border-border-default bg-surface-elevated/50"
         prop.children children
     ]
 
 /// Modal footer with left-aligned content
 let footerWithLeft (leftContent: ReactElement) (rightContent: ReactElement list) =
     Html.div [
-        prop.className "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 p-4 md:p-6 border-t border-white/10 bg-base-200/50"
+        prop.className "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 p-4 md:p-6 border-t border-border-default bg-surface-elevated/50"
         prop.children [
             Html.div [
                 prop.className "order-2 sm:order-1"
@@ -164,7 +164,8 @@ type private ModalInternalProps = {
 }
 
 /// Internal modal component that tracks animation state
-let private ModalInternal = React.functionComponent("ModalInternal", fun (input: ModalInternalProps) ->
+[<ReactComponent>]
+let private ModalInternal (input: ModalInternalProps) =
     let props = input.Props
     let children = input.Children
 
@@ -198,7 +199,7 @@ let private ModalInternal = React.functionComponent("ModalInternal", fun (input:
                             // Modal content
                             Html.div [
                                 prop.className (
-                                    "relative z-50 w-full bg-base-100 border border-white/10 shadow-2xl " +
+                                    "relative z-50 w-full bg-surface-card border border-border-default shadow-2xl " +
                                     (if shouldAnimate then "animate-scale-in " else "") +
                                     "flex flex-col max-h-[90vh] " +
                                     sizeToClass props.Size + " " +
@@ -219,7 +220,7 @@ let private ModalInternal = React.functionComponent("ModalInternal", fun (input:
                                                     Html.button [
                                                         prop.className (
                                                             "p-2 rounded-lg transition-colors " +
-                                                            "text-base-content/50 hover:text-base-content hover:bg-white/5"
+                                                            "text-text-muted/70 hover:text-text-primary hover:bg-surface-hover"
                                                         )
                                                         prop.onClick (fun _ -> props.OnClose())
                                                         prop.ariaLabel "Close modal"
@@ -237,7 +238,6 @@ let private ModalInternal = React.functionComponent("ModalInternal", fun (input:
                 ]
             ]
         )
-)
 
 // ============================================
 // Main Modal Component
@@ -299,21 +299,13 @@ let confirm
     } [
         body [
             Html.p [
-                prop.className "text-base-content/80"
+                prop.className "text-text-secondary"
                 prop.text message
             ]
         ]
         footer [
-            Html.button [
-                prop.className "btn btn-ghost"
-                prop.text "Cancel"
-                prop.onClick (fun _ -> onCancel())
-            ]
-            Html.button [
-                prop.className "btn btn-primary"
-                prop.text confirmText
-                prop.onClick (fun _ -> onConfirm())
-            ]
+            Button.ghost "Cancel" onCancel
+            Button.primary confirmText onConfirm
         ]
     ]
 
@@ -335,21 +327,13 @@ let confirmDanger
     } [
         body [
             Html.p [
-                prop.className "text-base-content/80"
+                prop.className "text-text-secondary"
                 prop.text message
             ]
         ]
         footer [
-            Html.button [
-                prop.className "btn btn-ghost"
-                prop.text "Cancel"
-                prop.onClick (fun _ -> onCancel())
-            ]
-            Html.button [
-                prop.className "btn bg-neon-red text-white hover:bg-neon-red/80"
-                prop.text confirmText
-                prop.onClick (fun _ -> onConfirm())
-            ]
+            Button.ghost "Cancel" onCancel
+            Button.danger confirmText onConfirm
         ]
     ]
 
@@ -370,16 +354,12 @@ let alert
     } [
         body [
             Html.p [
-                prop.className "text-base-content/80"
+                prop.className "text-text-secondary"
                 prop.text message
             ]
         ]
         footer [
-            Html.button [
-                prop.className "btn btn-primary w-full sm:w-auto"
-                prop.text buttonText
-                prop.onClick (fun _ -> onClose())
-            ]
+            Button.primary buttonText onClose
         ]
     ]
 
@@ -402,14 +382,14 @@ let loading (isOpen: bool) (message: string) =
                     ]
                     // Content
                     Html.div [
-                        prop.className "relative z-10 flex flex-col items-center gap-4 p-8 bg-base-100 rounded-xl border border-white/10 shadow-2xl animate-scale-in"
+                        prop.className "relative z-10 flex flex-col items-center gap-4 p-8 bg-surface-card rounded-xl border border-border-default shadow-2xl animate-scale-in"
                         prop.children [
                             // Spinner
                             Html.div [
-                                prop.className "loading loading-spinner loading-lg text-neon-teal"
+                                prop.className "proto-spinner lg text-neon-teal"
                             ]
                             Html.p [
-                                prop.className "text-base-content/80 text-center"
+                                prop.className "text-text-secondary text-center"
                                 prop.text message
                             ]
                         ]

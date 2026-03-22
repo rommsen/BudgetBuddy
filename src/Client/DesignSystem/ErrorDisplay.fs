@@ -16,7 +16,7 @@ module ErrorDisplay =
     /// Compact, red text with icon
     let inline' (message: string) =
         Html.div [
-            prop.className "flex items-center gap-2 text-error text-sm mt-1"
+            prop.className "flex items-center gap-2 text-neon-red text-sm mt-1"
             prop.role "alert"
             prop.children [
                 Icons.xCircle SM Error
@@ -27,7 +27,7 @@ module ErrorDisplay =
     /// Inline error with custom icon
     let inlineWithIcon (icon: ReactElement) (message: string) =
         Html.div [
-            prop.className "flex items-center gap-2 text-error text-sm mt-1"
+            prop.className "flex items-center gap-2 text-neon-red text-sm mt-1"
             prop.role "alert"
             prop.children [
                 icon
@@ -42,19 +42,19 @@ module ErrorDisplay =
     /// Standard error card with icon, message, and optional retry button
     let card (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-xl bg-base-100 border border-error/20 overflow-hidden"
+            prop.className "rounded-xl bg-surface-card border border-neon-red/20 overflow-hidden"
             prop.role "alert"
             prop.children [
                 // Error header with gradient
                 Html.div [
-                    prop.className "bg-gradient-to-r from-error/10 to-error/5 px-6 py-4 flex items-center gap-3"
+                    prop.className "bg-gradient-to-r from-neon-red/10 to-neon-red/5 px-6 py-4 flex items-center gap-3"
                     prop.children [
                         Html.div [
-                            prop.className "w-10 h-10 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0"
+                            prop.className "w-10 h-10 rounded-full bg-neon-red/20 flex items-center justify-center flex-shrink-0"
                             prop.children [ Icons.xCircle MD Error ]
                         ]
                         Html.span [
-                            prop.className "font-semibold text-error"
+                            prop.className "font-semibold text-neon-red"
                             prop.text "Error"
                         ]
                     ]
@@ -64,7 +64,7 @@ module ErrorDisplay =
                     prop.className "px-6 py-4"
                     prop.children [
                         Html.p [
-                            prop.className "text-base-content/70"
+                            prop.className "text-text-secondary"
                             prop.text message
                         ]
                         match onRetry with
@@ -84,19 +84,19 @@ module ErrorDisplay =
     /// Error card with custom title
     let cardWithTitle (title: string) (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-xl bg-base-100 border border-error/20 overflow-hidden"
+            prop.className "rounded-xl bg-surface-card border border-neon-red/20 overflow-hidden"
             prop.role "alert"
             prop.children [
                 // Error header with gradient
                 Html.div [
-                    prop.className "bg-gradient-to-r from-error/10 to-error/5 px-6 py-4 flex items-center gap-3"
+                    prop.className "bg-gradient-to-r from-neon-red/10 to-neon-red/5 px-6 py-4 flex items-center gap-3"
                     prop.children [
                         Html.div [
-                            prop.className "w-10 h-10 rounded-full bg-error/20 flex items-center justify-center flex-shrink-0"
+                            prop.className "w-10 h-10 rounded-full bg-neon-red/20 flex items-center justify-center flex-shrink-0"
                             prop.children [ Icons.xCircle MD Error ]
                         ]
                         Html.span [
-                            prop.className "font-semibold text-error"
+                            prop.className "font-semibold text-neon-red"
                             prop.text title
                         ]
                     ]
@@ -106,7 +106,7 @@ module ErrorDisplay =
                     prop.className "px-6 py-4"
                     prop.children [
                         Html.p [
-                            prop.className "text-base-content/70"
+                            prop.className "text-text-secondary"
                             prop.text message
                         ]
                         match onRetry with
@@ -126,7 +126,7 @@ module ErrorDisplay =
     /// Compact error card without header, just icon + message
     let cardCompact (message: string) (onRetry: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-lg bg-error/5 border border-error/20 px-4 py-3 flex items-start gap-3"
+            prop.className "rounded-lg bg-neon-red/5 border border-neon-red/20 px-4 py-3 flex items-start gap-3"
             prop.role "alert"
             prop.children [
                 Icons.xCircle MD Error
@@ -134,13 +134,13 @@ module ErrorDisplay =
                     prop.className "flex-1"
                     prop.children [
                         Html.p [
-                            prop.className "text-base-content/80 text-sm"
+                            prop.className "text-text-secondary text-sm"
                             prop.text message
                         ]
                         match onRetry with
                         | Some retry ->
                             Html.button [
-                                prop.className "text-error hover:text-error/80 text-sm font-medium mt-2 underline"
+                                prop.className "text-neon-red hover:text-neon-red/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> retry())
                                 prop.text "Try again"
                             ]
@@ -161,7 +161,7 @@ module ErrorDisplay =
             prop.className "max-w-md mx-auto animate-fade-in"
             prop.children [
                 Html.div [
-                    prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
+                    prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                     prop.role "alert"
                     prop.children [
                         // Error header with neon red gradient
@@ -182,7 +182,7 @@ module ErrorDisplay =
                             prop.className "p-6 text-center"
                             prop.children [
                                 Html.p [
-                                    prop.className "text-base-content/70 mb-4"
+                                    prop.className "text-text-secondary mb-4"
                                     prop.text message
                                 ]
                                 Button.primaryWithIcon retryText retryIcon onRetry
@@ -199,7 +199,7 @@ module ErrorDisplay =
             prop.className "max-w-md mx-auto animate-fade-in"
             prop.children [
                 Html.div [
-                    prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden"
+                    prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden"
                     prop.role "alert"
                     prop.children [
                         // Error header with neon red gradient
@@ -220,7 +220,7 @@ module ErrorDisplay =
                             prop.className "p-6 text-center"
                             prop.children [
                                 Html.p [
-                                    prop.className "text-base-content/70 mb-4"
+                                    prop.className "text-text-secondary mb-4"
                                     prop.text message
                                 ]
                                 Button.primary "Try Again" onRetry
@@ -247,15 +247,15 @@ module ErrorDisplay =
                     prop.children [
                         // Large error icon
                         Html.div [
-                            prop.className "w-20 h-20 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-6"
+                            prop.className "w-20 h-20 rounded-full bg-neon-red/10 flex items-center justify-center mx-auto mb-6"
                             prop.children [ Icons.xCircle XL Error ]
                         ]
                         Html.h1 [
-                            prop.className "text-2xl font-bold font-display text-base-content mb-3"
+                            prop.className "text-2xl font-bold font-display text-text-primary mb-3"
                             prop.text title
                         ]
                         Html.p [
-                            prop.className "text-base-content/60 mb-6"
+                            prop.className "text-text-muted mb-6"
                             prop.text message
                         ]
                         match onRetry with
@@ -278,15 +278,15 @@ module ErrorDisplay =
                     prop.children [
                         // Large error icon
                         Html.div [
-                            prop.className "w-20 h-20 rounded-full bg-error/10 flex items-center justify-center mx-auto mb-6"
+                            prop.className "w-20 h-20 rounded-full bg-neon-red/10 flex items-center justify-center mx-auto mb-6"
                             prop.children [ Icons.xCircle XL Error ]
                         ]
                         Html.h1 [
-                            prop.className "text-2xl font-bold font-display text-base-content mb-3"
+                            prop.className "text-2xl font-bold font-display text-text-primary mb-3"
                             prop.text title
                         ]
                         Html.p [
-                            prop.className "text-base-content/60 mb-6"
+                            prop.className "text-text-muted mb-6"
                             prop.text message
                         ]
                         actionButton
@@ -319,7 +319,7 @@ module ErrorDisplay =
                     prop.className "flex-1"
                     prop.children [
                         Html.p [
-                            prop.className "text-base-content/80 text-sm"
+                            prop.className "text-text-secondary text-sm"
                             prop.text message
                         ]
                         match onAction with

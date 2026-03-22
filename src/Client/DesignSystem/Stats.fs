@@ -132,11 +132,11 @@ let view (props: StatProps) =
         | Some _ -> "cursor-pointer hover:scale-[1.02]"
         | None -> ""
     let activeClass =
-        if props.IsActive then "ring-2 ring-neon-teal ring-offset-2 ring-offset-base-100"
+        if props.IsActive then "ring-2 ring-neon-teal ring-offset-2 ring-offset-surface-card"
         else ""
 
     Html.div [
-        prop.className $"bg-base-100 border border-white/5 rounded-xl {padding} relative overflow-hidden transition-all hover:border-white/10 hover:-translate-y-0.5 {clickableClass} {activeClass} {extraClass}"
+        prop.className $"bg-surface-card border border-border-subtle rounded-xl {padding} relative overflow-hidden transition-all hover:border-border-default hover:-translate-y-0.5 {clickableClass} {activeClass} {extraClass}"
         match props.OnClick with
         | Some onClick -> prop.onClick (fun _ -> onClick ())
         | None -> ()
@@ -155,13 +155,13 @@ let view (props: StatProps) =
                         prop.className "flex items-center justify-between"
                         prop.children [
                             Html.span [
-                                prop.className $"{labelSize} font-medium text-base-content/50 uppercase tracking-wider"
+                                prop.className $"{labelSize} font-medium text-text-muted/70 uppercase tracking-wider"
                                 prop.text props.Label
                             ]
                             match props.Icon with
                             | Some icon ->
                                 Html.div [
-                                    prop.className "text-base-content/30"
+                                    prop.className "text-text-muted"
                                     prop.children [ icon ]
                                 ]
                             | None -> Html.none
@@ -173,7 +173,7 @@ let view (props: StatProps) =
                         prop.className "flex items-baseline gap-2"
                         prop.children [
                             Html.span [
-                                prop.className $"font-mono font-bold {valueSize} text-base-content tabular-nums"
+                                prop.className $"font-mono font-bold {valueSize} text-text-primary tabular-nums"
                                 prop.text props.Value
                             ]
                             match props.Trend with
@@ -186,7 +186,7 @@ let view (props: StatProps) =
                     match props.Description with
                     | Some desc ->
                         Html.p [
-                            prop.className "text-xs text-base-content/40 mt-1"
+                            prop.className "text-xs text-text-muted mt-1"
                             prop.text desc
                         ]
                     | None -> Html.none

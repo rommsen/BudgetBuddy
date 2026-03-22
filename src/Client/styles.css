@@ -1,11 +1,5 @@
 @import "tailwindcss";
 
-/* ============================================
-   DaisyUI 5 Plugin Integration
-   ============================================ */
-@plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
-}
 
 /* ============================================
    Custom Theme Variables (Tailwind CSS 4)
@@ -18,6 +12,22 @@
   --color-neon-purple: #a855f7;
   --color-neon-pink: #ff1f8f;
   --color-neon-red: #ff3b5c;
+
+  /* Surface Colors (maps to CSS vars for Tailwind utilities) */
+  --color-surface-app: var(--bg-app);
+  --color-surface-card: var(--bg-card);
+  --color-surface-elevated: var(--bg-elevated);
+  --color-surface-input: var(--bg-input);
+  --color-surface-hover: var(--bg-hover);
+
+  /* Border Colors */
+  --color-border-default: var(--border);
+  --color-border-subtle: var(--border-subtle);
+
+  /* Text Colors */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
 
   /* Glow Shadows */
   --shadow-glow-green: 0 0 20px rgba(0, 255, 136, 0.5);
@@ -48,6 +58,58 @@
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
+  /* ========================================
+     Prototype Design Tokens (unified)
+     ======================================== */
+
+  /* Surfaces */
+  --bg-app: #08081a;
+  --bg-card: #111128;
+  --bg-elevated: #1a1a36;
+  --bg-input: #16162e;
+  --bg-hover: #1e1e3c;
+
+  /* Borders */
+  --border: #2a2a4a;
+  --border-subtle: #1c1c38;
+
+  /* Text */
+  --text-primary: #e8e8f0;
+  --text-secondary: #7a7a98;
+  --text-muted: #4a4a68;
+
+  /* Neon dim/glow variants */
+  --neon-teal-dim: rgba(0, 212, 170, 0.15);
+  --neon-teal-glow: rgba(0, 212, 170, 0.3);
+  --neon-orange-dim: rgba(255, 107, 44, 0.15);
+
+  /* Easing curves */
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+
+  /* Durations */
+  --duration-micro: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+
+  /* Radii (prototype px values) */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Layout */
+  --nav-height-mobile: 56px;
+  --nav-height-desktop: 56px;
+  --bottom-nav-height: 64px;
+  --content-max-width: 960px;
+  --content-padding: 16px;
+
   /* Spacing */
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
@@ -56,14 +118,6 @@
   --space-xl: 2rem;
   --space-2xl: 3rem;
   --space-3xl: 4rem;
-
-  /* Border radius */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-  --radius-full: 9999px;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -79,6 +133,13 @@
   --transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+@media (min-width: 768px) {
+  :root { --content-padding: 24px; }
+}
+@media (min-width: 1200px) {
+  :root { --content-padding: 32px; }
+}
+
 /* ============================================
    Base Styles
    ============================================ */
@@ -92,69 +153,8 @@ html {
 
 body {
   min-height: 100vh;
-}
-
-[data-theme="light"] body {
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-}
-
-[data-theme="dark"] body {
-  background: hsl(var(--b1));
-}
-
-/* ============================================
-   DaisyUI Theme Customization
-   ============================================ */
-[data-theme="light"] {
-  --p: 234 89% 60%;
-  --pf: 234 89% 50%;
-  --pc: 0 0% 100%;
-  --s: 280 84% 63%;
-  --sf: 280 84% 53%;
-  --sc: 0 0% 100%;
-  --a: 173 80% 40%;
-  --af: 173 80% 30%;
-  --ac: 0 0% 100%;
-  --n: 219 14% 28%;
-  --nf: 219 14% 18%;
-  --nc: 0 0% 100%;
-  --b1: 0 0% 100%;
-  --b2: 220 14% 96%;
-  --b3: 220 13% 91%;
-  --bc: 219 14% 28%;
-  --su: 158 64% 52%;
-  --wa: 43 96% 56%;
-  --er: 0 84% 60%;
-  --in: 198 93% 60%;
-  --rounded-box: 1rem;
-  --rounded-btn: 0.5rem;
-  --rounded-badge: 9999px;
-  --animation-btn: 0.25s;
-  --animation-input: 0.2s;
-  --btn-focus-scale: 0.97;
-}
-
-[data-theme="dark"] {
-  --p: 234 89% 60%;
-  --pf: 234 89% 70%;
-  --pc: 0 0% 100%;
-  --s: 280 84% 63%;
-  --sf: 280 84% 73%;
-  --sc: 0 0% 100%;
-  --a: 173 80% 40%;
-  --af: 173 80% 50%;
-  --ac: 0 0% 100%;
-  --n: 220 13% 91%;
-  --nf: 220 14% 96%;
-  --nc: 219 14% 28%;
-  --b1: 222 47% 11%;
-  --b2: 217 33% 17%;
-  --b3: 215 28% 23%;
-  --bc: 210 40% 96%;
-  --su: 158 64% 52%;
-  --wa: 43 96% 56%;
-  --er: 0 84% 60%;
-  --in: 198 93% 60%;
+  background: var(--bg-app);
+  color: var(--text-primary);
 }
 
 /* ============================================
@@ -174,40 +174,13 @@ h1, h2, h3, h4, h5, h6 {
    Custom Component Styles
    ============================================ */
 
-/* Premium Card */
-.card {
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-xl);
-}
-
 /* Glass morphism effect */
 .glass-card {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(17, 17, 40, 0.8);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
-}
-
-[data-theme="dark"] .glass-card {
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Fallback for browsers that don't support backdrop-filter */
-@supports not (backdrop-filter: blur(20px)) {
-  .glass-card {
-    background: rgba(255, 255, 255, 0.95);
-  }
-  [data-theme="dark"] .glass-card {
-    background: rgba(30, 41, 59, 0.98);
-  }
 }
 
 /* ============================================
@@ -238,9 +211,8 @@ a:focus-visible {
 }
 
 /* Input focus - keep existing styles, enhance for keyboard */
-.input:focus-visible,
-.select:focus-visible,
-.textarea:focus-visible {
+.input-field:focus-visible,
+.select-field:focus-visible {
   border-color: var(--color-neon-teal);
   box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.3);
 }
@@ -275,168 +247,6 @@ nav a:focus-visible {
   top: 0;
 }
 
-/* Premium Button Styles */
-.btn {
-  font-family: var(--font-sans);
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  transition: all var(--transition-base);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, hsl(var(--p)) 0%, hsl(var(--pf)) 100%);
-  border: none;
-  box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.35);
-}
-
-.btn-primary:hover {
-  background: linear-gradient(135deg, hsl(var(--pf)) 0%, hsl(var(--p)) 100%);
-  box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.45);
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background: linear-gradient(135deg, hsl(var(--s)) 0%, hsl(var(--sf)) 100%);
-  box-shadow: 0 4px 14px 0 rgba(168, 85, 247, 0.35);
-}
-
-/* Navbar Premium Styling */
-.navbar {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  padding: var(--space-sm) var(--space-lg);
-}
-
-[data-theme="dark"] .navbar {
-  background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Stats Premium */
-.stats {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  overflow: hidden;
-}
-
-.stat {
-  padding: var(--space-lg) var(--space-xl);
-  position: relative;
-}
-
-.stat::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, hsl(var(--p)), hsl(var(--s)), hsl(var(--a)));
-  opacity: 0;
-  transition: opacity var(--transition-base);
-}
-
-.stat:hover::before {
-  opacity: 1;
-}
-
-.stat-title {
-  font-family: var(--font-sans);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.75rem;
-  opacity: 0.7;
-}
-
-.stat-value {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 1.75rem;
-}
-
-/* Form Inputs Premium */
-.input, .select, .textarea {
-  font-family: var(--font-sans);
-  transition: all var(--transition-base);
-  border: 2px solid hsl(var(--b3));
-}
-
-.input:focus, .select:focus, .textarea:focus {
-  border-color: hsl(var(--p));
-  box-shadow: 0 0 0 3px hsl(var(--p) / 0.15);
-  outline: none;
-}
-
-/* Table Premium */
-.table {
-  font-family: var(--font-sans);
-}
-
-.table th {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.7rem;
-  color: hsl(var(--bc) / 0.6);
-  background: hsl(var(--b2));
-  padding: var(--space-md) var(--space-lg);
-}
-
-.table td {
-  padding: var(--space-md) var(--space-lg);
-  vertical-align: middle;
-}
-
-.table tr {
-  transition: background-color var(--transition-fast);
-}
-
-.table tr:hover {
-  background: hsl(var(--p) / 0.05);
-}
-
-/* Badge Premium */
-.badge {
-  font-family: var(--font-sans);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  padding: 0.3em 0.8em;
-}
-
-.badge-success {
-  background: linear-gradient(135deg, hsl(var(--su)) 0%, hsl(var(--su) / 0.8) 100%);
-}
-
-.badge-error {
-  background: linear-gradient(135deg, hsl(var(--er)) 0%, hsl(var(--er) / 0.8) 100%);
-}
-
-.badge-warning {
-  background: linear-gradient(135deg, hsl(var(--wa)) 0%, hsl(var(--wa) / 0.8) 100%);
-}
-
-/* Alert Premium */
-.alert {
-  border-radius: var(--radius-lg);
-  border: none;
-  box-shadow: var(--shadow-sm);
-}
-
-/* Modal Premium */
-.modal-box {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow-xl);
-}
-
-[data-theme="dark"] .modal-box {
-  background: rgba(30, 41, 59, 0.95);
-}
 
 /* ============================================
    Custom Utility Classes
@@ -444,7 +254,7 @@ nav a:focus-visible {
 
 /* Gradient Text */
 .gradient-text {
-  background: linear-gradient(135deg, hsl(var(--p)) 0%, hsl(var(--s)) 50%, hsl(var(--a)) 100%);
+  background: linear-gradient(135deg, var(--color-neon-teal) 0%, var(--color-neon-green) 50%, var(--color-neon-orange) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -518,7 +328,7 @@ nav a:focus-visible {
 
 /* Shimmer loading effect */
 .shimmer {
-  background: linear-gradient(90deg, hsl(var(--b2)) 0%, hsl(var(--b3)) 50%, hsl(var(--b2)) 100%);
+  background: linear-gradient(90deg, var(--bg-elevated) 0%, var(--bg-input) 50%, var(--bg-elevated) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -672,13 +482,13 @@ nav a:focus-visible {
    Money Display
    ============================================ */
 .money-positive {
-  color: hsl(var(--su));
+  color: var(--color-neon-green);
   font-family: var(--font-mono);
   font-weight: 600;
 }
 
 .money-negative {
-  color: hsl(var(--er));
+  color: var(--color-neon-red);
   font-family: var(--font-mono);
   font-weight: 600;
 }
@@ -692,18 +502,18 @@ nav a:focus-visible {
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--b2));
+  background: var(--bg-elevated);
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--bc) / 0.2);
+  background: rgba(232, 232, 240, 0.2);
   border-radius: var(--radius-full);
   transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--bc) / 0.4);
+  background: rgba(232, 232, 240, 0.4);
 }
 
 /* ============================================
@@ -739,34 +549,7 @@ nav a:focus-visible {
 
 /* Mobile first - base styles are mobile */
 @media (max-width: 640px) {
-  .navbar {
-    padding: var(--space-xs) var(--space-sm);
-  }
-
-  .stat {
-    padding: var(--space-md);
-  }
-
-  .stat-value {
-    font-size: 1.25rem;
-  }
-
-  .card-body {
-    padding: var(--space-md);
-  }
-
   h1 {
-    font-size: 1.5rem;
-  }
-
-  .table th, .table td {
-    padding: var(--space-sm);
-  }
-}
-
-/* Tablet and up */
-@media (min-width: 641px) and (max-width: 1024px) {
-  .stat-value {
     font-size: 1.5rem;
   }
 }
@@ -782,17 +565,9 @@ nav a:focus-visible {
    Print Styles
    ============================================ */
 @media print {
-  .navbar, .toast, .btn {
-    display: none !important;
-  }
-
   body {
     background: white;
-  }
-
-  .card {
-    box-shadow: none;
-    border: 1px solid #ddd;
+    color: black;
   }
 }
 
@@ -805,6 +580,288 @@ nav a:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ============================================================
+   PROTOTYPE COMPONENT CLASSES
+   ============================================================
+   These classes implement the unified design from the prototype.
+   Custom component CSS classes matching the unified prototype design.
+   ============================================================ */
+
+/* --- Input Fields --- */
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  transition: border-color var(--duration-fast) ease,
+              box-shadow var(--duration-fast) ease;
+}
+.input-field:focus {
+  border-color: var(--color-neon-teal);
+  box-shadow: 0 0 0 2px var(--neon-teal-glow);
+  outline: none;
+}
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+.input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Select Fields --- */
+.select-field {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  transition: border-color var(--duration-fast) ease,
+              box-shadow var(--duration-fast) ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a7a98' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+.select-field:focus {
+  border-color: var(--color-neon-teal);
+  box-shadow: 0 0 0 2px var(--neon-teal-glow);
+  outline: none;
+}
+.select-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.select-field option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* --- Checkbox Toggle (prototype square style) --- */
+.proto-toggle {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.proto-toggle input { display: none; }
+.proto-toggle .toggle-track {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid var(--border);
+  background: transparent;
+  transition: all var(--duration-fast) var(--ease-in-out-cubic);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.proto-toggle input:checked + .toggle-track {
+  background: var(--color-neon-teal);
+  border-color: var(--color-neon-teal);
+}
+.proto-toggle .toggle-check {
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity var(--duration-micro) var(--ease-out-cubic),
+              transform var(--duration-fast) var(--ease-out-quint);
+}
+.proto-toggle input:checked + .toggle-track .toggle-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* --- Input Group --- */
+.input-group-proto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.input-group-proto label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* --- Form Row (side by side) --- */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 480px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+/* --- Modal (prototype) --- */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.active {
+  display: flex;
+}
+.proto-modal {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: protoFadeInScale var(--duration-slow) var(--ease-out-quint);
+}
+.proto-modal-header {
+  padding: 20px 20px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.proto-modal-header h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+.proto-modal-header .subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.proto-modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all var(--duration-fast) ease;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+.proto-modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.proto-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.proto-modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* --- Rules Page --- */
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* --- Prototype Animations --- */
+@keyframes protoFadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes protoFadeInScale {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* --- Settings Page --- */
+.settings-content {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .settings-content { gap: 20px; }
+}
+
+/* --- Test Section (Rule Modal) --- */
+.test-section {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 16px;
+}
+.test-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.test-row {
+  display: flex;
+  gap: 8px;
+}
+.test-row .input-field { flex: 1; }
+.test-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-top: 8px;
+}
+.test-result.match {
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  color: var(--color-neon-green);
+}
+.test-result.no-match {
+  background: rgba(255, 59, 92, 0.08);
+  border: 1px solid rgba(255, 59, 92, 0.2);
+  color: var(--color-neon-red);
+}
+
+/* --- Custom spinner --- */
+.proto-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--color-neon-teal);
+  border-radius: 50%;
+  animation: protoSpin 0.6s linear infinite;
+}
+.proto-spinner.sm { width: 16px; height: 16px; }
+.proto-spinner.lg { width: 28px; height: 28px; }
+
+@keyframes protoSpin {
+  to { transform: rotate(360deg); }
 }
 
 /* ============================================================
@@ -821,56 +878,45 @@ nav a:focus-visible {
        scoped under --sf-* to avoid collisions.
    ============================================================ */
 
-/* ---- SyncFlow custom properties ---- */
+/* ---- SyncFlow custom properties (aliases to root tokens) ---- */
 :root {
-  /* Surfaces */
-  --sf-bg-app: #08081a;
-  --sf-bg-card: #111128;
-  --sf-bg-elevated: #1a1a36;
-  --sf-bg-input: #16162e;
-  --sf-bg-hover: #1e1e3c;
-
-  /* Borders */
-  --sf-border: #2a2a4a;
-  --sf-border-subtle: #1c1c38;
-
-  /* Text */
-  --sf-text-primary: #e8e8f0;
-  --sf-text-secondary: #7a7a98;
-  --sf-text-muted: #4a4a68;
-
-  /* Neon tints (dim / glow variants of existing palette colours) */
-  --sf-neon-teal-dim: rgba(0, 212, 170, 0.15);
-  --sf-neon-teal-glow: rgba(0, 212, 170, 0.3);
-  --sf-neon-orange-dim: rgba(255, 107, 44, 0.15);
-
-  /* Semantic status aliases */
+  --sf-bg-app: var(--bg-app);
+  --sf-bg-card: var(--bg-card);
+  --sf-bg-elevated: var(--bg-elevated);
+  --sf-bg-input: var(--bg-input);
+  --sf-bg-hover: var(--bg-hover);
+  --sf-border: var(--border);
+  --sf-border-subtle: var(--border-subtle);
+  --sf-text-primary: var(--text-primary);
+  --sf-text-secondary: var(--text-secondary);
+  --sf-text-muted: var(--text-muted);
+  --sf-neon-teal-dim: var(--neon-teal-dim);
+  --sf-neon-teal-glow: var(--neon-teal-glow);
+  --sf-neon-orange-dim: var(--neon-orange-dim);
   --sf-status-ready: var(--color-neon-teal);
   --sf-status-attention: var(--color-neon-orange);
-  --sf-status-duplicate: #4a4a68;
-
-  /* Easing curves */
-  --sf-ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
-  --sf-ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
-  --sf-ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
-
-  /* Durations (match existing tokens but kept here for prototype fidelity) */
-  --sf-duration-fast: 150ms;
-  --sf-duration-base: 200ms;
-  --sf-duration-slow: 300ms;
-
-  /* Radii (prototype uses px values) */
-  --sf-radius-sm: 8px;
-  --sf-radius-md: 12px;
-  --sf-radius-lg: 16px;
-  --sf-radius-xl: 24px;
+  --sf-status-duplicate: var(--text-muted);
+  --sf-ease-out-quint: var(--ease-out-quint);
+  --sf-ease-out-cubic: var(--ease-out-cubic);
+  --sf-ease-in-out: var(--ease-in-out-cubic);
+  --sf-ease-out-quad: var(--ease-out-quad);
+  --sf-ease-out-quart: var(--ease-out-quart);
+  --sf-ease-in-out-cubic: var(--ease-in-out-cubic);
+  --sf-duration-micro: var(--duration-micro);
+  --sf-duration-fast: var(--duration-fast);
+  --sf-duration-base: var(--duration-base);
+  --sf-duration-slow: var(--duration-slow);
+  --sf-radius-sm: var(--radius-sm);
+  --sf-radius-md: var(--radius-md);
+  --sf-radius-lg: var(--radius-lg);
+  --sf-radius-xl: var(--radius-xl);
 }
 
 /* ============================================================
    SF 1. APP SHELL — phone frame on desktop preview
    ============================================================ */
 .sf-app {
-  max-width: 430px;
+  max-width: 960px;
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
@@ -885,18 +931,6 @@ nav a:focus-visible {
   -webkit-tap-highlight-color: transparent;
 }
 
-@media (min-width: 500px) {
-  .sf-app {
-    max-width: 390px;
-    height: 844px;
-    min-height: unset;
-    border-radius: 44px;
-    box-shadow:
-      0 0 0 11px #1a1a2e,
-      0 0 0 13px #2a2a4a,
-      0 0 80px rgba(0, 212, 170, 0.08);
-  }
-}
 
 /* ============================================================
    SF 2. HEADER
@@ -911,9 +945,6 @@ nav a:focus-visible {
   z-index: 10;
 }
 
-@media (min-width: 500px) {
-  .sf-header { padding-top: 48px; }
-}
 
 .back-btn {
   width: 36px;
@@ -1012,7 +1043,7 @@ nav a:focus-visible {
   overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 140px;
+  padding-bottom: 16px;
 }
 
 /* ============================================================
@@ -1066,7 +1097,7 @@ nav a:focus-visible {
   flex-shrink: 0;
   border-radius: 3px 0 0 3px;
   transition: width var(--sf-duration-base) var(--sf-ease-out-quint),
-              background var(--sf-duration-slow) var(--sf-ease-out-cubic);
+              background var(--sf-duration-base) var(--sf-ease-in-out-cubic, cubic-bezier(0.645, 0.045, 0.355, 1));
 }
 .tx-row.status-ready .tx-status-bar { background: var(--sf-status-ready); }
 .tx-row.status-attention .tx-status-bar { background: var(--sf-status-attention); }
@@ -1153,7 +1184,7 @@ nav a:focus-visible {
 .tx-chevron {
   font-size: 10px;
   color: var(--sf-text-muted);
-  transition: transform var(--sf-duration-base) var(--sf-ease-out-quint);
+  transition: transform var(--sf-duration-base) var(--sf-ease-in-out-cubic, cubic-bezier(0.645, 0.045, 0.355, 1));
   margin-left: auto;
   padding: 2px;
 }
@@ -1186,13 +1217,16 @@ nav a:focus-visible {
   width: 10px;
   height: 10px;
   opacity: 0;
-  transition: opacity var(--sf-duration-fast) ease;
+  transform: scale(0.5);
+  transition: opacity var(--sf-duration-fast) var(--sf-ease-out-cubic),
+              transform var(--sf-duration-fast) var(--sf-ease-out-quint);
 }
 .tx-toggle input:checked + .toggle-track {
   background: var(--color-neon-teal);
   border-color: var(--color-neon-teal);
 }
 .tx-toggle input:checked + .toggle-track .toggle-check {
+  transform: scale(1);
   opacity: 1;
 }
 
@@ -1279,16 +1313,25 @@ nav a:focus-visible {
    SF 12. BOTTOM ACTION BAR (glassmorphism)
    ============================================================ */
 .action-bar {
-  position: absolute;
+  position: sticky;
   bottom: 0;
   left: 0;
   right: 0;
   padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
   background: rgba(10, 10, 28, 0.82);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--sf-border-subtle);
   z-index: 20;
+  animation: sfSlideInFromBottom var(--sf-duration-slow) var(--sf-ease-out-quint) both;
+  animation-delay: 200ms;
+}
+
+@media (min-width: 768px) {
+  .action-bar {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
 }
 
 .action-bar-info {
@@ -1319,7 +1362,7 @@ nav a:focus-visible {
 }
 .progress-segment {
   height: 100%;
-  transition: width 500ms var(--sf-ease-out-quint);
+  transition: width var(--sf-duration-slow) var(--sf-ease-in-out-cubic, cubic-bezier(0.645, 0.045, 0.355, 1));
 }
 .progress-ready { background: var(--color-neon-teal); }
 .progress-attention { background: var(--color-neon-orange); }
@@ -1364,7 +1407,8 @@ nav a:focus-visible {
 }
 .btn-import:active { transform: scale(0.97); }
 .btn-import.ready {
-  animation: importReady 2s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: sfGlowPulse 3s ease-in-out infinite;
 }
 
 @keyframes importReady {
@@ -1400,7 +1444,7 @@ nav a:focus-visible {
   bottom: 0;
   left: 0;
   right: 0;
-  max-width: 430px;
+  max-width: 520px;
   margin: 0 auto;
   z-index: 60;
   background: var(--sf-bg-elevated);
@@ -1529,6 +1573,8 @@ nav a:focus-visible {
   gap: 10px;
   font-size: 13px;
   color: var(--sf-text-secondary);
+  animation: sfSlideInFromBottom var(--sf-duration-slow) var(--sf-ease-out-quart, cubic-bezier(0.165, 0.84, 0.44, 1)) both;
+  animation-delay: 100ms;
 }
 .info-banner-icon {
   width: 18px;
@@ -1547,6 +1593,60 @@ nav a:focus-visible {
 }
 
 /* ============================================================
+   SETTINGS PAGE
+   ============================================================ */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--sf-border-subtle, #1c1c38);
+}
+
+.setting-row:last-child { border-bottom: none; }
+
+.setting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.setting-description {
+  font-size: 12px;
+  color: var(--sf-text-secondary, #7a7a98);
+  margin-top: 2px;
+}
+
+.setting-value {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 13px;
+  color: var(--color-neon-teal, #00d4aa);
+  flex-shrink: 0;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected { background: var(--color-neon-green, #00ff88); }
+.status-dot.disconnected { background: var(--color-neon-red, #ff3b5c); }
+
+.status-label {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ============================================================
    SF 15. ANIMATIONS
    ============================================================ */
 @keyframes sfFadeInUp {
@@ -1557,6 +1657,26 @@ nav a:focus-visible {
   0%   { opacity: 1; }
   50%  { opacity: 0.5; }
   100% { opacity: 1; }
+}
+
+@keyframes sfFadeInScale {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes sfSlideInFromBottom {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sfGlowPulse {
+  0%, 100% { box-shadow: 0 4px 25px rgba(0, 212, 170, 0.25); }
+  50%      { box-shadow: 0 6px 40px rgba(0, 212, 170, 0.45); }
+}
+
+@keyframes sfProgressShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 .tx-row {
@@ -1578,25 +1698,46 @@ nav a:focus-visible {
 .date-group:nth-child(3) .tx-row:nth-child(4) { animation-delay: 360ms; }
 .date-group:nth-child(3) .tx-row:nth-child(5) { animation-delay: 390ms; }
 
+/* --- Rule row stagger entrance --- */
+.rule-row {
+  animation: sfFadeInUp 200ms var(--sf-ease-out-quart, cubic-bezier(0.165, 0.84, 0.44, 1)) both;
+}
+
+.rule-row:nth-child(1) { animation-delay: 30ms; }
+.rule-row:nth-child(2) { animation-delay: 60ms; }
+.rule-row:nth-child(3) { animation-delay: 90ms; }
+.rule-row:nth-child(4) { animation-delay: 120ms; }
+.rule-row:nth-child(5) { animation-delay: 150ms; }
+.rule-row:nth-child(6) { animation-delay: 180ms; }
+.rule-row:nth-child(7) { animation-delay: 210ms; }
+.rule-row:nth-child(8) { animation-delay: 240ms; }
+.rule-row:nth-child(9) { animation-delay: 270ms; }
+.rule-row:nth-child(10) { animation-delay: 300ms; }
+
+/* --- Button press feedback --- */
+.btn-import,
+.btn-import-sm,
+.btn-cancel,
+.filter-btn {
+  will-change: transform;
+}
+
+.btn-import:active,
+.btn-import-sm:active,
+.btn-cancel:active,
+.filter-btn:active {
+  transform: scale(0.97);
+  transition: transform var(--sf-duration-micro, 100ms) var(--sf-ease-out-cubic);
+}
+
 /* ============================================================
    SF 16. ACCESSIBILITY — reduced motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .tx-row,
-  .bottom-sheet,
-  .overlay,
-  .tx-expanded,
-  .toggle-track,
-  .tx-status-bar,
-  .filter-btn,
-  .chip,
-  .action-chip,
-  .btn-import,
-  .btn-cancel,
-  .tx-chevron,
-  .progress-segment {
-    animation: none !important;
-    transition: none !important;
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
   }
 }
 
@@ -1604,7 +1745,15 @@ nav a:focus-visible {
    SF 17. HOVER STATES (pointer devices only)
    ============================================================ */
 @media (hover: hover) and (pointer: fine) {
+  .tx-row {
+    transition: background var(--sf-duration-fast) ease;
+  }
   .tx-row:hover { background: var(--sf-bg-hover); }
+  .filter-btn {
+    transition: background var(--sf-duration-fast) ease,
+                border-color var(--sf-duration-fast) ease,
+                color var(--sf-duration-fast) ease;
+  }
   .chip:hover { background: var(--sf-bg-hover); border-color: var(--color-neon-teal); }
   .category-item:hover { background: var(--sf-bg-hover); }
 }
@@ -1940,7 +2089,7 @@ nav a:focus-visible {
    SF 20 — TOP ACTION BAR
    ============================================================ */
 .top-action-bar {
-  margin: 0 12px 8px;
+  margin: 0 0 12px;
   padding: 10px 14px;
   border-radius: var(--sf-radius-md);
   background: var(--sf-bg-card);
@@ -1978,7 +2127,8 @@ nav a:focus-visible {
 }
 .btn-import-sm:active { transform: scale(0.97); }
 .btn-import-sm.ready {
-  animation: importReady 2s ease-in-out infinite;
+  background-size: 200% 100%;
+  animation: sfGlowPulse 3s ease-in-out infinite;
 }
 
 .top-action-bar-bulk {

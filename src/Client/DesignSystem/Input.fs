@@ -24,7 +24,7 @@ type InputState =
 // ============================================
 
 let private baseInputClass =
-    "w-full bg-[#252836] text-base-content border border-white/10 rounded-lg transition-all duration-200 focus:border-neon-teal focus:shadow-[0_0_0_2px_rgba(0,212,170,0.3)] focus:outline-none placeholder:text-base-content/50"
+    "input-field"
 
 let private sizeToClass = function
     | Small -> "text-sm px-3 py-2 min-h-[36px]"
@@ -179,10 +179,8 @@ let select (props: SelectProps) =
     let extraClass = props.ClassName |> Option.defaultValue ""
     let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
 
-    let selectArrowClass = "appearance-none bg-no-repeat bg-[right_0.75rem_center] bg-[length:1.25rem] pr-10"
-
     Html.select [
-        prop.className $"{baseInputClass} {sizeClass} {stateClass} {disabledClass} {extraClass} {selectArrowClass} select-arrow"
+        prop.className $"select-field {sizeClass} {stateClass} {disabledClass} {extraClass}"
         prop.value props.Value
         prop.onChange props.OnChange
         prop.disabled props.Disabled
@@ -233,17 +231,41 @@ let checkbox (isChecked: bool) (onChange: bool -> unit) (label: string) =
     Html.label [
         prop.className "flex items-center gap-3 cursor-pointer group"
         prop.children [
-            Html.input [
-                prop.type' "checkbox"
-                prop.className "checkbox checkbox-sm border-white/20 [--chkbg:theme(colors.neon-teal)] [--chkfg:theme(colors.base-100)] checked:border-neon-teal focus:ring-neon-teal/30"
-                prop.isChecked isChecked
-                prop.onChange (fun (e: Browser.Types.Event) ->
-                    let target = e.target :?> Browser.Types.HTMLInputElement
-                    onChange target.``checked``
-                )
+            Html.label [
+                prop.className "proto-toggle"
+                prop.onClick (fun e -> e.stopPropagation())
+                prop.children [
+                    Html.input [
+                        prop.type' "checkbox"
+                        prop.isChecked isChecked
+                        prop.onChange (fun (e: Browser.Types.Event) ->
+                            let target = e.target :?> Browser.Types.HTMLInputElement
+                            onChange target.``checked``
+                        )
+                    ]
+                    Html.span [
+                        prop.className "toggle-track"
+                        prop.children [
+                            Svg.svg [
+                                svg.className "toggle-check"
+                                svg.viewBox(0, 0, 10, 10)
+                                svg.children [
+                                    Svg.path [
+                                        svg.d "M2 5l2.5 2.5L8 3"
+                                        svg.fill "none"
+                                        svg.stroke "currentColor"
+                                        svg.strokeWidth 2
+                                        svg.strokeLineCap "round"
+                                        svg.strokeLineJoin "round"
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
             ]
             Html.span [
-                prop.className "text-base-content group-hover:text-base-content/90 transition-colors"
+                prop.className "text-text-primary group-hover:text-text-secondary transition-colors"
                 prop.text label
             ]
         ]
@@ -251,14 +273,37 @@ let checkbox (isChecked: bool) (onChange: bool -> unit) (label: string) =
 
 /// Checkbox without label
 let checkboxSimple (isChecked: bool) (onChange: bool -> unit) =
-    Html.input [
-        prop.type' "checkbox"
-        prop.className "checkbox checkbox-sm border-white/20 [--chkbg:theme(colors.neon-teal)] [--chkfg:theme(colors.base-100)] checked:border-neon-teal"
-        prop.isChecked isChecked
-        prop.onChange (fun (e: Browser.Types.Event) ->
-            let target = e.target :?> Browser.Types.HTMLInputElement
-            onChange target.``checked``
-        )
+    Html.label [
+        prop.className "proto-toggle"
+        prop.children [
+            Html.input [
+                prop.type' "checkbox"
+                prop.isChecked isChecked
+                prop.onChange (fun (e: Browser.Types.Event) ->
+                    let target = e.target :?> Browser.Types.HTMLInputElement
+                    onChange target.``checked``
+                )
+            ]
+            Html.span [
+                prop.className "toggle-track"
+                prop.children [
+                    Svg.svg [
+                        svg.className "toggle-check"
+                        svg.viewBox(0, 0, 10, 10)
+                        svg.children [
+                            Svg.path [
+                                svg.d "M2 5l2.5 2.5L8 3"
+                                svg.fill "none"
+                                svg.stroke "currentColor"
+                                svg.strokeWidth 2
+                                svg.strokeLineCap "round"
+                                svg.strokeLineJoin "round"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
     ]
 
 // ============================================
@@ -270,19 +315,43 @@ let toggle (isChecked: bool) (onChange: bool -> unit) (label: string option) =
     Html.label [
         prop.className "flex items-center gap-3 cursor-pointer"
         prop.children [
-            Html.input [
-                prop.type' "checkbox"
-                prop.className "toggle toggle-sm [--tglbg:theme(colors.base-300)] bg-base-content/20 border-base-content/20 checked:bg-neon-teal checked:border-neon-teal checked:[--tglbg:theme(colors.base-100)]"
-                prop.isChecked isChecked
-                prop.onChange (fun (e: Browser.Types.Event) ->
-                    let target = e.target :?> Browser.Types.HTMLInputElement
-                    onChange target.``checked``
-                )
+            Html.label [
+                prop.className "proto-toggle"
+                prop.onClick (fun e -> e.stopPropagation())
+                prop.children [
+                    Html.input [
+                        prop.type' "checkbox"
+                        prop.isChecked isChecked
+                        prop.onChange (fun (e: Browser.Types.Event) ->
+                            let target = e.target :?> Browser.Types.HTMLInputElement
+                            onChange target.``checked``
+                        )
+                    ]
+                    Html.span [
+                        prop.className "toggle-track"
+                        prop.children [
+                            Svg.svg [
+                                svg.className "toggle-check"
+                                svg.viewBox(0, 0, 10, 10)
+                                svg.children [
+                                    Svg.path [
+                                        svg.d "M2 5l2.5 2.5L8 3"
+                                        svg.fill "none"
+                                        svg.stroke "currentColor"
+                                        svg.strokeWidth 2
+                                        svg.strokeLineCap "round"
+                                        svg.strokeLineJoin "round"
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
             ]
             match label with
             | Some l ->
                 Html.span [
-                    prop.className "text-base-content"
+                    prop.className "text-text-primary"
                     prop.text l
                 ]
             | None -> ()
@@ -312,7 +381,7 @@ let group (props: InputGroupProps) =
         prop.children [
             // Label
             Html.label [
-                prop.className "block text-sm font-medium text-base-content/80"
+                prop.className "block text-sm font-medium text-text-secondary"
                 prop.children [
                     Html.text props.Label
                     if props.Required then
@@ -335,7 +404,7 @@ let group (props: InputGroupProps) =
                 ]
             | Some help, None ->
                 Html.p [
-                    prop.className "text-xs text-base-content/50"
+                    prop.className "text-xs text-text-muted/70"
                     prop.text help
                 ]
             | None, None -> ()
@@ -382,7 +451,7 @@ let formRow (label: string) (children: ReactElement) =
         prop.className "flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
         prop.children [
             Html.label [
-                prop.className "text-sm font-medium text-base-content/80 md:w-1/3 md:text-right"
+                prop.className "text-sm font-medium text-text-secondary md:w-1/3 md:text-right"
                 prop.text label
             ]
             Html.div [
@@ -398,7 +467,7 @@ let formSection (title: string) (children: ReactElement list) =
         prop.className "space-y-4"
         prop.children [
             Html.h3 [
-                prop.className "text-lg font-semibold font-display text-base-content border-b border-white/5 pb-2"
+                prop.className "text-lg font-semibold font-display text-text-primary border-b border-border-subtle pb-2"
                 prop.text title
             ]
             Html.div [
@@ -598,13 +667,13 @@ let SearchableSelect (props: SearchableSelectProps) =
                 )
                 prop.children [
                     Html.span [
-                        prop.className (if props.Value = "" then "text-base-content/50" else "text-base-content truncate")
+                        prop.className (if props.Value = "" then "text-text-muted/70" else "text-text-primary truncate")
                         prop.text (if props.Value = "" then props.Placeholder else currentLabel)
                     ]
                     // Chevron icon
                     let rotateClass = if isOpen then "rotate-180" else ""
                     Svg.svg [
-                        svg.className $"w-4 h-4 text-base-content/50 flex-shrink-0 transition-transform {rotateClass}"
+                        svg.className $"w-4 h-4 text-text-muted/70 flex-shrink-0 transition-transform {rotateClass}"
                         svg.fill "none"
                         svg.viewBox (0, 0, 24, 24)
                         svg.stroke "currentColor"
@@ -623,16 +692,16 @@ let SearchableSelect (props: SearchableSelectProps) =
             // Dropdown
             if isOpen then
                 Html.div [
-                    prop.className "absolute z-50 w-full mt-1 bg-[#252836] border border-white/10 rounded-lg shadow-xl overflow-hidden"
+                    prop.className "absolute z-50 w-full mt-1 bg-surface-input border border-border-default rounded-lg shadow-xl overflow-hidden"
                     prop.children [
                         // Search input
                         Html.div [
-                            prop.className "p-2 border-b border-white/10"
+                            prop.className "p-2 border-b border-border-default"
                             prop.children [
                                 Html.input [
                                     prop.ref inputRef
                                     prop.type' "text"
-                                    prop.className "w-full bg-base-100 text-base-content border border-white/10 rounded-md px-3 py-2 text-sm focus:border-neon-teal focus:outline-none placeholder:text-base-content/50"
+                                    prop.className "w-full bg-surface-card text-text-primary border border-border-default rounded-md px-3 py-2 text-sm focus:border-neon-teal focus:outline-none placeholder:text-text-muted/70"
                                     prop.placeholder "Type to search..."
                                     prop.value searchText
                                     prop.autoFocus true
@@ -654,7 +723,7 @@ let SearchableSelect (props: SearchableSelectProps) =
                                     if clearHighlighted then
                                         "w-full text-left px-4 py-3 text-base italic bg-neon-teal/20 text-neon-teal"
                                     else
-                                        "w-full text-left px-4 py-3 text-base text-base-content/50 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
+                                        "w-full text-left px-4 py-3 text-base text-text-muted/70 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
                                 Html.button [
                                     prop.type' "button"
                                     prop.className clearClass
@@ -666,7 +735,7 @@ let SearchableSelect (props: SearchableSelectProps) =
 
                                 if filteredOptions.IsEmpty then
                                     Html.div [
-                                        prop.className "px-3 py-4 text-sm text-base-content/50 text-center"
+                                        prop.className "px-3 py-4 text-sm text-text-muted/70 text-center"
                                         prop.text "No matches found"
                                     ]
                                 else
@@ -680,7 +749,7 @@ let SearchableSelect (props: SearchableSelectProps) =
                                             elif isSelected then
                                                 "w-full text-left px-4 py-3 text-base transition-colors bg-neon-teal/10 text-neon-teal"
                                             else
-                                                "w-full text-left px-4 py-3 text-base transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
+                                                "w-full text-left px-4 py-3 text-base transition-colors text-text-primary hover:bg-neon-teal/10 hover:text-neon-teal"
                                         Html.button [
                                             prop.type' "button"
                                             prop.className optionClass
@@ -940,7 +1009,7 @@ let ComboBox (props: ComboBoxProps) =
             // Dropdown with suggestions
             if isOpen && filteredOptions.Length > 0 then
                 Html.div [
-                    prop.className "absolute z-50 w-full mt-1 bg-[#252836] border border-white/10 rounded-lg shadow-xl overflow-hidden"
+                    prop.className "absolute z-50 w-full mt-1 bg-surface-input border border-border-default rounded-lg shadow-xl overflow-hidden"
                     prop.children [
                         Html.div [
                             prop.className "max-h-60 overflow-y-auto"
@@ -951,7 +1020,7 @@ let ComboBox (props: ComboBoxProps) =
                                         // Section header (non-selectable)
                                         Html.div [
                                             prop.key $"header-{i}"
-                                            prop.className "px-4 py-2 text-xs font-semibold uppercase tracking-wider text-base-content/40 bg-base-100/50 select-none"
+                                            prop.className "px-4 py-2 text-xs font-semibold uppercase tracking-wider text-text-muted bg-surface-card/50 select-none"
                                             prop.text opt.Label
                                         ]
                                     else
@@ -961,7 +1030,7 @@ let ComboBox (props: ComboBoxProps) =
                                             if isHighlighted then
                                                 "w-full text-left px-4 py-2 text-sm transition-colors bg-neon-teal/20 text-neon-teal"
                                             else
-                                                "w-full text-left px-4 py-2 text-sm transition-colors text-base-content hover:bg-neon-teal/10 hover:text-neon-teal"
+                                                "w-full text-left px-4 py-2 text-sm transition-colors text-text-primary hover:bg-neon-teal/10 hover:text-neon-teal"
                                         Html.button [
                                             prop.key $"opt-{i}"
                                             prop.type' "button"

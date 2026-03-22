@@ -33,20 +33,20 @@ module Colors =
     let neonRed = "text-neon-red"
     let neonRedDim = "text-[#e6324f]"
 
-    // Text colors (WCAG AA compliant on dark backgrounds)
-    let textPrimary = "text-base-content"
-    let textSecondary = "text-base-content/70"
-    let textMuted = "text-base-content/60"  // Increased from 50 for accessibility
-    let textDisabled = "text-base-content/50"  // Increased from 30 for accessibility
+    // Text colors (using CSS variable tokens)
+    let textPrimary = "text-text-primary"
+    let textSecondary = "text-text-secondary"
+    let textMuted = "text-text-muted"
+    let textDisabled = "text-text-muted/70"  // Increased from 30 for accessibility
 
 /// Background color tokens
 module Backgrounds =
     // Dark backgrounds
-    let void' = "bg-[#0a0a0f]"
-    let dark = "bg-base-100"
-    let surface = "bg-base-200"
-    let elevated = "bg-base-300"
-    let subtle = "bg-[#252836]"
+    let void' = "bg-surface-app"
+    let dark = "bg-surface-card"
+    let surface = "bg-surface-elevated"
+    let elevated = "bg-surface-input"
+    let subtle = "bg-surface-input"
 
     // Neon subtle backgrounds
     let greenSubtle = "bg-neon-green/10"
@@ -58,8 +58,8 @@ module Backgrounds =
 
 /// Border color tokens
 module Borders =
-    let subtle = "border-white/5"
-    let default' = "border-white/10"
+    let subtle = "border-border-subtle"
+    let default' = "border-border-default"
     let strong = "border-white/15"
 
     // Neon borders
@@ -70,20 +70,13 @@ module Borders =
     let pink = "border-neon-pink"
     let red = "border-neon-red"
 
-// ============================================
-// Glow Effect Tokens
-// ============================================
-
-/// Box shadow glow effects
+/// Glow effect tokens
 module Glows =
     let green = "shadow-glow-green"
-    let orange = "shadow-glow-orange"
-    let teal = "shadow-glow-teal"
-    let purple = "shadow-glow-purple"
-
-    // Hover states with reduced opacity
     let greenHover = "hover:shadow-glow-green"
+    let orange = "shadow-glow-orange"
     let orangeHover = "hover:shadow-glow-orange"
+    let teal = "shadow-glow-teal"
     let tealHover = "hover:shadow-glow-teal"
     let purpleHover = "hover:shadow-glow-purple"
 
@@ -196,6 +189,13 @@ module Animations =
     let bounceSubtle = "animate-bounce-subtle"
     let glowPulse = "animate-glow-pulse"
 
+    // Easing curves
+    let easeOutQuad = "ease-out-quad"
+    let easeOutCubic = "ease-out-cubic"
+    let easeOutQuart = "ease-out-quart"
+    let easeOutQuint = "ease-out-quint"
+    let easeInOutCubic = "ease-in-out-cubic"
+
 /// Stagger delays for sequential animations
 module StaggerDelays =
     let stagger1 = "stagger-1"
@@ -274,13 +274,13 @@ module TouchTargets =
 /// Pre-built class combinations for common patterns
 module Presets =
     /// Card with neon theme styling
-    let card = "bg-base-100 border border-white/5 rounded-xl p-4 md:p-6 transition-all hover:border-white/10"
+    let card = "bg-surface-card border border-border-default rounded-xl p-4 md:p-6 transition-all hover:border-border-default"
 
     /// Glass card effect
-    let glassCard = "bg-base-100/80 backdrop-blur-xl border border-white/5 rounded-xl p-4 md:p-6"
+    let glassCard = "bg-surface-card/80 backdrop-blur-xl border border-border-default rounded-xl p-4 md:p-6"
 
     /// Glowing card (featured)
-    let glowCard = "bg-base-100 border border-neon-teal/50 rounded-xl p-4 md:p-6 shadow-glow-teal/30"
+    let glowCard = "bg-surface-card border border-neon-teal/50 rounded-xl p-4 md:p-6 shadow-glow-teal/30"
 
     /// Page header styling
     let pageHeader = "text-xl md:text-3xl font-bold font-display mb-4 md:mb-6"

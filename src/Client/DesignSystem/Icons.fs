@@ -33,8 +33,8 @@ let private sizeToTextClass = function
 // ============================================
 
 type IconColor =
-    | Default       // text-base-content/70
-    | Primary       // text-base-content
+    | Default       // text-text-secondary
+    | Primary       // text-text-primary
     | NeonGreen     // text-neon-green
     | NeonOrange    // text-neon-orange
     | NeonTeal      // text-neon-teal
@@ -47,8 +47,8 @@ type IconColor =
     | Info          // same as NeonTeal
 
 let private colorToClass = function
-    | Default -> "text-base-content/70"
-    | Primary -> "text-base-content"
+    | Default -> "text-text-secondary"
+    | Primary -> "text-text-primary"
     | NeonGreen | Success -> "text-neon-green"
     | NeonOrange | Warning -> "text-neon-orange"
     | NeonTeal | Info -> "text-neon-teal"

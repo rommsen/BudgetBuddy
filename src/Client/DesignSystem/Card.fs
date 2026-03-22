@@ -44,13 +44,13 @@ let defaultProps = {
 
 let private variantToClass = function
     | Standard ->
-        "bg-base-100 border border-white/5"
+        "bg-surface-card border border-border-default"
     | Glass ->
-        "bg-base-100/80 backdrop-blur-xl border border-white/10"
+        "bg-surface-card/80 backdrop-blur-xl border border-border-default"
     | Glow ->
-        "bg-base-100 border border-neon-teal/50 shadow-glow-teal/30"
+        "bg-surface-card border border-neon-teal/50 shadow-glow-teal/30"
     | Elevated ->
-        "bg-base-200 border border-white/5 shadow-lg"
+        "bg-surface-elevated border border-border-subtle shadow-lg"
 
 let private sizeToClass = function
     | Compact -> "p-3 md:p-4"
@@ -61,9 +61,9 @@ let private hoverClass hoverable variant =
     if hoverable then
         match variant with
         | Standard | Elevated ->
-            "hover:border-white/10 hover:-translate-y-0.5 hover:shadow-lg"
+            "hover:border-border-default hover:-translate-y-0.5 hover:shadow-lg"
         | Glass ->
-            "hover:border-white/20 hover:-translate-y-0.5"
+            "hover:border-border-default hover:-translate-y-0.5"
         | Glow ->
             "hover:shadow-[0_0_30px_rgba(0,212,170,0.4)] hover:-translate-y-0.5"
     else ""
@@ -117,13 +117,13 @@ let header (title: string) (subtitle: string option) (action: ReactElement optio
                 prop.className "flex-1 min-w-0"
                 prop.children [
                     Html.h3 [
-                        prop.className "text-lg md:text-xl font-semibold font-display text-base-content truncate"
+                        prop.className "text-lg md:text-xl font-semibold font-display text-text-primary truncate"
                         prop.text title
                     ]
                     match subtitle with
                     | Some sub ->
                         Html.p [
-                            prop.className "text-sm text-base-content/60 mt-0.5"
+                            prop.className "text-sm text-text-muted mt-0.5"
                             prop.text sub
                         ]
                     | None -> ()
@@ -149,14 +149,14 @@ let body (children: ReactElement list) =
 /// Card footer section (for actions)
 let footer (children: ReactElement list) =
     Html.div [
-        prop.className "flex flex-col sm:flex-row gap-2 sm:gap-3 mt-4 pt-4 border-t border-white/5"
+        prop.className "flex flex-col sm:flex-row gap-2 sm:gap-3 mt-4 pt-4 border-t border-border-subtle"
         prop.children children
     ]
 
 /// Card footer with right-aligned actions
 let footerRight (children: ReactElement list) =
     Html.div [
-        prop.className "flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4 pt-4 border-t border-white/5"
+        prop.className "flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 mt-4 pt-4 border-t border-border-subtle"
         prop.children children
     ]
 
@@ -167,7 +167,7 @@ let footerRight (children: ReactElement list) =
 /// Card with gradient accent line at top
 let withAccent (children: ReactElement list) =
     Html.div [
-        prop.className "rounded-xl bg-base-100 border border-white/5 overflow-hidden hover:border-white/10 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200"
+        prop.className "rounded-xl bg-surface-card border border-border-subtle overflow-hidden hover:border-border-default hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200"
         prop.children [
             // Gradient accent line
             Html.div [
@@ -184,14 +184,14 @@ let withAccent (children: ReactElement list) =
 /// Action card (featured with glow, typically for main CTA)
 let action (title: string) (description: string) (actionButton: ReactElement) =
     Html.div [
-        prop.className "rounded-xl bg-base-100 border border-neon-orange/30 p-4 md:p-6 shadow-[0_0_15px_rgba(255,107,44,0.2)] hover:shadow-[0_0_25px_rgba(255,107,44,0.3)] transition-all duration-200"
+        prop.className "rounded-xl bg-surface-card border border-neon-orange/30 p-4 md:p-6 shadow-[0_0_15px_rgba(255,107,44,0.2)] hover:shadow-[0_0_25px_rgba(255,107,44,0.3)] transition-all duration-200"
         prop.children [
             Html.h3 [
-                prop.className "text-lg md:text-xl font-semibold font-display text-base-content mb-2"
+                prop.className "text-lg md:text-xl font-semibold font-display text-text-primary mb-2"
                 prop.text title
             ]
             Html.p [
-                prop.className "text-sm md:text-base text-base-content/60 mb-4"
+                prop.className "text-sm md:text-base text-text-muted mb-4"
                 prop.text description
             ]
             actionButton
@@ -201,7 +201,7 @@ let action (title: string) (description: string) (actionButton: ReactElement) =
 /// Stat card with icon
 let stat (icon: ReactElement) (label: string) (value: string) (trend: ReactElement option) =
     Html.div [
-        prop.className "rounded-xl bg-base-100 border border-white/5 p-4 md:p-5 overflow-hidden relative group hover:border-white/10 transition-all duration-200"
+        prop.className "rounded-xl bg-surface-card border border-border-subtle p-4 md:p-5 overflow-hidden relative group hover:border-border-default transition-all duration-200"
         prop.children [
             // Gradient accent (visible on hover)
             Html.div [
@@ -218,14 +218,14 @@ let stat (icon: ReactElement) (label: string) (value: string) (trend: ReactEleme
                         prop.className "flex-1 min-w-0"
                         prop.children [
                             Html.p [
-                                prop.className "text-xs font-medium uppercase tracking-wide text-base-content/50"
+                                prop.className "text-xs font-medium uppercase tracking-wide text-text-muted/70"
                                 prop.text label
                             ]
                             Html.div [
                                 prop.className "flex items-baseline gap-2 mt-1"
                                 prop.children [
                                     Html.p [
-                                        prop.className "text-xl md:text-2xl font-bold font-mono text-base-content"
+                                        prop.className "text-xl md:text-2xl font-bold font-mono text-text-primary"
                                         prop.text value
                                     ]
                                     match trend with
@@ -243,18 +243,18 @@ let stat (icon: ReactElement) (label: string) (value: string) (trend: ReactEleme
 /// Empty state card
 let emptyState (icon: ReactElement) (title: string) (description: string) (action: ReactElement option) =
     Html.div [
-        prop.className "rounded-xl bg-base-100 border border-white/5 border-dashed p-8 md:p-12 text-center"
+        prop.className "rounded-xl bg-surface-card border border-border-default border-dashed p-8 md:p-12 text-center"
         prop.children [
             Html.div [
-                prop.className "flex justify-center mb-4 text-base-content/30"
+                prop.className "flex justify-center mb-4 text-text-muted"
                 prop.children [ icon ]
             ]
             Html.h3 [
-                prop.className "text-lg font-semibold text-base-content/70 mb-2"
+                prop.className "text-lg font-semibold text-text-secondary mb-2"
                 prop.text title
             ]
             Html.p [
-                prop.className "text-sm text-base-content/50 mb-4 max-w-sm mx-auto"
+                prop.className "text-sm text-text-muted/70 mb-4 max-w-sm mx-auto"
                 prop.text description
             ]
             match action with

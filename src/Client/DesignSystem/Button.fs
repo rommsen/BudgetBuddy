@@ -61,19 +61,19 @@ let defaultProps = {
 // ============================================
 
 let private sizeToClass = function
-    | Small -> "btn-sm min-h-[36px] md:min-h-0"
-    | Medium -> "min-h-[48px] md:min-h-0"
-    | Large -> "btn-lg min-h-[52px] md:min-h-0"
+    | Small -> "text-xs px-3 py-1.5 min-h-[36px] md:min-h-0"
+    | Medium -> "text-sm px-[18px] py-2.5 min-h-[48px] md:min-h-0"
+    | Large -> "text-base px-6 py-3 min-h-[52px] md:min-h-0"
 
 let private variantToClass = function
     | Primary ->
-        "btn-primary bg-gradient-to-br from-neon-orange to-[#e55a1f] border-none text-white shadow-glow-orange hover:shadow-[0_0_25px_rgba(255,107,44,0.5),0_0_50px_rgba(255,107,44,0.3)] hover:-translate-y-0.5 active:scale-[0.98]"
+        "bg-gradient-to-br from-neon-orange to-[#e55a1f] border-none text-white shadow-glow-orange hover:shadow-[0_0_25px_rgba(255,107,44,0.5),0_0_50px_rgba(255,107,44,0.3)] hover:-translate-y-0.5 active:scale-[0.98]"
     | Secondary ->
-        "btn-ghost border border-neon-teal text-neon-teal hover:bg-neon-teal/10 hover:shadow-glow-teal active:scale-[0.98]"
+        "bg-surface-elevated border border-border-default text-text-primary hover:border-neon-teal hover:bg-neon-teal/10 active:scale-[0.98]"
     | Ghost ->
-        "btn-ghost text-base-content/70 hover:text-base-content hover:bg-white/5"
+        "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
     | Danger ->
-        "btn-ghost border border-neon-red text-neon-red hover:bg-neon-red/10 hover:shadow-[0_0_20px_rgba(255,59,92,0.5)] active:scale-[0.98]"
+        "bg-neon-red/10 border border-neon-red/20 text-neon-red hover:bg-neon-red/20 active:scale-[0.98]"
 
 /// Create a button with the specified props
 let view (props: ButtonProps) =
@@ -84,7 +84,7 @@ let view (props: ButtonProps) =
     let disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:shadow-none disabled:hover:translate-y-0"
 
     Html.button [
-        prop.className $"btn {variantClass} {sizeClass} {widthClass} {disabledClass} {extraClass} transition-all duration-200"
+        prop.className $"inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {widthClass} {disabledClass} {extraClass}"
         prop.disabled (props.IsLoading || props.IsDisabled)
         prop.onClick (fun _ -> props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value
@@ -92,7 +92,7 @@ let view (props: ButtonProps) =
             // Loading spinner
             if props.IsLoading then
                 Html.span [
-                    prop.className "loading loading-spinner loading-sm"
+                    prop.className "proto-spinner sm"
                 ]
 
             // Icon (left position)
@@ -218,7 +218,7 @@ let hero (text: string) (onClick: unit -> unit) =
             [
                 "group relative px-12 py-5 rounded-xl"
                 "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-                "text-base-100 font-bold text-lg md:text-xl font-display"
+                "text-surface-app font-bold text-lg md:text-xl font-display"
                 Glows.orangeLg
                 Glows.orangeHoverLg
                 "hover:scale-105 transition-all duration-300"
@@ -237,7 +237,7 @@ let heroWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) =
             [
                 "group relative px-12 py-5 rounded-xl"
                 "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-                "text-base-100 font-bold text-lg md:text-xl font-display"
+                "text-surface-app font-bold text-lg md:text-xl font-display"
                 Glows.orangeLg
                 Glows.orangeHoverLg
                 "hover:scale-105 transition-all duration-300"
@@ -262,7 +262,7 @@ let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
             [
                 "group relative px-12 py-5 rounded-xl"
                 "bg-gradient-to-r from-neon-orange to-neon-orange/80"
-                "text-base-100 font-bold text-lg md:text-xl font-display"
+                "text-surface-app font-bold text-lg md:text-xl font-display"
                 Glows.orangeLg
                 Glows.orangeHoverLg
                 "hover:scale-105 transition-all duration-300"
@@ -273,7 +273,7 @@ let heroLoading (text: string) (isLoading: bool) (onClick: unit -> unit) =
         prop.onClick (fun _ -> onClick())
         prop.children [
             if isLoading then
-                Html.span [ prop.className "loading loading-spinner loading-md" ]
+                Html.span [ prop.className "proto-spinner" ]
             else
                 Html.span [ prop.text text ]
         ]
@@ -286,7 +286,7 @@ let heroTeal (text: string) (onClick: unit -> unit) =
             [
                 "group relative px-12 py-5 rounded-xl"
                 "bg-gradient-to-r from-neon-teal to-neon-teal/80"
-                "text-base-100 font-bold text-lg md:text-xl font-display"
+                "text-surface-app font-bold text-lg md:text-xl font-display"
                 Glows.tealLg
                 Glows.tealHoverLg
                 "hover:scale-105 transition-all duration-300"
@@ -295,5 +295,30 @@ let heroTeal (text: string) (onClick: unit -> unit) =
         prop.onClick (fun _ -> onClick())
         prop.children [
             Html.span [ prop.text text ]
+        ]
+    ]
+
+/// Teal variant hero button with icon (icon appears before text)
+let heroTealWithIcon (text: string) (icon: ReactElement) (onClick: unit -> unit) =
+    Html.button [
+        prop.className (
+            [
+                "group relative px-12 py-5 rounded-xl"
+                "bg-gradient-to-r from-neon-teal to-neon-teal/80"
+                "text-surface-app font-bold text-lg md:text-xl font-display"
+                Glows.tealLg
+                Glows.tealHoverLg
+                "hover:scale-105 transition-all duration-300"
+            ] |> String.concat " "
+        )
+        prop.onClick (fun _ -> onClick())
+        prop.children [
+            Html.div [
+                prop.className "flex items-center gap-3"
+                prop.children [
+                    icon
+                    Html.span [ prop.text text ]
+                ]
+            ]
         ]
     ]

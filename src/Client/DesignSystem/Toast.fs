@@ -79,8 +79,8 @@ let toast (props: ToastProps) =
     Html.div [
         prop.key (props.Id.ToString())
         prop.className (
-            "pointer-events-auto flex items-start gap-3 p-4 rounded-lg border-l-4 border border-white/10 " +
-            "bg-base-300 shadow-xl backdrop-blur-sm " +
+            "pointer-events-auto flex items-start gap-3 p-4 rounded-lg border-l-4 border border-border-default " +
+            "bg-surface-input shadow-xl backdrop-blur-sm " +
             "animate-slide-up " +
             variantToClasses props.Variant
         )
@@ -99,14 +99,14 @@ let toast (props: ToastProps) =
                     match props.Title with
                     | Some title ->
                         Html.div [
-                            prop.className "font-semibold text-base-content text-sm mb-0.5"
+                            prop.className "font-semibold text-text-primary text-sm mb-0.5"
                             prop.text title
                         ]
                     | None -> ()
 
                     // Message
                     Html.div [
-                        prop.className "text-base-content/80 text-sm break-words"
+                        prop.className "text-text-secondary text-sm break-words"
                         prop.text props.Message
                     ]
                 ]
@@ -116,7 +116,7 @@ let toast (props: ToastProps) =
             Html.button [
                 prop.className (
                     "flex-shrink-0 p-1 rounded-md transition-colors " +
-                    "text-base-content/50 hover:text-base-content hover:bg-white/5"
+                    "text-text-muted/70 hover:text-text-primary hover:bg-surface-hover"
                 )
                 prop.onClick (fun _ -> props.OnDismiss props.Id)
                 prop.ariaLabel "Dismiss"

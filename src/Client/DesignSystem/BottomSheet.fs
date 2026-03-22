@@ -67,7 +67,8 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
 // Generic BottomSheet view
 // ---------------------------------------------------------------------------
 
-let private BottomSheetInternal = React.functionComponent("BottomSheetInternal", fun (input: BottomSheetInternalProps) ->
+[<ReactComponent>]
+let private BottomSheetInternal (input: BottomSheetInternalProps) =
     let props = input.Props
     let children = input.Children
 
@@ -153,7 +154,6 @@ let private BottomSheetInternal = React.functionComponent("BottomSheetInternal",
             ]
         ]
     )
-)
 
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
@@ -164,7 +164,8 @@ let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement 
 // Category Picker (specialised bottom sheet)
 // ---------------------------------------------------------------------------
 
-let private CategoryPickerInternal = React.functionComponent("CategoryPickerInternal", fun (input: CategoryPickerInternalProps) ->
+[<ReactComponent>]
+let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
     let searchText, setSearchText = React.useState ""
 
     let activeClass = if input.IsOpen then " active" else ""
@@ -257,7 +258,7 @@ let private CategoryPickerInternal = React.functionComponent("CategoryPickerInte
                                                 prop.value searchText
                                                 prop.onChange setSearchText
                                                 prop.autoFocus true
-                                                prop.style [ style.fontSize 16 ]
+                                                prop.className "text-base"
                                             ]
                                         ]
                                     ]
@@ -332,7 +333,6 @@ let private CategoryPickerInternal = React.functionComponent("CategoryPickerInte
             ]
         ]
     )
-)
 
 /// Specialised category picker bottom sheet.
 /// Categories are `(categoryId, categoryName)` pairs. Names containing "/" are grouped

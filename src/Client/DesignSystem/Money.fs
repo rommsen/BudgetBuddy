@@ -180,7 +180,7 @@ let withLabel (label: string) amount currency =
         prop.className "flex flex-col gap-1"
         prop.children [
             Html.span [
-                prop.className "text-xs md:text-sm font-medium text-base-content/50 uppercase tracking-wider"
+                prop.className "text-xs md:text-sm font-medium text-text-muted/70 uppercase tracking-wider"
                 prop.text label
             ]
             large amount currency
@@ -193,7 +193,7 @@ let withInlineLabel (label: string) amount currency =
         prop.className "flex items-center gap-2"
         prop.children [
             Html.span [
-                prop.className "text-sm text-base-content/70"
+                prop.className "text-sm text-text-secondary"
                 prop.text label
             ]
             simple amount currency
@@ -206,7 +206,7 @@ let balance amount currency =
         prop.className "flex flex-col items-center gap-1"
         prop.children [
             Html.span [
-                prop.className "text-xs text-base-content/50 uppercase tracking-wider"
+                prop.className "text-xs text-text-muted/70 uppercase tracking-wider"
                 prop.text "Balance"
             ]
             hero amount currency
@@ -222,7 +222,7 @@ let netChange income expenses currency =
             Html.div [
                 prop.className "flex items-center justify-between text-sm"
                 prop.children [
-                    Html.span [ prop.className "text-base-content/70"; prop.text "Income" ]
+                    Html.span [ prop.className "text-text-secondary"; prop.text "Income" ]
                     view {
                         defaultProps with
                             Amount = income
@@ -235,7 +235,7 @@ let netChange income expenses currency =
             Html.div [
                 prop.className "flex items-center justify-between text-sm"
                 prop.children [
-                    Html.span [ prop.className "text-base-content/70"; prop.text "Expenses" ]
+                    Html.span [ prop.className "text-text-secondary"; prop.text "Expenses" ]
                     view {
                         defaultProps with
                             Amount = -expenses
@@ -247,9 +247,9 @@ let netChange income expenses currency =
                 ]
             ]
             Html.div [
-                prop.className "border-t border-white/10 pt-2 flex items-center justify-between"
+                prop.className "border-t border-border-default pt-2 flex items-center justify-between"
                 prop.children [
-                    Html.span [ prop.className "text-base-content font-medium"; prop.text "Net" ]
+                    Html.span [ prop.className "text-text-primary font-medium"; prop.text "Net" ]
                     view {
                         defaultProps with
                             Amount = net

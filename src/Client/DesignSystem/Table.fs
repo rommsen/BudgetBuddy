@@ -65,7 +65,7 @@ let private variantToClass = function
 /// Responsive table wrapper
 let wrapper (children: ReactElement list) =
     Html.div [
-        prop.className "overflow-x-auto rounded-xl border border-white/5 bg-base-100"
+        prop.className "overflow-x-auto rounded-xl border border-border-subtle bg-surface-card"
         prop.children children
     ]
 
@@ -145,9 +145,9 @@ let headerCell (props: HeaderCellProps) =
 
     Html.th [
         match widthStyle with Some s -> s | None -> ()
-        prop.className $"text-xs font-semibold uppercase tracking-wider text-base-content/50 bg-base-200 {alignClass} {extraClass}"
+        prop.className $"text-xs font-semibold uppercase tracking-wider text-text-muted/70 bg-surface-elevated {alignClass} {extraClass}"
         if props.Sortable then
-            prop.className $"cursor-pointer select-none hover:text-base-content/80 transition-colors"
+            prop.className $"cursor-pointer select-none hover:text-text-secondary transition-colors"
             match props.OnSort with
             | Some handler -> prop.onClick (fun _ -> handler())
             | None -> ()
@@ -286,7 +286,7 @@ let cell (props: CellProps) (children: ReactElement list) =
 
     Html.td [
         match maxWidthStyle with Some s -> s | None -> ()
-        prop.className $"text-base-content/90 {alignClass} {monoClass} {truncateClass} {extraClass}"
+        prop.className $"text-text-secondary {alignClass} {monoClass} {truncateClass} {extraClass}"
         prop.children children
     ]
 
@@ -317,7 +317,7 @@ let tdTruncate maxWidth (text: string) =
 /// Empty cell
 let tdEmpty =
     Html.td [
-        prop.className "text-base-content/30"
+        prop.className "text-text-muted"
         prop.children [ Html.text "—" ]
     ]
 
@@ -333,7 +333,7 @@ let empty (message: string) =
             prop.className "py-12 text-center"
             prop.children [
                 Html.div [
-                    prop.className "flex flex-col items-center gap-3 text-base-content/50"
+                    prop.className "flex flex-col items-center gap-3 text-text-muted/70"
                     prop.children [
                         Icons.search LG IconColor.Default
                         Html.p [
@@ -354,7 +354,7 @@ let emptyWithAction (message: string) (buttonText: string) onClick =
             prop.className "py-12 text-center"
             prop.children [
                 Html.div [
-                    prop.className "flex flex-col items-center gap-4 text-base-content/50"
+                    prop.className "flex flex-col items-center gap-4 text-text-muted/70"
                     prop.children [
                         Icons.search LG IconColor.Default
                         Html.p [
@@ -362,7 +362,7 @@ let emptyWithAction (message: string) (buttonText: string) onClick =
                             prop.text message
                         ]
                         Html.button [
-                            prop.className "btn btn-sm btn-ghost border border-neon-teal text-neon-teal hover:bg-neon-teal/10"
+                            prop.className "px-3 py-1.5 text-sm rounded-lg border border-neon-teal text-neon-teal hover:bg-neon-teal/10 transition-colors"
                             prop.onClick (fun _ -> onClick())
                             prop.text buttonText
                         ]
@@ -379,11 +379,11 @@ let emptyWithAction (message: string) (buttonText: string) onClick =
 /// Mobile card for table data when screen is too small
 let mobileCard (title: string) (rows: (string * ReactElement) list) (actions: ReactElement option) =
     Html.div [
-        prop.className "bg-base-100 border border-white/5 rounded-xl p-4 space-y-3"
+        prop.className "bg-surface-card border border-border-subtle rounded-xl p-4 space-y-3"
         prop.children [
             // Title
             Html.h3 [
-                prop.className "font-semibold text-base-content truncate"
+                prop.className "font-semibold text-text-primary truncate"
                 prop.text title
             ]
 
@@ -396,7 +396,7 @@ let mobileCard (title: string) (rows: (string * ReactElement) list) (actions: Re
                             prop.className "flex items-center justify-between text-sm"
                             prop.children [
                                 Html.span [
-                                    prop.className "text-base-content/50"
+                                    prop.className "text-text-muted/70"
                                     prop.text label
                                 ]
                                 value
@@ -409,7 +409,7 @@ let mobileCard (title: string) (rows: (string * ReactElement) list) (actions: Re
             match actions with
             | Some actionElement ->
                 Html.div [
-                    prop.className "pt-2 border-t border-white/5 flex justify-end gap-2"
+                    prop.className "pt-2 border-t border-border-subtle flex justify-end gap-2"
                     prop.children [ actionElement ]
                 ]
             | None -> Html.none
@@ -449,7 +449,7 @@ let loadingRow colCount =
             for _ in 1..colCount do
                 Html.td [
                     Html.div [
-                        prop.className "h-4 bg-base-200 rounded animate-pulse"
+                        prop.className "h-4 bg-surface-elevated rounded animate-pulse"
                     ]
                 ]
         ]

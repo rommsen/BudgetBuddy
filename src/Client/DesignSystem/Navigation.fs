@@ -11,7 +11,6 @@ open Client.DesignSystem.Icons
 /// Page identifiers for navigation
 /// Note: This mirrors Types.Page but is defined here to avoid circular dependencies
 type NavPage =
-    | Dashboard
     | SyncFlow
     | Rules
     | Settings
@@ -25,7 +24,6 @@ type NavItem = {
 
 /// Define the app's navigation items
 let navItems: NavItem list = [
-    { Page = Dashboard; Label = "Dashboard"; Icon = dashboard }
     { Page = SyncFlow; Label = "Sync"; Icon = sync }
     { Page = Rules; Label = "Rules"; Icon = rules }
     { Page = Settings; Label = "Settings"; Icon = settings }
@@ -42,9 +40,9 @@ let private desktopNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavP
         prop.className (
             "flex items-center gap-2.5 px-4 py-2.5 rounded-lg transition-all duration-200 cursor-pointer " +
             if isActive then
-                "bg-neon-teal/10 text-neon-teal shadow-sm"
+                "bg-neon-teal/15 text-neon-teal shadow-sm"
             else
-                "text-base-content/60 hover:text-base-content hover:bg-white/5"
+                "text-text-muted hover:text-text-primary hover:bg-surface-hover"
         )
         prop.onClick (fun _ -> onClick item.Page)
         prop.children [
@@ -76,18 +74,9 @@ let private brand (onClick: unit -> unit) =
                 ]
             ]
             // Brand text
-            Html.div [
-                prop.className "flex flex-col"
-                prop.children [
-                    Html.span [
-                        prop.className "text-lg font-bold font-display gradient-text"
-                        prop.text "BudgetBuddy"
-                    ]
-                    Html.span [
-                        prop.className "text-xs text-base-content/40 -mt-0.5"
-                        prop.text "Smart Finance Sync"
-                    ]
-                ]
+            Html.span [
+                prop.className "text-lg font-bold font-display gradient-text"
+                prop.text "BudgetBuddy"
             ]
         ]
     ]
@@ -98,13 +87,13 @@ let desktopNav (currentPage: NavPage) (onNavigate: NavPage -> unit) =
         prop.className (
             "hidden md:flex fixed top-0 left-0 right-0 z-50 " +
             "h-16 px-6 items-center justify-between " +
-            "bg-base-100/85 backdrop-blur-xl border-b border-white/5"
+            "bg-surface-app/85 backdrop-blur-xl border-b border-border-subtle"
         )
         prop.children [
             // Left: Brand
             Html.div [
                 prop.className "flex-shrink-0"
-                prop.children [ brand (fun () -> onNavigate Dashboard) ]
+                prop.children [ brand (fun () -> onNavigate SyncFlow) ]
             ]
 
             // Right: Nav items
@@ -132,7 +121,7 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
             if isActive then
                 "text-neon-teal"
             else
-                "text-base-content/50 active:text-base-content/80"
+                "text-text-muted/70 active:text-text-secondary"
         )
         prop.onClick (fun _ -> onClick item.Page)
         prop.children [
@@ -140,7 +129,7 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
             Html.span [
                 prop.className (
                     "text-[10px] font-medium " +
-                    if isActive then "text-neon-teal" else "text-base-content/50"
+                    if isActive then "text-neon-teal" else "text-text-muted/70"
                 )
                 prop.text item.Label
             ]
@@ -152,7 +141,7 @@ let mobileNav (currentPage: NavPage) (onNavigate: NavPage -> unit) =
     Html.nav [
         prop.className (
             "md:hidden fixed bottom-0 left-0 right-0 z-50 " +
-            "bg-base-100/95 backdrop-blur-xl border-t border-white/5 " +
+            "bg-surface-app/95 backdrop-blur-xl border-t border-border-subtle " +
             "safe-area-pb"
         )
         prop.children [
@@ -172,13 +161,13 @@ let mobileHeader (onNavigate: NavPage -> unit) =
         prop.className (
             "md:hidden fixed top-0 left-0 right-0 z-50 " +
             "h-14 px-4 flex items-center " +
-            "bg-base-100/95 backdrop-blur-xl border-b border-white/5 " +
+            "bg-surface-app/95 backdrop-blur-xl border-b border-border-subtle " +
             "safe-area-pt"
         )
         prop.children [
             Html.a [
                 prop.className "flex items-center gap-2 cursor-pointer"
-                prop.onClick (fun _ -> onNavigate Dashboard)
+                prop.onClick (fun _ -> onNavigate SyncFlow)
                 prop.children [
                     // Small logo icon
                     Html.div [
@@ -239,6 +228,6 @@ let pageContent (children: ReactElement list) =
 /// Main app wrapper with dark gradient background
 let appWrapper (children: ReactElement list) =
     Html.div [
-        prop.className "min-h-screen bg-base-100"
+        prop.className "min-h-screen bg-surface-app"
         prop.children children
     ]

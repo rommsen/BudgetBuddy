@@ -34,9 +34,9 @@ let view (props: Props) =
     let titleClass =
         match props.TitleStyle with
         | Standard ->
-            "text-2xl md:text-4xl font-bold font-display text-base-content"
+            "text-2xl md:text-4xl font-bold font-display text-text-primary"
         | Gradient ->
-            "text-2xl md:text-4xl font-bold font-display bg-gradient-to-r from-neon-teal to-neon-green bg-clip-text text-transparent"
+            "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-neon-teal to-neon-green bg-clip-text text-transparent"
 
     Html.div [
         prop.className "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 animate-fade-in"
@@ -50,7 +50,7 @@ let view (props: Props) =
                     match props.Subtitle with
                     | Some subtitle ->
                         Html.p [
-                            prop.className "text-base-content/60 mt-1 text-sm md:text-base"
+                            prop.className "text-text-muted mt-1 text-sm md:text-base"
                             prop.text subtitle
                         ]
                     | None -> Html.none

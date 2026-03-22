@@ -186,13 +186,13 @@ module Divider =
     /// Subtle horizontal divider
     let horizontal =
         Html.hr [
-            prop.className "border-t border-white/5 my-4"
+            prop.className "border-t border-border-subtle my-4"
         ]
 
     /// Divider with more spacing
     let large =
         Html.hr [
-            prop.className "border-t border-white/5 my-6 md:my-8"
+            prop.className "border-t border-border-subtle my-6 md:my-8"
         ]
 
     /// Divider with gradient accent
@@ -204,7 +204,7 @@ module Divider =
     /// Vertical divider (for horizontal layouts)
     let vertical =
         Html.div [
-            prop.className "w-px h-6 bg-white/10"
+            prop.className "w-px h-6 bg-border-default"
             prop.ariaHidden true
         ]
 
@@ -259,7 +259,7 @@ module Page =
                 match subtitle with
                 | Some sub ->
                     Html.p [
-                        prop.className "text-sm md:text-base text-base-content/60"
+                        prop.className "text-sm md:text-base text-text-muted"
                         prop.text sub
                     ]
                 | None -> ()
