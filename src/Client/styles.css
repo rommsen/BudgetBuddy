@@ -1242,11 +1242,18 @@ nav a:focus-visible {
 }
 
 .tx-row.status-skipped {
-  opacity: 0.35;
+  opacity: 0.2;
+  filter: grayscale(1);
 }
 .tx-row.status-skipped .tx-payee {
   text-decoration: line-through;
   text-decoration-color: var(--sf-text-muted);
+}
+.tx-row.status-skipped .tx-amount {
+  color: var(--sf-text-muted);
+}
+.tx-row.status-skipped .tx-category {
+  opacity: 0.5;
 }
 
 /* ============================================================
