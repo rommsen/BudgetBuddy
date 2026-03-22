@@ -39,6 +39,17 @@ let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
 // ============================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
+    let hideBottomNav =
+        match model.CurrentPage with
+        | Page.SyncFlow ->
+            match model.SyncFlow.CurrentSession with
+            | RemoteData.Success (Some session) ->
+                match session.Status with
+                | Shared.Domain.SyncSessionStatus.ReviewingTransactions -> true
+                | _ -> false
+            | _ -> false
+        | _ -> false
+
     React.router [
         router.onUrlChanged (UrlChanged >> dispatch)
         router.children [
@@ -47,6 +58,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Navigation.navigation
                     (toNavPage model.CurrentPage)
                     (fun navPage -> dispatch (NavigateTo (fromNavPage navPage)))
+                    hideBottomNav
 
                 // Main content with padding for fixed navbar
                 Navigation.pageContent [

@@ -11,10 +11,10 @@ open Components.SyncFlow.Views.InlineRuleForm
 // Helper Functions
 // ============================================
 
-let private formatDateCompact (date: System.DateTime) =
+let formatDateCompact (date: System.DateTime) =
     date.ToString("dd.MM")
 
-let private categoryText (categoryId: YnabCategoryId option) (categoryOptions: (string * string) list) =
+let categoryText (categoryId: YnabCategoryId option) (categoryOptions: (string * string) list) =
     match categoryId with
     | Some (YnabCategoryId id) ->
         let idStr = id.ToString()
@@ -24,162 +24,64 @@ let private categoryText (categoryId: YnabCategoryId option) (categoryOptions: (
         |> Option.defaultValue "Unknown"
     | None -> "—"
 
-let private getRowStateClasses (tx: SyncTransaction) =
-    // Skipped always shows faded, regardless of duplicate status
+let getRowStateClasses (tx: SyncTransaction) =
     if tx.Status = Skipped then
-        "opacity-50"
+        "tx-row status-skipped"
     else
         match tx.DuplicateStatus with
-        | ConfirmedDuplicate (_, _) -> "bg-neon-red/5 border-l-2 border-l-neon-red"
-        | PossibleDuplicate (_, _) -> "bg-neon-orange/5 border-l-2 border-l-neon-orange"
-        | NotDuplicate _ -> ""  // No special styling for NeedsAttention anymore
+        | ConfirmedDuplicate (_, _) -> "tx-row status-duplicate"
+        | PossibleDuplicate (_, _) -> "tx-row status-duplicate"
+        | NotDuplicate _ ->
+            match tx.CategoryId, tx.Status with
+            | Some _, _ -> "tx-row status-ready"
+            | None, AutoCategorized -> "tx-row status-ready"
+            | None, ManualCategorized -> "tx-row status-ready"
+            | None, Imported -> "tx-row status-ready"
+            | _ -> "tx-row status-attention"
 
-// ============================================
-// Status Indicators
-// ============================================
-
-let private statusDot (tx: SyncTransaction) =
-    let (dotColor, shouldPulse) =
-        // Skipped always shows gray, regardless of duplicate status
-        if tx.Status = Skipped then
-            ("bg-base-content/30", false)
-        else
-            match tx.DuplicateStatus with
-            | ConfirmedDuplicate (_, _) -> ("bg-neon-red", false)
-            | PossibleDuplicate (_, _) -> ("bg-neon-orange", true)
-            | NotDuplicate _ ->
-                match tx.Status with
-                | Pending | NeedsAttention ->
-                    if tx.SuggestedByOrderId.IsSome then ("bg-neon-purple", false)  // Order-ID suggestion
-                    else ("bg-neon-orange", false)  // Uncategorized
-                | AutoCategorized -> ("bg-neon-teal", false)
-                | ManualCategorized -> ("bg-neon-green", false)
-                | Skipped -> ("bg-base-content/30", false)  // Fallback
-                | Imported -> ("bg-neon-green", false)
-
-    let pulseClass = if shouldPulse then "animate-pulse" else ""
-    Html.div [
-        prop.className $"w-2 h-2 rounded-full flex-shrink-0 {dotColor} {pulseClass}"
-    ]
-
-let private duplicateIndicator (status: DuplicateStatus) =
-    match status with
-    | NotDuplicate _ -> Html.none
-    | PossibleDuplicate (reason, _) ->
-        Html.span [
-            prop.className "cursor-help text-neon-orange"
-            prop.title reason
-            prop.children [ Icons.warning Icons.XS Icons.NeonOrange ]
-        ]
-    | ConfirmedDuplicate (reference, _) ->
-        Html.span [
-            prop.className "cursor-help text-neon-red"
-            prop.title $"Already imported: {reference}"
-            prop.children [ Icons.xCircle Icons.XS Icons.Error ]
-        ]
-
-// ============================================
-// Action Buttons
-// ============================================
-
-let private expandChevron (tx: SyncTransaction) (isExpanded: bool) (dispatch: Msg -> unit) =
-    let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
-    if hasExpandableContent then
-        Html.button [
-            prop.className "p-1 -ml-1 text-base-content/40 hover:text-base-content/70 transition-colors flex-shrink-0"
-            prop.onClick (fun e ->
-                e.stopPropagation()
-                dispatch (ToggleTransactionExpand tx.Transaction.Id))
-            prop.children [
-                if isExpanded then Icons.chevronDown Icons.XS Icons.Default
-                else Icons.chevronRight Icons.XS Icons.Default
-            ]
-        ]
-    else
-        Html.div [ prop.className "w-4 flex-shrink-0" ]  // Placeholder for alignment
-
-let private skipToggleIcon (tx: SyncTransaction) (dispatch: Msg -> unit) =
+let getCategoryBadgeClass (tx: SyncTransaction) =
     if tx.Status = Skipped then
-        Html.button [
-            prop.className "p-2 rounded-lg hover:bg-neon-green/10 text-neon-green/70 hover:text-neon-green transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-            prop.title "Unskip transaction"
-            prop.onClick (fun _ -> dispatch (UnskipTransaction tx.Transaction.Id))
-            prop.children [ Icons.undo Icons.SM Icons.NeonGreen ]
-        ]
+        "tx-category badge-ready"
     else
-        Html.button [
-            prop.className "p-2 rounded-lg hover:bg-base-content/10 text-base-content/40 hover:text-base-content/70 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-            prop.title "Skip transaction"
-            prop.onClick (fun _ -> dispatch (SkipTransaction tx.Transaction.Id))
-            prop.children [ Icons.forward Icons.SM Icons.Default ]
-        ]
+        match tx.DuplicateStatus with
+        | ConfirmedDuplicate (_, _) | PossibleDuplicate (_, _) -> "tx-category badge-duplicate"
+        | NotDuplicate _ ->
+            match tx.CategoryId with
+            | Some _ -> "tx-category badge-ready"
+            | None -> "tx-category badge-attention"
 
+let titleCasePayee (name: string) =
+    if System.String.IsNullOrWhiteSpace name then name
+    elif name.Length <= 2 then name
+    elif name = name.ToUpperInvariant() then
+        name.Split(' ')
+        |> Array.map (fun word ->
+            if word.Length <= 2 then word
+            else word.[0..0].ToUpper() + word.[1..].ToLower())
+        |> String.concat " "
+    else name
 
-/// External link button - shows first external link if available
-let private externalLinkButton (externalLinks: ExternalLink list) =
-    match externalLinks |> List.tryHead with
-    | Some link ->
-        Html.a [
-            prop.className "p-1 rounded hover:bg-neon-teal/10 text-neon-teal/60 hover:text-neon-teal transition-colors flex-shrink-0"
-            prop.href link.Url
-            prop.target "_blank"
-            prop.rel "noopener noreferrer"
-            prop.title link.Label
-            prop.children [ Icons.externalLink Icons.XS Icons.NeonTeal ]
-        ]
-    | None -> Html.none
-
-let private createRuleButton (tx: SyncTransaction) (showForm: bool) (manuallyCategorizedIds: Set<TransactionId>) (dispatch: Msg -> unit) =
-    // Only show for manually categorized transactions with a category, and when form is not open
-    let shouldShow =
-        manuallyCategorizedIds.Contains tx.Transaction.Id &&
-        tx.CategoryId.IsSome &&
-        not showForm
-    if shouldShow then
-        Html.button [
-            prop.className "p-2 rounded-lg hover:bg-neon-teal/10 text-neon-teal/70 hover:text-neon-teal transition-colors w-[32px] h-[32px] flex items-center justify-center"
-            prop.title "Create categorization rule from this transaction"
-            prop.onClick (fun e ->
-                e.stopPropagation()
-                dispatch (OpenInlineRuleForm tx.Transaction.Id))
-            prop.children [ Icons.rules Icons.SM Icons.NeonTeal ]
-        ]
-    else
-        // Placeholder to maintain consistent layout
-        Html.div [ prop.className "w-[32px] h-[32px]" ]
+let private formatAmountForRow (amount: decimal) (currency: string) =
+    let absAmount = abs amount
+    let formattedAmount = System.Math.Round(float absAmount, 2).ToString("0.00")
+    let signPrefix = if amount < 0m then "\u2212" else "+"
+    let currSymbol =
+        match currency with
+        | "EUR" -> "\u20AC"
+        | "USD" -> "$"
+        | "GBP" -> "\u00A3"
+        | c -> c
+    let amountClass =
+        if amount >= 0m then "tx-amount positive"
+        else "tx-amount"
+    Html.span [
+        prop.className amountClass
+        prop.text $"{signPrefix}{formattedAmount} {currSymbol}"
+    ]
 
 // ============================================
 // Expanded Content
 // ============================================
-
-let private memoRow (tx: SyncTransaction) =
-    Html.div [
-        prop.className "mx-3 my-2 px-4 py-3 rounded-lg bg-base-200/30 backdrop-blur-sm border border-white/5"
-        prop.children [
-            Html.div [
-                prop.className "flex items-start gap-3"
-                prop.children [
-                    Html.div [
-                        prop.className "flex-shrink-0 w-6 h-6 rounded-md bg-neon-teal/10 flex items-center justify-center"
-                        prop.children [ Icons.info Icons.XS Icons.NeonTeal ]
-                    ]
-                    Html.div [
-                        prop.className "flex-1 min-w-0"
-                        prop.children [
-                            Html.p [
-                                prop.className "text-xs font-medium text-base-content/50 uppercase tracking-wider mb-1"
-                                prop.text "Memo"
-                            ]
-                            Html.p [
-                                prop.className "text-sm text-base-content/80 leading-relaxed"
-                                prop.text tx.Transaction.Memo
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]
 
 let private duplicateDebugInfo (tx: SyncTransaction) =
     let details = getDuplicateDetails tx.DuplicateStatus
@@ -297,306 +199,272 @@ let transactionRow
     (manuallyCategorizedIds: Set<TransactionId>)
     (isPendingCategorySave: bool)
     (isPendingPayeeSave: bool)
-    (dispatch: Msg -> unit) =
+    (dispatch: Msg -> unit)
+    (onOpenCategoryPicker: TransactionId -> string -> unit) =
 
     let rowClasses = getRowStateClasses tx
     let originalPayee = tx.Transaction.Payee |> Option.defaultValue ""
-    // Use override if set (including empty string), otherwise fall back to original
-    // PayeeOverride = None means "not edited", Some "" means "user cleared it"
     let displayPayee =
         match tx.PayeeOverride with
-        | Some p -> p  // User has edited (even if empty)
-        | None -> originalPayee  // Not edited, use original
+        | Some p -> p
+        | None -> originalPayee
+    let displayPayeeTitleCase = titleCasePayee displayPayee
     let dateStr = formatDateCompact tx.Transaction.BookingDate
     let isExpanded = expandedIds.Contains tx.Transaction.Id
     let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
 
-    // Check if the inline rule form is open for THIS transaction
     let showRuleForm =
         inlineRuleFormState
         |> Option.exists (fun f -> f.TransactionId = tx.Transaction.Id)
 
-    // Order-ID suggestion badge (shows when category was suggested by matching Amazon Order ID)
-    let orderIdSuggestionBadge =
-        match tx.SuggestedByOrderId with
-        | Some orderId ->
-            Html.span [
-                prop.className "ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-neon-purple/20 text-neon-purple border border-neon-purple/30"
-                prop.title $"Kategorie übernommen von Bestellung {orderId}"
-                prop.text "Bestellung"
-            ]
-        | None -> Html.none
+    let categoryDisplayText =
+        match tx.DuplicateStatus with
+        | ConfirmedDuplicate _ -> "Duplikat"
+        | PossibleDuplicate _ -> "Duplikat?"
+        | NotDuplicate _ ->
+            match tx.CategoryId with
+            | Some _ -> categoryText tx.CategoryId categoryOptions
+            | None -> "Kategorie\u2026"
 
-    // Pending save indicator component for category
+    let categoryBadgeClass = getCategoryBadgeClass tx
+
+    let hasOrderIdSuggestion = tx.SuggestedByOrderId.IsSome
+
     let pendingCategorySaveIndicator =
         if isPendingCategorySave then
             Html.span [
-                prop.className "ml-2 text-xs text-neon-orange animate-pulse"
+                prop.className "ml-1 text-xs text-neon-orange animate-pulse"
                 prop.title "Saving category..."
-                prop.text "●"
+                prop.text "\u25CF"
             ]
         else
             Html.none
 
-    // Pending save indicator component for payee
-    let pendingPayeeSaveIndicator =
-        if isPendingPayeeSave then
-            Html.span [
-                prop.className "ml-1 text-xs text-neon-orange animate-pulse"
-                prop.title "Saving payee..."
-                prop.text "●"
-            ]
-        else
-            Html.none
+    let isIncluded = tx.Status <> Skipped
+    let expandedClass = if isExpanded then " expanded" else ""
+
+    let shouldShowCreateRule =
+        manuallyCategorizedIds.Contains tx.Transaction.Id &&
+        tx.CategoryId.IsSome &&
+        not showRuleForm
 
     Html.div [
-        prop.className $"group border-b border-white/5 last:border-b-0 transition-all duration-200 {rowClasses}"
+        prop.className $"{rowClasses}{expandedClass}"
+        prop.onClick (fun _ ->
+            dispatch (ToggleTransactionExpand tx.Transaction.Id))
         prop.children [
-            // Mobile Layout (Default - shown below md breakpoint)
+            Html.div [ prop.className "tx-status-bar" ]
+
             Html.div [
-                prop.className "md:hidden flex flex-col gap-2 p-3"
+                prop.className "tx-content"
                 prop.children [
-                    // Line 1: Expand + Status + Category + Amount
+                    // Line 1: Payee + Amount
                     Html.div [
-                        prop.className "flex items-center gap-2"
+                        prop.className "tx-line1"
                         prop.children [
-                            expandChevron tx isExpanded dispatch
-                            statusDot tx
-                            duplicateIndicator tx.DuplicateStatus
-                            // Category: Selectbox for active, text for skipped
-                            Html.div [
-                                prop.className "flex-1 min-w-0 flex items-center"
+                            Html.span [
+                                prop.className "tx-payee"
+                                prop.text (if displayPayeeTitleCase = "" then "\u2014" else displayPayeeTitleCase)
+                            ]
+                            formatAmountForRow tx.Transaction.Amount.Amount tx.Transaction.Amount.Currency
+                        ]
+                    ]
+
+                    // Line 2: Category badge + Create Rule + Date + Chevron + Toggle
+                    Html.div [
+                        prop.className "tx-line2"
+                        prop.children [
+                            Html.button [
+                                prop.className categoryBadgeClass
+                                prop.onClick (fun e ->
+                                    e.stopPropagation()
+                                    onOpenCategoryPicker tx.Transaction.Id displayPayeeTitleCase)
                                 prop.children [
-                                    if tx.Status = Skipped then
-                                        // Skipped: render as plain text (fast)
+                                    Html.text categoryDisplayText
+                                    if hasOrderIdSuggestion then
                                         Html.span [
-                                            prop.className "text-sm text-base-content/50 truncate block py-2"
-                                            prop.text (categoryText tx.CategoryId categoryOptions)
+                                            prop.className "ml-1 text-neon-purple"
+                                            prop.text "\u2606"
                                         ]
-                                    else
-                                        // Active: render selectbox (interactive)
-                                        Input.searchableSelect
-                                            (tx.CategoryId
-                                             |> Option.map (fun (YnabCategoryId id) -> id.ToString())
-                                             |> Option.defaultValue "")
-                                            (fun (value: string) ->
-                                                if value = "" then
-                                                    dispatch (CategorizeTransaction (tx.Transaction.Id, None))
-                                                else
-                                                    dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
-                                            "Category..."
-                                            categoryOptions
-                                    orderIdSuggestionBadge
                                     pendingCategorySaveIndicator
                                 ]
                             ]
-                            // Amount (fixed width for alignment)
-                            Html.div [
-                                prop.className "flex-shrink-0 w-24 text-right"
-                                prop.children [
-                                    Money.view {
-                                        Money.defaultProps with
-                                            Amount = tx.Transaction.Amount.Amount
-                                            Currency = tx.Transaction.Amount.Currency
-                                            Size = Money.Small
-                                            Glow = Money.NoGlow
-                                    }
+
+                            if shouldShowCreateRule then
+                                Html.button [
+                                    prop.className "tx-create-rule-btn"
+                                    prop.onClick (fun e ->
+                                        e.stopPropagation()
+                                        dispatch (OpenInlineRuleForm tx.Transaction.Id))
+                                    prop.title "Regel erstellen"
+                                    prop.text "+ Regel"
                                 ]
-                            ]
-                        ]
-                    ]
-                    // Line 2: Payee (editable) + Date + Actions
-                    Html.div [
-                        prop.className "flex items-center gap-2 pl-4 text-sm"
-                        prop.children [
-                            // Payee ComboBox (editable with suggestions) + External Link
-                            Html.div [
-                                prop.className "flex-1 min-w-0 flex items-center gap-1"
-                                prop.children [
-                                    Html.div [
-                                        prop.className "flex-1 min-w-0"
-                                        prop.children [
-                                            if tx.Status = Skipped then
-                                                // Skipped: Payee als Link wenn ExternalLink vorhanden
-                                                match tx.ExternalLinks |> List.tryHead with
-                                                | Some link ->
-                                                    Html.a [
-                                                        prop.className "text-sm text-neon-teal/60 hover:text-neon-teal truncate flex items-center gap-1"
-                                                        prop.href link.Url
-                                                        prop.target "_blank"
-                                                        prop.title $"{displayPayee} - {link.Label}"
-                                                        prop.children [
-                                                            Html.span [ prop.className "truncate"; prop.text (if displayPayee = "" then "—" else displayPayee) ]
-                                                            Icons.externalLink Icons.XS Icons.NeonTeal
-                                                        ]
-                                                    ]
-                                                | None ->
-                                                    Html.span [
-                                                        prop.className "text-sm text-base-content/50 truncate"
-                                                        prop.title displayPayee
-                                                        prop.text (if displayPayee = "" then "—" else displayPayee)
-                                                    ]
-                                            else
-                                                // Active: render ComboBox (interactive)
-                                                Input.comboBoxGrouped
-                                                    displayPayee
-                                                    (fun value ->
-                                                        // Always store as Some - even empty string means "user edited"
-                                                        dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
-                                                    "Payee..."
-                                                    payeeOptions
-                                        ]
-                                    ]
-                                    // External link icon für aktive Transaktionen
-                                    if tx.Status <> Skipped then
-                                        externalLinkButton tx.ExternalLinks
-                                    pendingPayeeSaveIndicator
-                                ]
-                            ]
+
                             Html.span [
-                                prop.className "text-xs text-base-content/40 tabular-nums flex-shrink-0"
+                                prop.className "tx-date"
                                 prop.text dateStr
                             ]
-                            // Actions (always visible on mobile for touch, fixed width)
-                            Html.div [
-                                prop.className "flex items-center gap-0.5 w-16 flex-shrink-0"
-                                prop.children [
-                                    createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
-                                    skipToggleIcon tx dispatch
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
 
-            // Desktop Layout (shown at md breakpoint and above)
-            Html.div [
-                prop.className "hidden md:flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors"
-                prop.children [
-                    // Expand chevron
-                    expandChevron tx isExpanded dispatch
-                    // Status dot
-                    statusDot tx
-                    // Duplicate indicator
-                    duplicateIndicator tx.DuplicateStatus
-                    // Actions (always visible, fixed width for layout stability)
-                    Html.div [
-                        prop.className "flex items-center gap-0.5 w-16 flex-shrink-0"
-                        prop.children [
-                            createRuleButton tx showRuleForm manuallyCategorizedIds dispatch
-                            skipToggleIcon tx dispatch
-                        ]
-                    ]
-                    // Category: Selectbox for active, text for skipped - fixed width
-                    Html.div [
-                        prop.className "w-96 flex-shrink-0 flex items-center"
-                        prop.children [
-                            if tx.Status = Skipped then
-                                // Skipped: render as plain text (fast)
-                                Html.span [
-                                    prop.className "text-sm text-base-content/50 truncate block py-2"
-                                    prop.text (categoryText tx.CategoryId categoryOptions)
-                                ]
-                            else
-                                // Active: render selectbox (interactive)
-                                Input.searchableSelect
-                                    (tx.CategoryId
-                                     |> Option.map (fun (YnabCategoryId id) -> id.ToString())
-                                     |> Option.defaultValue "")
-                                    (fun (value: string) ->
-                                        if value = "" then
-                                            dispatch (CategorizeTransaction (tx.Transaction.Id, None))
-                                        else
-                                            dispatch (CategorizeTransaction (tx.Transaction.Id, Some (YnabCategoryId (System.Guid.Parse value)))))
-                                    "Category..."
-                                    categoryOptions
-                            orderIdSuggestionBadge
-                            pendingCategorySaveIndicator
-                        ]
-                    ]
-                    // Payee ComboBox (editable with suggestions) + External Link
-                    Html.div [
-                        prop.className "w-52 flex-shrink-0 flex items-center gap-1"
-                        prop.children [
-                            Html.div [
-                                prop.className "flex-1 min-w-0"
+                            Html.span [
+                                prop.className "tx-chevron"
+                                prop.text "\u203A"
+                            ]
+
+                            Html.label [
+                                prop.className "tx-toggle"
+                                prop.onClick (fun e -> e.stopPropagation())
                                 prop.children [
-                                    if tx.Status = Skipped then
-                                        // Skipped: Payee als Link wenn ExternalLink vorhanden
-                                        match tx.ExternalLinks |> List.tryHead with
-                                        | Some link ->
-                                            Html.a [
-                                                prop.className "text-sm text-neon-teal/60 hover:text-neon-teal truncate flex items-center gap-1 py-2"
-                                                prop.href link.Url
-                                                prop.target "_blank"
-                                                prop.title $"{displayPayee} - {link.Label}"
-                                                prop.children [
-                                                    Html.span [ prop.className "truncate"; prop.text (if displayPayee = "" then "—" else displayPayee) ]
-                                                    Icons.externalLink Icons.XS Icons.NeonTeal
+                                    Html.input [
+                                        prop.type' "checkbox"
+                                        prop.isChecked isIncluded
+                                        prop.onChange (fun (_: bool) ->
+                                            if isIncluded then
+                                                dispatch (SkipTransaction tx.Transaction.Id)
+                                            else
+                                                dispatch (UnskipTransaction tx.Transaction.Id))
+                                    ]
+                                    Html.span [
+                                        prop.className "toggle-track"
+                                        prop.children [
+                                            Svg.svg [
+                                                svg.className "toggle-check"
+                                                svg.viewBox (0, 0, 10, 10)
+                                                svg.children [
+                                                    Svg.path [
+                                                        svg.d "M2 5l2.5 2.5L8 3"
+                                                        svg.fill "none"
+                                                        svg.stroke "#08081a"
+                                                        svg.strokeWidth 2
+                                                        svg.custom ("strokeLinecap", "round")
+                                                        svg.custom ("strokeLinejoin", "round")
+                                                    ]
                                                 ]
                                             ]
-                                        | None ->
-                                            Html.span [
-                                                prop.className "text-sm text-base-content/50 truncate block py-2"
-                                                prop.title displayPayee
-                                                prop.text (if displayPayee = "" then "—" else displayPayee)
-                                            ]
-                                    else
-                                        // Active: render ComboBox (interactive)
-                                        Input.comboBoxGrouped
-                                            displayPayee
-                                            (fun value ->
-                                                // Always store as Some - even empty string means "user edited"
-                                                dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
-                                            "Payee..."
-                                            payeeOptions
+                                        ]
+                                    ]
                                 ]
                             ]
-                            // External link icon für aktive Transaktionen
-                            if tx.Status <> Skipped then
-                                externalLinkButton tx.ExternalLinks
-                            pendingPayeeSaveIndicator
                         ]
                     ]
-                    // Date
-                    Html.span [
-                        prop.className "w-16 text-xs text-base-content/50 text-right tabular-nums"
-                        prop.text dateStr
-                    ]
-                    // Amount
+
+                    // Expanded content
                     Html.div [
-                        prop.className "w-24 text-right"
+                        prop.className "tx-expanded"
                         prop.children [
-                            Money.view {
-                                Money.defaultProps with
-                                    Amount = tx.Transaction.Amount.Amount
-                                    Currency = tx.Transaction.Amount.Currency
-                                    Size = Money.Small
-                                    Glow = Money.NoGlow
-                            }
+                            Html.div [
+                                prop.className "tx-expanded-inner"
+                                prop.children [
+                                    Html.div [
+                                        prop.className "tx-expanded-content"
+                                        prop.children [
+                                            // Memo
+                                            if hasExpandableContent then
+                                                Html.div [
+                                                    prop.className "tx-memo"
+                                                    prop.children [
+                                                        Html.span [ prop.className "memo-label"; prop.text "Memo" ]
+                                                        Html.span [ prop.className "memo-text"; prop.text tx.Transaction.Memo ]
+                                                    ]
+                                                ]
+
+                                            // Duplicate info
+                                            match tx.DuplicateStatus with
+                                            | ConfirmedDuplicate (reference, _) ->
+                                                Html.div [
+                                                    prop.className "tx-memo"
+                                                    prop.children [
+                                                        Html.span [ prop.className "memo-label"; prop.text "Grund" ]
+                                                        Html.span [ prop.className "memo-text"; prop.text $"Bereits in YNAB vorhanden ({reference})" ]
+                                                    ]
+                                                ]
+                                            | PossibleDuplicate (reason, _) ->
+                                                Html.div [
+                                                    prop.className "tx-memo"
+                                                    prop.children [
+                                                        Html.span [ prop.className "memo-label"; prop.text "Hinweis" ]
+                                                        Html.span [ prop.className "memo-text"; prop.text reason ]
+                                                    ]
+                                                ]
+                                            | NotDuplicate _ -> ()
+
+                                            // Debug info (collapsible, less prominent)
+                                            if isExpanded then
+                                                duplicateDebugInfo tx
+
+                                            // Action chips row
+                                            Html.div [
+                                                prop.className "tx-actions"
+                                                prop.children [
+                                                    Html.button [
+                                                        prop.className "action-chip"
+                                                        prop.onClick (fun e ->
+                                                            e.stopPropagation()
+                                                            onOpenCategoryPicker tx.Transaction.Id displayPayeeTitleCase)
+                                                        prop.text (
+                                                            match tx.CategoryId with
+                                                            | Some _ -> "Kategorie \u00E4ndern"
+                                                            | None -> "Kategorie w\u00E4hlen")
+                                                    ]
+
+                                                    if shouldShowCreateRule then
+                                                        Html.button [
+                                                            prop.className "action-chip"
+                                                            prop.onClick (fun e ->
+                                                                e.stopPropagation()
+                                                                dispatch (OpenInlineRuleForm tx.Transaction.Id))
+                                                            prop.text "Regel erstellen"
+                                                        ]
+
+                                                    match tx.ExternalLinks |> List.tryHead with
+                                                    | Some link ->
+                                                        Html.a [
+                                                            prop.className "action-chip"
+                                                            prop.href link.Url
+                                                            prop.target "_blank"
+                                                            prop.rel "noopener noreferrer"
+                                                            prop.onClick (fun e -> e.stopPropagation())
+                                                            prop.text link.Label
+                                                        ]
+                                                    | None -> ()
+
+                                                    if tx.Status <> Skipped then
+                                                        Html.button [
+                                                            prop.className "action-chip danger"
+                                                            prop.onClick (fun e ->
+                                                                e.stopPropagation()
+                                                                dispatch (SkipTransaction tx.Transaction.Id))
+                                                            prop.text "\u00DCberspringen"
+                                                        ]
+                                                ]
+                                            ]
+
+                                            // Payee edit (styled to match new design)
+                                            if tx.Status <> Skipped then
+                                                Html.div [
+                                                    prop.className "tx-payee-edit"
+                                                    prop.onClick (fun e -> e.stopPropagation())
+                                                    prop.children [
+                                                        Input.comboBoxGrouped
+                                                            displayPayee
+                                                            (fun value ->
+                                                                dispatch (SetPayeeOverride (tx.Transaction.Id, Some value)))
+                                                            "Payee bearbeiten..."
+                                                            payeeOptions
+                                                    ]
+                                                ]
+
+                                            // Inline rule form (BottomSheet via portal)
+                                            match inlineRuleFormState with
+                                            | Some form when form.TransactionId = tx.Transaction.Id ->
+                                                inlineRuleForm form dispatch
+                                            | _ -> ()
+                                        ]
+                                    ]
+                                ]
+                            ]
                         ]
                     ]
                 ]
             ]
-
-            // Expanded content (memo + duplicate debug info)
-            if isExpanded then
-                Html.div [
-                    prop.className "px-4 pb-3"
-                    prop.children [
-                        // Memo (if exists)
-                        if hasExpandableContent then
-                            memoRow tx
-                        // Always show duplicate debug info when expanded
-                        duplicateDebugInfo tx
-                    ]
-                ]
-
-            // Inline rule form (when active for this transaction)
-            match inlineRuleFormState with
-            | Some form when form.TransactionId = tx.Transaction.Id ->
-                inlineRuleForm form dispatch
-            | _ -> ()
         ]
     ]

@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>BudgetBuddy — Sync Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       1. CUSTOM PROPERTIES
+       ============================================================ */
+    :root {
+      --bg-app: #08081a;
+      --bg-card: #111128;
+      --bg-elevated: #1a1a36;
+      --bg-input: #16162e;
+      --bg-hover: #1e1e3c;
+      --border: #2a2a4a;
+      --border-subtle: #1c1c38;
+
+      --text-primary: #e8e8f0;
+      --text-secondary: #7a7a98;
+      --text-muted: #4a4a68;
+
+      --neon-teal: #00d4aa;
+      --neon-teal-dim: rgba(0, 212, 170, 0.15);
+      --neon-teal-glow: rgba(0, 212, 170, 0.3);
+      --neon-orange: #ff6b2c;
+      --neon-orange-dim: rgba(255, 107, 44, 0.15);
+      --neon-green: #00ff88;
+      --neon-purple: #a855f7;
+      --neon-red: #ff3b5c;
+
+      --status-ready: var(--neon-teal);
+      --status-attention: var(--neon-orange);
+      --status-duplicate: #4a4a68;
+
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+      --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+      --duration-fast: 150ms;
+      --duration-base: 200ms;
+      --duration-slow: 300ms;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    /* ============================================================
+       2. RESET & BASE
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: #04040e;
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    button { font-family: inherit; border: none; cursor: pointer; background: none; color: inherit; }
+    input { font-family: inherit; border: none; outline: none; background: none; color: inherit; }
+
+    /* ============================================================
+       3. APP SHELL — phone frame on desktop
+       ============================================================ */
+    .app {
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg-app);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-width: 500px) {
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .app {
+        max-width: 390px;
+        height: 844px;
+        min-height: unset;
+        border-radius: 44px;
+        box-shadow:
+          0 0 0 11px #1a1a2e,
+          0 0 0 13px #2a2a4a,
+          0 0 80px rgba(0, 212, 170, 0.08);
+      }
+    }
+
+    /* ============================================================
+       4. HEADER
+       ============================================================ */
+    .header {
+      padding: 56px 20px 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+
+    @media (min-width: 500px) {
+      .header { padding-top: 48px; }
+    }
+
+    .back-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-elevated);
+      font-size: 18px;
+      color: var(--text-secondary);
+      transition: background var(--duration-fast) ease;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .back-btn:active { background: var(--bg-hover); }
+
+    .header-text h1 {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .header-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .header-subtitle .dot {
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    /* ============================================================
+       5. FILTER TABS
+       ============================================================ */
+    .filters {
+      display: flex;
+      gap: 8px;
+      padding: 8px 20px 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+      -webkit-overflow-scrolling: touch;
+    }
+    .filters::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+      transition: all var(--duration-fast) ease;
+    }
+    .filter-btn:active { transform: scale(0.97); }
+    .filter-btn.active {
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+      border-color: rgba(0, 212, 170, 0.25);
+    }
+    .filter-btn .count {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: var(--bg-elevated);
+    }
+    .filter-btn.active .count {
+      background: rgba(0, 212, 170, 0.2);
+    }
+    .filter-btn.has-attention .count {
+      background: var(--neon-orange-dim);
+      color: var(--neon-orange);
+    }
+
+    /* ============================================================
+       6. SCROLLABLE TRANSACTION LIST
+       ============================================================ */
+    .tx-list {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 140px;
+    }
+
+    /* ============================================================
+       7. DATE GROUP HEADERS
+       ============================================================ */
+    .date-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: rgba(8, 8, 26, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .date-total {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       8. TRANSACTION ROWS
+       ============================================================ */
+    .tx-row {
+      display: flex;
+      align-items: stretch;
+      margin: 0 12px 2px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      overflow: hidden;
+      transition: background var(--duration-fast) ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .tx-row:first-child { margin-top: 4px; }
+    .tx-row:last-child { margin-bottom: 8px; }
+    .tx-row:active { background: var(--bg-hover); }
+
+    /* Left status bar */
+    .tx-status-bar {
+      width: 3px;
+      flex-shrink: 0;
+      border-radius: 3px 0 0 3px;
+      transition: width var(--duration-base) var(--ease-out-quint),
+                  background var(--duration-slow) var(--ease-out-cubic);
+    }
+    .tx-row.status-ready .tx-status-bar { background: var(--status-ready); }
+    .tx-row.status-attention .tx-status-bar { background: var(--status-attention); }
+    .tx-row.status-duplicate .tx-status-bar { background: var(--status-duplicate); }
+    .tx-row.status-skipped .tx-status-bar { background: transparent; }
+
+    /* Content area */
+    .tx-content {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+    }
+
+    /* Line 1: payee + amount */
+    .tx-line1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .tx-payee {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .tx-amount {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tx-amount.positive { color: var(--neon-teal); }
+
+    /* Line 2: category badge + date + toggle */
+    .tx-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    /* Category badges */
+    .tx-category {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      transition: all var(--duration-fast) ease;
+      cursor: pointer;
+    }
+    .tx-category:active { transform: scale(0.95); }
+
+    .badge-ready {
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+    .badge-attention {
+      background: var(--neon-orange-dim);
+      color: var(--neon-orange);
+      border: 1px dashed rgba(255, 107, 44, 0.35);
+    }
+    .badge-duplicate {
+      background: rgba(74, 74, 104, 0.3);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .tx-date {
+      font-size: 11px;
+      color: var(--text-muted);
+      flex: 1;
+    }
+
+    /* Chevron for expand */
+    .tx-chevron {
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform var(--duration-base) var(--ease-out-quint);
+      margin-left: auto;
+      padding: 2px;
+    }
+    .tx-row.expanded .tx-chevron { transform: rotate(90deg); }
+
+    /* Import toggle checkbox */
+    .tx-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      padding: 4px;
+    }
+    .tx-toggle input { display: none; }
+    .toggle-track {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--duration-fast) var(--ease-out-cubic);
+      flex-shrink: 0;
+    }
+    .toggle-check {
+      width: 10px;
+      height: 10px;
+      opacity: 0;
+      transition: opacity var(--duration-fast) ease;
+    }
+    .tx-toggle input:checked + .toggle-track {
+      background: var(--neon-teal);
+      border-color: var(--neon-teal);
+    }
+    .tx-toggle input:checked + .toggle-track .toggle-check {
+      opacity: 1;
+    }
+
+    /* ============================================================
+       9. DUPLICATE & SKIPPED STATES
+       ============================================================ */
+    .tx-row.status-duplicate {
+      opacity: 0.45;
+    }
+    .tx-row.status-duplicate .tx-payee {
+      text-decoration: line-through;
+      text-decoration-color: var(--text-muted);
+    }
+
+    .tx-row.status-skipped {
+      opacity: 0.35;
+    }
+    .tx-row.status-skipped .tx-payee {
+      text-decoration: line-through;
+      text-decoration-color: var(--text-muted);
+    }
+
+    /* ============================================================
+       10. EXPANDED TRANSACTION
+       ============================================================ */
+    .tx-expanded {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows var(--duration-base) var(--ease-out-quint);
+    }
+    .tx-row.expanded .tx-expanded {
+      grid-template-rows: 1fr;
+    }
+    .tx-expanded-inner {
+      overflow: hidden;
+    }
+    .tx-expanded-content {
+      padding: 8px 0 4px;
+      border-top: 1px solid var(--border-subtle);
+      margin-top: 8px;
+    }
+
+    .tx-memo {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .memo-label {
+      color: var(--text-muted);
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .memo-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tx-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .action-chip {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 5px 10px;
+      border-radius: 8px;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+      transition: all var(--duration-fast) ease;
+    }
+    .action-chip:active {
+      transform: scale(0.97);
+      background: var(--bg-hover);
+    }
+    .action-chip.danger { color: var(--neon-red); }
+
+    /* ============================================================
+       11. BOTTOM ACTION BAR
+       ============================================================ */
+    .action-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+      background: rgba(10, 10, 28, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border-subtle);
+      z-index: 20;
+    }
+
+    .action-bar-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .action-bar-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    .action-bar-attention {
+      font-size: 12px;
+      color: var(--neon-orange);
+      font-weight: 500;
+    }
+
+    /* Progress bar */
+    .progress-track {
+      height: 3px;
+      border-radius: 2px;
+      background: var(--bg-elevated);
+      display: flex;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .progress-segment {
+      height: 100%;
+      transition: width 500ms var(--ease-out-quint);
+    }
+    .progress-ready { background: var(--neon-teal); }
+    .progress-attention { background: var(--neon-orange); }
+    .progress-skipped { background: var(--status-duplicate); }
+
+    /* Buttons */
+    .action-bar-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-cancel {
+      flex: 0 0 auto;
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      transition: all var(--duration-fast) ease;
+    }
+    .btn-cancel:active { transform: scale(0.97); background: var(--bg-hover); }
+
+    .btn-import {
+      flex: 1;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      color: #08081a;
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all var(--duration-fast) ease;
+      box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25);
+    }
+    .btn-import:active { transform: scale(0.97); }
+    .btn-import.ready {
+      animation: importReady 2s ease-in-out infinite;
+    }
+
+    @keyframes importReady {
+      0%, 100% { box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25); }
+      50% { box-shadow: 0 4px 30px rgba(0, 212, 170, 0.45); }
+    }
+
+    .btn-import-icon {
+      font-size: 16px;
+      transition: transform var(--duration-base) var(--ease-out-cubic);
+    }
+    .btn-import:active .btn-import-icon { transform: translateY(-1px); }
+
+    /* ============================================================
+       12. BOTTOM SHEET (Category Picker)
+       ============================================================ */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-slow) var(--ease-out-quint);
+    }
+    .overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .bottom-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-width: 430px;
+      margin: 0 auto;
+      z-index: 60;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      transform: translateY(100%);
+      transition: transform var(--duration-slow) var(--ease-out-quint);
+      max-height: 75vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .bottom-sheet.active {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--text-muted);
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+
+    .sheet-header {
+      padding: 14px 20px 8px;
+      flex-shrink: 0;
+    }
+    .sheet-header h3 {
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .sheet-header p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .sheet-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 20px 20px;
+      overscroll-behavior-y: contain;
+    }
+
+    .sheet-section {
+      margin-bottom: 16px;
+    }
+    .sheet-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .suggestion-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      transition: all var(--duration-fast) ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip:active { transform: scale(0.97); background: var(--bg-hover); }
+    .chip.suggested {
+      border-color: rgba(0, 212, 170, 0.3);
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+
+    .sheet-search {
+      margin-bottom: 16px;
+    }
+    .sheet-search input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-primary);
+      transition: border-color var(--duration-fast) ease;
+    }
+    .sheet-search input::placeholder { color: var(--text-muted); }
+    .sheet-search input:focus { border-color: var(--neon-teal); }
+
+    .category-group { margin-bottom: 12px; }
+    .category-parent {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      padding: 6px 0;
+    }
+    .category-item {
+      padding: 10px 12px;
+      font-size: 14px;
+      border-radius: var(--radius-sm);
+      transition: background var(--duration-fast) ease;
+      cursor: pointer;
+    }
+    .category-item:active { background: var(--bg-hover); }
+
+    /* ============================================================
+       13. INFO BANNER (duplicates)
+       ============================================================ */
+    .info-banner {
+      margin: 0 12px 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: rgba(74, 74, 104, 0.15);
+      border: 1px solid rgba(74, 74, 104, 0.25);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .info-banner-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(74, 74, 104, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+    .info-banner strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    /* ============================================================
+       14. ANIMATIONS
+       ============================================================ */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes statusFlash {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    .tx-row {
+      animation: fadeInUp var(--duration-base) var(--ease-out-cubic) both;
+    }
+    .date-group:nth-child(1) .tx-row:nth-child(2) { animation-delay: 30ms; }
+    .date-group:nth-child(1) .tx-row:nth-child(3) { animation-delay: 60ms; }
+    .date-group:nth-child(1) .tx-row:nth-child(4) { animation-delay: 90ms; }
+    .date-group:nth-child(1) .tx-row:nth-child(5) { animation-delay: 120ms; }
+    .date-group:nth-child(2) .tx-row:nth-child(2) { animation-delay: 150ms; }
+    .date-group:nth-child(2) .tx-row:nth-child(3) { animation-delay: 180ms; }
+    .date-group:nth-child(2) .tx-row:nth-child(4) { animation-delay: 210ms; }
+    .date-group:nth-child(2) .tx-row:nth-child(5) { animation-delay: 240ms; }
+    .date-group:nth-child(2) .tx-row:nth-child(6) { animation-delay: 270ms; }
+    .date-group:nth-child(3) .tx-row:nth-child(2) { animation-delay: 300ms; }
+    .date-group:nth-child(3) .tx-row:nth-child(3) { animation-delay: 330ms; }
+    .date-group:nth-child(3) .tx-row:nth-child(4) { animation-delay: 360ms; }
+    .date-group:nth-child(3) .tx-row:nth-child(5) { animation-delay: 390ms; }
+
+    /* ============================================================
+       15. ACCESSIBILITY
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      .tx-row,
+      .bottom-sheet,
+      .overlay,
+      .tx-expanded,
+      .toggle-track,
+      .tx-status-bar,
+      .filter-btn,
+      .chip,
+      .action-chip,
+      .btn-import,
+      .btn-cancel,
+      .tx-chevron,
+      .progress-segment {
+        animation: none;
+        transition: none;
+      }
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .tx-row:hover { background: var(--bg-hover); }
+      .chip:hover { background: var(--bg-hover); border-color: var(--neon-teal); }
+      .category-item:hover { background: var(--bg-hover); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <button class="back-btn" aria-label="Zurück">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="header-text">
+      <h1>Import prüfen</h1>
+      <div class="header-subtitle">
+        <span>52 Transaktionen</span>
+        <span class="dot"></span>
+        <span>Comdirect</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== FILTER TABS ===== -->
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">
+      Alle <span class="count">52</span>
+    </button>
+    <button class="filter-btn has-attention" data-filter="review">
+      Prüfen <span class="count">3</span>
+    </button>
+    <button class="filter-btn" data-filter="duplicates">
+      Duplikate <span class="count">2</span>
+    </button>
+    <button class="filter-btn" data-filter="skipped">
+      Übersprungen <span class="count">0</span>
+    </button>
+  </div>
+
+  <!-- ===== DUPLICATE INFO BANNER ===== -->
+  <div class="info-banner">
+    <span class="info-banner-icon">i</span>
+    <span><strong>2 Duplikate</strong> automatisch erkannt und übersprungen</span>
+  </div>
+
+  <!-- ===== TRANSACTION LIST ===== -->
+  <div class="tx-list">
+
+    <!-- Date Group 1 -->
+    <div class="date-group">
+      <div class="date-header">
+        <span>20. März 2025</span>
+        <span class="date-total">−86,50 €</span>
+      </div>
+
+      <!-- Row 1: Auto-categorized -->
+      <div class="tx-row status-ready" data-id="1" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Studentenwerk Hannover</span>
+            <span class="tx-amount">−20,00 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('Studentenwerk Hannover', 'Restaurants')">Restaurants</button>
+            <span class="tx-date">20. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">STUDENTENWERK HANNOVER MENSA</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Studentenwerk Hannover', 'Restaurants')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- Row 2: Needs category -->
+      <div class="tx-row status-attention" data-id="2" data-type="attention">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Restaurant Monte Coli</span>
+            <span class="tx-amount">−40,80 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-attention" onclick="event.stopPropagation(); openSheet('Restaurant Monte Coli', null)">Kategorie…</button>
+            <span class="tx-date">20. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">RESTAURANT MONTE COLI HANNOVER</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Restaurant Monte Coli', null)">Kategorie wählen</button>
+                <button class="action-chip">Regel erstellen</button>
+                <button class="action-chip danger">Überspringen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- Row 3: Duplicate -->
+      <div class="tx-row status-duplicate" data-id="3" data-type="duplicate">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Netflix</span>
+            <span class="tx-amount">−13,99 €</span>
+          </div>
+          <div class="tx-line2">
+            <span class="tx-category badge-duplicate">Duplikat</span>
+            <span class="tx-date">20. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox">
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Grund</span><span class="memo-text">Bereits in YNAB vorhanden (importiert am 18. Mär)</span></div>
+              <div class="tx-actions">
+                <button class="action-chip">Trotzdem importieren</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- Row 4: Auto-categorized -->
+      <div class="tx-row status-ready" data-id="4" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">REWE Markt</span>
+            <span class="tx-amount">−6,70 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('REWE Markt', 'Lebensmittel')">Lebensmittel</button>
+            <span class="tx-date">20. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">REWE SAGT DANKE 1234</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('REWE Markt', 'Lebensmittel')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Date Group 2 -->
+    <div class="date-group">
+      <div class="date-header">
+        <span>19. März 2025</span>
+        <span class="date-total">−122,28 €</span>
+      </div>
+
+      <div class="tx-row status-ready" data-id="5" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Spotify</span>
+            <span class="tx-amount">−9,99 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('Spotify', 'Unterhaltung')">Unterhaltung</button>
+            <span class="tx-date">19. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">SPOTIFY AB STOCKHOLM</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Spotify', 'Unterhaltung')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="tx-row status-ready" data-id="6" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">DB Fernverkehr</span>
+            <span class="tx-amount">−45,00 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('DB Fernverkehr', 'Transport')">Transport</button>
+            <span class="tx-date">19. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">DB FERNVERKEHR ICE 578</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('DB Fernverkehr', 'Transport')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- Needs category -->
+      <div class="tx-row status-attention" data-id="7" data-type="attention">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Lieferando</span>
+            <span class="tx-amount">−18,50 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-attention" onclick="event.stopPropagation(); openSheet('Lieferando', null)">Kategorie…</button>
+            <span class="tx-date">19. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">LIEFERANDO.DE AMSTERDAM</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Lieferando', null)">Kategorie wählen</button>
+                <button class="action-chip">Regel erstellen</button>
+                <button class="action-chip danger">Überspringen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- Amazon with memo -->
+      <div class="tx-row status-attention" data-id="8" data-type="attention">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Amazon.de</span>
+            <span class="tx-amount">−32,99 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-attention" onclick="event.stopPropagation(); openSheet('Amazon.de', null)">Kategorie…</button>
+            <span class="tx-date">19. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">AMAZON.DE 302-1234567-8901234</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Amazon.de', null)">Kategorie wählen</button>
+                <button class="action-chip">Regel erstellen</button>
+                <button class="action-chip danger">Überspringen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="tx-row status-ready" data-id="9" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">DM Drogerie</span>
+            <span class="tx-amount">−15,80 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('DM Drogerie', 'Haushalt')">Haushalt</button>
+            <span class="tx-date">19. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">DM DROGERIEMARKT FIL. 4321</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('DM Drogerie', 'Haushalt')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Date Group 3 -->
+    <div class="date-group">
+      <div class="date-header">
+        <span>18. März 2025</span>
+        <span class="date-total">−136,38 €</span>
+      </div>
+
+      <div class="tx-row status-ready" data-id="10" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Edeka</span>
+            <span class="tx-amount">−28,40 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('Edeka', 'Lebensmittel')">Lebensmittel</button>
+            <span class="tx-date">18. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">EDEKA SCHECK-IN CENTER</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Edeka', 'Lebensmittel')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="tx-row status-ready" data-id="11" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Shell Tankstelle</span>
+            <span class="tx-amount">−55,00 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('Shell Tankstelle', 'Transport')">Transport</button>
+            <span class="tx-date">18. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">SHELL STATION 1234 HANNOVER</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Shell Tankstelle', 'Transport')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="tx-row status-duplicate" data-id="12" data-type="duplicate">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">PayPal</span>
+            <span class="tx-amount">−12,99 €</span>
+          </div>
+          <div class="tx-line2">
+            <span class="tx-category badge-duplicate">Duplikat</span>
+            <span class="tx-date">18. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox">
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Grund</span><span class="memo-text">Bereits in YNAB vorhanden (importiert am 16. Mär)</span></div>
+              <div class="tx-actions">
+                <button class="action-chip">Trotzdem importieren</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="tx-row status-ready" data-id="13" data-type="ready">
+        <div class="tx-status-bar"></div>
+        <div class="tx-content">
+          <div class="tx-line1">
+            <span class="tx-payee">Vodafone</span>
+            <span class="tx-amount">−39,99 €</span>
+          </div>
+          <div class="tx-line2">
+            <button class="tx-category badge-ready" onclick="event.stopPropagation(); openSheet('Vodafone', 'Kommunikation')">Kommunikation</button>
+            <span class="tx-date">18. Mär</span>
+            <span class="tx-chevron">›</span>
+            <label class="tx-toggle" onclick="event.stopPropagation()">
+              <input type="checkbox" checked>
+              <span class="toggle-track">
+                <svg class="toggle-check" viewBox="0 0 10 10" fill="none" stroke="#08081a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5l2.5 2.5L8 3"/></svg>
+              </span>
+            </label>
+          </div>
+          <div class="tx-expanded"><div class="tx-expanded-inner">
+            <div class="tx-expanded-content">
+              <div class="tx-memo"><span class="memo-label">Memo</span><span class="memo-text">VODAFONE GMBH MOBILFUNK</span></div>
+              <div class="tx-actions">
+                <button class="action-chip" onclick="event.stopPropagation(); openSheet('Vodafone', 'Kommunikation')">Kategorie ändern</button>
+                <button class="action-chip">Regel erstellen</button>
+              </div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tx-list -->
+
+  <!-- ===== BOTTOM ACTION BAR ===== -->
+  <div class="action-bar">
+    <div class="action-bar-info">
+      <span class="action-bar-label" id="importCount">11 von 13 importieren</span>
+      <span class="action-bar-attention" id="attentionCount">3 ohne Kategorie</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-segment progress-ready" id="progressReady" style="width: 61.5%"></div>
+      <div class="progress-segment progress-attention" id="progressAttention" style="width: 23.1%"></div>
+      <div class="progress-segment progress-skipped" id="progressSkipped" style="width: 15.4%"></div>
+    </div>
+    <div class="action-bar-buttons">
+      <button class="btn-cancel">Abbrechen</button>
+      <button class="btn-import" id="importBtn">
+        <span>Importieren</span>
+        <span class="btn-import-icon">↑</span>
+      </button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ===== OVERLAY ===== -->
+<div class="overlay" id="overlay" onclick="closeSheet()"></div>
+
+<!-- ===== CATEGORY BOTTOM SHEET ===== -->
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <h3>Kategorie wählen</h3>
+    <p id="sheetPayee">Restaurant Monte Coli</p>
+  </div>
+  <div class="sheet-body">
+
+    <div class="sheet-section" id="suggestedSection">
+      <div class="sheet-section-title">Vorgeschlagen</div>
+      <div class="suggestion-chips" id="suggestedChips">
+        <button class="chip suggested" onclick="selectCategory(this)">Restaurants</button>
+        <button class="chip" onclick="selectCategory(this)">Lebensmittel</button>
+      </div>
+    </div>
+
+    <div class="sheet-section">
+      <div class="sheet-section-title">Zuletzt verwendet</div>
+      <div class="suggestion-chips">
+        <button class="chip" onclick="selectCategory(this)">Lebensmittel</button>
+        <button class="chip" onclick="selectCategory(this)">Transport</button>
+        <button class="chip" onclick="selectCategory(this)">Unterhaltung</button>
+        <button class="chip" onclick="selectCategory(this)">Haushalt</button>
+      </div>
+    </div>
+
+    <div class="sheet-search">
+      <input type="text" placeholder="Kategorie suchen…" id="categorySearch">
+    </div>
+
+    <div class="sheet-section">
+      <div class="sheet-section-title">Alle Kategorien</div>
+
+      <div class="category-group">
+        <div class="category-parent">Fixkosten</div>
+        <div class="category-item" onclick="selectCategory(this)">Miete</div>
+        <div class="category-item" onclick="selectCategory(this)">Versicherungen</div>
+        <div class="category-item" onclick="selectCategory(this)">Strom & Gas</div>
+        <div class="category-item" onclick="selectCategory(this)">Internet & Telefon</div>
+      </div>
+
+      <div class="category-group">
+        <div class="category-parent">Lebenshaltung</div>
+        <div class="category-item" onclick="selectCategory(this)">Lebensmittel</div>
+        <div class="category-item" onclick="selectCategory(this)">Restaurants</div>
+        <div class="category-item" onclick="selectCategory(this)">Haushalt</div>
+        <div class="category-item" onclick="selectCategory(this)">Kleidung</div>
+      </div>
+
+      <div class="category-group">
+        <div class="category-parent">Mobilität</div>
+        <div class="category-item" onclick="selectCategory(this)">Transport</div>
+        <div class="category-item" onclick="selectCategory(this)">Tanken</div>
+        <div class="category-item" onclick="selectCategory(this)">Auto</div>
+      </div>
+
+      <div class="category-group">
+        <div class="category-parent">Freizeit</div>
+        <div class="category-item" onclick="selectCategory(this)">Unterhaltung</div>
+        <div class="category-item" onclick="selectCategory(this)">Sport</div>
+        <div class="category-item" onclick="selectCategory(this)">Abonnements</div>
+      </div>
+
+      <div class="category-group">
+        <div class="category-parent">Sonstiges</div>
+        <div class="category-item" onclick="selectCategory(this)">Kommunikation</div>
+        <div class="category-item" onclick="selectCategory(this)">Gesundheit</div>
+        <div class="category-item" onclick="selectCategory(this)">Bildung</div>
+        <div class="category-item" onclick="selectCategory(this)">Geschenke</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+  // ================================================================
+  // INTERACTION LOGIC
+  // ================================================================
+
+  let activeSheetRow = null;
+
+  // --- Expand/Collapse Transaction ---
+  document.querySelectorAll('.tx-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const wasExpanded = row.classList.contains('expanded');
+      // collapse all
+      document.querySelectorAll('.tx-row.expanded').forEach(r => r.classList.remove('expanded'));
+      // toggle
+      if (!wasExpanded) row.classList.add('expanded');
+    });
+  });
+
+  // --- Filter Tabs ---
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const filter = btn.dataset.filter;
+      filterTransactions(filter);
+    });
+  });
+
+  function filterTransactions(filter) {
+    const rows = document.querySelectorAll('.tx-row');
+    const groups = document.querySelectorAll('.date-group');
+
+    rows.forEach(row => {
+      const type = row.dataset.type;
+      let show = true;
+      if (filter === 'review') show = type === 'attention';
+      else if (filter === 'duplicates') show = type === 'duplicate';
+      else if (filter === 'skipped') show = type === 'skipped';
+      row.style.display = show ? '' : 'none';
+    });
+
+    // Hide empty date groups
+    groups.forEach(group => {
+      const visibleRows = group.querySelectorAll('.tx-row:not([style*="display: none"])');
+      group.style.display = visibleRows.length > 0 ? '' : 'none';
+    });
+
+    // Hide info banner for non-all filters
+    const banner = document.querySelector('.info-banner');
+    if (banner) banner.style.display = filter === 'all' || filter === 'duplicates' ? '' : 'none';
+  }
+
+  // --- Bottom Sheet ---
+  function openSheet(payee, currentCategory) {
+    const sheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('overlay');
+    const payeeEl = document.getElementById('sheetPayee');
+    const suggestedSection = document.getElementById('suggestedSection');
+
+    payeeEl.textContent = payee;
+    sheet.classList.add('active');
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Store which row triggered this
+    activeSheetRow = event.target.closest('.tx-row');
+
+    // Update suggestion based on payee
+    const suggestedChips = document.getElementById('suggestedChips');
+    const suggestions = getSuggestions(payee);
+    suggestedChips.innerHTML = suggestions.map((s, i) =>
+      `<button class="chip ${i === 0 ? 'suggested' : ''}" onclick="selectCategory(this)">${s}</button>`
+    ).join('');
+  }
+
+  function closeSheet() {
+    const sheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('overlay');
+    sheet.classList.remove('active');
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+    activeSheetRow = null;
+  }
+
+  function getSuggestions(payee) {
+    const map = {
+      'Restaurant Monte Coli': ['Restaurants', 'Lebensmittel', 'Geschenke'],
+      'Lieferando': ['Restaurants', 'Lebensmittel'],
+      'Amazon.de': ['Shopping', 'Haushalt', 'Unterhaltung'],
+      'Studentenwerk Hannover': ['Restaurants', 'Bildung'],
+      'REWE Markt': ['Lebensmittel', 'Haushalt'],
+      'Spotify': ['Unterhaltung', 'Abonnements'],
+      'DB Fernverkehr': ['Transport', 'Reisen'],
+      'DM Drogerie': ['Haushalt', 'Gesundheit'],
+      'Edeka': ['Lebensmittel', 'Haushalt'],
+      'Shell Tankstelle': ['Transport', 'Tanken'],
+      'Vodafone': ['Kommunikation', 'Abonnements'],
+    };
+    return map[payee] || ['Lebensmittel', 'Restaurants'];
+  }
+
+  function selectCategory(el) {
+    const category = el.textContent.trim();
+    if (activeSheetRow) {
+      const badge = activeSheetRow.querySelector('.tx-category');
+      badge.textContent = category;
+      badge.className = 'tx-category badge-ready';
+
+      // Update row status
+      activeSheetRow.classList.remove('status-attention');
+      activeSheetRow.classList.add('status-ready');
+      activeSheetRow.dataset.type = 'ready';
+
+      updateCounts();
+    }
+    closeSheet();
+  }
+
+  // --- Toggle Import/Skip ---
+  document.querySelectorAll('.tx-toggle input').forEach(input => {
+    input.addEventListener('change', () => {
+      updateCounts();
+    });
+  });
+
+  // --- Update Counts ---
+  function updateCounts() {
+    const all = document.querySelectorAll('.tx-row');
+    let importCount = 0;
+    let attentionCount = 0;
+    let duplicateCount = 0;
+    let skippedCount = 0;
+    let readyCount = 0;
+
+    all.forEach(row => {
+      const checked = row.querySelector('.tx-toggle input').checked;
+      const type = row.dataset.type;
+
+      if (type === 'duplicate') {
+        duplicateCount++;
+        if (checked) importCount++;
+      } else if (checked) {
+        importCount++;
+        if (type === 'attention') attentionCount++;
+        else readyCount++;
+      } else {
+        skippedCount++;
+        row.dataset.type = row.dataset.type; // keep type
+      }
+    });
+
+    const total = all.length;
+
+    // Update bar
+    document.getElementById('importCount').textContent =
+      `${importCount} von ${total} importieren`;
+
+    const attEl = document.getElementById('attentionCount');
+    if (attentionCount > 0) {
+      attEl.textContent = `${attentionCount} ohne Kategorie`;
+      attEl.style.display = '';
+    } else {
+      attEl.style.display = 'none';
+      document.getElementById('importBtn').classList.add('ready');
+    }
+
+    // Progress bar
+    const readyPct = (readyCount / total * 100).toFixed(1);
+    const attPct = (attentionCount / total * 100).toFixed(1);
+    const skipPct = ((duplicateCount + skippedCount) / total * 100).toFixed(1);
+    document.getElementById('progressReady').style.width = readyPct + '%';
+    document.getElementById('progressAttention').style.width = attPct + '%';
+    document.getElementById('progressSkipped').style.width = skipPct + '%';
+
+    // Filter counts
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    filterBtns[0].querySelector('.count').textContent = total;
+    filterBtns[1].querySelector('.count').textContent = attentionCount;
+    filterBtns[2].querySelector('.count').textContent = duplicateCount;
+    filterBtns[3].querySelector('.count').textContent = skippedCount;
+  }
+
+  // --- Keyboard dismiss for sheet search ---
+  document.getElementById('categorySearch').addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSheet();
+  });
+</script>
+
+</body>
+</html>

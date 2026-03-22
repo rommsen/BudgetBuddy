@@ -807,3 +807,1207 @@ nav a:focus-visible {
   }
 }
 
+/* ============================================================
+   SYNCFLOW REDESIGN
+   ============================================================
+
+   Mobile-first transaction review UI for the Sync flow.
+   Class names here are referenced by the F# Feliz view code —
+   do NOT rename them without updating View.fs.
+
+   Token strategy:
+     - Reuses existing @theme colours (--color-neon-*)
+     - Adds SyncFlow-specific surface / text / easing tokens
+       scoped under --sf-* to avoid collisions.
+   ============================================================ */
+
+/* ---- SyncFlow custom properties ---- */
+:root {
+  /* Surfaces */
+  --sf-bg-app: #08081a;
+  --sf-bg-card: #111128;
+  --sf-bg-elevated: #1a1a36;
+  --sf-bg-input: #16162e;
+  --sf-bg-hover: #1e1e3c;
+
+  /* Borders */
+  --sf-border: #2a2a4a;
+  --sf-border-subtle: #1c1c38;
+
+  /* Text */
+  --sf-text-primary: #e8e8f0;
+  --sf-text-secondary: #7a7a98;
+  --sf-text-muted: #4a4a68;
+
+  /* Neon tints (dim / glow variants of existing palette colours) */
+  --sf-neon-teal-dim: rgba(0, 212, 170, 0.15);
+  --sf-neon-teal-glow: rgba(0, 212, 170, 0.3);
+  --sf-neon-orange-dim: rgba(255, 107, 44, 0.15);
+
+  /* Semantic status aliases */
+  --sf-status-ready: var(--color-neon-teal);
+  --sf-status-attention: var(--color-neon-orange);
+  --sf-status-duplicate: #4a4a68;
+
+  /* Easing curves */
+  --sf-ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --sf-ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --sf-ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1);
+
+  /* Durations (match existing tokens but kept here for prototype fidelity) */
+  --sf-duration-fast: 150ms;
+  --sf-duration-base: 200ms;
+  --sf-duration-slow: 300ms;
+
+  /* Radii (prototype uses px values) */
+  --sf-radius-sm: 8px;
+  --sf-radius-md: 12px;
+  --sf-radius-lg: 16px;
+  --sf-radius-xl: 24px;
+}
+
+/* ============================================================
+   SF 1. APP SHELL — phone frame on desktop preview
+   ============================================================ */
+.sf-app {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--sf-bg-app);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  color: var(--sf-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (min-width: 500px) {
+  .sf-app {
+    max-width: 390px;
+    height: 844px;
+    min-height: unset;
+    border-radius: 44px;
+    box-shadow:
+      0 0 0 11px #1a1a2e,
+      0 0 0 13px #2a2a4a,
+      0 0 80px rgba(0, 212, 170, 0.08);
+  }
+}
+
+/* ============================================================
+   SF 2. HEADER
+   ============================================================ */
+.sf-header {
+  padding: 56px 20px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+}
+
+@media (min-width: 500px) {
+  .sf-header { padding-top: 48px; }
+}
+
+.back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sf-bg-elevated);
+  font-size: 18px;
+  color: var(--sf-text-secondary);
+  transition: background var(--sf-duration-fast) ease;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.back-btn:active { background: var(--sf-bg-hover); }
+
+.header-text h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.header-subtitle {
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.header-subtitle .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--sf-text-muted);
+}
+
+/* ============================================================
+   SF 3. FILTER PILLS (horizontal scrollable)
+   ============================================================ */
+.filters {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.filters::-webkit-scrollbar { display: none; }
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--sf-bg-card);
+  color: var(--sf-text-secondary);
+  border: 1px solid var(--sf-border-subtle);
+  transition: all var(--sf-duration-fast) ease;
+  cursor: pointer;
+}
+.filter-btn:active { transform: scale(0.97); }
+.filter-btn.active {
+  background: var(--sf-neon-teal-dim);
+  color: var(--color-neon-teal);
+  border-color: rgba(0, 212, 170, 0.25);
+}
+.filter-btn .count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--sf-bg-elevated);
+}
+.filter-btn.active .count {
+  background: rgba(0, 212, 170, 0.2);
+}
+.filter-btn.has-attention .count {
+  background: var(--sf-neon-orange-dim);
+  color: var(--color-neon-orange);
+}
+
+/* ============================================================
+   SF 4. SCROLLABLE TRANSACTION LIST
+   ============================================================ */
+.tx-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 140px;
+}
+
+/* ============================================================
+   SF 5. DATE GROUP HEADERS (sticky + backdrop-blur)
+   ============================================================ */
+.date-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sf-text-secondary);
+  background: rgba(8, 8, 26, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.date-total {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--sf-text-muted);
+}
+
+/* ============================================================
+   SF 6. TRANSACTION ROWS
+   ============================================================ */
+.tx-row {
+  display: flex;
+  align-items: stretch;
+  margin: 0 12px 2px;
+  border-radius: var(--sf-radius-sm);
+  background: var(--sf-bg-card);
+  overflow: hidden;
+  transition: background var(--sf-duration-fast) ease;
+  cursor: pointer;
+  position: relative;
+}
+.tx-row:first-child { margin-top: 4px; }
+.tx-row:last-child { margin-bottom: 8px; }
+.tx-row:active { background: var(--sf-bg-hover); }
+
+/* Left status bar */
+.tx-status-bar {
+  width: 3px;
+  flex-shrink: 0;
+  border-radius: 3px 0 0 3px;
+  transition: width var(--sf-duration-base) var(--sf-ease-out-quint),
+              background var(--sf-duration-slow) var(--sf-ease-out-cubic);
+}
+.tx-row.status-ready .tx-status-bar { background: var(--sf-status-ready); }
+.tx-row.status-attention .tx-status-bar { background: var(--sf-status-attention); }
+.tx-row.status-duplicate .tx-status-bar { background: var(--sf-status-duplicate); }
+.tx-row.status-skipped .tx-status-bar { background: transparent; }
+
+/* Content area */
+.tx-content {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+/* Line 1: payee + amount */
+.tx-line1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.tx-payee {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.tx-amount {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tx-amount.positive { color: var(--color-neon-teal); }
+
+/* Line 2: category badge + date + toggle */
+.tx-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   SF 7. CATEGORY BADGES
+   ============================================================ */
+.tx-category {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  transition: all var(--sf-duration-fast) ease;
+  cursor: pointer;
+}
+.tx-category:active { transform: scale(0.95); }
+
+.badge-ready {
+  background: var(--sf-neon-teal-dim);
+  color: var(--color-neon-teal);
+}
+.badge-attention {
+  background: var(--sf-neon-orange-dim);
+  color: var(--color-neon-orange);
+  border: 1px dashed rgba(255, 107, 44, 0.35);
+}
+.badge-duplicate {
+  background: rgba(74, 74, 104, 0.3);
+  color: var(--sf-text-muted);
+  font-style: italic;
+}
+
+.tx-date {
+  font-size: 11px;
+  color: var(--sf-text-muted);
+  flex: 1;
+}
+
+/* ============================================================
+   SF 8. CHEVRON (expand/collapse indicator)
+   ============================================================ */
+.tx-chevron {
+  font-size: 10px;
+  color: var(--sf-text-muted);
+  transition: transform var(--sf-duration-base) var(--sf-ease-out-quint);
+  margin-left: auto;
+  padding: 2px;
+}
+.tx-row.expanded .tx-chevron { transform: rotate(90deg); }
+
+/* ============================================================
+   SF 9. TOGGLE CHECKBOX (import on/off)
+   ============================================================ */
+.tx-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 4px;
+}
+.tx-toggle input { display: none; }
+
+.toggle-track {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid var(--sf-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--sf-duration-fast) var(--sf-ease-out-cubic);
+  flex-shrink: 0;
+}
+.toggle-check {
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+  transition: opacity var(--sf-duration-fast) ease;
+}
+.tx-toggle input:checked + .toggle-track {
+  background: var(--color-neon-teal);
+  border-color: var(--color-neon-teal);
+}
+.tx-toggle input:checked + .toggle-track .toggle-check {
+  opacity: 1;
+}
+
+/* ============================================================
+   SF 10. DUPLICATE & SKIPPED STATES
+   ============================================================ */
+.tx-row.status-duplicate {
+  opacity: 0.45;
+}
+.tx-row.status-duplicate .tx-payee {
+  text-decoration: line-through;
+  text-decoration-color: var(--sf-text-muted);
+}
+
+.tx-row.status-skipped {
+  opacity: 0.35;
+}
+.tx-row.status-skipped .tx-payee {
+  text-decoration: line-through;
+  text-decoration-color: var(--sf-text-muted);
+}
+
+/* ============================================================
+   SF 11. EXPANDED TRANSACTION
+   ============================================================ */
+.tx-expanded {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--sf-duration-base) var(--sf-ease-out-quint);
+}
+.tx-row.expanded .tx-expanded {
+  grid-template-rows: 1fr;
+}
+.tx-expanded-inner {
+  overflow: hidden;
+}
+.tx-expanded-content {
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--sf-border-subtle);
+  margin-top: 8px;
+}
+
+.tx-memo {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--sf-text-secondary);
+  margin-bottom: 8px;
+}
+.memo-label {
+  color: var(--sf-text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.memo-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.action-chip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--sf-bg-elevated);
+  color: var(--sf-text-secondary);
+  border: 1px solid var(--sf-border-subtle);
+  transition: all var(--sf-duration-fast) ease;
+  cursor: pointer;
+}
+.action-chip:active {
+  transform: scale(0.97);
+  background: var(--sf-bg-hover);
+}
+.action-chip.danger { color: var(--color-neon-red); }
+
+/* ============================================================
+   SF 12. BOTTOM ACTION BAR (glassmorphism)
+   ============================================================ */
+.action-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  background: rgba(10, 10, 28, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--sf-border-subtle);
+  z-index: 20;
+}
+
+.action-bar-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.action-bar-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sf-text-primary);
+}
+.action-bar-attention {
+  font-size: 12px;
+  color: var(--color-neon-orange);
+  font-weight: 500;
+}
+
+/* Progress bar */
+.progress-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--sf-bg-elevated);
+  display: flex;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.progress-segment {
+  height: 100%;
+  transition: width 500ms var(--sf-ease-out-quint);
+}
+.progress-ready { background: var(--color-neon-teal); }
+.progress-attention { background: var(--color-neon-orange); }
+.progress-skipped { background: var(--sf-status-duplicate); }
+
+/* Buttons */
+.action-bar-buttons {
+  display: flex;
+  gap: 10px;
+}
+.btn-cancel {
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  border-radius: var(--sf-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sf-text-secondary);
+  background: var(--sf-bg-elevated);
+  border: 1px solid var(--sf-border);
+  transition: all var(--sf-duration-fast) ease;
+  cursor: pointer;
+}
+.btn-cancel:active { transform: scale(0.97); background: var(--sf-bg-hover); }
+
+.btn-import {
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: var(--sf-radius-md);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: #08081a;
+  background: linear-gradient(135deg, var(--color-neon-teal), var(--color-neon-green));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--sf-duration-fast) ease;
+  box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25);
+  cursor: pointer;
+  border: none;
+}
+.btn-import:active { transform: scale(0.97); }
+.btn-import.ready {
+  animation: importReady 2s ease-in-out infinite;
+}
+
+@keyframes importReady {
+  0%, 100% { box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25); }
+  50% { box-shadow: 0 4px 30px rgba(0, 212, 170, 0.45); }
+}
+
+.btn-import-icon {
+  font-size: 16px;
+  transition: transform var(--sf-duration-base) var(--sf-ease-out-cubic);
+}
+.btn-import:active .btn-import-icon { transform: translateY(-1px); }
+
+/* ============================================================
+   SF 13. BOTTOM SHEET (Category Picker)
+   ============================================================ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--sf-duration-slow) var(--sf-ease-out-quint);
+}
+.overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 430px;
+  margin: 0 auto;
+  z-index: 60;
+  background: var(--sf-bg-elevated);
+  border-radius: var(--sf-radius-xl) var(--sf-radius-xl) 0 0;
+  transform: translateY(100%);
+  transition: transform var(--sf-duration-slow) var(--sf-ease-out-quint);
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+}
+.bottom-sheet.active {
+  transform: translateY(0);
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sf-text-muted);
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
+.sheet-header {
+  padding: 14px 20px 8px;
+  flex-shrink: 0;
+}
+.sheet-header h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+}
+.sheet-header p {
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+  margin-top: 2px;
+}
+
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+  overscroll-behavior-y: contain;
+}
+
+.sheet-section {
+  margin-bottom: 16px;
+}
+.sheet-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+  margin-bottom: 8px;
+}
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  padding: 8px 14px;
+  border-radius: var(--sf-radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  transition: all var(--sf-duration-fast) ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.chip:active { transform: scale(0.97); background: var(--sf-bg-hover); }
+.chip.suggested {
+  border-color: rgba(0, 212, 170, 0.3);
+  background: var(--sf-neon-teal-dim);
+  color: var(--color-neon-teal);
+}
+
+.sheet-search {
+  margin-bottom: 16px;
+}
+.sheet-search input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  font-size: 14px;
+  color: var(--sf-text-primary);
+  transition: border-color var(--sf-duration-fast) ease;
+}
+.sheet-search input::placeholder { color: var(--sf-text-muted); }
+.sheet-search input:focus { border-color: var(--color-neon-teal); }
+
+.category-group { margin-bottom: 12px; }
+.category-parent {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sf-text-secondary);
+  padding: 6px 0;
+}
+.category-item {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: var(--sf-radius-sm);
+  transition: background var(--sf-duration-fast) ease;
+  cursor: pointer;
+}
+.category-item:active { background: var(--sf-bg-hover); }
+
+/* ============================================================
+   SF 14. INFO BANNER (duplicate notice, etc.)
+   ============================================================ */
+.info-banner {
+  margin: 0 12px 8px;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: rgba(74, 74, 104, 0.15);
+  border: 1px solid rgba(74, 74, 104, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+}
+.info-banner-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(74, 74, 104, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.info-banner strong {
+  color: var(--sf-text-primary);
+  font-weight: 600;
+}
+
+/* ============================================================
+   SF 15. ANIMATIONS
+   ============================================================ */
+@keyframes sfFadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes sfStatusFlash {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.tx-row {
+  animation: sfFadeInUp var(--sf-duration-base) var(--sf-ease-out-cubic) both;
+}
+
+/* Staggered entry delays per date group */
+.date-group:nth-child(1) .tx-row:nth-child(2) { animation-delay: 30ms; }
+.date-group:nth-child(1) .tx-row:nth-child(3) { animation-delay: 60ms; }
+.date-group:nth-child(1) .tx-row:nth-child(4) { animation-delay: 90ms; }
+.date-group:nth-child(1) .tx-row:nth-child(5) { animation-delay: 120ms; }
+.date-group:nth-child(2) .tx-row:nth-child(2) { animation-delay: 150ms; }
+.date-group:nth-child(2) .tx-row:nth-child(3) { animation-delay: 180ms; }
+.date-group:nth-child(2) .tx-row:nth-child(4) { animation-delay: 210ms; }
+.date-group:nth-child(2) .tx-row:nth-child(5) { animation-delay: 240ms; }
+.date-group:nth-child(2) .tx-row:nth-child(6) { animation-delay: 270ms; }
+.date-group:nth-child(3) .tx-row:nth-child(2) { animation-delay: 300ms; }
+.date-group:nth-child(3) .tx-row:nth-child(3) { animation-delay: 330ms; }
+.date-group:nth-child(3) .tx-row:nth-child(4) { animation-delay: 360ms; }
+.date-group:nth-child(3) .tx-row:nth-child(5) { animation-delay: 390ms; }
+
+/* ============================================================
+   SF 16. ACCESSIBILITY — reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .tx-row,
+  .bottom-sheet,
+  .overlay,
+  .tx-expanded,
+  .toggle-track,
+  .tx-status-bar,
+  .filter-btn,
+  .chip,
+  .action-chip,
+  .btn-import,
+  .btn-cancel,
+  .tx-chevron,
+  .progress-segment {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ============================================================
+   SF 17. HOVER STATES (pointer devices only)
+   ============================================================ */
+@media (hover: hover) and (pointer: fine) {
+  .tx-row:hover { background: var(--sf-bg-hover); }
+  .chip:hover { background: var(--sf-bg-hover); border-color: var(--color-neon-teal); }
+  .category-item:hover { background: var(--sf-bg-hover); }
+}
+
+/* ============================================================
+   SF 18 — RULE CREATOR FLOW
+   ============================================================ */
+.rule-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.flow-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flow-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sf-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-label-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.flow-label-icon.step1 {
+  background: var(--sf-neon-orange-dim);
+  color: var(--color-neon-orange);
+}
+.flow-label-icon.step2 {
+  background: var(--sf-neon-teal-dim);
+  color: var(--color-neon-teal);
+}
+.flow-label-icon.step3 {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
+.pattern-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-input);
+  border: 1.5px solid var(--sf-border);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--sf-text-primary);
+  transition: border-color 150ms ease;
+}
+.pattern-input:focus {
+  border-color: var(--color-neon-teal);
+  outline: none;
+}
+.pattern-input::placeholder {
+  color: var(--sf-text-muted);
+}
+
+.rule-name-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-input);
+  border: 1.5px solid var(--sf-border);
+  font-size: 14px;
+  color: var(--sf-text-primary);
+  transition: border-color 150ms ease;
+}
+.rule-name-input:focus {
+  border-color: var(--color-neon-teal);
+  outline: none;
+}
+.rule-name-input::placeholder {
+  color: var(--sf-text-muted);
+}
+
+.rule-category-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-neon-teal-dim);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+}
+.rule-category-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-neon-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rule-category-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-neon-teal);
+}
+
+.rule-preview {
+  background: var(--sf-bg-card);
+  border-radius: var(--sf-radius-md);
+  padding: 12px 14px;
+  border: 1px dashed var(--sf-border);
+}
+.rule-preview-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+  margin-bottom: 8px;
+}
+.rule-preview-text {
+  font-size: 13px;
+  color: var(--sf-text-secondary);
+  line-height: 1.5;
+}
+.rule-preview-highlight {
+  color: var(--color-neon-orange);
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--sf-neon-orange-dim);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.rule-preview-category {
+  color: var(--color-neon-teal);
+  font-weight: 500;
+}
+
+.rule-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sf-text-secondary);
+  padding: 10px 14px;
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border-subtle);
+  border-radius: var(--sf-radius-md);
+  width: 100%;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-family: var(--font-sans);
+}
+.rule-advanced-toggle:active {
+  background: var(--sf-bg-elevated);
+}
+.rule-advanced-toggle.open {
+  border-radius: var(--sf-radius-md) var(--sf-radius-md) 0 0;
+  border-bottom: none;
+  border-color: var(--sf-border);
+}
+.rule-advanced-chevron {
+  font-size: 10px;
+  color: var(--sf-text-muted);
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.rule-advanced-toggle.open .rule-advanced-chevron {
+  transform: rotate(90deg);
+}
+.rule-advanced-defaults {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--sf-text-muted);
+  font-weight: 400;
+}
+.rule-advanced-toggle.open .rule-advanced-defaults {
+  display: none;
+}
+
+.rule-advanced-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.rule-advanced-panel.open {
+  grid-template-rows: 1fr;
+}
+.rule-advanced-panel-inner {
+  overflow: hidden;
+}
+.rule-advanced-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  border-top: none;
+  border-radius: 0 0 var(--sf-radius-md) var(--sf-radius-md);
+}
+.rule-advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.rule-advanced-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rule-advanced-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sf-text-muted);
+}
+
+.rule-select {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-input);
+  border: 1.5px solid var(--sf-border);
+  font-size: 13px;
+  color: var(--sf-text-primary);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%234a4a68' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+  transition: border-color 150ms ease;
+  font-family: var(--font-sans);
+}
+.rule-select:focus {
+  border-color: var(--color-neon-teal);
+  outline: none;
+}
+
+/* Rule sheet footer */
+.rule-sheet-footer {
+  padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  border-top: 1px solid var(--sf-border-subtle);
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+  background: var(--sf-bg-elevated);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .rule-advanced-panel,
+  .rule-advanced-chevron,
+  .pattern-input,
+  .rule-name-input,
+  .rule-select {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   SF 19 — INLINE CREATE RULE BUTTON (in tx-line2)
+   ============================================================ */
+.tx-create-rule-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 8px;
+  white-space: nowrap;
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-family: var(--font-sans);
+}
+.tx-create-rule-btn:active {
+  transform: scale(0.95);
+  background: rgba(168, 85, 247, 0.25);
+}
+
+/* ============================================================
+   SF 19b — PAYEE EDIT OVERRIDE (inside expanded content)
+   ============================================================ */
+.tx-payee-edit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* Override comboBox/input styling inside expanded transaction */
+.tx-payee-edit input,
+.tx-payee-edit .input {
+  background: var(--sf-bg-input) !important;
+  border-color: var(--sf-border) !important;
+  color: var(--sf-text-primary) !important;
+  font-size: 13px !important;
+  border-radius: var(--sf-radius-sm) !important;
+  padding: 8px 12px !important;
+}
+.tx-payee-edit input:focus {
+  border-color: var(--sf-neon-teal) !important;
+}
+.tx-payee-edit input::placeholder {
+  color: var(--sf-text-muted) !important;
+}
+
+/* Override dropdown list styling */
+.tx-payee-edit ul,
+.tx-payee-edit [class*="dropdown"],
+.tx-payee-edit [class*="menu"] {
+  background: var(--sf-bg-elevated) !important;
+  border-color: var(--sf-border) !important;
+  border-radius: var(--sf-radius-md) !important;
+}
+.tx-payee-edit li {
+  color: var(--sf-text-primary) !important;
+}
+.tx-payee-edit li:hover,
+.tx-payee-edit li[class*="active"],
+.tx-payee-edit li[class*="selected"] {
+  background: var(--sf-bg-hover) !important;
+}
+
+/* ============================================================
+   SF 20 — TOP ACTION BAR
+   ============================================================ */
+.top-action-bar {
+  margin: 0 12px 8px;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border-subtle);
+}
+
+.top-action-bar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-action-bar-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sf-text-secondary);
+}
+
+.btn-import-sm {
+  padding: 7px 14px;
+  border-radius: var(--sf-radius-md);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: #08081a;
+  background: linear-gradient(135deg, var(--color-neon-teal), var(--color-neon-green));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+  box-shadow: 0 2px 12px rgba(0, 212, 170, 0.2);
+}
+.btn-import-sm:active { transform: scale(0.97); }
+.btn-import-sm.ready {
+  animation: importReady 2s ease-in-out infinite;
+}
+
+.top-action-bar-bulk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--sf-border-subtle);
+}
+
+.bulk-action-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sf-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color 150ms ease;
+  font-family: var(--font-sans);
+}
+.bulk-action-link:active {
+  color: var(--color-neon-teal);
+}
+
+.bulk-action-dot {
+  color: var(--sf-text-muted);
+  font-size: 14px;
+}
+

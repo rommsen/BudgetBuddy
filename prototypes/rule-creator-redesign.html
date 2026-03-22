@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>BudgetBuddy — Rule Creator Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-app: #08081a;
+      --bg-card: #111128;
+      --bg-elevated: #1a1a36;
+      --bg-input: #0e0e24;
+      --bg-hover: #1e1e3c;
+      --border: #2a2a4a;
+      --border-subtle: #1c1c38;
+      --border-focus: #00d4aa;
+
+      --text-primary: #e8e8f0;
+      --text-secondary: #7a7a98;
+      --text-muted: #4a4a68;
+
+      --neon-teal: #00d4aa;
+      --neon-teal-dim: rgba(0, 212, 170, 0.15);
+      --neon-orange: #ff6b2c;
+      --neon-orange-dim: rgba(255, 107, 44, 0.15);
+      --neon-green: #00ff88;
+      --neon-red: #ff3b5c;
+
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+      --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+      --duration-fast: 150ms;
+      --duration-base: 200ms;
+      --duration-slow: 300ms;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: #04040e;
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ============ APP SHELL ============ */
+    .app {
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg-app);
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-width: 500px) {
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .app {
+        max-width: 390px;
+        height: 844px;
+        min-height: unset;
+        border-radius: 44px;
+        box-shadow:
+          0 0 0 11px #1a1a2e,
+          0 0 0 13px #2a2a4a,
+          0 0 80px rgba(0, 212, 170, 0.08);
+      }
+    }
+
+    /* ============ CONTEXT: TRANSACTION (behind the sheet) ============ */
+    .tx-context {
+      padding: 56px 20px 20px;
+    }
+    @media (min-width: 500px) {
+      .tx-context { padding-top: 48px; }
+    }
+
+    .tx-context-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .tx-preview {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      border: 1px solid var(--border-subtle);
+    }
+    .tx-preview-line1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .tx-preview-payee {
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .tx-preview-amount {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .tx-preview-line2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tx-preview-category {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+    .tx-preview-date {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .tx-hint {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .tx-hint-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      opacity: 0.4;
+    }
+
+    /* ============ OVERLAY ============ */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-slow) var(--ease-out-quint);
+    }
+    .overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* ============ BOTTOM SHEET ============ */
+    .bottom-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      max-width: 430px;
+      margin: 0 auto;
+      z-index: 60;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      transform: translateY(100%);
+      transition: transform var(--duration-slow) var(--ease-out-quint);
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .bottom-sheet.active {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--text-muted);
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+
+    /* ============ SHEET HEADER ============ */
+    .sheet-header {
+      padding: 14px 20px 0;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .sheet-header h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .sheet-header-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .sheet-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      font-size: 16px;
+      transition: background var(--duration-fast) ease;
+      flex-shrink: 0;
+    }
+    .sheet-close:active { background: var(--bg-hover); }
+
+    /* ============ SHEET BODY ============ */
+    .sheet-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px 20px;
+      overscroll-behavior-y: contain;
+    }
+
+    /* ============ NATURAL LANGUAGE FLOW ============ */
+    .rule-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .flow-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .flow-label-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .flow-label-icon.step1 {
+      background: var(--neon-orange-dim);
+      color: var(--neon-orange);
+    }
+    .flow-label-icon.step2 {
+      background: var(--neon-teal-dim);
+      color: var(--neon-teal);
+    }
+    .flow-label-icon.step3 {
+      background: rgba(168, 85, 247, 0.15);
+      color: #a855f7;
+    }
+
+    /* Pattern input */
+    .pattern-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--text-primary);
+      transition: border-color var(--duration-fast) ease;
+    }
+    .pattern-input:focus {
+      border-color: var(--border-focus);
+      outline: none;
+    }
+    .pattern-input::placeholder { color: var(--text-muted); }
+
+    /* Category display */
+    .category-display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--neon-teal-dim);
+      border: 1px solid rgba(0, 212, 170, 0.2);
+    }
+    .category-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--neon-teal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .category-check svg {
+      width: 12px;
+      height: 12px;
+    }
+    .category-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--neon-teal);
+    }
+
+    /* Rule name input */
+    .rule-name-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      font-size: 14px;
+      color: var(--text-primary);
+      transition: border-color var(--duration-fast) ease;
+    }
+    .rule-name-input:focus {
+      border-color: var(--border-focus);
+      outline: none;
+    }
+    .rule-name-input::placeholder { color: var(--text-muted); }
+
+    /* ============ PREVIEW CARD ============ */
+    .rule-preview {
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      border: 1px dashed var(--border);
+      margin-top: 4px;
+    }
+    .rule-preview-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .rule-preview-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .rule-preview-text strong {
+      color: var(--neon-teal);
+      font-weight: 500;
+    }
+    .rule-preview-text em {
+      color: var(--neon-orange);
+      font-style: normal;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--neon-orange-dim);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* ============ ADVANCED OPTIONS ============ */
+    .advanced-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all var(--duration-fast) ease;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      width: 100%;
+    }
+    .advanced-toggle:active { background: var(--bg-hover); }
+    .advanced-toggle.open {
+      border-color: var(--border);
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      border-bottom: none;
+    }
+    .advanced-chevron {
+      font-size: 10px;
+      transition: transform var(--duration-base) var(--ease-out-quint);
+      color: var(--text-muted);
+    }
+    .advanced-toggle.open .advanced-chevron {
+      transform: rotate(90deg);
+    }
+    .advanced-defaults {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    .advanced-toggle.open .advanced-defaults {
+      display: none;
+    }
+
+    .advanced-panel {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows var(--duration-base) var(--ease-out-quint);
+    }
+    .advanced-panel.open {
+      grid-template-rows: 1fr;
+    }
+    .advanced-panel-inner {
+      overflow: hidden;
+    }
+    .advanced-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px 14px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+    }
+
+    .advanced-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .advanced-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .select-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      border: 1.5px solid var(--border);
+      font-size: 13px;
+      color: var(--text-primary);
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%234a4a68' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      cursor: pointer;
+      transition: border-color var(--duration-fast) ease;
+    }
+    .select-input:focus {
+      border-color: var(--border-focus);
+      outline: none;
+    }
+
+    /* Two-column for dropdowns */
+    .advanced-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* ============ SHEET FOOTER ============ */
+    .sheet-footer {
+      padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 16px);
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+      background: var(--bg-elevated);
+    }
+
+    .btn-cancel {
+      flex: 0 0 auto;
+      padding: 12px 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      transition: all var(--duration-fast) ease;
+    }
+    .btn-cancel:active { transform: scale(0.97); background: var(--bg-hover); }
+
+    .btn-create {
+      flex: 1;
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 600;
+      color: #08081a;
+      background: linear-gradient(135deg, var(--neon-teal), var(--neon-green));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all var(--duration-fast) ease;
+      box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25);
+    }
+    .btn-create:active { transform: scale(0.97); }
+    .btn-create:disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .btn-create-icon {
+      font-size: 14px;
+    }
+
+    /* ============ SUCCESS STATE ============ */
+    .success-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 70;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-base) ease;
+    }
+    .success-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .success-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--neon-teal-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: successPop 0.4s var(--ease-out-quint);
+    }
+    .success-icon svg {
+      width: 28px;
+      height: 28px;
+      color: var(--neon-teal);
+    }
+    .success-text {
+      font-family: var(--font-display);
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .success-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      max-width: 240px;
+    }
+
+    @keyframes successPop {
+      0% { transform: scale(0.5); opacity: 0; }
+      70% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ============ DEMO BUTTONS ============ */
+    .demo-bar {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      gap: 8px;
+    }
+    @media (min-width: 500px) {
+      .demo-bar { top: auto; bottom: 24px; }
+    }
+    .demo-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--neon-teal);
+      color: #08081a;
+      border: none;
+      cursor: pointer;
+      transition: all var(--duration-fast) ease;
+    }
+    .demo-btn:active { transform: scale(0.95); }
+    .demo-btn.secondary {
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    /* ============ ACCESSIBILITY ============ */
+    @media (prefers-reduced-motion: reduce) {
+      .bottom-sheet, .overlay, .advanced-panel,
+      .advanced-chevron, .success-overlay, .success-icon,
+      .btn-create, .btn-cancel, .sheet-close {
+        animation: none;
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Transaction Context (visible behind the sheet) -->
+  <div class="tx-context">
+    <div class="tx-context-label">Transaktion</div>
+    <div class="tx-preview">
+      <div class="tx-preview-line1">
+        <span class="tx-preview-payee">Kantine Hellmann</span>
+        <span class="tx-preview-amount">−6,70 €</span>
+      </div>
+      <div class="tx-preview-line2">
+        <span class="tx-preview-category">Essen Arbeit</span>
+        <span class="tx-preview-date">20. Mär</span>
+      </div>
+    </div>
+
+    <div class="tx-hint">
+      <div class="tx-hint-icon">↑</div>
+      <div>Tippe auf "Regel erstellen" um<br>zukünftige Transaktionen automatisch<br>zu kategorisieren.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Demo Controls -->
+<div class="demo-bar">
+  <button class="demo-btn" onclick="openSheet()">Regel erstellen</button>
+  <button class="demo-btn secondary" onclick="showSuccess()">Erfolg zeigen</button>
+  <button class="demo-btn secondary" onclick="closeSheet()">Schließen</button>
+</div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay" onclick="closeSheet()"></div>
+
+<!-- Rule Creator Bottom Sheet -->
+<div class="bottom-sheet" id="ruleSheet">
+
+  <!-- Success State -->
+  <div class="success-overlay" id="successState">
+    <div class="success-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+    </div>
+    <div class="success-text">Regel erstellt</div>
+    <div class="success-sub">Zukünftige Transaktionen mit "KANTINE HELLMANN" werden automatisch kategorisiert.</div>
+  </div>
+
+  <div class="sheet-handle"></div>
+
+  <!-- Header -->
+  <div class="sheet-header">
+    <div>
+      <h3>Regel erstellen</h3>
+      <div class="sheet-header-sub">Für "Kantine Hellmann"</div>
+    </div>
+    <button class="sheet-close" onclick="closeSheet()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <!-- Body -->
+  <div class="sheet-body">
+    <div class="rule-flow">
+
+      <!-- Step 1: Pattern -->
+      <div class="flow-step">
+        <div class="flow-label">
+          <span class="flow-label-icon step1">1</span>
+          Wenn Transaktion enthält
+        </div>
+        <input
+          class="pattern-input"
+          type="text"
+          value="KANTINE HELLMANN"
+          id="patternInput"
+          oninput="updatePreview()"
+        >
+      </div>
+
+      <!-- Step 2: Category -->
+      <div class="flow-step">
+        <div class="flow-label">
+          <span class="flow-label-icon step2">2</span>
+          Dann kategorisiere als
+        </div>
+        <div class="category-display">
+          <span class="category-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#08081a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          </span>
+          <span class="category-name">Alltag: Essen Arbeit</span>
+        </div>
+      </div>
+
+      <!-- Step 3: Rule Name -->
+      <div class="flow-step">
+        <div class="flow-label">
+          <span class="flow-label-icon step3">3</span>
+          Regelname
+        </div>
+        <input
+          class="rule-name-input"
+          type="text"
+          value="Auto: Kantine Hellmann"
+          id="ruleNameInput"
+        >
+      </div>
+
+      <!-- Preview -->
+      <div class="rule-preview" id="rulePreview">
+        <div class="rule-preview-title">Vorschau</div>
+        <div class="rule-preview-text">
+          Transaktionen die <em id="previewPattern">KANTINE HELLMANN</em> enthalten werden automatisch als <strong>Essen Arbeit</strong> kategorisiert.
+        </div>
+      </div>
+
+      <!-- Advanced Options -->
+      <div>
+        <button class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
+          <span class="advanced-chevron">›</span>
+          Erweiterte Optionen
+          <span class="advanced-defaults">Enthält · Payee & Memo</span>
+        </button>
+
+        <div class="advanced-panel" id="advancedPanel">
+          <div class="advanced-panel-inner">
+            <div class="advanced-content">
+
+              <div class="advanced-grid">
+                <div class="advanced-row">
+                  <label class="advanced-label">Mustertyp</label>
+                  <select class="select-input" onchange="updatePreview()">
+                    <option value="contains" selected>Enthält</option>
+                    <option value="exact">Exakt</option>
+                    <option value="regex">Regex</option>
+                  </select>
+                </div>
+
+                <div class="advanced-row">
+                  <label class="advanced-label">Suche in</label>
+                  <select class="select-input">
+                    <option value="combined" selected>Payee & Memo</option>
+                    <option value="payee">Nur Payee</option>
+                    <option value="memo">Nur Memo</option>
+                  </select>
+                </div>
+              </div>
+
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="sheet-footer">
+    <button class="btn-cancel" onclick="closeSheet()">Abbrechen</button>
+    <button class="btn-create" id="createBtn" onclick="showSuccess()">
+      <span>Regel erstellen</span>
+      <span class="btn-create-icon">→</span>
+    </button>
+  </div>
+
+</div>
+
+<script>
+  function openSheet() {
+    document.getElementById('ruleSheet').classList.add('active');
+    document.getElementById('overlay').classList.add('active');
+    document.getElementById('successState').classList.remove('show');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSheet() {
+    document.getElementById('ruleSheet').classList.remove('active');
+    document.getElementById('overlay').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function toggleAdvanced() {
+    const toggle = document.getElementById('advancedToggle');
+    const panel = document.getElementById('advancedPanel');
+    toggle.classList.toggle('open');
+    panel.classList.toggle('open');
+  }
+
+  function updatePreview() {
+    const pattern = document.getElementById('patternInput').value;
+    document.getElementById('previewPattern').textContent = pattern || '...';
+  }
+
+  function showSuccess() {
+    if (!document.getElementById('ruleSheet').classList.contains('active')) {
+      openSheet();
+    }
+    document.getElementById('successState').classList.add('show');
+    setTimeout(() => {
+      closeSheet();
+      setTimeout(() => {
+        document.getElementById('successState').classList.remove('show');
+      }, 300);
+    }, 1800);
+  }
+
+  // Auto-open on load for demo
+  setTimeout(openSheet, 500);
+</script>
+
+</body>
+</html>

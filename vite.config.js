@@ -14,10 +14,10 @@ export default defineConfig({
   ],
   root: './src/Client',
   server: {
-    port: 5173,
+    port: 5181,
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5081',
         changeOrigin: true
       }
     }

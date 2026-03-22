@@ -67,7 +67,7 @@ let main args =
                 FileProvider = new PhysicalFileProvider(publicPath)
             )) |> ignore
 
-    printfn "🚀 BudgetBuddy server starting on http://localhost:5001"
+    printfn "🚀 BudgetBuddy server starting on http://localhost:5081"
 
-    app.Run("http://0.0.0.0:5001")
+    app.Run("http://0.0.0.0:5081")
     0

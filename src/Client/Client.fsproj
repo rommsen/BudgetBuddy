@@ -19,6 +19,7 @@
     <Compile Include="DesignSystem/Loading.fs" />
     <Compile Include="DesignSystem/Toast.fs" />
     <Compile Include="DesignSystem/Modal.fs" />
+    <Compile Include="DesignSystem/BottomSheet.fs" />
     <Compile Include="DesignSystem/Navigation.fs" />
     <Compile Include="DesignSystem/PageHeader.fs" />
     <Compile Include="DesignSystem/Form.fs" />
@@ -45,6 +46,7 @@
     <Compile Include="Components/SyncFlow/State.fs" />
     <Compile Include="Components/SyncFlow/Views/StatusViews.fs" />
     <Compile Include="Components/SyncFlow/Views/InlineRuleForm.fs" />
+    <Compile Include="Components/SyncFlow/Views/ViewHelpers.fs" />
     <Compile Include="Components/SyncFlow/Views/TransactionRow.fs" />
     <Compile Include="Components/SyncFlow/Views/TransactionList.fs" />
     <Compile Include="Components/SyncFlow/View.fs" />

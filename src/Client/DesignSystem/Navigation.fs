@@ -207,13 +207,14 @@ let mobileHeader (onNavigate: NavPage -> unit) =
 // ============================================
 
 /// Complete navigation component (shows appropriate nav based on screen size)
-let navigation (currentPage: NavPage) (onNavigate: NavPage -> unit) =
+let navigation (currentPage: NavPage) (onNavigate: NavPage -> unit) (hideBottomNav: bool) =
     React.fragment [
         // Desktop: top navbar
         desktopNav currentPage onNavigate
         // Mobile: header + bottom nav
         mobileHeader onNavigate
-        mobileNav currentPage onNavigate
+        if not hideBottomNav then
+            mobileNav currentPage onNavigate
     ]
 
 // ============================================

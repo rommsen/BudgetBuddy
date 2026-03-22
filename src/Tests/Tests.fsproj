@@ -22,6 +22,7 @@
     <Compile Include="ValidationTests.fs" />
     <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="RoutingTests.fs" />
+    <Compile Include="SyncFlowViewTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

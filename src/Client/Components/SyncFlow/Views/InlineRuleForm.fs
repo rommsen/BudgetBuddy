@@ -9,198 +9,253 @@ open Client.DesignSystem
 // Inline Rule Form Component
 // ============================================
 
-let inlineRuleForm
-    (formState: InlineRuleFormState)
-    (dispatch: Msg -> unit) =
+[<ReactComponent>]
+let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
+    let advancedOpen, setAdvancedOpen = React.useState(false)
 
-    let patternTypeToString pt =
-        match pt with
-        | Contains -> "Contains"
-        | Exact -> "Exact"
+    let displayPayee =
+        if System.String.IsNullOrWhiteSpace formState.Pattern then "..."
+        else formState.Pattern
+
+    let patternTypeLabel =
+        match formState.PatternType with
+        | Contains -> "Enthält"
+        | Exact -> "Exakt"
         | PatternType.Regex -> "Regex"
 
-    let stringToPatternType s =
-        match s with
-        | "Exact" -> Exact
-        | "Regex" -> PatternType.Regex
-        | _ -> Contains
+    let targetFieldLabel =
+        match formState.TargetField with
+        | Combined -> "Payee & Memo"
+        | Payee -> "Nur Payee"
+        | Memo -> "Nur Memo"
 
-    let targetFieldToString tf =
-        match tf with
-        | Combined -> "Combined"
-        | Payee -> "Payee"
-        | Memo -> "Memo"
+    let subtitleText =
+        let s = sprintf "Für \"%s\"" displayPayee
+        if s.Length > 30 then s.[..29] + "…" else s
 
-    let stringToTargetField s =
-        match s with
-        | "Payee" -> Payee
-        | "Memo" -> Memo
-        | _ -> Combined
-
-    Html.div [
-        prop.className "border-t border-white/5 bg-base-200/50 p-4 animate-fade-in"
-        prop.children [
-            // Header
-            Html.div [
-                prop.className "flex items-center justify-between mb-4"
-                prop.children [
-                    Html.div [
-                        prop.className "flex items-center gap-2"
-                        prop.children [
-                            Icons.rules Icons.SM Icons.NeonTeal
-                            Html.span [
-                                prop.className "text-sm font-medium text-base-content"
-                                prop.text "Create Categorization Rule"
-                            ]
-                        ]
-                    ]
-                    Html.button [
-                        prop.className "p-1 rounded hover:bg-white/10 text-base-content/50 hover:text-base-content"
-                        prop.onClick (fun _ -> dispatch CloseInlineRuleForm)
-                        prop.children [ Icons.x Icons.SM Icons.Default ]
-                    ]
-                ]
+    let footerChildren = [
+        Html.button [
+            prop.className "btn-cancel"
+            prop.text "Abbrechen"
+            prop.onClick (fun _ -> dispatch CloseInlineRuleForm)
+        ]
+        Html.button [
+            prop.className "btn-import"
+            prop.disabled (formState.IsSaving || System.String.IsNullOrWhiteSpace formState.Pattern)
+            prop.onClick (fun _ -> dispatch SaveInlineRule)
+            prop.children [
+                Html.span [ prop.text (if formState.IsSaving then "Speichern…" else "Regel erstellen") ]
+                Html.span [ prop.className "btn-import-icon"; prop.text "\u2192" ]
             ]
+        ]
+    ]
 
-            // Form content - responsive grid
+    BottomSheet.view
+        { IsOpen = true
+          OnClose = fun () -> dispatch CloseInlineRuleForm
+          Title = "Regel erstellen"
+          Subtitle = Some subtitleText
+          Footer = Some footerChildren }
+        [
             Html.div [
-                prop.className "space-y-3"
+                prop.className "rule-flow"
                 prop.children [
-                    // Row 1: Rule name + Category display
+                    // Step 1: Pattern
                     Html.div [
-                        prop.className "grid grid-cols-1 md:grid-cols-2 gap-3"
+                        prop.className "flow-step"
                         prop.children [
-                            // Rule name input
                             Html.div [
-                                prop.className "space-y-1.5"
+                                prop.className "flow-label"
                                 prop.children [
-                                    Html.label [
-                                        prop.className "block text-sm font-medium text-base-content/80"
-                                        prop.children [
-                                            Html.text "Rule Name "
-                                            Html.span [ prop.className "text-neon-red"; prop.text "*" ]
-                                        ]
-                                    ]
-                                    Input.textSimple
-                                        formState.RuleName
-                                        (UpdateInlineRuleName >> dispatch)
-                                        "e.g., Amazon Purchases"
+                                    Html.span [ prop.className "flow-label-icon step1"; prop.text "1" ]
+                                    Html.text "Wenn Transaktion enthält"
                                 ]
                             ]
-                            // Category display (read-only)
+                            Html.input [
+                                prop.className "pattern-input"
+                                prop.type'.text
+                                prop.value formState.Pattern
+                                prop.onChange (fun (v: string) -> dispatch (UpdateInlineRulePattern v))
+                            ]
+                        ]
+                    ]
+
+                    // Step 2: Category (read-only)
+                    Html.div [
+                        prop.className "flow-step"
+                        prop.children [
                             Html.div [
-                                prop.className "space-y-1.5"
+                                prop.className "flow-label"
                                 prop.children [
-                                    Html.label [
-                                        prop.className "block text-sm font-medium text-base-content/80"
-                                        prop.text "Category"
-                                    ]
-                                    Html.div [
-                                        prop.className "flex items-center gap-2 px-3 py-2 bg-neon-teal/10 border border-neon-teal/30 rounded-lg text-neon-teal"
+                                    Html.span [ prop.className "flow-label-icon step2"; prop.text "2" ]
+                                    Html.text "Dann kategorisiere als"
+                                ]
+                            ]
+                            Html.div [
+                                prop.className "rule-category-display"
+                                prop.children [
+                                    Html.span [
+                                        prop.className "rule-category-check"
                                         prop.children [
-                                            Icons.check Icons.SM Icons.NeonTeal
-                                            Html.span [ prop.text formState.CategoryName ]
+                                            Svg.svg [
+                                                svg.viewBox (0, 0, 24, 24)
+                                                svg.custom ("fill", "none")
+                                                svg.custom ("stroke", "#08081a")
+                                                svg.custom ("strokeWidth", "3")
+                                                svg.custom ("strokeLinecap", "round")
+                                                svg.custom ("strokeLinejoin", "round")
+                                                svg.custom ("width", "12")
+                                                svg.custom ("height", "12")
+                                                svg.children [
+                                                    Svg.path [ svg.d "M20 6L9 17l-5-5" ]
+                                                ]
+                                            ]
                                         ]
+                                    ]
+                                    Html.span [
+                                        prop.className "rule-category-name"
+                                        prop.text formState.CategoryName
                                     ]
                                 ]
                             ]
                         ]
                     ]
 
-                    // Row 2: Pattern + Type + Field
+                    // Step 3: Rule name
                     Html.div [
-                        prop.className "grid grid-cols-1 md:grid-cols-12 gap-3"
+                        prop.className "flow-step"
                         prop.children [
-                            // Pattern (spans 6 cols on desktop)
                             Html.div [
-                                prop.className "md:col-span-6"
+                                prop.className "flow-label"
+                                prop.children [
+                                    Html.span [ prop.className "flow-label-icon step3"; prop.text "3" ]
+                                    Html.text "Regelname"
+                                ]
+                            ]
+                            Html.input [
+                                prop.className "rule-name-input"
+                                prop.type'.text
+                                prop.value formState.RuleName
+                                prop.onChange (fun (v: string) -> dispatch (UpdateInlineRuleName v))
+                            ]
+                        ]
+                    ]
+
+                    // Preview
+                    Html.div [
+                        prop.className "rule-preview"
+                        prop.children [
+                            Html.div [ prop.className "rule-preview-title"; prop.text "Vorschau" ]
+                            Html.div [
+                                prop.className "rule-preview-text"
+                                prop.children [
+                                    Html.text "Transaktionen die "
+                                    Html.span [
+                                        prop.className "rule-preview-highlight"
+                                        prop.text (if System.String.IsNullOrWhiteSpace formState.Pattern then "..." else formState.Pattern)
+                                    ]
+                                    Html.text " enthalten werden automatisch als "
+                                    Html.span [
+                                        prop.className "rule-preview-category"
+                                        prop.text formState.CategoryName
+                                    ]
+                                    Html.text " kategorisiert."
+                                ]
+                            ]
+                        ]
+                    ]
+
+                    // Advanced Options
+                    Html.div [
+                        prop.children [
+                            Html.button [
+                                prop.className (sprintf "rule-advanced-toggle%s" (if advancedOpen then " open" else ""))
+                                prop.onClick (fun _ -> setAdvancedOpen (not advancedOpen))
+                                prop.children [
+                                    Html.span [ prop.className "rule-advanced-chevron"; prop.text "\u203A" ]
+                                    Html.text "Erweiterte Optionen"
+                                    Html.span [
+                                        prop.className "rule-advanced-defaults"
+                                        prop.text (sprintf "%s \u00B7 %s" patternTypeLabel targetFieldLabel)
+                                    ]
+                                ]
+                            ]
+                            Html.div [
+                                prop.className (sprintf "rule-advanced-panel%s" (if advancedOpen then " open" else ""))
                                 prop.children [
                                     Html.div [
-                                        prop.className "space-y-1.5"
+                                        prop.className "rule-advanced-panel-inner"
                                         prop.children [
-                                            Html.label [
-                                                prop.className "block text-sm font-medium text-base-content/80"
+                                            Html.div [
+                                                prop.className "rule-advanced-content"
                                                 prop.children [
-                                                    Html.text "Pattern "
-                                                    Html.span [ prop.className "text-neon-red"; prop.text "*" ]
+                                                    Html.div [
+                                                        prop.className "rule-advanced-grid"
+                                                        prop.children [
+                                                            // Pattern Type
+                                                            Html.div [
+                                                                prop.className "rule-advanced-row"
+                                                                prop.children [
+                                                                    Html.label [ prop.className "rule-advanced-label"; prop.text "Mustertyp" ]
+                                                                    Html.select [
+                                                                        prop.className "rule-select"
+                                                                        prop.value (
+                                                                            match formState.PatternType with
+                                                                            | Contains -> "Contains"
+                                                                            | Exact -> "Exact"
+                                                                            | PatternType.Regex -> "Regex")
+                                                                        prop.onChange (fun (v: string) ->
+                                                                            let pt =
+                                                                                match v with
+                                                                                | "Exact" -> Exact
+                                                                                | "Regex" -> PatternType.Regex
+                                                                                | _ -> Contains
+                                                                            dispatch (UpdateInlineRulePatternType pt))
+                                                                        prop.children [
+                                                                            Html.option [ prop.value "Contains"; prop.text "Enthält" ]
+                                                                            Html.option [ prop.value "Exact"; prop.text "Exakt" ]
+                                                                            Html.option [ prop.value "Regex"; prop.text "Regex" ]
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                            // Target Field
+                                                            Html.div [
+                                                                prop.className "rule-advanced-row"
+                                                                prop.children [
+                                                                    Html.label [ prop.className "rule-advanced-label"; prop.text "Suche in" ]
+                                                                    Html.select [
+                                                                        prop.className "rule-select"
+                                                                        prop.value (
+                                                                            match formState.TargetField with
+                                                                            | Combined -> "Combined"
+                                                                            | Payee -> "Payee"
+                                                                            | Memo -> "Memo")
+                                                                        prop.onChange (fun (v: string) ->
+                                                                            let tf =
+                                                                                match v with
+                                                                                | "Payee" -> Payee
+                                                                                | "Memo" -> Memo
+                                                                                | _ -> Combined
+                                                                            dispatch (UpdateInlineRuleTargetField tf))
+                                                                        prop.children [
+                                                                            Html.option [ prop.value "Combined"; prop.text "Payee & Memo" ]
+                                                                            Html.option [ prop.value "Payee"; prop.text "Nur Payee" ]
+                                                                            Html.option [ prop.value "Memo"; prop.text "Nur Memo" ]
+                                                                        ]
+                                                                    ]
+                                                                ]
+                                                            ]
+                                                        ]
+                                                    ]
                                                 ]
-                                            ]
-                                            Html.input [
-                                                prop.type' "text"
-                                                prop.className "w-full px-3 py-2 bg-base-200 border border-white/10 rounded-lg text-base-content font-mono text-sm focus:border-neon-teal focus:ring-1 focus:ring-neon-teal/50 outline-none transition-all placeholder:text-base-content/30"
-                                                prop.value formState.Pattern
-                                                prop.onChange (UpdateInlineRulePattern >> dispatch)
-                                                prop.placeholder "Text to match..."
                                             ]
                                         ]
                                     ]
                                 ]
                             ]
-                            // Pattern Type (spans 3 cols)
-                            Html.div [
-                                prop.className "md:col-span-3"
-                                prop.children [
-                                    Html.div [
-                                        prop.className "space-y-1.5"
-                                        prop.children [
-                                            Html.label [
-                                                prop.className "block text-sm font-medium text-base-content/80"
-                                                prop.text "Type"
-                                            ]
-                                            Input.selectSimple
-                                                (patternTypeToString formState.PatternType)
-                                                (fun value -> dispatch (UpdateInlineRulePatternType (stringToPatternType value)))
-                                                [
-                                                    ("Contains", "Contains")
-                                                    ("Exact", "Exact Match")
-                                                    ("Regex", "Regex")
-                                                ]
-                                        ]
-                                    ]
-                                ]
-                            ]
-                            // Target Field (spans 3 cols)
-                            Html.div [
-                                prop.className "md:col-span-3"
-                                prop.children [
-                                    Html.div [
-                                        prop.className "space-y-1.5"
-                                        prop.children [
-                                            Html.label [
-                                                prop.className "block text-sm font-medium text-base-content/80"
-                                                prop.text "Match In"
-                                            ]
-                                            Input.selectSimple
-                                                (targetFieldToString formState.TargetField)
-                                                (fun value -> dispatch (UpdateInlineRuleTargetField (stringToTargetField value)))
-                                                [
-                                                    ("Combined", "Payee & Memo")
-                                                    ("Payee", "Payee only")
-                                                    ("Memo", "Memo only")
-                                                ]
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-
-                    // Row 3: Actions
-                    Html.div [
-                        prop.className "flex flex-col sm:flex-row justify-end gap-2 pt-2"
-                        prop.children [
-                            Button.ghost "Cancel" (fun () -> dispatch CloseInlineRuleForm)
-                            Form.submitButton
-                                "Create Rule"
-                                (fun () -> dispatch SaveInlineRule)
-                                formState.IsSaving
-                                [
-                                    ("Rule Name", formState.RuleName)
-                                    ("Pattern", formState.Pattern)
-                                ]
                         ]
                     ]
                 ]
             ]
         ]
-    ]

@@ -41,279 +41,119 @@ let filterTransactions (filter: TransactionFilter) (transactions: SyncTransactio
             | ConfirmedDuplicate _ -> true
             | _ -> false)
 
+/// Renders a single filter pill button with label, count, active state, and attention indicator.
+let private filterPill (label: string) (count: int) (isActive: bool) (hasAttention: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.className (
+            "filter-btn"
+            + (if isActive then " active" else "")
+            + (if hasAttention then " has-attention" else ""))
+        prop.onClick (fun _ -> onClick ())
+        prop.children [
+            Html.text label
+            Html.text " "
+            Html.span [ prop.className "count"; prop.text (string count) ]
+        ]
+    ]
+
 // ============================================
 // Transaction List View
 // ============================================
 
+[<ReactComponent>]
 let transactionListView (model: Model) (dispatch: Msg -> unit) =
+    // Local React state for BottomSheet
+    let categorySheetState, setCategorySheetState =
+        React.useState<{| TxId: TransactionId; PayeeName: string |} option>(None)
+
+    // Callback for TransactionRow to open category picker
+    let onOpenCategoryPicker (txId: TransactionId) (payeeName: string) =
+        setCategorySheetState (Some {| TxId = txId; PayeeName = payeeName |})
+
     Html.div [
-        prop.className "space-y-4"
+        prop.className "flex flex-col h-full relative"
         prop.children [
-            // Stats summary card using design system
             match model.SyncTransactions with
             | Success transactions ->
-                // Calculate all counts in a single pass for better performance
-                let (toBeImported, categorized, uncategorized, skipped, confirmedDuplicates, ynabRejected) =
-                    transactions |> List.fold (fun (toImport, cat, uncat, skip, dup, rej) tx ->
-                        // ToBeImported: not Skipped and not Imported
-                        let toImport' =
-                            if tx.Status <> Skipped && tx.Status <> Imported then
-                                toImport + 1
-                            else toImport
-                        // Categorized: has CategoryId, not Skipped/Imported
-                        let cat' =
-                            if tx.CategoryId.IsSome && tx.Status <> Skipped && tx.Status <> Imported then
-                                cat + 1
-                            else cat
-                        // Uncategorized: no CategoryId, not Skipped/Imported
-                        let uncat' =
-                            if tx.CategoryId.IsNone && tx.Status <> Skipped && tx.Status <> Imported then
-                                uncat + 1
-                            else uncat
-                        // Skipped: Status = Skipped
-                        let skip' = if tx.Status = Skipped then skip + 1 else skip
-                        // ConfirmedDuplicates: BudgetBuddy detected BEFORE import
-                        let dup' =
-                            match tx.DuplicateStatus with
-                            | ConfirmedDuplicate (_, _) -> dup + 1
-                            | _ -> dup
-                        // YnabRejected: YNAB rejected DURING import
-                        let rej' =
-                            match tx.YnabImportStatus with
-                            | RejectedByYnab _ -> rej + 1
-                            | _ -> rej
-                        (toImport', cat', uncat', skip', dup', rej')
-                    ) (0, 0, 0, 0, 0, 0)
-                let total = transactions.Length
+                let counts = ViewHelpers.calculateImportCounts transactions
+                let progress = ViewHelpers.calculateProgressSegments counts
 
+                // === FILTER PILLS ===
                 Html.div [
-                    prop.className "space-y-3"
+                    prop.className "filters"
                     prop.children [
-                        Stats.gridFiveCol [
-                            Stats.view {
-                                Stats.defaultProps with
-                                    Label = "Total"
-                                    Value = string total
-                                    Accent = Stats.Gradient
-                                    Size = Stats.Compact
-                                    OnClick = Some (fun () -> dispatch (SetFilter AllTransactions))
-                                    IsActive = model.ActiveFilter = AllTransactions
-                            }
-                            Stats.view {
-                                Stats.defaultProps with
-                                    Label = "To Import"
-                                    Value = string toBeImported
-                                    Accent = Stats.Teal
-                                    Size = Stats.Compact
-                                    OnClick = Some (fun () -> dispatch (SetFilter ToBeImported))
-                                    IsActive = model.ActiveFilter = ToBeImported
-                            }
-                            Stats.view {
-                                Stats.defaultProps with
-                                    Label = "Categorized"
-                                    Value = string categorized
-                                    Accent = Stats.Green
-                                    Size = Stats.Compact
-                                    OnClick = Some (fun () -> dispatch (SetFilter CategorizedTransactions))
-                                    IsActive = model.ActiveFilter = CategorizedTransactions
-                            }
-                            Stats.view {
-                                Stats.defaultProps with
-                                    Label = "Uncategorized"
-                                    Value = string uncategorized
-                                    Accent = if uncategorized > 0 then Stats.Orange else Stats.Gradient
-                                    Size = Stats.Compact
-                                    OnClick = Some (fun () -> dispatch (SetFilter UncategorizedTransactions))
-                                    IsActive = model.ActiveFilter = UncategorizedTransactions
-                            }
-                            Stats.view {
-                                Stats.defaultProps with
-                                    Label = "Skipped"
-                                    Value = string skipped
-                                    Size = Stats.Compact
-                                    OnClick = Some (fun () -> dispatch (SetFilter SkippedTransactions))
-                                    IsActive = model.ActiveFilter = SkippedTransactions
-                            }
-                        ]
-                        // Compact summary: Skipped transactions (duplicates + YNAB rejected)
-                        if confirmedDuplicates > 0 || ynabRejected > 0 then
-                            let totalSkippedIssues = confirmedDuplicates + ynabRejected
-                            Html.div [
-                                prop.className "rounded-xl bg-base-200/50 border-l-4 border-neon-teal overflow-hidden"
-                                prop.children [
-                                    // Header
-                                    Html.div [
-                                        prop.className "px-4 py-3 flex items-center gap-3"
-                                        prop.children [
-                                            Icons.info Icons.MD Icons.NeonTeal
-                                            Html.span [
-                                                prop.className "text-sm font-medium text-base-content"
-                                                prop.text (sprintf "%d transaction%s won't be imported" totalSkippedIssues (if totalSkippedIssues = 1 then "" else "s"))
-                                            ]
-                                        ]
-                                    ]
-                                    // Details list
-                                    Html.div [
-                                        prop.className "px-4 pb-3 space-y-2"
-                                        prop.children [
-                                            // Pre-detected duplicates
-                                            if confirmedDuplicates > 0 then
-                                                let activeClass =
-                                                    if model.ActiveFilter = ConfirmedDuplicates then
-                                                        "ring-1 ring-neon-teal"
-                                                    else ""
-                                                Html.div [
-                                                    prop.className $"flex items-center gap-2 px-3 py-2 rounded-lg bg-base-100/50 cursor-pointer hover:bg-base-100 transition-colors {activeClass}"
-                                                    prop.onClick (fun _ -> dispatch (SetFilter ConfirmedDuplicates))
-                                                    prop.children [
-                                                        Html.span [
-                                                            prop.className "text-base-content/40"
-                                                            prop.text "├"
-                                                        ]
-                                                        Html.span [
-                                                            prop.className "text-sm text-base-content/80"
-                                                            prop.text (sprintf "%d duplicate%s (auto-detected)" confirmedDuplicates (if confirmedDuplicates = 1 then "" else "s"))
-                                                        ]
-                                                    ]
-                                                ]
-                                            // YNAB rejected
-                                            if ynabRejected > 0 then
-                                                Html.div [
-                                                    prop.className "flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-neon-orange/5 border border-neon-orange/20"
-                                                    prop.children [
-                                                        Html.div [
-                                                            prop.className "flex items-center gap-2"
-                                                            prop.children [
-                                                                Html.span [
-                                                                    prop.className "text-base-content/40"
-                                                                    prop.text "└"
-                                                                ]
-                                                                Html.span [
-                                                                    prop.className "text-sm text-neon-orange"
-                                                                    prop.text (sprintf "%d rejected by YNAB" ynabRejected)
-                                                                ]
-                                                            ]
-                                                        ]
-                                                        // Inline force re-import button
-                                                        Html.button [
-                                                            prop.className "text-xs text-neon-teal hover:text-neon-teal/80 flex items-center gap-1"
-                                                            prop.onClick (fun _ -> dispatch ForceImportDuplicates)
-                                                            prop.children [
-                                                                Icons.sync Icons.XS Icons.NeonTeal
-                                                                Html.span [ prop.text "Force import" ]
-                                                            ]
-                                                        ]
-                                                    ]
-                                                ]
-                                        ]
+                        filterPill "Alle" counts.Total (model.ActiveFilter = AllTransactions) false (fun () -> dispatch (SetFilter AllTransactions))
+                        filterPill "Pr\u00FCfen" counts.NeedCategory (model.ActiveFilter = UncategorizedTransactions) (counts.NeedCategory > 0) (fun () -> dispatch (SetFilter UncategorizedTransactions))
+                        filterPill "Duplikate" counts.Duplicates (model.ActiveFilter = ConfirmedDuplicates) false (fun () -> dispatch (SetFilter ConfirmedDuplicates))
+                        filterPill "\u00DCbersprungen" counts.Skipped (model.ActiveFilter = SkippedTransactions) false (fun () -> dispatch (SetFilter SkippedTransactions))
+                    ]
+                ]
+
+                // === TOP ACTION BAR (compact CTA + bulk actions) ===
+                Html.div [
+                    prop.className "top-action-bar"
+                    prop.children [
+                        Html.div [
+                            prop.className "top-action-bar-row"
+                            prop.children [
+                                Html.span [
+                                    prop.className "top-action-bar-count"
+                                    prop.text (sprintf "%d/%d importieren" counts.ToImport counts.Total)
+                                ]
+                                Html.button [
+                                    prop.className (if counts.NeedCategory = 0 then "btn-import-sm ready" else "btn-import-sm")
+                                    prop.onClick (fun _ -> dispatch ImportToYnab)
+                                    prop.children [
+                                        Html.span [ prop.text "Importieren" ]
+                                        Html.span [ prop.className "btn-import-icon"; prop.text "\u2191" ]
                                     ]
                                 ]
                             ]
+                        ]
+                        Html.div [
+                            prop.className "top-action-bar-bulk"
+                            prop.children [
+                                Html.button [
+                                    prop.className "bulk-action-link"
+                                    prop.onClick (fun _ -> dispatch SkipAllVisible)
+                                    prop.text "Alle \u00FCberspringen"
+                                ]
+                                Html.span [ prop.className "bulk-action-dot"; prop.text "\u00B7" ]
+                                Html.button [
+                                    prop.className "bulk-action-link"
+                                    prop.onClick (fun _ -> dispatch UnskipAllVisible)
+                                    prop.text "Alle einschlie\u00DFen"
+                                ]
+                            ]
+                        ]
                     ]
                 ]
-            | _ -> Html.none
 
-            // Actions bar (sticky with glassmorphism)
-            Html.div [
-                prop.className "sticky top-16 z-40 bg-base-100/80 backdrop-blur-xl rounded-xl shadow-lg p-3 md:p-4 border border-white/10"
-                prop.children [
+                // === INFO BANNER (duplicates) ===
+                if counts.Duplicates > 0 then
                     Html.div [
-                        prop.className "flex flex-wrap justify-between gap-2"
+                        prop.className "info-banner"
                         prop.children [
-                            // Skip/Unskip All buttons (left side)
-                            Html.div [
-                                prop.className "flex gap-2"
+                            Html.span [ prop.className "info-banner-icon"; prop.text "i" ]
+                            Html.span [
                                 prop.children [
-                                    // Calculate counts for button states
-                                    let (skippableCount, unskippableCount) =
-                                        match model.SyncTransactions with
-                                        | Success transactions ->
-                                            let filtered = filterTransactions model.ActiveFilter transactions
-                                            let skippable = filtered |> List.filter (fun tx -> tx.Status <> Skipped && tx.Status <> Imported) |> List.length
-                                            let unskippable = filtered |> List.filter (fun tx -> tx.Status = Skipped) |> List.length
-                                            (skippable, unskippable)
-                                        | _ -> (0, 0)
-
-                                    // Skip All button - shown when there are skippable transactions
-                                    if skippableCount > 0 then
-                                        Button.view {
-                                            Button.defaultProps with
-                                                Text = $"Skip All ({skippableCount})"
-                                                Variant = Button.Ghost
-                                                Size = Button.Small
-                                                Icon = Some (Icons.forward Icons.SM Icons.Default)
-                                                OnClick = fun () -> dispatch SkipAllVisible
-                                        }
-
-                                    // Unskip All button - shown when there are unskippable transactions
-                                    if unskippableCount > 0 then
-                                        Button.view {
-                                            Button.defaultProps with
-                                                Text = $"Unskip All ({unskippableCount})"
-                                                Variant = Button.Ghost
-                                                Size = Button.Small
-                                                Icon = Some (Icons.undo Icons.SM Icons.NeonGreen)
-                                                OnClick = fun () -> dispatch UnskipAllVisible
-                                        }
-                                ]
-                            ]
-
-                            // Right side buttons
-                            Html.div [
-                                prop.className "flex gap-2"
-                                prop.children [
-                                    Button.secondary "Cancel" (fun () -> dispatch CancelSync)
-                                    // Enable import if any non-skipped, non-imported transaction exists
-                                    let importableCount =
-                                        match model.SyncTransactions with
-                                        | Success transactions ->
-                                            transactions
-                                            |> List.filter (fun tx ->
-                                                tx.Status <> Skipped &&
-                                                tx.Status <> Imported)
-                                            |> List.length
-                                        | _ -> 0
-                                    Button.view {
-                                        Button.defaultProps with
-                                            Text = if importableCount > 0 then sprintf "Import %d to YNAB" importableCount else "Import to YNAB"
-                                            Variant = Button.Primary
-                                            Icon = Some (Icons.upload Icons.SM Icons.Primary)
-                                            OnClick = fun () -> dispatch ImportToYnab
-                                            IsDisabled = importableCount = 0
-                                    }
+                                    Html.strong [ prop.text (sprintf "%d Duplikate" counts.Duplicates) ]
+                                    Html.text " automatisch erkannt und \u00FCbersprungen"
                                 ]
                             ]
                         ]
                     ]
-                ]
-            ]
 
-            // Transaction cards
-            match model.SyncTransactions with
-            | NotAsked ->
-                Card.emptyState
-                    (Icons.creditCard Icons.XL Icons.Default)
-                    "No transactions loaded"
-                    "Start a sync to fetch transactions from your bank."
-                    None
-            | Loading ->
-                Loading.centered "Loading transactions..."
-            | Success transactions when transactions.IsEmpty ->
-                Card.emptyState
-                    (Icons.info Icons.XL Icons.Default)
-                    "No transactions found"
-                    "Try adjusting the date range in settings."
-                    None
-            | Success transactions ->
-                // Pre-compute category options ONCE instead of per row
-                // This reduces 193 x 160 = 30,880 string operations to just 160
+                // === TRANSACTION LIST (scrollable) ===
+                let filteredTransactions = filterTransactions model.ActiveFilter transactions
+                let groupedTransactions = ViewHelpers.groupTransactionsByDate filteredTransactions
+
                 let categoryOptions =
                     model.Categories
                     |> List.map (fun cat ->
                         let (YnabCategoryId id) = cat.Id
                         (id.ToString(), $"{cat.GroupName}: {cat.Name}"))
 
-                // Pre-compute payee options ONCE with Transfers grouped first
                 let payeeOptions : Input.ComboBoxOption list =
                     let transfers, regularPayees =
                         model.Payees |> List.partition (fun p -> p.TransferAccountId.IsSome)
@@ -331,58 +171,165 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                 yield { Input.ComboBoxOption.Id = id.ToString(); Label = p.Name; IsDisabled = false }
                     ]
 
-                // Apply active filter to transactions
-                let filteredTransactions = filterTransactions model.ActiveFilter transactions
-
-                // Show filter info when not showing all
-                Html.div [
-                    prop.className "space-y-3"
-                    prop.children [
-                        // Filter indicator
-                        if model.ActiveFilter <> AllTransactions then
-                            Html.div [
-                                prop.className "flex items-center justify-between px-4 py-2 rounded-lg bg-neon-teal/10 border border-neon-teal/30"
-                                prop.children [
-                                    Html.span [
-                                        prop.className "text-sm text-neon-teal"
-                                        prop.children [
-                                            Html.text $"Showing {filteredTransactions.Length} of {transactions.Length} transactions"
-                                        ]
-                                    ]
-                                    Html.button [
-                                        prop.className "text-xs text-neon-teal hover:text-neon-teal/80 underline"
-                                        prop.onClick (fun _ -> dispatch (SetFilter AllTransactions))
-                                        prop.text "Show all"
-                                    ]
-                                ]
-                            ]
-
-                        // Compact list container with card styling
-                        if filteredTransactions.IsEmpty then
-                            Card.emptyState
-                                (Icons.search Icons.XL Icons.Default)
-                                "No matching transactions"
-                                "Try selecting a different filter above."
-                                (Some (Button.ghost "Show all" (fun () -> dispatch (SetFilter AllTransactions))))
-                        else
-                            Html.div [
-                                prop.className "bg-base-100 rounded-xl border border-white/5 overflow-hidden"
-                                prop.children [
-                                    for tx in filteredTransactions do
-                                        let (TransactionId id) = tx.Transaction.Id
-                                        // Check if this transaction has pending saves
-                                        let isPendingCategorySave =
-                                            model.PendingCategoryVersions |> Map.containsKey tx.Transaction.Id
-                                        let isPendingPayeeSave =
-                                            model.PendingPayeeVersions |> Map.containsKey tx.Transaction.Id
+                if filteredTransactions.IsEmpty then
+                    Card.emptyState
+                        (Icons.search Icons.XL Icons.Default)
+                        "No matching transactions"
+                        "Try selecting a different filter above."
+                        (Some (Button.ghost "Show all" (fun () -> dispatch (SetFilter AllTransactions))))
+                else
+                    Html.div [
+                        prop.className "tx-list"
+                        prop.children [
+                            for (date, txGroup) in groupedTransactions do
+                                Html.div [
+                                    prop.className "date-group"
+                                    prop.children [
                                         Html.div [
-                                            prop.key id
-                                            prop.children [ transactionRow tx categoryOptions payeeOptions model.ExpandedTransactionIds model.InlineRuleForm model.ManuallyCategorizedIds isPendingCategorySave isPendingPayeeSave dispatch ]
+                                            prop.className "date-header"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.text (date.ToString("dd. MMMM yyyy", System.Globalization.CultureInfo("de-DE")))
+                                                ]
+                                                Html.span [
+                                                    prop.className "date-total"
+                                                    let total = ViewHelpers.formatDailyTotal txGroup
+                                                    let totalDecimal = decimal total / 1000m
+                                                    prop.text (sprintf "%s \u20AC" (totalDecimal.ToString("N2", System.Globalization.CultureInfo("de-DE"))))
+                                                ]
+                                            ]
                                         ]
+                                        for tx in txGroup do
+                                            let (TransactionId id) = tx.Transaction.Id
+                                            let isPendingCategorySave =
+                                                model.PendingCategoryVersions |> Map.containsKey tx.Transaction.Id
+                                            let isPendingPayeeSave =
+                                                model.PendingPayeeVersions |> Map.containsKey tx.Transaction.Id
+                                            Html.div [
+                                                prop.key id
+                                                prop.children [
+                                                    TransactionRow.transactionRow
+                                                        tx
+                                                        categoryOptions
+                                                        payeeOptions
+                                                        model.ExpandedTransactionIds
+                                                        model.InlineRuleForm
+                                                        model.ManuallyCategorizedIds
+                                                        isPendingCategorySave
+                                                        isPendingPayeeSave
+                                                        dispatch
+                                                        onOpenCategoryPicker
+                                                ]
+                                            ]
+                                    ]
+                                ]
+                        ]
+                    ]
+
+                // === BOTTOM ACTION BAR ===
+                Html.div [
+                    prop.className "action-bar"
+                    prop.children [
+                        Html.div [
+                            prop.className "action-bar-info"
+                            prop.children [
+                                Html.span [
+                                    prop.className "action-bar-label"
+                                    prop.text (sprintf "%d von %d importieren" counts.ToImport counts.Total)
+                                ]
+                                if counts.NeedCategory > 0 then
+                                    Html.span [
+                                        prop.className "action-bar-attention"
+                                        prop.text (sprintf "%d ohne Kategorie" counts.NeedCategory)
+                                    ]
+                            ]
+                        ]
+                        Html.div [
+                            prop.className "progress-track"
+                            prop.children [
+                                Html.div [
+                                    prop.className "progress-segment progress-ready"
+                                    prop.style [ style.width (length.percent progress.ReadyPct) ]
+                                ]
+                                Html.div [
+                                    prop.className "progress-segment progress-attention"
+                                    prop.style [ style.width (length.percent progress.AttentionPct) ]
+                                ]
+                                Html.div [
+                                    prop.className "progress-segment progress-skipped"
+                                    prop.style [ style.width (length.percent progress.SkippedPct) ]
                                 ]
                             ]
+                        ]
+                        Html.div [
+                            prop.className "action-bar-buttons"
+                            prop.children [
+                                Html.button [
+                                    prop.className "btn-cancel"
+                                    prop.text "Abbrechen"
+                                    prop.onClick (fun _ -> dispatch CancelSync)
+                                ]
+                                Html.button [
+                                    prop.className (if counts.NeedCategory = 0 then "btn-import ready" else "btn-import")
+                                    prop.onClick (fun _ -> dispatch ImportToYnab)
+                                    prop.children [
+                                        Html.span [ prop.text "Importieren" ]
+                                        Html.span [ prop.className "btn-import-icon"; prop.text "\u2191" ]
+                                    ]
+                                ]
+                            ]
+                        ]
                     ]
                 ]
+
+                // === CATEGORY BOTTOM SHEET ===
+                let sheetOpen = categorySheetState.IsSome
+                let sheetPayee =
+                    categorySheetState
+                    |> Option.map (fun s -> s.PayeeName)
+                    |> Option.defaultValue ""
+
+                let suggestedCats : string list = []
+                let recentCats =
+                    categoryOptions
+                    |> List.truncate 5
+                    |> List.map snd
+
+                // Key forces remount on new transaction → resets search text (MVU-friendly)
+                let pickerKey =
+                    categorySheetState
+                    |> Option.map (fun s -> let (TransactionId id) = s.TxId in id)
+                    |> Option.defaultValue ""
+
+                Html.div [
+                    prop.key pickerKey
+                    prop.children [
+                        BottomSheet.categoryPicker
+                            sheetOpen
+                            sheetPayee
+                            categoryOptions
+                            suggestedCats
+                            recentCats
+                            (fun catId ->
+                                match categorySheetState with
+                                | Some state ->
+                                    match System.Guid.TryParse(catId) with
+                                    | true, guid -> dispatch (CategorizeTransaction(state.TxId, Some (YnabCategoryId guid)))
+                                    | false, _ -> ()
+                                | None -> ()
+                                setCategorySheetState None)
+                            (fun () -> setCategorySheetState None)
+                    ]
+                ]
+
+            | NotAsked ->
+                Card.emptyState
+                    (Icons.creditCard Icons.XL Icons.Default)
+                    "No transactions loaded"
+                    "Start a sync to fetch transactions from your bank."
+                    None
+            | Loading ->
+                Loading.centered "Loading transactions..."
             | Failure error ->
                 ErrorDisplay.cardCompact error None
         ]
