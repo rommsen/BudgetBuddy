@@ -291,9 +291,8 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
 
                 let suggestedCats : string list = []
                 let recentCats =
-                    categoryOptions
-                    |> List.truncate 5
-                    |> List.map snd
+                    model.RecentlyUsedCategoryIds
+                    |> List.map (fun (YnabCategoryId guid) -> guid.ToString())
 
                 // Key forces remount on new transaction → resets search text (MVU-friendly)
                 let pickerKey =

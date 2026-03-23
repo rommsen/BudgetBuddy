@@ -68,6 +68,8 @@ type Model = {
     PendingCategoryVersions: Map<TransactionId, int>
     /// Version counter per transaction for debouncing payee changes.
     PendingPayeeVersions: Map<TransactionId, int>
+    /// Recently used category IDs, most recent first (max 10)
+    RecentlyUsedCategoryIds: YnabCategoryId list
 }
 
 /// SyncFlow-specific messages

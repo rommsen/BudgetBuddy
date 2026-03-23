@@ -105,6 +105,7 @@ let init () : Model * Cmd<Msg> =
         ActiveFilter = AllTransactions
         PendingCategoryVersions = Map.empty
         PendingPayeeVersions = Map.empty
+        RecentlyUsedCategoryIds = []
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -256,10 +257,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             let debouncedCmd =
                 Debounce.delayedDefault (CommitCategoryChange (txId, categoryId, newVersion))
 
+            // Track recently used category
+            let updatedRecent =
+                match categoryId with
+                | Some catId ->
+                    catId :: (model.RecentlyUsedCategoryIds |> List.filter (fun id -> id <> catId))
+                    |> List.truncate 10
+                | None -> model.RecentlyUsedCategoryIds
+
             { model with
                 SyncTransactions = Success updatedTransactions
                 ManuallyCategorizedIds = newManuallyCategorized
-                PendingCategoryVersions = newPendingVersions }, debouncedCmd, NoOp
+                PendingCategoryVersions = newPendingVersions
+                RecentlyUsedCategoryIds = updatedRecent }, debouncedCmd, NoOp
         | Success (Some session), _ ->
             // Transactions not loaded yet, just make the API call directly (no debounce needed)
             let cmd =

@@ -37,16 +37,7 @@ let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
 // ============================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
-    let hideBottomNav =
-        match model.CurrentPage with
-        | Page.SyncFlow ->
-            match model.SyncFlow.CurrentSession with
-            | RemoteData.Success (Some session) ->
-                match session.Status with
-                | Shared.Domain.SyncSessionStatus.ReviewingTransactions -> true
-                | _ -> false
-            | _ -> false
-        | _ -> false
+    let hideBottomNav = false
 
     React.router [
         router.onUrlChanged (UrlChanged >> dispatch)
