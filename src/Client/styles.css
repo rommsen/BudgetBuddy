@@ -1153,6 +1153,13 @@ nav a:focus-visible {
   font-style: italic;
 }
 
+.tx-external-link {
+  display: flex;
+  align-items: center;
+  color: var(--sf-text-muted);
+  padding: 2px;
+  flex-shrink: 0;
+}
 .tx-date {
   font-size: 11px;
   color: var(--sf-text-muted);

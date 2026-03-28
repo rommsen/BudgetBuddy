@@ -301,6 +301,20 @@ let transactionRow (props: TransactionRowProps) =
                                     prop.text "+ Regel"
                                 ]
 
+                            // External link (Amazon/PayPal) - visible in compact row
+                            match tx.ExternalLinks |> List.tryHead with
+                            | Some link ->
+                                Html.a [
+                                    prop.className "tx-external-link"
+                                    prop.href link.Url
+                                    prop.target "_blank"
+                                    prop.rel "noopener noreferrer"
+                                    prop.onClick (fun e -> e.stopPropagation())
+                                    prop.title link.Label
+                                    prop.children [ Icons.externalLink Icons.XS Icons.Default ]
+                                ]
+                            | None -> ()
+
                             Html.span [
                                 prop.className "tx-date"
                                 prop.text dateStr
