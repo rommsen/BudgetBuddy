@@ -83,6 +83,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                     prop.className "filters"
                     prop.children [
                         filterPill "Alle" counts.Total (model.ActiveFilter = AllTransactions) false (fun () -> dispatch (SetFilter AllTransactions))
+                        filterPill "Import" counts.ToImport (model.ActiveFilter = ToBeImported) false (fun () -> dispatch (SetFilter ToBeImported))
                         filterPill "Pr\u00FCfen" counts.NeedCategory (model.ActiveFilter = UncategorizedTransactions) (counts.NeedCategory > 0) (fun () -> dispatch (SetFilter UncategorizedTransactions))
                         filterPill "Duplikate" counts.Duplicates (model.ActiveFilter = ConfirmedDuplicates) false (fun () -> dispatch (SetFilter ConfirmedDuplicates))
                         filterPill "\u00DCbersprungen" counts.Skipped (model.ActiveFilter = SkippedTransactions) false (fun () -> dispatch (SetFilter SkippedTransactions))
