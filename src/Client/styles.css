@@ -1271,9 +1271,7 @@ nav a:focus-visible {
   flex-shrink: 0;
 }
 .memo-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
 }
 
 .tx-actions {

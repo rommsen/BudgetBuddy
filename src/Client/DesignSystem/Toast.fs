@@ -79,8 +79,8 @@ let toast (props: ToastProps) =
     Html.div [
         prop.key (props.Id.ToString())
         prop.className (
-            "pointer-events-auto flex items-start gap-3 p-4 rounded-lg border-l-4 border border-border-default " +
-            "bg-surface-input shadow-xl backdrop-blur-sm " +
+            "pointer-events-auto flex items-start gap-3 p-3 rounded-lg border border-border-subtle " +
+            "bg-surface-card/95 backdrop-blur-md shadow-lg " +
             "animate-slide-up " +
             variantToClasses props.Variant
         )

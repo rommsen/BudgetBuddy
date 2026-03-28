@@ -261,21 +261,21 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
                                         prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-text-primary"; prop.text (string session.TransactionCount) ]
-                                            Html.p [ prop.className "text-xs text-text-muted uppercase tracking-wider"; prop.text "Gesamt" ]
+                                            Html.p [ prop.className "text-[10px] leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Gesamt" ]
                                         ]
                                     ]
                                     Html.div [
                                         prop.className "bg-surface-card rounded-xl border border-neon-green/30 shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-neon-green"; prop.text (string session.ImportedCount) ]
-                                            Html.p [ prop.className "text-xs text-text-muted uppercase tracking-wider"; prop.text "Importiert" ]
+                                            Html.p [ prop.className "text-[10px] leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Importiert" ]
                                         ]
                                     ]
                                     Html.div [
                                         prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-text-muted"; prop.text (string session.SkippedCount) ]
-                                            Html.p [ prop.className "text-xs text-text-muted uppercase tracking-wider"; prop.text "Übersprungen" ]
+                                            Html.p [ prop.className "text-[10px] leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Übersprungen" ]
                                         ]
                                     ]
                                 ]
