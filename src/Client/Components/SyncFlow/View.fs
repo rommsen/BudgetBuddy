@@ -34,53 +34,50 @@ let view (model: Model) (dispatch: Msg -> unit) =
             | Success txs -> txs.Length
             | _ -> 0
 
-        Html.div [
-            prop.className "sf-app"
-            prop.children [
-                // Custom review header matching prototype
-                Html.header [
-                    prop.className "sf-header"
-                    prop.children [
-                        Html.button [
-                            prop.className "back-btn"
-                            prop.ariaLabel "Zurück"
-                            prop.onClick (fun _ -> dispatch CancelSync)
-                            prop.children [
-                                Svg.svg [
-                                    svg.custom ("width", "18")
-                                    svg.custom ("height", "18")
-                                    svg.viewBox (0, 0, 24, 24)
-                                    svg.fill "none"
-                                    svg.stroke "currentColor"
-                                    svg.custom ("strokeWidth", "2.5")
-                                    svg.custom ("strokeLinecap", "round")
-                                    svg.custom ("strokeLinejoin", "round")
-                                    svg.children [
-                                        Svg.path [ svg.d "M15 18l-6-6 6-6" ]
-                                    ]
+        React.fragment [
+            // Review header as normal flowing content
+            Html.div [
+                prop.className "sf-review-header"
+                prop.children [
+                    Html.button [
+                        prop.className "back-btn"
+                        prop.ariaLabel "Zurück"
+                        prop.onClick (fun _ -> dispatch CancelSync)
+                        prop.children [
+                            Svg.svg [
+                                svg.custom ("width", "18")
+                                svg.custom ("height", "18")
+                                svg.viewBox (0, 0, 24, 24)
+                                svg.fill "none"
+                                svg.stroke "currentColor"
+                                svg.custom ("strokeWidth", "2.5")
+                                svg.custom ("strokeLinecap", "round")
+                                svg.custom ("strokeLinejoin", "round")
+                                svg.children [
+                                    Svg.path [ svg.d "M15 18l-6-6 6-6" ]
                                 ]
                             ]
                         ]
-                        Html.div [
-                            prop.className "header-text"
-                            prop.children [
-                                Html.h1 [ prop.text "Import prüfen" ]
-                                Html.div [
-                                    prop.className "header-subtitle"
-                                    prop.children [
-                                        Html.span [ prop.text (sprintf "%d Transaktionen" transactionCount) ]
-                                        Html.span [ prop.className "dot" ]
-                                        Html.span [ prop.text bankName ]
-                                    ]
+                    ]
+                    Html.div [
+                        prop.className "header-text"
+                        prop.children [
+                            Html.h1 [ prop.text "Import prüfen" ]
+                            Html.div [
+                                prop.className "header-subtitle"
+                                prop.children [
+                                    Html.span [ prop.text (sprintf "%d Transaktionen" transactionCount) ]
+                                    Html.span [ prop.className "dot" ]
+                                    Html.span [ prop.text bankName ]
                                 ]
                             ]
                         ]
                     ]
                 ]
-
-                // Transaction list content
-                transactionListView model dispatch
             ]
+
+            // Transaction list content
+            transactionListView model dispatch
         ]
     else
         // Standard layout for all non-reviewing states

@@ -915,35 +915,19 @@ nav a:focus-visible {
 /* ============================================================
    SF 1. APP SHELL — phone frame on desktop preview
    ============================================================ */
-.sf-app {
-  max-width: 960px;
-  margin: 0 auto;
-  height: 100vh;
-  height: 100dvh;
-  background: var(--sf-bg-app);
+/* Review header (normal flow, replaces fixed sf-app shell) */
+.sf-review-header {
   display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
-  color: var(--sf-text-primary);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 4px 0 12px;
 }
 
 
 /* ============================================================
    SF 2. HEADER
    ============================================================ */
-.sf-header {
-  padding: 56px 20px 12px;
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-}
+/* sf-header removed — review header is now normal flow via .sf-review-header */
 
 
 .back-btn {
@@ -1035,14 +1019,9 @@ nav a:focus-visible {
 }
 
 /* ============================================================
-   SF 4. SCROLLABLE TRANSACTION LIST
+   SF 4. TRANSACTION LIST (normal flow)
    ============================================================ */
 .tx-list {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
   padding-bottom: 16px;
 }
 
@@ -1051,7 +1030,7 @@ nav a:focus-visible {
    ============================================================ */
 .date-header {
   position: sticky;
-  top: 0;
+  top: 56px;  /* mobileHeader height */
   z-index: 5;
   display: flex;
   justify-content: space-between;
@@ -1323,25 +1302,15 @@ nav a:focus-visible {
    SF 12. BOTTOM ACTION BAR (glassmorphism)
    ============================================================ */
 .action-bar {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+  padding: 12px 16px 16px;
   background: rgba(10, 10, 28, 0.82);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--sf-border-subtle);
-  z-index: 20;
+  border-radius: var(--sf-radius-md);
+  margin: 8px 12px 0;
   animation: sfSlideInFromBottom var(--sf-duration-slow) var(--sf-ease-out-quint) both;
   animation-delay: 200ms;
-}
-
-@media (min-width: 768px) {
-  .action-bar {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
-  }
 }
 
 .action-bar-info {
@@ -1749,6 +1718,11 @@ nav a:focus-visible {
     animation-delay: 0s !important;
     transition-duration: 0s !important;
   }
+}
+
+/* Date header top offset for desktop (taller nav) */
+@media (min-width: 768px) {
+  .date-header { top: 64px; }
 }
 
 /* ============================================================

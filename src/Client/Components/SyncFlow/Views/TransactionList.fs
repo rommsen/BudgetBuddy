@@ -71,7 +71,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
         setCategorySheetState (Some {| TxId = txId; PayeeName = payeeName |})
 
     Html.div [
-        prop.className "flex flex-col h-full relative"
+        prop.className "flex flex-col relative"
         prop.children [
             match model.SyncTransactions with
             | Success transactions ->
