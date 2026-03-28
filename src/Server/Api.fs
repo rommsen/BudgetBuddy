@@ -769,7 +769,14 @@ let syncApi : SyncApi = {
         | Error err -> return Error err
         | Ok _ ->
             let transactions = SyncSessionManager.getTransactions()
-            return Ok transactions
+            // Re-generate ExternalLinks if empty (lost after DB reload)
+            let enriched =
+                transactions
+                |> List.map (fun tx ->
+                    if tx.ExternalLinks.IsEmpty then
+                        { tx with ExternalLinks = RulesEngine.detectSpecialTransaction tx.Transaction }
+                    else tx)
+            return Ok enriched
     }
 
     categorizeTransaction = fun (sessionId, txId, categoryId, payeeOverride) -> async {
