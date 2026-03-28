@@ -918,8 +918,8 @@ nav a:focus-visible {
 .sf-app {
   max-width: 960px;
   margin: 0 auto;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   background: var(--sf-bg-app);
   display: flex;
   flex-direction: column;
