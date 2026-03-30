@@ -56,7 +56,8 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
             if isSuggested then "chip suggested"
             else "chip"
         )
-        prop.onClick (fun e ->
+        prop.onPointerDown (fun e ->
+            e.preventDefault()
             e.stopPropagation()
             onClick()
         )
@@ -264,7 +265,7 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                     ]
 
                                     // Suggested section
-                                    if not input.SuggestedCategories.IsEmpty then
+                                    if not input.SuggestedCategories.IsEmpty && System.String.IsNullOrWhiteSpace searchText then
                                         Html.div [
                                             prop.className "sheet-section"
                                             prop.children [
@@ -283,7 +284,7 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                         ]
 
                                     // Recent section
-                                    if not input.RecentCategories.IsEmpty then
+                                    if not input.RecentCategories.IsEmpty && System.String.IsNullOrWhiteSpace searchText then
                                         Html.div [
                                             prop.className "sheet-section"
                                             prop.children [
@@ -319,7 +320,9 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                                         for (catId, catName) in items do
                                                             Html.div [
                                                                 prop.className "category-item"
-                                                                prop.onClick (fun _ -> selectAndClose catId)
+                                                                prop.onPointerDown (fun e ->
+                                                                    e.preventDefault()
+                                                                    selectAndClose catId)
                                                                 prop.text (displayName catName)
                                                             ]
                                                     ]
