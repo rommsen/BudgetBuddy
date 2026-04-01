@@ -811,6 +811,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                         let truncated = if payee.Length > 30 then payee.Substring(0, 30) + "..." else payee
                         $"Auto: {truncated}"
 
+                // Build transaction text for auto-test (payee + memo)
+                let memo = tx.Transaction.Memo
+                let transactionText =
+                    if System.String.IsNullOrWhiteSpace payee then memo
+                    elif System.String.IsNullOrWhiteSpace memo then payee
+                    else payee + " " + memo
+
                 let formState : InlineRuleFormState = {
                     TransactionId = txId
                     Pattern = payee
@@ -821,6 +828,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     PayeeOverride = ""
                     RuleName = ruleName
                     IsSaving = false
+                    TransactionText = transactionText
                 }
                 { model with InlineRuleForm = Some formState }, Cmd.none, NoOp
             | _ -> model, Cmd.none, NoOp

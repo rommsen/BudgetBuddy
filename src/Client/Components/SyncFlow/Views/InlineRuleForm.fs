@@ -1,9 +1,11 @@
 module Components.SyncFlow.Views.InlineRuleForm
 
 open Feliz
+open Fable.Core.JsInterop
 open Components.SyncFlow.Types
 open Shared.Domain
 open Client.DesignSystem
+open Client.DesignSystem.Icons
 
 // ============================================
 // Inline Rule Form Component
@@ -11,27 +13,43 @@ open Client.DesignSystem
 
 [<ReactComponent>]
 let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
-    let advancedOpen, setAdvancedOpen = React.useState(false)
+    // Auto-test: check if pattern matches the transaction
+    let testResult, setTestResult = React.useState<bool option>(None)
+    let isTesting, setIsTesting = React.useState(false)
+
+    // Debounced auto-test effect
+    React.useEffect(
+        (fun () ->
+            if System.String.IsNullOrWhiteSpace formState.Pattern then
+                setTestResult None
+                setIsTesting false
+            else
+                setIsTesting true
+                let timer = Browser.Dom.window.setTimeout(
+                    (fun () ->
+                        async {
+                            try
+                                let! matches = Api.rules.testRule (formState.Pattern, formState.PatternType, formState.TargetField, formState.TransactionText)
+                                setTestResult (Some matches)
+                            with _ ->
+                                setTestResult (Some false)
+                            setIsTesting false
+                        } |> Async.StartImmediate
+                    ), 300)
+                { new System.IDisposable with member _.Dispose() = Browser.Dom.window.clearTimeout timer }
+                |> Some
+                |> Option.iter ignore
+        ),
+        [| box formState.Pattern; box formState.PatternType; box formState.TargetField |]
+    )
 
     let displayPayee =
         if System.String.IsNullOrWhiteSpace formState.Pattern then "..."
         else formState.Pattern
 
-    let patternTypeLabel =
-        match formState.PatternType with
-        | Contains -> "Enthält"
-        | Exact -> "Exakt"
-        | PatternType.Regex -> "Regex"
-
-    let targetFieldLabel =
-        match formState.TargetField with
-        | Combined -> "Payee & Memo"
-        | Payee -> "Nur Payee"
-        | Memo -> "Nur Memo"
-
     let subtitleText =
         let s = sprintf "Für \"%s\"" displayPayee
-        if s.Length > 30 then s.[..29] + "…" else s
+        if s.Length > 30 then s.[..29] + "\u2026" else s
 
     let footerChildren = [
         Html.button [
@@ -44,7 +62,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
             prop.disabled (formState.IsSaving || System.String.IsNullOrWhiteSpace formState.Pattern)
             prop.onClick (fun _ -> dispatch SaveInlineRule)
             prop.children [
-                Html.span [ prop.text (if formState.IsSaving then "Speichern…" else "Regel erstellen") ]
+                Html.span [ prop.text (if formState.IsSaving then "Speichern\u2026" else "Regel erstellen") ]
                 Html.span [ prop.className "btn-import-icon"; prop.text "\u2192" ]
             ]
         ]
@@ -68,7 +86,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                 prop.className "flow-label"
                                 prop.children [
                                     Html.span [ prop.className "flow-label-icon step1"; prop.text "1" ]
-                                    Html.text "Wenn Transaktion enthält"
+                                    Html.text "Wenn Transaktion enth\u00E4lt"
                                 ]
                             ]
                             Html.input [
@@ -76,6 +94,94 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                 prop.type'.text
                                 prop.value formState.Pattern
                                 prop.onChange (fun (v: string) -> dispatch (UpdateInlineRulePattern v))
+                            ]
+                            // Auto-test result
+                            match isTesting, testResult with
+                            | true, _ ->
+                                Html.div [
+                                    prop.className "test-result"
+                                    prop.style [ style.marginTop 6 ]
+                                    prop.children [
+                                        Html.span [ prop.className "text-text-muted text-xs"; prop.text "Teste\u2026" ]
+                                    ]
+                                ]
+                            | false, Some true ->
+                                Html.div [
+                                    prop.className "test-result match"
+                                    prop.style [ style.marginTop 6 ]
+                                    prop.children [
+                                        check XS NeonGreen
+                                        Html.span [ prop.text "Passt auf diese Transaktion" ]
+                                    ]
+                                ]
+                            | false, Some false ->
+                                Html.div [
+                                    prop.className "test-result no-match"
+                                    prop.style [ style.marginTop 6 ]
+                                    prop.children [
+                                        x XS NeonRed
+                                        Html.span [ prop.text "Passt nicht auf diese Transaktion" ]
+                                    ]
+                                ]
+                            | false, None -> ()
+                        ]
+                    ]
+
+                    // Pattern Type + Target Field (always visible)
+                    Html.div [
+                        prop.className "rule-advanced-grid"
+                        prop.children [
+                            Html.div [
+                                prop.className "rule-advanced-row"
+                                prop.children [
+                                    Html.label [ prop.className "rule-advanced-label"; prop.text "Mustertyp" ]
+                                    Html.select [
+                                        prop.className "rule-select"
+                                        prop.value (
+                                            match formState.PatternType with
+                                            | Contains -> "Contains"
+                                            | Exact -> "Exact"
+                                            | PatternType.Regex -> "Regex")
+                                        prop.onChange (fun (v: string) ->
+                                            let pt =
+                                                match v with
+                                                | "Exact" -> Exact
+                                                | "Regex" -> PatternType.Regex
+                                                | _ -> Contains
+                                            dispatch (UpdateInlineRulePatternType pt))
+                                        prop.children [
+                                            Html.option [ prop.value "Contains"; prop.text "Enth\u00E4lt" ]
+                                            Html.option [ prop.value "Exact"; prop.text "Exakt" ]
+                                            Html.option [ prop.value "Regex"; prop.text "Regex" ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                            Html.div [
+                                prop.className "rule-advanced-row"
+                                prop.children [
+                                    Html.label [ prop.className "rule-advanced-label"; prop.text "Suche in" ]
+                                    Html.select [
+                                        prop.className "rule-select"
+                                        prop.value (
+                                            match formState.TargetField with
+                                            | Combined -> "Combined"
+                                            | Payee -> "Payee"
+                                            | Memo -> "Memo")
+                                        prop.onChange (fun (v: string) ->
+                                            let tf =
+                                                match v with
+                                                | "Payee" -> Payee
+                                                | "Memo" -> Memo
+                                                | _ -> Combined
+                                            dispatch (UpdateInlineRuleTargetField tf))
+                                        prop.children [
+                                            Html.option [ prop.value "Combined"; prop.text "Payee & Memo" ]
+                                            Html.option [ prop.value "Payee"; prop.text "Nur Payee" ]
+                                            Html.option [ prop.value "Memo"; prop.text "Nur Memo" ]
+                                        ]
+                                    ]
+                                ]
                             ]
                         ]
                     ]
@@ -160,98 +266,6 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                         prop.text formState.CategoryName
                                     ]
                                     Html.text " kategorisiert."
-                                ]
-                            ]
-                        ]
-                    ]
-
-                    // Advanced Options
-                    Html.div [
-                        prop.children [
-                            Html.button [
-                                prop.className (sprintf "rule-advanced-toggle%s" (if advancedOpen then " open" else ""))
-                                prop.onClick (fun _ -> setAdvancedOpen (not advancedOpen))
-                                prop.children [
-                                    Html.span [ prop.className "rule-advanced-chevron"; prop.text "\u203A" ]
-                                    Html.text "Erweiterte Optionen"
-                                    Html.span [
-                                        prop.className "rule-advanced-defaults"
-                                        prop.text (sprintf "%s \u00B7 %s" patternTypeLabel targetFieldLabel)
-                                    ]
-                                ]
-                            ]
-                            Html.div [
-                                prop.className (sprintf "rule-advanced-panel%s" (if advancedOpen then " open" else ""))
-                                prop.children [
-                                    Html.div [
-                                        prop.className "rule-advanced-panel-inner"
-                                        prop.children [
-                                            Html.div [
-                                                prop.className "rule-advanced-content"
-                                                prop.children [
-                                                    Html.div [
-                                                        prop.className "rule-advanced-grid"
-                                                        prop.children [
-                                                            // Pattern Type
-                                                            Html.div [
-                                                                prop.className "rule-advanced-row"
-                                                                prop.children [
-                                                                    Html.label [ prop.className "rule-advanced-label"; prop.text "Mustertyp" ]
-                                                                    Html.select [
-                                                                        prop.className "rule-select"
-                                                                        prop.value (
-                                                                            match formState.PatternType with
-                                                                            | Contains -> "Contains"
-                                                                            | Exact -> "Exact"
-                                                                            | PatternType.Regex -> "Regex")
-                                                                        prop.onChange (fun (v: string) ->
-                                                                            let pt =
-                                                                                match v with
-                                                                                | "Exact" -> Exact
-                                                                                | "Regex" -> PatternType.Regex
-                                                                                | _ -> Contains
-                                                                            dispatch (UpdateInlineRulePatternType pt))
-                                                                        prop.children [
-                                                                            Html.option [ prop.value "Contains"; prop.text "Enthält" ]
-                                                                            Html.option [ prop.value "Exact"; prop.text "Exakt" ]
-                                                                            Html.option [ prop.value "Regex"; prop.text "Regex" ]
-                                                                        ]
-                                                                    ]
-                                                                ]
-                                                            ]
-                                                            // Target Field
-                                                            Html.div [
-                                                                prop.className "rule-advanced-row"
-                                                                prop.children [
-                                                                    Html.label [ prop.className "rule-advanced-label"; prop.text "Suche in" ]
-                                                                    Html.select [
-                                                                        prop.className "rule-select"
-                                                                        prop.value (
-                                                                            match formState.TargetField with
-                                                                            | Combined -> "Combined"
-                                                                            | Payee -> "Payee"
-                                                                            | Memo -> "Memo")
-                                                                        prop.onChange (fun (v: string) ->
-                                                                            let tf =
-                                                                                match v with
-                                                                                | "Payee" -> Payee
-                                                                                | "Memo" -> Memo
-                                                                                | _ -> Combined
-                                                                            dispatch (UpdateInlineRuleTargetField tf))
-                                                                        prop.children [
-                                                                            Html.option [ prop.value "Combined"; prop.text "Payee & Memo" ]
-                                                                            Html.option [ prop.value "Payee"; prop.text "Nur Payee" ]
-                                                                            Html.option [ prop.value "Memo"; prop.text "Nur Memo" ]
-                                                                        ]
-                                                                    ]
-                                                                ]
-                                                            ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
-                                    ]
                                 ]
                             ]
                         ]

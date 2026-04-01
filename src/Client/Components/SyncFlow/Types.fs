@@ -40,6 +40,8 @@ type InlineRuleFormState = {
     RuleName: string
     /// Is the rule being saved?
     IsSaving: bool
+    /// Transaction text (payee + memo) for auto-testing pattern match
+    TransactionText: string
 }
 
 /// SyncFlow-specific model state
