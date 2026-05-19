@@ -4,6 +4,27 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-05-19 - Fix: Restore "force re-import" UI trigger lost in mobile redesign
+
+**What I did:**
+Beim mobile-first Redesign (2026-03) wurde der UI-Trigger für `ForceImportDuplicates` versehentlich entfernt — das Handler-Pendant und der Server-Endpoint blieben aber bestehen. Folge: wenn der User Transaktionen in YNAB löscht und sie in BB erneut importieren will, schlägt der Import fehl ("Imported 0 transaction(s). 2 already exist in YNAB"), weil YNABs `import_id`-Historie auch nach Delete bestehen bleibt — und es gibt keinen Knopf, um den Force-Re-Import mit neuer UUID anzustoßen.
+
+Neues Banner direkt unter dem bestehenden "X Duplikate"-Info-Banner: wird gerendert, wenn `model.DuplicateTransactionIds` nach einem fehlgeschlagenen Import nicht leer ist. Zeigt Anzahl + Button "Erneut importieren →" der `ForceImportDuplicates` dispatcht (nutzt das vorhandene Backend-Pipeline mit `forceNewImportId=true` → neue UUIDs umgehen YNABs Duplikat-Check).
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` — Neues Warning-Banner mit Inline-Button nach Duplikat-Info-Banner.
+- `src/Client/styles.css` — `.info-banner.warning`, `.info-banner-icon.warning`, `.info-banner-text`, `.info-banner-action` (orange Token-Farbe, kein hardcoded Hex außer rgba auf Neon-Orange-Token).
+- `src/Client/Components/SyncFlow/State.fs` — Misleading Kommentar "UI trigger removed during mobile-first redesign" entfernt.
+
+**Rationale:**
+YNAB löscht `import_id`-Historie nicht beim Delete einer Transaktion — der einzige Weg zum Re-Import ist eine neue UUID. Backend-Logik dafür existiert bereits (`forceImportDuplicates` API-Endpoint, `YnabClient.createTransactions ... forceNewImportId=true`); nur die UI-Lücke wurde wieder geschlossen.
+
+**Outcomes:**
+- Build: PASSED (`dotnet build`, `npx vite build`)
+- Tests: 467 passed, 6 skipped, 0 failed.
+
+---
+
 ## 2026-05-19 - Fix: Extract merchant from memo for Comdirect card payments
 
 **What I did:**

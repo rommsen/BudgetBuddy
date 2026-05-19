@@ -146,6 +146,31 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                         ]
                     ]
 
+                // === REJECTED-BY-YNAB BANNER ===
+                // Shown after an import where YNAB rejected transactions by import_id
+                // (e.g. user previously imported then deleted them in YNAB \u2014 YNAB never
+                // releases import_ids, so a normal re-import always fails).
+                if not model.DuplicateTransactionIds.IsEmpty then
+                    let rejectedCount = model.DuplicateTransactionIds.Length
+                    Html.div [
+                        prop.className "info-banner warning"
+                        prop.children [
+                            Html.span [ prop.className "info-banner-icon warning"; prop.text "!" ]
+                            Html.span [
+                                prop.className "info-banner-text"
+                                prop.children [
+                                    Html.strong [ prop.text (sprintf "%d Transaktion(en)" rejectedCount) ]
+                                    Html.text " von YNAB als Duplikat abgelehnt"
+                                ]
+                            ]
+                            Html.button [
+                                prop.className "info-banner-action"
+                                prop.onClick (fun _ -> dispatch ForceImportDuplicates)
+                                prop.text "Erneut importieren \u2192"
+                            ]
+                        ]
+                    ]
+
                 // === TRANSACTION LIST (scrollable) ===
                 let filteredTransactions = filterTransactions model.ActiveFilter transactions
                 let groupedTransactions = ViewHelpers.groupTransactionsByDate filteredTransactions
