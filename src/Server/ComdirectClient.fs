@@ -84,6 +84,29 @@ let internal removeLineNumberPrefixes (text: string) : string =
         "$1"
     ).Trim()
 
+/// Detects whether a memo originates from a Comdirect Visa-Debitkarte/Kartenzahlung
+/// transaction. These memos have no remitter/creditor in the API response, so the
+/// merchant name must be extracted from the memo itself.
+let internal isCardPaymentMemo (memo: string) : bool =
+    memo.Contains("Kartenzahlung") || memo.Contains("Visa-Debitkarte")
+
+/// Extracts the merchant name from a Comdirect card-payment memo.
+/// Convention: merchant appears at the very beginning of the memo, followed by a
+/// comma and metadata (phone, location, "Karte Nr.", etc.). Without this fallback
+/// the YNAB upload sends payee_name="Unknown" which YNAB may convert to a transfer.
+let internal extractCardMerchant (memo: string) : string option =
+    if not (isCardPaymentMemo memo) then
+        None
+    else
+        let firstComma = memo.IndexOf(',')
+        let candidate =
+            if firstComma >= 0 then memo.Substring(0, firstComma)
+            else memo
+        let trimmed = candidate.Trim()
+        if String.IsNullOrWhiteSpace(trimmed) then None
+        elif trimmed |> Seq.forall (fun c -> Char.IsDigit(c) || Char.IsWhiteSpace(c)) then None
+        else Some trimmed
+
 let private transactionDecoder: Decoder<BankTransaction> =
     Decode.object (fun get ->
         // Extract name (can be remitter or creditor)
@@ -107,6 +130,13 @@ let private transactionDecoder: Decoder<BankTransaction> =
             get.Required.Field "remittanceInfo" Decode.string
             |> removeLineNumberPrefixes
 
+        // For Visa-Debitkarte transactions Comdirect omits remitter/creditor —
+        // fall back to merchant name from the memo so YNAB doesn't see "Unknown".
+        let effectivePayee =
+            match payee with
+            | Some _ -> payee
+            | None -> extractCardMerchant memo
+
         // Create transaction ID from reference
         let transactionId = TransactionId reference
 
@@ -114,7 +144,7 @@ let private transactionDecoder: Decoder<BankTransaction> =
             Id = transactionId
             BookingDate = bookingDate
             Amount = { Amount = amountValue; Currency = currency }
-            Payee = payee
+            Payee = effectivePayee
             Memo = memo
             Reference = reference
             RawData = ""  // TODO: Store raw JSON if needed for debugging

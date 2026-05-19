@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-05-19 - Fix: Extract merchant from memo for Comdirect card payments
+
+**What I did:**
+Comdirect's API liefert für Visa-Debitkarte-/Kartenzahlungen weder `remitter.holderName` noch `creditor.holderName` — der Händlername steht ausschließlich im `remittanceInfo` (Memo). Dadurch wurde `Payee = None` gesetzt und der YNAB-Upload fiel auf `payee_name = "Unknown"` zurück. YNAB ordnete daraufhin diese Transaktionen via Payee-Renaming-Rules/Account-Name-Match automatisch als „Transfer to Bar" ein und ignorierte die zugewiesene Kategorie.
+
+Neuer Fallback in `transactionDecoder`: wenn beides (`remitter`, `creditor`) fehlt UND das Memo `Kartenzahlung` oder `Visa-Debitkarte` enthält, wird der Text vor dem ersten Komma als Payee extrahiert (z.B. „Software Outlet BV", „Google Play Apps").
+
+**Files Modified:**
+- `src/Server/ComdirectClient.fs` — Zwei neue `internal`-Funktionen `isCardPaymentMemo` und `extractCardMerchant`. Decoder nutzt den Memo-Fallback nur wenn weder remitter noch creditor gesetzt ist (SEPA-Transaktionen unverändert).
+- `src/Tests/ComdirectDecoderTests.fs` — 10 neue Tests: 3 für `isCardPaymentMemo`, 7 für `extractCardMerchant` (inkl. Edge Cases: leeres Memo, führendes Komma, kein Komma, Whitespace-Trimmung).
+
+**Rationale:**
+Regressionsschutz gegen den YNAB-Auto-Transfer-Bug. Der Fix wirkt nur auf neue Imports — bestehende, fälschlich als „Transfer to Bar" angelegte YNAB-Transaktionen müssen manuell in YNAB korrigiert werden (Payee-Renaming-Rule entfernen + Transfer-Verknüpfung über „Make this a regular transaction" lösen).
+
+**Side-Effects:**
+- DuplicateDetection: künftige Kartenzahlungen sind per Payee fuzzy-matchbar (war vorher nur Datum/Betrag).
+- RulesEngine: Rules, die auf Payee matchen, können jetzt für Kartenzahlungen greifen — beabsichtigte Verbesserung.
+
+**Outcomes:**
+- Build: PASSED
+- Tests: 467 passed, 6 skipped (.env-abhängige Integration-Tests), 0 failed.
+
+---
+
 ## 2026-02-28 - Fix: Skip future-dated transactions before YNAB import
 
 **What I did:**

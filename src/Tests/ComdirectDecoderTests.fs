@@ -176,4 +176,47 @@ let lineNumberPrefixTests =
             // causing "01028-8901796-9573138" to appear in YNAB memos instead of "028-8901796-9573138".
             Expect.equal (removeLineNumberPrefixes "01028-8901796-9573138 AMZN Mktp DE") "028-8901796-9573138 AMZN Mktp DE" "Should remove prefix before digit-starting order number"
             Expect.equal (removeLineNumberPrefixes "01305-0831755-7604349 AMZN Mktp DE") "305-0831755-7604349 AMZN Mktp DE" "Should remove prefix before another order number"
+
+        // ----- isCardPaymentMemo -----
+
+        testCase "isCardPaymentMemo: detects Visa-Debitkarte marker" <| fun () ->
+            Expect.isTrue (isCardPaymentMemo "X Visa-Debitkarte Y") "Visa-Debitkarte detected"
+
+        testCase "isCardPaymentMemo: detects Kartenzahlung marker" <| fun () ->
+            Expect.isTrue (isCardPaymentMemo "X Kartenzahlung Y") "Kartenzahlung detected"
+
+        testCase "isCardPaymentMemo: rejects SEPA memo without card marker" <| fun () ->
+            Expect.isFalse (isCardPaymentMemo "AMAZON PAYMENTS EUROPE") "No card marker → false"
+
+        // ----- extractCardMerchant -----
+        // This regression test set covers the bug where Visa-Debitkarte transactions
+        // had no remitter/creditor in the Comdirect API response, so BB sent
+        // payee_name="Unknown" to YNAB — which YNAB then converted to a transfer.
+
+        testCase "extractCardMerchant: extracts merchant from Software Outlet BV memo" <| fun () ->
+            let memo = "Software Outlet BV, +31851050555 N02L 03Karte Nr. 4871 78XX XXXX 0916 04Kartenzahlung 05comdirect Visa-Debitkarte 062026-05-17 00:00:00"
+            Expect.equal (extractCardMerchant memo) (Some "Software Outlet BV") "Should extract merchant before first comma"
+
+        testCase "extractCardMerchant: extracts merchant from Google Play Apps memo" <| fun () ->
+            let memo = "Google Play Apps, Dublin IE 02Karte Nr. 4871 78XX XXXX 0916 03Kartenzahlung 04comdirect Visa-Debitkarte 052026-05-08 00:00:00"
+            Expect.equal (extractCardMerchant memo) (Some "Google Play Apps") "Should extract merchant before first comma"
+
+        testCase "extractCardMerchant: returns None for SEPA memo without card pattern" <| fun () ->
+            let memo = "AMAZON PAYMENTS EUROPE S.C.A. LU, Bestellung 123-456"
+            Expect.equal (extractCardMerchant memo) None "SEPA memos without Kartenzahlung/Visa-Debitkarte must not match"
+
+        testCase "extractCardMerchant: returns None for empty memo" <| fun () ->
+            Expect.equal (extractCardMerchant "") None "Empty memo returns None"
+
+        testCase "extractCardMerchant: returns None when merchant slot is empty/numeric only" <| fun () ->
+            let memo = ", Berlin 02Karte Nr. 1234 Kartenzahlung Visa-Debitkarte"
+            Expect.equal (extractCardMerchant memo) None "Leading-comma memo has no merchant"
+
+        testCase "extractCardMerchant: trims surrounding whitespace from merchant" <| fun () ->
+            let memo = "  ACME Shop , Berlin 02Kartenzahlung Visa-Debitkarte"
+            Expect.equal (extractCardMerchant memo) (Some "ACME Shop") "Whitespace stripped"
+
+        testCase "extractCardMerchant: returns whole memo when card pattern present but no comma" <| fun () ->
+            let memo = "WeirdMerchant Kartenzahlung Visa-Debitkarte"
+            Expect.equal (extractCardMerchant memo) (Some "WeirdMerchant Kartenzahlung Visa-Debitkarte") "No comma → whole trimmed memo (degenerate but acceptable)"
     ]
