@@ -1425,7 +1425,13 @@ nav a:focus-visible {
 
 .bottom-sheet {
   position: fixed;
-  bottom: 0;
+  /* Anchored to the bottom of the *visual* viewport: --vvh/--vv-top mirror
+     the visualViewport API (see DesignSystem/Viewport.fs). When the on-screen
+     keyboard opens, the visual viewport shrinks and the sheet moves up with
+     it — `bottom: 0` would stay glued behind the keyboard on iOS, because
+     the layout viewport (and dvh) never shrink there. Fallback without JS:
+     100dvh ≙ old behaviour. */
+  top: calc(var(--vv-top, 0px) + var(--vvh, 100dvh));
   left: 0;
   right: 0;
   max-width: 520px;
@@ -1433,14 +1439,17 @@ nav a:focus-visible {
   z-index: 60;
   background: var(--sf-bg-elevated);
   border-radius: var(--sf-radius-xl) var(--sf-radius-xl) 0 0;
-  transform: translateY(100%);
-  transition: transform var(--sf-duration-slow) var(--sf-ease-out-quint);
-  max-height: 75vh;
+  transform: translateY(0);
+  transition: transform var(--sf-duration-slow) var(--sf-ease-out-quint),
+              top var(--sf-duration-base) var(--sf-ease-out-cubic),
+              max-height var(--sf-duration-base) var(--sf-ease-out-cubic);
+  /* Keyboard open → near-full visual viewport; keyboard closed → 75% sheet */
+  max-height: min(calc(var(--vvh, 100dvh) - 12px), 75vh);
   display: flex;
   flex-direction: column;
 }
 .bottom-sheet.active {
-  transform: translateY(0);
+  transform: translateY(-100%);
 }
 
 .sheet-handle {
@@ -1455,7 +1464,27 @@ nav a:focus-visible {
 .sheet-header {
   padding: 14px 20px 8px;
   flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
+.sheet-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--sf-duration-fast) ease, transform var(--sf-duration-fast) ease;
+}
+.sheet-close:active { background: var(--sf-bg-hover); transform: scale(0.92); }
 .sheet-header h3 {
   font-family: var(--font-display);
   font-size: 17px;
@@ -1470,8 +1499,9 @@ nav a:focus-visible {
 .sheet-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0 20px 20px;
+  padding: 0 20px calc(20px + env(safe-area-inset-bottom, 0px));
   overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sheet-section {
@@ -1503,6 +1533,7 @@ nav a:focus-visible {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .chip:active { transform: scale(0.97); background: var(--sf-bg-hover); }
 .chip.suggested {
@@ -1511,8 +1542,12 @@ nav a:focus-visible {
   color: var(--color-neon-teal);
 }
 
+/* Pinned between header and scrollable body (direct child of .bottom-sheet),
+   so it stays visible above the keyboard while the list scrolls underneath. */
 .sheet-search {
-  margin-bottom: 16px;
+  padding: 0 20px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 .sheet-search input {
   width: 100%;
@@ -1520,7 +1555,7 @@ nav a:focus-visible {
   border-radius: var(--sf-radius-md);
   background: var(--sf-bg-card);
   border: 1px solid var(--sf-border);
-  font-size: 14px;
+  font-size: 16px; /* < 16px triggers iOS auto-zoom on focus */
   color: var(--sf-text-primary);
   transition: border-color var(--sf-duration-fast) ease;
 }
@@ -1535,11 +1570,12 @@ nav a:focus-visible {
   padding: 6px 0;
 }
 .category-item {
-  padding: 10px 12px;
+  padding: 12px;
   font-size: 14px;
   border-radius: var(--sf-radius-sm);
   transition: background var(--sf-duration-fast) ease;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .category-item:active { background: var(--sf-bg-hover); }
 

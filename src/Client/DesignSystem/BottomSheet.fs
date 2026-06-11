@@ -49,20 +49,48 @@ let sectionTitle (title: string) : ReactElement =
         prop.text title
     ]
 
-/// Renders a chip button used in suggestion / recent sections
+/// Renders a chip button used in suggestion / recent sections.
+/// Selection commits on the real `click` — committing on pointerdown lets the
+/// browser's synthetic click fall through to whatever sits behind the sheet
+/// once it closes (the mobile "ghost click"). preventDefault on mousedown
+/// keeps the search input focused so the keyboard doesn't shift the layout
+/// between tap and click.
 let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : ReactElement =
     Html.button [
         prop.className (
             if isSuggested then "chip suggested"
             else "chip"
         )
-        prop.onPointerDown (fun e ->
-            e.preventDefault()
+        prop.onMouseDown (fun e -> e.preventDefault())
+        prop.onClick (fun e ->
             e.stopPropagation()
             onClick()
         )
         prop.text text
     ]
+
+let private closeIcon : ReactElement =
+    Svg.svg [
+        svg.width 14
+        svg.height 14
+        svg.viewBox (0, 0, 24, 24)
+        svg.custom ("fill", "none")
+        svg.custom ("stroke", "currentColor")
+        svg.custom ("strokeWidth", "2.5")
+        svg.custom ("strokeLinecap", "round")
+        svg.children [
+            Svg.path [ svg.d "M18 6L6 18M6 6l12 12" ]
+        ]
+    ]
+
+/// Locks page scrolling while the sheet is open (restores on close/unmount).
+let private useBodyScrollLock (isOpen: bool) =
+    React.useEffect (
+        (fun () ->
+            if isOpen then Viewport.lockBodyScroll ()
+            React.createDisposable (fun () -> if isOpen then Viewport.unlockBodyScroll ())),
+        [| box isOpen |]
+    )
 
 // ---------------------------------------------------------------------------
 // Generic BottomSheet view
@@ -74,6 +102,8 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
     let children = input.Children
 
     let activeClass = if props.IsOpen then " active" else ""
+
+    useBodyScrollLock props.IsOpen
 
     renderToBody (
         Html.div [
@@ -117,21 +147,9 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                                 ]
                                 Html.button [
                                     prop.className "sheet-close"
+                                    prop.ariaLabel "Schließen"
                                     prop.onClick (fun _ -> props.OnClose())
-                                    prop.children [
-                                        Svg.svg [
-                                            svg.width 14
-                                            svg.height 14
-                                            svg.viewBox (0, 0, 24, 24)
-                                            svg.custom ("fill", "none")
-                                            svg.custom ("stroke", "currentColor")
-                                            svg.custom ("strokeWidth", "2.5")
-                                            svg.custom ("strokeLinecap", "round")
-                                            svg.children [
-                                                Svg.path [ svg.d "M18 6L6 18M6 6l12 12" ]
-                                            ]
-                                        ]
-                                    ]
+                                    prop.children [ closeIcon ]
                                 ]
                             ]
                         ]
@@ -171,12 +189,19 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
 
     let activeClass = if input.IsOpen then " active" else ""
 
-    // Wraps onSelect to also clear search text
+    useBodyScrollLock input.IsOpen
+
+    // Wraps onSelect: clear search, arm the ghost-click guard (the sheet is
+    // about to close — any late synthetic click must not reach the list
+    // behind it), give light haptic feedback where supported.
     let selectAndClose catId =
+        Viewport.swallowNextClick 350
+        Viewport.vibrate 8
         setSearchText ""
         input.OnSelect catId
 
     let closeAndClear () =
+        Viewport.swallowNextClick 350
         setSearchText ""
         input.OnClose()
 
@@ -234,36 +259,54 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                         // Drag handle
                         Html.div [ prop.className "sheet-handle" ]
 
-                        // Header
+                        // Header (with explicit close button — the grabber
+                        // alone is not a discoverable/accessible dismiss)
                         Html.div [
                             prop.className "sheet-header"
                             prop.children [
-                                Html.h3 [ prop.text "Kategorie wählen" ]
-                                if input.PayeeName <> "" then
-                                    Html.p [ prop.text input.PayeeName ]
+                                Html.div [
+                                    prop.children [
+                                        Html.h3 [ prop.text "Kategorie wählen" ]
+                                        if input.PayeeName <> "" then
+                                            Html.p [ prop.text input.PayeeName ]
+                                    ]
+                                ]
+                                Html.button [
+                                    prop.className "sheet-close"
+                                    prop.ariaLabel "Schließen"
+                                    prop.onClick (fun _ -> closeAndClear())
+                                    prop.children [ closeIcon ]
+                                ]
                             ]
                         ]
 
-                        // Body - only mount content when open so autoFocus works on each open
+                        // Search — pinned outside the scrollable body so it
+                        // stays visible above the keyboard while the list
+                        // scrolls underneath. Only mounted while open so
+                        // autoFocus re-triggers on each open.
+                        if input.IsOpen then
+                            Html.div [
+                                prop.className "sheet-search"
+                                prop.children [
+                                    Html.input [
+                                        prop.type' "text"
+                                        prop.placeholder "Kategorie suchen…"
+                                        prop.value searchText
+                                        prop.onChange setSearchText
+                                        // Autofocus only on mouse/trackpad devices:
+                                        // on touch it would summon the keyboard
+                                        // before the user even sees the suggestions.
+                                        prop.autoFocus (Viewport.isFinePointer())
+                                        prop.className "text-base"
+                                    ]
+                                ]
+                            ]
+
+                        // Body - only mount content when open
                         Html.div [
                             prop.className "sheet-body"
                             prop.children [
                                 if input.IsOpen then
-                                    // Search input (first, with autoFocus)
-                                    Html.div [
-                                        prop.className "sheet-search"
-                                        prop.children [
-                                            Html.input [
-                                                prop.type' "text"
-                                                prop.placeholder "Kategorie suchen\u2026"
-                                                prop.value searchText
-                                                prop.onChange setSearchText
-                                                prop.autoFocus true
-                                                prop.className "text-base"
-                                            ]
-                                        ]
-                                    ]
-
                                     // Suggested section
                                     if not input.SuggestedCategories.IsEmpty && System.String.IsNullOrWhiteSpace searchText then
                                         Html.div [
@@ -320,8 +363,12 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                                         for (catId, catName) in items do
                                                             Html.div [
                                                                 prop.className "category-item"
-                                                                prop.onPointerDown (fun e ->
-                                                                    e.preventDefault()
+                                                                // Keep focus (and keyboard) on the search
+                                                                // input — prevents a blur-induced layout
+                                                                // shift between tap and click.
+                                                                prop.onMouseDown (fun e -> e.preventDefault())
+                                                                prop.onClick (fun e ->
+                                                                    e.stopPropagation()
                                                                     selectAndClose catId)
                                                                 prop.text (displayName catName)
                                                             ]

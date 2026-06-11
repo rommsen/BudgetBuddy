@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Design System (must come first) -->
     <Compile Include="DesignSystem/Tokens.fs" />
+    <Compile Include="DesignSystem/Viewport.fs" />
     <Compile Include="DesignSystem/Primitives.fs" />
     <Compile Include="DesignSystem/Icons.fs" />
     <Compile Include="DesignSystem/Button.fs" />
