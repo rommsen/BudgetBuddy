@@ -301,6 +301,52 @@ let tableSkeleton colCount rowCount =
         ]
     ]
 
+/// Skeleton mimicking the transaction list (date header + rows), so the layout
+/// doesn't jump when the real rows arrive.
+let txListSkeleton (rowCount: int) =
+    Html.div [
+        prop.className "tx-list"
+        prop.ariaLabel "Lade Transaktionen"
+        prop.children [
+            Html.div [
+                prop.className "date-group"
+                prop.children [
+                    Html.div [
+                        prop.className "date-header"
+                        prop.children [
+                            Html.div [ prop.className "h-3 w-32 bg-surface-elevated rounded animate-pulse" ]
+                        ]
+                    ]
+                    for _ in 1..rowCount do
+                        Html.div [
+                            prop.className "tx-row"
+                            prop.children [
+                                Html.div [ prop.className "tx-status-bar" ]
+                                Html.div [
+                                    prop.className "tx-content"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className "tx-line1"
+                                            prop.children [
+                                                Html.div [ prop.className "h-4 w-40 bg-surface-elevated rounded animate-pulse" ]
+                                                Html.div [ prop.className "h-4 w-16 bg-surface-elevated rounded animate-pulse" ]
+                                            ]
+                                        ]
+                                        Html.div [
+                                            prop.className "tx-line2"
+                                            prop.children [
+                                                Html.div [ prop.className "h-3 w-24 bg-surface-elevated rounded-full animate-pulse" ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                ]
+            ]
+        ]
+    ]
+
 // ============================================
 // Loading States with Context
 // ============================================

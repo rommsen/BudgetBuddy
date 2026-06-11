@@ -898,6 +898,8 @@ nav a:focus-visible {
   --sf-status-duplicate: var(--text-muted);
   --sf-ease-out-quint: var(--ease-out-quint);
   --sf-ease-out-cubic: var(--ease-out-cubic);
+  /* Gentle spring (~0.25 bounce), pre-sampled as linear() — Safari 17.2+/Chrome 113+ */
+  --sf-spring-out: linear(0, 0.32 9.8%, 0.83 19.7%, 1.04 27%, 1.07, 1.06 36.9%, 1.01 47%, 0.998, 1);
   --sf-ease-in-out: var(--ease-in-out-cubic);
   --sf-ease-out-quad: var(--ease-out-quad);
   --sf-ease-out-quart: var(--ease-out-quart);
@@ -974,11 +976,22 @@ nav a:focus-visible {
 .filters {
   display: flex;
   gap: 8px;
+  align-items: center;
   padding: 8px 20px 12px;
   overflow-x: auto;
   scrollbar-width: none;
   flex-shrink: 0;
   -webkit-overflow-scrolling: touch;
+  /* Sticky below the fixed header — on long lists the filter never scrolls away */
+  position: sticky;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+  z-index: 20;
+  background: rgba(8, 8, 26, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+@media (min-width: 768px) {
+  .filters { top: 64px; }
 }
 .filters::-webkit-scrollbar { display: none; }
 
@@ -1030,7 +1043,8 @@ nav a:focus-visible {
    ============================================================ */
 .date-header {
   position: sticky;
-  top: 56px;  /* mobileHeader height */
+  /* mobileHeader (56px) + sticky .filters (~52px) */
+  top: calc(108px + env(safe-area-inset-top, 0px));
   z-index: 5;
   display: flex;
   justify-content: space-between;
@@ -1452,6 +1466,15 @@ nav a:focus-visible {
   transform: translateY(-100%);
 }
 
+/* Spring entrance where linear() easing is supported (Safari 17.2+, Chrome 113+) */
+@supports (transition-timing-function: linear(0, 1)) {
+  .bottom-sheet {
+    transition: transform 450ms var(--sf-spring-out),
+                top var(--sf-duration-base) var(--sf-ease-out-cubic),
+                max-height var(--sf-duration-base) var(--sf-ease-out-cubic);
+  }
+}
+
 .sheet-handle {
   width: 36px;
   height: 4px;
@@ -1790,9 +1813,9 @@ nav a:focus-visible {
   }
 }
 
-/* Date header top offset for desktop (taller nav) */
+/* Date header top offset for desktop (taller nav + sticky filters) */
 @media (min-width: 768px) {
-  .date-header { top: 64px; }
+  .date-header { top: 116px; }
 }
 
 /* ============================================================

@@ -354,7 +354,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                     "Starte eine Synchronisierung, um Transaktionen von deiner Bank abzurufen."
                     None
             | Loading ->
-                Loading.centered "Loading transactions..."
+                Loading.txListSkeleton 6
             | Failure error ->
                 ErrorDisplay.cardCompact error None
         ]
