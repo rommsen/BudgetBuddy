@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-11 23:10 - UX-Overhaul: Keyboard-fester Category Picker, Swipe-Gesten, Quick Add (Branch feature/ux-wow)
+
+**What I did:**
+Großer Mobile-UX-Umbau in vier Teilen: (1) Der Category Picker ist jetzt keyboard-aware — die visualViewport-API wird in CSS-Variablen (`--vvh`/`--vv-top`) gespiegelt und das Bottom Sheet ankert an der Unterkante des *sichtbaren* Bereichs statt an `bottom: 0`, das auf iOS hinter der Tastatur klebt. Ghost-Clicks (Tap geht durch den Picker auf die Transaktion dahinter) sind eliminiert: Auswahl committet auf echtem `click` statt `onPointerDown`, `onMouseDown.preventDefault()` hält den Suchfokus stabil, plus ein einmaliger Click-Swallow-Guard beim Schließen. Suche ist oberhalb der scrollenden Liste gepinnt und hat 16px-Font (kein iOS-Auto-Zoom). Body-Scroll-Lock während offener Sheets. (2) Mobile-Polish: Sticky Filter-Pills mit Backdrop-Blur, Spring-Easing (`linear()`) für Sheet-Einfahrt, Transaktions-Skeleton statt Spinner. (3) Swipe-nach-links auf Transaktionszeilen zum Überspringen/Einschließen (Pointer Events, 12px-Richtungs-Claim, Rubberband, Haptik; Toggle/Chips bleiben der barrierefreie Pfad). (4) **Quick Add** (Vision Phase 0, docs/idea-ynab-replacement.md): FAB + Bottom-Sheet-Formular für manuelle Transaktionen (Bar-Ausgaben), die direkt in YNAB landen — bewusst ohne import_id, damit sie nie mit der Import-Deduplikation kollidieren.
+
+**Files Added:**
+- `src/Client/DesignSystem/Viewport.fs` - visualViewport→CSS-Vars-Sync, Body-Scroll-Lock (gezählt), Ghost-Click-Guard, Haptik/Pointer-Helfer
+- `src/Client/DesignSystem/Swipe.fs` - Generische SwipeableRow-Komponente (Pointer Events)
+- `src/Client/Components/SyncFlow/Views/QuickAdd.fs` - FAB + Quick-Add-Sheet
+- `src/Tests/QuickAddTests.fs` - 48 Tests: Milliunit-Konvertierung, Validierung, YNAB-JSON-Vertrag, Betrags-Parsing, Form→Request, Reducer-Übergänge
+
+**Files Modified:**
+- `src/Client/DesignSystem/BottomSheet.fs` - Click-Commit-Pattern, gepinnte Suche, Close-Button, Scroll-Lock-Hook, autoFocus nur bei feinem Pointer
+- `src/Client/styles.css` - Viewport-Anker fürs Sheet, Sticky-Filter, Swipe-Action-Styles, Quick-Add-Styles (FAB, Formular), Spring-Token
+- `src/Client/index.html` - `interactive-widget=resizes-content` (Android-Keyboard)
+- `src/Client/App.fs` - Viewport.start()
+- `src/Shared/Domain.fs` - ManualTransactionRequest + manualTransactionMilliunits
+- `src/Shared/Api.fs` - YnabApi.addManualTransaction
+- `src/Server/Validation.fs` - validateManualTransaction
+- `src/Server/YnabClient.fs` - buildManualTransactionBody (pur, getestet) + createManualTransaction
+- `src/Server/Api.fs` - addManualTransaction-Wiring (Default-Budget/-Konto aus Settings)
+- `src/Client/Components/SyncFlow/{Types,State,View}.fs`, `Views/{TransactionRow,TransactionList}.fs` - QuickAdd-State/Msgs, Swipe-Integration, Skeleton
+- `src/Client/DesignSystem/Loading.fs` - txListSkeleton
+
+**Rationale:**
+Der Category Picker war auf Mobile praktisch unbenutzbar (von der Tastatur verdeckt, Klicks gingen durch). Root Causes: iOS verkleinert nur den Visual Viewport (fixed/`dvh` bleiben stehen) und Commit auf `pointerdown` lässt den nachgelagerten synthetischen Click auf das Element dahinter durchfallen. Quick Add ist Phase 0 der dokumentierten YNAB-Ersatz-Vision (Frau-Workflow: Bar-Ausgaben am Handy erfassen).
+
+**Outcomes:**
+- Build: ✅ (dotnet build + npm run build/Fable)
+- Tests: 514/514 passed (48 neue), 6 skipped (Integrationstests ohne .env)
+- QA-Review (qa-milestone-reviewer): ADEQUATE, "Ship as-is"; Follow-ups (Memo-Trim im Encoder, Reducer-Tests) umgesetzt
+- Dev-Server verifiziert: Backend 5081 + Vite 5181, Proxy ok, neuer Endpoint validiert korrekt
+- Hinweis: Reducer-Test für den Valid-Submit-Pfad nicht möglich (Fable.Remoting-Proxy-Init wirft unter .NET); Pfad über buildQuickAddRequest-Tests abgedeckt
+
+---
+
 ## 2026-05-19 - Fix: Restore "force re-import" UI trigger lost in mobile redesign
 
 **What I did:**

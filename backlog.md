@@ -44,6 +44,7 @@ Ideen und Features für spätere Implementierung.
 
 ### Ideen / Someday
 
+- [ ] **YNAB-Ersatz**: BudgetBuddy zum vollwertigen Budget-Tool ausbauen, YNAB ablösen. Siehe [docs/idea-ynab-replacement.md](docs/idea-ynab-replacement.md) für Vision, Scope, Phasenmodell (7–9 Wochenenden), Goal-Datenmodell und Abbruchkriterien. **Update 2026-06-11:** Phase 0 (manuelle Transaktions-Eingabe → YNAB) ist als "Quick Add" auf Branch `feature/ux-wow` umgesetzt.
 
 ---
 
