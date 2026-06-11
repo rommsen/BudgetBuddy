@@ -23,6 +23,7 @@
     <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="RoutingTests.fs" />
     <Compile Include="SyncFlowViewTests.fs" />
+    <Compile Include="QuickAddTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

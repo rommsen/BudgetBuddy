@@ -545,7 +545,7 @@ let buildManualTransactionBody (YnabAccountId accountId: YnabAccountId) (request
             "cleared", Encode.string "uncleared"
             match request.Memo with
             | Some memo when not (System.String.IsNullOrWhiteSpace memo) ->
-                "memo", Encode.string memo
+                "memo", Encode.string (memo.Trim())
             | _ -> ()
             match request.CategoryId with
             | Some (YnabCategoryId catId) -> "category_id", Encode.string (catId.ToString())
