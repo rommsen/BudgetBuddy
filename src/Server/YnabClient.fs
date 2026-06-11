@@ -529,6 +529,65 @@ let createTransactions
             return Error (YnabError.NetworkError $"Failed to create transactions: {ex.Message}")
     }
 
+/// Builds the JSON body for a single manual transaction (Quick Add).
+/// Deliberately sets no import_id: manual entries are user-entered (like
+/// YNAB's own mobile quick add) and must never collide with the bank-import
+/// deduplication that keys on import_id.
+let buildManualTransactionBody (YnabAccountId accountId: YnabAccountId) (request: ManualTransactionRequest) : string =
+    let amount = Shared.Domain.manualTransactionMilliunits request
+
+    Encode.object [
+        "transaction", Encode.object [
+            "account_id", Encode.string (accountId.ToString())
+            "date", Encode.string (request.Date.ToString("yyyy-MM-dd"))
+            "amount", Encode.int amount
+            "payee_name", Encode.string (request.PayeeName.Trim())
+            "cleared", Encode.string "uncleared"
+            match request.Memo with
+            | Some memo when not (System.String.IsNullOrWhiteSpace memo) ->
+                "memo", Encode.string memo
+            | _ -> ()
+            match request.CategoryId with
+            | Some (YnabCategoryId catId) -> "category_id", Encode.string (catId.ToString())
+            | None -> ()
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Creates a single manually entered transaction (Quick Add) in YNAB.
+let createManualTransaction
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : Async<YnabResult<unit>> =
+
+    async {
+        try
+            let requestBody = buildManualTransactionBody accountId request
+
+            use httpClient = new System.Net.Http.HttpClient()
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse = httpClient.PostAsync($"{baseUrl}/budgets/{budgetId}/transactions", content) |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] POST /budgets/%s/transactions - Quick Add" budgetId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 201 -> return Ok ()
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Budget or account not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
+    }
+
 /// Validates a YNAB token by attempting to fetch budgets
 let validateToken (token: string) : Async<YnabResult<unit>> =
     async {

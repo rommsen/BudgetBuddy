@@ -9,6 +9,7 @@ open Client.DesignSystem
 // Import from sub-modules
 open Components.SyncFlow.Views.StatusViews
 open Components.SyncFlow.Views.TransactionList
+open Components.SyncFlow.Views.QuickAdd
 
 // TODO: derive from session model when bank name is available
 let private bankName = "Comdirect"
@@ -78,6 +79,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             // Transaction list content
             transactionListView model dispatch
+
+            // Quick Add (manual transaction entry)
+            quickAddView model dispatch
         ]
     else
         // Standard layout for all non-reviewing states
@@ -121,5 +125,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 | Failure error ->
                     errorView error dispatch
+
+                // Quick Add (manual transaction entry)
+                quickAddView model dispatch
             ]
         ]

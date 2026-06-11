@@ -430,4 +430,27 @@ type SettingsResult<'T> = Result<'T, SettingsError>
 type YnabResult<'T> = Result<'T, YnabError>
 type RulesResult<'T> = Result<'T, RulesError>
 type SyncResult<'T> = Result<'T, SyncError>
+
+// ============================================
+// Manual Transaction Entry (Quick Add)
+// ============================================
+
+/// A manually entered transaction (e.g. a cash expense), pushed directly to
+/// YNAB without a bank sync session. Phase 0 of the YNAB-replacement vision
+/// (docs/idea-ynab-replacement.md).
+type ManualTransactionRequest = {
+    /// Positive amount as entered by the user; direction comes from IsOutflow
+    Amount: decimal
+    /// true = expense (negative amount in YNAB), false = income
+    IsOutflow: bool
+    PayeeName: string
+    CategoryId: YnabCategoryId option
+    Date: DateTime
+    Memo: string option
+}
+
+/// Signed YNAB milliunits for a manual entry (outflow = negative).
+let manualTransactionMilliunits (request: ManualTransactionRequest) : int =
+    let signedAmount = if request.IsOutflow then -request.Amount else request.Amount
+    int (Math.Round(signedAmount * 1000m))
 type ComdirectResult<'T> = Result<'T, ComdirectError>

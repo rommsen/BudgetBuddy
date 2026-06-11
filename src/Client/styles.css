@@ -2268,3 +2268,146 @@ nav a:focus-visible {
   font-size: 14px;
 }
 
+/* ============================================================
+   SF 20. QUICK ADD (manual transaction entry → YNAB)
+   ============================================================ */
+.quick-add-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
+  z-index: 40;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-neon-teal);
+  color: var(--bg-app);
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 4px 20px rgba(0, 212, 170, 0.35), 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform var(--sf-duration-fast) var(--sf-ease-out-cubic),
+              box-shadow var(--sf-duration-fast) ease;
+}
+.quick-add-fab:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 10px rgba(0, 212, 170, 0.3);
+}
+@media (min-width: 768px) {
+  .quick-add-fab { right: 24px; bottom: 24px; }
+}
+
+.qa-direction {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.qa-direction-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: var(--sf-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all var(--sf-duration-fast) ease;
+}
+.qa-direction-btn.active.outflow {
+  border-color: rgba(255, 107, 44, 0.4);
+  background: var(--sf-neon-orange-dim);
+  color: var(--color-neon-orange);
+}
+.qa-direction-btn.active.inflow {
+  border-color: rgba(0, 212, 170, 0.4);
+  background: var(--sf-neon-teal-dim);
+  color: var(--color-neon-teal);
+}
+
+.qa-amount-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.qa-amount {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--sf-border);
+  color: var(--sf-text-primary);
+  padding: 4px 0;
+  transition: border-color var(--sf-duration-fast) ease;
+}
+.qa-amount:focus { border-color: var(--color-neon-teal); outline: none; }
+.qa-amount::placeholder { color: var(--sf-text-muted); }
+.qa-currency {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  color: var(--sf-text-secondary);
+}
+
+.qa-row {
+  display: flex;
+  gap: 12px;
+}
+.qa-row .qa-field { flex: 1; min-width: 0; }
+
+.qa-field { margin-bottom: 14px; }
+.qa-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+  margin-bottom: 6px;
+}
+.qa-input, .qa-select {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  font-size: 16px; /* < 16px triggers iOS auto-zoom on focus */
+  color: var(--sf-text-primary);
+  transition: border-color var(--sf-duration-fast) ease;
+}
+.qa-input:focus, .qa-select:focus { border-color: var(--color-neon-teal); outline: none; }
+.qa-input::placeholder { color: var(--sf-text-muted); }
+.qa-select { appearance: none; -webkit-appearance: none; }
+
+.qa-error {
+  margin-top: 4px;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: rgba(255, 59, 92, 0.12);
+  border: 1px solid rgba(255, 59, 92, 0.3);
+  color: var(--color-neon-red);
+  font-size: 13px;
+}
+
+.qa-submit {
+  flex: 1;
+  padding: 12px 18px;
+  border-radius: var(--sf-radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--color-neon-teal);
+  color: var(--bg-app);
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: opacity var(--sf-duration-fast) ease, transform var(--sf-duration-fast) ease;
+}
+.qa-submit:active { transform: scale(0.98); }
+.qa-submit:disabled { opacity: 0.55; cursor: default; }
+

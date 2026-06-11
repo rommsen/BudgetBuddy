@@ -350,6 +350,35 @@ let ynabApi : YnabApi = {
         with ex ->
             return Error (YnabError.NetworkError $"Failed to save default account: {ex.Message}")
     }
+
+    addManualTransaction = fun request -> async {
+        match Validation.validateManualTransaction request with
+        | Error errors ->
+            return Error (YnabError.InvalidResponse (String.concat ", " errors))
+        | Ok validRequest ->
+            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+            let! accountOpt = Persistence.Settings.getSetting "ynab_default_account_id"
+
+            match tokenOpt, budgetOpt, accountOpt with
+            | None, _, _ ->
+                return Error (YnabError.Unauthorized "No YNAB token configured")
+            | _, None, _ ->
+                return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)")
+            | _, _, None ->
+                return Error (YnabError.AccountNotFound "Kein Standard-Konto konfiguriert (Settings)")
+            | Some token, Some budgetId, Some accountIdStr ->
+                match System.Guid.TryParse accountIdStr with
+                | false, _ ->
+                    return Error (YnabError.AccountNotFound accountIdStr)
+                | true, accountGuid ->
+                    return!
+                        YnabClient.createManualTransaction
+                            token
+                            (YnabBudgetId budgetId)
+                            (YnabAccountId accountGuid)
+                            validRequest
+    }
 }
 
 // ============================================

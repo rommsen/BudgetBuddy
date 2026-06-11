@@ -106,6 +106,7 @@ let init () : Model * Cmd<Msg> =
         PendingCategoryVersions = Map.empty
         PendingPayeeVersions = Map.empty
         RecentlyUsedCategoryIds = []
+        QuickAdd = None
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -949,3 +950,52 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | TransactionsUpdatedByRule (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+
+    // === Quick Add (manual transaction entry → YNAB) ===
+
+    | OpenQuickAdd ->
+        let form = {
+            AmountText = ""
+            IsOutflow = true
+            Payee = ""
+            CategoryId = ""
+            DateText = System.DateTime.Now.ToString("yyyy-MM-dd")
+            Memo = ""
+            IsSaving = false
+            Error = None
+        }
+        // Categories/payees normally load at init; retry here in case that failed
+        let cmd = if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
+        { model with QuickAdd = Some form }, cmd, NoOp
+
+    | CloseQuickAdd ->
+        { model with QuickAdd = None }, Cmd.none, NoOp
+
+    | UpdateQuickAdd form ->
+        { model with QuickAdd = Some form }, Cmd.none, NoOp
+
+    | SubmitQuickAdd ->
+        match model.QuickAdd with
+        | None -> model, Cmd.none, NoOp
+        | Some form ->
+            match buildQuickAddRequest form with
+            | Error validationError ->
+                { model with QuickAdd = Some { form with Error = Some validationError } }, Cmd.none, NoOp
+            | Ok request ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.ynab.addManualTransaction
+                        request
+                        (fun result -> QuickAddSaved (result |> Result.mapError ynabErrorToString))
+                        (fun ex -> QuickAddSaved (Error ex.Message))
+                { model with QuickAdd = Some { form with IsSaving = true; Error = None } }, cmd, NoOp
+
+    | QuickAddSaved (Ok ()) ->
+        { model with QuickAdd = None }, Cmd.none, ShowToast ("Transaktion in YNAB gespeichert", ToastSuccess)
+
+    | QuickAddSaved (Error message) ->
+        match model.QuickAdd with
+        | Some form ->
+            { model with QuickAdd = Some { form with IsSaving = false; Error = Some message } }, Cmd.none, NoOp
+        | None ->
+            model, Cmd.none, ShowToast (message, ToastError)

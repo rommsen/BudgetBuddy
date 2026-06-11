@@ -76,6 +76,11 @@ type YnabApi = {
     /// Persists the default account for transaction imports.
     /// Purpose: All Comdirect transactions import to this YNAB account.
     setDefaultAccount: YnabAccountId -> Async<YnabResult<unit>>
+
+    /// Creates a single manually entered transaction directly in YNAB (Quick Add).
+    /// Purpose: Cash expenses entered on the phone without a bank sync session.
+    /// Uses the configured default budget/account; validation errors surface as InvalidResponse.
+    addManualTransaction: ManualTransactionRequest -> Async<YnabResult<unit>>
 }
 
 // ============================================
