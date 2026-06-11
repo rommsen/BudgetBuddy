@@ -1085,6 +1085,36 @@ nav a:focus-visible {
 .tx-row:last-child { margin-bottom: 8px; }
 .tx-row:active { background: var(--sf-bg-hover); }
 
+/* Swipe-to-skip wrapper: action label sits behind the row, row translates */
+.tx-swipe-wrap {
+  position: relative;
+}
+.tx-swipe-action {
+  position: absolute;
+  inset: 0 12px 2px 12px; /* mirrors .tx-row margins */
+  border-radius: var(--sf-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+}
+.tx-swipe-action.skip {
+  background: rgba(255, 59, 92, 0.16);
+  color: var(--color-neon-red);
+}
+.tx-swipe-action.include {
+  background: rgba(0, 212, 170, 0.14);
+  color: var(--color-neon-teal);
+}
+.tx-swipe-content {
+  position: relative;
+}
+
 /* Left status bar */
 .tx-status-bar {
   width: 3px;

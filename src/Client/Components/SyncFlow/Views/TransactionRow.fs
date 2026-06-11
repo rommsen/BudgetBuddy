@@ -249,7 +249,7 @@ let transactionRow (props: TransactionRowProps) =
         tx.CategoryId.IsSome &&
         not showRuleForm
 
-    Html.div [
+    let rowElement = Html.div [
         prop.className $"{rowClasses}{expandedClass}"
         prop.onClick (fun _ ->
             dispatch (ToggleTransactionExpand tx.Transaction.Id))
@@ -498,3 +498,15 @@ let transactionRow (props: TransactionRowProps) =
             ]
         ]
     ]
+
+    // Swipe left to skip (or to re-include when already skipped). The toggle
+    // and the action chips remain the accessible, non-gesture path.
+    Swipe.SwipeableRow {
+        ActionLabel = (if isIncluded then "Überspringen" else "Einschließen")
+        ActionClass = (if isIncluded then "skip" else "include")
+        OnCommit =
+            (fun () ->
+                if isIncluded then dispatch (SkipTransaction tx.Transaction.Id)
+                else dispatch (UnskipTransaction tx.Transaction.Id))
+        Children = rowElement
+    }
