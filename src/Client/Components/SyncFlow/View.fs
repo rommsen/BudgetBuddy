@@ -74,6 +74,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             ]
                         ]
                     ]
+
+                    // Quick Add entry point during review
+                    quickAddHeaderButton dispatch
                 ]
             ]
 
@@ -81,7 +84,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             transactionListView model dispatch
 
             // Quick Add (manual transaction entry)
-            quickAddView model dispatch
+            quickAddSheet model dispatch
         ]
     else
         // Standard layout for all non-reviewing states
@@ -127,6 +130,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     errorView error dispatch
 
                 // Quick Add (manual transaction entry)
-                quickAddView model dispatch
+                quickAddSheet model dispatch
             ]
         ]

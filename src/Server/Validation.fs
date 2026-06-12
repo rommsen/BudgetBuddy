@@ -122,7 +122,8 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
         [
             (if request.Amount <= 0m then Some "Amount must be greater than zero" else None)
             (if request.Amount > 1_000_000m then Some "Amount is unreasonably large" else None)
-            (if String.IsNullOrWhiteSpace request.PayeeName then Some "Payee cannot be empty"
+            // Payee is optional (YNAB allows payee-less transactions); only cap the length
+            (if String.IsNullOrWhiteSpace request.PayeeName then None
              else validateLength "Payee" 1 200 request.PayeeName)
             (if request.Date.Date > DateTime.Today then Some "Date cannot be in the future" else None)
             (if request.Date.Date < DateTime.Today.AddYears(-5) then Some "Date is too far in the past" else None)

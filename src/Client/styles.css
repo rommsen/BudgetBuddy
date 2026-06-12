@@ -2271,33 +2271,54 @@ nav a:focus-visible {
 /* ============================================================
    SF 20. QUICK ADD (manual transaction entry → YNAB)
    ============================================================ */
-.quick-add-fab {
-  position: fixed;
-  right: 16px;
-  bottom: calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px) + 16px);
-  z-index: 40;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+/* Plus button in the review header (mirrors .back-btn, pinned right) */
+.qa-header-btn {
+  margin-left: auto;
+  touch-action: manipulation;
+}
+
+/* Elevated sheet layer: a second bottom sheet (category picker) opening on
+   top of an already-open sheet (Quick Add form) */
+.overlay.layer-2 { z-index: 70; }
+.bottom-sheet.layer-2 { z-index: 80; }
+
+/* Category field: opens the full category picker on the elevated layer */
+.qa-cat-row {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-neon-teal);
-  color: var(--bg-app);
-  border: none;
+  gap: 8px;
+  align-items: stretch;
+}
+.qa-cat-field {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  font-size: 16px;
+  color: var(--sf-text-muted);
   cursor: pointer;
   touch-action: manipulation;
-  box-shadow: 0 4px 20px rgba(0, 212, 170, 0.35), 0 2px 6px rgba(0, 0, 0, 0.4);
-  transition: transform var(--sf-duration-fast) var(--sf-ease-out-cubic),
-              box-shadow var(--sf-duration-fast) ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color var(--sf-duration-fast) ease;
 }
-.quick-add-fab:active {
-  transform: scale(0.92);
-  box-shadow: 0 2px 10px rgba(0, 212, 170, 0.3);
+.qa-cat-field.selected { color: var(--sf-text-primary); }
+.qa-cat-field:active { border-color: var(--color-neon-teal); }
+.qa-cat-clear {
+  flex-shrink: 0;
+  width: 42px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-@media (min-width: 768px) {
-  .quick-add-fab { right: 24px; bottom: 24px; }
-}
+.qa-cat-clear:active { background: var(--sf-bg-hover); }
 
 .qa-direction {
   display: flex;

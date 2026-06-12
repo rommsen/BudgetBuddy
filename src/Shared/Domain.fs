@@ -346,6 +346,9 @@ type YnabSettings = {
     PersonalAccessToken: string
     DefaultBudgetId: YnabBudgetId option
     DefaultAccountId: YnabAccountId option
+    /// Account for Quick Add entries (e.g. the cash account) — distinct from
+    /// the bank-import account so manual cash expenses land where they belong
+    QuickAddAccountId: YnabAccountId option
 }
 
 type SyncSettings = {

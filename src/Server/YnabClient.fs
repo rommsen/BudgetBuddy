@@ -541,7 +541,12 @@ let buildManualTransactionBody (YnabAccountId accountId: YnabAccountId) (request
             "account_id", Encode.string (accountId.ToString())
             "date", Encode.string (request.Date.ToString("yyyy-MM-dd"))
             "amount", Encode.int amount
-            "payee_name", Encode.string (request.PayeeName.Trim())
+            // Payee is optional — omit instead of sending an empty string,
+            // which YNAB would otherwise create as a payee named ""
+            match request.PayeeName with
+            | p when not (System.String.IsNullOrWhiteSpace p) ->
+                "payee_name", Encode.string (p.Trim())
+            | _ -> ()
             "cleared", Encode.string "uncleared"
             match request.Memo with
             | Some memo when not (System.String.IsNullOrWhiteSpace memo) ->

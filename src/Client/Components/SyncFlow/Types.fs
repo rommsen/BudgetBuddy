@@ -56,6 +56,8 @@ type QuickAddFormState = {
     /// ISO date (yyyy-MM-dd), as produced by <input type="date">
     DateText: string
     Memo: string
+    /// Category picker sheet open on top of the Quick Add sheet
+    ShowCategoryPicker: bool
     IsSaving: bool
     Error: string option
 }
@@ -84,27 +86,25 @@ let buildQuickAddRequest (form: QuickAddFormState) : Result<ManualTransactionReq
     | None -> Error "Bitte einen gültigen Betrag eingeben"
     | Some amount when amount <= 0m -> Error "Der Betrag muss größer als 0 sein"
     | Some amount ->
-        if System.String.IsNullOrWhiteSpace form.Payee then
-            Error "Bitte einen Payee eingeben"
-        else
-            match System.DateTime.TryParse(form.DateText) with
-            | false, _ -> Error "Bitte ein gültiges Datum wählen"
-            | true, date ->
-                let categoryId =
-                    match System.Guid.TryParse(form.CategoryId) with
-                    | true, guid -> Some (YnabCategoryId guid)
-                    | false, _ -> None
+        // Payee is optional — YNAB allows payee-less transactions
+        match System.DateTime.TryParse(form.DateText) with
+        | false, _ -> Error "Bitte ein gültiges Datum wählen"
+        | true, date ->
+            let categoryId =
+                match System.Guid.TryParse(form.CategoryId) with
+                | true, guid -> Some (YnabCategoryId guid)
+                | false, _ -> None
 
-                Ok {
-                    Amount = amount
-                    IsOutflow = form.IsOutflow
-                    PayeeName = form.Payee.Trim()
-                    CategoryId = categoryId
-                    Date = date
-                    Memo =
-                        if System.String.IsNullOrWhiteSpace form.Memo then None
-                        else Some (form.Memo.Trim())
-                }
+            Ok {
+                Amount = amount
+                IsOutflow = form.IsOutflow
+                PayeeName = form.Payee.Trim()
+                CategoryId = categoryId
+                Date = date
+                Memo =
+                    if System.String.IsNullOrWhiteSpace form.Memo then None
+                    else Some (form.Memo.Trim())
+            }
 
 /// SyncFlow-specific model state
 type Model = {

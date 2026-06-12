@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-12 07:55 - Quick Add Feedback-Runde: eigenes Konto, echter Picker, kein FAB, Payee optional
+
+**What I did:**
+Vier Feedback-Punkte aus dem ersten Mobile-Test umgesetzt: (1) Quick Add bucht jetzt auf ein **eigenes konfigurierbares Konto** (Settings → YNAB → "Quick-Add-Konto (z. B. Bar)") statt auf das Bank-Import-Konto; ohne Konfiguration kommt eine klare Fehlermeldung. (2) Die Kategorie-Auswahl nutzt den **richtigen Category Picker** (Suche, Zuletzt-verwendet) statt einer nativen Selectbox — er öffnet auf einem erhöhten Sheet-Layer (`.layer-2`, z-index 70/80) über dem Quick-Add-Sheet. (3) Der **schwebende FAB ist weg**; Einstiege sind jetzt ein Secondary-Button unter "Sync starten" auf dem Startscreen und ein Plus-Icon-Button im Review-Header (im `.back-btn`-Stil). (4) **Payee ist optional** — Validierung gelockert, `payee_name` wird bei leerem Wert im YNAB-JSON weggelassen (sonst entstünde ein Payee namens "").
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - YnabSettings.QuickAddAccountId
+- `src/Shared/Api.fs` - YnabApi.setQuickAddAccount
+- `src/Server/Api.fs` - getSettings liest quickadd-Konto; setQuickAddAccount; addManualTransaction nutzt `ynab_quickadd_account_id` mit klarer Fehlermeldung
+- `src/Server/Validation.fs` - Payee optional (nur noch Längen-Cap)
+- `src/Server/YnabClient.fs` - payee_name weggelassen wenn leer
+- `src/Client/Components/Settings/{Types,State,View}.fs` - SetQuickAddAccount-Flow, zweites Konto-Select (refaktoriert zu accountSelect-Helper), Read-only-Anzeige
+- `src/Client/DesignSystem/BottomSheet.fs` - Elevated-Flag + categoryPickerLayered
+- `src/Client/Components/SyncFlow/Views/QuickAdd.fs` - Kategorie-Feld öffnet Picker, FAB entfernt, Header-/Entry-Buttons, Payee-Label "(optional)"
+- `src/Client/Components/SyncFlow/{Types,State,View}.fs`, `Views/StatusViews.fs` - ShowCategoryPicker-State, neue Trigger-Platzierung
+- `src/Client/styles.css` - .layer-2, .qa-cat-field/-clear, .qa-header-btn; FAB-CSS entfernt
+- `src/Tests/QuickAddTests.fs` - Payee-optional-Semantik (accepts empty/whitespace, overlong rejected, payee_name omitted when blank), ShowCategoryPicker im Form-Record
+
+**Rationale:**
+Direktes Nutzer-Feedback vom ersten Android-Test: Bar-Ausgaben gehören aufs Bar-Konto, nicht ins Comdirect-Import-Konto; die Selectbox war ein UX-Rückschritt gegenüber dem neuen Picker; der FAB passte nicht zur App; eine schnelle Bar-Buchung braucht keinen Payee.
+
+**Outcomes:**
+- Build: ✅ (dotnet build + npm run build/Fable)
+- Tests: 516/516 passed, 6 skipped
+- Deployment: auf docker-host (feature/ux-wow → deploy/main)
+- Hinweis: Nach dem Deploy muss in Settings → YNAB → "Verbindung testen" das Quick-Add-Konto einmalig gewählt werden, sonst meldet Quick Add einen Konfigurationsfehler
+
+---
+
 ## 2026-06-11 23:10 - UX-Overhaul: Keyboard-fester Category Picker, Swipe-Gesten, Quick Add (Branch feature/ux-wow)
 
 **What I did:**

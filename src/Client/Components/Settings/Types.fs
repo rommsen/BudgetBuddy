@@ -51,6 +51,8 @@ type Msg =
     | DefaultBudgetSet of YnabBudgetId * Result<unit, YnabError>
     | SetDefaultAccount of YnabAccountId
     | DefaultAccountSet of YnabAccountId * Result<unit, YnabError>
+    | SetQuickAddAccount of YnabAccountId
+    | QuickAddAccountSet of YnabAccountId * Result<unit, YnabError>
     // Comdirect connection test
     | TestComdirectConnection
     | ComdirectAuthStarted of Result<string, SettingsError>

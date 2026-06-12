@@ -961,6 +961,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             CategoryId = ""
             DateText = System.DateTime.Now.ToString("yyyy-MM-dd")
             Memo = ""
+            ShowCategoryPicker = false
             IsSaving = false
             Error = None
         }

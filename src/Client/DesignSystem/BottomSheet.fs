@@ -36,6 +36,9 @@ type private CategoryPickerInternalProps = {
     RecentCategories: string list
     OnSelect: string -> unit
     OnClose: unit -> unit
+    /// Renders overlay/sheet on the elevated z-layer so the picker can open
+    /// on top of another bottom sheet (e.g. the Quick Add form)
+    Elevated: bool
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +190,7 @@ let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement 
 let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
     let searchText, setSearchText = React.useState ""
 
+    let layerClass = if input.Elevated then " layer-2" else ""
     let activeClass = if input.IsOpen then " active" else ""
 
     useBodyScrollLock input.IsOpen
@@ -244,7 +248,7 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
             prop.children [
                 // Overlay
                 Html.div [
-                    prop.className ("overlay" + activeClass)
+                    prop.className ("overlay" + layerClass + activeClass)
                     prop.onClick (fun e ->
                         e.stopPropagation()
                         closeAndClear()
@@ -253,7 +257,7 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
 
                 // Bottom sheet
                 Html.div [
-                    prop.className ("bottom-sheet" + activeClass)
+                    prop.className ("bottom-sheet" + layerClass + activeClass)
                     prop.onClick (fun e -> e.stopPropagation())
                     prop.children [
                         // Drag handle
@@ -404,4 +408,27 @@ let categoryPicker
         RecentCategories = recentCategories
         OnSelect = onSelect
         OnClose = onClose
+        Elevated = false
+    }
+
+/// Category picker on the elevated z-layer — for opening on top of another
+/// bottom sheet (e.g. from the Quick Add form).
+let categoryPickerLayered
+    (isOpen: bool)
+    (payeeName: string)
+    (categories: (string * string) list)
+    (suggestedCategories: string list)
+    (recentCategories: string list)
+    (onSelect: string -> unit)
+    (onClose: unit -> unit)
+    : ReactElement =
+    CategoryPickerInternal {
+        IsOpen = isOpen
+        PayeeName = payeeName
+        Categories = categories
+        SuggestedCategories = suggestedCategories
+        RecentCategories = recentCategories
+        OnSelect = onSelect
+        OnClose = onClose
+        Elevated = true
     }

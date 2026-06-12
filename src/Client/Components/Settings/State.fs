@@ -90,6 +90,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     PersonalAccessToken = model.YnabTokenInput
                     DefaultBudgetId = settings.Ynab |> Option.bind (fun y -> y.DefaultBudgetId)
                     DefaultAccountId = settings.Ynab |> Option.bind (fun y -> y.DefaultAccountId)
+                    QuickAddAccountId = settings.Ynab |> Option.bind (fun y -> y.QuickAddAccountId)
                 }
                 Success { settings with Ynab = Some newYnab }
             | other -> other
@@ -234,6 +235,29 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default account set", ToastSuccess)
 
     | DefaultAccountSet (_, Error err) ->
+        model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
+
+    | SetQuickAddAccount accountId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ynab.setQuickAddAccount
+                accountId
+                (fun result -> QuickAddAccountSet (accountId, result))
+                (fun ex -> QuickAddAccountSet (accountId, Error (YnabError.NetworkError ex.Message)))
+        model, cmd, NoOp
+
+    | QuickAddAccountSet (accountId, Ok _) ->
+        let updatedSettings =
+            match model.Settings with
+            | Success settings ->
+                match settings.Ynab with
+                | Some ynab ->
+                    Success { settings with Ynab = Some { ynab with QuickAddAccountId = Some accountId } }
+                | None -> Success settings
+            | other -> other
+        { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Quick-Add-Konto gespeichert", ToastSuccess)
+
+    | QuickAddAccountSet (_, Error err) ->
         model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
 
     // Comdirect connection test

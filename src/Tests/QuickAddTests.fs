@@ -36,6 +36,7 @@ let private validForm = {
     CategoryId = ""
     DateText = "2026-06-10"
     Memo = ""
+    ShowCategoryPicker = false
     IsSaving = false
     Error = None
 }
@@ -102,14 +103,20 @@ let validationTests =
             Expect.isError result "Amounts above 1 million must be rejected"
         }
 
-        test "rejects empty payee" {
+        test "accepts empty payee" {
+            // Payee is optional — YNAB allows payee-less transactions
             let result = validateManualTransaction { validRequest with PayeeName = "" }
-            Expect.isError result "Empty payee must be rejected"
+            Expect.isOk result "Empty payee must be accepted"
         }
 
-        test "rejects whitespace payee" {
+        test "accepts whitespace payee" {
             let result = validateManualTransaction { validRequest with PayeeName = "   " }
-            Expect.isError result "Whitespace payee must be rejected"
+            Expect.isOk result "Whitespace payee must be accepted (treated as no payee)"
+        }
+
+        test "rejects overlong payee" {
+            let result = validateManualTransaction { validRequest with PayeeName = String('x', 201) }
+            Expect.isError result "Payee > 200 chars must be rejected"
         }
 
         test "rejects future date" {
@@ -139,9 +146,9 @@ let validationTests =
         }
 
         test "collects multiple errors" {
-            let result = validateManualTransaction { validRequest with Amount = 0m; PayeeName = "" }
+            let result = validateManualTransaction { validRequest with Amount = 0m; Memo = Some (String('x', 501)) }
             match result with
-            | Error errors -> Expect.equal errors.Length 2 "Both amount and payee errors should be reported"
+            | Error errors -> Expect.equal errors.Length 2 "Both amount and memo errors should be reported"
             | Ok _ -> failtest "Expected validation errors"
         }
     ]
@@ -219,6 +226,14 @@ let jsonBodyTests =
             let json = buildManualTransactionBody (YnabAccountId (Guid.NewGuid())) request
             let payee = decodeAt [ "transaction"; "payee_name" ] Decode.string json
             Expect.equal payee "Bäcker" "Payee should be trimmed"
+        }
+
+        test "payee_name is omitted when blank" {
+            // An empty payee_name would create a payee literally named "" in YNAB
+            let jsonEmpty = buildManualTransactionBody (YnabAccountId (Guid.NewGuid())) { validRequest with PayeeName = "" }
+            let jsonBlank = buildManualTransactionBody (YnabAccountId (Guid.NewGuid())) { validRequest with PayeeName = "   " }
+            Expect.isFalse (transactionKeys jsonEmpty |> List.contains "payee_name") "payee_name must be absent for empty payee"
+            Expect.isFalse (transactionKeys jsonBlank |> List.contains "payee_name") "payee_name must be absent for whitespace payee"
         }
 
         test "manual entries are uncleared" {
@@ -323,9 +338,11 @@ let buildRequestTests =
             Expect.isError result "Zero amount should be rejected"
         }
 
-        test "rejects empty payee" {
-            let result = buildQuickAddRequest { validForm with Payee = "  " }
-            Expect.isError result "Empty payee should be rejected"
+        test "accepts empty payee" {
+            // Payee is optional in Quick Add — a quick cash entry needs only an amount
+            match buildQuickAddRequest { validForm with Payee = "  " } with
+            | Ok request -> Expect.equal request.PayeeName "" "Blank payee should map to empty string"
+            | Error err -> failtest $"Expected Ok, got Error: {err}"
         }
 
         test "rejects invalid date" {

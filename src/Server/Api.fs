@@ -136,6 +136,7 @@ let settingsApi : SettingsApi = {
             let! ynabToken = Persistence.Settings.getSetting "ynab_token"
             let! ynabDefaultBudgetId = Persistence.Settings.getSetting "ynab_default_budget_id"
             let! ynabDefaultAccountId = Persistence.Settings.getSetting "ynab_default_account_id"
+            let! ynabQuickAddAccountId = Persistence.Settings.getSetting "ynab_quickadd_account_id"
             let! comdirectClientId = Persistence.Settings.getSetting "comdirect_client_id"
             let! comdirectClientSecret = Persistence.Settings.getSetting "comdirect_client_secret"
             let! comdirectUsername = Persistence.Settings.getSetting "comdirect_username"
@@ -150,6 +151,7 @@ let settingsApi : SettingsApi = {
                         PersonalAccessToken = token
                         DefaultBudgetId = ynabDefaultBudgetId |> Option.map YnabBudgetId
                         DefaultAccountId = ynabDefaultAccountId |> Option.bind (fun id -> match Guid.TryParse(id: string) with | true, g -> Some (YnabAccountId g) | _ -> None)
+                        QuickAddAccountId = ynabQuickAddAccountId |> Option.bind (fun id -> match Guid.TryParse(id: string) with | true, g -> Some (YnabAccountId g) | _ -> None)
                     }
                 | None -> None
 
@@ -351,6 +353,15 @@ let ynabApi : YnabApi = {
             return Error (YnabError.NetworkError $"Failed to save default account: {ex.Message}")
     }
 
+    setQuickAddAccount = fun accountId -> async {
+        try
+            let (YnabAccountId id) = accountId
+            do! Persistence.Settings.setSetting "ynab_quickadd_account_id" (id.ToString()) false
+            return Ok ()
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to save Quick Add account: {ex.Message}")
+    }
+
     addManualTransaction = fun request -> async {
         match Validation.validateManualTransaction request with
         | Error errors ->
@@ -358,7 +369,9 @@ let ynabApi : YnabApi = {
         | Ok validRequest ->
             let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
             let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-            let! accountOpt = Persistence.Settings.getSetting "ynab_default_account_id"
+            // Deliberately NOT the bank-import default account: Quick Add is for
+            // cash expenses, which belong in their own (configurable) account.
+            let! accountOpt = Persistence.Settings.getSetting "ynab_quickadd_account_id"
 
             match tokenOpt, budgetOpt, accountOpt with
             | None, _, _ ->
@@ -366,7 +379,7 @@ let ynabApi : YnabApi = {
             | _, None, _ ->
                 return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)")
             | _, _, None ->
-                return Error (YnabError.AccountNotFound "Kein Standard-Konto konfiguriert (Settings)")
+                return Error (YnabError.AccountNotFound "Kein Quick-Add-Konto konfiguriert. Wähle es in den Settings unter YNAB aus.")
             | Some token, Some budgetId, Some accountIdStr ->
                 match System.Guid.TryParse accountIdStr with
                 | false, _ ->

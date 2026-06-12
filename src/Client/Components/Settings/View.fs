@@ -101,8 +101,21 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                     |> Option.defaultValue "\u2014"
                                 | _ -> "\u2014"
 
+                            let quickAddAccountName =
+                                match model.YnabBudgets with
+                                | Success budgets ->
+                                    ynab.DefaultBudgetId
+                                    |> Option.bind (fun bid -> budgets |> List.tryFind (fun b -> b.Budget.Id = bid))
+                                    |> Option.bind (fun bwa ->
+                                        ynab.QuickAddAccountId
+                                        |> Option.bind (fun aid -> bwa.Accounts |> List.tryFind (fun a -> a.Id = aid))
+                                        |> Option.map (fun a -> a.Name))
+                                    |> Option.defaultValue "—"
+                                | _ -> "—"
+
                             settingRow "Budget" "Aktives YNAB Budget" budgetName
-                            settingRow "Konto" "YNAB Konto f\u00fcr Transaktionen" accountName
+                            settingRow "Konto" "YNAB Konto für Transaktionen" accountName
+                            settingRow "Quick-Add-Konto" "Konto für manuell erfasste Transaktionen (z. B. Bar)" quickAddAccountName
                             settingRow "API Token" "Pers\u00f6nlicher Access Token" (maskValue ynab.PersonalAccessToken)
 
                             Html.div [
@@ -233,36 +246,48 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
 
                                         match selectedBudget with
                                         | Some bwa when not bwa.Accounts.IsEmpty ->
-                                            Input.groupSimple "Standard-Konto" (
-                                                Html.select [
-                                                    prop.className "select-field"
-                                                    prop.value (
-                                                        match model.Settings with
-                                                        | Success s ->
-                                                            s.Ynab
-                                                            |> Option.bind (fun y -> y.DefaultAccountId)
+                                            let accountSelect (label: string) (currentId: YnabAccountId option) (onSelect: YnabAccountId -> unit) =
+                                                Input.groupSimple label (
+                                                    Html.select [
+                                                        prop.className "select-field"
+                                                        prop.value (
+                                                            currentId
                                                             |> Option.map (fun (YnabAccountId id) -> id.ToString())
                                                             |> Option.defaultValue ""
-                                                        | _ -> ""
-                                                    )
-                                                    prop.onChange (fun (value: string) ->
-                                                        if not (System.String.IsNullOrWhiteSpace(value)) then
-                                                            dispatch (SetDefaultAccount (YnabAccountId (System.Guid.Parse value)))
-                                                    )
-                                                    prop.children [
-                                                        Html.option [
-                                                            prop.value ""
-                                                            prop.text "Konto w\u00e4hlen..."
-                                                        ]
-                                                        for account in bwa.Accounts do
-                                                            let (YnabAccountId id) = account.Id
+                                                        )
+                                                        prop.onChange (fun (value: string) ->
+                                                            if not (System.String.IsNullOrWhiteSpace(value)) then
+                                                                onSelect (YnabAccountId (System.Guid.Parse value))
+                                                        )
+                                                        prop.children [
                                                             Html.option [
-                                                                prop.key (id.ToString())
-                                                                prop.value (id.ToString())
-                                                                prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
+                                                                prop.value ""
+                                                                prop.text "Konto wählen..."
                                                             ]
-                                                    ]
-                                                ])
+                                                            for account in bwa.Accounts do
+                                                                let (YnabAccountId id) = account.Id
+                                                                Html.option [
+                                                                    prop.key (id.ToString())
+                                                                    prop.value (id.ToString())
+                                                                    prop.text (sprintf "%s (%.2f %s)" account.Name account.Balance.Amount account.Balance.Currency)
+                                                                ]
+                                                        ]
+                                                    ])
+
+                                            let currentYnab =
+                                                match model.Settings with
+                                                | Success s -> s.Ynab
+                                                | _ -> None
+
+                                            accountSelect
+                                                "Standard-Konto (Bank-Import)"
+                                                (currentYnab |> Option.bind (fun y -> y.DefaultAccountId))
+                                                (SetDefaultAccount >> dispatch)
+
+                                            accountSelect
+                                                "Quick-Add-Konto (z. B. Bar)"
+                                                (currentYnab |> Option.bind (fun y -> y.QuickAddAccountId))
+                                                (SetQuickAddAccount >> dispatch)
                                         | _ -> Html.none
                                     ]
                                 ]
