@@ -2432,3 +2432,123 @@ nav a:focus-visible {
 .qa-submit:active { transform: scale(0.98); }
 .qa-submit:disabled { opacity: 0.55; cursor: default; }
 
+/* ------------------------------------------------------------------
+   Split-Review sheet (ynab-002) — reuses the Quick-Add form vocabulary
+   ------------------------------------------------------------------ */
+.split-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 0 14px;
+  border-bottom: 1px solid var(--sf-border);
+  margin-bottom: 14px;
+}
+.split-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+}
+
+.split-lines { display: flex; flex-direction: column; gap: 12px; }
+.split-line {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+}
+.split-target-row { display: flex; gap: 8px; align-items: stretch; }
+.split-transfer-btn {
+  flex-shrink: 0;
+  width: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--sf-duration-fast) ease, background var(--sf-duration-fast) ease;
+}
+.split-transfer-btn.active { border-color: var(--color-neon-teal); background: var(--sf-bg-hover); }
+.split-transfer-btn:active { transform: scale(0.96); }
+
+.split-amount-row { display: flex; gap: 8px; align-items: center; }
+.split-amount-input { flex: 1; min-width: 0; text-align: right; }
+.split-currency { color: var(--sf-text-muted); font-size: 15px; }
+.split-auto-amount {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-hover);
+  border: 1px dashed var(--sf-border);
+}
+.split-auto-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+}
+.split-remove-btn {
+  flex-shrink: 0;
+  width: 38px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.split-remove-btn:active { background: var(--sf-bg-hover); }
+
+.split-add-line {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--sf-radius-md);
+  background: transparent;
+  border: 1px dashed var(--sf-border);
+  color: var(--sf-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color var(--sf-duration-fast) ease, color var(--sf-duration-fast) ease;
+}
+.split-add-line:active { border-color: var(--color-neon-teal); color: var(--sf-text-primary); }
+
+.split-remainder {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--sf-radius-md);
+  background: rgba(255, 59, 92, 0.10);
+  border: 1px solid rgba(255, 59, 92, 0.28);
+}
+.split-remainder.balanced {
+  /* neon-green (#00ff88) at low alpha — the success/balanced semantic */
+  background: rgba(0, 255, 136, 0.10);
+  border-color: rgba(0, 255, 136, 0.30);
+}
+.split-remainder-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+}
+

@@ -4,6 +4,55 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-13 - Split-Review-UI: Cashback-Shortcut + generischer Editor (ynab-002)
+
+**What I did:**
+Die Review-UI für Transaktions-Splits gebaut, die auf dem ynab-001-Domain-Fundament aufsetzt
+(ADR 0006). Aus einer einzelnen Buchung im Review-Flow öffnet jetzt ein **Split-Form-Sheet**
+mit (a) einem Ein-Tipp-**„Barabhebung"**-Shortcut (2-Zeilen-Cashback: Transfer aufs Bargeld-
+Konto + Kategorie-„Rest"-Zeile, die sich live errechnet — der Nutzer tippt nur den Transfer-
+Betrag) und (b) einem **generischen N-Zeilen-Editor** (Zeilen hinzufügen/entfernen, je Zeile
+Kategorie ODER Transfer-Konto, Live-Differenz zum Gesamt, Speichern gesperrt bei Summe ≠ Gesamt).
+
+Sämtliche Split-Arithmetik/Validierung läuft über die **geteilten** Domain-Helper aus ynab-001
+(`splitRemainder`, `mkSplits`) — keine Reimplementierung der Invariante im Client (ADR 0006).
+Sheet-Stacking nach ADR 0005 §4: Kategorie-/Konto-Picker öffnen als `.layer-2` über dem
+Form-Sheet (eine Ebene tief, Click-Commit nur auf den Picker-Items). Cashback-Default-Transfer-
+Ziel = das konfigurierte Quick-Add-Konto (`ynab_quickadd_account_id`, ADR 0004), im Picker
+überschreibbar; unkonfiguriert → kein Default, manuelle Wahl.
+
+Kleine load-bearing Backend-Erweiterung: `YnabAccount` um `OnBudget`/`Closed`, `accountDecoder`
+um `on_budget`/`closed` (Optional, Conformist-sichere Defaults), damit der Transfer-Ziel-Picker
+auf **offene On-Budget-Konten** filtern kann (`openOnBudgetAccounts` in Domain.fs).
+
+**Files Added:**
+- `src/Client/Components/SyncFlow/Views/SplitSheet.fs` - Split-Form-Sheet + Cashback-Shortcut + layered Picker
+- `src/Tests/SplitEditorTests.fs` - Pure-Logic-Tests (Live-Rest, Save-Lock-bei-Mismatch, Cashback-Auto-Rest)
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `YnabAccount` += `OnBudget`/`Closed`; neuer `openOnBudgetAccounts`-Filter
+- `src/Server/YnabClient.fs` - `accountDecoder` dekodiert `on_budget`/`closed` (Optional, Defaults)
+- `src/Client/Components/SyncFlow/Types.fs` - `SplitDraftLine`/`SplitEditState`-Redesign, `SplitPicker`-DU, pure Split-Editor-Helper, Model += `Accounts`/`QuickAddAccountId`, neue Msg-Fälle
+- `src/Client/Components/SyncFlow/State.fs` - Split-Editor-Handler, Cashback-Shortcut, Account-Loading
+- `src/Client/Components/SyncFlow/View.fs` - Split-Sheet eingehängt
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - „Barabhebung"/„Aufteilen"-Action-Chips
+- `src/Client/DesignSystem/BottomSheet.fs` - `accountPickerLayered` (Transfer-Ziel-Picker, Click-Commit)
+- `src/Client/styles.css` - `.split-*`-Klassen (Design-Tokens, kein Hardcoded-Farben)
+- `src/Tests/YnabClientTests.fs` - Decoder-Tests für `on_budget`/`closed`
+- `src/Tests/SplitTransactionTests.fs` - `openOnBudgetAccounts`-Filter-Tests
+- `src/Tests/Tests.fsproj`, `src/Client/Client.fsproj` - neue Dateien registriert
+
+**Rationale:**
+Das Domain-/Push-Fundament (ynab-001) machte Transfer-Splits *möglich*; erst die UI macht sie
+nutzbar. Cashback ist der ~80%-Fall, daher zuerst und als Ein-Tipp-Shortcut.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` Solution grün, `npm run build`/Fable grün)
+- Tests: 569 passed, 6 skipped (16 neue Tests: Decoder, Filter, Live-Rest, Save-Lock, Cashback-Auto-Rest)
+- Issues: keine; Verifikation = dotnet build + dotnet test + Fable-Build (kein Supabase/Smoke in diesem Repo)
+
+---
+
 ## 2026-06-13 - Lebende /styleguide-Route: visuelle DS-Galerie (design-system-003)
 
 **What I did:**

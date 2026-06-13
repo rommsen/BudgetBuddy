@@ -30,6 +30,11 @@ module Decoders =
                 Amount = get.Required.Field "balance" Decode.int64 |> decimal |> fun milliunits -> milliunits / 1000m
                 Currency = "EUR"  // YNAB uses milliunits, currency is implicit
             }
+            // on_budget / closed drive the split transfer-target filter (ynab-002).
+            // Optional with Conformist-safe defaults: if YNAB ever omits a flag we
+            // assume a normal open on-budget account rather than failing the load.
+            OnBudget = get.Optional.Field "on_budget" Decode.bool |> Option.defaultValue true
+            Closed = get.Optional.Field "closed" Decode.bool |> Option.defaultValue false
         })
 
     /// Decoder for categories when category_group_name is present (from /categories endpoint)

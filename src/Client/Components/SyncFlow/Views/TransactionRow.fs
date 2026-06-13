@@ -421,6 +421,24 @@ let transactionRow (props: TransactionRowProps) =
                                                             | None -> "Kategorie w\u00E4hlen")
                                                     ]
 
+                                                    // Split actions (ynab-002): cashback shortcut first
+                                                    // (the ~80% case), generic editor next.
+                                                    if tx.Status <> Skipped then
+                                                        Html.button [
+                                                            prop.className "action-chip"
+                                                            prop.onClick (fun e ->
+                                                                e.stopPropagation()
+                                                                dispatch (StartCashbackSplit tx.Transaction.Id))
+                                                            prop.text "Barabhebung"
+                                                        ]
+                                                        Html.button [
+                                                            prop.className "action-chip"
+                                                            prop.onClick (fun e ->
+                                                                e.stopPropagation()
+                                                                dispatch (StartSplitEdit tx.Transaction.Id))
+                                                            prop.text "Aufteilen"
+                                                        ]
+
                                                     if shouldShowCreateRule then
                                                         Html.button [
                                                             prop.className "action-chip"

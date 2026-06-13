@@ -336,7 +336,20 @@ type YnabAccount = {
     Id: YnabAccountId
     Name: string
     Balance: Money
+    /// YNAB's `on_budget` flag: true for budget accounts (cash, checking),
+    /// false for tracking/off-budget accounts (savings, assets). Used by the
+    /// split transfer-target picker, which offers only on-budget accounts (ADR 0006).
+    OnBudget: bool
+    /// YNAB's `closed` flag: a closed account is hidden from selection.
+    Closed: bool
 }
+
+/// The accounts eligible as a split transfer target: open (not closed) and
+/// on-budget. Every YNAB account auto-carries a transfer payee, so this filter
+/// is pure scope (Roman, 2026-06-13) — it excludes nothing technically required;
+/// the push-time transfer-payee resolution (ADR 0006) remains the backstop.
+let openOnBudgetAccounts (accounts: YnabAccount list) : YnabAccount list =
+    accounts |> List.filter (fun a -> a.OnBudget && not a.Closed)
 
 type YnabCategory = {
     Id: YnabCategoryId

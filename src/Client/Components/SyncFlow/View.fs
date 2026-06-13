@@ -10,6 +10,7 @@ open Client.DesignSystem
 open Components.SyncFlow.Views.StatusViews
 open Components.SyncFlow.Views.TransactionList
 open Components.SyncFlow.Views.QuickAdd
+open Components.SyncFlow.Views.SplitSheet
 
 // TODO: derive from session model when bank name is available
 let private bankName = "Comdirect"
@@ -85,6 +86,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             // Quick Add (manual transaction entry)
             quickAddSheet model dispatch
+
+            // Split-Review sheet (ynab-002)
+            splitSheet model dispatch
         ]
     else
         // Standard layout for all non-reviewing states
@@ -131,5 +135,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 // Quick Add (manual transaction entry)
                 quickAddSheet model dispatch
+
+                // Split-Review sheet (ynab-002)
+                splitSheet model dispatch
             ]
         ]

@@ -95,6 +95,8 @@ let init () : Model * Cmd<Msg> =
         CurrentSession = NotAsked
         SyncTransactions = NotAsked
         Categories = []
+        Accounts = []
+        QuickAddAccountId = None
         Payees = []
         SplitEdit = None
         DuplicateTransactionIds = []
@@ -112,6 +114,7 @@ let init () : Model * Cmd<Msg> =
         Cmd.ofMsg LoadCurrentSession
         Cmd.ofMsg LoadCategories
         Cmd.ofMsg LoadPayees
+        Cmd.ofMsg LoadAccounts
     ]
     model, cmd
 
@@ -490,14 +493,72 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Success transactions ->
             match transactions |> List.tryFind (fun tx -> tx.Transaction.Id = txId) with
             | Some tx ->
-                let initialSplits =
-                    tx.Splits
-                    |> Option.defaultValue []
+                // Seed from any existing splits, else start with two empty lines so
+                // the editor is immediately a valid "split" shape to fill in.
+                let seededLines =
+                    match tx.Splits with
+                    | Some splits when not splits.IsEmpty ->
+                        splits
+                        |> List.map (fun s ->
+                            { Target = Some s.Target
+                              AmountText = formatAmountForEdit s.Amount.Amount
+                              Memo = s.Memo |> Option.defaultValue ""
+                              AutoRemainder = false })
+                    | _ ->
+                        [ { Target = None; AmountText = ""; Memo = ""; AutoRemainder = false }
+                          { Target = None; AmountText = ""; Memo = ""; AutoRemainder = false } ]
                 let splitEdit = {
                     TransactionId = txId
-                    Splits = initialSplits
-                    RemainingAmount = tx.Transaction.Amount.Amount - (initialSplits |> List.sumBy (fun s -> s.Amount.Amount))
+                    Total = tx.Transaction.Amount
+                    Lines = seededLines
                     Currency = tx.Transaction.Amount.Currency
+                    ActivePicker = NoPicker
+                }
+                { model with SplitEdit = Some splitEdit }, Cmd.none, NoOp
+            | None -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | StartCashbackSplit txId ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            match transactions |> List.tryFind (fun tx -> tx.Transaction.Id = txId) with
+            | Some tx ->
+                let total = tx.Transaction.Amount
+                // Category line = the transaction's current category (if any), else
+                // an empty target the user fills via the picker.
+                let categoryTarget =
+                    match tx.CategoryId with
+                    | Some catId ->
+                        let name =
+                            tx.CategoryName
+                            |> Option.orElse (
+                                model.Categories
+                                |> List.tryFind (fun c -> c.Id = catId)
+                                |> Option.map (fun c -> c.Name))
+                            |> Option.defaultValue "Kategorie"
+                        Some (ToCategory (catId, name))
+                    | None -> None
+                // Transfer target = the configured Quick-Add account (ADR 0004),
+                // overridable in the picker. Unset → no default, manual selection.
+                let transferTarget =
+                    model.QuickAddAccountId
+                    |> Option.bind (fun aid ->
+                        openOnBudgetAccounts model.Accounts
+                        |> List.tryFind (fun a -> a.Id = aid))
+                    |> Option.map (fun a -> ToTransfer (a.Id, a.Name))
+                // Cashback shape: the user enters ONLY the transfer (withdrawal)
+                // amount; the category line auto-absorbs the rest (AC 2). So the
+                // category line is the auto-remainder line, the transfer is the
+                // user-entered line.
+                let lines =
+                    [ { Target = categoryTarget; AmountText = ""; Memo = ""; AutoRemainder = true }
+                      { Target = transferTarget; AmountText = ""; Memo = ""; AutoRemainder = false } ]
+                let splitEdit = {
+                    TransactionId = txId
+                    Total = total
+                    Lines = lines
+                    Currency = total.Currency
+                    ActivePicker = NoPicker
                 }
                 { model with SplitEdit = Some splitEdit }, Cmd.none, NoOp
             | None -> model, Cmd.none, NoOp
@@ -506,71 +567,101 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | CancelSplitEdit ->
         { model with SplitEdit = None }, Cmd.none, NoOp
 
-    | AddSplit (categoryId, categoryName, amount) ->
+    | AddSplitLine ->
         match model.SplitEdit with
         | Some splitEdit ->
-            let newSplit = {
-                Target = ToCategory (categoryId, categoryName)
-                Amount = { Amount = amount; Currency = splitEdit.Currency }
-                Memo = None
-            }
-            let newSplits = splitEdit.Splits @ [ newSplit ]
-            let remaining = splitEdit.RemainingAmount - amount
-            let updated = { splitEdit with Splits = newSplits; RemainingAmount = remaining }
+            let updated = { splitEdit with Lines = splitEdit.Lines @ [ { Target = None; AmountText = ""; Memo = ""; AutoRemainder = false } ] }
             { model with SplitEdit = Some updated }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
 
     | RemoveSplit index ->
         match model.SplitEdit with
-        | Some splitEdit when index >= 0 && index < splitEdit.Splits.Length ->
-            let removedAmount = splitEdit.Splits.[index].Amount.Amount
-            let newSplits = splitEdit.Splits |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd
-            let updated = { splitEdit with Splits = newSplits; RemainingAmount = splitEdit.RemainingAmount + removedAmount }
+        | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
+            let newLines = splitEdit.Lines |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd
+            let updated = { splitEdit with Lines = newLines }
             { model with SplitEdit = Some updated }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | UpdateSplitAmount (index, amount) ->
+    | UpdateSplitAmountText (index, text) ->
         match model.SplitEdit with
-        | Some splitEdit when index >= 0 && index < splitEdit.Splits.Length ->
-            let oldAmount = splitEdit.Splits.[index].Amount.Amount
-            let newSplits =
-                splitEdit.Splits
-                |> List.indexed
-                |> List.map (fun (i, s) ->
-                    if i = index then { s with Amount = { s.Amount with Amount = amount } }
-                    else s
-                )
-            let diff = oldAmount - amount
-            let updated = { splitEdit with Splits = newSplits; RemainingAmount = splitEdit.RemainingAmount + diff }
-            { model with SplitEdit = Some updated }, Cmd.none, NoOp
+        | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
+            let newLines =
+                splitEdit.Lines
+                |> List.mapi (fun i l -> if i = index then { l with AmountText = text } else l)
+            { model with SplitEdit = Some { splitEdit with Lines = newLines } }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | UpdateSplitMemo (index, memo) ->
         match model.SplitEdit with
-        | Some splitEdit when index >= 0 && index < splitEdit.Splits.Length ->
-            let newSplits =
-                splitEdit.Splits
-                |> List.indexed
-                |> List.map (fun (i, s) ->
-                    if i = index then { s with Memo = memo }
-                    else s
-                )
-            let updated = { splitEdit with Splits = newSplits }
-            { model with SplitEdit = Some updated }, Cmd.none, NoOp
+        | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
+            let newLines =
+                splitEdit.Lines
+                |> List.mapi (fun i l ->
+                    if i = index then { l with Memo = memo |> Option.defaultValue "" } else l)
+            { model with SplitEdit = Some { splitEdit with Lines = newLines } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | OpenSplitCategoryPicker index ->
+        match model.SplitEdit with
+        | Some splitEdit -> { model with SplitEdit = Some { splitEdit with ActivePicker = CategoryPickerFor index } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | OpenSplitAccountPicker index ->
+        match model.SplitEdit with
+        | Some splitEdit -> { model with SplitEdit = Some { splitEdit with ActivePicker = AccountPickerFor index } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | CloseSplitPicker ->
+        match model.SplitEdit with
+        | Some splitEdit -> { model with SplitEdit = Some { splitEdit with ActivePicker = NoPicker } }, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | SelectSplitCategory (index, categoryId) ->
+        match model.SplitEdit with
+        | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
+            let name =
+                model.Categories
+                |> List.tryFind (fun c -> c.Id = categoryId)
+                |> Option.map (fun c -> c.Name)
+                |> Option.defaultValue "Kategorie"
+            let newLines =
+                splitEdit.Lines
+                |> List.mapi (fun i l -> if i = index then { l with Target = Some (ToCategory (categoryId, name)) } else l)
+            { model with SplitEdit = Some { splitEdit with Lines = newLines; ActivePicker = NoPicker } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | SelectSplitAccount (index, accountId) ->
+        match model.SplitEdit with
+        | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
+            let name =
+                model.Accounts
+                |> List.tryFind (fun a -> a.Id = accountId)
+                |> Option.map (fun a -> a.Name)
+                |> Option.defaultValue "Konto"
+            let newLines =
+                splitEdit.Lines
+                |> List.mapi (fun i l -> if i = index then { l with Target = Some (ToTransfer (accountId, name)) } else l)
+            { model with SplitEdit = Some { splitEdit with Lines = newLines; ActivePicker = NoPicker } }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | SaveSplits ->
         match model.SplitEdit, model.CurrentSession with
-        | Some splitEdit, Success (Some session) when splitEdit.Splits.Length >= 2 ->
-            let cmd =
-                Cmd.OfAsync.either
-                    Api.sync.splitTransaction
-                    (session.Id, splitEdit.TransactionId, splitEdit.Splits)
-                    SplitsSaved
-                    (fun ex -> Error (SyncError.DatabaseError ("split", ex.Message)) |> SplitsSaved)
-            model, cmd, NoOp
-        | Some splitEdit, _ when splitEdit.Splits.Length < 2 ->
-            model, Cmd.none, ShowToast ("At least 2 splits are required", ToastWarning)
+        | Some splitEdit, Success (Some session) ->
+            match validateSplitEdit splitEdit with
+            | Ok splits ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.sync.splitTransaction
+                        (session.Id, splitEdit.TransactionId, splits)
+                        SplitsSaved
+                        (fun ex -> Error (SyncError.DatabaseError ("split", ex.Message)) |> SplitsSaved)
+                model, cmd, NoOp
+            | Error (TooFewLines _) ->
+                model, Cmd.none, ShowToast ("Mindestens 2 Zeilen erforderlich", ToastWarning)
+            | Error (SumMismatch _) ->
+                model, Cmd.none, ShowToast ("Die Summe muss dem Gesamtbetrag entsprechen", ToastWarning)
+            | Error CurrencyMismatch ->
+                model, Cmd.none, ShowToast ("Alle Zeilen müssen dieselbe Währung haben", ToastWarning)
         | _ -> model, Cmd.none, NoOp
 
     | SplitsSaved (Ok updatedTx) ->
@@ -699,6 +790,32 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | CategoriesLoaded (Error _) ->
         model, Cmd.none, NoOp
+
+    | LoadAccounts ->
+        // Load YNAB accounts (for the split transfer-target picker) plus the
+        // configured Quick-Add account id (default cashback transfer target).
+        let loadAccountsAsync () = async {
+            let! settings = Api.settings.getSettings()
+            match settings.Ynab with
+            | Some ynab ->
+                match ynab.DefaultBudgetId with
+                | Some budgetId ->
+                    match! Api.ynab.getBudgetDetails budgetId with
+                    | Ok bwa -> return (bwa.Accounts, ynab.QuickAddAccountId)
+                    | Error _ -> return ([], ynab.QuickAddAccountId)
+                | None -> return ([], ynab.QuickAddAccountId)
+            | None -> return ([], None)
+        }
+        let cmd =
+            Cmd.OfAsync.either
+                loadAccountsAsync
+                ()
+                AccountsLoaded
+                (fun _ -> AccountsLoaded ([], None))
+        model, cmd, NoOp
+
+    | AccountsLoaded (accounts, quickAddAccountId) ->
+        { model with Accounts = accounts; QuickAddAccountId = quickAddAccountId }, Cmd.none, NoOp
 
     | LoadPayees ->
         // Load payees by first getting settings to obtain budget ID

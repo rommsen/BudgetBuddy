@@ -228,7 +228,9 @@ let accountDecoderTests =
             {
                 "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "name": "Empty Account",
-                "balance": 0
+                "balance": 0,
+                "on_budget": true,
+                "closed": false
             }
             """
             let result = Decode.fromString Decoders.accountDecoder json
@@ -236,6 +238,46 @@ let accountDecoderTests =
             match result with
             | Ok account ->
                 Expect.equal account.Balance.Amount 0m "Zero balance should be handled correctly"
+            | Error err ->
+                failtest $"Failed to decode account: {err}"
+
+        // ynab-002: the transfer-target picker filters to open On-Budget accounts,
+        // which requires the decoder to surface YNAB's on_budget/closed flags.
+        testCase "decodes on_budget and closed flags from the YNAB account payload" <| fun () ->
+            let json = """
+            {
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Bargeld",
+                "balance": 5000,
+                "on_budget": true,
+                "closed": false
+            }
+            """
+            let result = Decode.fromString Decoders.accountDecoder json
+
+            match result with
+            | Ok account ->
+                Expect.isTrue account.OnBudget "on_budget true should decode to OnBudget = true"
+                Expect.isFalse account.Closed "closed false should decode to Closed = false"
+            | Error err ->
+                failtest $"Failed to decode account: {err}"
+
+        testCase "decodes an off-budget, closed account preserving both flags" <| fun () ->
+            let json = """
+            {
+                "id": "b1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Altes Sparbuch",
+                "balance": 0,
+                "on_budget": false,
+                "closed": true
+            }
+            """
+            let result = Decode.fromString Decoders.accountDecoder json
+
+            match result with
+            | Ok account ->
+                Expect.isFalse account.OnBudget "on_budget false should decode to OnBudget = false"
+                Expect.isTrue account.Closed "closed true should decode to Closed = true"
             | Error err ->
                 failtest $"Failed to decode account: {err}"
     ]

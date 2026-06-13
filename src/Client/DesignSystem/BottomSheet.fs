@@ -432,3 +432,152 @@ let categoryPickerLayered
         OnClose = onClose
         Elevated = true
     }
+
+// ---------------------------------------------------------------------------
+// Account Picker (specialised bottom sheet) — transfer-target selection
+// ---------------------------------------------------------------------------
+
+type private AccountPickerInternalProps = {
+    IsOpen: bool
+    Title: string
+    /// `(accountId, accountName)` pairs — pre-filtered by the caller to the
+    /// eligible accounts (open on-budget for the split transfer target).
+    Accounts: (string * string) list
+    OnSelect: string -> unit
+    OnClose: unit -> unit
+    /// Renders on the elevated z-layer so it can open over another sheet.
+    Elevated: bool
+}
+
+[<ReactComponent>]
+let private AccountPickerInternal (input: AccountPickerInternalProps) =
+    let searchText, setSearchText = React.useState ""
+
+    let layerClass = if input.Elevated then " layer-2" else ""
+    let activeClass = if input.IsOpen then " active" else ""
+
+    useBodyScrollLock input.IsOpen
+
+    // Click-Commit (ADR 0005): commit on the real click, arm the ghost-click
+    // swallow guard so a late synthetic click cannot reach the form behind the
+    // closing picker (which would otherwise mutate the underlying split form).
+    let selectAndClose accId =
+        Viewport.swallowNextClick 350
+        Viewport.vibrate 8
+        setSearchText ""
+        input.OnSelect accId
+
+    let closeAndClear () =
+        Viewport.swallowNextClick 350
+        setSearchText ""
+        input.OnClose()
+
+    let filteredAccounts =
+        if System.String.IsNullOrWhiteSpace searchText then
+            input.Accounts
+        else
+            let searchLower = searchText.ToLowerInvariant()
+            input.Accounts
+            |> List.filter (fun (_, name) -> name.ToLowerInvariant().Contains(searchLower))
+
+    renderToBody (
+        Html.div [
+            prop.children [
+                Html.div [
+                    prop.className ("overlay" + layerClass + activeClass)
+                    prop.onClick (fun e ->
+                        e.stopPropagation()
+                        closeAndClear()
+                    )
+                ]
+
+                Html.div [
+                    prop.className ("bottom-sheet" + layerClass + activeClass)
+                    prop.onClick (fun e -> e.stopPropagation())
+                    prop.children [
+                        Html.div [ prop.className "sheet-handle" ]
+
+                        Html.div [
+                            prop.className "sheet-header"
+                            prop.children [
+                                Html.div [
+                                    prop.children [
+                                        Html.h3 [ prop.text input.Title ]
+                                    ]
+                                ]
+                                Html.button [
+                                    prop.className "sheet-close"
+                                    prop.ariaLabel "Schließen"
+                                    prop.onClick (fun _ -> closeAndClear())
+                                    prop.children [ closeIcon ]
+                                ]
+                            ]
+                        ]
+
+                        if input.IsOpen then
+                            Html.div [
+                                prop.className "sheet-search"
+                                prop.children [
+                                    Html.input [
+                                        prop.type' "text"
+                                        prop.placeholder "Konto suchen…"
+                                        prop.value searchText
+                                        prop.onChange setSearchText
+                                        prop.autoFocus (Viewport.isFinePointer())
+                                        prop.className "text-base"
+                                    ]
+                                ]
+                            ]
+
+                        Html.div [
+                            prop.className "sheet-body"
+                            prop.children [
+                                if input.IsOpen then
+                                    Html.div [
+                                        prop.className "sheet-section"
+                                        prop.children [
+                                            sectionTitle "Konten"
+                                            for (accId, accName) in filteredAccounts do
+                                                Html.div [
+                                                    prop.className "category-item"
+                                                    // Keep focus on the search input (no blur-induced
+                                                    // layout shift between tap and click).
+                                                    prop.onMouseDown (fun e -> e.preventDefault())
+                                                    prop.onClick (fun e ->
+                                                        e.stopPropagation()
+                                                        selectAndClose accId)
+                                                    prop.text accName
+                                                ]
+                                            if filteredAccounts.IsEmpty then
+                                                Html.div [
+                                                    prop.className "sheet-section-title"
+                                                    prop.text "Keine passenden Konten"
+                                                ]
+                                        ]
+                                    ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    )
+
+/// Account picker on the elevated z-layer — for opening on top of another
+/// bottom sheet (e.g. the split form to choose a transfer target).
+/// Accounts are `(accountId, accountName)` pairs, pre-filtered by the caller.
+let accountPickerLayered
+    (isOpen: bool)
+    (title: string)
+    (accounts: (string * string) list)
+    (onSelect: string -> unit)
+    (onClose: unit -> unit)
+    : ReactElement =
+    AccountPickerInternal {
+        IsOpen = isOpen
+        Title = title
+        Accounts = accounts
+        OnSelect = onSelect
+        OnClose = onClose
+        Elevated = true
+    }

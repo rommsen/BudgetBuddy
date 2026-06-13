@@ -47,7 +47,15 @@ Spiegel zum Auswählen bereit.
   und aus dem Request-Body ausgeschlossen (ADR 0006). *Für Split-Transfer-Zeilen
   implementiert (Push-Fundament, ynab-001); Review-UI offen (ynab-002).*
 - **YnabBudget / YnabAccount / YnabCategory / YnabPayee** — gespiegelte YNAB-Strukturen
-  zur Auswahl.
+  zur Auswahl. `YnabAccount` trägt `OnBudget`/`Closed` (aus YNABs `on_budget`/`closed`),
+  damit der Transfer-Ziel-Picker auf **offene On-Budget-Konten** filtern kann.
+- **Transfer-Ziel-Filter** — die Auswahl für eine `ToTransfer`-Split-Zeile bietet nur
+  **offene On-Budget-Konten** (`openOnBudgetAccounts` in `src/Shared/Domain.fs`). Reine
+  Scope-Begrenzung (Roman, ynab-002): jedes YNAB-Konto trägt eh eine auto-erzeugte
+  Transfer-Payee, der Filter schließt nichts technisch Notwendiges aus; die Push-Zeit-
+  Auflösung (ADR 0006) bleibt der Backstop. Default-Transfer-Ziel des Cashback-Shortcuts
+  ist das konfigurierte **Quick-Add-Konto** (`ynab_quickadd_account_id`, ADR 0004),
+  im Picker überschreibbar.
 - **ManualTransaction (Quick Add)** — manuell erfasste Buchung (z.B. Bar-Ausgabe), direkt
   und synchron nach YNAB gepusht. Bewusst **ohne ImportId** (kollidiert nie mit dem
   Import-Dedup) und auf das eigene **Quick-Add-Konto** statt des Bank-Import-Kontos
@@ -77,8 +85,10 @@ Spiegel zum Auswählen bereit.
 
 ## Open questions
 - **Transfer-Payee Modell** — *gelöst (ADR 0006, ynab-001):* Transfer-Zeile speichert das
-  Ziel-Konto, `payee_id` erst beim Push aufgelöst. Offen bleibt nur die **UI** (ynab-002):
-  wie elegant "Transfer to/from" neben der Kategorie im Split-Editor anbieten?
-- **Split UI**: Push-Fundament steht (Domain + Transfer-Push, ynab-001); die Review-/Editor-UI
-  fehlt noch (ynab-002 — Cashback-Split komfortabel erfassen).
+  Ziel-Konto, `payee_id` erst beim Push aufgelöst.
+- **Split UI** — *gelöst (ynab-002):* Push-Fundament (ynab-001) + Review-UI stehen. Das
+  Split-Form-Sheet bietet einen Ein-Tipp-Cashback-Shortcut (Transfer + Kategorie-„Rest"-Zeile,
+  nur der Transfer-Betrag wird getippt) und einen generischen N-Zeilen-Editor; Validierung/
+  Rest-Vorschau über die geteilten Domain-Helper (`mkSplits`/`splitRemainder`). Sheet-Stacking
+  nach ADR 0005 §4 (Picker als `.layer-2` über dem Form-Sheet).
 - Rate-Limit-Handling bei größeren Batches (YNAB ~200 req/h)?

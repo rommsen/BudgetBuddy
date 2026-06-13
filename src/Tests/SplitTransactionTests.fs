@@ -424,3 +424,53 @@ let buildCashbackSplitTests =
             | Ok lines -> Expect.equal lines.[1].Memo (Some "Barabhebung") "Transfer memo should be carried"
             | other -> failtest $"Expected Ok, got %A{other}"
     ]
+
+// ============================================
+// openOnBudgetAccounts — transfer-target picker filter (ynab-002, AC 4)
+// ============================================
+
+let private mkAccount (name: string) (onBudget: bool) (closed: bool) : YnabAccount =
+    {
+        Id = YnabAccountId (Guid.NewGuid())
+        Name = name
+        Balance = eur 0m
+        OnBudget = onBudget
+        Closed = closed
+    }
+
+[<Tests>]
+let openOnBudgetAccountsTests =
+    testList "openOnBudgetAccounts" [
+        testCase "keeps open on-budget accounts" <| fun () ->
+            let cash = mkAccount "Bargeld" true false
+            let checking = mkAccount "Girokonto" true false
+            let result = openOnBudgetAccounts [ cash; checking ]
+            Expect.equal (result |> List.map (fun a -> a.Name)) [ "Bargeld"; "Girokonto" ]
+                "Open on-budget accounts should be retained"
+
+        testCase "excludes off-budget accounts even when open" <| fun () ->
+            // e.g. a tracking account (savings/asset) is off-budget — out of scope for the
+            // cashback transfer picker (Roman, 2026-06-13).
+            let cash = mkAccount "Bargeld" true false
+            let savings = mkAccount "Tagesgeld" false false
+            let result = openOnBudgetAccounts [ cash; savings ]
+            Expect.equal (result |> List.map (fun a -> a.Name)) [ "Bargeld" ]
+                "Off-budget accounts must be excluded from the transfer picker"
+
+        testCase "excludes closed accounts even when on-budget" <| fun () ->
+            let cash = mkAccount "Bargeld" true false
+            let oldChecking = mkAccount "Altes Girokonto" true true
+            let result = openOnBudgetAccounts [ cash; oldChecking ]
+            Expect.equal (result |> List.map (fun a -> a.Name)) [ "Bargeld" ]
+                "Closed accounts must be excluded from the transfer picker"
+
+        testCase "excludes accounts that are both off-budget and closed" <| fun () ->
+            let cash = mkAccount "Bargeld" true false
+            let dead = mkAccount "Altes Sparbuch" false true
+            let result = openOnBudgetAccounts [ cash; dead ]
+            Expect.equal (result |> List.map (fun a -> a.Name)) [ "Bargeld" ]
+                "Off-budget AND closed accounts must be excluded"
+
+        testCase "empty input yields empty output" <| fun () ->
+            Expect.equal (openOnBudgetAccounts []) [] "Empty input should yield empty output"
+    ]

@@ -4,12 +4,45 @@ open Shared.Domain
 open Shared.Api
 open Types
 
-/// Split editing state for a single transaction
+/// A single editable split line in the split sheet. The amount is held as text so
+/// the user can type partial input; the target is a category or a transfer account
+/// (XOR, mirroring `SplitTarget`). Empty `Target` = a line whose target is not yet
+/// chosen (the picker has not committed yet).
+type SplitDraftLine = {
+    /// The chosen target, if any. `None` until the user picks a category/account.
+    Target: SplitTarget option
+    /// Raw amount input (German comma or dot), parsed leniently via `parseSplitAmount`.
+    AmountText: string
+    /// Optional per-line memo.
+    Memo: string
+    /// When true, this line's amount is NOT user-entered but always equals the
+    /// live remainder of the other lines (the "Rest" line). This is what makes
+    /// the cashback shortcut work: the user types only the transfer amount, and
+    /// the category line auto-absorbs the rest (AC 2, ynab-002).
+    AutoRemainder: bool
+}
+
+/// Which picker (if any) is layered over the split form sheet, and for which line.
+/// Only one is open at a time, one level deep (ADR 0005 §4).
+type SplitPicker =
+    | NoPicker
+    /// Category picker open for the draft line at this index.
+    | CategoryPickerFor of lineIndex: int
+    /// Transfer-account picker open for the draft line at this index.
+    | AccountPickerFor of lineIndex: int
+
+/// Split editing state for a single transaction. The editor is a FORM (explicit
+/// Save/Cancel), not a click-commit picker — the layered category/account picker
+/// commits on click, but the form persists only on Save (ADR 0005, ynab-002).
 type SplitEditState = {
     TransactionId: TransactionId
-    Splits: TransactionSplit list
-    RemainingAmount: decimal
+    /// The full transaction amount being split (sign-carrying).
+    Total: Money
+    /// The editable draft lines (≥2 required to save).
+    Lines: SplitDraftLine list
     Currency: string
+    /// The layered picker currently open over the form, if any.
+    ActivePicker: SplitPicker
 }
 
 /// Filter options for transaction list
@@ -106,11 +139,101 @@ let buildQuickAddRequest (form: QuickAddFormState) : Result<ManualTransactionReq
                     else Some (form.Memo.Trim())
             }
 
+// ============================================
+// Split editor — pure logic (ynab-002)
+// ============================================
+// All split arithmetic and validation flows through the shared `ynab-001`
+// domain helpers (`splitRemainder`, `mkSplits`, `buildCashbackSplit`). The
+// invariant is NEVER reimplemented here — these helpers only adapt the draft
+// form state to those domain functions so the UI can show a live remainder and
+// gate the Save button (ADR 0006).
+
+/// Formats a signed decimal for prefilling an amount text field. Uses an
+/// invariant "0.00" shape (dot decimal); the lenient `parseSplitAmount` accepts
+/// it back. Negative amounts keep their sign so an outflow line round-trips.
+let formatAmountForEdit (amount: decimal) : string =
+    if amount = 0m then ""
+    else (abs amount).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+         |> fun s -> if amount < 0m then "-" + s else s
+
+/// Parses a split-line amount, accepting German comma decimals ("17,50") and
+/// "17.50", with an optional leading minus for outflow lines. Empty/blank input
+/// parses as 0 (an as-yet-unfilled line contributes nothing to the remainder).
+/// Returns `None` only for genuinely malformed input.
+let parseSplitAmount (text: string) : decimal option =
+    if System.String.IsNullOrWhiteSpace text then Some 0m
+    else
+        let trimmed = text.Trim()
+        if trimmed.StartsWith("-") then
+            parseAmountInput (trimmed.Substring(1)) |> Option.map (fun a -> -a)
+        else
+            parseAmountInput trimmed
+
+/// Converts a draft line to a domain `TransactionSplit`. For an auto-remainder
+/// line, `amountOverride` carries the computed remainder. Returns `None` for an
+/// incomplete line (no target / unparseable user amount).
+let draftLineToSplitWith (currency: string) (amountOverride: decimal option) (line: SplitDraftLine) : TransactionSplit option =
+    let amount =
+        if line.AutoRemainder then amountOverride
+        else parseSplitAmount line.AmountText
+    match line.Target, amount with
+    | Some target, Some a ->
+        Some {
+            Target = target
+            Amount = { Amount = a; Currency = currency }
+            Memo = if System.String.IsNullOrWhiteSpace line.Memo then None else Some (line.Memo.Trim())
+        }
+    | _ -> None
+
+/// The remainder that an auto ("Rest") line absorbs: total minus the sum of all
+/// the user-entered (non-auto, targeted) lines. Delegates to the shared
+/// `splitRemainder` (ADR 0006). When there is no auto line this is also the live
+/// "still unallocated" amount surfaced to the user.
+let autoRemainderAmount (state: SplitEditState) : decimal =
+    let userLines =
+        state.Lines
+        |> List.filter (fun l -> not l.AutoRemainder)
+        |> List.choose (draftLineToSplitWith state.Currency None)
+    splitRemainder state.Total userLines
+
+/// The committed splits derivable from the current draft lines (those with a
+/// chosen target). The auto-remainder line, if present, takes the remainder of
+/// the user-entered lines so the user only types the transfer amount (AC 2).
+let committedSplits (state: SplitEditState) : TransactionSplit list =
+    let auto = autoRemainderAmount state
+    state.Lines |> List.choose (draftLineToSplitWith state.Currency (Some auto))
+
+/// The amount still unallocated: total − Σ committed lines. Delegates to the
+/// shared `splitRemainder` so the client never reimplements the sum (ADR 0006).
+/// With an auto-remainder line present this is 0 once that line has a target
+/// (the line absorbs the rest); otherwise it is the live unallocated amount.
+let splitEditRemainder (state: SplitEditState) : decimal =
+    splitRemainder state.Total (committedSplits state)
+
+/// Validates the current draft via the shared `mkSplits` smart-constructor.
+/// Returns the validated splits on success, or the `SplitError` explaining why
+/// the split is not yet saveable (too few lines / sum mismatch / currency mix).
+let validateSplitEdit (state: SplitEditState) : Result<TransactionSplit list, SplitError> =
+    mkSplits state.Total (committedSplits state)
+
+/// Whether the Save button should be enabled: only when `mkSplits` accepts the
+/// current draft AND every draft line has a chosen target (no half-filled rows).
+let canSaveSplits (state: SplitEditState) : bool =
+    let allLinesTargeted = state.Lines |> List.forall (fun l -> l.Target.IsSome)
+    allLinesTargeted &&
+    (match validateSplitEdit state with Ok _ -> true | Error _ -> false)
+
 /// SyncFlow-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
     SyncTransactions: RemoteData<SyncTransaction list>
     Categories: YnabCategory list
+    /// YNAB accounts (for the split transfer-target picker, filtered to open
+    /// on-budget via `openOnBudgetAccounts`).
+    Accounts: YnabAccount list
+    /// The configured Quick-Add account id (`ynab_quickadd_account_id`, ADR 0004),
+    /// reused as the default transfer target for the cashback shortcut (ynab-002).
+    QuickAddAccountId: YnabAccountId option
     /// YNAB payees for payee dropdown in transaction editing
     Payees: YnabPayee list
     /// Active split editing state (None when not editing splits)
@@ -165,15 +288,32 @@ type Msg =
     | BulkUnskipCompleted of Result<SyncTransaction list, SyncError>
     // Split transaction messages
     | StartSplitEdit of TransactionId
+    /// Start the split editor pre-filled with a cashback shortcut: the original
+    /// category line + a transfer line to the (configured Quick-Add) cash account
+    /// taking the remainder (ADR 0004, ynab-002).
+    | StartCashbackSplit of TransactionId
     | CancelSplitEdit
-    | AddSplit of YnabCategoryId * string * decimal  // categoryId, categoryName, amount
+    /// Append an empty draft line to the editor.
+    | AddSplitLine
     | RemoveSplit of int  // index
-    | UpdateSplitAmount of int * decimal  // index, amount
+    /// Update the raw amount text of the draft line at index.
+    | UpdateSplitAmountText of int * string
     | UpdateSplitMemo of int * string option  // index, memo
+    /// Open/close the layered category or account picker over the split form.
+    | OpenSplitCategoryPicker of int
+    | OpenSplitAccountPicker of int
+    | CloseSplitPicker
+    /// Commit a category target onto the draft line at index (from the picker).
+    | SelectSplitCategory of lineIndex: int * YnabCategoryId
+    /// Commit a transfer-account target onto the draft line at index (from the picker).
+    | SelectSplitAccount of lineIndex: int * YnabAccountId
     | SaveSplits
     | SplitsSaved of Result<SyncTransaction, SyncError>
     | ClearSplit of TransactionId
     | SplitCleared of Result<SyncTransaction, SyncError>
+    // Account loading (for the transfer-target picker + cashback default)
+    | LoadAccounts
+    | AccountsLoaded of YnabAccount list * YnabAccountId option
     // Import
     | ImportToYnab
     | ImportCompleted of Result<ImportResult, SyncError>

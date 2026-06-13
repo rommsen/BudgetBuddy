@@ -47,6 +47,7 @@
     <Compile Include="Components/SyncFlow/Views/ViewHelpers.fs" />
     <Compile Include="Components/SyncFlow/Views/TransactionRow.fs" />
     <Compile Include="Components/SyncFlow/Views/TransactionList.fs" />
+    <Compile Include="Components/SyncFlow/Views/SplitSheet.fs" />
     <Compile Include="Components/SyncFlow/View.fs" />
 
     <!-- Component: Rules -->
