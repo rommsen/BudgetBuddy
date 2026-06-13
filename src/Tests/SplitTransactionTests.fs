@@ -21,11 +21,22 @@ let private createTestTransaction (id: string) (amount: decimal) : BankTransacti
 
 let private createTestSplit (categoryName: string) (amount: decimal) : TransactionSplit =
     {
-        CategoryId = YnabCategoryId (Guid.NewGuid())
-        CategoryName = categoryName
+        Target = ToCategory (YnabCategoryId (Guid.NewGuid()), categoryName)
         Amount = { Amount = amount; Currency = "EUR" }
         Memo = None
     }
+
+let private createTransferSplit (accountName: string) (amount: decimal) : TransactionSplit =
+    {
+        Target = ToTransfer (YnabAccountId (Guid.NewGuid()), accountName)
+        Amount = { Amount = amount; Currency = "EUR" }
+        Memo = None
+    }
+
+let private categoryNameOf (split: TransactionSplit) : string =
+    match split.Target with
+    | ToCategory (_, name) -> name
+    | ToTransfer (_, name) -> name
 
 // ============================================
 // Split Transaction Type Tests
@@ -36,10 +47,21 @@ let splitTypeTests =
     testList "Split Transaction Types" [
         testCase "TransactionSplit can be created with required fields" <| fun () ->
             let split = createTestSplit "Groceries" -50.00m
-            Expect.equal split.CategoryName "Groceries" "Category name should match"
+            Expect.equal (categoryNameOf split) "Groceries" "Category name should match"
             Expect.equal split.Amount.Amount -50.00m "Amount should match"
             Expect.equal split.Amount.Currency "EUR" "Currency should match"
             Expect.isNone split.Memo "Memo should be None by default"
+
+        testCase "A split line is either a category or a transfer (XOR by construction)" <| fun () ->
+            // The SplitTarget DU makes "category and transfer" and "neither" unrepresentable.
+            let categoryLine = createTestSplit "Groceries" -17.00m
+            let transferLine = createTransferSplit "Cash" -200.00m
+            match categoryLine.Target with
+            | ToCategory _ -> ()
+            | ToTransfer _ -> failtest "Expected a category target"
+            match transferLine.Target with
+            | ToTransfer _ -> ()
+            | ToCategory _ -> failtest "Expected a transfer target"
 
         testCase "TransactionSplit can have optional memo" <| fun () ->
             let split = { createTestSplit "Dining" -25.00m with Memo = Some "Lunch" }
@@ -296,4 +318,109 @@ let splitCurrencyTests =
                 splits |> List.forall (fun s -> s.Amount.Currency = bankTx.Amount.Currency)
 
             Expect.isFalse allSameCurrency "Should detect currency mismatch"
+    ]
+
+// ============================================
+// mkSplits smart-constructor (ADR 0006 structural invariants)
+// ============================================
+
+let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
+
+[<Tests>]
+let mkSplitsTests =
+    testList "mkSplits" [
+        testCase "rejects fewer than two lines as TooFewLines" <| fun () ->
+            let total = eur -100.00m
+            let lines = [ createTestSplit "Groceries" -100.00m ]
+            match mkSplits total lines with
+            | Error (TooFewLines n) -> Expect.equal n 1 "Should report the actual line count"
+            | other -> failtest $"Expected TooFewLines, got %A{other}"
+
+        testCase "rejects when the sign-correct sum does not equal the total (SumMismatch)" <| fun () ->
+            let total = eur -100.00m
+            let lines = [ createTestSplit "A" -70.00m; createTestSplit "B" -20.00m ]  // sums to -90
+            match mkSplits total lines with
+            | Error (SumMismatch (expected, actual)) ->
+                Expect.equal expected -100.00m "Expected should be the total"
+                Expect.equal actual -90.00m "Actual should be the line sum"
+            | other -> failtest $"Expected SumMismatch, got %A{other}"
+
+        testCase "rejects a currency mix as CurrencyMismatch" <| fun () ->
+            let total = eur -100.00m
+            let lines =
+                [ createTestSplit "A" -60.00m
+                  { createTestSplit "B" -40.00m with Amount = { Amount = -40.00m; Currency = "USD" } } ]
+            match mkSplits total lines with
+            | Error CurrencyMismatch -> ()
+            | other -> failtest $"Expected CurrencyMismatch, got %A{other}"
+
+        testCase "accepts a valid two-line split (Ok)" <| fun () ->
+            let total = eur -100.00m
+            let lines = [ createTestSplit "A" -60.00m; createTestSplit "B" -40.00m ]
+            match mkSplits total lines with
+            | Ok validated -> Expect.equal validated.Length 2 "Should return the validated lines"
+            | other -> failtest $"Expected Ok, got %A{other}"
+
+        testCase "counts a transfer line toward the sum (cashback shape)" <| fun () ->
+            // €217 total: €17 groceries + €200 transfer to cash must sum to the total.
+            let total = eur -217.00m
+            let lines = [ createTestSplit "Groceries" -17.00m; createTransferSplit "Cash" -200.00m ]
+            match mkSplits total lines with
+            | Ok _ -> ()
+            | other -> failtest $"Expected Ok (transfer counts toward sum), got %A{other}"
+    ]
+
+// ============================================
+// splitRemainder
+// ============================================
+
+[<Tests>]
+let splitRemainderTests =
+    testList "splitRemainder" [
+        testCase "is total minus the sum of entered lines" <| fun () ->
+            let total = eur -217.00m
+            let entered = [ createTestSplit "Groceries" -17.00m ]
+            Expect.equal (splitRemainder total entered) -200.00m "Remainder should be -200 (the cash withdrawal)"
+
+        testCase "is the full total when no lines are entered" <| fun () ->
+            let total = eur -217.00m
+            Expect.equal (splitRemainder total []) -217.00m "Remainder should equal the total"
+
+        testCase "is negative when over-allocated" <| fun () ->
+            // Entered lines exceed the total → negative remainder signals over-allocation.
+            let total = eur -100.00m
+            let entered = [ createTestSplit "A" -60.00m; createTestSplit "B" -60.00m ]  // -120 entered
+            Expect.equal (splitRemainder total entered) 20.00m "Over-allocation yields a remainder of opposite sign"
+    ]
+
+// ============================================
+// buildCashbackSplit
+// ============================================
+
+[<Tests>]
+let buildCashbackSplitTests =
+    testList "buildCashbackSplit" [
+        testCase "produces a valid two-line split (category + transfer remainder) that passes mkSplits" <| fun () ->
+            let total = eur -217.00m
+            let categoryId = YnabCategoryId (Guid.NewGuid())
+            let cashAccountId = YnabAccountId (Guid.NewGuid())
+            match buildCashbackSplit total categoryId "Groceries" (eur -17.00m) cashAccountId "Cash" None with
+            | Ok lines ->
+                Expect.equal lines.Length 2 "Should be two lines"
+                // First line is the category, second is the transfer soaking up the rest.
+                match lines.[0].Target, lines.[1].Target with
+                | ToCategory (_, "Groceries"), ToTransfer (acc, "Cash") ->
+                    Expect.equal acc cashAccountId "Transfer should target the cash account"
+                | other -> failtest $"Unexpected targets: %A{other}"
+                Expect.equal lines.[0].Amount.Amount -17.00m "Category line keeps its amount"
+                Expect.equal lines.[1].Amount.Amount -200.00m "Transfer line soaks up the remainder"
+                // And the result is itself a valid split.
+                Expect.isOk (mkSplits total lines) "buildCashbackSplit output must pass mkSplits"
+            | other -> failtest $"Expected Ok, got %A{other}"
+
+        testCase "carries the transfer memo onto the transfer line" <| fun () ->
+            let total = eur -217.00m
+            match buildCashbackSplit total (YnabCategoryId (Guid.NewGuid())) "Groceries" (eur -17.00m) (YnabAccountId (Guid.NewGuid())) "Cash" (Some "Barabhebung") with
+            | Ok lines -> Expect.equal lines.[1].Memo (Some "Barabhebung") "Transfer memo should be carried"
+            | other -> failtest $"Expected Ok, got %A{other}"
     ]

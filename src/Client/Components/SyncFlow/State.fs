@@ -510,8 +510,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model.SplitEdit with
         | Some splitEdit ->
             let newSplit = {
-                CategoryId = categoryId
-                CategoryName = categoryName
+                Target = ToCategory (categoryId, categoryName)
                 Amount = { Amount = amount; Currency = splitEdit.Currency }
                 Memo = None
             }

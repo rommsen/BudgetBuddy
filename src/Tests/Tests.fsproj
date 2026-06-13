@@ -19,6 +19,7 @@
     <Compile Include="DuplicateDetectionTests.fs" />
     <Compile Include="OrderIdMatcherTests.fs" />
     <Compile Include="SplitTransactionTests.fs" />
+    <Compile Include="SplitPushTests.fs" />
     <Compile Include="ValidationTests.fs" />
     <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="RoutingTests.fs" />

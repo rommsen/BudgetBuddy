@@ -5,6 +5,63 @@ Newest entries on top.
 
 ---
 
+## 2026-06-13 11:36 -- Batch started: [ynab-001]
+
+**Type:** Work / Batch start
+**Tasks:** ynab-001 - Split mit Transfer-Zeile — Domain + YNAB-Push (Fundament)
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-06-13 -- Modeling / Refined: ynab-001 - Split mit Transfer-Zeile
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** ynab-001 → todo; ynab-002 → backlog
+**Summary:** Über den Orchestrator (tactical-modeler + architect) verfeinert, gestützt auf die
+Research (PASS). Kern-Domain-Entscheidung getroffen und als **ADR 0006** festgehalten:
+Split-Zeile als DU `SplitTarget = ToCategory | ToTransfer`, die Transfer-Zeile speichert das
+Ziel-*Konto*, `payee_id` wird erst beim Push via `GET /payees` (Join auf `TransferAccountId`)
+aufgelöst; strukturelle Invarianten im geteilten `mkSplits`; fehlende Transfer-Payee →
+per-Transaktion-`RejectedByYnab`. Keine Daten-Migration (Splits nicht persistiert). In zwei
+Tasks zerlegt.
+**Split into:** ynab-001 (verfeinert, Domain+Push-Fundament → **todo**), ynab-002 (neu,
+Review-UI: Cashback-Shortcut + generischer Editor → backlog, hängt an ynab-001)
+**ADRs written:** 0006 (transfer-line-in-split-du-account-payee-at-push, scope ynab-sync)
+
+---
+
+## 2026-06-13 -- Research: Transfer in YNAB Split-Subtransaction
+
+**Type:** Research
+**Requested by:** model
+**Report:** knowledge/research/ynab-transfer-in-split-subtransaction-2026-06-13.md
+**Review:** PASS (iteration 1)
+**Summary:**
+- Eine Transfer-Split-Zeile wird über `payee_id` (die Transfer-Payee des Ziel-Kontos) kodiert.
+  `SaveSubTransaction` hat **kein** `transfer_account_id`/`transfer_payee_id` — nur
+  `amount`/`payee_id`/`payee_name`/`category_id`/`memo` (verifiziert gegen die offizielle OpenAPI-Spec).
+- Transfer-Payee-id via `GET /payees` ermitteln (Payee, dessen `transfer_account_id` == Bargeld-Konto-id);
+  **nicht** auf `payee_name` verlassen. Gegenbuchung aufs Bargeld-Konto wird automatisch erzeugt (Inferenz, Sandbox-Test schließt die Restunsicherheit).
+- Milliunits, Outflow negativ, Subtransactions müssen auf den Parent-Betrag summieren; `import_id` nur auf dem Parent.
+
+---
+
+## 2026-06-13 -- Modeling / Captured: ynab-001 - Split mit Transfer-Anteil (Barabhebung/Cashback)
+
+**Type:** Modeling / Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Barabhebung-an-der-Kasse-Fall: eine Comdirect-Buchung (€217) in einen Split
+zerlegen, bei dem eine Zeile ein **Transfer auf ein YNAB-Konto** (Bargeld) ist und der Rest
+eine Kategorie — ~80 % sind genau dieser Cashback-Fall. Tech-Stand im Code verifiziert:
+Split-Backend + Split-Push existieren, aber `TransactionSplit` ist kategorie-only, kein
+Transfer-Push, keine Split-UI. Kern ist eine Domain-Entscheidung (Split-Zeile = Kategorie
+ODER Transfer) plus eine offene YNAB-API-Frage (Transfer in Subtransaction). UX mit Roman
+abgestimmt: Cashback-Shortcut zuerst + generischer Editor, Transfer-Ziel = bestehendes Konto.
+
+---
+
 ## 2026-06-12 -- Work: Mobile-UX-Overhaul + Quick Add (retroaktiv erfasst)
 
 **Type:** Work (lief außerhalb von agentheim auf Branch `feature/ux-wow`; am 2026-06-12

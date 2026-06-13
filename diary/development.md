@@ -4,6 +4,70 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-13 - Split mit Transfer-Zeile: Domain-DU + YNAB-Push-Fundament (ynab-001)
+
+**What I did:**
+Das Backend-Fundament für Cashback-Splits (Barabhebung an der Kasse: eine Buchung,
+1 Kategorie-Zeile + 1 Transfer-Zeile aufs Bargeld-Konto) gemäß ADR 0006 umgesetzt.
+
+`TransactionSplit` von kategorie-only auf eine `SplitTarget`-DU umgestellt:
+`ToCategory of YnabCategoryId * string | ToTransfer of YnabAccountId * string`. Damit ist
+"Kategorie und Transfer" / "weder noch" auf Typebene unmöglich (XOR im Typ). Geteilte
+Smart-Constructor- und Helfer-Funktionen in `src/Shared/Domain.fs`: `mkSplits` (≥2 Zeilen,
+eine Währung, vorzeichenrichtige Summe == Total; `Result<_, SplitError>`), `splitRemainder`
+(Rest inkl. Über-Allokation), `buildCashbackSplit` (2-Zeilen-Cashback-Split, der `mkSplits`
+besteht).
+
+YNAB-Push (Conformist): `YnabSubtransactionRequest` zur DU (`CategorySub | TransferSub`)
+gespiegelt; Transfer-Zeile serialisiert mit `payee_id` und **ohne** `category_id`-Key
+(nicht null), Kategorie-Zeile weiterhin `category_id` ohne `payee_id`; Betrag bleibt
+`Encode.int` (JSON-Zahl, kein String — bestehender Bug-Fix bewahrt). Die
+`YnabAccountId → payee_id`-Auflösung ist eine reine Funktion (`resolveSubtransaction` /
+`resolveSplits` / `buildTransactionRequest`), die eine Payee-`Map` entgegennimmt — sie ruft
+`getPayees` nicht selbst, ist also ohne Fable-Proxy .NET-testbar. `createTransactions` holt
+`GET /payees` **höchstens einmal pro Batch** und nur wenn der Batch eine Transfer-Zeile hat
+(`batchHasTransferLine`); Kategorie-only-Batches überspringen den Fetch. Fehlt die
+Transfer-Payee fürs Ziel-Konto, wird die Transaktion aus dem Body ausgeschlossen und in
+`Api.fs` als `RejectedByYnab (UnknownRejection …)` markiert. Server-seitige Split-Validierung
+in `splitTransaction` nutzt jetzt ebenfalls `mkSplits`.
+
+**Files Added:**
+- `src/Tests/SplitPushTests.fs` - Encoder-Contract (payee_id/category_id Key-Präsenz/-Absenz,
+  Betrag als Zahl), `transferPayeeByAccount` (Join auf TransferAccountId), pure Auflösung
+  (resolved/rejected), per-Transaktion-Reject + Batch-Fetch-Gate.
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `SplitTarget`-DU, neues `TransactionSplit`, `SplitError`,
+  `mkSplits`, `splitRemainder`, `buildCashbackSplit`.
+- `src/Server/YnabClient.fs` - `YnabSubtransactionRequest`-DU, `encodeSubtransaction`
+  (jetzt non-private + DU-zweigig), `transferPayeeByAccount`, `resolveSubtransaction`,
+  `resolveSplits`, `buildTransactionRequest`, `batchHasTransferLine`; `createTransactions`
+  holt Payees einmal/bedingt und schließt unauflösbare Transfer-Transaktionen aus;
+  `TransactionCreateResult.RejectedTransferTransactionIds` ergänzt.
+- `src/Server/Api.fs` - Push markiert ausgeschlossene Transfer-Transaktionen als
+  `RejectedByYnab (UnknownRejection …)`; `splitTransaction` validiert via `mkSplits`.
+- `src/Client/Components/SyncFlow/State.fs` - `AddSplit` baut `ToCategory`-Zeile.
+- `src/Tests/SplitTransactionTests.fs` - Helfer auf DU umgestellt; XOR-Test;
+  `mkSplits`/`splitRemainder`/`buildCashbackSplit`-Tests.
+- `src/Tests/YnabClientTests.fs` - Subtransaction-Amount-Regressionstest auf die DU +
+  echten `encodeSubtransaction` umgestellt.
+- `src/Tests/Tests.fsproj` - `SplitPushTests.fs` registriert.
+
+**Rationale:**
+Cashback ist ~80% der Splits, ging aber bisher nicht: `TransactionSplit` konnte einen
+Transfer gar nicht ausdrücken. ADR 0006 (gegen die YNAB-OpenAPI-Spec verifizierte Research):
+Transfer rein über `payee_id`, kein `transfer_account_id`; Payee erst beim Push aufgelöst,
+nicht gespiegelt; illegale Split-Zustände unrepräsentierbar.
+
+**Outcomes:**
+- Build: PASSED (0 Fehler; nur die vorbestehende SQLite-Versionskonflikt-Warnung MSB3277)
+- Tests: 541 passed, 6 skipped, 0 failed (gesamt 547; davon 32 Split-bezogen)
+- Issues: Erster Anlauf rote 102 Tests durch `[<Literal>]` auf einer `decimal`-Konstante —
+  bricht den statischen Modul-Init von `Shared.Domain`. Behoben durch Entfernen des
+  `[<Literal>]`-Attributs (plain `let private`).
+
+---
+
 ## 2026-06-12 07:55 - Quick Add Feedback-Runde: eigenes Konto, echter Picker, kein FAB, Payee optional
 
 **What I did:**

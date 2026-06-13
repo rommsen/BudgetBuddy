@@ -96,18 +96,100 @@ type ExternalLink = {
     Url: string
 }
 
-/// Represents a single split within a transaction for multi-category allocation.
-/// Purpose: Allows splitting a single bank transaction into multiple YNAB categories.
+/// The target of a single split line: either a budget category or a transfer to
+/// another YNAB account (e.g. cash withdrawal at the till).
+/// Purpose: A split line is XOR — either a category OR a transfer, never both and
+/// never neither. The DU makes the illegal "category and transfer" / "neither"
+/// states unrepresentable. The transfer line stores the destination ACCOUNT; the
+/// YNAB transfer payee_id is resolved only at push time (ADR 0006), never here.
+type SplitTarget =
+    /// Allocate this split line to a YNAB budget category.
+    | ToCategory of categoryId: YnabCategoryId * categoryName: string
+    /// Move this split line to another YNAB account (a transfer, no budget impact).
+    /// Stores the destination account; the transfer payee_id is resolved at push time.
+    | ToTransfer of accountId: YnabAccountId * accountName: string
+
+/// Represents a single split within a transaction for multi-target allocation.
+/// Purpose: Allows splitting a single bank transaction into multiple YNAB
+/// categories and/or transfers (e.g. cashback: one category line + one transfer
+/// line to the cash account).
 type TransactionSplit = {
-    /// The category to assign to this split
-    CategoryId: YnabCategoryId
-    /// Cached category name for display
-    CategoryName: string
+    /// The target of this split: a category or a transfer to another account.
+    Target: SplitTarget
     /// The amount for this split (must sum to transaction total)
     Amount: Money
     /// Optional memo for this specific split
     Memo: string option
 }
+
+/// Why a proposed set of splits is structurally invalid.
+/// Purpose: The shared smart-constructor `mkSplits` rejects invalid splits up front
+/// so neither the client nor the server can build an illegal split (ADR 0006).
+type SplitError =
+    /// Fewer than the required two split lines were supplied.
+    | TooFewLines of count: int
+    /// The sign-correct sum of the split lines does not match the transaction total.
+    | SumMismatch of expected: decimal * actual: decimal
+    /// The split lines (or the total) mix more than one currency.
+    | CurrencyMismatch
+
+/// Tolerance for the split sum comparison (one cent), matching the existing
+/// server-side split validation tolerance. Not a [<Literal>]: decimal cannot be a
+/// literal in F# and an attempted decimal literal breaks the module's static init.
+let private splitSumTolerance = 0.01m
+
+/// The amount still unallocated when `enteredLines` are subtracted from `total`.
+/// A negative result means over-allocation (the entered lines exceed the total).
+/// Used by the UI/cashback builder to compute the transfer line that "soaks up"
+/// the rest of a transaction.
+let splitRemainder (total: Money) (enteredLines: TransactionSplit list) : decimal =
+    total.Amount - (enteredLines |> List.sumBy (fun s -> s.Amount.Amount))
+
+/// Smart-constructor for a set of splits. Enforces the structural invariants from
+/// ADR 0006 so that an invalid split is unrepresentable at the boundary:
+///   * at least two lines (a "split" of one line is not a split),
+///   * one currency across the total and every line,
+///   * the sign-correct sum of all lines (transfer lines included) equals the total.
+/// The XOR category/transfer choice is already guaranteed by the `SplitTarget` DU.
+/// Returns the validated splits unchanged on success.
+let mkSplits (total: Money) (lines: TransactionSplit list) : Result<TransactionSplit list, SplitError> =
+    if lines.Length < 2 then
+        Error (TooFewLines lines.Length)
+    elif lines |> List.exists (fun s -> s.Amount.Currency <> total.Currency) then
+        Error CurrencyMismatch
+    else
+        let sum = lines |> List.sumBy (fun s -> s.Amount.Amount)
+        if abs (sum - total.Amount) > splitSumTolerance then
+            Error (SumMismatch (total.Amount, sum))
+        else
+            Ok lines
+
+/// Builds the canonical "cashback" split: one category line for the actual purchase
+/// plus one transfer line to the cash account that soaks up the remainder of the
+/// transaction (the amount that was withdrawn as cash). The result is validated
+/// through `mkSplits`, so a degenerate input (e.g. the category line already equal
+/// to the total, leaving a zero transfer) is rejected as `TooFewLines`-safe only by
+/// the caller's amounts — callers should ensure both lines carry a non-trivial
+/// amount. Returns `Ok` only for a structurally valid two-line split.
+let buildCashbackSplit
+    (total: Money)
+    (categoryId: YnabCategoryId)
+    (categoryName: string)
+    (categoryAmount: Money)
+    (cashAccountId: YnabAccountId)
+    (cashAccountName: string)
+    (transferMemo: string option)
+    : Result<TransactionSplit list, SplitError> =
+    let categoryLine =
+        { Target = ToCategory (categoryId, categoryName)
+          Amount = categoryAmount
+          Memo = None }
+    let remainder = splitRemainder total [ categoryLine ]
+    let transferLine =
+        { Target = ToTransfer (cashAccountId, cashAccountName)
+          Amount = { Amount = remainder; Currency = total.Currency }
+          Memo = transferMemo }
+    mkSplits total [ categoryLine; transferLine ]
 
 // ============================================
 // Duplicate Detection (BudgetBuddy's pre-import analysis)

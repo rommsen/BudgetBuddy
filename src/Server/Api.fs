@@ -942,24 +942,26 @@ let syncApi : SyncApi = {
             match SyncSessionManager.getTransaction txId with
             | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
             | Some tx ->
-                // Validate splits
-                if splits.Length < 2 then
+                // Re-validate the structural split invariants server-side via the
+                // shared smart-constructor (ADR 0006): >= 2 lines, one currency, and
+                // the sign-correct sum (transfer lines included) equals the total.
+                match mkSplits tx.Transaction.Amount splits with
+                | Error (TooFewLines _) ->
                     return Error (SyncError.InvalidSessionState ("split", "Splits must have at least 2 items"))
-                else
-                    // Validate that split amounts sum to transaction amount
-                    let totalSplitAmount = splits |> List.sumBy (fun s -> s.Amount.Amount)
-                    if abs (totalSplitAmount - tx.Transaction.Amount.Amount) > 0.01m then
-                        return Error (SyncError.InvalidSessionState ("split", $"Split amounts ({totalSplitAmount}) must sum to transaction amount ({tx.Transaction.Amount.Amount})"))
-                    else
-                        let updated = {
-                            tx with
-                                Status = ManualCategorized
-                                CategoryId = None  // No single category for split transactions
-                                CategoryName = None
-                                Splits = Some splits
-                        }
-                        SyncSessionManager.updateTransaction updated
-                        return Ok updated
+                | Error CurrencyMismatch ->
+                    return Error (SyncError.InvalidSessionState ("split", "All splits must share the transaction currency"))
+                | Error (SumMismatch (expected, actual)) ->
+                    return Error (SyncError.InvalidSessionState ("split", $"Split amounts ({actual}) must sum to transaction amount ({expected})"))
+                | Ok validatedSplits ->
+                    let updated = {
+                        tx with
+                            Status = ManualCategorized
+                            CategoryId = None  // No single category for split transactions
+                            CategoryName = None
+                            Splits = Some validatedSplits
+                    }
+                    SyncSessionManager.updateTransaction updated
+                    return Ok updated
     }
 
     clearSplit = fun (sessionId, txId) -> async {
@@ -1052,12 +1054,21 @@ let syncApi : SyncApi = {
                             // Only return actually mapped duplicates, never all transactions
                             mapped
 
+                        // Transactions excluded because a transfer split line had no
+                        // resolvable transfer payee in YNAB (ADR 0006): mark them
+                        // RejectedByYnab (UnknownRejection ...) and never as imported.
+                        let rejectedTransferTxIdSet = result.RejectedTransferTransactionIds |> Set.ofList
+
                         // Mark transactions based on whether they were actually created or were duplicates
                         let duplicateTxIdList = duplicateTransactionIds |> Set.ofList
                         let updatedTransactions =
                             toImport
                             |> List.map (fun tx ->
-                                if duplicateTxIdList.Contains(tx.Transaction.Id) then
+                                if rejectedTransferTxIdSet.Contains(tx.Transaction.Id) then
+                                    // A transfer split line could not be resolved to a YNAB
+                                    // transfer payee — the transaction was not sent.
+                                    { tx with YnabImportStatus = RejectedByYnab (UnknownRejection (Some "No YNAB transfer payee for the split transfer account")) }
+                                elif duplicateTxIdList.Contains(tx.Transaction.Id) then
                                     // This transaction already exists in YNAB - keep as is (don't mark as imported)
                                     // Set YnabImportStatus to show YNAB rejected it
                                     let (TransactionId txId) = tx.Transaction.Id

@@ -331,14 +331,23 @@ let private buildMemoWithReference (memo: string) (reference: string) : string =
 type TransactionCreateResult = {
     CreatedCount: int
     DuplicateImportIds: string list
+    /// Transactions excluded from the request body because a transfer split line
+    /// had no resolvable transfer payee in YNAB (ADR 0006). The caller marks these
+    /// RejectedByYnab (UnknownRejection ...).
+    RejectedTransferTransactionIds: TransactionId list
 }
 
-/// Subtransaction for split transactions
-type YnabSubtransactionRequest = {
-    Amount: int  // Milliunits (int32 is sufficient for amounts up to ~2.1 million EUR)
-    CategoryId: string
-    Memo: string option
-}
+/// Subtransaction for split transactions. Mirrors the domain `SplitTarget` DU so a
+/// subtransaction can be either a category line (serialized with `category_id`) or a
+/// transfer line (serialized with the resolved transfer `payee_id`, and crucially
+/// WITHOUT a `category_id` key — ADR 0006). YNAB's SaveSubTransaction has no
+/// `transfer_account_id`; a transfer is encoded solely via the transfer payee_id.
+type YnabSubtransactionRequest =
+    /// A category subtransaction: amount (milliunits), category id, optional memo.
+    | CategorySub of amount: int * categoryId: string * memo: string option
+    /// A transfer subtransaction: amount (milliunits), resolved transfer payee id,
+    /// optional memo. No category_id is sent for transfer lines.
+    | TransferSub of amount: int * payeeId: string * memo: string option
 
 /// Transaction request for YNAB API
 type YnabTransactionRequest = {
@@ -353,15 +362,32 @@ type YnabTransactionRequest = {
     Subtransactions: YnabSubtransactionRequest list option
 }
 
-/// Encoder for subtransactions
-let private encodeSubtransaction (sub: YnabSubtransactionRequest) =
-    Encode.object [
-        "amount", Encode.int sub.Amount  // Use int for proper JSON number serialization
-        "category_id", Encode.string sub.CategoryId
-        match sub.Memo with
-        | Some m -> "memo", Encode.string m
-        | None -> ()
-    ]
+/// Encoder for subtransactions.
+/// Non-private so the JSON contract can be asserted directly in tests (the
+/// Fable.Remoting proxy is not .NET-testable; mirror the QuickAdd encoder idiom).
+/// A category line emits `category_id`; a transfer line emits the resolved
+/// `payee_id` and deliberately OMITS `category_id` (ADR 0006: omit, never null).
+/// `Encode.int` keeps the amount a JSON number (the prior string-amount bug).
+let encodeSubtransaction (sub: YnabSubtransactionRequest) =
+    match sub with
+    | CategorySub (amount, categoryId, memo) ->
+        Encode.object [
+            "amount", Encode.int amount  // Use int for proper JSON number serialization
+            "category_id", Encode.string categoryId
+            match memo with
+            | Some m -> "memo", Encode.string m
+            | None -> ()
+        ]
+    | TransferSub (amount, payeeId, memo) ->
+        Encode.object [
+            "amount", Encode.int amount  // Use int for proper JSON number serialization
+            "payee_id", Encode.string payeeId
+            // No category_id key for transfer lines — YNAB infers the transfer from
+            // the transfer payee_id. Sending category_id (even null) is wrong.
+            match memo with
+            | Some m -> "memo", Encode.string m
+            | None -> ()
+        ]
 
 /// Encoder for transaction requests
 let private encodeTransaction (tx: YnabTransactionRequest) =
@@ -382,14 +408,106 @@ let private encodeTransaction (tx: YnabTransactionRequest) =
         | _ -> ()
     ]
 
-/// Helper to create a subtransaction for a split
-let private createSubtransaction (split: TransactionSplit) : YnabSubtransactionRequest =
-    let (YnabCategoryId categoryIdGuid) = split.CategoryId
-    {
-        Amount = int (split.Amount.Amount * 1000m)  // Convert to milliunits
-        CategoryId = categoryIdGuid.ToString()
-        Memo = split.Memo |> Option.map truncateSplitMemo
+/// Builds a `Map<YnabAccountId, YnabPayeeId>` from a payee list by joining on
+/// `TransferAccountId` (NEVER on the payee name — ADR 0006). Only payees that ARE
+/// transfer payees (have a `TransferAccountId`) appear in the map.
+let transferPayeeByAccount (payees: YnabPayee list) : Map<YnabAccountId, YnabPayeeId> =
+    payees
+    |> List.choose (fun p -> p.TransferAccountId |> Option.map (fun acc -> acc, p.Id))
+    |> Map.ofList
+
+/// Pure resolution of a single split line into a YNAB subtransaction request.
+/// A category line maps straight through. A transfer line is resolved against the
+/// supplied transfer-payee map; if the destination account has no transfer payee,
+/// resolution fails (`Error`) so the whole transaction can be rejected rather than
+/// guessing a payload (ADR 0006). Takes the map as a parameter — it does NOT call
+/// `getPayees` — so it is directly unit-testable.
+let resolveSubtransaction
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (split: TransactionSplit)
+    : Result<YnabSubtransactionRequest, YnabAccountId> =
+    let amount = int (split.Amount.Amount * 1000m)  // Convert to milliunits
+    let memo = split.Memo |> Option.map truncateSplitMemo
+    match split.Target with
+    | ToCategory (YnabCategoryId categoryIdGuid, _) ->
+        Ok (CategorySub (amount, categoryIdGuid.ToString(), memo))
+    | ToTransfer (accountId, _) ->
+        match Map.tryFind accountId transferPayees with
+        | Some (YnabPayeeId payeeGuid) ->
+            Ok (TransferSub (amount, payeeGuid.ToString(), memo))
+        | None ->
+            // No transfer payee for this account — reject the transaction upstream.
+            Error accountId
+
+/// Resolves every split line of a transaction. Succeeds only if ALL lines resolve;
+/// the first unresolvable transfer account is returned so the caller can mark the
+/// whole transaction `RejectedByYnab`. Pure (takes the payee map).
+let resolveSplits
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (splits: TransactionSplit list)
+    : Result<YnabSubtransactionRequest list, YnabAccountId> =
+    (Ok [], splits)
+    ||> List.fold (fun acc split ->
+        match acc with
+        | Error e -> Error e
+        | Ok subs ->
+            match resolveSubtransaction transferPayees split with
+            | Ok sub -> Ok (subs @ [ sub ])
+            | Error accountId -> Error accountId)
+
+/// True if any split line of the transaction is a transfer. Used to decide whether
+/// a push batch needs to fetch payees at all (category-only batches skip the fetch).
+let private hasTransferLine (tx: SyncTransaction) : bool =
+    match tx.Splits with
+    | Some splits -> splits |> List.exists (fun s -> match s.Target with ToTransfer _ -> true | _ -> false)
+    | None -> false
+
+/// True if ANY transaction in the batch carries a transfer split line. Only such a
+/// batch needs `GET /payees`; category-only batches skip the fetch entirely (ADR 0006).
+let batchHasTransferLine (transactions: SyncTransaction list) : bool =
+    transactions |> List.exists hasTransferLine
+
+/// Pure mapping of one SyncTransaction into a YNAB transaction request, given its
+/// pre-computed import id and the transfer-payee map. A split transaction whose
+/// transfer line has no resolvable payee yields `Error accountId` so the caller can
+/// mark it `RejectedByYnab` and exclude it from the request body (ADR 0006).
+/// Category-only and plain transactions never consult the map. Pure + testable.
+let buildTransactionRequest
+    (YnabAccountId accountId: YnabAccountId)
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (importId: string)
+    (tx: SyncTransaction)
+    : Result<YnabTransactionRequest, YnabAccountId> =
+    let baseFields = {
+        AccountId = accountId.ToString()
+        Date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
+        Amount = int (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
+        PayeeName =
+            tx.PayeeOverride
+            |> Option.orElse tx.Transaction.Payee
+            |> Option.defaultValue "Unknown"
+        Memo = buildMemoWithReference tx.Transaction.Memo tx.Transaction.Reference
+        Cleared = "uncleared"
+        ImportId = importId  // Prevents duplicates (max 36 chars)
+        CategoryId = None
+        Subtransactions = None
     }
+
+    match tx.Splits with
+    | Some splits when splits.Length >= 2 ->
+        // Split transaction: resolve every line (transfer lines need a payee), no
+        // category_id on the parent. Reject the whole transaction if any line fails.
+        match resolveSplits transferPayees splits with
+        | Ok subtransactions -> Ok { baseFields with Subtransactions = Some subtransactions }
+        | Error accountId -> Error accountId
+    | _ ->
+        // Regular transaction: use category_id if present.
+        match tx.CategoryId with
+        | Some (YnabCategoryId categoryIdGuid) ->
+            Ok { baseFields with CategoryId = Some (categoryIdGuid.ToString()) }
+        | None ->
+            // No category - will appear as uncategorized in YNAB
+            Ok baseFields
 
 /// Creates transactions in YNAB
 /// Returns the number of successfully created transactions and any duplicate import IDs
@@ -419,8 +537,27 @@ let createTransactions
             for tx in futureSkipped do
                 printfn "[YNAB] Skipping future-dated transaction: %s (date=%s)" (tx.Transaction.Id |> fun (TransactionId id) -> id) (tx.Transaction.BookingDate.ToString("yyyy-MM-dd"))
 
-            // Convert SyncTransactions to YNAB transaction request format
-            let ynabTransactions : YnabTransactionRequest list =
+            // Resolve transfer payees ONCE per batch, and only if the batch actually
+            // contains a transfer split line. Category-only batches skip the fetch
+            // entirely (ADR 0006). A getPayees failure fails the whole batch.
+            let! transferPayeesResult = async {
+                if batchHasTransferLine validTransactions then
+                    match! getPayees token (YnabBudgetId budgetId) with
+                    | Ok payees -> return Ok (transferPayeeByAccount payees)
+                    | Error err -> return Error err
+                else
+                    return Ok Map.empty
+            }
+
+            match transferPayeesResult with
+            | Error err -> return Error err
+            | Ok transferPayees ->
+
+            // Convert SyncTransactions to YNAB transaction request format.
+            // A split transaction whose transfer line has no resolvable payee is
+            // EXCLUDED from the request body and reported back so the caller can mark
+            // it RejectedByYnab (UnknownRejection ...).
+            let requestsOrRejections =
                 validTransactions
                 |> List.map (fun tx ->
                     // Generate import_id:
@@ -434,39 +571,22 @@ let createTransactions
                         else
                             Shared.Domain.generateImportId tx.Transaction.Id
 
-                    let baseFields = {
-                        AccountId = accountId.ToString()
-                        Date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
-                        Amount = int (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
-                        PayeeName =
-                            tx.PayeeOverride
-                            |> Option.orElse tx.Transaction.Payee
-                            |> Option.defaultValue "Unknown"
-                        Memo = buildMemoWithReference tx.Transaction.Memo tx.Transaction.Reference
-                        Cleared = "uncleared"
-                        ImportId = importId  // Prevents duplicates (max 36 chars)
-                        CategoryId = None
-                        Subtransactions = None
-                    }
-
-                    // Check if this is a split transaction
-                    match tx.Splits with
-                    | Some splits when splits.Length >= 2 ->
-                        // Split transaction: use subtransactions array, no category_id on parent
-                        let subtransactions = splits |> List.map createSubtransaction
-                        { baseFields with Subtransactions = Some subtransactions }
-                    | _ ->
-                        // Regular transaction: use category_id if present
-                        match tx.CategoryId with
-                        | Some (YnabCategoryId categoryIdGuid) ->
-                            { baseFields with CategoryId = Some (categoryIdGuid.ToString()) }
-                        | None ->
-                            // No category - will appear as uncategorized in YNAB
-                            baseFields
+                    match buildTransactionRequest (YnabAccountId accountId) transferPayees importId tx with
+                    | Ok request -> Choice1Of2 request
+                    | Error _unresolvableAccount -> Choice2Of2 tx.Transaction.Id
                 )
 
+            let ynabTransactions =
+                requestsOrRejections |> List.choose (function Choice1Of2 r -> Some r | _ -> None)
+            let rejectedTransferTxIds =
+                requestsOrRejections |> List.choose (function Choice2Of2 id -> Some id | _ -> None)
+
+            for rejId in rejectedTransferTxIds do
+                let (TransactionId id) = rejId
+                printfn "[YNAB] Excluding transaction %s: a transfer split line has no transfer payee in YNAB" id
+
             if ynabTransactions.IsEmpty then
-                return Ok { CreatedCount = 0; DuplicateImportIds = [] }
+                return Ok { CreatedCount = 0; DuplicateImportIds = []; RejectedTransferTransactionIds = rejectedTransferTxIds }
             else
                 // Encode to JSON using manual encoder
                 let requestBody =
@@ -509,11 +629,11 @@ let createTransactions
                         if duplicateIds.Length > 0 then
                             printfn "[YNAB] WARNING: %d transactions were rejected as duplicates: %A" duplicateIds.Length duplicateIds
                         printfn "[YNAB] Successfully created %d transactions (sent: %d, duplicates: %d)" createdCount ynabTransactions.Length duplicateIds.Length
-                        return Ok { CreatedCount = createdCount; DuplicateImportIds = duplicateIds }
+                        return Ok { CreatedCount = createdCount; DuplicateImportIds = duplicateIds; RejectedTransferTransactionIds = rejectedTransferTxIds }
                     | Error parseErr ->
                         // If we can't parse, fall back to assuming all were created (old behavior)
                         printfn "[YNAB] WARNING: Could not parse response, assuming all %d transactions created. Parse error: %s" ynabTransactions.Length parseErr
-                        return Ok { CreatedCount = validTransactions.Length; DuplicateImportIds = [] }
+                        return Ok { CreatedCount = ynabTransactions.Length; DuplicateImportIds = []; RejectedTransferTransactionIds = rejectedTransferTxIds }
                 | 400 ->
                     return Error (YnabError.InvalidResponse $"Bad request: {response.bodyText}")
                 | 401 ->

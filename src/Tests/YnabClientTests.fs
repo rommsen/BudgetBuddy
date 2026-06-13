@@ -849,18 +849,10 @@ let jsonEncodingTests =
             Expect.isFalse (requestBody.Contains("\"amount\":\"-50250\"")) "Amount must NOT be serialized as string"
 
         testCase "subtransaction amount is serialized as JSON number" <| fun () ->
-            let testSub : YnabSubtransactionRequest = {
-                Amount = -25000  // -25.00 EUR in milliunits
-                CategoryId = "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
-                Memo = Some "Split 1"
-            }
-
-            let json =
-                Encode.object [
-                    "amount", Encode.int testSub.Amount
-                    "category_id", Encode.string testSub.CategoryId
-                ]
-                |> Encode.toString 0
+            // Routes through the real encoder so the regression guard tracks the
+            // production encoding (DU-shaped after ADR 0006).
+            let testSub = CategorySub (-25000, "c1b2a3d4-e5f6-7890-abcd-ef1234567890", Some "Split 1")
+            let json = encodeSubtransaction testSub |> Encode.toString 0
 
             Expect.stringContains json "\"amount\":-25000" "Subtransaction amount must be a JSON number"
             Expect.isFalse (json.Contains("\"amount\":\"-25000\"")) "Subtransaction amount must NOT be serialized as string"
