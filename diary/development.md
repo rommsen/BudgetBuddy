@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-13 - Styleguide retroaktiv kodifiziert: das Gate (design-system-001)
+
+**What I did:**
+Das bestehende Design System (`src/Client/DesignSystem/` — 20 Komponenten + `Tokens.fs`)
+in **ein** reviewbares Dokument `standards/frontend/styleguide.md` gezogen. Reine
+Kodifizierung, keine neue visuelle Sprache: visuelle Sprache (neon-on-dark, Glow,
+Mono-Font), Farbsemantik (Orange=primär, Teal=sekundär/aktiv, Green=Erfolg, Red=Fehler,
+Purple/Pink=Akzent — belegt mit Token-Namen aus `Tokens.fs`), Token-Layer
+(Presets/Module statt hartkodierter Klassen), Komponenten-Inventar (alle 20 mit
+"wann welche / wann nicht", konsistent mit dem CLAUDE.md-Abschnitt), Muster
+(visual-viewport-Sheet + Click-Commit nach ADR 0005, Picker-Auswahl nach ADR 0004,
+Sticky-Filter), Motion (Spring-`linear()` hinter `@supports`, `prefers-reduced-motion`,
+Skeletons), Voice/Tonalität. Das Dokument ist **das Gate** für künftige UI-Arbeit und
+verlinkt Code als autoritative Quelle, statt Implementierungsdetails zu duplizieren.
+
+**Files Added:**
+- `standards/frontend/styleguide.md` - der Styleguide (das Gate)
+
+**Files Modified:**
+- `CLAUDE.md` - Pointer zum Styleguide oben im Abschnitt "Design System Components"
+- `standards/frontend/overview.md` - Pointer zum Styleguide in "See Also"
+
+**Rationale:**
+Es existierte ein vollständiges DS im Code, aber kein reviewbares Artefakt als Single
+Source of Truth — die visuelle Sprache lebte implizit im Code und verstreut in CLAUDE.md.
+Der Styleguide schließt diese Lücke und etabliert das Hard-Enforcement-Gate (kein
+UI-Task nach todo/ vor done+reviewt; `ynab-002` hängt dran).
+
+**Outcomes:**
+- Build: n/a (reine Doku-Änderung, kein F#-Code; Pfade/Links geprüft)
+- Tests: n/a
+- Offen: Gate-Review mit Roman (menschlicher Schritt) steht noch aus.
+- Drift-Audit + Code-Konsolidierung gegen den Styleguide: `design-system-002`.
+
+---
+
 ## 2026-06-13 - Split mit Transfer-Zeile: Domain-DU + YNAB-Push-Fundament (ynab-001)
 
 **What I did:**

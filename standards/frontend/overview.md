@@ -113,6 +113,7 @@ src/Client/
 
 ## See Also
 
+- `styleguide.md` - **The styleguide (das Gate)**: visual language, color semantics, token layer, the 20 DS components, patterns, motion, voice — measured against for all UI work
 - `state-management.md` - Model, Msg, update patterns
 - `view-patterns.md` - Feliz component patterns
 - `remotedata.md` - Async data handling

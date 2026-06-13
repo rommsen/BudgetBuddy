@@ -5,6 +5,72 @@ Newest entries on top.
 
 ---
 
+## 2026-06-13 13:55 -- Task verified and completed: design-system-001 - Styleguide (das Gate)
+
+**Type:** Work / Task completion
+**Task:** design-system-001 - Styleguide retroaktiv kodifizieren (das Gate)
+**Summary:** Bestehendes Design System (20 Komponenten + Tokens.fs) als Markdown-Styleguide `standards/frontend/styleguide.md` kodifiziert; Pointer in CLAUDE.md + overview.md; Diary.
+**Verification:** PASS (iteration 1) — Doku-Content-Audit; verifier fing die Orange/Green-„Primary"-Spannung und bestätigte die Reconciliation als konsistent.
+**Gate-Review:** Roman akzeptiert das Markdown als **geschriebenen Begleiter**. Review deckte auf, dass Roman zusätzlich einen **visuell gerenderten** Styleguide erwartet → ausgegliedert als Feature **design-system-003** (live In-App `/styleguide`-Route, rendert die echten DS-Komponenten/Tokens → kein Drift).
+**Files changed:** 4 (+ neue BC-Scaffold-Dateien erstmals committet)
+**Tests added:** 0 (reine Doku)
+**ADRs written:** none
+
+---
+
+## 2026-06-13 13:52 -- Batch started: [design-system-001]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-001 - Styleguide retroaktiv kodifizieren (das Gate)
+**Parallel:** no (1 worker)
+
+---
+
+## 2026-06-13 -- Modeling / Captured: design-system-001 + design-system-002 (neuer BC design-system)
+
+**Type:** Modeling / Capture
+**BC:** design-system (neu angelegt — löst die in vision.md/context-map.md aufgeschobene Frage auf)
+**Filed to:** todo (design-system-001), backlog (design-system-002)
+**Summary:** Retroaktiver Styleguide. Das Design System existiert vollständig im Code
+(`src/Client/DesignSystem/`, 20 Komponenten + `Tokens.fs`), aber ohne reviewbaren Styleguide.
+Neuer `design-system`-BC (first-class Frontend-Infra, analog `infrastructure`). **design-system-001**
+(todo, chore): bestehendes DS in `standards/frontend/styleguide.md` kodifizieren — visuelle
+Sprache, Farbsemantik, Token-Layer, Komponenten-Inventar, Muster (ADR 0004/0005), Motion, Voice.
+**Das Gate** (Hard-Enforcement, Roman gewählt 2026-06-13): kein UI-Task → todo vor Styleguide
+done+reviewt; `ynab-002.depends_on += design-system-001`. **design-system-002** (backlog, refactor,
+hängt an 001): Drift-Audit der View-Schichten + Konsolidierung auf Tokens/DS-Komponenten.
+**Scope-Wahl:** "Kodifizieren + Konsolidieren" → bewusst in 001 (Doku/Gate) und 002 (Code) getrennt,
+weil der Styleguide erst als Wahrheit stehen muss, bevor man Code dagegen konsolidiert.
+**Aktualisiert:** vision.md + context-map.md (Open Question aufgelöst, BC + Relationship ergänzt),
+knowledge/index.md (bc-list), ynab-sync INDEX + ynab-002 (Gate-Abhängigkeit).
+
+---
+
+## 2026-06-13 11:56 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 1 (688d81c)
+**Note:** Worker-Verbindung brach einmal mitten in der Arbeit ab (Socket-Fehler nach ~22 min); per SendMessage mit erhaltenem Kontext fortgesetzt, sauber zu Ende geführt. Verifier-Gate trotzdem regulär durchlaufen (PASS, iteration 1).
+
+---
+
+## 2026-06-13 11:55 -- Task verified and completed: ynab-001 - Split mit Transfer-Zeile
+
+**Type:** Work / Task completion
+**Task:** ynab-001 - Split mit Transfer-Zeile — Domain + YNAB-Push (Fundament)
+**Summary:** SplitTarget-DU (ToCategory | ToTransfer) + geteilter mkSplits-Smart-Constructor; Push löst die Transfer-payee_id beim Senden auf (GET /payees, Join auf TransferAccountId, einmal pro Batch, nur bei Transfer-Zeilen), serialisiert mit payee_id ohne category_id-Key; fehlende Transfer-Payee → RejectedByYnab, aus Body ausgeschlossen.
+**Verification:** PASS (iteration 1) — verifier re-ran build + tests
+**Commit:** 688d81c
+**Files changed:** 10 (4 Quell-, 4 Test-, BC-README, Diary)
+**Tests added:** SplitPushTests.fs (neu, 224 Z.) + SplitTransactionTests.fs erweitert; Suite 541 passed / 6 skipped / 0 failed
+**ADRs written:** none (ADR 0006 lag bereits vor und deckte das Design vollständig)
+
+---
+
 ## 2026-06-13 11:36 -- Batch started: [ynab-001]
 
 **Type:** Work / Batch start

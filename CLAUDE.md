@@ -516,6 +516,11 @@ Before marking a feature complete:
 
 ## Design System Components
 
+> **Styleguide (das Gate):** `standards/frontend/styleguide.md` is the single source of
+> truth for visual language, color semantics, the token layer, patterns, motion and voice.
+> All UI work is measured against it; this section is the API quick-reference for the
+> components it inventories.
+
 The project includes a complete F# Design System in `src/Client/DesignSystem/`. **Always use these components** instead of inline Feliz code for UI.
 
 ### Component Quick Reference
