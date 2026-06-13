@@ -12,6 +12,13 @@
 >
 > **Verwandt:** [`overview.md`](overview.md) (MVU-Architektur), `CLAUDE.md` →
 > *"Design System Components"* (API-Schnellreferenz mit Codebeispielen).
+>
+> **Lebendes visuelles Gegenstück:** die In-App-Route **`/styleguide`** (erreichbar in
+> der App, dezenter Link in den Einstellungen) rendert die **echten** DS-Komponenten und
+> Tokens als Galerie — gegliedert wie dieses Dokument. Dieses Markdown bleibt der
+> geschriebene Begleiter (Farbsemantik, „wann nicht", Voice, ADR-Muster); die Route
+> zeigt das Aussehen live und kann per Konstruktion nicht driften
+> (`src/Client/Components/Styleguide/View.fs`).
 
 ---
 

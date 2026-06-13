@@ -520,6 +520,12 @@ Before marking a feature complete:
 > truth for visual language, color semantics, the token layer, patterns, motion and voice.
 > All UI work is measured against it; this section is the API quick-reference for the
 > components it inventories.
+>
+> **Living visual styleguide:** the in-app route **`/styleguide`** (discreet link in the
+> Settings page, also reachable directly by URL) renders the **real** DS components and
+> tokens as a gallery — the visual counterpart to the written styleguide. Source:
+> `src/Client/Components/Styleguide/View.fs`. Because it renders the actual components, it
+> cannot drift from them.
 
 The project includes a complete F# Design System in `src/Client/DesignSystem/`. **Always use these components** instead of inline Feliz code for UI.
 

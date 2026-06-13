@@ -6,7 +6,7 @@ type: chore                  # feature | bug | refactor | chore | spike | decisi
 context: design-system
 created: 2026-06-13
 completed: 2026-06-13
-commit:
+commit: c611e98
 depends_on: []
 blocks: [ynab-002]
 tags: [styleguide, design-system, tokens, components, patterns, documentation, gate, frontend]

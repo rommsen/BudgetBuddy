@@ -13,7 +13,7 @@ research touching this BC, and concept synthesis pages.
 - **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 1
+- **Done:** 2
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-003 · Live In-App /styleguide-Route (visueller Styleguide)** — 2026-06-13 — `done/design-system-003-live-styleguide-route.md` (build grün + verifiziert; offen: Romans visueller Check)
 - **design-system-001 · Styleguide retroaktiv kodifizieren (das Gate)** — 2026-06-13 — `done/design-system-001-styleguide.md` (reviewt+akzeptiert als geschriebener Begleiter; visuelle Route → design-system-003)
 <!-- done-list:end -->
 

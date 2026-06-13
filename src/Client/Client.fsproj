@@ -54,6 +54,9 @@
     <Compile Include="Components/Rules/State.fs" />
     <Compile Include="Components/Rules/View.fs" />
 
+    <!-- Component: Styleguide (living component gallery — presentational) -->
+    <Compile Include="Components/Styleguide/View.fs" />
+
     <!-- Main application -->
     <Compile Include="State.fs" />
     <Compile Include="View.fs" />

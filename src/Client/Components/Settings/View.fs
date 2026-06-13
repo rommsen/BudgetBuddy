@@ -642,6 +642,24 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             prop.style [ style.custom ("animationDelay", "190ms") ]
                             prop.children [ syncSettingsCard model dispatch ]
                         ]
+                        // Discreet entry point to the living Styleguide gallery.
+                        // Uses a plain hash-router anchor so Settings stays free of
+                        // new Msg cases — navigation is a root concern handled by
+                        // router.onUrlChanged.
+                        Html.div [
+                            prop.className "animate-slide-up pt-2"
+                            prop.style [ style.custom ("animationDelay", "260ms") ]
+                            prop.children [
+                                Html.a [
+                                    prop.href "#/styleguide"
+                                    prop.className "inline-flex items-center gap-2 text-sm text-neon-teal hover:underline"
+                                    prop.children [
+                                        Icons.externalLink Icons.XS Icons.NeonTeal
+                                        Html.span [ prop.text "Styleguide ansehen (Design-System-Galerie)" ]
+                                    ]
+                                ]
+                            ]
+                        ]
                     ]
                 ]
         ]

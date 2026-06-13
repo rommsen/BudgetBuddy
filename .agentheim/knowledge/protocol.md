@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-06-13 14:05 -- Task verified and completed: design-system-003 - Live /styleguide-Route
+
+**Type:** Work / Task completion
+**Task:** design-system-003 - Live In-App /styleguide-Route (visueller Styleguide)
+**Summary:** Neue präsentationale Feliz-Route `/styleguide`, die die echten DS-Komponenten + Tokens als Galerie rendert (gegliedert wie das Markdown-Gate); interaktive Demos per lokalem React.useState, kein neuer app-weiter Msg; dezenter Einstieg via Hash-Link in Settings.
+**Verification:** PASS (iteration 1) — verifier hat `dotnet build src/Client/Client.fsproj` unabhängig nachgebaut (0 Warnungen / 0 Fehler), bestätigte echte Komponenten (kein Drift), saubere Scope.
+**Gate-Review (offen):** Romans visueller Check (zweites, menschliches Gate) steht noch aus — Route ist buildbar + verifiziert; Abnahme erfolgt durch Anschauen im Browser.
+**Files changed:** 9 (neues View-Modul + Routing-Wiring Types/State/View/fsproj + Settings-Link + 2 Doku-Pointer + Diary)
+**Tests added:** 0 (rein präsentational — bewusst, im Task dokumentiert)
+**ADRs written:** none
+
+---
+
+## 2026-06-13 13:58 -- Batch started: [design-system-003]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-003 - Live In-App /styleguide-Route (visueller Styleguide)
+**Parallel:** no (1 worker)
+**Note:** Aus dem design-system-001-Gate-Review ausgegliedert (Roman erwartete einen visuell gerenderten Styleguide). Frontend-Feature: rendert die echten DS-Komponenten/Tokens live → kein Drift.
+
+---
+
 ## 2026-06-13 13:55 -- Task verified and completed: design-system-001 - Styleguide (das Gate)
 
 **Type:** Work / Task completion

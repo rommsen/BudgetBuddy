@@ -16,6 +16,9 @@ let private toNavPage (page: Page) : Navigation.NavPage =
     | SyncFlow -> Navigation.SyncFlow
     | Rules -> Navigation.Rules
     | Settings -> Navigation.Settings
+    // Styleguide has no own nav tab; it's reached from Settings, so the
+    // Settings tab stays highlighted while viewing the gallery.
+    | Styleguide -> Navigation.Settings
 
 /// Convert Navigation.NavPage to Types.Page
 let private fromNavPage (navPage: Navigation.NavPage) : Page =
@@ -69,6 +72,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 Components.Settings.View.view
                                     model.Settings
                                     (SettingsMsg >> dispatch)
+                            | Styleguide ->
+                                // Presentational gallery — no model/dispatch needed.
+                                Components.Styleguide.View.view ()
                         ]
                     ]
                 ]

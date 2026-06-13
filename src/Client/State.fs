@@ -120,6 +120,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     ]
                 | Settings ->
                     Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
+                | Styleguide ->
+                    // Presentational gallery — no data to load.
+                    Cmd.none
             { model with CurrentPage = page }, extraCmds
 
     // ============================================

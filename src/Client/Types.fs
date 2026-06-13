@@ -131,6 +131,7 @@ type Page =
     | SyncFlow
     | Rules
     | Settings
+    | Styleguide
 
 
 /// URL routing helpers for hash-based navigation
@@ -143,6 +144,7 @@ module Routing =
         | [] -> SyncFlow
         | ["rules"] -> Rules
         | ["settings"] -> Settings
+        | ["styleguide"] -> Styleguide
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -151,6 +153,7 @@ module Routing =
         | SyncFlow -> []
         | Rules -> ["rules"]
         | Settings -> ["settings"]
+        | Styleguide -> ["styleguide"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =

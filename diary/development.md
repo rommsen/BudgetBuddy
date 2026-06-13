@@ -4,6 +4,62 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-13 - Lebende /styleguide-Route: visuelle DS-Galerie (design-system-003)
+
+**What I did:**
+Den geschriebenen Styleguide (`standards/frontend/styleguide.md`, design-system-001) um sein
+**visuelles** Gegenstück ergänzt: eine In-App-Route `/styleguide`, die die **echten**
+Design-System-Komponenten und Tokens aus `Client.DesignSystem.*` als lebende Galerie rendert
+— gegliedert analog zum Markdown (Farb-/Token-Swatches → Typografie → 20 Komponenten in ihren
+Hauptvarianten → Voice/Muster-Hinweise). Kein hartkodiertes Standalone-HTML: weil die realen
+Komponenten gerendert werden, kann die Galerie per Konstruktion nicht von ihnen driften.
+
+Interaktive Showcases (Input, Form-Gating, Modal, Toast, BottomSheet, Swipe) nutzen **lokale
+`React.useState`-Hooks** (`[<ReactComponent>]`-Sub-Komponenten im View-Modul) — **keine** neuen
+app-weiten `Msg`-Fälle, kein App-State verschmutzt. Routing über die bestehende
+`Page`/`Routing`-Mechanik (Feliz.Router, Hash-Mode).
+
+**Einstiegspunkt-Begründung:** Dezenter Link **in der Settings-Seite** (statt Haupt-Nav-Tab),
+damit die Bottom-/Top-Navigation nicht zugemüllt wird — der Styleguide ist ein
+Entwickler-/Referenz-Werkzeug, kein Alltags-Screen. Der Link ist ein einfacher
+Hash-Router-Anchor (`#/styleguide`), damit die Settings-Komponente frei von neuen Msg-Fällen
+bleibt (Navigation = Root-Concern, von `router.onUrlChanged` behandelt). Die Route ist in
+jedem Fall direkt per URL erreichbar.
+
+**Files Added:**
+- `src/Client/Components/Styleguide/View.fs` — präsentationale Galerie (Layout-Helfer +
+  20 Komponenten-Sektionen, interaktive per lokalem useState).
+
+**Files Modified:**
+- `src/Client/Types.fs` — `Page`-DU um `Styleguide` erweitert; `Routing.parseUrl`/`toUrlSegments`
+  um `["styleguide"]` ↔ `Styleguide`.
+- `src/Client/State.fs` — `UrlChanged`-Branch `| Styleguide -> Cmd.none` (rein präsentational,
+  nichts zu laden).
+- `src/Client/View.fs` — Render-Branch `| Styleguide -> Components.Styleguide.View.view ()`;
+  `toNavPage Styleguide -> Navigation.Settings` (Settings-Tab bleibt aktiv, da von dort erreicht).
+- `src/Client/Client.fsproj` — `Components/Styleguide/View.fs` vor `View.fs` eingereiht
+  (F#-Compile-Reihenfolge).
+- `src/Client/Components/Settings/View.fs` — dezenter `#/styleguide`-Link am Seitenende.
+- `standards/frontend/styleguide.md` + `CLAUDE.md` (Design-System-Abschnitt) — je ein Pointer
+  auf die lebende `/styleguide`-Route als visuelles Gegenstück.
+
+**Rationale:**
+Im Gate-Review von design-system-001 kam heraus: Roman erwartet einen **gerenderten**
+Styleguide im Browser, nicht nur ein Markdown. Die Route liefert das, ohne die Komponenten zu
+duplizieren (Drift-Gefahr) und ohne App-State zu verschmutzen.
+
+**Tests — bewusst keine:** Die Seite ist rein präsentational und komponiert bereits getestete
+DS-Komponenten; es gibt keine testbare Domänen-/Update-Logik. Ein „rendert ohne
+Exception"-Test wäre nahe an einer Tautologie. Verifikation = Build grün + Romans visueller
+Check (bewusste, im Task dokumentierte Abweichung von „jedes Feature braucht Tests").
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` Solution: 0 Fehler; Client-Projekt: 0 Fehler/0 Warnungen)
+- Tests: nicht zutreffend (präsentationale Galerie, keine neue Logik)
+- Offen: visueller Abnahme-Check durch Roman (zweites Gate) — Route ist fertig + buildbar.
+
+---
+
 ## 2026-06-13 - Styleguide retroaktiv kodifiziert: das Gate (design-system-001)
 
 **What I did:**
