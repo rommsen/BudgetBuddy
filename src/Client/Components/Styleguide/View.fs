@@ -23,8 +23,11 @@ open Client.DesignSystem
 // ============================================
 
 /// Abschnittsüberschrift einer Galerie-Sektion (z. B. "1. Visuelle Sprache").
+/// Der `title` dient zugleich als stabiler `prop.key`, da jede Sektion in der
+/// Top-Level-Sektionsliste ein Listen-Kind ist (React verlangt unique keys).
 let private section (title: string) (children: ReactElement list) =
     Html.section [
+        prop.key title
         prop.className "space-y-4 md:space-y-6 pt-8 md:pt-10 border-t border-border-subtle first:border-t-0 first:pt-0"
         prop.children [
             Html.h2 [
@@ -50,10 +53,14 @@ let private note (text: string) =
     ]
 
 /// Horizontale Zeile mit umbrechenden Demo-Elementen.
+/// Die Demo-Elemente stammen aus Design-System-Helfern (Button.*, Badge.*, Icons.*),
+/// die keinen eigenen `prop.key` durchreichen. Daher wird jedes Kind in ein
+/// `React.keyedFragment` gehüllt — das vergibt einen stabilen Index-Key, ohne einen
+/// zusätzlichen DOM-Knoten einzufügen (kein visueller Unterschied).
 let private row (children: ReactElement list) =
     Html.div [
         prop.className "flex flex-wrap items-center gap-3"
-        prop.children children
+        prop.children (children |> List.mapi (fun i child -> React.keyedFragment (i, [ child ])))
     ]
 
 /// Kleine Bezeichnung unter einem Swatch / einer Probe.
@@ -265,19 +272,26 @@ let private statsSection =
     ]
 
 let private tableSection =
+    // Hand-gebaute Tabelle: zwei verschachtelte Listen-Ebenen (Zeilen in <tbody>,
+    // Zellen in jeder <tr>/<thead>). Die Table.*-Helfer (shared Design-System) reichen
+    // keinen `prop.key` durch, daher wird jede Zelle und jede Zeile in ein
+    // `React.keyedFragment` gehüllt — ein Fragment erzeugt keinen DOM-Knoten, die
+    // <th>/<td>/<tr>-Struktur bleibt also unverändert (kein visueller Unterschied).
+    let keyed (els: ReactElement list) =
+        els |> List.mapi (fun i el -> React.keyedFragment (i, [ el ]))
     section "8. Table" [
         note "Dichte tabellarische Daten (Desktop). Mobile Listen mit Zeilen-Aktionen → Card-Liste + Swipe. styleguide.md §5."
         Table.simple [
-            Table.thead [
+            Table.thead (keyed [
                 Table.th "Payee"
                 Table.th "Kategorie"
                 Table.thRight "Betrag"
-            ]
-            Table.tbody [
-                Table.tr [ Table.td "REWE"; Table.td "Lebensmittel"; Table.tdRight "-42,90 €" ]
-                Table.tr [ Table.td "Gehalt"; Table.td "Einkommen"; Table.tdRight "+2.500,00 €" ]
-                Table.tr [ Table.td "Netflix"; Table.td "Abos"; Table.tdRight "-12,99 €" ]
-            ]
+            ])
+            Table.tbody (keyed [
+                Table.tr (keyed [ Table.td "REWE"; Table.td "Lebensmittel"; Table.tdRight "-42,90 €" ])
+                Table.tr (keyed [ Table.td "Gehalt"; Table.td "Einkommen"; Table.tdRight "+2.500,00 €" ])
+                Table.tr (keyed [ Table.td "Netflix"; Table.td "Abos"; Table.tdRight "-12,99 €" ])
+            ])
         ]
     ]
 
@@ -446,12 +460,17 @@ let private BottomSheetDemo () =
                 BottomSheet.sectionTitle "Konten"
                 Html.div [
                     prop.className "flex flex-wrap gap-2 p-2"
-                    prop.children [
-                        for acc in [ "Girokonto"; "Bar"; "Kreditkarte" ] ->
-                            BottomSheet.chipButton acc false (fun () ->
-                                setChosen acc
-                                setOpen false)
-                    ]
+                    // Mapped Chip-Liste: jeder Chip braucht einen stabilen Key. chipButton
+                    // (shared) reicht keinen `prop.key` durch → keyed-Fragment je Konto-Name.
+                    prop.children (
+                        [ "Girokonto"; "Bar"; "Kreditkarte" ]
+                        |> List.map (fun acc ->
+                            React.keyedFragment (acc, [
+                                BottomSheet.chipButton acc false (fun () ->
+                                    setChosen acc
+                                    setOpen false)
+                            ]))
+                    )
                 ]
             ]
     ]
@@ -511,28 +530,36 @@ let view () =
 
             Html.div [
                 prop.className "space-y-10"
-                prop.children [
-                    colorSection
-                    typographySection
-                    buttonSection
-                    cardSection
-                    badgeSection
-                    moneySection
-                    statsSection
-                    tableSection
-                    loadingSection
-                    errorSection
-                    iconsSection
-                    pageHeaderSection
-                    primitivesSection
-                    InputDemo()
-                    FormDemo()
-                    ModalDemo()
-                    ToastDemo()
-                    BottomSheetDemo()
-                    SwipeDemo()
-                    voiceSection
-                ]
+                // Top-Level-Sektionsliste: gemischt aus statischen `Html.section`-Werten und
+                // `[<ReactComponent>]`-Aufrufen (InputDemo, FormDemo, …). Der innere
+                // `prop.key` einer Komponente propagiert NICHT auf das Komponenten-Element in
+                // der Eltern-Liste — daher jeden Eintrag hier per Index in ein
+                // `React.keyedFragment` hüllen (kein DOM-Knoten, kein visueller Unterschied).
+                prop.children (
+                    [
+                        colorSection
+                        typographySection
+                        buttonSection
+                        cardSection
+                        badgeSection
+                        moneySection
+                        statsSection
+                        tableSection
+                        loadingSection
+                        errorSection
+                        iconsSection
+                        pageHeaderSection
+                        primitivesSection
+                        InputDemo()
+                        FormDemo()
+                        ModalDemo()
+                        ToastDemo()
+                        BottomSheetDemo()
+                        SwipeDemo()
+                        voiceSection
+                    ]
+                    |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))
+                )
             ]
         ]
     ]
