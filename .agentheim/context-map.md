@@ -47,6 +47,18 @@ SyncSession.
 - **Classification:** generic/supporting.
 - **Key actors:** Roman (betreibt), Tailscale/Docker (Laufzeit).
 
+### design-system
+- **Purpose:** Frontend-Infrastruktur — visuelle Sprache (neon-on-dark), Token-Layer,
+  das Komponenten-Inventar (`src/Client/DesignSystem/`, 20 Komponenten) und die projektweiten
+  UI-Muster (Sheets/Click-Commit ADR 0005, Picker ADR 0004). Hält den **Styleguide** als
+  reviewbares Gate für alle UI-Arbeit.
+- **Core language:** Styleguide, Token, neon-on-dark, Farbsemantik, DS-Komponente, Muster,
+  Drift.
+- **Classification:** supporting — kein fachlicher Differenzierer, dient aber dem
+  Vision-Ziel "angenehmer als YNAB-Web". First-class Frontend-Infra-BC (analog
+  `infrastructure` fürs Backend).
+- **Key actors:** Roman (reviewt das Gate, baut UI), alle fachlichen BCs (Konsumenten).
+
 ## Relationships
 
 - **banking-import → categorization → ynab-sync:** Customer-supplier / Pipeline.
@@ -63,10 +75,14 @@ SyncSession.
   der beide verbindet.
 - **infrastructure** ist generic supporting für alle drei: stellt SyncSession-Lifecycle,
   Persistence und Transport bereit, ohne fachliche Entscheidungen zu treffen.
+- **design-system → alle UI-tragenden BCs:** Customer-Supplier. Liefert die UI-Bausteine
+  (Tokens, Komponenten, Muster), gegen die deren View-Schichten bauen; der Styleguide
+  (`design-system-001`) ist das **Gate** — künftige UI-Tasks hängen daran (Hard-Enforcement
+  2026-06-13). Analog zu `infrastructure`, aber fürs Frontend.
 
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter in `banking-import` oder Comdirect-Muster
   generalisieren? (verschoben)
-- Eigener **`design-system`**-Context? Es existiert bereits ein vollständiges Design
-  System (`src/Client/DesignSystem/`). Heute kein Bedarf — erst relevant, wenn UI
-  systematisch erweitert wird.
+- ~~Eigener **`design-system`**-Context?~~ *Aufgelöst 2026-06-13:* angelegt (s.o.) —
+  kodifiziert das bestehende Design System retroaktiv zum Styleguide-Gate und konsolidiert
+  den View-Code darauf.

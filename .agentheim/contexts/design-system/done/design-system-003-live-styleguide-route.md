@@ -6,7 +6,7 @@ type: feature                # feature | bug | refactor | chore | spike | decisi
 context: design-system
 created: 2026-06-13
 completed: 2026-06-13
-commit:
+commit: 741af87
 depends_on: [design-system-001]
 blocks: []
 tags: [styleguide, design-system, frontend, route, gallery, gate, feliz]

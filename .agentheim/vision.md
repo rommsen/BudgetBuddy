@@ -85,8 +85,9 @@ in den jeweiligen Bounded-Context-READMEs; hier der projektweite Kern.
 ## Open questions
 - Soll **ING** als zweite Quelle einen eigenen Adapter im `banking-import`-Context
   bekommen oder das Comdirect-Muster generalisieren? (verschoben bis Aktivierung)
-- Lohnt sich später ein eigener **`design-system`**-Bounded-Context (es existiert bereits
-  ein vollständiges Design System unter `src/Client/DesignSystem/`)? Heute kein Bedarf,
-  da nichts neu gebaut werden muss.
+- ~~Lohnt sich später ein eigener **`design-system`**-Bounded-Context?~~ *Aufgelöst
+  2026-06-13:* `design-system`-BC angelegt, um den bestehenden Code (`src/Client/DesignSystem/`)
+  **retroaktiv** zu einem reviewbaren Styleguide zu kodifizieren (`design-system-001`, das
+  UI-Gate) und den View-Code darauf zu konsolidieren (`design-system-002`).
 - ADR-Backfill der bestehenden Architektur (Stack/Persistence/Transport/Deployment) —
   optional, siehe `infrastructure`-Context.

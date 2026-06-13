@@ -3,14 +3,20 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-## Nächste Schritte nach dem Mobile-UX-Overhaul + Quick Add
+# Nächste Schritte: ynab-002 gebaut & verifiziert (f2a71ac)
 
-Der UX-Umbau (Picker-Fix, Swipe, Quick Add) ist auf `feature/ux-wow` umgesetzt, getestet
-und auf dem docker-host deployed — aber noch nicht nach `main` gemergt. Kandidaten:
+Die Split-Review-UI steht und ist grün (`dotnet test` 569 passed, verifier-PASS, Commit
+`f2a71ac`): Cashback-„Barabhebung"-Shortcut (Default-Ziel = Quick-Add-Konto, Kategorie-Rest
+rechnet live) + generischer N-Zeilen-Editor (Save gesperrt bei Summe ≠ Gesamt), Transfer-Picker
+nur offene On-Budget-Konten. Die im Refinement vorhergesagte Backend-Erweiterung
+(`YnabAccount`/`accountDecoder` um `on_budget`/`closed`) war real und wurde mitgebaut. **Zwei
+lose Enden:** (a) die Mechanik ist nur durch Tests geprüft — ADR 0005 sagt, mobile Sheet-/Stacking-
+Mechanik ist erst am Gerät wirklich verifizierbar; (b) das `.agentheim`-Doku-Bookkeeping (INDEX,
+protocol, next-step, Task-commit-Feld + ältere lose Modeling-Stände) liegt bewusst uncommitted
+neben dem Feature-Commit. Wie weiter?
 
 <options>
-  <option title="feature/ux-wow nach main mergen" cmd='/agentheim:work den Branch feature/ux-wow nach main mergen (Tests grün, deployed, Android-Test durch Roman bestanden)'>Bringt 8 Commits Produktiv-Stand ins Haupt-Repo. Voraussetzung: Roman hat die Feedback-Runde auf dem Handy abgenommen. Geringes Risiko, räumt auf.</option>
-  <option title="Transfer-Payees modellieren" cmd='/agentheim:model Transfer-Payees im ynab-sync-Context modellieren (Transfer to/from statt Kategorie, z.B. Barabhebung)'>Das verbliebene hochpriorisierte In-Scope-Feature — passt thematisch perfekt zum neuen Quick Add (Barabhebung = Transfer aufs Bar-Konto). Braucht erst Modellierung.</option>
-  <option title="Phase-1-Frage durchdenken" cmd='/sparring Quick Add (Phase 0) läuft — lohnt Phase 1 der YNAB-Ersatz-Idee (Read-only Budget-Mirror) oder bleibt die Companion-Grenze?'>ADR 0003 hat Phase 0 aktiviert; nach ein paar Wochen Quick-Add-Nutzung steht die bewusste Weiter-oder-Stopp-Entscheidung an (Kriterien in docs/idea-ynab-replacement.md). Strategisch, kein Code.</option>
-  <option title="Restliche Backlog-Items überführen" cmd='/agentheim:model die verbliebenen backlog.md-Items (Split-UI, Cleared-Setting, optionale Comdirect-PIN, ING) in die passenden Contexts erfassen'>Macht den agentheim-Backlog zur einzigen Wahrheit; danach kann work direkt loslaufen. Reine Hygiene.</option>
+  <option title="ynab-002 am Gerät/Browser testen">Split-Sheet real ausprobieren: `npm run dev` (Vite, Hash-Routing), eine Buchung aufteilen — besonders der Cashback-Ein-Tipp und das Picker-über-Sheet-Stacking (`.layer-2`) auf Mobile, das laut ADR 0005 nur manuell verifizierbar ist. Findet, was Tests nicht sehen (Tastatur, Ghost-Clicks, Live-Rest-Gefühl). Ich kann die App auch selbst starten + screenshotten.</option>
+  <option title="Doku-Bookkeeping committen">Der Working Tree trägt uncommittete `.agentheim`-Doku: dieser Work-Session-Stand (INDEX doing→done, protocol-Einträge, next-step, Task-commit-Feld) plus ältere lose Modeling-Stände (vision/context-map/knowledge-index/design-system-003/serena). Als ein sauberer Doku-Commit ablegen, getrennt vom Feature-Code.</option>
+  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Letzter offener Backlog-Task (Drift-Audit): View-Code gegen den Styleguide prüfen (hartkodierte Farben, inline-Feliz statt DS-Komponente) und in Refactor-Tasks splitten. Noch unrefined — braucht eine Modeling-Runde, bevor `work` ihn nehmen kann.</option>
 </options>

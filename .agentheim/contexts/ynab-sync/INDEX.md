@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 0
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 4
+- **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-002 · Split-Review-UI — Cashback-Shortcut + generischer Editor** — 2026-06-13 — `done/ynab-002-split-review-ui.md` (f2a71ac)
 - **ynab-001 · Split mit Transfer-Zeile — Domain + YNAB-Push (Fundament)** — 2026-06-13 — `done/ynab-001-split-with-transfer-cashback.md`
 - **Quick Add Feedback-Runde: eigenes Konto, echter Picker, kein FAB, Payee optional** — 2026-06-12 — `done/2026-06-12-quick-add-feedback-round.md`
 - **Quick Add: manuelle Transaktions-Eingabe → YNAB (Phase 0)** — 2026-06-11 — `done/2026-06-11-quick-add-manual-entry.md`
@@ -34,7 +35,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ynab-002 · Split-Review-UI — Cashback-Shortcut + generischer Editor** — 2026-06-13 — `backlog/ynab-002-split-review-ui.md` (depends_on: ynab-001)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

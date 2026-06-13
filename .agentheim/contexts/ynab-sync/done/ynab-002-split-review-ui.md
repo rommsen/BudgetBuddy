@@ -6,7 +6,7 @@ type: feature                # feature | bug | refactor | chore | spike | decisi
 context: ynab-sync
 created: 2026-06-13
 completed: 2026-06-13
-commit:
+commit: f2a71ac
 depends_on: [ynab-001, design-system-001]
 blocks: []
 tags: [split, transfer, review-ux, mobile, cashback, ui]

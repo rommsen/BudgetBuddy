@@ -15,6 +15,7 @@ For BC-scoped artifacts, see each BC's `INDEX.md`.
 - **categorization** — Regelbasierte Auto-Kategorisierung + Order-ID-Propagierung — `contexts/categorization/INDEX.md`
 - **ynab-sync** — Push nach YNAB mit Import-ID-Dedup, Splits, Payees — `contexts/ynab-sync/INDEX.md`
 - **infrastructure** — Globally-true Technik: Stack, Persistence, Transport, Deployment — `contexts/infrastructure/INDEX.md`
+- **design-system** — Frontend-Infrastruktur: visuelle Sprache, Tokens, Komponenten, Styleguide-Gate — `contexts/design-system/INDEX.md`
 <!-- bc-list:end -->
 
 ## Global ADRs (scope: global)

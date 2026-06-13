@@ -7,8 +7,8 @@ date: 2026-06-13
 supersedes: []
 superseded_by: []
 related_tasks:
-  - contexts/ynab-sync/todo/ynab-001-split-with-transfer-cashback.md
-  - contexts/ynab-sync/backlog/ynab-002-split-review-ui.md
+  - contexts/ynab-sync/done/ynab-001-split-with-transfer-cashback.md
+  - contexts/ynab-sync/todo/ynab-002-split-review-ui.md
 related_research:
   - ynab-transfer-in-split-subtransaction-2026-06-13
 ---

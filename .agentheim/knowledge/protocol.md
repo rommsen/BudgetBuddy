@@ -5,6 +5,86 @@ Newest entries on top.
 
 ---
 
+## 2026-06-13 23:32 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 1 (f2a71ac ynab-002)
+**Note:** Erster UI-Task gegen den frischen Styleguide. Die im Refinement vorhergesagte Backend-Erweiterung (`YnabAccount`/`accountDecoder` um `on_budget`/`closed`) war real und nötig — sauber mitgebaut. Eine bewusste, vom verifier akzeptierte AC-Abweichung beim Cashback (Auto-Rest-Zeile statt `buildCashbackSplit`, Invariante via `mkSplits`/`splitRemainder` gewahrt). **Uncommitted im Working Tree:** `.agentheim`-Doku-Bookkeeping dieser + früherer Sessions (INDEX/protocol/next-step/Task-commit-Feld + ältere lose Modeling-Stände) — bewusst nicht in den Feature-Commit gemischt; eigener Doku-Commit offen.
+
+---
+
+## 2026-06-13 23:30 -- Task verified and completed: ynab-002 - Split-Review-UI
+
+**Type:** Work / Task completion
+**Task:** ynab-002 - Split-Review-UI — Cashback-Shortcut + generischer Editor
+**Summary:** Review-Flow-Split-Sheet: Ein-Tipp-„Barabhebung"-Cashback-Shortcut (Transfer aufs Quick-Add-Bargeld-Konto + Kategorie-„Rest"-Zeile, die sich live errechnet) + generischer N-Zeilen-Editor; Save gesperrt bei Summe ≠ Gesamt; Transfer-Picker nur offene On-Budget-Konten. `YnabAccount`/`accountDecoder` um `OnBudget`/`Closed` erweitert.
+**Verification:** PASS (iteration 1) — verifier hat unabhängig gebaut (`dotnet build` 0 Fehler, 1 vorbestehende Sqlite-Warnung) + `dotnet test` (569 passed / 6 skipped / 0 failed) und jede der 6 AC auf Tests/Artefakte gemappt.
+**Abweichung (non-blocking, vom verifier akzeptiert):** Cashback nicht über `buildCashbackSplit` (das rechnet den Transfer als Rest *einer Kategorie* — invers zur „nur Transfer eintippen"-UX), sondern via Auto-Rest-Kategoriezeile; bindende Invariante (ADR 0006: kein Client-Reimplementieren von `mkSplits`/`splitRemainder`) bleibt gewahrt, im Task-Outcome dokumentiert, unit-getestet.
+**Commit:** f2a71ac
+**Files changed:** 16 (+ Task-Move backlog→done)
+**Tests added:** SplitEditorTests.fs (Live-Rest + Save-Gating) + openOnBudgetAccounts/Decoder-Tests in SplitTransactionTests.fs/YnabClientTests.fs
+**ADRs written:** none (0004/0005/0006 deckten den Entwurf)
+
+---
+
+## 2026-06-13 23:05 -- Batch started: [ynab-002]
+
+**Type:** Work / Batch start
+**Tasks:** ynab-002 - Split-Review-UI — Cashback-Shortcut + generischer Editor
+**Parallel:** no (1 worker)
+**Note:** Erster UI-Task gegen den frischen Styleguide (Gate `design-system-001` geschlossen). Trägt eine kleine Backend-Erweiterung (`YnabAccount`/`accountDecoder` um `on_budget`/`closed`) für den On-Budget-Filter.
+
+---
+
+## 2026-06-13 23:00 -- Modeling / Refined + Promoted: ynab-002 - Split-Review-UI
+
+**Type:** Modeling / Refine (+ Promote backlog → todo)
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Die drei offenen UI-Fragen aus dem Backlog-Eintrag aufgelöst und den Task
+promotet. (1) **Sheet-Stacking** — keine neue Entscheidung nötig: ADR 0005 §4 deckt es bereits
+(`.layer-2`, eine Ebene tief, „Picker über Quick-Add-Formular"); das Split-Sheet ist das
+Form-Sheet. (2) **Off-Budget-Konten** — Roman entschied: Transfer-Picker zeigt nur offene
+On-Budget-Konten. Refinement deckte auf, dass das eine kleine Backend-Erweiterung verlangt
+(`YnabAccount`/`accountDecoder` tragen heute kein `on_budget`/`closed` — `src/Shared/Domain.fs:334`,
+`src/Server/YnabClient.fs:24`); jetzt in AC 4 als load-bearing notiert. (3) **Cashback-Default-Ziel**
+— Roman entschied: das konfigurierte Quick-Add-Konto (`ynab_quickadd_account_id`, ADR 0004)
+wiederverwenden, überschreibbar; bewusste Konflation manueller-Eingabe-Konto = Cashback-Ziel.
+**Gate:** `design-system-001` ist done + gate-reviewt → das Hard-Enforcement-Gate, das ynab-002 in
+Backlog hielt, ist geschlossen; Promotion frei.
+**Split into:** —
+**ADRs written:** keine (ADR 0004/0005/0006 deckten alle Entscheidungen; ADR 0006 `related_tasks`-
+Pfade auf done/ynab-001 + todo/ynab-002 aktualisiert).
+
+---
+
+## 2026-06-13 14:20 -- Follow-up fix + visueller Gate-Check: design-system-003
+
+**Type:** Work / Follow-up fix
+**Task:** design-system-003 (visuelles Gate)
+**Gate-Review:** Romans visueller Check durchgeführt — Route headless gerendert (Desktop + Mobile, `localhost:5181/#/styleguide`), Galerie rendert alle 14 Sektionen mit echten Komponenten korrekt. **Akzeptiert.**
+**Defekt gefunden + gefixt:** React-„unique key"-Warnings in `Styleguide/View.fs` → stabile keys/keyedFragment auf alle kollektions-erzeugten Geschwister. Empirisch verifiziert (Build grün + 0 Warnings beim Re-Render).
+**Commit:** fb0849b
+**Note:** Das menschliche Gate von design-system-003 ist damit geschlossen.
+
+---
+
+## 2026-06-13 14:06 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 2 (c611e98 design-system-001, 741af87 design-system-003)
+**Note:** Eingestiegen mit `work design-system-001` (Markdown-Styleguide). Das Gate-Review mit Roman deckte auf, dass er einen **visuell gerenderten** Styleguide erwartet hatte — mid-session als neues Feature `design-system-003` (live `/styleguide`-Route) erfasst und gleich mitgebaut. Beide Tasks first-try verifiziert. Offen: Romans visueller Abnahme-Check der Route (menschliches Gate). Uncommittete Prior-Modeling-Änderungen (vision/context-map/ynab-sync/serena) bewusst nicht mitgemischt.
+
+---
+
 ## 2026-06-13 14:05 -- Task verified and completed: design-system-003 - Live /styleguide-Route
 
 **Type:** Work / Task completion

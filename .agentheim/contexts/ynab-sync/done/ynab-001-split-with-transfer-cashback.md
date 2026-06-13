@@ -6,7 +6,7 @@ type: feature                # feature | bug | refactor | chore | spike | decisi
 context: ynab-sync
 created: 2026-06-13
 completed: 2026-06-13
-commit:
+commit: 688d81c
 depends_on: []
 blocks: [ynab-002]
 tags: [split, transfer, ynab-push, domain, conformist]
