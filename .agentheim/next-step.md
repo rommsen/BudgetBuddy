@@ -3,18 +3,17 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: Split-Zeile zeigt "Aufgeteilt" (ynab-004, ae7d448)
+# Nächste Schritte: cat-001 + design-system-004 geshippt (Deploy läuft)
 
-Dritte Feedback-Runde zum Split umgesetzt: eine aufgeteilte Buchung zeigt in der Liste jetzt
-**„Aufgeteilt"** mit ready-Badge statt dem orangen „Kategorie…"-Platzhalter (577 Tests grün).
-Wird gerade deployt. Dabei ist eine **bewusste Grenze** aufgetaucht, die du kennen solltest:
-**Splits werden nicht persistiert** (`Persistence.fs:677` rekonstruiert `Splits = None`, seit
-ynab-001 aufgeschoben) — der Fix gilt für die laufende In-Memory-Session (Sync→Review→Import),
-ein DB-Reload würde das Label verlieren. Wie weiter?
+Beide todo-Tasks gebaut, verifiziert und committet — und auf Romans Anweisung nach origin
+gepusht + deployt. **cat-001** (9112013): Regeln per ▲/▼ umsortierbar, oben gewinnt zuerst
+(Backend `reorderRules` war schon fertig). **design-system-004** (18cf474): Toasts blenden
+sanft aus (Zwei-Phasen-Exit, ADR 0007), Platzierung + Motion im Styleguide festgehalten.
+cat-001 brauchte eine zweite Verifier-Runde (Token-/Touch-Target-Defekte). Was als Nächstes?
 
 <options>
-  <option title="ynab-004 am Gerät gegenchecken">Nach dem Deploy: aufgeteilte Buchung in der Liste ansehen — zeigt sie „Aufgeteilt"? Und einen Durchlauf bis zum Import, ob der Split sauber nach YNAB geht. Ich kann auch headless screenshotten.</option>
-  <option title="Splits persistieren (ynab-005) modellieren" cmd='/agentheim:modeling'>Die aufgedeckte Grenze schließen: Splits in SQLite ablegen (Schema + Migration), damit „Aufgeteilt" + die Split-Zeilen einen Reload/Neustart überleben. Nur sinnvoll, wenn dich der Verlust nach Reload im Alltag wirklich trifft — sonst YAGNI.</option>
-  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Der schon länger offene Backlog-Task: Drift-Audit der View-Schichten gegen den Styleguide. Noch unrefined.</option>
+  <option title="Am Gerät gegenchecken">Nach dem Deploy: Regeln umsortieren (kippt eine zu-eager Regel hinter eine spezifischere?) und einen Toast auslösen — blendet er sanft aus, sitzt er richtig (mobil oben über der Bottom-Nav)? Ich kann auch headless screenshotten.</option>
+  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Der offene Backlog-Task: Drift-Audit der View-Schichten gegen den Styleguide. Noch unrefined — jetzt mit zwei frischen DS-Touchpoints (Toast-Motion, Reorder-Buttons) als Referenz.</option>
+  <option title="Flaky SQLite-Test angehen" cmd='/agentheim:capture'>Der Verifier sah einen sporadischen `PatternType Conversions`-Fehler bei Connection-Disposal (Microsoft.Data.Sqlite 9.0.11/9.0.13-Versionskonflikt). Kein Blocker, aber als infrastructure-Bug erfassbar.</option>
   <option title="Nichts — im Alltag nutzen">Erstmal benutzen; nächste Auffälligkeit/Idee per `capture`/`modeling` einkippen.</option>
 </options>

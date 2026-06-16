@@ -5,6 +5,90 @@ Newest entries on top.
 
 ---
 
+## 2026-06-16 23:25 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 2 (first-try PASS: 1, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 2 Feature (9112013 cat-001, 18cf474 design-system-004) + 1 Doku-Bookkeeping folgt
+**Note:** Beide todo-Tasks sequenziell abgearbeitet (geteilte `Tests.fsproj`/Solution-Build → kein Parallel-Dispatch). cat-001 brauchte iteration 2 (Token-/Touch-Target-Defekte aus iteration 1 behoben). Roman-Anweisung danach: alles committen + zu origin pushen, dann deployen.
+
+---
+
+## 2026-06-16 23:20 -- Task verified and completed: design-system-004 - Toast-Politur
+
+**Type:** Work / Task completion
+**Task:** design-system-004 - Toast-Politur — sanfter Abgang, Positionierung & Styleguide-Motion
+**Summary:** Zwei-Phasen-Toast-Abgang (Exiting-Flag → CSS-Exit → entfernen), geteilt von Auto-Dismiss + manuellem Schließen, Double-Fire-Guard; Platzierung + Spring-/Exit-Motion in Styleguide (geschrieben + /styleguide-Route) und ADR 0007; prefers-reduced-motion respektiert.
+**Verification:** PASS (iteration 1) — verifier mappte alle 7 AC auf Evidenz, baute unabhängig + `dotnet test` (594 passed / 6 skipped / 0 failed); beide Dismiss-Pfade konvergieren auf `StartDismissToast` (Guard gg. Double-Timer), Token-Disziplin sauber.
+**Commit:** 18cf474
+**Files changed:** 12 (Types/State/Toast/View/styles.css/Styleguide-Route + styleguide.md + ToastLifecycleTests +8 + Tests.fsproj + Diary + DS-README)
+**Tests added:** 8 (`ToastLifecycleTests` — markExiting/isExiting/remove/idempotent/no-op/Dauer)
+**ADRs written:** 0007-toast-placement-and-soft-exit.md (scope: design-system)
+
+---
+
+## 2026-06-16 23:08 -- Batch started: [design-system-004]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-004 - Toast-Politur — sanfter Abgang, Positionierung & Styleguide-Motion
+**Parallel:** no (1 worker; Wave 2 nach cat-001 — sequenziell wegen geteilter `Tests.fsproj`/Solution-Build)
+
+---
+
+## 2026-06-16 23:05 -- Task verified and completed: cat-001 - Regel-Reorder-UI
+
+**Type:** Work / Task completion
+**Task:** cat-001 - Regel-Präzedenz per Hoch/Runter umsortierbar machen (UI)
+**Summary:** ▲/▼ pro Regel-Zeile ändern die Präzedenz (oben gewinnt zuerst); persistiert die volle Reihenfolge über die bestehende `reorderRules`-API. Reiner Frontend-Task, Backend war fertig.
+**Verification:** PASS (iteration 2) — iteration 1 FAILte auf 2 lokalen View-Defekten (`!min-h-0` killte Mobile-Touch-Target; `text-[11px]` arbitrary font size), iteration 2 behob beide; Suite grün 586 passed / 6 skipped / 0 failed.
+**Commit:** 9112013
+**Files changed:** 7 (Rules Types/State/View, Icons.chevronUp, RulesReorderTests +9, Tests.fsproj, Diary)
+**Tests added:** 9 (`RulesReorderTests` — reorderedIds inkl. Ränder, unbekannte id, Permutation)
+**ADRs written:** none
+
+---
+
+## 2026-06-16 22:55 -- Verification failed: cat-001 - Regel-Reorder-UI
+
+**Type:** Work / Verification failure
+**Task:** cat-001 - Regel-Präzedenz per Hoch/Runter umsortierbar machen (UI)
+**Iteration:** 1 of 3
+**Reasons:** `!min-h-0` überschreibt `Button.Small`-`min-h-[36px]` → Mobile-Touch-Target kollabiert (AC 6 verletzt); `text-[11px]` arbitrary font size verboten (`.claude/rules/design-tokens.md`)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (iteration 2). Rest grün (586 passed; reorderedIds + 9 Tests korrekt).
+
+---
+
+## 2026-06-16 22:15 -- Batch started: [cat-001]
+
+**Type:** Work / Batch start
+**Tasks:** cat-001 - Regel-Präzedenz per Hoch/Runter umsortierbar machen (UI)
+**Parallel:** no (1 worker)
+**Note:** Sequenziell statt parallel mit design-system-004 — beide würden `src/Tests/Tests.fsproj` anfassen und parallele `dotnet build`/`test` racen auf einer Solution. cat-001 zuerst (Frontend-only; Backend `reorderRules`→`updatePriorities` steht).
+
+---
+
+## 2026-06-16 22:10 -- Modeling / Captured: cat-001 + design-system-004 (2 Tasks → todo)
+
+**Type:** Modeling / Capture
+**BC:** categorization (cat-001), design-system (design-system-004)
+**Filed to:** todo (beide — gut abgegrenzt, Gate design-system-001 done+reviewt)
+**Summary:** Zwei Live-Feedback-Punkte von Roman erfasst. (1) **cat-001** — UI zum Umsortieren
+von Regeln (▲/▼) für Präzedenz; zu-eager Regeln sollen *über die Reihenfolge verlieren*.
+Code-Review ergab: das Backend ist **End-to-End fertig** (`reorderRules` → `updatePriorities`,
+Engine sortiert `priority DESC`, „erste passende gewinnt") — es fehlt **nur** das UI (keine
+Reorder-`Msg` in `Components/Rules/`). Reiner Frontend-Task. Drag&Drop bewusst verworfen
+(Roman: Hoch/Runter, mobil-sicher). (2) **design-system-004** — Toast-Politur: sanfter Abgang
+(heute entfernen beide Dismiss-Pfade sofort ohne Exit-Animation → Zwei-Phasen-Removal in
+`State.fs` nötig), Positionierung/Integration, Look/Motion gegen den Styleguide. „Stapeln
+ruckelt" von Roman *nicht* als Problem markiert → out of scope. Beide hängen am Styleguide-Gate
+(design-system-001, done).
+
+---
+
 ## 2026-06-16 -- Bug-Fix abgeschlossen: ynab-004 - Split-Zeile zeigt "Aufgeteilt"
 
 **Type:** Work / Task completion (Bug-Fix aus Live-Feedback)

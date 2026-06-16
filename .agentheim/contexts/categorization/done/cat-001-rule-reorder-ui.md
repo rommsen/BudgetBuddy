@@ -6,7 +6,7 @@ type: feature
 context: categorization
 created: 2026-06-16
 completed: 2026-06-16
-commit:
+commit: 9112013
 depends_on: [design-system-001]
 blocks: []
 tags: [frontend, rules, ui, priority]

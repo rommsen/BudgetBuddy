@@ -13,7 +13,7 @@ research touching this BC, and concept synthesis pages.
 - **Backlog:** 0
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 1
+- **Done:** 2
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **cat-001 · Regel-Präzedenz per Hoch/Runter umsortierbar machen (UI)** — 2026-06-16 — `done/cat-001-rule-reorder-ui.md` (9112013; ▲/▼-Reorder, Backend `reorderRules` war fertig)
 - **Mobile Category Picker: keyboard-aware + ghost-click-frei** — 2026-06-11 — `done/2026-06-11-mobile-category-picker-keyboard-ghostclick.md`
 <!-- done-list:end -->
 
