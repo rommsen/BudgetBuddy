@@ -5,6 +5,21 @@ Newest entries on top.
 
 ---
 
+## 2026-06-16 23:50 -- Bug-Fix verifiziert + abgeschlossen: ynab-003 - Split-Vorzeichen + Rest-Button
+
+**Type:** Work / Task completion (Bug-Fix aus Live-Feedback)
+**Task:** ynab-003 - Split-Editor: Vorzeichen-Fix + editierbare Beträge + Rest-Button
+**Auslöser:** Roman-Feedback (2026-06-16) zum deployten ynab-002: Cashback-Split addierte positive Eingabe gegen negatives Total (−222,15 − 200 → −422,15) statt zu verrechnen; erste Kategoriezeile nicht editierbar.
+**Root Cause:** Ausgabe ist negativ; UI zeigt positives `0,00`-Feld, Nutzer tippt positiv → `splitRemainder` (signiert) bläht die Magnitude auf. Die ynab-002-Tests maskierten den Bug, weil ihre Fixtures *negative* Beträge tippten (= dieselbe falsche Annahme wie der Code).
+**Fix:** Betrags-Modell auf positive Magnituden umgestellt, `sign(Total)` intern angewandt (`draftLineToSplit`); read-only Auto-Rest-Zeile entfernt → alle Beträge editierbar; Rest-Button pro Zeile (`FillSplitRemainder`, `restMagnitudeForLine`). Validierung weiter über shared `mkSplits`/`splitRemainder` (ADR 0006), nicht reimplementiert.
+**Verification:** PASS (iteration 1) — fresh-eyes verifier hat unabhängig gebaut + `dotnet test` (572 passed / 6 skipped / 0 failed); Regression nutzt positive Eingabe gegen negatives Total.
+**Commit:** 14e1f61
+**Files changed:** 5 Code/Test + Diary (Bookkeeping separat)
+**Tests added:** Sign-Application, Cashback-Regression (200 vs −222,15 → −22,15), Rest-Button (inkl. Clamp), Live-Rest; alte negativ-tippenden Cashback-Tests ersetzt.
+**ADRs written:** none (0006 deckt die Invariante; reiner Client-Adaptions-Fix).
+
+---
+
 ## 2026-06-13 23:32 -- Work session ended
 
 **Type:** Work / Session end
