@@ -13,7 +13,7 @@ research touching this BC, and concept synthesis pages.
 - **Backlog:** 0
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 6
+- **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-004 · Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen** — 2026-06-16 — `done/ynab-004-split-row-label.md` (ae7d448)
 - **ynab-003 · Split-Editor: Vorzeichen-Fix + editierbare Beträge + Rest-Button** — 2026-06-16 — `done/ynab-003-split-amount-sign-rest-button.md` (14e1f61)
 - **ynab-002 · Split-Review-UI — Cashback-Shortcut + generischer Editor** — 2026-06-13 — `done/ynab-002-split-review-ui.md` (f2a71ac)
 - **ynab-001 · Split mit Transfer-Zeile — Domain + YNAB-Push (Fundament)** — 2026-06-13 — `done/ynab-001-split-with-transfer-cashback.md`

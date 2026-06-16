@@ -3,16 +3,18 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: Split-Vorzeichen-Bug gefixt (ynab-003, 14e1f61)
+# Nächste Schritte: Split-Zeile zeigt "Aufgeteilt" (ynab-004, ae7d448)
 
-Romans Live-Feedback zum Cashback-Split ist behoben: Beträge werden jetzt als **positive
-Magnituden** getippt, das Vorzeichen der (negativen) Buchung wird intern angewandt — `200`
-gegen −222,15 ergibt korrekt 22,15 statt 422,15. Die read-only „Rest"-Zeile ist weg, **alle
-Beträge editierbar**, und es gibt einen **Rest-Button pro Zeile** (dein Wunsch: Rest nicht
-selbst rechnen). 572 Tests grün, fresh-eyes-verifier PASS. Wird gerade deployt. Wie weiter?
+Dritte Feedback-Runde zum Split umgesetzt: eine aufgeteilte Buchung zeigt in der Liste jetzt
+**„Aufgeteilt"** mit ready-Badge statt dem orangen „Kategorie…"-Platzhalter (577 Tests grün).
+Wird gerade deployt. Dabei ist eine **bewusste Grenze** aufgetaucht, die du kennen solltest:
+**Splits werden nicht persistiert** (`Persistence.fs:677` rekonstruiert `Splits = None`, seit
+ynab-001 aufgeschoben) — der Fix gilt für die laufende In-Memory-Session (Sync→Review→Import),
+ein DB-Reload würde das Label verlieren. Wie weiter?
 
 <options>
-  <option title="ynab-003 am Gerät gegenchecken">Nach dem Deploy denselben Cashback-Fall am Handy nachstellen (222,15-Buchung, 200 bar, Rest-Button auf der Kategorie) und einen generischen 3-Zeilen-Split — die Sheet-/Picker-Mechanik ist laut ADR 0005 nur am echten Gerät voll verifizierbar. Ich kann die App auch headless starten + screenshotten.</option>
-  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Einziger offener Backlog-Task (Drift-Audit): View-Code gegen den Styleguide prüfen (hartkodierte Farben, inline-Feliz statt DS-Komponente) und in Refactor-Tasks splitten. Noch unrefined — braucht eine Modeling-Runde.</option>
-  <option title="Nichts — abwarten">Erstmal im Alltag nutzen und schauen, ob noch etwas am Split (oder anderswo) auffällt; nächste Idee per `capture`/`modeling` einkippen, wenn sie kommt.</option>
+  <option title="ynab-004 am Gerät gegenchecken">Nach dem Deploy: aufgeteilte Buchung in der Liste ansehen — zeigt sie „Aufgeteilt"? Und einen Durchlauf bis zum Import, ob der Split sauber nach YNAB geht. Ich kann auch headless screenshotten.</option>
+  <option title="Splits persistieren (ynab-005) modellieren" cmd='/agentheim:modeling'>Die aufgedeckte Grenze schließen: Splits in SQLite ablegen (Schema + Migration), damit „Aufgeteilt" + die Split-Zeilen einen Reload/Neustart überleben. Nur sinnvoll, wenn dich der Verlust nach Reload im Alltag wirklich trifft — sonst YAGNI.</option>
+  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Der schon länger offene Backlog-Task: Drift-Audit der View-Schichten gegen den Styleguide. Noch unrefined.</option>
+  <option title="Nichts — im Alltag nutzen">Erstmal benutzen; nächste Auffälligkeit/Idee per `capture`/`modeling` einkippen.</option>
 </options>

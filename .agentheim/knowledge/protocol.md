@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-06-16 -- Bug-Fix abgeschlossen: ynab-004 - Split-Zeile zeigt "Aufgeteilt"
+
+**Type:** Work / Task completion (Bug-Fix aus Live-Feedback)
+**Task:** ynab-004 - Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen
+**Auslöser:** Roman-Feedback am Gerät: aufgeteilte REWE-Buchung zeigte weiter den orangen „Kategorie…"-Platzhalter (Split hat `CategoryId = None`, Chip-Logik prüfte nur die Kategorie, nicht `Splits`).
+**Fix:** Client-Display — `getCategoryBadgeClass` + neue testbare `categoryChipLabel` berücksichtigen `tx.Splits` → Label „Aufgeteilt" + `badge-ready` statt `badge-attention`.
+**Verification:** Build grün; `dotnet test` 577 passed / 6 skipped / 0 failed (Regression: Split-Badge ready + categoryChipLabel-Suite). Kleiner, direkt getesteter Display-Fix — kein separater verifier.
+**Commit:** ae7d448
+**Caveat:** Splits nicht persistiert (`Persistence.fs:677`); Fix gilt für die In-Memory-Session (realer Flow). Persistieren = aufgeschobene Folgeaufgabe.
+**ADRs written:** none.
+
+---
+
 ## 2026-06-16 23:50 -- Bug-Fix verifiziert + abgeschlossen: ynab-003 - Split-Vorzeichen + Rest-Button
 
 **Type:** Work / Task completion (Bug-Fix aus Live-Feedback)
