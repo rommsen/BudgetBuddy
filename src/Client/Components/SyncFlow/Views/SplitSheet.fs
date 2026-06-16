@@ -31,7 +31,7 @@ let private isTransfer (line: SplitDraftLine) : bool =
 /// One editable split line: target picker buttons, amount, remove.
 /// `autoAmount` is the live remainder shown (read-only) for an auto-remainder
 /// ("Rest") line — the cashback category line the user does not type into.
-let private splitLineRow (index: int) (line: SplitDraftLine) (autoAmount: decimal) (currency: string) (dispatch: Msg -> unit) =
+let private splitLineRow (index: int) (line: SplitDraftLine) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "split-line"
         prop.key (string index)
@@ -58,30 +58,27 @@ let private splitLineRow (index: int) (line: SplitDraftLine) (autoAmount: decima
                     ]
                 ]
             ]
-            // Amount + remove. Auto-remainder lines show the computed "Rest"
-            // read-only (the user only types the other lines' amounts, AC 2).
+            // Amount (positive magnitude, editable) + a per-line "Rest" button
+            // that fills the leftover so the split balances (ynab-003) + remove.
             Html.div [
                 prop.className "split-amount-row"
                 prop.children [
-                    if line.AutoRemainder then
-                        Html.div [
-                            prop.className "split-auto-amount"
-                            prop.title "Rest — ergibt sich aus den übrigen Zeilen"
-                            prop.children [
-                                Html.span [ prop.className "split-auto-tag"; prop.text "Rest" ]
-                                Money.simple autoAmount currency
-                            ]
-                        ]
-                    else
-                        Html.input [
-                            prop.className "qa-input split-amount-input"
-                            prop.type' "text"
-                            prop.custom ("inputMode", "decimal")
-                            prop.placeholder "0,00"
-                            prop.value line.AmountText
-                            prop.onChange (fun (v: string) -> dispatch (UpdateSplitAmountText (index, v)))
-                        ]
-                        Html.span [ prop.className "split-currency"; prop.text "€" ]
+                    Html.input [
+                        prop.className "qa-input split-amount-input"
+                        prop.type' "text"
+                        prop.custom ("inputMode", "decimal")
+                        prop.placeholder "0,00"
+                        prop.value line.AmountText
+                        prop.onChange (fun (v: string) -> dispatch (UpdateSplitAmountText (index, v)))
+                    ]
+                    Html.span [ prop.className "split-currency"; prop.text "€" ]
+                    Html.button [
+                        prop.className "split-rest-btn"
+                        prop.title "Restbetrag einsetzen"
+                        prop.ariaLabel "Restbetrag einsetzen"
+                        prop.onClick (fun _ -> dispatch (FillSplitRemainder index))
+                        prop.text "Rest"
+                    ]
                     Html.button [
                         prop.className "split-remove-btn"
                         prop.ariaLabel "Zeile entfernen"
@@ -113,9 +110,6 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
         let remainder = splitEditRemainder state
         let balanced = remainder = 0m
         let saveEnabled = canSaveSplits state
-        // The amount an auto-remainder ("Rest") line displays.
-        let autoAmount = autoRemainderAmount state
-        let hasAutoLine = state.Lines |> List.exists (fun l -> l.AutoRemainder)
 
         let categoryOptions =
             model.Categories
@@ -183,7 +177,7 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
                             prop.className "split-lines"
                             prop.children [
                                 for i, line in state.Lines |> List.indexed do
-                                    splitLineRow i line autoAmount state.Currency dispatch
+                                    splitLineRow i line dispatch
                             ]
                         ]
 
@@ -194,20 +188,18 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
                             prop.text "+ Zeile hinzufügen"
                         ]
 
-                        // Live remainder preview (delegates to splitRemainder).
-                        // With an auto-"Rest" line the split always balances, so
-                        // the banner is only meaningful for the generic editor.
-                        if not hasAutoLine then
-                            Html.div [
-                                prop.className (if balanced then "split-remainder balanced" else "split-remainder")
-                                prop.children [
-                                    Html.span [
-                                        prop.className "split-remainder-label"
-                                        prop.text (if balanced then "Stimmt" else "Rest")
-                                    ]
-                                    Money.simple remainder state.Currency
+                        // Live remainder preview: the still-unallocated magnitude
+                        // (0 = balanced). Tap a line's "Rest" button to fill it.
+                        Html.div [
+                            prop.className (if balanced then "split-remainder balanced" else "split-remainder")
+                            prop.children [
+                                Html.span [
+                                    prop.className "split-remainder-label"
+                                    prop.text (if balanced then "Stimmt" else "Rest")
                                 ]
+                                Money.simple remainder state.Currency
                             ]
+                        ]
                 ]
 
             // Layered category picker (over the split form, one level deep)

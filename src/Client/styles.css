@@ -2481,25 +2481,20 @@ nav a:focus-visible {
 .split-amount-row { display: flex; gap: 8px; align-items: center; }
 .split-amount-input { flex: 1; min-width: 0; text-align: right; }
 .split-currency { color: var(--sf-text-muted); font-size: 15px; }
-.split-auto-amount {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
+.split-rest-btn {
+  flex-shrink: 0;
+  padding: 0 12px;
+  height: 38px;
   border-radius: var(--sf-radius-md);
-  background: var(--sf-bg-hover);
-  border: 1px dashed var(--sf-border);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  color: var(--color-neon-teal);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-.split-auto-tag {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sf-text-muted);
-}
+.split-rest-btn:active { background: var(--sf-bg-hover); border-color: var(--color-neon-teal); }
 .split-remove-btn {
   flex-shrink: 0;
   width: 38px;

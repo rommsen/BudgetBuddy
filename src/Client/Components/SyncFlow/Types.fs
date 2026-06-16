@@ -5,21 +5,18 @@ open Shared.Api
 open Types
 
 /// A single editable split line in the split sheet. The amount is held as text so
-/// the user can type partial input; the target is a category or a transfer account
-/// (XOR, mirroring `SplitTarget`). Empty `Target` = a line whose target is not yet
-/// chosen (the picker has not committed yet).
+/// the user can type partial input as a POSITIVE magnitude; the editor applies the
+/// transaction's sign when building the domain split (ynab-003). The target is a
+/// category or a transfer account (XOR, mirroring `SplitTarget`). Empty `Target` =
+/// a line whose target is not yet chosen (the picker has not committed yet).
 type SplitDraftLine = {
     /// The chosen target, if any. `None` until the user picks a category/account.
     Target: SplitTarget option
-    /// Raw amount input (German comma or dot), parsed leniently via `parseSplitAmount`.
+    /// Raw amount input as a positive magnitude (German comma or dot), parsed
+    /// leniently via `parseSplitAmount`. The sign is applied from the total.
     AmountText: string
     /// Optional per-line memo.
     Memo: string
-    /// When true, this line's amount is NOT user-entered but always equals the
-    /// live remainder of the other lines (the "Rest" line). This is what makes
-    /// the cashback shortcut work: the user types only the transfer amount, and
-    /// the category line auto-absorbs the rest (AC 2, ynab-002).
-    AutoRemainder: bool
 }
 
 /// Which picker (if any) is layered over the split form sheet, and for which line.
@@ -148,13 +145,13 @@ let buildQuickAddRequest (form: QuickAddFormState) : Result<ManualTransactionReq
 // form state to those domain functions so the UI can show a live remainder and
 // gate the Save button (ADR 0006).
 
-/// Formats a signed decimal for prefilling an amount text field. Uses an
-/// invariant "0.00" shape (dot decimal); the lenient `parseSplitAmount` accepts
-/// it back. Negative amounts keep their sign so an outflow line round-trips.
+/// Formats a decimal for prefilling an amount text field as a POSITIVE magnitude
+/// (invariant "0.00" shape, dot decimal). The sign is applied from the total when
+/// the split is built (`draftLineToSplit`), so the field only ever shows a
+/// magnitude — matching what the user types (ynab-003).
 let formatAmountForEdit (amount: decimal) : string =
     if amount = 0m then ""
     else (abs amount).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
-         |> fun s -> if amount < 0m then "-" + s else s
 
 /// Parses a split-line amount, accepting German comma decimals ("17,50") and
 /// "17.50", with an optional leading minus for outflow lines. Empty/blank input
@@ -169,46 +166,54 @@ let parseSplitAmount (text: string) : decimal option =
         else
             parseAmountInput trimmed
 
-/// Converts a draft line to a domain `TransactionSplit`. For an auto-remainder
-/// line, `amountOverride` carries the computed remainder. Returns `None` for an
-/// incomplete line (no target / unparseable user amount).
-let draftLineToSplitWith (currency: string) (amountOverride: decimal option) (line: SplitDraftLine) : TransactionSplit option =
-    let amount =
-        if line.AutoRemainder then amountOverride
-        else parseSplitAmount line.AmountText
-    match line.Target, amount with
+/// The positive magnitude a draft line contributes, regardless of target. Blank
+/// or malformed input contributes 0. Used for the live remainder preview and the
+/// per-line "Rest" button (presentation), not for the saveable invariant.
+let lineMagnitude (line: SplitDraftLine) : decimal =
+    parseSplitAmount line.AmountText |> Option.map abs |> Option.defaultValue 0m
+
+/// The sign every split line moves money in — matched to the transaction total
+/// (negative for an outflow). The user types positive magnitudes; this applies
+/// the direction so the signed sum can equal the (often negative) total. Sign is
+/// uniform across lines; mixed-sign splits are out of scope (ynab-003).
+let private totalSign (total: Money) : decimal =
+    if total.Amount < 0m then -1m else 1m
+
+/// Converts a draft line to a domain `TransactionSplit`, applying the total's
+/// sign to the user's positive magnitude. Returns `None` for an incomplete line
+/// (no target / unparseable amount).
+let draftLineToSplit (total: Money) (line: SplitDraftLine) : TransactionSplit option =
+    match line.Target, parseSplitAmount line.AmountText with
     | Some target, Some a ->
         Some {
             Target = target
-            Amount = { Amount = a; Currency = currency }
+            Amount = { Amount = (totalSign total) * abs a; Currency = total.Currency }
             Memo = if System.String.IsNullOrWhiteSpace line.Memo then None else Some (line.Memo.Trim())
         }
     | _ -> None
 
-/// The remainder that an auto ("Rest") line absorbs: total minus the sum of all
-/// the user-entered (non-auto, targeted) lines. Delegates to the shared
-/// `splitRemainder` (ADR 0006). When there is no auto line this is also the live
-/// "still unallocated" amount surfaced to the user.
-let autoRemainderAmount (state: SplitEditState) : decimal =
-    let userLines =
-        state.Lines
-        |> List.filter (fun l -> not l.AutoRemainder)
-        |> List.choose (draftLineToSplitWith state.Currency None)
-    splitRemainder state.Total userLines
-
 /// The committed splits derivable from the current draft lines (those with a
-/// chosen target). The auto-remainder line, if present, takes the remainder of
-/// the user-entered lines so the user only types the transfer amount (AC 2).
+/// chosen target), each carrying the total's sign applied to its magnitude.
 let committedSplits (state: SplitEditState) : TransactionSplit list =
-    let auto = autoRemainderAmount state
-    state.Lines |> List.choose (draftLineToSplitWith state.Currency (Some auto))
+    state.Lines |> List.choose (draftLineToSplit state.Total)
 
-/// The amount still unallocated: total − Σ committed lines. Delegates to the
-/// shared `splitRemainder` so the client never reimplements the sum (ADR 0006).
-/// With an auto-remainder line present this is 0 once that line has a target
-/// (the line absorbs the rest); otherwise it is the live unallocated amount.
+/// The amount still unallocated, as a POSITIVE magnitude: |Total| − Σ entered
+/// magnitudes across ALL lines (targeted or not). Positive = still to allocate,
+/// 0 = balanced, negative = over-allocated. This is a presentation helper for the
+/// remainder banner; the saveable invariant itself stays in `mkSplits`
+/// (`validateSplitEdit`) and is never reimplemented (ADR 0006).
 let splitEditRemainder (state: SplitEditState) : decimal =
-    splitRemainder state.Total (committedSplits state)
+    (abs state.Total.Amount) - (state.Lines |> List.sumBy lineMagnitude)
+
+/// The positive magnitude to place on line `index` so the split balances:
+/// |Total| − Σ(other lines' magnitudes), clamped at 0 (never suggests a negative
+/// amount). Backs the per-line "Rest" button (ynab-003).
+let restMagnitudeForLine (index: int) (state: SplitEditState) : decimal =
+    let others =
+        state.Lines
+        |> List.indexed
+        |> List.sumBy (fun (i, l) -> if i = index then 0m else lineMagnitude l)
+    max 0m ((abs state.Total.Amount) - others)
 
 /// Validates the current draft via the shared `mkSplits` smart-constructor.
 /// Returns the validated splits on success, or the `SplitError` explaining why
@@ -296,6 +301,9 @@ type Msg =
     /// Append an empty draft line to the editor.
     | AddSplitLine
     | RemoveSplit of int  // index
+    /// Fill the draft line at index with the remaining amount so the split
+    /// balances (the per-line "Rest" button, ynab-003).
+    | FillSplitRemainder of int
     /// Update the raw amount text of the draft line at index.
     | UpdateSplitAmountText of int * string
     | UpdateSplitMemo of int * string option  // index, memo

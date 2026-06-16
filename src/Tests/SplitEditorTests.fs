@@ -1,11 +1,13 @@
 module Tests.SplitEditorTests
 
-// Pure-logic tests for the split-review editor (ynab-002).
-// These exercise the client's split form helpers WITHOUT touching the
-// Fable.Remoting proxy, so they run under .NET via Expecto. All arithmetic and
-// validation delegates to the shared ynab-001 domain helpers (splitRemainder /
-// mkSplits) — these tests pin the form-state adaptation, not a reimplemented
-// invariant (ADR 0006).
+// Pure-logic tests for the split-review editor (ynab-002 / ynab-003).
+// CONVENTION: the user types POSITIVE magnitudes; the editor applies the
+// transaction's sign (Total is negative for an outflow) when building the
+// domain `TransactionSplit`s. All validation delegates to the shared ynab-001
+// helpers (mkSplits / splitRemainder) — the invariant is never reimplemented
+// here (ADR 0006). These fixtures deliberately use POSITIVE input text against
+// a NEGATIVE total, mirroring real usage (the ynab-002 fixtures wrongly typed
+// negative text and so masked the sign bug — ynab-003).
 
 open System
 open Expecto
@@ -20,18 +22,13 @@ let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" 
 let private catId () = YnabCategoryId (Guid.NewGuid())
 let private accId () = YnabAccountId (Guid.NewGuid())
 
-/// A draft line with a category target and the given amount text.
+/// A draft line with a category target and the given (positive) amount text.
 let private categoryLine (name: string) (amountText: string) : SplitDraftLine =
-    { Target = Some (ToCategory (catId (), name)); AmountText = amountText; Memo = ""; AutoRemainder = false }
+    { Target = Some (ToCategory (catId (), name)); AmountText = amountText; Memo = "" }
 
-/// A draft line with a transfer-account target and the given amount text.
+/// A draft line with a transfer-account target and the given (positive) amount text.
 let private transferLine (name: string) (amountText: string) : SplitDraftLine =
-    { Target = Some (ToTransfer (accId (), name)); AmountText = amountText; Memo = ""; AutoRemainder = false }
-
-/// An auto-remainder ("Rest") category line — its amount is the live remainder
-/// of the other lines (the cashback category line).
-let private autoCategoryLine (name: string) : SplitDraftLine =
-    { Target = Some (ToCategory (catId (), name)); AmountText = ""; Memo = ""; AutoRemainder = true }
+    { Target = Some (ToTransfer (accId (), name)); AmountText = amountText; Memo = "" }
 
 let private mkState (total: decimal) (lines: SplitDraftLine list) : SplitEditState =
     { TransactionId = TransactionId "tx-1"
@@ -57,112 +54,137 @@ let parseSplitAmountTests =
         testCase "accepts dot decimals" <| fun () ->
             Expect.equal (parseSplitAmount "17.50") (Some 17.50m) "Dot decimal"
 
-        testCase "accepts a leading minus for outflow lines" <| fun () ->
-            Expect.equal (parseSplitAmount "-200,00") (Some -200.00m) "Negative comma decimal"
-
         testCase "rejects malformed input" <| fun () ->
             Expect.equal (parseSplitAmount "abc") None "Letters are malformed"
     ]
 
 // ============================================
-// Cashback auto-remainder line (AC 2): user types only the transfer amount,
-// the category line absorbs the rest live → split balances automatically.
+// Sign application (ynab-003): the user types a positive magnitude; the
+// committed split adopts the TOTAL's sign so the signed sum can match.
 // ============================================
 
 [<Tests>]
-let cashbackAutoRemainderTests =
-    testList "cashback auto-remainder line" [
-        testCase "category auto-line absorbs the rest when only the transfer is entered" <| fun () ->
-            // €217 total; user enters the €200 cash withdrawal on the transfer
-            // line; the category 'Rest' line should commit at €17 (the purchase).
-            let state =
-                mkState -217.00m
-                    [ autoCategoryLine "Groceries"
-                      transferLine "Bargeld" "-200,00" ]
-            let splits = committedSplits state
-            Expect.equal splits.Length 2 "Both lines commit"
-            let categorySplit = splits |> List.find (fun s -> match s.Target with ToCategory _ -> true | _ -> false)
-            Expect.equal categorySplit.Amount.Amount -17.00m "Category auto-line absorbs the remainder (-17)"
+let signApplicationTests =
+    testList "draftLineToSplit sign application" [
+        testCase "positive input adopts the negative total's sign (outflow)" <| fun () ->
+            // The reported bug: typing 200 against a -222,15 total. The committed
+            // amount MUST be -200 — typing positive previously made magnitudes ADD.
+            let state = mkState -222.15m [ transferLine "Bargeld" "200" ]
+            let split = committedSplits state |> List.exactlyOne
+            Expect.equal split.Amount.Amount -200.00m "Positive input becomes a signed outflow"
 
-        testCase "auto-remainder split balances → remainder is zero, Save unlocked" <| fun () ->
-            let state =
-                mkState -217.00m
-                    [ autoCategoryLine "Groceries"
-                      transferLine "Bargeld" "-200,00" ]
-            Expect.equal (splitEditRemainder state) 0.00m "Auto line drives the remainder to zero"
-            Expect.isTrue (canSaveSplits state) "A balanced cashback split must unlock Save"
-
-        testCase "changing only the transfer amount re-balances the category live" <| fun () ->
-            let state =
-                mkState -217.00m
-                    [ autoCategoryLine "Groceries"
-                      transferLine "Bargeld" "-150,00" ]
-            let categorySplit =
-                committedSplits state
-                |> List.find (fun s -> match s.Target with ToCategory _ -> true | _ -> false)
-            Expect.equal categorySplit.Amount.Amount -67.00m "Category re-absorbs the new remainder (-67)"
-            Expect.isTrue (canSaveSplits state) "Still balanced after the transfer change"
+        testCase "positive input stays positive for an inflow total" <| fun () ->
+            let state = mkState 222.15m [ categoryLine "Erstattung" "200" ]
+            let split = committedSplits state |> List.exactlyOne
+            Expect.equal split.Amount.Amount 200.00m "Positive total keeps lines positive"
     ]
 
 // ============================================
-// Live remainder preview (AC 3) — delegates to splitRemainder
+// Regression for the reported cashback bug (Roman, 2026-06-16): 222,15 total,
+// 200 cash. Used to read 422,15 (magnitudes added). Must verrechnen to 22,15.
+// ============================================
+
+[<Tests>]
+let cashbackSignRegressionTests =
+    testList "cashback split with positive input (ynab-003 regression)" [
+        testCase "222,15 total: 200 cash + 22,15 category balances (not 422,15)" <| fun () ->
+            let state =
+                mkState -222.15m
+                    [ categoryLine "Essen" "22,15"
+                      transferLine "Bargeld" "200" ]
+            Expect.equal (splitEditRemainder state) 0.00m "Magnitudes verrechnen to zero"
+            Expect.isTrue (canSaveSplits state) "Balanced split unlocks Save"
+            match validateSplitEdit state with
+            | Ok splits ->
+                let cat = splits |> List.find (fun s -> match s.Target with ToCategory _ -> true | _ -> false)
+                let tr  = splits |> List.find (fun s -> match s.Target with ToTransfer _ -> true | _ -> false)
+                Expect.equal cat.Amount.Amount -22.15m "Category committed as a signed outflow"
+                Expect.equal tr.Amount.Amount -200.00m "Transfer committed as a signed outflow"
+            | other -> failtest $"Expected Ok, got %A{other}"
+
+        testCase "before allocating the category, 200 cash leaves 22,15 unallocated" <| fun () ->
+            let state = mkState -222.15m [ categoryLine "Essen" ""; transferLine "Bargeld" "200" ]
+            Expect.equal (splitEditRemainder state) 22.15m "Unallocated remainder is the leftover magnitude"
+            Expect.isFalse (canSaveSplits state) "Unbalanced split keeps Save locked"
+    ]
+
+// ============================================
+// Per-line "Rest" button (ynab-003): fills a line with the leftover magnitude.
+// ============================================
+
+[<Tests>]
+let restButtonTests =
+    testList "restMagnitudeForLine (per-line Rest button)" [
+        testCase "fills the category with the leftover after the cash line" <| fun () ->
+            let state = mkState -222.15m [ categoryLine "Essen" ""; transferLine "Bargeld" "200" ]
+            Expect.equal (restMagnitudeForLine 0 state) 22.15m "Rest(category) = |total| - cash"
+
+        testCase "fills the cash line with the leftover after the category" <| fun () ->
+            let state = mkState -222.15m [ categoryLine "Essen" "22,15"; transferLine "Bargeld" "" ]
+            Expect.equal (restMagnitudeForLine 1 state) 200.00m "Rest(transfer) = |total| - category"
+
+        testCase "rest is clamped at zero when other lines already over-allocate" <| fun () ->
+            let state = mkState -100.00m [ categoryLine "A" "120"; categoryLine "B" "" ]
+            Expect.equal (restMagnitudeForLine 1 state) 0.00m "Never suggests a negative rest"
+
+        testCase "applying the rest balances the split and unlocks Save" <| fun () ->
+            let state = mkState -222.15m [ categoryLine "Essen" ""; transferLine "Bargeld" "200" ]
+            let filled = formatAmountForEdit (restMagnitudeForLine 0 state)
+            let balanced = mkState -222.15m [ categoryLine "Essen" filled; transferLine "Bargeld" "200" ]
+            Expect.equal (splitEditRemainder balanced) 0.00m "Filling the rest zeroes the remainder"
+            Expect.isTrue (canSaveSplits balanced) "And unlocks Save"
+    ]
+
+// ============================================
+// Live remainder preview (AC) — positive magnitude, 0 when balanced.
 // ============================================
 
 [<Tests>]
 let splitEditRemainderTests =
-    testList "splitEditRemainder (live preview)" [
-        testCase "cashback shape: €17 category entered against €217 total leaves €200" <| fun () ->
-            // Only the category line is filled; the transfer line is still blank,
-            // so the live remainder shows the cash withdrawal yet to be allocated.
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; transferLine "Bargeld" "" ]
-            Expect.equal (splitEditRemainder state) -200.00m
-                "Remainder should be the unentered transfer amount (-200)"
+    testList "splitEditRemainder (live magnitude preview)" [
+        testCase "empty lines leave the full total magnitude" <| fun () ->
+            let state = mkState -217.00m [ categoryLine "Groceries" ""; transferLine "Bargeld" "" ]
+            Expect.equal (splitEditRemainder state) 217.00m "Nothing entered → full total"
 
         testCase "fully balanced split leaves a zero remainder" <| fun () ->
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; transferLine "Bargeld" "-200,00" ]
-            Expect.equal (splitEditRemainder state) 0.00m "Balanced split leaves 0"
+            let state = mkState -217.00m [ categoryLine "Groceries" "17"; transferLine "Bargeld" "200" ]
+            Expect.equal (splitEditRemainder state) 0.00m "17 + 200 = 217"
 
-        testCase "remainder equals the whole total when nothing is entered" <| fun () ->
-            let state = mkState -217.00m [ categoryLine "Groceries" ""; transferLine "Bargeld" "" ]
-            Expect.equal (splitEditRemainder state) -217.00m "Empty lines leave the full total"
-
-        testCase "over-allocation yields a remainder of opposite sign" <| fun () ->
-            let state = mkState -100.00m [ categoryLine "A" "-60,00"; categoryLine "B" "-60,00" ]
-            Expect.equal (splitEditRemainder state) 20.00m "Over-allocation flips the remainder sign"
+        testCase "over-allocation yields a negative remainder" <| fun () ->
+            let state = mkState -100.00m [ categoryLine "A" "60"; categoryLine "B" "60" ]
+            Expect.equal (splitEditRemainder state) -20.00m "120 against 100 → -20"
     ]
 
 // ============================================
-// Save-locked-on-mismatch (AC 3) — delegates to mkSplits
+// Save-locked-on-mismatch — delegates to mkSplits (positive input model).
 // ============================================
 
 [<Tests>]
 let canSaveSplitsTests =
     testList "canSaveSplits (Save gating)" [
         testCase "Save is LOCKED while the sum does not match the total" <| fun () ->
-            // €17 + €0 against €217 → mismatch → Save disabled.
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; transferLine "Bargeld" "" ]
+            let state = mkState -217.00m [ categoryLine "Groceries" "17"; transferLine "Bargeld" "" ]
             Expect.isFalse (canSaveSplits state) "Mismatched sum must lock Save"
 
         testCase "Save is UNLOCKED once the sum matches the total" <| fun () ->
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; transferLine "Bargeld" "-200,00" ]
+            let state = mkState -217.00m [ categoryLine "Groceries" "17"; transferLine "Bargeld" "200" ]
             Expect.isTrue (canSaveSplits state) "Balanced split must unlock Save"
 
         testCase "Save is LOCKED with fewer than two lines" <| fun () ->
-            let state = mkState -200.00m [ transferLine "Bargeld" "-200,00" ]
+            let state = mkState -200.00m [ transferLine "Bargeld" "200" ]
             Expect.isFalse (canSaveSplits state) "A single line is not a split"
 
         testCase "Save is LOCKED while a line has no chosen target" <| fun () ->
-            // Amounts balance, but one line still lacks a category/account → not saveable.
-            let untargeted = { Target = None; AmountText = "-200,00"; Memo = ""; AutoRemainder = false }
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; untargeted ]
+            let untargeted = { Target = None; AmountText = "200"; Memo = "" }
+            let state = mkState -217.00m [ categoryLine "Groceries" "17"; untargeted ]
             Expect.isFalse (canSaveSplits state) "An untargeted line must lock Save"
 
         testCase "Save is UNLOCKED for a valid three-line split" <| fun () ->
             let state =
                 mkState -100.00m
-                    [ categoryLine "A" "-30,00"
-                      categoryLine "B" "-20,00"
-                      transferLine "Bargeld" "-50,00" ]
+                    [ categoryLine "A" "30"
+                      categoryLine "B" "20"
+                      transferLine "Bargeld" "50" ]
             Expect.isTrue (canSaveSplits state) "Balanced N-line split unlocks Save"
     ]
 
@@ -174,30 +196,30 @@ let canSaveSplitsTests =
 let validateSplitEditTests =
     testList "validateSplitEdit" [
         testCase "reports SumMismatch when lines do not add up" <| fun () ->
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; transferLine "Bargeld" "-100,00" ]
+            let state = mkState -217.00m [ categoryLine "Groceries" "17"; transferLine "Bargeld" "100" ]
             match validateSplitEdit state with
             | Error (SumMismatch (expected, actual)) ->
                 Expect.equal expected -217.00m "Expected is the total"
-                Expect.equal actual -117.00m "Actual is the line sum"
+                Expect.equal actual -117.00m "Actual is the signed line sum"
             | other -> failtest $"Expected SumMismatch, got %A{other}"
 
         testCase "returns the validated splits on a balanced split" <| fun () ->
-            let state = mkState -217.00m [ categoryLine "Groceries" "-17,00"; transferLine "Bargeld" "-200,00" ]
+            let state = mkState -217.00m [ categoryLine "Groceries" "17"; transferLine "Bargeld" "200" ]
             match validateSplitEdit state with
             | Ok splits -> Expect.equal splits.Length 2 "Two validated lines"
             | other -> failtest $"Expected Ok, got %A{other}"
     ]
 
 // ============================================
-// formatAmountForEdit round-trips through parseSplitAmount
+// formatAmountForEdit emits a positive magnitude (the user-facing convention)
 // ============================================
 
 [<Tests>]
 let formatAmountForEditTests =
     testList "formatAmountForEdit" [
-        testCase "negative amount round-trips through parseSplitAmount" <| fun () ->
-            let text = formatAmountForEdit -200.00m
-            Expect.equal (parseSplitAmount text) (Some -200.00m) "Round-trip negative"
+        testCase "emits a positive magnitude even for a signed amount" <| fun () ->
+            Expect.equal (formatAmountForEdit -200.00m) "200.00" "Sign dropped for display"
+            Expect.equal (parseSplitAmount (formatAmountForEdit -200.00m)) (Some 200.00m) "Round-trips as a magnitude"
 
         testCase "zero formats as empty string" <| fun () ->
             Expect.equal (formatAmountForEdit 0m) "" "Zero is empty"

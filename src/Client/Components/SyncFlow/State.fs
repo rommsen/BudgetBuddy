@@ -502,11 +502,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                         |> List.map (fun s ->
                             { Target = Some s.Target
                               AmountText = formatAmountForEdit s.Amount.Amount
-                              Memo = s.Memo |> Option.defaultValue ""
-                              AutoRemainder = false })
+                              Memo = s.Memo |> Option.defaultValue "" })
                     | _ ->
-                        [ { Target = None; AmountText = ""; Memo = ""; AutoRemainder = false }
-                          { Target = None; AmountText = ""; Memo = ""; AutoRemainder = false } ]
+                        [ { Target = None; AmountText = ""; Memo = "" }
+                          { Target = None; AmountText = ""; Memo = "" } ]
                 let splitEdit = {
                     TransactionId = txId
                     Total = tx.Transaction.Amount
@@ -546,13 +545,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                         openOnBudgetAccounts model.Accounts
                         |> List.tryFind (fun a -> a.Id = aid))
                     |> Option.map (fun a -> ToTransfer (a.Id, a.Name))
-                // Cashback shape: the user enters ONLY the transfer (withdrawal)
-                // amount; the category line auto-absorbs the rest (AC 2). So the
-                // category line is the auto-remainder line, the transfer is the
-                // user-entered line.
+                // Cashback shape: pre-select the category + the cash transfer
+                // target; both amounts are editable. The user types the cash
+                // withdrawal amount and taps "Rest" on the category (or vice
+                // versa) to balance the split — no magic read-only line (ynab-003).
                 let lines =
-                    [ { Target = categoryTarget; AmountText = ""; Memo = ""; AutoRemainder = true }
-                      { Target = transferTarget; AmountText = ""; Memo = ""; AutoRemainder = false } ]
+                    [ { Target = categoryTarget; AmountText = ""; Memo = "" }
+                      { Target = transferTarget; AmountText = ""; Memo = "" } ]
                 let splitEdit = {
                     TransactionId = txId
                     Total = total
@@ -570,9 +569,22 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | AddSplitLine ->
         match model.SplitEdit with
         | Some splitEdit ->
-            let updated = { splitEdit with Lines = splitEdit.Lines @ [ { Target = None; AmountText = ""; Memo = ""; AutoRemainder = false } ] }
+            let updated = { splitEdit with Lines = splitEdit.Lines @ [ { Target = None; AmountText = ""; Memo = "" } ] }
             { model with SplitEdit = Some updated }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
+
+    | FillSplitRemainder index ->
+        match model.SplitEdit with
+        | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
+            // Set this line to the leftover magnitude so the split balances; the
+            // sign is applied at commit time (ynab-003). Delegates the arithmetic
+            // to restMagnitudeForLine (built on the shared splitRemainder).
+            let rest = restMagnitudeForLine index splitEdit
+            let newLines =
+                splitEdit.Lines
+                |> List.mapi (fun i l -> if i = index then { l with AmountText = formatAmountForEdit rest } else l)
+            { model with SplitEdit = Some { splitEdit with Lines = newLines } }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
 
     | RemoveSplit index ->
         match model.SplitEdit with

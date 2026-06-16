@@ -4,6 +4,49 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-16 - Split-Editor: Vorzeichen-Bug-Fix + editierbare Beträge + Rest-Button (ynab-003)
+
+**What I did:**
+Roman-Feedback aus dem Live-Betrieb behoben: Im Cashback-Split zeigte die Kategoriezeile den
+vollen (negativen) Gesamtbetrag, und das Eintippen von `200` im Bar-Feld **addierte** auf
+422,15 statt auf 22,15 zu verrechnen — und die Zeile war nicht editierbar. **Root Cause:** eine
+Ausgabe wird **negativ** geführt (Total −222,15), `splitRemainder` rechnet signiert; die UI
+zeigt aber ein positives `0,00`-Feld, der Nutzer tippt `200` (positiv) → `−222,15 − (+200) =
+−422,15`. Die ynab-002-Tests fingen das nicht, weil ihre Fixtures *negative* Beträge tippten —
+sie kodierten dieselbe falsche Annahme wie der Code.
+
+Umbau des Betrags-Modells (rein clientseitig): **positive Magnituden**, das Vorzeichen der
+Transaktion wird intern beim Bauen der `TransactionSplit`s angewandt (`draftLineToSplit` =
+`sign(Total) · |Eingabe|`). Die „magische" read-only `AutoRemainder`-Zeile entfällt — **alle
+Beträge editierbar**. Neu: **Rest-Button pro Zeile** (`FillSplitRemainder`), füllt
+`|Total| − Σ(übrige)` (≥ 0). Validierung/Push bleiben über die geteilten `mkSplits`/
+`splitRemainder` (ADR 0006) — Invariante nicht clientseitig reimplementiert.
+
+**Files Changed:**
+- `src/Client/Components/SyncFlow/Types.fs` — `SplitDraftLine.AutoRemainder` entfernt;
+  `draftLineToSplit` (Vorzeichen aus Total), `lineMagnitude`, `restMagnitudeForLine`,
+  `splitEditRemainder` (positive Magnitude); `formatAmountForEdit` ohne Vorzeichen; Msg
+  `FillSplitRemainder of int`.
+- `src/Client/Components/SyncFlow/State.fs` — `StartCashbackSplit`/`StartSplitEdit`/
+  `AddSplitLine` ohne `AutoRemainder`; neuer `FillSplitRemainder`-Handler.
+- `src/Client/Components/SyncFlow/Views/SplitSheet.fs` — jede Zeile editierbares Feld +
+  Rest-Button; Rest-Banner immer sichtbar.
+- `src/Client/styles.css` — `.split-rest-btn` (ersetzt unbenutzte `.split-auto-*`).
+- `src/Tests/SplitEditorTests.fs` — Fixtures auf positive Eingabe; Regression (200 vs −222,15
+  → −22,15), Sign-Application-, Rest-Button-Tests.
+
+**Rationale:**
+Vorzeichen-Vertrag gehört unter die UI (Nutzer tippt Magnituden), nicht in die Hände des
+Nutzers (Minuszeichen tippen). Der Rest-Button ist das robustere Muster gegenüber der
+fragilen Auto-Rest-Zeile und erfüllt zugleich Romans Wunsch (Rest nicht selbst rechnen).
+
+**Verification:**
+- Build: PASSED (0 Fehler, 1 vorbestehende Sqlite-Warnung)
+- Tests: 572 passed, 6 skipped (.env-Integration), 0 failed
+- Fresh-eyes verifier (agentheim): PASS (iteration 1)
+
+---
+
 ## 2026-06-13 - Split-Review-UI: Cashback-Shortcut + generischer Editor (ynab-002)
 
 **What I did:**
