@@ -73,13 +73,50 @@ let private patternTypeIcon (patternType: PatternType) =
 // Single-Line Rule Row (Compact Display)
 // ============================================
 
-let private ruleRow (model: Model) (rule: Rule) (dispatch: Msg -> unit) =
+let private ruleRow (model: Model) (index: int) (total: int) (rule: Rule) (dispatch: Msg -> unit) =
     let opacityClass = if not rule.Enabled then "opacity-50" else ""
     let isConfirmingDelete = model.ConfirmingDeleteRuleId = Some rule.Id
+    let isFirst = index = 0
+    let isLast = index = total - 1
 
     Html.div [
         prop.className $"rule-row group flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-surface-card border border-border-subtle rounded-lg hover:border-border-default transition-colors {opacityClass}"
         prop.children [
+            // Precedence controls: ▲/▼ to change priority + visible rank index.
+            // Top of the list = highest priority = the first matching rule wins.
+            Html.div [
+                prop.className "flex-shrink-0 flex flex-col items-center -my-0.5"
+                prop.children [
+                    Button.view {
+                        Button.defaultProps with
+                            OnClick = fun () -> dispatch (MoveRule (rule.Id, Up))
+                            Variant = Button.Ghost
+                            Size = Button.Small
+                            Icon = Some (Icons.chevronUp XS Icons.Default)
+                            IsDisabled = isFirst
+                            ClassName = Some "!px-1.5 !py-1"
+                            Title = Some "Priorität erhöhen"
+                    }
+                    Button.view {
+                        Button.defaultProps with
+                            OnClick = fun () -> dispatch (MoveRule (rule.Id, Down))
+                            Variant = Button.Ghost
+                            Size = Button.Small
+                            Icon = Some (Icons.chevronDown XS Icons.Default)
+                            IsDisabled = isLast
+                            ClassName = Some "!px-1.5 !py-1"
+                            Title = Some "Priorität senken"
+                    }
+                ]
+            ]
+
+            // Rank index (precedence position; #1 = wins first)
+            Html.span [
+                prop.className "flex-shrink-0 w-6 text-center font-mono text-xs text-text-muted"
+                prop.title "Reihenfolge: #1 gewinnt zuerst"
+                prop.text $"#{index + 1}"
+            ]
+
             // Toggle (compact)
             Html.div [
                 prop.className "flex-shrink-0"
@@ -518,15 +555,31 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 emptyState dispatch
 
             | RemoteData.Success rules ->
+                let total = List.length rules
                 Html.div [
-                    prop.className "space-y-1.5"
+                    prop.className "space-y-3"
                     prop.children [
-                        for rule in rules do
-                            let (RuleId id) = rule.Id
-                            Html.div [
-                                prop.key (string id)
-                                prop.children [ ruleRow model rule dispatch ]
+                        // Precedence hint: makes the "first match wins" semantic visible.
+                        Html.div [
+                            prop.className "flex items-center gap-2 px-1 text-xs text-text-muted"
+                            prop.children [
+                                Icons.info XS Icons.Default
+                                Html.span [
+                                    prop.text "Regeln werden von oben nach unten geprüft — die erste passende, aktive Regel gewinnt. Mit ▲/▼ die Reihenfolge ändern."
+                                ]
                             ]
+                        ]
+                        Html.div [
+                            prop.className "space-y-1.5"
+                            prop.children [
+                                for index, rule in List.indexed rules do
+                                    let (RuleId id) = rule.Id
+                                    Html.div [
+                                        prop.key (string id)
+                                        prop.children [ ruleRow model index total rule dispatch ]
+                                    ]
+                            ]
+                        ]
                     ]
                 ]
 

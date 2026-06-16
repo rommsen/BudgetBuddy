@@ -46,6 +46,39 @@ module RuleFormState =
         IsSaving = false
     }
 
+/// Direction in which a rule is moved within the precedence-ordered list.
+/// "Up" raises a rule's precedence (it then wins earlier); "Down" lowers it.
+type MoveDirection =
+    | Up
+    | Down
+
+/// Compute the new full RuleId list (in precedence order, top = highest
+/// priority = wins first) after moving `ruleId` one position in `direction`.
+///
+/// The displayed list is already sorted `priority DESC`, so a move just swaps
+/// the rule with its neighbour. Edge moves (top rule up / bottom rule down)
+/// and an unknown id are no-ops — the original order is returned unchanged so
+/// the server's priorities never desync. The result is always a permutation of
+/// the input ids, suitable to hand to `reorderRules` verbatim.
+let reorderedIds (direction: MoveDirection) (ruleId: RuleId) (rules: Rule list) : RuleId list =
+    let ids = rules |> List.map (fun r -> r.Id)
+    match List.tryFindIndex (fun (r: Rule) -> r.Id = ruleId) rules with
+    | None -> ids
+    | Some index ->
+        let swapWith =
+            match direction with
+            | Up -> index - 1
+            | Down -> index + 1
+        if swapWith < 0 || swapWith >= List.length ids then
+            // Already at the relevant edge — nothing to do.
+            ids
+        else
+            ids
+            |> List.mapi (fun i id ->
+                if i = index then ids.[swapWith]
+                elif i = swapWith then ids.[index]
+                else id)
+
 /// Rules-specific model state
 type Model = {
     Rules: RemoteData<Rule list>
@@ -73,6 +106,8 @@ type Msg =
     | RuleDeleted of Result<RuleId, RulesError>
     | ToggleRuleEnabled of RuleId
     | RuleToggled of Result<Rule, RulesError>
+    | MoveRule of RuleId * MoveDirection   // ▲/▼ — change a rule's precedence
+    | RulesReordered of Result<unit, string>
     | LoadCategories
     | CategoriesLoaded of Result<YnabCategory list, YnabError>
 

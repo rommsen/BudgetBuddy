@@ -150,6 +150,42 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | RuleToggled (Error err) ->
         model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)
 
+    | MoveRule (ruleId, direction) ->
+        match model.Rules with
+        | Success rules ->
+            let newOrder = reorderedIds direction ruleId rules
+            // No-op moves (edge / unknown id) leave the order untouched — don't
+            // hit the server for nothing.
+            if newOrder = (rules |> List.map (fun r -> r.Id)) then
+                model, Cmd.none, NoOp
+            else
+                // Optimistic reorder: reflect the new precedence immediately, then
+                // persist the full order. On failure we reload to restore truth.
+                let byId = rules |> List.map (fun r -> r.Id, r) |> Map.ofList
+                let reordered = newOrder |> List.choose (fun id -> Map.tryFind id byId)
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.rules.reorderRules
+                        newOrder
+                        (fun result ->
+                            match result with
+                            | Ok () -> Ok () |> RulesReordered
+                            | Error err -> Error (rulesErrorToString err) |> RulesReordered)
+                        (fun ex -> Error ex.Message |> RulesReordered)
+                { model with Rules = Success reordered }, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RulesReordered (Ok ()) ->
+        // Server accepted the new order; the optimistic state already matches.
+        model, Cmd.none, NoOp
+
+    | RulesReordered (Error err) ->
+        // Reload to discard the optimistic order and show the server's truth —
+        // never leave a half-moved list behind.
+        { model with Rules = Loading },
+        Cmd.ofMsg LoadRules,
+        ShowToast ($"Reihenfolge konnte nicht gespeichert werden: {err}", ToastError)
+
     | LoadCategories ->
         // This will be called by parent with proper budget ID
         model, Cmd.none, NoOp

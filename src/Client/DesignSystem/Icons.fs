@@ -252,6 +252,16 @@ let chevronDown (size: IconSize) (color: IconColor) =
         ]
     ]
 
+/// Chevron up
+let chevronUp (size: IconSize) (color: IconColor) =
+    svgIcon size color [
+        Svg.path [
+            svg.strokeLineCap "round"
+            svg.strokeLineJoin "round"
+            svg.d "m4.5 15.75 7.5-7.5 7.5 7.5"
+        ]
+    ]
+
 /// Chevron right
 let chevronRight (size: IconSize) (color: IconColor) =
     svgIcon size color [

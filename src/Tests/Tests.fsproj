@@ -26,6 +26,7 @@
     <Compile Include="SyncFlowViewTests.fs" />
     <Compile Include="QuickAddTests.fs" />
     <Compile Include="SplitEditorTests.fs" />
+    <Compile Include="RulesReorderTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

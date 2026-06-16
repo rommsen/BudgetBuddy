@@ -4,6 +4,70 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-16 - Regel-Präzedenz per ▲/▼ umsortierbar (cat-001)
+
+### What
+Reines Frontend: die Regelliste (`/rules`) hat jetzt pro Zeile ▲/▼-Buttons, um die
+Präzedenz einer Regel zu ändern. Die Liste wird ohnehin `priority DESC` geladen (oben =
+höchste Priorität = gewinnt zuerst); ein Verschieben tauscht die Regel mit ihrer Nachbarin
+und persistiert die **vollständige** neue Reihenfolge über die bereits existierende
+`reorderRules`-API (Backend war End-to-End fertig). ▲ ist bei der obersten Regel deaktiviert,
+▼ bei der untersten. Sichtbar gemacht: ein Rang-Index `#N` pro Zeile + ein Hinweis „erste
+passende, aktive Regel gewinnt". Optimistisches Update; bei Fehler Toast + Reload (kein
+halb-verschobener Zustand).
+
+### Files Changed
+- `src/Client/Components/Rules/Types.fs` — `MoveDirection (Up/Down)` + pure `reorderedIds`
+  (berechnet die neue volle `RuleId list`, No-op an Rändern/unbekannter id); neue Msgs
+  `MoveRule of RuleId * MoveDirection` und `RulesReordered of Result<unit,string>`.
+- `src/Client/Components/Rules/State.fs` — `MoveRule`-Reducer (optimistisch umsortieren +
+  `Api.rules.reorderRules`), `RulesReordered`-Reducer (Erfolg = no-op, Fehler = Reload + Toast).
+- `src/Client/Components/Rules/View.fs` — ▲/▼ (DS `Button.view`, `IsDisabled` an Rändern),
+  Rang-Index `#N`, Präzedenz-Hinweiszeile; `ruleRow` nimmt jetzt `index`/`total`.
+- `src/Client/DesignSystem/Icons.fs` — neues `chevronUp`-Icon (Spiegel von `chevronDown`).
+- `src/Tests/RulesReorderTests.fs` (neu) — 9 Tests für `reorderedIds` inkl. Ränder
+  (oberste hoch / unterste runter = no-op), unbekannte id, Permutations-Invariante.
+- `src/Tests/Tests.fsproj` — neue Testdatei registriert.
+
+### Rationale
+Roman hatte zu eager matchende Regeln, die spezifischere übertrumpften; der richtige Hebel
+ist Präzedenz über Reihenfolge. Drag&Drop bewusst verworfen (mobil-sicher: Hoch/Runter).
+Reorder-Berechnung als pure Funktion herausgezogen, weil Reducer-Pfade mit `Client.Api` unter
+.NET nicht testbar sind (Fable.Remoting-Proxy).
+
+### Verification
+- Build: PASSED (`dotnet build` Client clean; `npm run build` Fable+Vite ✓ 15.89s)
+- Tests: 586 passed, 6 skipped, 0 failed (+9 neue Reorder-Tests)
+
+---
+
+## 2026-06-16 - cat-001 Iteration-2-Fix: Chevron-Touch-Target + Design-Token
+
+### What
+Zwei lokale Defekte aus der Verifier-Note behoben (beide in
+`src/Client/Components/Rules/View.fs`):
+1. **Mobile-Touch-Target (AC 6):** `!min-h-0` aus den ClassNames beider ▲/▼-Buttons
+   entfernt. `!min-h-0` überschrieb per `!important` das `min-h-[36px]` von `Button.Small`
+   und kollabierte das Tap-Target auf ~20-24px. Nach Entfernen trägt `Button.Small`
+   (`min-h-[36px] md:min-h-0`) wieder den 36px-Mobile-Floor; nur das horizontale Padding
+   wird über `!px-1.5 !py-1` getunt.
+2. **Design-Token-Verletzung:** Rang-Index-Span von `text-[11px]` (arbitrary px) auf das
+   Typography-Token `text-xs` umgestellt (`.claude/rules/design-tokens.md`).
+
+### Files Changed
+- `src/Client/Components/Rules/View.fs` — Chevron-ClassNames `!min-h-0` entfernt;
+  Rang-Index `text-[11px]` → `text-xs`.
+
+### Rationale
+Fresh-eyes-Verifier fand, dass der prior worker das vom AC geforderte 36px-Touch-Target
+selbst negierte und eine arbitrary Font-Size nutzte. Beides lokal, keine Test-/Logik-Änderung.
+
+### Verification
+- Build: PASSED (`npm run build` Fable+Vite ✓ 16.47s)
+- Tests: 586 passed, 6 skipped, 0 failed (unverändert grün)
+
+---
+
 ## 2026-06-16 - Split-Transaktion zeigt "Aufgeteilt" statt "Kategorie…" (ynab-004)
 
 **What I did:**
