@@ -166,9 +166,41 @@ type ToastType =
     | ToastInfo
     | ToastWarning
 
-/// Toast notification
+/// Toast notification.
+/// `Exiting` drives the two-phase removal: a toast is first marked exiting (which
+/// triggers the CSS exit animation in the view), then removed from the list after
+/// the exit duration has elapsed. This is what gives toasts a soft fade-out instead
+/// of vanishing abruptly (design-system-004).
 type Toast = {
     Id: Guid
     Message: string
     Type: ToastType
+    Exiting: bool
 }
+
+/// Toast lifecycle helpers — pure, so the exiting→removed transition is unit-testable
+/// without an Elmish runtime (design-system-004). The exit duration MUST match the
+/// CSS `animate-toast-out` keyframe duration in `styles.css`.
+module Toast =
+
+    /// Duration of the exit animation in ms. Kept in lock-step with the
+    /// `.animate-toast-out` keyframe in `styles.css`. The MVU timer that finally
+    /// removes a toast waits this long after marking it exiting.
+    [<Literal>]
+    let exitDurationMs = 220
+
+    /// Mark the toast with `id` as exiting. Idempotent: re-marking an already-exiting
+    /// toast leaves the list unchanged, so a rapid second dismiss (auto + manual, or a
+    /// double click) does not restart the lifecycle or schedule a duplicate timer.
+    let markExiting (id: Guid) (toasts: Toast list) : Toast list =
+        toasts
+        |> List.map (fun t -> if t.Id = id then { t with Exiting = true } else t)
+
+    /// True if a (still-present) toast with `id` is already marked exiting. Used as the
+    /// double-fire guard before scheduling the removal timer.
+    let isExiting (id: Guid) (toasts: Toast list) : bool =
+        toasts |> List.exists (fun t -> t.Id = id && t.Exiting)
+
+    /// Final removal of the toast with `id` from the list.
+    let remove (id: Guid) (toasts: Toast list) : Toast list =
+        toasts |> List.filter (fun t -> t.Id <> id)

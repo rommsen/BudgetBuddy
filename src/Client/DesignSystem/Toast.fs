@@ -33,6 +33,10 @@ type ToastProps = {
     Title: string option
     AutoDismiss: bool
     DismissAfterMs: int
+    /// When true the toast plays its exit animation (soft fade-out) instead of the
+    /// entrance. The two-phase removal in the app state sets this before the toast
+    /// is actually removed from the list (design-system-004).
+    Exiting: bool
     OnDismiss: Guid -> unit
 }
 
@@ -76,12 +80,15 @@ let private positionToClasses position =
 
 /// Single toast notification
 let toast (props: ToastProps) =
+    // Entrance vs. exit motion (design-system-004). The animation classes sit on
+    // this inner element, never on the fixed container (css-animation-safety).
+    let motionClass = if props.Exiting then "animate-toast-out" else "animate-toast-in"
     Html.div [
         prop.key (props.Id.ToString())
         prop.className (
             "pointer-events-auto flex items-start gap-3 p-3 rounded-lg border border-border-subtle " +
             "bg-surface-card/95 backdrop-blur-md shadow-lg " +
-            "animate-slide-up " +
+            motionClass + " " +
             variantToClasses props.Variant
         )
         prop.children [
@@ -134,6 +141,7 @@ let toastSimple (id: Guid) (message: string) (variant: ToastVariant) (onDismiss:
         Title = None
         AutoDismiss = true
         DismissAfterMs = 5000
+        Exiting = false
         OnDismiss = onDismiss
     }
 
@@ -146,6 +154,7 @@ let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastV
         Title = Some title
         AutoDismiss = true
         DismissAfterMs = 5000
+        Exiting = false
         OnDismiss = onDismiss
     }
 
@@ -193,12 +202,25 @@ let info' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
 // Toast List Component (for use in View.fs)
 // ============================================
 
-/// Render a list of toasts from records with Id, Message, Variant
+/// Render a list of toasts from tuples of (Id, Message, Variant, Exiting).
+/// The `Exiting` flag selects the exit animation for toasts in their fade-out
+/// phase of the two-phase removal (design-system-004). `onDismiss` is called when
+/// the user clicks the close button — the caller is responsible for starting the
+/// exit phase (it should NOT remove the toast immediately).
 let renderList
-    (toasts: (Guid * string * ToastVariant) list)
+    (toasts: (Guid * string * ToastVariant * bool) list)
     (onDismiss: Guid -> unit) =
 
     containerDefault [
-        for (id, message, variant) in toasts do
-            toastSimple id message variant onDismiss
+        for (id, message, variant, exiting) in toasts do
+            toast {
+                Id = id
+                Message = message
+                Variant = variant
+                Title = None
+                AutoDismiss = true
+                DismissAfterMs = 5000
+                Exiting = exiting
+                OnDismiss = onDismiss
+            }
     ]

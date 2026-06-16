@@ -32,10 +32,10 @@ type Msg =
     | NavigateTo of Page        // Triggers URL change (does NOT directly change state)
     | UrlChanged of string list // Handles URL changes from router or initial load
 
-    // Toast
+    // Toast (two-phase removal: StartDismissToast marks exiting → ToastExited removes)
     | ShowToast of string * ToastType
-    | DismissToast of Guid
-    | AutoDismissToast of Guid
+    | StartDismissToast of Guid  // phase 1: mark exiting + schedule removal (auto or manual)
+    | ToastExited of Guid        // phase 2: final removal after the exit animation
 
     // Child component messages
     | SettingsMsg of Components.Settings.Types.Msg
@@ -46,13 +46,22 @@ type Msg =
 // Helper Functions
 // ============================================
 
+/// Auto-dismiss delay before a toast starts its soft exit, in ms.
+[<Literal>]
+let private autoDismissAfterMs = 5000
+
+/// Schedule a message after a delay. Used for both the auto-dismiss trigger and
+/// the post-exit-animation removal. `Cmd.OfAsync.perform` is acceptable here: the
+/// inner async only sleeps and cannot fail, so there is no error case to lose
+/// (the usual `perform`-swallows-exceptions caveat does not apply).
+let private delayed (ms: int) (msg: Msg) : Cmd<Msg> =
+    Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep ms }) () (fun _ -> msg)
+
 let private addToast (message: string) (toastType: ToastType) (model: Model) : Model * Cmd<Msg> =
-    let toast = { Id = Guid.NewGuid(); Message = message; Type = toastType }
-    let dismissCmd =
-        Cmd.OfAsync.perform
-            (fun () -> async { do! Async.Sleep 5000 })
-            ()
-            (fun _ -> AutoDismissToast toast.Id)
+    let toast = { Id = Guid.NewGuid(); Message = message; Type = toastType; Exiting = false }
+    // Auto-dismiss runs through the same StartDismissToast path as a manual close,
+    // so both get the soft exit animation.
+    let dismissCmd = delayed autoDismissAfterMs (StartDismissToast toast.Id)
     { model with Toasts = toast :: model.Toasts }, dismissCmd
 
 // ============================================
@@ -131,11 +140,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | ShowToast (message, toastType) ->
         addToast message toastType model
 
-    | DismissToast id ->
-        { model with Toasts = model.Toasts |> List.filter (fun t -> t.Id <> id) }, Cmd.none
+    | StartDismissToast id ->
+        // Double-fire guard: if the toast is already exiting (or already gone),
+        // do nothing — no second removal timer is scheduled. Otherwise mark it
+        // exiting (drives the CSS exit animation) and schedule the final removal
+        // after the exit duration.
+        if Toast.isExiting id model.Toasts then
+            model, Cmd.none
+        else
+            { model with Toasts = Toast.markExiting id model.Toasts },
+            delayed Toast.exitDurationMs (ToastExited id)
 
-    | AutoDismissToast id ->
-        { model with Toasts = model.Toasts |> List.filter (fun t -> t.Id <> id) }, Cmd.none
+    | ToastExited id ->
+        { model with Toasts = Toast.remove id model.Toasts }, Cmd.none
 
     // ============================================
     // Settings Component

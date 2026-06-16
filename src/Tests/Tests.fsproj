@@ -27,6 +27,7 @@
     <Compile Include="QuickAddTests.fs" />
     <Compile Include="SplitEditorTests.fs" />
     <Compile Include="RulesReorderTests.fs" />
+    <Compile Include="ToastLifecycleTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

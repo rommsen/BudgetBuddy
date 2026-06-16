@@ -184,6 +184,21 @@ Bewegung ist subtil, schnell und respektiert Nutzerpräferenzen. Quelle:
   Zeilen eintreffen. Generischer `spinner`/`neonPulse` nur, wo die Form unbekannt ist.
   (Beleg: `infrastructure/done/2026-06-11-mobile-polish-sticky-filter-skeleton-springs`.)
 - **Stagger** für sequentielle Einblendungen über `StaggerDelays.forIndex i`.
+- **Toasts — sanfter Ein- *und* Abgang (Zwei-Phasen-Removal).** Eingang:
+  `.animate-toast-in` (Slide-up + leichtes Scale), bevorzugt den geteilten Federwert
+  `--sf-spring-out` hinter `@supports`, Fallback `--transition-spring`. Abgang:
+  `.animate-toast-out` (Fade + Slide-down, `ease-in`, 220 ms) — Toasts verschwinden
+  **nie abrupt**. Die Lebenszyklus-Mechanik liegt in der App-State (`State.fs`):
+  `StartDismissToast` markiert den Toast als *exiting* (Exit-Animation startet),
+  `ToastExited` entfernt ihn nach `Types.Toast.exitDurationMs` (= CSS-Dauer). Auto-Dismiss
+  **und** manuelles Schließen laufen über denselben Pfad; ein Doppel-Dismiss ist durch
+  `Toast.isExiting` abgesichert (kein Timer-Leak / keine Doppel-Entfernung). Die
+  Animationsklassen sitzen **nur auf dem inneren Toast-Element**, nie auf dem fixen
+  Container (`css-animation-safety`). (design-system-004.)
+- **Toast-Platzierung:** Desktop unten rechts (`bottom-4 right-4`), Mobile **oben**
+  (`top-16`, unter dem Header) — bewusst, damit der Toast die mobile Bottom-Nav nicht
+  überdeckt. Container ist `fixed … pointer-events-none`; nur die Toasts selbst sind
+  klickbar. (ADR 0007.)
 - `neonPulse`/`text-glow-*` sparsam — Glow markiert, es dekoriert nicht (§1).
 
 ---

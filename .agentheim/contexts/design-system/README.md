@@ -35,7 +35,9 @@ First-class BC für Frontend-Infrastruktur (analog `infrastructure` für Backend
   Inline-Feliz für etwas, das eine DS-Komponente abdeckt, gilt als **Drift**.
 - **Muster (Pattern)** — projektweite Interaktions-Konvention oberhalb einzelner
   Komponenten: **visual-viewport-Sheet + Click-Commit** (ADR 0005, mobile-keyboard-fest),
-  **Konto-/Picker-Auswahl** (ADR 0004), Spring-Easing/Skeleton (Mobile-Polish).
+  **Konto-/Picker-Auswahl** (ADR 0004), Spring-Easing/Skeleton (Mobile-Polish),
+  **Toast-Platzierung + sanfter Zwei-Phasen-Abgang** (ADR 0007: Desktop unten-rechts /
+  Mobile oben über der Bottom-Nav; *exiting*-markieren → nach Exit-Animation entfernen).
 - **Drift** — Abweichung des realen View-Codes vom Styleguide: hartkodierte Farben statt
   Tokens, inline-Feliz statt DS-Komponente, abweichende Muster.
 

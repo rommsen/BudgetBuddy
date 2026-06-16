@@ -81,8 +81,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 // Toast notifications using new Toast component
                 Toast.renderList
-                    (model.Toasts |> List.map (fun t -> (t.Id, t.Message, toToastVariant t.Type)))
-                    (fun id -> dispatch (DismissToast id))
+                    (model.Toasts |> List.map (fun t -> (t.Id, t.Message, toToastVariant t.Type, t.Exiting)))
+                    (fun id -> dispatch (StartDismissToast id))
             ]
         ]
     ]

@@ -4,6 +4,43 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-16 - Toast-Politur: sanfter Abgang, Zwei-Phasen-Removal (design-system-004)
+
+### What
+Toasts blenden jetzt **sanft aus** statt abrupt zu verschwinden. Der Lifecycle ist als
+Zwei-Phasen-Removal in der MVU-State modelliert: `StartDismissToast` markiert den Toast als
+*exiting* (startet die CSS-Exit-Animation), `ToastExited` entfernt ihn nach
+`Types.Toast.exitDurationMs`. Auto-Dismiss und manuelles Schließen laufen über denselben
+Pfad; ein Doppel-Dismiss ist über `Toast.isExiting` abgesichert (kein Timer-Leak / keine
+Doppel-Entfernung). Eingang `.animate-toast-in` (Spring, bevorzugt `--sf-spring-out` hinter
+`@supports`), Abgang `.animate-toast-out` (Fade+Slide, ease-in, 220 ms) — Klassen nur auf
+dem inneren Toast-Element, nie auf dem fixen Container (css-animation-safety). Platzierung
+(Desktop unten-rechts / Mobile oben über der Bottom-Nav) als ADR 0007 festgehalten.
+
+### Files Changed
+- `src/Client/Types.fs` — `Toast.Exiting`-Flag + pures `Toast`-Modul (`markExiting`,
+  `isExiting`, `remove`, `exitDurationMs`).
+- `src/Client/State.fs` — Msg `StartDismissToast`/`ToastExited` (ersetzt `DismissToast`/
+  `AutoDismissToast`), `delayed`-Helfer, Doppel-Fire-Guard.
+- `src/Client/DesignSystem/Toast.fs` — `Exiting` in `ToastProps`, Eingangs-/Abgangs-Klasse,
+  `renderList` auf 4-Tupel (mit Exiting).
+- `src/Client/View.fs` — mappt `Exiting` durch, dispatcht `StartDismissToast` beim Schließen.
+- `src/Client/styles.css` — `.animate-toast-in` / `.animate-toast-out` Keyframes.
+- `src/Client/Components/Styleguide/View.fs` — `/styleguide`-Toast-Demo zeigt den sanften Abgang.
+- `standards/frontend/styleguide.md` — Motion-§6 beschreibt Toast-Verhalten + Platzierung.
+- `src/Tests/ToastLifecycleTests.fs` (neu) + `Tests.fsproj` — 8 Tests für die pure Lifecycle-Logik.
+- `.agentheim/knowledge/decisions/0007-toast-placement-and-soft-exit.md` (neu).
+
+### Rationale
+Toasts sind das primäre Feedback-Signal des Flows; der abrupte Abgang wirkte janky und
+untergrub das neon-on-dark-Gefühl (Roman, 2026-06-16, design-system-004).
+
+### Verification
+- Build: PASSED (`dotnet build` Client grün, 0 Warnungen)
+- Tests: 594 passed, 6 skipped (integration, `.env` benötigt); 8 neue Toast-Lifecycle-Tests grün
+
+---
+
 ## 2026-06-16 - Regel-Präzedenz per ▲/▼ umsortierbar (cat-001)
 
 ### What

@@ -416,18 +416,30 @@ let private ModalDemo () =
         ]
     ]
 
-/// Toast-Demo per useState — feuert flüchtiges Feedback.
+/// Toast-Demo per useState — feuert flüchtiges Feedback und zeigt den sanften
+/// Abgang (design-system-004): "Schließen" markiert den Toast als exiting (Exit-
+/// Animation) und entfernt ihn erst nach `Types.Toast.exitDurationMs`. Dieselbe
+/// Zwei-Phasen-Mechanik wie in der App (State.fs), hier lokal nachgebaut, da die
+/// Galerie keinen App-State berührt.
 [<ReactComponent>]
 let private ToastDemo () =
-    let toasts, setToasts = React.useState ([]: (Guid * string * Toast.ToastVariant) list)
+    // (Id, Message, Variant, Exiting)
+    let toasts, setToasts = React.useState ([]: (Guid * string * Toast.ToastVariant * bool) list)
+    let toastsRef = React.useRef toasts
+    toastsRef.current <- toasts
 
     let fire variant message () =
-        setToasts (toasts @ [ (Guid.NewGuid(), message, variant) ])
+        setToasts (toastsRef.current @ [ (Guid.NewGuid(), message, variant, false) ])
+    let remove (id: Guid) =
+        setToasts (toastsRef.current |> List.filter (fun (tid, _, _, _) -> tid <> id))
+    // Phase 1: markiere exiting (Exit-Animation startet); Phase 2: entferne nach Ablauf.
     let dismiss (id: Guid) =
-        setToasts (toasts |> List.filter (fun (tid, _, _) -> tid <> id))
+        setToasts (toastsRef.current |> List.map (fun (tid, m, v, ex) ->
+            if tid = id then (tid, m, v, true) else (tid, m, v, ex)))
+        Fable.Core.JS.setTimeout (fun () -> remove id) Types.Toast.exitDurationMs |> ignore
 
     section "17. Toast" [
-        note "Flüchtiges Feedback nach Aktion. Blockierende Fehler → ErrorDisplay/Modal. styleguide.md §5."
+        note "Flüchtiges Feedback nach Aktion, mit sanftem Abgang (Exit-Animation). Blockierende Fehler → ErrorDisplay/Modal. styleguide.md §5/§6."
         row [
             Button.secondary "Erfolg" (fire Toast.Success "Gespeichert.")
             Button.secondary "Fehler" (fire Toast.Error "Speichern fehlgeschlagen.")
