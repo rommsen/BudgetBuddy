@@ -47,9 +47,31 @@ let getCategoryBadgeClass (tx: SyncTransaction) =
         match tx.DuplicateStatus with
         | ConfirmedDuplicate (_, _) | PossibleDuplicate (_, _) -> "tx-category badge-duplicate"
         | NotDuplicate _ ->
+            // A split transaction is a completed/ready state (it has no single
+            // category), so it gets the ready badge — not the orange "attention"
+            // badge that an uncategorized transaction shows (ynab-004).
+            match tx.Splits with
+            | Some splits when not (List.isEmpty splits) -> "tx-category badge-ready"
+            | _ ->
+                match tx.CategoryId with
+                | Some _ -> "tx-category badge-ready"
+                | None -> "tx-category badge-attention"
+
+/// The label shown in a transaction's category chip. A split transaction (Splits
+/// set) reads as "Aufgeteilt" so a completed split is visually distinct from an
+/// untouched, uncategorized transaction — which would otherwise both show the
+/// "Kategorie…" placeholder because a split has no single CategoryId (ynab-004).
+let categoryChipLabel (categoryOptions: (string * string) list) (tx: SyncTransaction) : string =
+    match tx.DuplicateStatus with
+    | ConfirmedDuplicate _ -> "Duplikat"
+    | PossibleDuplicate _ -> "Duplikat?"
+    | NotDuplicate _ ->
+        match tx.Splits with
+        | Some splits when not (List.isEmpty splits) -> "Aufgeteilt"
+        | _ ->
             match tx.CategoryId with
-            | Some _ -> "tx-category badge-ready"
-            | None -> "tx-category badge-attention"
+            | Some _ -> categoryText tx.CategoryId categoryOptions
+            | None -> "Kategorie…"
 
 let private formatAmountForRow (amount: decimal) (currency: string) =
     let absAmount = abs amount
@@ -218,14 +240,7 @@ let transactionRow (props: TransactionRowProps) =
         inlineRuleFormState
         |> Option.exists (fun f -> f.TransactionId = tx.Transaction.Id)
 
-    let categoryDisplayText =
-        match tx.DuplicateStatus with
-        | ConfirmedDuplicate _ -> "Duplikat"
-        | PossibleDuplicate _ -> "Duplikat?"
-        | NotDuplicate _ ->
-            match tx.CategoryId with
-            | Some _ -> categoryText tx.CategoryId categoryOptions
-            | None -> "Kategorie\u2026"
+    let categoryDisplayText = categoryChipLabel categoryOptions tx
 
     let categoryBadgeClass = getCategoryBadgeClass tx
 

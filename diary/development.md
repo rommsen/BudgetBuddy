@@ -4,6 +4,39 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-16 - Split-Transaktion zeigt "Aufgeteilt" statt "Kategorie…" (ynab-004)
+
+**What I did:**
+Roman-Feedback: eine aufgeteilte Buchung (REWE) zeigte in der Liste weiter den orangen
+„Kategorie…"-Platzhalter, als wäre sie unkategorisiert. Ursache: eine Split-Transaktion hat
+`CategoryId = None` (kein einzelne Kategorie — Server setzt das so, `Api.fs:959`), und die
+Chip-Logik prüfte nur `CategoryId`, nicht `Splits`. Fix rein clientseitig: die Chip-Label- und
+Badge-Logik berücksichtigt jetzt `tx.Splits` → Label **„Aufgeteilt"** + `badge-ready` (statt
+`badge-attention`). Label-Entscheidung in eine testbare `categoryChipLabel`-Funktion extrahiert.
+
+**Files Changed:**
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` — `getCategoryBadgeClass` um
+  Split-Fall (→ ready); neue `categoryChipLabel` (Split → „Aufgeteilt"); inline
+  `categoryDisplayText` darauf umgestellt.
+- `src/Tests/SyncFlowViewTests.fs` — Regression: Split-Badge ready statt attention; neue
+  `categoryChipLabel`-Suite (Split → „Aufgeteilt", uncategorized → Platzhalter, kategorisiert →
+  Name, Duplikat gewinnt).
+
+**Rationale:**
+Eine erledigte Aufteilung muss visuell von einer unangetasteten Buchung unterscheidbar sein.
+
+**Caveat (dokumentiert, bewusst nicht im Scope):** Splits werden nicht persistiert
+(`Persistence.fs:677` rekonstruiert `Splits = None`). Der Fix gilt für die laufende
+In-Memory-Session (der reale Sync→Review→Import-Flow); ein DB-Reload würde das „Aufgeteilt"-
+Label verlieren. Splits persistieren ist eine größere Folgeaufgabe (Schema + Migration,
+seit ynab-001 aufgeschoben).
+
+**Verification:**
+- Build: PASSED (0 Fehler, 1 vorbestehende Sqlite-Warnung)
+- Tests: 577 passed, 6 skipped, 0 failed
+
+---
+
 ## 2026-06-16 - Split-Editor: Vorzeichen-Bug-Fix + editierbare Beträge + Rest-Button (ynab-003)
 
 **What I did:**

@@ -206,6 +206,43 @@ let existingFunctionTests =
                             (NotDuplicate defaultDuplicateDetails)
                 let result = getCategoryBadgeClass tx
                 Expect.equal result "tx-category badge-attention" "NotDuplicate without category should return badge-attention"
+
+            testCase "split transaction (no single category) returns badge-ready, not attention" <| fun () ->
+                // Regression (ynab-004): a saved split has CategoryId=None but is a
+                // completed state — it must NOT show the orange uncategorized badge.
+                let splits =
+                    [ { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Essen"); Amount = { Amount = -21.15m; Currency = "EUR" }; Memo = None }
+                      { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bargeld"); Amount = { Amount = -200.00m; Currency = "EUR" }; Memo = None } ]
+                let tx = { mkTransaction "tx6" DateTime.Now -221.15m (Some "REWE") "" ManualCategorized None (NotDuplicate defaultDuplicateDetails) with Splits = Some splits }
+                Expect.equal (getCategoryBadgeClass tx) "tx-category badge-ready" "A split is a ready state, not attention"
+        ]
+
+        testList "categoryChipLabel" [
+            testCase "split transaction reads as 'Aufgeteilt' (not the placeholder)" <| fun () ->
+                // Regression (ynab-004): the reported bug — a split showed "Kategorie…"
+                // as if untouched, because a split has no single CategoryId.
+                let splits =
+                    [ { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Essen"); Amount = { Amount = -21.15m; Currency = "EUR" }; Memo = None }
+                      { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bargeld"); Amount = { Amount = -200.00m; Currency = "EUR" }; Memo = None } ]
+                let tx = { mkTransaction "s1" DateTime.Now -221.15m (Some "REWE") "" ManualCategorized None (NotDuplicate defaultDuplicateDetails) with Splits = Some splits }
+                Expect.equal (categoryChipLabel [] tx) "Aufgeteilt" "A split must be labelled, not 'Kategorie…'"
+
+            testCase "uncategorized transaction still shows the 'Kategorie…' placeholder" <| fun () ->
+                let tx = mkSimpleTx "s2" DateTime.Now -10.0m (Some "Shop") Pending None
+                Expect.equal (categoryChipLabel [] tx) "Kategorie…" "No category and no split → placeholder"
+
+            testCase "categorized transaction shows its resolved category name" <| fun () ->
+                let cid = Guid.NewGuid()
+                let tx = mkSimpleTx "s3" DateTime.Now -10.0m (Some "Shop") ManualCategorized (Some (YnabCategoryId cid))
+                let options = [ (cid.ToString(), "Lebensmittel") ]
+                Expect.equal (categoryChipLabel options tx) "Lebensmittel" "Shows the resolved category name"
+
+            testCase "confirmed duplicate shows 'Duplikat' even with a split" <| fun () ->
+                let splits =
+                    [ { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Essen"); Amount = { Amount = -21.15m; Currency = "EUR" }; Memo = None }
+                      { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bargeld"); Amount = { Amount = -200.00m; Currency = "EUR" }; Memo = None } ]
+                let tx = { mkTransaction "s4" DateTime.Now -10.0m (Some "Shop") "" Pending None (ConfirmedDuplicate ("ref", defaultDuplicateDetails)) with Splits = Some splits }
+                Expect.equal (categoryChipLabel [] tx) "Duplikat" "Duplicate status wins over the split label"
         ]
 
         testList "filterTransactions" [
