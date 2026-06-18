@@ -69,8 +69,14 @@ let private dbConfig = lazy (
             let dbPath = Path.Combine(dataDir, "budgetbuddy.db")
             $"Data Source={dbPath}"
 
-    // For in-memory mode, we need a persistent connection to keep the database alive
-    let sharedConnection =
+    // For in-memory mode we keep ONE connection open for the whole process lifetime.
+    // It is a keep-alive *anchor* only: SQLite drops a `Mode=Memory;Cache=Shared`
+    // database as soon as the last connection to it closes, so this anchor keeps the
+    // shared in-memory DB alive between operations. It is NOT handed to callers — see
+    // getConnection — because sharing a single SqliteConnection object across the
+    // parallel Expecto test cases caused an intermittent index-out-of-range in
+    // SqliteConnection.RemoveCommand during command disposal (infra-001).
+    let keepAliveConnection =
         if isTestMode then
             let conn = new SqliteConnection(connectionString)
             conn.Open()
@@ -78,7 +84,7 @@ let private dbConfig = lazy (
         else
             None
 
-    { IsTestMode = isTestMode; ConnectionString = connectionString; SharedConnection = sharedConnection }
+    { IsTestMode = isTestMode; ConnectionString = connectionString; SharedConnection = keepAliveConnection }
 )
 
 /// Ensure the data directory exists (call this for production mode)
@@ -88,9 +94,14 @@ let ensureDataDir () =
 
 let private getConnection () =
     let config = dbConfig.Force()
-    match config.SharedConnection with
-    | Some conn -> conn // Return the shared connection directly (caller must NOT dispose)
-    | None -> new SqliteConnection(config.ConnectionString)
+    // Always hand out a FRESH connection (Dapper auto-opens/closes closed connections).
+    // In test mode the keep-alive anchor (config.SharedConnection) keeps the shared
+    // in-memory DB alive, but each operation gets its own connection object against the
+    // same `Cache=Shared` string — so concurrent test cases never mutate one connection's
+    // internal command list at the same time (infra-001: SqliteConnection.RemoveCommand
+    // index-out-of-range during disposal). This mirrors how production already behaves.
+    let _keepAlive = config.SharedConnection
+    new SqliteConnection(config.ConnectionString)
 
 // ============================================
 // Encryption Helper

@@ -282,3 +282,43 @@ let typeConversionTests =
                 Expect.equal first.Status Imported "Status should be Imported"
         ]
     ]
+
+[<Tests>]
+let connectionDisposalRegressionTests =
+    initializeDatabase()
+
+    testList "Persistence Connection Disposal" [
+        // Concurrency guard for infra-001: the flaky
+        // `SqliteConnection.RemoveCommand index-out-of-range during connection disposal`.
+        // Root cause was that test-mode getConnection() handed the SAME shared
+        // SqliteConnection object to every Dapper call, so concurrent operations mutated
+        // one connection's internal command list at the same time during command Dispose.
+        // The fix hands out a fresh connection per operation (keep-alive anchor preserves
+        // the shared in-memory DB).
+        //
+        // NOTE: the original race needed the FULL suite's parallel test cases all hitting
+        // the one shared connection at once; it is intermittent and not faithfully
+        // reproducible from a single isolated case (this test passes against both the
+        // broken and the fixed code). The real regression proof is determinism over many
+        // full runs (15/15 fresh runs green after the fix vs. reproduces within ~2-8 runs
+        // before — see diary/development.md). This case stays as a defense-in-depth guard
+        // that the persistence layer tolerates concurrent operations.
+        testCase "concurrent persistence operations do not crash on command disposal" <| fun () ->
+            let runOnce (i: int) =
+                async {
+                    let rule = createTestRule Contains Payee
+                    let rule = { rule with Name = sprintf "concurrent-%d" i }
+                    do! Rules.insertRule rule
+                    let! retrieved = Rules.getRuleById rule.Id
+                    match retrieved with
+                    | Some r -> Expect.equal r.PatternType Contains "PatternType should round-trip under concurrency"
+                    | None -> failtest "Rule not found after concurrent insert"
+                }
+
+            // 50 operations in parallel maximizes the chance of two commands disposing
+            // on the same connection object simultaneously (the original race).
+            [ for i in 1..50 -> runOnce i ]
+            |> Async.Parallel
+            |> Async.RunSynchronously
+            |> ignore
+    ]

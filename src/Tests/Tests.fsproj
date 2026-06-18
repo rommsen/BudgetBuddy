@@ -37,6 +37,12 @@
     <PackageReference Include="YoloDev.Expecto.TestSdk" Version="0.14.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageReference Include="Thoth.Json.Net" Version="12.*" />
+    <!-- Pin Microsoft.Data.Sqlite to the SAME explicit version as Server (infra-001):
+         without this the test process resolves the 9.0.11 facade transitively while
+         Server.dll is compiled against 9.0.13, and the version skew triggers an
+         intermittent SqliteConnection.RemoveCommand index-out-of-range during
+         connection disposal on the first full suite run. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.13" />
   </ItemGroup>
 
   <ItemGroup>

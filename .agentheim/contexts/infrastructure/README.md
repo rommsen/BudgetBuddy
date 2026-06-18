@@ -14,6 +14,17 @@ Konkret bei BudgetBuddy:
   Zustand eines Sync-Durchlaufs.
 - **Deployment:** Docker + Portainer + Tailscale; persönlicher Single-Host-Betrieb.
 
+## Invariants / conventions
+- **SQLite-Connection-Lifecycle:** `getConnection()` (`src/Server/Persistence.fs`) gibt
+  **immer eine frische** `SqliteConnection` zurück (Dapper öffnet/schließt sie automatisch).
+  Es gibt **kein** geteiltes, langlebiges Connection-Objekt über Threads hinweg — im
+  Testmodus hält nur **ein** Keep-Alive-Anker die `Cache=Shared`-In-Memory-DB am Leben, ohne
+  durchgereicht zu werden. Grund: ein geteiltes Objekt führte unter Expectos Test-Parallelität
+  zu `SqliteConnection.RemoveCommand`-Crashes beim Command-Dispose. Siehe ADR 0008.
+- **`Microsoft.Data.Sqlite` ist projektweit auf eine feste Version gepinnt** (kein floating
+  `9.*`) — identisch in `Server.fsproj` und `Tests.fsproj`, um Versionsskew/MSB3277 zu
+  vermeiden. Bei Einführung zentraler Paketverwaltung dorthin zentralisieren. Siehe ADR 0008.
+
 ## Classification
 **generic / supporting** — trägt keine fachlichen Entscheidungen, ermöglicht aber alle.
 

@@ -4,6 +4,56 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-18 - Flaky SQLite-Disposal-Crash stabilisiert (infra-001)
+
+**What I did:**
+Den intermittierenden `SqliteConnection.RemoveCommand index-out-of-range`-Crash im
+Persistence-Test gefixt. Untersuchung deckte zwei Befunde auf: (1) `Microsoft.Data.Sqlite`
+war als `9.*` floating referenziert → Versionsskew Server 9.0.13 vs. Tests 9.0.11 (MSB3277,
+binär verifiziert); (2) die **eigentliche** Root Cause war ein Disposal-Race: im Testmodus
+gab `getConnection()` *dasselbe* geteilte `SqliteConnection`-Objekt an jede Dapper-Operation
+zurück, und Expecto läuft Tests parallel → gleichzeitiges Command-Dispose mutiert die nicht
+synchronisierte `_commands`-Liste der Connection. Versions-Unify allein behob den Crash NICHT
+(reproduzierte weiterhin); erst die frische Connection pro Operation beseitigte ihn.
+
+**Files Modified:**
+- `src/Server/Server.fsproj` - `Microsoft.Data.Sqlite` von `9.*` auf festen Pin `9.0.13`.
+- `src/Tests/Tests.fsproj` - expliziter `Microsoft.Data.Sqlite` `9.0.13`-Pin, damit der
+  Test-Output dieselbe Facade lädt (vorher transitiv 9.0.11). Beseitigt MSB3277.
+- `src/Server/Persistence.fs` - `getConnection()` gibt jetzt IMMER eine frische Connection
+  zurück (Dapper auto-open/close). Die eine Test-Connection bleibt nur als Keep-Alive-Anker
+  für die `Cache=Shared`-In-Memory-DB offen, wird aber nicht mehr durchgereicht. Spiegelt das
+  Prod-Verhalten (dort gab es schon immer eine frische Connection → Bug nur im Test).
+- `src/Tests/PersistenceTypeConversionTests.fs` - Defense-in-depth-Test
+  "concurrent persistence operations do not crash on command disposal" (50 parallele
+  Insert+Read). Hinweis im Kommentar: der Original-Race war nur über die Parallelität der
+  *gesamten* Suite reproduzierbar, nicht isoliert — der echte Regressionsbeweis ist die
+  Multi-Lauf-Determinik.
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0008-sqlite-per-operation-connection-and-version-pin.md` -
+  ADR zur Entscheidung (Versions-Pin + frische Connection pro Operation).
+
+**Diagnose — teilen andere Tests dasselbe Disposal-Muster?**
+Nein. `PersistenceTypeConversionTests.fs` ist die EINZIGE Test-Datei mit echten
+DB-Operationen (`Rules`/`SyncSessions`/`SyncTransactions`) und war daher das einzige Opfer.
+`Main.fs` setzt nur `USE_MEMORY_DB`; `EncryptionTests.fs` nutzt nur `Persistence.Encryption`
+(reines AES, keine Connection). Der Fix sitzt zentral in `getConnection()` und deckt damit
+jede Persistence-Operation einheitlich ab.
+
+**Rationale:**
+Ein flaky Test untergräbt das Vertrauen ins grüne Gate. Root Cause bestätigt (Stacktrace +
+binäre Versionsprüfung), nicht nur Hypothese übernommen.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen, MSB3277 weg; 0 Fehler)
+- Tests: 595 passed / 6 skipped / 0 failed
+- Determinik: 15/15 frische Voll-Läufe grün nach Fix (vorher reproduzierte der Crash in
+  ~2–8 Läufen, einmal sogar gegen den alten Code im A/B-Test bestätigt)
+- Issues: Keine
+
+---
+
 ## 2026-06-18 - Toast-Mobile-Sitz korrigiert: Inset, Höhe, Hero-Kontrast (design-system-005)
 
 ### What

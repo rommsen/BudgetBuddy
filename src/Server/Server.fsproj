@@ -35,7 +35,7 @@
     <PackageReference Include="Thoth.Json.Net" Version="12.*" />
     <PackageReference Include="FsToolkit.ErrorHandling" Version="4.*" />
     <PackageReference Include="YamlDotNet" Version="15.*" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.*" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.13" />
     <PackageReference Include="Dapper" Version="2.*" />
   </ItemGroup>
 
