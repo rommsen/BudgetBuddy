@@ -65,14 +65,20 @@ let private variantToTitle variant =
     | Warning -> "Warning"
     | Info -> "Info"
 
+/// Desktop (md and up) anchoring for the chosen position. Mobile placement is
+/// NOT derived from this — `container` builds a deliberate mobile top-strip and
+/// only switches over to these anchors at the `md:` breakpoint. Keeping these
+/// `md:`-prefixed prevents the mobile/desktop inset conflict that made the toast
+/// stretch full-height on phones (design-system-005). All classes are full
+/// string literals so Tailwind's purge keeps them.
 let private positionToClasses position =
     match position with
-    | TopRight -> "top-4 right-4"
-    | TopLeft -> "top-4 left-4"
-    | TopCenter -> "top-4 left-1/2 -translate-x-1/2"
-    | BottomRight -> "bottom-4 right-4 md:bottom-4"
-    | BottomLeft -> "bottom-4 left-4 md:bottom-4"
-    | BottomCenter -> "bottom-4 left-1/2 -translate-x-1/2 md:bottom-4"
+    | TopRight -> "md:top-4 md:right-4"
+    | TopLeft -> "md:top-4 md:left-4"
+    | TopCenter -> "md:top-4 md:left-1/2 md:-translate-x-1/2"
+    | BottomRight -> "md:bottom-4 md:right-4"
+    | BottomLeft -> "md:bottom-4 md:left-4"
+    | BottomCenter -> "md:bottom-4 md:left-1/2 md:-translate-x-1/2"
 
 // ============================================
 // Toast Component
@@ -87,7 +93,11 @@ let toast (props: ToastProps) =
         prop.key (props.Id.ToString())
         prop.className (
             "pointer-events-auto flex items-start gap-3 p-3 rounded-lg border border-border-subtle " +
-            "bg-surface-card/95 backdrop-blur-md shadow-lg " +
+            // Fully opaque surface (design-system-005): over the bright sync hero
+            // gradient a translucent /95 fill let the gradient bleed through and
+            // wrecked contrast. Keep backdrop-blur for parity with elevated
+            // surfaces; the opaque fill guarantees the toast stays legible.
+            "bg-surface-card backdrop-blur-md shadow-lg " +
             motionClass + " " +
             variantToClasses props.Variant
         )
@@ -162,13 +172,24 @@ let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastV
 // Toast Container Component
 // ============================================
 
-/// Container for toast notifications (fixed position)
+/// Container for toast notifications (fixed position).
+///
+/// Mobile and desktop placements are built as two deliberate cases, not one
+/// half-overridden (design-system-005). On mobile the container is a compact,
+/// symmetrically inset strip pinned below the header:
+///   `top-16 inset-x-4` — equal left/right inset so the toast's neon left-border
+///   and glow are never clipped at the viewport edge, and `top` alone (no
+///   `bottom`) so the fixed box does NOT stretch the full viewport height.
+/// At the `md:` breakpoint we reset the mobile insets and switch to the chosen
+/// desktop anchor (default bottom-right) with the original `max-w-sm` width.
 let container (position: ToastPosition) (children: ReactElement list) =
     Html.div [
         prop.className (
-            "fixed z-50 flex flex-col gap-2 w-full max-w-sm px-4 md:px-0 pointer-events-none " +
-            // On mobile, position at top to avoid bottom nav
-            "top-16 md:top-auto " +
+            "fixed z-50 flex flex-col gap-2 pointer-events-none " +
+            // Mobile: deliberate top strip, symmetric inset (no inherited bottom/right).
+            "top-16 inset-x-4 " +
+            // Desktop: drop the mobile insets, take a bounded width, then anchor.
+            "md:top-auto md:inset-x-auto md:w-full md:max-w-sm " +
             positionToClasses position
         )
         prop.children children

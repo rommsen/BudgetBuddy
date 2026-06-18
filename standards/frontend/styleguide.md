@@ -195,10 +195,17 @@ Bewegung ist subtil, schnell und respektiert Nutzerpräferenzen. Quelle:
   `Toast.isExiting` abgesichert (kein Timer-Leak / keine Doppel-Entfernung). Die
   Animationsklassen sitzen **nur auf dem inneren Toast-Element**, nie auf dem fixen
   Container (`css-animation-safety`). (design-system-004.)
-- **Toast-Platzierung:** Desktop unten rechts (`bottom-4 right-4`), Mobile **oben**
-  (`top-16`, unter dem Header) — bewusst, damit der Toast die mobile Bottom-Nav nicht
-  überdeckt. Container ist `fixed … pointer-events-none`; nur die Toasts selbst sind
-  klickbar. (ADR 0007.)
+- **Toast-Platzierung — zwei bewusste Fälle (mobil ≠ Desktop), nicht halb-geerbt.**
+  Mobile: kompakter, **symmetrisch eingerückter Streifen** unter dem Header
+  (`top-16 inset-x-4`, nur `top` — kein `bottom`); so wird die linke Neon-Border/Glow
+  nicht am Rand abgeschnitten und der fixe Container spannt nicht über die volle Höhe.
+  Desktop (`md:`): Insets zurücksetzen, `md:max-w-sm`, dann der Anker unten rechts
+  (`md:bottom-4 md:right-4`). `positionToClasses` liefert **nur `md:`-Anker** — mobil
+  wird daraus nichts geerbt. Die innere Toast-Fläche ist **voll deckend**
+  (`bg-surface-card`, nicht `/95`), damit der helle Sync-Hero-Gradient nicht
+  durchscheint; `backdrop-blur` bleibt für den Glas-Charakter. Container ist
+  `fixed … pointer-events-none`; nur die Toasts selbst sind klickbar.
+  (ADR 0007; mobiler Sitz korrigiert in design-system-005.)
 - `neonPulse`/`text-glow-*` sparsam — Glow markiert, es dekoriert nicht (§1).
 
 ---

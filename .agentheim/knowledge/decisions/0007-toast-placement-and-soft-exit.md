@@ -8,6 +8,7 @@ supersedes: []
 superseded_by: []
 related_tasks:
   - contexts/design-system/done/design-system-004-toast-polish.md
+  - contexts/design-system/done/design-system-005-toast-mobile-fit.md
 related_research: []
 ---
 
@@ -25,11 +26,26 @@ festgehalten (nur als Default im Container-Code).
 ## Decision
 Projektweite Konventionen für alle Toasts (DesignSystem):
 
-1. **Platzierung.** Desktop: unten rechts (`bottom-4 right-4`). Mobile: **oben**
-   (`top-16`, unter dem App-Header). Mobil bewusst oben, damit der Toast die
-   **mobile Bottom-Nav nicht überdeckt** — die Kern-UI bleibt frei. Der Container ist
+1. **Platzierung.** Mobile und Desktop sind **zwei bewusst gebaute Fälle**, nicht
+   ein halb-überschriebener (Präzisierung design-system-005). Der Container ist
    `fixed z-50 … pointer-events-none`; nur die Toasts selbst sind klickbar
    (`pointer-events-auto`).
+   - **Mobile:** ein **kompakter, symmetrisch eingerückter Streifen** unter dem
+     Header — `top-16 inset-x-4`. `inset-x-4` (gleicher Inset links wie rechts)
+     stellt sicher, dass die **linke Neon-Border + Glow nie am Viewport-Rand
+     abgeschnitten** wird; **nur `top`, kein `bottom`**, damit die fixe Box nicht
+     über die volle Höhe spannt. Bewusst oben, damit der Toast die mobile
+     Bottom-Nav nicht überdeckt — die Kern-UI bleibt frei.
+   - **Desktop (`md:` und größer):** die mobilen Insets werden zurückgesetzt
+     (`md:top-auto md:inset-x-auto`), eine begrenzte Breite gesetzt
+     (`md:w-full md:max-w-sm`), dann der gewählte Desktop-Anker — Default
+     **unten rechts** (`md:bottom-4 md:right-4`). `positionToClasses` liefert
+     **ausschließlich `md:`-präfixierte** Anker; mobil wird daraus nichts geerbt.
+   - **Deckkraft (Kontrast über hellem Hero).** Die innere Toast-Fläche ist
+     **voll deckend** (`bg-surface-card`, nicht `/95`). Über dem hellen
+     Sync-Hero-Gradient ließ eine transluzente `/95`-Fläche trotz `backdrop-blur`
+     den Gradient durchscheinen → schlechter Kontrast, wirkte losgelöst. Der
+     `backdrop-blur` bleibt aus Konsistenz mit anderen erhöhten Flächen.
 
 2. **Zwei-Phasen-Removal (sanfter Abgang).** Toasts verschwinden nie abrupt. Der
    Lifecycle liegt in der App-State (`State.fs`):
@@ -77,6 +93,14 @@ Projektweite Konventionen für alle Toasts (DesignSystem):
 - **Exit-Animation auf dem fixen Container.** Abgelehnt: `transform`/`fill-mode` auf
   einem Container mit `fixed`-Kindern bricht deren Positionierung (css-animation-safety).
 - **Toasts mobil unten lassen.** Abgelehnt: überdeckt die Bottom-Nav.
+- **Mobile-Inset aus dem Desktop-`positionToClasses` ableiten** (urspr. Implementierung:
+  `top-16 md:top-auto` davorgestellt, Rest vom Desktop-`BottomRight` geerbt). Abgelehnt
+  / als Bug korrigiert (design-system-005): mobil ergab das `top-16 bottom-4 right-4` —
+  `top`+`bottom` spannten die volle Höhe, `right-4` ankerte rechts-bündig (Glow links
+  abgeschnitten). Mobile- und Desktop-Platzierung werden jetzt getrennt gebaut.
+- **Transluzente Toast-Fläche (`/95`) für Glas-Look beibehalten.** Abgelehnt: über dem
+  hellen Hero-Gradient kippt der Kontrast. Volle Deckkraft gewinnt; der `backdrop-blur`
+  trägt den Glas-Charakter weiter, ohne dass etwas durchscheint.
 
 ## References
 - `src/Client/DesignSystem/Toast.fs`, `src/Client/Types.fs` (`Toast`-Modul),

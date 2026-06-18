@@ -4,6 +4,43 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-18 - Toast-Mobile-Sitz korrigiert: Inset, Höhe, Hero-Kontrast (design-system-005)
+
+### What
+Die mobile Toast-Platzierung saß nach design-system-004 nicht sauber im Layout. Ursache:
+`Toast.container` stellte für Mobile `top-16` voran und erbte aber das Desktop-`bottom-4 right-4`
+aus `positionToClasses` — mobil ergab das `top-16 bottom-4 right-4` (volle Höhe gespannt,
+rechts-bündig, linke Neon-Border am Rand abgeschnitten). Zusätzlich ließ die transluzente
+`bg-surface-card/95`-Fläche über dem hellen Sync-Hero den Gradient durchscheinen.
+
+Fix: Mobile- und Desktop-Platzierung als **zwei getrennte Fälle**. Mobile = kompakter,
+symmetrisch eingerückter Streifen (`top-16 inset-x-4`, nur `top`). Desktop (`md:`) setzt die
+Insets zurück, nimmt `md:max-w-sm` und ankert unten rechts. `positionToClasses` liefert jetzt
+**nur `md:`-präfixierte** Anker. Innere Toast-Fläche **voll deckend** (`bg-surface-card` statt
+`/95`) → kein Gradient-Durchschein, `backdrop-blur` bleibt.
+
+### Files Changed
+- `src/Client/DesignSystem/Toast.fs` — `container` getrennte Mobile/Desktop-Platzierung;
+  `positionToClasses` nur `md:`-Anker; innere Fläche `bg-surface-card` voll deckend.
+- `standards/frontend/styleguide.md` — §6 Toast-Platzierung auf den korrigierten mobilen Sitz
+  + Deckkraft nachgezogen.
+- `.agentheim/knowledge/decisions/0007-toast-placement-and-soft-exit.md` — Platzierungs-
+  Entscheidung präzisiert (zwei Fälle, Insets, Deckkraft), Bug als Alternative dokumentiert.
+
+### Rationale
+Toasts sind das primäre flüchtige Feedback des Flows; ein „aufgeklebter" Riegel auf Mobile
+unterläuft das Vision-Ziel. Desktop-Sitz und die design-system-004-Motion bleiben unverändert.
+
+### Verification
+- Build: PASSED (`dotnet build src/Client/Client.fsproj` — 0 Fehler, 0 Warnungen)
+- Tests: PASSED (594 erfolgreich, 6 übersprungen [.env-gated]; `dotnet test`)
+- Mobil headless verifiziert (Vite, Playwright 412×915@2x, hash-routing): linke Border nicht
+  abgeschnitten (Inset links == rechts), Container kompakt (Höhe 124px statt Vollhöhe),
+  innere Fläche opak `rgb(17,17,40)`. Screenshots: `/tmp/ds005/toast-mobile-after.png`,
+  `/tmp/ds005/toast-mobile-demo.png`.
+
+---
+
 ## 2026-06-16 - Toast-Politur: sanfter Abgang, Zwei-Phasen-Removal (design-system-004)
 
 ### What
