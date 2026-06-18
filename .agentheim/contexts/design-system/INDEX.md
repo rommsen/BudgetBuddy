@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 4
+- **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-002 · Drift-Audit + Konsolidierung des View-Codes auf den Styleguide** — 2026-06-18 — `done/design-system-002-drift-audit-consolidation.md` (9e9526a; Token-Drift voll auf `Colors.onNeon`/`FontSizes.micro` gehoben (byte-identisch), Komponenten-Drift gesplittet → 006/007; ADR 0009; Verifier PASS iter 2)
 - **design-system-005 · Toast-Mobile-Platzierung — eingerückter Streifen statt Full-Bleed** — 2026-06-18 — `done/design-system-005-toast-mobile-fit.md` (895e56e; Folge-Bug zu 004; ADR 0007 amended; headless mobil verifiziert)
 - **design-system-004 · Toast-Politur — sanfter Abgang, Positionierung & Styleguide-Motion** — 2026-06-16 — `done/design-system-004-toast-polish.md` (18cf474; Zwei-Phasen-Exit, ADR 0007, 8 Tests)
 - **design-system-003 · Live In-App /styleguide-Route (visueller Styleguide)** — 2026-06-13 — `done/design-system-003-live-styleguide-route.md` (build grün + verifiziert; offen: Romans visueller Check)
@@ -34,12 +35,14 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-002 · Drift-Audit + Konsolidierung des View-Codes auf den Styleguide** — 2026-06-13 — `backlog/design-system-002-drift-audit-consolidation.md` (depends_on: design-system-001)
+- **design-system-006 · Konsolidierung roher Html.button → Button-DS-Komponente (SyncFlow/Rules-Views)** — 2026-06-18 — `backlog/design-system-006-button-consolidation-syncflow.md` (Split aus 002; depends_on: design-system-001; ~34 Sites, 1:1 vs custom pro Fall, ADR 0005 nicht anfassen)
+- **design-system-007 · Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)** — 2026-06-18 — `backlog/design-system-007-svg-to-icons-consolidation.md` (Split aus 002; depends_on: design-system-001; 4 Sites, ggf. Icons.fs ergänzen)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0009** — Token-Namen für „dunkle Schrift auf Neon" (`onNeon`) + Mikro-Schriftgrößen (`micro`/`microPlus`) — 2026-06-18 — `../../knowledge/decisions/0009-onneon-foreground-and-micro-font-tokens.md`
 - **0007** — Toast-Platzierung (Desktop unten-rechts / Mobile oben) und Zwei-Phasen-Abgang — 2026-06-16 — `knowledge/decisions/0007-toast-placement-and-soft-exit.md`
 <!-- adr-local:end -->
 

@@ -3,17 +3,17 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: Toast-Mobile-Fit gefixt (design-system-005), Deploy läuft
+# Nächste Schritte: beide Tickets erledigt — Push/Deploy + Drift-Splits offen
 
-Romans Geräte-Feedback umgesetzt: der Toast sitzt mobil jetzt als kompakter, symmetrisch
-eingerückter Streifen (keine abgeschnittene Neon-Border, kein Full-Bleed, deckend über dem
-Hero) — diesmal **vor** dem Deploy per headless mobilem Screenshot gegengecheckt (895e56e).
-Außerdem erfasst: **infra-001** (flaky SQLite-Disposal-Test) liegt im infrastructure-Backlog.
-Nach Push + Re-Deploy: was als Nächstes?
+`infra-001` (flaky SQLite-Test → frische Connection/Op + 9.0.13-Pin, Verifier 10/10 grün,
+`82b5cef`) und `design-system-002` (Drift-Audit → Token-Drift voll konsolidiert, Komponenten-Drift
+gesplittet, `9e9526a`) sind committet und verifiziert. Das Audit hat zwei neue Backlog-Items
+geboren: `design-system-006` (rohe `Html.button` → `Button`) und `design-system-007`
+(rohe `Html.svg` → `Icons`). Was als Nächstes?
 
 <options>
-  <option title="Toast am echten Gerät gegenchecken">Nach dem Deploy einen echten Toast auslösen (z.B. Sync starten/abbrechen) und schauen, ob er jetzt auch über dem pink/orangen Hero sauber sitzt — der Styleguide-Shot war auf dunklem Grund.</option>
-  <option title="infra-001 angehen" cmd='/agentheim:modeling infra-001'>Den flaky Persistence-Test stabilisieren: Root Cause bestätigen + `Microsoft.Data.Sqlite`-Versionen vereinheitlichen. Noch under-refined → erst Refine/Investigation.</option>
-  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Der ältere Backlog-Task: Drift-Audit der View-Schichten gegen den Styleguide. Jetzt mit Toast + Reorder-Buttons als frische Referenz.</option>
+  <option title="Push + Deploy">Beide Task-Commits + den chore(agentheim)-Commit nach origin pushen und neu deployen (dein üblicher Abschluss nach einer Work-Session). Lokal alles grün.</option>
+  <option title="Drift-Splits refinen" cmd='/agentheim:modeling design-system-006'>006/007 sind raw im Backgelandet (Split-Output, noch nicht promotbar). Per-Site-Urteil (1:1 vs custom Click-Commit/ADR 0005) verfeinern, bevor sie nach todo gehen.</option>
+  <option title="Drift-Splits direkt abarbeiten" cmd='/agentheim:work'>006/007 nach todo promoten und durchziehen — die Konsolidierung von Buttons/SVGs aufs DS, jetzt wo die Token-Basis steht. Größerer Refactor mit echtem Verhaltens-Risiko (Sheets/Swipe).</option>
   <option title="Nichts — im Alltag nutzen">Erstmal benutzen; nächste Auffälligkeit/Idee per `capture`/`modeling` einkippen.</option>
 </options>

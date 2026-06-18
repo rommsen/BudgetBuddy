@@ -5,6 +5,92 @@ Newest entries on top.
 
 ---
 
+## 2026-06-18 22:20 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 2 (first-try PASS: 1, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 2 Task (82b5cef bug/infra-001, 9e9526a refactor/design-system-002) + 1 chore(agentheim)-Bookkeeping
+**Note:** Sequenziell (geteilte Solution/`Tests.fsproj`/Diary → kein Parallel-Dispatch). infra-001 zuerst → Test-Gate stabil (595 grün), dann design-system-002 dagegen verifiziert. design-system-002 brauchte iteration 2 (Verifier fand 3 übersehene rohe `text-[10px]` in DS-Komponenten; byte-identisch gefixt). Audit splittete den Komponenten-Drift in design-system-006/007 (backlog). Origin-Push + Deploy: nicht ausgeführt (Roman-Go ausstehend).
+
+---
+
+## 2026-06-18 22:18 -- Task verified and completed: design-system-002 - Drift-Audit + Konsolidierung
+
+**Type:** Work / Task completion
+**Task:** design-system-002 - Drift-Audit + Konsolidierung des View-Codes auf den Styleguide
+**Summary:** View-Layer gegen den Styleguide-Gate auditiert: wenig Token-, viel Komponenten-Drift. Risikoarmen Token-Drift voll konsolidiert — neue Tokens `Colors.onNeon`/`onNeonMuted` (dunkle Schrift auf Neon) + `FontSizes.micro`/`microPlus` (Sub-xs-Mikro-Labels); alle Call-Sites byte-identisch gehoben (kein visueller Regress). Großen Button/SVG-Drift bewusst gesplittet statt Mega-Refactor.
+**Verification:** PASS (iteration 2) — iter 1 FAIL (3 übersehene rohe `text-[10px]` in DS-Komponenten: Badge.fs:91, Navigation.fs:131, Stats.fs:75), Worker re-dispatcht, alle drei gehoben + Inventur/ADR wahrheitsgetreu nachgezogen; Verifier-Re-Check: 0 Call-Site-Residuen, build 0/0, tests 595 passed / 6 skipped / 0 failed.
+**Commit:** 9e9526a
+**Files changed:** 11 (Tokens.fs, Badge.fs, Navigation.fs, Stats.fs, StatusViews.fs, TransactionRow.fs, Settings/View.fs, Rules/View.fs, Diary, DS-README, ADR 0009)
+**Tests added:** 0 (reines Token-Anheben, CSS-String identisch; stabiles Gate aus infra-001 als Regressions-Schutz)
+**ADRs written:** 0009-onneon-foreground-and-micro-font-tokens.md (scope: design-system)
+**New backlog items:** design-system-006 (Html.button → Button), design-system-007 (Html.svg → Icons) — Split aus dem Audit
+
+---
+
+## 2026-06-18 22:10 -- Verification failed: design-system-002 - Drift-Audit + Konsolidierung
+
+**Type:** Work / Verification failure
+**Task:** design-system-002 - Drift-Audit + Konsolidierung des View-Codes auf den Styleguide
+**Iteration:** 1 of 3
+**Reasons:** AC#2 unvollständig — `Badge.fs:91` (`sizeToClass`/Small) noch rohes `text-[10px]` trotz neuem `FontSizes.micro`-Token, in einer vom Worker editierten Datei (SUMMARY „voll konsolidiert" ist dafür falsch); Audit-Inventur hat die Stelle nie erfasst (AC#1-Lücke); zwei weitere rohe `text-[10px]` in DS-Komponenten (Navigation.fs:131, Stats.fs:75) unerwähnt.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (iteration 2)
+**Note:** Rest sauber — AC#1/#3/#4/#5, ADR 0009, Splits 006/007 (ehrlich, ADR-0005-bewusst), Build 0/0, Tests 595/6/0, alle umgestellten Token-Werte byte-identisch. Fix ist byte-identisch + risikolos.
+
+---
+
+## 2026-06-18 21:58 -- Batch started: [design-system-002]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-002 - Drift-Audit + Konsolidierung des View-Codes auf den Styleguide
+**Parallel:** no (1 worker)
+**Note:** Wave 2 von 2. Nach infra-001 (Test-Gate jetzt stabil, 595 grün). Audit zuerst, dann risikoarme Konsolidierung; bei großem Drift Konsolidierung pro BC als neue Backlog-Items splitten (NEW_BACKLOG_ITEMS) statt Mega-Refactor — Worker darf bouncen.
+
+---
+
+## 2026-06-18 21:55 -- Task verified and completed: infra-001 - Flaky Persistence-Test
+
+**Type:** Work / Task completion
+**Task:** infra-001 - Flaky Persistence-Test — SQLite-Disposal-Crash + Microsoft.Data.Sqlite-Versionskonflikt
+**Summary:** Root Cause war NICHT der Versionskonflikt (Red Herring/Aggravator), sondern ein Disposal-Race: Testmodus gab dasselbe geteilte `SqliteConnection`-Objekt an alle parallelen Dapper-Ops → `RemoveCommand`-index-out-of-range beim Command-Dispose. Fix: frische Connection pro Operation (Keep-Alive-Anker hält die `Cache=Shared`-In-Memory-DB), `Microsoft.Data.Sqlite` auf 9.0.13 in Server+Tests gepinnt. Spiegelt Prod-Verhalten.
+**Verification:** PASS (iteration 1) — Verifier mappte alle 5 AC auf Evidenz und lief **10 frische Voll-Läufe** (595 passed / 6 skipped / 0 failed), nachdem er den Race gegen den alten Code reproduziert hatte; AC #5 (nur `PersistenceTypeConversionTests.fs` macht echte DB-Ops) unabhängig bestätigt.
+**Commit:** 82b5cef
+**Files changed:** 7 (Persistence.fs, Server.fsproj, Tests.fsproj, PersistenceTypeConversionTests.fs +Regressions-Guard, Diary, infrastructure-README, ADR 0008)
+**Tests added:** 1 (`Persistence Connection Disposal` — 50 parallele Insert+Read; Defense-in-depth, der eigentliche Beweis ist die Multi-Lauf-Determinik)
+**ADRs written:** 0008-sqlite-per-operation-connection-and-version-pin.md (scope: infrastructure)
+
+---
+
+## 2026-06-18 21:40 -- Batch started: [infra-001]
+
+**Type:** Work / Batch start
+**Tasks:** infra-001 - Flaky Persistence-Test — SQLite-Disposal-Crash + Microsoft.Data.Sqlite-Versionskonflikt
+**Parallel:** no (1 worker)
+**Note:** Wave 1 von 2. Sequenziell, weil infra-001 und design-system-002 die geteilte Solution/`Tests.fsproj` + `diary/development.md` berühren (kein Parallel-Dispatch). infra-001 zuerst, um das grüne Test-Gate zu stabilisieren, bevor design-system-002s „Tests grün"-AC dagegen verifiziert wird.
+
+---
+
+## 2026-06-18 21:37 -- Modeling / Promoted: design-system-002 + infra-001
+
+**Type:** Modeling / Promote (Batch)
+**BC:** design-system (design-system-002), infrastructure (infra-001)
+**From → To:** backlog → todo (beide)
+**Summary:** Romans „die beiden offenen Tickets" → REFINE landete bei PROMOTE für beide.
+(1) **design-system-002** (Drift-Audit + Konsolidierung): das blockierende Gate
+`design-system-001` ist inzwischen done + akzeptiert — die harte Abhängigkeit war beim
+Schreiben am 13.06. noch offen, jetzt erfüllt. Schnitt (Roman): **ein Task**, Audit als
+Schritt 1; Konsolidierung erst nach dem Audit pro BC splitten, falls der Drift groß ist.
+(2) **infra-001** (Flaky SQLite-Disposal-Test): Schnitt (Roman): **ein Bug-Task** statt
+Spike+Fix — Untersuchung/Fix eng gekoppelt; AC #1 erzwingt Root-Cause-Bestätigung als
+Schritt 1, Worker darf bouncen, falls die Ursache größer ist als die Versions-Hypothese.
+**Nebenbei:** `design-system/todo/` existierte nicht und wurde angelegt.
+
+---
+
 ## 2026-06-18 -- Work session ended
 
 **Type:** Work / Session end
