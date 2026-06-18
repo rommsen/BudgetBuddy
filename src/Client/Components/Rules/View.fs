@@ -26,7 +26,7 @@ let private patternTypeBadge (patternType: PatternType) =
                 Variant = Badge.Purple
                 Style = Badge.Soft
                 Size = Badge.Small
-                Icon = Some (Html.span [ prop.className "font-mono text-[10px]"; prop.text ".*" ])
+                Icon = Some (Html.span [ prop.className $"font-mono {Tokens.FontSizes.micro}"; prop.text ".*" ])
         }
     | Contains ->
         Badge.view {
@@ -35,7 +35,7 @@ let private patternTypeBadge (patternType: PatternType) =
                 Variant = Badge.Info
                 Style = Badge.Soft
                 Size = Badge.Small
-                Icon = Some (Html.span [ prop.className "font-mono text-[10px]"; prop.text "~" ])
+                Icon = Some (Html.span [ prop.className $"font-mono {Tokens.FontSizes.micro}"; prop.text "~" ])
         }
     | Exact ->
         Badge.view {
@@ -44,7 +44,7 @@ let private patternTypeBadge (patternType: PatternType) =
                 Variant = Badge.Success
                 Style = Badge.Soft
                 Size = Badge.Small
-                Icon = Some (Html.span [ prop.className "font-mono text-[10px]"; prop.text "=" ])
+                Icon = Some (Html.span [ prop.className $"font-mono {Tokens.FontSizes.micro}"; prop.text "=" ])
         }
 
 let private targetFieldText (targetField: TargetField) =
@@ -64,7 +64,7 @@ let private patternTypeIcon (patternType: PatternType) =
         | Contains -> ("~", "text-neon-teal", "Contains substring")
         | Exact -> ("=", "text-neon-green", "Exact match")
     Html.span [
-        prop.className $"font-mono text-[10px] font-bold {color} bg-surface-elevated/50 px-1 rounded"
+        prop.className $"font-mono {Tokens.FontSizes.micro} font-bold {color} bg-surface-elevated/50 px-1 rounded"
         prop.title title
         prop.text icon
     ]
@@ -127,7 +127,7 @@ let private ruleRow (model: Model) (index: int) (total: int) (rule: Rule) (dispa
 
             // Pattern hint (desktop only)
             Html.span [
-                prop.className "hidden sm:block font-mono text-[11px] text-text-muted bg-surface-elevated/50 px-1.5 py-0.5 rounded truncate max-w-[180px]"
+                prop.className $"hidden sm:block font-mono {Tokens.FontSizes.microPlus} text-text-muted bg-surface-elevated/50 px-1.5 py-0.5 rounded truncate max-w-[180px]"
                 prop.title rule.Pattern
                 prop.text rule.Pattern
             ]

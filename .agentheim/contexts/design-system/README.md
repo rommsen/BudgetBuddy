@@ -60,8 +60,20 @@ am Gate (Hard-Enforcement, gewählt 2026-06-13).
   Modell unter).
 - Voller Kontext-Überblick: `../../context-map.md`.
 
+## Drift-Audit-Ergebnis (design-system-002, 2026-06-18)
+Erstes Audit des View-Codes gegen den Styleguide-Gate. **Befund: wenig Token-/viel
+Komponenten-Drift.**
+- *Sauber:* Standard-Tailwind-Palette-Farben (0), inline `style.color/fontSize` (0) — der
+  Token-Layer hält an den Farb-/Spacing-Call-Sites.
+- *Konsolidiert (Token-Drift, risikoarm):* rohe Hex `text-[#0a0a0f]` (dunkle Schrift auf
+  Neon) → neues `Colors.onNeon`/`onNeonMuted`; arbitrary `text-[10px]/[11px]` → neues
+  `FontSizes.micro`/`microPlus` (**ADR 0009**) — sowohl in den fachlichen Views als auch
+  DS-komponenten-intern (`Badge.fs`, `Navigation.fs`, `Stats.fs`). Re-Audit: **0**
+  token-gedeckte Residuen. Gerenderter CSS-String byte-identisch, kein visueller Change.
+- *Gesplittet (Komponenten-Drift, per-BC-Risiko):* ~34 rohe `Html.button` (teils bewusst
+  custom: Click-Commit/ADR 0005, Swipe, `action-chip`) → `design-system-006`; 4 rohe
+  `Html.svg` → `Icons` → `design-system-007`. Bewusst NICHT gemega-refactored.
+
 ## Open questions
-- Wie tief geht die Konsolidierung (`design-system-002`)? Umfang erst nach dem Drift-Audit
-  klar — ggf. in mehrere Refactor-Tasks splitten.
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht
   das Markdown-Dokument + CLAUDE.md-Referenz? (offen, erst bei Bedarf)

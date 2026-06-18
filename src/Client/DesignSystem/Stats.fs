@@ -72,7 +72,7 @@ let private accentToGradient = function
     | Gradient -> "from-neon-teal via-neon-green to-neon-orange"
 
 let private sizeToClasses = function
-    | Compact -> "p-3 md:p-4", "text-lg md:text-xl", "text-[10px] md:text-xs"
+    | Compact -> "p-3 md:p-4", "text-lg md:text-xl", $"{FontSizes.micro} md:text-xs"
     | Normal -> "p-4 md:p-6", "text-xl md:text-2xl", "text-xs md:text-sm"
     | Large -> "p-5 md:p-8", "text-2xl md:text-4xl", "text-sm md:text-base"
 

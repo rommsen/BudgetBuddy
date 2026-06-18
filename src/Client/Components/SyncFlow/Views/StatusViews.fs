@@ -39,7 +39,7 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                                     prop.className "absolute -top-2 -right-2 w-6 h-6 bg-neon-orange rounded-full flex items-center justify-center animate-bounce shadow-glow-orange"
                                     prop.children [
                                         Html.span [
-                                            prop.className "text-[#0a0a0f] text-xs font-bold"
+                                            prop.className $"{Tokens.Colors.onNeon} text-xs font-bold"
                                             prop.text "1"
                                         ]
                                     ]
@@ -64,7 +64,7 @@ let tanWaitingView (isConfirming: bool) (dispatch: Msg -> unit) =
                                     prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green {Tokens.Colors.onNeon} flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
                                         Html.span [ prop.className "hidden sm:inline"; prop.text "Verbunden" ]
@@ -154,7 +154,7 @@ let fetchingView () =
                                     prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green {Tokens.Colors.onNeon} flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
                                         Html.span [ prop.className "hidden sm:inline"; prop.text "Verbunden" ]
@@ -165,7 +165,7 @@ let fetchingView () =
                                     prop.className "flex items-center gap-1 sm:gap-2 text-neon-green"
                                     prop.children [
                                         Html.div [
-                                            prop.className "w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green text-[#0a0a0f] flex items-center justify-center text-xs font-bold"
+                                            prop.className $"w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-neon-green {Tokens.Colors.onNeon} flex items-center justify-center text-xs font-bold"
                                             prop.children [ Icons.check Icons.XS Icons.Primary ]
                                         ]
                                         Html.span [ prop.className "hidden sm:inline"; prop.text "TAN" ]
@@ -240,11 +240,11 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
                                 prop.children [ Icons.checkCircle Icons.XL Icons.Primary ]
                             ]
                             Html.h2 [
-                                prop.className "text-2xl md:text-3xl font-bold font-display text-[#0a0a0f]"
+                                prop.className $"text-2xl md:text-3xl font-bold font-display {Tokens.Colors.onNeon}"
                                 prop.text "Synchronisierung abgeschlossen!"
                             ]
                             Html.p [
-                                prop.className "text-[#0a0a0f]/70 mt-2"
+                                prop.className $"{Tokens.Colors.onNeonMuted} mt-2"
                                 prop.text "Deine Transaktionen wurden in YNAB importiert."
                             ]
                         ]
@@ -261,21 +261,21 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
                                         prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-text-primary"; prop.text (string session.TransactionCount) ]
-                                            Html.p [ prop.className "text-[10px] leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Gesamt" ]
+                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Gesamt" ]
                                         ]
                                     ]
                                     Html.div [
                                         prop.className "bg-surface-card rounded-xl border border-neon-green/30 shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-neon-green"; prop.text (string session.ImportedCount) ]
-                                            Html.p [ prop.className "text-[10px] leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Importiert" ]
+                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Importiert" ]
                                         ]
                                     ]
                                     Html.div [
                                         prop.className "bg-surface-card rounded-xl border border-border-subtle shadow-lg p-4 text-center"
                                         prop.children [
                                             Html.p [ prop.className "text-2xl font-bold font-mono text-text-muted"; prop.text (string session.SkippedCount) ]
-                                            Html.p [ prop.className "text-[10px] leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Übersprungen" ]
+                                            Html.p [ prop.className $"{Tokens.FontSizes.micro} leading-tight text-text-muted uppercase tracking-wider truncate"; prop.text "Übersprungen" ]
                                         ]
                                     ]
                                 ]

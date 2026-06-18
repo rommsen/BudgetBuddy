@@ -560,7 +560,7 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 prop.onChange (fun (value: int) -> dispatch (UpdateSyncDaysInput value))
                             ]
                             Html.div [
-                                prop.className "flex justify-between text-[10px] md:text-xs text-text-muted px-1"
+                                prop.className $"flex justify-between {Tokens.FontSizes.micro} md:text-xs text-text-muted px-1"
                                 prop.children [
                                     Html.span [ prop.text "7 Tage" ]
                                     Html.span [ prop.text "30 Tage" ]

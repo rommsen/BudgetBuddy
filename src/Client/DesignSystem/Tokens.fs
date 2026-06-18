@@ -39,6 +39,13 @@ module Colors =
     let textMuted = "text-text-muted"
     let textDisabled = "text-text-muted/70"  // Increased from 30 for accessibility
 
+    // Dark foreground for use ON bright neon surfaces (badge counts, step circles,
+    // text on neon gradients). Matches the app background (#0a0a0f, `bg-surface-app`)
+    // so it reads as "knocked-out" type on a glowing pill. Use this instead of the raw
+    // hex `text-[#0a0a0f]` at call sites (Token-Layer, styleguide §3).
+    let onNeon = "text-[#0a0a0f]"
+    let onNeonMuted = "text-[#0a0a0f]/70"  // Secondary text on neon gradients
+
 /// Background color tokens
 module Backgrounds =
     // Dark backgrounds
@@ -118,6 +125,8 @@ module FontSizes =
     let body = "text-[15px] md:text-base" // Body text (mobile optimized)
     let sm = "text-sm"                   // Small text
     let xs = "text-xs"                   // Labels, captions
+    let micro = "text-[10px]"            // Micro labels: stat captions, status chips, mono glyphs (below the xs scale by design)
+    let microPlus = "text-[11px]"        // Slightly larger micro labels (e.g. desktop-only meta strings)
 
 /// Font weight tokens
 module FontWeights =

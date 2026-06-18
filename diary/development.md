@@ -4,6 +4,62 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-18 - Drift-Audit + Token-Konsolidierung gegen den Styleguide (design-system-002)
+
+**What I did:**
+Den View-Code der fachlichen BCs gegen den Styleguide-Gate (`standards/frontend/styleguide.md`)
+auditiert (mit den Grep-Checks aus `.claude/rules/design-tokens.md`) und den offensichtlichen,
+risikoarmen Drift aufs DS gehoben. Großen, risikobehafteten Drift als per-BC-Backlog-Tasks
+ausgegliedert statt blind zu refactoren.
+
+**Drift-Inventur (Datei → Befund → Ziel):**
+- *Standard-Tailwind-Palette-Farben* (`red-*`/`green-*`/…): **0 Treffer** im View-Layer — sauber.
+- *Inline `style.color`/`style.backgroundColor`/`style.fontSize`*: **0** — sauber.
+- *Rohe Hex `text-[#0a0a0f]`* (dunkle Schrift auf Neon): 6 Call-Sites in
+  `SyncFlow/Views/StatusViews.fs` (L42/67/157/168/243/247) + DS-intern in `Badge.fs`
+  (Filled-Variants L68-74, Count-Badge L231) → **neues Token `Colors.onNeon`/`onNeonMuted`**.
+- *Arbitrary `text-[10px]`/`text-[11px]`* (Mikro-Labels): 13 Call-Sites über
+  `StatusViews.fs` (L264/271/278), `Settings/View.fs` (L563), `TransactionRow.fs`
+  (L121/126/139/144), `Rules/View.fs` (L29/38/47/67/130) + `Badge.fs` Count → **neue Tokens
+  `FontSizes.micro`/`microPlus`**.
+- *Rohe `Html.button`* (~34, SyncFlow/Rules-Views): teils 1:1-Button-Drift, teils bewusst
+  custom (Click-Commit/ADR 0005, Swipe, `action-chip`) → **ausgegliedert: design-system-006**.
+- *Rohe `Html.svg`* (4, SyncFlow-Views) → **ausgegliedert: design-system-007**.
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0009-onneon-foreground-and-micro-font-tokens.md` - Token-Namens-Entscheidung.
+- `.agentheim/contexts/design-system/backlog/design-system-006-button-consolidation-syncflow.md` - Split (Button).
+- `.agentheim/contexts/design-system/backlog/design-system-007-svg-to-icons-consolidation.md` - Split (Icons).
+
+**Files Modified:**
+- `src/Client/DesignSystem/Tokens.fs` - `Colors.onNeon`/`onNeonMuted`, `FontSizes.micro`/`microPlus`.
+- `src/Client/DesignSystem/Badge.fs` - Filled-Variants + Count-Badge auf `Colors.onNeon`/`FontSizes.micro`.
+- `src/Client/Components/SyncFlow/Views/StatusViews.fs` - 6× Hex + 3× micro auf Tokens.
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - 4× micro auf Token.
+- `src/Client/Components/Settings/View.fs` - 1× micro auf Token.
+- `src/Client/Components/Rules/View.fs` - 4× micro + 1× microPlus auf Token.
+- `.agentheim/contexts/design-system/README.md` - Drift-Inventur-Notiz + ADR 0009 Verweis.
+
+**Rationale:**
+Der Styleguide soll nicht nur Doku sein, sondern der Code ihm entsprechen. Hex/arbitrary-Sizes
+ohne benanntes Token waren nicht sauber behebbar → erst Tokens kanonisiert (ADR 0009), dann
+Call-Sites darauf gehoben. Gerenderter CSS-String bleibt identisch (Tailwind-v4-JIT generiert
+die Klassen weiter aus dem String-Literal in Tokens.fs) → kein visueller Regress.
+
+**Outcomes:**
+- Build: ✅ (gesamte Solution)
+- Tests: 595 passed / 6 skipped / 0 failed (entspricht dem stabilen Gate aus infra-001)
+- Issues: keine. Großer Button/SVG-Drift bewusst gesplittet (006/007), nicht riskant gemega-refactored.
+
+**Nachtrag (Iteration 2):** Verifier fand 3 übersehene DS-komponenten-interne `text-[10px]`-
+Stellen (`Badge.fs:91` `sizeToClass`/Small, `Navigation.fs:131` Nav-Label, `Stats.fs:75`
+Compact-Caption). Auf `FontSizes.micro` gehoben (byte-identisch). Vollständiges Re-Audit über
+`src/Client/` bestätigt nun 0 token-gedeckte Residuen. Inventur (Task) + ADR 0009 nachgezogen.
+Files modified zusätzlich: `src/Client/DesignSystem/Navigation.fs`, `src/Client/DesignSystem/Stats.fs`.
+Build ✅, Tests 595/6/0 unverändert.
+
+---
+
 ## 2026-06-18 - Flaky SQLite-Disposal-Crash stabilisiert (infra-001)
 
 **What I did:**

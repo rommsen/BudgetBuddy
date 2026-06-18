@@ -65,13 +65,13 @@ let private variantToSoftClass = function
     | Purple -> "bg-neon-purple/10 text-neon-purple border-neon-purple/30"
 
 let private variantToFilledClass = function
-    | Success -> "bg-neon-green text-[#0a0a0f] border-transparent"
-    | Warning -> "bg-neon-pink text-[#0a0a0f] border-transparent"
+    | Success -> $"bg-neon-green {Colors.onNeon} border-transparent"
+    | Warning -> $"bg-neon-pink {Colors.onNeon} border-transparent"
     | Error -> "bg-neon-red text-white border-transparent"
-    | Info -> "bg-neon-teal text-[#0a0a0f] border-transparent"
+    | Info -> $"bg-neon-teal {Colors.onNeon} border-transparent"
     | Neutral -> "bg-text-muted/20 text-text-primary border-transparent"
-    | Orange -> "bg-neon-orange text-[#0a0a0f] border-transparent"
-    | Purple -> "bg-neon-purple text-[#0a0a0f] border-transparent"
+    | Orange -> $"bg-neon-orange {Colors.onNeon} border-transparent"
+    | Purple -> $"bg-neon-purple {Colors.onNeon} border-transparent"
 
 let private variantToOutlineClass = function
     | Success -> "bg-transparent text-neon-green border-neon-green"
@@ -88,7 +88,7 @@ let private styleToClass variant = function
     | Outline -> variantToOutlineClass variant
 
 let private sizeToClass = function
-    | Small -> "text-[10px] px-1.5 py-0.5"
+    | Small -> $"{FontSizes.micro} px-1.5 py-0.5"
     | Medium -> "text-xs px-2 py-0.5"
     | Large -> "text-sm px-3 py-1"
 
@@ -228,7 +228,7 @@ let failed = error "Failed"
 let count (value: int) =
     if value > 0 then
         Html.span [
-            prop.className "inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-neon-orange text-[#0a0a0f]"
+            prop.className $"inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 {FontSizes.micro} font-bold rounded-full bg-neon-orange {Colors.onNeon}"
             prop.text (if value > 99 then "99+" else string value)
         ]
     else

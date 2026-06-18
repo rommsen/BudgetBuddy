@@ -128,7 +128,7 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
             item.Icon MD (if isActive then NeonTeal else Default)
             Html.span [
                 prop.className (
-                    "text-[10px] font-medium " +
+                    $"{FontSizes.micro} font-medium " +
                     if isActive then "text-neon-teal" else "text-text-muted/70"
                 )
                 prop.text item.Label

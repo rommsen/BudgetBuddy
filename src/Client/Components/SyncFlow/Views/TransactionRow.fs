@@ -118,12 +118,12 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
                     Html.code [ prop.className "text-text-primary bg-surface-input/50 px-1 rounded"; prop.text details.TransactionReference ]
                     if details.ReferenceFoundInYnab then
                         Html.span [
-                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-neon-green/20 text-neon-green border border-neon-green/30"
+                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-neon-green/20 text-neon-green border border-neon-green/30"
                             prop.text "Found in YNAB"
                         ]
                     else
                         Html.span [
-                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-surface-hover text-text-muted/70 border border-border-default"
+                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-surface-hover text-text-muted/70 border border-border-default"
                             prop.text "Not in YNAB"
                         ]
                 ]
@@ -136,12 +136,12 @@ let private duplicateDebugInfo (tx: SyncTransaction) =
                     Html.span [ prop.className "text-text-muted/70"; prop.text "Import ID:" ]
                     if details.ImportIdFoundInYnab then
                         Html.span [
-                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-neon-green/20 text-neon-green border border-neon-green/30"
+                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-neon-green/20 text-neon-green border border-neon-green/30"
                             prop.text "Exists in YNAB"
                         ]
                     else
                         Html.span [
-                            prop.className "px-1.5 py-0.5 rounded text-[10px] bg-surface-hover text-text-muted/70 border border-border-default"
+                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-surface-hover text-text-muted/70 border border-border-default"
                             prop.text "New"
                         ]
                 ]
