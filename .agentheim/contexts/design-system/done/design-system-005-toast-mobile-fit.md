@@ -6,7 +6,7 @@ type: bug
 context: design-system
 created: 2026-06-18
 completed: 2026-06-18
-commit:
+commit: 895e56e
 depends_on: [design-system-001]
 blocks: []
 tags: [frontend, toast, mobile, layout, design-system]

@@ -3,17 +3,17 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: cat-001 + design-system-004 geshippt (Deploy läuft)
+# Nächste Schritte: Toast-Mobile-Fit gefixt (design-system-005), Deploy läuft
 
-Beide todo-Tasks gebaut, verifiziert und committet — und auf Romans Anweisung nach origin
-gepusht + deployt. **cat-001** (9112013): Regeln per ▲/▼ umsortierbar, oben gewinnt zuerst
-(Backend `reorderRules` war schon fertig). **design-system-004** (18cf474): Toasts blenden
-sanft aus (Zwei-Phasen-Exit, ADR 0007), Platzierung + Motion im Styleguide festgehalten.
-cat-001 brauchte eine zweite Verifier-Runde (Token-/Touch-Target-Defekte). Was als Nächstes?
+Romans Geräte-Feedback umgesetzt: der Toast sitzt mobil jetzt als kompakter, symmetrisch
+eingerückter Streifen (keine abgeschnittene Neon-Border, kein Full-Bleed, deckend über dem
+Hero) — diesmal **vor** dem Deploy per headless mobilem Screenshot gegengecheckt (895e56e).
+Außerdem erfasst: **infra-001** (flaky SQLite-Disposal-Test) liegt im infrastructure-Backlog.
+Nach Push + Re-Deploy: was als Nächstes?
 
 <options>
-  <option title="Am Gerät gegenchecken">Nach dem Deploy: Regeln umsortieren (kippt eine zu-eager Regel hinter eine spezifischere?) und einen Toast auslösen — blendet er sanft aus, sitzt er richtig (mobil oben über der Bottom-Nav)? Ich kann auch headless screenshotten.</option>
-  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Der offene Backlog-Task: Drift-Audit der View-Schichten gegen den Styleguide. Noch unrefined — jetzt mit zwei frischen DS-Touchpoints (Toast-Motion, Reorder-Buttons) als Referenz.</option>
-  <option title="Flaky SQLite-Test angehen" cmd='/agentheim:capture'>Der Verifier sah einen sporadischen `PatternType Conversions`-Fehler bei Connection-Disposal (Microsoft.Data.Sqlite 9.0.11/9.0.13-Versionskonflikt). Kein Blocker, aber als infrastructure-Bug erfassbar.</option>
+  <option title="Toast am echten Gerät gegenchecken">Nach dem Deploy einen echten Toast auslösen (z.B. Sync starten/abbrechen) und schauen, ob er jetzt auch über dem pink/orangen Hero sauber sitzt — der Styleguide-Shot war auf dunklem Grund.</option>
+  <option title="infra-001 angehen" cmd='/agentheim:modeling infra-001'>Den flaky Persistence-Test stabilisieren: Root Cause bestätigen + `Microsoft.Data.Sqlite`-Versionen vereinheitlichen. Noch under-refined → erst Refine/Investigation.</option>
+  <option title="design-system-002 refinen" cmd='/agentheim:modeling design-system-002'>Der ältere Backlog-Task: Drift-Audit der View-Schichten gegen den Styleguide. Jetzt mit Toast + Reorder-Buttons als frische Referenz.</option>
   <option title="Nichts — im Alltag nutzen">Erstmal benutzen; nächste Auffälligkeit/Idee per `capture`/`modeling` einkippen.</option>
 </options>

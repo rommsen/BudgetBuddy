@@ -13,7 +13,7 @@ research touching this BC, and concept synthesis pages.
 - **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 3
+- **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-005 · Toast-Mobile-Platzierung — eingerückter Streifen statt Full-Bleed** — 2026-06-18 — `done/design-system-005-toast-mobile-fit.md` (895e56e; Folge-Bug zu 004; ADR 0007 amended; headless mobil verifiziert)
 - **design-system-004 · Toast-Politur — sanfter Abgang, Positionierung & Styleguide-Motion** — 2026-06-16 — `done/design-system-004-toast-polish.md` (18cf474; Zwei-Phasen-Exit, ADR 0007, 8 Tests)
 - **design-system-003 · Live In-App /styleguide-Route (visueller Styleguide)** — 2026-06-13 — `done/design-system-003-live-styleguide-route.md` (build grün + verifiziert; offen: Romans visueller Check)
 - **design-system-001 · Styleguide retroaktiv kodifizieren (das Gate)** — 2026-06-13 — `done/design-system-001-styleguide.md` (reviewt+akzeptiert als geschriebener Begleiter; visuelle Route → design-system-003)

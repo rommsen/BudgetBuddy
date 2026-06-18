@@ -5,6 +5,57 @@ Newest entries on top.
 
 ---
 
+## 2026-06-18 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 1 Feature (895e56e design-system-005) + 1 Doku-Bookkeeping folgt
+**Note:** Diesmal Geräte-Verifikation eingebaut: headless mobiler Playwright-Screenshot, vom Orchestrator mit eigenen Augen gesichtet → die Platzierungs-Defekte sind weg, bevor deployt wird. Danach: origin-Push + Re-Deploy (Roman-Go).
+
+---
+
+## 2026-06-18 -- Task verified and completed: design-system-005 - Toast-Mobile-Platzierung
+
+**Type:** Work / Task completion
+**Task:** design-system-005 - Toast fügt sich auf Mobile nicht ins Layout
+**Summary:** Mobile/Desktop als zwei getrennte Fälle: mobil kompakter, symmetrisch eingerückter Streifen (`top-16 inset-x-4`), `positionToClasses` nur noch `md:`-Anker → kein Full-Height-Stretch, keine abgeschnittene Neon-Border; innere Fläche voll deckend (`bg-surface-card`) → lesbar über dem Hero. Motion aus 004 unberührt.
+**Verification:** PASS (iteration 1) — verifier: alle Checks grün, `dotnet test` 594 passed / 6 skipped / 0 failed, ToastLifecycleTests unverändert grün, ADR/Styleguide truthful. **Plus Orchestrator-Sichtung der headless-Screenshots** (/tmp/ds005/*.png) → Defekte visuell weg.
+**Commit:** 895e56e
+**Files changed:** 4 (Toast.fs, styleguide.md, ADR 0007 amended, Diary)
+**Tests added:** 0 (reine CSS-Platzierung; visuell verifiziert; 004-Lifecycle-Tests decken die Logik)
+**ADRs written:** 0007 (AMENDED — Platzierung als zwei-Fall präzisiert)
+
+---
+
+## 2026-06-18 -- Batch started: [design-system-005]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-005 - Toast fügt sich auf Mobile nicht ins Layout
+**Parallel:** no (1 worker)
+**Note:** Folge-Bug zu design-system-004. Diesmal mit Geräte-Verifikation: headless mobiler Playwright-Screenshot (Vite :5181, hash-routing) — der Orchestrator sichtet das PNG mit eigenen Augen, weil das AC-Gate visuelle Integration nicht fangen kann.
+
+---
+
+## 2026-06-18 -- Modeling / Captured: infra-001 + design-system-005 (Live-Feedback)
+
+**Type:** Modeling / Capture
+**BC:** infrastructure (infra-001), design-system (design-system-005)
+**Filed to:** backlog (infra-001 — Root Cause unbestätigt), todo (design-system-005 — gut diagnostiziert)
+**Summary:** Zwei Punkte aus Romans Geräte-Check nach dem Deploy. (1) **infra-001** — der flaky
+Persistence-Test (`PatternType Conversions`; SQLite-`RemoveCommand`-Crash beim Disposal +
+`Microsoft.Data.Sqlite` 9.0.11/9.0.13-Versionskonflikt), den der design-system-004-Verifier sah.
+(2) **design-system-005** — Folge-Bug zu design-system-004: der Toast-**Abgang** stimmt, aber die
+**mobile Platzierung** nicht: linke Neon-Border am Viewport-Rand abgeschnitten, überdeckt die
+Filter-Chips, transluzent über dem Hero-Gradient. Root-Cause-Richtung im Code: `container` erbt
+`bottom-4 right-4` aus `positionToClasses BottomRight` und stellt `top-16` nur voran → mobil
+`top-16 bottom-4 right-4`, halb-überschrieben statt bewusst gebaut. Das AC-Gate konnte das nicht
+fangen (keine Geräte-Rendering-Prüfung).
+
+---
+
 ## 2026-06-16 23:25 -- Work session ended
 
 **Type:** Work / Session end
