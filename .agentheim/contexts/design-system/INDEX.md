@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-008 · PWA-App-Icon — "B" im Sync-Ring, Signatur-Gradient** — `todo/design-system-008-pwa-app-icon.md` (depends_on: design-system-001 ✓; blocks infra-002; Konzept+Farbe gelockt: B-im-Sync-Ring, teal→green→orange, klein solid-green; bg #08081a)
 <!-- todo-list:end -->
 
 ### Doing
@@ -36,7 +37,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-008 · PWA-App-Icon (neon-on-dark) — Master-Mark + Icon-Set + Theme-Farbe** — `backlog/design-system-008-pwa-app-icon.md` (depends_on: design-system-001 ✓; blocks infra-002; Refine offen: wie sieht der Mark aus)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

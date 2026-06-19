@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 22:30 -- Modeling / Refined + Promoted: design-system-008 - PWA-App-Icon
+
+**Type:** Modeling / Refine + Promote
+**BC:** design-system
+**Status after:** todo
+**Summary:** Die eine offene Frage des Tasks — *wie sieht der Mark aus* — in einer Suggestor-Runde
+mit Roman gelöst. Vier Mark-Konzepte (Monogramm / Sync-Loop / B-im-Ring-Hybrid / Münze+Flow) ×
+drei Farb-Behandlungen vorgelegt; Roman wählte **"B" im Sync-Ring (Hybrid)** + **Signatur-Gradient**
+(teal #00d4aa → green #00ff88 → orange #ff6b2c). Eingebacken: Klein-Vereinfachung (solid-green B
+ohne Ring ≤32px) gegen das Hybrid-16px-Dichte-Risiko → Zwei-Quell-SVG; Hintergrund/Theme auf
+`#08081a` festgelegt (korrigiert das `#0f172a`-Slate-Drift in index.html, Umsetzung via infra-002);
+maskable/apple-touch-Opazität + ≥20% Safe-Zone in die AC; iOS-Splash bewusst out of scope. Konkrete
+Werte aus styles.css gezogen (bg-app, Gradient, Display-Font real = Space Grotesk). → **todo**.
+**ADRs written:** keine (visuelle Geschmacks-/Marken-Entscheidung, keine Architektur).
+**Note:** Kein Orchestrator (keine Domänen-/Architektur-Frage). infra-002 bleibt backlog, hängt an 008.
+
+---
+
 ## 2026-06-19 22:17 -- Modeling / Captured: PWA-Umsetzung (design-system-008 + infra-002)
 
 **Type:** Modeling / Capture
