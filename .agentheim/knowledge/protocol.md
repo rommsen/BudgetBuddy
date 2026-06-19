@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 23:24 -- Modeling / Refined: infra-002 - PWA-Mechanik (installierbar)
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Beide deps (design-system-008 Icon-Set/Farben, design-system-001 Styleguide-Gate) sind done → Task entsperrt. Alle 4 offenen Refine-Fragen geschlossen: (1) `registerType: 'autoUpdate'` (stilles Update, Single-User/deploy-kontrolliert); (2) minimale gebrandete `offline.html` als Navigations-Floor, kein Daten-Caching; (3) iOS-Splash-Matrix übersprungen; (4) Tailscale serviert an Root (`tailscale serve --https=443 → :5001`) → SW-`scope: /`, kein Vite-`base` — durch Config gelöst, kein Blocker. ACs auf diese Entscheidungen geschärft (+ theme-color/apple-touch-icon-Korrektur auf #08081a). Stale `commit:`-Frontmatter-Feld entfernt (ADR-0026). ADR-Kandidat notiert: "installierbar, aber bewusst kein Offline-Daten-Cache, /api network-only" beim Work festhalten. Promoted backlog → todo.
+**Split into:** none
+**ADRs written:** none (ADR-Kandidat für die Work-Phase vermerkt)
+
+---
+
 ## 2026-06-19 23:10 -- Icon-Rework + AC5 abgenommen: design-system-008 - PWA-App-Icon
 
 **Type:** Work / Gate-Review-Korrektur

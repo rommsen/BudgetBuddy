@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 2
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infra-002 · PWA-Mechanik — installierbar (Manifest, Shell-SW, iOS-Meta, vite-plugin-pwa)** — `todo/infra-002-pwa-installable.md` (deps design-system-008 + 001 DONE; autoUpdate, minimale offline.html, iOS-Splash übersprungen, Scope `/` via Tailscale-Root; kein Daten-Caching)
 <!-- todo-list:end -->
 
 ### Doing
@@ -32,7 +33,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infra-002 · PWA-Mechanik — installierbar (Manifest, Shell-SW, iOS-Meta, vite-plugin-pwa)** — `backlog/infra-002-pwa-installable.md` (depends_on: design-system-008, design-system-001; Scope: nur installierbar, kein Daten-Caching; HTTPS via Tailscale ✓)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC
