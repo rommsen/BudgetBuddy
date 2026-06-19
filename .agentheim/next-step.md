@@ -3,17 +3,18 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: beide Tickets erledigt — Push/Deploy + Drift-Splits offen
+# Nächste Schritte: ds-006 dismisst, ds-007 ready
 
-`infra-001` (flaky SQLite-Test → frische Connection/Op + 9.0.13-Pin, Verifier 10/10 grün,
-`82b5cef`) und `design-system-002` (Drift-Audit → Token-Drift voll konsolidiert, Komponenten-Drift
-gesplittet, `9e9526a`) sind committet und verifiziert. Das Audit hat zwei neue Backlog-Items
-geboren: `design-system-006` (rohe `Html.button` → `Button`) und `design-system-007`
-(rohe `Html.svg` → `Icons`). Was als Nächstes?
+Die Drift-Splits sind sortiert: Ein Klassifikations-Audit zeigte, dass `design-system-006`
+(Buttons) nur 8/34 Kandidaten hat und KEINER byte-identisch liftbar ist (Sheet-CSS, `ready`-Klasse,
+`animate-pulse`) → **dismisst** (`1418eac`). `design-system-007` (SVGs) ist der saubere kleine
+Gewinn — Inventur eingebacken (2 Swaps + `Icons.chevronLeft` neu, Toggle-Check bleibt custom),
+**nach todo promotet** (`050f99d`). Die Work-Session-Commits (infra-001, ds-002, Bookkeeping) sind
+bereits auf `origin/main`; **3 Commits** (Dismiss, Promote, dieser next-step-chore) sind noch
+ungepusht. Was als Nächstes?
 
 <options>
-  <option title="Push + Deploy">Beide Task-Commits + den chore(agentheim)-Commit nach origin pushen und neu deployen (dein üblicher Abschluss nach einer Work-Session). Lokal alles grün.</option>
-  <option title="Drift-Splits refinen" cmd='/agentheim:modeling design-system-006'>006/007 sind raw im Backgelandet (Split-Output, noch nicht promotbar). Per-Site-Urteil (1:1 vs custom Click-Commit/ADR 0005) verfeinern, bevor sie nach todo gehen.</option>
-  <option title="Drift-Splits direkt abarbeiten" cmd='/agentheim:work'>006/007 nach todo promoten und durchziehen — die Konsolidierung von Buttons/SVGs aufs DS, jetzt wo die Token-Basis steht. Größerer Refactor mit echtem Verhaltens-Risiko (Sheets/Swipe).</option>
+  <option title="ds-007 abarbeiten" cmd='/agentheim:work design-system-007'>Der einzige todo-Task: 2 Icon-Swaps + `Icons.chevronLeft` ergänzen, Toggle-Check custom lassen. Klein, risikoarm, klar spezifiziert. Danach push+deploy in einem Rutsch.</option>
+  <option title="Push (Doku-Stand)">Die 3 ungepushten Doku-/Bookkeeping-Commits nach origin schieben. Kein Code-Change → kein Re-Deploy nötig.</option>
   <option title="Nichts — im Alltag nutzen">Erstmal benutzen; nächste Auffälligkeit/Idee per `capture`/`modeling` einkippen.</option>
 </options>
