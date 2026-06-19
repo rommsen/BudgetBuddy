@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-007 · Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)** — 2026-06-18 — `todo/design-system-007-svg-to-icons-consolidation.md` (refine 2026-06-19: Inventur eingebacken — 2 Swaps + chevronLeft neu, toggle-check bleibt custom; depends_on: design-system-001 ✓)
 <!-- todo-list:end -->
 
 ### Doing
@@ -35,7 +36,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-007 · Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)** — 2026-06-18 — `backlog/design-system-007-svg-to-icons-consolidation.md` (Split aus 002; depends_on: design-system-001; 4 Sites, ggf. Icons.fs ergänzen)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

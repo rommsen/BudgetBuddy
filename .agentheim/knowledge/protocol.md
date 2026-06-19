@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 -- Modeling / Refined + Promoted: design-system-007 - Html.svg → Icons
+
+**Type:** Modeling / Refine + Promote
+**BC:** design-system
+**Status after:** todo
+**Summary:** Klassifikations-Audit eingebacken: 4 SVGs → 2 saubere 1:1-Swaps (`QuickAdd:34`→`Icons.plus`, `InlineRuleForm:206`→`Icons.check`), 1 neues Icon (`View.fs:49`→`Icons.chevronLeft`, fehlt im Inventar), 1 bewusst custom (`TransactionRow:359` Toggle-Check, CSS-baked 10×10-viewBox). Absolut-AC „keine rohen Html.svg mehr" auf 3-von-4 gelockert. → todo (depends_on: design-system-001 ✓).
+**ADRs written:** keine
+
+---
+
 ## 2026-06-19 -- Modeling / Dismissed: design-system-006
 
 **Type:** Modeling / Dismiss
