@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 23:47 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 1 (first-try PASS: 0, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 1 Task (7937b0d infra-002) + session-end chore
+**Note:** Einzel-Task-Lauf (infra-002 PWA-Mechanik). Verifier fand iter 1 einen echten Cross-Reference-Defekt (vite.config.js-Kommentar "ADR 0009" statt 0010 — die Verifikation hat genau das gefangen, wofür sie da ist); re-dispatch (comment-only fix) → Verifier-PASS iter 2. **Offenes Human-Gate:** die device-/deploy-gebundenen ACs (Chrome/Edge-Install-Prompt, iOS "Zum Home-Bildschirm", autoUpdate e2e, hinter Tailscale-HTTPS, Live-offline.html) sind nicht maschinell verifizierbar und vor Push/Deploy von Roman einzuholen. todo + doing jetzt leer über alle BCs.
+
+---
+
 ## 2026-06-19 23:46 -- Task verified and completed: infra-002 - PWA-Mechanik (installierbar)
 
 **Type:** Work / Task completion
