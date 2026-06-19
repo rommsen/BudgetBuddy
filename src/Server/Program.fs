@@ -4,8 +4,19 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.FileProviders
+open Microsoft.AspNetCore.StaticFiles
 open Giraffe
 open System.IO
+
+/// Content-type provider that knows the PWA-specific extensions the .NET default
+/// map omits. Without this, .webmanifest is served as application/octet-stream and
+/// browsers reject the manifest (infra-002): SW + manifest must be served at the
+/// root with correct MIME. sw.js is plain .js (already mapped) — listed here only
+/// for clarity of intent.
+let pwaContentTypeProvider () =
+    let provider = FileExtensionContentTypeProvider()
+    provider.Mappings[".webmanifest"] <- "application/manifest+json"
+    provider
 
 [<EntryPoint>]
 let main args =
@@ -47,9 +58,10 @@ let main args =
             FileProvider = fileProvider
         )) |> ignore
 
-        // Serve static files
+        // Serve static files (with PWA-aware MIME map so .webmanifest is valid)
         app.UseStaticFiles(StaticFileOptions(
-            FileProvider = fileProvider
+            FileProvider = fileProvider,
+            ContentTypeProvider = pwaContentTypeProvider ()
         )) |> ignore
 
         printfn $"📁 Serving static files from: {publicPath}"

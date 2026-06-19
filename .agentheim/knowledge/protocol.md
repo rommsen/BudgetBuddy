@@ -5,6 +5,39 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 23:46 -- Task verified and completed: infra-002 - PWA-Mechanik (installierbar)
+
+**Type:** Work / Task completion
+**Task:** infra-002 - PWA-Mechanik — installierbar (Manifest, Shell-SW, iOS-Meta, vite-plugin-pwa)
+**Summary:** BudgetBuddy ist als PWA installierbar — `vite-plugin-pwa` + Workbox-Shell-Precache-SW, bewusst ohne Offline-Daten-Cache (`/api` strikt network-only: `runtimeCaching:[]` + `navigateFallbackDenylist:[/^\/api\//]`), stilles `autoUpdate`, gebrandete `offline.html` als Navigations-Floor, iOS/Favicon/theme-color auf `#08081a` korrigiert, `.webmanifest`-MIME im Giraffe-Static-Handler.
+**Verification:** PASS (iteration 2) — iter 1 fand einen echten Cross-Reference-Defekt (vite.config.js-Kommentar "ADR 0009" statt 0010), re-dispatch fixte ihn (comment-only); iter 2 bestätigte Fix ohne Regression + manifest/sw.js/index.html/Program.fs/offline.html/ADR clean, `dotnet build` + `npm run build` grün.
+**Files changed:** 9 (vite.config.js, index.html, offline.html, Program.fs, package.json, package-lock.json, ADR 0010, infra-README, diary)
+**Tests added:** 0 (reine Config/Build-Task; kein JS/PWA-Testharness, nur Expecto-F# — Validierung = boot-and-validate Build)
+**ADRs written:** 0010-pwa-installable-no-offline-data-cache.md
+**Human gate offen:** device-/deploy-gebundene ACs (Chrome/Edge-Install, iOS "Zum Home-Bildschirm", autoUpdate e2e, hinter Tailscale-HTTPS, Live-offline.html) — vom Verifier als ehrliches Human-Gate im `## Outcome` dokumentiert, nicht maschinell verifizierbar.
+
+---
+
+## 2026-06-19 23:40 -- Verification failed: infra-002 - PWA-Mechanik (installierbar)
+
+**Type:** Work / Verification failure
+**Task:** infra-002 - PWA-Mechanik — installierbar
+**Iteration:** 1 of 3
+**Reasons:** vite.config.js:20 Kommentar verweist auf "ADR 0009" (= unrelated design-system onNeon/Font-Token-ADR); korrekte governing ADR für die no-data-cache/`/api`-network-only-Entscheidung ist 0010. README + ADR-Frontmatter sind korrekt — nur der eine Source-Kommentar ist falsch.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (iteration 2)
+
+---
+
+## 2026-06-19 23:27 -- Batch started: [infra-002]
+
+**Type:** Work / Batch start
+**Tasks:** infra-002 - PWA-Mechanik — installierbar (Manifest, Shell-SW, iOS-Meta, vite-plugin-pwa)
+**Parallel:** no (1 worker)
+**Note:** Einzel-Task-Lauf (einziger todo). Beide deps (design-system-008, design-system-001) done → entsperrt. ADR-Kandidat aus dem Refine festzuhalten: "PWA installierbar, aber bewusst kein Offline-Daten-Cache; /api network-only". Secure context (HTTPS via Tailscale) bestätigt.
+
+---
+
 ## 2026-06-19 23:24 -- Modeling / Refined: infra-002 - PWA-Mechanik (installierbar)
 
 **Type:** Modeling / Refine

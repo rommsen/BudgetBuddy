@@ -24,6 +24,17 @@ Konkret bei BudgetBuddy:
 - **`Microsoft.Data.Sqlite` ist projektweit auf eine feste Version gepinnt** (kein floating
   `9.*`) — identisch in `Server.fsproj` und `Tests.fsproj`, um Versionsskew/MSB3277 zu
   vermeiden. Bei Einführung zentraler Paketverwaltung dorthin zentralisieren. Siehe ADR 0008.
+- **PWA = installierbar, kein Offline-Daten-Cache.** Der Client ist eine installierbare PWA
+  (`vite-plugin-pwa`, `vite.config.js` im Repo-Root). Der Workbox-Service-Worker precached
+  **nur die statische App-Shell**; **`/api/*` ist strikt network-only und wird NIE gecacht**
+  (`runtimeCaching: []`, `navigateFallbackDenylist: [/^\/api\//]`) — gecachte Finanzdaten
+  wären gegen die Live-Companion-Vision schädlich (stale Beträge, Dedup-/ImportId-Verwirrung).
+  `registerType: 'autoUpdate'` (stille Updates, deploy-kontrolliert). SW-`scope: /`, kein
+  Vite-`base` (Tailscale serviert an Root). `theme_color`/`background_color` = `#08081a`
+  (`--bg-app`, aus `design-system-008`). Gebrandete `offline.html` als Navigations-Floor
+  (cached keine Daten). **Manifest-MIME:** der Giraffe-Static-Handler (`Program.fs`) muss
+  `.webmanifest → application/manifest+json` mappen (ASP.NET-Default kennt die Endung nicht).
+  Siehe ADR 0010.
 
 ## Classification
 **generic / supporting** — trägt keine fachlichen Entscheidungen, ermöglicht aber alle.

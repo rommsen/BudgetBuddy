@@ -5,9 +5,20 @@
     <!-- interactive-widget=resizes-content: Android Chrome 108+ resizes the layout
          viewport when the keyboard opens (ignored by iOS, harmless there) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
-    <meta name="theme-color" content="#0f172a">
+    <!-- theme-color = --bg-app (design-system-008). Supersedes the old generic #0f172a. -->
+    <meta name="theme-color" content="#08081a">
+    <!-- PWA / installability (manifest link is injected by vite-plugin-pwa at build) -->
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="BudgetBuddy">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- iOS adds the app icon to the home screen from apple-touch-icon (ignores transparency) -->
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <!-- Favicons: full set from design-system-008 -->
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png">
+    <link rel="icon" type="image/x-icon" href="./icons/favicon.ico">
     <title>BudgetBuddy</title>
 </head>
 <body>

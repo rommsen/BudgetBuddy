@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-19 23:35 - PWA-Mechanik: installierbar, kein Offline-Daten-Cache (infra-002)
+
+### What
+BudgetBuddy als installierbare PWA verdrahtet — Manifest + Workbox-Shell-Service-Worker via
+`vite-plugin-pwa`, **bewusst ohne Offline-Daten-Cache**: `/api/*` bleibt strikt network-only
+(`runtimeCaching: []`, `navigateFallbackDenylist: [/^\/api\//]`), nur die statische App-Shell wird
+precached. `registerType: 'autoUpdate'` (stille Updates), `scope: /`. Gebrandete `offline.html` als
+Navigations-Floor. `index.html`: `theme-color` auf `#08081a` korrigiert (`#0f172a` entfernt),
+apple-touch-icon + Favicon-Set + mobile-web-app-Meta. Giraffe-Static-Handler um
+`.webmanifest → application/manifest+json` erweitert. ADR 0010 geschrieben.
+
+### Files Changed
+- `vite.config.js` - VitePWA-Plugin (Manifest, Workbox-Shell-Precache, autoUpdate, /api network-only)
+- `src/Client/index.html` - theme-color #08081a, apple-touch-icon, Favicon-Set, mobile-web-app-capable
+- `src/Client/public/offline.html` - NEU: gebrandete "Keine Verbindung"-Seite (DS-Farben inline)
+- `src/Server/Program.fs` - FileExtensionContentTypeProvider: .webmanifest → application/manifest+json
+- `package.json` / `package-lock.json` - vite-plugin-pwa@1.3.0 (devDependency)
+- `.agentheim/knowledge/decisions/0010-pwa-installable-no-offline-data-cache.md` - NEU: ADR
+
+### Rationale
+BB ist ein Live-Daten-Companion (Comdirect → YNAB); gecachte Finanzdaten wären gegen die Vision
+schädlich (stale Beträge, Dedup-/ImportId-Verwirrung). PWA daher "nur installierbar". Chrome/Android
+verlangen für Install-Kriterien faktisch einen SW — der Shell-Precache-SW kostet nichts und cached
+bewusst keine Daten. Manifest-MIME-Mapping nötig, weil der ASP.NET-Default `.webmanifest` nicht kennt.
+
+### Verification
+- Build: PASSED (`npm run build` Fable+Vite grün; `dotnet build` Server grün)
+- Generierte Artefakte geprüft: manifest.webmanifest vollständig (#08081a, Icons 192/512/maskable);
+  sw.js precached nur Shell (kein /api, keine Daten-URLs); offline.html als NavigationRoute-Fallback
+  mit /^\/api\//-Denylist; index.html mit Manifest-Link + Registrierungs-Script (scope /).
+- Tests: 595 passed, 6 skipped (externe .env-Integrationstests, unverändert)
+- Human gate: Geräte-/Tailscale-HTTPS-gebundene ACs (Install-Prompt, iOS Home-Screen, autoUpdate
+  e2e, Offline-Seite live) sind im Task-Outcome als Roman-Verifikation ausgewiesen.
+
+---
+
 ## 2026-06-19 23:10 - PWA-App-Icon Rework (Gate-Review-Korrektur, design-system-008)
 
 ### What
