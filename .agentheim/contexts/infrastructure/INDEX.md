@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 2
@@ -32,6 +32,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infra-002 · PWA-Mechanik — installierbar (Manifest, Shell-SW, iOS-Meta, vite-plugin-pwa)** — `backlog/infra-002-pwa-installable.md` (depends_on: design-system-008, design-system-001; Scope: nur installierbar, kein Daten-Caching; HTTPS via Tailscale ✓)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

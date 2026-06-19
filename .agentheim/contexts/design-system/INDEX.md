@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 6
@@ -36,6 +36,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-008 · PWA-App-Icon (neon-on-dark) — Master-Mark + Icon-Set + Theme-Farbe** — `backlog/design-system-008-pwa-app-icon.md` (depends_on: design-system-001 ✓; blocks infra-002; Refine offen: wie sieht der Mark aus)
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

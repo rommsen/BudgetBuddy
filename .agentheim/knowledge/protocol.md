@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 22:17 -- Modeling / Captured: PWA-Umsetzung (design-system-008 + infra-002)
+
+**Type:** Modeling / Capture
+**BC:** design-system, infrastructure
+**Filed to:** backlog (beide)
+**Summary:** Roman will BudgetBuddy als PWA mit eigenem Icon umsetzen. Capture spaltet sauber
+in zwei BCs: **design-system-008** (App-Icon — neon-on-dark Master-Mark + Icon-Set +
+theme/background-color aus dem Token-Layer, durchs Styleguide-Gate) und **infra-002**
+(PWA-Mechanik — vite-plugin-pwa, manifest.webmanifest, iOS-Meta, Shell-Precache-SW). infra-002
+depends_on design-system-008 (Manifest braucht die Icons) + design-system-001 (Gate).
+**Scope-Entscheide (Roman):** (1) nur installierbar, KEIN Daten-Caching — BB ist Live-Daten-
+Companion, gecachte Finanzdaten/Dedup wären schädlich; SW precached nur die Shell, /api ist
+network-only. (2) Icon entwerfe ich selbst (neon-on-dark). (3) Secure context steht: HTTPS via
+Tailscale → kein Blocker. **Offen für Refine:** Aussehen des Marks (der eigentliche Design-Schritt),
+SW-Update-Strategie (autoUpdate vs prompt), iOS-Splash ja/nein, SW-scope hinter Tailscale-Proxy.
+
+---
+
 ## 2026-06-19 -- Work session ended
 
 **Type:** Work / Session end
