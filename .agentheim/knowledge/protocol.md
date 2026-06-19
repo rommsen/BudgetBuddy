@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 1 (first-try PASS: 0, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 1 — resolved im selben Lauf (design-system-007: iter-1-FAIL war task-under-specified; Roman entschied die DS-Normalisierung, AC umformuliert, re-verify PASS)
+**Commits:** 1 Task (064d349 design-system-007) + 1 chore (session-end)
+**Note:** Einzel-Task-Lauf. Der Wert lag im Verifier-Fang: die „1:1-Lift = optisch identisch"-Prämisse hielt nicht (DS hardcodet stroke 1.5 + feste Größenstufen), Spec war intern widersprüchlich → eskaliert statt geraten. Optionaler visueller Abnahme-Check (headless mobil+Desktop) vor Push/Deploy noch offen. Unpushte Commits insgesamt: 4 (006-dismiss, 007-promote, next-step, 007-refactor) + dieser chore.
+
+---
+
 ## 2026-06-19 -- Task verified and completed: design-system-007 - Html.svg → Icons
 
 **Type:** Work / Task completion

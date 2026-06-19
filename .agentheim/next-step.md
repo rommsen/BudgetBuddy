@@ -3,18 +3,17 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: ds-006 dismisst, ds-007 ready
+# Nächste Schritte: ds-007 erledigt — visueller Check + Push/Deploy offen
 
-Die Drift-Splits sind sortiert: Ein Klassifikations-Audit zeigte, dass `design-system-006`
-(Buttons) nur 8/34 Kandidaten hat und KEINER byte-identisch liftbar ist (Sheet-CSS, `ready`-Klasse,
-`animate-pulse`) → **dismisst** (`1418eac`). `design-system-007` (SVGs) ist der saubere kleine
-Gewinn — Inventur eingebacken (2 Swaps + `Icons.chevronLeft` neu, Toggle-Check bleibt custom),
-**nach todo promotet** (`050f99d`). Die Work-Session-Commits (infra-001, ds-002, Bookkeeping) sind
-bereits auf `origin/main`; **3 Commits** (Dismiss, Promote, dieser next-step-chore) sind noch
-ungepusht. Was als Nächstes?
+`design-system-007` ist durch (`064d349`): 3 inline-SVG aufs `Icons`-DS gehoben (`Icons.plus`,
+`Icons.check`, neues `Icons.chevronLeft`), Toggle-Check bewusst roh. Der Verifier fing einen
+echten Look-Change (Strichstärke 2.5/3→1.5, Größe 18/12→20/16px); du hast die **DS-Normalisierung
+akzeptiert** (Farbe identisch, DS-Standard-Optik) — die AC wurde entsprechend korrigiert.
+Der design-system-Backlog ist **leer**. Code-seitig steht damit alles; offen ist nur dein Blick
+drauf + der Push. Es liegen **5 ungepushte Commits** lokal.
 
 <options>
-  <option title="ds-007 abarbeiten" cmd='/agentheim:work design-system-007'>Der einzige todo-Task: 2 Icon-Swaps + `Icons.chevronLeft` ergänzen, Toggle-Check custom lassen. Klein, risikoarm, klar spezifiziert. Danach push+deploy in einem Rutsch.</option>
-  <option title="Push (Doku-Stand)">Die 3 ungepushten Doku-/Bookkeeping-Commits nach origin schieben. Kein Code-Change → kein Re-Deploy nötig.</option>
+  <option title="Visueller Abnahme-Check">Ich rendere die drei geänderten Icons headless (mobil + Desktop, /styleguide + die Sync-Views) und zeige dir den DS-normalisierten Look — bevor er live geht. Du nimmst die dünnere Strichstärke mit eigenen Augen ab.</option>
+  <option title="Push + Deploy">Die 5 lokalen Commits nach origin und neu deployen. ds-007 ist ein Code-Change → Re-Deploy sinnvoll. (Visuellen Check ggf. danach am echten Gerät.)</option>
   <option title="Nichts — im Alltag nutzen">Erstmal benutzen; nächste Auffälligkeit/Idee per `capture`/`modeling` einkippen.</option>
 </options>
