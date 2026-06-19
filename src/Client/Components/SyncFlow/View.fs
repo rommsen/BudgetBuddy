@@ -46,19 +46,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         prop.ariaLabel "Zurück"
                         prop.onClick (fun _ -> dispatch CancelSync)
                         prop.children [
-                            Svg.svg [
-                                svg.custom ("width", "18")
-                                svg.custom ("height", "18")
-                                svg.viewBox (0, 0, 24, 24)
-                                svg.fill "none"
-                                svg.stroke "currentColor"
-                                svg.custom ("strokeWidth", "2.5")
-                                svg.custom ("strokeLinecap", "round")
-                                svg.custom ("strokeLinejoin", "round")
-                                svg.children [
-                                    Svg.path [ svg.d "M15 18l-6-6 6-6" ]
-                                ]
-                            ]
+                            Icons.chevronLeft Icons.SM Icons.Default
                         ]
                     ]
                     Html.div [

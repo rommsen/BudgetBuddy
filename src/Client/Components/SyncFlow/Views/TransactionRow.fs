@@ -356,6 +356,9 @@ let transactionRow (props: TransactionRowProps) =
                                     Html.span [
                                         prop.className "toggle-track"
                                         prop.children [
+                                            // Deliberately raw (not Icons.check): CSS-baked 10x10-viewBox micro-glyph
+                                            // positioned/sized by the .toggle-check CSS; lifting to the DS 24-viewBox
+                                            // Icons.check would be CSS rework, not a 1:1 visual swap (design-system-007).
                                             Svg.svg [
                                                 svg.className "toggle-check"
                                                 svg.viewBox (0, 0, 10, 10)

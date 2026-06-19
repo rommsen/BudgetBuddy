@@ -5,6 +5,38 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 -- Task verified and completed: design-system-007 - Html.svg → Icons
+
+**Type:** Work / Task completion
+**Task:** design-system-007 - Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)
+**Summary:** 3 von 4 rohen inline-SVG aufs `Icons`-DS gehoben (QuickAdd-Plus → `Icons.plus`, InlineRuleForm-Check → `Icons.check`, Back-Chevron → neues `Icons.chevronLeft`), der CSS-baked Toggle-Check bleibt begründet roh. Farben byte-identisch; Größe/Strichstärke bewusst auf DS-Standard normalisiert.
+**Verification:** PASS (iteration 2) — iter 1 FAIL war task-under-specified (AC verlangte Pixel-Parität UND DS-Token, unerfüllbar) → an Roman eskaliert, der die DS-Normalisierung akzeptierte (Option a); AC umformuliert, Code unverändert, Re-Verify grün. Build 0/0, Tests 595/6/0.
+**Files changed:** 6 (Icons.fs +chevronLeft, View.fs, QuickAdd.fs, InlineRuleForm.fs, TransactionRow.fs +Begründungs-Kommentar, Diary)
+**Tests added:** 0 (gerader Icon-Lift, kein neuer Code-Pfad; stabiles Gate als Regressions-Schutz)
+**ADRs written:** none
+
+---
+
+## 2026-06-19 -- Verification failed — escalating to user: design-system-007 - Html.svg → Icons
+
+**Type:** Work / Verification failure
+**Task:** design-system-007 - Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)
+**Iteration:** 1 of 3
+**Reasons:** Look-Regress — der Swap ändert gerendert Strichstärke (DS `svgIcon` hardcodet 1.5; Originale 2.5/3) und Größe (DS `IconSize` hat keine 18/12px-Stufe → 20/16px). Farben + `chevronLeft`-Geometrie sind korrekt; AC #3 (Toggle-Check) erfüllt; Build/Tests grün (595/6/0).
+**Iteration hint:** task-under-specified
+**Next:** escalated to user — `work` re-modelt nicht. Die AC verlangt BEIDES (identischer Look UND DS-Token), was die DS für diese Bespoke-Glyphen nicht leisten kann (interner Spec-Widerspruch). Roman entscheidet: (a) DS-Normalisierung akzeptieren + AC umformulieren, (b) DS erst erweitern (stroke/size-Override), (c) Scope schrumpfen/dismiss. Code bleibt uncommittet auf dem Working Tree; Task bleibt in doing/.
+
+---
+
+## 2026-06-19 -- Batch started: [design-system-007]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-007 - Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)
+**Parallel:** no (1 worker)
+**Note:** Einziger todo-Task (Schwester-Split 006 dismisst). Inventur aus dem Refine-Audit eingebacken: 2 saubere Swaps (Icons.plus/Icons.check), 1 neues Icon (Icons.chevronLeft), 1 bewusst custom (Toggle-Check).
+
+---
+
 ## 2026-06-19 -- Modeling / Refined + Promoted: design-system-007 - Html.svg → Icons
 
 **Type:** Modeling / Refine + Promote

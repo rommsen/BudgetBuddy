@@ -272,6 +272,16 @@ let chevronRight (size: IconSize) (color: IconColor) =
         ]
     ]
 
+/// Chevron left (mirror of chevronRight)
+let chevronLeft (size: IconSize) (color: IconColor) =
+    svgIcon size color [
+        Svg.path [
+            svg.strokeLineCap "round"
+            svg.strokeLineJoin "round"
+            svg.d "m15.75 19.5-7.5-7.5 7.5-7.5"
+        ]
+    ]
+
 /// External link
 let externalLink (size: IconSize) (color: IconColor) =
     svgIcon size color [

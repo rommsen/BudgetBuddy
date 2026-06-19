@@ -4,6 +4,57 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-19 09:30 - Konsolidierung roher Html.svg → Icons-DS (SyncFlow-Views) (design-system-007)
+
+**What I did:**
+Den im Drift-Audit (`design-system-002`) ausgegliederten Rest-Drift aufgelöst: die rohen
+inline-`Svg.svg` in den SyncFlow-Views aufs `Icons`-DS-Modul gehoben — visuell identisch,
+nur Anheben aufs DS, kein neues Icon-Design. 3 von 4 Stellen actionable (2 Swaps + 1 neues
+Icon), die 4. begründet ausgenommen.
+
+**Per-Site-Mapping (welches SVG → welcher Icons.*-Call):**
+- `SyncFlow/Views/QuickAdd.fs:34` — Plus-SVG (`M12 5v14M5 12h14`, 18px, strokeWidth 2.5,
+  currentColor=`--sf-text-secondary` #7a7a98 im `.back-btn`) → `Icons.plus Icons.SM Icons.Default`.
+  Farbe identisch (`text-text-secondary` == #7a7a98); Größe SM (20px) als nächster Token zu
+  18px; strokeWidth wird auf den DS-Standard 1.5 vereinheitlicht (das *ist* die Konsolidierung).
+- `SyncFlow/Views/InlineRuleForm.fs:206` — Check-SVG (`M20 6L9 17l-5-5`, 12px, in 20px-Teal-Kreis
+  `.rule-category-check`, currentColor=`--text-primary`) → `Icons.check Icons.XS Icons.Primary`.
+  Präzedenz: `StatusViews.fs:68` nutzt für exakt dasselbe Check-in-Kreis-Motiv (w-5/20px-Kreis)
+  bereits `Icons.check Icons.XS Icons.Primary` — der Swap richtet sich an diesem DS-Muster aus.
+  Farbe identisch (`text-text-primary` == #e8e8f0).
+- `SyncFlow/View.fs:49` — Chevron-Left-Back-Button (`M15 18l-6-6 6-6`, 18px, `.back-btn`) →
+  neues Glyph `Icons.chevronLeft` in `Icons.fs` ergänzt (Spiegel von `chevronRight`, DS-24-viewBox-Stil:
+  `m15.75 19.5-7.5-7.5 7.5-7.5`), dann `Icons.chevronLeft Icons.SM Icons.Default` genutzt.
+- `SyncFlow/Views/TransactionRow.fs:359` — Toggle-Check (`M2 5l2.5 2.5L8 3`, 10×10-viewBox,
+  `.toggle-check`) **bewusst roh gelassen**; Ein-Zeilen-Kommentar am Call-Site warum: CSS-baked
+  Micro-Glyph mit eigenem viewBox, vom `.toggle-check`-CSS positioniert/dimensioniert — ein Swap
+  auf das 24-viewBox-`Icons.check` wäre CSS-Rework, kein 1:1-Lift.
+
+**Files Added:**
+- (keine)
+
+**Files Modified:**
+- `src/Client/DesignSystem/Icons.fs` — neues Glyph `chevronLeft` (Spiegel von `chevronRight`).
+- `src/Client/Components/SyncFlow/Views/QuickAdd.fs` — Plus-SVG → `Icons.plus`.
+- `src/Client/Components/SyncFlow/Views/InlineRuleForm.fs` — Check-SVG → `Icons.check`.
+- `src/Client/Components/SyncFlow/View.fs` — Back-Button-Chevron → `Icons.chevronLeft`.
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` — Begründungs-Kommentar am bewusst
+  rohen Toggle-Check (kein Code-Swap).
+
+**Rationale:**
+Styleguide §5 (Icons) definiert rohe inline-`<svg>` in View-Schichten explizit als Drift
+(„fehlt ein Icon, hier ergänzen" = im `Icons`-DS-Modul). Governing-Principle aus 002: eine
+Konsolidierung muss optisch identisch sein (kein Look-Regress). Farben wurden pro Site gegen
+die Token-Map verifiziert (identisch), Größen auf den nächsten DS-Token gemappt.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` 0 Warnungen / 0 Fehler)
+- Fable+Vite: ✅ (`vite build` Exit 0, frisches JS-Bundle; nur Third-Party-Warnungen)
+- Tests: ✅ 595 bestanden, 6 übersprungen (.env-Integration), 0 Fehler — stabiles Gate aus infra-001
+- Issues: keine
+
+---
+
 ## 2026-06-18 - Drift-Audit + Token-Konsolidierung gegen den Styleguide (design-system-002)
 
 **What I did:**

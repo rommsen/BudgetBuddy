@@ -31,18 +31,7 @@ let quickAddHeaderButton (dispatch: Msg -> unit) =
         prop.title "Transaktion eintragen"
         prop.onClick (fun _ -> dispatch OpenQuickAdd)
         prop.children [
-            Svg.svg [
-                svg.width 18
-                svg.height 18
-                svg.viewBox (0, 0, 24, 24)
-                svg.custom ("fill", "none")
-                svg.custom ("stroke", "currentColor")
-                svg.custom ("strokeWidth", "2.5")
-                svg.custom ("strokeLinecap", "round")
-                svg.children [
-                    Svg.path [ svg.d "M12 5v14M5 12h14" ]
-                ]
-            ]
+            Icons.plus Icons.SM Icons.Default
         ]
     ]
 

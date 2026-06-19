@@ -203,19 +203,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                     Html.span [
                                         prop.className "rule-category-check"
                                         prop.children [
-                                            Svg.svg [
-                                                svg.viewBox (0, 0, 24, 24)
-                                                svg.custom ("fill", "none")
-                                                svg.custom ("stroke", "currentColor")
-                                                svg.custom ("strokeWidth", "3")
-                                                svg.custom ("strokeLinecap", "round")
-                                                svg.custom ("strokeLinejoin", "round")
-                                                svg.custom ("width", "12")
-                                                svg.custom ("height", "12")
-                                                svg.children [
-                                                    Svg.path [ svg.d "M20 6L9 17l-5-5" ]
-                                                ]
-                                            ]
+                                            Icons.check Icons.XS Icons.Primary
                                         ]
                                     ]
                                     Html.span [
