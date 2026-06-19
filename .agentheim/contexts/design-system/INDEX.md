@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,7 +35,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-006 · Konsolidierung roher Html.button → Button-DS-Komponente (SyncFlow/Rules-Views)** — 2026-06-18 — `backlog/design-system-006-button-consolidation-syncflow.md` (Split aus 002; depends_on: design-system-001; ~34 Sites, 1:1 vs custom pro Fall, ADR 0005 nicht anfassen)
 - **design-system-007 · Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)** — 2026-06-18 — `backlog/design-system-007-svg-to-icons-consolidation.md` (Split aus 002; depends_on: design-system-001; 4 Sites, ggf. Icons.fs ergänzen)
 <!-- backlog-list:end -->
 

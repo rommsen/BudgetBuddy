@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 -- Modeling / Dismissed: design-system-006
+
+**Type:** Modeling / Dismiss
+**Dismissed:** design-system-006 - Konsolidierung roher Html.button → Button-DS-Komponente (SyncFlow/Rules-Views) (design-system)
+**Cascade:** keine — keine Tasks hingen an design-system-006 (kein dependent subtree).
+**Befund (warum):** Klassifikations-Audit (Sub-Agent, read-only) ergab 8/34 (a)-Kandidaten, davon KEINER byte-identisch liftbar (Sheet-CSS `btn-cancel`/`qa-submit`, `ready`-Klassen-Toggle, `animate-pulse`). Die 26 übrigen sind bewusst custom (ADR-0005-Click-Commit, Swipe, `action-chip`, Segment-Toggles, Field-Disclosures, Text-Links). Der Refactor wäre *wie spezifiziert* (no-redesign/no-behavior-change) für die Sync-UI nicht machbar → wenig Ertrag, echtes Risiko in der Kern-UI. Roman: dismiss (Vision-Leitprinzip „was nicht real gebraucht wird, fliegt raus"). design-system-007 bleibt (sauberer kleiner Gewinn).
+
+---
+
 ## 2026-06-18 22:20 -- Work session ended
 
 **Type:** Work / Session end
