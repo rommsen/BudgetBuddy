@@ -74,6 +74,23 @@ Komponenten-Drift.**
   custom: Click-Commit/ADR 0005, Swipe, `action-chip`) → `design-system-006`; 4 rohe
   `Html.svg` → `Icons` → `design-system-007`. Bewusst NICHT gemega-refactored.
 
+## App-Mark / Branding (design-system-008, 2026-06-19)
+Der **App-Mark** ("B im Sync-Ring") ist die Marken-Identität von BudgetBuddy fürs
+Home-Screen-/PWA-Icon — gehört dem Design-System, geht durchs Styleguide-Gate.
+- **Konzept:** fettes "B" (Identität) zentriert in einem **Sync-Ring** mit zwei
+  Pfeilköpfen (Funktion: Bank→YNAB; echot `Icons.sync`).
+- **Farbe:** Signatur-Gradient `135deg #00d4aa→#00ff88→#ff6b2c` (= `.gradient-text` /
+  `Presets.gradientText`) + dezenter Neon-Glow. **Klein-Variante ≤32px:** vereinfacht zu
+  solid `#00ff88` "B" ohne Ring/Gradient (Lesbarkeit bei 16/32px).
+- **`theme_color` = `background_color` = `#08081a`** (`--bg-app`, echte App-Surface). Löst
+  das generische `#0f172a`-Slate-Drift in `index.html` ab — die Verdrahtung (Manifest +
+  Meta-Tags + Generator-Config) macht `infra-002`.
+- **Quell-SVGs (zwei, weil Generatoren uniform skalieren):**
+  `src/Client/public/icon-master.svg` (voller Hybrid), `…/favicon.svg` (vereinfacht),
+  `…/icon-maskable.svg` (Hybrid auf opakem `#08081a`, ≥20 % Safe-Zone).
+- **Raster-Set:** `src/Client/public/icons/` (192/512 transparent, maskable-512,
+  apple-touch-180 opak, favicon-16/32 + `favicon.ico`).
+
 ## Open questions
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht
   das Markdown-Dokument + CLAUDE.md-Referenz? (offen, erst bei Bedarf)

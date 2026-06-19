@@ -1,0 +1,59 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BudgetBuddy maskable app icon">
+  <!--
+    BudgetBuddy maskable variant: full Hybrid mark on opaque #08081a (app surface),
+    scaled to ~76% and centred so nothing important falls in the maskable crop zone
+    (>=20% safe-zone padding on every edge). Derived from icon-master.svg.
+  -->
+  <defs>
+    <linearGradient id="bbGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00d4aa"/>
+      <stop offset="50%" stop-color="#00ff88"/>
+      <stop offset="100%" stop-color="#ff6b2c"/>
+    </linearGradient>
+    <filter id="bbGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="9" result="blur"/>
+      <feFlood flood-color="#00ff88" flood-opacity="0.55" result="glowColor"/>
+      <feComposite in="glowColor" in2="blur" operator="in" result="softGlow"/>
+      <feMerge>
+        <feMergeNode in="softGlow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Opaque app surface (iOS/Android maskable ignore transparency) -->
+  <rect x="0" y="0" width="512" height="512" fill="#08081a"/>
+
+  <!-- Mark scaled to 0.76 about the canvas centre (256,256): translate then scale -->
+  <g transform="translate(61.44 61.44) scale(0.76)">
+    <g filter="url(#bbGlow)">
+      <g stroke="url(#bbGrad)" stroke-width="26" stroke-linecap="round" fill="none">
+        <path d="M 256 88 A 168 168 0 0 1 396 348"/>
+        <path d="M 256 424 A 168 168 0 0 1 116 164"/>
+      </g>
+      <g fill="url(#bbGrad)">
+        <path d="M 372 374 L 366 326 L 414 338 Z"/>
+        <path d="M 140 138 L 146 186 L 98 174 Z"/>
+      </g>
+      <path fill="url(#bbGrad)" fill-rule="evenodd" d="
+        M 196 168
+        h 64
+        a 50 50 0 0 1 0 100
+        h 4
+        a 52 52 0 0 1 0 104
+        h -72
+        z
+        M 230 196
+        v 64
+        h 28
+        a 32 32 0 0 0 0 -64
+        z
+        M 230 288
+        v 60
+        h 32
+        a 30 30 0 0 0 0 -60
+        z
+      "/>
+    </g>
+  </g>
+</svg>

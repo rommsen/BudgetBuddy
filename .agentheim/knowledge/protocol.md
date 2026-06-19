@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 22:50 -- Task verified and completed: design-system-008 - PWA-App-Icon
+
+**Type:** Work / Task completion
+**Task:** design-system-008 - PWA-App-Icon ("B" im Sync-Ring, Signatur-Gradient)
+**Summary:** App-Mark "B im Sync-Ring" (fettes B in Zwei-Pfeil-Sync-Ring, Signatur-Gradient 135deg #00d4aa→#00ff88→#ff6b2c + Glow) + volles PWA-Icon-Set. Quell-SVGs (master/favicon-simplified/maskable) + Raster (192/512/maskable-512/apple-touch-180/16/32/.ico) unter src/Client/public/; theme_color=background_color=#08081a für infra-002 dokumentiert.
+**Verification:** PASS (iteration 1) — Verifier decodierte Pixel (favicon-32 = #00ff88, maskable voll opak #08081a), bestätigte B+Ring+Pfeile im SVG, index.html/package.json korrekt unangetastet (gehört infra-002). AC1–AC4 erfüllt.
+**Files changed:** 13 (3 SVG, 7 Raster, icons/README, BC-README, Diary)
+**Tests added:** 0 (reine Vite-Static-Assets, kein F#-Pfad)
+**ADRs written:** none (visuelle/Marken-Entscheidung, keine Architektur)
+**Human gate offen:** AC5 — Romans visuelle Abnahme des gerenderten Marks steht aus (analog ds-001/003).
+
+---
+
+## 2026-06-19 22:40 -- Batch started: [design-system-008]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-008 - PWA-App-Icon ("B" im Sync-Ring, Signatur-Gradient)
+**Parallel:** no (1 worker)
+**Note:** Einzel-Task-Lauf (einziger todo). Visueller Mark — AC5 (Romans Abnahme) ist ein menschliches Gate, das nach dem Build-Verify/Commit gesondert eingeholt wird (Präzedenz ds-003). Keine native Rasterisierung im Env → PNG-Set via `npx @vite-pwa/assets-generator`.
+
+---
+
 ## 2026-06-19 22:30 -- Modeling / Refined + Promoted: design-system-008 - PWA-App-Icon
 
 **Type:** Modeling / Refine + Promote

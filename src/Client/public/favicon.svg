@@ -1,0 +1,26 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BudgetBuddy favicon: a bold B">
+  <!--
+    BudgetBuddy simplified favicon: solid neon-green B, no ring, no gradient.
+    Optimized to read clearly at 16/32px (avoids the dense Hybrid mark at tiny sizes).
+    Color: neon-green #00ff88 (styles.css). Transparent background.
+  -->
+  <path fill="#00ff88" fill-rule="evenodd" d="
+    M 7 4
+    h 10
+    a 6.5 6.5 0 0 1 0 13
+    h 1
+    a 7 7 0 0 1 0 14
+    h -12
+    z
+    M 12 8
+    v 8
+    h 4.5
+    a 4 4 0 0 0 0 -8
+    z
+    M 12 20
+    v 8.5
+    h 5
+    a 4.25 4.25 0 0 0 0 -8.5
+    z
+  "/>
+</svg>

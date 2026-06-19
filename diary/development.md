@@ -4,6 +4,44 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-19 22:45 - PWA-App-Icon "B im Sync-Ring" + Theme-Farben (design-system-008)
+
+**What I did:**
+Die Marken-Identität fürs PWA-/Home-Screen-Icon entworfen und das volle Icon-Set
+abgeleitet — bisher hatte BB kein eigenes App-Icon (kein favicon, kein `public/`).
+Konzept (mit Roman gelockt): fettes **"B" im Sync-Ring** (zwei Pfeilköpfe, echot
+`Icons.sync`) — Identität + Funktion (Bank→YNAB) in einem Zeichen. Signatur-Gradient
+`135deg #00d4aa→#00ff88→#ff6b2c` (= `.gradient-text`) + dezenter Neon-Glow. Klein-Variante
+≤32px vereinfacht zu solid `#00ff88` B ohne Ring/Gradient (Lesbarkeit 16/32px).
+`theme_color` = `background_color` = `#08081a` (echte App-Surface) festgelegt — löst das
+generische `#0f172a`-Slate ab (Verdrahtung macht `infra-002`).
+
+**Files Added:**
+- `src/Client/public/icon-master.svg` - Voller Hybrid-Mark (Gradient + Glow, transparent)
+- `src/Client/public/favicon.svg` - Vereinfachte solid-green-B-Variante (≤32px)
+- `src/Client/public/icon-maskable.svg` - Hybrid auf opakem `#08081a`, 76% skaliert (≥20% Safe-Zone)
+- `src/Client/public/icons/icon-192.png`, `icon-512.png` - voller Mark, transparent
+- `src/Client/public/icons/maskable-512.png` - maskable, opak `#08081a`
+- `src/Client/public/icons/apple-touch-icon.png` - 180×180, opak (iOS ignoriert Transparenz)
+- `src/Client/public/icons/favicon-16.png`, `favicon-32.png`, `favicon.ico` - vereinfachte Variante
+- `src/Client/public/icons/README.md` - Asset-/Farb-Kontrakt + Handoff-Pointer für `infra-002`
+
+**Files Modified:**
+- `.agentheim/contexts/design-system/README.md` - Abschnitt "App-Mark / Branding" (Konzept, Farben, Asset-Pfade)
+
+**Rationale:**
+Roman will BudgetBuddy als PWA "mit eigenem Icon und allem, was dazugehört". Die visuelle
+Identität gehört dem Design-System (Styleguide-Gate), die PWA-Mechanik dem `infra-002`.
+Zwei Quell-SVGs, weil PWA-Generatoren eine Quelle uniform skalieren (nicht simplifizieren).
+
+**Outcomes:**
+- Build: n/a (reine Vite-statische Assets unter `src/Client/public/`, nicht vom dotnet-/Fable-Build konsumiert; vite `root`=`src/Client` → publicDir korrekt)
+- Tests: n/a (Asset-Arbeit, keine F#-Logik)
+- Raster via `npx sharp-cli` + `png-to-ico` gerendert (kein nativer Rasterizer auf der Maschine)
+- AC1–AC4 erfüllt; **AC5 (Romans visuelle Abnahme) offen** — Gate-Review pending
+
+---
+
 ## 2026-06-19 09:30 - Konsolidierung roher Html.svg → Icons-DS (SyncFlow-Views) (design-system-007)
 
 **What I did:**
