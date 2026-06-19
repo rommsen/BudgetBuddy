@@ -1,26 +1,14 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BudgetBuddy favicon: a bold B">
-  <!--
-    BudgetBuddy simplified favicon: solid neon-green B, no ring, no gradient.
-    Optimized to read clearly at 16/32px (avoids the dense Hybrid mark at tiny sizes).
-    Color: neon-green #00ff88 (styles.css). Transparent background.
-  -->
-  <path fill="#00ff88" fill-rule="evenodd" d="
-    M 7 4
-    h 10
-    a 6.5 6.5 0 0 1 0 13
-    h 1
-    a 7 7 0 0 1 0 14
-    h -12
-    z
-    M 12 8
-    v 8
-    h 4.5
-    a 4 4 0 0 0 0 -8
-    z
-    M 12 20
-    v 8.5
-    h 5
-    a 4.25 4.25 0 0 0 0 -8.5
-    z
-  "/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00d4aa"/>
+      <stop offset="0.5" stop-color="#00ff88"/>
+      <stop offset="1" stop-color="#ff6b2c"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <path transform="translate(99.32,406.32)" d="M30.76 0L30.76-300.64L150.94-300.64Q186.62-300.64 204.16-297.67Q221.69-294.70 235.53-285.26Q249.38-275.83 258.60-260.14Q267.83-244.45 267.83-224.97Q267.83-203.85 256.45-186.21Q245.07-168.57 225.59-159.76Q253.07-151.76 267.83-132.48Q282.60-113.20 282.60-87.16Q282.60-66.65 273.06-47.27Q263.53-27.89 247.02-16.30Q230.51-4.72 206.31-2.05Q191.13-0.41 133.10 0L30.76 0M126.33-250.61L91.46-250.61L91.46-181.08L131.25-181.08Q166.73-181.08 175.34-182.11Q190.93-183.96 199.85-192.88Q208.77-201.80 208.77-216.36Q208.77-230.30 201.08-239.02Q193.39-247.73 178.21-249.58Q169.19-250.61 126.33-250.61M140.48-131.04L91.46-131.04L91.46-50.65L147.66-50.65Q180.47-50.65 189.29-52.50Q202.82-54.96 211.33-64.50Q219.84-74.03 219.84-90.03Q219.84-103.56 213.28-113Q206.72-122.43 194.31-126.74Q181.90-131.04 140.48-131.04" fill="#00ff88"/>
 </svg>

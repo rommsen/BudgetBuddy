@@ -59,14 +59,14 @@ im Manifest und in den iOS-Meta-Tags nur noch referenzieren muss.
 - [x] **Icon-Set generiert** und im Build verfügbar (`src/Client/public/icons/`):
       - `192×192` + `512×512` (voller Hybrid, transparent) → `icon-192.png`, `icon-512.png`
       - **maskable** `512×512` (voller Hybrid auf **opakem `#08081a`**, ~24 % Safe-Zone-Padding pro Kante;
-        eigene Quelle `icon-maskable.svg`, 76 % skaliert) → `maskable-512.png`
+        eigene Quelle `icon-maskable.svg`, 78 % skaliert) → `maskable-512.png`
       - `apple-touch-icon` `180×180` (voller Hybrid auf **opakem `#08081a`**, RGB ohne Alpha) → `apple-touch-icon.png`
       - Favicon aus der **vereinfachten** Variante → `favicon.svg` + `favicon-16.png` + `favicon-32.png` + `favicon.ico` (16+32)
 - [x] **`theme_color` und `background_color` dokumentiert = `#08081a`** (für `infra-002` zur Übernahme
       in Manifest + `index.html`). → BC-README "App-Mark / Branding" + `src/Client/public/icons/README.md`
-- [ ] **Gate-Review:** Roman hat den gerenderten Mark abgenommen — klein (16/32px Favicon), im
+- [x] **Gate-Review:** Roman hat den gerenderten Mark abgenommen — klein (16/32px Favicon), im
       **maskable-Squircle/Kreis** (nichts Wichtiges in der Beschnitt-Zone), und auf hellem **und**
-      dunklem Hintergrund. *(HUMAN GATE — pending Romans Abnahme; analog design-system-001/003.)*
+      dunklem Hintergrund. *(HUMAN GATE — von Roman abgenommen 2026-06-19, nach 1 Rework-Runde; s. Outcome.)*
 
 ## Notes
 - **Styleguide-Gate:** `depends_on: [design-system-001]` ✓ (done+reviewt) — der App-Mark ist
@@ -88,7 +88,7 @@ Buildbare Kriterien AC1–AC4 erfüllt.
 - **Quell-SVGs (`src/Client/public/`):** `icon-master.svg` (voller Hybrid: B im Sync-Ring,
   Signatur-Gradient `135deg #00d4aa→#00ff88→#ff6b2c` + Neon-Glow, transparent), `favicon.svg`
   (vereinfacht: solid `#00ff88` B, kein Ring/Gradient), `icon-maskable.svg` (Hybrid auf opakem
-  `#08081a`, 76 % skaliert → ≥20 % Safe-Zone). Drei Quellen, weil PWA-Generatoren eine Quelle
+  `#08081a`, 78 % skaliert → ≥20 % Safe-Zone). Drei Quellen, weil PWA-Generatoren eine Quelle
   uniform skalieren — `infra-002` mappt Favicon→`favicon.svg`, maskable→`icon-maskable.svg`,
   Rest→`icon-master.svg`.
 - **Raster-Set (`src/Client/public/icons/`):** `icon-192.png`, `icon-512.png` (transparent),
@@ -102,8 +102,15 @@ Buildbare Kriterien AC1–AC4 erfüllt.
   Web-Root ausgeliefert und nach `dist/public` kopiert. `index.html`/Manifest-Verdrahtung bewusst
   NICHT angefasst (gehört `infra-002`).
 - **Build:** n/a — reine Vite-statische Assets, nicht vom dotnet-/Fable-Build konsumiert.
-- **AC5 (Gate-Review) offen:** Romans visuelle Abnahme ist ein Human-Gate und steht aus
-  (Checkbox bewusst nicht gesetzt; gleiches Muster wie design-system-001/003).
+- **AC5 (Gate-Review) ABGENOMMEN (2026-06-19):** Roman lehnte die erste Auslieferung ab
+  ("B betrunken, Pfeile falsch"). Rework: (1) das "B" ist jetzt eine echte **Arial-Bold-Glyphe,
+  via `opentype.js` in einen Pfad umgewandelt** (statt handgemalt) — per Bounding-Box exakt auf
+  (256,256) zentriert; (2) die Sync-Pfeile sind **tangential** an den Bogen-Enden konstruiert
+  (Tip entlang `(-sinθ,cosθ)`, Basis radial), 180°-symmetrisch → lesen als *eine* Rotation.
+  Schlüssel-Erkenntnis: **Text→Pfad einbacken**, weil der PNG-Rasterizer (resvg/sharp)
+  `text-anchor="middle"` ignorierte (Browser zentrierte, PNG nicht) → so sind Browser- und
+  Raster-Rendering identisch zentriert. Volles Set neu generiert (alle Größen erben die korrekte
+  Zentrierung); Roman: "passt". `opentype.js` nur als `--no-save`-Dev-Tool genutzt (nicht in package.json).
 
 ## Refine-Log
 **2026-06-19 (Refine + Promote):** Suggestor-Runde — vier Mark-Konzepte (Monogramm / Sync-Loop /

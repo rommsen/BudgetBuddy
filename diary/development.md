@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-19 23:10 - PWA-App-Icon Rework (Gate-Review-Korrektur, design-system-008)
+
+### What
+Roman lehnte die erste Icon-Auslieferung im AC5-Gate ab ("B betrunken, Pfeile falsch"). Mark neu
+gebaut: das "B" ist jetzt eine echte **Arial-Bold-Glyphe** (via `opentype.js` in einen SVG-Pfad
+umgewandelt, per Bounding-Box auf (256,256) zentriert) statt handgemalter Bézier-Bäuche; die
+Sync-Pfeile sind **tangential** an den Bogen-Enden konstruiert (Tip entlang `(-sinθ,cosθ)`, Basis
+radial), 180°-symmetrisch. Anschließend von Roman abgenommen ("passt").
+
+### Files Changed
+- `src/Client/public/icon-master.svg`, `favicon.svg`, `icon-maskable.svg` - neu generiert (Glyph→Pfad)
+- `src/Client/public/icons/*.png` + `favicon.ico` - volles Set neu gerendert (alle Größen zentriert)
+- `.agentheim/contexts/design-system/done/design-system-008-...md` - AC5 abgehakt + Outcome-Rework-Notiz
+
+### Rationale
+Ein per Hand gezeichnetes Glyph wird leicht schief; eine echte Font-Glyphe als Pfad ist sauber.
+**Text→Pfad** ist nötig, weil der PNG-Rasterizer (resvg/sharp) `text-anchor="middle"` ignoriert
+(Browser zentrierte das SVG, das PNG nicht) → eingebackener Pfad rendert in Browser UND Raster
+identisch zentriert. `opentype.js` nur als `--no-save`-Dev-Tool (nicht in package.json).
+
+### Verification
+- Build: n/a (reine Vite-statische Assets unter `src/Client/public/`)
+- Tests: n/a (Asset-Arbeit)
+- Visuell: 512/maskable/favicon-32 gerendert + von Roman im Gate abgenommen (AC5 ✓)
+
+---
+
 ## 2026-06-19 22:45 - PWA-App-Icon "B im Sync-Ring" + Theme-Farben (design-system-008)
 
 **What I did:**

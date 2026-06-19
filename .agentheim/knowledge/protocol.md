@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-06-19 23:10 -- Icon-Rework + AC5 abgenommen: design-system-008 - PWA-App-Icon
+
+**Type:** Work / Gate-Review-Korrektur
+**Task:** design-system-008 - PWA-App-Icon ("B" im Sync-Ring) — bleibt done
+**Auslöser:** Roman lehnte im AC5-Gate die erste Auslieferung ab ("B betrunken, Pfeile falsch").
+**Rework:** „B" = echte Arial-Bold-Glyphe (via `opentype.js` → SVG-Pfad, Bounding-Box-zentriert) statt handgemalt; Sync-Pfeile tangential an den Bogen-Enden konstruiert (180°-symmetrisch). Schlüssel: **Text→Pfad einbacken**, weil der PNG-Rasterizer (resvg/sharp) `text-anchor="middle"` ignoriert (Browser zentriert, PNG nicht). Volles Set neu generiert.
+**Ergebnis:** Roman: „passt" → **AC5 abgenommen** (Checkbox gesetzt). Task vollständig.
+**Files:** 3 Quell-SVG + 7 Raster neu, Task-Outcome + Diary aktualisiert. package.json unverändert (`opentype.js` nur `--no-save`).
+
+---
+
 ## 2026-06-19 22:52 -- Work session ended
 
 **Type:** Work / Session end

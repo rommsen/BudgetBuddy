@@ -1,59 +1,23 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="BudgetBuddy maskable app icon">
-  <!--
-    BudgetBuddy maskable variant: full Hybrid mark on opaque #08081a (app surface),
-    scaled to ~76% and centred so nothing important falls in the maskable crop zone
-    (>=20% safe-zone padding on every edge). Derived from icon-master.svg.
-  -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bbGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#00d4aa"/>
-      <stop offset="50%" stop-color="#00ff88"/>
-      <stop offset="100%" stop-color="#ff6b2c"/>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00d4aa"/>
+      <stop offset="0.5" stop-color="#00ff88"/>
+      <stop offset="1" stop-color="#ff6b2c"/>
     </linearGradient>
-    <filter id="bbGlow" x="-25%" y="-25%" width="150%" height="150%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="9" result="blur"/>
-      <feFlood flood-color="#00ff88" flood-opacity="0.55" result="glowColor"/>
-      <feComposite in="glowColor" in2="blur" operator="in" result="softGlow"/>
-      <feMerge>
-        <feMergeNode in="softGlow"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-
-  <!-- Opaque app surface (iOS/Android maskable ignore transparency) -->
-  <rect x="0" y="0" width="512" height="512" fill="#08081a"/>
-
-  <!-- Mark scaled to 0.76 about the canvas centre (256,256): translate then scale -->
-  <g transform="translate(61.44 61.44) scale(0.76)">
-    <g filter="url(#bbGlow)">
-      <g stroke="url(#bbGrad)" stroke-width="26" stroke-linecap="round" fill="none">
-        <path d="M 256 88 A 168 168 0 0 1 396 348"/>
-        <path d="M 256 424 A 168 168 0 0 1 116 164"/>
-      </g>
-      <g fill="url(#bbGrad)">
-        <path d="M 372 374 L 366 326 L 414 338 Z"/>
-        <path d="M 140 138 L 146 186 L 98 174 Z"/>
-      </g>
-      <path fill="url(#bbGrad)" fill-rule="evenodd" d="
-        M 196 168
-        h 64
-        a 50 50 0 0 1 0 100
-        h 4
-        a 52 52 0 0 1 0 104
-        h -72
-        z
-        M 230 196
-        v 64
-        h 28
-        a 32 32 0 0 0 0 -64
-        z
-        M 230 288
-        v 60
-        h 32
-        a 30 30 0 0 0 0 -60
-        z
-      "/>
+  <rect width="512" height="512" fill="#08081a"/>
+  <g transform="translate(256,256) scale(0.78) translate(-256,-256)">
+    <g filter="url(#glow)">
+    <path d="M323.0 71.8 A196 196 0 0 1 323.0 440.2" fill="none" stroke="url(#g)" stroke-width="26" stroke-linecap="round"/>
+    <path d="M189.0 440.2 A196 196 0 0 1 189.0 71.8" fill="none" stroke="url(#g)" stroke-width="26" stroke-linecap="round"/>
+    <path d="M291.0 451.8 L333.3 468.4 L312.7 412.0 Z" fill="url(#g)"/>
+    <path d="M221.0 60.2 L178.7 43.6 L199.3 100.0 Z" fill="url(#g)"/>
+    <path transform="translate(144.09,363.37)" d="M21.97 0L21.97-214.75L107.81-214.75Q133.30-214.75 145.83-212.62Q158.35-210.50 168.24-203.76Q178.13-197.02 184.72-185.82Q191.31-174.61 191.31-160.69Q191.31-145.61 183.18-133.01Q175.05-120.41 161.13-114.11Q180.76-108.40 191.31-94.63Q201.86-80.86 201.86-62.26Q201.86-47.61 195.04-33.76Q188.23-19.92 176.44-11.65Q164.65-3.37 147.36-1.46Q136.52-0.29 95.07 0L21.97 0M90.23-179L65.33-179L65.33-129.35L93.75-129.35Q119.09-129.35 125.24-130.08Q136.38-131.40 142.75-137.77Q149.12-144.14 149.12-154.54Q149.12-164.50 143.63-170.73Q138.13-176.95 127.29-178.27Q120.85-179 90.23-179M100.34-93.60L65.33-93.60L65.33-36.18L105.47-36.18Q128.91-36.18 135.21-37.50Q144.87-39.26 150.95-46.07Q157.03-52.88 157.03-64.31Q157.03-73.97 152.34-80.71Q147.66-87.45 138.79-90.53Q129.93-93.60 100.34-93.60" fill="url(#g)"/>
     </g>
   </g>
 </svg>
