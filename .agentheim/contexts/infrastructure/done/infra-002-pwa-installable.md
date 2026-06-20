@@ -94,8 +94,8 @@ braucht weiterhin Server + Tailscale, um irgendetwas Nützliches zu tun.
     Asset-Dateien + Media-Query-Meta für ~1s Kosmetik lohnen sich für ein Single-User-Tool
     nicht ("was nicht real gebraucht wird, fliegt raus"). iOS zeigt kurz einen themed Screen.
     Revidierbar, falls es real stört.
-  - **Tailscale-Scope/Pfad → durch Config gelöst (kein Blocker):** `docker-compose.yml` macht
-    `tailscale serve --https=443 http://127.0.0.1:5001` → App wird an der **Root** (`/`) des
+  - **Tailscale-Scope/Pfad → durch Config gelöst (kein Blocker):** `compose.yaml` macht
+    `tailscale serve --https=443 http://127.0.0.1:5081` → App wird an der **Root** (`/`) des
     Tailnet-Hosts ausgeliefert. Daher SW-`scope: /` und **kein** Vite-`base`-Prefix nötig.
     Giraffe serviert `dist/public` statisch an `/`, `/api/*` ist Fable.Remoting → "Shell
     precachen, `/api` nie anfassen" passt 1:1 auf die Serve-Topologie. Worker muss nur sicher-

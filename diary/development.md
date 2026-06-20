@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-20 16:10 - Compose-Drift behoben: `docker-compose.yml` entfernt, `compose.yaml` ist Single Source of Truth
+
+### What
+Zwei Compose-Dateien waren auseinandergelaufen: `compose.yaml` (vom Git-Deploy-Pipeline, Port **5081**,
+Tailscale-only, vorgebautes `image:`) — die einzige, die der `post-receive`-Hook real deployt — und das
+**legacy** `docker-compose.yml` (Demo-App-Herkunft, Port **5001** aus dem alten Apple-AirPlay-Workaround,
+`build: .`). Der 5001-Port passte nicht mehr zum Dockerfile-HEALTHCHECK (5081) → verwirrend und latenter
+Bug. Entscheidung (Roman): **auf eine Datei konsolidieren** — `docker-compose.yml` gelöscht, `compose.yaml`
+mit Header-Kommentar als Single Source of Truth dokumentiert (Deploy-Pfad, Port-5081-Begründung,
+Tailscale-Root → PWA-SW-`scope: /`, lokales Dev = `dotnet watch`/`npm run dev`).
+
+### Files Changed
+- `docker-compose.yml` - GELÖSCHT: veraltete Lokal-Variante (Port 5001), Drift-Quelle
+- `compose.yaml` - Header-Kommentar ergänzt (Single Source of Truth, Deploy-Mechanik, Port 5081, kein `build:`)
+- `.agentheim/contexts/infrastructure/done/infra-002-pwa-installable.md` - Notiz-Referenz korrigiert
+  (`docker-compose.yml`/`:5001` → `compose.yaml`/`:5081`, da die referenzierte Datei nun weg ist)
+
+### Rationale
+Der eigentliche Drift-Auslöser war die Existenz zweier überlappender Compose-Dateien. Konsolidierung auf
+die deploy-relevante Datei macht Drift strukturell unmöglich; das gelöschte File wurde von keinem
+Live-Pfad referenziert (nur Docs/Diary/Skill-Templates, alle historisch). Funktional unverändert — die
+Deploy-Pipeline nutzte ohnehin nur `compose.yaml`.
+
+### Outcome
+- Build/Tests: nicht betroffen (reine Deploy-Config, kein App-Code)
+- Deploy-Pipeline unverändert: `./scripts/deploy.sh` → Hook baut + `docker compose up -d` mit `compose.yaml`
+- Working Tree: Änderung steht (noch nicht committet)
+
+---
+
 ## 2026-06-19 23:35 - PWA-Mechanik: installierbar, kein Offline-Daten-Cache (infra-002)
 
 ### What

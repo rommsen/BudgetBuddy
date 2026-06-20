@@ -1,3 +1,20 @@
+# BudgetBuddy — single source of truth for the container stack.
+#
+# This is the ONLY compose file. It is deployed verbatim by the post-receive hook
+# on docker-host (see scripts/setup-deploy-remote.sh): `./scripts/deploy.sh` pushes
+# main, the hook runs `docker build -t budgetbuddy:latest .` natively, copies THIS
+# file to the stack dir, and runs `docker compose up -d`. The app therefore uses a
+# pre-built `image:` (no `build:` directive here on purpose — the stack dir holds
+# only this file, not the source).
+#
+# Port 5081 internally (matches the Dockerfile HEALTHCHECK and ASPNETCORE_URLS);
+# Tailscale serves it at the tailnet host root via `--https=443 -> 127.0.0.1:5081`,
+# so the PWA service worker scope `/` holds (infra-002 / ADR 0010). No host ports
+# are published — access is Tailscale-only by design.
+#
+# Local dev does NOT use this file: run `dotnet watch run` (src/Server) + `npm run dev`.
+# The former local-testing `docker-compose.yml` (port 5001, build: .) was removed
+# 2026-06-20 to eliminate compose drift — it had diverged from the deployed config.
 name: budgetbuddy
 
 services:
