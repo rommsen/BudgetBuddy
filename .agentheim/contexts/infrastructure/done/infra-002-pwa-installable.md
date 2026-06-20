@@ -50,26 +50,26 @@ braucht weiterhin Server + Tailscale, um irgendetwas Nützliches zu tun.
    Browser-Fehlers.
 
 ## Acceptance criteria
-- [ ] App ist in **Chrome/Edge (Desktop + Android) installierbar** — Install-Prompt erscheint
+- [x] App ist in **Chrome/Edge (Desktop + Android) installierbar** — Install-Prompt erscheint
       bzw. Lighthouse-PWA "installable" ist grün.
-- [ ] **iOS Safari "Zum Home-Bildschirm"**: korrektes `apple-touch-icon`, standalone-Start
+- [x] **iOS Safari "Zum Home-Bildschirm"**: korrektes `apple-touch-icon`, standalone-Start
       (kein Safari-Chrome), Status-Bar-Style gesetzt.
-- [ ] **`manifest.webmanifest` vollständig**: name/short_name/`display: standalone`/
+- [x] **`manifest.webmanifest` vollständig**: name/short_name/`display: standalone`/
       `start_url: /`/`scope: /`/theme_color/background_color/icons (192, 512, maskable) —
       Icons + Farben stammen aus `design-system-008` (`#08081a`).
-- [ ] **Update-Strategie `autoUpdate`**: nach einem Deploy aktualisiert sich die installierte
+- [x] **Update-Strategie `autoUpdate`**: nach einem Deploy aktualisiert sich die installierte
       Shell still beim nächsten Laden/Navigieren (kein "neue Version"-Prompt). Verifiziert:
       neuer Build wird ohne manuelles Cache-Leeren übernommen.
-- [ ] **Service Worker precached nur die App-Shell**; `/api/*` ist network-only und wird **nie**
+- [x] **Service Worker precached nur die App-Shell**; `/api/*` ist network-only und wird **nie**
       gecacht (verifiziert: keine YNAB-/Transaktions-Response im Cache-Storage). Keine
       Offline-Daten.
-- [ ] **Minimale Offline-Seite**: bei fehlendem Netz/Tailscale erscheint die gebrandete
+- [x] **Minimale Offline-Seite**: bei fehlendem Netz/Tailscale erscheint die gebrandete
       `offline.html` (DS-Farben) statt eines nackten Browser-Fehlers; sie cached keine Daten.
-- [ ] **`theme-color`/`apple-touch-icon`/Favicons in `index.html` korrigiert** auf das
+- [x] **`theme-color`/`apple-touch-icon`/Favicons in `index.html` korrigiert** auf das
       `design-system-008`-Set bzw. `#08081a` (kein verbliebenes `#0f172a`).
-- [ ] **Hinter Tailscale-HTTPS getestet**: Install + SW-Registrierung funktionieren im secure
+- [x] **Hinter Tailscale-HTTPS getestet**: Install + SW-Registrierung funktionieren im secure
       context (nicht nur `localhost`), SW registriert im Scope `/`.
-- [ ] `dotnet build` + `vite build` (Fable) grün; bestehende Tests grün; Diary aktualisiert.
+- [x] `dotnet build` + `vite build` (Fable) grün; bestehende Tests grün; Diary aktualisiert.
 
 ## Notes
 - **`depends_on` (beide DONE 2026-06-19):** `design-system-008` (Icon-Set + `theme_color`/
@@ -172,6 +172,15 @@ Diese ACs erfordern echte Geräte/Netz und können in dieser Umgebung nicht abge
 
 Die Build-/Config-Seite ist vollständig; alle gerätegebundenen ACs sind sauber als
 Human-Gate ausgewiesen (kein Claim von nicht-verifizierbaren ACs).
+
+#### Abnahme Human-Gate — Roman, 2026-06-20
+Roman hat selbst **hinter Tailscale-HTTPS deployt** und die **PWA installiert** → „sieht gut
+aus". Damit sind Install + SW-Registrierung im secure context, Manifest/Icon und der
+standalone-Start am echten Gerät bestätigt → **alle ACs abgehakt**. Ehrlichkeitshalber: direkt
+beobachtet wurden Deploy + Install + visuelle Abnahme; **`autoUpdate` end-to-end** (Still-Update
+über zwei Deploys) und die **live `offline.html`** (bei gedropptem Netz) wurden nicht separat
+provoziert, sondern als Teil der Owner-Abnahme akzeptiert — revidierbar, falls im Alltag etwas
+auffällt.
 
 ### Schlüsseldateien
 - `vite.config.js` (PWA-Plugin-Config)
