@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 10:20 -- Concept page created: quick-add (ynab-sync)
+
+**Type:** Concept / Synthesis page
+**BC:** ynab-sync
+**Trigger:** Beide Worker (ynab-q7k3m, ynab-t4n8p) meldeten denselben Concept-Kandidaten — Nutzer-Entscheidung, die Seite anzulegen.
+**Derived from (6):** ADR 0003, ADR 0004, 2026-06-11-quick-add-manual-entry, 2026-06-12-quick-add-feedback-round, ynab-q7k3m, ynab-t4n8p.
+**Summary:** `concepts/quick-add.md` bündelt die verstreute Quick-Add-Sprache (ManualTransaction, eigenes Quick-Add-Konto, kein ImportId, eigene Seite, Vorlagen) als Synthese (Verweise statt Duplikate, 60-Zeilen-Cap). Unter `<!-- concepts:start -->` im BC-INDEX verlinkt.
+
+---
+
 ## 2026-06-27 10:14 -- Work session ended
 
 **Type:** Work / Session end

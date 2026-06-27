@@ -57,6 +57,7 @@ research touching this BC, and concept synthesis pages.
 ## Concepts (opt-in synthesis pages)
 
 <!-- concepts:start -->
+- **quick-add** — Manuelle Bar-Buchung → YNAB: eigene Seite, eigenes Konto, kein Dedup, Vorlagen — `concepts/quick-add.md` (derived: 0003, 0004, 2026-06-11/2026-06-12-quick-add, ynab-q7k3m, ynab-t4n8p)
 <!-- concepts:end -->
 
 ## Pointers
