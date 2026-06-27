@@ -3,7 +3,7 @@ id: ynab-k7m3q
 title: Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
 status: backlog
 type: feature
-context: ynab-sync
+context: categorization
 created: 2026-06-27
 completed:
 depends_on: []
@@ -52,6 +52,8 @@ Lösung):
   `src/Client/Components/Rules/View.fs:325` (Regel-Editor).
 - Frische: Werte sind so aktuell wie der letzte Kategorien-Load (`model.Categories`,
   RemoteData), kein Live-Refresh pro Zeile.
-- Cross-cutting: die Datenseite (YNAB-Mirror) gehört zu ynab-sync, der Anzeige-Ort
-  (Zuweisungs-Dialog) berührt auch `categorization`. Hier in ynab-sync gefilt, weil der
-  Kern das Anreichern der gespiegelten YnabCategory ist.
+- Cross-cutting: der Anzeige-Ort (Zuweisungs-Dialog / Kategorie-Picker) gehört zu
+  `categorization`, die Datenseite (YNAB-Mirror der YnabCategory) berührt auch
+  `ynab-sync`. Hier in categorization gefilt (Re-Route vom ursprünglichen ynab-sync), weil
+  der spürbare Effekt im Zuweisungs-Dialog liegt; die ID behält den `ynab`-Präfix, da IDs
+  stabil bleiben.

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 23:25 -- Re-route: ynab-k7m3q → categorization
+
+**Type:** Re-route
+**BC:** ynab-sync → categorization
+**Summary:** Task auf Userwunsch nach categorization verschoben (Anzeige im Zuweisungs-Dialog/Kategorie-Picker). ID bleibt stabil (`ynab`-Präfix behalten).
+
+---
+
 ## 2026-06-27 23:20 -- Capture / Captured: ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
 
 **Type:** Capture
