@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 9
@@ -39,6 +39,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-k7m3q** — Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen — `backlog/ynab-k7m3q-category-balance-in-picker.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 23:20 -- Capture / Captured: ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Kategorie-Picker beim Import soll den aktuellen YNAB-balance (Available) hinter dem Namen zeigen, grafisch aufbereitet (rechtsbündig, farbcodiert via Design-Tokens).
+
+---
+
 ## 2026-06-27 10:20 -- Concept page created: quick-add (ynab-sync)
 
 **Type:** Concept / Synthesis page
