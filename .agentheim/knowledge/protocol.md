@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 09:18 -- Modeling / Refined: ynab-t4n8p - Quick Add: letzte 5 Buchungen als Vorlagen (dedupliziert)
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** backlog
+**Summary:** Codebasis-Grounding (Explore) + Romans Entscheidung „letzte 5, dedupliziert". Wichtigster Befund: der YNAB-Read-Pfad existiert schon (`YnabClient.getAccountTransactions`, heute für Duplikat-Erkennung) → kein neuer Integrationspfad, nur ein neuer API-Call fürs Quick-Add-Konto. Reverse-Milliunits-Mapping (`<0 ⇒ Ausgabe`) und Prefill-Mechanik (`UpdateQuickAdd`/`QuickAddFormState`) mit file:line verankert; Dedup-Schlüssel Payee+Betrag+Kategorie; Datum=heute, kein Auto-Push. Neues **depends_on: ynab-q7k3m** (die Vorlagen rendern in der dort entstehenden eigenen Quick-Add-Seite — erst Seite, dann Vorlagen, sonst Rework). Bleibt **backlog**, gated hinter q7k3m.
+**Split into:** none
+**ADRs written:** none
+
+---
+
 ## 2026-06-27 09:18 -- Modeling / Refined: ynab-q7k3m - Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
 
 **Type:** Modeling / Refine
