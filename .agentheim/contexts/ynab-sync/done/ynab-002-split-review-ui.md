@@ -1,8 +1,8 @@
 ---
 id: ynab-002
 title: Split-Review-UI — Cashback-Shortcut + generischer Editor
-status: done                 # backlog | todo | doing | done
-type: feature                # feature | bug | refactor | chore | spike | decision
+status: done
+type: feature
 context: ynab-sync
 created: 2026-06-13
 completed: 2026-06-13

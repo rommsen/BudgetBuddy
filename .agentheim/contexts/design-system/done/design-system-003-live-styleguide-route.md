@@ -1,8 +1,8 @@
 ---
 id: design-system-003
 title: Live In-App /styleguide-Route (visueller Styleguide, rendert echte DS-Komponenten)
-status: done                 # backlog | todo | doing | done
-type: feature                # feature | bug | refactor | chore | spike | decision
+status: done
+type: feature
 context: design-system
 created: 2026-06-13
 completed: 2026-06-13

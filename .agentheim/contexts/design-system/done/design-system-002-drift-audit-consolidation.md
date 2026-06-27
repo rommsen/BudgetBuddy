@@ -1,8 +1,8 @@
 ---
 id: design-system-002
 title: Drift-Audit + Konsolidierung des View-Codes auf den Styleguide
-status: done                 # backlog | todo | doing | done
-type: refactor               # feature | bug | refactor | chore | spike | decision
+status: done
+type: refactor
 context: design-system
 created: 2026-06-13
 completed: 2026-06-18

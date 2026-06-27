@@ -1,8 +1,8 @@
 ---
 id: ynab-003
 title: Split-Editor — Vorzeichen-Fix + editierbare Beträge + Rest-Button
-status: done                 # backlog | todo | doing | done
-type: bug                    # feature | bug | refactor | chore | spike | decision
+status: done
+type: bug
 context: ynab-sync
 created: 2026-06-16
 completed: 2026-06-16

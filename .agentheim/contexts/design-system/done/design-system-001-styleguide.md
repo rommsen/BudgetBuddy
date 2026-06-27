@@ -1,8 +1,8 @@
 ---
 id: design-system-001
 title: Styleguide retroaktiv kodifizieren (das Gate)
-status: done                 # backlog | todo | doing | done
-type: chore                  # feature | bug | refactor | chore | spike | decision
+status: done
+type: chore
 context: design-system
 created: 2026-06-13
 completed: 2026-06-13
