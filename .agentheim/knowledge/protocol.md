@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 09:18 -- Modeling / Refined: ynab-q7k3m - Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Codebasis-Grounding (Explore) + 3 Produktentscheidungen von Roman. Quick Add wird eine **eigene Seite** mit eigener Route (neuer Page-DU-Fall) statt eines sync-flow-gebundenen Sheets; der Quick-Add-State wird aus der SyncFlow-Komponente ins Top-Level-Model gehoben. Die beiden alten Einstiege (Secondary-Button + Review-Header-Plus) werden **entfernt** — die Nav ist der einzige Weg. ACs auf Page-DU/Routing/Nav/State-Lift/Entfernen geschärft, mit file:line-Ankern. Keine ADR nötig (Standard-Elmish-Umbau). Promoted backlog → todo (dep design-system-001 done). Blockt ynab-t4n8p.
+**Split into:** none
+**ADRs written:** none
+
+---
+
 ## 2026-06-27 09:02 -- Modeling / Captured: ynab-t4n8p - Quick Add: letzte 3–5 Buchungen als Vorlagen
 
 **Type:** Modeling / Capture

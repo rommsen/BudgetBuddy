@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
-- **Todo:** 0
+- **Backlog:** 1
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — `todo/ynab-q7k3m-quick-add-in-bottom-nav.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -37,8 +38,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ynab-q7k3m · Quick Add aus der Haupt-Navigation erreichbar (Bottom-Nav)** — `backlog/ynab-q7k3m-quick-add-in-bottom-nav.md`
-- **ynab-t4n8p · Quick Add — letzte 3–5 Buchungen des Quick-Add-Kontos als Vorlagen** — `backlog/ynab-t4n8p-quick-add-recent-templates.md`
+- **ynab-t4n8p · Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)** — `backlog/ynab-t4n8p-quick-add-recent-templates.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC
