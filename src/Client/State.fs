@@ -21,6 +21,11 @@ type Model = {
     Settings: Components.Settings.Types.Model
     SyncFlow: Components.SyncFlow.Types.Model
     Rules: Components.Rules.Types.Model
+
+    // Quick Add page form state — lifted out of SyncFlow (ynab-q7k3m). `None`
+    // until the page is first opened; reset to a fresh form on each visit and
+    // after a successful save.
+    QuickAdd: QuickAddFormState option
 }
 
 // ============================================
@@ -42,6 +47,13 @@ type Msg =
     | SyncFlowMsg of Components.SyncFlow.Types.Msg
     | RulesMsg of Components.Rules.Types.Msg
 
+    // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
+    | OpenQuickAdd
+    | CloseQuickAdd
+    | UpdateQuickAdd of QuickAddFormState
+    | SubmitQuickAdd
+    | QuickAddSaved of Result<unit, string>
+
 // ============================================
 // Helper Functions
 // ============================================
@@ -56,6 +68,34 @@ let private autoDismissAfterMs = 5000
 /// (the usual `perform`-swallows-exceptions caveat does not apply).
 let private delayed (ms: int) (msg: Msg) : Cmd<Msg> =
     Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep ms }) () (fun _ -> msg)
+
+/// Human-readable rendering of a YNAB error for the Quick Add submit path.
+/// Moved here with the Quick Add submit logic (ynab-q7k3m) — it was previously
+/// the only consumer in the SyncFlow component.
+let private ynabErrorToString (error: YnabError) : string =
+    match error with
+    | YnabError.Unauthorized msg -> $"YNAB authorization failed: {msg}"
+    | YnabError.BudgetNotFound budgetId -> $"Budget not found: {budgetId}"
+    | YnabError.AccountNotFound accountId -> $"Account not found: {accountId}"
+    | YnabError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
+    | YnabError.RateLimitExceeded retryAfter -> $"YNAB rate limit exceeded. Retry after {retryAfter} seconds"
+    | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
+    | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
+
+/// A blank Quick Add form dated today. Used when first opening the page and to
+/// reset the form after a successful save so another entry can follow at once.
+let private freshQuickAddForm () : QuickAddFormState =
+    {
+        AmountText = ""
+        IsOutflow = true
+        Payee = ""
+        CategoryId = ""
+        DateText = DateTime.Now.ToString("yyyy-MM-dd")
+        Memo = ""
+        ShowCategoryPicker = false
+        IsSaving = false
+        Error = None
+    }
 
 let private addToast (message: string) (toastType: ToastType) (model: Model) : Model * Cmd<Msg> =
     let toast = { Id = Guid.NewGuid(); Message = message; Type = toastType; Exiting = false }
@@ -82,6 +122,7 @@ let init () : Model * Cmd<Msg> =
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel
+        QuickAdd = None
     }
 
     // Trigger page-specific load commands for the initial (deep-linked) page
@@ -132,6 +173,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | Styleguide ->
                     // Presentational gallery — no data to load.
                     Cmd.none
+                | QuickAdd ->
+                    // Open a fresh form and make sure the category picker has data
+                    // (categories are loaded into SyncFlow at startup; retry in
+                    // case that failed or this is a deep link).
+                    Cmd.batch [
+                        Cmd.ofMsg OpenQuickAdd
+                        Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
+                    ]
             { model with CurrentPage = page }, extraCmds
 
     // ============================================
@@ -227,3 +276,47 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | Components.Rules.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
 
             { model with Rules = rulesModel' }, Cmd.batch [ Cmd.map RulesMsg rulesCmd; externalCmd ]
+
+    // ============================================
+    // Quick Add (manual transaction entry → YNAB)
+    // ============================================
+    // Lifted out of the SyncFlow component (ynab-q7k3m). The submit behaviour is
+    // unchanged: the request carries no account id, and the server pushes it onto
+    // the configured Quick-Add account without an ImportId (ADR 0004).
+    | OpenQuickAdd ->
+        { model with QuickAdd = Some (freshQuickAddForm ()) }, Cmd.none
+
+    | CloseQuickAdd ->
+        { model with QuickAdd = None }, Cmd.none
+
+    | UpdateQuickAdd form ->
+        { model with QuickAdd = Some form }, Cmd.none
+
+    | SubmitQuickAdd ->
+        match model.QuickAdd with
+        | None -> model, Cmd.none
+        | Some form ->
+            match buildQuickAddRequest form with
+            | Error validationError ->
+                { model with QuickAdd = Some { form with Error = Some validationError } }, Cmd.none
+            | Ok request ->
+                let cmd =
+                    Cmd.OfAsync.either
+                        Api.ynab.addManualTransaction
+                        request
+                        (fun result -> QuickAddSaved (result |> Result.mapError ynabErrorToString))
+                        (fun ex -> QuickAddSaved (Error ex.Message))
+                { model with QuickAdd = Some { form with IsSaving = true; Error = None } }, cmd
+
+    | QuickAddSaved (Ok ()) ->
+        // Stay on the page and reset to a fresh form so the next cash entry can
+        // follow immediately; surface success as a toast.
+        let model', toastCmd = addToast "Transaktion in YNAB gespeichert" ToastSuccess model
+        { model' with QuickAdd = Some (freshQuickAddForm ()) }, toastCmd
+
+    | QuickAddSaved (Error message) ->
+        match model.QuickAdd with
+        | Some form ->
+            { model with QuickAdd = Some { form with IsSaving = false; Error = Some message } }, Cmd.none
+        | None ->
+            addToast message ToastError model

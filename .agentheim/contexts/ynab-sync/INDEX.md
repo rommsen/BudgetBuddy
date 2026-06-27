@@ -11,14 +11,13 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 1
+- **Todo:** 0
 - **Doing:** 0
-- **Done:** 7
+- **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — `todo/ynab-q7k3m-quick-add-in-bottom-nav.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -27,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — 2026-06-27 — `done/ynab-q7k3m-quick-add-in-bottom-nav.md`
 - **ynab-004 · Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen** — 2026-06-16 — `done/ynab-004-split-row-label.md` (ae7d448)
 - **ynab-003 · Split-Editor: Vorzeichen-Fix + editierbare Beträge + Rest-Button** — 2026-06-16 — `done/ynab-003-split-amount-sign-rest-button.md` (14e1f61)
 - **ynab-002 · Split-Review-UI — Cashback-Shortcut + generischer Editor** — 2026-06-13 — `done/ynab-002-split-review-ui.md` (f2a71ac)

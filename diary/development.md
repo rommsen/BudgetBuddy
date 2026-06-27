@@ -4,6 +4,67 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-27 09:45 - Quick Add als eigene Seite in der Haupt-Navigation (ynab-q7k3m)
+
+### What
+Quick Add (manuelle Bar-Buchung → YNAB) war bisher ein `QuickAddFormState option` *innerhalb*
+der SyncFlow-Komponente, erreichbar nur über zwei an den Sync-Flow gebundene Einstiege
+(Secondary-Button unter „Sync starten" + Plus-Icon im Review-Header). Diese Refaktorierung hebt
+den Quick-Add-State aus SyncFlow ins Top-Level-Model und macht Quick Add zu einer eigenen Seite
+mit eigener Route (`#/quickadd`) und einem festen Navigations-Eintrag (Bottom-Nav mobil /
+Top-Nav desktop). Beide alten Einstiege wurden entfernt — die Navigation ist jetzt der einzige
+Weg. Das Submit-Verhalten (Push aufs Quick-Add-Konto, ohne ImportId, ADR 0004) ist unverändert;
+es wurde nur verlagert.
+
+**Entscheidungen:**
+- **Echtes Seiten-Layout** (statt dauerhaft offenes BottomSheet): `Primitives`-Container +
+  `PageHeader.gradientWithSubtitle` + die bestehenden `qa-*`-Feldkomponenten; der Category-Picker
+  bleibt ein erhöhter Sheet-Layer (`categoryPickerLayered`, `.layer-2`). Begründung: ein permanent
+  offenes Sheet (mit Backdrop/Slide-Animation) als „Seite" widerspricht dem Styleguide.
+- **State-Lift ins Top-Level (nicht neue Child-Komponente):** wie im Ticket beschrieben wandern
+  `QuickAddFormState` + die 5 Msg + Submit-Logik ins Top-Level `State`. Die puren Helfer
+  (`parseAmountInput`, `buildQuickAddRequest`, `QuickAddFormState`) ziehen ins geteilte
+  `Types`-Modul — `parseAmountInput` wird auch vom Split-Editor genutzt, `Types` ist der
+  Sibling-import-freie gemeinsame Ort.
+- **Kategorien-Quelle:** die Seite liest `model.SyncFlow.Categories` /
+  `RecentlyUsedCategoryIds` (geteilte YNAB-Strukturen, beim App-Start geladen); Navigieren auf
+  die Seite löst zusätzlich `SyncFlow.LoadCategories` aus (Deep-Link-sicher).
+- **Save-Verhalten auf der Seite:** nach Erfolg bleibt man auf der Seite, das Formular wird auf
+  frisch (heutiges Datum, leer) zurückgesetzt + Erfolgs-Toast — statt ein Sheet zu schließen.
+- **Nav-Reihenfolge:** Sync, Rules, Quick Add (Plus-Icon), Settings — Settings bleibt
+  konventionell letzter Tab.
+
+### Files Changed
+- `src/Client/Types.fs` — `Page.QuickAdd` + Route `#/quickadd`; `QuickAddFormState`,
+  `parseAmountInput`, `buildQuickAddRequest` hierher gezogen (aus SyncFlow.Types).
+- `src/Client/Components/SyncFlow/Types.fs` — Quick-Add-Typ/Helfer entfernt, `QuickAdd`-Model-Feld
+  + 5 Quick-Add-Msg entfernt; `parseSplitAmount` nutzt jetzt `Types.parseAmountInput`.
+- `src/Client/Components/SyncFlow/State.fs` — Quick-Add-Handler + init-Default + (nicht mehr
+  genutztes) `ynabErrorToString` entfernt.
+- `src/Client/Components/SyncFlow/View.fs` — `quickAddSheet`/`quickAddHeaderButton`-Aufrufe entfernt.
+- `src/Client/Components/SyncFlow/Views/StatusViews.fs` — `quickAddEntryButton`-Block entfernt.
+- `src/Client/Components/SyncFlow/Views/QuickAdd.fs` — **gelöscht** (Sheet + beide Buttons).
+- `src/Client/Views/QuickAddPage.fs` — **neu**: die Quick-Add-Seite (Top-Level-View).
+- `src/Client/State.fs` — `QuickAdd`-Model-Feld, 5 Msg, Handler, `ynabErrorToString` +
+  `freshQuickAddForm`, init-Default, Daten-Load beim Navigieren auf `QuickAdd`.
+- `src/Client/View.fs` — Nav-Mapping + Render der Quick-Add-Seite.
+- `src/Client/DesignSystem/Navigation.fs` — `NavPage.QuickAdd` + 4. Nav-Item (Plus-Icon).
+- `src/Client/Client.fsproj` — `Views/QuickAdd.fs` raus, `Views/QuickAddPage.fs` rein.
+- `src/Tests/QuickAddTests.fs` — Reducer-Tests auf das Top-Level `State.update` umgezogen
+  (Toast-Assertion jetzt über `model.Toasts`); pure Helfer-Tests unverändert (lösen über `open Types`).
+
+### Rationale
+Quick Add ist eine eigenständige, häufige Aktion und war direkt nach einem Import gar nicht
+erreichbar. Ein fester Nav-Platz macht sie kontextfrei mit einem Tap erreichbar. Der State-Lift
+entsperrt zudem `ynab-t4n8p` (Vorlagen rendern in genau diesem Formular).
+
+### Verification
+- Build: ✅ `dotnet build` — 0 Fehler, 0 Warnungen
+- Tests: ✅ 595 erfolgreich, 6 übersprungen (Integration, brauchen .env)
+- Fable/Vite: ✅ `npm run build` erfolgreich (144 Module)
+
+---
+
 ## 2026-06-20 16:10 - Compose-Drift behoben: `docker-compose.yml` entfernt, `compose.yaml` ist Single Source of Truth
 
 ### What

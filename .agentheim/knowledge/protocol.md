@@ -5,6 +5,28 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 09:46 -- Task verified and completed: ynab-q7k3m - Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
+
+**Type:** Work / Task completion
+**Task:** ynab-q7k3m - Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
+**Summary:** Quick Add ist eine eigenständige Top-Level-Seite mit eigener Route (`#/quickadd`) und festem Nav-Eintrag (Bottom-Nav mobil + Top-Nav desktop); Formular-State aus SyncFlow ins Top-Level-Model gehoben, beide alten sync-flow-gebundenen Einstiege entfernt. Push-Verhalten (Quick-Add-Konto, kein ImportId, ADR 0004) unverändert.
+**Verification:** PASS (iteration 1) — Verifier lief den vollen Gate: `dotnet build` 0/0, `npm run build` 144 Module ✓, `dotnet test` 595 passed / 6 skipped / 0 failed. JSON-Vertragstests (ADR 0004) intakt, kein Test geschwächt; Submit-/Push-Pfad byte-identisch (nur Success-Handler reset-form statt close-sheet).
+**Files changed:** 13 (Client/Types.fs, Client/State.fs, Client/View.fs, neue Views/QuickAddPage.fs, DesignSystem/Navigation.fs, Client.fsproj, SyncFlow/{Types,State,View}.fs, SyncFlow/Views/StatusViews.fs, gelöschte SyncFlow/Views/QuickAdd.fs, Tests/QuickAddTests.fs, diary)
+**Tests added:** 0 (reiner State-Lift/Routing-Refactor; bestehende Quick-Add-Tests an die Top-Level-Tuple-Form angepasst, Vertragstests unverändert)
+**ADRs written:** none
+**Concept candidate:** "Quick Add (ManualTransaction)" — konvergiert auf 5 Artefakte (ADR 0003, ADR 0004, 2026-06-11-quick-add-manual-entry, 2026-06-12-quick-add-feedback-round, ynab-q7k3m).
+
+---
+
+## 2026-06-27 09:23 -- Batch started: [ynab-q7k3m]
+
+**Type:** Work / Batch start
+**Tasks:** ynab-q7k3m - Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
+**Parallel:** no (1 worker)
+**Note:** Wave 1 von 2. Sequenzieller Lauf auf Nutzer-Anweisung: erst die Quick-Add-Seite (q7k3m, State-Lift aus SyncFlow + Page-DU + Route + Nav-Eintrag), dann Promotion + Work von ynab-t4n8p (Vorlagen) darauf. Beide deps von q7k3m (design-system-001) done.
+
+---
+
 ## 2026-06-27 09:18 -- Modeling / Refined: ynab-t4n8p - Quick Add: letzte 5 Buchungen als Vorlagen (dedupliziert)
 
 **Type:** Modeling / Refine

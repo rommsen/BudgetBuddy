@@ -19,15 +19,8 @@ let private syncErrorToString (error: SyncError) : string =
     | SyncError.InvalidSessionState (expected, actual) -> $"Invalid session state. Expected: {expected}, Actual: {actual}"
     | SyncError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
-let private ynabErrorToString (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized msg -> $"YNAB authorization failed: {msg}"
-    | YnabError.BudgetNotFound budgetId -> $"Budget not found: {budgetId}"
-    | YnabError.AccountNotFound accountId -> $"Account not found: {accountId}"
-    | YnabError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | YnabError.RateLimitExceeded retryAfter -> $"YNAB rate limit exceeded. Retry after {retryAfter} seconds"
-    | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
-    | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
+// (ynabErrorToString moved with the Quick Add submit logic to the top-level
+// State, the only place it was used — ynab-q7k3m.)
 
 let private rulesErrorToString (error: RulesError) : string =
     match error with
@@ -108,7 +101,6 @@ let init () : Model * Cmd<Msg> =
         PendingCategoryVersions = Map.empty
         PendingPayeeVersions = Map.empty
         RecentlyUsedCategoryIds = []
-        QuickAdd = None
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -1078,53 +1070,3 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | TransactionsUpdatedByRule (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
-
-    // === Quick Add (manual transaction entry → YNAB) ===
-
-    | OpenQuickAdd ->
-        let form = {
-            AmountText = ""
-            IsOutflow = true
-            Payee = ""
-            CategoryId = ""
-            DateText = System.DateTime.Now.ToString("yyyy-MM-dd")
-            Memo = ""
-            ShowCategoryPicker = false
-            IsSaving = false
-            Error = None
-        }
-        // Categories/payees normally load at init; retry here in case that failed
-        let cmd = if model.Categories.IsEmpty then Cmd.ofMsg LoadCategories else Cmd.none
-        { model with QuickAdd = Some form }, cmd, NoOp
-
-    | CloseQuickAdd ->
-        { model with QuickAdd = None }, Cmd.none, NoOp
-
-    | UpdateQuickAdd form ->
-        { model with QuickAdd = Some form }, Cmd.none, NoOp
-
-    | SubmitQuickAdd ->
-        match model.QuickAdd with
-        | None -> model, Cmd.none, NoOp
-        | Some form ->
-            match buildQuickAddRequest form with
-            | Error validationError ->
-                { model with QuickAdd = Some { form with Error = Some validationError } }, Cmd.none, NoOp
-            | Ok request ->
-                let cmd =
-                    Cmd.OfAsync.either
-                        Api.ynab.addManualTransaction
-                        request
-                        (fun result -> QuickAddSaved (result |> Result.mapError ynabErrorToString))
-                        (fun ex -> QuickAddSaved (Error ex.Message))
-                { model with QuickAdd = Some { form with IsSaving = true; Error = None } }, cmd, NoOp
-
-    | QuickAddSaved (Ok ()) ->
-        { model with QuickAdd = None }, Cmd.none, ShowToast ("Transaktion in YNAB gespeichert", ToastSuccess)
-
-    | QuickAddSaved (Error message) ->
-        match model.QuickAdd with
-        | Some form ->
-            { model with QuickAdd = Some { form with IsSaving = false; Error = Some message } }, Cmd.none, NoOp
-        | None ->
-            model, Cmd.none, ShowToast (message, ToastError)

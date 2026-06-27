@@ -384,12 +384,6 @@ let startSyncView (dispatch: Msg -> unit) =
                                     Icon = Some (Icons.sync Icons.SM Icons.Primary)
                                     OnClick = fun () -> dispatch StartSync
                             }
-
-                            // Quick Add: manual entry without a sync session
-                            Html.div [
-                                prop.className "mt-3"
-                                prop.children [ QuickAdd.quickAddEntryButton dispatch ]
-                            ]
                         ]
                     ]
                 ]

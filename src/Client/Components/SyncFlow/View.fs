@@ -9,7 +9,6 @@ open Client.DesignSystem
 // Import from sub-modules
 open Components.SyncFlow.Views.StatusViews
 open Components.SyncFlow.Views.TransactionList
-open Components.SyncFlow.Views.QuickAdd
 open Components.SyncFlow.Views.SplitSheet
 
 // TODO: derive from session model when bank name is available
@@ -63,17 +62,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             ]
                         ]
                     ]
-
-                    // Quick Add entry point during review
-                    quickAddHeaderButton dispatch
                 ]
             ]
 
             // Transaction list content
             transactionListView model dispatch
-
-            // Quick Add (manual transaction entry)
-            quickAddSheet model dispatch
 
             // Split-Review sheet (ynab-002)
             splitSheet model dispatch
@@ -120,9 +113,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 | Failure error ->
                     errorView error dispatch
-
-                // Quick Add (manual transaction entry)
-                quickAddSheet model dispatch
 
                 // Split-Review sheet (ynab-002)
                 splitSheet model dispatch

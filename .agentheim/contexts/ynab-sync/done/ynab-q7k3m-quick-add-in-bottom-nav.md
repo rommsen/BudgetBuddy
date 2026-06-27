@@ -1,11 +1,11 @@
 ---
 id: ynab-q7k3m
 title: Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
-status: todo
+status: done
 type: feature
 context: ynab-sync
 created: 2026-06-27
-completed:
+completed: 2026-06-27
 depends_on: [design-system-001]
 blocks: [ynab-t4n8p]
 tags: [quick-add, navigation, routing, discoverability, ui]
@@ -68,3 +68,29 @@ heraus zu einer Top-Level-Seite.
 - Entsperrt `ynab-t4n8p` (Vorlagen rendern in genau diesem Formular) → erst die Seite,
   dann die Vorlagen, sonst Rework am Prefill-Ziel.
 - Hängt am Styleguide-Gate (`design-system-001`, done).
+
+## Outcome
+Quick Add ist jetzt eine eigene Top-Level-Seite (`Page.QuickAdd`, Route `#/quickadd`) mit festem
+Eintrag in der Haupt-Navigation (Plus-Icon, Position: Sync · Rules · Quick Add · Settings) — sowohl
+in der mobilen Bottom-Nav als auch der Desktop-Top-Nav. Damit ist Quick Add von jeder Seite mit
+einem Tap erreichbar, insbesondere direkt nach einem erfolgreichen Import.
+
+`QuickAddFormState` + die 5 Quick-Add-Msg + die Submit-Logik sind aus der SyncFlow-Komponente ins
+Top-Level-Model/Msg/`update` gehoben; die puren Helfer (`parseAmountInput`, `buildQuickAddRequest`,
+`QuickAddFormState`) liegen jetzt im geteilten `Types`-Modul (Sibling-import-frei; `parseAmountInput`
+wird auch vom Split-Editor genutzt). Das Push-Verhalten ist unverändert: kein ImportId, Push aufs
+konfigurierte Quick-Add-Konto (ADR 0004). Beide alten sync-flow-gebundenen Einstiege wurden entfernt
+(`quickAddEntryButton`, `quickAddHeaderButton`); die alte `SyncFlow/Views/QuickAdd.fs` ist gelöscht.
+
+**Entscheidung Page-vs-Sheet:** echtes Seiten-Layout (`Primitives`-Container + `PageHeader` +
+bestehende `qa-*`-Felder + DS-Submit-Button), Category-Picker bleibt erhöhter Sheet-Layer
+(`categoryPickerLayered`). Nach erfolgreichem Speichern bleibt man auf der Seite, das Formular wird
+zurückgesetzt (statt ein Sheet zu schließen).
+
+**Schlüsseldateien:** neue Seite `src/Client/Views/QuickAddPage.fs`; State-Lift in
+`src/Client/State.fs` + `src/Client/Types.fs`; Nav-Eintrag in
+`src/Client/DesignSystem/Navigation.fs`; Render/Routing in `src/Client/View.fs`. Reducer-Tests auf
+`State.update` umgezogen (`src/Tests/QuickAddTests.fs`).
+
+**Verifikation:** `dotnet build` 0 Fehler/0 Warnungen; `dotnet test` 595 grün / 6 übersprungen
+(Integration, .env); `npm run build` (Fable+Vite) erfolgreich.

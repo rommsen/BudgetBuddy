@@ -11,10 +11,13 @@ open Expecto
 open Shared.Domain
 open Server.Validation
 open Server.YnabClient
-open Components.SyncFlow.Types
-open Components.SyncFlow.State
 open Types
 open Thoth.Json.Net
+
+// Quick Add form state and its pure helpers (`parseAmountInput`,
+// `buildQuickAddRequest`, `QuickAddFormState`) live in the top-level `Types`
+// module; the reducer (form lifecycle + submit) lives in the top-level `State`
+// module after the Quick-Add page lift (ynab-q7k3m).
 
 // ============================================
 // Helpers
@@ -352,25 +355,37 @@ let buildRequestTests =
     ]
 
 // ============================================
-// QuickAdd reducer transitions (State.update)
+// QuickAdd reducer transitions (top-level State.update, ynab-q7k3m)
 // ============================================
 
-let private modelWithForm form =
-    let model, _ = init ()
-    { model with QuickAdd = Some form }
+// Build a top-level model without going through `State.init`, which reads the
+// browser URL (Feliz.Router) and is Fable-only. The child inits are pure record
+// builders, so they are safe under .NET.
+let private modelWithForm (form: QuickAddFormState) : State.Model =
+    let settingsModel, _ = Components.Settings.State.init ()
+    let syncFlowModel, _ = Components.SyncFlow.State.init ()
+    let rulesModel, _ = Components.Rules.State.init ()
+    {
+        CurrentPage = Types.QuickAdd
+        Toasts = []
+        Settings = settingsModel
+        SyncFlow = syncFlowModel
+        Rules = rulesModel
+        QuickAdd = Some form
+    }
 
 let reducerTests =
     testList "QuickAdd update transitions" [
         test "SubmitQuickAdd with invalid form sets form error and issues no save" {
             let model = modelWithForm { validForm with AmountText = "abc" }
-            let updated, cmd, external = update SubmitQuickAdd model
+            let updated, cmd = State.update State.SubmitQuickAdd model
             match updated.QuickAdd with
             | Some form ->
                 Expect.isSome form.Error "Validation error should be set"
                 Expect.isFalse form.IsSaving "Must not enter saving state"
-            | None -> failtest "Sheet should stay open"
-            Expect.isTrue cmd.IsEmpty "No command should be issued on validation error"
-            Expect.equal external NoOp "Validation errors show inline, not as toast"
+            | None -> failtest "Form should stay present"
+            Expect.isTrue (List.isEmpty cmd) "No command should be issued on validation error"
+            Expect.isTrue (List.isEmpty updated.Toasts) "Validation errors show inline, not as toast"
         }
 
         // Note: the valid-form SubmitQuickAdd path is not reducer-tested because it
@@ -378,24 +393,30 @@ let reducerTests =
         // Fable-only and throws under .NET. The form→request mapping it depends on
         // is fully covered by the buildQuickAddRequest tests above.
 
-        test "QuickAddSaved Ok closes the sheet and emits a success toast" {
+        test "QuickAddSaved Ok resets the form and emits a success toast" {
             let model = modelWithForm { validForm with IsSaving = true }
-            let updated, _, external = update (QuickAddSaved (Ok ())) model
-            Expect.isNone updated.QuickAdd "Sheet should close after successful save"
-            match external with
-            | ShowToast (_, ToastSuccess) -> ()
-            | other -> failtest $"Expected success toast, got %A{other}"
+            let updated, _ = State.update (State.QuickAddSaved (Ok ())) model
+            // On a page, success keeps the user here with a fresh, blank form
+            // (rather than dismissing a sheet) so another entry can follow.
+            match updated.QuickAdd with
+            | Some form ->
+                Expect.equal form.AmountText "" "Form should be reset after a successful save"
+                Expect.isFalse form.IsSaving "Saving state should be cleared"
+            | None -> failtest "Form should remain present on the page"
+            Expect.isTrue
+                (updated.Toasts |> List.exists (fun t -> t.Type = ToastSuccess))
+                "A success toast should be emitted"
         }
 
-        test "QuickAddSaved Error keeps the sheet open with the error message" {
+        test "QuickAddSaved Error keeps the form with the error message" {
             let model = modelWithForm { validForm with IsSaving = true }
-            let updated, _, external = update (QuickAddSaved (Error "kaputt")) model
+            let updated, _ = State.update (State.QuickAddSaved (Error "kaputt")) model
             match updated.QuickAdd with
             | Some form ->
                 Expect.isFalse form.IsSaving "Saving state should be cleared"
                 Expect.equal form.Error (Some "kaputt") "Error message should be shown inline"
-            | None -> failtest "Sheet should stay open so the user can retry"
-            Expect.equal external NoOp "Error shows inline, not as toast"
+            | None -> failtest "Form should stay present so the user can retry"
+            Expect.isTrue (List.isEmpty updated.Toasts) "Error shows inline, not as toast"
         }
     ]
 

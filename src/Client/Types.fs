@@ -132,6 +132,9 @@ type Page =
     | Rules
     | Settings
     | Styleguide
+    /// Manual transaction entry (Quick Add) as a first-class, sync-flow-independent
+    /// page reachable from the main navigation (ynab-q7k3m).
+    | QuickAdd
 
 
 /// URL routing helpers for hash-based navigation
@@ -145,6 +148,7 @@ module Routing =
         | ["rules"] -> Rules
         | ["settings"] -> Settings
         | ["styleguide"] -> Styleguide
+        | ["quickadd"] -> QuickAdd
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -154,6 +158,7 @@ module Routing =
         | Rules -> ["rules"]
         | Settings -> ["settings"]
         | Styleguide -> ["styleguide"]
+        | QuickAdd -> ["quickadd"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =
@@ -204,3 +209,76 @@ module Toast =
     /// Final removal of the toast with `id` from the list.
     let remove (id: Guid) (toasts: Toast list) : Toast list =
         toasts |> List.filter (fun t -> t.Id <> id)
+
+// ============================================
+// Quick Add (manual transaction entry → YNAB)
+// ============================================
+// Lifted out of the SyncFlow component (ynab-q7k3m): Quick Add is now a
+// top-level page, so its form state and pure helpers live in the shared client
+// Types module. `parseAmountInput` is also used by the SyncFlow split editor
+// (`parseSplitAmount`), so this is its natural shared home. Submit behaviour is
+// unchanged — the request carries no account id; the server pushes onto the
+// configured Quick-Add account, without an ImportId (ADR 0004).
+
+/// Form state for the Quick Add page (manual transaction entry → YNAB)
+type QuickAddFormState = {
+    /// Raw user input; parsed leniently (both "4,50" and "4.50" are valid)
+    AmountText: string
+    /// true = expense (default), false = income
+    IsOutflow: bool
+    Payee: string
+    /// Selected category id as string; "" = no category
+    CategoryId: string
+    /// ISO date (yyyy-MM-dd), as produced by <input type="date">
+    DateText: string
+    Memo: string
+    /// Category picker (elevated sheet layer) open on top of the page
+    ShowCategoryPicker: bool
+    IsSaving: bool
+    Error: string option
+}
+
+/// Parses a user-entered amount, accepting German comma decimals ("4,50")
+/// as well as "4.50". Hand-rolled to behave identically under .NET and Fable
+/// (TryParse overloads are culture-dependent on .NET but not in JS).
+/// Accepts at most 2 decimal places and amounts below 1 billion.
+let parseAmountInput (text: string) : decimal option =
+    let normalized = (text: string).Trim().Replace(" ", "").Replace(",", ".")
+
+    let isDigitsOnly (s: string) =
+        s.Length > 0 && s |> Seq.forall System.Char.IsDigit
+
+    match normalized.Split('.') with
+    | [| whole |] when isDigitsOnly whole && whole.Length <= 9 ->
+        Some (decimal (int whole))
+    | [| whole; frac |] when isDigitsOnly whole && whole.Length <= 9 && isDigitsOnly frac && frac.Length <= 2 ->
+        let fracPadded = frac.PadRight(2, '0')
+        Some (decimal (int whole) + decimal (int fracPadded) / 100m)
+    | _ -> None
+
+/// Builds the API request from the Quick Add form. Pure — unit-testable.
+let buildQuickAddRequest (form: QuickAddFormState) : Result<Shared.Domain.ManualTransactionRequest, string> =
+    match parseAmountInput form.AmountText with
+    | None -> Error "Bitte einen gültigen Betrag eingeben"
+    | Some amount when amount <= 0m -> Error "Der Betrag muss größer als 0 sein"
+    | Some amount ->
+        // Payee is optional — YNAB allows payee-less transactions
+        match System.DateTime.TryParse(form.DateText) with
+        | false, _ -> Error "Bitte ein gültiges Datum wählen"
+        | true, date ->
+            let categoryId =
+                match System.Guid.TryParse(form.CategoryId) with
+                | true, guid -> Some (Shared.Domain.YnabCategoryId guid)
+                | false, _ -> None
+
+            let request : Shared.Domain.ManualTransactionRequest = {
+                Amount = amount
+                IsOutflow = form.IsOutflow
+                PayeeName = form.Payee.Trim()
+                CategoryId = categoryId
+                Date = date
+                Memo =
+                    if System.String.IsNullOrWhiteSpace form.Memo then None
+                    else Some (form.Memo.Trim())
+            }
+            Ok request

@@ -14,6 +14,7 @@ type NavPage =
     | SyncFlow
     | Rules
     | Settings
+    | QuickAdd
 
 /// Navigation item definition
 type NavItem = {
@@ -26,6 +27,7 @@ type NavItem = {
 let navItems: NavItem list = [
     { Page = SyncFlow; Label = "Sync"; Icon = sync }
     { Page = Rules; Label = "Rules"; Icon = rules }
+    { Page = QuickAdd; Label = "Quick Add"; Icon = plus }
     { Page = Settings; Label = "Settings"; Icon = settings }
 ]
 

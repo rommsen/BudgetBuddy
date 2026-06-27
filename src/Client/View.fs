@@ -16,6 +16,7 @@ let private toNavPage (page: Page) : Navigation.NavPage =
     | SyncFlow -> Navigation.SyncFlow
     | Rules -> Navigation.Rules
     | Settings -> Navigation.Settings
+    | QuickAdd -> Navigation.QuickAdd
     // Styleguide has no own nav tab; it's reached from Settings, so the
     // Settings tab stays highlighted while viewing the gallery.
     | Styleguide -> Navigation.Settings
@@ -26,6 +27,7 @@ let private fromNavPage (navPage: Navigation.NavPage) : Page =
     | Navigation.SyncFlow -> SyncFlow
     | Navigation.Rules -> Rules
     | Navigation.Settings -> Settings
+    | Navigation.QuickAdd -> QuickAdd
 
 /// Convert Types.ToastType to Toast.ToastVariant
 let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
@@ -72,6 +74,14 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 Components.Settings.View.view
                                     model.Settings
                                     (SettingsMsg >> dispatch)
+                            | QuickAdd ->
+                                // Standalone Quick Add page. Categories/recents are
+                                // shared YNAB structures already loaded into SyncFlow.
+                                Views.QuickAddPage.view
+                                    model.QuickAdd
+                                    model.SyncFlow.Categories
+                                    model.SyncFlow.RecentlyUsedCategoryIds
+                                    dispatch
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.
                                 Components.Styleguide.View.view ()

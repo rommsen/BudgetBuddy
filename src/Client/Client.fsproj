@@ -41,7 +41,6 @@
     <!-- Component: SyncFlow -->
     <Compile Include="Components/SyncFlow/Types.fs" />
     <Compile Include="Components/SyncFlow/State.fs" />
-    <Compile Include="Components/SyncFlow/Views/QuickAdd.fs" />
     <Compile Include="Components/SyncFlow/Views/StatusViews.fs" />
     <Compile Include="Components/SyncFlow/Views/InlineRuleForm.fs" />
     <Compile Include="Components/SyncFlow/Views/ViewHelpers.fs" />
@@ -60,6 +59,7 @@
 
     <!-- Main application -->
     <Compile Include="State.fs" />
+    <Compile Include="Views/QuickAddPage.fs" />
     <Compile Include="View.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
