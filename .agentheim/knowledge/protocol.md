@@ -5,6 +5,18 @@ Newest entries on top.
 
 ---
 
+## 2026-06-28 00:22 -- Work session ended
+
+**Type:** Work / Session end
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Commits:** 1 (65631fd ynab-k7m3q) + dieser Session-End-Chore
+**Note:** Einzel-Task-Lauf. Worker ohne tmux sequenziell gestartet (Swarm-Modus braucht tmux). ynab-k7m3q first-try PASS: Available (YNAB balance) als farbcodierter Betrag im Category-Picker, reicherer `CategoryPickerOption`-Typ, optionaler Decode. ADR 0011 (categorization). Concept-Kandidat „category-picker" von 1 Worker gemeldet (3 Artefakte: ADR 0005, 2026-06-11-mobile-category-picker, ynab-k7m3q) — noch kein 2-Worker-Konvergenzsignal, dem Nutzer vorgelegt. todo + doing über alle BCs leer. **Human-Gate offen:** visuelle Abnahme am Gerät (reale YNAB-Available-Werte) durch Roman steht aus.
+
+---
+
 ## 2026-06-28 00:21 -- Task verified and completed: ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
 
 **Type:** Work / Task completion
