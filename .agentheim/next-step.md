@@ -3,24 +3,17 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: Quick-Add-Verbesserungen modelliert → 1 todo, 1 backlog
+# Nächster Schritt nach Quick-Add-Seite + Vorlagen
 
-Zwei Ideen rund um Quick Add captured **und** refined (alles committet, Tree sauber):
-
-- **`ynab-q7k3m` → todo, bereit:** Quick Add wird eine **eigene Seite** mit eigener Route
-  (neuer Page-DU-Fall), erreichbar aus der Haupt-Navigation; der Quick-Add-State wird aus
-  SyncFlow ins Top-Level gehoben; die zwei alten sync-flow-gebundenen Einstiege fliegen
-  raus. ACs mit file:line-Ankern, dep `design-system-001` (done) erfüllt.
-- **`ynab-t4n8p` → backlog, gated:** Letzte **5 deduplizierte** Buchungen des Quick-Add-
-  Kontos als Vorlagen → Formular voll vorausgefüllt (Datum=heute), kein Auto-Push.
-  `depends_on: ynab-q7k3m` (die Vorlagen rendern in der neuen Seite). Schlüssel-Befund:
-  der YNAB-Read-Pfad (`getAccountTransactions`) **existiert schon** → deutlich kleinerer Task.
-
-Sinnvolle Reihenfolge: erst die Seite (`ynab-q7k3m`), dann die Vorlagen darauf
-(`ynab-t4n8p` nach Promote).
+Quick Add ist jetzt eine eigenständige Seite mit Nav-Eintrag (`ynab-q7k3m`, 06eb2e5) und
+zeigt bis zu 5 deduplizierte Vorlagen aus den letzten Quick-Add-Buchungen (`ynab-t4n8p`,
+f51d276) — beide first-try verifiziert, `dotnet test` 620 grün, `npm run build` sauber.
+todo + doing sind über alle BCs leer. Die Vorlagen werden aber erst sichtbar, wenn ein
+Quick-Add-Konto konfiguriert ist und reale YNAB-Daten vorliegen — das ist noch ungetestet
+auf dem Gerät.
 
 <options>
-  <option title="Quick-Add-Seite bauen" cmd='/agentheim:work ynab-q7k3m'>Den einzigen todo abarbeiten — liefert den fehlenden Klickpfad (z. B. nach Import) und entsperrt die Vorlagen. Tradeoff: Elmish-Refactor mit State-Lift + Routing, etwas mehr als ein One-Liner.</option>
-  <option title="Vorlagen jetzt refinen/promoten" cmd='/agentheim:modeling promote ynab-t4n8p'>Wenn du die Vorlagen zuerst willst — aber sie hängen an der Seite; vorzuziehen riskiert Rework am Prefill-Ziel. Tradeoff: gegen die sinnvolle Reihenfolge.</option>
-  <option title="Weiter modellieren" cmd='/agentheim:modeling'>Andere Vision-Prioritäten einkippen (Split-UI, Transfer-Payees …) statt jetzt zu bauen. Tradeoff: verschiebt die Quick-Add-Verbesserung nach hinten.</option>
+  <option title="Quick Add auf dem Handy testen">Das Human-Gate: deployen, Quick-Add-Konto wählen, neuen Nav-Slot + Vorlagen-Chips mobil prüfen. Höchster Realitäts-Check, aber kein Agenten-Schritt — manuell durch Roman.</option>
+  <option title="Concept-Page „Quick Add" anlegen" cmd='/agentheim:modeling'>Quick Add konvergiert auf 6 Artefakte (ADR 0003/0004, vier Tasks) und wurde von beiden Workern als Concept-Kandidat gemeldet. Eine Synthese-Seite bündelt die verstreute Quick-Add-Sprache — Doku-Wert, kein neues Feature.</option>
+  <option title="Rate-Limit-Handling modellieren" cmd='/agentheim:modeling'>Die offene ynab-sync-Frage (YNAB ~200 req/h) wird durch den zusätzlichen Vorlagen-Read pro Seitenbesuch konkreter. Vorausschauende Härtung, aber noch kein real beobachtetes Problem.</option>
 </options>
