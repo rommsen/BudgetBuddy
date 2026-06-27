@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 23:35 -- Modeling / Refined: ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
+
+**Type:** Modeling / Refine
+**BC:** categorization
+**Status after:** todo
+**Summary:** Acceptance Criteria festgeschrieben. Zwei Entscheidungen mit User: Scope = Import-Zuweisungs-Picker + Split-Sheet (kein Regel-Editor); Optik = farbiger Geldbetrag rechtsbündig (grün/rot/neutral via DS-Tokens, kein Balken/Chip). Wert = YNAB balance (Available). depends_on design-system-001 (Styleguide-Gate, done), related ADR 0005. Promoted backlog → todo.
+**Split into:** —
+**ADRs written:** —
+
+---
+
 ## 2026-06-27 23:25 -- Re-route: ynab-k7m3q → categorization
 
 **Type:** Re-route
