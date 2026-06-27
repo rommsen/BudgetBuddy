@@ -3,22 +3,24 @@ schema_version: 1
 project: BudgetBuddy
 ---
 
-# Nächste Schritte: infra-002 gebaut & committet → Board leer
+# Nächste Schritte: Quick-Add-Verbesserungen modelliert → 1 todo, 1 backlog
 
-`infra-002` (PWA installierbar) ist **fertig gebaut, verifiziert (PASS iter 2) und committet**
-(`7937b0d`): `vite-plugin-pwa` mit Shell-Precache-SW, `/api` strikt network-only (kein
-Daten-Cache), `autoUpdate`, gebrandete `offline.html`, iOS/Favicon/theme-color auf `#08081a`,
-`.webmanifest`-MIME im Giraffe-Static-Handler, ADR 0010. **todo + doing sind jetzt über alle
-BCs leer.**
+Zwei Ideen rund um Quick Add captured **und** refined (alles committet, Tree sauber):
 
-Zwei Dinge stehen offen: (1) Das **Human-Gate** — die device-/deploy-gebundenen ACs
-(Chrome/Edge-Install-Prompt, iOS „Zum Home-Bildschirm", `autoUpdate` end-to-end, Live-`offline.html`)
-sind nur **hinter Tailscale-HTTPS** im secure context abnehmbar, nicht maschinell. (2) Mehrere lokale
-Commits (PWA-Kette + ds-007/ds-008) sind weiterhin **ungepusht** — sinnvoll zusammen mit der fertigen
-PWA zu pushen/deployen.
+- **`ynab-q7k3m` → todo, bereit:** Quick Add wird eine **eigene Seite** mit eigener Route
+  (neuer Page-DU-Fall), erreichbar aus der Haupt-Navigation; der Quick-Add-State wird aus
+  SyncFlow ins Top-Level gehoben; die zwei alten sync-flow-gebundenen Einstiege fliegen
+  raus. ACs mit file:line-Ankern, dep `design-system-001` (done) erfüllt.
+- **`ynab-t4n8p` → backlog, gated:** Letzte **5 deduplizierte** Buchungen des Quick-Add-
+  Kontos als Vorlagen → Formular voll vorausgefüllt (Datum=heute), kein Auto-Push.
+  `depends_on: ynab-q7k3m` (die Vorlagen rendern in der neuen Seite). Schlüssel-Befund:
+  der YNAB-Read-Pfad (`getAccountTransactions`) **existiert schon** → deutlich kleinerer Task.
+
+Sinnvolle Reihenfolge: erst die Seite (`ynab-q7k3m`), dann die Vorlagen darauf
+(`ynab-t4n8p` nach Promote).
 
 <options>
-  <option title="Deployen & PWA-Abnahme">Docker-Image bauen, ungepushte Commits pushen, hinter Tailscale-HTTPS deployen — dann Install auf echten Geräten (Chrome/Edge + iOS) prüfen. Tradeoff: schließt das offene Human-Gate und liefert die PWA real aus, ist aber manuelle Deploy-/Geräte-Arbeit außerhalb der Worker-Schleife.</option>
-  <option title="Backlog füllen" cmd='/agentheim:modeling'>Board ist leer — nächste Vision-Prioritäten einkippen (Split-Transaction-UI: Backend da/UI fehlt; Transfer-Payees: hohe Prio; ggf. die in infra-002 ausgeklammerte reichere In-App-Offline-UX). Tradeoff: verschiebt Deploy/Abnahme der gerade fertigen PWA nach hinten.</option>
-  <option title="Empfehlung holen" cmd='/agentheim:whats-next'>Unentschieden? `whats-next` liest Vision + Boards + Protokoll und schlägt den nächsten sinnvollen Schritt vor. Tradeoff: eine Orientierungsrunde, ändert nichts am Stand.</option>
+  <option title="Quick-Add-Seite bauen" cmd='/agentheim:work ynab-q7k3m'>Den einzigen todo abarbeiten — liefert den fehlenden Klickpfad (z. B. nach Import) und entsperrt die Vorlagen. Tradeoff: Elmish-Refactor mit State-Lift + Routing, etwas mehr als ein One-Liner.</option>
+  <option title="Vorlagen jetzt refinen/promoten" cmd='/agentheim:modeling promote ynab-t4n8p'>Wenn du die Vorlagen zuerst willst — aber sie hängen an der Seite; vorzuziehen riskiert Rework am Prefill-Ziel. Tradeoff: gegen die sinnvolle Reihenfolge.</option>
+  <option title="Weiter modellieren" cmd='/agentheim:modeling'>Andere Vision-Prioritäten einkippen (Split-UI, Transfer-Payees …) statt jetzt zu bauen. Tradeoff: verschiebt die Quick-Add-Verbesserung nach hinten.</option>
 </options>
