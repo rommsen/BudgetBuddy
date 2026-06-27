@@ -304,6 +304,101 @@ let categoryDecoderTests =
             | Error err ->
                 failtest $"Failed to decode category: {err}"
 
+        // --- Regression: YNAB `balance` -> YnabCategory.Available (milliunits/1000) ---
+        // These prevent the category Available column in the picker from silently
+        // showing a wrong value (e.g. raw milliunits, or a dropped sign). Every
+        // field of the decoded record is asserted (incl. Available.Currency).
+        testCase "decodes positive balance into Available" <| fun () ->
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Groceries",
+                "category_group_name": "Essential Expenses",
+                "balance": 250000
+            }
+            """
+            match Decode.fromString Decoders.categoryDecoder json with
+            | Ok category ->
+                let (YnabCategoryId id) = category.Id
+                Expect.equal (id.ToString()) "c1b2a3d4-e5f6-7890-abcd-ef1234567890" "Id should match"
+                Expect.equal category.Name "Groceries" "Name should match"
+                Expect.equal category.GroupName "Essential Expenses" "GroupName should match"
+                Expect.equal category.Available.Amount 250m "Positive balance 250000 milliunits should decode to 250"
+                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+            | Error err -> failtest $"Failed to decode category: {err}"
+
+        testCase "decodes negative balance into Available" <| fun () ->
+            let json = """
+            {
+                "id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
+                "name": "Rent",
+                "category_group_name": "Essential Expenses",
+                "balance": -150000
+            }
+            """
+            match Decode.fromString Decoders.categoryDecoder json with
+            | Ok category ->
+                let (YnabCategoryId id) = category.Id
+                Expect.equal (id.ToString()) "d1e2f3a4-b5c6-7890-1234-567890abcdef" "Id should match"
+                Expect.equal category.Name "Rent" "Name should match"
+                Expect.equal category.GroupName "Essential Expenses" "GroupName should match"
+                Expect.equal category.Available.Amount -150m "Negative balance -150000 milliunits should decode to -150"
+                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+            | Error err -> failtest $"Failed to decode category: {err}"
+
+        testCase "decodes zero balance into Available" <| fun () ->
+            let json = """
+            {
+                "id": "e1f2a3b4-c5d6-7890-1234-567890fedcba",
+                "name": "Entertainment",
+                "category_group_name": "Fun Money",
+                "balance": 0
+            }
+            """
+            match Decode.fromString Decoders.categoryDecoder json with
+            | Ok category ->
+                let (YnabCategoryId id) = category.Id
+                Expect.equal (id.ToString()) "e1f2a3b4-c5d6-7890-1234-567890fedcba" "Id should match"
+                Expect.equal category.Name "Entertainment" "Name should match"
+                Expect.equal category.GroupName "Fun Money" "GroupName should match"
+                Expect.equal category.Available.Amount 0m "Zero balance should decode to 0"
+                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+            | Error err -> failtest $"Failed to decode category: {err}"
+
+        testCase "missing balance defaults Available to zero" <| fun () ->
+            // Conformist-safe default: a category shipped without a balance field
+            // decodes to 0 Available rather than failing the whole categories load.
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Groceries",
+                "category_group_name": "Essential Expenses"
+            }
+            """
+            match Decode.fromString Decoders.categoryDecoder json with
+            | Ok category ->
+                Expect.equal category.Available.Amount 0m "Missing balance should default Available to 0"
+                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+            | Error err -> failtest $"Failed to decode category: {err}"
+
+        testCase "categoryInGroupDecoder reads balance into Available" <| fun () ->
+            // The /budgets/{id} path decodes nested categories via categoryInGroupDecoder;
+            // it must read balance too (else the split/budget-detail load loses Available).
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Groceries",
+                "balance": 42000
+            }
+            """
+            match Decode.fromString (Decoders.categoryInGroupDecoder "Essential Expenses") json with
+            | Ok category ->
+                Expect.equal category.Name "Groceries" "Name should match"
+                Expect.equal category.GroupName "Essential Expenses" "GroupName comes from the group"
+                Expect.equal category.Available.Amount 42m "balance 42000 milliunits should decode to 42"
+                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+            | Error err -> failtest $"Failed to decode category in group: {err}"
+
         testCase "decodes category groups and flattens correctly" <| fun () ->
             let decoder =
                 Decode.field "data" (

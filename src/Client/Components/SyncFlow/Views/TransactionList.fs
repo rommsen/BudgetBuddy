@@ -320,6 +320,16 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                     model.RecentlyUsedCategoryIds
                     |> List.map (fun (YnabCategoryId guid) -> guid.ToString())
 
+                // Picker options carry each category's current Available (YNAB
+                // balance) so it shows right-aligned and colour-coded per row.
+                let pickerCategoryOptions : BottomSheet.CategoryPickerOption list =
+                    model.Categories
+                    |> List.map (fun cat ->
+                        let (YnabCategoryId id) = cat.Id
+                        { Id = id.ToString()
+                          Label = $"{cat.GroupName}: {cat.Name}"
+                          Available = Some cat.Available })
+
                 // Key forces remount on new transaction → resets search text (MVU-friendly)
                 let pickerKey =
                     categorySheetState
@@ -332,7 +342,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                         BottomSheet.categoryPicker
                             sheetOpen
                             sheetPayee
-                            categoryOptions
+                            pickerCategoryOptions
                             suggestedCats
                             recentCats
                             (fun catId ->

@@ -355,6 +355,10 @@ type YnabCategory = {
     Id: YnabCategoryId
     Name: string
     GroupName: string
+    /// Current YNAB "Available" of this category (YNAB `balance`, the available
+    /// amount of the current month). Surfaced in the category picker so the
+    /// assignment decision can be made without checking YNAB web.
+    Available: Money
 }
 
 /// YNAB payee for transaction assignment.

@@ -37,12 +37,29 @@ module Decoders =
             Closed = get.Optional.Field "closed" Decode.bool |> Option.defaultValue false
         })
 
+    /// Reads YNAB's `balance` (milliunits) as the category's Available Money.
+    /// Optional with a 0-default: like the account decoder's flags this stays
+    /// Conformist-safe — a category that ever ships without a balance (e.g. an
+    /// internal/special category) decodes to 0 Available rather than failing the
+    /// whole categories load. Conversion is the same milliunits/1000 path as
+    /// the account balance.
+    let private categoryAvailable (get: Decode.IGetters) : Money =
+        {
+            Amount =
+                get.Optional.Field "balance" Decode.int64
+                |> Option.defaultValue 0L
+                |> decimal
+                |> fun milliunits -> milliunits / 1000m
+            Currency = "EUR"
+        }
+
     /// Decoder for categories when category_group_name is present (from /categories endpoint)
     let categoryDecoder : Decoder<YnabCategory> =
         Decode.object (fun get -> {
             Id = get.Required.Field "id" Decode.guid |> YnabCategoryId
             Name = get.Required.Field "name" Decode.string
             GroupName = get.Required.Field "category_group_name" Decode.string
+            Available = categoryAvailable get
         })
 
     let payeeDecoder : Decoder<YnabPayee> =
@@ -60,6 +77,7 @@ module Decoders =
             Id = get.Required.Field "id" Decode.guid |> YnabCategoryId
             Name = get.Required.Field "name" Decode.string
             GroupName = groupName
+            Available = categoryAvailable get
         })
 
     /// Decoder for category groups containing nested categories

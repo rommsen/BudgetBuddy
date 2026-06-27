@@ -28,10 +28,21 @@ type private BottomSheetInternalProps = {
     Children: ReactElement list
 }
 
+/// One selectable category in the picker.
+/// `Label` is the full "Group: Name" string (grouped/filtered/displayed by it).
+/// `Available` is the category's current YNAB Available; when present the picker
+/// renders it right-aligned and colour-coded (green >0 / red <0 / muted =0).
+/// `None` keeps the plain row (e.g. contexts where a budget value is meaningless).
+type CategoryPickerOption = {
+    Id: string
+    Label: string
+    Available: Shared.Domain.Money option
+}
+
 type private CategoryPickerInternalProps = {
     IsOpen: bool
     PayeeName: string
-    Categories: (string * string) list
+    Categories: CategoryPickerOption list
     SuggestedCategories: string list
     RecentCategories: string list
     OnSelect: string -> unit
@@ -210,12 +221,12 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
         input.OnClose()
 
     // Group categories by YNAB group prefix "GroupName: CategoryName"
-    let groupCategories (cats: (string * string) list) =
+    let groupCategories (cats: CategoryPickerOption list) =
         cats
-        |> List.groupBy (fun (_, name) ->
-            match name.IndexOf(": ") with
+        |> List.groupBy (fun c ->
+            match c.Label.IndexOf(": ") with
             | -1 -> ""
-            | idx -> name.Substring(0, idx).Trim()
+            | idx -> c.Label.Substring(0, idx).Trim()
         )
 
     // Filter categories by search text (case-insensitive)
@@ -225,16 +236,16 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
         else
             let searchLower = searchText.ToLowerInvariant()
             input.Categories
-            |> List.filter (fun (_, name) ->
-                name.ToLowerInvariant().Contains(searchLower))
+            |> List.filter (fun c ->
+                c.Label.ToLowerInvariant().Contains(searchLower))
 
     let groupedCategories = groupCategories filteredCategories
 
     // Find category name by id for chip display
     let categoryNameById (catId: string) =
         input.Categories
-        |> List.tryFind (fun (id, _) -> id = catId)
-        |> Option.map snd
+        |> List.tryFind (fun c -> c.Id = catId)
+        |> Option.map (fun c -> c.Label)
         |> Option.defaultValue catId
 
     // Extract display name (part after "GroupName: " or full name)
@@ -364,17 +375,27 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                                                 prop.className "category-parent"
                                                                 prop.text groupName
                                                             ]
-                                                        for (catId, catName) in items do
+                                                        for c in items do
                                                             Html.div [
-                                                                prop.className "category-item"
+                                                                prop.className "category-item flex items-center justify-between gap-3"
                                                                 // Keep focus (and keyboard) on the search
                                                                 // input — prevents a blur-induced layout
                                                                 // shift between tap and click.
                                                                 prop.onMouseDown (fun e -> e.preventDefault())
                                                                 prop.onClick (fun e ->
                                                                     e.stopPropagation()
-                                                                    selectAndClose catId)
-                                                                prop.text (displayName catName)
+                                                                    selectAndClose c.Id)
+                                                                prop.children [
+                                                                    Html.span [
+                                                                        prop.className "truncate"
+                                                                        prop.text (displayName c.Label)
+                                                                    ]
+                                                                    // Right-aligned, colour-coded current
+                                                                    // Available (YNAB balance) when provided.
+                                                                    match c.Available with
+                                                                    | Some m -> Money.available m.Amount m.Currency
+                                                                    | None -> ()
+                                                                ]
                                                             ]
                                                     ]
                                                 ]
@@ -389,12 +410,12 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
     )
 
 /// Specialised category picker bottom sheet.
-/// Categories are `(categoryId, categoryName)` pairs. Names containing "/" are grouped
-/// by the prefix before "/" (e.g. "Fixkosten / Miete" groups under "Fixkosten").
+/// Categories are `CategoryPickerOption` records. The `Label` ("Group: Name") drives
+/// grouping/filtering; an optional `Available` renders right-aligned and colour-coded.
 let categoryPicker
     (isOpen: bool)
     (payeeName: string)
-    (categories: (string * string) list)
+    (categories: CategoryPickerOption list)
     (suggestedCategories: string list)
     (recentCategories: string list)
     (onSelect: string -> unit)
@@ -416,7 +437,7 @@ let categoryPicker
 let categoryPickerLayered
     (isOpen: bool)
     (payeeName: string)
-    (categories: (string * string) list)
+    (categories: CategoryPickerOption list)
     (suggestedCategories: string list)
     (recentCategories: string list)
     (onSelect: string -> unit)

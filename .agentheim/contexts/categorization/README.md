@@ -28,6 +28,10 @@ schwaches Payee-basiertes Auto-Matching.
 - **NeedsAttention** — TransactionStatus für Sammel-/Sonderfälle (Amazon, PayPal), die
   Romans Blick brauchen.
 - **ExternalLink** — Label+Url, z.B. zur Amazon-Bestellung, als Entscheidungshilfe.
+- **Available** — der aktuelle Budgetwert einer Kategorie (YNAB `balance`, das "Available"
+  des laufenden Monats). Im Kategorie-Picker rechtsbündig und farbcodiert (grün >0 / rot <0 /
+  neutral =0) hinter dem Namen, damit "passt diese Buchung hier rein" am Zuweisungspunkt
+  entscheidbar ist. So frisch wie der letzte Kategorien-Load, kein Live-Refresh pro Zeile.
 
 ## Aggregates
 - **Rule** — eine Regel; Invariante: gültiges Pattern (bei Regex kompilierbar), eindeutige

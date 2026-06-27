@@ -93,6 +93,17 @@ let view
         |> List.tryFind (fun (id, _) -> id = form.CategoryId)
         |> Option.map snd
 
+    // Picker options carry each category's current Available (YNAB balance) so
+    // the quick-add assignment shows the same right-aligned, colour-coded value
+    // as the import and split pickers (same component, same data).
+    let pickerCategoryOptions : BottomSheet.CategoryPickerOption list =
+        categories
+        |> List.map (fun cat ->
+            let (YnabCategoryId id) = cat.Id
+            { Id = id.ToString()
+              Label = $"{cat.GroupName}: {cat.Name}"
+              Available = Some cat.Available })
+
     let recentCats =
         recentCategoryIds
         |> List.map (fun (YnabCategoryId guid) -> guid.ToString())
@@ -245,7 +256,7 @@ let view
         BottomSheet.categoryPickerLayered
             form.ShowCategoryPicker
             (form.Payee.Trim())
-            categoryOptions
+            pickerCategoryOptions
             []
             recentCats
             (fun catId -> update { form with CategoryId = catId; ShowCategoryPicker = false })

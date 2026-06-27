@@ -4,6 +4,52 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-28 00:15 - Kategorie-Available im Zuweisungs-Picker (ynab-k7m3q)
+
+### What
+Der Kategorie-Picker zeigt jetzt hinter "Gruppe: Name" den aktuellen YNAB-Budgetwert
+(`balance` = "Available" des laufenden Monats) als rechtsbündigen, farbcodierten Geldbetrag:
+grün bei >0, rot bei <0, neutral bei =0. So ist beim Zuordnen direkt sichtbar, wie viel in
+einer Kategorie noch verfügbar ist, ohne Wechsel nach YNAB-Web. Sichtbar im Import-Picker
+(`TransactionList`), im Split-Sheet-Picker (`SplitSheet`) und im Quick-Add-Picker
+(`QuickAddPage`, gleiche Komponente + Daten, gleicher Zuweisungskontext). Der Regel-Editor
+bleibt unverändert (nutzt den Picker nicht; ein "verfügbar" wäre dort kontextlos). Kein
+zusätzlicher YNAB-Request — der Wert kommt aus der bestehenden `getCategories`-Antwort.
+
+### Files Changed
+- `src/Shared/Domain.fs` - `YnabCategory` trägt `Available: Money`.
+- `src/Server/YnabClient.fs` - neuer `categoryAvailable`-Helper; `categoryDecoder` und
+  `categoryInGroupDecoder` lesen `balance` (Milliunits/1000, Optional mit 0-Default,
+  Conformist-safe). Budget-Detail-Pfad erbt es über `categoryGroupsDecoder`.
+- `src/Client/DesignSystem/Money.fs` - `available amount currency`: mono, drei-wertige
+  Farbe (neon-green / neon-red / text-muted) über DS-Tokens, kein Glow, kein führendes "+".
+- `src/Client/DesignSystem/BottomSheet.fs` - neuer öffentlicher Typ `CategoryPickerOption
+  { Id; Label; Available: Money option }`; `categoryPicker`/`categoryPickerLayered`/
+  `CategoryPickerInternal` rendern die rechtsbündige Wert-Spalte. ADR 0005 (Click-Commit,
+  Layer-Stacking) unberührt.
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` - eigene `pickerCategoryOptions`
+  mit Available; `categoryOptions` (Tupel) bleibt für die `TransactionRow`-Chips.
+- `src/Client/Components/SyncFlow/Views/SplitSheet.fs` - `categoryOptions` auf den reichen
+  Typ umgestellt.
+- `src/Client/Views/QuickAddPage.fs` - `pickerCategoryOptions` mit Available; Tupel-Liste
+  bleibt für `selectedCategoryName`.
+- `src/Tests/YnabClientTests.fs` - 5 Decoder-Regressionstests (positiv/negativ/null,
+  fehlendes balance → 0, `categoryInGroupDecoder`-Pfad); jeder Wert + jedes Feld asserted.
+- `.agentheim/knowledge/decisions/0011-category-available-in-assignment-pickers.md` - ADR.
+- `.agentheim/contexts/categorization/README.md` - Ubiquitous Language "Available".
+
+### Rationale
+ynab-k7m3q: Available am Zuweisungspunkt macht "passt diese Buchung hier rein" sofort
+entscheidbar. Optional-Decode statt Required (anders als Account-Balance), damit ein
+fehlendes `balance` nie den ganzen Kategorien-Load bricht (ADR 0011).
+
+### Verification
+- Build: PASSED (`dotnet build`, 0 Fehler/0 Warnungen)
+- Tests: PASSED (`dotnet test`, 625 erfolgreich / 6 übersprungen / 0 Fehler; +5 vs. Baseline)
+- Fable: PASSED (`npm run build` kompiliert den Client)
+
+---
+
 ## 2026-06-27 10:05 - Quick Add: letzte 5 Buchungen als deduplizierte Vorlagen (ynab-t4n8p)
 
 ### What

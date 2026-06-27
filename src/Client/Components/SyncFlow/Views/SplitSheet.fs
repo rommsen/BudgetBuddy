@@ -111,11 +111,13 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
         let balanced = remainder = 0m
         let saveEnabled = canSaveSplits state
 
-        let categoryOptions =
+        let categoryOptions : BottomSheet.CategoryPickerOption list =
             model.Categories
             |> List.map (fun cat ->
                 let (YnabCategoryId id) = cat.Id
-                (id.ToString(), $"{cat.GroupName}: {cat.Name}"))
+                { Id = id.ToString()
+                  Label = $"{cat.GroupName}: {cat.Name}"
+                  Available = Some cat.Available })
 
         // Transfer-target picker: ONLY open on-budget accounts (AC 4), via the
         // shared `openOnBudgetAccounts` filter (no client reimplementation).

@@ -166,6 +166,19 @@ let noGlow amount currency =
 let money (m: Money) =
     fromMoney m GlowPositive
 
+/// Compact "Available" display for the category picker: green when positive,
+/// red when negative, muted when zero. Mono, no glow, no leading "+" — the
+/// colour carries the sign. Right-alignment is left to the caller's layout.
+let available (amount: decimal) (currency: string) =
+    let colorClass =
+        if amount > 0m then "text-neon-green"
+        elif amount < 0m then "text-neon-red"
+        else "text-text-muted"
+    Html.span [
+        prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base {colorClass}"
+        prop.text (formatAmount false true amount currency)
+    ]
+
 /// Money display from domain Money type with glow control
 let moneyWithGlow (m: Money) showGlow =
     fromMoney m (if showGlow then GlowPositive else NoGlow)

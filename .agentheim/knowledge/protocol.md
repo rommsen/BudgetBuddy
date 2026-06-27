@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-06-28 00:21 -- Task verified and completed: ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
+
+**Type:** Work / Task completion
+**Task:** ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
+**Summary:** Der Kategorie-Picker zeigt beim Zuordnen das aktuelle YNAB-Available (balance) jeder Kategorie als rechtsbündigen, farbcodierten Geldbetrag (grün/rot/neutral) im Import-, Split- und Quick-Add-Picker; ohne zusätzlichen Request aus dem bestehenden Kategorien-Load.
+**Verification:** PASS (iteration 1) — dotnet build 0/0, dotnet test 625 passed / 6 skipped, npm run build (Fable) grün. ADR-0005-Picker-Patterns (click-commit, .layer-2) unberührt; Design-Tokens-Regel erfüllt.
+**Files changed:** 11
+**Tests added:** 5 (Decoder: positive/negative/zero/missing-balance + in-group)
+**ADRs written:** 0011
+
+---
+
+## 2026-06-27 23:42 -- Batch started: [ynab-k7m3q]
+
+**Type:** Work / Batch start
+**Tasks:** ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
+**Parallel:** no (1 worker)
+
+---
+
 ## 2026-06-27 23:35 -- Modeling / Refined: ynab-k7m3q - Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen
 
 **Type:** Modeling / Refine
