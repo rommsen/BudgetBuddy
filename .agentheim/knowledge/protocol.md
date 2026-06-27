@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 09:02 -- Modeling / Captured: ynab-t4n8p - Quick Add: letzte 3–5 Buchungen als Vorlagen
+
+**Type:** Modeling / Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Im Quick-Add-Formular die letzten 3–5 Buchungen des Quick-Add-Kontos als auswählbare Vorlagen anzeigen; Auswahl füllt das Formular vollständig vor (Betrag/Kategorie/Payee/Memo), Datum = heute. Kein Auto-Push — Roman drückt am Ende selbst auf Speichern. Erfordert einen neuen YNAB-Read-Pfad (Quick Add schrieb bisher nur). Hängt am Styleguide-Gate (design-system-001).
+
+---
+
 ## 2026-06-27 09:02 -- Modeling / Captured: ynab-q7k3m - Quick Add aus der Haupt-Navigation erreichbar
 
 **Type:** Modeling / Capture
