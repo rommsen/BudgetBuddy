@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 7
@@ -37,6 +37,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-q7k3m · Quick Add aus der Haupt-Navigation erreichbar (Bottom-Nav)** — `backlog/ynab-q7k3m-quick-add-in-bottom-nav.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

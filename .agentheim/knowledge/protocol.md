@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 09:02 -- Modeling / Captured: ynab-q7k3m - Quick Add aus der Haupt-Navigation erreichbar
+
+**Type:** Modeling / Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Quick Add (manuelle Bar-Buchung → YNAB) braucht einen festen, kontextfreien Einstieg in der unteren Haupt-Navigation. Heute nur über sync-flow-gebundene Einstiege (Secondary-Button + Review-Header-Plus) erreichbar — kein Klickpfad z. B. direkt nach erfolgreichem Import. Hängt am Styleguide-Gate (design-system-001).
+
+---
+
 ## 2026-06-19 23:47 -- Work session ended
 
 **Type:** Work / Session end
