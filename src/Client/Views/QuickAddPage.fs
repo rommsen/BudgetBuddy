@@ -32,10 +32,50 @@ let private emptyForm : QuickAddFormState = {
     Error = None
 }
 
+/// One tappable template chip: payee (or category) + signed amount. Tapping it
+/// prefills the whole form (ynab-t4n8p) — nothing is posted until Speichern.
+let private templateChip (dispatch: Msg -> unit) (template: QuickAddTemplate) : ReactElement =
+    let primaryLabel =
+        match template.PayeeName with
+        | Some p when p.Trim() <> "" -> p.Trim()
+        | _ -> template.CategoryName |> Option.defaultValue "Buchung"
+
+    let amountLabel = $"{formatAmountForInput template.Amount} €"
+
+    Html.button [
+        prop.className (
+            if template.IsOutflow then "qa-template-chip outflow" else "qa-template-chip inflow"
+        )
+        prop.onClick (fun _ -> dispatch (PrefillQuickAdd template))
+        prop.children [
+            Html.span [ prop.className "qa-template-payee"; prop.text primaryLabel ]
+            Html.span [ prop.className "qa-template-amount"; prop.text amountLabel ]
+        ]
+    ]
+
+/// The recent-bookings template row, rendered only when there is something to
+/// show. Loading / failure / empty all collapse to nothing — the form stays
+/// fully usable on its own (e.g. a brand-new Quick-Add account).
+let private templatesSection (templates: RemoteData<QuickAddTemplate list>) (dispatch: Msg -> unit) : ReactElement =
+    match templates with
+    | Success ts when not (List.isEmpty ts) ->
+        Html.div [
+            prop.className "qa-templates"
+            prop.children [
+                Html.span [ prop.className "qa-templates-label"; prop.text "Letzte Buchungen" ]
+                Html.div [
+                    prop.className "qa-templates-chips"
+                    prop.children (ts |> List.map (templateChip dispatch))
+                ]
+            ]
+        ]
+    | _ -> Html.none
+
 let view
     (formOpt: QuickAddFormState option)
     (categories: YnabCategory list)
     (recentCategoryIds: YnabCategoryId list)
+    (templates: RemoteData<QuickAddTemplate list>)
     (dispatch: Msg -> unit)
     : ReactElement =
 
@@ -62,6 +102,9 @@ let view
             prop.className "max-w-lg mx-auto animate-fade-in"
             prop.children [
                 PageHeader.gradientWithSubtitle "Quick Add" "Bar-Ausgabe direkt in YNAB erfassen"
+
+                // Recurring-booking templates: one tap prefills the whole form.
+                templatesSection templates dispatch
 
                 Html.div [
                     prop.className "qa-page space-y-4"

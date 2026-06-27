@@ -76,11 +76,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     (SettingsMsg >> dispatch)
                             | QuickAdd ->
                                 // Standalone Quick Add page. Categories/recents are
-                                // shared YNAB structures already loaded into SyncFlow.
+                                // shared YNAB structures already loaded into SyncFlow;
+                                // templates are the recent Quick-Add bookings (ynab-t4n8p).
                                 Views.QuickAddPage.view
                                     model.QuickAdd
                                     model.SyncFlow.Categories
                                     model.SyncFlow.RecentlyUsedCategoryIds
+                                    model.QuickAddTemplates
                                     dispatch
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.

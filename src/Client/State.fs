@@ -26,6 +26,11 @@ type Model = {
     // until the page is first opened; reset to a fresh form on each visit and
     // after a successful save.
     QuickAdd: QuickAddFormState option
+
+    // Deduplicated templates from the Quick-Add account's recent bookings
+    // (ynab-t4n8p), loaded once per page visit. RemoteData so a failed/empty
+    // read degrades gracefully — no templates shown, form still usable.
+    QuickAddTemplates: RemoteData<QuickAddTemplate list>
 }
 
 // ============================================
@@ -53,6 +58,11 @@ type Msg =
     | UpdateQuickAdd of QuickAddFormState
     | SubmitQuickAdd
     | QuickAddSaved of Result<unit, string>
+
+    // Quick Add templates (recurring cash bookings, ynab-t4n8p)
+    | LoadQuickAddTemplates
+    | QuickAddTemplatesLoaded of Result<QuickAddTemplate list, string>
+    | PrefillQuickAdd of QuickAddTemplate
 
 // ============================================
 // Helper Functions
@@ -123,6 +133,7 @@ let init () : Model * Cmd<Msg> =
         SyncFlow = syncFlowModel
         Rules = rulesModel
         QuickAdd = None
+        QuickAddTemplates = NotAsked
     }
 
     // Trigger page-specific load commands for the initial (deep-linked) page
@@ -176,9 +187,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | QuickAdd ->
                     // Open a fresh form and make sure the category picker has data
                     // (categories are loaded into SyncFlow at startup; retry in
-                    // case that failed or this is a deep link).
+                    // case that failed or this is a deep link). Also load the
+                    // recent-booking templates once per visit (ynab-t4n8p).
                     Cmd.batch [
                         Cmd.ofMsg OpenQuickAdd
+                        Cmd.ofMsg LoadQuickAddTemplates
                         Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
                     ]
             { model with CurrentPage = page }, extraCmds
@@ -320,3 +333,30 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             { model with QuickAdd = Some { form with IsSaving = false; Error = Some message } }, Cmd.none
         | None ->
             addToast message ToastError model
+
+    // ============================================
+    // Quick Add Templates (recurring cash bookings, ynab-t4n8p)
+    // ============================================
+    // One extra YNAB read per page visit (rate-limit conscious): load the recent
+    // bookings of the Quick-Add account, dedup server-side, and offer them as
+    // one-tap prefills. RemoteData so a failure/empty read just hides the chips.
+    | LoadQuickAddTemplates ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ynab.getRecentQuickAddTemplates
+                ()
+                (fun result -> QuickAddTemplatesLoaded (result |> Result.mapError ynabErrorToString))
+                (fun ex -> QuickAddTemplatesLoaded (Error ex.Message))
+        { model with QuickAddTemplates = Loading }, cmd
+
+    | QuickAddTemplatesLoaded (Ok templates) ->
+        { model with QuickAddTemplates = Success templates }, Cmd.none
+
+    | QuickAddTemplatesLoaded (Error message) ->
+        { model with QuickAddTemplates = Failure message }, Cmd.none
+
+    | PrefillQuickAdd template ->
+        // Fill every field from the template; the date stays today (form default).
+        // Nothing is posted — Roman reviews, adjusts and taps Speichern himself.
+        let baseForm = model.QuickAdd |> Option.defaultValue (freshQuickAddForm ())
+        { model with QuickAdd = Some (applyTemplateToForm template baseForm) }, Cmd.none

@@ -85,6 +85,13 @@ type YnabApi = {
     /// Purpose: Cash expenses entered on the phone without a bank sync session.
     /// Uses the configured default budget + Quick Add account; validation errors surface as InvalidResponse.
     addManualTransaction: ManualTransactionRequest -> Async<YnabResult<unit>>
+
+    /// Fetches up to 5 deduplicated Quick-Add templates from the most recent
+    /// transactions of the configured Quick-Add account (dedup key: Payee +
+    /// amount + category). Purpose: one-tap prefill of recurring cash entries on
+    /// the Quick Add page. Returns an empty list (never an error) when the
+    /// Quick-Add account/budget is not configured, so the page degrades gracefully.
+    getRecentQuickAddTemplates: unit -> Async<YnabResult<QuickAddTemplate list>>
 }
 
 // ============================================

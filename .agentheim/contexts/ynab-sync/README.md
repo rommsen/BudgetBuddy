@@ -62,6 +62,15 @@ Spiegel zum Auswählen bereit.
   (ADR 0004). Payee optional. Scope-Herkunft: ADR 0003 (Phase-0-Experiment).
 - **Quick-Add-Konto** — konfigurierbares Ziel-Konto für manuelle Einträge
   (`ynab_quickadd_account_id`), strikt getrennt vom Standard-/Import-Konto.
+- **Quick-Add-Vorlage (Template)** — eine wiederverwendbare, aus den jüngsten Buchungen
+  des Quick-Add-Kontos destillierte Vorlage (`QuickAddTemplate`, `src/Shared/Domain.fs`).
+  Dedup-Schlüssel **Payee + Betrag + Kategorie**: wiederkehrende Bar-Buchungen kollabieren
+  zu *einer* Vorlage; bis zu 5 verschiedene erscheinen (most-recent-first). Trägt **kein
+  Datum** — eine vorausgefüllte Vorlage ist immer auf *heute* datiert, nie auf das
+  Original-Datum. Nur *kategorisierte* Buchungen werden Vorlagen (schließt Transfers/Splits
+  aus). Quelle ist der bestehende `getAccountTransactions`-Read (kein neuer YNAB-Pfad);
+  die Dedup/Projektion ist pur (`recentQuickAddTemplates`). Tippen füllt das
+  Quick-Add-Formular vor — gebucht wird nichts automatisch (ynab-t4n8p).
 
 ## Aggregates
 - **YnabTransaction** — Invariante: gültige ImportId; bei Splits Summe == Amount und ≥2 Teile.

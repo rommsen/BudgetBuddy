@@ -1,11 +1,11 @@
 ---
 id: ynab-t4n8p
 title: Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)
-status: backlog
+status: done
 type: feature
 context: ynab-sync
 created: 2026-06-27
-completed:
+completed: 2026-06-27
 depends_on: [design-system-001, ynab-q7k3m]
 blocks: []
 tags: [quick-add, templates, ynab-read, ui]
@@ -29,17 +29,17 @@ wird das Formular **vollständig vorausgefüllt** (Betrag, Kategorie, Payee, Mem
 drückt selbst auf Speichern.
 
 ## Acceptance criteria
-- [ ] Die Quick-Add-Seite zeigt bis zu 5 deduplizierte Vorlagen aus den jüngsten Buchungen
+- [x] Die Quick-Add-Seite zeigt bis zu 5 deduplizierte Vorlagen aus den jüngsten Buchungen
       des Quick-Add-Kontos (Dedup-Schlüssel: Payee + Betrag + Kategorie).
-- [ ] Auswahl einer Vorlage füllt das Formular vollständig vor — Betrag (inkl. Ausgabe/
+- [x] Auswahl einer Vorlage füllt das Formular vollständig vor — Betrag (inkl. Ausgabe/
       Einnahme), Kategorie, Payee, Memo soweit vorhanden — via Prefill des
-      `QuickAddFormState` (ein `UpdateQuickAdd` bzw. neues `PrefillQuickAdd`).
-- [ ] Das Datum der vorausgefüllten Vorlage ist immer **heute**, nicht das Datum der
+      `QuickAddFormState` (neues `PrefillQuickAdd` → pure `applyTemplateToForm`).
+- [x] Das Datum der vorausgefüllten Vorlage ist immer **heute**, nicht das Datum der
       Original-Buchung.
-- [ ] Es wird nichts automatisch gebucht — Push erst beim Klick auf Speichern; alle Werte
+- [x] Es wird nichts automatisch gebucht — Push erst beim Klick auf Speichern; alle Werte
       vorher editierbar.
-- [ ] Vertrags-/Domain-Tests fürs Reverse-Milliunits-Mapping und das Dedup.
-- [ ] Folgt dem Styleguide (`design-system-001`).
+- [x] Vertrags-/Domain-Tests fürs Reverse-Milliunits-Mapping und das Dedup.
+- [x] Folgt dem Styleguide (`design-system-001`).
 
 ## Notes
 - **Datenquelle steht schon:** `YnabClient.getAccountTransactions`
@@ -64,3 +64,36 @@ drückt selbst auf Speichern.
   eigenen Quick-Add-Seite und füllen deren (ins Top-Level gehobenen) Form-State. Erst die
   Seite, dann die Vorlagen.
 - Hängt am Styleguide-Gate (`design-system-001`, done).
+
+## Outcome
+Quick-Add-Vorlagen sind live: die Quick-Add-Seite lädt einmal pro Besuch die jüngsten Buchungen
+des Quick-Add-Kontos und zeigt bis zu 5 **deduplizierte** Vorlagen (Payee + Betrag + Kategorie)
+als kompakte Chips über dem Formular. Ein Tipp füllt das Formular vollständig vor (Betrag inkl.
+Richtung, Kategorie, Payee, Memo), Datum bleibt **heute**; nichts wird automatisch gebucht.
+
+**Pure Domain-Kern (testbar, kein I/O):**
+- `amountFromMilliunits` (`src/Shared/Domain.fs`) — Gegenstück zu `manualTransactionMilliunits`:
+  signed milliunits → `(IsOutflow, Betrag)`, `<0 ⇒ IsOutflow`, Betrag = `abs/1000`.
+- `recentQuickAddTemplates` (`src/Shared/Domain.fs`) — sort desc → projizieren → `distinctBy`
+  (Payee, IsOutflow, Amount, CategoryId) → `truncate 5`. Nur kategorisierte Buchungen werden
+  Vorlagen (Transfers/Splits ⇒ keine Kategorie ⇒ gedroppt). Neuer Read-Model-Type `QuickAddTemplate`.
+- `applyTemplateToForm` + `formatAmountForInput` (`src/Client/Types.fs`) — pure Prefill-Mechanik,
+  lässt `DateText` unangetastet.
+
+**Daten/Contract:** Neuer Remoting-Call `getRecentQuickAddTemplates` (`src/Shared/Api.fs`),
+serverseitig (`src/Server/Api.fs`) über den bestehenden `YnabClient.getAccountTransactions`
+(90 Tage, kein neuer YNAB-Pfad). Nicht-konfiguriert ⇒ `Ok []` statt Fehler (ADR 0004: kein
+Fallback-Konto).
+
+**Client/UI:** `QuickAddTemplates: RemoteData<…>` im Top-Level-Model, geladen im
+`UrlChanged`-QuickAdd-Zweig (einmal pro Besuch, nicht pro Tastendruck); `PrefillQuickAdd`-Msg;
+Chip-Reihe in `src/Client/Views/QuickAddPage.fs` mit `qa-templates*`-Styles (Token-Layer,
+styleguide-konform). Loading/Failure/leer ⇒ keine Chips, Formular bleibt nutzbar.
+
+**Tests:** 25 neue Tests in `src/Tests/QuickAddTests.fs` (Reverse-Milliunits inkl. Round-Trip,
+Dedup-Kollaps/Take-5/Ordering/Transfer-Skip, Prefill inkl. Datum-bleibt-heute, Format). Gesamt
+620 passed / 6 skipped. `dotnet build`, `dotnet test` und `npm run build` (Fable/Vite) alle grün.
+
+Schlüssel-Dateien: `src/Shared/Domain.fs`, `src/Shared/Api.fs`, `src/Server/Api.fs`,
+`src/Client/Types.fs`, `src/Client/State.fs`, `src/Client/Views/QuickAddPage.fs`,
+`src/Client/styles.css`, `src/Tests/QuickAddTests.fs`.

@@ -282,3 +282,26 @@ let buildQuickAddRequest (form: QuickAddFormState) : Result<Shared.Domain.Manual
                     else Some (form.Memo.Trim())
             }
             Ok request
+
+/// Formats a decimal amount as a 2-decimal, comma-separated string ("4,50").
+/// Hand-rolled to be culture-independent (identical under .NET and Fable) and to
+/// round-trip through `parseAmountInput`, which accepts both "," and ".".
+let formatAmountForInput (amount: decimal) : string =
+    let cents = int (System.Math.Round(abs amount * 100m))
+    sprintf "%d,%02d" (cents / 100) (cents % 100)
+
+/// Prefills a Quick Add form from a recent-transaction template (ynab-t4n8p).
+/// The date is left untouched — the form already defaults to today, and a
+/// prefilled entry must be dated today, never the source transaction's date.
+/// Nothing is posted here: every value stays editable until Roman taps Speichern.
+/// Pure — unit-testable.
+let applyTemplateToForm (template: Shared.Domain.QuickAddTemplate) (form: QuickAddFormState) : QuickAddFormState =
+    let (Shared.Domain.YnabCategoryId categoryGuid) = template.CategoryId
+    { form with
+        AmountText = formatAmountForInput template.Amount
+        IsOutflow = template.IsOutflow
+        Payee = template.PayeeName |> Option.defaultValue ""
+        CategoryId = categoryGuid.ToString()
+        Memo = template.Memo |> Option.defaultValue ""
+        ShowCategoryPicker = false
+        Error = None }

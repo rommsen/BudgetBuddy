@@ -2460,6 +2460,56 @@ nav a:focus-visible {
   font-size: 13px;
 }
 
+/* Recent-booking templates (ynab-t4n8p): tappable chips above the form. */
+.qa-templates {
+  margin-bottom: 18px;
+}
+.qa-templates-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-muted);
+  margin-bottom: 8px;
+}
+.qa-templates-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.qa-template-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
+  color: var(--sf-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all var(--sf-duration-fast) ease;
+}
+.qa-template-chip:active {
+  border-color: var(--color-neon-teal);
+  background: var(--sf-bg-hover);
+}
+.qa-template-payee {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qa-template-amount {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--sf-text-primary);
+}
+.qa-template-chip.outflow .qa-template-amount { color: var(--color-neon-orange); }
+.qa-template-chip.inflow .qa-template-amount { color: var(--color-neon-teal); }
+
 .qa-submit {
   flex: 1;
   padding: 12px 18px;

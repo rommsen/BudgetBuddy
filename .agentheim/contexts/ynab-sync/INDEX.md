@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 0
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 8
+- **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-t4n8p · Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)** — 2026-06-27 — `done/ynab-t4n8p-quick-add-recent-templates.md`
 - **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — 2026-06-27 — `done/ynab-q7k3m-quick-add-in-bottom-nav.md`
 - **ynab-004 · Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen** — 2026-06-16 — `done/ynab-004-split-row-label.md` (ae7d448)
 - **ynab-003 · Split-Editor: Vorzeichen-Fix + editierbare Beträge + Rest-Button** — 2026-06-16 — `done/ynab-003-split-amount-sign-rest-button.md` (14e1f61)
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ynab-t4n8p · Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)** — `backlog/ynab-t4n8p-quick-add-recent-templates.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

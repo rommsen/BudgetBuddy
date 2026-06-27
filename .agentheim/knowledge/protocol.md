@@ -5,6 +5,38 @@ Newest entries on top.
 
 ---
 
+## 2026-06-27 10:08 -- Task verified and completed: ynab-t4n8p - Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)
+
+**Type:** Work / Task completion
+**Task:** ynab-t4n8p - Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)
+**Summary:** Die Quick-Add-Seite bietet bis zu 5 deduplizierte Vorlagen (Dedup-Schlüssel Payee + Betrag + Kategorie) aus den jüngsten Buchungen des Quick-Add-Kontos; ein Tipp füllt das Formular vollständig vor (Datum bleibt heute, nichts wird automatisch gebucht). Reverse-Milliunits-Mapping (`amountFromMilliunits`) und Dedup (`recentQuickAddTemplates`) sind pure, getestete Domain-Funktionen über dem bestehenden YNAB-Read (`getAccountTransactions` wiederverwendet, kein neuer Integrationspfad).
+**Verification:** PASS (iteration 1) — Verifier prüfte die Reverse-Milliunits-Mathematik (beide Vorzeichen, Null, Round-Trip vs. `manualTransactionMilliunits`), den Dedup (collapse/distinct/cap-5/Recency, Transfer-/Split-/Uncategorized-Skip), die No-Auto-Post-Invariante (Prefill mutiert nur Form-State, Push bleibt hinter Speichern) und das Date=heute. Voller Gate: `dotnet build` 0 Fehler, `dotnet test` 620 passed / 6 skipped, `npm run build` grün. ADR-0004-Vertragstests unberührt.
+**Files changed:** 11 (Shared/Domain.fs, Shared/Api.fs, Server/Api.fs, Client/Types.fs, Client/State.fs, Client/View.fs, Client/Views/QuickAddPage.fs, Client/styles.css, Tests/QuickAddTests.fs, diary, ynab-sync/README.md)
+**Tests added:** ~25 (reverseMilliunitsTests + templateDedupTests + prefillTests; Testzahl 595 → 620)
+**ADRs written:** none
+**README:** +1 Begriff (Quick-Add-Vorlage / Template).
+**Concept candidate:** "Quick Add (ManualTransaction)" — konvergiert jetzt auf 6 Artefakte (ADR 0003, ADR 0004, 2026-06-11-quick-add-manual-entry, 2026-06-12-quick-add-feedback-round, ynab-q7k3m, ynab-t4n8p).
+
+---
+
+## 2026-06-27 09:53 -- Batch started: [ynab-t4n8p]
+
+**Type:** Work / Batch start
+**Tasks:** ynab-t4n8p - Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)
+**Parallel:** no (1 worker)
+**Note:** Wave 2 von 2. Baut auf der frisch gelandeten Quick-Add-Seite (ynab-q7k3m, 06eb2e5) auf — füllt deren ins Top-Level gehobenen QuickAddFormState per Prefill. Neuer YNAB-Read-Pfad fürs Quick-Add-Konto (`getAccountTransactions` existiert schon), Reverse-Milliunits + Dedup (Payee+Betrag+Kategorie) als pure Domain-Logik mit Tests.
+
+---
+
+## 2026-06-27 09:53 -- Modeling / Promoted: ynab-t4n8p - Quick Add: letzte 5 Buchungen als Vorlagen
+
+**Type:** Modeling / Promote
+**BC:** ynab-sync
+**Status after:** todo → (sofort) doing
+**Summary:** Auf Nutzer-Anweisung im selben Work-Lauf promotet: beide deps jetzt erfüllt (design-system-001 done, ynab-q7k3m done 06eb2e5). Task war bereits refined (ACs + file:line-Anker aus dem Refine 09:18) — kein erneutes Modeling nötig, reine backlog → todo-Promotion, dann direkt in doing geclaimt.
+
+---
+
 ## 2026-06-27 09:46 -- Task verified and completed: ynab-q7k3m - Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation
 
 **Type:** Work / Task completion

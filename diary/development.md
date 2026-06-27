@@ -4,6 +4,64 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-27 10:05 - Quick Add: letzte 5 Buchungen als deduplizierte Vorlagen (ynab-t4n8p)
+
+### What
+Die Quick-Add-Seite zeigt jetzt über dem Formular bis zu **5 deduplizierte Vorlagen** aus den
+jüngsten Buchungen des Quick-Add-Kontos (`ynab_quickadd_account_id`, ADR 0004). Dedup-Schlüssel:
+Payee + Betrag + Kategorie — wiederkehrende Bar-Buchungen kollabieren zu *einer* Vorlage, sodass
+bis zu 5 *verschiedene* Vorlagen erscheinen (most-recent-first). Ein Tipp auf eine Vorlage füllt
+das Formular vollständig vor (Betrag inkl. Ausgabe/Einnahme, Kategorie, Payee, Memo). Das **Datum
+bleibt heute** (nicht das Datum der Original-Buchung); **nichts wird automatisch gebucht** — Roman
+prüft und drückt selbst Speichern.
+
+### How
+- **Reverse-Milliunits + Dedup als pure Domain-Funktionen** (`Shared/Domain.fs`): `amountFromMilliunits`
+  (Gegenstück zu `manualTransactionMilliunits`: `<0 ⇒ IsOutflow`, Betrag = `abs/1000`) und
+  `recentQuickAddTemplates` (sort desc nach Datum → projizieren → `distinctBy` (Payee, IsOutflow,
+  Amount, CategoryId) → `truncate 5`). Beide rein und testbar, kein I/O.
+- **Neue Read-Model-Type** `QuickAddTemplate` (ohne Datum-Feld — Datum ist immer heute).
+- **Neuer Remoting-Call** `getRecentQuickAddTemplates: unit -> YnabResult<QuickAddTemplate list>`
+  (`Shared/Api.fs`), serverseitig implementiert über den *bestehenden* `YnabClient.getAccountTransactions`
+  (kein neuer YNAB-Pfad), `since_date` 90 Tage. Nicht-konfiguriert (Token/Budget/Quick-Add-Konto
+  fehlt oder Account-Id unparsebar) ⇒ `Ok []` statt Fehler — Seite degradiert sauber (ADR 0004:
+  kein Fallback-Konto erfinden).
+- **Transfer-/Split-Filter:** Nur *kategorisierte* Buchungen werden Vorlagen — eine fehlende/
+  unparsebare `category_id` droppt die Buchung, was Transfers (Transfer-Payee, keine Kategorie)
+  und Split-Parents (keine Kategorie auf Account-Seite) natürlich ausschließt. Gelöschte Buchungen
+  liefert YNABs `?since_date`-Endpoint (ohne Delta) ohnehin nicht.
+- **Client:** Top-Level `QuickAddTemplates: RemoteData<QuickAddTemplate list>`, einmal pro
+  Seitenbesuch geladen (`LoadQuickAddTemplates` im `UrlChanged`-QuickAdd-Zweig, nicht pro
+  Tastendruck). Neue Msg `PrefillQuickAdd` → pure `applyTemplateToForm` (lässt `DateText` in Ruhe).
+- **UI:** kompakte Chip-Reihe (`qa-templates*`-Styles im Token-Layer `--sf-*`/`--color-neon-*`),
+  Label = Payee (oder Kategorie) + Betrag; Ausgabe orange / Einnahme teal — styleguide-konform.
+
+### Files Changed
+- `src/Shared/Domain.fs` - `amountFromMilliunits`, `QuickAddTemplate`, `toQuickAddTemplate` (privat),
+  `recentQuickAddTemplates`
+- `src/Shared/Api.fs` - `getRecentQuickAddTemplates` im `YnabApi`-Kontrakt
+- `src/Server/Api.fs` - Implementierung (reuse `getAccountTransactions`, graceful no-config)
+- `src/Client/Types.fs` - `formatAmountForInput`, `applyTemplateToForm` (pur)
+- `src/Client/State.fs` - Model-Feld `QuickAddTemplates`, Msgs `LoadQuickAddTemplates`/
+  `QuickAddTemplatesLoaded`/`PrefillQuickAdd`, Laden im `UrlChanged`-QuickAdd-Zweig
+- `src/Client/View.fs` - reicht `model.QuickAddTemplates` an die Seite durch
+- `src/Client/Views/QuickAddPage.fs` - `templatesSection`/`templateChip`, neuer `templates`-Param
+- `src/Client/styles.css` - `.qa-templates*` Chip-Styles (Token-Layer)
+- `src/Tests/QuickAddTests.fs` - Reverse-Milliunits-, Dedup-, Prefill- und Format-Tests
+
+### Rationale
+Romans Bar-Buchungen wiederholen sich (ähnliche Payee/Betrag/Kategorie). Die letzten Buchungen des
+Quick-Add-Kontos sind die beste Vorlagen-Quelle für genau diese wiederkehrenden Fälle — ein Tipp
+statt komplettem Neutippen. Datenquelle und YNAB-Pfad existierten bereits; neu ist nur die
+Dedup-Projektion (pur) und ein Read-Call.
+
+### Verification
+- Build: PASSED (`dotnet build` 0 Fehler)
+- Tests: 620 passed, 6 skipped (Integration, brauchen `.env`) — inkl. 25 neue Quick-Add-Vorlagen-Tests
+- Client: `npm run build` (Fable/Vite) PASSED
+
+---
+
 ## 2026-06-27 09:45 - Quick Add als eigene Seite in der Haupt-Navigation (ynab-q7k3m)
 
 ### What

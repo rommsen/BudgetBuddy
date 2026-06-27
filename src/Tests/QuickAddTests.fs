@@ -372,6 +372,7 @@ let private modelWithForm (form: QuickAddFormState) : State.Model =
         SyncFlow = syncFlowModel
         Rules = rulesModel
         QuickAdd = Some form
+        QuickAddTemplates = NotAsked
     }
 
 let reducerTests =
@@ -421,6 +422,227 @@ let reducerTests =
     ]
 
 // ============================================
+// amountFromMilliunits (reverse milliunits)
+// ============================================
+
+let reverseMilliunitsTests =
+    testList "amountFromMilliunits" [
+        test "negative milliunits decode to an outflow with absolute amount" {
+            let isOutflow, amount = amountFromMilliunits -4500
+            Expect.isTrue isOutflow "negative milliunits must be an outflow"
+            Expect.equal amount 4.50m "amount must be the absolute value in major units"
+        }
+
+        test "positive milliunits decode to an inflow" {
+            let isOutflow, amount = amountFromMilliunits 4500
+            Expect.isFalse isOutflow "positive milliunits must be an inflow"
+            Expect.equal amount 4.50m "amount must be the absolute value in major units"
+        }
+
+        test "zero milliunits decode to a non-outflow of zero" {
+            let isOutflow, amount = amountFromMilliunits 0
+            Expect.isFalse isOutflow "zero is not an outflow"
+            Expect.equal amount 0m "zero milliunits is zero amount"
+        }
+
+        test "smallest cash amount decodes exactly" {
+            let isOutflow, amount = amountFromMilliunits -10
+            Expect.isTrue isOutflow "negative is an outflow"
+            Expect.equal amount 0.01m "-10 milliunits is 1 cent"
+        }
+
+        test "round-trips with manualTransactionMilliunits (outflow)" {
+            let req = { validRequest with Amount = 12.34m; IsOutflow = true }
+            let isOutflow, amount = amountFromMilliunits (manualTransactionMilliunits req)
+            Expect.isTrue isOutflow "direction must survive the round-trip"
+            Expect.equal amount 12.34m "amount must survive the round-trip"
+        }
+
+        test "round-trips with manualTransactionMilliunits (inflow)" {
+            let req = { validRequest with Amount = 12.34m; IsOutflow = false }
+            let isOutflow, amount = amountFromMilliunits (manualTransactionMilliunits req)
+            Expect.isFalse isOutflow "direction must survive the round-trip"
+            Expect.equal amount 12.34m "amount must survive the round-trip"
+        }
+    ]
+
+// ============================================
+// recentQuickAddTemplates (dedup + projection)
+// ============================================
+
+let private cat1 = "11111111-1111-1111-1111-111111111111"
+let private cat2 = "22222222-2222-2222-2222-222222222222"
+
+/// Builds a YNAB transaction. `amount` is signed major units (negative = outflow),
+/// exactly as the YnabClient decoder produces it (milliunits / 1000).
+let private mkTxn id daysAgo amount payee categoryId memo : YnabTransaction =
+    {
+        Id = id
+        Date = DateTime.Today.AddDays(- (daysAgo: float))
+        Amount = { Amount = amount; Currency = "EUR" }
+        Payee = payee
+        Memo = memo
+        ImportId = None
+        CategoryId = categoryId
+        CategoryName = categoryId |> Option.map (fun _ -> "Lebensmittel")
+    }
+
+let templateDedupTests =
+    testList "recentQuickAddTemplates" [
+        test "collapses same payee+amount+category to a single template" {
+            let txns = [
+                mkTxn "a" 1.0 -4.50m (Some "Bäcker") (Some cat1) (Some "neuer Memo")
+                mkTxn "b" 5.0 -4.50m (Some "Bäcker") (Some cat1) (Some "alter Memo")
+            ]
+            let result = recentQuickAddTemplates 5 txns
+            Expect.hasLength result 1 "a recurring booking must collapse to one template"
+            // distinctBy keeps the most-recent occurrence
+            Expect.equal result.[0].Memo (Some "neuer Memo") "the most recent booking's memo wins"
+        }
+
+        test "keeps distinct payees as separate templates" {
+            let txns = [
+                mkTxn "a" 1.0 -4.50m (Some "Bäcker") (Some cat1) None
+                mkTxn "b" 2.0 -4.50m (Some "Kiosk") (Some cat1) None
+            ]
+            Expect.hasLength (recentQuickAddTemplates 5 txns) 2 "different payees are different templates"
+        }
+
+        test "keeps distinct amounts as separate templates" {
+            let txns = [
+                mkTxn "a" 1.0 -4.50m (Some "Bäcker") (Some cat1) None
+                mkTxn "b" 2.0 -9.00m (Some "Bäcker") (Some cat1) None
+            ]
+            Expect.hasLength (recentQuickAddTemplates 5 txns) 2 "different amounts are different templates"
+        }
+
+        test "keeps distinct categories as separate templates" {
+            let txns = [
+                mkTxn "a" 1.0 -4.50m (Some "Bäcker") (Some cat1) None
+                mkTxn "b" 2.0 -4.50m (Some "Bäcker") (Some cat2) None
+            ]
+            Expect.hasLength (recentQuickAddTemplates 5 txns) 2 "different categories are different templates"
+        }
+
+        test "returns at most 5 distinct templates" {
+            let txns =
+                [ for i in 1 .. 8 -> mkTxn (string i) (float i) (decimal (-i)) (Some $"Payee{i}") (Some cat1) None ]
+            Expect.hasLength (recentQuickAddTemplates 5 txns) 5 "at most 5 templates are returned"
+        }
+
+        test "returns fewer than 5 when fewer distinct bookings exist" {
+            let txns = [
+                mkTxn "a" 1.0 -4.50m (Some "Bäcker") (Some cat1) None
+                mkTxn "b" 2.0 -9.00m (Some "Kiosk") (Some cat1) None
+            ]
+            Expect.hasLength (recentQuickAddTemplates 5 txns) 2 "shows what exists"
+        }
+
+        test "empty input yields no templates" {
+            Expect.isEmpty (recentQuickAddTemplates 5 []) "no transactions, no templates"
+        }
+
+        test "skips transfers and splits (no category)" {
+            let txns = [
+                mkTxn "transfer" 1.0 -20.00m (Some "Transfer : Cash") None None
+                mkTxn "categorized" 2.0 -4.50m (Some "Bäcker") (Some cat1) None
+            ]
+            let result = recentQuickAddTemplates 5 txns
+            Expect.hasLength result 1 "only the categorized booking becomes a template"
+            Expect.equal result.[0].PayeeName (Some "Bäcker") "the transfer is skipped"
+        }
+
+        test "skips transactions with an unparseable category id" {
+            let txns = [ mkTxn "junk" 1.0 -4.50m (Some "Bäcker") (Some "not-a-guid") None ]
+            Expect.isEmpty (recentQuickAddTemplates 5 txns) "a malformed category id cannot be a template"
+        }
+
+        test "maps an outflow's sign to IsOutflow with a positive amount" {
+            let txns = [ mkTxn "a" 1.0 -4.50m (Some "Bäcker") (Some cat1) None ]
+            let t = (recentQuickAddTemplates 5 txns).[0]
+            Expect.isTrue t.IsOutflow "negative YNAB amount is an outflow"
+            Expect.equal t.Amount 4.50m "the template amount is positive (abs)"
+        }
+
+        test "maps an inflow to a non-outflow" {
+            let txns = [ mkTxn "a" 1.0 25.00m (Some "Erstattung") (Some cat1) None ]
+            let t = (recentQuickAddTemplates 5 txns).[0]
+            Expect.isFalse t.IsOutflow "positive YNAB amount is an inflow"
+            Expect.equal t.Amount 25.00m "the template amount is positive"
+        }
+
+        test "orders templates most-recent first" {
+            let txns = [
+                mkTxn "old" 30.0 -1.00m (Some "Alt") (Some cat1) None
+                mkTxn "new" 1.0 -2.00m (Some "Neu") (Some cat1) None
+                mkTxn "mid" 10.0 -3.00m (Some "Mitte") (Some cat1) None
+            ]
+            let payees = recentQuickAddTemplates 5 txns |> List.map (fun t -> t.PayeeName)
+            Expect.equal payees [ Some "Neu"; Some "Mitte"; Some "Alt" ] "most recent booking comes first"
+        }
+    ]
+
+// ============================================
+// applyTemplateToForm (prefill) + formatAmountForInput
+// ============================================
+
+let private sampleTemplate : QuickAddTemplate = {
+    Amount = 4.50m
+    IsOutflow = true
+    PayeeName = Some "Bäcker"
+    CategoryId = YnabCategoryId (Guid.Parse cat1)
+    CategoryName = Some "Lebensmittel"
+    Memo = Some "Brötchen"
+}
+
+let formatAmountTests =
+    testList "formatAmountForInput" [
+        test "formats two decimals with a comma" {
+            Expect.equal (formatAmountForInput 4.50m) "4,50" "4.50 → 4,50"
+        }
+        test "pads whole amounts to two decimals" {
+            Expect.equal (formatAmountForInput 12m) "12,00" "12 → 12,00"
+        }
+        test "keeps a leading zero for sub-euro amounts" {
+            Expect.equal (formatAmountForInput 0.05m) "0,05" "0.05 → 0,05"
+        }
+    ]
+
+let prefillTests =
+    testList "applyTemplateToForm" [
+        test "fills every form field from the template" {
+            let form = applyTemplateToForm sampleTemplate (validForm |> fun f -> { f with AmountText = ""; Payee = ""; CategoryId = ""; Memo = "" })
+            Expect.equal form.AmountText "4,50" "amount is prefilled (German format)"
+            Expect.isTrue form.IsOutflow "direction is prefilled"
+            Expect.equal form.Payee "Bäcker" "payee is prefilled"
+            Expect.equal form.CategoryId (cat1) "category id is prefilled as a guid string"
+            Expect.equal form.Memo "Brötchen" "memo is prefilled"
+        }
+
+        test "leaves the date untouched so a prefilled entry stays dated today" {
+            // validForm.DateText acts as the form's existing (today) date; prefill
+            // must NOT overwrite it with the source transaction's date.
+            let before = validForm.DateText
+            let form = applyTemplateToForm sampleTemplate validForm
+            Expect.equal form.DateText before "the date must not be overwritten by the template"
+        }
+
+        test "clears any prior error and closes the picker" {
+            let dirty = { validForm with Error = Some "boom"; ShowCategoryPicker = true }
+            let form = applyTemplateToForm sampleTemplate dirty
+            Expect.equal form.Error None "prefill clears a stale error"
+            Expect.isFalse form.ShowCategoryPicker "prefill closes the category picker"
+        }
+
+        test "maps an absent payee and memo to empty strings" {
+            let t = { sampleTemplate with PayeeName = None; Memo = None }
+            let form = applyTemplateToForm t validForm
+            Expect.equal form.Payee "" "absent payee becomes an empty string"
+            Expect.equal form.Memo "" "absent memo becomes an empty string"
+        }
+    ]
+
+// ============================================
 // All Tests
 // ============================================
 
@@ -428,6 +650,10 @@ let reducerTests =
 let tests =
     testList "Quick Add Tests" [
         milliunitTests
+        reverseMilliunitsTests
+        templateDedupTests
+        formatAmountTests
+        prefillTests
         validationTests
         jsonBodyTests
         parseAmountTests

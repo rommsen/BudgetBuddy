@@ -392,6 +392,30 @@ let ynabApi : YnabApi = {
                             (YnabAccountId accountGuid)
                             validRequest
     }
+
+    getRecentQuickAddTemplates = fun () -> async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+        let! accountOpt = Persistence.Settings.getSetting "ynab_quickadd_account_id"
+
+        match tokenOpt, budgetOpt, accountOpt with
+        | Some token, Some budgetId, Some accountIdStr ->
+            match System.Guid.TryParse accountIdStr with
+            // Misconfigured account id → no templates, but never crash the page.
+            | false, _ -> return Ok []
+            | true, accountGuid ->
+                // One read per page visit; ~90 days back is plenty of history for
+                // recurring cash bookings while staying well within YNAB's rate
+                // limit (~200 req/h). The dedup/projection is pure (Domain).
+                match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountGuid) 90 with
+                | Ok transactions -> return Ok (recentQuickAddTemplates 5 transactions)
+                | Error err -> return Error err
+        | _ ->
+            // Not configured (no token / budget / Quick-Add account) → no
+            // templates. Mirror ADR 0004's no-fallback stance: never invent an
+            // account; the form stays fully usable without templates.
+            return Ok []
+    }
 }
 
 // ============================================

@@ -551,4 +551,67 @@ type ManualTransactionRequest = {
 let manualTransactionMilliunits (request: ManualTransactionRequest) : int =
     let signedAmount = if request.IsOutflow then -request.Amount else request.Amount
     int (Math.Round(signedAmount * 1000m))
+
+/// Inverse of `manualTransactionMilliunits`: signed YNAB milliunits → direction
+/// and positive amount. Negative milliunits mean an outflow (expense); the
+/// returned amount is the absolute value in major units (|milliunits| / 1000).
+/// Together with `manualTransactionMilliunits` this round-trips a manual entry.
+let amountFromMilliunits (milliunits: int) : bool * decimal =
+    let isOutflow = milliunits < 0
+    let amount = decimal (abs milliunits) / 1000m
+    isOutflow, amount
+
+// ============================================
+// Quick Add Templates (recurring cash bookings)
+// ============================================
+
+/// A reusable Quick-Add template distilled from a past transaction of the
+/// Quick-Add account (ynab-t4n8p). Carries exactly the fields the Quick Add form
+/// prefills. The source booking's date is intentionally absent — a prefilled
+/// entry is always dated *today*, never the original transaction's date.
+type QuickAddTemplate = {
+    /// Positive major-unit amount; the direction lives in IsOutflow.
+    Amount: decimal
+    IsOutflow: bool
+    PayeeName: string option
+    CategoryId: YnabCategoryId
+    CategoryName: string option
+    Memo: string option
+}
+
+/// Projects a YNAB transaction into a Quick-Add template, or None when it is not
+/// a usable template shape. Only a plain *categorized* booking qualifies: a
+/// missing or unparseable category id drops the transaction, which naturally
+/// excludes transfers and split parents (both carry no category on the account
+/// side) — exactly the shapes we do not want to offer as a one-tap template.
+let private toQuickAddTemplate (tx: YnabTransaction) : QuickAddTemplate option =
+    match tx.CategoryId with
+    | None -> None
+    | Some categoryIdStr ->
+        match Guid.TryParse categoryIdStr with
+        | false, _ -> None
+        | true, categoryGuid ->
+            let milliunits = int (Math.Round(tx.Amount.Amount * 1000m))
+            let isOutflow, amount = amountFromMilliunits milliunits
+            Some {
+                Amount = amount
+                IsOutflow = isOutflow
+                PayeeName = tx.Payee
+                CategoryId = YnabCategoryId categoryGuid
+                CategoryName = tx.CategoryName
+                Memo = tx.Memo
+            }
+
+/// Builds up to `maxTemplates` deduplicated Quick-Add templates from recent
+/// transactions of the Quick-Add account, most-recent first. The dedup key is
+/// Payee + signed amount + category, so a recurring booking (same payee, amount
+/// and category) collapses to a single template; up to `maxTemplates` *distinct*
+/// recurring bookings are returned. Pure — testable without any YNAB I/O.
+let recentQuickAddTemplates (maxTemplates: int) (transactions: YnabTransaction list) : QuickAddTemplate list =
+    transactions
+    |> List.sortByDescending (fun tx -> tx.Date)
+    |> List.choose toQuickAddTemplate
+    |> List.distinctBy (fun t -> (t.PayeeName, t.IsOutflow, t.Amount, t.CategoryId))
+    |> List.truncate maxTemplates
+
 type ComdirectResult<'T> = Result<'T, ComdirectError>
