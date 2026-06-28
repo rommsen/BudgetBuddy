@@ -49,6 +49,7 @@ research touching this BC, and concept synthesis pages.
 ## Concepts (opt-in synthesis pages)
 
 <!-- concepts:start -->
+- **category-picker** — Gemeinsamer Bottom-Sheet zum Zuordnen einer YNAB-Kategorie: mobile-fest, mit Available pro Zeile — `concepts/category-picker.md` (derived: 0005, 0011, 2026-06-11-mobile-category-picker, ynab-k7m3q)
 <!-- concepts:end -->
 
 ## Pointers

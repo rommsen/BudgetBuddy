@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-06-28 00:25 -- Concept page created: category-picker (categorization)
+
+**Type:** Concept / Synthesis page
+**BC:** categorization
+**Trigger:** Nutzer-Entscheidung nach dem ynab-k7m3q-Work-Lauf (1-Worker-Concept-Kandidat).
+**Derived from (4):** ADR 0005, ADR 0011, 2026-06-11-mobile-category-picker-keyboard-ghostclick, ynab-k7m3q.
+**Summary:** `concepts/category-picker.md` bündelt die verstreute Sprache rund um den gemeinsamen Category-Picker (eine BottomSheet-Komponente, drei Aufrufer: Import/Split/Quick-Add; mobile-fest via ADR 0005; Available pro Zeile via ADR 0011) als Synthese (Verweise statt Duplikate, 60-Zeilen-Cap). Unter `<!-- concepts:start -->` im categorization-INDEX verlinkt.
+
+---
+
 ## 2026-06-28 00:22 -- Work session ended
 
 **Type:** Work / Session end
