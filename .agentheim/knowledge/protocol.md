@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-06-28 17:07 -- Bugfix: ynab-k7m3q - "Inflow: Ready to Assign" zeigte Fantasiewert
+
+**Type:** Work / Bugfix (post-ship, on shipped ynab-k7m3q)
+**BC:** categorization
+**Summary:** Romans Gerätetest: die interne "Inflow: Ready to Assign"-Zeile zeigte 787955,35 (internes balance-Akkumulator) statt des echten Ready-to-Assign (-6,27); normale Kategorien korrekt. Fix: echten `to_be_budgeted` vom Month-Endpoint holen und für die Inflow-Zeile zeigen; `YnabCategory.Available` → `Money option` (None = keine Zahl, graceful bei Month-Call-Fehler). Reine `applyReadyToAssign` + Regressionstests. Extra-Call nur auf dem Picker-Pfad (Api.getCategories).
+**Verification:** dotnet build 0/0, dotnet test 629 passed / 6 skipped (+4), npm run build (Fable) grün. ADR 0011 amendiert.
+**Open:** visuelle Geräteabnahme (Inflow zeigt jetzt -6,27).
+
+---
+
 ## 2026-06-28 00:25 -- Concept page created: category-picker (categorization)
 
 **Type:** Concept / Synthesis page

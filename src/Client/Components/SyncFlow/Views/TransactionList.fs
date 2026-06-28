@@ -328,7 +328,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                         let (YnabCategoryId id) = cat.Id
                         { Id = id.ToString()
                           Label = $"{cat.GroupName}: {cat.Name}"
-                          Available = Some cat.Available })
+                          Available = cat.Available })
 
                 // Key forces remount on new transaction → resets search text (MVU-friendly)
                 let pickerKey =

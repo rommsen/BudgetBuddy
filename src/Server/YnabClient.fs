@@ -38,20 +38,19 @@ module Decoders =
         })
 
     /// Reads YNAB's `balance` (milliunits) as the category's Available Money.
-    /// Optional with a 0-default: like the account decoder's flags this stays
-    /// Conformist-safe — a category that ever ships without a balance (e.g. an
-    /// internal/special category) decodes to 0 Available rather than failing the
-    /// whole categories load. Conversion is the same milliunits/1000 path as
-    /// the account balance.
-    let private categoryAvailable (get: Decode.IGetters) : Money =
-        {
-            Amount =
-                get.Optional.Field "balance" Decode.int64
-                |> Option.defaultValue 0L
-                |> decimal
-                |> fun milliunits -> milliunits / 1000m
-            Currency = "EUR"
-        }
+    /// Optional: a category that ships without a `balance` (e.g. an internal/special
+    /// category) decodes to `None` (no value shown) rather than a misleading 0 or a
+    /// failed load. Conversion is the same milliunits/1000 path as the account balance.
+    let private categoryAvailable (get: Decode.IGetters) : Money option =
+        get.Optional.Field "balance" Decode.int64
+        |> Option.map (fun milliunits -> { Amount = decimal milliunits / 1000m; Currency = "EUR" })
+
+    /// Decodes the month's real "Ready to Assign" (YNAB `to_be_budgeted`, milliunits)
+    /// from GET /budgets/{id}/months/current as Money. This is the authoritative
+    /// Ready-to-Assign, unlike the internal Inflow category's own `balance`.
+    let monthToBeBudgetedDecoder : Decoder<Money> =
+        Decode.field "data" (Decode.field "month" (Decode.field "to_be_budgeted" Decode.int64))
+        |> Decode.map (fun milliunits -> { Amount = decimal milliunits / 1000m; Currency = "EUR" })
 
     /// Decoder for categories when category_group_name is present (from /categories endpoint)
     let categoryDecoder : Decoder<YnabCategory> =
@@ -195,6 +194,29 @@ let getBudgetWithAccounts (token: string) (YnabBudgetId budgetId: YnabBudgetId) 
         with
         | ex ->
             return Error (YnabError.NetworkError $"Failed to fetch budget details: {ex.Message}")
+    }
+
+/// Fetches the budget's real "Ready to Assign" (the current month's `to_be_budgeted`).
+/// Returns `None` on any failure so a failed month fetch degrades to "no value"
+/// rather than surfacing the internal Inflow category's garbage balance.
+let getReadyToAssign (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<Money option> =
+    async {
+        try
+            let! response =
+                http {
+                    GET $"{baseUrl}/budgets/{budgetId}/months/current"
+                    Authorization $"Bearer {token}"
+                }
+                |> Request.sendAsync
+
+            let! bodyText = response |> Response.toTextAsync
+            if (response.statusCode |> int) = 200 then
+                match Decode.fromString Decoders.monthToBeBudgetedDecoder bodyText with
+                | Ok money -> return Some money
+                | Error _ -> return None
+            else
+                return None
+        with _ -> return None
     }
 
 /// Fetches all categories for a specific budget

@@ -117,7 +117,7 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
                 let (YnabCategoryId id) = cat.Id
                 { Id = id.ToString()
                   Label = $"{cat.GroupName}: {cat.Name}"
-                  Available = Some cat.Available })
+                  Available = cat.Available })
 
         // Transfer-target picker: ONLY open on-budget accounts (AC 4), via the
         // shared `openOnBudgetAccounts` filter (no client reimplementation).

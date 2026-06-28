@@ -4,6 +4,37 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-06-28 17:07 - Bugfix: "Inflow: Ready to Assign" zeigte Fantasiewert (ynab-k7m3q)
+
+### What
+Romans Gerätetest des neuen Picker-Available: die Zeile "Inflow: Ready to Assign" zeigte
+787955,35 statt des echten Ready-to-Assign (-6,27); normale Kategorien waren korrekt. Ursache:
+das `balance`-Feld der internen "Internal Master Category" ist für die Inflow-Zeile ein
+interner Akkumulator, nicht das echte Ready-to-Assign. Fix: den echten Wert (`to_be_budgeted`
+vom Month-Endpoint) holen und für die Inflow-Zeile anzeigen; `YnabCategory.Available` wird
+`Money option` (None = keine Zahl), damit ein fehlgeschlagener Month-Call sauber nichts zeigt
+statt Müll.
+
+### Files Changed
+- `src/Shared/Domain.fs` - `YnabCategory.Available: Money option`; reine `applyReadyToAssign` + Konstanten
+- `src/Server/YnabClient.fs` - `categoryAvailable` → option; `monthToBeBudgetedDecoder`; `getReadyToAssign`
+- `src/Server/Api.fs` - `getCategories`-Handler holt `to_be_budgeted` und wendet `applyReadyToAssign` an
+- `src/Client/.../TransactionList.fs`, `SplitSheet.fs`, `Views/QuickAddPage.fs` - Mapper reichen die Option durch
+- `src/Tests/YnabClientTests.fs` - Decoder-Tests auf `Money option`; Regression `applyReadyToAssign` + `monthToBeBudgetedDecoder`
+- `.agentheim/.../0011-...md`, categorization README - Amendment dokumentiert
+
+### Rationale
+Bug-Fix-Protokoll: Regressionstest (applyReadyToAssign override nur Inflow-Zeile, None-Fall,
+Lookalike außerhalb der internen Gruppe) + Month-Decoder-Test. Der Extra-Call bleibt auf den
+Picker-Pfad beschränkt.
+
+### Verification
+- Build: PASSED (dotnet build 0/0; npm run build / Fable grün)
+- Tests: 629 passed, 6 skipped (war 625; +4)
+- Offen: visuelle Geräteabnahme von Roman, dass die Inflow-Zeile jetzt -6,27 zeigt
+
+---
+
 ## 2026-06-28 00:15 - Kategorie-Available im Zuweisungs-Picker (ynab-k7m3q)
 
 ### What

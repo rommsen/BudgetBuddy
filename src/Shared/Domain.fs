@@ -355,11 +355,36 @@ type YnabCategory = {
     Id: YnabCategoryId
     Name: string
     GroupName: string
-    /// Current YNAB "Available" of this category (YNAB `balance`, the available
-    /// amount of the current month). Surfaced in the category picker so the
-    /// assignment decision can be made without checking YNAB web.
-    Available: Money
+    /// Current YNAB "Available" of this category. `Some` carries the value (YNAB
+    /// `balance`, current month) shown right-aligned in the category picker; `None`
+    /// means there is no meaningful value to show. The internal "Inflow: Ready to
+    /// Assign" category stays `None` until overridden with the month's real
+    /// Ready-to-Assign (`to_be_budgeted`) via `applyReadyToAssign` — its own
+    /// `balance` is an internal accumulator, not a real per-category Available.
+    Available: Money option
 }
+
+/// YNAB's internal category group; its categories' `balance` values are not normal
+/// per-category Availables.
+[<Literal>]
+let internalMasterGroupName = "Internal Master Category"
+
+/// The internal "Ready to Assign" inflow category. Its own `balance` from the
+/// /categories endpoint is an internal accumulator (can read as a huge number),
+/// NOT the real Ready-to-Assign — that is the month's `to_be_budgeted`.
+[<Literal>]
+let readyToAssignCategoryName = "Inflow: Ready to Assign"
+
+/// Overrides the "Inflow: Ready to Assign" category's Available with the month's
+/// real Ready-to-Assign (`to_be_budgeted`). `toBeBudgeted = None` (e.g. the month
+/// fetch failed) leaves that row without a number rather than showing the garbage
+/// category balance. Every other category passes through unchanged.
+let applyReadyToAssign (toBeBudgeted: Money option) (categories: YnabCategory list) : YnabCategory list =
+    categories
+    |> List.map (fun c ->
+        if c.GroupName = internalMasterGroupName && c.Name = readyToAssignCategoryName then
+            { c with Available = toBeBudgeted }
+        else c)
 
 /// YNAB payee for transaction assignment.
 /// Purpose: Used in payee dropdown for transaction editing.

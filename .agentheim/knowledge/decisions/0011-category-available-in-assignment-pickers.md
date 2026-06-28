@@ -48,3 +48,21 @@ Drei offene Punkte: (1) wie der Wert dekodiert wird, (2) wie der Picker ihn tran
 - src/Client/DesignSystem/BottomSheet.fs (`CategoryPickerOption`), Money.fs (`available`)
 - src/Client/.../TransactionList.fs, SplitSheet.fs, QuickAddPage.fs
 - ADR 0005 (Picker-Patterns, unberührt)
+
+## Amendment 2026-06-28 — Ready-to-Assign zeigt den echten Wert, `Available` wird optional
+Romans Gerätetest: die "Inflow: Ready to Assign"-Zeile zeigte einen Fantasiewert
+(787955,35), normale Kategorien waren korrekt. Ursache: das Kategorie-`balance` der internen
+"Internal Master Category" ist für die Inflow-Zeile ein interner Akkumulator, nicht der echte
+Ready-to-Assign. Der echte Wert ist das `to_be_budgeted` des Monats
+(`GET /budgets/{id}/months/current`).
+
+Entscheidung:
+- `YnabCategory.Available` wird `Money option` (vorher `Money` mit 0-Default). `None` = keine
+  Zahl. Der Picker-Option-Typ war schon optional, die View ändert sich nicht.
+- Reine Domain-Funktion `applyReadyToAssign` (`src/Shared/Domain.fs`) ersetzt die Available
+  der Inflow-Zeile (Match auf Gruppe "Internal Master Category" + Name "Inflow: Ready to
+  Assign") durch `to_be_budgeted`. Schlägt der Month-Call fehl → `None` statt Müll.
+- Nur die Picker-serving API (`Api.getCategories`) holt zusätzlich `to_be_budgeted`
+  (`YnabClient.getReadyToAssign`, `Decoders.monthToBeBudgetedDecoder`) und wendet die
+  Funktion an: +1 Call pro Sync, nicht auf den internen getCategories-Pfaden.
+- Fehlendes `balance` dekodiert jetzt zu `None` (vorher 0) — kein irreführendes 0,00.

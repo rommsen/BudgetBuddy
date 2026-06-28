@@ -102,7 +102,7 @@ let view
             let (YnabCategoryId id) = cat.Id
             { Id = id.ToString()
               Label = $"{cat.GroupName}: {cat.Name}"
-              Available = Some cat.Available })
+              Available = cat.Available })
 
     let recentCats =
         recentCategoryIds

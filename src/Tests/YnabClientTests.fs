@@ -323,8 +323,7 @@ let categoryDecoderTests =
                 Expect.equal (id.ToString()) "c1b2a3d4-e5f6-7890-abcd-ef1234567890" "Id should match"
                 Expect.equal category.Name "Groceries" "Name should match"
                 Expect.equal category.GroupName "Essential Expenses" "GroupName should match"
-                Expect.equal category.Available.Amount 250m "Positive balance 250000 milliunits should decode to 250"
-                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+                Expect.equal category.Available (Some { Amount = 250m; Currency = "EUR" }) "Positive balance 250000 milliunits should decode to Some 250 EUR"
             | Error err -> failtest $"Failed to decode category: {err}"
 
         testCase "decodes negative balance into Available" <| fun () ->
@@ -342,8 +341,7 @@ let categoryDecoderTests =
                 Expect.equal (id.ToString()) "d1e2f3a4-b5c6-7890-1234-567890abcdef" "Id should match"
                 Expect.equal category.Name "Rent" "Name should match"
                 Expect.equal category.GroupName "Essential Expenses" "GroupName should match"
-                Expect.equal category.Available.Amount -150m "Negative balance -150000 milliunits should decode to -150"
-                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+                Expect.equal category.Available (Some { Amount = -150m; Currency = "EUR" }) "Negative balance -150000 milliunits should decode to Some -150 EUR"
             | Error err -> failtest $"Failed to decode category: {err}"
 
         testCase "decodes zero balance into Available" <| fun () ->
@@ -361,13 +359,12 @@ let categoryDecoderTests =
                 Expect.equal (id.ToString()) "e1f2a3b4-c5d6-7890-1234-567890fedcba" "Id should match"
                 Expect.equal category.Name "Entertainment" "Name should match"
                 Expect.equal category.GroupName "Fun Money" "GroupName should match"
-                Expect.equal category.Available.Amount 0m "Zero balance should decode to 0"
-                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+                Expect.equal category.Available (Some { Amount = 0m; Currency = "EUR" }) "Zero balance should decode to Some 0 EUR"
             | Error err -> failtest $"Failed to decode category: {err}"
 
-        testCase "missing balance defaults Available to zero" <| fun () ->
-            // Conformist-safe default: a category shipped without a balance field
-            // decodes to 0 Available rather than failing the whole categories load.
+        testCase "missing balance decodes Available to None" <| fun () ->
+            // Conformist-safe: a category shipped without a balance field decodes to
+            // None (no value shown) rather than a misleading 0 or a failed load.
             let json = """
             {
                 "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
@@ -377,8 +374,7 @@ let categoryDecoderTests =
             """
             match Decode.fromString Decoders.categoryDecoder json with
             | Ok category ->
-                Expect.equal category.Available.Amount 0m "Missing balance should default Available to 0"
-                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+                Expect.equal category.Available None "Missing balance should decode Available to None"
             | Error err -> failtest $"Failed to decode category: {err}"
 
         testCase "categoryInGroupDecoder reads balance into Available" <| fun () ->
@@ -395,8 +391,7 @@ let categoryDecoderTests =
             | Ok category ->
                 Expect.equal category.Name "Groceries" "Name should match"
                 Expect.equal category.GroupName "Essential Expenses" "GroupName comes from the group"
-                Expect.equal category.Available.Amount 42m "balance 42000 milliunits should decode to 42"
-                Expect.equal category.Available.Currency "EUR" "Available currency should be EUR"
+                Expect.equal category.Available (Some { Amount = 42m; Currency = "EUR" }) "balance 42000 milliunits should decode to Some 42 EUR"
             | Error err -> failtest $"Failed to decode category in group: {err}"
 
         testCase "decodes category groups and flattens correctly" <| fun () ->
@@ -455,6 +450,49 @@ let budgetDetailDecoderTests =
                 Expect.equal groceriesCategory.GroupName "Essential Expenses" "Groceries should be in Essential Expenses group"
             | Error err ->
                 failtest $"Failed to decode budget detail: {err}"
+    ]
+
+[<Tests>]
+let readyToAssignTests =
+    testList "YNAB Ready to Assign (regression: internal Inflow balance is garbage)" [
+        // Regression for the picker bug: GET /budgets/{id}/categories reports an
+        // internal accumulator as the "Inflow: Ready to Assign" balance (observed
+        // 787955.35 in the wild), NOT the real Ready-to-Assign. The real value is the
+        // month's to_be_budgeted; applyReadyToAssign must replace the Inflow row with
+        // it and leave every normal category untouched.
+        let mkCat name group avail : YnabCategory =
+            { Id = YnabCategoryId (Guid.NewGuid()); Name = name; GroupName = group; Available = avail }
+
+        testCase "applyReadyToAssign overrides only the Inflow: Ready to Assign row" <| fun () ->
+            let normal = mkCat "Groceries" "Essential Expenses" (Some { Amount = 173.10m; Currency = "EUR" })
+            let rta = mkCat "Inflow: Ready to Assign" "Internal Master Category" (Some { Amount = 787955.35m; Currency = "EUR" })
+            let realRta = Some { Amount = -6.27m; Currency = "EUR" }
+
+            let result = applyReadyToAssign realRta [ normal; rta ]
+            let resultRta = result |> List.find (fun c -> c.Name = "Inflow: Ready to Assign")
+            let resultNormal = result |> List.find (fun c -> c.Name = "Groceries")
+
+            Expect.equal resultRta.Available realRta "Inflow row must show the month's to_be_budgeted, not its garbage balance"
+            Expect.equal resultNormal.Available (Some { Amount = 173.10m; Currency = "EUR" }) "Normal categories must pass through unchanged"
+
+        testCase "applyReadyToAssign with None clears the Inflow row rather than showing garbage" <| fun () ->
+            let rta = mkCat "Inflow: Ready to Assign" "Internal Master Category" (Some { Amount = 787955.35m; Currency = "EUR" })
+            let result = applyReadyToAssign None [ rta ]
+            Expect.equal (List.head result).Available None "When to_be_budgeted is unavailable the Inflow row shows no number, never the garbage balance"
+
+        testCase "applyReadyToAssign ignores a same-named category outside the Internal Master group" <| fun () ->
+            // Belt-and-suspenders: only the internal group's Inflow row is special.
+            let lookalike = mkCat "Inflow: Ready to Assign" "Some Other Group" (Some { Amount = 5m; Currency = "EUR" })
+            let result = applyReadyToAssign (Some { Amount = -6.27m; Currency = "EUR" }) [ lookalike ]
+            Expect.equal (List.head result).Available (Some { Amount = 5m; Currency = "EUR" }) "Only the Internal Master Category Inflow row is overridden"
+
+        testCase "monthToBeBudgetedDecoder reads to_be_budgeted milliunits as Money" <| fun () ->
+            let json = """{ "data": { "month": { "to_be_budgeted": -6270 } } }"""
+            match Decode.fromString Decoders.monthToBeBudgetedDecoder json with
+            | Ok m ->
+                Expect.equal m.Amount -6.27m "to_be_budgeted -6270 milliunits should decode to -6.27"
+                Expect.equal m.Currency "EUR" "Currency should be EUR"
+            | Error err -> failtest $"Failed to decode month to_be_budgeted: {err}"
     ]
 
 // ============================================

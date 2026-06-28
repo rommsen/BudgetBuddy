@@ -324,7 +324,13 @@ let ynabApi : YnabApi = {
         match tokenOpt with
         | None -> return Error (YnabError.Unauthorized "No YNAB token configured")
         | Some token ->
-            return! YnabClient.getCategories token budgetId
+            match! YnabClient.getCategories token budgetId with
+            | Error e -> return Error e
+            | Ok categories ->
+                // The internal "Inflow: Ready to Assign" category's own balance is a
+                // garbage accumulator; override it with the month's real to_be_budgeted.
+                let! toBeBudgeted = YnabClient.getReadyToAssign token budgetId
+                return Ok (applyReadyToAssign toBeBudgeted categories)
     }
 
     getPayees = fun budgetId -> async {
