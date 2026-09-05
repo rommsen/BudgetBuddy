@@ -29,6 +29,13 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - DATA_DIR=/app/data
       - BUDGETBUDDY_ENCRYPTION_KEY=${BUDGETBUDDY_ENCRYPTION_KEY}
+    # Kachel im Homelab-Dashboard (homelab/docs/neue-stacks-anlegen.md, Dashboard-Labels)
+    labels:
+      homepage.group: Apps
+      homepage.name: BudgetBuddy
+      homepage.href: https://budgetbuddy.elver-algol.ts.net
+      homepage.icon: mdi-piggy-bank
+      homepage.description: Comdirect nach YNAB synchronisieren
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5081/"]
       interval: 30s
