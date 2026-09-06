@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 18:22 -- Task verified and completed: ledger-m8r2v - Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser
+
+**Type:** Work / Task completion
+**Task:** ledger-m8r2v - Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser
+**Summary:** Spiegel-Lauf YNAB → Kassenbuch: budgetweiter Delta-Abruf über server_knowledge, YnabObservation-Contract am ynab-sync-Rand, reiner Vergleich observe, Ereignisse nur bei echtem Unterschied; manueller Endpunkt und Lauf-Status
+**Duration:** 39m (2 Iterationen)
+**Verification:** PASS (iteration 2)
+**Files changed:** 16
+**Tests added:** 23
+**ADRs written:** 0018, 0019
+
+---
+
+## 2026-09-06 18:10 -- Verification failed: ledger-m8r2v - Spiegel-Lauf YNAB → Kassenbuch
+
+**Type:** Work / Verification failure
+**Task:** ledger-m8r2v - Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser
+**Iteration:** 1 of 3
+**Reasons:** SplitTarget-Bullet in ynab-sync/README.md behauptet weiter "nie beides/keins", obwohl ADR 0019 den dritten Fall Uncategorized einführt; README_DELTA enthält keinen replace-Op auf diesen Bullet, die Sektion würde sich nach dem Materialisieren selbst widersprechen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-06 17:40 -- Batch started: [ledger-m8r2v]
 
 **Type:** Work / Batch start

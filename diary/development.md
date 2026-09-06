@@ -4,6 +4,54 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-06 - Spiegel-Lauf YNAB -> Kassenbuch: Delta-Abruf, Vergleich, Ereignisse (ledger-m8r2v)
+
+### What
+Slice 2 des Kassenbuch-Skeletons: der Spiegel. Budgetweiter Delta-Abruf ueber
+`last_knowledge_of_server`, ein reiner Contract `YnabObservation` am ynab-sync-Rand, der
+reine Vergleich `observe` im Ledger-Domain und der Lauf `mirrorYnabBudget`, der Konten
+nachzieht, Buchungen ueber YNAB-Id vor ImportId matcht und nur bei echtem Unterschied
+Ereignisse ueber `appendAndApply` schreibt. Manueller Fable.Remoting-Endpunkt plus
+abrufbarer Lauf-Status. Keine UI.
+
+### Files Changed
+- `src/Server/YnabObservations.fs` (neu) - Contract (Beobachtung, Batch, Konten-Beobachtung)
+  und die Thoth-Decoder fuer Transaktions- und Konten-Delta inkl. Subtransactions,
+  Transfer-Feldern, `deleted` und `server_knowledge`
+- `src/Server/Ledger/Domain.fs` - `ObservationContext` und die reine Funktion
+  `observe : ObservationContext -> Entry option -> YnabObservation -> LedgerEvent list`
+- `src/Server/Ledger/CommandHandlers.fs` (neu) - der Spiegel-Lauf mit injizierten Abrufen,
+  Konten-Aufloesung, Matching nach ADR 0015, `server_knowledge` und Lauf-Status in den Settings
+- `src/Server/YnabClient.fs` - `getTransactionsDelta` / `getAccountsDelta` (neu; die
+  bestehenden `since_date`-Abrufe bleiben unangetastet), Push-Arm fuer die
+  unkategorisierte Split-Zeile
+- `src/Server/Ledger/Events.fs` - Split-Ziel-Codec kennt `uncategorized`
+- `src/Server/Api.fs` - `ledgerApi` und Verdrahtung im `webApp`
+- `src/Shared/Domain.fs` - `SplitTarget.Uncategorized`, `MirrorRunSummary`,
+  `MirrorRunOutcome`, `MirrorRunStatus`
+- `src/Shared/Api.fs` - `LedgerApi` (`mirrorYnabBudget`, `getLastMirrorRun`)
+- `src/Client/Api.fs` - Proxy fuer die Ledger-API
+- `src/Client/Components/SyncFlow/Views/SplitSheet.fs` - Label "Ohne Kategorie"
+- `src/Tests/LedgerMirrorTests.fs` (neu) - 21 Tests: `observe` rein, Decoder gegen ein
+  JSON-Fixture mit Split, Transfer und `deleted`, Lauf gegen In-Memory-SQLite
+- `src/Tests/SplitPushTests.fs` - 2 Tests fuer die unkategorisierte Zeile im Push-Encoder
+- `src/Tests/SplitTransactionTests.fs` - Matches um den dritten Split-Ziel-Fall ergaenzt
+- `src/Server/Server.fsproj`, `src/Tests/Tests.fsproj` - neue Dateien registriert
+
+### Rationale
+ADR 0014 (Delta-Sync ueber `server_knowledge`, manueller Ausloeser, 429 bricht ab),
+ADR 0013 (ynab-sync liefert Snapshots, der Ledger macht daraus semantische Delta-Ereignisse;
+ein Schreibpfad in einer Transaktion), ADR 0015 (Match-Reihenfolge YNAB-Id vor ImportId,
+Idempotenz bei Wiederholung). Zwei Abweichungen mit eigenem ADR: Konten werden je Lauf
+vollstaendig geholt, und `SplitTarget` bekommt einen dritten Fall fuer unkategorisierte
+Split-Zeilen, weil YNAB die liefert.
+
+### Verification
+- Build: PASSED (`dotnet build`, 0 Warnungen)
+- Tests: 676 passed, 7 skipped, 0 failed (davon 23 neu)
+
+---
+
 ## 2026-09-06 - Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply (ledger-e3k7p)
 
 ### What

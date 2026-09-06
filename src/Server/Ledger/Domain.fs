@@ -9,6 +9,7 @@ module Ledger.Domain
 open System
 open Shared.Domain
 open Ledger.Events
+open Server.YnabObservations
 
 // ============================================
 // Konto (reiner Zustand, keine Historie in v1)
@@ -166,3 +167,106 @@ let linksFrom (event: LedgerEvent) : EntryLink list =
 /// gespeicherten Reihenfolge kommen.
 let replay (events: LedgerEvent list) : Entry option =
     events |> List.fold (fun state ev -> Some (apply state ev)) None
+
+// ============================================
+// Beobachtung: Snapshot gegen Zustand (ADR 0013, Punkt 4)
+// ============================================
+
+/// Was der Spiegel dem reinen Vergleich mitgeben muss: welche Buchung gemeint ist,
+/// auf welchem Kassenbuch-Konto sie liegt und wann beobachtet wurde. Das Suchen der
+/// Buchung (Fremd-Id, ADR 0015), das Aufloesen des Kontos und die Uhr sind Arbeit des
+/// Spiegel-Laufs; `observe` selbst bleibt rein.
+type ObservationContext = {
+    EntryId: EntryId
+    AccountId: LedgerAccountId
+    ObservedAt: DateTime
+}
+
+/// Vergleicht einen YNAB-Snapshot mit dem Zustand der Buchung und sagt, welche
+/// Ereignisse daraus folgen. Rein, ohne I/O.
+///
+/// Die Trennlinie aus ADR 0013, Punkt 4: `ynab-sync` liefert Beobachtungen, der
+/// `ledger` macht daraus semantische Delta-Ereignisse. Unveraenderte Daten ergeben
+/// **kein** Ereignis (ADR 0015, Idempotenz); mehrere geaenderte Gruppen ergeben mehrere
+/// Ereignisse, in der Reihenfolge Kopfdaten, Kategorisierung, Cleared.
+let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObservation) : LedgerEvent list =
+    let event body = {
+        EntryId = ctx.EntryId
+        OccurredAt = ctx.ObservedAt
+        Actor = YnabMirror
+        Body = body
+    }
+
+    match existing, obs.Deleted with
+    // In YNAB geloescht und im Kassenbuch nie gesehen: es gibt nichts zu erzaehlen.
+    // Eine Buchung nur anzulegen, um sie sofort als geloescht zu markieren, waere
+    // Rauschen ohne Aussage.
+    | None, true -> []
+
+    | Some entry, true ->
+        if entry.DeletedInYnab then [] else [ event EntryDeletionObservedInYnab ]
+
+    | None, false ->
+        [
+            event (
+                EntryObservedInYnab {
+                    AccountId = ctx.AccountId
+                    YnabTransactionId = obs.YnabTransactionId
+                    ImportId = obs.ImportId
+                    Date = obs.Date
+                    Amount = obs.Amount
+                    Payee = obs.Payee
+                    Memo = obs.Memo
+                    Category = obs.Category
+                    Splits = obs.Splits
+                    Cleared = obs.Cleared
+                    TransferAccountId = obs.TransferAccountId
+                    TransferYnabTransactionId = obs.TransferYnabTransactionId
+                })
+        ]
+
+    | Some entry, false ->
+        let detailsChanged =
+            entry.Date <> obs.Date
+            || entry.Amount <> obs.Amount
+            || entry.Payee <> obs.Payee
+            || entry.Memo <> obs.Memo
+            || entry.AccountId <> ctx.AccountId
+
+        let categorizationChanged =
+            entry.Category <> obs.Category || entry.Splits <> obs.Splits
+
+        let clearedChanged = entry.Cleared <> obs.Cleared
+
+        [
+            if detailsChanged then
+                event (
+                    EntryDetailsChangeObservedInYnab {
+                        OldDate = entry.Date
+                        NewDate = obs.Date
+                        OldAmount = entry.Amount
+                        NewAmount = obs.Amount
+                        OldPayee = entry.Payee
+                        NewPayee = obs.Payee
+                        OldMemo = entry.Memo
+                        NewMemo = obs.Memo
+                        OldAccountId = entry.AccountId
+                        NewAccountId = ctx.AccountId
+                    })
+
+            if categorizationChanged then
+                event (
+                    EntryCategorizationChangeObservedInYnab {
+                        OldCategory = entry.Category
+                        NewCategory = obs.Category
+                        OldSplits = entry.Splits
+                        NewSplits = obs.Splits
+                    })
+
+            if clearedChanged then
+                event (
+                    EntryClearedStateChangeObservedInYnab {
+                        OldCleared = entry.Cleared
+                        NewCleared = obs.Cleared
+                    })
+        ]

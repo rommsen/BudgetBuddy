@@ -1210,6 +1210,18 @@ let syncApi : SyncApi = {
 }
 
 // ============================================
+// Ledger API (Kassenbuch)
+// ============================================
+
+let ledgerApi : LedgerApi = {
+    // Der manuelle Ausloeser "Jetzt spiegeln" (ADR 0014, Punkt 3). Frische-Kriterium
+    // und Lauf nach Push sind Folge-Arbeit.
+    mirrorYnabBudget = fun () -> Ledger.CommandHandlers.mirrorYnabBudget ()
+
+    getLastMirrorRun = fun () -> Ledger.CommandHandlers.loadLastMirrorRun ()
+}
+
+// ============================================
 // HTTP Handler
 // ============================================
 
@@ -1246,5 +1258,11 @@ let webApp() =
         |> Remoting.withRouteBuilder routeBuilder
         |> Remoting.withErrorHandler errorHandler
         |> Remoting.fromValue syncApi
+        |> Remoting.buildHttpHandler
+
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue ledgerApi
         |> Remoting.buildHttpHandler
     ]

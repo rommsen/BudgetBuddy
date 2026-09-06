@@ -263,3 +263,21 @@ type SyncApi = {
 
 // Note: Each API (SettingsApi, YnabApi, RulesApi, SyncApi) is registered
 // as a separate Fable.Remoting endpoint. See Server/Api.fs for implementation.
+
+// ============================================
+// Ledger API (Kassenbuch)
+// ============================================
+
+/// API contract for the Kassenbuch (ledger).
+/// Purpose: exposes the manual mirror trigger and the last run's status. The
+/// freshness trigger (page open / foreground / after push, ADR 0014) is a follow-up;
+/// this contract only carries the manual fallback.
+type LedgerApi = {
+    /// Runs the mirror YNAB -> Kassenbuch once, synchronously.
+    /// Returns: what the run moved, or a human-readable failure message.
+    mirrorYnabBudget: unit -> Async<Result<MirrorRunSummary, string>>
+
+    /// The last mirror run's status (time, outcome, error text).
+    /// Returns: None while no run has ever happened.
+    getLastMirrorRun: unit -> Async<MirrorRunStatus option>
+}

@@ -62,6 +62,26 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   `comdirect`), die auf genau eine Buchung zeigt. Nicht Teil der Buchungs-Id, sondern
   eine eigene Zeile je System und Wert; ein Wert gehört je System höchstens einer
   Buchung (ADR 0015). Der Spiegel matcht darüber YNAB-Id vor ImportId.
+- **Beobachtung** — was der Spiegel in YNAB gesehen hat: der volle Snapshot einer
+  YNAB-Buchung zum Zeitpunkt des Laufs plus ein `deleted`-Flag, rein datentragend und
+  ohne Wertung (Contract aus `ynab-sync`, ADR 0014). Aus Beobachtungen macht **das
+  Kassenbuch** die semantischen Delta-Ereignisse, nicht `ynab-sync` (ADR 0013): die reine
+  Funktion `observe` (`src/Server/Ledger/Domain.fs`) vergleicht Snapshot gegen Zustand
+  und liefert die Ereignisse, die daraus folgen — bei unveränderten Daten keine.
+- **Spiegel-Lauf** — ein Durchgang des Spiegels: Konten nachziehen, Beobachtungen holen,
+  je Beobachtung die Buchung suchen (YNAB-Id vor ImportId, ADR 0015), vergleichen und nur
+  bei Unterschied Ereignisse schreiben. Ein Lauf schreibt ausschließlich Beobachtungen,
+  Herkunft `YNAB-Spiegel`. Wiederholte Läufe mit denselben Daten erzeugen kein Ereignis;
+  ein Lauf ohne gemerktes `server_knowledge` ist die Erstbefüllung und ebenso idempotent.
+  Code: `src/Server/Ledger/CommandHandlers.fs` (`runMirror`, `mirrorYnabBudget`).
+- **Lauf-Status** — Zeitpunkt und Ergebnis des zuletzt gelaufenen Spiegels
+  (Anzahl neuer, geänderter und gelöschter Buchungen, sonst der Fehlertext). Wird immer
+  festgehalten, auch wenn der Lauf abbricht: ein Fehler wird sichtbar gemacht, nicht still
+  geschluckt (ADR 0014). Abrufbar über `LedgerApi.getLastMirrorRun`.
+- **Unkategorisierte Split-Zeile** — eine Split-Zeile, die in YNAB weder eine Kategorie
+  noch einen Übertrag trägt. Der Spiegel übernimmt sie als solche: sie zählt beim Betrag
+  voll mit, wird nie weggelassen und bricht keinen Spiegel-Lauf ab. Beim Push bleibt sie
+  kategorielos, BB selbst erzeugt sie nicht (ADR 0019, ergänzt ADR 0006).
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -88,6 +108,9 @@ Historie-Technik in der Decision-Task des Architekten.
 - *ÜbertragZusammenführen* (v2).
 - *KontoBewerten* — Kurs holen, Bewertungs-Buchung schreiben.
 - *StückzahlPflegen* — Stückzahl eines Wertpapierkontos setzen.
+- *MirrorYnabBudget* — ein Spiegel-Lauf über das ganze Budget. In v1 nur manuell
+  ausgelöst ("Jetzt spiegeln"); Frische-Kriterium und Lauf nach Push sind Folge-Arbeit
+  (ADR 0014).
 
 ## Relationships with other contexts
 - **Downstream of:** `banking-import` + `categorization` (kategorisierte Buchungen aus dem
@@ -136,8 +159,10 @@ geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchunge
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro
   Buchung als Quelle der Wahrheit, Zustandsmodell synchron in derselben Transaktion
   mitgeschrieben, reiner `apply`-Replay als Pflichttest. SQLite bleibt, kein Postgres.
-- **Spiegel-Mechanik:** Delta-Sync über YNABs `server_knowledge`, Intervall, Umgang mit
-  gelöschten Buchungen, Rate-Limit (~200 req/h). → Decision-Task (Architekt, in `ynab-sync`).
+- **Spiegel-Mechanik** — *gelöst (ADR 0014, umgesetzt in ledger-m8r2v):* Delta-Sync über
+  `server_knowledge` je Budget, Löschung als Flag statt physischem Löschen, 429 bricht den
+  Lauf ab und steht im Lauf-Status. Konten werden je Lauf vollständig geholt (ADR 0018).
+  Offen bleibt allein der automatische Auslöser (Frische-Kriterium, Lauf nach Push).
 - **Kursquelle** — *gelöst (ADR 0016, ledger-zm0zx):* Schnittstelle mit Handeingabe und späterem automatischem Abruf, konkrete Quelle als Research-Spike im Backlog.
 - **Bar- und Quick-Add-Konto** — *gelöst (ADR 0016):* ein Konto "Bar", Quick Add ist Herkunft.
 - **Quick Add** später direkt ins Kassenbuch (BB-geführt ohne Umweg über YNAB)?

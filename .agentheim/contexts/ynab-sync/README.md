@@ -33,9 +33,11 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
   `Result<_, SplitError>` (`TooFewLines | SumMismatch | CurrencyMismatch`) liefert —
   Client und Server prüfen damit gleich (ADR 0006).
 - **SplitTarget** — das Ziel einer Split-Zeile als DU: `ToCategory (Kategorie) |
-  ToTransfer (Ziel-Konto)`. XOR auf Typebene — eine Zeile ist *entweder* Kategorie
-  *oder* Transfer, nie beides/keins. Die Transfer-Zeile speichert das **Ziel-Konto**,
-  nicht eine Payee-Id (ADR 0006).
+  ToTransfer (Ziel-Konto) | Uncategorized`. "Kategorie *und* Transfer" bleibt auf Typebene
+  unrepräsentierbar: eine Zeile trägt nie beides. "Keins" ist seit ADR 0019 der benannte
+  Fall `Uncategorized` — er entsteht ausschließlich beim Lesen aus YNAB (Spiegel), BBs
+  eigener Split-Editor erzeugt ihn nie. Die Transfer-Zeile speichert das **Ziel-Konto**,
+  nicht eine Payee-Id (ADR 0006, ergänzt durch ADR 0019).
 - **Transfer-Zeile** — eine `ToTransfer`-Split-Zeile: eine Konto-Verschiebung (z.B.
   Barabhebung) ohne Budget-Wirkung. Beim Push als Subtransaction mit `payee_id`
   serialisiert, **ohne** `category_id`-Key (YNAB-Conformist).
@@ -75,6 +77,25 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
   aus). Quelle ist der bestehende `getAccountTransactions`-Read (kein neuer YNAB-Pfad);
   die Dedup/Projektion ist pur (`recentQuickAddTemplates`). Tippen füllt das
   Quick-Add-Formular vor — gebucht wird nichts automatisch (ynab-t4n8p).
+- **Beobachtung (`YnabObservation`)** — der Contract, den `ynab-sync` an das Kassenbuch
+  abgibt (ADR 0014): eine gesehene YNAB-Buchung als reine Daten — YNAB-Transaction-Id,
+  Konto, ImportId, Datum, Betrag, Payee-Name, Memo, Kategorie **mit Namen**, Split-Zeilen,
+  Cleared, `transfer_account_id`, `transfer_transaction_id` und `deleted`. Kein
+  Ereignis-Vokabular: ob eine Beobachtung eine Änderung ist, entscheidet der `ledger`.
+  Typen und Decoder in `src/Server/YnabObservations.fs`.
+- **server_knowledge** — YNABs Delta-Marke. Der Spiegel schickt sie als
+  `last_knowledge_of_server` mit (`getTransactionsDelta`) und merkt sich die Marke der
+  Antwort je Budget; ohne Marke ist es die Erstbefüllung (Vollabruf). Ein Lauf kostet zwei
+  Requests. Die bestehenden `since_date`-Abrufe (Duplikat-Erkennung, Quick-Add-Vorlagen)
+  bleiben davon unberührt.
+- **Unkategorisierte Split-Zeile** — eine Subtransaction ohne `category_id` und ohne
+  `transfer_account_id`. Beim Lesen kommt sie als `SplitTarget.Uncategorized` an und zählt
+  beim Betrag voll mit; beim Push wird sie als Subtransaction mit `amount` (und `memo`)
+  ohne `category_id` und ohne `payee_id` serialisiert. BBs eigener Split-Editor erzeugt sie
+  nie — der Arm ist defensiv (ADR 0019, ergänzt ADR 0006).
+- **Transfer-Payee im Lesepfad** — YNAB nennt die Payee einer Übertrags-Zeile
+  "Transfer : <Konto>". Der Spiegel schneidet das Präfix ab, damit die Transfer-Split-Zeile
+  den **Kontonamen** trägt, wie `SplitTarget.ToTransfer` ihn verlangt.
 
 ## Aggregates
 - **YnabTransaction** — Invariante: gültige ImportId; bei Splits Summe == Amount und ≥2 Teile.
@@ -88,6 +109,8 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - *PushToYnab* (Batch kategorisierter SyncTransactions).
 - *RefreshYnabStructures* (Budgets/Accounts/Categories/Payees laden).
 - *AddManualTransaction* (Quick Add: einzelne manuelle Buchung aufs Quick-Add-Konto).
+- *MirrorYnabBudget* (Spiegel-Lauf: Konten- und Transaktions-Abruf, Beobachtungen ans
+  Kassenbuch; in v1 manuell ausgelöst).
 
 ## Relationships with other contexts
 - **Downstream of:** `categorization` — erhält kategorisierte SyncTransactions.
@@ -97,10 +120,11 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Open questions
-- **Spiegel-Mechanik** — *gelöst (ADR 0014, ynab-czk34):* Delta-Sync über
-  `server_knowledge` (Budget-Endpoint für Transaktionen plus Accounts-Delta), ausgelöst über
-  ein Frische-Kriterium (Seitenaufruf/Vordergrund, wenn letzter Lauf älter als 5 Minuten,
-  plus nach jedem Push) statt Server-Timer.
+- **Spiegel-Mechanik** — *gelöst (ADR 0014, ynab-czk34; umgesetzt in ledger-m8r2v):*
+  Delta-Sync über `server_knowledge` auf dem budgetweiten Transaktions-Endpoint, Konten je
+  Lauf vollständig statt als Delta (ADR 0018), 429 bricht den Lauf ab. Ausgelöst wird in v1
+  nur manuell; das Frische-Kriterium (Seitenaufruf/Vordergrund, nach jedem Push) ist
+  Folge-Task.
 - **Transfer-Payee Modell** — *gelöst (ADR 0006, ynab-001):* Transfer-Zeile speichert das
   Ziel-Konto, `payee_id` erst beim Push aufgelöst.
 - **Split UI** — *gelöst (ynab-002):* Push-Fundament (ynab-001) + Review-UI stehen. Das

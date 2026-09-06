@@ -393,6 +393,11 @@ type YnabSubtransactionRequest =
     /// A transfer subtransaction: amount (milliunits), resolved transfer payee id,
     /// optional memo. No category_id is sent for transfer lines.
     | TransferSub of amount: int * payeeId: string * memo: string option
+    /// An uncategorized subtransaction: amount and memo only, no category_id and no
+    /// payee_id — YNAB's own shape for a split line without a target. BB's split
+    /// editor never builds one; this arm exists because the mirror can read one back
+    /// (ADR 0006, Leserichtung).
+    | UncategorizedSub of amount: int * memo: string option
 
 /// Transaction request for YNAB API
 type YnabTransactionRequest = {
@@ -419,6 +424,14 @@ let encodeSubtransaction (sub: YnabSubtransactionRequest) =
         Encode.object [
             "amount", Encode.int amount  // Use int for proper JSON number serialization
             "category_id", Encode.string categoryId
+            match memo with
+            | Some m -> "memo", Encode.string m
+            | None -> ()
+        ]
+    | UncategorizedSub (amount, memo) ->
+        Encode.object [
+            "amount", Encode.int amount
+            // Neither category_id nor payee_id: that IS an uncategorized line in YNAB.
             match memo with
             | Some m -> "memo", Encode.string m
             | None -> ()
@@ -483,6 +496,8 @@ let resolveSubtransaction
         | None ->
             // No transfer payee for this account — reject the transaction upstream.
             Error accountId
+    | Uncategorized ->
+        Ok (UncategorizedSub (amount, memo))
 
 /// Resolves every split line of a transaction. Succeeds only if ALL lines resolve;
 /// the first unresolvable transfer account is returned so the caller can mark the
@@ -809,3 +824,70 @@ let getAccountTransactions
         | ex ->
             return Error (YnabError.NetworkError $"Failed to fetch transactions: {ex.Message}")
     }
+
+// ============================================
+// Spiegel-Abrufe (Delta-Sync, ADR 0014)
+// ============================================
+// Eigene Funktionen neben den bestehenden `since_date`-Abrufen. Die alten Pfade
+// (Duplikat-Erkennung, Quick-Add-Vorlagen) bleiben unangetastet.
+
+let private knowledgeQuery (lastKnowledge: int64 option) =
+    match lastKnowledge with
+    | Some k -> $"?last_knowledge_of_server={k}"
+    | None -> ""
+
+let private sendDelta (token: string) (url: string) (decoder: Decoder<'T>) (what: string) : Async<YnabResult<'T>> =
+    async {
+        try
+            let! response =
+                http {
+                    GET url
+                    Authorization $"Bearer {token}"
+                }
+                |> Request.sendAsync
+
+            let! bodyText = response |> Response.toTextAsync
+            let statusCode = response.statusCode |> int
+
+            match statusCode with
+            | 200 ->
+                match Decode.fromString decoder bodyText with
+                | Ok value -> return Ok value
+                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse {what}: {err}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 429 ->
+                // Rate-Limit: der Lauf bricht ab, der naechste Ausloeser versucht es
+                // erneut (ADR 0014). Kein Retry an dieser Stelle.
+                return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch {what}: {ex.Message}")
+    }
+
+/// Budgetweiter Transaktions-Abruf fuer den Spiegel: **ein** Request fuer alle Konten
+/// (ADR 0014). Ohne `lastKnowledge` ist es die Erstbefuellung (Vollabruf aller
+/// Buchungen aller offenen und geschlossenen Konten), mit `lastKnowledge` das Delta,
+/// das auch geloeschte Buchungen als `deleted: true` liefert. Die Antwort traegt das
+/// `server_knowledge` des Laufs.
+let getTransactionsDelta
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (lastKnowledge: int64 option)
+    : Async<YnabResult<Server.YnabObservations.YnabObservationBatch>> =
+    sendDelta
+        token
+        $"{baseUrl}/budgets/{budgetId}/transactions{knowledgeQuery lastKnowledge}"
+        Server.YnabObservations.Decoders.observationBatchDecoder
+        "transactions delta"
+
+/// Konten-Abruf fuer den Spiegel, mit optionalem Delta.
+let getAccountsDelta
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (lastKnowledge: int64 option)
+    : Async<YnabResult<Server.YnabObservations.YnabAccountObservationBatch>> =
+    sendDelta
+        token
+        $"{baseUrl}/budgets/{budgetId}/accounts{knowledgeQuery lastKnowledge}"
+        Server.YnabObservations.Decoders.accountObservationBatchDecoder
+        "accounts delta"

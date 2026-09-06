@@ -263,6 +263,11 @@ module Codec =
                 "accountId", Encode.guid id
                 "accountName", Encode.string name
             ]
+        | Uncategorized ->
+            // Eine unkategorisierte Split-Zeile, wie YNAB sie kennt. Eigener
+            // Diskriminator statt einer leeren Kategorie: die Zeile bedeutet
+            // "ohne Ziel", nicht "Ziel unbekannt".
+            Encode.object [ "kind", Encode.string "uncategorized" ]
 
     let decodeSplitTarget : Decoder<SplitTarget> =
         Decode.field "kind" Decode.string
@@ -277,6 +282,7 @@ module Codec =
                     ToTransfer (
                         get.Required.Field "accountId" Decode.guid |> YnabAccountId,
                         get.Required.Field "accountName" Decode.string))
+            | "uncategorized" -> Decode.succeed Uncategorized
             | other -> Decode.fail $"Unbekanntes Split-Ziel: {other}")
 
     let encodeSplit (s: TransactionSplit) =

@@ -26,3 +26,9 @@ let sync : SyncApi =
     Remoting.createApi()
     |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
     |> Remoting.buildProxy<SyncApi>
+
+/// Fable.Remoting proxy for Ledger API (Kassenbuch)
+let ledger : LedgerApi =
+    Remoting.createApi()
+    |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
+    |> Remoting.buildProxy<LedgerApi>

@@ -110,6 +110,28 @@ let encoderTests =
             Expect.equal amount -17000 "Amount should be a signed milliunit JSON number"
         }
 
+        test "uncategorized line serializes with neither category_id nor payee_id" {
+            // A mirrored split line without a category and without a transfer is YNAB's
+            // own "uncategorized" shape: amount (plus memo) and nothing else. Guards
+            // against inventing a category_id for a line that genuinely has none.
+            let json = encodeToString (UncategorizedSub (-5000, Some "noch offen"))
+            let keys = subKeys json
+            Expect.isFalse (keys |> List.contains "category_id") "category_id must be ABSENT"
+            Expect.isFalse (keys |> List.contains "payee_id") "payee_id must be ABSENT"
+            Expect.equal (decodeAt [ "amount" ] Decode.int json) -5000 "Amount stays a signed milliunit number"
+            Expect.equal (decodeAt [ "memo" ] Decode.string json) "noch offen" "Memo is carried through"
+        }
+
+        test "an uncategorized split line resolves without needing a transfer payee" {
+            // resolveSubtransaction must not reject the line: there is no account to
+            // resolve, so an empty payee map is enough.
+            match resolveSubtransaction Map.empty { Target = Uncategorized; Amount = eur -50.00m; Memo = None } with
+            | Ok (UncategorizedSub (amount, memo)) ->
+                Expect.equal amount -50000 "milliunits"
+                Expect.isNone memo "no memo"
+            | other -> failtest $"Expected an UncategorizedSub, got %A{other}"
+        }
+
         test "memo is included when present and omitted when None (both target kinds)" {
             let catWithMemo = encodeToString (CategorySub (-17000, Guid.NewGuid().ToString(), Some "Brot"))
             let transferNoMemo = encodeToString (TransferSub (-200000, Guid.NewGuid().ToString(), None))

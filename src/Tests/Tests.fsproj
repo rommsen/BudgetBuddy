@@ -29,6 +29,7 @@
     <Compile Include="RulesReorderTests.fs" />
     <Compile Include="ToastLifecycleTests.fs" />
     <Compile Include="LedgerTests.fs" />
+    <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

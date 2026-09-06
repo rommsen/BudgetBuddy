@@ -21,6 +21,9 @@ let private targetLabel (line: SplitDraftLine) : string =
     match line.Target with
     | Some (ToCategory (_, name)) -> name
     | Some (ToTransfer (_, name)) -> $"→ {name}"
+    // BBs Editor erzeugt keine unkategorisierte Zeile; gespiegelte Buchungen können
+    // eine tragen, deshalb hat sie hier ein Label statt eines leeren Feldes.
+    | Some Uncategorized -> "Ohne Kategorie"
     | None -> "Kategorie oder Konto…"
 
 let private isTransfer (line: SplitDraftLine) : bool =

@@ -37,6 +37,7 @@ let private categoryNameOf (split: TransactionSplit) : string =
     match split.Target with
     | ToCategory (_, name) -> name
     | ToTransfer (_, name) -> name
+    | Uncategorized -> ""
 
 // ============================================
 // Split Transaction Type Tests
@@ -53,15 +54,17 @@ let splitTypeTests =
             Expect.isNone split.Memo "Memo should be None by default"
 
         testCase "A split line is either a category or a transfer (XOR by construction)" <| fun () ->
-            // The SplitTarget DU makes "category and transfer" and "neither" unrepresentable.
+            // The SplitTarget DU makes "category and transfer" unrepresentable. "Neither"
+            // is a named case since the mirror reads uncategorized split lines from YNAB,
+            // but BB's own split editor never builds one.
             let categoryLine = createTestSplit "Groceries" -17.00m
             let transferLine = createTransferSplit "Cash" -200.00m
             match categoryLine.Target with
             | ToCategory _ -> ()
-            | ToTransfer _ -> failtest "Expected a category target"
+            | ToTransfer _ | Uncategorized -> failtest "Expected a category target"
             match transferLine.Target with
             | ToTransfer _ -> ()
-            | ToCategory _ -> failtest "Expected a transfer target"
+            | ToCategory _ | Uncategorized -> failtest "Expected a transfer target"
 
         testCase "TransactionSplit can have optional memo" <| fun () ->
             let split = { createTestSplit "Dining" -25.00m with Memo = Some "Lunch" }

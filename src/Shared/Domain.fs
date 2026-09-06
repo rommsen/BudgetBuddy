@@ -96,11 +96,12 @@ type ExternalLink = {
     Url: string
 }
 
-/// The target of a single split line: either a budget category or a transfer to
-/// another YNAB account (e.g. cash withdrawal at the till).
-/// Purpose: A split line is XOR — either a category OR a transfer, never both and
-/// never neither. The DU makes the illegal "category and transfer" / "neither"
-/// states unrepresentable. The transfer line stores the destination ACCOUNT; the
+/// The target of a single split line: a budget category, a transfer to another YNAB
+/// account (e.g. cash withdrawal at the till), or no target at all.
+/// Purpose: the DU keeps the illegal "category AND transfer" state unrepresentable
+/// (ADR 0006). "Neither" used to be unrepresentable too, but the mirror reads YNAB,
+/// where an uncategorized split line is ordinary reality — so that case is now named
+/// rather than forbidden. The transfer line stores the destination ACCOUNT; the
 /// YNAB transfer payee_id is resolved only at push time (ADR 0006), never here.
 type SplitTarget =
     /// Allocate this split line to a YNAB budget category.
@@ -108,6 +109,10 @@ type SplitTarget =
     /// Move this split line to another YNAB account (a transfer, no budget impact).
     /// Stores the destination account; the transfer payee_id is resolved at push time.
     | ToTransfer of accountId: YnabAccountId * accountName: string
+    /// No category and no transfer: an uncategorized split line, as YNAB allows it.
+    /// Only the mirror produces this (BB's own split editor never does); it counts
+    /// fully towards the split sum and is never dropped.
+    | Uncategorized
 
 /// Represents a single split within a transaction for multi-target allocation.
 /// Purpose: Allows splitting a single bank transaction into multiple YNAB
@@ -150,7 +155,8 @@ let splitRemainder (total: Money) (enteredLines: TransactionSplit list) : decima
 ///   * at least two lines (a "split" of one line is not a split),
 ///   * one currency across the total and every line,
 ///   * the sign-correct sum of all lines (transfer lines included) equals the total.
-/// The XOR category/transfer choice is already guaranteed by the `SplitTarget` DU.
+/// The "category and transfer at once" case is already unrepresentable in the
+/// `SplitTarget` DU; an `Uncategorized` line counts towards the sum like any other.
 /// Returns the validated splits unchanged on success.
 let mkSplits (total: Money) (lines: TransactionSplit list) : Result<TransactionSplit list, SplitError> =
     if lines.Length < 2 then
@@ -644,3 +650,29 @@ let recentQuickAddTemplates (maxTemplates: int) (transactions: YnabTransaction l
     |> List.truncate maxTemplates
 
 type ComdirectResult<'T> = Result<'T, ComdirectError>
+
+// ============================================
+// Spiegel-Lauf (Kassenbuch, ADR 0014)
+// ============================================
+
+/// Was ein Spiegel-Lauf bewegt hat: wie viele Buchungen neu ins Kassenbuch kamen, bei
+/// wie vielen eine Aenderung beobachtet wurde und wie viele in YNAB geloescht sind.
+/// `ServerKnowledge` ist der Stand, ab dem der naechste Lauf sein Delta holt.
+type MirrorRunSummary = {
+    NewEntries: int
+    ChangedEntries: int
+    DeletedEntries: int
+    ServerKnowledge: int64
+}
+
+/// Wie ein Spiegel-Lauf ausging. Ein Fehler wird sichtbar gemacht, nicht still
+/// geschluckt (ADR 0014).
+type MirrorRunOutcome =
+    | MirrorRunSucceeded of MirrorRunSummary
+    | MirrorRunFailed of message: string
+
+/// Der zuletzt gelaufene Spiegel-Lauf: Zeitpunkt und Ergebnis.
+type MirrorRunStatus = {
+    RanAt: DateTime
+    Outcome: MirrorRunOutcome
+}
