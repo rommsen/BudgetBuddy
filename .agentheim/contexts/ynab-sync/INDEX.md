@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ynab-czk34** — Spiegel-Mechanik YNAB → Kassenbuch festlegen (decision) — depends_on: [] — `todo/ynab-czk34-mirror-mechanics.md`
 <!-- todo-list:end -->
 
 ### Doing

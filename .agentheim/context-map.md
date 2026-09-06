@@ -1,9 +1,11 @@
 # Context map
 
-BudgetBuddy zerfällt in drei fachliche Bounded Contexts entlang der Sync-Pipeline,
-plus einen Infrastructure-Context für globale Technik-Belange. Die Pipeline läuft
-linear: **banking-import → categorization → ynab-sync**, orchestriert durch eine
-SyncSession.
+BudgetBuddy zerfällt in vier fachliche Bounded Contexts plus zwei Infrastruktur-Contexts.
+Die Sync-Pipeline **banking-import → categorization → ynab-sync** bleibt bestehen; neu
+(Revision 2026-09-06, ADR 0012) ist das **Kassenbuch** (`ledger`) als Mitte, in der jede
+Buchung dauerhaft landet und ihre Historie behält. `ynab-sync` wird dadurch beidseitig:
+es pusht weiterhin BBs Entscheidungen nach YNAB und spiegelt zusätzlich YNABs Zustand ins
+Kassenbuch zurück.
 
 ## Contexts
 
@@ -28,15 +30,29 @@ SyncSession.
   schwaches Payee-Matching.
 - **Key actors:** Roman (kategorisiert manuell, erstellt Regeln), Regel-Engine (wendet an).
 
+### ledger *(neu, 2026-09-06)*
+- **Purpose:** BBs eigenes, dauerhaftes **Kassenbuch** über alle Konten. Hält jede Buchung
+  mit Herkunft und vollständiger, auditierbarer Historie. Zeigt Buchungen und Stände pro
+  Konto und in der Gesamtsicht, einschließlich Konten, die YNAB nicht führen kann
+  (Wertpapierkonto mit Budget-Geld, bewertet als Stückzahl mal Kurs). Wird schrittweise
+  zum Ort, an dem Buchungen nachbearbeitet werden (Kategorie, Splits, Überträge).
+- **Core language:** Kassenbuch, Konto, Buchung, Herkunft, Historie, Spiegel, Abweichung,
+  Führung (BB-geführt / YNAB-geführt), Übertrag, Bewertung, Gesamtsicht.
+- **Classification:** core — das Kassenbuch ist das Gedächtnis, das BB zum führenden
+  System macht.
+- **Key actors:** Roman (liest, bearbeitet nach), Frau (liest), YNAB (Spiegel-Quelle und
+  Projektionsziel), Kursquelle (Bewertung).
+
 ### ynab-sync
-- **Purpose:** Kategorisierte Transaktionen nach YNAB pushen, dabei YNABs eigenes
-  Import-ID-Dedup respektieren, und YNAB-Strukturen (Budgets/Accounts/Categories/Payees)
-  als Spiegel bereitstellen.
+- **Purpose:** In **beide Richtungen** zwischen Kassenbuch und YNAB vermitteln. Push:
+  kategorisierte Transaktionen und BB-Entscheidungen nach YNAB, mit Import-ID-Dedup.
+  Spiegel: YNABs Zustand (Konten, Buchungen, Änderungen) laufend ins Kassenbuch holen und
+  Abweichungen erkennen. Stellt YNAB-Strukturen (Budgets/Accounts/Categories/Payees) bereit.
 - **Core language:** ImportId, YnabImportStatus, YnabRejectionReason (DuplicateImportId/
   UnknownRejection), YnabTransaction, Splits/TransactionSplit, Payee/PayeeOverride,
-  Transfer-Payee, YnabBudget/Account/Category.
-- **Classification:** core — ohne sauberen Push ist das Tool wertlos. (Conformist
-  gegenüber der YNAB-API.)
+  Transfer-Payee, YnabBudget/Account/Category, Spiegel-Lauf, Delta.
+- **Classification:** core — ohne sauberen Push und vollständigen Spiegel ist das
+  Kassenbuch wertlos. (Conformist gegenüber der YNAB-API.)
 - **Key actors:** Roman, YNAB (externes Upstream/Downstream-System).
 
 ### infrastructure
@@ -49,40 +65,53 @@ SyncSession.
 
 ### design-system
 - **Purpose:** Frontend-Infrastruktur — visuelle Sprache (neon-on-dark), Token-Layer,
-  das Komponenten-Inventar (`src/Client/DesignSystem/`, 20 Komponenten) und die projektweiten
-  UI-Muster (Sheets/Click-Commit ADR 0005, Picker ADR 0004). Hält den **Styleguide** als
+  das Komponenten-Inventar (`src/Client/DesignSystem/`) und die projektweiten UI-Muster
+  (Sheets/Click-Commit ADR 0005, Picker ADR 0004). Hält den **Styleguide** als
   reviewbares Gate für alle UI-Arbeit.
 - **Core language:** Styleguide, Token, neon-on-dark, Farbsemantik, DS-Komponente, Muster,
   Drift.
-- **Classification:** supporting — kein fachlicher Differenzierer, dient aber dem
-  Vision-Ziel "angenehmer als YNAB-Web". First-class Frontend-Infra-BC (analog
-  `infrastructure` fürs Backend).
+- **Classification:** supporting.
 - **Key actors:** Roman (reviewt das Gate, baut UI), alle fachlichen BCs (Konsumenten).
+
+### Künftige Contexts (Seeds, nicht angelegt)
+- **wealth** (Vermögen): Depots ING und Consors als Vermögenssicht, kein Budget-Geld.
+  Nicht v1/v2. Wird angelegt, wenn das Kassenbuch steht.
+- **budgeting**: Zuweisungen, Targets, Underfunded. Nur nach bewährtem v2 und nur, wenn
+  Budget-Geld auf Konten liegen soll, die YNAB nicht kennt.
 
 ## Relationships
 
-- **banking-import → categorization → ynab-sync:** Customer-supplier / Pipeline.
-  Jeder Context ist Upstream des nächsten; die `SyncTransaction` wandert durch und
-  sammelt Zustand ein (erst DuplicateStatus, dann Kategorie/Regel, dann YnabImportStatus).
-- **ynab-sync → YNAB (extern):** **Conformist** — BB ordnet sich der YNAB-API und ihrem
-  Datenmodell unter (ImportId-Dedup, Cleared-Verhalten, Transfer-Semantik). BB ersetzt
-  YNABs Verhalten nicht, es bedient es bequemer.
+- **banking-import → categorization → ledger:** Customer-supplier / Pipeline. Bank-
+  Buchungen werden kategorisiert und landen dann dauerhaft im Kassenbuch (Herkunft:
+  Comdirect-Import + Regel/Roman). Bis das Kassenbuch steht, endet die Pipeline wie
+  bisher in `ynab-sync`.
+- **ledger ↔ ynab-sync:** **Partnership** in zwei Richtungen. `ledger` ist Upstream für
+  den Push (BB-geführte Entscheidungen gehen nach YNAB); `ynab-sync` ist Upstream für den
+  Spiegel (YNAB-geführte Änderungen kommen ins Kassenbuch, Herkunft: YNAB-Spiegel). Die
+  **Abweichung** entsteht an dieser Naht und gehört dem `ledger`.
+- **ynab-sync → YNAB (extern):** **Conformist** — BB ordnet sich der YNAB-API unter
+  (ImportId-Dedup, Delta-Sync, Cleared-Verhalten, Transfer-Semantik). YNAB ist zugleich
+  Quelle (Spiegel) und Ziel (Push).
 - **banking-import → Comdirect (extern):** **Anticorruption layer** — die rohe
   Comdirect-JSON (`RawData`) wird in das saubere `BankTransaction`-Modell übersetzt.
+- **ledger → Kursquelle (extern):** Anticorruption layer, klein: ein Kurs pro Papier,
+  monatlich, für die Bewertung des Wertpapierkontos mit Budget-Geld.
 - **Zwei Duplikat-Welten:** `banking-import` besitzt das *Vor-Import*-Urteil
   (DuplicateStatus); `ynab-sync` besitzt YNABs *eigenes* Dedup (ImportId →
   RejectedByYnab DuplicateImportId). Die **ImportId** ist der Shared-Kernel-Begriff,
-  der beide verbindet.
-- **infrastructure** ist generic supporting für alle drei: stellt SyncSession-Lifecycle,
-  Persistence und Transport bereit, ohne fachliche Entscheidungen zu treffen.
-- **design-system → alle UI-tragenden BCs:** Customer-Supplier. Liefert die UI-Bausteine
-  (Tokens, Komponenten, Muster), gegen die deren View-Schichten bauen; der Styleguide
-  (`design-system-001`) ist das **Gate** — künftige UI-Tasks hängen daran (Hard-Enforcement
-  2026-06-13). Analog zu `infrastructure`, aber fürs Frontend.
+  der beide verbindet, und wird im Kassenbuch als Teil der Herkunft mitgeführt.
+- **Führung wandert:** Jede Fähigkeit ist entweder BB-geführt oder YNAB-geführt. Das
+  Kassenbuch kennt für jede Buchung beides. Die Vision bewegt Fähigkeiten von rechts nach
+  links (Nachbearbeitung, Überträge, später Budgetieren).
+- **infrastructure** ist generic supporting für alle fachlichen Contexts.
+- **design-system → alle UI-tragenden BCs** (jetzt auch `ledger`): Customer-Supplier.
+  Der Styleguide (`design-system-001`) ist das **Gate**; jede UI-Task hängt daran.
 
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter in `banking-import` oder Comdirect-Muster
-  generalisieren? (verschoben)
-- ~~Eigener **`design-system`**-Context?~~ *Aufgelöst 2026-06-13:* angelegt (s.o.) —
-  kodifiziert das bestehende Design System retroaktiv zum Styleguide-Gate und konsolidiert
-  den View-Code darauf.
+  generalisieren? (verschoben; bis dahin über den Spiegel)
+- **Quick Add** schreibt heute direkt nach YNAB und kommt über den Spiegel zurück. Soll
+  es später zuerst ins Kassenbuch schreiben (BB-geführt, ohne Umweg)? → Tactical Modeling
+  in `ledger`, wenn v1 steht.
+- Ob **budgeting** ein eigener Context wird oder in `ledger` aufgeht, entscheidet sich
+  nach v2.

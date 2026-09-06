@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 11:55 -- Brainstorm: BudgetBuddy als führendes System (YNAB-Ablösung, graduell)
+
+**Type:** Brainstorm
+**Outcome:** vision revised
+**BCs identified:** ledger (neu); ynab-sync erweitert um Spiegel-Richtung; Seeds wealth, budgeting (nicht angelegt)
+**Summary:** Sokratische Session mit Roman. Kern-Erkenntnisse: Budgetieren tut nicht weh (Parität ist Non-Goal ohne Kassenbuch-Grund); der konkrete Schmerz ist das Geldmarkt-ETF-Konto als Budget-Geld, das YNAB nicht führen kann, plus fehlende Ownership/Historie (BB vergisst jede Buchung). YNAB wird an fünf Stellen an BB vorbei beschrieben, deshalb startet das Kassenbuch als "Spiegel mit Gedächtnis". Fähigkeiten wandern einzeln von YNAB-geführt zu BB-geführt; v1 = alle Konten unter einem Dach inkl. ETF, v2 = Nachbearbeitung in BB mit Historie (Gate für Budgetieren). Cutover ist Option, kein Ziel. ADR 0001 abgelöst; `docs/idea-ynab-replacement.md` als aktiviert-in-revidierter-Form markiert.
+**ADRs written:** 0012 (global, supersedes 0001)
+**Foundation tasks emitted:** ledger-fsz0a (Historie-Technik), ynab-czk34 (Spiegel-Mechanik), ledger-zm0zx (Kontenmodell/Bewertung), ledger-z5vw6 (Buchungs-Identität); Skeleton-Spike ledger-kt0wq (statt reserviertem infrastructure-001: Projekt reif, Skeleton gilt dem Kassenbuch); Styleguide-Task nicht neu (design-system-001 done, Gate gilt für ledger-UI). Architekten-Pass ohne Subagent (Agent-Tool braucht tmux, nicht installiert); ADR-Entwürfe in den Task-Notes.
+
+---
+
 ## 2026-06-28 17:07 -- Bugfix: ynab-k7m3q - "Inflow: Ready to Assign" zeigte Fantasiewert
 
 **Type:** Work / Bugfix (post-ship, on shipped ynab-k7m3q)

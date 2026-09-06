@@ -2,16 +2,20 @@
 id: 0001
 title: BudgetBuddy ist ein YNAB-Companion, kein YNAB-Ersatz
 scope: global
-status: accepted
+status: superseded
 date: 2026-06-01
 supersedes: []
-superseded_by: []
+superseded_by: [0012]
 related_tasks: []
 related_research: []
 ---
 
 # ADR 0001: BudgetBuddy ist ein YNAB-Companion, kein YNAB-Ersatz
 
+> **Abgelöst (2026-09-06, ADR 0012):** BudgetBuddy wird führendes System, YNAB
+> Projektion und Fallback. Die Companion-Grenze gilt nicht mehr; der Companion-Kern
+> bleibt als erster Fall des neuen Musters bestehen.
+>
 > **Amendment (2026-06-12, ADR 0003):** Der Non-Goal-Punkt *manuelle
 > Transaction-Eingabe* ist aufgehoben — Quick Add wurde als enthaltenes
 > Phase-0-Experiment umgesetzt. Die Kern-Entscheidung (YNAB bleibt Source of

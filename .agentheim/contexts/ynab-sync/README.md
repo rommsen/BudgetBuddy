@@ -1,9 +1,13 @@
 # ynab-sync
 
 ## Purpose
-Pusht kategorisierte Transaktionen nach YNAB, respektiert dabei YNABs eigenes
-Import-ID-Dedup, und stellt YNAB-Strukturen (Budgets/Accounts/Categories/Payees) als
-Spiegel zum Auswählen bereit.
+Vermittelt in **beide Richtungen** zwischen Kassenbuch (`ledger`) und YNAB (seit ADR 0012,
+2026-09-06). **Push:** kategorisierte Transaktionen und BB-geführte Entscheidungen nach
+YNAB, mit Respekt vor YNABs eigenem Import-ID-Dedup. **Spiegel:** YNABs Zustand (Konten,
+Buchungen, Änderungen) laufend ins Kassenbuch holen, damit es vollständig bleibt, solange
+YNAB Eingabeort ist. Stellt außerdem YNAB-Strukturen (Budgets/Accounts/Categories/Payees)
+zum Auswählen bereit. Die Spiegel-*Mechanik* (Delta, Intervall, Rate-Limit) lebt hier; das
+Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 
 ## Classification
 **core** — ohne sauberen, dedup-sicheren Push wäre das Tool wertlos. Zugleich
@@ -93,6 +97,8 @@ Spiegel zum Auswählen bereit.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Open questions
+- **Spiegel-Mechanik** (neu, ADR 0012): Delta-Sync über YNABs `server_knowledge`, Intervall,
+  gelöschte Buchungen, Rate-Limit. → Decision-Task des Architekten.
 - **Transfer-Payee Modell** — *gelöst (ADR 0006, ynab-001):* Transfer-Zeile speichert das
   Ziel-Konto, `payee_id` erst beim Push aufgelöst.
 - **Split UI** — *gelöst (ynab-002):* Push-Fundament (ynab-001) + Review-UI stehen. Das

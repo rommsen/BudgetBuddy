@@ -1,6 +1,6 @@
 # Idee: BudgetBuddy als YNAB-Ersatz
 
-**Status:** Idee, noch nicht entschieden
+**Status:** Aktiviert in revidierter Form am 2026-09-06 (ADR 0012, `.agentheim/vision.md`). Das Phasenmodell unten ist durch v1 (Kassenbuch, alle Konten) / v2 (Nachbearbeitung in BB) ersetzt; Abbruchkriterien und Goal-Modell bleiben als Referenz.
 **Erfasst:** 2026-05-09
 **Kontext:** Sokratischer Dialog zur Frage „komplett von YNAB weg, BB zum vollwertigen Budget-Tool ausbauen?"
 
