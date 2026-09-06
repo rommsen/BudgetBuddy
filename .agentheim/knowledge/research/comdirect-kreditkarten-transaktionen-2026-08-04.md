@@ -1,0 +1,84 @@
+---
+topic: Programmatischer Zugriff auf comdirect Kreditkarten-Transaktionen (Visa/Mastercard)
+date: 2026-08-04
+requested_by: user
+related_tasks: []
+---
+
+# Research: Comdirect Kreditkarten-Transaktionen programmatisch abrufen
+
+## Frage
+Gibt es einen Weg, comdirect-Kreditkarten-Umsätze (Visa/Mastercard) programmatisch abzurufen — über die offizielle REST-API, FinTS/HBCI, PSD2/XS2A oder einen Aggregator? Falls nicht: klar belegen, dass es nicht geht, statt vage zu bleiben.
+
+## Summary
+- **Offiziell bestätigt: Die comdirect REST-API für Privatkunden liefert keine Kreditkarten-Transaktionen.** Comdirect-Support hat das im Community-Forum am 22.03.2023 explizit bestätigt ("Aktuell sind in diese Richtung keine Updates geplant"), ein zweiter Fall am 10.10.2023 bestätigt das erneut ("derzeit gibt es hierzu leider keine Neuigkeiten") [1][2].
+- Der Grund liegt in der API-Architektur: Der Account-Service der Privatkunden-API unterscheidet **Cash-Konten** (Girokonto, worüber `banking/v1|v2/accounts/{id}/transactions` läuft) von **Credit-Konten** (Kreditkarte). Nur Cash-Konten sind über den Account-Service abrufbar; für Kreditkarten wäre eine separate, PSD2-basierte Schnittstelle nötig [2]. Ein Nutzer bestätigte im Oktober 2023 per Swagger-Spec-Inspektion, dass kein Endpunkt für `card` oder `corporate-card` existiert [1].
+- **FinTS/HBCI unterstützt Kreditkarten-Umsätze bei comdirect grundsätzlich** über die proprietären Geschäftsvorfälle `DKKKU` (Umsätze) / `DKKKS` (Saldo) statt dem Standard-`HKKAU` — funktioniert aber seit Jahren wiederholt unzuverlässig (dokumentierte Ausfälle 2018, 2024, 2025), mit wechselnden Workarounds (z. B. FinTS-Version hin- und herschalten) [3][4][5].
+- **PSD2/XS2A (Berlin-Group-Standard) deckt Kartenkonten grundsätzlich ab**, comdirect betreibt eine offizielle NextGenPSD2-Schnittstelle mit AIS/PIS/CAF inkl. `card-accounts`-Ressourcen — der Zugang ist aber TPPs mit eIDAS-QWAC-Zertifikat und BaFin-Lizenz (AISP-Registrierung) vorbehalten, für ein privates Hobby-Projekt ohne Lizenz nicht direkt nutzbar [6][7][8].
+- Aggregatoren (finAPI, GoCardless Bank Account Data) unterstützen Kreditkarten-Konten technisch, sind aber B2B-Produkte mit Vertrag/Registrierung; ob sie comdirect-Kreditkarten konkret abdecken, wurde nicht abschließend verifiziert (siehe offene Fragen).
+- **Praktikabler Fallback: manueller CSV-Export** der Visa-Umsätze aus dem Web-Interface — von einem Community-Nutzer selbst als Workaround beschrieben ("Umsätze am Monatsende als CSV exportieren und manuell hochladen") [9]. Kein programmatischer, aber der einzige belegte funktionierende Weg ohne PSD2-Lizenz.
+
+## Findings
+
+### 1. Was bietet die offizielle comdirect REST-API tatsächlich (Produktbereiche)?
+Die comdirect REST-API für Privatkunden (`api.comdirect.de`) deckt laut den öffentlich dokumentierten Client-Bibliotheken folgende Produktbereiche ab: **Banking** (Konten/Salden/Transaktionen: `banking/clients/user/v1/accounts/balances`, `banking/v2/accounts/{accountId}/balances`, `banking/v2/accounts/{accountId}/transactions`), **Brokerage** (Depots: `brokerage/clients/user/v3/depots`, `brokerage/v3/depots/{depotId}/positions`), **Messages/PostBox** (Dokumente: `messages/clients/user/v2/documents`) sowie Session-/OAuth-Endpunkte [10][11]. Kreditkarten tauchen in keinem dieser Endpunkte als Ressource mit eigener `accountId` und Transaktionsliste auf.
+
+Es existiert daneben ein **Reports-Endpunkt** `reports/participants/user/v1/allbalances`, der laut einem Nutzer per `productType`-Parameter (z. B. `ACCOUNT`) übergreifende Saldo-Informationen liefert, und eine Postman-Collection "10 Reports", in der Kreditkarten mit Saldo auftauchen [12][1]. Das deutet darauf hin, dass Kreditkarten-**Salden** ggf. über die Reports-API sichtbar sind — für **Transaktionen** gibt es dort aber keinen Endpunkt. Dieser Punkt ist nicht direkt aus einer offiziellen Doku verifiziert, sondern aus Forenbeiträgen rekonstruiert (siehe offene Fragen).
+
+### 2. Werden comdirect-Kreditkarten als eigenes Konto mit eigener accountId geführt?
+Die comdirect-Kreditkarte (Visa-Karte zum Girokonto, monatliche Abrechnung/Sammelbuchung gegen das Girokonto) wird bankintern offenbar als **eigenständiges Kreditkonto** (Credit Account) geführt, getrennt vom Cash-Konto (Girokonto) — genau das ist laut einem Nutzer, der die API-Architektur analysiert hat, der Grund, warum der normale Account-/Transactions-Endpunkt sie nicht mitliefert: der Account-Service ist bewusst auf Cash-Konten beschränkt [2]. Ob comdirect zwischen "Visa-Karte mit Sofortbelastung" und einer "echten" Kreditkarte mit revolvierendem Kredit unterschiedlich verfährt, ließ sich aus den gefundenen Quellen nicht differenzieren — comdirect bietet historisch primär die klassische Visa-Karte mit monatlicher Sammelabrechnung an, eine dedizierte Revolving-Kreditkarte war in den Quellen nicht erkennbar.
+
+### 3. Reports-API (`allbalances`) — liefert sie Kreditkartenkonten mit?
+Indizien aus Forenbeiträgen legen nahe: ja, für **Salden**, over den `reports/participants/user/v1/allbalances`-Endpunkt mit `productType`-Filter, sowie über die offizielle Postman-Collection "Kapitel 10 Reports" [12][1]. Das wurde in dieser Recherche nicht gegen die offizielle PDF-Doku oder ein Swagger-File verifiziert (die offizielle Doku-Domain `developer.comdirect.de` war über die verfügbaren Suchwerkzeuge nicht direkt einsehbar). Für **Transaktionen** gibt es laut allen gefundenen Quellen dort nichts.
+
+### 4. FinTS/HBCI
+Comdirect unterstützt FinTS/HBCI grundsätzlich, und dafür existieren proprietäre Geschäftsvorfälle für Kreditkarten: **`DKKKU`** (Abfrage Kreditkarten-Umsätze) und **`DKKKS`** (Saldo), mit Rückmeldungssegment `DIKKU` — das ist **nicht** der generische HBCI-Standard-Geschäftsvorfall `HKKAU`, sondern eine comdirect-/Kreditkarten-spezifische Umsetzung [3].
+
+Verlässlichkeit über die Jahre:
+- **2018**: Ein GnuCash-Nutzer berichtet auf der `gnucash-de`-Mailingliste (17.09.2018) über den Abruf via `DKKKU`/`DIKKU`, aber mit dem Problem, dass Umsätze nach dem ersten Abruf als "abgeholt" markiert werden und bei Wiederholung nicht mehr erscheinen — plus ein Bug in `gnc-ab-utils.c`, der Valuta- statt Buchungsdatum verwendet [3].
+- **2019**: Ein comdirect-Mitarbeiter bestätigt im Forum einen bekannten Fehler beim Visa-Kartenumsatz-Abruf und kündigt einen Fix an ("spielen heute Nacht einen Fix ein") [13].
+- **2024/2025**: Mehrere neue Threads ("Kreditkartenabruf per HBCI/FinTS funktioniert nicht mehr", "Kein Umsatzabruf (HBCI) für das VISA-Kreditkarten-Konto mehr möglich?") zeigen, dass der Abruf wiederholt bricht — u. a. nach technischen Anpassungen an der Visa-Karte auf comdirect-Seite. Workarounds aus der Community: FinTS-Version im Client von 3.0 auf 4.0 und zurück auf 3.0 schalten, oder die Bankverbindung synchronisieren/Karte neu anlegen [4][5].
+
+Einschätzung: FinTS/HBCI ist der einzige Kanal, über den Kreditkarten-Umsätze bei comdirect **grundsätzlich technisch abrufbar** sind (auch für Tools wie MoneyMoney, Hibiscus, Banking4, WISO — MoneyMoney listet comdirect generell als unterstützte Bank für FinTS [14]), ist aber empirisch **wiederkehrend instabil** und erfordert bei Ausfällen manuelle Eingriffe. Für ein Produktionssystem (BudgetBuddy) ist das ein fragiler Kanal, kein zuverlässiger.
+
+### 5. PSD2/XS2A (Berlin-Group-Standard)
+Comdirect betreibt ein offizielles Developer-Portal für die PSD2-Schnittstelle unter `xs2a-developer.comdirect.de` mit Account Information Service (AIS), Payment Initiation Service (PIS) und Confirmation of Funds/PIIS [6][8]. Diese Schnittstelle folgt dem NextGenPSD2/Berlin-Group-Standard, der explizit `card-accounts`-Ressourcen vorsieht (Kartenkonten-Liste, -Details, -Transaktionen, -Salden); ein Eintrag in der Roadmap eines XS2A-Adapter-Projekts (adorsys) listet comdirect im Kontext von Card-Accounts-Support [7]. Ein Community-Nutzer bestätigt im Januar 2024 explizit: für Kreditkartentransaktionen gäbe es "eine separate PSD2-basierte API" [2].
+
+Zugangsvoraussetzungen für diese Schnittstelle sind allerdings hoch: Zugriff nur für **registrierte Third-Party-Provider (TPP)**, die ein **eIDAS-QWAC-Zertifikat** (Qualified Website Authentication Certificate) von einem Trust-Center (z. B. Bundesdruckerei) benötigen, sowie eine **PSD2-Lizenz einer zuständigen Aufsichtsbehörde** — in Deutschland die **BaFin** [8]. Das ist für ein privates Hobby-Projekt praktisch **nicht nutzbar**, weil es eine formelle Registrierung als AISP (Account Information Service Provider) voraussetzt, keine bloße API-Key-Anmeldung.
+
+### 6. Aggregatoren (finAPI, GoCardless/Nordigen, Tink, Plaid)
+- **finAPI**: Wird u. a. von Buchhaltungssoftware (BuchhaltungsButler) genutzt, um Bankkonten *und* Kreditkarten anzubinden; beim Einrichten der finAPI-Verbindung lässt sich der Kontotyp "Kreditkarte" explizit auswählen [15]. finAPI ist aber ein **B2B-Produkt** mit Vertrag/Preismodell (kein Self-Service-API-Key für Privatpersonen ohne Geschäftsbeziehung); ob comdirect-Kreditkarten konkret unterstützt werden, wurde in dieser Recherche nicht direkt gegen die finAPI-Bankenliste geprüft.
+- **GoCardless Bank Account Data** (vormals Nordigen): Bietet AIS-Zugriff auf über 2.000 europäische Banken, mit einem kostenlosen Kontingent, reguliert als AISP in Lettland (FCMC), europaweit passportiert [16][17]. Eine explizite Bestätigung, dass comdirect-**Kreditkarten** (nicht nur Girokonten) dort als eigenes Konto abrufbar sind, wurde in den durchsuchten Quellen nicht gefunden — dafür müsste die konkrete Bank-Connectivity-Seite von GoCardless für comdirect geprüft werden (offene Frage).
+- Tink und Plaid wurden aus Zeitgründen nicht im Detail recherchiert; Plaid hat historisch schwache DACH-Abdeckung, Tink ist in Deutschland aktiv, aber ebenfalls ein B2B-Produkt mit Registrierungspflicht.
+
+### 7. CSV-Export als Fallback
+Ein Community-Nutzer, der genau am selben Problem gescheitert ist ("REST-API zum Abruf von Kreditkarten-Transaktionen"), beschreibt seinen eigenen Workaround: die Visa-Umsätze am Monatsende manuell als CSV aus dem Web-Interface exportieren und in seine Anwendung hochladen [9][1]. Das comdirect-Web-Interface bietet generell einen CSV-Export für Umsätze (mit Zeitraum-Filter 1–180 Tage oder freier Datumsangabe); dokumentierte Einschränkungen: Export nur für die letzten 2 Jahre, und ein im Forum gemeldeter Bug, wonach teils nur die auf einer Seite sichtbaren Umsätze statt des gesamten gewählten Zeitraums exportiert werden [18]. Die offizielle FAQ-Seite zu "Wo finde ich meine Umsätze der Visa-Kreditkarte?" war für diese Recherche nicht ohne Login abrufbar (HTTP 401), lässt sich aber im eingeloggten Zustand direkt im Projekt prüfen.
+
+Dieser Weg ist **nicht programmatisch automatisierbar im eigentlichen Sinn** (kein API-Call), höchstens per Browser-Automatisierung (Playwright/Selenium mit Session-Cookies) — das wäre ein Screen-Scraping-Ansatz gegen das Web-Interface, dessen Robustheit und ToS-Konformität unklar ist und in dieser Recherche nicht bewertet wurde.
+
+## Sources
+1. [REST-API Abfrage für Visa-Kartenumsätze – comdirect Community](https://community.comdirect.de/t5/website-apps/rest-api-abfrage-f%C3%BCr-visa-kartenums%C3%A4tze/td-p/287240) — Thread vom 08.–10.10.2023; Nutzer bestätigt per Swagger-Inspektion, dass kein `card`/`corporate-card`-Endpunkt existiert; comdirect-Moderator "Mario" bestätigt am 10.10.2023 keine Neuigkeiten dazu.
+2. [Gelöst: REST-API zum Abruf von Kreditkarten-Transaktionen – comdirect Community](https://community.comdirect.de/t5/konto-depot-karte/rest-api-zum-abruf-von-kreditkarten-transaktionen/td-p/266468) — comdirect-Support (SMT_Jan-Ove) am 22.03.2023: "Aktuell sind in diese Richtung keine Updates geplant"; Nutzer danho87 erklärt am 15.01.2024 die Architektur (Cash- vs. Credit-Konten, separate PSD2-API nötig) und beschreibt seinen CSV-Export-Workaround.
+3. [gnucash-de Mailingliste: FinTS und die Comdirect Kreditkarte](https://lists.gnucash.org/pipermail/gnucash-de/2018-September/010470.html) — 17.09.2018, Geschäftsvorfälle `DKKKU`/`DIKKU`, Bug mit "abgeholt"-Markierung und Valutadatum.
+4. [Kreditkartenabruf per HBCI/FinTS funktioniert nicht mehr – comdirect Community](https://community.comdirect.de/t5/konto-depot-karte/kreditkartenabruf-per-hbci-fints-funktioniert-nicht-mehr/td-p/57218) — Thread zu wiederholten FinTS-Ausfällen beim Kreditkarten-Abruf.
+5. [Kein Umsatzabruf (HBCI) für das VISA-Kreditkarten-Konto mehr möglich? – comdirect Community](https://community.comdirect.de/t5/konto-depot-karte/kein-umsatzabruf-hbci-f%C3%BCr-das-visa-kreditkarten-konto-mehr/td-p/339023) — neuerer Thread (2024/2025), Workarounds (FinTS-Version wechseln, Bankverbindung synchronisieren).
+6. [Comdirect Developer Portal (XS2A)](https://xs2a-developer.comdirect.de/) — offizielles PSD2/XS2A-Entwicklerportal, AIS/PIS/CAF.
+7. [adorsys/xs2a-adapter Roadmap](https://github.com/adorsys/xs2a-adapter/blob/develop/docs/roadmap.adoc) — nennt comdirect im Kontext von Card-Accounts-Unterstützung des Berlin-Group-Standards.
+8. [Comdirect Developer Portal – Access Account Information Services](https://xs2a-developer.comdirect.de/content/howto/ais-access) und allgemeine PSD2/eIDAS-Anforderungen (QWAC-Zertifikat, BaFin-Lizenz für TPPs) — aus Suchergebnissen zu XS2A-Zugang, nicht Wort für Wort aus dem Portal selbst verifiziert (Detailseite unter `/apis` bzw. `/psd2-ais-prod/apis` lieferte 404 bzw. unvollständigen Inhalt beim Abruf).
+9. Community-Nutzer-Workaround (CSV-Export monatlich), zitiert in Quelle [2].
+10. [keisentraut/python-comdirect-api](https://github.com/keisentraut/python-comdirect-api/blob/master/comdirect_api/session.py) — Endpunktliste: Banking (v1/v2 accounts/balances/transactions), Brokerage (v3 depots/positions), Messages (v2 documents); kein Kreditkarten-Endpunkt.
+11. [alex-kn/comdirect-api-simple README](https://github.com/alex-kn/comdirect-api-simple/blob/master/README.md) — unterstützte Funktionen (Konten/Transaktionen, Depot, Dokumente, Orders, Instrumente); erwähnt `reports/participants/user/v1/allbalances` als Beispiel-Endpoint, keine Kreditkarten-Funktion.
+12. Hinweis auf Postman-Collection "10 Reports" mit Kreditkarten-Salden, erwähnt im Thread [1] durch Nutzer JMK_Python (08.10.2023).
+13. Community-Post eines comdirect-Mitarbeiters (2019) zu einem bekannten Visa-Kartenumsatz-Abruf-Fehler, gefunden über Suchergebnisse zu "Visa-Kartenumsätze in Echtzeit" / "Umsatzabruf der comdirect Visakarte funktioniert nicht mehr" (comdirect Community, Titel-URLs siehe Suchergebnisse).
+14. [MoneyMoney – Banken: Diese werden unterstützt](https://moneymoney.app/banken/) — comdirect als unterstützte FinTS-Bank gelistet (allgemein, nicht kreditkartenspezifisch).
+15. [Bankkonten und Kreditkarten über finAPI anbinden – BuchhaltungsButler](https://wissen.buchhaltungsbutler.de/hc/de/articles/14437779384989-Bankkonten-und-Kreditkarten-%C3%BCber-finAPI-anbinden) — finAPI unterstützt Kontotyp "Kreditkarte" bei Verbindungs-Einrichtung (allgemein, nicht comdirect-spezifisch verifiziert).
+16. [GoCardless Bank Account Data (ex-Nordigen) – Überblick](https://gocardless.com/bank-account-data/) — Produktbeschreibung, Coverage-Aussage (Marketing, als solche zu werten).
+17. [OpenBankingTracker – Nordigen/GoCardless](https://www.openbankingtracker.com/nordigen) — Regulierungsstatus (AISP Lettland/FCMC, EU-Passporting).
+18. Diverse comdirect-Community-Threads zu CSV-Export-Limitierungen (2 Jahre Historie, Paginierungs-Bug), gefunden über Suchergebnisse zu "comdirect Kreditkarte Umsätze CSV Export".
+
+## Open questions
+- Liefert `reports/participants/user/v1/allbalances` tatsächlich Kreditkarten-**Salden** (nicht nur Girokonten) mit eigener `accountId`, und wie sieht die JSON-Struktur aus? Nicht gegen offizielle Doku oder Live-Response verifiziert — sollte im Projekt selbst mit einem echten Token getestet werden, bevor man sich darauf verlässt.
+- Deckt GoCardless Bank Account Data (oder finAPI) comdirect-**Kreditkarten** konkret als eigenes Kartenkonto ab, und zu welchen Konditionen für einen Einzelentwickler (kostenloses Kontingent, Registrierungsaufwand)? Müsste direkt bei den Anbietern (Bank-Connectivity-Suche für "comdirect") geprüft werden.
+- Wie stabil ist der FinTS-`DKKKU`-Weg aktuell (August 2026)? Die jüngsten belegten Ausfälle stammen aus 2024/2025-Threads; kein Beleg für den aktuellen Stand gefunden.
+- Ist die comdirect-FAQ-Seite zu Visa-Kartenumsätzen (`comdirect.de/faq/visa-kreditkarte-umsaetze`) im eingeloggten Zustand aussagekräftiger bezüglich eines möglichen Karten-CSV-Exports? Seite lieferte ohne Login HTTP 401.
+- Unterscheidet comdirect aktuell (2026) technisch zwischen "Visa-Karte zum Girokonto" und einer echten Kreditkarte mit revolvierendem Kredit, und würde das etwas an der API-Abdeckung ändern? In den gefundenen Quellen nicht differenziert.
