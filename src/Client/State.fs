@@ -117,6 +117,53 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
     { model with Toasts = toast :: model.Toasts }, dismissCmd
 
 // ============================================
+// Seiten-Ladekommandos
+// ============================================
+
+/// Die Ladekommandos einer Seite. Eine Stelle, zwei Aufrufer: `init` beim
+/// Direktaufruf (Deep-Link, F5) und `UrlChanged` beim Navigieren. Frueher stand
+/// dieser `match` nur im `else`-Zweig von `UrlChanged`; weil `init` die Seite aus
+/// der URL schon in `CurrentPage` schreibt und danach `UrlChanged` fuer genau
+/// dieselbe Seite schickte, lief der Gleichheits-Guard sofort ins `Cmd.none` und
+/// ein Direktaufruf lud nichts (Kassenbuch und Rules waren betroffen).
+let pageLoadCmd (page: Page) : Cmd<Msg> =
+    match page with
+    | SyncFlow ->
+        Cmd.batch [
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
+        ]
+    | Rules ->
+        Cmd.batch [
+            Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadRules)
+            Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
+        ]
+    | Settings ->
+        Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
+    | Styleguide ->
+        // Presentational gallery — no data to load.
+        Cmd.none
+    | Ledger ->
+        // Konten (die den Standard vorauswaehlen und damit die Buchungen
+        // nachziehen) und der Status des letzten Spiegel-Laufs. Kein
+        // automatischer Spiegel-Lauf: das Frische-Kriterium ist
+        // Folge-Arbeit (ADR 0014, ledger-h4p6c).
+        Cmd.batch [
+            Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadAccounts)
+            Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
+        ]
+    | QuickAdd ->
+        // Open a fresh form and make sure the category picker has data
+        // (categories are loaded into SyncFlow at startup; retry in
+        // case that failed or this is a deep link). Also load the
+        // recent-booking templates once per visit (ynab-t4n8p).
+        Cmd.batch [
+            Cmd.ofMsg OpenQuickAdd
+            Cmd.ofMsg LoadQuickAddTemplates
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
+        ]
+
+// ============================================
 // Init
 // ============================================
 
@@ -142,8 +189,10 @@ let init () : Model * Cmd<Msg> =
         QuickAddTemplates = NotAsked
     }
 
-    // Trigger page-specific load commands for the initial (deep-linked) page
-    let initialPageCmd = Cmd.ofMsg (UrlChanged (Routing.toUrlSegments initialPage))
+    // Trigger page-specific load commands for the initial (deep-linked) page.
+    // Direkt ueber `pageLoadCmd`, nicht ueber `UrlChanged`: dessen Gleichheits-Guard
+    // wuerde hier immer greifen, weil `CurrentPage` oben schon `initialPage` ist.
+    let initialPageCmd = pageLoadCmd initialPage
 
     let cmd = Cmd.batch [
         Cmd.map SettingsMsg settingsCmd  // Load settings on startup - needed for categories
@@ -173,43 +222,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         if page = model.CurrentPage then
             model, Cmd.none
         else
-            let extraCmds =
-                match page with
-                | SyncFlow ->
-                    Cmd.batch [
-                        Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
-                        Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
-                    ]
-                | Rules ->
-                    Cmd.batch [
-                        Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadRules)
-                        Cmd.map RulesMsg (Cmd.ofMsg Components.Rules.Types.LoadCategories)
-                    ]
-                | Settings ->
-                    Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
-                | Styleguide ->
-                    // Presentational gallery — no data to load.
-                    Cmd.none
-                | Ledger ->
-                    // Konten (die den Standard vorauswaehlen und damit die Buchungen
-                    // nachziehen) und der Status des letzten Spiegel-Laufs. Kein
-                    // automatischer Spiegel-Lauf: das Frische-Kriterium ist
-                    // Folge-Arbeit (ADR 0014, ledger-h4p6c).
-                    Cmd.batch [
-                        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadAccounts)
-                        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
-                    ]
-                | QuickAdd ->
-                    // Open a fresh form and make sure the category picker has data
-                    // (categories are loaded into SyncFlow at startup; retry in
-                    // case that failed or this is a deep link). Also load the
-                    // recent-booking templates once per visit (ynab-t4n8p).
-                    Cmd.batch [
-                        Cmd.ofMsg OpenQuickAdd
-                        Cmd.ofMsg LoadQuickAddTemplates
-                        Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
-                    ]
-            { model with CurrentPage = page }, extraCmds
+            { model with CurrentPage = page }, pageLoadCmd page
 
     // ============================================
     // Toast

@@ -41,8 +41,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | AccountsLoaded (Ok accounts) ->
         // Die Vorauswahl kommt vom Server (YNAB-Standardkonto, sonst das erste) —
-        // die Seite entscheidet das nicht selbst.
-        let selected = accounts.DefaultAccountId
+        // die Seite entscheidet das nicht selbst. Eine bereits getroffene Auswahl
+        // ueberlebt aber ein Neuladen, solange es das Konto noch gibt: sonst
+        // springt die Seite nach jedem Spiegel-Lauf zurueck auf das Standardkonto,
+        // waehrend Roman ein anderes Konto ansieht.
+        let selected =
+            match model.SelectedAccountId with
+            | Some id when accounts.Accounts |> List.exists (fun a -> a.Id = id) -> Some id
+            | _ -> accounts.DefaultAccountId
         let model' = { model with Accounts = Success accounts; SelectedAccountId = selected }
         match selected with
         | Some _ -> { model' with Entries = Loading }, Cmd.ofMsg LoadEntries, NoOp
@@ -147,8 +153,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | MirrorFinished (Ok summary) ->
+        // Konten neu laden, nicht nur die Buchungen: der erste Lauf auf einem leeren
+        // Kassenbuch legt die Konten ueberhaupt erst an, und ein spaeterer Lauf kann
+        // ein in YNAB neu angelegtes Konto mitbringen. Vorher lud nur `LoadEntries`,
+        // das ohne gewaehltes Konto still nichts tat — die Seite blieb nach dem
+        // Erstlauf leer stehen, obwohl der Lauf 2508 Buchungen geschrieben hatte.
+        // `AccountsLoaded` zieht die Buchungen des gewaehlten Kontos selbst nach.
         { model with MirrorRunning = false },
-        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofMsg LoadMirrorStatus ],
+        Cmd.batch [ Cmd.ofMsg LoadAccounts; Cmd.ofMsg LoadMirrorStatus ],
         ShowToast (mirrorSummaryText summary, ToastSuccess)
 
     | MirrorFinished (Error message) ->

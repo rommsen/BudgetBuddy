@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 21:50 -- Abnahme-Fund und Fix: Kassenbuch-Seite blieb nach dem ersten Spiegel-Lauf leer
+
+**Type:** Work / Bugfix aus der Abnahme
+**Task:** ledger-kt0wq (Human-Gate, Abnahme am echten Budget durch Roman)
+**Fund:** Erster Spiegel-Lauf schrieb 7 Konten und 2508 Buchungen, der Endpunkt lieferte sie korrekt, die Seite zeigte weiter "Noch kein Konto" — auch nach Neuladen.
+**Zwei Ursachen:** (A) App-Huelle: init schrieb CurrentPage schon aus der URL und schickte dann UrlChanged fuer dieselbe Seite; der Gleichheits-Guard traf immer zu, ein Direktaufruf oder F5 lud gar nichts. Betroffen auch Rules. (B) Kassenbuch: MirrorFinished lud nur Buchungen und Lauf-Status; LoadEntries tut ohne gewaehltes Konto still nichts, und auf einem leeren Kassenbuch gibt es beim Seitenaufruf noch keins.
+**Fix:** pageLoadCmd aus UrlChanged herausgezogen und in init direkt aufgerufen; MirrorFinished laedt jetzt die Konten, AccountsLoaded erhaelt eine bestehende Auswahl.
+**Tests:** 5 Regressionstests, zwei davon nachweislich rot mit zurueckgebautem Fix. Der Test zu Ursache A pinnt nur die neue Struktur, weil pageLoadCmd vorher nicht existierte — im Diary offengelegt.
+**Gates:** dotnet build 0 Warnungen, dotnet test 715 bestanden / 0 Fehler, npm run build gruen.
+**Next:** Roman setzt die Abnahme fort (Kategorie-Aenderung, Loeschung, zweiter Lauf ohne Ereignis)
+
+---
+
 ## 2026-09-06 20:16 -- Work session ended
 
 **Type:** Work / Session end

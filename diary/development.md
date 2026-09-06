@@ -4,6 +4,71 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-06 21:50 - Bugfix: Kassenbuch-Seite blieb nach dem ersten Spiegel-Lauf leer
+
+**What I did:**
+Abnahme-Fund aus `ledger-kt0wq` (Human-Gate, Roman am echten Budget). Der erste
+Spiegel-Lauf schrieb 7 Konten, 2508 Buchungen, 2508 Ereignisse und 4341 Fremd-Id-
+Verknuepfungen in die Datenbank, und der Endpunkt `getLedgerAccounts` lieferte sie
+korrekt aus. Die Seite zeigte trotzdem "Noch kein Konto", auch nach Neuladen und
+wiederholtem Spiegeln. Zwei getrennte Ursachen, beide behoben:
+
+**A) Deep-Link und F5 loesten kein einziges Ladekommando aus (App-Huelle).**
+`State.init` schrieb die Seite aus der URL bereits in `CurrentPage` und schickte
+danach `UrlChanged` fuer genau dieselbe Seite. Der Handler beginnt mit einem
+Gleichheits-Guard ("Seite unveraendert -> `Cmd.none`"), der damit immer zutraf. Beim
+Betreten ueber die Navigation lief alles, beim Direktaufruf nichts. Neben dem
+Kassenbuch war `Rules` betroffen; `SyncFlow` und `Settings` fielen nicht auf, weil sie
+ihre Daten zusaetzlich in `init` laden. Das ist exakt das in
+`.claude/rules/elmish-state.md` beschriebene Fehlmuster ("Navigation via Bottom Nav
+funktioniert, Hash-basierte Navigation zeigt leere Seite").
+Fix: der `match` ueber die Seiten ist als `State.pageLoadCmd` herausgezogen; `init`
+ruft ihn direkt auf, `UrlChanged` benutzt denselben. Der Gleichheits-Guard bleibt, wo
+er hingehoert.
+
+**B) Nach einem Spiegel-Lauf wurden die Konten nicht neu geladen (Kassenbuch).**
+`MirrorFinished (Ok)` schickte `LoadEntries` und `LoadMirrorStatus`. `LoadEntries`
+prueft als Erstes, ob ein Konto gewaehlt ist, und tut ohne Auswahl still nichts. Auf
+einem leeren Kassenbuch gibt es beim Seitenaufruf noch keine Konten, also keine
+Auswahl, also passierte nach dem Lauf nichts. Fix: `MirrorFinished (Ok)` laedt jetzt
+`LoadAccounts`; `AccountsLoaded` zieht die Buchungen selbst nach. Damit wird auch ein
+spaeter in YNAB angelegtes Konto sichtbar.
+Damit das nicht die Kontoauswahl ueberschreibt, behaelt `AccountsLoaded` eine bereits
+getroffene Auswahl, solange es das Konto noch gibt, und faellt sonst auf die
+Server-Vorauswahl zurueck.
+
+**Files Modified:**
+- `src/Client/State.fs` - `pageLoadCmd` als eigene Funktion herausgezogen; `init` ruft
+  sie direkt auf statt ueber `UrlChanged`; `UrlChanged` benutzt dieselbe Funktion.
+- `src/Client/Components/Ledger/State.fs` - `MirrorFinished (Ok)` laedt Konten statt
+  nur Buchungen; `AccountsLoaded` erhaelt eine bestehende Kontoauswahl.
+- `src/Tests/LedgerPageTests.fs` - neue Testgruppe "Erster Spiegel-Lauf auf leerem
+  Kassenbuch" (5 Tests) samt `dispatched`-Helfer, der ein `Cmd` ausfuehrt und die
+  abgeschickten Nachrichten einsammelt.
+
+**Rationale:**
+Der Fehler war nur beim allererste Lauf auf einem leeren Kassenbuch sichtbar und ist
+deshalb durch alle Reduzierer-Tests gerutscht: die pruefen den Spiegel-Lauf mit bereits
+gewaehltem Konto. Genau dafuer ist das Human-Gate da.
+
+**Verifikation der Regressionstests:** Mit zurueckgebautem Fix fallen die beiden
+Kassenbuch-Tests mit den richtigen Meldungen ("Sequence did not contain LoadAccounts",
+"expected Some ...001, actual Some ...002"). Der Test zu Ursache A ist ehrlich
+schwaecher: `pageLoadCmd` existierte vor dem Fix nicht, der Test kann den alten Zustand
+also nicht reproduzieren. Er pinnt die neue Struktur (jede datentragende Seite traegt
+Ladekommandos, der Styleguide bewusst keine). Dass `init` diese Funktion auch aufruft,
+ist nicht testabgedeckt: `init` liest die echte URL ueber `Routing.currentPage ()` und
+braucht dafuer einen Browser.
+
+**Outcomes:**
+- Build: OK (0 Warnungen)
+- Tests: 715 bestanden, 6 uebersprungen (`.env`-Integrationstests), 0 Fehler
+- `npm run build`: OK
+- Offen: die Abnahme `ledger-kt0wq` selbst laeuft noch (Kategorie-Aenderung, Loeschung,
+  zweiter Lauf ohne Ereignis).
+
+---
+
 ## 2026-09-06 - Kassenbuch-Seite: Buchungen, Herkunft, Historie, "Jetzt spiegeln" (ledger-q5w9c)
 
 **What I did:**

@@ -461,6 +461,80 @@ let reducerTests =
         }
     ]
 
+// ============================================
+// Regression: der erste Spiegel-Lauf auf einem leeren Kassenbuch
+// ============================================
+//
+// Abnahme-Fund vom 2026-09-06 (ledger-kt0wq, Human-Gate). Der Spiegel schrieb 7 Konten
+// und 2508 Buchungen, die Seite zeigte weiter "Noch kein Konto". Zwei getrennte
+// Ursachen, beide hier festgenagelt:
+//
+//  A) Deep-Link oder F5 auf `#/ledger` loeste kein einziges Ladekommando aus.
+//     `State.init` schrieb die Seite aus der URL schon in `CurrentPage` und schickte
+//     danach `UrlChanged` fuer dieselbe Seite; dessen Gleichheits-Guard traf sofort zu
+//     und lieferte `Cmd.none`. Die Ladekommandos stehen jetzt in `State.pageLoadCmd`,
+//     das `init` direkt aufruft. Betroffen war neben dem Kassenbuch auch `Rules`.
+//  B) Nach einem Lauf lud die Seite nur Buchungen und Lauf-Status nach, nicht die
+//     Konten. Ohne gewaehltes Konto tat `LoadEntries` still nichts, also blieb die
+//     Seite auf dem leeren Stand stehen, obwohl der Lauf gerade die Konten anlegte.
+
+/// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
+/// fuer Kommandos aus `Cmd.ofMsg` / `Cmd.batch` / `Cmd.map` — ein `Cmd.OfAsync` wuerde
+/// hier den Fable-only-Proxy anfassen und unter .NET werfen (ADR 0020).
+let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
+    let collected = ResizeArray<'msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
+
+let private erstlaufTests =
+    testList "Erster Spiegel-Lauf auf leerem Kassenbuch" [
+
+        test "Direktaufruf der Kassenbuch-Seite laedt Konten und Lauf-Status" {
+            // Ursache A: vor dem Fix lief der Direktaufruf ins `Cmd.none` und lud nichts.
+            let msgs = dispatched (State.pageLoadCmd Types.Page.Ledger)
+            Expect.contains msgs (State.LedgerMsg LoadAccounts) "Konten muessen geladen werden"
+            Expect.contains msgs (State.LedgerMsg LoadMirrorStatus) "Lauf-Status muss geladen werden"
+        }
+
+        test "Jede datentragende Seite traegt Ladekommandos" {
+            // Ursache A war strukturell: die Ladekommandos hingen an einem Zweig, den
+            // der Direktaufruf nie erreichte. Sie stehen jetzt in `pageLoadCmd`, und
+            // dieser Test faengt, wenn eine Seite dort ihre Kommandos verliert.
+            // `Styleguide` ist reine Galerie und laedt bewusst nichts.
+            let datentragend =
+                [ Types.Page.SyncFlow; Types.Page.Rules; Types.Page.Settings
+                  Types.Page.Ledger; Types.Page.QuickAdd ]
+            for page in datentragend do
+                let msgs = dispatched (State.pageLoadCmd page)
+                Expect.isNonEmpty msgs $"%A{page} muss beim Betreten etwas laden"
+            Expect.isEmpty (dispatched (State.pageLoadCmd Types.Page.Styleguide))
+                "Der Styleguide laedt bewusst nichts"
+        }
+
+        test "Ein gelungener Spiegel-Lauf laedt die Konten neu, nicht nur die Buchungen" {
+            // Ursache B: vor dem Fix stand hier `LoadEntries`, das ohne gewaehltes Konto
+            // still nichts tat — die gerade angelegten Konten wurden nie sichtbar.
+            let _, cmd, _ = Components.Ledger.State.update (MirrorFinished (Ok summary)) (freshModel ())
+            let msgs = dispatched cmd
+            Expect.contains msgs LoadAccounts "Konten muessen nach dem Lauf neu geladen werden"
+            Expect.contains msgs LoadMirrorStatus "Lauf-Status muss nach dem Lauf neu geladen werden"
+        }
+
+        test "Geladene Konten behalten eine bereits getroffene Auswahl" {
+            // Sonst springt die Seite nach jedem Spiegel-Lauf zurueck auf das Standardkonto,
+            // waehrend Roman ein anderes Konto ansieht.
+            let model = { freshModel () with SelectedAccountId = Some (accountGuid 1) }
+            let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
+            Expect.equal updated.SelectedAccountId (Some (accountGuid 1)) "Die eigene Auswahl ueberlebt"
+        }
+
+        test "Verschwindet das gewaehlte Konto, greift wieder die Vorauswahl" {
+            let model = { freshModel () with SelectedAccountId = Some (accountGuid 9) }
+            let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
+            Expect.equal updated.SelectedAccountId (Some (accountGuid 2)) "Faellt auf das Standardkonto zurueck"
+        }
+    ]
+
 [<Tests>]
 let ledgerPageTests =
-    testList "Kassenbuch-Seite" [ historyLanguageTests; readModelTests; reducerTests ]
+    testList "Kassenbuch-Seite" [ historyLanguageTests; readModelTests; reducerTests; erstlaufTests ]
