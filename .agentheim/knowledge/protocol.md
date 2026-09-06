@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 12:38 -- Batch started: [ledger-fsz0a, ledger-z5vw6, ynab-czk34, ledger-zm0zx]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-fsz0a - Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell), ledger-z5vw6 - Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung), ynab-czk34 - Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract), ledger-zm0zx - Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle)
+**Parallel:** yes (4 workers; ledger-kt0wq blocked on fsz0a/czk34/z5vw6 — dispatched after this batch, scope re-check with Roman first)
+**Planning advisory:** whats-next.md vom 2026-06-20 — stale, ignoriert; Reihenfolge nach Diskussion mit Roman: alle vier Decisions vorab abgestimmt, Entscheidungen in den Task-Notes
+
+---
+
 ## 2026-09-06 11:55 -- Brainstorm: BudgetBuddy als führendes System (YNAB-Ablösung, graduell)
 
 **Type:** Brainstorm

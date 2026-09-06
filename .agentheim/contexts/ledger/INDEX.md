@@ -11,21 +11,21 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 4
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 3
 - **Done:** 0
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
 - **ledger-kt0wq** — Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen — depends_on: [ledger-fsz0a, ynab-czk34, ledger-z5vw6, design-system-001] — `todo/ledger-kt0wq-walking-skeleton.md`
-- **ledger-z5vw6** — Identität einer Buchung über Systeme hinweg festlegen (decision) — depends_on: [] — `todo/ledger-z5vw6-entry-identity.md`
-- **ledger-zm0zx** — Kontenmodell und Bewertung festlegen (decision) — depends_on: [] — `todo/ledger-zm0zx-account-model-valuation.md`
-- **ledger-fsz0a** — Historie-Technik im Kassenbuch festlegen (decision) — depends_on: [] — `todo/ledger-fsz0a-history-mechanism.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-zm0zx** — Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle) (decision) — `doing/ledger-zm0zx-account-model-valuation.md`
+- **ledger-z5vw6** — Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung) (decision) — `doing/ledger-z5vw6-entry-identity.md`
+- **ledger-fsz0a** — Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell) (decision) — `doing/ledger-fsz0a-history-mechanism.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

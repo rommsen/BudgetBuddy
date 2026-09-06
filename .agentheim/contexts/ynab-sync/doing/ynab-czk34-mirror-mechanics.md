@@ -1,7 +1,7 @@
 ---
 id: ynab-czk34
 title: Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract)
-status: todo
+status: doing
 type: decision
 context: ynab-sync
 created: 2026-09-06
@@ -99,3 +99,29 @@ Eingabeort ist. Der bestehende Client nutzt nur `since_date` pro Konto.
   jeder Seitenaufruf zur API-Last.
 - **Webhooks** — nicht verfügbar in YNABs API.
 ```
+
+### Entscheidung mit Roman (2026-09-06, Work-Session)
+
+Der Entwurf gilt mit einer Änderung beim **Auslöser**; Delta über `server_knowledge`,
+Erstbefüllung, `deleted`-Behandlung, Contract und Rate-Limit-Verhalten bleiben.
+
+**Kein Server-Timer.** Romans Anforderung: er arbeitet im Kassenbuch, und es ist aktuell,
+ohne dass er den Spiegel anstoßen muss; ein Hinweis "Spiegel läuft" ist in Ordnung. Das
+erfüllt ein Frische-Kriterium:
+
+1. Beim Öffnen der Kassenbuch-Seite und wenn die App wieder in den Vordergrund kommt (PWA):
+   ist der letzte Spiegel-Lauf älter als **5 Minuten**, startet der Spiegel im Hintergrund.
+   Die Seite zeigt sofort den vorhandenen Stand, dazu "Spiegel läuft", und lädt nach, wenn
+   er fertig ist. Roman wartet nie auf den Spiegel.
+2. Nach jedem Push nach YNAB (Comdirect-Import, Quick Add) läuft der Spiegel ebenfalls,
+   damit die gepushten Buchungen sofort als Beobachtung vorliegen.
+3. "Jetzt spiegeln" bleibt als manueller Fallback.
+4. Ein Server-Timer ist **nicht** Teil der Entscheidung. Er kann als kleine Ergänzung
+   kommen, wenn ein Hintergrundprozess (Bewertungs-Lauf, Reports) ihn braucht. Im ADR unter
+   "Alternatives considered": Timer verworfen, weil er neuer Dauerzustand ist und v1 nichts
+   im Hintergrund liest.
+
+Rate-Limit-Rechnung fürs ADR: ein Lauf = zwei Requests (Transaktionen-Delta auf dem
+Budget-Endpoint, Konten-Delta). Selbst bei ständigem Öffnen alle 5 Minuten bleibt man weit
+unter 200/h. Der Snapshot im Contract trägt Kategorie- und Payee-**Namen** zum Zeitpunkt
+der Beobachtung, nicht nur Ids.

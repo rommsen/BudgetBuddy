@@ -1,7 +1,7 @@
 ---
 id: ledger-z5vw6
 title: Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung)
-status: todo
+status: doing
 type: decision
 context: ledger
 created: 2026-09-06
@@ -96,3 +96,23 @@ liest YNABs Antwort heute nicht auf zurückgegebene Ids aus.
 - **Fuzzy-Match (Betrag/Datum/Payee) im Spiegel** — abgelehnt als Regel, bleibt als
   Werkzeug der Duplikat-Erkennung in `banking-import`.
 ```
+
+### Entscheidung mit Roman (2026-09-06, Work-Session)
+
+Der Entwurf oben gilt mit diesen Ergänzungen:
+
+1. **Eigene Id per `Guid.CreateVersion7()`** (.NET 9, zeitsortierbar, keine Library) statt
+   ULID.
+2. **Fremd-Ids in eigener Verknüpfungstabelle** (Buchungs-Id, System, Wert; Wert eindeutig
+   je System). Systeme: `ynab`, `importid`, `comdirect`.
+3. **Überträge** (fehlte im Entwurf): YNAB führt einen Übertrag als zwei Buchungen auf zwei
+   Konten, verbunden über `transfer_transaction_id`. Im Kassenbuch sind das **zwei
+   Buchungen**; die Verbindung wird als Verknüpfung mitgeführt. Die Sicht "eine Bewegung"
+   ist v2-Arbeit, wenn Überträge BB-geführt werden. Ohne diesen Satz rät der Skeleton beim
+   ersten Übertrag auf dem Comdirect-Konto (Bargeld-Abhebungen).
+4. Bestätigt: der Push liest heute keine Ids aus (`TransactionCreateResult` in
+   `YnabClient.fs` hat nur `CreatedCount`, `DuplicateImportIds`,
+   `RejectedTransferTransactionIds`). Der Folge-Task in `ynab-sync` bleibt Acceptance
+   Criterion. Begründung im ADR am Quick-Add-Beispiel: ohne ImportId (ADR 0004) ist die
+   Push-Antwort die einzige Stelle, an der BBs Entscheidung und YNABs Buchung verbunden
+   werden können; sonst entstehen zwei Buchungen für dieselbe Bar-Ausgabe.

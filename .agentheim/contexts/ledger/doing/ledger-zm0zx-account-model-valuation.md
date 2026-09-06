@@ -1,7 +1,7 @@
 ---
 id: ledger-zm0zx
 title: Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle)
-status: todo
+status: doing
 type: decision
 context: ledger
 created: 2026-09-06
@@ -96,3 +96,42 @@ Vermögen sind kein Konto im Kassenbuch (künftiger Context `wealth`).
 - **Automatische Kursquelle als v1-Pflicht** — abgelehnt: keine Quelle ist ohne Prüfung
   robust; ein Feld pro Monat kostet Roman 30 Sekunden.
 ```
+
+### Entscheidung mit Roman (2026-09-06, Work-Session)
+
+Zwei Entscheidungen, die den Entwurf **deutlich verkleinern**; das ADR wird entsprechend
+umgeschrieben, nicht nur ergänzt:
+
+1. **Bar- und Quick-Add-Konto: eins.** Quick Add ist ein Eingabeweg (Herkunft), kein
+   Konto. In YNAB gibt es das Konto Bargeld; `ynab_quickadd_account_id` (ADR 0004) zeigt
+   darauf. Im Kassenbuch gibt es ein Konto "Bar"; Quick Add ist eine Herkunft an der
+   Buchung. Die Vision-Zeile "heute in YNAB zwei" war ein Irrtum aus dem Brainstorm.
+2. **ETF als manuelles YNAB-Konto, nicht als BB-eigenes Konto in v1.** YNAB kann ein
+   manuelles On-Budget-Konto ohne Bankanbindung führen. Roman legt "Geldmarkt-ETF" mit
+   dem heutigen Wert an und gleicht einmal im Monat auf Stückzahl mal Kurs ab; YNAB
+   erzeugt die Saldo-Anpassung. Das Budget-Loch ist damit ab dem nächsten Monat zu, ohne
+   Code, und YNABs Ready-to-Assign (die Zahl, mit der Roman bis nach v2 budgetiert) ist
+   richtig. Der Entwurf hätte diese Zahl bis nach v2 falsch gelassen (sein eigener
+   "Negative"-Punkt).
+   - Folge: der ETF ist ein **gespiegeltes Konto wie alle anderen**. Das Kontomodell
+     (Art × Verknüpfung) bleibt wie im Entwurf, "BB-eigen" ist modelliert, hat aber in v1
+     keine Instanz.
+   - **Bewertung** wird später eine **BB-geführte Fähigkeit** nach dem Vision-Muster: BB
+     rechnet Stückzahl mal Kurs, schreibt `ValuationRecorded` ins Kassenbuch und pusht die
+     Anpassung nach YNAB. Kursquelle ist erst dann Thema. Das ADR beschreibt diese
+     Fähigkeit als "vorgesehen, nicht v1"; der Folge-Spike "Kursquelle" wird trotzdem im
+     Backlog angelegt (Acceptance Criterion), aber als Voraussetzung dieser späteren
+     Fähigkeit, nicht von v1.
+   - Der Worker prüft und benennt im ADR, wohin YNAB die Saldo-Anpassung eines
+     Budget-Kontos bucht (Erwartung: "Inflow: Ready to Assign"); falls unklar, als "zu
+     verifizieren" markieren, nicht raten.
+3. Das Acceptance Criterion "Kurs-Eingabe von Hand ist der v1-Boden" wird damit zu
+   "Kurs-Eingabe von Hand in YNAB (Abgleich) ist der v1-Boden; BB-seitige Eingabe kommt
+   mit der BB-geführten Bewertung".
+
+**Verifiziert (Conductor, 2026-09-06):** YNAB-Support bestätigt, dass eine
+Reconciliation Balance Adjustment auf einem Budget-Konto den Betrag aus dem Kontostand
+**und aus Ready to Assign** zieht bzw. dorthin gibt. Quellen:
+https://support.ynab.com/en_us/balance-adjustments-a-guide-rko4OwILs und
+https://support.ynab.com/en_us/reconciling-accounts-a-guide-BJFE3fHys. Punkt 2 im ADR
+kann das als gesichert nennen (mit Quelle), nicht als "zu verifizieren".
