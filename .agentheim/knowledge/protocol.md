@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 14:00 -- Batch started: [ledger-e3k7p]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-e3k7p - Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test
+**Parallel:** no (1 worker; ledger-m8r2v, ledger-q5w9c, ledger-kt0wq blocked in chain on e3k7p)
+
+---
+
 ## 2026-09-06 15:05 -- Modeling / Split: ledger-kt0wq - Walking Skeleton in drei Slices aufgeteilt
 
 **Type:** Modeling / Refine

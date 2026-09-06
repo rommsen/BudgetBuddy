@@ -1,7 +1,7 @@
 ---
 id: ledger-e3k7p
 title: Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-06
