@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 18:26 -- Batch started: [ledger-q5w9c]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-q5w9c - Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
+**Parallel:** no (1 worker; ledger-kt0wq ist reine Abnahme auf dem echten Budget und wartet auf q5w9c, keine weiteren ready tasks im Projekt)
+
+---
+
 ## 2026-09-06 18:22 -- Task verified and completed: ledger-m8r2v - Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser
 
 **Type:** Work / Task completion

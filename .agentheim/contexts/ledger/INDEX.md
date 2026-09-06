@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-q5w9c** — Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln" — depends_on: [ledger-m8r2v, design-system-001] — `todo/ledger-q5w9c-ledger-page.md`
 - **ledger-kt0wq** — Walking Skeleton Kassenbuch: Abnahme auf dem echten Budget (Human-Gate) — depends_on: [ledger-e3k7p, ledger-m8r2v, ledger-q5w9c] — `todo/ledger-kt0wq-walking-skeleton.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-q5w9c** — Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln" (feature) — `doing/ledger-q5w9c-ledger-page.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

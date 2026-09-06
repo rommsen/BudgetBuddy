@@ -1,7 +1,7 @@
 ---
 id: ledger-q5w9c
 title: Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-06
