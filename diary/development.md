@@ -4,6 +4,65 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-06 22:20 - Bugfix: Erstbefuellung des Spiegels holte nur zwoelf Monate
+
+**What I did:**
+Zweiter Abnahme-Fund aus `ledger-kt0wq`. Nach dem Anzeige-Fix zeigte die Seite die
+Konten, aber drei von sieben Kontostaenden waren falsch: Girokonto -238,42 statt
+5.033,12; Tagesgeld Consors -31.834,02 statt 0,00; Bar 58,61 statt 73,72. Tagesgeld ING,
+ING Girokonto, Depot und Kreditkarte stimmten exakt.
+
+**Diagnose (Reihenfolge, weil der Verdacht zweimal falsch lag):**
+1. Salden aus der DB nachgerechnet — identisch mit dem, was die Seite zeigt. Also kein
+   Anzeige- oder Summierungsfehler.
+2. `getLedgerAccounts` und `loadAccounts` gelesen, dann den Endpunkt direkt aufgerufen:
+   liefert korrekt. Also kein Lesepfad-Fehler.
+3. Der Spiegel-Lauf verwirft nichts, der Decoder auch nicht (`Decode.list`, kein
+   `choose`). Also kamen genau 2508 Buchungen von YNAB.
+4. YNAB direkt abgefragt: `GET /budgets/{id}/transactions` **ohne** `since_date` liefert
+   2508 Buchungen ab 2025-09-08. **Mit** `since_date=2000-01-01` liefert derselbe
+   Endpunkt 13863 Buchungen ab 2018-12-29 — und dann stimmen alle sieben Kontostaende
+   auf den Cent mit YNABs Anzeige ueberein.
+
+**Ursache:** der budgetweite Transaktions-Endpunkt liefert ohne `since_date` nicht alles,
+sondern ein rollendes Fenster der letzten rund zwoelf Monate. Die Anfangssalden der
+aelteren Konten liegen ausserhalb; deshalb waren genau die Konten falsch, deren
+Startsaldo nicht 0 war. Die beiden ING-Konten stimmten, weil ihr Startsaldo 0 ist und
+ihr gesamtes Geld ueber Uebertraege innerhalb des Fensters kam.
+
+ADR 0014 fordert fuer die Erstbefuellung ausdruecklich einen **Vollabruf**. Die
+Umsetzung las "ohne last_knowledge" als "Vollabruf", was gegenueber der YNAB-API nicht
+stimmt. Der ADR-Text bleibt richtig, die Implementierung war es nicht.
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - `transactionsQuery` ersetzt `knowledgeQuery` fuer den
+  Transaktions-Abruf: ohne gemerkte Marke `?since_date=1900-01-01` (Vollabruf), mit
+  Marke weiterhin das Delta. `mirrorEarliestDate` traegt die Messwerte als Begruendung.
+  Fuer den Konten-Abruf bleibt `knowledgeQuery`; Konten sind nicht zeitgefiltert.
+- `src/Tests/YnabClientTests.fs` - Testgruppe "Spiegel: Erstbefuellung holt alles"
+  (3 Tests) auf dem Query-Bau, ohne YNAB-Aufruf.
+
+**Rationale:**
+Der Fehler war ohne echtes Budget unsichtbar: jeder Testdatensatz liegt innerhalb der
+letzten zwoelf Monate. Nur die Abnahme am realen Budget mit sechs Jahren Historie konnte
+ihn zeigen. Genau dafuer ist das Human-Gate da.
+
+**Verifikation der Regressionstests:** Mit zurueckgebautem Fix (`| None -> ""`) fallen
+zwei der drei Tests mit der richtigen Meldung ("Expected subject string '' to contain
+substring 'since_date='").
+
+**Outcomes:**
+- Build: OK (0 Warnungen)
+- Tests: 718 bestanden, 6 uebersprungen, 0 Fehler
+- `npm run build`: OK
+- **Offen und wichtig:** die Dev-Datenbank traegt noch die unvollstaendige Befuellung
+  (2508 statt 13863 Buchungen) und ein `ledger_mirror_server_knowledge_*`, das den
+  naechsten Lauf zum Delta macht. Ein Delta holt die fehlende Historie **nicht** nach.
+  Vor der weiteren Abnahme muessen die vier `ledger_*`-Tabellen und die
+  `server_knowledge`-Zeile geleert und einmal neu gespiegelt werden.
+
+---
+
 ## 2026-09-06 21:50 - Bugfix: Kassenbuch-Seite blieb nach dem ersten Spiegel-Lauf leer
 
 **What I did:**

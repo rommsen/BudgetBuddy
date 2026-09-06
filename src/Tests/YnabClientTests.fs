@@ -1216,3 +1216,43 @@ let ynabResponseParsingTests =
             | Error err ->
                 failtest $"Failed to parse YNAB response: {err}"
     ]
+
+// ============================================
+// Regression: Erstbefuellung des Spiegels muss wirklich alles holen
+// ============================================
+//
+// Abnahme-Fund vom 2026-09-06 (ledger-kt0wq, Human-Gate). Der erste Spiegel-Lauf holte
+// 2508 Buchungen ab 2025-09-08; drei von sieben Kontostaenden standen im Kassenbuch
+// falsch (Girokonto -238,42 statt 5.033,12; Tagesgeld Consors -31.834,02 statt 0,00;
+// Bar 58,61 statt 73,72). Ursache: `GET /budgets/{id}/transactions` liefert **ohne**
+// `since_date` nicht alles, sondern nur ein rollendes Fenster der letzten rund zwoelf
+// Monate. Am selben Budget gemessen: ohne Parameter 2508 Buchungen, mit
+// `since_date=2000-01-01` 13863 Buchungen ab 2018-12-29 — und dann stimmen alle sieben
+// Kontostaende. Die Anfangssalden der aelteren Konten lagen ausserhalb des Fensters.
+//
+// ADR 0014 fordert fuer die Erstbefuellung einen Vollabruf; "ohne last_knowledge" allein
+// ist keiner.
+
+[<Tests>]
+let mirrorInitialFetchTests =
+    testList "Spiegel: Erstbefuellung holt alles" [
+
+        testCase "Ohne gemerkte Marke wird ein since_date mitgeschickt" <| fun () ->
+            let query = Server.YnabClient.transactionsQuery None
+            Expect.stringContains query "since_date=" "Die Erstbefuellung braucht ein since_date, sonst liefert YNAB nur zwoelf Monate"
+            Expect.isFalse (query.Contains "last_knowledge_of_server")
+                "Ohne Marke gibt es kein Delta zu holen"
+
+        testCase "Das since_date der Erstbefuellung liegt vor jedem denkbaren Budget" <| fun () ->
+            let query = Server.YnabClient.transactionsQuery None
+            let datePart = query.Substring(query.IndexOf "since_date=" + "since_date=".Length)
+            let parsed = System.DateTime.Parse(datePart, System.Globalization.CultureInfo.InvariantCulture)
+            Expect.isLessThan parsed (System.DateTime(2000, 1, 1))
+                "Muss vor dem aeltesten realistischen Buchungsdatum liegen"
+
+        testCase "Mit gemerkter Marke wird das Delta geholt, ohne since_date" <| fun () ->
+            let query = Server.YnabClient.transactionsQuery (Some 4711L)
+            Expect.stringContains query "last_knowledge_of_server=4711" "Die Marke muss mit"
+            Expect.isFalse (query.Contains "since_date")
+                "Das Delta braucht kein Datumsfenster — es wuerde die Marke nur verwaessern"
+    ]

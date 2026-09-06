@@ -836,6 +836,31 @@ let private knowledgeQuery (lastKnowledge: int64 option) =
     | Some k -> $"?last_knowledge_of_server={k}"
     | None -> ""
 
+/// Der frueheste Tag, ab dem die Erstbefuellung Buchungen holt.
+///
+/// **Warum das noetig ist:** `GET /budgets/{id}/transactions` **ohne** `since_date`
+/// liefert nicht alle Buchungen, sondern nur ein rollendes Fenster der letzten rund
+/// zwoelf Monate. Gemessen am 2026-09-06 auf Romans Budget: ohne Parameter 2508
+/// Buchungen ab 2025-09-08, mit `since_date=2000-01-01` 13863 Buchungen ab 2018-12-29.
+/// Erst mit dem vollen Abruf stimmen die Kontostaende mit YNAB ueberein — ohne ihn
+/// fehlen die alten Buchungen samt Anfangssalden, und drei von sieben Konten standen
+/// im Kassenbuch falsch (Abnahme-Fund `ledger-kt0wq`, 2026-09-06).
+///
+/// ADR 0014 fordert fuer die Erstbefuellung ausdruecklich einen **Vollabruf**; dieser
+/// Parameter ist die Umsetzung davon. Ein Datum statt `since_date=0001-01-01`, weil
+/// YNAB ein gueltiges ISO-Datum erwartet; 1900 liegt vor jedem denkbaren Budget.
+[<Literal>]
+let private mirrorEarliestDate = "1900-01-01"
+
+/// Die Abfrage-Parameter des Transaktions-Abrufs im Spiegel: entweder das Delta seit
+/// der gemerkten Marke, oder — beim allerersten Lauf — der Vollabruf ab
+/// `mirrorEarliestDate`. Oeffentlich, damit der Regressionstest den fehlenden
+/// `since_date` der Erstbefuellung festnageln kann, ohne YNAB anzurufen.
+let transactionsQuery (lastKnowledge: int64 option) =
+    match lastKnowledge with
+    | Some k -> $"?last_knowledge_of_server={k}"
+    | None -> $"?since_date={mirrorEarliestDate}"
+
 let private sendDelta (token: string) (url: string) (decoder: Decoder<'T>) (what: string) : Async<YnabResult<'T>> =
     async {
         try
@@ -865,8 +890,9 @@ let private sendDelta (token: string) (url: string) (decoder: Decoder<'T>) (what
     }
 
 /// Budgetweiter Transaktions-Abruf fuer den Spiegel: **ein** Request fuer alle Konten
-/// (ADR 0014). Ohne `lastKnowledge` ist es die Erstbefuellung (Vollabruf aller
-/// Buchungen aller offenen und geschlossenen Konten), mit `lastKnowledge` das Delta,
+/// (ADR 0014). Ohne `lastKnowledge` ist es die Erstbefuellung — die `since_date` mit
+/// `mirrorEarliestDate` setzen **muss**, weil YNAB sonst nur die letzten zwoelf Monate
+/// liefert (siehe dort) — mit `lastKnowledge` das Delta,
 /// das auch geloeschte Buchungen als `deleted: true` liefert. Die Antwort traegt das
 /// `server_knowledge` des Laufs.
 let getTransactionsDelta
@@ -876,7 +902,7 @@ let getTransactionsDelta
     : Async<YnabResult<Server.YnabObservations.YnabObservationBatch>> =
     sendDelta
         token
-        $"{baseUrl}/budgets/{budgetId}/transactions{knowledgeQuery lastKnowledge}"
+        $"{baseUrl}/budgets/{budgetId}/transactions{transactionsQuery lastKnowledge}"
         Server.YnabObservations.Decoders.observationBatchDecoder
         "transactions delta"
 

@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 22:01 -- Abnahme-Fund und Fix: Erstbefuellung des Spiegels holte nur zwoelf Monate
+
+**Type:** Work / Bugfix aus der Abnahme
+**Task:** ledger-kt0wq (Human-Gate)
+**Fund:** Drei von sieben Kontostaenden falsch (Girokonto -238,42 statt 5.033,12; Consors -31.834,02 statt 0,00; Bar 58,61 statt 73,72). DB, Lesepfad und Spiegel-Lauf waren korrekt — BB gab exakt wieder, was YNABs Endpunkt lieferte.
+**Ursache:** GET /budgets/{id}/transactions liefert ohne since_date nur ein rollendes Fenster von rund zwoelf Monaten (2508 Buchungen ab 2025-09-08). Mit since_date=2000-01-01 liefert derselbe Endpunkt 13863 Buchungen ab 2018-12-29, und alle sieben Kontostaende stimmen. Die Anfangssalden der aelteren Konten lagen ausserhalb des Fensters; die beiden korrekten Konten hatten Startsaldo 0.
+**ADR-Bezug:** ADR 0014 fordert fuer die Erstbefuellung einen Vollabruf — der ADR-Text bleibt richtig, die Implementierung las "ohne last_knowledge" als "Vollabruf".
+**Fix:** transactionsQuery schickt ohne gemerkte Marke since_date=1900-01-01, mit Marke weiterhin das Delta. Konten-Abruf unveraendert.
+**Tests:** 3 Regressionstests auf dem Query-Bau, zwei nachweislich rot mit zurueckgebautem Fix.
+**Gates:** build 0 Warnungen, 718 Tests gruen, npm run build gruen.
+**Offen:** die Dev-DB traegt die unvollstaendige Befuellung und ein server_knowledge; ein Delta holt die Historie nicht nach. Vor der weiteren Abnahme sind die vier ledger_-Tabellen und die server_knowledge-Zeile zu leeren und einmal neu zu spiegeln.
+
+---
+
 ## 2026-09-06 21:50 -- Abnahme-Fund und Fix: Kassenbuch-Seite blieb nach dem ersten Spiegel-Lauf leer
 
 **Type:** Work / Bugfix aus der Abnahme
