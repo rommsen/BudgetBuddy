@@ -128,14 +128,17 @@ unverändert; verbindliche Definitionen in den BC-READMEs. Neu mit dieser Revisi
 - **Gesamtsicht** — alle Konten zusammen, Buchungen und Stände (YNABs "All Accounts").
 
 ## Open questions
-- **Wie wird die Historie technisch gehalten?** (Event Sourcing wurde vorgeschlagen, der
-  Wunsch dahinter ist die auditierbare Historie.) → Architekt, Decision-Task in `ledger`.
-- **Wie läuft der Spiegel?** Delta-Sync über die YNAB-API, wie oft, wie werden Abweichungen
-  erkannt und dargestellt? → Architekt, Decision-Task.
-- **Kursquelle für den Geldmarkt-ETF** (öffentliche Kursquelle mal Stückzahl reicht;
-  Stückzahl wird vorerst von Hand eingetragen). Welche Quelle, wie robust muss sie sein?
-- **Bar-Konto und Quick-Add-Konto:** ein Konto im Kassenbuch oder zwei? (Heute in YNAB
-  zwei.)
+- **Wie wird die Historie technisch gehalten?** Gelöst (ADR 0013, 2026-09-06): append-only
+  Log semantischer Delta-Ereignisse nach souls-Muster, persistiert, Zustandsmodell synchron
+  in derselben Transaktion. SQLite bleibt.
+- **Wie läuft der Spiegel?** Gelöst (ADR 0014): Delta-Sync über `server_knowledge`, ausgelöst
+  über ein Frische-Kriterium (Seitenaufruf oder Vordergrund, älter als 5 Minuten) und nach
+  jedem Push, kein Server-Timer. Abweichungs-Erkennung liegt im `ledger` (ADR 0013).
+- **Kursquelle für den Geldmarkt-ETF:** vertagt (ADR 0016). In v1 läuft der ETF als manuelles
+  YNAB-Konto mit monatlichem Abgleich; die Bewertung in BB kommt später als BB-geführte
+  Fähigkeit, die Kursquelle als Research-Spike `ledger-c7j8e`.
+- **Bar-Konto und Quick-Add-Konto:** Gelöst (ADR 0016): ein Konto "Bar". Quick Add ist ein
+  Eingabeweg (Herkunft), kein Konto. Die frühere Annahme "heute in YNAB zwei" war falsch.
 - **Zugriff der Frau** auf das Kassenbuch: nur über die bestehende App (gemeinsames Konto),
   keine eigene Identität. Bleibt so, bis es stört.
 - **Wann ist v2 "bewährt"?** Abbruchkriterien aus `docs/idea-ynab-replacement.md`
