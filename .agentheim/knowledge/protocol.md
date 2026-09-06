@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 20:16 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** ~3h15m (Recovery-Start 17:12 bis 20:20, inkl. eines Rate-Limit-Abbruchs von ~18:44 bis 18:50)
+**Completed:** 3 (first-try PASS: 1, re-dispatched: 2, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Dispatches:** ledger-e3k7p: 1, ledger-m8r2v: 2, ledger-q5w9c: 4 (davon einer vom Rate-Limit abgebrochen und wieder aufgenommen)
+**Commits:** 6 (2 Batch-Start, 3 Task-Integration, 1 Session-End)
+**Vision-conformance:** none — batch aligns with vision. Alle drei Slices dienen v1 "Alles unter einem Dach"; ledger-q5w9c adressiert ausdrücklich das genannte Scheiterkriterium "wenn das Kassenbuch gebaut ist, aber niemand hineinschaut", ledger-m8r2v das Kriterium "wenn der Spiegel unzuverlässig ist" (Idempotenz, sichtbarer Lauf-Status). Kein Non-Goal berührt.
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (3 tasks)
+**Carry-over:** none — working tree clean, keine Worktrees außer main
+**Branch:** diese Session wurde auf Romans Wunsch mitten im Lauf von main auf feature/kassenbuch umgezogen; main steht wieder auf 7679b35 (identisch mit deploy/main), alle 18 Commits des Tages liegen auf feature/kassenbuch
+**Offen für Roman:** (1) ledger-kt0wq ist das Human-Gate, Abnahme gegen YNAB-Web, kein Worker-Task. (2) ynab-r9k4t liegt in ynab-sync/backlog/, ist aber NICHT im INDEX registriert: das Lifecycle-Werkzeug leitet den Context aus dem Id-Präfix ab (ynab → contexts/ynab), die BC heißt aber ynab-sync; capture verweigert mit context-mismatch. Betrifft alle ynab-* Tasks. (3) Konzept-Kandidat "Spiegel-Lauf" (ADR-0014, ledger-m8r2v, ledger-q5w9c) — keine Seite angelegt, Entscheidung liegt bei Roman.
+
+---
+
 ## 2026-09-06 20:15 -- Task verified and completed: ledger-q5w9c - Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
 
 **Type:** Work / Task completion
