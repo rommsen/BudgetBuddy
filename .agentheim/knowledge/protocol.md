@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 15:05 -- Modeling / Split: ledger-kt0wq - Walking Skeleton in drei Slices aufgeteilt
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo (alle vier)
+**Summary:** Nach den vier Foundation-ADRs (0013 bis 0016) war der Skeleton der einzige freie Task und zu groß für einen Worker-Durchlauf mit sauberer Verifikation. Aufgeteilt in ledger-e3k7p (Ereignis-Log, Zustandsmodell, appendAndApply, Replay), ledger-m8r2v (Spiegel-Lauf: Delta über server_knowledge, Snapshot-Vergleich zu semantischen Ereignissen, manueller Endpunkt) und ledger-q5w9c (Kassenbuch-Seite). ledger-kt0wq bleibt als Abnahme auf dem echten Budget (Human-Gate) und hängt an den drei Slices. Scope-Änderungen gegenüber dem Original: Spiegel budgetweit, Seite zeigt ein Konto, kein BB-eigenes Konto, Auslöser manuell.
+**Split into:** ledger-e3k7p, ledger-m8r2v, ledger-q5w9c
+**ADRs written:** —
+
+---
+
 ## 2026-09-06 12:48 -- Task verified and completed: ledger-zm0zx - Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle)
 
 **Type:** Work / Task completion

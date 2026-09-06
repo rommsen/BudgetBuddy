@@ -5,10 +5,10 @@ status: todo
 type: spike
 context: ledger
 created: 2026-09-06
-depends_on: [ledger-fsz0a, ynab-czk34, ledger-z5vw6, design-system-001]
+depends_on: [ledger-e3k7p, ledger-m8r2v, ledger-q5w9c]
 blocks: []
 tags: [foundation, frontend, backend]
-related_adrs: [0012]
+related_adrs: [0012, 0013, 0014, 0015, 0016]
 related_research: []
 prior_art: []
 ---
@@ -58,3 +58,17 @@ Timer ist Folge-Task.
 Bestehende `sync_transactions` (pro SyncSession) bleiben unberührt; die Verschmelzung von
 Sync-Pipeline und Kassenbuch (Import-Buchungen mit Herkunft Comdirect/Regel ins Kassenbuch)
 ist der nächste Slice nach dem Skeleton.
+
+## Aufteilung (2026-09-06, Work-Session mit Roman)
+Der Skeleton ist in drei Slices aufgeteilt, die nacheinander laufen:
+1. `ledger-e3k7p` Ereignis-Log, Zustandsmodell, `appendAndApply`, Replay-Test
+2. `ledger-m8r2v` Spiegel-Lauf (Delta, Snapshot-Vergleich, Ereignisse, manueller Endpunkt)
+3. `ledger-q5w9c` Kassenbuch-Seite (Buchungen, Herkunfts-Badge, Historie, "Jetzt spiegeln")
+
+Dieser Task bleibt als **Abnahme auf dem echten Budget** stehen (Human-Gate): die
+Acceptance Criteria oben werden von Roman gegen YNAB-Web geprüft (Anzahl und Kontostand,
+Kategorie-Änderung, Löschung, zweiter Lauf ohne Ereignis). Kein eigener Code-Slice; falls
+die Abnahme etwas findet, wird das als Bugfix-Task erfasst. Änderungen gegenüber dem
+ursprünglichen Scope: Spiegel ist budgetweit (ADR 0014), die Seite zeigt ein Konto; ETF
+ist kein BB-eigenes Konto (ADR 0016); Spiegel-Auslöser bleibt manuell, das Frische-
+Kriterium ist Folge-Task.
