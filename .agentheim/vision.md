@@ -32,8 +32,9 @@ Single-User-Modell mit gemeinsamem Konto. Kein Multi-Tenant, keine Rollen, kein 
 1. **Nicht alles unter einem Dach.** YNAB kennt Comdirect, Bar und die ING-Konten, aber
    weder die Depots (ING, Consors) noch das Geld, das seit dem Umstieg von Tagesgeld auf
    einen Geldmarkt-ETF im ING-Depot liegt. Dieses Geld ist **Budget-Geld** (es gehört zu
-   Kategorien), YNAB kann es aber nicht als Budget-Konto führen. Heute passiert damit gar
-   nichts: das Budget ist um diesen Posten falsch und driftet weiter.
+   Kategorien). YNAB kann es als manuelles Budget-Konto führen, den Wert aber nicht selbst
+   ermitteln. Bis zur Revision 2026-09-06 passierte damit gar nichts: das Budget war um
+   diesen Posten falsch und driftete weiter.
 2. **Keine Ownership über die eigenen Daten.** Jede Buchung, jede Korrektur, jede
    Historie lebt nur in YNAB. BudgetBuddy hält nichts fest. YNAB wird an fünf Stellen an
    BB vorbei beschrieben (ING-Import, Transfer-Erkennung, Split-Korrekturen, nachträgliche
@@ -52,11 +53,14 @@ Zwei Stufen, in dieser Reihenfolge. Die zweite ist das Gate für alles Weitere.
 
 **v1 · Alles unter einem Dach.**
 - BB zeigt alle Konten mit richtigem Stand: Comdirect, Bar, ING-Konten, und den
-  Geldmarkt-ETF als Budget-Konto (Bewertung: Stückzahl mal Kurs, monatlich aktuell reicht).
+  Geldmarkt-ETF als Budget-Konto. In v1 führt YNAB den ETF als manuelles Konto, das Roman
+  monatlich auf Stückzahl mal Kurs abgleicht; BB spiegelt es wie jedes andere Konto. Die
+  Bewertung in BB (BB rechnet, YNAB wird nachgezogen) kommt später als BB-geführte
+  Fähigkeit (ADR 0016).
 - Buchungen pro Konto und über alle Konten, wie YNABs "All Accounts".
 - Das Kassenbuch ist vollständig, weil es YNABs Zustand laufend nachführt (Spiegel), und
   merkt sich zusätzlich, was BB selbst entschieden hat.
-- Das Budget-Loch durch den ETF ist geschlossen, auch wenn YNAB es weiterhin nicht kennt.
+- Das Budget-Loch durch den ETF ist geschlossen, in v1 über das manuelle YNAB-Konto.
 
 **v2 · Ownership.** ("Das war es wert.")
 - Roman öffnet YNAB nicht mehr zum Nachbearbeiten: Kategorie ändern, Split ändern, Übertrag
