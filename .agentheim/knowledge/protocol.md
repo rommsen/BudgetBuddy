@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 12:47 -- Task verified and completed: ynab-czk34 - Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract)
+
+**Type:** Work / Task completion
+**Task:** ynab-czk34 - Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract)
+**Summary:** Spiegel YNAB → Kassenbuch per Delta-Sync mit server_knowledge, ausgelöst über Frische-Kriterium (5 Minuten bei Seitenaufruf/Vordergrund, nach jedem Push, manueller Fallback) statt Server-Timer; Contract an ledger als reine Daten
+**Duration:** ~5m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 0
+**ADRs written:** 0014
+
+---
+
 ## 2026-09-06 12:46 -- Task verified and completed: ledger-fsz0a - Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell)
 
 **Type:** Work / Task completion

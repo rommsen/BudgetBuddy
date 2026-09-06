@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 9
+- **Doing:** 0
+- **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ynab-czk34** — Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract) (decision) — `doing/ynab-czk34-mirror-mechanics.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-czk34** — Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract) (decision) — `done/ynab-czk34-mirror-mechanics.md`
 - **ynab-t4n8p · Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)** — 2026-06-27 — `done/ynab-t4n8p-quick-add-recent-templates.md`
 - **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — 2026-06-27 — `done/ynab-q7k3m-quick-add-in-bottom-nav.md`
 - **ynab-004 · Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen** — 2026-06-16 — `done/ynab-004-split-row-label.md` (ae7d448)
@@ -45,6 +45,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0014** — Spiegel YNAB → Kassenbuch per Delta-Sync mit server_knowledge, Freshness-Trigger statt Server-Timer — 2026-09-06 — `knowledge/decisions/0014-spiegel-mechanik-delta-sync-freshness-trigger.md`
 - **0006** — Transfer-Zeile im Split — DU-Split-Ziel als Konto, Payee erst beim Push aufgelöst — 2026-06-13 — `../../knowledge/decisions/0006-transfer-line-in-split-du-account-payee-at-push.md`
 - **0004** — Manuelle Einträge ohne ImportId, auf eigenes Quick-Add-Konto — 2026-06-12 — `../../knowledge/decisions/0004-manual-entries-no-importid-own-account.md`
 <!-- adr-local:end -->

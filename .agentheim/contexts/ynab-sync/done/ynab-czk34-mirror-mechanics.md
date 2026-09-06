@@ -1,14 +1,15 @@
 ---
 id: ynab-czk34
 title: Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract)
-status: doing
+status: done
+completed: 2026-09-06
 type: decision
 context: ynab-sync
 created: 2026-09-06
 depends_on: []
 blocks: [ledger-kt0wq]
 tags: [foundation, integration]
-related_adrs: [0012]
+related_adrs: [0012, 0014]
 related_research: []
 prior_art: []
 ---
@@ -125,3 +126,15 @@ Rate-Limit-Rechnung fürs ADR: ein Lauf = zwei Requests (Transaktionen-Delta auf
 Budget-Endpoint, Konten-Delta). Selbst bei ständigem Öffnen alle 5 Minuten bleibt man weit
 unter 200/h. Der Snapshot im Contract trägt Kategorie- und Payee-**Namen** zum Zeitpunkt
 der Beobachtung, nicht nur Ids.
+
+## Outcome
+ADR 0014 (`.agentheim/knowledge/decisions/0014-spiegel-mechanik-delta-sync-freshness-trigger.md`)
+committet: Delta-Sync über `server_knowledge` (ein Request Transaktionen budgetweit, ein
+Request Accounts-Delta pro Lauf), Erstbefüllung als Vollabruf, `deleted: true` als
+Beobachtung "in YNAB gelöscht" ohne physisches Löschen im Kassenbuch. Auslöser ist ein
+Frische-Kriterium statt Server-Timer: Spiegel läuft im Hintergrund bei Seitenaufruf/
+PWA-Vordergrund wenn letzter Lauf älter als 5 Minuten, zusätzlich nach jedem Push nach YNAB,
+plus manueller "Jetzt spiegeln"-Fallback; Server-Timer als Alternative verworfen. Contract an
+`ledger` ist rein datentragend (Snapshot inkl. Kategorie-/Payee-Namen, Splits, Transfer-Konto,
+`transfer_transaction_id`, `deleted`-Flag, `server_knowledge`); die Übersetzung in semantische
+Delta-Events entscheidet ADR 0013. README-Open-Question "Spiegel-Mechanik" als gelöst markiert.

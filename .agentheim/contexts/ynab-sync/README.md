@@ -97,8 +97,10 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Open questions
-- **Spiegel-Mechanik** (neu, ADR 0012): Delta-Sync über YNABs `server_knowledge`, Intervall,
-  gelöschte Buchungen, Rate-Limit. → Decision-Task des Architekten.
+- **Spiegel-Mechanik** — *gelöst (ADR 0014, ynab-czk34):* Delta-Sync über
+  `server_knowledge` (Budget-Endpoint für Transaktionen plus Accounts-Delta), ausgelöst über
+  ein Frische-Kriterium (Seitenaufruf/Vordergrund, wenn letzter Lauf älter als 5 Minuten,
+  plus nach jedem Push) statt Server-Timer.
 - **Transfer-Payee Modell** — *gelöst (ADR 0006, ynab-001):* Transfer-Zeile speichert das
   Ziel-Konto, `payee_id` erst beim Push aufgelöst.
 - **Split UI** — *gelöst (ynab-002):* Push-Fundament (ynab-001) + Review-UI stehen. Das
