@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 12:46 -- Task verified and completed: ledger-fsz0a - Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell)
+
+**Type:** Work / Task completion
+**Task:** ledger-fsz0a - Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell)
+**Summary:** Kassenbuch-Historie als append-only Ereignis-Log (semantische Delta-Ereignisse nach souls-Muster, persistiert) mit synchron geführtem Zustandsmodell in einer Transaktion; Postgres als verworfene Alternative
+**Duration:** ~6m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 0
+**ADRs written:** 0013
+
+---
+
 ## 2026-09-06 12:38 -- Batch started: [ledger-fsz0a, ledger-z5vw6, ynab-czk34, ledger-zm0zx]
 
 **Type:** Work / Batch start

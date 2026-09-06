@@ -1,14 +1,15 @@
 ---
 id: ledger-fsz0a
 title: Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell)
-status: doing
+status: done
+completed: 2026-09-06
 type: decision
 context: ledger
 created: 2026-09-06
 depends_on: []
 blocks: [ledger-kt0wq]
 tags: [foundation, persistence]
-related_adrs: [0012, 0008]
+related_adrs: [0012, 0008, 0013]
 related_research: []
 prior_art: []
 ---
@@ -152,3 +153,16 @@ Punkten geschrieben, nicht aus dem Entwurf allein:
 
 Was unverändert aus dem Entwurf bleibt: kein Bus, keine asynchronen Projektionen, keine
 Snapshots, kein Event-Store-Framework.
+
+## Outcome
+ADR 0013 committet: `.agentheim/knowledge/decisions/0013-append-only-event-log-with-synchronous-state.md`.
+Die Historie ist ein append-only Event-Log pro Buchung (Quelle der Wahrheit), das
+Zustandsmodell wird synchron in derselben SQLite-Transaktion mitgeschrieben
+(`appendAndApply`, konform zu ADR 0008). Events folgen dem souls-Namensmuster
+(Commands imperativ, Events Vergangenheitsform), werden aber abweichend von souls
+persistiert, da die Historie hier der Zweck des Contexts ist. Zwei Ereignisfamilien
+(Entscheidungen / Beobachtungen) plus Actor-Feld pro Event, ein reiner `apply`-Replay
+als Pflichttest, Versionierung über Typname + Schema-Version, keine SQLite-Spezialitäten
+im Log. Postgres/Supabase explizit als verworfene Alternative mit Re-Evaluierungs-
+Triggern dokumentiert. `ledger/README.md` Open Question "Historie-Technik" als gelöst
+markiert.

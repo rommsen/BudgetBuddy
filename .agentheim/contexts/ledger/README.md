@@ -95,9 +95,9 @@ Historie-Technik in der Decision-Task des Architekten.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Open questions
-- **Historie-Technik:** Event Sourcing (vorgeschlagen) oder Append-only-Änderungslog auf
-  einem Zustandsmodell? Der Wunsch ist die auditierbare Historie, nicht die Technik.
-  → Decision-Task (Architekt).
+- **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro
+  Buchung als Quelle der Wahrheit, Zustandsmodell synchron in derselben Transaktion
+  mitgeschrieben, reiner `apply`-Replay als Pflichttest. SQLite bleibt, kein Postgres.
 - **Spiegel-Mechanik:** Delta-Sync über YNABs `server_knowledge`, Intervall, Umgang mit
   gelöschten Buchungen, Rate-Limit (~200 req/h). → Decision-Task (Architekt, in `ynab-sync`).
 - **Kursquelle** für den Geldmarkt-ETF: welche, wie robust, was bei Ausfall?

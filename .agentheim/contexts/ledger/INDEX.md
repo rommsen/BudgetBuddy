@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 1
-- **Doing:** 3
-- **Done:** 0
+- **Doing:** 2
+- **Done:** 1
 <!-- task-counts:end -->
 
 ### Todo
@@ -25,11 +25,11 @@ research touching this BC, and concept synthesis pages.
 <!-- doing-list:start -->
 - **ledger-zm0zx** — Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle) (decision) — `doing/ledger-zm0zx-account-model-valuation.md`
 - **ledger-z5vw6** — Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung) (decision) — `doing/ledger-z5vw6-entry-identity.md`
-- **ledger-fsz0a** — Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell) (decision) — `doing/ledger-fsz0a-history-mechanism.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-fsz0a** — Historie-Technik im Kassenbuch festlegen (Ereignis-Log + synchrones Zustandsmodell) (decision) — `done/ledger-fsz0a-history-mechanism.md`
 <!-- done-list:end -->
 
 ### Backlog
@@ -39,6 +39,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0013** — Kassenbuch-Historie als append-only Ereignis-Log mit synchron geführtem Zustandsmodell — 2026-09-06 — `knowledge/decisions/0013-append-only-event-log-with-synchronous-state.md`
 <!-- adr-local:end -->
 
 ## Research touching this BC
