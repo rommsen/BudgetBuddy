@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 12:47 -- Task verified and completed: ledger-z5vw6 - Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung)
+
+**Type:** Work / Task completion
+**Task:** ledger-z5vw6 - Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung)
+**Summary:** Buchungs-Identität: eigene Id (Guid v7), Fremd-Ids als Verknüpfungstabelle, Spiegel matcht YNAB-Id vor ImportId, Überträge als zwei verbundene Buchungen; Folge-Task ynab-b7q2m (Push liest YNAB-Ids aus der Antwort)
+**Duration:** ~7m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 0
+**ADRs written:** 0015
+
+---
+
 ## 2026-09-06 12:47 -- Task verified and completed: ynab-czk34 - Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract)
 
 **Type:** Work / Task completion

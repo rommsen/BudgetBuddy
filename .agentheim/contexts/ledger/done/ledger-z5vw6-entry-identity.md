@@ -1,14 +1,15 @@
 ---
 id: ledger-z5vw6
 title: Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung)
-status: doing
+status: done
 type: decision
 context: ledger
 created: 2026-09-06
+completed: 2026-09-06
 depends_on: []
 blocks: [ledger-kt0wq]
 tags: [foundation, domain]
-related_adrs: [0012, 0004]
+related_adrs: [0012, 0004, 0015]
 related_research: []
 prior_art: []
 ---
@@ -116,3 +117,12 @@ Der Entwurf oben gilt mit diesen Ergänzungen:
    Criterion. Begründung im ADR am Quick-Add-Beispiel: ohne ImportId (ADR 0004) ist die
    Push-Antwort die einzige Stelle, an der BBs Entscheidung und YNABs Buchung verbunden
    werden können; sonst entstehen zwei Buchungen für dieselbe Bar-Ausgabe.
+
+## Outcome
+ADR 0015 committet: eigene Buchungs-Id per `Guid.CreateVersion7()`, Fremd-Ids (`ynab`,
+`importid`, `comdirect`) in eigener Verknüpfungstabelle (Buchungs-Id, System, Wert; Wert
+eindeutig je System), Match-Reihenfolge im Spiegel YNAB-Id vor ImportId, sonst neue Buchung
+mit Herkunft "YNAB-Spiegel". Überträge ergänzt: zwei Buchungen je Konto, verbunden über
+eine eigene Verknüpfung (v1); "eine Bewegung"-Sicht ist v2. Nachfolge-Task `ynab-b7q2m` im
+`ynab-sync`-Backlog erfasst die Auswertung der Push-Antwort (Import-Push über ImportId,
+Quick Add über die Antwort des Einzel-Posts). `ledger/README.md` Open Question aktualisiert.

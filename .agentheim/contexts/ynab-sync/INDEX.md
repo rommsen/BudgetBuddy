@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 10
@@ -40,6 +40,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-b7q2m** — Push wertet YNABs Antwort aus und verknüpft Transaction-Ids (Import-Push über ImportId-Zuordnung, Quick Add über die Antwort des Einzel-Posts) (feature) — `backlog/ynab-b7q2m-push-liest-ynab-ids-aus-antwort.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

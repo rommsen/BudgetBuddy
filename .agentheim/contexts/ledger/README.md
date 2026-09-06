@@ -103,5 +103,6 @@ Historie-Technik in der Decision-Task des Architekten.
 - **Kursquelle** für den Geldmarkt-ETF: welche, wie robust, was bei Ausfall?
 - **Bar- und Quick-Add-Konto:** ein Konto oder zwei im Kassenbuch?
 - **Quick Add** später direkt ins Kassenbuch (BB-geführt ohne Umweg über YNAB)?
-- **Identität der Buchung** über Systeme hinweg: ImportId (Bank-Import), YNAB-Id
-  (Spiegel), eigene Id. Welche ist führend, wie werden sie verknüpft?
+- **Identität der Buchung** — *gelöst (ADR 0015, ledger-z5vw6):* eigene Id
+  (`Guid.CreateVersion7()`), Fremd-Ids (YNAB, ImportId, Comdirect) als Verknüpfungen in
+  eigener Tabelle; Spiegel matcht YNAB-Id vor ImportId, sonst neue Buchung als Spiegel.
