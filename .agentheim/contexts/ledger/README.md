@@ -94,6 +94,38 @@ Historie-Technik in der Decision-Task des Architekten.
   hängt an `design-system-001` (`depends_on`), gemessen an `standards/frontend/styleguide.md`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
+## Ereignisse
+Die Sprache der Historie (ADR 0013). Verbindlicher Katalog, modelliert mit Roman am
+2026-09-06; Änderungen hier, nicht im Code allein.
+
+**Umschlag:** Buchungs-Id, laufende Nummer je Buchung, Zeitpunkt (UTC), Actor, Ereignistyp,
+Schema-Version, Payload (JSON).
+
+**Actor:** `YnabMirror | ComdirectImport | Rule of RuleId | UserInBb | QuickAdd`.
+
+**Beobachtungen** (der Spiegel hat in YNAB etwas gesehen):
+- `EntryObservedInYnab`: Erstbeobachtung, voller Snapshot (Konto, YNAB-Id, ImportId, Datum,
+  Betrag, Payee, Memo, Kategorie mit Name, Splits, Cleared, Übertrag).
+- `EntryDetailsChangeObservedInYnab`: Datum, Betrag, Payee, Memo oder Konto geändert (alt/neu).
+- `EntryCategorizationChangeObservedInYnab`: Kategorie oder Splits geändert (alt/neu).
+- `EntryClearedStateChangeObservedInYnab`: Cleared-Status geändert (alt/neu); eigenes
+  Ereignis, damit die Anzeige dieses Rauschen ausblenden kann.
+- `EntryDeletionObservedInYnab`: in YNAB gelöscht; die Buchung bleibt mit Flag.
+
+Mehrere Gruppen in einer Beobachtung ergeben mehrere Ereignisse (Details, Kategorisierung,
+Cleared). Unveränderte Daten ergeben kein Ereignis.
+
+**Entscheidungen** (BB hat etwas festgelegt; Namen reserviert, Payloads folgen mit den
+jeweiligen Slices): `EntryImportedFromComdirect`, `EntryCategorizedByRule`,
+`EntryRecategorized`, `CashExpenseAdded`, `ValuationRecorded`.
+
+**Konten** haben in v1 keine Historie (reiner Zustand: Id, Name, Art, Verknüpfung,
+geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchungen.
+
+**Code-Layout** (souls-Muster): `src/Server/Ledger/Events.fs`, `Ledger/Domain.fs` (`apply`,
+`observe`), `Ledger/Persistence.fs` (`appendAndApply`, Loads, Replay), später
+`Ledger/CommandHandlers.fs` und `Ledger/QueryHandlers.fs`.
+
 ## Open questions
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro
   Buchung als Quelle der Wahrheit, Zustandsmodell synchron in derselben Transaktion

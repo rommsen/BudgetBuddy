@@ -20,23 +20,18 @@ Ereignisse (ADR 0013) und dem daraus abgeleiteten Zustandsmodell. Kein YNAB-Aufr
 UI, nur das Gedächtnis selbst, mit Tests.
 
 ## What
-1. **Ereignis-Typen** als F#-DU nach ADR 0013 und `.claude/rules/semantic-messaging.md`,
-   Vergangenheitsform, gruppierte Granularität, reicher Payload. Für diesen Slice reicht die
-   Beobachtungs-Familie des Spiegels (die Entscheidungs-Familie kommt mit späteren Slices):
-   `EntryObservedInYnab` (Erstbeobachtung, voller Snapshot), Änderungs-Beobachtungen in
-   sinnvollen Gruppen (Kategorie/Splits; Datum/Betrag/Payee/Memo; Cleared), und
-   `EntryDeletionObservedInYnab`. Jedes Ereignis trägt Buchungs-Id, laufende Nummer pro
-   Buchung, Zeitpunkt, **Actor** (DU: YnabMirror | ComdirectImport | Rule of RuleId |
-   RomanInBb | QuickAdd; nur YnabMirror wird hier benutzt) und Schema-Version.
+1. **Ereignis-Typen** als F#-DU exakt nach dem Ereignis-Katalog in den Notes (verbindlich,
+   mit Roman modelliert): Umschlag, Actor, die fünf Beobachtungs-Ereignisse mit ihren
+   Payloads, die Entscheidungs-Namen reserviert.
 2. **Zustandsmodell**: Buchung (eigene Id per `Guid.CreateVersion7()`, Konto, Datum, Betrag,
    Payee, Memo, Kategorie-Id und -Name, Splits, Cleared, Übertrags-Verknüpfung,
    `DeletedInYnab`-Flag), Konto (minimal: Id, Name, YnabAccountId, Art nach ADR 0016 darf
    vorerst nur `Bankkonto` sein), Fremd-Id-Verknüpfungen (Tabelle Buchungs-Id, System
    `ynab | importid | comdirect`, Wert, unique je System) nach ADR 0015.
-3. **`apply : EntryState option -> LedgerEvent -> EntryState`** rein in `src/Server/Domain.fs`
-   (oder einem neuen `LedgerDomain.fs` vor `Persistence.fs`, wenn Domain.fs zu voll wird).
-4. **Persistence**: Tabellen per Migration in `Persistence.fs` (Muster der bestehenden
-   Tabellen), `appendAndApply : LedgerEvent list -> Async<unit>` schreibt Ereignisse und
+3. **`apply : Entry option -> LedgerEvent -> Entry`** rein in `src/Server/Ledger/Domain.fs`
+   (Dateilayout siehe Notes).
+4. **Persistence** in `src/Server/Ledger/Persistence.fs`: Tabellen per Migration (Muster
+   der bestehenden Tabellen im Kern-`Persistence.fs`), `appendAndApply : LedgerEvent list -> Async<unit>` schreibt Ereignisse und
    Zustand auf **einer** Connection in **einer** SQLite-Transaktion (ADR 0013 Punkt 5, kein
    Widerspruch zu ADR 0008), `loadEventsForEntry`, `loadAllEvents`, `replayAll` (baut den
    Zustand aus dem Log neu). Payload als JSON-Text, keine SQLite-JSON-Funktionen in Queries.
@@ -60,8 +55,62 @@ UI, nur das Gedächtnis selbst, mit Tests.
       Actor-DU, damit die Sprache dokumentiert ist.
 
 ## Notes
-Die genaue Gruppierung der Änderungs-Beobachtungen ist Modellierungsarbeit in diesem Slice
-(ADR 0013 Punkt 4); Leitlinie: eine Gruppe pro fachlich zusammengehöriger Änderung, nicht
-pro Feld. Snapshot-Felder im Contract siehe ADR 0014 (Kategorie- und Payee-Name zum
+Snapshot-Felder im Contract siehe ADR 0014 (Kategorie- und Payee-Name zum
 Beobachtungszeitpunkt mitführen). Der Spiegel (`ledger-m8r2v`) erzeugt später aus
 Snapshot-Vergleich die Ereignisse; hier reicht es, dass die Typen und der Schreibpfad stehen.
+
+### Ereignis-Katalog (mit Roman modelliert, 2026-09-06)
+Der Katalog ist **verbindlich**. Der Worker erfindet keine Ereignisse und keine Gruppen;
+Abweichungen nur mit `## Worker note` und BOUNCE. Vokabular nach ADR 0013 und
+`.claude/rules/semantic-messaging.md`. Das gleiche Kapitel steht im `ledger/README.md`
+unter "Ereignisse" und wird dort gepflegt.
+
+**Umschlag** (für jedes gespeicherte Ereignis gleich): Buchungs-Id, laufende Nummer je
+Buchung (ab 1), Zeitpunkt (UTC), Actor, Ereignistyp (Name), Schema-Version (ab 1), Payload
+als JSON-Text.
+
+**Actor** (DU): `YnabMirror | ComdirectImport | Rule of RuleId | UserInBb | QuickAdd`.
+"UserInBb" statt "Roman": Single-User-Modell, die Frau nutzt mit.
+
+**Beobachtungs-Familie** (dieser Slice definiert die Typen; der Spiegel in `ledger-m8r2v`
+erzeugt sie):
+
+| Ereignis | Payload | Wann |
+|---|---|---|
+| `EntryObservedInYnab` | voller Snapshot: Konto-Id, YNAB-Transaction-Id, ImportId (optional), Datum, Betrag, Payee, Memo, Kategorie (Id und Name, optional), Splits (je Betrag, Kategorie Id und Name, Memo, Übertrags-Konto optional), Cleared-Status, Übertrags-Konto und Übertrags-Buchung (optional) | Buchung zum ersten Mal gesehen |
+| `EntryDetailsChangeObservedInYnab` | alt und neu für Datum, Betrag, Payee, Memo, Konto-Id | Kopfdaten in YNAB geändert, auch Verschiebung auf ein anderes Konto |
+| `EntryCategorizationChangeObservedInYnab` | alte und neue Kategorie (Id und Name, optional), alte und neue Splits | Kategorie oder Split in YNAB geändert |
+| `EntryClearedStateChangeObservedInYnab` | alt, neu (Uncleared, Cleared, Reconciled) | Cleared-Status in YNAB geändert; eigenes Ereignis, damit die Seite dieses Rauschen ausblenden kann |
+| `EntryDeletionObservedInYnab` | nur Umschlag | `deleted: true` gesehen; Zustand behält die Buchung mit Flag `DeletedInYnab` |
+
+Ändert sich in einer Beobachtung mehr als eine Gruppe, entstehen mehrere Ereignisse in
+dieser Reihenfolge: Details, Kategorisierung, Cleared. Gleiche Daten wie im Zustand: kein
+Ereignis (Idempotenz, ADR 0015).
+
+**Entscheidungs-Familie** (spätere Slices, hier nur als Namen im DU reserviert, damit die
+Sprache vollständig ist; ohne Payload-Definition, ohne Verwendung): `EntryImportedFromComdirect`,
+`EntryCategorizedByRule`, `EntryRecategorized`, `CashExpenseAdded`, `ValuationRecorded`.
+Falls das DU ohne Payload nicht sauber kompiliert, die Namen als Kommentar-Block im
+`Events.fs` festhalten statt sie zu erfinden.
+
+**Konten:** reiner Zustand ohne Historie in v1: Id (Guid v7), Name, Art (`Bankkonto | Bar |
+Wertpapierkonto`), Verknüpfung (`YnabMirrored of YnabAccountId | BbOwned`), geschlossen
+(bool). ADR 0013 fordert Historie pro Buchung, nicht pro Konto.
+
+**Zustandsmodell `Entry`:** Id (Guid v7), Konto-Id, Datum, Betrag (`Money`), Payee, Memo,
+Kategorie (Id und Name, optional), Splits, Cleared-Status, Übertrags-Verknüpfung
+(Buchung-zu-Buchung, optional, ADR 0015), `DeletedInYnab`. Kontostand ist eine Query über
+die nicht gelöschten Buchungen, keine Spalte. Dazu die Fremd-Id-Tabelle aus ADR 0015
+(Buchungs-Id, System `ynab | importid | comdirect`, Wert; unique je System und Wert).
+
+**Commands und Queries:** dieser Slice hat keine. Er stellt `apply` (rein) und
+`appendAndApply` / `loadEventsForEntry` / `loadAllEvents` / `replayAll` (Persistence)
+bereit. `MirrorYnabBudget` ist der Command in `ledger-m8r2v`; die Queries kommen in
+`ledger-q5w9c`.
+
+**Dateilayout** nach souls-Muster in einem Unterordner: `src/Server/Ledger/Events.fs`
+(Umschlag, Actor, Ereignis-DU, Payload-Records), `src/Server/Ledger/Domain.fs` (`apply`;
+später `observe`), `src/Server/Ledger/Persistence.fs` (Tabellen, `appendAndApply`, Loads,
+Replay; nutzt `getConnection` aus dem Kern-`Persistence.fs`). Compile-Reihenfolge in
+`Server.fsproj`: nach `Persistence.fs`, vor `YnabClient.fs`. Später `Ledger/CommandHandlers.fs`
+und `Ledger/QueryHandlers.fs`. Der übrige Server bleibt flach.
