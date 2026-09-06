@@ -54,8 +54,14 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Bewertungsänderung wird als Buchung (Kursgewinn/-verlust) sichtbar, damit der Kontostand
   stimmt und die Historie vollständig bleibt.
 - **Kontostand** — Summe der Buchungen eines Kontos (bei Wertpapierkonten: inkl.
-  Bewertungs-Buchungen). Muss für gespiegelte Konten mit YNAB übereinstimmen.
+  Bewertungs-Buchungen). Muss für gespiegelte Konten mit YNAB übereinstimmen. Wird in
+  BB summiert, nicht per SQL-`SUM`: Beträge liegen als exakter Dezimal-Text, damit ein
+  auditierbares Kassenbuch keine Gleitkomma-Drift zeigt (ADR 0017).
 - **Gesamtsicht** — alle Konten zusammen, Buchungen und Stände (YNABs "All Accounts").
+- **Fremd-Id-Verknüpfung** — eine Id aus einem fremden System (`ynab`, `importid`,
+  `comdirect`), die auf genau eine Buchung zeigt. Nicht Teil der Buchungs-Id, sondern
+  eine eigene Zeile je System und Wert; ein Wert gehört je System höchstens einer
+  Buchung (ADR 0015). Der Spiegel matcht darüber YNAB-Id vor ImportId.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine

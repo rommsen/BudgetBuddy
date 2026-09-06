@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 17:38 -- Task verified and completed: ledger-e3k7p - Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test
+
+**Type:** Work / Task completion
+**Task:** ledger-e3k7p - Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test
+**Summary:** Kassenbuch-Fundament: append-only Ereignis-Log pro Buchung nach dem verbindlichen Katalog, abgeleitetes Zustandsmodell mit Fremd-Id-Verknüpfungen, appendAndApply schreibt Log und Zustand in einer SQLite-Transaktion, replayAll gegen die Zustandstabellen geprüft
+**Duration:** 24m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 25
+**ADRs written:** 0017
+
+---
+
 ## 2026-09-06 15:40 -- Work session ended
 
 **Type:** Work / Session end

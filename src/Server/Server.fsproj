@@ -15,6 +15,9 @@
 
   <ItemGroup>
     <Compile Include="Persistence.fs" />
+    <Compile Include="Ledger/Events.fs" />
+    <Compile Include="Ledger/Domain.fs" />
+    <Compile Include="Ledger/Persistence.fs" />
     <Compile Include="YnabClient.fs" />
     <Compile Include="ComdirectClient.fs" />
     <Compile Include="ComdirectAuthSession.fs" />

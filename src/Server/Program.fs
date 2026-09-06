@@ -40,6 +40,7 @@ let main args =
 
     // Initialize database (creates tables if they don't exist)
     Persistence.initializeDatabase()
+    Ledger.Persistence.initializeLedgerSchema()
     printfn "✅ Database initialized"
 
     if app.Environment.IsDevelopment() then

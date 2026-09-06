@@ -92,7 +92,9 @@ let ensureDataDir () =
     let _ = dbConfig.Force() // This triggers directory creation if needed
     ()
 
-let private getConnection () =
+// `internal` statt `private`: `Ledger.Persistence` (gleiche Assembly) baut seinen
+// appendAndApply-Schreibpfad auf derselben frischen Connection auf (ADR 0008/0013).
+let internal getConnection () =
     let config = dbConfig.Force()
     // Always hand out a FRESH connection (Dapper auto-opens/closes closed connections).
     // In test mode the keep-alive anchor (config.SharedConnection) keeps the shared

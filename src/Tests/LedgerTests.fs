@@ -1,0 +1,432 @@
+module LedgerTests
+
+open System
+
+// CRITICAL: Testmodus setzen, BEVOR das Persistence-Modul initialisiert wird.
+do Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")
+
+open Expecto
+open Shared.Domain
+open Ledger.Events
+open Ledger.Domain
+open Ledger.Persistence
+
+// ============================================
+// Bausteine
+// ============================================
+
+let private eur (amount: decimal) = { Amount = amount; Currency = "EUR" }
+
+let private testAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-000000000001")
+let private otherAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-000000000002")
+
+let private category (name: string) = {
+    CategoryId = YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000aa")
+    CategoryName = name
+}
+
+let private observedPayload (ynabTxId: string) (importId: string option) : EntryObservedInYnabPayload = {
+    AccountId = testAccountId
+    YnabTransactionId = ynabTxId
+    ImportId = importId
+    Date = DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
+    Amount = eur -42.50m
+    Payee = Some "Rewe"
+    Memo = Some "Wocheneinkauf"
+    Category = Some (category "Lebensmittel")
+    Splits = []
+    Cleared = Uncleared
+    TransferAccountId = None
+    TransferYnabTransactionId = None
+}
+
+let private observedEvent (entryId: EntryId) (payload: EntryObservedInYnabPayload) : LedgerEvent = {
+    EntryId = entryId
+    OccurredAt = DateTime(2026, 1, 16, 8, 30, 0, DateTimeKind.Utc)
+    Actor = YnabMirror
+    Body = EntryObservedInYnab payload
+}
+
+let private eventOn (entryId: EntryId) (actor: Actor) (body: LedgerEventBody) : LedgerEvent = {
+    EntryId = entryId
+    OccurredAt = DateTime(2026, 1, 17, 9, 0, 0, DateTimeKind.Utc)
+    Actor = actor
+    Body = body
+}
+
+let private detailsChange = EntryDetailsChangeObservedInYnab {
+    OldDate = DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc)
+    NewDate = DateTime(2026, 1, 18, 0, 0, 0, DateTimeKind.Utc)
+    OldAmount = eur -42.50m
+    NewAmount = eur -43.10m
+    OldPayee = Some "Rewe"
+    NewPayee = Some "REWE Markt"
+    OldMemo = Some "Wocheneinkauf"
+    NewMemo = None
+    OldAccountId = testAccountId
+    NewAccountId = otherAccountId
+}
+
+let private splitLines = [
+    { Target = ToCategory (YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000bb"), "Haushalt")
+      Amount = eur -30.00m
+      Memo = Some "Putzzeug" }
+    { Target = ToTransfer (YnabAccountId (Guid.Parse "0195c000-0000-7000-8000-0000000000cc"), "Bar")
+      Amount = eur -13.10m
+      Memo = None }
+]
+
+let private categorizationChange = EntryCategorizationChangeObservedInYnab {
+    OldCategory = Some (category "Lebensmittel")
+    NewCategory = None
+    OldSplits = []
+    NewSplits = splitLines
+}
+
+let private clearedChange = EntryClearedStateChangeObservedInYnab {
+    OldCleared = Uncleared
+    NewCleared = Cleared
+}
+
+let private entryIdText (EntryId id) = id.ToString()
+
+// ============================================
+// Reine Faltung (Domain)
+// ============================================
+
+[<Tests>]
+let ledgerDomainTests =
+    testList "Ledger Domain (apply)" [
+
+        testCase "Buchungs-Id ist eine Guid der Version 7" <| fun () ->
+            let (EntryId id) = newEntryId ()
+            Expect.equal id.Version 7 "ADR 0015 verlangt Guid.CreateVersion7()"
+
+        testCase "Erstbeobachtung erzeugt die Buchung aus dem Snapshot" <| fun () ->
+            let entryId = newEntryId ()
+            let payload = observedPayload "ynab-1" (Some "import-1")
+            let entry = apply None (observedEvent entryId payload)
+
+            Expect.equal entry.Id entryId "Buchung traegt die eigene Id"
+            Expect.equal entry.AccountId payload.AccountId "Konto uebernommen"
+            Expect.equal entry.Date payload.Date "Datum uebernommen"
+            Expect.equal entry.Amount payload.Amount "Betrag uebernommen"
+            Expect.equal entry.Payee payload.Payee "Payee uebernommen"
+            Expect.equal entry.Memo payload.Memo "Memo uebernommen"
+            Expect.equal entry.Category payload.Category "Kategorie uebernommen"
+            Expect.equal entry.Splits payload.Splits "Splits uebernommen"
+            Expect.equal entry.Cleared payload.Cleared "Cleared-Status uebernommen"
+            Expect.isNone entry.TransferEntryId "Uebertrags-Verknuepfung erst spaeter aufgeloest"
+            Expect.isFalse entry.DeletedInYnab "frisch beobachtete Buchung ist nicht geloescht"
+
+        testCase "Kopfdaten-Beobachtung uebernimmt die neuen Werte, auch das Konto" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-2" None))
+            let after = apply (Some before) (eventOn entryId YnabMirror detailsChange)
+
+            Expect.equal after.Date (DateTime(2026, 1, 18, 0, 0, 0, DateTimeKind.Utc)) "neues Datum"
+            Expect.equal after.Amount (eur -43.10m) "neuer Betrag"
+            Expect.equal after.Payee (Some "REWE Markt") "neuer Payee"
+            Expect.equal after.Memo None "Memo geleert"
+            Expect.equal after.AccountId otherAccountId "auf anderes Konto verschoben"
+            Expect.equal after.Category before.Category "Kategorie bleibt unberuehrt"
+
+        testCase "Kategorisierungs-Beobachtung ersetzt Kategorie und Splits" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-3" None))
+            let after = apply (Some before) (eventOn entryId YnabMirror categorizationChange)
+
+            Expect.isNone after.Category "Kategorie entfaellt zugunsten der Splits"
+            Expect.equal after.Splits splitLines "Splits uebernommen"
+            Expect.equal after.Amount before.Amount "Kopfdaten bleiben unberuehrt"
+
+        testCase "Cleared-Beobachtung aendert nur den Cleared-Status" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-4" None))
+            let after = apply (Some before) (eventOn entryId YnabMirror clearedChange)
+
+            Expect.equal after.Cleared Cleared "neuer Cleared-Status"
+            Expect.equal { after with Cleared = before.Cleared } before "sonst nichts geaendert"
+
+        testCase "Loeschung setzt das Flag, die Buchung bleibt erhalten" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-5" None))
+            let after = apply (Some before) (eventOn entryId YnabMirror EntryDeletionObservedInYnab)
+
+            Expect.isTrue after.DeletedInYnab "in YNAB geloescht gesehen"
+            Expect.equal after.Amount before.Amount "Betrag bleibt lesbar"
+            Expect.equal after.Payee before.Payee "Payee bleibt lesbar"
+
+        testCase "Aenderungs-Ereignis ohne Erstbeobachtung wird laut abgelehnt" <| fun () ->
+            let entryId = newEntryId ()
+            Expect.throws
+                (fun () -> apply None (eventOn entryId YnabMirror clearedChange) |> ignore)
+                "ein Aenderungs-Ereignis ohne vorherige Buchung ist ein kaputtes Log"
+
+        testCase "replay faltet eine ganze Historie" <| fun () ->
+            let entryId = newEntryId ()
+            let history = [
+                observedEvent entryId (observedPayload "ynab-6" None)
+                eventOn entryId YnabMirror categorizationChange
+                eventOn entryId YnabMirror clearedChange
+                eventOn entryId YnabMirror EntryDeletionObservedInYnab
+            ]
+            match replay history with
+            | None -> failtest "Historie ergab keinen Zustand"
+            | Some entry ->
+                Expect.equal entry.Splits splitLines "Splits aus dem zweiten Ereignis"
+                Expect.equal entry.Cleared Cleared "Cleared aus dem dritten Ereignis"
+                Expect.isTrue entry.DeletedInYnab "Loeschung aus dem vierten Ereignis"
+
+        testCase "jedes Ereignis traegt Typname und Schema-Version" <| fun () ->
+            let bodies = [
+                EntryObservedInYnab (observedPayload "ynab-7" None)
+                detailsChange
+                categorizationChange
+                clearedChange
+                EntryDeletionObservedInYnab
+            ]
+            let names = bodies |> List.map eventTypeName
+            Expect.equal
+                names
+                [ "EntryObservedInYnab"
+                  "EntryDetailsChangeObservedInYnab"
+                  "EntryCategorizationChangeObservedInYnab"
+                  "EntryClearedStateChangeObservedInYnab"
+                  "EntryDeletionObservedInYnab" ]
+                "Ereignisnamen sind fachlich, in Vergangenheitsform, kein CRUD-Naming"
+            Expect.all (bodies |> List.map schemaVersion) (fun v -> v >= 1) "Schema-Version ab 1"
+
+        testCase "Payloads ueberstehen den JSON-Roundtrip verlustfrei" <| fun () ->
+            let bodies = [
+                EntryObservedInYnab
+                    { observedPayload "ynab-8" (Some "import-8") with
+                        Splits = splitLines
+                        Cleared = Reconciled
+                        TransferAccountId = Some (YnabAccountId (Guid.Parse "0195c000-0000-7000-8000-0000000000dd"))
+                        TransferYnabTransactionId = Some "ynab-8-gegen" }
+                detailsChange
+                categorizationChange
+                clearedChange
+                EntryDeletionObservedInYnab
+            ]
+            for body in bodies do
+                let json = encodePayload body
+                match decodePayload (eventTypeName body) (schemaVersion body) json with
+                | Ok decoded -> Expect.equal decoded body $"Roundtrip von {eventTypeName body}"
+                | Error e -> failtest $"Roundtrip von {eventTypeName body} fehlgeschlagen: {e}"
+
+        testCase "unbekannter Ereignistyp wird nicht geraten" <| fun () ->
+            match decodePayload "EntryTeleportedToMars" 1 "{}" with
+            | Ok _ -> failtest "unbekannter Typ darf nicht stillschweigend gelesen werden"
+            | Error _ -> ()
+
+        testCase "Erstbeobachtung stiftet die Fremd-Id-Verknuepfungen" <| fun () ->
+            let entryId = newEntryId ()
+            let links = linksFrom (observedEvent entryId (observedPayload "ynab-9" (Some "import-9")))
+            Expect.equal (links |> List.map (fun l -> l.System, l.Value))
+                [ YnabSystem, "ynab-9"; ImportIdSystem, "import-9" ]
+                "YNAB-Id und ImportId als Verknuepfungen"
+
+        testCase "Actor ueberlebt die Persistenzform" <| fun () ->
+            let ruleId = RuleId (Guid.NewGuid())
+            let actors = [ YnabMirror; ComdirectImport; Rule ruleId; UserInBb; QuickAdd ]
+            for actor in actors do
+                let kind, rule = actorToColumns actor
+                match actorFromColumns kind rule with
+                | Ok back -> Expect.equal back actor "Actor-Roundtrip"
+                | Error e -> failtest e
+    ]
+
+// ============================================
+// Log und Zustand (Persistence, In-Memory-SQLite)
+// ============================================
+
+[<Tests>]
+let ledgerPersistenceTests =
+    initializeLedgerSchema ()
+
+    testSequenced
+    <| testList "Ledger Persistence (appendAndApply)" [
+
+        testCase "Ereignis anhaengen, Zustand lesen" <| fun () ->
+            let entryId = newEntryId ()
+            let payload = observedPayload $"ynab-{entryIdText entryId}" None
+            appendAndApply [ observedEvent entryId payload ] |> Async.RunSynchronously
+
+            match loadEntry entryId |> Async.RunSynchronously with
+            | None -> failtest "Zustand nach dem Anhaengen nicht gefunden"
+            | Some entry ->
+                Expect.equal entry.Payee payload.Payee "Payee im Zustand"
+                Expect.equal entry.Amount payload.Amount "Betrag im Zustand"
+                Expect.equal entry.Category payload.Category "Kategorie im Zustand"
+                Expect.equal entry.Date payload.Date "Datum im Zustand"
+
+        testCase "Betraege bleiben exakt, ohne Gleitkomma-Drift" <| fun () ->
+            let entryId = newEntryId ()
+            let exact = 1234567.12345678m
+            let payload =
+                { observedPayload $"ynab-{entryIdText entryId}" None with Amount = eur exact }
+            appendAndApply [ observedEvent entryId payload ] |> Async.RunSynchronously
+
+            let entry = (loadEntry entryId |> Async.RunSynchronously).Value
+            Expect.equal entry.Amount.Amount exact "Betrag exakt zurueckgelesen (kein REAL)"
+
+        testCase "zwei Ereignisse auf eine Buchung ergeben zwei Historie-Eintraege mit steigender Nummer" <| fun () ->
+            let entryId = newEntryId ()
+            appendAndApply [ observedEvent entryId (observedPayload $"ynab-{entryIdText entryId}" None) ]
+            |> Async.RunSynchronously
+            appendAndApply [ eventOn entryId YnabMirror clearedChange ] |> Async.RunSynchronously
+
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            Expect.equal (recorded |> List.map (fun r -> r.Sequence)) [ 1; 2 ] "laufende Nummer ab 1, steigend"
+            Expect.equal
+                (recorded |> List.map (fun r -> r.EventType))
+                [ "EntryObservedInYnab"; "EntryClearedStateChangeObservedInYnab" ]
+                "Typnamen im Log"
+            Expect.all (recorded |> List.map (fun r -> r.SchemaVersion)) ((=) 1) "Schema-Version gespeichert"
+            Expect.equal
+                (loadEntry entryId |> Async.RunSynchronously).Value.Cleared
+                Cleared
+                "Zustand ist mitgezogen"
+
+        testCase "mehrere Ereignisse in einem Aufruf falten aufeinander auf" <| fun () ->
+            let entryId = newEntryId ()
+            appendAndApply [
+                observedEvent entryId (observedPayload $"ynab-{entryIdText entryId}" None)
+                eventOn entryId YnabMirror categorizationChange
+                eventOn entryId YnabMirror clearedChange
+            ]
+            |> Async.RunSynchronously
+
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            Expect.equal (recorded |> List.map (fun r -> r.Sequence)) [ 1; 2; 3 ] "drei Eintraege, steigend"
+            let entry = (loadEntry entryId |> Async.RunSynchronously).Value
+            Expect.equal entry.Splits splitLines "letzter Stand der Splits"
+            Expect.equal entry.Cleared Cleared "letzter Cleared-Status"
+
+        testCase "Loeschung setzt das Flag, statt die Buchung zu loeschen" <| fun () ->
+            let entryId = newEntryId ()
+            appendAndApply [ observedEvent entryId (observedPayload $"ynab-{entryIdText entryId}" None) ]
+            |> Async.RunSynchronously
+            appendAndApply [ eventOn entryId YnabMirror EntryDeletionObservedInYnab ]
+            |> Async.RunSynchronously
+
+            match loadEntry entryId |> Async.RunSynchronously with
+            | None -> failtest "Buchung wurde geloescht statt markiert"
+            | Some entry ->
+                Expect.isTrue entry.DeletedInYnab "DeletedInYnab gesetzt"
+                Expect.equal entry.Payee (Some "Rewe") "Buchung bleibt vollstaendig lesbar"
+
+        testCase "Actor mit RuleId ueberlebt Schreiben und Lesen" <| fun () ->
+            let entryId = newEntryId ()
+            let ruleId = RuleId (Guid.NewGuid())
+            appendAndApply [
+                { observedEvent entryId (observedPayload $"ynab-{entryIdText entryId}" None) with
+                    Actor = Rule ruleId }
+            ]
+            |> Async.RunSynchronously
+
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            Expect.equal (recorded |> List.map (fun r -> r.Event.Actor)) [ Rule ruleId ] "Herkunft gespeichert"
+
+        testCase "Replay aus dem Log ergibt denselben Zustand wie die Zustandstabellen" <| fun () ->
+            // Pflichtgegenprobe (ADR 0013, Punkt 6): driftet das synchron gefuehrte
+            // Zustandsmodell vom Log weg, faellt es hier auf.
+            let entryId = newEntryId ()
+            appendAndApply [
+                observedEvent entryId (observedPayload $"ynab-{entryIdText entryId}" (Some $"import-{entryIdText entryId}"))
+                eventOn entryId YnabMirror detailsChange
+                eventOn entryId YnabMirror categorizationChange
+                eventOn entryId YnabMirror clearedChange
+            ]
+            |> Async.RunSynchronously
+
+            let byId (entries: Entry list) =
+                entries |> List.sortBy (fun e -> entryIdText e.Id)
+
+            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
+            let fromLog = replayAll () |> Async.RunSynchronously |> byId
+
+            Expect.isNonEmpty fromTables "es gibt Buchungen zu vergleichen"
+            Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen ueberein"
+
+        testCase "schlaegt das Zustands-Update fehl, steht auch kein Ereignis im Log" <| fun () ->
+            // Ein Aenderungs-Ereignis auf eine unbekannte Buchung laesst `apply` scheitern,
+            // nachdem das Ereignis bereits in die Transaktion geschrieben wurde. Der
+            // Rollback muss beides zuruecknehmen (ADR 0013, Punkt 5).
+            let entryId = newEntryId ()
+            Expect.throws
+                (fun () -> appendAndApply [ eventOn entryId YnabMirror clearedChange ] |> Async.RunSynchronously)
+                "Zustands-Update muss scheitern"
+
+            Expect.isEmpty
+                (loadEventsForEntry entryId |> Async.RunSynchronously)
+                "kein Ereignis im Log nach dem Rollback"
+            Expect.isNone (loadEntry entryId |> Async.RunSynchronously) "kein Zustand nach dem Rollback"
+
+        testCase "gescheiterte Fremd-Id nimmt das ganze Ereignis zurueck" <| fun () ->
+            let firstId = newEntryId ()
+            let ynabTxId = $"ynab-kollision-{entryIdText firstId}"
+            appendAndApply [ observedEvent firstId (observedPayload ynabTxId None) ] |> Async.RunSynchronously
+
+            let secondId = newEntryId ()
+            Expect.throws
+                (fun () ->
+                    appendAndApply [ observedEvent secondId (observedPayload ynabTxId None) ]
+                    |> Async.RunSynchronously)
+                "dieselbe YNAB-Id darf nicht zweimal vergeben werden"
+
+            Expect.isEmpty
+                (loadEventsForEntry secondId |> Async.RunSynchronously)
+                "kein Ereignis der abgelehnten Buchung im Log"
+            Expect.isNone (loadEntry secondId |> Async.RunSynchronously) "kein Zustand der abgelehnten Buchung"
+
+        testCase "Fremd-Ids der Erstbeobachtung sind verknuepft und auffindbar" <| fun () ->
+            let entryId = newEntryId ()
+            let ynabTxId = $"ynab-{entryIdText entryId}"
+            let importId = $"import-{entryIdText entryId}"
+            appendAndApply [ observedEvent entryId (observedPayload ynabTxId (Some importId)) ]
+            |> Async.RunSynchronously
+
+            let links = linksForEntry entryId |> Async.RunSynchronously
+            Expect.equal
+                (links |> List.map (fun l -> l.System, l.Value) |> List.sortBy fst)
+                ([ YnabSystem, ynabTxId; ImportIdSystem, importId ] |> List.sortBy fst)
+                "YNAB-Id und ImportId verknuepft"
+            Expect.equal (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously) (Some entryId) "ueber YNAB-Id gefunden"
+            Expect.equal (findEntryByLink ImportIdSystem importId |> Async.RunSynchronously) (Some entryId) "ueber ImportId gefunden"
+
+        testCase "Fremd-Id ist je System eindeutig" <| fun () ->
+            let first = newEntryId ()
+            let second = newEntryId ()
+            let value = $"kollision-{entryIdText first}"
+
+            linkEntry first YnabSystem value |> Async.RunSynchronously
+            Expect.throws
+                (fun () -> linkEntry second YnabSystem value |> Async.RunSynchronously)
+                "derselbe Wert im selben System darf nicht zwei Buchungen gehoeren"
+
+            // Dasselbe Textmuster in einem anderen System ist eine andere Fremd-Id.
+            linkEntry second ImportIdSystem value |> Async.RunSynchronously
+            Expect.equal (findEntryByLink YnabSystem value |> Async.RunSynchronously) (Some first) "YNAB-Id zeigt auf die erste Buchung"
+            Expect.equal (findEntryByLink ImportIdSystem value |> Async.RunSynchronously) (Some second) "ImportId zeigt auf die zweite Buchung"
+
+        testCase "Konto wird gespeichert und ueber die YnabAccountId gefunden" <| fun () ->
+            let accountId = newLedgerAccountId ()
+            let ynabAccountId = YnabAccountId (Guid.NewGuid())
+            let account = {
+                Id = accountId
+                Name = "Comdirect Giro"
+                Kind = BankAccount
+                Link = YnabMirrored ynabAccountId
+                Closed = false
+            }
+            saveAccount account |> Async.RunSynchronously
+
+            match findAccountByYnabAccountId ynabAccountId |> Async.RunSynchronously with
+            | None -> failtest "gespiegeltes Konto nicht gefunden"
+            | Some found -> Expect.equal found account "Konto vollstaendig zurueckgelesen"
+
+            Expect.contains (loadAccounts () |> Async.RunSynchronously) account "Konto ist in der Liste"
+    ]

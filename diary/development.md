@@ -4,6 +4,43 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-06 - Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply (ledger-e3k7p)
+
+### What
+Slice 1 des Kassenbuch-Skeletons: das Gedaechtnis selbst. Neues Modul `src/Server/Ledger/`
+mit dem verbindlichen Ereignis-Katalog als F#-Typen (Umschlag, Actor, die fuenf
+Beobachtungs-Ereignisse, die Entscheidungs-Namen reserviert), dem abgeleiteten
+Zustandsmodell (Buchung, Konto, Fremd-Id-Verknuepfungen) und dem Schreibpfad
+`appendAndApply`, der Log und Zustand auf einer Connection in einer SQLite-Transaktion
+fortschreibt. Kein YNAB-Aufruf, keine UI, keine Aenderung an bestehenden Tabellen.
+
+### Files Changed
+- `src/Server/Ledger/Events.fs` (neu) - Umschlag, Actor, Ereignis-DU, Payload-Records,
+  handgeschriebene Thoth-Codecs, Typname und Schema-Version je Ereignis
+- `src/Server/Ledger/Domain.fs` (neu) - Zustandsmodell und die reine Faltung
+  `apply : Entry option -> LedgerEvent -> Entry`, dazu `linksFrom` und `replay`
+- `src/Server/Ledger/Persistence.fs` (neu) - vier Tabellen per Migration,
+  `appendAndApply` in einer Transaktion, Loads, `replayAll`, Konten und Fremd-Id-Links
+- `src/Server/Persistence.fs` - `getConnection` von `private` auf `internal`, damit der
+  Ledger-Schreibpfad dieselbe frische Connection benutzt (ADR 0008)
+- `src/Server/Server.fsproj` - Ledger-Dateien nach `Persistence.fs`, vor `YnabClient.fs`
+- `src/Server/Program.fs` - `Ledger.Persistence.initializeLedgerSchema()` beim Start
+- `src/Tests/LedgerTests.fs` (neu) - 25 Tests, In-Memory-SQLite
+- `src/Tests/Tests.fsproj` - LedgerTests.fs registriert
+
+### Rationale
+ADR 0013 (append-only Ereignis-Log als Quelle der Wahrheit, Zustandsmodell synchron in
+derselben Transaktion), ADR 0015 (eigene Buchungs-Id als Guid v7, Fremd-Ids als
+Verknuepfungen mit Unique je System) und ADR 0016 (Kontenmodell Art x Verknuepfung).
+Betraege liegen als exakter Dezimal-Text statt als REAL, damit ein auditierbares
+Kassenbuch keine Gleitkomma-Drift zeigt.
+
+### Verification
+- Build: PASSED (`dotnet build BudgetBuddy.sln`, 0 Warnungen)
+- Tests: 653 passed, 7 skipped, 0 failed (davon 25 neu)
+
+---
+
 ## 2026-06-28 17:07 - Bugfix: "Inflow: Ready to Assign" zeigte Fantasiewert (ynab-k7m3q)
 
 ### What
