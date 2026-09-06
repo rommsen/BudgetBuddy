@@ -365,12 +365,14 @@ let private modelWithForm (form: QuickAddFormState) : State.Model =
     let settingsModel, _ = Components.Settings.State.init ()
     let syncFlowModel, _ = Components.SyncFlow.State.init ()
     let rulesModel, _ = Components.Rules.State.init ()
+    let ledgerModel, _ = Components.Ledger.State.init ()
     {
         CurrentPage = Types.QuickAdd
         Toasts = []
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel
+        Ledger = ledgerModel
         QuickAdd = Some form
         QuickAddTemplates = NotAsked
     }

@@ -4,6 +4,63 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-06 - Kassenbuch-Seite: Buchungen, Herkunft, Historie, "Jetzt spiegeln" (ledger-q5w9c)
+
+**What I did:**
+Slice 3 von 3 des Walking Skeletons. Die Route `#/ledger` zeigt die Konten des
+Kassenbuchs, die Buchungen des gewaehlten Kontos mit Herkunfts-Badge, den in F#
+summierten Kontostand und je Buchung die vollstaendige Historie in einem
+BottomSheet. "Jetzt spiegeln" stoesst den manuellen Spiegel-Lauf an; ein
+automatischer Ausloeser bleibt bewusst aussen vor (ADR 0014, Folge-Task).
+
+**Files Added:**
+- `src/Server/Ledger/QueryHandlers.fs` - Lesepfad: reines `ReadModel` (Ereignis ->
+  sprechender Satz, Zustand -> Sicht, Vorauswahl des Kontos) plus die drei Queries
+- `src/Client/Components/Ledger/Types.fs` - Model, Msg, ExternalMsg der Seite
+- `src/Client/Components/Ledger/State.fs` - Reduzierer (MVU, RemoteData)
+- `src/Client/Components/Ledger/View.fs` - Seite aus DS-Komponenten und Tokens
+- `src/Tests/LedgerPageTests.fs` - 33 Tests: Historien-Sprache, Sichten, Kontostand,
+  Reduzierer-Uebergaenge
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - Lesemodelle (`LedgerOrigin`, `LedgerAccountView`,
+  `LedgerAccountsView`, `LedgerEntryView`, `LedgerHistoryLine`), `originLabel`,
+  `ledgerBalance` (Summe in F#, ADR 0017)
+- `src/Shared/Api.fs` - `LedgerApi` um `getLedgerAccounts`,
+  `getLedgerEntriesForAccount`, `getEntryHistory` erweitert
+- `src/Server/Ledger/Persistence.fs` - `loadEntriesForAccount`, `loadEntryOrigins`
+- `src/Server/Api.fs` - die drei Sichten verdrahtet
+- `src/Server/Server.fsproj`, `src/Client/Client.fsproj`, `src/Tests/Tests.fsproj` -
+  neue Dateien registriert
+- `src/Client/Types.fs` - Seite `Ledger` und Route `#/ledger`
+- `src/Client/DesignSystem/Navigation.fs` - fuenfter Tab "Kassenbuch"; das mobile
+  Padding je Tab verkleinert, damit fuenf Tabs auf 375px passen
+- `src/Client/State.fs`, `src/Client/View.fs` - Kassenbuch in Modell, Update und View
+- `src/Tests/QuickAddTests.fs` - Modell-Fixture um das neue Feld ergaenzt
+
+**Rationale:**
+Ohne Sicht bleibt das Kassenbuch unsichtbar; die Seite beweist, dass Ereignis-Log,
+Spiegel-Lauf und Anzeige zusammen funktionieren. Die Historien-Saetze kommen aus den
+Payloads (alte und neue Kategorie-Namen liegen im Ereignis), deshalb braucht die
+Anzeige kein Nachschlagen. Der Kontostand wird in F# summiert und nie per SQL-`SUM`
+(ADR 0017); geloeschte Buchungen bleiben sichtbar, zaehlen aber nicht mit.
+
+**Outcomes:**
+- Build: OK (`dotnet build`, `npm run build`)
+- Tests: 709/709 bestanden (7 uebersprungen, brauchen `.env`), davon 33 neu
+- Issues: Serena war nicht verfuegbar; Fallback auf die Standard-Werkzeuge.
+
+**Nachtrag (fortgesetzter Lauf):**
+Der erste Durchgang brach vor der Abnahme ab. Beim Wiederaufnehmen liefen `dotnet
+build`, `dotnet test` und `npm run build` unveraendert gruen. Nachgezogen wurde allein
+die Sprache der Historien-Saetze: die angezeigten Texte schreiben jetzt echte Umlaute
+und den Pfeil aus der Modellierung ("Kategorie in YNAB geändert: Lebensmittel →
+Restaurant") statt der Umschreibung "geaendert: ... -> ...". Betroffen:
+`src/Server/Ledger/QueryHandlers.fs` (`describe`, `clearedLabel`) und die
+Erwartungen in `src/Tests/LedgerPageTests.fs`.
+
+---
+
 ## 2026-09-06 - Spiegel-Lauf YNAB -> Kassenbuch: Delta-Abruf, Vergleich, Ereignisse (ledger-m8r2v)
 
 ### What

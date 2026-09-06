@@ -15,6 +15,7 @@ type NavPage =
     | Rules
     | Settings
     | QuickAdd
+    | Ledger
 
 /// Navigation item definition
 type NavItem = {
@@ -28,6 +29,7 @@ let navItems: NavItem list = [
     { Page = SyncFlow; Label = "Sync"; Icon = sync }
     { Page = Rules; Label = "Rules"; Icon = rules }
     { Page = QuickAdd; Label = "Quick Add"; Icon = plus }
+    { Page = Ledger; Label = "Kassenbuch"; Icon = banknotes }
     { Page = Settings; Label = "Settings"; Icon = settings }
 ]
 
@@ -118,8 +120,9 @@ let private mobileNavItem (item: NavItem) (currentPage: NavPage) (onClick: NavPa
     let isActive = item.Page = currentPage
     Html.a [
         prop.className (
-            "flex flex-col items-center justify-center gap-0.5 py-2.5 px-4 " +
-            "rounded-lg transition-all duration-200 cursor-pointer min-w-[64px] min-h-[52px] " +
+            "flex flex-col items-center justify-center gap-0.5 py-2.5 px-2 " +
+            "rounded-lg transition-all duration-200 cursor-pointer min-w-[60px] min-h-[52px] " +
+            "whitespace-nowrap " +
             if isActive then
                 "text-neon-teal"
             else

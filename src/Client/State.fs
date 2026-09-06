@@ -21,6 +21,7 @@ type Model = {
     Settings: Components.Settings.Types.Model
     SyncFlow: Components.SyncFlow.Types.Model
     Rules: Components.Rules.Types.Model
+    Ledger: Components.Ledger.Types.Model
 
     // Quick Add page form state — lifted out of SyncFlow (ynab-q7k3m). `None`
     // until the page is first opened; reset to a fresh form on each visit and
@@ -51,6 +52,7 @@ type Msg =
     | SettingsMsg of Components.Settings.Types.Msg
     | SyncFlowMsg of Components.SyncFlow.Types.Msg
     | RulesMsg of Components.Rules.Types.Msg
+    | LedgerMsg of Components.Ledger.Types.Msg
 
     // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
     | OpenQuickAdd
@@ -122,6 +124,9 @@ let init () : Model * Cmd<Msg> =
     let settingsModel, settingsCmd = Components.Settings.State.init ()
     let syncFlowModel, syncFlowCmd = Components.SyncFlow.State.init ()
     let rulesModel, rulesCmd = Components.Rules.State.init ()
+    // Das Kassenbuch laedt erst beim Betreten der Seite (UrlChanged), nicht beim
+    // Start der App: es soll keine Abfrage ausloesen, solange niemand hineinschaut.
+    let ledgerModel, _ = Components.Ledger.State.init ()
 
     // Parse initial page from current URL (enables deep linking)
     let initialPage = Routing.currentPage ()
@@ -132,6 +137,7 @@ let init () : Model * Cmd<Msg> =
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel
+        Ledger = ledgerModel
         QuickAdd = None
         QuickAddTemplates = NotAsked
     }
@@ -184,6 +190,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | Styleguide ->
                     // Presentational gallery — no data to load.
                     Cmd.none
+                | Ledger ->
+                    // Konten (die den Standard vorauswaehlen und damit die Buchungen
+                    // nachziehen) und der Status des letzten Spiegel-Laufs. Kein
+                    // automatischer Spiegel-Lauf: das Frische-Kriterium ist
+                    // Folge-Arbeit (ADR 0014, ledger-h4p6c).
+                    Cmd.batch [
+                        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadAccounts)
+                        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
+                    ]
                 | QuickAdd ->
                     // Open a fresh form and make sure the category picker has data
                     // (categories are loaded into SyncFlow at startup; retry in
@@ -289,6 +304,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | Components.Rules.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
 
             { model with Rules = rulesModel' }, Cmd.batch [ Cmd.map RulesMsg rulesCmd; externalCmd ]
+
+    // ============================================
+    // Ledger Component (Kassenbuch)
+    // ============================================
+    | LedgerMsg ledgerMsg ->
+        let ledgerModel', ledgerCmd, externalMsg = Components.Ledger.State.update ledgerMsg model.Ledger
+
+        let externalCmd =
+            match externalMsg with
+            | Components.Ledger.Types.NoOp -> Cmd.none
+            | Components.Ledger.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+
+        { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd ]
 
     // ============================================
     // Quick Add (manual transaction entry → YNAB)

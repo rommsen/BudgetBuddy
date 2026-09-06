@@ -30,6 +30,7 @@
     <Compile Include="ToastLifecycleTests.fs" />
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
+    <Compile Include="LedgerPageTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

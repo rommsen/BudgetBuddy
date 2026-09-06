@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 5
+- **Doing:** 0
+- **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-q5w9c** — Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln" (feature) — `doing/ledger-q5w9c-ledger-page.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-q5w9c** — Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln" (feature) — `done/ledger-q5w9c-ledger-page.md`
 - **ledger-m8r2v** — Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser (feature) — `done/ledger-m8r2v-mirror-run.md`
 - **ledger-e3k7p** — Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test (feature) — `done/ledger-e3k7p-event-log-and-state.md`
 - **ledger-zm0zx** — Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle) (decision) — `done/ledger-zm0zx-account-model-valuation.md`
@@ -45,6 +45,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0020** — Im Kassenbuch einen Elmish-Auslöser mit Entscheidungslogik in eine reine und eine unreine Nachricht teilen (Reduzierer unter .NET testbar) — 2026-09-06 — `knowledge/decisions/0020-elmish-ausloeser-in-reine-und-unreine-nachricht-teilen.md`
 - **0019** — Unkategorisierte Split-Zeile ist ein benanntes drittes Split-Ziel (ergänzt ADR 0006) — 2026-09-06 — `knowledge/decisions/0019-unkategorisierte-split-zeile-als-drittes-split-ziel.md`
 - **0017** — Beträge im Kassenbuch als exakter Dezimal-Text, Kontostand in F# summiert — 2026-09-06 — `knowledge/decisions/0017-betraege-als-exakter-dezimaltext-im-kassenbuch.md`
 - **0016** — Kontenmodell (Art x Verknüpfung), Bewertung als Buchung, Bar/Quick-Add und ETF-Konto in v1 — 2026-09-06 — `knowledge/decisions/0016-kontenmodell-und-bewertung-als-buchung.md`

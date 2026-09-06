@@ -676,3 +676,112 @@ type MirrorRunStatus = {
     RanAt: DateTime
     Outcome: MirrorRunOutcome
 }
+
+// ============================================
+// Kassenbuch-Sichten (ledger-q5w9c)
+// ============================================
+// Die Lesemodelle der Kassenbuch-Seite. Bewusst eigene, flache Formen statt der
+// Server-Typen aus `Ledger.Events` / `Ledger.Domain`: die Seite braucht Namen und
+// Saetze, nicht Ereignis-Typen (ADR 0013). Der Zustand wird gelesen, nie neu
+// gefaltet — Replay ist Gegenprobe, kein Lesepfad.
+
+/// Die Herkunft einer Buchung oder einer Aenderung, in der Sprache des Kassenbuchs.
+/// Spiegelt den `Actor` des Ereignis-Logs (ADR 0013), ohne dessen Nutzlast: die
+/// Anzeige zeigt "Regel", nicht welche Regel.
+type LedgerOrigin =
+    /// Der Spiegel hat es in YNAB gesehen.
+    | MirroredFromYnab
+    /// Aus dem Comdirect-Import.
+    | ImportedFromComdirect
+    /// Eine Kategorisierungs-Regel hat entschieden.
+    | DecidedByRule
+    /// Ein Mensch hat in BB entschieden.
+    | DecidedInBb
+    /// Ueber Quick Add erfasst.
+    | AddedViaQuickAdd
+
+/// Wie eine Herkunft im Kassenbuch heisst. Wortlaut aus dem Ubiquitous Language
+/// des Contexts; die Anzeige erfindet keine eigenen Worte.
+let originLabel (origin: LedgerOrigin) : string =
+    match origin with
+    | MirroredFromYnab -> "YNAB-Spiegel"
+    | ImportedFromComdirect -> "Comdirect-Import"
+    | DecidedByRule -> "Regel"
+    | DecidedInBb -> "Roman in BB"
+    | AddedViaQuickAdd -> "Quick Add"
+
+/// Die Art eines Kassenbuch-Kontos (ADR 0016) in der Form, die die Anzeige braucht.
+/// v1 erzeugt nur `LedgerBankAccount`; die anderen Arten sind da, damit die
+/// Konto-Auswahl sie nicht ausschliesst.
+type LedgerAccountKindView =
+    | LedgerBankAccount
+    | LedgerCashAccount
+    | LedgerSecuritiesAccount
+
+/// Ein Konto in der Kontoauswahl. Kein Kontostand als Feld: der Stand ist die Summe
+/// der Buchungen (ADR 0016/0017) und wird aus der geladenen Liste gerechnet.
+type LedgerAccountView = {
+    Id: Guid
+    Name: string
+    Kind: LedgerAccountKindView
+    /// Die YNAB-Konto-Id, falls das Konto gespiegelt wird (`YnabMirrored`, ADR 0016).
+    /// `None` bei BB-eigenen Konten.
+    YnabAccountId: YnabAccountId option
+    Closed: bool
+}
+
+/// Die Konten des Kassenbuchs samt der Vorauswahl der Seite.
+type LedgerAccountsView = {
+    Accounts: LedgerAccountView list
+    /// Das Konto, das die Seite ohne Zutun zeigt: das gespiegelte YNAB-Standardkonto,
+    /// sonst das erste. `None` nur, wenn es gar kein Konto gibt.
+    DefaultAccountId: Guid option
+}
+
+/// Eine Buchung, wie die Kassenbuch-Seite sie zeigt.
+type LedgerEntryView = {
+    Id: Guid
+    AccountId: Guid
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    /// Der Kategorie-Name aus der letzten Beobachtung. `None`, wenn die Buchung
+    /// keine Kategorie traegt (auch bei Splits).
+    CategoryName: string option
+    Splits: TransactionSplit list
+    /// Woher die Buchung stammt: der Actor ihres ersten Ereignisses.
+    Origin: LedgerOrigin
+    /// In YNAB geloescht. Die Buchung bleibt sichtbar und traegt ein Kennzeichen;
+    /// sie zaehlt nicht mehr zum Kontostand (ADR 0013).
+    DeletedInYnab: bool
+}
+
+/// Eine Zeile der Historie einer Buchung: wann, von wem, und was passiert ist —
+/// in der Sprache des Kassenbuchs, nicht als Ereignis-Typname (ADR 0013).
+type LedgerHistoryLine = {
+    /// Die laufende Nummer des Ereignisses je Buchung (ab 1).
+    Sequence: int
+    OccurredAt: DateTime
+    Origin: LedgerOrigin
+    /// Der sprechende Satz, z. B. "Kategorie in YNAB geändert: Lebensmittel → Restaurant".
+    Description: string
+}
+
+/// Kontostand: die Summe der **nicht** in YNAB geloeschten Buchungen (ADR 0016).
+///
+/// Bewusst hier in F# summiert und nie per SQL-`SUM` oder `CAST(amount AS REAL)`:
+/// die Betraege liegen als exakter Dezimal-Text im Log und im Zustand, damit ein
+/// auditierbares Kassenbuch keine Gleitkomma-Drift zeigt (ADR 0017). `decimal`
+/// summiert exakt, `REAL` nicht.
+///
+/// Die Waehrung ist die der ersten mitzaehlenden Buchung; ohne Buchungen bleibt der
+/// Stand null in `fallbackCurrency`.
+let ledgerBalance (fallbackCurrency: string) (entries: LedgerEntryView list) : Money =
+    let counted = entries |> List.filter (fun e -> not e.DeletedInYnab)
+    let currency =
+        counted
+        |> List.tryHead
+        |> Option.map (fun e -> e.Amount.Currency)
+        |> Option.defaultValue fallbackCurrency
+    { Amount = counted |> List.sumBy (fun e -> e.Amount.Amount); Currency = currency }

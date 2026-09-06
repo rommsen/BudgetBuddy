@@ -17,6 +17,7 @@ let private toNavPage (page: Page) : Navigation.NavPage =
     | Rules -> Navigation.Rules
     | Settings -> Navigation.Settings
     | QuickAdd -> Navigation.QuickAdd
+    | Ledger -> Navigation.Ledger
     // Styleguide has no own nav tab; it's reached from Settings, so the
     // Settings tab stays highlighted while viewing the gallery.
     | Styleguide -> Navigation.Settings
@@ -28,6 +29,7 @@ let private fromNavPage (navPage: Navigation.NavPage) : Page =
     | Navigation.Rules -> Rules
     | Navigation.Settings -> Settings
     | Navigation.QuickAdd -> QuickAdd
+    | Navigation.Ledger -> Ledger
 
 /// Convert Types.ToastType to Toast.ToastVariant
 let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
@@ -84,6 +86,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     model.SyncFlow.RecentlyUsedCategoryIds
                                     model.QuickAddTemplates
                                     dispatch
+                            | Ledger ->
+                                Components.Ledger.View.view
+                                    model.Ledger
+                                    (LedgerMsg >> dispatch)
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.
                                 Components.Styleguide.View.view ()

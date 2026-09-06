@@ -135,6 +135,9 @@ type Page =
     /// Manual transaction entry (Quick Add) as a first-class, sync-flow-independent
     /// page reachable from the main navigation (ynab-q7k3m).
     | QuickAdd
+    /// Das Kassenbuch: Buchungen und Stand je Konto, Historie je Buchung
+    /// (ledger-q5w9c).
+    | Ledger
 
 
 /// URL routing helpers for hash-based navigation
@@ -149,6 +152,7 @@ module Routing =
         | ["settings"] -> Settings
         | ["styleguide"] -> Styleguide
         | ["quickadd"] -> QuickAdd
+        | ["ledger"] -> Ledger
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -159,6 +163,7 @@ module Routing =
         | Settings -> ["settings"]
         | Styleguide -> ["styleguide"]
         | QuickAdd -> ["quickadd"]
+        | Ledger -> ["ledger"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =

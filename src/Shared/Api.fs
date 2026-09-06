@@ -1,5 +1,6 @@
 module Shared.Api
 
+open System
 open Domain
 
 // ============================================
@@ -279,5 +280,28 @@ type LedgerApi = {
 
     /// The last mirror run's status (time, outcome, error text).
     /// Returns: None while no run has ever happened.
+    /// This is the "Lauf-Status" the Kassenbuch page shows; there is deliberately
+    /// no second `getMirrorStatus` endpoint beside it.
     getLastMirrorRun: unit -> Async<MirrorRunStatus option>
+
+    // ============================================
+    // Sichten (ledger-q5w9c)
+    // ============================================
+
+    /// The Kassenbuch's accounts plus the page's default selection.
+    /// Purpose: fills the account picker; reads the state tables, never the log.
+    /// Returns: all accounts (never fails — an empty book is an empty list).
+    getLedgerAccounts: unit -> Async<LedgerAccountsView>
+
+    /// The bookings of one account, newest first, deleted ones included.
+    /// Purpose: the booking list and — summed in F#, never in SQL (ADR 0017) —
+    /// the account balance.
+    /// Parameters: the Kassenbuch account id.
+    getLedgerEntriesForAccount: Guid -> Async<LedgerEntryView list>
+
+    /// The full history of one booking, oldest first.
+    /// Purpose: the per-entry history sheet. Reads the append-only event log and
+    /// renders each event as a speaking sentence (ADR 0013).
+    /// Returns: empty when the id is unknown.
+    getEntryHistory: Guid -> Async<LedgerHistoryLine list>
 }

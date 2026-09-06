@@ -31,6 +31,7 @@
     <Compile Include="Validation.fs" />
     <Compile Include="SyncSessionManager.fs" />
     <Compile Include="Ledger/CommandHandlers.fs" />
+    <Compile Include="Ledger/QueryHandlers.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

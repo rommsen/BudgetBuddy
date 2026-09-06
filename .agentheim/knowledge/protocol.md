@@ -5,6 +5,51 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 20:15 -- Task verified and completed: ledger-q5w9c - Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
+
+**Type:** Work / Task completion
+**Task:** ledger-q5w9c - Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
+**Summary:** Kassenbuch-Seite unter #/ledger: Konten, Buchungen mit Herkunfts-Badge (gelöschte markiert, nicht gefiltert), in F# summierter Kontostand, Historie je Buchung im BottomSheet und manuelles "Jetzt spiegeln" mit Ergebnis-Toast
+**Duration:** 2h20m (3 Iterationen, dazwischen ein Rate-Limit-Abbruch)
+**Verification:** PASS (iteration 3)
+**Files changed:** 18
+**Tests added:** 33
+**ADRs written:** 0020
+
+---
+
+## 2026-09-06 20:02 -- Verification failed: ledger-q5w9c - Kassenbuch-Seite
+
+**Type:** Work / Verification failure
+**Task:** ledger-q5w9c - Kassenbuch-Seite
+**Iteration:** 2 of 3
+**Reasons:** Check 6: die tragende Zahl in ADR 0020 ("40 von 42 Bestandszweigen wären Fehlalarme") ist falsch. Verifier hat alle 42 klassifiziert: 23 geben das Modell unverändert zurück, 19 nicht; davon passen 8 in die Loading-Ausnahme und 11 verletzen die eigene Entscheidungslogik-Regel des ADR, darunter SyncFlow ConfirmTan, das Musterbeispiel des ADR selbst. Route (B) wurde auf einer nicht tragenden Prämisse gewählt; ledger-w2m4t erbt die falsche Zahl und wird dadurch unerfüllbar
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (Iteration 3, letzte vor Eskalation)
+
+---
+
+## 2026-09-06 19:04 -- Verification failed: ledger-q5w9c - Kassenbuch-Seite
+
+**Type:** Work / Verification failure
+**Task:** ledger-q5w9c - Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
+**Iteration:** 1 of 3
+**Reasons:** Check 6c (mechanize-or-drop): ADR 0020 stellt eine repo-weite Elmish-Konvention auf, liefert aber weder Durchsetzung noch einen prose-only-Vermerk; vier Auslöser im selben Diff (LoadAccounts, LoadEntries, LoadHistory, LoadMirrorStatus) verletzen sie bereits, weil sie Loading-Zustand und Cmd.OfAsync im selben Zweig haben. Checks 1-6b bestanden, Tests grün (709), npm run build grün, ADR 0017 gehalten
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-09-06 18:52 -- Worker unterbrochen (Rate-Limit): ledger-q5w9c - Kassenbuch-Seite
+
+**Type:** Work / Worker interrupted
+**Task:** ledger-q5w9c - Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln"
+**Ursache:** API-Rate-Limit (Session-Limit) beendete den Worker, bevor er verifizieren und seinen RESULT-Block zurückgeben konnte. Keine inhaltliche Fehlfunktion.
+**Stand im Worktree:** Komponenten (Types/State/View), Ledger/QueryHandlers.fs, LedgerPageTests.fs (466 Zeilen), Routing und Navigation, Read-Models in Shared/Domain.fs; alles in den Projektdateien registriert, Diary geschrieben. Unverifiziert: dotnet build, dotnet test, npm run build.
+**Next:** Worker in denselben Worktree resumed mit Auftrag "prüfen, nur Gebrochenes reparieren, RESULT zurückgeben"; kein Neuanfang, kein Redesign
+
+---
+
 ## 2026-09-06 18:26 -- Batch started: [ledger-q5w9c]
 
 **Type:** Work / Batch start

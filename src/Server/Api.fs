@@ -1219,6 +1219,14 @@ let ledgerApi : LedgerApi = {
     mirrorYnabBudget = fun () -> Ledger.CommandHandlers.mirrorYnabBudget ()
 
     getLastMirrorRun = fun () -> Ledger.CommandHandlers.loadLastMirrorRun ()
+
+    // Die Sichten der Kassenbuch-Seite (ledger-q5w9c). Sie lesen die Zustandstabellen;
+    // nur die Historie einer einzelnen Buchung greift auf das Ereignis-Log zu.
+    getLedgerAccounts = fun () -> Ledger.QueryHandlers.getLedgerAccounts ()
+
+    getLedgerEntriesForAccount = fun accountId -> Ledger.QueryHandlers.getLedgerEntriesForAccount accountId
+
+    getEntryHistory = fun entryId -> Ledger.QueryHandlers.getEntryHistory entryId
 }
 
 // ============================================

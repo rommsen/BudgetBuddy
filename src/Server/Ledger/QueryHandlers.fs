@@ -1,0 +1,238 @@
+/// Der Lesepfad des Kassenbuchs: die Sichten, aus denen die Kassenbuch-Seite besteht.
+///
+/// Zwei Haelften, bewusst getrennt:
+/// * `ReadModel` ist **rein** — Zustand und Ereignisse hinein, Sichten und Saetze
+///   heraus. Hier steht die Sprache der Historie (ADR 0013): ein Ereignis wird zu
+///   einem Satz wie "Kategorie in YNAB geändert: Lebensmittel → Restaurant", nie zu
+///   einem Typnamen. Diese Haelfte ist ohne Datenbank testbar.
+/// * Die Query-Funktionen darunter holen den Zustand ueber `Ledger.Persistence` und
+///   reichen ihn durch `ReadModel`. Gelesen wird die Zustandstabelle, nicht das Log —
+///   das Log wird nur fuer die Historie einer einzelnen Buchung angefasst (ADR 0013).
+///
+/// Der Kontostand wird in F# summiert (`Shared.Domain.ledgerBalance`), nie per
+/// SQL-`SUM`: die Betraege liegen als exakter Dezimal-Text (ADR 0017).
+module Ledger.QueryHandlers
+
+open System
+open System.Globalization
+open Shared.Domain
+open Ledger.Events
+open Ledger.Domain
+
+/// Das Kern-Persistenz-Modul (Settings). Alias, weil der einfache Name `Persistence`
+/// hier auf `Ledger.Persistence` zeigen wuerde.
+module Core = global.Persistence
+
+// ============================================
+// Reine Abbildung: Zustand und Ereignisse -> Sichten
+// ============================================
+
+module ReadModel =
+
+    /// Zahlen im Kassenbuch werden deutsch geschrieben. Feste Kultur statt der des
+    /// Servers, damit ein Historien-Satz auf jeder Maschine gleich lautet.
+    let private de = CultureInfo.GetCultureInfo "de-DE"
+
+    let private formatMoney (m: Money) =
+        $"""{m.Amount.ToString("N2", de)} {m.Currency}"""
+
+    let private formatDate (d: DateTime) = d.ToString("dd.MM.yyyy", de)
+
+    /// Die Herkunft hinter einem Actor (ADR 0013, Punkt 3).
+    let originOf (actor: Actor) : LedgerOrigin =
+        match actor with
+        | YnabMirror -> MirroredFromYnab
+        | ComdirectImport -> ImportedFromComdirect
+        | Rule _ -> DecidedByRule
+        | UserInBb -> DecidedInBb
+        | QuickAdd -> AddedViaQuickAdd
+
+    let private accountKindOf (kind: AccountKind) : LedgerAccountKindView =
+        match kind with
+        | BankAccount -> LedgerBankAccount
+        | CashAccount -> LedgerCashAccount
+        | SecuritiesAccount -> LedgerSecuritiesAccount
+
+    /// Ein Konto als Sicht. Die Verknuepfung (ADR 0016) wird auf die YNAB-Id
+    /// heruntergebrochen; ein BB-eigenes Konto hat schlicht keine.
+    let toAccountView (account: LedgerAccount) : LedgerAccountView =
+        let (LedgerAccountId id) = account.Id
+        {
+            Id = id
+            Name = account.Name
+            Kind = accountKindOf account.Kind
+            YnabAccountId =
+                match account.Link with
+                | YnabMirrored ynabId -> Some ynabId
+                | BbOwned -> None
+            Closed = account.Closed
+        }
+
+    /// Welches Konto die Seite ohne Zutun zeigt: das gespiegelte YNAB-Standardkonto,
+    /// sonst das erste. Ohne Konten gibt es nichts vorzuwaehlen.
+    let defaultAccountId
+        (ynabDefault: YnabAccountId option)
+        (accounts: LedgerAccountView list)
+        : Guid option =
+        let mirrored =
+            ynabDefault
+            |> Option.bind (fun wanted ->
+                accounts |> List.tryFind (fun a -> a.YnabAccountId = Some wanted))
+
+        match mirrored with
+        | Some account -> Some account.Id
+        | None -> accounts |> List.tryHead |> Option.map (fun a -> a.Id)
+
+    /// Eine Buchung als Sicht. Die Herkunft kommt von aussen: sie steckt im Actor des
+    /// ersten Ereignisses, nicht im Zustand.
+    let toEntryView (origin: LedgerOrigin) (entry: Entry) : LedgerEntryView =
+        let (EntryId id) = entry.Id
+        let (LedgerAccountId accountId) = entry.AccountId
+        {
+            Id = id
+            AccountId = accountId
+            Date = entry.Date
+            Amount = entry.Amount
+            Payee = entry.Payee
+            Memo = entry.Memo
+            CategoryName = entry.Category |> Option.map (fun c -> c.CategoryName)
+            Splits = entry.Splits
+            Origin = origin
+            DeletedInYnab = entry.DeletedInYnab
+        }
+
+    // --- Die Sprache der Historie ---
+
+    let private payeeOr (p: string option) = p |> Option.defaultValue "ohne Payee"
+    let private memoOr (m: string option) = m |> Option.defaultValue "ohne Memo"
+
+    let private clearedLabel (c: ClearedState) =
+        match c with
+        | Uncleared -> "offen"
+        | Cleared -> "bestätigt"
+        | Reconciled -> "abgeglichen"
+
+    let private describeObserved (p: EntryObservedInYnabPayload) =
+        let head = $"Erstmals in YNAB gesehen: {payeeOr p.Payee}, {formatMoney p.Amount}"
+        let category =
+            match p.Category with
+            | Some c -> [ $"Kategorie {c.CategoryName}" ]
+            | None -> []
+        let splits =
+            if List.isEmpty p.Splits then [] else [ $"{List.length p.Splits} Split-Zeilen" ]
+        String.Join(", ", head :: category @ splits)
+
+    let private describeDetailsChange (p: EntryDetailsChangeObservedInYnabPayload) =
+        let parts =
+            [
+                if p.OldDate <> p.NewDate then
+                    $"Datum in YNAB geändert: {formatDate p.OldDate} → {formatDate p.NewDate}"
+                if p.OldAmount <> p.NewAmount then
+                    $"Betrag in YNAB geändert: {formatMoney p.OldAmount} → {formatMoney p.NewAmount}"
+                if p.OldPayee <> p.NewPayee then
+                    $"Payee in YNAB geändert: {payeeOr p.OldPayee} → {payeeOr p.NewPayee}"
+                if p.OldMemo <> p.NewMemo then
+                    $"Memo in YNAB geändert: {memoOr p.OldMemo} → {memoOr p.NewMemo}"
+                if p.OldAccountId <> p.NewAccountId then
+                    "Buchung in YNAB auf ein anderes Konto verschoben"
+            ]
+        // Ein Kopfdaten-Ereignis ohne sichtbaren Unterschied kann es nach `observe`
+        // nicht geben; falls doch, bleibt der Satz allgemein statt leer.
+        if List.isEmpty parts then "Kopfdaten in YNAB geändert" else String.Join("; ", parts)
+
+    let private describeCategorizationChange (p: EntryCategorizationChangeObservedInYnabPayload) =
+        let categoryPart =
+            match p.OldCategory, p.NewCategory with
+            | Some o, Some n when o.CategoryName <> n.CategoryName || o.CategoryId <> n.CategoryId ->
+                [ $"Kategorie in YNAB geändert: {o.CategoryName} → {n.CategoryName}" ]
+            | None, Some n -> [ $"Kategorie in YNAB gesetzt: {n.CategoryName}" ]
+            | Some o, None -> [ $"Kategorie in YNAB entfernt: {o.CategoryName}" ]
+            | _ -> []
+
+        let splitPart =
+            match p.OldSplits, p.NewSplits with
+            | [], [] -> []
+            | [], newSplits -> [ $"In YNAB in {List.length newSplits} Split-Zeilen aufgeteilt" ]
+            | _, [] -> [ "Split in YNAB aufgehoben" ]
+            | oldSplits, newSplits when oldSplits <> newSplits ->
+                [ $"Splits in YNAB geändert: {List.length oldSplits} → {List.length newSplits} Zeilen" ]
+            | _ -> []
+
+        let parts = categoryPart @ splitPart
+        if List.isEmpty parts then "Kategorisierung in YNAB geändert" else String.Join("; ", parts)
+
+    /// Ein Ereignis als Satz in der Sprache des Kassenbuchs (ADR 0013). Die Payloads
+    /// tragen die alten und neuen **Namen**, deshalb braucht dieser Satz kein
+    /// Nachschlagen.
+    let describe (body: LedgerEventBody) : string =
+        match body with
+        | EntryObservedInYnab p -> describeObserved p
+        | EntryDetailsChangeObservedInYnab p -> describeDetailsChange p
+        | EntryCategorizationChangeObservedInYnab p -> describeCategorizationChange p
+        | EntryClearedStateChangeObservedInYnab p ->
+            $"Status in YNAB geändert: {clearedLabel p.OldCleared} → {clearedLabel p.NewCleared}"
+        | EntryDeletionObservedInYnab -> "In YNAB gelöscht"
+
+    /// Ein gespeichertes Ereignis als Historien-Zeile.
+    let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {
+        Sequence = recorded.Sequence
+        OccurredAt = recorded.Event.OccurredAt
+        Origin = originOf recorded.Event.Actor
+        Description = describe recorded.Event.Body
+    }
+
+// ============================================
+// Sichten (mit I/O)
+// ============================================
+
+/// Die Konten des Kassenbuchs samt Vorauswahl. Vorausgewaehlt ist das Konto, das dem
+/// YNAB-Standardkonto entspricht (`ynab_default_account_id`), sonst das erste.
+let getLedgerAccounts () : Async<LedgerAccountsView> =
+    async {
+        let! accounts = Ledger.Persistence.loadAccounts ()
+        let! defaultAccountSetting = Core.Settings.getSetting "ynab_default_account_id"
+
+        let ynabDefault =
+            defaultAccountSetting
+            |> Option.bind (fun text ->
+                match Guid.TryParse text with
+                | true, id -> Some (YnabAccountId id)
+                | false, _ -> None)
+
+        let views = accounts |> List.map ReadModel.toAccountView
+
+        return {
+            Accounts = views
+            DefaultAccountId = ReadModel.defaultAccountId ynabDefault views
+        }
+    }
+
+/// Die Buchungen eines Kontos, neueste zuerst. Geloeschte Buchungen bleiben in der
+/// Liste (mit Kennzeichen) — das Kassenbuch verliert nichts (ADR 0013).
+let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
+    async {
+        let! entries = Ledger.Persistence.loadEntriesForAccount (LedgerAccountId accountId)
+        let! origins = Ledger.Persistence.loadEntryOrigins ()
+
+        return
+            entries
+            |> List.map (fun entry ->
+                let (EntryId id) = entry.Id
+                // Ohne Ereignis im Log gibt es keine Herkunft zu zeigen; der Spiegel
+                // ist der einzige Erzeuger in v1, also ist er die ehrliche Annahme.
+                let origin =
+                    origins
+                    |> Map.tryFind id
+                    |> Option.map ReadModel.originOf
+                    |> Option.defaultValue MirroredFromYnab
+
+                ReadModel.toEntryView origin entry)
+    }
+
+/// Die Historie einer Buchung, aelteste Zeile zuerst. Das ist die eine Stelle, an der
+/// die Seite das Ereignis-Log liest.
+let getEntryHistory (entryId: Guid) : Async<LedgerHistoryLine list> =
+    async {
+        let! events = Ledger.Persistence.loadEventsForEntry (EntryId entryId)
+        return events |> List.map ReadModel.toHistoryLine
+    }

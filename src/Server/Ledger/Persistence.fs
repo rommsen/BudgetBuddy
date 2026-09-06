@@ -468,6 +468,47 @@ let loadAllEntries () : Async<Entry list> =
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
+/// Alle Buchungen eines Kontos, neueste zuerst. Liest ausschliesslich die
+/// Zustandstabelle: der Lesepfad der Kassenbuch-Seite faltet kein Log (ADR 0013).
+///
+/// Bewusst **kein** `SUM(amount)` und kein `CAST(amount AS REAL)`: der Betrag bleibt
+/// exakter Dezimal-Text, der Kontostand wird in F# ueber die geladenen Buchungen
+/// summiert (ADR 0017).
+let loadEntriesForAccount (accountId: LedgerAccountId) : Async<Entry list> =
+    async {
+        let (LedgerAccountId id) = accountId
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<EntryRow>(
+                "SELECT * FROM ledger_entries WHERE account_id = @id ORDER BY date DESC, id DESC",
+                {| id = id.ToString() |}
+            )
+            |> Async.AwaitTask
+        return rows |> Seq.map rowToEntry |> Seq.toList
+    }
+
+[<CLIMutable>]
+type private OriginRow = { entry_id: string; actor_kind: string; actor_rule_id: string }
+
+/// Die Herkunft jeder Buchung: der Actor ihres **ersten** Ereignisses. Eine Zeile je
+/// Buchung, kein Replay — die Herkunft steht fest, sobald die Buchung entsteht.
+let loadEntryOrigins () : Async<Map<Guid, Actor>> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<OriginRow>(
+                "SELECT entry_id, actor_kind, actor_rule_id FROM ledger_entry_events WHERE sequence = 1"
+            )
+            |> Async.AwaitTask
+        return
+            rows
+            |> Seq.choose (fun row ->
+                match actorFromColumns row.actor_kind (toOption row.actor_rule_id) with
+                | Ok actor -> Some (Guid.Parse row.entry_id, actor)
+                | Error _ -> None)
+            |> Map.ofSeq
+    }
+
 /// Alle Fremd-Id-Verknuepfungen einer Buchung.
 let linksForEntry (entryId: EntryId) : Async<EntryLink list> =
     async {

@@ -82,6 +82,26 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   noch einen Übertrag trägt. Der Spiegel übernimmt sie als solche: sie zählt beim Betrag
   voll mit, wird nie weggelassen und bricht keinen Spiegel-Lauf ab. Beim Push bleibt sie
   kategorielos, BB selbst erzeugt sie nicht (ADR 0019, ergänzt ADR 0006).
+- **Sichten** (Lesepfad der Kassenbuch-Seite) — die semantischen Lesefunktionen des
+  Kassenbuchs. Code: `src/Server/Ledger/QueryHandlers.fs`, Endpunkte in `LedgerApi`.
+  Gelesen werden die Zustandstabellen; nur die Historie fasst das Ereignis-Log an.
+  - `getLedgerAccounts` — alle Konten samt Vorauswahl der Seite: das gespiegelte
+    YNAB-Standardkonto (`ynab_default_account_id`), sonst das erste.
+  - `getLedgerEntriesForAccount` — die Buchungen eines Kontos, neueste zuerst. In YNAB
+    gelöschte Buchungen sind enthalten und tragen ein Kennzeichen, sie werden nie
+    herausgefiltert. Der **Kontostand** wird aus dieser Liste in F# summiert
+    (`Shared.Domain.ledgerBalance`), nie per SQL-`SUM` (ADR 0017).
+  - `getEntryHistory` — die **Historie** einer Buchung, älteste Zeile zuerst: laufende
+    Nummer, Zeitpunkt, Herkunft und ein sprechender Satz je Ereignis ("Kategorie in YNAB
+    geändert: Lebensmittel → Restaurant"), nie ein Ereignis-Typname (ADR 0013). Die alten
+    und neuen Namen stehen in der Payload, deshalb braucht der Satz kein Nachschlagen.
+  - `getLastMirrorRun` — der **Lauf-Status** (siehe oben).
+- **Herkunfts-Badge** — die Herkunft einer Buchung als Kennzeichen in der Anzeige:
+  *YNAB-Spiegel*, *Comdirect-Import*, *Regel*, *Roman in BB*, *Quick Add*
+  (`Shared.Domain.originLabel`). Die Herkunft einer Buchung ist der Actor ihres **ersten**
+  Ereignisses und steht damit fest, sobald die Buchung entsteht. Eine in YNAB gelöschte
+  Buchung trägt zusätzlich das Kennzeichen *in YNAB gelöscht*: sie bleibt sichtbar und
+  zählt nur beim Kontostand nicht mit.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine

@@ -54,6 +54,11 @@
     <Compile Include="Components/Rules/State.fs" />
     <Compile Include="Components/Rules/View.fs" />
 
+    <!-- Component: Ledger (Kassenbuch) -->
+    <Compile Include="Components/Ledger/Types.fs" />
+    <Compile Include="Components/Ledger/State.fs" />
+    <Compile Include="Components/Ledger/View.fs" />
+
     <!-- Component: Styleguide (living component gallery — presentational) -->
     <Compile Include="Components/Styleguide/View.fs" />
 
