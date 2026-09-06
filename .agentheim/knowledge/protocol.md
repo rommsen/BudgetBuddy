@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 12:48 -- Task verified and completed: ledger-zm0zx - Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle)
+
+**Type:** Work / Task completion
+**Task:** ledger-zm0zx - Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle)
+**Summary:** Kontenmodell (Art × Verknüpfung): ein Konto Bar mit Quick Add als Herkunft; Geldmarkt-ETF in v1 als manuelles YNAB-Konto gespiegelt, Bewertung später als BB-geführte Fähigkeit; Research-Spike ledger-c7j8e (Kursquelle) im Backlog
+**Duration:** ~8m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 0
+**ADRs written:** 0016
+
+---
+
 ## 2026-09-06 12:47 -- Task verified and completed: ledger-z5vw6 - Identität einer Buchung über Systeme hinweg festlegen (eigene Id + Fremd-Id-Verknüpfung)
 
 **Type:** Work / Task completion

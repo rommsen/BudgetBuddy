@@ -100,8 +100,8 @@ Historie-Technik in der Decision-Task des Architekten.
   mitgeschrieben, reiner `apply`-Replay als Pflichttest. SQLite bleibt, kein Postgres.
 - **Spiegel-Mechanik:** Delta-Sync über YNABs `server_knowledge`, Intervall, Umgang mit
   gelöschten Buchungen, Rate-Limit (~200 req/h). → Decision-Task (Architekt, in `ynab-sync`).
-- **Kursquelle** für den Geldmarkt-ETF: welche, wie robust, was bei Ausfall?
-- **Bar- und Quick-Add-Konto:** ein Konto oder zwei im Kassenbuch?
+- **Kursquelle** — *gelöst (ADR 0016, ledger-zm0zx):* Schnittstelle mit Handeingabe und späterem automatischem Abruf, konkrete Quelle als Research-Spike im Backlog.
+- **Bar- und Quick-Add-Konto** — *gelöst (ADR 0016):* ein Konto "Bar", Quick Add ist Herkunft.
 - **Quick Add** später direkt ins Kassenbuch (BB-geführt ohne Umweg über YNAB)?
 - **Identität der Buchung** — *gelöst (ADR 0015, ledger-z5vw6):* eigene Id
   (`Guid.CreateVersion7()`), Fremd-Ids (YNAB, ImportId, Comdirect) als Verknüpfungen in

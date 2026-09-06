@@ -1,14 +1,15 @@
 ---
 id: ledger-zm0zx
 title: Kontenmodell und Bewertung festlegen (Konto-Arten, BB-eigene Konten, Kursquelle)
-status: doing
+status: done
 type: decision
 context: ledger
 created: 2026-09-06
+completed: 2026-09-06
 depends_on: []
 blocks: []
 tags: [foundation, domain]
-related_adrs: [0012]
+related_adrs: [0012, 0016]
 related_research: []
 prior_art: []
 ---
@@ -135,3 +136,13 @@ Reconciliation Balance Adjustment auf einem Budget-Konto den Betrag aus dem Kont
 https://support.ynab.com/en_us/balance-adjustments-a-guide-rko4OwILs und
 https://support.ynab.com/en_us/reconciling-accounts-a-guide-BJFE3fHys. Punkt 2 im ADR
 kann das als gesichert nennen (mit Quelle), nicht als "zu verifizieren".
+
+## Outcome
+ADR 0016 (`0016-kontenmodell-und-bewertung-als-buchung.md`) committed: Kontenmodell
+Art x Verknüpfung bleibt, hat in v1 aber keine BB-eigene Instanz. Bar und Quick-Add sind
+ein Konto ("Bar"), Quick Add ist eine Herkunft an der Buchung. Der ETF wird in v1 als
+manuelles YNAB-Konto geführt (Reconciliation, Ready to Assign bleibt korrekt), nicht als
+BB-eigenes Konto. Bewertung als BB-geführte Fähigkeit (`ValuationRecorded`, Buchung
+"Bewertungsänderung") ist vorgesehen, nicht v1. Folge-Spike `ledger-c7j8e` im Backlog
+angelegt (Kursquelle per ISIN, Research). README-Bullets "Kursquelle" und "Bar- und
+Quick-Add-Konto" in `## Open questions` auf gelöst gesetzt.
