@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 15:40 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** ~2h10m (erster Batch-Start bis jetzt, inkl. Diskussion der Decisions mit Roman)
+**Completed:** 4 (first-try PASS: 4, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Dispatches:** ledger-fsz0a: 1, ynab-czk34: 1, ledger-z5vw6: 1, ledger-zm0zx: 1, ledger-e3k7p: 1 (auf Romans Wunsch abgebrochen vor dem ersten Edit; Modell nachgezogen, kein Re-Dispatch)
+**Commits:** 14 (2 Batch-Start, 4 Task-Integration, 1 .gitignore, 2 Vision, 1 Split, 2 Reconcile, 1 Ereignis-Katalog, 1 Session-End)
+**Vision-conformance:** ledger-zm0zx: diverges from success criterion "v1 · Alles unter einem Dach" (ETF-Bullet, "auch wenn YNAB es weiterhin nicht kennt") — bewusste Entscheidung mit Roman (manuelles YNAB-Konto statt BB-eigenes Konto); Vision-Text in derselben Session nachgezogen (9a48cb4), whats-next-Advisory geschrieben. Sonst: batch aligns with vision.
+**Carry-over:** .agentheim/knowledge/research/comdirect-kreditkarten-transaktionen-2026-08-04.md: committed (reconcile, 1be1cb0); .serena/project.yml: committed (reconcile, 1bf10fd); .worktrees/ledger-e3k7p: kept (owner: ledger-e3k7p, Task in doing/ nach Batch-Start 09f0043, Worker auf Romans Wunsch gestoppt, Ereignis-Katalog nachmodelliert, nächste Session: Phase 1 Recovery, Worker auf Opus starten)
+**Note:** Alle vier Foundation-Decisions wurden vor dem Dispatch mit Roman diskutiert und weichen an drei Stellen von den Architekten-Entwürfen ab (semantische Delta-Ereignisse nach souls-Muster; kein Server-Timer; ETF als manuelles YNAB-Konto). Worker und Verifier auf Sonnet. Skeleton in drei Slices geteilt; e3k7p wartet mit verbindlichem Ereignis-Katalog auf einen Opus-Worker.
+
+---
+
 ## 2026-09-06 14:00 -- Batch started: [ledger-e3k7p]
 
 **Type:** Work / Batch start
