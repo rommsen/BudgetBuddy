@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-06 17:40 -- Batch started: [ledger-m8r2v]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-m8r2v - Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser
+**Parallel:** no (1 worker; ledger-q5w9c und ledger-kt0wq bleiben in der Kette auf m8r2v blockiert, keine weiteren ready tasks im Projekt)
+
+---
+
 ## 2026-09-06 17:38 -- Task verified and completed: ledger-e3k7p - Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test
 
 **Type:** Work / Task completion

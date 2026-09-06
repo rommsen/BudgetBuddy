@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 2
+- **Doing:** 1
 - **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-m8r2v** — Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser — depends_on: [ledger-e3k7p, ynab-czk34] — `todo/ledger-m8r2v-mirror-run.md`
 - **ledger-q5w9c** — Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln" — depends_on: [ledger-m8r2v, design-system-001] — `todo/ledger-q5w9c-ledger-page.md`
 - **ledger-kt0wq** — Walking Skeleton Kassenbuch: Abnahme auf dem echten Budget (Human-Gate) — depends_on: [ledger-e3k7p, ledger-m8r2v, ledger-q5w9c] — `todo/ledger-kt0wq-walking-skeleton.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-m8r2v** — Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser (feature) — `doing/ledger-m8r2v-mirror-run.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

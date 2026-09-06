@@ -1,7 +1,7 @@
 ---
 id: ledger-m8r2v
 title: Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-06
