@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 10:34 -- Modeling / Captured: design-system-t82sg, design-system-h58y4 - Design-System-Sync nach Claude Design
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** todo (design-system-t82sg), backlog (design-system-h58y4)
+**Summary:** Einseitiger Sync Repo → Claude Design als Grundlage für den UX-Durchgang im Kassenbuch. t82sg baut einen wiederholbaren Export (`npm run export:design-system`, Playwright über `/#/styleguide`, Bundle git-ignoriert unter `dist/design-system/`: Tokens, Kassenbuch-Komponenten, Assets, README/SKILL); h58y4 lädt ihn per `DesignSync` in ein neues Projekt "BudgetBuddy Design System" hoch und ist Human-Gate in der Hauptsession, weil Worker kein `DesignSync` haben. Zugang zu claude.ai/design am 2026-09-11 geprüft (`/design-login`), Struktur-Vorbild ist Romans Projekt "Smolder Design System".
+
+---
+
 ## 2026-09-11 08:17 -- Task verified and completed: ledger-kt0wq - Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen
 
 **Type:** Work / Task completion
