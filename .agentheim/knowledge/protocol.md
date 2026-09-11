@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 21:59 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 46m (21:13 bis 21:59)
+**Completed:** 2 (first-try PASS: 0, re-dispatched: 2, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Dispatches:** design-system-f7k2p: 2, design-system-y6gkd: 2
+**Commits:** 3 Work-Commits (1 Batch-Start, 2 Task-Integration) und dieser Session-End-Commit
+**Vision-conformance:** none — batch aligns with vision. Beide Tasks bereiten den UX-Durchgang des Kassenbuchs (ledger-xbrht) vor und zielen damit auf das Scheiterkriterium "Kassenbuch gebaut, aber niemand schaut hinein"; die selbst ausgelieferten Schriften machen die PWA zusätzlich offline-fähig. Kein Non-Goal berührt.
+**Carry-over:** none — working tree clean; keine Worktrees außer dem Hauptzweig
+**Anmerkungen:** (1) Beide Iteration-1-Fehlschläge betrafen Doku und Stil, nicht die Funktion: Umlaut-Umschreibungen in F#-Kommentaren und fehlendes `supersedes` in ADR 0026 (f7k2p), veralteter README-Bullet und falsche Kartenzahl (y6gkd; den Bullet hatte der Conductor dem Worker zur Konfliktvermeidung gesperrt). (2) Der Merge-Konflikt in `scripts/export-design-system.mjs` (f7k2p entfernt `fontsUrl`, y6gkd baut neue Aufrufer) wurde vor dem Merge per `git merge-tree` erkannt; nach Romans Entscheidung hat der Conductor `feature/kassenbuch` in den y6gkd-Worktree gemergt, der Iteration-2-Worker den Konflikt aufgelöst, der Verifier den Netto-Diff gegen den neuen Stand geprüft. (3) Worker liefen ohne Serena, weil Serena am Hauptbaum hängt und Worktree-Isolation umgehen würde. (4) Beide Tasks blockierten ledger-xbrht; der Re-Sync nach Claude Design (README-Ablauf, Hauptsession mit Roman) steht als nächster Schritt an.
+
+---
+
 ## 2026-09-11 21:56 -- Task verified and completed: design-system-y6gkd - Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export
 
 **Type:** Work / Task completion
