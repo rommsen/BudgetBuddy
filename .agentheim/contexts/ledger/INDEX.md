@@ -11,14 +11,13 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 1
+- **Todo:** 0
 - **Doing:** 0
-- **Done:** 6
+- **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-kt0wq** — Walking Skeleton Kassenbuch: Abnahme auf dem echten Budget (Human-Gate) — depends_on: [ledger-e3k7p, ledger-m8r2v, ledger-q5w9c] — `todo/ledger-kt0wq-walking-skeleton.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -27,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-kt0wq** — Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen (spike) — `done/ledger-kt0wq-walking-skeleton.md`
 - **ledger-q5w9c** — Kassenbuch-Seite: Buchungen eines Kontos mit Herkunfts-Badge und Historie, "Jetzt spiegeln" (feature) — `done/ledger-q5w9c-ledger-page.md`
 - **ledger-m8r2v** — Spiegel-Lauf YNAB → Kassenbuch: Delta-Abruf, Snapshot-Vergleich, Ereignisse, manueller Auslöser (feature) — `done/ledger-m8r2v-mirror-run.md`
 - **ledger-e3k7p** — Kassenbuch-Fundament: Ereignis-Log, Zustandsmodell, appendAndApply und Replay-Test (feature) — `done/ledger-e3k7p-event-log-and-state.md`

@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 08:17 -- Task verified and completed: ledger-kt0wq - Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen
+
+**Type:** Work / Task completion
+**Task:** ledger-kt0wq - Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen
+**Summary:** Walking Skeleton am echten Budget abgenommen: 13.864 Buchungen, Id-Mengen rechnen sich exakt gegen YNAB auf; Kategorie-Änderung und Löschung als Historie belegt, zweiter Lauf ohne Ereignis. Zwei nur hier sichtbare Fehler gefunden und behoben (Direktaufruf lud nichts; Erstbefüllung holte nur zwölf Monate)
+**Duration:** Abnahme über mehrere Sitzungen, 2026-09-06 bis 2026-09-11
+**Verification:** PASS (Human-Gate: Abnahme durch Roman gegen YNAB-Web)
+**Files changed:** 0
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
+## 2026-09-11 08:17 -- Batch started: [ledger-kt0wq]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-kt0wq - Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen
+**Parallel:** no (kein Worker — Human-Gate: Abnahme durch Roman am echten Budget, kein Code-Slice)
+
+---
+
 ## 2026-09-06 22:01 -- Abnahme-Fund und Fix: Erstbefuellung des Spiegels holte nur zwoelf Monate
 
 **Type:** Work / Bugfix aus der Abnahme
