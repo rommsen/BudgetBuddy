@@ -113,3 +113,12 @@ auf (Entscheidung Roman, 2026-09-11).
 - Die ImportId-Rekonstruktion in `importToYnab` (`BB:{txId ohne Bindestriche}` im
   Duplikat-Zweig) muss nach der Umstellung dieselbe ImportId ergeben wie
   `Shared.Domain.generateImportId`; im Force-Fall stimmt sie heute nicht.
+- **Nachtrag 2026-09-11 (Entscheidung Roman zu `categorization-gdrx8`):** `ReviewActor` hat
+  einen dritten Fall für Kategorien aus dem Order-ID-Abgleich beim Abruf (Vorschlag aus der
+  YNAB-Historie derselben Amazon-Bestellung), Anzeigename "Order-ID-Abgleich". Die
+  Übertragung auf Geschwister in der Review ist `ByUser`. Für Schritt 6 heißt das: das
+  Kassenbuch braucht einen passenden Urheber (neuer `Actor`-Fall, z. B. `OrderIdMatch`)
+  und ein Ereignis dafür (`EntryRecategorized` mit diesem Actor oder ein eigenes Ereignis,
+  Wahl beim Implementieren, im Ereignis-Katalog des README festhalten). Die Historie zeigt
+  dann z. B. "Order-ID-Abgleich: Büro". Akzeptanz: ein Test mit einer Buchung, deren
+  Kategorie aus dem Order-ID-Abgleich stammt, belegt diesen Urheber in der Historie.

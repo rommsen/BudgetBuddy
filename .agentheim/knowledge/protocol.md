@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 16:31 -- Modeling / Refined: categorization-gdrx8, ledger-qvt84 - Urheber von Order-ID-Kategorien
+
+**Type:** Modeling / Refine
+**BC:** categorization, ledger
+**Status after:** categorization-gdrx8 doing (Iteration 2, Worktree), ledger-qvt84 todo
+**Summary:** Eskalation aus der Verifikation von categorization-gdrx8 (task-under-specified) mit Roman geklärt: Kategorien aus dem Order-ID-Abgleich bekommen je nach Weg einen Urheber. Übertragung auf Geschwister in der Review ist "Roman in BB" (`ByUser`); der Vorschlag beim Abruf aus der YNAB-Historie bekommt einen eigenen Urheber "Order-ID-Abgleich" (neuer `ReviewActor`-Fall). categorization-mgnjp geht in gdrx8 auf. ledger-qvt84 bekommt den Nachtrag, dass das Kassenbuch dafür einen passenden Actor und ein Ereignis braucht.
+
+---
+
 ## 2026-09-11 12:54 -- Batch started: [ledger-tdnpk]
 
 **Type:** Work / Batch start
