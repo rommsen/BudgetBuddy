@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-y6gkd** — Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export (feature) — `todo/design-system-y6gkd-kategorienauswahl-und-alle-sektionen-im-export.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -39,7 +40,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-f7k2p** — Bug: Google-Fonts-@import in styles.css steht hinter @theme und wird vom Build verworfen (App rendert in Ersatzschriften) (bug) — `backlog/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
+- **design-system-f7k2p** — Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export (bug) — `backlog/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
 - **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 <!-- backlog-list:end -->
 

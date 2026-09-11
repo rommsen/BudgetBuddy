@@ -6,7 +6,7 @@ type: spike
 context: ledger
 created: 2026-09-11
 completed:
-depends_on: [design-system-h58y4, design-system-001]
+depends_on: [design-system-h58y4, design-system-001, design-system-y6gkd, design-system-f7k2p]
 blocks: []
 tags: [frontend, ux, kassenbuch, claude-design]
 related_adrs: [0013, 0015, 0021]
@@ -96,3 +96,8 @@ PC; am Handy ist der Hauptfall das Durchsehen und Bestätigen neuer Buchungen.
   sich beim Filtern und Scrollen anfühlt, gehört ins Konzept.
 - Kein Worker-Task: läuft in der Hauptsession mit Roman, wie `design-system-h58y4`.
   Bleibt im Backlog, bis der Sync erledigt ist.
+- **Nachtrag 2026-09-11 (Erst-Sync `design-system-h58y4`):** Das Claude-Design-Projekt
+  "BudgetBuddy Design System" steht (Id und Re-Sync-Ablauf im design-system-README). Vor
+  den Mockups laufen `design-system-y6gkd` (Kategorienauswahl und alle Styleguide-Sektionen
+  im Export) und `design-system-f7k2p` (Schriften als Dateien); dieser Task beginnt mit
+  einem Re-Sync nach dem README-Ablauf.

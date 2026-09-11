@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 20:47 -- Modeling / Captured: design-system-y6gkd; Refined: design-system-f7k2p, ledger-xbrht - Funde aus der Sichtprüfung des Erst-Syncs
+
+**Type:** Modeling / Capture + Refine
+**BC:** design-system, ledger
+**Filed to:** todo (design-system-y6gkd); design-system-f7k2p verfeinert (Promotion folgt), ledger-xbrht bleibt backlog
+**Summary:** Romans Sichtprüfung in claude.ai/design ergab zwei Funde. (1) Die Kategorienauswahl (`BottomSheet.categoryPicker` mit Vorschlägen und Gruppenliste mit Available) fehlt, weil die Styleguide-Route sie nicht zeigt; neuer Task design-system-y6gkd nimmt sie auf und exportiert zusätzlich alle übrigen Styleguide-Sektionen (Entscheidung Roman). (2) Claude Design verlangt die Schriften als Dateien; design-system-f7k2p wird von "@import verschieben" zu "Schriften selbst ausliefern" umgebaut (woff2 im Repo, @font-face, PWA-Precache, Fonts im Bundle, OFL-Lizenz), was zugleich den App-Bug behebt. ledger-xbrht wartet jetzt auf beide und beginnt mit einem Re-Sync.
+
+---
+
 ## 2026-09-11 20:37 -- Task verified and completed: design-system-h58y4 - Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman
 
 **Type:** Work / Task completion
