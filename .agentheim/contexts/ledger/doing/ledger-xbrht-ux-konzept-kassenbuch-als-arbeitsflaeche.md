@@ -1,7 +1,7 @@
 ---
 id: ledger-xbrht
 title: UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
-status: todo
+status: doing
 type: spike
 context: ledger
 created: 2026-09-11

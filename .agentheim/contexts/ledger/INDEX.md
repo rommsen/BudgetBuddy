@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-xbrht** — UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau) (spike) — `todo/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-xbrht** — UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau) (spike) — `doing/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

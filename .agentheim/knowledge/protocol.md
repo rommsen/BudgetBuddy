@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 22:11 -- Batch started: [ledger-xbrht]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-xbrht - UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
+**Parallel:** no (kein Worker; Human-Gate in der Hauptsession wie design-system-h58y4: Re-Sync per DesignSync mit Romans Freigabe, dann YNAB-Referenz, Konzept-Skizze, Briefs, Prototyp in Claude Design, Durchgang, Festhalten)
+**Planning advisory:** whats-next.md vom 2026-09-11 06:37 ist älter als der letzte Work-Eintrag (21:59), also veraltet und nur Hintergrund; ledger-xbrht ist der einzige Task in todo
+
+---
+
 ## 2026-09-11 22:08 -- Modeling / Promoted: ledger-xbrht - UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
 
 **Type:** Modeling / Promote
