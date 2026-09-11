@@ -16,8 +16,9 @@
 //   2. `vite preview` auf einem freien, vorab reservierten Port.
 //   3. Playwright öffnet /#/styleguide, schneidet je `[data-ds-card]` das Markup
 //      heraus und schreibt es als preview/components-*.html.
-//   4. colors_and_type.css, styles.css, preview/color-*.html, preview/type-*.html,
-//      preview/brand-*.html, assets/, README.md, SKILL.md schreiben.
+//   4. colors_and_type.css, styles.css, fonts/ (Font-Dateien + LICENSE.md),
+//      preview/color-*.html, preview/type-*.html, preview/brand-*.html, assets/,
+//      README.md, SKILL.md schreiben.
 //   5. Headless prüfen, dass die Marken-Fonts in den Vorschauen tatsächlich laden
 //      (document.fonts).
 //   6. Preview-Server stoppen und temporäres Build-Verzeichnis löschen: immer,
@@ -141,20 +142,55 @@ async function stopServer(child) {
   });
 }
 
-/// Google-Fonts-URL aus src/Client/styles.css extrahieren (nicht hart kodieren).
-/// Iteration 1 hat gezeigt: der `@import` steht dort hinter dem @theme-Block und
-/// wird vom Tailwind-4-Build deshalb verworfen (CSS-Regel: @import muss vor allen
-/// Regeln außer @charset/@layer stehen). Das gebaute styles.css enthält also weder
-/// @import noch @font-face; die Preview-Dateien laden die Fonts deshalb per
-/// explizitem <link>, unabhängig von diesem App-Bug (s. ADR 0024, Backlog-Bug-Item).
-async function extractGoogleFontsUrl() {
-  const sourcePath = path.join(ROOT, "src/Client/styles.css");
-  const raw = await readFile(sourcePath, "utf8");
-  const match = raw.match(/@import\s+url\(\s*['"]?([^'")]*fonts\.googleapis\.com[^'")]*)['"]?\s*\)/);
-  if (!match) {
-    throw new Error(`Kein Google-Fonts-@import in ${sourcePath} gefunden.`);
+/// Font-Dateinamen (unter src/Client/public/fonts/), die die App per @font-face in
+/// styles.css einbindet (design-system-f7k2p/ADR 0026: selbst ausgeliefert, kein
+/// Google-Fonts-Import mehr). Das Bundle kopiert dieselben Dateien nach
+/// dist/design-system/fonts/ und bindet sie per @font-face in colors_and_type.css
+/// ein, damit die Vorschauen ohne Netzzugriff laden.
+const FONT_FILES = [
+  "inter-latin-wght-normal.woff2",
+  "jetbrains-mono-latin-wght-normal.woff2",
+  "space-grotesk-latin-wght-normal.woff2",
+  "LICENSE.md",
+];
+
+/// @font-face-Regeln für das Bundle: dieselben drei Familien/Gewichtsbereiche wie
+/// in src/Client/styles.css, Pfad relativ zur Bundle-Wurzel (fonts/...), damit
+/// colors_and_type.css unabhängig davon funktioniert, wo das Bundle abgelegt wird.
+const FONT_FACE_CSS = `@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/space-grotesk-latin-wght-normal.woff2') format('woff2-variations');
+}`;
+
+/// Kopiert die Font-Dateien plus Lizenz-Notiz nach dist/design-system/fonts/
+/// (wie beim Vorbild-Projekt "Smolder Design System").
+async function copyFontFiles() {
+  const fontsSourceDir = path.join(ROOT, "src/Client/public/fonts");
+  const fontsOutDir = path.join(OUT_DIR, "fonts");
+  await mkdir(fontsOutDir, { recursive: true });
+  for (const file of FONT_FILES) {
+    await copyFile(path.join(fontsSourceDir, file), path.join(fontsOutDir, file));
   }
-  return match[1];
+  log(`fonts/ kopiert (${FONT_FILES.length} Dateien, inkl. LICENSE.md).`);
 }
 
 /// Baut die aufgelösten Tokens aus dem @theme-Block von src/Client/styles.css plus
@@ -206,6 +242,10 @@ ${themeBlock}
   /* Basis-Variablen, auf die der @theme-Block oben verweist (plus --font-sans, s.o.). */
 ${resolvedLines.join("\n")}
 }
+
+/* Fonts selbst ausgeliefert (design-system-f7k2p/ADR 0026), Dateien liegen unter
+   fonts/ neben dieser CSS-Datei, Lizenz-Notiz dort in fonts/LICENSE.md. */
+${FONT_FACE_CSS}
 `;
   await writeFile(path.join(OUT_DIR, "colors_and_type.css"), output, "utf8");
   log(`colors_and_type.css geschrieben (${uniqueNames.length} Basis-Variablen aufgelöst).`);
@@ -270,7 +310,7 @@ async function copyAssets() {
   log("assets/ kopiert (icon-master.svg, favicon.svg).");
 }
 
-async function writePreview(id, group, title, fontsUrl, innerHtml) {
+async function writePreview(id, group, title, innerHtml) {
   const doc = `<!-- @dsCard group="${group}" -->
 <!doctype html>
 <html lang="de">
@@ -278,9 +318,6 @@ async function writePreview(id, group, title, fontsUrl, innerHtml) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BudgetBuddy Design System: ${title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="${fontsUrl}">
 <link rel="stylesheet" href="../colors_and_type.css">
 <link rel="stylesheet" href="../styles.css">
 </head>
@@ -295,7 +332,7 @@ ${innerHtml}
   log(`preview/${id}.html geschrieben.`);
 }
 
-async function extractPreviews(baseUrl, fontsUrl) {
+async function extractPreviews(baseUrl) {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -309,7 +346,7 @@ async function extractPreviews(baseUrl, fontsUrl) {
       const html = await page
         .locator(`[data-ds-card="${card.id}"]`)
         .evaluate((el) => el.outerHTML);
-      await writePreview(card.id, "Components", card.title, fontsUrl, html);
+      await writePreview(card.id, "Components", card.title, html);
     }
 
     // BottomSheet: BottomSheet.view rendert per createPortal nach document.body,
@@ -332,7 +369,6 @@ async function extractPreviews(baseUrl, fontsUrl) {
       BOTTOMSHEET_CARD.id,
       "Components",
       BOTTOMSHEET_CARD.title,
-      fontsUrl,
       sheetHtml
     );
   } finally {
@@ -442,22 +478,21 @@ function buildBrandIconHtml() {
 </div>`;
 }
 
-async function writeTokenAndBrandPreviews(tokens, fontsUrl) {
-  await writePreview("color-neon", "Colors", "Neon-Palette", fontsUrl, buildColorNeonHtml(tokens));
+async function writeTokenAndBrandPreviews(tokens) {
+  await writePreview("color-neon", "Colors", "Neon-Palette", buildColorNeonHtml(tokens));
   await writePreview(
     "color-surfaces",
     "Colors",
     "Flächen, Ränder, Text",
-    fontsUrl,
     buildColorSurfacesHtml(tokens)
   );
-  await writePreview("type-fonts", "Type", "Schriften", fontsUrl, buildTypeFontsHtml(tokens));
-  await writePreview("brand-icon", "Brand", "App-Icon", fontsUrl, buildBrandIconHtml());
+  await writePreview("type-fonts", "Type", "Schriften", buildTypeFontsHtml(tokens));
+  await writePreview("brand-icon", "Brand", "App-Icon", buildBrandIconHtml());
 }
 
 /// Headless-Check: laden die drei Marken-Fonts in den Vorschauen tatsächlich?
-/// (Iteration-1-Fund: das gebaute styles.css enthält keinen Font-Import; ohne den
-/// expliziten <link> in writePreview würde document.fonts leer bleiben.)
+/// (Ohne die @font-face-Regeln aus copyFontFiles/FONT_FACE_CSS in colors_and_type.css
+/// würde document.fonts leer bleiben, design-system-f7k2p/ADR 0026.)
 async function verifyFontsLoaded() {
   const browser = await chromium.launch();
   try {
@@ -521,11 +556,11 @@ zeigen dieselben Tokens als Karten, generiert aus denselben Werten.
 
 ## Fonts
 
-Jede Vorschau lädt Inter, Space Grotesk und JetBrains Mono über einen expliziten
-Google-Fonts-Link (URL aus \`src/Client/styles.css\` übernommen). Hinweis: die gebaute
-BudgetBuddy-App selbst hat hier aktuell einen bekannten Bug (Font-Import wird vom Build
-verworfen, App rendert in Ersatzschriften); das Bundle korrigiert das nur für die
-Vorschau-Dateien, nicht die App selbst.
+Inter, Space Grotesk und JetBrains Mono liegen als eigene Dateien im Ordner
+\`fonts/\` (Variable Fonts, Subset "latin", SIL Open Font License 1.1, Lizenz-Notiz
+in \`fonts/LICENSE.md\`). \`colors_and_type.css\` bindet sie per \`@font-face\` ein;
+die Vorschauen laden damit ohne Netzzugriff, genauso wie die BudgetBuddy-App selbst
+(\`src/Client/styles.css\`, ADR 0026).
 
 ## Komponenten
 
@@ -609,11 +644,11 @@ async function main() {
   await mkdir(PREVIEW_DIR, { recursive: true });
   await mkdir(ASSETS_DIR, { recursive: true });
 
-  const fontsUrl = await extractGoogleFontsUrl();
   const tokens = await buildColorsAndTypeCss();
   await writeDocs();
   await copyAssets();
-  await writeTokenAndBrandPreviews(tokens, fontsUrl);
+  await copyFontFiles();
+  await writeTokenAndBrandPreviews(tokens);
 
   let buildDir;
   let server;
@@ -625,7 +660,7 @@ async function main() {
     log(`vite preview auf Port ${port} ...`);
     server = await startPreviewServer(buildDir, port);
 
-    await extractPreviews(`http://127.0.0.1:${port}`, fontsUrl);
+    await extractPreviews(`http://127.0.0.1:${port}`);
   } finally {
     await stopServer(server);
     if (buildDir) await rm(buildDir, { recursive: true, force: true });

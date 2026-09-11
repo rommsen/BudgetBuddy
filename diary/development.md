@@ -4,6 +4,127 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 21:40 - Iteration 2 von design-system-f7k2p: Schreibstil und ADR-Frontmatter korrigiert
+
+**What I did:**
+Nach dem Verifier-Fund aus Iteration 1 alle transliterierten Umlaute in
+`src/Client/styles.css` (Kommentar über dem `@font-face`-Block) und in
+`src/Tests/FontFaceRegressionTests.fs` (Kommentare und Assertion-Messages)
+durch echte Umlaute und ß ersetzt; dabei auch "durfte" zu "darf" korrigiert
+(Präsens statt fälschlich Präteritum). In ADR 0026 `supersedes: [0024]`
+gesetzt; in ADR 0024 `superseded_by: [0026]` und `related_adrs: [0026]`
+ergänzt (Status bleibt `accepted`, die bestehende Amendment-Notiz macht
+bereits klar, dass nur Decision 3 ersetzt wird, Decisions 1 und 2 bleiben
+gültig). Alle geänderten Dateien plus Export-Skript, README und Fonts-Lizenz
+auf verbliebene Transliterationen geprüft; keine gefunden.
+
+**Files Modified:**
+- `src/Client/styles.css` - Kommentar korrigiert (echte Umlaute)
+- `src/Tests/FontFaceRegressionTests.fs` - Kommentare und Assertion-Messages
+  korrigiert (echte Umlaute, ß, "durfte" zu "darf")
+- `.agentheim/knowledge/decisions/0026-schriften-selbst-ausliefern-statt-google-fonts-import.md`
+  - `supersedes: [0024]` gesetzt
+- `.agentheim/knowledge/decisions/0024-export-bundle-build-nicht-dev-und-nicht-fixe-navigation-preview.md`
+  - `superseded_by: [0026]`, `related_adrs: [0026]` ergänzt
+
+**Rationale:**
+Die Implementierung selbst war funktional korrekt (Build, 784 Tests,
+@font-face im gebauten CSS, Fonts im PWA-Precache); nur Schreibstil und
+ADR-Verknüpfung mussten nachgezogen werden.
+
+**Outcomes:**
+- Build: dotnet build - OK
+- Tests: 784 bestanden, 7 übersprungen (.env-Integrationstests), vom Verifier bestätigt; Verifikation PASS in Iteration 2
+- Issues: keine
+
+---
+
+## 2026-09-11 21:35 - Schriften selbst ausliefern statt Google-Fonts-Import
+
+**What I did:**
+Google-Fonts-`@import` in `src/Client/styles.css` entfernt (stand hinter dem
+`@theme`-Block, wurde vom Tailwind-4-Build verworfen, App rendert seitdem in
+Ersatzschriften). Ersetzt durch drei lokale `@font-face`-Regeln (Inter, JetBrains
+Mono, Space Grotesk), Font-Dateien liegen jetzt im Repo. Export-Bundle
+(`scripts/export-design-system.mjs`) zieht nach: kopiert dieselben Dateien ins
+Bundle und bindet sie per `@font-face` in `colors_and_type.css` ein, statt den
+Google-Fonts-Link in die Vorschau-Dateien zu schreiben.
+
+**Bezugsquelle der Fonts (im Diary festgehalten, wie im Task gefordert):** die
+Variable-Font-Pakete von Fontsource (`@fontsource-variable/inter`,
+`@fontsource-variable/jetbrains-mono`, `@fontsource-variable/space-grotesk`,
+jeweils Version 5.3.0), bezogen per `curl` von der jsDelivr-CDN-Spiegelung der
+npm-Pakete (kein `npm install`, wie im Task-Setup vorgeschrieben):
+- `https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.3.0/files/inter-latin-wght-normal.woff2`
+  (48.256 Byte, Gewicht 100-900)
+- `https://cdn.jsdelivr.net/npm/@fontsource-variable/jetbrains-mono@5.3.0/files/jetbrains-mono-latin-wght-normal.woff2`
+  (40.404 Byte, Gewicht 100-800)
+- `https://cdn.jsdelivr.net/npm/@fontsource-variable/space-grotesk@5.3.0/files/space-grotesk-latin-wght-normal.woff2`
+  (22.288 Byte, Gewicht 300-700)
+- Lizenztexte von denselben Paketen (`.../LICENSE`), alle drei OFL 1.1, nur die
+  Copyright-Zeile unterscheidet sich je Schrift; zu einer gemeinsamen
+  `LICENSE.md` mit Tabelle plus dem einen gemeinsamen OFL-1.1-Volltext
+  zusammengeführt.
+
+Je eine Variable-Font-Datei pro Familie deckt den gesamten benötigten
+Gewichtsbereich ab (kein Satz einzelner statischer Schnitte); Subset "latin"
+deckt deutsche Umlaute (ä, ö, ü, ß) ab (Unicode-Range U+0000-00FF u. a.), Stil
+"normal" (keine Kursivschnitte nötig).
+
+**Files Added:**
+- `src/Client/public/fonts/inter-latin-wght-normal.woff2`
+- `src/Client/public/fonts/jetbrains-mono-latin-wght-normal.woff2`
+- `src/Client/public/fonts/space-grotesk-latin-wght-normal.woff2`
+- `src/Client/public/fonts/LICENSE.md` - OFL-1.1-Notiz für alle drei Schriften
+- `src/Tests/FontFaceRegressionTests.fs` - Regressionstest für den Font-Bug
+- `.agentheim/knowledge/decisions/0026-schriften-selbst-ausliefern-statt-google-fonts-import.md`
+
+**Files Modified:**
+- `src/Client/styles.css` - Google-Fonts-`@import` entfernt, drei `@font-face`-Regeln
+  eingefügt
+- `scripts/export-design-system.mjs` - `extractGoogleFontsUrl` entfernt, neue
+  `FONT_FILES`/`FONT_FACE_CSS`/`copyFontFiles`, `writePreview`/`extractPreviews`/
+  `writeTokenAndBrandPreviews`/`main` ohne `fontsUrl`-Parameter, `@font-face` in
+  `colors_and_type.css`, README/SKILL-Text im Bundle angepasst
+- `src/Tests/Tests.fsproj` - `FontFaceRegressionTests.fs` registriert
+- `.agentheim/contexts/design-system/README.md` - drei Bullets im
+  Export-Bundle-Abschnitt aktualisiert (Fonts jetzt lokal, App-Bug als behoben markiert)
+- `.agentheim/knowledge/decisions/0024-export-bundle-build-nicht-dev-und-nicht-fixe-navigation-preview.md`
+  - Hinweis ergänzt, dass Decision 3 durch ADR 0026 ersetzt wird, Decisions 1+2
+    bleiben gültig
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Zwei unabhängige Funde (Build verwirft den `@import`; Claude Design meldet fehlende
+Font-Dateien beim Erst-Sync) haben dieselbe Ursache: die App bezieht ihre Schriften
+nicht aus dem eigenen Bundle. Ein reines Verschieben des `@import` vor den
+`@theme`-Block hätte nur den ersten Fund behoben, die Abhängigkeit von einem
+externen Font-Host aber bestehen lassen (kein Offline-Fallback für die PWA, keine
+Dateien für Claude Design). Deshalb: Schriften als Dateien ins Repo, `@font-face`
+statt `@import`, sowohl in der App als auch im Export-Bundle.
+
+**Outcomes:**
+- Build: dotnet build - OK; npm run build - OK
+- Tests: dotnet test 784 bestanden, 7 übersprungen (brauchen `.env`, unverändert
+  gegenüber vorherigem Stand); davon 6 neue Fälle in `FontFaceRegressionTests.fs`
+  (vor dem Fix: 5 von 6 fehlgeschlagen, danach: alle 6 bestanden)
+- Headless-Check (`vite build` + `vite preview --port 5191 --strictPort`,
+  Playwright, Navigation zu `/#/styleguide`): `document.fonts` zeigt Inter,
+  JetBrains Mono und Space Grotesk als `loaded`; keine Netzwerk-Anfrage an
+  fonts.googleapis.com oder fonts.gstatic.com beobachtet
+- PWA-Precache: generierter `dist/public/sw.js` listet alle drei
+  `fonts/*.woff2`-Dateien im Workbox-Manifest
+- Export-Bundle: `npm run export:design-system` zweimal hintereinander,
+  `diff -rq` zwischen den beiden Läufen leer (byte-identisch); `dist/design-system/fonts/`
+  enthält die drei Font-Dateien plus `LICENSE.md`; `colors_and_type.css` enthält die
+  drei `@font-face`-Regeln; keine `googleapis`/`gstatic`-Vorkommen mehr in
+  `dist/design-system/`
+- Issues: keine
+
+---
+
 ## 2026-09-11 20:35 - Erst-Sync des Design-Systems nach Claude Design (design-system-h58y4)
 
 **What I did:**

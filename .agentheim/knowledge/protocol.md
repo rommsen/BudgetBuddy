@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 21:43 -- Task verified and completed: design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
+
+**Type:** Work / Task completion
+**Task:** design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
+**Summary:** App und Claude-Design-Export liefern Inter, Space Grotesk und JetBrains Mono selbst aus (woff2 mit @font-face, PWA-Precache, OFL-Lizenz), Google-Fonts-Import entfernt, Regressionstest
+**Duration:** 30m (21:13 bis 21:43)
+**Verification:** PASS (iteration 2)
+**Files changed:** 11
+**Tests added:** 6
+**ADRs written:** 0026
+
+---
+
+## 2026-09-11 21:35 -- Verification failed: design-system-f7k2p - Schriften selbst ausliefern
+
+**Type:** Work / Verification failure
+**Task:** design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
+**Iteration:** 1 of 3
+**Reasons:** Umschreibungen statt Umlauten (fuer, enthaelt, prueft usw.) im neuen Kommentar in `src/Client/styles.css` und in `src/Tests/FontFaceRegressionTests.fs`, ADR 0026 ersetzt Decision 3 aus ADR 0024, trägt aber `supersedes: []`; fachlich sonst bestanden (784 Tests grün, @font-face im Build, Fonts im Precache)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-11 21:13 -- Batch started: [design-system-f7k2p, design-system-y6gkd]
 
 **Type:** Work / Batch start

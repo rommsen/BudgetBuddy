@@ -5,9 +5,9 @@ scope: design-system
 status: accepted
 date: 2026-09-11
 supersedes: []
-superseded_by: []
+superseded_by: [0026]
 related_tasks: [design-system-t82sg]
-related_adrs: []
+related_adrs: [0026]
 related_research: []
 ---
 
@@ -58,6 +58,15 @@ schneidet. Drei Design-Fragen kamen dabei ohne bestehende Antwort im Repo:
    unabhängig vom App-Bug. Der App-Bug selbst wird in diesem Task **nicht** behoben
    (Umfang: nur der Export); er ist als eigenes Bug-Backlog-Item erfasst
    (`design-system-f7k2p`).
+
+   **Ersetzt durch ADR 0026 (2026-09-11):** `design-system-f7k2p` liefert die drei
+   Schriften jetzt als eigene Dateien aus (`src/Client/public/fonts/`), sowohl in
+   der App als auch im Export-Bundle. Der Google-Fonts-`<link>` in den
+   Vorschau-Dateien und die URL-Extraktion aus `styles.css` (diese Decision 3)
+   entfallen; die Vorschauen laden die Fonts jetzt über `@font-face` in
+   `colors_and_type.css`, genau wie die App über `@font-face` in `styles.css`.
+   Decisions 1 und 2 dieses ADRs (Build statt Dev, additive Navigation-Previews)
+   bleiben unverändert gültig.
 
 ## Consequences
 ### Positive

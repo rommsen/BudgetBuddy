@@ -111,19 +111,22 @@ Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
   (Card/Money/Badge/Table/BottomSheet/Navigation), "Brand" (App-Icon).
 - **`colors_and_type.css`**: der `@theme`-Block aus `src/Client/styles.css` plus die
   Basis-Variablen, auf die er per `var()` verweist, vollständig aufgelöst (das Skript
-  bricht ab, wenn eine referenzierte Variable fehlt). Die "Colors"-/"Type"-Preview-Karten
-  werden aus genau diesen Werten generiert, nicht von Hand gepflegt.
-- **Fonts laden explizit.** Jede Preview-Datei bindet die Google-Fonts-URL aus
-  `src/Client/styles.css` per `<link>` ein (aus dem Quelltext extrahiert, nicht im
-  Skript hart kodiert). Grund: der gebaute `dist/design-system/styles.css` enthält den
-  `@import` selbst nicht mehr (App-Bug, s. u.) und ohne den expliziten `<link>` würden
-  Card/Money/Navigation im Bundle in Ersatzschriften statt Inter/Space Grotesk/
-  JetBrains Mono rendern. Details und Alternativen: ADR 0024.
-- **Bekannter App-Bug (nicht Teil dieses Tasks):** der Google-Fonts-`@import` in
-  `src/Client/styles.css` steht hinter dem `@theme`-Block, verstößt damit gegen die
-  CSS-Regel, dass `@import` vor allen anderen Regeln außer `@charset`/`@layer` stehen
-  muss, und wird vom Build deshalb verworfen. Die gebaute App selbst rendert dadurch in
-  Ersatzschriften. Als Bug-Backlog-Item erfasst: `design-system-f7k2p`.
+  bricht ab, wenn eine referenzierte Variable fehlt), plus drei `@font-face`-Regeln
+  (Inter, JetBrains Mono, Space Grotesk) auf die mitkopierten Font-Dateien. Die
+  "Colors"-/"Type"-Preview-Karten werden aus genau diesen Werten generiert, nicht von
+  Hand gepflegt.
+- **Fonts laden lokal.** `fonts/` im Bundle enthält die drei Variable-Font-Dateien
+  (Subset "latin", SIL Open Font License 1.1) plus `LICENSE.md`, kopiert aus
+  `src/Client/public/fonts/`. `colors_and_type.css` bindet sie per `@font-face` ein;
+  die Preview-Dateien binden ohnehin schon `colors_and_type.css` und laden die Fonts
+  damit ohne Netzzugriff, genau wie die App selbst. Details: ADR 0026 (löst ADR 0024
+  Decision 3 ab).
+- **Bekannter App-Bug: behoben durch design-system-f7k2p.** Der frühere
+  Google-Fonts-`@import` in `src/Client/styles.css` stand hinter dem `@theme`-Block,
+  verstieß damit gegen die CSS-Regel, dass `@import` vor allen anderen Regeln außer
+  `@charset`/`@layer` stehen muss, und wurde vom Build deshalb verworfen. Die App
+  liefert die drei Schriften jetzt selbst aus (`@font-face`, `public/fonts/`), kein
+  Google-Fonts-Import mehr.
 - **Navigation-Preview-Varianten** (`Navigation.desktopNavPreview`/`mobileNavPreview`,
   `src/Client/DesignSystem/Navigation.fs`): dieselbe Chrome wie
   `desktopNav`/`mobileNav`, aber ohne `fixed`-Positionierung, zum Einbetten in

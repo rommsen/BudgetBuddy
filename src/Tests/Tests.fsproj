@@ -28,6 +28,7 @@
     <Compile Include="SplitEditorTests.fs" />
     <Compile Include="RulesReorderTests.fs" />
     <Compile Include="ToastLifecycleTests.fs" />
+    <Compile Include="FontFaceRegressionTests.fs" />
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
