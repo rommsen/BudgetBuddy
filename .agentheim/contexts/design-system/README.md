@@ -137,6 +137,28 @@ Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
 - Hochladen nach Claude Design ist **kein Worker-Task** (kein `DesignSync`-Zugriff, jeder
   Schreibplan wird von Roman freigegeben): das macht `design-system-h58y4`.
 
+## Claude-Design-Projekt und Re-Sync (design-system-h58y4, 2026-09-11)
+Das Bundle liegt in Romans Account im Design-System-Projekt **"BudgetBuddy Design
+System"**, Projekt-Id `3a764a23-efa6-4d3a-8a66-e0325666d0c3` (Typ
+`PROJECT_TYPE_DESIGN_SYSTEM`). Das Projekt "Smolder Design System" im selben Account hat
+mit BudgetBuddy nichts zu tun und wird nie beschrieben.
+
+**Re-Sync nach einer DS-Änderung** (Hauptsession mit Roman, kein Worker):
+1. `npm run export:design-system` erzeugt `dist/design-system/` neu.
+2. `DesignSync get_project` mit der Projekt-Id oben prüft Typ und Schreibrecht.
+3. `DesignSync list_files` gegen `find dist/design-system -type f` vergleichen: neue und
+   geänderte Pfade werden geschrieben, Pfade, die es lokal nicht mehr gibt, gelöscht.
+4. `DesignSync finalize_plan` mit `localDir` = `dist/design-system`, genau diesen
+   Schreib- und Löschpfaden; Roman gibt den Plan frei.
+5. `DesignSync write_files` mit `localPath` je Datei (Inhalte gehen nicht durch den
+   Kontext), danach `delete_files` für entfallene Pfade.
+6. `list_files` erneut gegen das lokale Bundle prüfen; Roman sieht sich die Karten in
+   claude.ai/design an.
+
+Die Richtung bleibt Repo → Claude Design. Was in Claude Design am System geändert wird,
+fließt nicht zurück; Änderungen am Design-System entstehen im Repo und gehen durch das
+Styleguide-Gate.
+
 ## Open questions
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht
   das Markdown-Dokument + CLAUDE.md-Referenz? (offen, erst bei Bedarf)

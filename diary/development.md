@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 20:35 - Erst-Sync des Design-Systems nach Claude Design (design-system-h58y4)
+
+**What I did:**
+Das Export-Bundle des Design-Systems in ein neues Design-System-Projekt "BudgetBuddy Design
+System" in claude.ai/design hochgeladen (16 Dateien, Schreibplan von Roman freigegeben) und
+den Re-Sync-Ablauf mit der Projekt-Id im design-system-README festgehalten. Romans
+Sichtprüfung ergab zwei Funde, beide als Folge-Tasks erfasst.
+
+**Files Added:**
+- keine im Repo (das Bundle unter `dist/design-system/` ist git-ignoriert)
+
+**Files Modified:**
+- `.agentheim/contexts/design-system/README.md` - Abschnitt "Claude-Design-Projekt und
+  Re-Sync" mit Projekt-Id und Ablauf.
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Das UX-Konzept des Kassenbuchs (`ledger-xbrht`) soll mit Mockups auf Basis der echten
+Tokens und Komponenten entstehen.
+
+**Outcomes:**
+- Build: nicht betroffen (kein Code geändert)
+- Tests: nicht betroffen
+- Issues: fehlende Kategorienauswahl im Export (`design-system-y6gkd`), Schriften als
+  Dateien benötigt (`design-system-f7k2p`)
+
+---
+
 ## 2026-09-11 18:12 - (ledger-qvt84) Iteration 3: Split+Kategorie, gescheitertes Schreiben sichtbar, Payee/Memo wie gesendet
 
 **What I did:**
