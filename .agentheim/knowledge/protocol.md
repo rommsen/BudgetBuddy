@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 22:40 -- Capture / Captured: design-system-an22r - Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Claude Design baute das Manifest erst nach einer Anfrage im Projekt-Chat neu und änderte dabei 26 Bundle-Dateien (@dsCard-Marker mit name/subtitle/viewport, thumbnail.html, @kind-Annotation an Tailwind-Interna). Der Export soll das selbst erzeugen, sonst überschreibt der nächste Re-Sync es. Ergebnis heute: Manifest mit 23 Karten, alle drei Schriften "ok".
+
+---
+
 ## 2026-09-11 22:31 -- Capture / Captured: design-system-hadjy - Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css
 
 **Type:** Capture
