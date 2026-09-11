@@ -1,7 +1,7 @@
 ---
 id: ledger-qvt84
 title: "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-11

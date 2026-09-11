@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 16:45 -- Batch started: [ledger-qvt84]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-qvt84 - "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs"
+**Parallel:** no (1 worker; einzige bereite Task nach Integration von ledger-cscw1 und categorization-gdrx8)
+
+---
+
 ## 2026-09-11 16:45 -- Task verified and completed: categorization-gdrx8 - "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest"
 
 **Type:** Work / Task completion
