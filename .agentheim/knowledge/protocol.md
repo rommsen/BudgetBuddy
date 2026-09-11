@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 20:37 -- Modeling / Promoted: design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-11 20:47 -- Modeling / Captured: design-system-y6gkd; Refined: design-system-f7k2p, ledger-xbrht - Funde aus der Sichtprüfung des Erst-Syncs
 
 **Type:** Modeling / Capture + Refine
