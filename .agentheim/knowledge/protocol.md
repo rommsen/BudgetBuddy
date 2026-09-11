@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 22:12 -- Modeling / Refined: ledger-xbrht - UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (Promotion folgt)
+**Summary:** Nach Abschluss von design-system-y6gkd und -f7k2p verfeinert. Roman entschied: Roman baut die Screens in claude.ai/design mit dem synchronisierten Design-System, Claude schreibt je Ablauf einen Brief mit YNAB-Referenzweg; Maßstab für "mindestens so schnell wie YNAB" ist ein klickbarer Prototyp; der Task bekommt eine feste Session-Reihenfolge (Re-Sync, YNAB-Referenz, Konzept-Skizze, Briefs, Prototyp, Durchgang, Festhalten). Scheiben, Einordnung von ledger-p3n8k und die Entscheidung über das Vorziehen schreibender Scheiben vor v2 wandern in den neuen Task ledger-s8m3w.
+**Split into:** ledger-s8m3w (Backlog, decision, depends_on ledger-xbrht)
+**ADRs written:** none
+
+---
+
 ## 2026-09-11 21:59 -- Work session ended
 
 **Type:** Work / Session end
