@@ -822,7 +822,7 @@ let syncApi : SyncApi = {
                 | Ok bankTransactions ->
                     // Apply rules engine
                     let! allRules = Persistence.Rules.getAllRules()
-                    match classifyTransactions allRules bankTransactions with
+                    match classifyTransactions DateTime.UtcNow allRules bankTransactions with
                     | Error errors ->
                         let errorMsg = String.concat "; " errors
                         SyncSessionManager.failSession errorMsg
@@ -845,7 +845,7 @@ let syncApi : SyncApi = {
                                         let withDuplicates = DuplicateDetection.markDuplicates ynabTransactions syncTransactions
                                         // Apply Order-ID based category suggestions from YNAB history
                                         let orderIdMap = OrderIdMatcher.buildYnabOrderIdMap ynabTransactions
-                                        return OrderIdMatcher.applySuggestions orderIdMap withDuplicates
+                                        return OrderIdMatcher.applySuggestions DateTime.UtcNow orderIdMap withDuplicates
                                     | Error _ ->
                                         // If we can't fetch YNAB transactions, proceed without duplicate detection
                                         return syncTransactions
@@ -926,20 +926,25 @@ let syncApi : SyncApi = {
                     | None -> return None
                 }
 
-                let updated = {
-                    tx with
+                // Same timestamp for the source transaction's own step and for anything
+                // propagated from it below: both are part of this one categorization action.
+                let now = DateTime.UtcNow
+
+                let updated =
+                    { tx with
                         Status = ManualCategorized
                         CategoryId = categoryId
                         CategoryName = categoryName
                         PayeeOverride = payeeOverride
                         SuggestedByOrderId = None  // Manual override clears any suggestion
-                }
+                    }
+                    |> appendReviewStep now ByUser
 
                 SyncSessionManager.updateTransaction updated
 
                 // Propagate category to other transactions with the same Amazon Order ID
                 let allTransactions = SyncSessionManager.getTransactions()
-                let propagated = OrderIdMatcher.propagateInSession updated allTransactions
+                let propagated = OrderIdMatcher.propagateInSession now updated allTransactions
                 for propagatedTx in propagated do
                     SyncSessionManager.updateTransaction propagatedTx
 
@@ -999,13 +1004,14 @@ let syncApi : SyncApi = {
             for txId in txIds do
                 match SyncSessionManager.getTransaction txId with
                 | Some tx ->
-                    let updated = {
-                        tx with
+                    let updated =
+                        { tx with
                             Status = ManualCategorized
                             CategoryId = Some categoryId
                             CategoryName = categoryName
                             SuggestedByOrderId = None  // Manual override clears any suggestion
-                    }
+                        }
+                        |> appendReviewStep DateTime.UtcNow ByUser
                     SyncSessionManager.updateTransaction updated
                     updatedTransactions <- updated :: updatedTransactions
                 | None -> ()
@@ -1031,13 +1037,14 @@ let syncApi : SyncApi = {
                 | Error (SumMismatch (expected, actual)) ->
                     return Error (SyncError.InvalidSessionState ("split", $"Split amounts ({actual}) must sum to transaction amount ({expected})"))
                 | Ok validatedSplits ->
-                    let updated = {
-                        tx with
+                    let updated =
+                        { tx with
                             Status = ManualCategorized
                             CategoryId = None  // No single category for split transactions
                             CategoryName = None
                             Splits = Some validatedSplits
-                    }
+                        }
+                        |> appendReviewStep DateTime.UtcNow ByUser
                     SyncSessionManager.updateTransaction updated
                     return Ok updated
     }
@@ -1049,11 +1056,12 @@ let syncApi : SyncApi = {
             match SyncSessionManager.getTransaction txId with
             | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
             | Some tx ->
-                let updated = {
-                    tx with
+                let updated =
+                    { tx with
                         Status = Pending  // Reset to pending so user can categorize
                         Splits = None
-                }
+                    }
+                    |> appendReviewStep DateTime.UtcNow ByUser
                 SyncSessionManager.updateTransaction updated
                 return Ok updated
     }

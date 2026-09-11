@@ -85,6 +85,7 @@ let splitTypeTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
             Expect.isNone syncTx.Splits "Splits should be None"
 
@@ -103,6 +104,7 @@ let splitTypeTests =
                 YnabImportStatus = NotAttempted
                 Splits = Some []
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
             Expect.isEmpty syncTx.Splits.Value "Splits list should be empty"
@@ -126,6 +128,7 @@ let splitTypeTests =
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
             Expect.equal syncTx.Splits.Value.Length 2 "Should have 2 splits"
@@ -203,6 +206,7 @@ let splitImportReadyTests =
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             // Check import readiness logic
@@ -229,6 +233,7 @@ let splitImportReadyTests =
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             let isReadyForImport =
@@ -257,6 +262,7 @@ let splitImportReadyTests =
                 YnabImportStatus = NotAttempted
                 Splits = Some splits
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             let isReadyForImport =
@@ -281,6 +287,7 @@ let splitImportReadyTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             let isReadyForImport =

@@ -39,7 +39,12 @@ let buildYnabOrderIdMap (ynabTransactions: YnabTransaction list) : Map<string, O
 /// Applies Order ID-based category suggestions to uncategorized Amazon transactions.
 /// Only affects transactions with status Pending or NeedsAttention that don't already have a category.
 /// Sets SuggestedByOrderId to indicate the source of the suggestion.
-let applySuggestions (orderIdMap: Map<string, OrderIdSuggestion>) (transactions: SyncTransaction list) : SyncTransaction list =
+/// Appends a `ByOrderIdMatch` review step (categorization-gdrx8, Entscheidung Roman
+/// 2026-09-11): the category comes from the YNAB history of the same order, not from a
+/// rule or Roman deciding on THIS transaction, so it gets its own `ReviewActor`.
+/// `now` is threaded through rather than read via `DateTime.UtcNow` here, so this stays
+/// pure and testable.
+let applySuggestions (now: DateTime) (orderIdMap: Map<string, OrderIdSuggestion>) (transactions: SyncTransaction list) : SyncTransaction list =
     if Map.isEmpty orderIdMap then
         transactions
     else
@@ -56,6 +61,7 @@ let applySuggestions (orderIdMap: Map<string, OrderIdSuggestion>) (transactions:
                             CategoryId = Some (YnabCategoryId (Guid.Parse suggestion.CategoryId))
                             CategoryName = Some suggestion.CategoryName
                             SuggestedByOrderId = Some suggestion.OrderId }
+                        |> appendReviewStep now (ByOrderIdMatch suggestion.OrderId)
                     | None -> tx
                 | None -> tx
             | _ -> tx)
@@ -63,7 +69,12 @@ let applySuggestions (orderIdMap: Map<string, OrderIdSuggestion>) (transactions:
 /// Given a just-categorized transaction, finds other transactions in the session
 /// with the same Amazon Order ID that don't have a category yet, and propagates the category to them.
 /// Returns only the newly updated transactions (not the source transaction).
-let propagateInSession (categorized: SyncTransaction) (allTransactions: SyncTransaction list) : SyncTransaction list =
+/// Appends a `ByUser` review step (categorization-gdrx8, Entscheidung Roman
+/// 2026-09-11): Roman made the categorization decision on the source transaction, BB
+/// only carries it over to the siblings: the decision stays his, not a new actor.
+/// `at` should be the same timestamp used for the source transaction's own review step
+/// (the propagation happens as part of that one categorization action).
+let propagateInSession (at: DateTime) (categorized: SyncTransaction) (allTransactions: SyncTransaction list) : SyncTransaction list =
     match categorized.CategoryId, RulesEngine.extractAmazonOrderId categorized.Transaction with
     | Some categoryId, Some orderId ->
         allTransactions
@@ -79,10 +90,12 @@ let propagateInSession (categorized: SyncTransaction) (allTransactions: SyncTran
                 | Pending | NeedsAttention ->
                     match RulesEngine.extractAmazonOrderId tx.Transaction with
                     | Some txOrderId when txOrderId = orderId ->
-                        Some { tx with
-                                CategoryId = Some categoryId
-                                CategoryName = categorized.CategoryName
-                                SuggestedByOrderId = Some orderId }
+                        { tx with
+                            CategoryId = Some categoryId
+                            CategoryName = categorized.CategoryName
+                            SuggestedByOrderId = Some orderId }
+                        |> appendReviewStep at ByUser
+                        |> Some
                     | _ -> None
                 | _ -> None)
     | _ -> []

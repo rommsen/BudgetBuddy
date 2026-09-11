@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 3
+- **Doing:** 0
+- **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **categorization-gdrx8** — "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest" (feature) — `doing/categorization-gdrx8-review-spur-in-synctransaction.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **categorization-gdrx8** — "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest" (feature) — `done/categorization-gdrx8-review-spur-in-synctransaction.md`
 - **ynab-k7m3q · Aktuellen Budgetwert (balance) hinter Kategorienamen im Picker anzeigen** — 2026-06-28 — `done/ynab-k7m3q-category-balance-in-picker.md` (Available pro Kategorie als farbcodierter Betrag im Import-/Split-/Quick-Add-Picker; ADR 0011; Verifier PASS iter 1)
 - **cat-001 · Regel-Präzedenz per Hoch/Runter umsortierbar machen (UI)** — 2026-06-16 — `done/cat-001-rule-reorder-ui.md` (9112013; ▲/▼-Reorder, Backend `reorderRules` war fertig)
 - **Mobile Category Picker: keyboard-aware + ghost-click-frei** — 2026-06-11 — `done/2026-06-11-mobile-category-picker-keyboard-ghostclick.md`

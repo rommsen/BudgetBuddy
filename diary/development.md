@@ -4,6 +4,126 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 16:33 - Review-Spur, Iteration 2 (categorization-gdrx8): Order-ID-Pfade schließen die Lücke
+
+**What I did:**
+Nach dem Verifier-FAIL aus Iteration 1 (zwei Order-ID-Pfade änderten die Kategorie
+ohne ReviewStep) und Romans Entscheidung zu den Urhebern: `ReviewActor` um
+`ByOrderIdMatch of orderId: string` erweitert. `OrderIdMatcher.applySuggestions` hängt
+jetzt `ByOrderIdMatch`-Schritte an (Kategorie aus der YNAB-Historie derselben
+Bestellung), `OrderIdMatcher.propagateInSession` hängt `ByUser`-Schritte an (Romans
+Entscheidung, nur übertragen). Beide Funktionen nehmen jetzt einen Zeitpunkt-Parameter;
+`categorizeTransaction` verwendet denselben Zeitpunkt für den eigenen Schritt und für
+die Propagation. `ReviewStepJson`-Codec um den Diskriminator `"orderIdMatch"`
+erweitert (additiv, keine Migration nötig, ältere Zeilen laden unverändert). Das aus
+Iteration 1 entstandene Backlog-Item ist damit in diesem Task aufgegangen und wurde vom
+Conductor gelöscht. Stilkorrekturen aus der Verifier-Note nachgezogen (Umlaute statt
+Umschreibungen in eigenen Kommentaren).
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `ReviewActor` um `ByOrderIdMatch of orderId: string`
+  erweitert
+- `src/Server/OrderIdMatcher.fs` - `applySuggestions` und `propagateInSession` nehmen
+  einen Zeitpunkt-Parameter und hängen Review-Schritte an (`ByOrderIdMatch` bzw.
+  `ByUser`)
+- `src/Server/Api.fs` - `classifyTransactions`- und `applySuggestions`-Aufrufe mit
+  `DateTime.UtcNow`; `categorizeTransaction` teilt sich einen `now` zwischen eigenem
+  Schritt und Propagation
+- `src/Server/Persistence.fs` - `ReviewStepJson`-Codec um `"orderIdMatch"` erweitert;
+  Umlaute im Modul-Kommentar korrigiert (waren als "fuer"/"eigenstaendig"/"wuerde"
+  umschrieben)
+- `src/Tests/OrderIdMatcherTests.fs` - Aufrufe von `applySuggestions`/
+  `propagateInSession` um den neuen Zeitpunkt-Parameter ergänzt; vier neue Testfälle
+  (`ByOrderIdMatch`-Actor, kein Schritt ohne Vorschlag, `ByUser`-Actor bei Propagation,
+  Regressionstest "clearSplit, dann Propagation")
+- `src/Tests/PersistenceTypeConversionTests.fs` - ein neuer Testfall für den
+  `ByOrderIdMatch`-Roundtrip
+- `.agentheim/contexts/categorization/README.md` - Review-Spur-Eintrag um den dritten
+  Actor und alle fünf Schreibpfade ergänzt
+- `.agentheim/contexts/categorization/doing/categorization-gdrx8-review-spur-in-synctransaction.md` -
+  Outcome/Diary für Iteration 2, stale Referenz auf das aufgegangene Backlog-Item
+  bereinigt
+
+**Files Deleted:**
+- keine (das Backlog-Item wurde bereits vom Conductor gelöscht, bevor dieser Task
+  erneut dispatcht wurde)
+
+**Rationale:**
+Der Verifier hat zu Recht bemängelt, dass eine über Order-ID kategorisierte Buchung
+ohne ReviewStep gepusht worden wäre: `ledger-qvt84` baut die Ereignisfolge
+ausschließlich aus `ReviewSteps`, eine Lücke dort hätte eine Kategorie in YNAB ohne
+passendes Kassenbuch-Ereignis bedeutet. Roman hat die fehlende fachliche Entscheidung
+(welcher Urheber für welchen Order-ID-Pfad) getroffen; die Umsetzung folgt ihr 1:1.
+
+**Outcomes:**
+- Build: `dotnet build` (Solution) 0 Warnungen/0 Fehler; `npm run build` grün
+- Tests: 730/737 bestanden, 7 übersprungen (.env-abhängig), 0 fehlgeschlagen; 5 davon
+  neu in dieser Iteration (13 insgesamt über beide Iterationen)
+- Issues: keine; Rot-Grün per temporärer Sabotage der beiden neuen
+  `appendReviewStep`-Aufrufe in `OrderIdMatcher.fs` verifiziert (genau die 3 davon
+  abhängigen Tests schlugen fehl, danach wiederhergestellt)
+
+---
+
+## 2026-09-11 12:45 - Review-Spur: SyncTransaction hält Kategorisierungs-Schritte fest (categorization-gdrx8)
+
+**What I did:**
+`SyncTransaction` um `ReviewSteps: ReviewStep list` erweitert (neue Typen
+`ReviewActor`/`ReviewStep` plus reine Hilfsfunktion `appendReviewStep` in
+`src/Shared/Domain.fs`). Jeder Schreibpfad, der Kategorie, Splits oder PayeeOverride
+ändert (Regel-Anwendung, `categorizeTransaction`, `bulkCategorize`, `splitTransaction`,
+`clearSplit`), hängt jetzt einen Schritt mit Zeitpunkt und Herkunft an; eine
+Wiederholung mit unverändertem Stand erzeugt keinen neuen Eintrag. Persistenz um eine
+neue Spalte `review_steps` (JSON, eigener Thoth.Json.Net-Codec) erweitert, mit
+Migration für bestehende Datenbanken.
+
+**Files Added:**
+- Backlog-Item für die Lücke bei Order-ID-Propagation (kein ReviewStep dort), vom
+  Conductor auf `categorization-mgnjp` normalisiert. In Iteration 2 direkt in diesem
+  Task behoben (siehe Diary-Eintrag Iteration 2 unten); das Backlog-Item ist damit
+  aufgegangen und wurde vom Conductor gelöscht.
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `ReviewActor`, `ReviewStep`, `SyncTransaction.ReviewSteps`,
+  `appendReviewStep`
+- `src/Server/RulesEngine.fs` - `classifyTransactions` nimmt `now: DateTime`, hängt bei
+  Regel-Treffer einen `ByRule`-Schritt an
+- `src/Server/Api.fs` - `categorizeTransaction`, `bulkCategorize`, `splitTransaction`,
+  `clearSplit` hängen `ByUser`-Schritte an; `classifyTransactions`-Aufruf mit
+  `DateTime.UtcNow`
+- `src/Server/Persistence.fs` - Spalte `review_steps`, Migration, Codec
+  `ReviewStepJson`, Save/Load erweitert
+- `src/Tests/RulesEngineTests.fs` - neue Testlisten für `classifyTransactions`-
+  ReviewSteps und `appendReviewStep`
+- `src/Tests/PersistenceTypeConversionTests.fs` - neue Testliste "ReviewSteps
+  Conversions" (Roundtrip inkl. Splits, leere Spur)
+- `src/Tests/DuplicateDetectionTests.fs`, `OrderIdMatcherTests.fs`, `SplitPushTests.fs`,
+  `SplitTransactionTests.fs`, `SyncFlowViewTests.fs`, `YnabClientTests.fs`,
+  `SyncSessionManagerTests.fs` - `ReviewSteps = []` in bestehenden
+  `SyncTransaction`-Literalen ergänzt (mechanisch, Typ erweitert)
+- `.agentheim/contexts/categorization/README.md` - Ubiquitous-Language-Eintrag
+  "Review-Spur (`ReviewSteps`)", Relationships-Absatz aktualisiert
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+ADR 0021 verlangt, dass die Kassenbuch-Buchung beim Push als Ereignisfolge
+("Regel X: ...", dann "Roman in BB: ...") entsteht; da die Buchung selbst erst beim
+Push existiert, muss die SyncSession bis dahin Buch führen, wer wann welchen
+Kategorisierungs-Stand gesetzt hat. `ledger-qvt84` liest diese Spur beim Push.
+
+**Outcomes:**
+- Build: dotnet build (Solution) 0 Warnungen/0 Fehler; npm run build grün
+- Tests: 725/725 bestanden (7 übersprungen, .env-abhängig), 8 davon neu
+- Issues: keine; Rot-Grün per temporärer Sabotage von `appendReviewStep` verifiziert
+  (4 betroffene Tests schlugen erwartungsgemäß fehl, danach wiederhergestellt)
+
+---
+
 ## 2026-09-11 16:30 - Export-Bundle des Design-Systems für Claude Design (design-system-t82sg)
 
 **What I did:**

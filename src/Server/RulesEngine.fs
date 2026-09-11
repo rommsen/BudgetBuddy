@@ -216,8 +216,12 @@ let classify
 
 /// Classifies a list of transactions using the provided rules.
 /// Purpose: Applies rules engine to all transactions and detects special patterns.
+/// `now` is the review-step timestamp for any rule that matches (threaded through
+/// rather than read via `DateTime.UtcNow` here, so classification stays pure and
+/// testable; categorization-gdrx8 / ADR 0021).
 /// Returns: List of SyncTransaction with categorization results.
 let classifyTransactions
+    (now: DateTime)
     (rules: Rule list)
     (transactions: BankTransaction list)
     : Result<SyncTransaction list, string list> =
@@ -249,7 +253,9 @@ let classifyTransactions
                         YnabImportStatus = NotAttempted
                         Splits = None
                         SuggestedByOrderId = None
+                        ReviewSteps = []
                     }
+                    |> appendReviewStep now (ByRule (matchedRule.Id, matchedRule.Name))
                 | None ->
                     {
                         Transaction = transaction
@@ -264,6 +270,7 @@ let classifyTransactions
                         YnabImportStatus = NotAttempted
                         Splits = None
                         SuggestedByOrderId = None
+                        ReviewSteps = []  // No rule matched: nothing to record yet
                     }
             )
 

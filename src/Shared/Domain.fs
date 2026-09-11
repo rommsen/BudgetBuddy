@@ -256,6 +256,44 @@ type YnabImportStatus =
     | YnabImported            // Successfully imported to YNAB
     | RejectedByYnab of YnabRejectionReason  // YNAB rejected it
 
+// ============================================
+// Review Trail (categorization-gdrx8)
+// ============================================
+// Roman hat entschieden (2026-09-11), dass Regel-Vorschlag und Romans Korrektur beim
+// Push als Ereignisfolge im Kassenbuch sichtbar werden ("Regel X: Lebensmittel", dann
+// "Roman in BB: Drogerie", ADR 0021). Weil die Kassenbuch-Buchung laut ADR 0021 erst
+// mit dem Push entsteht, führt die SyncSession bis dahin selbst Buch, wer wann welchen
+// Kategorisierungs-Stand gesetzt hat. `ledger-qvt84` liest diese Spur beim Push und
+// übersetzt sie in `EntryCategorizedByRule` / `EntryRecategorized`-Ereignisse mit den
+// hier festgehaltenen Original-Zeitpunkten.
+
+/// Wer einen Review-Schritt gesetzt hat: die Regel-Engine (mit Regel-Identität und
+/// -Name, damit eine spätere Anzeige "Regel X: ..." nicht erst nachschlagen muss),
+/// Roman selbst (manuelle Kategorisierung/Split/PayeeOverride; die fachliche
+/// Entscheidung bleibt seine, auch wenn BB sie nur auf Geschwister-Buchungen
+/// derselben Amazon-Order-ID überträgt, `OrderIdMatcher.propagateInSession`),
+/// oder der Order-ID-Abgleich (`OrderIdMatcher.applySuggestions`): eine Kategorie, die
+/// beim Abruf aus der YNAB-Historie derselben Bestellung übernommen wurde, ohne dass
+/// Roman oder eine Regel sie für DIESE Buchung getroffen hätte. Anzeigename
+/// "Order-ID-Abgleich" (Entscheidung Roman, 2026-09-11).
+type ReviewActor =
+    | ByRule of ruleId: RuleId * ruleName: string
+    | ByUser
+    | ByOrderIdMatch of orderId: string
+
+/// Ein einzelner Schritt in der Review-Spur einer SyncTransaction: ein vollständiger
+/// Schnappschuss von Kategorie, Splits und PayeeOverride zum Zeitpunkt `At`, nicht nur
+/// das geänderte Feld. So kann `ledger-qvt84` aus der Spur direkt eine Ereignisfolge
+/// mit dem tatsächlichen historischen Zustand bauen.
+type ReviewStep = {
+    At: DateTime
+    By: ReviewActor
+    Category: YnabCategoryId option
+    CategoryName: string option
+    Splits: TransactionSplit list option
+    PayeeOverride: string option
+}
+
 type SyncTransaction = {
     Transaction: BankTransaction
     Status: TransactionStatus
@@ -276,7 +314,35 @@ type SyncTransaction = {
     Splits: TransactionSplit list option
     /// If set, this transaction's category was suggested based on another transaction with the same Amazon Order ID
     SuggestedByOrderId: string option
+    /// Die Review-Spur: älteste Entscheidung zuerst, damit die Reihenfolge direkt in
+    /// Ereignis-Reihenfolge übersetzbar ist (categorization-gdrx8, ADR 0021).
+    ReviewSteps: ReviewStep list
 }
+
+/// Hängt einen Review-Schritt an, der den aktuellen Kategorisierungs-Stand von `tx`
+/// (CategoryId, CategoryName, Splits, PayeeOverride) mit Zeitpunkt und Herkunft
+/// festhält. Eine Wiederholung mit unverändertem Kategorie-/Split-/PayeeOverride-Stand
+/// erzeugt bewusst keinen neuen Eintrag (sonst würde jeder erneute Aufruf mit
+/// identischem Ergebnis, z. B. ein wiederholtes `categorizeTransaction` auf denselben
+/// Wert, die Spur unnötig aufblähen). `CategoryName` fließt nicht in den Vergleich ein:
+/// sie ist ein Anzeige-Cache der Kategorie-Id, keine eigene Fachentscheidung.
+let appendReviewStep (at: DateTime) (by: ReviewActor) (tx: SyncTransaction) : SyncTransaction =
+    let candidate = {
+        At = at
+        By = by
+        Category = tx.CategoryId
+        CategoryName = tx.CategoryName
+        Splits = tx.Splits
+        PayeeOverride = tx.PayeeOverride
+    }
+    match List.tryLast tx.ReviewSteps with
+    | Some last
+        when last.Category = candidate.Category
+          && last.Splits = candidate.Splits
+          && last.PayeeOverride = candidate.PayeeOverride ->
+        tx
+    | _ ->
+        { tx with ReviewSteps = tx.ReviewSteps @ [ candidate ] }
 
 // ============================================
 // Categorization Rules

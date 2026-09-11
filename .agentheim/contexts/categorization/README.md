@@ -28,6 +28,25 @@ schwaches Payee-basiertes Auto-Matching.
 - **NeedsAttention** — TransactionStatus für Sammel-/Sonderfälle (Amazon, PayPal), die
   Romans Blick brauchen.
 - **ExternalLink** — Label+Url, z.B. zur Amazon-Bestellung, als Entscheidungshilfe.
+- **Review-Spur (`ReviewSteps`)**: die geordnete Liste von `ReviewStep`s einer
+  SyncTransaction, ältester Schritt zuerst. Jeder Schritt ist ein vollständiger
+  Schnappschuss (Kategorie, Splits, PayeeOverride) mit Zeitpunkt `At` und Herkunft `By`
+  (`ReviewActor`: `ByRule` mit Regel-Id/-Name, `ByUser`, oder `ByOrderIdMatch` mit der
+  Amazon-Order-ID). Eine Wiederholung mit unverändertem Stand erzeugt keinen neuen
+  Eintrag. Trägt fest, wie eine Buchung durch Regel-Vorschlag und Romans Korrektur
+  gelaufen ist, bevor die Kassenbuch-Buchung beim Push entsteht (ADR 0021);
+  `ledger-qvt84` liest die Spur beim Push und übersetzt sie in
+  `EntryCategorizedByRule`/`EntryRecategorized`-Ereignisse mit den Original-Zeitpunkten
+  (categorization-gdrx8). Sieben Schreibpfade hängen einen Schritt an:
+  - `RulesEngine.classifyTransactions`: `ByRule`, beim Regel-Treffer zur Abrufzeit.
+  - `categorizeTransaction`, `bulkCategorize`, `splitTransaction`, `clearSplit`
+    (`Server.Api`): `ByUser`, Romans manuelle Entscheidung.
+  - `OrderIdMatcher.applySuggestions`: `ByOrderIdMatch orderId`, Kategorie aus der
+    YNAB-Historie derselben Bestellung zur Abrufzeit; eigener Urheber, weil weder Regel
+    noch Roman diese Buchung entschieden haben.
+  - `OrderIdMatcher.propagateInSession`: `ByUser`, weil BB Romans Entscheidung auf der
+    Quell-Buchung nur auf die Geschwister derselben Bestellung überträgt; die fachliche
+    Entscheidung bleibt seine.
 - **Available** — der aktuelle Budgetwert einer Kategorie (YNAB `balance`, das "Available"
   des laufenden Monats), als `Money option` (None = keine Zahl zeigen). Im Kategorie-Picker
   rechtsbündig und farbcodiert (grün >0 / rot <0 / neutral =0) hinter dem Namen, damit "passt
@@ -53,8 +72,10 @@ schwaches Payee-basiertes Auto-Matching.
 
 ## Relationships with other contexts
 - **Downstream of:** `banking-import` — erhält geholte BankTransactions.
-- **Upstream of:** `ledger` (über die SyncSession, beim Push; ADR 0021). Die Review-Spur
-  (`categorization-gdrx8`) geht als Ereignisfolge ins Kassenbuch, danach pusht `ynab-sync`.
+- **Upstream of:** `ledger` (über die SyncSession, beim Push; ADR 0021). Die
+  SyncTransaction führt ihre Review-Spur (`ReviewSteps`, categorization-gdrx8) bis zum
+  Push mit; `ledger-qvt84` liest sie und übersetzt sie in eine Ereignisfolge im
+  Kassenbuch, danach pusht `ynab-sync`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Open questions

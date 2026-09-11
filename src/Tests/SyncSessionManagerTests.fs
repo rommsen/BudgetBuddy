@@ -36,6 +36,7 @@ let createSyncTransaction () =
         YnabImportStatus = NotAttempted
         Splits = None
         SuggestedByOrderId = None
+        ReviewSteps = []
     }
 
 /// Creates a sync transaction with a specific status

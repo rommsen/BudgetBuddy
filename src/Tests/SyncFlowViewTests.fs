@@ -51,6 +51,7 @@ let private mkTransaction
         YnabImportStatus = NotAttempted
         Splits = None
         SuggestedByOrderId = None
+        ReviewSteps = []
     }
 
 /// Shorthand: create a simple pending transaction with NotDuplicate status

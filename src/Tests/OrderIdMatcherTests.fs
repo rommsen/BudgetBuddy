@@ -34,6 +34,7 @@ let createSyncTransaction payee memo status categoryId categoryName =
         YnabImportStatus = NotAttempted
         Splits = None
         SuggestedByOrderId = None
+        ReviewSteps = []
     }
 
 let createYnabTransaction memo payee categoryId categoryName date =
@@ -122,7 +123,7 @@ let applySuggestionsTests =
 
         testCase "empty map returns transactions unchanged" <| fun () ->
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = applySuggestions Map.empty [ tx ]
+            let result = applySuggestions DateTime.UtcNow Map.empty [ tx ]
             Expect.equal result.Length 1 "Should have one transaction"
             Expect.isNone result.[0].CategoryId "Category should remain None"
             Expect.isNone result.[0].SuggestedByOrderId "SuggestedByOrderId should remain None"
@@ -132,7 +133,7 @@ let applySuggestionsTests =
                 "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.equal result.[0].CategoryId (Some testCategoryId) "Should have suggested category"
             Expect.equal result.[0].CategoryName (Some "Electronics") "Should have suggested category name"
             Expect.equal result.[0].SuggestedByOrderId (Some "ABC-1234567-1234567") "Should have SuggestedByOrderId"
@@ -143,7 +144,7 @@ let applySuggestionsTests =
             ]
             let existingCatId = YnabCategoryId (Guid.Parse "33333333-3333-3333-3333-333333333333")
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" AutoCategorized (Some existingCatId) (Some "Existing")
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.equal result.[0].CategoryId (Some existingCatId) "Should keep existing category"
             Expect.isNone result.[0].SuggestedByOrderId "SuggestedByOrderId should remain None"
 
@@ -152,7 +153,7 @@ let applySuggestionsTests =
                 "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "Regular Store") "Regular purchase" Pending None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.isNone result.[0].CategoryId "Non-Amazon transaction should not get suggestion"
 
         testCase "NeedsAttention transaction gets suggestion but keeps status" <| fun () ->
@@ -160,7 +161,7 @@ let applySuggestionsTests =
                 "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" NeedsAttention None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.equal result.[0].CategoryId (Some testCategoryId) "Should have suggested category"
             Expect.equal result.[0].Status NeedsAttention "Status should remain NeedsAttention"
 
@@ -169,7 +170,7 @@ let applySuggestionsTests =
                 "XYZ-9999999-9999999", { OrderId = "XYZ-9999999-9999999"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.isNone result.[0].CategoryId "Non-matching Order ID should not get suggestion"
 
         testCase "Imported status transaction is not given a suggestion" <| fun () ->
@@ -177,7 +178,7 @@ let applySuggestionsTests =
                 "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Imported None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.isNone result.[0].CategoryId "Imported transaction should not get suggestion"
             Expect.isNone result.[0].SuggestedByOrderId "SuggestedByOrderId should remain None"
 
@@ -186,7 +187,7 @@ let applySuggestionsTests =
                 "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Skipped None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.isNone result.[0].CategoryId "Skipped transaction should not get suggestion"
             Expect.isNone result.[0].SuggestedByOrderId "SuggestedByOrderId should remain None"
 
@@ -195,7 +196,7 @@ let applySuggestionsTests =
                 "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
             ]
             let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized None None
-            let result = applySuggestions orderIdMap [ tx ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx ]
             Expect.isNone result.[0].CategoryId "ManualCategorized transaction should not get suggestion"
             Expect.isNone result.[0].SuggestedByOrderId "SuggestedByOrderId should remain None"
 
@@ -212,7 +213,7 @@ let applySuggestionsTests =
             let tx3 = createSyncTransaction (Some "Regular Store") "Regular purchase" Pending None None
             // 4. Pending Amazon with different Order ID -> should NOT get suggestion
             let tx4 = createSyncTransaction (Some "AMAZON") "DEF-7654321-7654321" Pending None None
-            let result = applySuggestions orderIdMap [ tx1; tx2; tx3; tx4 ]
+            let result = applySuggestions DateTime.UtcNow orderIdMap [ tx1; tx2; tx3; tx4 ]
             Expect.equal result.Length 4 "Should have all four transactions"
             // tx1: should get suggestion
             Expect.equal result.[0].CategoryId (Some testCategoryId) "First transaction should get suggested category"
@@ -226,6 +227,27 @@ let applySuggestionsTests =
             // tx4: should remain unchanged (different Order ID)
             Expect.isNone result.[3].CategoryId "Fourth transaction should remain uncategorized"
             Expect.isNone result.[3].SuggestedByOrderId "Fourth transaction should not have SuggestedByOrderId"
+
+        // categorization-gdrx8 (Entscheidung Roman, 2026-09-11): eine Kategorie aus
+        // der YNAB-Historie derselben Bestellung ist weder Regel noch Romans
+        // Entscheidung auf DIESER Buchung, deshalb ein eigener ReviewActor.
+        testCase "applied suggestion records a ByOrderIdMatch review step" <| fun () ->
+            let orderIdMap = Map.ofList [
+                "ABC-1234567-1234567", { OrderId = "ABC-1234567-1234567"; CategoryId = testCategoryIdStr; CategoryName = "Electronics"; SourceDate = DateTime.Today }
+            ]
+            let tx = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
+            let now = DateTime(2026, 9, 11, 9, 0, 0, DateTimeKind.Utc)
+            let result = applySuggestions now orderIdMap [ tx ]
+            Expect.equal result.[0].ReviewSteps.Length 1 "Should record exactly one review step"
+            let step = result.[0].ReviewSteps.[0]
+            Expect.equal step.At now "Step timestamp should be the passed-in `now`"
+            Expect.equal step.By (ByOrderIdMatch "ABC-1234567-1234567") "Step actor should name the order-id match"
+            Expect.equal step.Category (Some testCategoryId) "Step should carry the suggested category"
+
+        testCase "no suggestion applied records no review step" <| fun () ->
+            let tx = createSyncTransaction (Some "Regular Store") "Regular purchase" Pending None None
+            let result = applySuggestions DateTime.UtcNow Map.empty [ tx ]
+            Expect.isEmpty result.[0].ReviewSteps "Nothing was suggested: nothing to record"
     ]
 
 // ============================================
@@ -239,7 +261,7 @@ let propagateInSessionTests =
         testCase "category propagates to transaction with same Order ID" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let other = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = propagateInSession categorized [ categorized; other ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; other ]
             Expect.equal result.Length 1 "Should propagate to one transaction"
             Expect.equal result.[0].CategoryId (Some testCategoryId) "Should have propagated category"
             Expect.equal result.[0].CategoryName (Some "Electronics") "Should have propagated category name"
@@ -247,51 +269,51 @@ let propagateInSessionTests =
 
         testCase "does not propagate to self" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
-            let result = propagateInSession categorized [ categorized ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized ]
             Expect.isEmpty result "Should not propagate to self"
 
         testCase "does not propagate when source has no category" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
             let other = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = propagateInSession categorized [ categorized; other ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; other ]
             Expect.isEmpty result "Should not propagate without category"
 
         testCase "does not propagate when source is not Amazon" <| fun () ->
             let categorized = createSyncTransaction (Some "Regular Store") "Regular purchase" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let other = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = propagateInSession categorized [ categorized; other ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; other ]
             Expect.isEmpty result "Should not propagate from non-Amazon transaction"
 
         testCase "does not propagate to already categorized transactions" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let existingCatId = YnabCategoryId (Guid.Parse "33333333-3333-3333-3333-333333333333")
             let alreadyCategorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" AutoCategorized (Some existingCatId) (Some "Existing")
-            let result = propagateInSession categorized [ categorized; alreadyCategorized ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; alreadyCategorized ]
             Expect.isEmpty result "Should not overwrite existing category"
 
         testCase "does not propagate to different Order ID" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let other = createSyncTransaction (Some "AMAZON") "DEF-7654321-7654321" Pending None None
-            let result = propagateInSession categorized [ categorized; other ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; other ]
             Expect.isEmpty result "Should not propagate to different Order ID"
 
         testCase "does not propagate to skipped transactions" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let skipped = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Skipped None None
-            let result = propagateInSession categorized [ categorized; skipped ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; skipped ]
             Expect.isEmpty result "Should not propagate to skipped transactions"
 
         testCase "propagates to multiple matching transactions" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let other1 = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
             let other2 = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" NeedsAttention None None
-            let result = propagateInSession categorized [ categorized; other1; other2 ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; other1; other2 ]
             Expect.equal result.Length 2 "Should propagate to both matching transactions"
 
         testCase "propagates even when source CategoryName is None" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) None
             let other = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
-            let result = propagateInSession categorized [ categorized; other ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; other ]
             Expect.equal result.Length 1 "Should propagate to one transaction"
             Expect.equal result.[0].CategoryId (Some testCategoryId) "Should have propagated category"
             Expect.isNone result.[0].CategoryName "CategoryName should be None since source had None"
@@ -300,11 +322,57 @@ let propagateInSessionTests =
         testCase "does not propagate to Imported transactions" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
             let imported = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Imported None None
-            let result = propagateInSession categorized [ categorized; imported ]
+            let result = propagateInSession DateTime.UtcNow categorized [ categorized; imported ]
             Expect.isEmpty result "Should not propagate to Imported transactions"
 
         testCase "empty transaction list returns empty list" <| fun () ->
             let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
-            let result = propagateInSession categorized []
+            let result = propagateInSession DateTime.UtcNow categorized []
             Expect.isEmpty result "Should return empty list for empty input"
+
+        // categorization-gdrx8 (Entscheidung Roman, 2026-09-11): die Propagation
+        // überträgt Romans eigene Entscheidung auf die Geschwister-Buchung, deshalb
+        // `ByUser` statt eines eigenen Urhebers.
+        testCase "propagated category records a ByUser review step" <| fun () ->
+            let categorized = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
+            let other = createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" Pending None None
+            let at = DateTime(2026, 9, 11, 9, 5, 0, DateTimeKind.Utc)
+            let result = propagateInSession at categorized [ categorized; other ]
+            Expect.equal result.[0].ReviewSteps.Length 1 "Should record exactly one review step"
+            let step = result.[0].ReviewSteps.[0]
+            Expect.equal step.At at "Step timestamp should be the passed-in `at`"
+            Expect.equal step.By ByUser "Propagation carries Roman's own decision, not a new actor"
+            Expect.equal step.Category (Some testCategoryId) "Step should carry the propagated category"
+
+        // Regression-Szenario aus der Verifier-Note (Iteration 1): ein zuvor
+        // gesplitteter Split wird gelöscht (Kategorie None, ByUser-Schritt), danach
+        // propagiert eine Geschwister-Buchung eine Kategorie hinein. Der letzte
+        // Schritt der Spur muss dem tatsächlich gepushten Stand entsprechen.
+        testCase "clearSplit, then propagation: last review step matches the pushed state" <| fun () ->
+            let clearedAt = DateTime(2026, 9, 11, 9, 0, 0, DateTimeKind.Utc)
+            let propagatedAt = DateTime(2026, 9, 11, 9, 10, 0, DateTimeKind.Utc)
+
+            // Simulates `clearSplit` (src/Server/Api.fs): Status -> Pending, Splits -> None,
+            // then append a ByUser step for that action.
+            let afterClearSplit =
+                { createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized None None with
+                    Splits = Some [
+                        { Target = ToCategory (testCategoryId, "Electronics"); Amount = { Amount = -30m; Currency = "EUR" }; Memo = None }
+                        { Target = ToCategory (testCategoryId, "Electronics"); Amount = { Amount = -20m; Currency = "EUR" }; Memo = None }
+                    ] }
+                |> appendReviewStep clearedAt ByUser
+                |> fun tx -> { tx with Status = Pending; Splits = None } |> appendReviewStep clearedAt ByUser
+
+            let sourceCategorized =
+                createSyncTransaction (Some "AMAZON") "ABC-1234567-1234567" ManualCategorized (Some testCategoryId) (Some "Electronics")
+
+            let result = propagateInSession propagatedAt sourceCategorized [ sourceCategorized; afterClearSplit ]
+
+            Expect.equal result.Length 1 "Should propagate onto the cleared transaction"
+            let propagated = result.[0]
+            Expect.equal propagated.CategoryId (Some testCategoryId) "Pushed state: category from the propagation"
+            let lastStep = List.last propagated.ReviewSteps
+            Expect.equal lastStep.Category propagated.CategoryId "Last review step must match the pushed category"
+            Expect.equal lastStep.Splits propagated.Splits "Last review step must match the pushed splits (None)"
+            Expect.equal lastStep.By ByUser "Last step is the propagation, attributed to Roman"
     ]

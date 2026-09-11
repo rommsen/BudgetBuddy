@@ -564,6 +564,7 @@ let transactionConversionTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             // Simulate the conversion logic from createTransactions
@@ -616,6 +617,7 @@ let transactionConversionTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             let payeeName =
@@ -665,6 +667,7 @@ let transactionConversionTests =
                     YnabImportStatus = NotAttempted
                     Splits = None
                     SuggestedByOrderId = None
+                    ReviewSteps = []
                 }
             ]
 
@@ -699,6 +702,7 @@ let transactionConversionTests =
                     YnabImportStatus = NotAttempted
                     Splits = None
                     SuggestedByOrderId = None
+                    ReviewSteps = []
                 }
             ]
 
@@ -735,6 +739,7 @@ let transactionConversionTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             let transactions = [
@@ -778,6 +783,7 @@ let transactionConversionTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             let isFuture = tx.Transaction.BookingDate.Date > today

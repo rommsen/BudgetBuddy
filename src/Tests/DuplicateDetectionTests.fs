@@ -366,7 +366,8 @@ let markDuplicatesTests =
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF1")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
                 { Transaction = bankTx2
                   Status = Pending
                   CategoryId = None
@@ -378,7 +379,8 @@ let markDuplicatesTests =
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF2")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
                 { Transaction = bankTx3
                   Status = Pending
                   CategoryId = None
@@ -390,7 +392,8 @@ let markDuplicatesTests =
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF3")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
             ]
 
             let ynabTransactions = [
@@ -463,6 +466,7 @@ let additionalEdgeCaseTests =
                 YnabImportStatus = NotAttempted
                 Splits = None
                 SuggestedByOrderId = None
+                ReviewSteps = []
             }
 
             // YNAB transaction that matches
@@ -673,7 +677,8 @@ let countDuplicatesTests =
                   DuplicateStatus = ConfirmedDuplicate ("ref1", emptyDetectionDetails "ref1")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -685,7 +690,8 @@ let countDuplicatesTests =
                   DuplicateStatus = PossibleDuplicate ("reason", emptyDetectionDetails "ref")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -697,7 +703,8 @@ let countDuplicatesTests =
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "ref")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -709,7 +716,8 @@ let countDuplicatesTests =
                   DuplicateStatus = NotDuplicate (emptyDetectionDetails "ref")
                   YnabImportStatus = NotAttempted
                   Splits = None
-                  SuggestedByOrderId = None }
+                  SuggestedByOrderId = None
+                  ReviewSteps = [] }
             ]
 
             let result = countDuplicates syncTransactions

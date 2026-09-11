@@ -387,7 +387,7 @@ let classifyTransactionsTests =
                 createTransaction "TX2" (Some "EDEKA") "Shopping" -30.0m
             ]
 
-            let result = classifyTransactions [rule] transactions
+            let result = classifyTransactions DateTime.UtcNow [rule] transactions
 
             match result with
             | Ok syncTransactions ->
@@ -412,7 +412,7 @@ let classifyTransactionsTests =
                 createTransaction "TX1" (Some "AMAZON PAYMENTS EU") "Order" -29.99m
             ]
 
-            let result = classifyTransactions [rule] transactions
+            let result = classifyTransactions DateTime.UtcNow [rule] transactions
 
             match result with
             | Ok syncTransactions ->
@@ -431,7 +431,7 @@ let classifyTransactionsTests =
                 createTransaction "TX1" (Some "PAYPAL *STORE") "Payment" -15.50m
             ]
 
-            let result = classifyTransactions [] transactions
+            let result = classifyTransactions DateTime.UtcNow [] transactions
 
             match result with
             | Ok syncTransactions ->
@@ -451,7 +451,7 @@ let classifyTransactionsTests =
                 createTransaction "TX1" (Some "Store") "Shopping" -50.0m
             ]
 
-            let result = classifyTransactions [rule] transactions
+            let result = classifyTransactions DateTime.UtcNow [rule] transactions
 
             match result with
             | Ok _ ->
@@ -469,7 +469,7 @@ let classifyTransactionsTests =
                 createTransaction "TX1" (Some "REWE Filiale 123") "Shopping" -50.0m
             ]
 
-            let result = classifyTransactions [rule] transactions
+            let result = classifyTransactions DateTime.UtcNow [rule] transactions
 
             match result with
             | Ok syncTransactions ->
@@ -478,4 +478,115 @@ let classifyTransactionsTests =
             | Error e ->
                 let errors = String.concat ", " e
                 failtest $"Should classify transactions: {errors}"
+    ]
+
+// ============================================
+// Review Trail Tests (categorization-gdrx8, ADR 0021)
+// ============================================
+
+/// A minimal SyncTransaction for `appendReviewStep` tests: no category/splits/
+/// PayeeOverride set yet, no ReviewSteps recorded.
+let createSyncTransaction () : SyncTransaction =
+    {
+        Transaction = createTransaction "TX1" (Some "Test Payee") "Test Memo" -10.0m
+        Status = Pending
+        CategoryId = None
+        CategoryName = None
+        MatchedRuleId = None
+        PayeeOverride = None
+        ExternalLinks = []
+        UserNotes = None
+        DuplicateStatus = NotDuplicate (emptyDetectionDetails "REF123")
+        YnabImportStatus = NotAttempted
+        Splits = None
+        SuggestedByOrderId = None
+        ReviewSteps = []
+    }
+
+[<Tests>]
+let classifyTransactionsReviewStepsTests =
+    testList "classifyTransactions records ReviewSteps" [
+        testCase "a matched rule records one ByRule step at the given timestamp" <| fun () ->
+            let ruleId = Guid.NewGuid()
+            let categoryId = Guid.NewGuid()
+            let rule = createRule ruleId "Groceries" "REWE" Contains Payee categoryId 1 true
+            let transactions = [ createTransaction "TX1" (Some "REWE Supermarkt") "Shopping" -50.0m ]
+            let now = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+
+            match classifyTransactions now [rule] transactions with
+            | Error e ->
+                let errors = String.concat ", " e
+                failtest $"Should classify: {errors}"
+            | Ok syncTransactions ->
+                let tx1 = syncTransactions.[0]
+                Expect.equal tx1.ReviewSteps.Length 1 "Should record exactly one review step"
+                let step = tx1.ReviewSteps.[0]
+                Expect.equal step.At now "Step timestamp should be the passed-in `now`"
+                Expect.equal step.By (ByRule (RuleId ruleId, "Groceries")) "Step actor should name the matched rule"
+                Expect.equal step.Category (Some (YnabCategoryId categoryId)) "Step should carry the matched category"
+
+        testCase "no matching rule records no review step" <| fun () ->
+            let transactions = [ createTransaction "TX1" (Some "Unbekannt") "Shopping" -50.0m ]
+
+            match classifyTransactions DateTime.UtcNow [] transactions with
+            | Error e ->
+                let errors = String.concat ", " e
+                failtest $"Should classify: {errors}"
+            | Ok syncTransactions ->
+                Expect.isEmpty syncTransactions.[0].ReviewSteps "No rule matched: nothing to record yet"
+    ]
+
+[<Tests>]
+let appendReviewStepTests =
+    testList "appendReviewStep" [
+        testCase "rule application followed by manual correction yields two entries with different At and By" <| fun () ->
+            let ruleId = RuleId (Guid.NewGuid())
+            let categoryA = YnabCategoryId (Guid.NewGuid())
+            let categoryB = YnabCategoryId (Guid.NewGuid())
+            let ruleAt = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+            let userAt = DateTime(2026, 9, 11, 8, 5, 0, DateTimeKind.Utc)
+
+            let afterRule =
+                { createSyncTransaction () with CategoryId = Some categoryA; CategoryName = Some "Lebensmittel" }
+                |> appendReviewStep ruleAt (ByRule (ruleId, "Regel X"))
+
+            let afterCorrection =
+                { afterRule with CategoryId = Some categoryB; CategoryName = Some "Drogerie" }
+                |> appendReviewStep userAt ByUser
+
+            Expect.equal afterCorrection.ReviewSteps.Length 2 "Rule step + user correction should be two entries"
+            let ruleStep = afterCorrection.ReviewSteps.[0]
+            let userStep = afterCorrection.ReviewSteps.[1]
+            Expect.equal ruleStep.At ruleAt "First step keeps the rule's timestamp"
+            Expect.equal ruleStep.By (ByRule (ruleId, "Regel X")) "First step is attributed to the rule"
+            Expect.equal userStep.At userAt "Second step carries the correction's timestamp"
+            Expect.equal userStep.By ByUser "Second step is attributed to Roman"
+            Expect.notEqual ruleStep.At userStep.At "The two steps must have different timestamps"
+
+        testCase "re-applying the same category does not add a new entry" <| fun () ->
+            let category = YnabCategoryId (Guid.NewGuid())
+            let at1 = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+            let at2 = DateTime(2026, 9, 11, 8, 1, 0, DateTimeKind.Utc)
+
+            let first =
+                { createSyncTransaction () with CategoryId = Some category; CategoryName = Some "Lebensmittel" }
+                |> appendReviewStep at1 ByUser
+
+            let repeated =
+                { first with CategoryId = Some category; CategoryName = Some "Lebensmittel" }
+                |> appendReviewStep at2 ByUser
+
+            Expect.equal repeated.ReviewSteps.Length 1 "A repeat with the same category must not add a step"
+            Expect.equal repeated.ReviewSteps.[0].At at1 "The single step keeps the original timestamp"
+
+        testCase "a changed PayeeOverride alone still records a new step" <| fun () ->
+            let at1 = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+            let at2 = DateTime(2026, 9, 11, 8, 1, 0, DateTimeKind.Utc)
+
+            let first = createSyncTransaction () |> appendReviewStep at1 ByUser
+            let withOverride =
+                { first with PayeeOverride = Some "REWE" }
+                |> appendReviewStep at2 ByUser
+
+            Expect.equal withOverride.ReviewSteps.Length 2 "A PayeeOverride-only change is still a new step"
     ]

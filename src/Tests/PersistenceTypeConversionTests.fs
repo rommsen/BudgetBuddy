@@ -62,6 +62,7 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
         YnabImportStatus = NotAttempted
         Splits = None
         SuggestedByOrderId = None
+        ReviewSteps = []
     }
 
 [<Tests>]
@@ -280,6 +281,114 @@ let typeConversionTests =
                 Expect.isNonEmpty retrieved "Should have at least one transaction"
                 let first = List.head retrieved
                 Expect.equal first.Status Imported "Status should be Imported"
+        ]
+
+        // categorization-gdrx8: the review trail (rule proposal, then Roman's
+        // correction) must survive a server restart, i.e. a save/reload roundtrip
+        // against SQLite. This is the "Kassenbuch-Buchung" that ledger-qvt84 will
+        // later read at push time (ADR 0021), so the persisted shape must be exact.
+        testList "ReviewSteps Conversions" [
+            testCase "rule step followed by a user correction roundtrips in order" <| fun () ->
+                let sessionId = SyncSessionId (Guid.NewGuid())
+                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
+                SyncSessions.createSession session |> Async.RunSynchronously
+
+                let ruleId = RuleId (Guid.NewGuid())
+                let categoryA = YnabCategoryId (Guid.NewGuid())
+                let categoryB = YnabCategoryId (Guid.NewGuid())
+                let ruleAt = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+                let userAt = DateTime(2026, 9, 11, 8, 5, 0, DateTimeKind.Utc)
+                let ruleStep = {
+                    At = ruleAt
+                    By = ByRule (ruleId, "Regel X")
+                    Category = Some categoryA
+                    CategoryName = Some "Lebensmittel"
+                    Splits = None
+                    PayeeOverride = None
+                }
+                let userStep = {
+                    At = userAt
+                    By = ByUser
+                    Category = Some categoryB
+                    CategoryName = Some "Drogerie"
+                    Splits = None
+                    PayeeOverride = Some "dm"
+                }
+                let tx =
+                    { createTestSyncTransaction sessionId ManualCategorized with
+                        ReviewSteps = [ ruleStep; userStep ] }
+                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
+
+                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
+                Expect.isNonEmpty retrieved "Should have at least one transaction"
+                let first = List.head retrieved
+                Expect.equal first.ReviewSteps [ ruleStep; userStep ] "Review steps should survive save/reload, oldest first"
+
+            testCase "a review step carrying splits roundtrips the split target" <| fun () ->
+                let sessionId = SyncSessionId (Guid.NewGuid())
+                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
+                SyncSessions.createSession session |> Async.RunSynchronously
+
+                let splitStep = {
+                    At = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+                    By = ByUser
+                    Category = None
+                    CategoryName = None
+                    Splits = Some [
+                        { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Lebensmittel")
+                          Amount = { Amount = 80M; Currency = "EUR" }
+                          Memo = None }
+                        { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bargeld")
+                          Amount = { Amount = 20M; Currency = "EUR" }
+                          Memo = Some "Abhebung" }
+                    ]
+                    PayeeOverride = None
+                }
+                let tx =
+                    { createTestSyncTransaction sessionId ManualCategorized with
+                        ReviewSteps = [ splitStep ] }
+                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
+
+                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
+                let first = List.head retrieved
+                Expect.equal first.ReviewSteps [ splitStep ] "Split target inside a review step should roundtrip"
+
+            testCase "a transaction with no review steps yet roundtrips as an empty list" <| fun () ->
+                let sessionId = SyncSessionId (Guid.NewGuid())
+                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
+                SyncSessions.createSession session |> Async.RunSynchronously
+
+                let tx = createTestSyncTransaction sessionId Pending
+                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
+
+                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
+                let first = List.head retrieved
+                Expect.isEmpty first.ReviewSteps "A transaction never reviewed has no review steps"
+
+            // Iteration 2 (Entscheidung Roman, 2026-09-11): der dritte ReviewActor-Fall
+            // für den Order-ID-Abgleich muss denselben Codec-Weg wie ByRule/ByUser
+            // durchlaufen.
+            testCase "a ByOrderIdMatch step roundtrips its order id" <| fun () ->
+                let sessionId = SyncSessionId (Guid.NewGuid())
+                let session = { createTestSession AwaitingBankAuth with Id = sessionId }
+                SyncSessions.createSession session |> Async.RunSynchronously
+
+                let orderMatchStep = {
+                    At = DateTime(2026, 9, 11, 8, 0, 0, DateTimeKind.Utc)
+                    By = ByOrderIdMatch "ABC-1234567-1234567"
+                    Category = Some (YnabCategoryId (Guid.NewGuid()))
+                    CategoryName = Some "Elektronik"
+                    Splits = None
+                    PayeeOverride = None
+                }
+                let tx =
+                    { createTestSyncTransaction sessionId AutoCategorized with
+                        ReviewSteps = [ orderMatchStep ] }
+                SyncTransactions.saveTransaction sessionId tx |> Async.RunSynchronously
+
+                let retrieved = SyncTransactions.getTransactionsBySession sessionId |> Async.RunSynchronously
+                let first = List.head retrieved
+                Expect.equal first.ReviewSteps [ orderMatchStep ] "ByOrderIdMatch (incl. order id) should roundtrip"
         ]
     ]
 

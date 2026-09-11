@@ -7,6 +7,7 @@ open System.Text
 open System.Data
 open Microsoft.Data.Sqlite
 open Dapper
+open Thoth.Json.Net
 open Shared.Domain
 
 // ============================================
@@ -243,12 +244,24 @@ let initializeDatabase () =
             matched_rule_id TEXT,
             payee_override TEXT,
             created_at TEXT NOT NULL,
+            review_steps TEXT,
             FOREIGN KEY (session_id) REFERENCES sync_sessions(id)
         );
 
         CREATE INDEX IF NOT EXISTS idx_sync_transactions_session ON sync_transactions(session_id);
     """, conn)
     cmd4.ExecuteNonQuery() |> ignore
+
+    // Migration: `review_steps` (categorization-gdrx8, Review-Spur) for databases
+    // created before this column existed. SQLite has no "ADD COLUMN IF NOT EXISTS";
+    // the CREATE TABLE above already covers fresh databases, so this only ever fires
+    // once against a pre-existing file and is a no-op afterwards.
+    try
+        use cmdMigrateReviewSteps =
+            new SqliteCommand("ALTER TABLE sync_transactions ADD COLUMN review_steps TEXT", conn)
+        cmdMigrateReviewSteps.ExecuteNonQuery() |> ignore
+    with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
+        ()
 
 // ============================================
 // Rules Persistence
@@ -597,6 +610,164 @@ module SyncSessions =
 // ============================================
 
 module SyncTransactions =
+
+    /// JSON-Codec für die Review-Spur (categorization-gdrx8). Bewusst eigenständig
+    /// statt eines geteilten Codecs mit `Server.Ledger.Events.Codec`: `categorization`
+    /// ist laut BC-README upstream von `ledger`, ein gemeinsamer Codec würde diese
+    /// Richtung umkehren. Handgeschriebene Encode/Decode-Funktionen statt Auto-Codec,
+    /// damit die gespeicherte Form stabil bleibt (gleiches Muster wie
+    /// `Server.Ledger.Events.Codec`).
+    module private ReviewStepJson =
+        open System.Globalization
+
+        /// ISO-8601-Roundtrip-Text statt `Encode.datetime`/`Decode.datetimeUtc`: das
+        /// Paar verschiebt einen zeitzonenlosen Zeitpunkt um den lokalen Offset. "o"
+        /// plus `RoundtripKind` ist tickgenau (siehe `Server.Ledger.Events.Codec`).
+        let private encodeDate (d: DateTime) =
+            Encode.string (d.ToString("o", CultureInfo.InvariantCulture))
+
+        let private decodeDate : Decoder<DateTime> =
+            Decode.string
+            |> Decode.andThen (fun s ->
+                match DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) with
+                | true, d -> Decode.succeed d
+                | false, _ -> Decode.fail $"Kein ISO-8601-Zeitpunkt: {s}")
+
+        let private encodeMoney (m: Money) =
+            Encode.object [
+                "amount", Encode.decimal m.Amount
+                "currency", Encode.string m.Currency
+            ]
+
+        let private decodeMoney : Decoder<Money> =
+            Decode.object (fun get -> {
+                Amount = get.Required.Field "amount" Decode.decimal
+                Currency = get.Required.Field "currency" Decode.string
+            })
+
+        let private encodeSplitTarget (t: SplitTarget) =
+            match t with
+            | ToCategory (YnabCategoryId id, name) ->
+                Encode.object [
+                    "kind", Encode.string "category"
+                    "categoryId", Encode.guid id
+                    "categoryName", Encode.string name
+                ]
+            | ToTransfer (YnabAccountId id, name) ->
+                Encode.object [
+                    "kind", Encode.string "transfer"
+                    "accountId", Encode.guid id
+                    "accountName", Encode.string name
+                ]
+            | Uncategorized ->
+                Encode.object [ "kind", Encode.string "uncategorized" ]
+
+        let private decodeSplitTarget : Decoder<SplitTarget> =
+            Decode.field "kind" Decode.string
+            |> Decode.andThen (function
+                | "category" ->
+                    Decode.object (fun get ->
+                        ToCategory (
+                            get.Required.Field "categoryId" Decode.guid |> YnabCategoryId,
+                            get.Required.Field "categoryName" Decode.string))
+                | "transfer" ->
+                    Decode.object (fun get ->
+                        ToTransfer (
+                            get.Required.Field "accountId" Decode.guid |> YnabAccountId,
+                            get.Required.Field "accountName" Decode.string))
+                | "uncategorized" -> Decode.succeed Uncategorized
+                | other -> Decode.fail $"Unbekanntes Split-Ziel: {other}")
+
+        let private encodeSplit (s: TransactionSplit) =
+            Encode.object [
+                "target", encodeSplitTarget s.Target
+                "amount", encodeMoney s.Amount
+                "memo", (match s.Memo with Some m -> Encode.string m | None -> Encode.nil)
+            ]
+
+        let private decodeSplit : Decoder<TransactionSplit> =
+            Decode.object (fun get -> {
+                Target = get.Required.Field "target" decodeSplitTarget
+                Amount = get.Required.Field "amount" decodeMoney
+                Memo = get.Optional.Field "memo" Decode.string
+            })
+
+        let private encodeActor (by: ReviewActor) =
+            match by with
+            | ByRule (RuleId ruleId, ruleName) ->
+                Encode.object [
+                    "kind", Encode.string "rule"
+                    "ruleId", Encode.guid ruleId
+                    "ruleName", Encode.string ruleName
+                ]
+            | ByUser ->
+                Encode.object [ "kind", Encode.string "user" ]
+            | ByOrderIdMatch orderId ->
+                Encode.object [
+                    "kind", Encode.string "orderIdMatch"
+                    "orderId", Encode.string orderId
+                ]
+
+        let private decodeActor : Decoder<ReviewActor> =
+            Decode.field "kind" Decode.string
+            |> Decode.andThen (function
+                | "rule" ->
+                    Decode.object (fun get ->
+                        ByRule (
+                            get.Required.Field "ruleId" Decode.guid |> RuleId,
+                            get.Required.Field "ruleName" Decode.string))
+                | "user" -> Decode.succeed ByUser
+                | "orderIdMatch" ->
+                    Decode.object (fun get ->
+                        ByOrderIdMatch (get.Required.Field "orderId" Decode.string))
+                | other -> Decode.fail $"Unbekannter Review-Actor: {other}")
+
+        let private encodeStep (step: ReviewStep) =
+            Encode.object [
+                "at", encodeDate step.At
+                "by", encodeActor step.By
+                "category",
+                    (match step.Category with
+                     | Some (YnabCategoryId id) -> Encode.guid id
+                     | None -> Encode.nil)
+                "categoryName", (match step.CategoryName with Some n -> Encode.string n | None -> Encode.nil)
+                "splits",
+                    (match step.Splits with
+                     | Some splits -> splits |> List.map encodeSplit |> Encode.list
+                     | None -> Encode.nil)
+                "payeeOverride", (match step.PayeeOverride with Some p -> Encode.string p | None -> Encode.nil)
+            ]
+
+        let private decodeStep : Decoder<ReviewStep> =
+            Decode.object (fun get -> {
+                At = get.Required.Field "at" decodeDate
+                By = get.Required.Field "by" decodeActor
+                Category = get.Optional.Field "category" Decode.guid |> Option.map YnabCategoryId
+                CategoryName = get.Optional.Field "categoryName" Decode.string
+                Splits = get.Optional.Field "splits" (Decode.list decodeSplit)
+                PayeeOverride = get.Optional.Field "payeeOverride" Decode.string
+            })
+
+        /// `[]` serialisiert als `None` (keine Spalte statt eines leeren JSON-Arrays):
+        /// hält bestehende Zeilen ohne Review-Spur von neuen ununterscheidbar.
+        let encode (steps: ReviewStep list) : string option =
+            match steps with
+            | [] -> None
+            | steps -> steps |> List.map encodeStep |> Encode.list |> Encode.toString 0 |> Some
+
+        /// Fehlende Spalte, `NULL` oder nicht lesbares JSON werden als leere Spur
+        /// behandelt statt den ganzen Zeilen-Read scheitern zu lassen: eine vor
+        /// categorization-gdrx8 gespeicherte Sitzung soll weiterhin laden (ADR 0021
+        /// verlangt das nicht explizit, aber ein Restart darf bestehende Sessions
+        /// nicht unlesbar machen).
+        let decode (raw: string option) : ReviewStep list =
+            match raw with
+            | None -> []
+            | Some json ->
+                match Decode.fromString (Decode.list decodeStep) json with
+                | Ok steps -> steps
+                | Error _ -> []
+
     [<CLIMutable>]
     type SyncTransactionRow = {
         id: string
@@ -614,6 +785,7 @@ module SyncTransactions =
         matched_rule_id: string option
         payee_override: string option
         created_at: string
+        review_steps: string option
     }
 
     let saveTransaction (sessionId: SyncSessionId) (tx: SyncTransaction) : Async<unit> =
@@ -625,10 +797,11 @@ module SyncTransactions =
             do! (conn.ExecuteAsync(
                 """INSERT OR REPLACE INTO sync_transactions
                    (id, session_id, transaction_id, booking_date, amount, currency, payee, memo,
-                    reference, status, category_id, category_name, matched_rule_id, payee_override, created_at)
+                    reference, status, category_id, category_name, matched_rule_id, payee_override, created_at,
+                    review_steps)
                    VALUES (@id, @session_id, @transaction_id, @booking_date, @amount, @currency, @payee,
                            @memo, @reference, @status, @category_id, @category_name, @matched_rule_id,
-                           @payee_override, @created_at)""",
+                           @payee_override, @created_at, @review_steps)""",
                 {|
                     id = Guid.NewGuid().ToString()
                     session_id = sid.ToString()
@@ -645,6 +818,7 @@ module SyncTransactions =
                     matched_rule_id = tx.MatchedRuleId |> Option.map (fun (RuleId id) -> id.ToString())
                     payee_override = tx.PayeeOverride
                     created_at = DateTime.UtcNow.ToString("O")
+                    review_steps = ReviewStepJson.encode tx.ReviewSteps
                 |}
             ) |> Async.AwaitTask |> Async.Ignore)
         }
@@ -689,6 +863,7 @@ module SyncTransactions =
                     YnabImportStatus = NotAttempted  // YnabImportStatus is not persisted
                     Splits = None  // Splits are not persisted yet
                     SuggestedByOrderId = None  // Suggestions are session-only, not persisted
+                    ReviewSteps = ReviewStepJson.decode row.review_steps
                 }
             )
         }

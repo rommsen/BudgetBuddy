@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 16:45 -- Task verified and completed: categorization-gdrx8 - "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest"
+
+**Type:** Work / Task completion
+**Task:** categorization-gdrx8 - "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest"
+**Summary:** SyncTransaction führt eine Review-Spur (ByRule, ByUser, ByOrderIdMatch) über alle sieben Schreibpfade inklusive Order-ID-Abgleich, persistiert in review_steps mit Migrationspfad
+**Duration:** 4h12m (12:28 bis 16:40, darin Eskalation an Roman und eine Session-Unterbrechung)
+**Verification:** PASS (iteration 2)
+**Files changed:** 14
+**Tests added:** 21
+**ADRs written:** none
+
+---
+
 ## 2026-09-11 16:28 -- Task verified and completed: design-system-t82sg - Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route)
 
 **Type:** Work / Task completion
