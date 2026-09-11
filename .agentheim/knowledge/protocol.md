@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 18:28 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 6h02m (12:26 bis 18:28, darin ein Neustart der Claude-Code-Session und ein Ruhezustand des Rechners)
+**Completed:** 5 (first-try PASS: 1, re-dispatched: 4, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0 (categorization-gdrx8 wurde nach Iteration 1 als task-under-specified an Roman eskaliert, von ihm entschieden und in Iteration 2 abgeschlossen)
+**Dispatches:** ledger-cscw1: 2, design-system-t82sg: 2, categorization-gdrx8: 2, ledger-tdnpk: 1, ledger-qvt84: 3 (t82sg und tdnpk zusätzlich je einmal nach dem Session-Neustart fortgesetzt)
+**Commits:** 8 Work-Commits (3 Batch-Start, 5 Task-Integration), dazu 2 Modeling-Commits (Refine gdrx8/qvt84, Capture ledger-tpbe7) und dieser Session-End-Commit
+**Vision-conformance:** none — batch aligns with vision. ledger-cscw1, categorization-gdrx8, ledger-tdnpk und ledger-qvt84 erfüllen das v1-Kriterium "merkt sich zusätzlich, was BB selbst entschieden hat"; design-system-t82sg bereitet den UX-Durchgang (ledger-xbrht) gegen das Scheiterkriterium "Kassenbuch gebaut, aber niemand schaut hinein" vor. Kein Non-Goal berührt.
+**Carry-over:** none — working tree clean; keine Worktrees außer dem Hauptzweig
+**Anmerkungen:** (1) Die lifecycle-CLI lief bis zum Downgrade auf agentheim 0.9.2 aus einer neueren Cache-Version; deren `checkpoint` lehnte `.agentheim/`-Pfade ab, der Conductor hat sie von Hand mitgenommen. (2) Parallele Worker schrieben ihren Diary-Eintrag in die Task-Datei, der Conductor hat ihn beim Integrieren nach diary/development.md übertragen. (3) Eine malformed Backlog-Id (categorization-o7qc4) wurde vor dem Checkpoint umbenannt und ging später in categorization-gdrx8 auf. (4) Neue Backlog-Punkte: design-system-f7k2p (Bug: App lädt ihre Schriften nicht), design-system-w4n9r, ledger-fq3kd (Force-Import ins Kassenbuch), ledger-tpbe7 (Randfälle nach Push). (5) design-system-h58y4 (Upload nach Claude Design) ist jetzt frei und läuft mit Roman in der Hauptsession.
+
+---
+
 ## 2026-09-11 18:27 -- Modeling / Captured: ledger-tpbe7 - Randfälle Kassenbuch nach Push
 
 **Type:** Modeling / Capture
