@@ -1,7 +1,7 @@
 ---
 id: ledger-cscw1
 title: "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-11

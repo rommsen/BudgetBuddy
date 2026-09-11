@@ -1,7 +1,7 @@
 ---
 id: design-system-t82sg
 title: Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route)
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-09-11

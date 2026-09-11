@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 12:26 -- Batch started: [design-system-t82sg, ledger-cscw1, categorization-gdrx8]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-t82sg - Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route), ledger-cscw1 - "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung", categorization-gdrx8 - "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest"
+**Parallel:** yes (3 workers). ledger-qvt84 und ledger-tdnpk warten auf ledger-cscw1 (qvt84 zusätzlich auf categorization-gdrx8) und kommen in der nächsten Welle. Merge-Reihenfolge: ledger-cscw1 und categorization-gdrx8 nacheinander (beide vermutlich in src/Tests/Tests.fsproj)
+**Planning advisory:** whats-next (aktuell, 2026-09-11T06:37Z): ledger-h4p6c und ledger-p3n8k promoten; beide liegen im Backlog, daher ohne Einfluss auf diesen Batch
+
+---
+
 ## 2026-09-11 12:20 -- Modeling / Captured: ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk - BB-Entscheidungen ins Kassenbuch
 
 **Type:** Modeling / Capture

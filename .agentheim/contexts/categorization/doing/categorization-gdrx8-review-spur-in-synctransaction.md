@@ -1,7 +1,7 @@
 ---
 id: categorization-gdrx8
 title: "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest"
-status: todo
+status: doing
 type: feature
 context: categorization
 created: 2026-09-11
