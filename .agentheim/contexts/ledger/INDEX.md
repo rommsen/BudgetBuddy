@@ -11,13 +11,16 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 5
-- **Todo:** 0
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-cscw1** — Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung (feature) — `todo/ledger-cscw1-entscheidungs-ereignisse-im-katalog.md`
+- **ledger-qvt84** — Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs (feature) — `todo/ledger-qvt84-import-push-schreibt-ins-kassenbuch.md`
+- **ledger-tdnpk** — Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort (feature) — `todo/ledger-tdnpk-quick-add-erst-kassenbuch-dann-ynab.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -47,6 +50,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0021** — BB-geführte Buchungen entstehen zuerst im Kassenbuch, der YNAB-Push folgt; die Verknüpfung ist ein eigenes Ereignis — 2026-09-11 — `knowledge/decisions/0021-kassenbuch-zuerst-dann-push-verknuepfung-als-ereignis.md`
 - **0020** — Im Kassenbuch einen Elmish-Auslöser mit Entscheidungslogik in eine reine und eine unreine Nachricht teilen (Reduzierer unter .NET testbar) — 2026-09-06 — `knowledge/decisions/0020-elmish-ausloeser-in-reine-und-unreine-nachricht-teilen.md`
 - **0019** — Unkategorisierte Split-Zeile ist ein benanntes drittes Split-Ziel (ergänzt ADR 0006) — 2026-09-06 — `knowledge/decisions/0019-unkategorisierte-split-zeile-als-drittes-split-ziel.md`
 - **0017** — Beträge im Kassenbuch als exakter Dezimal-Text, Kontostand in F# summiert — 2026-09-06 — `knowledge/decisions/0017-betraege-als-exakter-dezimaltext-im-kassenbuch.md`

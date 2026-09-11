@@ -83,8 +83,9 @@ Kassenbuch zurück.
 
 - **banking-import → categorization → ledger:** Customer-supplier / Pipeline. Bank-
   Buchungen werden kategorisiert und landen dann dauerhaft im Kassenbuch (Herkunft:
-  Comdirect-Import + Regel/Roman). Bis das Kassenbuch steht, endet die Pipeline wie
-  bisher in `ynab-sync`.
+  Comdirect-Import + Regel/Roman). Seit ADR 0021 (2026-09-11) endet die Pipeline im
+  `ledger`: `banking-import → categorization → ledger → ynab-sync`. Das Kassenbuch wird
+  vor dem Push geschrieben, der Push folgt.
 - **ledger ↔ ynab-sync:** **Partnership** in zwei Richtungen. `ledger` ist Upstream für
   den Push (BB-geführte Entscheidungen gehen nach YNAB); `ynab-sync` ist Upstream für den
   Spiegel (YNAB-geführte Änderungen kommen ins Kassenbuch, Herkunft: YNAB-Spiegel). Die
@@ -110,8 +111,7 @@ Kassenbuch zurück.
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter in `banking-import` oder Comdirect-Muster
   generalisieren? (verschoben; bis dahin über den Spiegel)
-- **Quick Add** schreibt heute direkt nach YNAB und kommt über den Spiegel zurück. Soll
-  es später zuerst ins Kassenbuch schreiben (BB-geführt, ohne Umweg)? → Tactical Modeling
-  in `ledger`, wenn v1 steht.
+- **Quick Add** zuerst ins Kassenbuch? *Gelöst (ADR 0021, 2026-09-11):* ja, erst
+  Kassenbuch, dann Push, dann Verknüpfung (`ledger-tdnpk`).
 - Ob **budgeting** ein eigener Context wird oder in `ledger` aufgeht, entscheidet sich
   nach v2.

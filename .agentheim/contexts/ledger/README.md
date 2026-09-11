@@ -185,7 +185,7 @@ geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchunge
   Offen bleibt allein der automatische Auslöser (Frische-Kriterium, Lauf nach Push).
 - **Kursquelle** — *gelöst (ADR 0016, ledger-zm0zx):* Schnittstelle mit Handeingabe und späterem automatischem Abruf, konkrete Quelle als Research-Spike im Backlog.
 - **Bar- und Quick-Add-Konto** — *gelöst (ADR 0016):* ein Konto "Bar", Quick Add ist Herkunft.
-- **Quick Add** später direkt ins Kassenbuch (BB-geführt ohne Umweg über YNAB)?
+- **Quick Add** direkt ins Kassenbuch? *Gelöst (ADR 0021, 2026-09-11):* erst Kassenbuch, dann Push, dann Verknüpfung (`ledger-tdnpk`).
 - **Identität der Buchung** — *gelöst (ADR 0015, ledger-z5vw6):* eigene Id
   (`Guid.CreateVersion7()`), Fremd-Ids (YNAB, ImportId, Comdirect) als Verknüpfungen in
   eigener Tabelle; Spiegel matcht YNAB-Id vor ImportId, sonst neue Buchung als Spiegel.

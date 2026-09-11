@@ -113,7 +113,9 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
   Kassenbuch; in v1 manuell ausgelöst).
 
 ## Relationships with other contexts
-- **Downstream of:** `categorization` — erhält kategorisierte SyncTransactions.
+- **Downstream of:** `ledger` für den Push (ADR 0021): gepusht wird, was vorher ins
+  Kassenbuch geschrieben wurde. Die kategorisierten SyncTransactions kommen weiter aus
+  `categorization`.
 - **Conformist zu:** YNAB-API (Datenmodell, Dedup, Cleared-/Transfer-Semantik).
 - **Shared kernel:** ImportId teilt sich der Context konzeptionell mit `banking-import`s
   Duplikat-Erkennung.

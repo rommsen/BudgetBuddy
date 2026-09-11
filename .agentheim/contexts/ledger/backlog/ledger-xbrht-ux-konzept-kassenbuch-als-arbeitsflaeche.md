@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-h58y4, design-system-001]
 blocks: []
 tags: [frontend, ux, kassenbuch, claude-design]
-related_adrs: [0013, 0015]
+related_adrs: [0013, 0015, 0021]
 related_research: []
 prior_art: [ledger-q5w9c, ledger-kt0wq]
 ---
@@ -51,7 +51,9 @@ PC; am Handy ist der Hauptfall das Durchsehen und Bestätigen neuer Buchungen.
    (in YNAB heißt es "Lena"); selten ein temporäres Flag zum Gruppieren.
 6. **Gesamtsicht und Konto-Sicht** mit Kontoständen (v1-Kriterium der Vision).
 7. **Was nur BB kann**: Herkunft und Historie einer Buchung, gelöschte Buchungen
-   (`ledger-p3n8k`), später Abweichung zwischen BB und YNAB (v2).
+   (`ledger-p3n8k`), später Abweichung zwischen BB und YNAB (v2). Dazu gehört die Markierung
+   "noch nicht in YNAB" für Buchungen ohne YNAB-Verknüpfung (Push ausstehend oder
+   gescheitert, ADR 0021); gewollt von Roman am 2026-09-11.
 
 **Ergebnis des Tasks:**
 - Mockups für jeden Ablauf auf seinem Hauptgerät (1 auf dem Handy, 2 bis 5 auf dem PC, 6

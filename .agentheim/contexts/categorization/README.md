@@ -53,7 +53,8 @@ schwaches Payee-basiertes Auto-Matching.
 
 ## Relationships with other contexts
 - **Downstream of:** `banking-import` — erhält geholte BankTransactions.
-- **Upstream of:** `ynab-sync` — liefert kategorisierte SyncTransactions zum Push.
+- **Upstream of:** `ledger` (über die SyncSession, beim Push; ADR 0021). Die Review-Spur
+  (`categorization-gdrx8`) geht als Ereignisfolge ins Kassenbuch, danach pusht `ynab-sync`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Open questions

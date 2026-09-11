@@ -8,7 +8,7 @@ created: 2026-09-06
 depends_on: [ledger-m8r2v, ledger-q5w9c]
 blocks: []
 tags: [backend, frontend, integration]
-related_adrs: [0014]
+related_adrs: [0014, 0021]
 related_research: []
 prior_art: [ledger-m8r2v]
 ---
@@ -42,3 +42,9 @@ von Hand anstoßen, damit das Kassenbuch stimmt — genau die Handarbeit, die BB
 ## Notes
 Der Lauf selbst existiert bereits (`Ledger.CommandHandlers.runMirror` / `mirrorYnabBudget`);
 dieser Task baut nur die Auslöser und die Doppel-Lauf-Sperre.
+
+Nachtrag 2026-09-11 (aus ADR 0021 und `ledger-tdnpk`): Nach einem Quick Add darf der
+Spiegel-Lauf erst starten, wenn `EntryLinkedToYnab` geschrieben ist. Quick-Add-Buchungen
+haben keine ImportId (ADR 0004); ein Lauf dazwischen sieht die YNAB-Buchung ungematcht
+und legt eine zweite Buchung an. Gilt sinngemäß für den Import-Push (`ledger-qvt84`), dort
+fängt die ImportId den Fall aber ab.

@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 12:20 -- Modeling / Captured: ledger-cscw1, categorization-gdrx8, ledger-qvt84, ledger-tdnpk - BB-Entscheidungen ins Kassenbuch
+
+**Type:** Modeling / Capture
+**BC:** ledger, categorization
+**Filed to:** todo (alle vier)
+**Summary:** Das Kassenbuch merkt sich künftig, was BB entschieden hat (v1-Kriterium). Entscheidungen Roman: Comdirect-Buchung entsteht mit dem Push, Historie zeigt Regel und Korrektur, Quick Add erst Kassenbuch dann YNAB, kein Nachtragen des Altbestands. Schnitt nach Orchestrator (strategic-modeler, tactical-modeler, architect): Ereignis-Payloads plus `EntryLinkedToYnab` (`ledger-cscw1`), Review-Spur in der SyncTransaction (`categorization-gdrx8`), Import-Push mit Kassenbuch zuerst und drei am Code bestätigten Push-Bugfixes (`ledger-qvt84`), Quick Add umgedreht (`ledger-tdnpk`). `ynab-b7q2m` ist darin aufgegangen. `ledger-xbrht` um die Markierung "noch nicht in YNAB" ergänzt, `ledger-h4p6c` um die Reihenfolge nach Quick Add. Context-Map und READMEs: Pipeline endet jetzt im `ledger`, offene Frage Quick Add gelöst.
+**ADRs written:** 0021 (Kassenbuch zuerst, dann Push; Verknüpfung als eigenes Ereignis; von Roman bestätigt)
+
+---
+
 ## 2026-09-11 12:19 -- Modeling / Dismissed: ynab-b7q2m
 
 **Type:** Modeling / Dismiss
