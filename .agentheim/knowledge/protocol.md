@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 22:08 -- Modeling / Promoted: ledger-xbrht - UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-11 22:12 -- Modeling / Refined: ledger-xbrht - UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche
 
 **Type:** Modeling / Refine
