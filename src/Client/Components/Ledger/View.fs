@@ -39,6 +39,7 @@ let private originBadge (origin: LedgerOrigin) =
         | DecidedByRule -> Badge.Purple
         | DecidedInBb -> Badge.Success
         | AddedViaQuickAdd -> Badge.Orange
+        | MatchedByOrderId -> Badge.Warning
 
     Badge.view {
         Badge.defaultProps with

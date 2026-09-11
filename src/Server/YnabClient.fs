@@ -350,7 +350,10 @@ let private truncateSplitMemo (memo: string) =
 /// Builds memo with reference suffix for YNAB, ensuring reference is never truncated.
 /// Format: "<memo>, Ref: <reference>"
 /// If memo exceeds limit, truncates from the BEGINNING to preserve the reference.
-let private buildMemoWithReference (memo: string) (reference: string) : string =
+/// Non-private so tests can build the exact memo YNAB receives (e.g. to derive a
+/// mirror-run observation from the sent request data instead of a hand-built guess,
+/// ledger-qvt84 Iteration 3).
+let buildMemoWithReference (memo: string) (reference: string) : string =
     let compressedMemo = compressWhitespace memo
     let suffix = $", Ref: {reference}"
     let fullMemo = $"{compressedMemo}{suffix}"
@@ -372,14 +375,53 @@ let private buildMemoWithReference (memo: string) (reference: string) : string =
 // YNAB Transaction Types for JSON Encoding
 // ============================================
 
-/// Result of creating transactions in YNAB
+/// Eine von YNAB tatsächlich angelegte Buchung. Über die ImportId zugeordnet (die BB
+/// selbst gesetzt hat), nicht über die Reihenfolge im Batch, YNAB kann umsortieren.
+type CreatedTransactionResult = {
+    TransactionId: TransactionId
+    ImportId: string
+    YnabTransactionId: string
+}
+
+/// Was das Auswerten der 201-Antwort von `POST /transactions` ergeben hat, oder dass
+/// die Antwort nicht lesbar war. Pure Zwischenform, damit der JSON-Vertrag direkt gegen
+/// eine repräsentative Antwort testbar ist (Fable.Remoting-Proxy ist nicht
+/// .NET-testbar; Muster wie `manualTransactionIdDecoder`).
+type ParsedCreateResponse =
+    /// `data.transactions[].{import_id, id}` und `data.duplicate_import_ids`.
+    | ParsedCreateResponse of created: (string option * string) list * duplicateImportIds: string list
+    | UnparseableCreateResponse of parseError: string
+
+/// Result of creating transactions in YNAB. Getrennt in "Created" (mit YNAB-Id, über
+/// die ImportId zugeordnet), Duplikate, Transfer-Rejects und Zukunftsdatierte, plus ein
+/// Kennzeichen für eine nicht auswertbare Antwort (Teil 1, Punkte 2 bis 5: drei Bugs
+/// behoben, die vorher an dieser Stelle steckten).
 type TransactionCreateResult = {
-    CreatedCount: int
+    /// Tatsächlich angelegte Buchungen, YNAB-Id über die ImportId zugeordnet.
+    Created: CreatedTransactionResult list
     DuplicateImportIds: string list
     /// Transactions excluded from the request body because a transfer split line
     /// had no resolvable transfer payee in YNAB (ADR 0006). The caller marks these
     /// RejectedByYnab (UnknownRejection ...).
     RejectedTransferTransactionIds: TransactionId list
+    /// Buchungen mit Datum in der Zukunft: nie gesendet, deshalb auch nie in `Created`
+    /// (Bug: vorher wurden sie danach trotzdem als importiert markiert).
+    FutureDatedTransactionIds: TransactionId list
+    /// War die 201-Antwort nicht auswertbar? Dann ist `Created` leer, statt pauschal
+    /// alle gesendeten Buchungen als angelegt zu behandeln (Bug: vorher galt genau das
+    /// als Fallback).
+    ResponseUnparseable: bool
+}
+
+/// Das Ergebnis, wenn nichts zu senden war (leerer Batch nach dem Vorbereiten).
+/// Eigene Bindung statt Inline-Literal an jeder Stelle, u. a. für
+/// `Ledger.CommandHandlers`, das nie `Server.YnabClient`-Felder unqualifiziert öffnet.
+let emptyCreateResult : TransactionCreateResult = {
+    Created = []
+    DuplicateImportIds = []
+    RejectedTransferTransactionIds = []
+    FutureDatedTransactionIds = []
+    ResponseUnparseable = false
 }
 
 /// Subtransaction for split transactions. Mirrors the domain `SplitTarget` DU so a
@@ -569,89 +611,163 @@ let buildTransactionRequest
             // No category - will appear as uncategorized in YNAB
             Ok baseFields
 
-/// Creates transactions in YNAB
-/// Returns the number of successfully created transactions and any duplicate import IDs
-/// Handles both regular transactions and split transactions (with subtransactions)
-/// If forceNewImportId is true, generates new UUIDs to bypass YNAB's duplicate detection
-let createTransactions
+/// Eine SyncTransaction, vorbereitet für das Senden: die ImportId, die sie trägt
+/// (normal deterministisch aus der TransactionId, bei Force-Import neu erzeugt und ab
+/// jetzt für den Aufrufer auslesbar, Bug-Fix), und das fertige YNAB-Request-Objekt.
+/// Pure Daten, kein I/O.
+type PreparedTransaction = {
+    TransactionId: TransactionId
+    ImportId: string
+    Request: YnabTransactionRequest
+}
+
+/// Ergebnis des Vorbereitens (Teil 1, Punkt 1): was gesendet werden soll, und was schon
+/// vorher ausgeschlossen wurde (nie gesendet, nie als importiert geführt).
+type PrepareResult = {
+    ToSend: PreparedTransaction list
+    FutureDatedTransactionIds: TransactionId list
+    RejectedTransferTransactionIds: TransactionId list
+}
+
+/// Vorbereiten (Teil 1, Punkt 1): filtert Skipped und zukunftsdatierte Buchungen heraus
+/// (YNAB lehnt Daten in der Zukunft ab), löst Splits samt Transfer-Zeilen gegen die
+/// übergebene Payee-Map auf und vergibt die ImportId (Force-Import: neue Guid). Pure,
+/// die Payee-Map kommt vom Aufrufer (`resolveTransferPayees`, ein HTTP-Call, deshalb
+/// nicht Teil dieser Funktion). `today` ist injiziert, damit "zukunftsdatiert" ohne
+/// Systemzeit testbar ist.
+let prepareTransactions
+    (today: DateTime)
+    (accountId: YnabAccountId)
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (forceNewImportId: bool)
+    (transactions: SyncTransaction list)
+    : PrepareResult =
+    let notSkipped = transactions |> List.filter (fun tx -> tx.Status <> Skipped)
+
+    let futureDated, dueTransactions =
+        notSkipped |> List.partition (fun tx -> tx.Transaction.BookingDate.Date > today.Date)
+
+    let toSend, rejected =
+        (([], []), dueTransactions)
+        ||> List.fold (fun (sends, rejects) tx ->
+            // Generate import_id:
+            // - Normal: Based on transaction ID (prevents accidental duplicates)
+            // - Force: New UUID (allows re-import after deletion in YNAB)
+            // Uses Domain.ImportIdPrefix to ensure consistency with DuplicateDetection
+            let importId =
+                if forceNewImportId then
+                    let newGuid = Guid.NewGuid().ToString("N")
+                    $"{Shared.Domain.ImportIdPrefix}:{newGuid}"
+                else
+                    Shared.Domain.generateImportId tx.Transaction.Id
+
+            match buildTransactionRequest accountId transferPayees importId tx with
+            | Ok request ->
+                sends @ [ { TransactionId = tx.Transaction.Id; ImportId = importId; Request = request } ], rejects
+            | Error _unresolvableAccount ->
+                sends, rejects @ [ tx.Transaction.Id ])
+
+    {
+        ToSend = toSend
+        FutureDatedTransactionIds = futureDated |> List.map (fun tx -> tx.Transaction.Id)
+        RejectedTransferTransactionIds = rejected
+    }
+
+/// Liest `data.transactions[].{import_id, id}` und `data.duplicate_import_ids` aus der
+/// 201-Antwort von `POST /transactions`. Non-private und pur, damit der JSON-Vertrag
+/// direkt gegen eine repräsentative YNAB-Antwort testbar ist (Muster wie
+/// `manualTransactionIdDecoder`). Eine nicht lesbare Antwort liefert
+/// `UnparseableCreateResponse`, nie einen geratenen Erfolg (Bug-Fix).
+let parseCreateTransactionsResponse (bodyText: string) : ParsedCreateResponse =
+    let decoder =
+        Decode.field "data" (
+            Decode.object (fun get ->
+                let created =
+                    get.Optional.Field "transactions" (
+                        Decode.list (
+                            Decode.object (fun g ->
+                                g.Optional.Field "import_id" Decode.string, g.Required.Field "id" Decode.string)
+                        )
+                    )
+                    |> Option.defaultValue []
+                let duplicates =
+                    get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string)
+                    |> Option.defaultValue []
+                created, duplicates)
+        )
+    match Decode.fromString decoder bodyText with
+    | Ok (created, duplicates) -> ParsedCreateResponse (created, duplicates)
+    | Error err -> UnparseableCreateResponse err
+
+/// Löst die Transfer-Payee-Map einmal pro Batch auf, nur wenn der Batch überhaupt
+/// eine Transfer-Split-Zeile enthält (ADR 0006, Rate-Limit-Schonung).
+let resolveTransferPayees
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (transactions: SyncTransaction list)
+    : Async<YnabResult<Map<YnabAccountId, YnabPayeeId>>> =
+    async {
+        let candidates = transactions |> List.filter (fun tx -> tx.Status <> Skipped)
+        if batchHasTransferLine candidates then
+            match! getPayees token budgetId with
+            | Ok payees -> return Ok (transferPayeeByAccount payees)
+            | Error err -> return Error err
+        else
+            return Ok Map.empty
+    }
+
+/// Baut aus der geparsten YNAB-Antwort (`parseCreateTransactionsResponse`) das
+/// `TransactionCreateResult` für genau die gesendete Liste. Pure Zuordnung, extrahiert
+/// aus `sendPrepared` (Verifier-Fund, ledger-qvt84 Iteration 2), damit sie ohne HTTP
+/// testbar ist: ordnet YNAB-Ids über die ImportId zu (nicht über die Reihenfolge im
+/// Batch, YNAB kann umsortieren), reicht Duplikate durch. Eine nicht auswertbare Antwort
+/// liefert `Created = []` und `ResponseUnparseable = true` (Regressionstest für Bug 3:
+/// vorher galten hier pauschal alle gesendeten Buchungen als angelegt, wenn die Antwort
+/// nicht lesbar war).
+let buildCreateResult (prepared: PreparedTransaction list) (parsed: ParsedCreateResponse) : TransactionCreateResult =
+    match parsed with
+    | ParsedCreateResponse (created, duplicateIds) ->
+        let importIdToTxId = prepared |> List.map (fun p -> p.ImportId, p.TransactionId) |> Map.ofList
+        let createdResults =
+            created
+            |> List.choose (fun (importIdOpt, ynabId) ->
+                importIdOpt
+                |> Option.bind (fun importId ->
+                    Map.tryFind importId importIdToTxId
+                    |> Option.map (fun txId ->
+                        { TransactionId = txId; ImportId = importId; YnabTransactionId = ynabId })))
+        {
+            Created = createdResults
+            DuplicateImportIds = duplicateIds
+            RejectedTransferTransactionIds = []
+            FutureDatedTransactionIds = []
+            ResponseUnparseable = false
+        }
+    | UnparseableCreateResponse _ ->
+        // Bug-Fix (Teil 1, Bug 3): vorher galten bei einer nicht lesbaren Antwort
+        // pauschal alle gesendeten Buchungen als angelegt (Fallback-Zeile im alten
+        // Code). Jetzt bleibt `Created` leer, `ResponseUnparseable` macht den Zustand
+        // "unbekannt" erkennbar, kein geratener Erfolg.
+        { emptyCreateResult with ResponseUnparseable = true }
+
+/// Senden (Teil 1, Punkt 1): postet genau die übergebene, vorbereitete Liste und
+/// wertet die Antwort über `buildCreateResult` aus. `RejectedTransferTransactionIds`/
+/// `FutureDatedTransactionIds` sind hier immer leer, die trägt der Aufrufer aus dem
+/// `PrepareResult` nach (`createTransactions` tut das; `Ledger.CommandHandlers` hängt
+/// dazwischen den Kassenbuch-Schreibpfad, ADR 0021).
+let sendPrepared
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
-    (YnabAccountId accountId: YnabAccountId)
-    (transactions: SyncTransaction list)
-    (forceNewImportId: bool)
+    (prepared: PreparedTransaction list)
     : Async<YnabResult<TransactionCreateResult>> =
-
     async {
         try
-            // Filter valid transactions (not skipped)
-            // Category is optional - uncategorized transactions will be imported without category_id
-            let validTransactions =
-                transactions
-                |> List.filter (fun tx -> tx.Status <> Skipped)
-
-            // Filter out future-dated transactions (YNAB rejects dates in the future)
-            let today = DateTime.Today
-            let futureSkipped, validTransactions =
-                validTransactions
-                |> List.partition (fun tx -> tx.Transaction.BookingDate.Date > today)
-            for tx in futureSkipped do
-                printfn "[YNAB] Skipping future-dated transaction: %s (date=%s)" (tx.Transaction.Id |> fun (TransactionId id) -> id) (tx.Transaction.BookingDate.ToString("yyyy-MM-dd"))
-
-            // Resolve transfer payees ONCE per batch, and only if the batch actually
-            // contains a transfer split line. Category-only batches skip the fetch
-            // entirely (ADR 0006). A getPayees failure fails the whole batch.
-            let! transferPayeesResult = async {
-                if batchHasTransferLine validTransactions then
-                    match! getPayees token (YnabBudgetId budgetId) with
-                    | Ok payees -> return Ok (transferPayeeByAccount payees)
-                    | Error err -> return Error err
-                else
-                    return Ok Map.empty
-            }
-
-            match transferPayeesResult with
-            | Error err -> return Error err
-            | Ok transferPayees ->
-
-            // Convert SyncTransactions to YNAB transaction request format.
-            // A split transaction whose transfer line has no resolvable payee is
-            // EXCLUDED from the request body and reported back so the caller can mark
-            // it RejectedByYnab (UnknownRejection ...).
-            let requestsOrRejections =
-                validTransactions
-                |> List.map (fun tx ->
-                    // Generate import_id:
-                    // - Normal: Based on transaction ID (prevents accidental duplicates)
-                    // - Force: New UUID (allows re-import after deletion in YNAB)
-                    // Uses Domain.ImportIdPrefix to ensure consistency with DuplicateDetection
-                    let importId =
-                        if forceNewImportId then
-                            let newGuid = Guid.NewGuid().ToString("N")
-                            $"{Shared.Domain.ImportIdPrefix}:{newGuid}"
-                        else
-                            Shared.Domain.generateImportId tx.Transaction.Id
-
-                    match buildTransactionRequest (YnabAccountId accountId) transferPayees importId tx with
-                    | Ok request -> Choice1Of2 request
-                    | Error _unresolvableAccount -> Choice2Of2 tx.Transaction.Id
-                )
-
-            let ynabTransactions =
-                requestsOrRejections |> List.choose (function Choice1Of2 r -> Some r | _ -> None)
-            let rejectedTransferTxIds =
-                requestsOrRejections |> List.choose (function Choice2Of2 id -> Some id | _ -> None)
-
-            for rejId in rejectedTransferTxIds do
-                let (TransactionId id) = rejId
-                printfn "[YNAB] Excluding transaction %s: a transfer split line has no transfer payee in YNAB" id
-
-            if ynabTransactions.IsEmpty then
-                return Ok { CreatedCount = 0; DuplicateImportIds = []; RejectedTransferTransactionIds = rejectedTransferTxIds }
+            if prepared.IsEmpty then
+                return Ok emptyCreateResult
             else
-                // Encode to JSON using manual encoder
                 let requestBody =
                     Encode.object [
-                        "transactions", Encode.list (ynabTransactions |> List.map encodeTransaction)
+                        "transactions", Encode.list (prepared |> List.map (fun p -> encodeTransaction p.Request))
                     ]
                     |> Encode.toString 2
 
@@ -663,51 +779,84 @@ let createTransactions
                 let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
                 let statusCode = int httpResponse.StatusCode
 
-                let response =
-                    {| statusCode = statusCode; bodyText = bodyText |}
+                printfn "[YNAB] POST /budgets/%s/transactions - Sending %d transactions" budgetId prepared.Length
+                printfn "[YNAB] Response Status: %d" statusCode
+                printfn "[YNAB] Response Body: %s" bodyText
 
-                // Log request and response for debugging
-                printfn "[YNAB] POST /budgets/%s/transactions - Sending %d transactions" budgetId ynabTransactions.Length
-                printfn "[YNAB] Response Status: %d" response.statusCode
-                printfn "[YNAB] Response Body: %s" response.bodyText
-
-                match response.statusCode with
+                match statusCode with
                 | 201 ->
-                    // Parse response to get actual created transactions count
-                    // YNAB returns: { data: { transactions: [...], duplicate_import_ids: [...] } }
-                    let createdCountDecoder =
-                        Decode.field "data" (
-                            Decode.object (fun get ->
-                                let transactions = get.Optional.Field "transactions" (Decode.list (Decode.succeed ())) |> Option.defaultValue []
-                                let duplicates = get.Optional.Field "duplicate_import_ids" (Decode.list Decode.string) |> Option.defaultValue []
-                                (transactions.Length, duplicates)
-                            )
-                        )
-
-                    match Decode.fromString createdCountDecoder response.bodyText with
-                    | Ok (createdCount, duplicateIds) ->
+                    let parsed = parseCreateTransactionsResponse bodyText
+                    let result = buildCreateResult prepared parsed
+                    match parsed with
+                    | ParsedCreateResponse (_, duplicateIds) ->
                         if duplicateIds.Length > 0 then
                             printfn "[YNAB] WARNING: %d transactions were rejected as duplicates: %A" duplicateIds.Length duplicateIds
-                        printfn "[YNAB] Successfully created %d transactions (sent: %d, duplicates: %d)" createdCount ynabTransactions.Length duplicateIds.Length
-                        return Ok { CreatedCount = createdCount; DuplicateImportIds = duplicateIds; RejectedTransferTransactionIds = rejectedTransferTxIds }
-                    | Error parseErr ->
-                        // If we can't parse, fall back to assuming all were created (old behavior)
-                        printfn "[YNAB] WARNING: Could not parse response, assuming all %d transactions created. Parse error: %s" ynabTransactions.Length parseErr
-                        return Ok { CreatedCount = ynabTransactions.Length; DuplicateImportIds = []; RejectedTransferTransactionIds = rejectedTransferTxIds }
-                | 400 ->
-                    return Error (YnabError.InvalidResponse $"Bad request: {response.bodyText}")
-                | 401 ->
-                    return Error (YnabError.Unauthorized "Invalid YNAB token")
-                | 404 ->
-                    return Error (YnabError.InvalidResponse "Budget or account not found")
-                | 429 ->
-                    return Error (YnabError.RateLimitExceeded 60)
-                | _ ->
-                    return Error (YnabError.NetworkError $"HTTP {response.statusCode}: {response.bodyText}")
-        with
-        | ex ->
+                        printfn
+                            "[YNAB] Successfully created %d transactions (sent: %d, duplicates: %d)"
+                            result.Created.Length
+                            prepared.Length
+                            duplicateIds.Length
+                    | UnparseableCreateResponse parseErr ->
+                        printfn "[YNAB] WARNING: Could not parse response, treating as unknown. Parse error: %s" parseErr
+                    return Ok result
+                | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+                | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+                | 404 -> return Error (YnabError.InvalidResponse "Budget or account not found")
+                | 429 -> return Error (YnabError.RateLimitExceeded 60)
+                | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
             return Error (YnabError.NetworkError $"Failed to create transactions: {ex.Message}")
     }
+
+/// Creates transactions in YNAB: vorbereiten (Filter, ImportId, Payee-Auflösung),
+/// dann senden (Teil 1, Punkt 1). Behält Name und Signatur für `forceImportDuplicates`
+/// bei; `Server.Api.importToYnab` nutzt `prepareTransactions`/`sendPrepared` einzeln,
+/// weil dazwischen der Kassenbuch-Schreibpfad liegt (ADR 0021).
+let createTransactions
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (accountId: YnabAccountId)
+    (transactions: SyncTransaction list)
+    (forceNewImportId: bool)
+    : Async<YnabResult<TransactionCreateResult>> =
+    async {
+        match! resolveTransferPayees token budgetId transactions with
+        | Error err -> return Error err
+        | Ok transferPayees ->
+            let today = DateTime.Today
+            let prepared = prepareTransactions today accountId transferPayees forceNewImportId transactions
+
+            for txId in prepared.FutureDatedTransactionIds do
+                let (TransactionId id) = txId
+                printfn "[YNAB] Skipping future-dated transaction: %s" id
+            for txId in prepared.RejectedTransferTransactionIds do
+                let (TransactionId id) = txId
+                printfn "[YNAB] Excluding transaction %s: a transfer split line has no transfer payee in YNAB" id
+
+            match! sendPrepared token budgetId prepared.ToSend with
+            | Error err -> return Error err
+            | Ok sent ->
+                return Ok {
+                    sent with
+                        RejectedTransferTransactionIds = prepared.RejectedTransferTransactionIds
+                        FutureDatedTransactionIds = prepared.FutureDatedTransactionIds
+                }
+    }
+
+/// Markiert nur die Buchungen, die YNAB laut `result.Created` tatsächlich angelegt hat,
+/// als importiert. Zukunftsdatierte, transfer-abgelehnte oder (bei nicht auswertbarer
+/// Antwort) unbestätigte Buchungen bleiben unverändert. Pure, extrahiert für
+/// `forceImportDuplicates` (Verifier-Fund, ledger-qvt84 Iteration 2): vorher markierte
+/// der Aufrufer jede gesendete Buchung pauschal als `Imported`, unabhängig von
+/// `result.Created`, `result.ResponseUnparseable` und `result.FutureDatedTransactionIds`.
+let markCreatedAsImported (result: TransactionCreateResult) (transactions: SyncTransaction list) : SyncTransaction list =
+    let createdTxIds = result.Created |> List.map (fun c -> c.TransactionId) |> Set.ofList
+    transactions
+    |> List.map (fun tx ->
+        if createdTxIds.Contains tx.Transaction.Id then
+            { tx with Status = Imported; YnabImportStatus = YnabImported }
+        else
+            tx)
 
 /// Builds the JSON body for a single manual transaction (Quick Add).
 /// Deliberately sets no import_id: manual entries are user-entered (like

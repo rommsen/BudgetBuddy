@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
+- **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 9
+- **Doing:** 0
+- **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-qvt84** — "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs" (feature) — `doing/ledger-qvt84-import-push-schreibt-ins-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-qvt84** — "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs" (feature) — `done/ledger-qvt84-import-push-schreibt-ins-kassenbuch.md`
 - **ledger-tdnpk** — "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort" (feature) — `done/ledger-tdnpk-quick-add-erst-kassenbuch-dann-ynab.md`
 - **ledger-cscw1** — "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung" (feature) — `done/ledger-cscw1-entscheidungs-ereignisse-im-katalog.md`
 - **ledger-kt0wq** — Walking Skeleton Kassenbuch: ein YNAB-Konto spiegeln, Buchungen mit Herkunft und Historie anzeigen (spike) — `done/ledger-kt0wq-walking-skeleton.md`
@@ -40,6 +40,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `backlog/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 - **ledger-xbrht** — UX-Konzept Kassenbuch als Arbeitsfläche (Mockups Handy und PC, mindestens YNAB-Niveau) (spike) — `backlog/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 - **ledger-p3n8k** — Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen (feature) — `backlog/ledger-p3n8k-kassenbuch-liste-gel-schte-buchungen-standardm-ig-ausblenden.md`
 - **ledger-h4p6c** — Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push (feature) — `backlog/ledger-h4p6c-spiegel-ausl-ser-frische-kriterium-beim-seitenaufruf-und-lau.md`
@@ -50,6 +51,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0025** — Order-ID-Abgleich als eigener Actor im Kassenbuch, kein eigenes Ereignis — 2026-09-11 — `knowledge/decisions/0025-order-id-abgleich-als-eigener-actor-kein-eigenes-ereignis.md`
 - **0021** — BB-geführte Buchungen entstehen zuerst im Kassenbuch, der YNAB-Push folgt; die Verknüpfung ist ein eigenes Ereignis — 2026-09-11 — `knowledge/decisions/0021-kassenbuch-zuerst-dann-push-verknuepfung-als-ereignis.md`
 - **0020** — Im Kassenbuch einen Elmish-Auslöser mit Entscheidungslogik in eine reine und eine unreine Nachricht teilen (Reduzierer unter .NET testbar) — 2026-09-06 — `knowledge/decisions/0020-elmish-ausloeser-in-reine-und-unreine-nachricht-teilen.md`
 - **0019** — Unkategorisierte Split-Zeile ist ein benanntes drittes Split-Ziel (ergänzt ADR 0006) — 2026-09-06 — `knowledge/decisions/0019-unkategorisierte-split-zeile-als-drittes-split-ziel.md`

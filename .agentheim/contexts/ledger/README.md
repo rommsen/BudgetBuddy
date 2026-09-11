@@ -97,11 +97,11 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
     und neuen Namen stehen in der Payload, deshalb braucht der Satz kein Nachschlagen.
   - `getLastMirrorRun` — der **Lauf-Status** (siehe oben).
 - **Herkunfts-Badge** — die Herkunft einer Buchung als Kennzeichen in der Anzeige:
-  *YNAB-Spiegel*, *Comdirect-Import*, *Regel*, *Roman in BB*, *Quick Add*
-  (`Shared.Domain.originLabel`). Die Herkunft einer Buchung ist der Actor ihres **ersten**
-  Ereignisses und steht damit fest, sobald die Buchung entsteht. Eine in YNAB gelöschte
-  Buchung trägt zusätzlich das Kennzeichen *in YNAB gelöscht*: sie bleibt sichtbar und
-  zählt nur beim Kontostand nicht mit.
+  *YNAB-Spiegel*, *Comdirect-Import*, *Regel*, *Roman in BB*, *Quick Add*,
+  *Order-ID-Abgleich* (`Shared.Domain.originLabel`). Die Herkunft einer Buchung ist der
+  Actor ihres **ersten** Ereignisses und steht damit fest, sobald die Buchung entsteht.
+  Eine in YNAB gelöschte Buchung trägt zusätzlich das Kennzeichen *in YNAB gelöscht*: sie
+  bleibt sichtbar und zählt nur beim Kontostand nicht mit.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -131,6 +131,34 @@ Historie-Technik in der Decision-Task des Architekten.
   Buchung ohne Verknüpfung stehen, kein Rollback. Ohne ein gespiegeltes Kassenbuch-Konto
   für das konfigurierte Quick-Add-Konto (Spiegel nie gelaufen) lehnt `Server.Api` mit
   einer Fehlermeldung ab, statt ein zweites "Bar"-Konto zu erfinden (ADR 0016).
+  Comdirect-Import-Push (`Server.Api.importToYnab`, ledger-qvt84): `YnabClient` trennt
+  **Vorbereiten** (`prepareTransactions`: Skipped- und Zukunfts-Filter, Transfer-Payee-
+  Auflösung, ImportId-Vergabe) und **Senden** (`sendPrepared`: postet genau die
+  vorbereitete Liste, liest die YNAB-Transaction-Ids je gesendeter Buchung über die
+  ImportId aus der Antwort, über die reine Funktion `buildCreateResult`). Je vorbereiteter
+  Buchung schreibt `Ledger.CommandHandlers.pushComdirectImports` zuerst
+  `EntryImportedFromComdirect` (Actor `ComdirectImport`, Payee und Memo wie sie tatsächlich
+  an YNAB gehen, aus dem vorbereiteten Request, nicht die rohen Bank-Felder, sonst sähe der
+  nächste Spiegel-Lauf ein falsches Kopfdaten-Ereignis) und die Kategorisierungs-Ereignisse
+  aus der Review-Spur (`recordComdirectPush`, `categorization-gdrx8`:
+  `EntryCategorizedByRule` für `ByRule`, `EntryRecategorized` für `ByUser` und für
+  `ByOrderIdMatch` mit Actor `OrderIdMatch`, ADR 0025; trägt ein Schritt Kategorie UND
+  mindestens zwei Split-Zeilen zugleich (möglich, weil Roman nach dem Aufteilen über den
+  Kategorie-Chip "Aufgeteilt" noch eine Kategorie wählt), gewinnen die Splits, dieselbe
+  Regel wie beim Push selbst). Existiert schon eine Buchung mit derselben ImportId, prüft
+  `findEntryByLink` (System `importid`) zusätzlich, ob sie bereits mit YNAB verknüpft ist:
+  nur dann gilt sie als `AlreadyImported` (kein zweites Entstehen, kein erneuter Versand,
+  ADR 0021 Punkt 3, wird als `Imported` markiert). Ohne diese Verknüpfung (ein vorheriger
+  Versuch scheiterte zwischen Schreiben und Verknüpfen) läuft dieselbe Buchung erneut durch
+  Senden und Verknüpfen, sonst würde ein zweiter Klick auf "Import" nach einem
+  Netzwerkfehler die Session abschließen, ohne dass die Buchung je YNAB erreicht. Gesendet
+  wird nur, was geschrieben wurde; nach Erfolg verknüpft `EntryLinkedToYnab`. Ohne ein
+  gespiegeltes Kassenbuch-Konto für das Import-Konto lehnt `Server.Api` mit einer
+  Fehlermeldung ab (Entscheidung konsistent mit Quick Add). Push-Fehler, YNAB-Duplikat-
+  Ablehnung oder eine nicht auswertbare Antwort lassen die Kassenbuch-Buchung unverändert
+  und unverknüpft stehen, kein Rollback. Scheitert das Kassenbuch-Schreiben selbst (z. B.
+  eine Invariante von `apply`), bleibt das nicht still: `importToYnab` schließt die Session
+  nicht ab und meldet den Fehler (`Ledger.CommandHandlers.summarizeLedgerWriteFailures`).
 - *BuchungÄndern* (v2) — Kategorie / Split / Memo in BB ändern, Push folgt.
 - *ÜbertragZusammenführen* (v2).
 - *KontoBewerten* — Kurs holen, Bewertungs-Buchung schreiben.
@@ -157,7 +185,12 @@ Die Sprache der Historie (ADR 0013). Verbindlicher Katalog, modelliert mit Roman
 **Umschlag:** Buchungs-Id, laufende Nummer je Buchung, Zeitpunkt (UTC), Actor, Ereignistyp,
 Schema-Version, Payload (JSON).
 
-**Actor:** `YnabMirror | ComdirectImport | Rule of RuleId | UserInBb | QuickAdd`.
+**Actor:** `YnabMirror | ComdirectImport | Rule of RuleId | UserInBb | QuickAdd |
+OrderIdMatch of orderId: string`. Der letzte Fall (ADR 0025) markiert eine Kategorie aus
+dem Order-ID-Abgleich beim Abruf (`categorization-gdrx8`, `ReviewActor.ByOrderIdMatch`):
+fachlich eine Umkategorisierung (Ereignis `EntryRecategorized`), nur mit einem anderen
+Urheber als Roman. Anzeigename "Order-ID-Abgleich" (`Shared.Domain.originLabel
+MatchedByOrderId`).
 
 **Beobachtungen** (der Spiegel hat in YNAB etwas gesehen):
 - `EntryObservedInYnab`: Erstbeobachtung, voller Snapshot (Konto, YNAB-Id, ImportId, Datum,
@@ -181,7 +214,9 @@ derselben Buchung ist ein kaputtes Log und wird von `apply` laut abgelehnt.
 - `EntryCategorizedByRule`: eine Regel hat kategorisiert; die RuleId steht im Actor. Nur
   auf einer noch unkategorisierten Buchung zulässig.
 - `EntryRecategorized`: Roman hat in BB kategorisiert oder umkategorisiert (Actor
-  `UserInBb`).
+  `UserInBb`), oder eine Kategorie stammt aus dem Order-ID-Abgleich beim Abruf (Actor
+  `OrderIdMatch`, ADR 0025): fachlich dieselbe Kategorisierungs-Änderung, nur mit einem
+  anderen Urheber.
 - `CashExpenseAdded`: Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`), darf
   sofort eine Kategorie tragen.
 - `ValuationRecorded`: weiterhin reserviert, ohne Payload (Bewertung des

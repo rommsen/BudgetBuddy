@@ -4,6 +4,153 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 18:12 - (ledger-qvt84) Iteration 3: Split+Kategorie, gescheitertes Schreiben sichtbar, Payee/Memo wie gesendet
+
+**What I did:**
+Drei Verifier-Funde behoben. `recordComdirectPush` wendet jetzt dieselbe Regel wie
+`YnabClient.buildTransactionRequest` an, wenn ein Review-Schritt Kategorie UND
+mindestens zwei Split-Zeilen zugleich trägt (Splits gewinnen), sonst lehnte `apply` das
+Ereignis ab und die Buchung erreichte YNAB nie, still. `importToYnab` schließt die
+Session nicht mehr ab und meldet einen Fehler, wenn das Kassenbuch-Schreiben einer
+Buchung scheitert (`Ledger.CommandHandlers.summarizeLedgerWriteFailures`), statt es
+stillschweigend zu ignorieren. Die Kandidaten für `pushComdirectImports` tragen
+Payee/Memo jetzt aus dem tatsächlich gesendeten Request, nicht aus den rohen
+Bank-Feldern, damit der erste Spiegel-Lauf nach einem Push kein falsches
+Kopfdaten-Ereignis mehr erzeugt.
+
+**Files Modified (Iteration 3):**
+- `src/Server/Ledger/Domain.fs` - `resolveCategoryVsSplits` in `recordComdirectPush`.
+- `src/Server/Ledger/CommandHandlers.fs` - `summarizeLedgerWriteFailures`.
+- `src/Server/Api.fs` - `importToYnab` meldet gescheitertes Kassenbuch-Schreiben;
+  Candidate-Payee/Memo aus `PreparedTransaction.Request`.
+- `src/Server/YnabClient.fs` - `buildMemoWithReference` non-private (Testbarkeit).
+- `src/Tests/LedgerTests.fs` - neuer Split+Kategorie-Test, zwei neue
+  `summarizeLedgerWriteFailures`-Tests.
+- `src/Tests/LedgerMirrorTests.fs` - Spiegel-Test umgeschrieben (Beobachtung aus dem
+  gesendeten Request abgeleitet), neue explizite Zusicherung gegen
+  `EntryDetailsChangeObservedInYnab`.
+- `.agentheim/contexts/ledger/README.md` - Absatz zum Comdirect-Import-Push aktualisiert.
+
+**Files Added/Deleted:** keine.
+
+**Rationale:**
+Alle drei Funde teilen dieselbe Ursache: die Kassenbuch-Ereignisse müssen zu dem passen,
+was YNAB tatsächlich bekommt (Split-Regel, Payee/Memo), und ein Fehler beim
+Kassenbuch-Schreiben darf nie stillschweigend verschwinden (Append-Only-Log, ADR 0013,
+Auditierbarkeit).
+
+**Outcomes:**
+- Build: grün, 0 Warnungen (`dotnet build BudgetBuddy.sln`).
+- Tests: 778 bestanden (3 mehr als Iteration 2), 7 übersprungen (extern), 0 Fehler
+  (`dotnet test src/Tests/Tests.fsproj`). `npm run build` grün.
+- Issues: keine. Der Split+Kategorie-Test und die
+  `summarizeLedgerWriteFailures`-Regressionstests wurden per temporärer Sabotage rot
+  beobachtet, danach wiederhergestellt.
+
+---
+
+## 2026-09-11 17:53 - (ledger-qvt84) Iteration 2: Retry nach Push-Fehler sendet wieder, drei weitere Verifier-Funde behoben
+
+**What I did:**
+Den vom Verifier gefundenen Regressions-Bug behoben: ein zweiter Push-Versuch nach
+gescheitertem ersten (Netzwerkfehler, Timeout, 429, 400) sendete nie erneut, weil die
+schon geschriebene, aber noch unverknüpfte Buchung über die ImportId als
+`AlreadyImported` galt. `pushComdirectImports` prüft jetzt zusätzlich, ob eine
+`ynab`-Verknüpfung existiert; ohne sie wird dieselbe Buchung erneut gesendet und
+verknüpft. Außerdem: die Abbildung von der geparsten YNAB-Antwort auf
+`TransactionCreateResult` in die reine Funktion `buildCreateResult` gezogen und
+getestet (inkl. echtem Regressionstest für Bug 3); `forceImportDuplicates` markiert nur
+noch `result.Created` als importiert (`markCreatedAsImported`, extrahiert und getestet);
+zwei schwache Testzusicherungen korrigiert; zwei Umlaut-Stellen korrigiert;
+`ledger-fq3kd`s Notes um den Hinweis ergänzt, dass ein Folgetask die bestehende Buchung
+neu verknüpfen muss statt eine zweite anzulegen.
+
+**Files Modified (Iteration 2):**
+- `src/Server/Ledger/CommandHandlers.fs` - `pushComdirectImports` prüft `linksForEntry`
+  vor `AlreadyImported`; Kommentare korrigiert.
+- `src/Server/Api.fs` - `AlreadyImported` markiert jetzt `Imported`;
+  `forceImportDuplicates` nutzt `YnabClient.markCreatedAsImported`.
+- `src/Server/YnabClient.fs` - `buildCreateResult` (rein, aus `sendPrepared` gezogen),
+  `markCreatedAsImported` (rein, für `forceImportDuplicates`); Umlaut-Fix.
+- `src/Tests/LedgerTests.fs` - neuer Regressionstest, zwei korrigierte Zusicherungen,
+  neuer `ResponseUnparseable`-Test.
+- `src/Tests/YnabClientTests.fs` - neue Testlisten `buildCreateResultTests`,
+  `markCreatedAsImportedTests`.
+- `src/Tests/LedgerMirrorTests.fs` - Umlaut-Fix.
+- `.agentheim/contexts/ledger/backlog/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md` -
+  Notes um die ImportId-Kollision ergänzt.
+
+**Files Added/Deleted:** keine.
+
+**Rationale:**
+Der Regressions-Bug hätte jede Buchung, deren erster Push-Versuch fehlschlägt, dauerhaft
+unimportiert gelassen, sobald die Session als abgeschlossen galt: genau das, was ADR 0021
+("bis ein erneuter Push ... sie über die ImportId verknüpft") verhindern soll.
+
+**Outcomes:**
+- Build: grün, 0 Warnungen (`dotnet build BudgetBuddy.sln`).
+- Tests: 775 bestanden (5 mehr als Iteration 1), 7 übersprungen (extern), 0 Fehler
+  (`dotnet test src/Tests/Tests.fsproj`). `npm run build` grün.
+- Issues: keine. Regressionstest und die beiden Bug-3/Force-Import-Regressionstests
+  wurden per temporärer Sabotage rot beobachtet, danach wiederhergestellt.
+
+---
+
+## 2026-09-11 17:33 - (ledger-qvt84) Import-Push: Kassenbuch zuerst, dann YNAB, dann Verknüpfung; drei Push-Bugs behoben
+
+**What I did:**
+`YnabClient.createTransactions` in Vorbereiten (`prepareTransactions`) und Senden
+(`sendPrepared`) aufgeteilt und drei Bugs behoben: zukunftsdatierte Buchungen wurden
+trotz Nicht-Versand als importiert markiert, die neue ImportId eines Force-Imports war
+für den Aufrufer nie auslesbar, eine nicht lesbare YNAB-Antwort galt pauschal als voller
+Erfolg. `TransactionCreateResult` trägt jetzt die YNAB-Ids je Buchung über die ImportId
+zugeordnet. Darauf aufbauend schreibt der Comdirect-Import-Push jetzt zuerst die
+Kassenbuch-Buchung (`Ledger.Domain.recordComdirectPush` aus der Review-Spur,
+`Ledger.CommandHandlers.pushComdirectImports` für Kassenbuch-zuerst-Push-Verknüpfung,
+ADR 0021), bevor er nach YNAB sendet. Ein neuer Actor `OrderIdMatch` (ADR 0025) gibt
+Kategorien aus dem Order-ID-Abgleich einen eigenen Urheber in der Historie.
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0025-order-id-abgleich-als-eigener-actor-kein-eigenes-ereignis.md`
+- `.agentheim/contexts/ledger/backlog/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - `createTransactions` aufgeteilt in `prepareTransactions`,
+  `parseCreateTransactionsResponse`, `resolveTransferPayees`, `sendPrepared`;
+  `TransactionCreateResult` neu geformt, `emptyCreateResult`.
+- `src/Server/Ledger/Domain.fs` - `recordComdirectPush` (rein, baut die Ereignisfolge
+  aus der Review-Spur).
+- `src/Server/Ledger/CommandHandlers.fs` - `pushComdirectImports` (Kassenbuch zuerst,
+  dann Push, dann Verknüpfung, injizierter `push`).
+- `src/Server/Ledger/Events.fs` - `Actor.OrderIdMatch`, Persistenzform.
+- `src/Server/Ledger/QueryHandlers.fs` - `originOf` um `OrderIdMatch` ergänzt.
+- `src/Shared/Domain.fs` - `LedgerOrigin.MatchedByOrderId`, `originLabel`.
+- `src/Client/Components/Ledger/View.fs` - Badge für `MatchedByOrderId`.
+- `src/Server/Api.fs` - `importToYnab` (Kassenbuch-Konto auflösen, Kassenbuch-zuerst-
+  Push-Verknüpfung verdrahten), `forceImportDuplicates` (`.Created.Length`).
+- `src/Tests/YnabClientTests.fs`, `src/Tests/LedgerTests.fs`,
+  `src/Tests/LedgerMirrorTests.fs`, `src/Tests/LedgerPageTests.fs` - neue Testlisten.
+- `.agentheim/contexts/ledger/README.md` - Actor-Liste, Entscheidungen, Herkunfts-Badge,
+  `BuchungÜbernehmen` um den Comdirect-Import-Push-Ablauf ergänzt.
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Die Vision verlangt, dass das Kassenbuch BB-Entscheidungen kennt; ADR 0021 legt dafür
+Reihenfolge und Fehlerverhalten fest. Die drei Push-Bugs saßen an derselben Stelle wie
+die geforderte Antwort-Auswertung und wurden deshalb im selben Task mitbehoben.
+
+**Outcomes:**
+- Build: grün, 0 Warnungen (`dotnet build BudgetBuddy.sln`).
+- Tests: 770 bestanden (16 neu), 7 übersprungen (extern), 0 Fehler
+  (`dotnet test src/Tests/Tests.fsproj`). `npm run build` grün.
+- Issues: keine. Die drei Bug-Regressionstests und der Doppelbuchungs-Schutz in
+  `pushComdirectImports` wurden per temporärer Sabotage rot beobachtet, danach
+  wiederhergestellt.
+
+---
+
 ## 2026-09-11 16:33 - Review-Spur, Iteration 2 (categorization-gdrx8): Order-ID-Pfade schließen die Lücke
 
 **What I did:**

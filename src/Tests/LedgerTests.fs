@@ -11,6 +11,7 @@ open Ledger.Events
 open Ledger.Domain
 open Ledger.Persistence
 open Ledger.CommandHandlers
+open Server.YnabClient
 
 // ============================================
 // Bausteine
@@ -489,12 +490,144 @@ let ledgerDomainTests =
 
         testCase "Actor ueberlebt die Persistenzform" <| fun () ->
             let ruleId = RuleId (Guid.NewGuid())
-            let actors = [ YnabMirror; ComdirectImport; Rule ruleId; UserInBb; QuickAdd ]
+            let actors =
+                [ YnabMirror; ComdirectImport; Rule ruleId; UserInBb; QuickAdd; OrderIdMatch "order-42" ]
             for actor in actors do
                 let kind, rule = actorToColumns actor
                 match actorFromColumns kind rule with
                 | Ok back -> Expect.equal back actor "Actor-Roundtrip"
                 | Error e -> failtest e
+    ]
+
+// ============================================
+// Import-Push: Kassenbuch-Ereignisse aus Comdirect-Buchung und Review-Spur bauen
+// (ADR 0021, ledger-qvt84, reine Faltung)
+// ============================================
+
+[<Tests>]
+let recordComdirectPushTests =
+    testList "Ledger Domain (recordComdirectPush)" [
+
+        testCase "ohne Review-Spur entsteht nur die Comdirect-Buchung" <| fun () ->
+            let entryId = newEntryId ()
+            let pushedAt = DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc)
+            let events =
+                recordComdirectPush {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-1"
+                    ComdirectReference = "comdirect-1"
+                    Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -17.40m
+                    Payee = Some "dm"
+                    Memo = None
+                    PushedAt = pushedAt
+                    ReviewSteps = []
+                }
+
+            Expect.equal
+                (events |> List.map (fun e -> eventTypeName e.Body))
+                [ "EntryImportedFromComdirect" ]
+                "nur die Entstehung, keine Review-Spur"
+            Expect.equal events.Head.Actor ComdirectImport "Herkunft Comdirect-Import"
+            Expect.equal events.Head.OccurredAt pushedAt "Zeitpunkt ist der Push-Zeitpunkt"
+
+        testCase "Regel-Schritt und Korrektur behalten ihre eigenen Zeitpunkte aus der Review-Spur" <| fun () ->
+            let entryId = newEntryId ()
+            let ruleAt = DateTime(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc)
+            let userAt = DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)
+            let pushedAt = DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc)
+            let ruleId = RuleId (Guid.NewGuid())
+
+            let ruleStep : ReviewStep = {
+                At = ruleAt
+                By = ByRule (ruleId, "dm -> Drogerie")
+                Category = Some categoryDrogerie.CategoryId
+                CategoryName = Some categoryDrogerie.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+            let userStep : ReviewStep = {
+                At = userAt
+                By = ByUser
+                Category = Some categoryHaushalt.CategoryId
+                CategoryName = Some categoryHaushalt.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-2"
+                    ComdirectReference = "comdirect-2"
+                    Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -17.40m
+                    Payee = Some "dm"
+                    Memo = None
+                    PushedAt = pushedAt
+                    ReviewSteps = [ ruleStep; userStep ]
+                }
+
+            Expect.equal
+                (events |> List.map (fun e -> eventTypeName e.Body))
+                [ "EntryImportedFromComdirect"; "EntryCategorizedByRule"; "EntryRecategorized" ]
+                "Entstehung, dann Regel, dann Korrektur, in dieser Reihenfolge"
+            Expect.equal
+                (events |> List.map (fun e -> e.Actor))
+                [ ComdirectImport; Rule ruleId; UserInBb ]
+                "Herkunft je Ereignis"
+            Expect.equal
+                (events |> List.map (fun e -> e.OccurredAt))
+                [ pushedAt; ruleAt; userAt ]
+                "jeder Review-Schritt behält seinen eigenen Zeitpunkt, nicht den Push-Zeitpunkt"
+
+            match events.[1].Body with
+            | EntryCategorizedByRule p ->
+                Expect.equal p.RuleName "dm -> Drogerie" "RuleName kommt direkt aus dem Schritt, kein Nachschlagen"
+                Expect.equal p.Category (Some categoryDrogerie) "Kategorie aus dem Schritt"
+            | other -> failtest $"erwartete EntryCategorizedByRule, war {other}"
+
+            match events.[2].Body with
+            | EntryRecategorized p ->
+                Expect.equal p.OldCategory (Some categoryDrogerie) "OldCategory ist der Stand des vorherigen Schritts"
+                Expect.equal p.NewCategory (Some categoryHaushalt) "NewCategory aus dem Schritt"
+                Expect.equal p.NewPayee (Some "dm") "kein PayeeOverride im Schritt: der bisherige Payee bleibt erhalten"
+            | other -> failtest $"erwartete EntryRecategorized, war {other}"
+
+        testCase "Order-ID-Abgleich erzeugt EntryRecategorized mit Actor OrderIdMatch" <| fun () ->
+            let entryId = newEntryId ()
+            let at = DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc)
+            let orderIdStep : ReviewStep = {
+                At = at
+                By = ByOrderIdMatch "order-42"
+                Category = Some categoryHaushalt.CategoryId
+                CategoryName = Some categoryHaushalt.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-3"
+                    ComdirectReference = "comdirect-3"
+                    Date = DateTime(2026, 3, 2, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -25.00m
+                    Payee = Some "Amazon"
+                    Memo = None
+                    PushedAt = DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc)
+                    ReviewSteps = [ orderIdStep ]
+                }
+
+            Expect.equal
+                (events |> List.map (fun e -> eventTypeName e.Body))
+                [ "EntryImportedFromComdirect"; "EntryRecategorized" ]
+                "Order-ID-Abgleich ist ein Recategorized-Ereignis mit eigenem Urheber"
+            Expect.equal events.[1].Actor (OrderIdMatch "order-42")
+                "Actor trägt die Bestell-Id, weder Regel noch Roman für DIESE Buchung"
     ]
 
 // ============================================
@@ -839,4 +972,383 @@ let ledgerQuickAddCommandTests =
             Expect.isNone
                 (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
                 "keine YNAB-Verknuepfung nach gescheitertem Push"
+    ]
+
+// ============================================
+// Import-Push: Kassenbuch zuerst, dann YNAB, dann Verknüpfung (ADR 0021, Teil 2,
+// ledger-qvt84, pushComdirectImports)
+// ============================================
+
+module private PushFixtures =
+    let dummyRequest (importId: string) : YnabTransactionRequest = {
+        AccountId = "11111111-1111-1111-1111-111111111111"
+        Date = "2026-03-01"
+        Amount = -1740
+        PayeeName = "dm"
+        Memo = ""
+        Cleared = "uncleared"
+        ImportId = importId
+        CategoryId = None
+        Subtransactions = None
+    }
+
+    let prepared (txId: string) (importId: string) : PreparedTransaction = {
+        TransactionId = TransactionId txId
+        ImportId = importId
+        Request = dummyRequest importId
+    }
+
+    let candidate
+        (txId: string)
+        (importId: string)
+        (amount: Money)
+        (reviewSteps: ReviewStep list)
+        : ComdirectImportCandidate =
+        {
+            Prepared = prepared txId importId
+            ComdirectReference = $"ref-{txId}"
+            Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+            Amount = amount
+            Payee = Some "dm"
+            Memo = None
+            ReviewSteps = reviewSteps
+        }
+
+    /// Ein injizierter `push`, der jede vorbereitete Buchung unter einer eigenen
+    /// YNAB-Id "anlegt" (Erfolgspfad).
+    let successfulPush (ynabTxId: string) (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+        async.Return (
+            Ok {
+                emptyCreateResult with
+                    Created =
+                        prepared
+                        |> List.map (fun p ->
+                            ({ TransactionId = p.TransactionId; ImportId = p.ImportId; YnabTransactionId = ynabTxId }
+                                : CreatedTransactionResult))
+            })
+
+[<Tests>]
+let ledgerImportPushCommandTests =
+    testSequenced
+    <| testList "Ledger CommandHandlers (pushComdirectImports)" [
+
+        testCase "Kassenbuch zuerst: Import, Regel, Korrektur, dann Verknüpfung" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let ruleId = RuleId (Guid.NewGuid())
+            let ruleAt = DateTime(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc)
+            let userAt = DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)
+            let ruleStep : ReviewStep = {
+                At = ruleAt
+                By = ByRule (ruleId, "dm -> Drogerie")
+                Category = Some categoryDrogerie.CategoryId
+                CategoryName = Some categoryDrogerie.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+            let userStep : ReviewStep = {
+                At = userAt
+                By = ByUser
+                Category = Some categoryHaushalt.CategoryId
+                CategoryName = Some categoryHaushalt.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+            let cand = PushFixtures.candidate txId importId (eur -17.40m) [ ruleStep; userStep ]
+            let ynabTxId = $"ynab-{txId}"
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    testAccountId
+                    [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (Linked (entryId, gotYnabTxId)) ->
+                Expect.equal gotYnabTxId ynabTxId "Verknüpfung über die Push-Antwort"
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryCategorizedByRule"; "EntryRecategorized"; "EntryLinkedToYnab" ]
+                    "Import, Regel, Korrektur, Verknüpfung in dieser Reihenfolge"
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.Event.Actor))
+                    [ ComdirectImport; Rule ruleId; UserInBb; ComdirectImport ]
+                    "Herkunft je Ereignis"
+            | other -> failtest $"erwartete Linked, war {other}"
+
+        testCase "ein Push-Fehler lässt die Kassenbuch-Buchung ohne Verknüpfung stehen" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -9.99m) []
+            let push (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Error (YnabError.NetworkError "Timeout"))
+
+            let result =
+                pushComdirectImports (DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (WrittenNotLinked entryId) ->
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect" ]
+                    "nur die Entstehung, kein Rollback (ADR 0021 Punkt 2)"
+                Expect.isNone
+                    (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
+                    "keine YNAB-Verknüpfung nach einem Push-Fehler"
+            | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+            match result.SendResult with
+            | Some (Error (YnabError.NetworkError msg)) -> Expect.equal msg "Timeout" "der rohe Push-Fehler wird durchgereicht"
+            | other -> failtest $"erwartete Some (Error NetworkError), war {other}"
+
+        testCase "ein zweiter Versuch für dieselbe ImportId erzeugt keine zweite Buchung" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -5.00m) []
+            let ynabTxId = $"ynab-{txId}"
+            let push = PushFixtures.successfulPush ynabTxId
+
+            let firstOutcome =
+                pushComdirectImports (DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                |> Async.RunSynchronously
+            let firstEntryId =
+                match Map.tryFind (TransactionId txId) firstOutcome.Outcomes with
+                | Some (Linked (entryId, _)) -> entryId
+                | other -> failtest $"erster Versuch sollte Linked liefern, war {other}"
+
+            let secondResult =
+                pushComdirectImports (DateTime(2026, 3, 3, 11, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) secondResult.Outcomes with
+            | Some (AlreadyImported entryId) -> Expect.equal entryId firstEntryId "derselbe Eintrag, keine zweite Buchung"
+            | other -> failtest $"zweiter Versuch sollte AlreadyImported liefern, war {other}"
+            Expect.isNone secondResult.SendResult "der zweite Versuch sendet nichts an YNAB"
+
+        testCase "erster Push scheitert, zweiter Push gelingt: dieselbe Buchung, jetzt Linked" <| fun () ->
+            // Regressionstest (Verifier-Fund, Iteration 2): nach einem gescheiterten
+            // Push (Netzwerkfehler, Timeout, 429, 400) hat `EntryImportedFromComdirect`
+            // bereits die `importid`-Verknüpfung geschrieben. Ein zweiter Versuch fand
+            // die Buchung darum über `findEntryByLink ImportIdSystem` und behandelte sie
+            // als `AlreadyImported`, ohne sie erneut zu senden: die Buchung erreichte
+            // YNAB nie. Ohne den Fix bleibt der zweite Versuch bei `AlreadyImported`
+            // (nicht `Linked`) und `SendResult = None` (nicht gesendet) stehen.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -7.50m) []
+            let ynabTxId = $"ynab-{txId}"
+
+            let firstPush (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Error (YnabError.NetworkError "Timeout"))
+
+            let firstEntryId =
+                match
+                    pushComdirectImports (DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)) firstPush testAccountId [ cand ]
+                    |> Async.RunSynchronously
+                    |> fun r -> Map.tryFind (TransactionId txId) r.Outcomes
+                with
+                | Some (WrittenNotLinked entryId) -> entryId
+                | other -> failtest $"erster Versuch sollte WrittenNotLinked liefern, war {other}"
+
+            let secondResult =
+                pushComdirectImports
+                    (DateTime(2026, 3, 6, 11, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    testAccountId
+                    [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) secondResult.Outcomes with
+            | Some (Linked (entryId, gotYnabTxId)) ->
+                Expect.equal entryId firstEntryId "derselbe Eintrag wird nachträglich verknüpft, keine zweite Buchung"
+                Expect.equal gotYnabTxId ynabTxId "Verknüpfung über die zweite, erfolgreiche Push-Antwort"
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                    "genau eine Entstehung, dann die Verknüpfung des zweiten Versuchs"
+            | other -> failtest $"zweiter Versuch sollte Linked liefern, war {other}"
+            Expect.isSome secondResult.SendResult "der zweite Versuch sendet tatsächlich an YNAB"
+
+        testCase "eine von YNAB als Duplikat abgelehnte Buchung bleibt ohne Verknüpfung stehen" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -6.00m) []
+            let push (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Ok { emptyCreateResult with DuplicateImportIds = [ importId ] })
+
+            let result =
+                pushComdirectImports (DateTime(2026, 3, 4, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (WrittenNotLinked entryId) ->
+                Expect.isNone
+                    (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
+                    "keine YNAB-Verknüpfung für ein Duplikat"
+            | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+
+        testCase "eine nicht auswertbare YNAB-Antwort verknüpft nichts, kein pauschaler Erfolg" <| fun () ->
+            // AC: eine nicht auswertbare Antwort markiert Buchungen nicht pauschal als
+            // importiert. `pushComdirectImports` bekommt hier direkt ein Ergebnis mit
+            // `ResponseUnparseable = true` (wie `buildCreateResult` es bei einem
+            // Parse-Fehler liefert) und muss die geschriebene Buchung unverändert und
+            // unverknüpft lassen.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -4.20m) []
+            let push (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Ok { emptyCreateResult with ResponseUnparseable = true })
+
+            let result =
+                pushComdirectImports (DateTime(2026, 3, 7, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (WrittenNotLinked entryId) ->
+                Expect.isNone
+                    (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
+                    "keine YNAB-Verknüpfung bei nicht auswertbarer Antwort"
+            | other -> failtest $"erwartete WrittenNotLinked, war {other}"
+
+        testCase "Split mit Transfer-Zeile landet korrekt im Kassenbuch" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let total = eur -43.10m
+            let splits = [
+                { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Drogerie"); Amount = eur -30.00m; Memo = None }
+                { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bar"); Amount = eur -13.10m; Memo = None }
+            ]
+            let step : ReviewStep = {
+                At = DateTime(2026, 3, 5, 9, 0, 0, DateTimeKind.Utc)
+                By = ByUser
+                Category = None
+                CategoryName = None
+                Splits = Some splits
+                PayeeOverride = None
+            }
+            let cand = PushFixtures.candidate txId importId total [ step ]
+            let ynabTxId = $"ynab-{txId}"
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 5, 10, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    testAccountId
+                    [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (Linked (entryId, _)) ->
+                let entry = (loadEntry entryId |> Async.RunSynchronously).Value
+                Expect.equal entry.Splits splits "Kategorie- und Transfer-Zeile im Kassenbuch"
+                Expect.equal entry.Category None "keine Top-Level-Kategorie bei Splits"
+                Expect.equal
+                    (entry.Splits |> List.sumBy (fun s -> s.Amount.Amount))
+                    total.Amount
+                    "Split-Summe stimmt mit dem Buchungsbetrag überein"
+            | other -> failtest $"erwartete Linked, war {other}"
+
+        testCase "eine Spur \"erst Split, dann Kategorie\" wird geschrieben, gesendet und verknüpft" <| fun () ->
+            // Regressionstest (Verifier-Fund, Iteration 3): Roman teilt eine Buchung auf
+            // und wählt danach über den Kategorie-Chip "Aufgeteilt" eine Kategorie.
+            // `categorizeTransaction` (`Server.Api`) lässt `Splits` dabei stehen; der
+            // Review-Schritt trägt dann Kategorie UND mindestens zwei Split-Zeilen
+            // zugleich. `buildTransactionRequest` (`YnabClient`) sendet in diesem Fall
+            // nur die Splits, nie eine `category_id`. Ohne dieselbe Regel in
+            // `recordComdirectPush` lehnt `apply`s Kategorie/Splits-Ausschluss das
+            // Ereignis ab, `pushComdirectImports` liefert `LedgerWriteFailed`, und die
+            // Buchung erreicht YNAB nie, still.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let total = eur -43.10m
+            let splits = [
+                { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Drogerie"); Amount = eur -30.00m; Memo = None }
+                { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Haushalt"); Amount = eur -13.10m; Memo = None }
+            ]
+            let splitStep : ReviewStep = {
+                At = DateTime(2026, 3, 6, 8, 0, 0, DateTimeKind.Utc)
+                By = ByUser
+                Category = None
+                CategoryName = None
+                Splits = Some splits
+                PayeeOverride = None
+            }
+            let categoryChipStep : ReviewStep = {
+                At = DateTime(2026, 3, 6, 8, 5, 0, DateTimeKind.Utc)
+                By = ByUser
+                Category = Some categoryHaushalt.CategoryId
+                CategoryName = Some categoryHaushalt.CategoryName
+                Splits = Some splits
+                PayeeOverride = None
+            }
+            let cand = PushFixtures.candidate txId importId total [ splitStep; categoryChipStep ]
+            let ynabTxId = $"ynab-{txId}"
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 6, 9, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    testAccountId
+                    [ cand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (Linked (entryId, gotYnabTxId)) ->
+                Expect.equal gotYnabTxId ynabTxId "die Buchung wurde tatsächlich gesendet und verknüpft"
+                let entry = (loadEntry entryId |> Async.RunSynchronously).Value
+                Expect.equal entry.Splits splits "die Splits bleiben erhalten (wie gesendet)"
+                Expect.equal entry.Category None "keine Top-Level-Kategorie: die Splits haben gewonnen, wie beim Push"
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryRecategorized"; "EntryRecategorized"; "EntryLinkedToYnab" ]
+                    "beide Review-Schritte plus Entstehung und Verknüpfung stehen im Log"
+            | other -> failtest $"erwartete Linked, war {other}"
+    ]
+
+// ============================================
+// summarizeLedgerWriteFailures: ein gescheitertes Kassenbuch-Schreiben darf nie still
+// bleiben (Verifier-Fund, Iteration 3, extrahiert damit `Server.Api.importToYnab`s
+// Sichtbarmachen ohne HTTP testbar ist).
+// ============================================
+
+[<Tests>]
+let summarizeLedgerWriteFailuresTests =
+    testList "summarizeLedgerWriteFailures" [
+
+        testCase "keine LedgerWriteFailed-Fälle ergeben None" <| fun () ->
+            let result : ComdirectPushResult = {
+                Outcomes =
+                    Map.ofList [
+                        TransactionId "tx-1", Linked (newEntryId (), "ynab-1")
+                        TransactionId "tx-2", AlreadyImported (newEntryId ())
+                    ]
+                SendResult = None
+            }
+            Expect.isNone (summarizeLedgerWriteFailures result) "ohne Fehlschlag gibt es nichts zusammenzufassen"
+
+        testCase "LedgerWriteFailed-Fälle werden gezählt und ihre Meldungen zusammengefasst" <| fun () ->
+            // Regressionstest: vorher blieb ein gescheitertes Kassenbuch-Schreiben in
+            // `importToYnab` unsichtbar (die SyncTransaction blieb unverändert, kein
+            // Fehler, die Session schloss trotzdem ab).
+            let result : ComdirectPushResult = {
+                Outcomes =
+                    Map.ofList [
+                        TransactionId "tx-1", Linked (newEntryId (), "ynab-1")
+                        TransactionId "tx-2", LedgerWriteFailed "Kategorie und Splits schließen sich aus"
+                        TransactionId "tx-3", LedgerWriteFailed "UNIQUE constraint failed"
+                    ]
+                SendResult = None
+            }
+            match summarizeLedgerWriteFailures result with
+            | Some (count, messages) ->
+                Expect.equal count 2 "beide gescheiterten Buchungen werden gezählt"
+                Expect.stringContains messages "Kategorie und Splits schließen sich aus" "erste Meldung enthalten"
+                Expect.stringContains messages "UNIQUE constraint failed" "zweite Meldung enthalten"
+            | None -> failtest "sollte Some liefern, zwei Buchungen sind gescheitert"
     ]

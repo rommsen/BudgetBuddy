@@ -13,6 +13,7 @@ open Ledger.Domain
 open Ledger.Persistence
 open Ledger.CommandHandlers
 open Server.YnabObservations
+open Server.YnabClient
 
 // ============================================
 // Bausteine
@@ -734,4 +735,116 @@ let mirrorRunTests =
                 (loadEntriesForAccount ledgerAccountId |> Async.RunSynchronously)
                 1
                 "genau eine Buchung auf dem Bar-Konto"
+
+        testCase "per Import-Push angelegte Buchung wird vom nächsten Spiegel-Lauf über die YNAB-Id gefunden, keine zweite Buchung" <| fun () ->
+            // ADR 0021/ledger-qvt84: pushComdirectImports verknüpft die Buchung schon
+            // über die Push-Antwort. Der nächste Spiegel-Lauf muss sie über die
+            // YNAB-Id treffen (ADR 0015, Match-Reihenfolge) und darf keine zweite
+            // Buchung für denselben Comdirect-Import anlegen.
+            let budgetId = Run.budget "import-mirror"
+            let comdirectYnabAccount = YnabAccountId (Guid.NewGuid())
+            let ledgerAccountId = newLedgerAccountId ()
+            saveAccount {
+                Id = ledgerAccountId
+                Name = "Comdirect Giro"
+                Kind = BankAccount
+                Link = YnabMirrored comdirectYnabAccount
+                Closed = false
+            }
+            |> Async.RunSynchronously
+
+            let txId = "tx-import-mirror"
+            let importId = "BB:tximportmirror"
+            let date = DateTime(2026, 2, 9, 0, 0, 0, DateTimeKind.Utc)
+            let amount = eur -19.90m
+
+            // Das tatsächlich vorbereitete Request-Objekt, wie `prepareTransactions`
+            // (`Server.YnabClient`) es für den Push bauen würde: PayeeName mit
+            // "Unknown"-Fallback, Memo über `buildMemoWithReference` (immer mit
+            // ", Ref: <Referenz>"-Suffix, nie das rohe Bank-Memo unverändert).
+            let bankMemo = "Kartenzahlung"
+            let reference = "ref-import-mirror"
+            let sentMemo = buildMemoWithReference bankMemo reference
+            let sentPayeeName = "Rossmann"
+            let request : YnabTransactionRequest = {
+                AccountId = "irrelevant"
+                Date = "2026-02-09"
+                Amount = -19900
+                PayeeName = sentPayeeName
+                Memo = sentMemo
+                Cleared = "uncleared"
+                ImportId = importId
+                CategoryId = None
+                Subtransactions = None
+            }
+
+            // Wie `Server.Api.importToYnab` (Verifier-Fund, Iteration 3): Payee/Memo der
+            // Kassenbuch-Entstehung kommen aus dem gesendeten Request, nicht aus den
+            // rohen Bank-Feldern.
+            let candidate : ComdirectImportCandidate = {
+                Prepared = { TransactionId = TransactionId txId; ImportId = importId; Request = request }
+                ComdirectReference = reference
+                Date = date
+                Amount = amount
+                Payee = Some request.PayeeName
+                Memo = Some request.Memo
+                ReviewSteps = []
+            }
+            let ynabTxId = "import-push-1"
+            let push (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (
+                    Ok {
+                        emptyCreateResult with
+                            Created =
+                                prepared
+                                |> List.map (fun p ->
+                                    ({ TransactionId = p.TransactionId; ImportId = p.ImportId; YnabTransactionId = ynabTxId }
+                                        : CreatedTransactionResult))
+                    })
+
+            let entryId =
+                match
+                    pushComdirectImports (Run.at 3) push ledgerAccountId [ candidate ]
+                    |> Async.RunSynchronously
+                    |> fun r -> Map.tryFind (TransactionId txId) r.Outcomes
+                with
+                | Some (Linked (entryId, _)) -> entryId
+                | other -> failtest $"pushComdirectImports sollte Linked liefern, war {other}"
+
+            // Die Beobachtung des Spiegel-Laufs ist das, was YNAB tatsächlich hat: die
+            // gesendeten Request-Werte, nicht von Hand nachgebaute rohe Bank-Werte
+            // (Verifier-Fund, Iteration 3, sonst deckt der Test die Memo/Payee-Abweichung
+            // nicht auf).
+            let obs = {
+                observation ynabTxId with
+                    AccountId = comdirectYnabAccount
+                    ImportId = Some importId
+                    Date = date
+                    Amount = amount
+                    Payee = Some request.PayeeName
+                    Memo = Some request.Memo
+                    Category = None
+            }
+            let summary = Run.run 4 budgetId (Run.fetchers 99L [ obs ]) |> Run.expectOk
+
+            Expect.equal summary.NewEntries 0 "keine neue Buchung für die schon verknüpfte Import-Buchung"
+            Expect.equal summary.ChangedEntries 0 "unveränderte Daten ergeben kein Änderungs-Ereignis"
+            Expect.equal
+                (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously)
+                (Some entryId)
+                "die YNAB-Id zeigt weiterhin auf die per Import-Push angelegte Buchung"
+            Expect.hasLength
+                (loadEntriesForAccount ledgerAccountId |> Async.RunSynchronously)
+                1
+                "genau eine Buchung auf dem Comdirect-Konto"
+
+            // Explizit: kein Kopfdaten-Ereignis aus dem Spiegel-Lauf im Log. Nur die
+            // aggregierte `ChangedEntries`-Zahl zu prüfen hätte das falsche
+            // `EntryDetailsChangeObservedInYnab` verdecken können, wenn gleichzeitig ein
+            // anderer Zähler kompensiert hätte.
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            Expect.equal
+                (recorded |> List.map (fun r -> r.EventType))
+                [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                "der Spiegel-Lauf hängt kein EntryDetailsChangeObservedInYnab an, weil Memo/Payee bereits übereinstimmen"
     ]

@@ -248,6 +248,18 @@ let historyLanguageTests =
             Expect.equal (ReadModel.originOf Actor.QuickAdd) AddedViaQuickAdd "Quick Add"
             Expect.equal (originLabel ImportedFromComdirect) "Comdirect-Import" "Wortlaut aus dem README"
         }
+
+        test "Eine Kategorie aus dem Order-ID-Abgleich hat ihren eigenen Urheber in der Historie" {
+            // Akzeptanz (ledger-qvt84, Nachtrag Roman): eine Buchung, deren Kategorie
+            // aus dem Order-ID-Abgleich stammt, belegt diesen Urheber, nicht "Regel"
+            // und nicht "Roman in BB".
+            Expect.equal (ReadModel.originOf (Actor.OrderIdMatch "order-42")) MatchedByOrderId
+                "Order-ID-Abgleich ist eine eigene Herkunft"
+            Expect.equal (originLabel MatchedByOrderId) "Order-ID-Abgleich" "Wortlaut aus dem README"
+
+            let line = ReadModel.toHistoryLine (recorded 2 (Actor.OrderIdMatch "order-42") EntryDeletionObservedInYnab)
+            Expect.equal line.Origin MatchedByOrderId "die Historien-Zeile zeigt den Order-ID-Urheber"
+        }
     ]
 
 // ============================================

@@ -16,6 +16,12 @@ open Ledger.Domain
 /// `Persistence` hier auf `Ledger.Persistence` zeigen wuerde.
 module Core = global.Persistence
 
+/// Alias statt `open`: `Server.YnabClient` führt viele Namen (Payees, Kategorien,
+/// Budgets, ...), ein voller `open` würde unbeabsichtigt Namen dieser Datei
+/// verschatten. Gebraucht für die vorbereitete Buchung und das Push-Ergebnis
+/// (Teil 1/Teil 2, ADR 0021).
+module Ynab = Server.YnabClient
+
 // ============================================
 // Abrufe (injiziert)
 // ============================================
@@ -349,6 +355,200 @@ let addCashExpense
         | Error err ->
             return Error err
     }
+
+// ============================================
+// Import-Push: Kassenbuch zuerst, dann YNAB, dann Verknüpfung (ADR 0021, Teil 2)
+// ============================================
+
+/// Eine zu importierende Comdirect-Buchung, wie sie für den Kassenbuch-Schreibpfad vor
+/// dem Push nötig ist: das vorbereitete YNAB-Request-Objekt (`Ynab.prepareTransactions`,
+/// trägt TransactionId und ImportId) plus die Rohdaten und die Review-Spur, aus denen
+/// `recordComdirectPush` die Ereignisfolge baut.
+type ComdirectImportCandidate = {
+    Prepared: Ynab.PreparedTransaction
+    ComdirectReference: string
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    ReviewSteps: ReviewStep list
+}
+
+/// Wie eine einzelne Buchung aus einem Push-Versuch hervorgegangen ist.
+type ComdirectPushOutcome =
+    /// Kassenbuch geschrieben, an YNAB gesendet und über die Push-Antwort verknüpft.
+    | Linked of EntryId * ynabTransactionId: string
+    /// Kassenbuch geschrieben und gesendet, aber (noch) nicht verknüpft: Push
+    /// fehlgeschlagen, YNAB lehnte als Duplikat ab, oder die Antwort war nicht
+    /// auswertbar (ADR 0021 Punkt 2, kein Rollback).
+    | WrittenNotLinked of EntryId
+    /// Schon eine mit YNAB verknüpfte Buchung für diese ImportId (ADR 0021 Punkt 3):
+    /// kein zweites Entstehen, diese Buchung wurde nicht erneut gesendet. Eine Buchung
+    /// mit dieser ImportId, aber noch OHNE `ynab`-Verknüpfung (vorheriger Push-Versuch
+    /// gescheitert, bevor verknüpft wurde) ist hier NICHT gemeint: die läuft als
+    /// `Linked`/`WrittenNotLinked` über dieselbe Buchungs-Id erneut durch Senden und
+    /// Verknüpfen (kein zweites Entstehen, aber ein erneuter Versand).
+    | AlreadyImported of EntryId
+    /// Das Kassenbuch-Schreiben ist gescheitert: nicht gesendet (Task-Notes, Schritt 7b).
+    | LedgerWriteFailed of string
+
+/// Ergebnis eines Import-Push-Versuchs: die Herkunft je Buchung, plus das rohe
+/// Sende-Ergebnis (`None`, wenn nichts zu senden war). Der Aufrufer (`Server.Api`)
+/// braucht `SendResult` zusätzlich zu `Outcomes`, um z. B. einen Netzwerkfehler oder
+/// eine nicht auswertbare Antwort als eigenen API-Fehler zu melden, obwohl die
+/// Kassenbuch-Buchungen unverändert stehen bleiben (ADR 0021 Punkt 2).
+type ComdirectPushResult = {
+    Outcomes: Map<TransactionId, ComdirectPushOutcome>
+    SendResult: YnabResult<Ynab.TransactionCreateResult> option
+}
+
+/// Kassenbuch zuerst, dann Push, dann Verknüpfung (ADR 0021), für den Comdirect-
+/// Import-Push. `push` postet genau die übergebene, vorbereitete Liste
+/// (`Ynab.sendPrepared`) und ist injiziert, damit der Ablauf ohne Netz testbar ist
+/// (Muster wie `addCashExpense`/`MirrorFetchers`).
+///
+/// Je Buchung: existiert schon eine Buchung mit ihrer ImportId UND ist sie schon mit
+/// YNAB verknüpft, wird sie übersprungen (kein zweites Entstehen, `AlreadyImported`,
+/// nicht erneut gesendet). Existiert die Buchung schon, ist aber noch nicht verknüpft
+/// (ein vorheriger Push-Versuch scheiterte zwischen Schreiben und Verknüpfen), wird sie
+/// NICHT neu angelegt, aber trotzdem gesendet und bei Erfolg verknüpft. Existiert noch
+/// keine Buchung, schreibt `appendAndApply` die Ereignisfolge aus `recordComdirectPush`.
+/// Gesendet wird nur, was geschrieben (oder wiedergefunden) wurde
+/// (Task-Notes, Schritt 8). Nach einer erfolgreichen Antwort wird jede tatsächlich
+/// angelegte Buchung mit `EntryLinkedToYnab` verknüpft; ein Push-Fehler, ein Duplikat
+/// oder eine nicht auswertbare Antwort lassen die geschriebenen Buchungen unverändert
+/// und unverknüpft stehen (kein Rollback).
+let pushComdirectImports
+    (now: DateTime)
+    (push: Ynab.PreparedTransaction list -> Async<YnabResult<Ynab.TransactionCreateResult>>)
+    (accountId: LedgerAccountId)
+    (candidates: ComdirectImportCandidate list)
+    : Async<ComdirectPushResult> =
+    async {
+        let! writeResults =
+            candidates
+            |> List.map (fun candidate ->
+                async {
+                    let prepared = candidate.Prepared
+
+                    match! Ledger.Persistence.findEntryByLink ImportIdSystem prepared.ImportId with
+                    | Some entryId ->
+                        // Schon eine Buchung für diese ImportId (ADR 0021 Punkt 3): kein
+                        // zweites Entstehen. Ob sie erneut gesendet werden muss, hängt
+                        // aber davon ab, ob sie schon mit YNAB verknüpft ist. Ohne
+                        // `ynab`-Verknüpfung ist ein vorheriger Push-Versuch gescheitert
+                        // (Netzwerkfehler, Timeout, 429, 400), bevor die Verknüpfung
+                        // geschrieben wurde: dann muss der zweite Versuch trotzdem senden
+                        // und verknüpfen, sonst erreicht die Buchung YNAB nie (Verifier-
+                        // Fund, Iteration 2; ADR 0021 "bis ein erneuter Push ... sie über
+                        // die ImportId verknüpft" setzt genau das voraus).
+                        let! links = Ledger.Persistence.linksForEntry entryId
+                        if links |> List.exists (fun l -> l.System = YnabSystem) then
+                            return prepared.TransactionId, Choice1Of3 entryId
+                        else
+                            return prepared.TransactionId, Choice2Of3 entryId
+                    | None ->
+                        let entryId = newEntryId ()
+                        let events =
+                            recordComdirectPush {
+                                EntryId = entryId
+                                AccountId = accountId
+                                ImportId = prepared.ImportId
+                                ComdirectReference = candidate.ComdirectReference
+                                Date = candidate.Date
+                                Amount = candidate.Amount
+                                Payee = candidate.Payee
+                                Memo = candidate.Memo
+                                PushedAt = now
+                                ReviewSteps = candidate.ReviewSteps
+                            }
+
+                        try
+                            do! Ledger.Persistence.appendAndApply events
+                            return prepared.TransactionId, Choice2Of3 entryId
+                        with ex ->
+                            return prepared.TransactionId, Choice3Of3 ex.Message
+                })
+            |> Async.Sequential
+
+        let alreadyImported =
+            writeResults
+            |> Array.choose (function txId, Choice1Of3 entryId -> Some (txId, entryId) | _ -> None)
+        let written =
+            writeResults
+            |> Array.choose (function txId, Choice2Of3 entryId -> Some (txId, entryId) | _ -> None)
+        let failed =
+            writeResults
+            |> Array.choose (function txId, Choice3Of3 msg -> Some (txId, msg) | _ -> None)
+
+        let writtenMap = written |> Map.ofArray
+        let preparedByTxId =
+            candidates |> List.map (fun c -> c.Prepared.TransactionId, c.Prepared) |> Map.ofList
+        let toSend =
+            written |> Array.choose (fun (txId, _) -> Map.tryFind txId preparedByTxId) |> Array.toList
+
+        let! sendResultOpt =
+            if toSend.IsEmpty then async.Return None else async { let! r = push toSend in return Some r }
+        let sendResult = sendResultOpt |> Option.defaultValue (Ok Ynab.emptyCreateResult)
+
+        let outcomes =
+            match sendResult with
+            | Error _ ->
+                // ADR 0021 Punkt 2: kein Rollback bei Push-Fehler. Alles, was
+                // geschrieben wurde, bleibt stehen, nur eben unverknüpft.
+                writtenMap |> Map.map (fun _ entryId -> WrittenNotLinked entryId)
+            | Ok result ->
+                let ynabIdByTxId =
+                    result.Created |> List.map (fun c -> c.TransactionId, c.YnabTransactionId) |> Map.ofList
+                writtenMap
+                |> Map.map (fun txId entryId ->
+                    match Map.tryFind txId ynabIdByTxId with
+                    | Some ynabId -> Linked (entryId, ynabId)
+                    | None -> WrittenNotLinked entryId)
+
+        let! linkedOutcomes =
+            outcomes
+            |> Map.toList
+            |> List.map (fun (txId, outcome) ->
+                async {
+                    match outcome with
+                    | Linked (entryId, ynabId) ->
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                {
+                                    EntryId = entryId
+                                    OccurredAt = now
+                                    Actor = ComdirectImport
+                                    Body = EntryLinkedToYnab { YnabTransactionId = ynabId }
+                                }
+                            ]
+                        return txId, outcome
+                    | _ -> return txId, outcome
+                })
+            |> Async.Sequential
+
+        let outcomeMap =
+            [
+                yield! alreadyImported |> Array.map (fun (txId, entryId) -> txId, AlreadyImported entryId)
+                yield! linkedOutcomes
+                yield! failed |> Array.map (fun (txId, msg) -> txId, LedgerWriteFailed msg)
+            ]
+            |> Map.ofList
+
+        return { Outcomes = outcomeMap; SendResult = sendResultOpt }
+    }
+
+/// Fasst die `LedgerWriteFailed`-Fälle aus einem Push-Ergebnis zusammen: Anzahl und eine
+/// zusammengefasste Fehlermeldung. `None`, wenn keine Buchung gescheitert ist. Pure,
+/// extrahiert damit `Server.Api.importToYnab` das Sichtbarmachen eines gescheiterten
+/// Kassenbuch-Schreibens (Session nicht abschließen, Fehler melden statt still
+/// schlucken) ohne HTTP testen kann (Verifier-Fund, Iteration 3).
+let summarizeLedgerWriteFailures (result: ComdirectPushResult) : (int * string) option =
+    let failures =
+        result.Outcomes
+        |> Map.toList
+        |> List.choose (fun (_, outcome) -> match outcome with LedgerWriteFailed msg -> Some msg | _ -> None)
+    if failures.IsEmpty then None else Some (failures.Length, String.concat "; " failures)
 
 /// Verdrahtet den Lauf mit dem echten YNAB-Client und den gespeicherten Einstellungen.
 /// Der manuelle Ausloeser ("Jetzt spiegeln"); Frische-Kriterium und Lauf nach Push sind

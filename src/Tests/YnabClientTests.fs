@@ -1317,3 +1317,222 @@ let mirrorInitialFetchTests =
             Expect.isFalse (query.Contains "since_date")
                 "Das Delta braucht kein Datumsfenster — es wuerde die Marke nur verwaessern"
     ]
+
+// ============================================
+// Teil 1 (ledger-qvt84): Vorbereiten/Senden getrennt, drei Push-Bugs behoben
+// ============================================
+//
+// `createTransactions` postet per HTTP und ist nicht .NET-testbar. Die drei Bugs aus
+// dem Task (Zukunftsdatum still importiert, Force-Import-ImportId nie auslesbar,
+// nicht lesbare Antwort als pauschaler Erfolg) stecken jetzt in den reinen Funktionen
+// `prepareTransactions` und `parseCreateTransactionsResponse`; hier direkt getestet.
+
+module private PrepareFixtures =
+    let categoryId = YnabCategoryId (Guid.Parse "c1b2a3d4-e5f6-7890-abcd-ef1234567890")
+    let accountId = YnabAccountId (Guid.Parse "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+    let makeTx (id: string) (status: TransactionStatus) (date: DateTime) : SyncTransaction = {
+        Transaction = {
+            Id = TransactionId id
+            BookingDate = date
+            Amount = { Amount = -10m; Currency = "EUR" }
+            Payee = Some "Laden"
+            Memo = "Test"
+            Reference = id
+            RawData = "{}"
+        }
+        Status = status
+        CategoryId = Some categoryId
+        CategoryName = Some "Kategorie"
+        MatchedRuleId = None
+        PayeeOverride = None
+        ExternalLinks = []
+        UserNotes = None
+        DuplicateStatus = NotDuplicate (emptyDetectionDetails id)
+        YnabImportStatus = NotAttempted
+        Splits = None
+        SuggestedByOrderId = None
+        ReviewSteps = []
+    }
+
+[<Tests>]
+let prepareTransactionsTests =
+    testList "prepareTransactions (Vorbereiten)" [
+
+        testCase "zukunftsdatierte Buchungen landen nicht in ToSend, sondern in FutureDatedTransactionIds" <| fun () ->
+            // Regressionstest für Bug 1: vorher wurden zukunftsdatierte Buchungen zwar
+            // nicht an YNAB gesendet, aber vom Aufrufer (importToYnab) trotzdem als
+            // `Imported` markiert, weil die Filterung für ihn unsichtbar war.
+            // `PrepareResult` macht sie jetzt als eigenes Feld sichtbar.
+            let today = DateTime(2026, 9, 11)
+            let due = PrepareFixtures.makeTx "tx-due" AutoCategorized today
+            let future = PrepareFixtures.makeTx "tx-future" AutoCategorized (today.AddDays 1.0)
+
+            let result =
+                prepareTransactions today PrepareFixtures.accountId Map.empty false [ due; future ]
+
+            Expect.equal (result.ToSend |> List.map (fun p -> p.TransactionId)) [ due.Transaction.Id ]
+                "nur die fällige Buchung wird vorbereitet"
+            Expect.equal result.FutureDatedTransactionIds [ future.Transaction.Id ]
+                "die zukunftsdatierte Buchung steht erkennbar in FutureDatedTransactionIds"
+
+        testCase "Skipped-Buchungen werden nie vorbereitet" <| fun () ->
+            let today = DateTime(2026, 9, 11)
+            let skipped = PrepareFixtures.makeTx "tx-skip" Skipped today
+
+            let result = prepareTransactions today PrepareFixtures.accountId Map.empty false [ skipped ]
+
+            Expect.isEmpty result.ToSend "eine übersprungene Buchung wird nicht gesendet"
+            Expect.isEmpty result.FutureDatedTransactionIds "sie ist auch keine zukunftsdatierte Buchung"
+
+        testCase "Force-Import erzeugt eine neue ImportId, die der Aufrufer auslesen kann" <| fun () ->
+            // Regressionstest für Bug 2: vorher wurde die neue ImportId nur innerhalb
+            // von createTransactions erzeugt und nie zurückgegeben; der Aufrufer
+            // (forceImportDuplicates) konnte nicht verknüpfen. Jetzt steht sie direkt
+            // an `PreparedTransaction.ImportId`.
+            let today = DateTime(2026, 9, 11)
+            let tx = PrepareFixtures.makeTx "tx-force" NeedsAttention today
+
+            let normal = prepareTransactions today PrepareFixtures.accountId Map.empty false [ tx ]
+            let forced = prepareTransactions today PrepareFixtures.accountId Map.empty true [ tx ]
+
+            let deterministicImportId = Shared.Domain.generateImportId tx.Transaction.Id
+            Expect.equal normal.ToSend.Head.ImportId deterministicImportId
+                "ohne Force-Import ist die ImportId deterministisch"
+            Expect.stringStarts forced.ToSend.Head.ImportId $"{Shared.Domain.ImportIdPrefix}:"
+                "die neue ImportId trägt weiterhin das BB-Präfix"
+            Expect.notEqual forced.ToSend.Head.ImportId deterministicImportId
+                "Force-Import erzeugt eine NEUE ImportId, nicht die deterministische"
+    ]
+
+[<Tests>]
+let parseCreateTransactionsResponseTests =
+    testList "parseCreateTransactionsResponse (Senden, Antwort auswerten)" [
+
+        testCase "liest YNAB-Ids über import_id zugeordnet, nicht über die Reihenfolge" <| fun () ->
+            let response = """
+            {
+                "data": {
+                    "transactions": [
+                        { "id": "ynab-2", "import_id": "BB:tx2" },
+                        { "id": "ynab-1", "import_id": "BB:tx1" }
+                    ],
+                    "duplicate_import_ids": []
+                }
+            }
+            """
+            match parseCreateTransactionsResponse response with
+            | ParsedCreateResponse (created, duplicates) ->
+                Expect.isEmpty duplicates "keine Duplikate gemeldet"
+                Expect.contains created (Some "BB:tx1", "ynab-1") "tx1 über import_id zugeordnet"
+                Expect.contains created (Some "BB:tx2", "ynab-2") "tx2 über import_id zugeordnet, trotz Umsortierung"
+            | UnparseableCreateResponse err -> failtest $"sollte lesbar sein, war: {err}"
+
+        testCase "meldet Duplikate unverändert weiter" <| fun () ->
+            let response = """
+            {
+                "data": {
+                    "transactions": [],
+                    "duplicate_import_ids": ["BB:tx1", "BB:tx2"]
+                }
+            }
+            """
+            match parseCreateTransactionsResponse response with
+            | ParsedCreateResponse (created, duplicates) ->
+                Expect.isEmpty created "nichts angelegt"
+                Expect.equal duplicates [ "BB:tx1"; "BB:tx2" ] "beide Duplikate gemeldet"
+            | UnparseableCreateResponse err -> failtest $"sollte lesbar sein, war: {err}"
+
+        testCase "eine nicht lesbare Antwort liefert UnparseableCreateResponse, nie einen geratenen Erfolg" <| fun () ->
+            // Regressionstest für Bug 3: vorher galten bei einem Parse-Fehler pauschal
+            // alle gesendeten Buchungen als angelegt (Fallback-Zeile im alten Code).
+            let malformed = """{ "data": { "transactions": "nicht eine Liste" } }"""
+
+            match parseCreateTransactionsResponse malformed with
+            | ParsedCreateResponse (created, _) ->
+                failtest $"sollte als nicht lesbar erkannt werden, lieferte stattdessen {created.Length} angelegte Buchungen"
+            | UnparseableCreateResponse _ -> ()
+    ]
+
+// ============================================
+// buildCreateResult (Senden, Antwort -> TransactionCreateResult): aus `sendPrepared`
+// in eine reine Funktion gezogen (Verifier-Fund, ledger-qvt84 Iteration 2), damit die
+// ImportId-Zuordnung und der "nicht lesbar"-Pfad ohne HTTP testbar sind.
+// ============================================
+
+[<Tests>]
+let buildCreateResultTests =
+    testList "buildCreateResult (Senden, Antwort -> TransactionCreateResult)" [
+
+        testCase "ordnet YNAB-Ids über die ImportId zu, nicht über die Reihenfolge im Batch" <| fun () ->
+            let today = DateTime(2026, 9, 11)
+            let tx1 = PrepareFixtures.makeTx "tx-1" AutoCategorized today
+            let tx2 = PrepareFixtures.makeTx "tx-2" AutoCategorized today
+            let prepared =
+                (prepareTransactions today PrepareFixtures.accountId Map.empty false [ tx1; tx2 ]).ToSend
+            let importId1 = (prepared |> List.find (fun p -> p.TransactionId = tx1.Transaction.Id)).ImportId
+            let importId2 = (prepared |> List.find (fun p -> p.TransactionId = tx2.Transaction.Id)).ImportId
+
+            // YNAB liefert die Buchungen absichtlich in vertauschter Reihenfolge.
+            let parsed = ParsedCreateResponse ([ (Some importId2, "ynab-2"); (Some importId1, "ynab-1") ], [])
+
+            let result = buildCreateResult prepared parsed
+
+            Expect.isFalse result.ResponseUnparseable "die Antwort war lesbar"
+            Expect.contains
+                result.Created
+                { TransactionId = tx1.Transaction.Id; ImportId = importId1; YnabTransactionId = "ynab-1" }
+                "tx1 über die ImportId zugeordnet, trotz Umsortierung"
+            Expect.contains
+                result.Created
+                { TransactionId = tx2.Transaction.Id; ImportId = importId2; YnabTransactionId = "ynab-2" }
+                "tx2 über die ImportId zugeordnet, trotz Umsortierung"
+
+        testCase "eine nicht auswertbare Antwort liefert Created = [] und ResponseUnparseable = true" <| fun () ->
+            // Regressionstest für Bug 3 (Teil 1, "nicht auswertbare Antwort"): vorher
+            // galten bei einem Parse-Fehler pauschal alle gesendeten Buchungen als
+            // angelegt (Fallback-Zeile im alten Code). `buildCreateResult` ist jetzt die
+            // eine Stelle, die diese Abbildung entscheidet, ohne HTTP testbar.
+            let today = DateTime(2026, 9, 11)
+            let tx = PrepareFixtures.makeTx "tx-unparseable" AutoCategorized today
+            let prepared = (prepareTransactions today PrepareFixtures.accountId Map.empty false [ tx ]).ToSend
+
+            let result = buildCreateResult prepared (UnparseableCreateResponse "kaputtes JSON")
+
+            Expect.isEmpty result.Created "kein geratener Erfolg bei nicht lesbarer Antwort"
+            Expect.isTrue result.ResponseUnparseable "der Zustand ist erkennbar unbekannt, nicht pauschal erfolgreich"
+    ]
+
+// ============================================
+// markCreatedAsImported (forceImportDuplicates): nur tatsächlich angelegte Buchungen
+// markieren, extrahiert damit sie ohne HTTP testbar ist (Verifier-Fund Iteration 2).
+// ============================================
+
+[<Tests>]
+let markCreatedAsImportedTests =
+    testList "markCreatedAsImported (Force-Import, nur tatsächlich Angelegte markieren)" [
+
+        testCase "markiert nur Buchungen aus result.Created, nicht pauschal alle gesendeten" <| fun () ->
+            // Regressionstest: forceImportDuplicates markierte vorher jede gesendete
+            // Buchung als Imported, unabhängig von result.Created,
+            // result.ResponseUnparseable und result.FutureDatedTransactionIds.
+            let today = DateTime(2026, 9, 11)
+            let created = PrepareFixtures.makeTx "tx-created" NeedsAttention today
+            let notCreated = PrepareFixtures.makeTx "tx-not-created" NeedsAttention today
+
+            let result = {
+                emptyCreateResult with
+                    Created =
+                        [ { TransactionId = created.Transaction.Id; ImportId = "BB:txcreated"; YnabTransactionId = "ynab-1" } ]
+            }
+
+            let updated = markCreatedAsImported result [ created; notCreated ]
+
+            let updatedCreated = updated |> List.find (fun t -> t.Transaction.Id = created.Transaction.Id)
+            let updatedNotCreated = updated |> List.find (fun t -> t.Transaction.Id = notCreated.Transaction.Id)
+
+            Expect.equal updatedCreated.Status Imported "die tatsächlich angelegte Buchung gilt als importiert"
+            Expect.equal updatedCreated.YnabImportStatus YnabImported "YnabImportStatus gesetzt"
+            Expect.equal updatedNotCreated.Status notCreated.Status "eine nicht angelegte Buchung bleibt unverändert"
+            Expect.equal updatedNotCreated.YnabImportStatus NotAttempted "kein pauschaler Erfolg"
+    ]

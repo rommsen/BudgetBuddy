@@ -46,6 +46,7 @@ module ReadModel =
         | Rule _ -> DecidedByRule
         | UserInBb -> DecidedInBb
         | QuickAdd -> AddedViaQuickAdd
+        | OrderIdMatch _ -> MatchedByOrderId
 
     let private accountKindOf (kind: AccountKind) : LedgerAccountKindView =
         match kind with

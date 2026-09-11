@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 18:24 -- Task verified and completed: ledger-qvt84 - "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs"
+
+**Type:** Work / Task completion
+**Task:** ledger-qvt84 - "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs"
+**Summary:** Import-Push schreibt zuerst ins Kassenbuch (Comdirect-Import, Review-Spur mit Original-Zeitpunkten, Payee und Memo wie gesendet), dann YNAB, dann Verknüpfung; Retry nach Push-Fehler, sichtbare Schreibfehler, drei Push-Bugs behoben, Urheber Order-ID-Abgleich
+**Duration:** 1h40m (16:46 bis 18:26)
+**Verification:** PASS (iteration 3)
+**Files changed:** 15
+**Tests added:** 24
+**ADRs written:** 0025
+
+---
+
+## 2026-09-11 18:02 -- Verification failed: ledger-qvt84 - Import-Push schreibt ins Kassenbuch
+
+**Type:** Work / Verification failure
+**Task:** ledger-qvt84 - Import-Push schreibt zuerst die Kassenbuch-Buchung, dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs
+**Iteration:** 2 of 3
+**Reasons:** Funde aus Iteration 1 behoben. Neu: eine Review-Spur mit Split und danach gewählter Kategorie lässt das Kassenbuch-Schreiben scheitern (`LedgerWriteFailed`), `importToYnab` verschluckt das und schließt die Session ab, die Buchung erreicht YNAB nie; das Kassenbuch schreibt das rohe Bank-Memo und den rohen Payee, YNAB bekommt "Memo, Ref: …" bzw. "Unknown", jeder Spiegel-Lauf nach einem Push erzeugt dadurch ein falsches "in YNAB geändert"; README-Zeile zum Retry veraltet
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (Iteration 3, letzte vor Eskalation)
+
+---
+
+## 2026-09-11 17:43 -- Verification failed: ledger-qvt84 - Import-Push schreibt ins Kassenbuch
+
+**Type:** Work / Verification failure
+**Task:** ledger-qvt84 - Import-Push schreibt zuerst die Kassenbuch-Buchung, dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs
+**Iteration:** 1 of 3
+**Reasons:** Ein zweiter Versuch nach gescheitertem Push sendet nie erneut (ImportId-Verknüpfung existiert, Buchung gilt als `AlreadyImported`, Session wird abgeschlossen, Buchung erreicht YNAB nie); Abbildung auf `TransactionCreateResult` und der Pfad "nicht lesbare Antwort" liegen ungetestet in `sendPrepared`; `forceImportDuplicates` markiert weiterhin pauschal `Imported`; zwei immer grüne Zusicherungen; zwei Umlaut-Umschreibungen. Force-Import als Folgetask `ledger-fq3kd` berechtigt, Notes dort ergänzen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-11 16:45 -- Batch started: [ledger-qvt84]
 
 **Type:** Work / Batch start

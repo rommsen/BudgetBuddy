@@ -1098,96 +1098,208 @@ let syncApi : SyncApi = {
                 match tokenOpt, defaultBudgetIdOpt, defaultAccountIdOpt with
                 | None, _, _ | _, None, _ | _, _, None ->
                     return Error (SyncError.YnabImportFailed (0, "YNAB not fully configured"))
-                | Some token, Some budgetId, Some accountId ->
-                    // Import transactions (forceNewImportId = false for normal import)
-                    match! YnabClient.createTransactions token (YnabBudgetId budgetId) (YnabAccountId (Guid.Parse(accountId: string))) toImport false with
-                    | Error ynabError ->
-                        return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorToString ynabError))
-                    | Ok result ->
-                        // Parse duplicate import IDs to find which transactions were duplicates
-                        // Import ID format: "BB:{txId}" where txId is the Comdirect transaction ID (may contain "/")
-                        let duplicateTxIdStrings =
-                            result.DuplicateImportIds
-                            |> List.choose (fun importId ->
-                                if importId.StartsWith("BB:") then
-                                    // Remove "BB:" prefix to get the transaction ID part
-                                    // Keep the full ID including "/" - it's part of the Comdirect transaction ID
-                                    Some (importId.Substring(3))
-                                else
-                                    None
-                            )
+                | Some token, Some budgetId, Some accountIdText ->
+                    let ynabAccountId = YnabAccountId (Guid.Parse(accountIdText: string))
 
-                        let duplicateTxIdSet = duplicateTxIdStrings |> Set.ofList
-
-                        // Find actual TransactionIds that are duplicates
-                        // If we can't map the duplicate import_ids to our transaction IDs
-                        // (e.g., old format from legacy system), assume all non-created are duplicates
-                        let duplicateTransactionIds =
-                            let mapped =
-                                toImport
-                                |> List.choose (fun tx ->
-                                    let (TransactionId txId) = tx.Transaction.Id
-                                    let txIdNoDashes = txId.ToString().Replace("-", "")
-                                    if duplicateTxIdSet.Contains(txIdNoDashes) then
-                                        Some tx.Transaction.Id
-                                    else
-                                        None
+                    // ADR 0021: erst Kassenbuch, dann Push. Ohne ein gespiegeltes
+                    // Kassenbuch-Konto für das Import-Konto (der Spiegel ist noch nie
+                    // gelaufen) kann keine Buchung zuerst im Kassenbuch entstehen; kein
+                    // Fallback auf ein erfundenes Konto, sondern eine klare Fehlermeldung
+                    // an Roman (konsistent mit Quick Add, ledger-tdnpk).
+                    match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
+                    | None ->
+                        return
+                            Error (
+                                SyncError.YnabImportFailed (
+                                    toImport.Length,
+                                    "Kein gespiegeltes Kassenbuch-Konto für das Import-Konto. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
                                 )
-                            // Log warning if we couldn't map duplicates (but don't fall back to all)
-                            if mapped.IsEmpty && not result.DuplicateImportIds.IsEmpty then
-                                printfn "[WARNING] Could not map %d duplicate import IDs to transaction IDs: %A"
-                                    result.DuplicateImportIds.Length result.DuplicateImportIds
-                            // Only return actually mapped duplicates, never all transactions
-                            mapped
-
-                        // Transactions excluded because a transfer split line had no
-                        // resolvable transfer payee in YNAB (ADR 0006): mark them
-                        // RejectedByYnab (UnknownRejection ...) and never as imported.
-                        let rejectedTransferTxIdSet = result.RejectedTransferTransactionIds |> Set.ofList
-
-                        // Mark transactions based on whether they were actually created or were duplicates
-                        let duplicateTxIdList = duplicateTransactionIds |> Set.ofList
-                        let updatedTransactions =
-                            toImport
-                            |> List.map (fun tx ->
-                                if rejectedTransferTxIdSet.Contains(tx.Transaction.Id) then
-                                    // A transfer split line could not be resolved to a YNAB
-                                    // transfer payee — the transaction was not sent.
-                                    { tx with YnabImportStatus = RejectedByYnab (UnknownRejection (Some "No YNAB transfer payee for the split transfer account")) }
-                                elif duplicateTxIdList.Contains(tx.Transaction.Id) then
-                                    // This transaction already exists in YNAB - keep as is (don't mark as imported)
-                                    // Set YnabImportStatus to show YNAB rejected it
-                                    let (TransactionId txId) = tx.Transaction.Id
-                                    let txIdNoDashes = txId.ToString().Replace("-", "")
-                                    let importId = $"BB:{txIdNoDashes}"
-                                    { tx with YnabImportStatus = RejectedByYnab (DuplicateImportId importId) }
-                                else
-                                    // Actually imported to YNAB
-                                    { tx with Status = Imported; YnabImportStatus = YnabImported }
                             )
+                    | Some ledgerAccount ->
+                        match! resolveTransferPayees token (YnabBudgetId budgetId) toImport with
+                        | Error ynabError ->
+                            return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorToString ynabError))
+                        | Ok transferPayees ->
+                            let today = DateTime.Today
+                            let prepared =
+                                prepareTransactions today ynabAccountId transferPayees false toImport
 
-                        SyncSessionManager.updateTransactions updatedTransactions
+                            let byTransactionId =
+                                toImport |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
 
-                        // Only complete session if all transactions were imported (no duplicates left)
-                        if duplicateTransactionIds.IsEmpty then
-                            SyncSessionManager.completeSession()
+                            // Teil 2 (ADR 0021): je vorbereiteter Buchung die Rohdaten und
+                            // die Review-Spur (categorization-gdrx8) mitgeben, aus der das
+                            // Kassenbuch die Kategorisierungs-Ereignisse baut.
+                            let candidates =
+                                prepared.ToSend
+                                |> List.map (fun p ->
+                                    let tx = Map.find p.TransactionId byTransactionId
+                                    // Payee/Memo kommen aus dem tatsächlich vorbereiteten
+                                    // Request (p.Request), nicht aus den rohen Bank-Feldern:
+                                    // YNAB bekommt PayeeName (Override-Fallback "Unknown")
+                                    // und Memo über buildMemoWithReference (immer mit
+                                    // ", Ref: <Referenz>"-Suffix), keins davon deckt sich mit
+                                    // dem rohen Comdirect-Wert. Schreibt die Entstehung die
+                                    // rohen Werte, sieht der nächste Spiegel-Lauf ein
+                                    // falsches Kopfdaten-Ereignis (Verifier-Fund, Iteration
+                                    // 3). Die rohe Comdirect-Reference bleibt unverändert in
+                                    // ihrem eigenen Feld.
+                                    ({
+                                        Prepared = p
+                                        ComdirectReference = tx.Transaction.Reference
+                                        Date = tx.Transaction.BookingDate
+                                        Amount = tx.Transaction.Amount
+                                        Payee = Some p.Request.PayeeName
+                                        Memo = Some p.Request.Memo
+                                        ReviewSteps = tx.ReviewSteps
+                                    } : Ledger.CommandHandlers.ComdirectImportCandidate))
 
-                        // Update session in database
-                        match SyncSessionManager.getCurrentSession() with
-                        | Some session ->
-                            do! Persistence.SyncSessions.updateSession session
+                            let now = DateTime.UtcNow
+                            let push preparedList = sendPrepared token (YnabBudgetId budgetId) preparedList
 
-                            // Save all transactions to database
-                            for tx in transactions do
-                                do! Persistence.SyncTransactions.saveTransaction session.Id tx
+                            // Kassenbuch zuerst, dann Push, dann Verknüpfung (ADR 0021,
+                            // Task-Notes Schritt 7/8): die eigentliche Reihenfolge lebt in
+                            // `Ledger.CommandHandlers.pushComdirectImports`, injiziert und
+                            // ohne Netz testbar (Muster wie `addCashExpense`).
+                            let! pushResult =
+                                Ledger.CommandHandlers.pushComdirectImports now push ledgerAccount.Id candidates
 
-                            // Return ImportResult with created count and duplicate IDs
-                            return Ok {
-                                CreatedCount = result.CreatedCount
-                                DuplicateTransactionIds = duplicateTransactionIds
-                            }
-                        | None ->
-                            return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
+                            match pushResult.SendResult with
+                            | Some (Error ynabError) ->
+                                // ADR 0021 Punkt 2: kein Rollback. Die schon geschriebenen
+                                // Kassenbuch-Buchungen bleiben unverändert und unverknüpft
+                                // stehen; der API-Aufruf meldet den Push-Fehler trotzdem.
+                                return
+                                    Error (SyncError.YnabImportFailed (candidates.Length, ynabErrorToString ynabError))
+                            | _ ->
+                                let importIdByTxId =
+                                    prepared.ToSend |> List.map (fun p -> p.TransactionId, p.ImportId) |> Map.ofList
+                                let duplicateImportIdSet =
+                                    match pushResult.SendResult with
+                                    | Some (Ok sent) -> sent.DuplicateImportIds |> Set.ofList
+                                    | _ -> Set.empty
+                                let futureDatedSet = prepared.FutureDatedTransactionIds |> Set.ofList
+                                let rejectedTransferTxIdSet = prepared.RejectedTransferTransactionIds |> Set.ofList
+
+                                // Duplikate: nur was YNAB tatsächlich als Duplikat meldete,
+                                // über die von uns selbst gesetzte ImportId zugeordnet
+                                // (keine "BB:{txId}"-Rekonstruktion mehr nötig, siehe
+                                // Task-Notes zur Force-Import-ImportId).
+                                let duplicateTransactionIds =
+                                    pushResult.Outcomes
+                                    |> Map.toList
+                                    |> List.choose (fun (txId, outcome) ->
+                                        match outcome with
+                                        | Ledger.CommandHandlers.WrittenNotLinked _ ->
+                                            match Map.tryFind txId importIdByTxId with
+                                            | Some importId when duplicateImportIdSet.Contains importId -> Some txId
+                                            | _ -> None
+                                        | _ -> None)
+
+                                // Ein gescheitertes Kassenbuch-Schreiben darf nie still
+                                // bleiben (Verifier-Fund, Iteration 3): die Buchung wurde
+                                // nicht gesendet, zählt also nicht als importiert, und die
+                                // Session darf nicht als abgeschlossen gelten, solange so
+                                // eine Buchung offen ist.
+                                let ledgerWriteFailureSummary =
+                                    Ledger.CommandHandlers.summarizeLedgerWriteFailures pushResult
+
+                                let updatedTransactions =
+                                    toImport
+                                    |> List.map (fun tx ->
+                                        let txId = tx.Transaction.Id
+                                        if futureDatedSet.Contains txId then
+                                            // Bug-Fix: zukunftsdatierte Buchungen wurden nie
+                                            // gesendet, bleiben also unverändert und nie
+                                            // "Imported".
+                                            tx
+                                        elif rejectedTransferTxIdSet.Contains txId then
+                                            // A transfer split line could not be resolved to a
+                                            // YNAB transfer payee (the transaction was not sent).
+                                            { tx with
+                                                YnabImportStatus =
+                                                    RejectedByYnab (UnknownRejection (Some "No YNAB transfer payee for the split transfer account")) }
+                                        else
+                                            match Map.tryFind txId pushResult.Outcomes with
+                                            | Some (Ledger.CommandHandlers.Linked _) ->
+                                                { tx with Status = Imported; YnabImportStatus = YnabImported }
+                                            | Some (Ledger.CommandHandlers.WrittenNotLinked _) ->
+                                                match Map.tryFind txId importIdByTxId with
+                                                | Some importId when duplicateImportIdSet.Contains importId ->
+                                                    { tx with YnabImportStatus = RejectedByYnab (DuplicateImportId importId) }
+                                                | _ ->
+                                                    // Nicht auswertbare Antwort (Bug-Fix): kein
+                                                    // pauschaler Erfolg, Zustand bleibt
+                                                    // unverändert; die Kassenbuch-Buchung
+                                                    // steht ohne ynab-Verknüpfung, erkennbar
+                                                    // "unbekannt".
+                                                    tx
+                                            | Some (Ledger.CommandHandlers.AlreadyImported _) ->
+                                                // ADR 0021 Punkt 3: schon eine mit YNAB
+                                                // verknüpfte Buchung für diese ImportId
+                                                // (z. B. ein früherer Push war erfolgreich,
+                                                // aber das Speichern der SyncTransaction
+                                                // danach scheiterte). Kein zweiter Versuch
+                                                // nötig, gilt als importiert.
+                                                { tx with Status = Imported; YnabImportStatus = YnabImported }
+                                            | Some (Ledger.CommandHandlers.LedgerWriteFailed _) ->
+                                                // Task-Notes Schritt 7b: das
+                                                // Kassenbuch-Schreiben ist gescheitert, die
+                                                // Buchung wurde nicht gesendet.
+                                                tx
+                                            | None -> tx)
+
+                                SyncSessionManager.updateTransactions updatedTransactions
+
+                                // Only complete session if all transactions were imported
+                                // (no duplicates left, no failed Kassenbuch-Schreiben)
+                                if duplicateTransactionIds.IsEmpty && ledgerWriteFailureSummary.IsNone then
+                                    SyncSessionManager.completeSession()
+
+                                // Update session in database. Persisted regardless of a
+                                // ledger write failure: transactions that DID succeed
+                                // (Linked/AlreadyImported/duplicates) must not lose their
+                                // status just because another transaction in the same
+                                // batch failed to write.
+                                match SyncSessionManager.getCurrentSession() with
+                                | Some session ->
+                                    do! Persistence.SyncSessions.updateSession session
+
+                                    // Save all transactions to database
+                                    for tx in transactions do
+                                        do! Persistence.SyncTransactions.saveTransaction session.Id tx
+
+                                    let createdCount =
+                                        pushResult.Outcomes
+                                        |> Map.toList
+                                        |> List.filter (fun (_, outcome) ->
+                                            match outcome with
+                                            | Ledger.CommandHandlers.Linked _ -> true
+                                            | _ -> false)
+                                        |> List.length
+
+                                    match ledgerWriteFailureSummary with
+                                    | Some (failedCount, messages) ->
+                                        // Sichtbar machen statt still schlucken (Verifier-Fund,
+                                        // Iteration 3): die erfolgreich importierten Buchungen
+                                        // sind oben schon gespeichert, aber der Aufruf meldet
+                                        // trotzdem einen Fehler, damit Roman einen erneuten
+                                        // Versuch für die gescheiterten Buchungen auslösen kann.
+                                        return
+                                            Error (
+                                                SyncError.YnabImportFailed (
+                                                    failedCount,
+                                                    $"Kassenbuch-Schreiben fehlgeschlagen für {failedCount} Buchung(en): {messages}"
+                                                )
+                                            )
+                                    | None ->
+                                        // Return ImportResult with created count and duplicate IDs
+                                        return Ok {
+                                            CreatedCount = createdCount
+                                            DuplicateTransactionIds = duplicateTransactionIds
+                                        }
+                                | None ->
+                                    return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
     }
 
     // ============================================
@@ -1221,10 +1333,12 @@ let syncApi : SyncApi = {
                     | Error ynabError ->
                         return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorToString ynabError))
                     | Ok result ->
-                        // Mark force-imported transactions as Imported
-                        let updatedTransactions =
-                            transactionsToForce
-                            |> List.map (fun tx -> { tx with Status = Imported; YnabImportStatus = YnabImported })
+                        // Nur die Buchungen markieren, die YNAB tatsächlich angelegt hat
+                        // (`result.Created`), nicht pauschal jede gesendete (Bug-Fix,
+                        // Verifier-Fund Iteration 2: zukunftsdatierte oder bei nicht
+                        // auswertbarer Antwort unbestätigte Buchungen galten vorher
+                        // trotzdem als importiert).
+                        let updatedTransactions = YnabClient.markCreatedAsImported result transactionsToForce
 
                         SyncSessionManager.updateTransactions updatedTransactions
 
@@ -1251,7 +1365,7 @@ let syncApi : SyncApi = {
                             for tx in updatedTransactions do
                                 do! Persistence.SyncTransactions.saveTransaction session.Id tx
 
-                            return Ok result.CreatedCount
+                            return Ok result.Created.Length
                         | None ->
                             return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
     }

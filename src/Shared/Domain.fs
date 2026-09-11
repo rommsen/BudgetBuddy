@@ -765,6 +765,10 @@ type LedgerOrigin =
     | DecidedInBb
     /// Ueber Quick Add erfasst.
     | AddedViaQuickAdd
+    /// Kategorie aus dem Order-ID-Abgleich beim Abruf übernommen (Vorschlag aus der
+    /// YNAB-Historie derselben Amazon-Bestellung, weder Regel noch Roman für DIESE
+    /// Buchung, Entscheidung Roman 2026-09-11).
+    | MatchedByOrderId
 
 /// Wie eine Herkunft im Kassenbuch heisst. Wortlaut aus dem Ubiquitous Language
 /// des Contexts; die Anzeige erfindet keine eigenen Worte.
@@ -775,6 +779,7 @@ let originLabel (origin: LedgerOrigin) : string =
     | DecidedByRule -> "Regel"
     | DecidedInBb -> "Roman in BB"
     | AddedViaQuickAdd -> "Quick Add"
+    | MatchedByOrderId -> "Order-ID-Abgleich"
 
 /// Die Art eines Kassenbuch-Kontos (ADR 0016) in der Form, die die Anzeige braucht.
 /// v1 erzeugt nur `LedgerBankAccount`; die anderen Arten sind da, damit die

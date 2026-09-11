@@ -269,6 +269,126 @@ let replay (events: LedgerEvent list) : Entry option =
     events |> List.fold (fun state ev -> Some (apply state ev)) None
 
 // ============================================
+// Import-Push: Kassenbuch-Ereignisse aus einer Comdirect-Buchung und ihrer
+// Review-Spur bauen (ADR 0021, ledger-qvt84)
+// ============================================
+
+/// Was `recordComdirectPush` braucht, um die Ereignisfolge einer Comdirect-Buchung zu
+/// bauen: die Rohdaten der Bank-Buchung (Kassenbuch-Konto, ImportId, Comdirect-
+/// Reference, Datum, Betrag, roher Payee/Memo von der Bank) plus die Review-Spur
+/// (`Shared.Domain.ReviewStep list`, categorization-gdrx8), älteste zuerst. `PushedAt`
+/// ist der Zeitpunkt der Entstehung (`EntryImportedFromComdirect`); jeder Review-Schritt
+/// behält seinen eigenen, ursprünglichen Zeitpunkt (`ReviewStep.At`), nicht `PushedAt`.
+type ComdirectPushInput = {
+    EntryId: EntryId
+    AccountId: LedgerAccountId
+    ImportId: string
+    ComdirectReference: string
+    Date: DateTime
+    Amount: Money
+    /// Der rohe, von der Bank gelieferte Payee. Ein Payee-Override aus der Review-Spur
+    /// kommt erst als eigenes Ereignis dazu, die Entstehung selbst bleibt roh.
+    Payee: string option
+    Memo: string option
+    PushedAt: DateTime
+    ReviewSteps: ReviewStep list
+}
+
+/// Baut aus einer Comdirect-Buchung und ihrer Review-Spur die geordnete Ereignisfolge,
+/// mit der sie im Kassenbuch entsteht (Task-Notes, Schritt 6): `EntryImportedFromComdirect`
+/// (Actor `ComdirectImport`, immer `Uncleared`: der Push selbst sendet nie einen
+/// anderen Cleared-Status), danach je Review-Schritt ein Kategorisierungs-Ereignis mit
+/// dem ursprünglichen Zeitpunkt aus `ReviewStep.At`:
+///   - `ByRule` -> `EntryCategorizedByRule` (Actor `Rule`), RuleName kommt direkt aus
+///     dem Schritt (`ReviewStep.By`), kein Nachschlagen nötig.
+///   - `ByUser` -> `EntryRecategorized` (Actor `UserInBb`).
+///   - `ByOrderIdMatch orderId` -> `EntryRecategorized` (Actor `OrderIdMatch orderId`):
+///     dieselbe Kategorisierungs-Semantik wie eine Umkategorisierung, nur mit einem
+///     anderen Urheber (Entscheidung Roman, 2026-09-11, siehe Task-Notes).
+/// `Old*`-Felder der Recategorized-Ereignisse verfolgen den Stand des jeweils
+/// vorherigen Schritts (leer/`None` für den ersten); `NewPayee` übernimmt
+/// `PayeeOverride`, sonst bleibt der vorherige Payee erhalten (kein stilles Wischen auf
+/// `None`, analog zum `Option.orElse`-Verhalten von `EntryCategorizedByRule` in `apply`).
+/// Rein: kein I/O, keine Uhr. Ob eine ImportId schon verknüpft ist (kein zweites
+/// Entstehen) und das eigentliche Schreiben ist Sache des Aufrufers
+/// (`Ledger.CommandHandlers`, ADR 0021 Punkt 3).
+let recordComdirectPush (input: ComdirectPushInput) : LedgerEvent list =
+    let creation = {
+        EntryId = input.EntryId
+        OccurredAt = input.PushedAt
+        Actor = ComdirectImport
+        Body =
+            EntryImportedFromComdirect {
+                AccountId = input.AccountId
+                ImportId = input.ImportId
+                ComdirectReference = input.ComdirectReference
+                Date = input.Date
+                Amount = input.Amount
+                Payee = input.Payee
+                Memo = input.Memo
+                Cleared = Uncleared
+            }
+    }
+
+    let categoryRefOf (step: ReviewStep) : CategoryRef option =
+        match step.Category, step.CategoryName with
+        | Some catId, Some name -> Some { CategoryId = catId; CategoryName = name }
+        | _ -> None
+
+    // Roman kann eine Buchung erst aufteilen und danach über den Kategorie-Chip
+    // "Aufgeteilt" eine Kategorie wählen; `categorizeTransaction` setzt dann `CategoryId`,
+    // lässt `Splits` aber stehen (`src/Server/Api.fs`). Ein Review-Schritt kann also
+    // Kategorie UND mindestens zwei Split-Zeilen zugleich tragen. `buildTransactionRequest`
+    // (`YnabClient.fs`) sendet in diesem Fall nur die Splits, nie eine `category_id` auf
+    // der Buchung selbst. Dieselbe Regel gilt hier: die Kassenbuch-Ereignisse müssen zu
+    // dem passen, was YNAB tatsächlich bekommt, sonst lehnt `apply`s Kategorie/Splits-
+    // Ausschluss (ADR 0006/0019) das Ereignis ab, obwohl genau dieser Zustand gepusht
+    // wird (Verifier-Fund, Iteration 3).
+    let resolveCategoryVsSplits (category: CategoryRef option) (splits: TransactionSplit list) =
+        if splits.Length >= 2 then None, splits else category, splits
+
+    let toEvent (prevCategory, prevSplits, prevPayee) (step: ReviewStep) =
+        let category, splits = resolveCategoryVsSplits (categoryRefOf step) (step.Splits |> Option.defaultValue [])
+        let newPayee = step.PayeeOverride |> Option.orElse prevPayee
+
+        let recategorizedBody actor =
+            actor,
+            EntryRecategorized {
+                OldCategory = prevCategory
+                NewCategory = category
+                OldSplits = prevSplits
+                NewSplits = splits
+                OldPayee = prevPayee
+                NewPayee = newPayee
+            }
+
+        let actor, body =
+            match step.By with
+            | ByRule (ruleId, ruleName) ->
+                Rule ruleId,
+                EntryCategorizedByRule {
+                    RuleName = ruleName
+                    Category = category
+                    Splits = splits
+                    PayeeOverride = step.PayeeOverride
+                }
+            | ByUser -> recategorizedBody UserInBb
+            | ByOrderIdMatch orderId -> recategorizedBody (OrderIdMatch orderId)
+
+        let event = { EntryId = input.EntryId; OccurredAt = step.At; Actor = actor; Body = body }
+        event, (category, splits, newPayee)
+
+    let stepEvents, _ =
+        input.ReviewSteps
+        |> List.fold
+            (fun (events, state) step ->
+                let event, newState = toEvent state step
+                events @ [ event ], newState)
+            ([], (None, [], input.Payee))
+
+    creation :: stepEvents
+
+// ============================================
 // Beobachtung: Snapshot gegen Zustand (ADR 0013, Punkt 4)
 // ============================================
 

@@ -45,6 +45,11 @@ type Actor =
     | UserInBb
     /// Die Buchung wurde ueber Quick Add erfasst.
     | QuickAdd
+    /// Eine Kategorie stammt aus dem Order-ID-Abgleich beim Abruf (Vorschlag aus der
+    /// YNAB-Historie derselben Amazon-Bestellung, `ReviewActor.ByOrderIdMatch`). Kein
+    /// Regel-Treffer und keine Entscheidung Romans für DIESE Buchung (Entscheidung
+    /// Roman, 2026-09-11, categorization-gdrx8). Anzeigename "Order-ID-Abgleich".
+    | OrderIdMatch of orderId: string
 
 // ============================================
 // Bausteine der Payloads
@@ -617,6 +622,9 @@ let actorToColumns (actor: Actor) : string * string option =
     | Rule (RuleId id) -> "Rule", Some (id.ToString())
     | UserInBb -> "UserInBb", None
     | QuickAdd -> "QuickAdd", None
+    // Die zweite Spalte ist frei benutzbares Text, kein reiner Guid-Slot: der
+    // Order-ID-Abgleich legt hier die Bestell-Id ab statt einer RuleId.
+    | OrderIdMatch orderId -> "OrderIdMatch", Some orderId
 
 let actorFromColumns (kind: string) (ruleId: string option) : Result<Actor, string> =
     match kind, ruleId with
@@ -626,4 +634,6 @@ let actorFromColumns (kind: string) (ruleId: string option) : Result<Actor, stri
     | "Rule", None -> Error "Actor 'Rule' ohne RuleId gespeichert"
     | "UserInBb", _ -> Ok UserInBb
     | "QuickAdd", _ -> Ok QuickAdd
+    | "OrderIdMatch", Some orderId -> Ok (OrderIdMatch orderId)
+    | "OrderIdMatch", None -> Error "Actor 'OrderIdMatch' ohne OrderId gespeichert"
     | other, _ -> Error $"Unbekannter Actor: {other}"
