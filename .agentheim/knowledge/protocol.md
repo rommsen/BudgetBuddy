@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 18:27 -- Modeling / Captured: ledger-tpbe7 - Randfälle Kassenbuch nach Push
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Nicht blockierende Funde aus der Verifikation von ledger-qvt84 (Iteration 3) festgehalten: vier Randfälle, in denen die Kassenbuch-Buchung nach dem Push von YNAB abweicht (fehlender Kategorie-Name nach 429, entfernter Payee-Override, ungekürzte Split-Memos, veralteter Kategorie-Name einer Regel) und dadurch ein falsches "in YNAB geändert" entsteht; dazu ungetesteter Klebecode in Api.fs, ein veralteter Doc-Kommentar und fehlendes Neuladen der Session auf dem Fehlerweg. Raw capture, braucht Verfeinerung.
+
+---
+
 ## 2026-09-11 18:24 -- Task verified and completed: ledger-qvt84 - "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs"
 
 **Type:** Work / Task completion
