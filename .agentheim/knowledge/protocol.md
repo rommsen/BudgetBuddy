@@ -5,6 +5,13 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 12:19 -- Modeling / Dismissed: ynab-b7q2m
+
+**Type:** Modeling / Dismiss
+**Dismissed:** ynab-b7q2m - Push wertet YNABs Antwort aus und verknüpft Transaction-Ids (ynab-sync)
+
+---
+
 ## 2026-09-11 11:03 -- Modeling / Captured: ledger-xbrht - UX-Konzept Kassenbuch als Arbeitsfläche
 
 **Type:** Modeling / Capture

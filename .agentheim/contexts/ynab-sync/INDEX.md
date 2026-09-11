@@ -40,7 +40,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ynab-b7q2m** — Push wertet YNABs Antwort aus und verknüpft Transaction-Ids (Import-Push über ImportId-Zuordnung, Quick Add über die Antwort des Einzel-Posts) (feature) — `backlog/ynab-b7q2m-push-liest-ynab-ids-aus-antwort.md`
+- **ynab-r9k4t** — Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset (bug) — `backlog/ynab-r9k4t-bug-since-date-transaktions-decoder-verschiebt-ynab-buchungs.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC
