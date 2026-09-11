@@ -47,17 +47,39 @@ const OUT_DIR = path.join(ROOT, "dist", "design-system");
 const PREVIEW_DIR = path.join(OUT_DIR, "preview");
 const ASSETS_DIR = path.join(OUT_DIR, "assets");
 
-// Sektionen, die per `[data-ds-card="…"]` direkt im DOM-Baum der Route stehen.
+// Sektionen, die per `[data-ds-card="…"]` direkt im DOM-Baum der Route stehen
+// (design-system-y6gkd: alle Sektionen von /#/styleguide außer Colors/Type/Brand
+// (aus Tokens generiert, s. writeTokenAndBrandPreviews) und Voice (reiner Text,
+// steht in README/SKILL statt in einer Karte)).
 const COMPONENT_CARDS = [
-  { id: "components-card", title: "Card" },
-  { id: "components-money", title: "Money" },
-  { id: "components-badge", title: "Badge" },
-  { id: "components-table", title: "Table" },
-  { id: "components-navigation", title: "Navigation" },
+  { id: "components-card", title: "Card", group: "Components" },
+  { id: "components-money", title: "Money", group: "Components" },
+  { id: "components-badge", title: "Badge", group: "Components" },
+  { id: "components-table", title: "Table", group: "Components" },
+  { id: "components-navigation", title: "Navigation", group: "Components" },
+  { id: "components-button", title: "Button", group: "Components" },
+  { id: "components-stats", title: "Stats", group: "Components" },
+  { id: "components-icons", title: "Icons", group: "Components" },
+  { id: "components-pageheader", title: "PageHeader", group: "Components" },
+  { id: "components-primitives", title: "Primitives", group: "Components" },
+  { id: "components-swipe", title: "Swipe", group: "Components" },
+  { id: "components-loading", title: "Loading", group: "Feedback" },
+  { id: "components-errordisplay", title: "ErrorDisplay", group: "Feedback" },
+  { id: "components-input", title: "Input", group: "Forms" },
+  { id: "components-form", title: "Form", group: "Forms" },
+  // Toast rendert (anders als BottomSheet/Modal) nicht per Portal, braucht aber
+  // einen Klick, bevor ein Toast sichtbar ist ("Erfolg" per `data-ds-card-trigger`,
+  // vor dieser Schleife ausgelöst, s. extractPreviews); danach wird die Karte wie
+  // jede andere hier per `[data-ds-card="…"]` erfasst.
+  { id: "components-toast", title: "Toast", group: "Feedback" },
 ];
-// BottomSheet portalt nach document.body (BottomSheet.fs: renderToBody) und braucht
-// daher eine eigene Behandlung (Trigger klicken, Overlay+Sheet separat einsammeln).
-const BOTTOMSHEET_CARD = { id: "components-bottomsheet", title: "BottomSheet" };
+// BottomSheet, Kategorienauswahl und Modal portalen nach document.body
+// (BottomSheet.fs/Modal.fs: renderToBody) und brauchen daher eine eigene Behandlung
+// (Trigger klicken, geöffnetes Markup separat einsammeln, danach wieder schließen,
+// damit der nächste Trigger nicht das falsche offene Overlay erfasst).
+const BOTTOMSHEET_CARD = { id: "components-bottomsheet", title: "BottomSheet", group: "Components" };
+const CATEGORY_PICKER_CARD = { id: "components-categorypicker", title: "Kategorienauswahl", group: "Components" };
+const MODAL_CARD = { id: "components-modal", title: "Modal", group: "Components" };
 
 function log(msg) {
   console.log(`[export-design-system] ${msg}`);
@@ -332,6 +354,37 @@ ${innerHtml}
   log(`preview/${id}.html geschrieben.`);
 }
 
+/// Öffnet ein per Portal (createPortal nach document.body) gerendertes Sheet/Modal
+/// über den stabilen `data-ds-card-trigger`-Selektor, wartet auf `activeSelector`,
+/// sammelt die per `matchSelectors` gefundenen Elemente in einen synthetischen
+/// `data-ds-card`-Wrapper und schreibt die Karte. Schließt danach über
+/// `closeSelector` wieder, damit der nächste Trigger nicht das noch offene Overlay
+/// dieser Karte erfasst (BottomSheet/Kategorienauswahl teilen sich die Klassen
+/// `.overlay`/`.bottom-sheet`; Modal hat eine eigene Fixed-Wrapper-Klasse).
+async function extractPortalCard(page, card, activeSelector, matchSelectors, closeSelector) {
+  await page.click(`[data-ds-card-trigger="${card.id}"]`);
+  await page.waitForSelector(activeSelector);
+  const html = await page.evaluate(
+    ({ cardId, group, selectors }) => {
+      const wrap = document.createElement("div");
+      wrap.setAttribute("data-ds-card", cardId);
+      wrap.setAttribute("data-ds-group", group);
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) wrap.appendChild(el.cloneNode(true));
+      }
+      return wrap.outerHTML;
+    },
+    { cardId: card.id, group: card.group, selectors: matchSelectors }
+  );
+  await writePreview(card.id, card.group, card.title, html);
+  await page.click(closeSelector);
+  await page.waitForFunction(
+    (sel) => !document.querySelector(sel),
+    activeSelector
+  );
+}
+
 async function extractPreviews(baseUrl) {
   const browser = await chromium.launch();
   try {
@@ -342,34 +395,48 @@ async function extractPreviews(baseUrl) {
     // abgeschlossen, alle data-ds-card-Marker im DOM).
     await page.waitForSelector('[data-ds-card="components-navigation"]');
 
+    // Toast rendert nicht per Portal, braucht aber einen Klick, bevor ein Toast im
+    // data-ds-card-Container sichtbar ist (s. COMPONENT_CARDS oben).
+    await page.click('[data-ds-card-trigger="components-toast"]');
+    // Kein stabiler ".toast"-Klassenname (Toast.fs); der Dismiss-Button jedes
+    // Toasts hat ein festes aria-label und dient als Bereitschafts-Signal.
+    await page.waitForSelector('[data-ds-card="components-toast"] button[aria-label="Dismiss"]');
+
     for (const card of COMPONENT_CARDS) {
       const html = await page
         .locator(`[data-ds-card="${card.id}"]`)
         .evaluate((el) => el.outerHTML);
-      await writePreview(card.id, "Components", card.title, html);
+      await writePreview(card.id, card.group, card.title, html);
     }
 
-    // BottomSheet: BottomSheet.view rendert per createPortal nach document.body,
-    // ist also kein Kind des data-ds-card-Wrappers in View.fs. Trigger (stabiler
-    // data-ds-card-trigger-Selektor) klicken, dann Overlay + Sheet vom Body
-    // einsammeln und in einen synthetischen data-ds-card-Wrapper hüllen.
-    await page.click('[data-ds-card-trigger="components-bottomsheet"]');
-    await page.waitForSelector(".bottom-sheet.active");
-    const sheetHtml = await page.evaluate(() => {
-      const wrap = document.createElement("div");
-      wrap.setAttribute("data-ds-card", "components-bottomsheet");
-      wrap.setAttribute("data-ds-group", "Components");
-      const overlay = document.querySelector(".overlay.active");
-      const sheet = document.querySelector(".bottom-sheet.active");
-      if (overlay) wrap.appendChild(overlay.cloneNode(true));
-      if (sheet) wrap.appendChild(sheet.cloneNode(true));
-      return wrap.outerHTML;
-    });
-    await writePreview(
-      BOTTOMSHEET_CARD.id,
-      "Components",
-      BOTTOMSHEET_CARD.title,
-      sheetHtml
+    // BottomSheet, Kategorienauswahl: teilen sich `.overlay`/`.bottom-sheet`, daher
+    // nacheinander öffnen/einsammeln/schließen (sonst erfasst querySelector das
+    // falsche, noch offene Sheet).
+    await extractPortalCard(
+      page,
+      BOTTOMSHEET_CARD,
+      ".bottom-sheet.active",
+      [".overlay.active", ".bottom-sheet.active"],
+      ".bottom-sheet.active .sheet-close"
+    );
+    await extractPortalCard(
+      page,
+      CATEGORY_PICKER_CARD,
+      ".bottom-sheet.active",
+      [".overlay.active", ".bottom-sheet.active"],
+      ".bottom-sheet.active .sheet-close"
+    );
+
+    // Modal: eigener Fixed-Wrapper (Modal.fs: `.fixed.inset-0.z-50.overflow-hidden`),
+    // schließt über den "Abbrechen"-Button im Demo-Footer. Selektor auf den
+    // Fixed-Wrapper eingeschränkt: der statische Button-Sektion hat weiter oben in
+    // der Route einen eigenen (nicht-modalen) "Abbrechen"-Button.
+    await extractPortalCard(
+      page,
+      MODAL_CARD,
+      ".fixed.inset-0.z-50.overflow-hidden",
+      [".fixed.inset-0.z-50.overflow-hidden"],
+      '.fixed.inset-0.z-50.overflow-hidden button:has-text("Abbrechen")'
     );
   } finally {
     await browser.close();
@@ -565,10 +632,13 @@ die Vorschauen laden damit ohne Netzzugriff, genauso wie die BudgetBuddy-App sel
 ## Komponenten
 
 \`preview/components-*.html\` sind aus der lebenden Galerie (\`/#/styleguide\` im Repo)
-gerendert, nicht von Hand nachgebaut. Aktuell im Bundle: Card, Money, Badge, Table
-(Listenzeile), BottomSheet (mobiles Picker-Muster), Navigation. Der Umfang ist bewusst
-klein gehalten: Tokens plus die Komponenten, die das Kassenbuch-Mockup braucht; weitere
-Komponenten kommen dazu, sobald ein Mockup sie braucht.
+gerendert, nicht von Hand nachgebaut. Aktuell im Bundle (Gruppe "Components"): Card,
+Money, Badge, Table (Listenzeile), Navigation, Button, Stats, Icons, PageHeader,
+Primitives, Swipe, BottomSheet (mobiles Picker-Muster), Kategorienauswahl (Kategorie
+ändern, derselbe Picker wie im Kassenbuch), Modal. Gruppe "Feedback": Loading,
+ErrorDisplay, Toast. Gruppe "Forms": Input, Form. Nicht als eigene Karte: Typografie
+und Colors sind schon in den "Colors"-/"Type"-Karten (aus denselben Tokens generiert,
+siehe oben), Voice ist reiner Fließtext und steht nur hier im README/SKILL.
 
 ## Voice
 

@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 1
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 10
+- **Doing:** 0
+- **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-y6gkd** — Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export (feature) — `doing/design-system-y6gkd-kategorienauswahl-und-alle-sektionen-im-export.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-y6gkd** — Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export (feature) — `done/design-system-y6gkd-kategorienauswahl-und-alle-sektionen-im-export.md`
 - **design-system-f7k2p** — "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export" (bug) — `done/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
 - **design-system-h58y4** — Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman (chore) — `done/design-system-h58y4-erst-sync-nach-claude-design.md`
 - **design-system-t82sg** — Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route) (feature) — `done/design-system-t82sg-export-bundle-fuer-claude-design.md`
@@ -47,6 +47,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0027** — Kategorienauswahl als eine Karte mit beiden Zuständen; Sektions-Export-Umfang und -Ausnahmen; Portal-Karten schließen sich nacheinander — 2026-09-11 — `knowledge/decisions/0027-kategorienauswahl-und-vollstaendiger-sektions-export.md`
 - **0026** — Schriften (Inter, JetBrains Mono, Space Grotesk) selbst ausliefern statt Google-Fonts-Import (löst Decision 3 von 0024 ab) — 2026-09-11 — `knowledge/decisions/0026-schriften-selbst-ausliefern-statt-google-fonts-import.md`
 - **0024** — Export-Bundle rendert aus vite build und preview (nicht vite dev); Navigation bekommt additive nicht-fixe Preview-Varianten; Fonts per explizitem Link geladen (Decision 3 abgelöst durch 0026) — 2026-09-11 — `knowledge/decisions/0024-export-bundle-build-nicht-dev-und-nicht-fixe-navigation-preview.md`
 - **0009** — Token-Namen für „dunkle Schrift auf Neon" (`onNeon`) + Mikro-Schriftgrößen (`micro`/`microPlus`) — 2026-06-18 — `../../knowledge/decisions/0009-onneon-foreground-and-micro-font-tokens.md`

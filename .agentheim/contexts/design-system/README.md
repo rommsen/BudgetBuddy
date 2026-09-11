@@ -101,14 +101,19 @@ Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
   aus `/#/styleguide` heraus (kein von Hand geschriebenes Komponenten-Markup im
   Skript). Läuft ohne Backend (rein präsentationale Route).
 - **`data-ds-card`**: stabiles Attribut in
-  `src/Client/Components/Styleguide/View.fs`, markiert eine Sektion als Export-Ziel
-  (`components-card`, `-money`, `-badge`, `-table`, `-navigation`; `BottomSheet`
-  portalt nach `document.body` und wird über `data-ds-card-trigger` + Klick gesondert
-  eingesammelt).
+  `src/Client/Components/Styleguide/View.fs`, markiert eine Sektion als Export-Ziel.
+  Deckt inzwischen fast jede Sektion der Route ab (Liste und Ausnahmen:
+  `design-system-y6gkd`, ADR 0027); Komponenten, die per `createPortal` nach
+  `document.body` rendern (`BottomSheet`, Kategorienauswahl, `Modal`), werden über
+  `data-ds-card-trigger` + Klick gesondert eingesammelt und danach wieder geschlossen,
+  bevor die nächste Portal-Karte öffnet.
 - **`@dsCard`-Marker**: Zeile 1 jeder `preview/*.html` (`<!-- @dsCard group="…" -->`),
   das Format, über das Claude Design die Karten im Design-System-Bereich baut. Gruppen
   im Bundle: "Colors" (Neon-Palette, Flächen), "Type" (Font-Proben), "Components"
-  (Card/Money/Badge/Table/BottomSheet/Navigation), "Brand" (App-Icon).
+  (Card, Money, Badge, Table, Navigation, Button, Stats, Icons, PageHeader,
+  Primitives, Swipe, BottomSheet, Kategorienauswahl, Modal), "Feedback" (Loading,
+  ErrorDisplay, Toast), "Forms" (Input, Form), "Brand" (App-Icon). Vollständige Liste
+  und Ausnahmen: `design-system-y6gkd`, ADR 0027.
 - **`colors_and_type.css`**: der `@theme`-Block aus `src/Client/styles.css` plus die
   Basis-Variablen, auf die er per `var()` verweist, vollständig aufgelöst (das Skript
   bricht ab, wenn eine referenzierte Variable fehlt), plus drei `@font-face`-Regeln
@@ -161,6 +166,41 @@ mit BudgetBuddy nichts zu tun und wird nie beschrieben.
 Die Richtung bleibt Repo → Claude Design. Was in Claude Design am System geändert wird,
 fließt nicht zurück; Änderungen am Design-System entstehen im Repo und gehen durch das
 Styleguide-Gate.
+
+## Styleguide-Sektionen im Export (design-system-y6gkd, 2026-09-11)
+Fund aus Romans Sichtprüfung beim Erst-Sync (`design-system-h58y4`): die
+Kategorienauswahl (`BottomSheet.categoryPicker`/`categoryPickerLayered`) fehlte im
+Bundle, dazu Romans Entscheidung, alle Sektionen der Route zu exportieren statt nur
+sechs. Beides erledigt.
+
+- **Kategorienauswahl** (`/styleguide` Sektion 19, `CategoryPickerDemo`): zeigt den
+  echten Picker mit erfundenen Beispieldaten (fünf Kategorien in zwei Gruppen,
+  Available positiv/negativ/null; Vorschläge + Zuletzt verwendet). Eine Karte
+  (`components-categorypicker`) mit beiden Zuständen gleichzeitig (Chips oben,
+  Gruppenliste mit Suchfeld darunter), da der echte Picker sie so gleichzeitig zeigt.
+  Begründung/Alternativen: ADR 0027.
+- **Vollständiger Sektions-Export.** Neu als eigene `data-ds-card`-Karte, aus der DOM
+  gerendert (kein von Hand nachgebautes Markup): Kategorienauswahl, Button, Stats,
+  Icons, PageHeader, Primitives, Swipe, Loading, ErrorDisplay, Input, Form, Toast,
+  Modal. Zusammen mit den bereits vorhandenen (Card, Money, Badge, Table, Navigation,
+  BottomSheet) sind das 19 Komponenten-Karten, gruppiert als "Components" (Card,
+  Money, Badge, Table, Navigation, Button, Stats, Icons, PageHeader, Primitives,
+  Swipe, BottomSheet, Kategorienauswahl, Modal), "Feedback" (Loading, ErrorDisplay,
+  Toast) und "Forms" (Input, Form).
+- **Bewusst ausgelassen** (keine eigene DOM-Karte, mit Begründung): Farbsemantik- und
+  Typografie-Sektion, weil sie bereits über die generierten "Colors"-/"Type"-Karten
+  abgedeckt sind (aus denselben Tokens, kein zweites, drift-anfälliges Set); die
+  Voice-Sektion, weil sie reiner Fließtext ist und im Bundle-README/SKILL steht statt
+  in einer Karte.
+- **Portal-Komponenten** (BottomSheet, Kategorienauswahl, Modal) öffnen im Export
+  nacheinander, nicht parallel: jede wird über ihren Trigger geöffnet, eingesammelt und
+  wieder geschlossen, bevor die nächste öffnet (neue Helferfunktion
+  `extractPortalCard` in `scripts/export-design-system.mjs`). Grund und Alternativen:
+  ADR 0027.
+- Verifikation wie beim Erst-Export: zweifacher Lauf byte-identisch, jede
+  `preview/*.html` beginnt in Zeile 1 mit dem `@dsCard`-Marker, headless
+  Screenshot-Stichprobe der neuen Karten (Kategorienauswahl, Modal, Toast, Button)
+  bestätigt korrektes Rendering. Details und Testzahlen: Diary der Task-Datei.
 
 ## Open questions
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht

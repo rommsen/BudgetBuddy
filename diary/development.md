@@ -4,6 +4,109 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 21:50 - Kategorienauswahl im Styleguide, vollständiger Sektions-Export im Claude-Design-Bundle
+
+**What I did:**
+`BottomSheet.categoryPicker` als neue Styleguide-Sektion "Kategorienauswahl" ergänzt
+(erfundene Beispieldaten, Available positiv/negativ/null, Vorschläge + Zuletzt
+verwendet, Suchfeld). Zusätzlich 12 weitere Styleguide-Sektionen mit `data-ds-card`
+markiert und in den Export aufgenommen. Export-Skript um eine Portal-Karten-Helfer-
+funktion und Gruppen-Metadaten erweitert. Kein Zugriff auf `src/Client/styles.css` oder
+Font-Code (Sperrbereich des parallelen Tasks `design-system-f7k2p`).
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0027-kategorienauswahl-und-vollstaendiger-sektions-export.md` -
+  ADR: eine Karte für beide Picker-Zustände, Export-Umfang und -Ausnahmen,
+  sequentielles Öffnen/Schließen der Portal-Karten.
+
+**Files Modified:**
+- `src/Client/Components/Styleguide/View.fs` - `open Shared.Domain` ergänzt; neue
+  Sektion 19 "Kategorienauswahl (Kategorie ändern)" (`CategoryPickerDemo`); `data-ds-card`
+  auf Button-, Stats-, Loading-, ErrorDisplay-, Icons-, PageHeader-, Primitives-,
+  Input-, Form-, Swipe-Sektion ergänzt; Modal- und Toast-Trigger (`data-ds-card-trigger`)
+  ergänzt, Toast-Renderliste in einen `data-ds-card`-Wrapper gehüllt; Swipe/Navigation/
+  Voice-Sektionsnummern um eins verschoben (19→20/21/22).
+- `scripts/export-design-system.mjs` - `COMPONENT_CARDS` um 10 neue Einträge samt
+  `group`-Feld erweitert (Components/Feedback/Forms); neue Konstanten
+  `CATEGORY_PICKER_CARD`, `MODAL_CARD`; neue Helferfunktion `extractPortalCard`
+  (öffnen, Bereitschafts-Selektor abwarten, Markup klonen, schreiben, schließen,
+  Verschwinden der `.active`-Klasse abwarten) für BottomSheet/Kategorienauswahl/Modal;
+  Toast bekommt einen Vorab-Klick vor der Schleife über `COMPONENT_CARDS`; README_MD-
+  Template ("## Komponenten") auf die vollständige Liste aktualisiert.
+- `.agentheim/contexts/design-system/README.md` - `data-ds-card`-Bullet im
+  Export-Bundle-Abschnitt aktualisiert (Verweis auf ADR 0027 statt veralteter
+  Sechs-Komponenten-Liste); neuer Abschnitt "Styleguide-Sektionen im Export
+  (design-system-y6gkd, 2026-09-11)" vor "Open questions".
+
+**Files Deleted:**
+- keine.
+
+**Rationale:**
+Roman fand beim Erst-Sync die Kategorienauswahl im Design-System-Projekt vermisst
+(Ablauf 4 "Kategorie ändern" im Kassenbuch, `ledger-xbrht`, braucht den echten Picker
+als Vorbild statt eines frei erfundenen Mockups) und entschied, dass das UX-Konzept
+mehr als sechs Komponenten braucht.
+
+**Exportierte Sektionen (19 Komponenten-Karten, Gruppe "Components" sofern nicht
+anders vermerkt):** Card, Money, Badge, Table, Navigation, Button, Stats, Icons,
+PageHeader, Primitives, Swipe, BottomSheet, Kategorienauswahl, Modal; Gruppe
+"Feedback": Loading, ErrorDisplay, Toast; Gruppe "Forms": Input, Form.
+
+**Bewusst ausgelassen (mit Begründung):**
+- Farbsemantik-Sektion: bereits über die generierten Token-Karten
+  `color-neon`/`color-surfaces` abgedeckt (dieselben Werte, kein zweites Set).
+- Typografie-Sektion: bereits über die generierte Token-Karte `type-fonts` abgedeckt
+  (dieselben Werte, kein zweites Set).
+- Voice-Sektion: reiner Fließtext ohne visuell prüfbares Markup; steht im
+  Bundle-README/SKILL statt in einer Karte (wie im Task vorgeschlagen).
+
+**Outcomes:**
+- Build: dotnet build (0 Fehler), Fable/`npm run build` (grün, ein bereits bestehender
+  eval-Hinweis in `Rules/State.fs`, nicht Teil dieses Tasks).
+- Tests: `dotnet test` 778 bestanden, 7 übersprungen (Integrationstests brauchen `.env`,
+  unverändert gegenüber vor diesem Task). Kein neuer dotnet-Test: reine Feliz-View-
+  und Node-Export-Änderung ohne testbare pure Funktion (TDD_SKIPPED, wie schon bei
+  `design-system-t82sg`).
+
+**Iteration 2 (2026-09-11, nach Merge mit feature/kassenbuch):**
+Der Konduktor hat `feature/kassenbuch` in dieses Worktree gemergt; alles bis auf
+`scripts/export-design-system.mjs` ging automatisch durch. Konflikt gelöst: eigene
+Logik (`extractPortalCard`, Karten-Gruppen über `card.group`, BottomSheet/
+Kategorienauswahl/Modal-Erfassung) behalten, dabei das `fontsUrl`-Parameter
+durchgängig entfernt (`writePreview`, `extractPortalCard`, `extractPreviews` und alle
+Aufrufstellen), passend zur Font-Selbstauslieferung aus `design-system-f7k2p`/ADR 0026.
+Keine Konfliktmarker mehr (`grep` leer), `node --check` grün. Zusätzlich die
+Verifier-Funde aus Iteration 1 behoben: BC-README-Bullet zu den `@dsCard`-Gruppen
+(jetzt Colors/Type/Components/Feedback/Forms/Brand statt der alten Sechs-Komponenten-
+Liste), "18" auf "19" Komponenten-Karten korrigiert (README-Abschnitt und Diary oben),
+Kategorienauswahl in der "Neu"-Liste ergänzt.
+
+Verifikation: `dotnet build` 0 Fehler; `dotnet test` 784 bestanden/7 übersprungen (neue
+Baseline nach f7k2p, +6 Tests); `npm run build` grün (derselbe bestehende eval-Hinweis);
+`npm run export:design-system` zweimal, `diff -r` zwischen den Läufen leer
+(byte-identisch); Bundle enthält `fonts/` mit den drei woff2-Dateien plus
+`fonts/LICENSE.md`; keine `fonts.googleapis.com`-Referenz im Bundle; alle 23
+`preview/*.html` beginnen in Zeile 1 mit `<!-- @dsCard group="…" -->`; headless
+Screenshot von `components-categorypicker.html` (Playwright, `file://`, cwd =
+Worktree-Root) zeigt Vorschläge, Zuletzt verwendet, beide Gruppen, Suchfeld und alle
+drei Available-Vorzeichen korrekt gerendert, Schriften (Inter/JetBrains Mono) laden
+lokal ohne Netzzugriff.
+- Export: `npm run export:design-system` zweimal ausgeführt, `diff -r` zwischen beiden
+  Läufen leer (byte-identisch). Alle 23 `preview/*.html` beginnen in Zeile 1 mit
+  `<!-- @dsCard group="…" -->` (verifiziert per Skript). Kategorienauswahl-Karte zeigt
+  Vorschläge, Zuletzt verwendet, beide Gruppen und alle drei Available-Vorzeichen
+  (128.40/-32.10/0.00/850.00/-15.50 EUR). Headless Screenshot-Stichprobe (Playwright,
+  Viewport statt Full-Page wegen eines bekannten Full-Page-Screenshot-Artefakts bei
+  `position: fixed`-Inhalten) bestätigt korrektes Rendering für Kategorienauswahl,
+  Modal, Toast (Eintritts-Animation braucht in einer statischen Datei ohne
+  Nutzerinteraktion messbar länger als die deklarierten 0.42s, bis opacity 1 erreicht;
+  Endzustand ist aber korrekt und das exportierte Markup selbst unabhängig davon
+  richtig) und Button.
+- Issues: keine offenen. Die Toast-Eintritts-Animation in der statischen Vorschau ist
+  eine kosmetische Beobachtung (kein Blocker, kein AC betroffen), nicht weiter verfolgt.
+
+---
+
 ## 2026-09-11 21:40 - Iteration 2 von design-system-f7k2p: Schreibstil und ADR-Frontmatter korrigiert
 
 **What I did:**

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 21:56 -- Task verified and completed: design-system-y6gkd - Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export
+
+**Type:** Work / Task completion
+**Task:** design-system-y6gkd - Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export
+**Summary:** Styleguide zeigt die Kategorienauswahl (echter BottomSheet.categoryPicker mit Vorschlägen, Zuletzt verwendet und Available), der Claude-Design-Export enthält jetzt alle Styleguide-Sektionen als 19 Komponenten-Karten
+**Duration:** 43m (21:13 bis 21:56)
+**Verification:** PASS (iteration 2)
+**Files changed:** 5
+**Tests added:** 0
+**ADRs written:** 0027
+
+---
+
+## 2026-09-11 21:46 -- Verification failed: design-system-y6gkd - Kategorienauswahl und alle Sektionen im Export
+
+**Type:** Work / Verification failure
+**Task:** design-system-y6gkd - Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export
+**Iteration:** 1 of 3
+**Reasons:** README-Bullet zu den @dsCard-Gruppen veraltet (nennt nur Colors, Type, Components, Brand; neu sind Feedback und Forms), Kartenzahl im neuen README-Abschnitt und im Diary "18" statt 19; fachlich sonst bestanden (Picker-Karte, 23 Vorschauen mit Marker, Export byte-identisch)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker; zugleich Merge-Konflikt mit dem schon integrierten design-system-f7k2p in scripts/export-design-system.mjs (fontsUrl-Parameter entfallen) im Worktree auflösen, Entscheidung Roman: Worker löst auf
+
+---
+
 ## 2026-09-11 21:43 -- Task verified and completed: design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
 
 **Type:** Work / Task completion
