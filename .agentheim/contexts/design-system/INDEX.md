@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 11
@@ -41,6 +41,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `backlog/design-system-hadjy-export-font-face-absolute-url.md`
 - **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 <!-- backlog-list:end -->
 

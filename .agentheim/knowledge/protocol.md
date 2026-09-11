@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 22:31 -- Capture / Captured: design-system-hadjy - Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Der Export übernimmt die @font-face-Regeln der App mit absolutem src url(/fonts/...); in Claude Design laufen die Font-Anfragen damit an die Origin-Wurzel und liefern 404, die Warnung "Missing brand fonts" bleibt. Fix: url(/fonts/ nach url(fonts/ umschreiben plus Regressionstest. Gefunden beim Re-Sync in ledger-xbrht; Workaround: Bundle von Hand gepatcht, styles.css neu hochgeladen.
+
+---
+
 ## 2026-09-11 22:11 -- Batch started: [ledger-xbrht]
 
 **Type:** Work / Batch start
