@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 11:03 -- Modeling / Captured: ledger-xbrht - UX-Konzept Kassenbuch als Arbeitsfläche
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Roman würde das Kassenbuch nur zum Nachsehen nicht öffnen; es soll die YNAB-Arbeit mindestens so gut abdecken (geprüft markieren am Handy; Filter nach Kategorie, Zeitraum, Payee, Betrag, Memo; Mehrfachauswahl mit Summe; Kategorie und Split ändern; Rückfrage-Flag). Entscheidung Roman: Mockups für das Ziel entwerfen, in Scheiben bauen, lesende zuerst; ob schreibende Scheiben nach v1 vorgezogen werden, fällt nach dem Konzept. Human-Gate in der Hauptsession, hängt an `design-system-h58y4`. Befund: der Spiegel beobachtet heute weder `approved` noch Flags.
+
+---
+
 ## 2026-09-11 10:34 -- Modeling / Captured: design-system-t82sg, design-system-h58y4 - Design-System-Sync nach Claude Design
 
 **Type:** Modeling / Capture

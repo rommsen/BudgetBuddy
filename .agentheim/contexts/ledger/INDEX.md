@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 7
@@ -37,6 +37,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-xbrht** — UX-Konzept Kassenbuch als Arbeitsfläche (Mockups Handy und PC, mindestens YNAB-Niveau) (spike) — `backlog/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 - **ledger-p3n8k** — Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen (feature) — `backlog/ledger-p3n8k-kassenbuch-liste-gel-schte-buchungen-standardm-ig-ausblenden.md`
 - **ledger-h4p6c** — Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push (feature) — `backlog/ledger-h4p6c-spiegel-ausl-ser-frische-kriterium-beim-seitenaufruf-und-lau.md`
 - **ledger-t7v2q** — Übertrag: die beiden Buchungen miteinander verknüpfen (feature) — `backlog/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`

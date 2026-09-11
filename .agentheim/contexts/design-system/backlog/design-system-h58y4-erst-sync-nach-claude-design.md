@@ -7,7 +7,7 @@ context: design-system
 created: 2026-09-11
 completed:
 depends_on: [design-system-t82sg]
-blocks: []
+blocks: [ledger-xbrht]
 tags: [design-system, claude-design, human-gate]
 related_adrs: []
 related_research: []
