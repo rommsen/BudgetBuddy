@@ -10,6 +10,7 @@ open Shared.Domain
 open Ledger.Events
 open Ledger.Domain
 open Ledger.Persistence
+open Ledger.CommandHandlers
 
 // ============================================
 // Bausteine
@@ -758,4 +759,84 @@ let ledgerPersistenceTests =
             | Some found -> Expect.equal found account "Konto vollstaendig zurueckgelesen"
 
             Expect.contains (loadAccounts () |> Async.RunSynchronously) account "Konto ist in der Liste"
+    ]
+
+// ============================================
+// Quick Add: Kassenbuch zuerst, dann Push, dann Verknuepfung (ADR 0021, addCashExpense)
+// ============================================
+
+[<Tests>]
+let ledgerQuickAddCommandTests =
+    testSequenced
+    <| testList "Ledger CommandHandlers (addCashExpense)" [
+
+        testCase "schreibt zuerst CashExpenseAdded, pusht danach und verknuepft mit der Push-Antwort" <| fun () ->
+            let input : CashExpenseInput = {
+                AccountId = testAccountId
+                Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -12.50m
+                Payee = Some "Kiosk"
+                Memo = None
+                Category = None
+            }
+            let ynabTxId = $"ynab-quickadd-{Guid.NewGuid()}"
+            let push () : Async<YnabResult<string>> = async.Return (Ok ynabTxId)
+
+            match
+                addCashExpense (DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)) push input
+                |> Async.RunSynchronously
+            with
+            | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
+            | Ok entryId ->
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "CashExpenseAdded"; "EntryLinkedToYnab" ]
+                    "erst Kassenbuch, dann Verknuepfung"
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.Event.Actor))
+                    [ QuickAdd; QuickAdd ]
+                    "beide Ereignisse tragen die Herkunft Quick Add"
+                Expect.equal
+                    (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously)
+                    (Some entryId)
+                    "ueber die Push-Antwort mit YNAB verknuepft"
+
+        testCase "ein gescheiterter Push laesst die Kassenbuch-Buchung ohne Verknuepfung stehen" <| fun () ->
+            let input : CashExpenseInput = {
+                AccountId = testAccountId
+                Date = DateTime(2026, 3, 2, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -3.20m
+                Payee = Some "Baeckerei Quick-Add-Fehler"
+                Memo = None
+                Category = None
+            }
+            let push () : Async<YnabResult<string>> =
+                async.Return (Error (YnabError.NetworkError "Timeout"))
+
+            let result =
+                addCashExpense (DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc)) push input
+                |> Async.RunSynchronously
+
+            match result with
+            | Ok entryId -> failtest $"addCashExpense sollte den Push-Fehler durchreichen, lieferte stattdessen {entryId}"
+            | Error (YnabError.NetworkError msg) -> Expect.equal msg "Timeout" "Fehler wird unveraendert durchgereicht"
+            | Error other -> failtest $"unerwarteter Fehler: {other}"
+
+            // ADR 0021, Punkt 2: kein Rollback bei Push-Fehler, die Buchung bleibt stehen.
+            let created =
+                loadEntriesForAccount testAccountId
+                |> Async.RunSynchronously
+                |> List.filter (fun e -> e.Payee = Some "Baeckerei Quick-Add-Fehler")
+            Expect.hasLength created 1 "die Kassenbuch-Buchung bleibt trotz Push-Fehler stehen"
+
+            let entryId = created.Head.Id
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            Expect.equal
+                (recorded |> List.map (fun r -> r.EventType))
+                [ "CashExpenseAdded" ]
+                "keine Verknuepfung nach gescheitertem Push"
+            Expect.isNone
+                (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
+                "keine YNAB-Verknuepfung nach gescheitertem Push"
     ]

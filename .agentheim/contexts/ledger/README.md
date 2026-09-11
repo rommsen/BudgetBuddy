@@ -124,6 +124,13 @@ Historie-Technik in der Decision-Task des Architekten.
 ## Key commands
 - *SpiegelÜbernehmen* — Ergebnis eines Spiegel-Laufs aus `ynab-sync` einarbeiten.
 - *BuchungÜbernehmen* — aus der Sync-Pipeline (Comdirect + Kategorie) oder Quick Add.
+  Quick Add: `Ledger.CommandHandlers.addCashExpense` schreibt zuerst `CashExpenseAdded`
+  (Actor `QuickAdd`), ruft danach den Push auf (`YnabClient.createManualTransaction`,
+  liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts) und verknüpft bei
+  Erfolg mit `EntryLinkedToYnab` (ADR 0021, ADR 0015). Scheitert der Push, bleibt die
+  Buchung ohne Verknüpfung stehen, kein Rollback. Ohne ein gespiegeltes Kassenbuch-Konto
+  für das konfigurierte Quick-Add-Konto (Spiegel nie gelaufen) lehnt `Server.Api` mit
+  einer Fehlermeldung ab, statt ein zweites "Bar"-Konto zu erfinden (ADR 0016).
 - *BuchungÄndern* (v2) — Kategorie / Split / Memo in BB ändern, Push folgt.
 - *ÜbertragZusammenführen* (v2).
 - *KontoBewerten* — Kurs holen, Bewertungs-Buchung schreiben.

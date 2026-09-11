@@ -678,4 +678,60 @@ let mirrorRunTests =
                 (List.ofSeq seen)
                 [ None; Some 500L ]
                 "erst Erstbefuellung ohne Knowledge, dann Delta ab dem gemerkten Stand"
+
+        testCase "Quick-Add-Buchung wird vom naechsten Spiegel-Lauf ueber die YNAB-Id gefunden, keine zweite Buchung" <| fun () ->
+            // ADR 0021/ledger-tdnpk: addCashExpense verknuepft die Quick-Add-Buchung schon
+            // ueber die Push-Antwort. Der naechste Spiegel-Lauf muss sie darum ueber die
+            // YNAB-Id treffen (ADR 0015, Match-Reihenfolge) und darf keine zweite Buchung
+            // fuer dieselbe Bar-Ausgabe anlegen.
+            let budgetId = Run.budget "quickadd-mirror"
+            let quickAddYnabAccount = YnabAccountId (Guid.NewGuid())
+            let ledgerAccountId = newLedgerAccountId ()
+            saveAccount {
+                Id = ledgerAccountId
+                Name = "Bar"
+                Kind = CashAccount
+                Link = YnabMirrored quickAddYnabAccount
+                Closed = false
+            }
+            |> Async.RunSynchronously
+
+            let input : CashExpenseInput = {
+                AccountId = ledgerAccountId
+                Date = DateTime(2026, 2, 10, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -6.50m
+                Payee = Some "Kiosk"
+                Memo = None
+                Category = None
+            }
+            let ynabTxId = "quickadd-1"
+            let push () : Async<YnabResult<string>> = async.Return (Ok ynabTxId)
+
+            let entryId =
+                match addCashExpense (Run.at 3) push input |> Async.RunSynchronously with
+                | Ok entryId -> entryId
+                | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
+
+            // Unveraenderte Daten unter derselben YNAB-Id: der Lauf darf nichts Neues sehen.
+            let obs = {
+                observation ynabTxId with
+                    AccountId = quickAddYnabAccount
+                    Date = input.Date
+                    Amount = input.Amount
+                    Payee = input.Payee
+                    Memo = input.Memo
+                    Category = None
+            }
+            let summary = Run.run 4 budgetId (Run.fetchers 99L [ obs ]) |> Run.expectOk
+
+            Expect.equal summary.NewEntries 0 "keine neue Buchung fuer die schon verknuepfte Quick-Add-Buchung"
+            Expect.equal summary.ChangedEntries 0 "unveraenderte Daten ergeben kein Aenderungs-Ereignis"
+            Expect.equal
+                (findEntryByLink YnabSystem ynabTxId |> Async.RunSynchronously)
+                (Some entryId)
+                "die YNAB-Id zeigt weiterhin auf die Quick-Add-Buchung"
+            Expect.hasLength
+                (loadEntriesForAccount ledgerAccountId |> Async.RunSynchronously)
+                1
+                "genau eine Buchung auf dem Bar-Konto"
     ]

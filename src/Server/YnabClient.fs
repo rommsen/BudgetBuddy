@@ -739,13 +739,25 @@ let buildManualTransactionBody (YnabAccountId accountId: YnabAccountId) (request
     ]
     |> Encode.toString 2
 
+/// Liest die YNAB-Transaction-Id aus der Antwort eines Einzel-Posts
+/// (`POST /transactions` mit einem einzelnen `"transaction"`-Objekt, nicht der
+/// Batch-Antwort mit `"transactions"`). Non-private, damit der JSON-Vertrag direkt
+/// testbar ist (Fable.Remoting-Proxy ist nicht .NET-testbar; Muster wie
+/// `encodeSubtransaction`). Fuer Quick Add ist diese Antwort die einzige Stelle, an der
+/// BBs Buchung und YNABs Buchung verbunden werden koennen, da Quick Add keine ImportId
+/// traegt (ADR 0004, ADR 0015).
+let manualTransactionIdDecoder : Decoder<string> =
+    Decode.field "data" (Decode.field "transaction" (Decode.field "id" Decode.string))
+
 /// Creates a single manually entered transaction (Quick Add) in YNAB.
+/// Returns the YNAB transaction id from the response so the caller can link the
+/// Kassenbuch-Buchung to it (`EntryLinkedToYnab`, ADR 0021).
 let createManualTransaction
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
     (accountId: YnabAccountId)
     (request: ManualTransactionRequest)
-    : Async<YnabResult<unit>> =
+    : Async<YnabResult<string>> =
 
     async {
         try
@@ -763,7 +775,11 @@ let createManualTransaction
             printfn "[YNAB] Response Status: %d" statusCode
 
             match statusCode with
-            | 201 -> return Ok ()
+            | 201 ->
+                match Decode.fromString manualTransactionIdDecoder bodyText with
+                | Ok ynabTransactionId -> return Ok ynabTransactionId
+                | Error parseErr ->
+                    return Error (YnabError.InvalidResponse $"Konnte YNAB-Transaction-Id nicht aus der Antwort lesen: {parseErr}")
             | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
             | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
             | 404 -> return Error (YnabError.InvalidResponse "Budget or account not found")

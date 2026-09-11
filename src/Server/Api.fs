@@ -391,12 +391,60 @@ let ynabApi : YnabApi = {
                 | false, _ ->
                     return Error (YnabError.AccountNotFound accountIdStr)
                 | true, accountGuid ->
-                    return!
-                        YnabClient.createManualTransaction
-                            token
-                            (YnabBudgetId budgetId)
-                            (YnabAccountId accountGuid)
-                            validRequest
+                    let ynabAccountId = YnabAccountId accountGuid
+
+                    // ADR 0021: erst Kassenbuch, dann Push. Ohne ein gespiegeltes
+                    // Kassenbuch-Konto fuer das Quick-Add-Konto (der Spiegel ist noch nie
+                    // gelaufen) kann die Buchung nicht zuerst im Kassenbuch entstehen; kein
+                    // Fallback auf ein zweites, unverknuepftes "Bar"-Konto (ADR 0016), kein
+                    // stiller Push ohne Kassenbuch-Eintrag, sondern eine klare Fehlermeldung
+                    // an Roman.
+                    match! Ledger.Persistence.findAccountByYnabAccountId ynabAccountId with
+                    | None ->
+                        return
+                            Error (
+                                YnabError.AccountNotFound
+                                    "Das Quick-Add-Konto ist im Kassenbuch noch nicht bekannt. Einmal \"Jetzt spiegeln\" ausführen, dann erneut versuchen."
+                            )
+                    | Some ledgerAccount ->
+                        let! category = async {
+                            match validRequest.CategoryId with
+                            | None -> return None
+                            | Some categoryId ->
+                                match! YnabClient.getCategories token (YnabBudgetId budgetId) with
+                                | Ok categories ->
+                                    return
+                                        categories
+                                        |> List.tryFind (fun cat -> cat.Id = categoryId)
+                                        |> Option.map (fun cat ->
+                                            ({ CategoryId = cat.Id; CategoryName = cat.Name } : Ledger.Events.CategoryRef))
+                                | Error _ -> return None
+                        }
+
+                        let signedAmount = if validRequest.IsOutflow then -validRequest.Amount else validRequest.Amount
+                        let payee =
+                            if String.IsNullOrWhiteSpace validRequest.PayeeName then None
+                            else Some (validRequest.PayeeName.Trim())
+                        let memo =
+                            validRequest.Memo
+                            |> Option.filter (fun m -> not (String.IsNullOrWhiteSpace m))
+                            |> Option.map (fun m -> m.Trim())
+
+                        let input : Ledger.CommandHandlers.CashExpenseInput = {
+                            AccountId = ledgerAccount.Id
+                            Date = validRequest.Date
+                            Amount = { Amount = signedAmount; Currency = "EUR" }
+                            Payee = payee
+                            Memo = memo
+                            Category = category
+                        }
+
+                        let push () =
+                            YnabClient.createManualTransaction token (YnabBudgetId budgetId) ynabAccountId validRequest
+
+                        match! Ledger.CommandHandlers.addCashExpense DateTime.UtcNow push input with
+                        | Ok _entryId -> return Ok ()
+                        | Error err -> return Error err
     }
 
     getRecentQuickAddTemplates = fun () -> async {

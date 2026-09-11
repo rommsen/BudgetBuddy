@@ -285,6 +285,71 @@ let runMirror
             return! finish (Error $"Spiegel-Lauf abgebrochen: {ex.Message}")
     }
 
+// ============================================
+// Quick Add: Kassenbuch zuerst, dann Push, dann Verknuepfung (ADR 0021)
+// ============================================
+
+/// Die Eingabe einer Quick-Add-Buchung: Konto "Bar" (als Kassenbuch-Konto, nicht als
+/// YNAB-Konto), Betrag, Payee, Memo, Kategorie. Das Aufloesen des Kassenbuch-Kontos aus
+/// dem konfigurierten YNAB-Quick-Add-Konto ist Sache des Aufrufers (`Server.Api`).
+type CashExpenseInput = {
+    AccountId: LedgerAccountId
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    Category: CategoryRef option
+}
+
+/// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `QuickAdd`), ruft
+/// danach `push` auf und verknuepft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
+/// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts, die einzige Stelle,
+/// an der eine Quick-Add-Buchung ohne ImportId verknuepft werden kann (ADR 0004, ADR
+/// 0015). Scheitert der Push, bleibt die Kassenbuch-Buchung unveraendert stehen, kein
+/// Rollback (ADR 0021, Punkt 2); der Fehler wird durchgereicht, die Buchung bleibt ohne
+/// YNAB-Verknuepfung bis zu einem erneuten Push oder dem naechsten Spiegel-Lauf.
+///
+/// `now` und `push` kommen von aussen, damit der Ablauf ohne Uhr und ohne Netz testbar
+/// ist (Muster wie `MirrorFetchers` beim Spiegel-Lauf).
+let addCashExpense
+    (now: DateTime)
+    (push: unit -> Async<YnabResult<string>>)
+    (input: CashExpenseInput)
+    : Async<YnabResult<EntryId>> =
+    async {
+        let entryId = newEntryId ()
+        let cashExpenseAdded = {
+            EntryId = entryId
+            OccurredAt = now
+            Actor = QuickAdd
+            Body =
+                CashExpenseAdded {
+                    AccountId = input.AccountId
+                    Date = input.Date
+                    Amount = input.Amount
+                    Payee = input.Payee
+                    Memo = input.Memo
+                    Category = input.Category
+                    // Manuelle Eintraege sind immer uncleared (ADR 0004, Punkt 4).
+                    Cleared = Uncleared
+                }
+        }
+        do! Ledger.Persistence.appendAndApply [ cashExpenseAdded ]
+
+        match! push () with
+        | Ok ynabTransactionId ->
+            let linked = {
+                EntryId = entryId
+                OccurredAt = now
+                Actor = QuickAdd
+                Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
+            }
+            do! Ledger.Persistence.appendAndApply [ linked ]
+            return Ok entryId
+        | Error err ->
+            return Error err
+    }
+
 /// Verdrahtet den Lauf mit dem echten YNAB-Client und den gespeicherten Einstellungen.
 /// Der manuelle Ausloeser ("Jetzt spiegeln"); Frische-Kriterium und Lauf nach Push sind
 /// Folge-Arbeit (ADR 0014).

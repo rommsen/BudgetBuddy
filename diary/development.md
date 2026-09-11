@@ -4,6 +4,52 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 16:27 - Quick Add: erst Kassenbuch, dann Push, dann Verknüpfung (ledger-tdnpk)
+
+**What I did:**
+`createManualTransaction` liest jetzt die YNAB-Transaction-Id aus der Antwort des
+Einzel-Posts; ein neuer Command-Handler `addCashExpense` schreibt zuerst die
+Kassenbuch-Buchung (`CashExpenseAdded`), pusht danach nach YNAB und verknüpft bei Erfolg
+mit `EntryLinkedToYnab` (ADR 0021). Scheitert der Push, bleibt die Buchung ohne
+Verknüpfung stehen, kein Rollback. `Server.Api.addManualTransaction` verdrahtet das, mit
+unveränderter Client-Signatur; fehlt das gespiegelte Bar-Konto, lehnt der Server mit einer
+klaren Fehlermeldung ab, statt ein zweites Konto zu erfinden.
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - `createManualTransaction` gibt `Async<YnabResult<string>>`
+  zurück; neue Funktion `manualTransactionIdDecoder`.
+- `src/Server/Ledger/CommandHandlers.fs` - neuer Typ `CashExpenseInput` und neue Funktion
+  `addCashExpense`.
+- `src/Server/Api.fs` - `addManualTransaction` löst das Kassenbuch-Konto und die Kategorie
+  auf und ruft `addCashExpense` mit einer Push-Closure auf.
+- `src/Tests/YnabClientTests.fs` - neue Testliste für `manualTransactionIdDecoder`.
+- `src/Tests/LedgerTests.fs` - neue Testliste für `addCashExpense` (Erfolg, Push-Fehler).
+- `src/Tests/LedgerMirrorTests.fs` - neuer Testfall: Spiegel-Lauf nach Quick Add legt keine
+  zweite Buchung an.
+- `.agentheim/contexts/ledger/README.md` - Abschnitt "Key commands" um den tatsächlichen
+  Quick-Add-Ablauf ergänzt.
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Quick Add hat keine ImportId (ADR 0004); die Push-Antwort ist die einzige Stelle, an der
+BBs Buchung und YNABs Buchung verbunden werden können (ADR 0015). Roman hat entschieden,
+dass das Kassenbuch dafür zuerst geschrieben wird (ADR 0021), symmetrisch zum
+Comdirect-Import, damit ein Timeout oder Absturz zwischen Push und Verknüpfung nie die
+BB-Herkunft der Buchung verliert.
+
+**Outcomes:**
+- Build: grün, 0 Warnungen (`dotnet build BudgetBuddy.sln`).
+- Tests: 741 bestanden (5 mehr als vorher), 7 übersprungen (extern), 0 Fehler
+  (`dotnet test src/Tests/Tests.fsproj`).
+- Issues: keine.
+
+---
+
 ## 2026-09-11 12:52 - Nachtrag (ledger-cscw1): mkSplits-Invariante für EntryCategorizedByRule/EntryRecategorized
 
 **What I did:**

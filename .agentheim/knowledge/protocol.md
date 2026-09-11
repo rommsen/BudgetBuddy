@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 16:28 -- Task verified and completed: ledger-tdnpk - "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort"
+
+**Type:** Work / Task completion
+**Task:** ledger-tdnpk - "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort"
+**Summary:** Quick Add schreibt zuerst CashExpenseAdded ins Kassenbuch, pusht dann nach YNAB und verknüpft über die Id aus der Push-Antwort; Push-Fehler lassen die Buchung unverknüpft stehen
+**Duration:** 3h33m (12:54 bis 16:27, darin eine Session-Unterbrechung)
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-09-11 16:31 -- Modeling / Refined: categorization-gdrx8, ledger-qvt84 - Urheber von Order-ID-Kategorien
 
 **Type:** Modeling / Refine

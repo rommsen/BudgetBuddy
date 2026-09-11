@@ -1218,6 +1218,61 @@ let ynabResponseParsingTests =
     ]
 
 // ============================================
+// Quick Add: YNAB-Transaction-Id aus der Antwort des Einzel-Posts (ADR 0015, ADR 0021)
+// ============================================
+//
+// `createManualTransaction` selbst ruft YNAB per HTTP auf und ist nicht .NET-testbar
+// (Fable.Remoting-Proxy-Grenze); `manualTransactionIdDecoder` ist die reine
+// Antwort-Auswertung und wird hier gegen eine repraesentative, aufgezeichnete
+// YNAB-Antwort getestet (`POST /transactions` mit einem einzelnen "transaction",
+// nicht dem Batch-"transactions"-Array).
+
+[<Tests>]
+let manualTransactionIdDecoderTests =
+    testList "manualTransactionIdDecoder (Quick Add, Einzel-Post-Antwort)" [
+        testCase "liest die YNAB-Transaction-Id aus der Antwort eines Einzel-Posts" <| fun () ->
+            let ynabResponse = """
+            {
+                "data": {
+                    "transaction_ids": ["b1d4c2e0-5f2a-4b8e-9c1a-000000000001"],
+                    "transaction": {
+                        "id": "b1d4c2e0-5f2a-4b8e-9c1a-000000000001",
+                        "date": "2026-09-11",
+                        "amount": -4500,
+                        "memo": null,
+                        "cleared": "uncleared",
+                        "approved": true,
+                        "account_id": "a1000000-0000-0000-0000-000000000001",
+                        "payee_id": "p1000000-0000-0000-0000-000000000001",
+                        "category_id": null
+                    },
+                    "server_knowledge": 12345
+                }
+            }
+            """
+
+            match Decode.fromString manualTransactionIdDecoder ynabResponse with
+            | Ok id -> Expect.equal id "b1d4c2e0-5f2a-4b8e-9c1a-000000000001" "YNAB-Transaction-Id aus data.transaction.id"
+            | Error err -> failtest $"Failed to parse YNAB response: {err}"
+
+        testCase "eine Antwort ohne transaction liefert einen Decode-Fehler statt einer falschen Id" <| fun () ->
+            // Die Batch-Antwort (data.transactions, kein data.transaction) darf nicht
+            // stillschweigend als Einzel-Post-Antwort durchgehen.
+            let batchResponse = """
+            {
+                "data": {
+                    "transactions": [ { "id": "tx-1", "amount": -4500 } ],
+                    "duplicate_import_ids": []
+                }
+            }
+            """
+
+            match Decode.fromString manualTransactionIdDecoder batchResponse with
+            | Ok id -> failtest $"sollte scheitern, lieferte stattdessen {id}"
+            | Error _ -> ()
+    ]
+
+// ============================================
 // Regression: Erstbefuellung des Spiegels muss wirklich alles holen
 // ============================================
 //
