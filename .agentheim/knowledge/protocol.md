@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 12:53 -- Task verified and completed: ledger-cscw1 - "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung"
+
+**Type:** Work / Task completion
+**Task:** ledger-cscw1 - "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung"
+**Summary:** Fünf Entscheidungs-Ereignisse mit Payloads in Events, apply und Codec; apply lehnt zweite Entstehung, Regel auf kategorisierter Buchung und ungültige Splits (mkSplits) ab; Replay deckt alle drei Entstehungsarten ab
+**Duration:** 25m
+**Verification:** PASS (iteration 2)
+**Files changed:** 6
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
+## 2026-09-11 12:52 -- Verification failed: categorization-gdrx8 - Review-Spur in der SyncTransaction
+
+**Type:** Work / Verification failure
+**Task:** categorization-gdrx8 - Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest
+**Iteration:** 1 of 3
+**Reasons:** Zwei Order-ID-Pfade (`OrderIdMatcher.applySuggestions` beim Abruf, `OrderIdMatcher.propagateInSession` in der Review) setzen Kategorien ohne ReviewStep; solche Buchungen gingen mit Kategorie nach YNAB, das Kassenbuch (`ledger-qvt84`) bekäme kein Kategorisierungs-Ereignis. `ReviewActor` (`ByRule | ByUser`) hat keinen Fall für den Vorschlag aus der YNAB-Historie; die Herkunft ist eine fachliche Entscheidung. Drei Stilfehler. Übrige Checks grün (725 Tests, npm run build, Migration)
+**Iteration hint:** task-under-specified
+**Next:** escalated to user (fachliche Entscheidung zur Herkunft von Order-ID-Kategorien); Worktree bleibt erhalten
+
+---
+
+## 2026-09-11 12:43 -- Verification failed: ledger-cscw1 - Ereignis-Katalog: Entscheidungs-Ereignisse
+
+**Type:** Work / Verification failure
+**Task:** ledger-cscw1 - Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung
+**Iteration:** 1 of 3
+**Reasons:** `apply` prüft bei `EntryCategorizedByRule`/`EntryRecategorized` nur den Ausschluss von Kategorie und Splits, nicht die `mkSplits`-Invarianten (mindestens 2 Zeilen, Summe gleich Buchungsbetrag), obwohl der Task sie verlangt; kein Test dafür; README nennt die Regel ebenfalls nicht. Übrige Checks grün (731 Tests, 0 Warnungen, Spiegel unverändert)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-11 12:26 -- Batch started: [design-system-t82sg, ledger-cscw1, categorization-gdrx8]
 
 **Type:** Work / Batch start

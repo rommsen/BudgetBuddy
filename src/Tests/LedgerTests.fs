@@ -88,6 +88,50 @@ let private clearedChange = EntryClearedStateChangeObservedInYnab {
     NewCleared = Cleared
 }
 
+let private categoryDrogerie = category "Drogerie"
+
+let private categoryHaushalt = {
+    CategoryId = YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000ee")
+    CategoryName = "Haushalt"
+}
+
+let private importedFromComdirectPayload (importId: string) (comdirectRef: string) : EntryImportedFromComdirectPayload = {
+    AccountId = testAccountId
+    ImportId = importId
+    ComdirectReference = comdirectRef
+    Date = DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)
+    Amount = eur -17.40m
+    Payee = Some "dm"
+    Memo = None
+    Cleared = Uncleared
+}
+
+let private cashExpenseAddedPayload : CashExpenseAddedPayload = {
+    AccountId = testAccountId
+    Date = DateTime(2026, 2, 5, 0, 0, 0, DateTimeKind.Utc)
+    Amount = eur -8.00m
+    Payee = Some "Baecker"
+    Memo = None
+    Category = None
+    Cleared = Uncleared
+}
+
+let private categorizedByRule = EntryCategorizedByRule {
+    RuleName = "dm -> Drogerie"
+    Category = Some categoryDrogerie
+    Splits = []
+    PayeeOverride = None
+}
+
+let private recategorized = EntryRecategorized {
+    OldCategory = Some categoryDrogerie
+    NewCategory = Some categoryHaushalt
+    OldSplits = []
+    NewSplits = []
+    OldPayee = Some "dm"
+    NewPayee = Some "dm-Filiale"
+}
+
 let private entryIdText (EntryId id) = id.ToString()
 
 // ============================================
@@ -163,6 +207,185 @@ let ledgerDomainTests =
                 (fun () -> apply None (eventOn entryId YnabMirror clearedChange) |> ignore)
                 "ein Aenderungs-Ereignis ohne vorherige Buchung ist ein kaputtes Log"
 
+        testCase "Comdirect-Import erzeugt eine kategorielose Buchung" <| fun () ->
+            let entryId = newEntryId ()
+            let payload = importedFromComdirectPayload "import-10" "comdirect-10"
+            let entry =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect payload))
+
+            Expect.equal entry.AccountId payload.AccountId "Konto uebernommen"
+            Expect.equal entry.Amount payload.Amount "Betrag uebernommen"
+            Expect.equal entry.Payee payload.Payee "Payee uebernommen"
+            Expect.isNone entry.Category "kategorielos: die Regel entscheidet in einem eigenen Ereignis"
+            Expect.isEmpty entry.Splits "keine Splits bei der Entstehung"
+            Expect.isFalse entry.DeletedInYnab "frisch entstandene Buchung ist nicht geloescht"
+
+        testCase "Quick Add erzeugt eine Buchung mit optionaler Kategorie" <| fun () ->
+            let entryId = newEntryId ()
+            let payload = { cashExpenseAddedPayload with Category = Some categoryHaushalt }
+            let entry = apply None (eventOn entryId QuickAdd (CashExpenseAdded payload))
+
+            Expect.equal entry.AccountId payload.AccountId "Konto uebernommen"
+            Expect.equal entry.Amount payload.Amount "Betrag uebernommen"
+            Expect.equal entry.Category (Some categoryHaushalt) "Quick Add darf sofort kategorisieren"
+            Expect.isEmpty entry.Splits "keine Splits bei der Entstehung"
+
+        testCase "Regel kategorisiert eine unkategorisierte Buchung" <| fun () ->
+            let entryId = newEntryId ()
+            let uncategorized =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-11" "comdirect-11")))
+            let after = apply (Some uncategorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) categorizedByRule)
+
+            Expect.equal after.Category (Some categoryDrogerie) "Kategorie von der Regel uebernommen"
+            Expect.isEmpty after.Splits "keine Splits bei Kategorie-Zuordnung"
+            Expect.equal after.Payee uncategorized.Payee "kein PayeeOverride gesetzt, Payee bleibt"
+
+        testCase "Regel mit PayeeOverride ersetzt den Payee" <| fun () ->
+            let entryId = newEntryId ()
+            let uncategorized =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-11o" "comdirect-11o")))
+            let withOverride =
+                EntryCategorizedByRule { RuleName = "dm -> Drogerie"; Category = Some categoryDrogerie; Splits = []; PayeeOverride = Some "dm Drogeriemarkt" }
+            let after = apply (Some uncategorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) withOverride)
+
+            Expect.equal after.Payee (Some "dm Drogeriemarkt") "PayeeOverride ersetzt den Payee"
+
+        testCase "Regel schlaegt fehl auf einer bereits kategorisierten Buchung" <| fun () ->
+            let entryId = newEntryId ()
+            let categorized = apply None (observedEvent entryId (observedPayload "ynab-12" None))
+            Expect.throws
+                (fun () -> apply (Some categorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) categorizedByRule) |> ignore)
+                "EntryCategorizedByRule ist nur auf einer noch unkategorisierten Buchung zulaessig"
+
+        testCase "Regel: Kategorie und Splits schliessen sich aus" <| fun () ->
+            let entryId = newEntryId ()
+            let uncategorized =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-13" "comdirect-13")))
+            let invalid =
+                EntryCategorizedByRule { RuleName = "kaputte Regel"; Category = Some categoryDrogerie; Splits = splitLines; PayeeOverride = None }
+            Expect.throws
+                (fun () -> apply (Some uncategorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) invalid) |> ignore)
+                "Kategorie und Splits schliessen sich aus, auch bei EntryCategorizedByRule"
+
+        testCase "Regel: Splits mit falscher Summe werden abgelehnt (mkSplits)" <| fun () ->
+            let entryId = newEntryId ()
+            let uncategorized =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-13b" "comdirect-13b")))
+            // importedFromComdirectPayload traegt -17,40 EUR; splitLines summiert auf -43,10 EUR.
+            let wrongSum =
+                EntryCategorizedByRule { RuleName = "Summe passt nicht"; Category = None; Splits = splitLines; PayeeOverride = None }
+            Expect.throws
+                (fun () -> apply (Some uncategorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) wrongSum) |> ignore)
+                "mkSplits: die vorzeichenrichtige Summe der Splits muss dem Buchungsbetrag entsprechen"
+
+        testCase "Regel: eine einzelne Split-Zeile wird abgelehnt (mkSplits: mindestens zwei Zeilen)" <| fun () ->
+            let entryId = newEntryId ()
+            let uncategorized =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-13c" "comdirect-13c")))
+            let singleLine = [
+                { Target = ToCategory (YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000ff"), "Einzelposten")
+                  Amount = uncategorized.Amount
+                  Memo = None }
+            ]
+            let oneLine =
+                EntryCategorizedByRule { RuleName = "nur eine Zeile"; Category = None; Splits = singleLine; PayeeOverride = None }
+            Expect.throws
+                (fun () -> apply (Some uncategorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) oneLine) |> ignore)
+                "mkSplits: ein Split von nur einer Zeile ist keiner"
+
+        testCase "Regel: gueltige Splits werden uebernommen (mkSplits erfuellt)" <| fun () ->
+            let entryId = newEntryId ()
+            let uncategorized =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-13d" "comdirect-13d")))
+            let validSplits = [
+                { Target = ToCategory (YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000bb"), "Haushalt")
+                  Amount = eur -10.00m
+                  Memo = None }
+                { Target = ToCategory (YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000cc"), "Sonstiges")
+                  Amount = eur -7.40m
+                  Memo = None }
+            ]
+            let valid =
+                EntryCategorizedByRule { RuleName = "gueltige Splits"; Category = None; Splits = validSplits; PayeeOverride = None }
+            let after = apply (Some uncategorized) (eventOn entryId (Rule (RuleId (Guid.NewGuid()))) valid)
+            Expect.equal after.Splits validSplits "gueltige Splits (mkSplits erfuellt) werden uebernommen"
+
+        testCase "Recategorized uebernimmt neue Kategorie, Splits und Payee" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-14" None))
+            let after = apply (Some before) (eventOn entryId UserInBb recategorized)
+
+            Expect.equal after.Category (Some categoryHaushalt) "neue Kategorie uebernommen"
+            Expect.isEmpty after.Splits "keine Splits nach dieser Umkategorisierung"
+            Expect.equal after.Payee (Some "dm-Filiale") "neuer Payee uebernommen"
+
+        testCase "Recategorized: Splits mit falscher Summe werden abgelehnt (mkSplits)" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-14b" None))
+            // observedPayload traegt -42,50 EUR; splitLines summiert auf -43,10 EUR.
+            let wrongSum =
+                EntryRecategorized {
+                    OldCategory = before.Category
+                    NewCategory = None
+                    OldSplits = []
+                    NewSplits = splitLines
+                    OldPayee = before.Payee
+                    NewPayee = before.Payee
+                }
+            Expect.throws
+                (fun () -> apply (Some before) (eventOn entryId UserInBb wrongSum) |> ignore)
+                "mkSplits: die Summe der neuen Splits muss dem Buchungsbetrag entsprechen"
+
+        testCase "Recategorized: eine einzelne Split-Zeile wird abgelehnt (mkSplits: mindestens zwei Zeilen)" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-14c" None))
+            let singleLine = [
+                { Target = ToCategory (YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000ff"), "Einzelposten")
+                  Amount = before.Amount
+                  Memo = None }
+            ]
+            let oneLine =
+                EntryRecategorized {
+                    OldCategory = before.Category
+                    NewCategory = None
+                    OldSplits = []
+                    NewSplits = singleLine
+                    OldPayee = before.Payee
+                    NewPayee = before.Payee
+                }
+            Expect.throws
+                (fun () -> apply (Some before) (eventOn entryId UserInBb oneLine) |> ignore)
+                "mkSplits: ein Split von nur einer Zeile ist keiner"
+
+        testCase "EntryLinkedToYnab veraendert die Buchung nicht, verlangt aber eine bestehende" <| fun () ->
+            let entryId = newEntryId ()
+            let before =
+                apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-15" "comdirect-15")))
+            let after =
+                apply (Some before) (eventOn entryId ComdirectImport (EntryLinkedToYnab { YnabTransactionId = "ynab-15" }))
+
+            Expect.equal after before "EntryLinkedToYnab wirkt nur auf die Fremd-Id-Tabelle, nicht auf den Entry-Zustand"
+
+            let entryId2 = newEntryId ()
+            Expect.throws
+                (fun () -> apply None (eventOn entryId2 YnabMirror (EntryLinkedToYnab { YnabTransactionId = "ynab-16" })) |> ignore)
+                "EntryLinkedToYnab ohne vorangehende Entstehung ist ein kaputtes Log"
+
+        testCase "zwei Entstehungs-Ereignisse auf derselben Buchung schlagen fehl" <| fun () ->
+            let creationBodies () = [
+                EntryObservedInYnab (observedPayload "ynab-dup" None)
+                EntryImportedFromComdirect (importedFromComdirectPayload "import-dup" "comdirect-dup")
+                CashExpenseAdded cashExpenseAddedPayload
+            ]
+
+            for firstBody in creationBodies () do
+                for secondBody in creationBodies () do
+                    let entryId = newEntryId ()
+                    let first = apply None (eventOn entryId UserInBb firstBody)
+                    Expect.throws
+                        (fun () -> apply (Some first) (eventOn entryId UserInBb secondBody) |> ignore)
+                        $"ein zweites Entstehungs-Ereignis ({eventTypeName firstBody} gefolgt von {eventTypeName secondBody}) darf nicht durchgehen"
+
         testCase "replay faltet eine ganze Historie" <| fun () ->
             let entryId = newEntryId ()
             let history = [
@@ -185,6 +408,11 @@ let ledgerDomainTests =
                 categorizationChange
                 clearedChange
                 EntryDeletionObservedInYnab
+                EntryImportedFromComdirect (importedFromComdirectPayload "import-7" "comdirect-7")
+                categorizedByRule
+                recategorized
+                CashExpenseAdded cashExpenseAddedPayload
+                EntryLinkedToYnab { YnabTransactionId = "ynab-7-linked" }
             ]
             let names = bodies |> List.map eventTypeName
             Expect.equal
@@ -193,7 +421,12 @@ let ledgerDomainTests =
                   "EntryDetailsChangeObservedInYnab"
                   "EntryCategorizationChangeObservedInYnab"
                   "EntryClearedStateChangeObservedInYnab"
-                  "EntryDeletionObservedInYnab" ]
+                  "EntryDeletionObservedInYnab"
+                  "EntryImportedFromComdirect"
+                  "EntryCategorizedByRule"
+                  "EntryRecategorized"
+                  "CashExpenseAdded"
+                  "EntryLinkedToYnab" ]
                 "Ereignisnamen sind fachlich, in Vergangenheitsform, kein CRUD-Naming"
             Expect.all (bodies |> List.map schemaVersion) (fun v -> v >= 1) "Schema-Version ab 1"
 
@@ -209,6 +442,13 @@ let ledgerDomainTests =
                 categorizationChange
                 clearedChange
                 EntryDeletionObservedInYnab
+                EntryImportedFromComdirect (importedFromComdirectPayload "import-8b" "comdirect-8b")
+                categorizedByRule
+                EntryCategorizedByRule { RuleName = "mit Splits"; Category = None; Splits = splitLines; PayeeOverride = Some "Override" }
+                recategorized
+                CashExpenseAdded cashExpenseAddedPayload
+                CashExpenseAdded { cashExpenseAddedPayload with Category = Some categoryHaushalt }
+                EntryLinkedToYnab { YnabTransactionId = "ynab-8-linked" }
             ]
             for body in bodies do
                 let json = encodePayload body
@@ -227,6 +467,24 @@ let ledgerDomainTests =
             Expect.equal (links |> List.map (fun l -> l.System, l.Value))
                 [ YnabSystem, "ynab-9"; ImportIdSystem, "import-9" ]
                 "YNAB-Id und ImportId als Verknuepfungen"
+
+        testCase "Comdirect-Import stiftet ImportId- und Comdirect-Verknuepfung" <| fun () ->
+            let entryId = newEntryId ()
+            let links =
+                linksFrom (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-17" "comdirect-17")))
+            Expect.equal (links |> List.map (fun l -> l.System, l.Value))
+                [ ImportIdSystem, "import-17"; ComdirectSystem, "comdirect-17" ]
+                "ImportId und Comdirect-Reference als Verknuepfungen, keine YNAB-Id vor dem Push"
+
+        testCase "EntryLinkedToYnab stiftet die YNAB-Verknuepfung" <| fun () ->
+            let entryId = newEntryId ()
+            let links = linksFrom (eventOn entryId ComdirectImport (EntryLinkedToYnab { YnabTransactionId = "ynab-18" }))
+            Expect.equal (links |> List.map (fun l -> l.System, l.Value)) [ YnabSystem, "ynab-18" ] "YNAB-Id als Verknuepfung"
+
+        testCase "CashExpenseAdded stiftet keine Fremd-Id-Verknuepfung" <| fun () ->
+            let entryId = newEntryId ()
+            let links = linksFrom (eventOn entryId QuickAdd (CashExpenseAdded cashExpenseAddedPayload))
+            Expect.isEmpty links "Quick Add hat keine ImportId (ADR 0004), Verknuepfung folgt erst mit EntryLinkedToYnab"
 
         testCase "Actor ueberlebt die Persistenzform" <| fun () ->
             let ruleId = RuleId (Guid.NewGuid())
@@ -351,6 +609,59 @@ let ledgerPersistenceTests =
             Expect.isNonEmpty fromTables "es gibt Buchungen zu vergleichen"
             Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen ueberein"
 
+        testCase "Replay rekonstruiert Buchungen aus allen drei Entstehungsarten, kategorisiert und verknuepft" <| fun () ->
+            // AC: der Replay-Test muss den Zustand fuer Buchungen rekonstruieren, die mit
+            // jeder der drei Entstehungsarten beginnen und danach kategorisiert und
+            // verknuepft werden (EntryObservedInYnab, EntryImportedFromComdirect,
+            // CashExpenseAdded).
+            let observedId = newEntryId ()
+            let importedId = newEntryId ()
+            let cashId = newEntryId ()
+            let importedYnabTxId = $"ynab-linked-{entryIdText importedId}"
+            let cashYnabTxId = $"ynab-linked-{entryIdText cashId}"
+
+            appendAndApply [
+                // Entstehung 1: YNAB-Beobachtung, danach in BB umkategorisiert.
+                observedEvent observedId (observedPayload $"ynab-{entryIdText observedId}" None)
+                eventOn observedId UserInBb recategorized
+
+                // Entstehung 2: Comdirect-Import (kategorielos), per Regel kategorisiert,
+                // dann per Push-Antwort mit YNAB verknuepft (ADR 0021).
+                eventOn
+                    importedId
+                    ComdirectImport
+                    (EntryImportedFromComdirect (importedFromComdirectPayload $"import-{entryIdText importedId}" $"comdirect-{entryIdText importedId}"))
+                eventOn importedId (Rule (RuleId (Guid.NewGuid()))) categorizedByRule
+                eventOn importedId ComdirectImport (EntryLinkedToYnab { YnabTransactionId = importedYnabTxId })
+
+                // Entstehung 3: Quick Add mit sofortiger Kategorie, danach verknuepft.
+                eventOn cashId QuickAdd (CashExpenseAdded { cashExpenseAddedPayload with Category = Some categoryHaushalt })
+                eventOn cashId QuickAdd (EntryLinkedToYnab { YnabTransactionId = cashYnabTxId })
+            ]
+            |> Async.RunSynchronously
+
+            let byId (entries: Entry list) =
+                entries |> List.sortBy (fun e -> entryIdText e.Id)
+
+            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
+            let fromLog = replayAll () |> Async.RunSynchronously |> byId
+            Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen fuer alle drei Entstehungsarten ueberein"
+
+            let imported = fromTables |> List.find (fun e -> e.Id = importedId)
+            Expect.equal imported.Category (Some categoryDrogerie) "per Regel kategorisierte Comdirect-Buchung"
+
+            let cash = fromTables |> List.find (fun e -> e.Id = cashId)
+            Expect.equal cash.Category (Some categoryHaushalt) "Quick-Add-Buchung traegt ihre Kategorie"
+
+            Expect.equal
+                (findEntryByLink YnabSystem importedYnabTxId |> Async.RunSynchronously)
+                (Some importedId)
+                "Comdirect-Buchung ist ueber die Push-Antwort mit YNAB verknuepft"
+            Expect.equal
+                (findEntryByLink YnabSystem cashYnabTxId |> Async.RunSynchronously)
+                (Some cashId)
+                "Quick-Add-Buchung ist ueber die Push-Antwort mit YNAB verknuepft"
+
         testCase "schlaegt das Zustands-Update fehl, steht auch kein Ereignis im Log" <| fun () ->
             // Ein Aenderungs-Ereignis auf eine unbekannte Buchung laesst `apply` scheitern,
             // nachdem das Ereignis bereits in die Transaktion geschrieben wurde. Der
@@ -381,6 +692,24 @@ let ledgerPersistenceTests =
                 (loadEventsForEntry secondId |> Async.RunSynchronously)
                 "kein Ereignis der abgelehnten Buchung im Log"
             Expect.isNone (loadEntry secondId |> Async.RunSynchronously) "kein Zustand der abgelehnten Buchung"
+
+        testCase "ein zweites Entstehungs-Ereignis in appendAndApply nimmt die ganze Buchung zurueck" <| fun () ->
+            let entryId = newEntryId ()
+            appendAndApply [
+                observedEvent entryId (observedPayload $"ynab-{entryIdText entryId}" None)
+            ]
+            |> Async.RunSynchronously
+
+            Expect.throws
+                (fun () ->
+                    appendAndApply [
+                        eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload $"import-{entryIdText entryId}" $"comdirect-{entryIdText entryId}"))
+                    ]
+                    |> Async.RunSynchronously)
+                "ein zweites Entstehungs-Ereignis auf derselben Buchung schlaegt fehl"
+
+            let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+            Expect.equal (recorded |> List.map (fun r -> r.EventType)) [ "EntryObservedInYnab" ] "nur die erste Entstehung steht im Log"
 
         testCase "Fremd-Ids der Erstbeobachtung sind verknuepft und auffindbar" <| fun () ->
             let entryId = newEntryId ()

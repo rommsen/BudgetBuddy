@@ -116,6 +116,63 @@ type EntryClearedStateChangeObservedInYnabPayload = {
     NewCleared: ClearedState
 }
 
+// ============================================
+// Entscheidungs-Familie
+// ============================================
+// BB hat selbst etwas festgelegt. Payloads modelliert mit dem tactical-modeler
+// (2026-09-11), Reihenfolge und `EntryLinkedToYnab` aus ADR 0021.
+
+/// Comdirect-Buchung beim Push angelegt. Traegt bewusst keine Kategorie: jede Buchung
+/// entsteht kategorielos, die Kategorisierung folgt als eigenes Ereignis in derselben
+/// Sequenz (Regel oder Roman).
+type EntryImportedFromComdirectPayload = {
+    AccountId: LedgerAccountId
+    ImportId: string
+    ComdirectReference: string
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    Cleared: ClearedState
+}
+
+/// Eine Kategorisierungs-Regel hat entschieden. Nur auf einer noch unkategorisierten
+/// Buchung zulaessig (Invariante in `apply`); der Actor traegt die `RuleId`.
+type EntryCategorizedByRulePayload = {
+    RuleName: string
+    Category: CategoryRef option
+    Splits: TransactionSplit list
+    PayeeOverride: string option
+}
+
+/// Roman hat in BB kategorisiert oder umkategorisiert (Actor `UserInBb`).
+type EntryRecategorizedPayload = {
+    OldCategory: CategoryRef option
+    NewCategory: CategoryRef option
+    OldSplits: TransactionSplit list
+    NewSplits: TransactionSplit list
+    OldPayee: string option
+    NewPayee: string option
+}
+
+/// Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`). Keine ImportId
+/// (ADR 0004): Quick Add wird ueber die Push-Antwort verknuepft, nicht ueber Dedup.
+type CashExpenseAddedPayload = {
+    AccountId: LedgerAccountId
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    Category: CategoryRef option
+    Cleared: ClearedState
+}
+
+/// Die YNAB-Id ist bekannt geworden: aus der Push-Antwort (Actor `ComdirectImport`
+/// bzw. `QuickAdd`) oder weil der Spiegel eine unverknuepfte Buchung ueber die ImportId
+/// gefunden hat (Actor `YnabMirror`). ADR 0021: eigenes Ereignis, sonst koennte Replay
+/// die Verknuepfung nicht aus dem Log herleiten.
+type EntryLinkedToYnabPayload = { YnabTransactionId: string }
+
 /// Der fachliche Inhalt eines Ereignisses.
 type LedgerEventBody =
     | EntryObservedInYnab of EntryObservedInYnabPayload
@@ -125,23 +182,21 @@ type LedgerEventBody =
     /// In YNAB geloescht gesehen. Nur Umschlag, keine Payload; der Zustand behaelt die
     /// Buchung und setzt das Flag `DeletedInYnab`.
     | EntryDeletionObservedInYnab
+    | EntryImportedFromComdirect of EntryImportedFromComdirectPayload
+    | EntryCategorizedByRule of EntryCategorizedByRulePayload
+    | EntryRecategorized of EntryRecategorizedPayload
+    | CashExpenseAdded of CashExpenseAddedPayload
+    | EntryLinkedToYnab of EntryLinkedToYnabPayload
 
 // ============================================
-// Entscheidungs-Familie: reservierte Namen
+// Entscheidungs-Familie: noch reservierter Name
 // ============================================
 
-/// Die Namen der Entscheidungs-Ereignisse (BB hat etwas festgelegt), reserviert damit
+/// Der Name des letzten noch unmodellierten Entscheidungs-Ereignisses, reserviert damit
 /// die Sprache vollstaendig ist. Bewusst ein eigenes DU und **nicht** Teil von
-/// `LedgerEventBody`: die Payloads werden erst in den jeweiligen spaeteren Slices
-/// modelliert, und ein Payload waere hier erfunden. Sobald ein Slice seine Payload
-/// festlegt, wandert der Name als vollwertiger Fall nach `LedgerEventBody`.
-/// Wird in diesem Slice weder erzeugt noch gespeichert.
-type ReservedDecisionEventName =
-    | EntryImportedFromComdirect
-    | EntryCategorizedByRule
-    | EntryRecategorized
-    | CashExpenseAdded
-    | ValuationRecorded
+/// `LedgerEventBody`: die Payload wird erst modelliert, wenn ihr Slice (Bewertung des
+/// Wertpapierkontos) sie braucht. Wird in diesem Slice weder erzeugt noch gespeichert.
+type ReservedDecisionEventName = ValuationRecorded
 
 // ============================================
 // Umschlag
@@ -175,6 +230,11 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryCategorizationChangeObservedInYnab _ -> "EntryCategorizationChangeObservedInYnab"
     | EntryClearedStateChangeObservedInYnab _ -> "EntryClearedStateChangeObservedInYnab"
     | EntryDeletionObservedInYnab -> "EntryDeletionObservedInYnab"
+    | EntryImportedFromComdirect _ -> "EntryImportedFromComdirect"
+    | EntryCategorizedByRule _ -> "EntryCategorizedByRule"
+    | EntryRecategorized _ -> "EntryRecategorized"
+    | CashExpenseAdded _ -> "CashExpenseAdded"
+    | EntryLinkedToYnab _ -> "EntryLinkedToYnab"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
@@ -186,6 +246,11 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryCategorizationChangeObservedInYnab _ -> 1
     | EntryClearedStateChangeObservedInYnab _ -> 1
     | EntryDeletionObservedInYnab -> 1
+    | EntryImportedFromComdirect _ -> 1
+    | EntryCategorizedByRule _ -> 1
+    | EntryRecategorized _ -> 1
+    | CashExpenseAdded _ -> 1
+    | EntryLinkedToYnab _ -> 1
 
 // ============================================
 // JSON-Codecs
@@ -408,6 +473,96 @@ module Codec =
             NewCleared = get.Required.Field "newCleared" decodeClearedState
         })
 
+    let encodeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
+        Encode.object [
+            "accountId", encodeAccountId p.AccountId
+            "importId", Encode.string p.ImportId
+            "comdirectReference", Encode.string p.ComdirectReference
+            "date", encodeDate p.Date
+            "amount", encodeMoney p.Amount
+            "payee", encodeOptionalString p.Payee
+            "memo", encodeOptionalString p.Memo
+            "cleared", encodeClearedState p.Cleared
+        ]
+
+    let decodeImportedFromComdirect : Decoder<EntryImportedFromComdirectPayload> =
+        Decode.object (fun get -> {
+            AccountId = get.Required.Field "accountId" decodeAccountId
+            ImportId = get.Required.Field "importId" Decode.string
+            ComdirectReference = get.Required.Field "comdirectReference" Decode.string
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Cleared = get.Required.Field "cleared" decodeClearedState
+        })
+
+    let encodeCategorizedByRule (p: EntryCategorizedByRulePayload) =
+        Encode.object [
+            "ruleName", Encode.string p.RuleName
+            "category", encodeOption encodeCategory p.Category
+            "splits", encodeSplits p.Splits
+            "payeeOverride", encodeOptionalString p.PayeeOverride
+        ]
+
+    let decodeCategorizedByRule : Decoder<EntryCategorizedByRulePayload> =
+        Decode.object (fun get -> {
+            RuleName = get.Required.Field "ruleName" Decode.string
+            Category = get.Optional.Field "category" decodeCategory
+            Splits = get.Optional.Field "splits" decodeSplits |> Option.defaultValue []
+            PayeeOverride = get.Optional.Field "payeeOverride" Decode.string
+        })
+
+    let encodeRecategorized (p: EntryRecategorizedPayload) =
+        Encode.object [
+            "oldCategory", encodeOption encodeCategory p.OldCategory
+            "newCategory", encodeOption encodeCategory p.NewCategory
+            "oldSplits", encodeSplits p.OldSplits
+            "newSplits", encodeSplits p.NewSplits
+            "oldPayee", encodeOptionalString p.OldPayee
+            "newPayee", encodeOptionalString p.NewPayee
+        ]
+
+    let decodeRecategorized : Decoder<EntryRecategorizedPayload> =
+        Decode.object (fun get -> {
+            OldCategory = get.Optional.Field "oldCategory" decodeCategory
+            NewCategory = get.Optional.Field "newCategory" decodeCategory
+            OldSplits = get.Optional.Field "oldSplits" decodeSplits |> Option.defaultValue []
+            NewSplits = get.Optional.Field "newSplits" decodeSplits |> Option.defaultValue []
+            OldPayee = get.Optional.Field "oldPayee" Decode.string
+            NewPayee = get.Optional.Field "newPayee" Decode.string
+        })
+
+    let encodeCashExpenseAdded (p: CashExpenseAddedPayload) =
+        Encode.object [
+            "accountId", encodeAccountId p.AccountId
+            "date", encodeDate p.Date
+            "amount", encodeMoney p.Amount
+            "payee", encodeOptionalString p.Payee
+            "memo", encodeOptionalString p.Memo
+            "category", encodeOption encodeCategory p.Category
+            "cleared", encodeClearedState p.Cleared
+        ]
+
+    let decodeCashExpenseAdded : Decoder<CashExpenseAddedPayload> =
+        Decode.object (fun get -> {
+            AccountId = get.Required.Field "accountId" decodeAccountId
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Category = get.Optional.Field "category" decodeCategory
+            Cleared = get.Required.Field "cleared" decodeClearedState
+        })
+
+    let encodeLinkedToYnab (p: EntryLinkedToYnabPayload) =
+        Encode.object [ "ynabTransactionId", Encode.string p.YnabTransactionId ]
+
+    let decodeLinkedToYnab : Decoder<EntryLinkedToYnabPayload> =
+        Decode.object (fun get -> {
+            YnabTransactionId = get.Required.Field "ynabTransactionId" Decode.string
+        })
+
 /// Serialisiert die Payload eines Ereignisses als JSON-Text.
 let encodePayload (body: LedgerEventBody) : string =
     let json =
@@ -417,6 +572,11 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryCategorizationChangeObservedInYnab p -> Codec.encodeCategorizationChange p
         | EntryClearedStateChangeObservedInYnab p -> Codec.encodeClearedChange p
         | EntryDeletionObservedInYnab -> Encode.object []
+        | EntryImportedFromComdirect p -> Codec.encodeImportedFromComdirect p
+        | EntryCategorizedByRule p -> Codec.encodeCategorizedByRule p
+        | EntryRecategorized p -> Codec.encodeRecategorized p
+        | CashExpenseAdded p -> Codec.encodeCashExpenseAdded p
+        | EntryLinkedToYnab p -> Codec.encodeLinkedToYnab p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload zurueck. Typname und Schema-Version zusammen
@@ -432,6 +592,16 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
     | "EntryClearedStateChangeObservedInYnab", 1 ->
         Decode.fromString Codec.decodeClearedChange payload |> Result.map EntryClearedStateChangeObservedInYnab
     | "EntryDeletionObservedInYnab", 1 -> Ok EntryDeletionObservedInYnab
+    | "EntryImportedFromComdirect", 1 ->
+        Decode.fromString Codec.decodeImportedFromComdirect payload |> Result.map EntryImportedFromComdirect
+    | "EntryCategorizedByRule", 1 ->
+        Decode.fromString Codec.decodeCategorizedByRule payload |> Result.map EntryCategorizedByRule
+    | "EntryRecategorized", 1 ->
+        Decode.fromString Codec.decodeRecategorized payload |> Result.map EntryRecategorized
+    | "CashExpenseAdded", 1 ->
+        Decode.fromString Codec.decodeCashExpenseAdded payload |> Result.map CashExpenseAdded
+    | "EntryLinkedToYnab", 1 ->
+        Decode.fromString Codec.decodeLinkedToYnab payload |> Result.map EntryLinkedToYnab
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"
 
 // ============================================

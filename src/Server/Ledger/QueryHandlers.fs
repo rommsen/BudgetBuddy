@@ -161,6 +161,51 @@ module ReadModel =
         let parts = categoryPart @ splitPart
         if List.isEmpty parts then "Kategorisierung in YNAB geändert" else String.Join("; ", parts)
 
+    let private describeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
+        $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
+
+    let private describeCategorizedByRule (p: EntryCategorizedByRulePayload) =
+        let target =
+            match p.Category with
+            | Some c -> $"Kategorie {c.CategoryName}"
+            | None when not (List.isEmpty p.Splits) -> $"{List.length p.Splits} Split-Zeilen"
+            | None -> "ohne Kategorie"
+        $"""Regel „{p.RuleName}“ hat kategorisiert: {target}"""
+
+    let private describeRecategorized (p: EntryRecategorizedPayload) =
+        let categoryPart =
+            match p.OldCategory, p.NewCategory with
+            | Some o, Some n when o.CategoryName <> n.CategoryName || o.CategoryId <> n.CategoryId ->
+                [ $"Kategorie geändert: {o.CategoryName} → {n.CategoryName}" ]
+            | None, Some n -> [ $"Kategorie gesetzt: {n.CategoryName}" ]
+            | Some o, None -> [ $"Kategorie entfernt: {o.CategoryName}" ]
+            | _ -> []
+
+        let splitPart =
+            match p.OldSplits, p.NewSplits with
+            | [], [] -> []
+            | [], newSplits -> [ $"In {List.length newSplits} Split-Zeilen aufgeteilt" ]
+            | _, [] -> [ "Split aufgehoben" ]
+            | oldSplits, newSplits when oldSplits <> newSplits ->
+                [ $"Splits geändert: {List.length oldSplits} → {List.length newSplits} Zeilen" ]
+            | _ -> []
+
+        let parts = categoryPart @ splitPart
+        if List.isEmpty parts then
+            "In BB umkategorisiert"
+        else
+            $"""In BB umkategorisiert: {String.Join("; ", parts)}"""
+
+    let private describeCashExpenseAdded (p: CashExpenseAddedPayload) =
+        let category =
+            match p.Category with
+            | Some c -> $", Kategorie {c.CategoryName}"
+            | None -> ""
+        $"Quick Add erfasst: {payeeOr p.Payee}, {formatMoney p.Amount}{category}"
+
+    let private describeLinkedToYnab (p: EntryLinkedToYnabPayload) =
+        $"Mit YNAB verknüpft: {p.YnabTransactionId}"
+
     /// Ein Ereignis als Satz in der Sprache des Kassenbuchs (ADR 0013). Die Payloads
     /// tragen die alten und neuen **Namen**, deshalb braucht dieser Satz kein
     /// Nachschlagen.
@@ -172,6 +217,11 @@ module ReadModel =
         | EntryClearedStateChangeObservedInYnab p ->
             $"Status in YNAB geändert: {clearedLabel p.OldCleared} → {clearedLabel p.NewCleared}"
         | EntryDeletionObservedInYnab -> "In YNAB gelöscht"
+        | EntryImportedFromComdirect p -> describeImportedFromComdirect p
+        | EntryCategorizedByRule p -> describeCategorizedByRule p
+        | EntryRecategorized p -> describeRecategorized p
+        | CashExpenseAdded p -> describeCashExpenseAdded p
+        | EntryLinkedToYnab p -> describeLinkedToYnab p
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {

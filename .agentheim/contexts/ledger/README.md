@@ -164,9 +164,34 @@ Schema-Version, Payload (JSON).
 Mehrere Gruppen in einer Beobachtung ergeben mehrere Ereignisse (Details, Kategorisierung,
 Cleared). Unveränderte Daten ergeben kein Ereignis.
 
-**Entscheidungen** (BB hat etwas festgelegt; Namen reserviert, Payloads folgen mit den
-jeweiligen Slices): `EntryImportedFromComdirect`, `EntryCategorizedByRule`,
-`EntryRecategorized`, `CashExpenseAdded`, `ValuationRecorded`.
+**Entstehung:** Eine Buchung entsteht mit genau einem von `EntryObservedInYnab`,
+`EntryImportedFromComdirect`, `CashExpenseAdded`. Ein zweites Entstehungs-Ereignis auf
+derselben Buchung ist ein kaputtes Log und wird von `apply` laut abgelehnt.
+
+**Entscheidungen** (BB hat etwas festgelegt):
+- `EntryImportedFromComdirect`: Comdirect-Buchung beim Push angelegt, ohne Kategorie. Die
+  Kategorisierung folgt als eigenes Ereignis in derselben Sequenz.
+- `EntryCategorizedByRule`: eine Regel hat kategorisiert; die RuleId steht im Actor. Nur
+  auf einer noch unkategorisierten Buchung zulässig.
+- `EntryRecategorized`: Roman hat in BB kategorisiert oder umkategorisiert (Actor
+  `UserInBb`).
+- `CashExpenseAdded`: Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`), darf
+  sofort eine Kategorie tragen.
+- `ValuationRecorded`: weiterhin reserviert, ohne Payload (Bewertung des
+  Wertpapierkontos).
+
+Bei `EntryCategorizedByRule` und `EntryRecategorized` schließen sich Kategorie und Splits
+aus, wie bei den Beobachtungs-Ereignissen (ADR 0006/0019). Gesetzte Splits müssen zusätzlich
+die `mkSplits`-Invarianten aus ADR 0006 erfüllen (mindestens zwei Zeilen, vorzeichenrichtige
+Summe gleich dem Buchungsbetrag, eine Währung); `apply` prüft das über `mkSplits` und lehnt
+einen Verstoß laut ab.
+
+**Verknüpfung:** `EntryLinkedToYnab` (Payload: YNAB-Transaction-Id). Die YNAB-Id ist
+bekannt geworden, aus der Push-Antwort (Actor `ComdirectImport` bzw. `QuickAdd`) oder vom
+Spiegel über die ImportId (Actor `YnabMirror`, ADR 0021). Ändert `Entry` selbst nicht, nur
+die Fremd-Id-Verknüpfung (ADR 0015); ob ein Aufruf auf eine bereits verknüpfte Buchung ein
+Fehler oder still idempotent ist, entscheidet der Aufrufer (`appendAndApply`-Fassade), nicht
+`apply`.
 
 **Konten** haben in v1 keine Historie (reiner Zustand: Id, Name, Art, Verknüpfung,
 geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchungen.

@@ -98,11 +98,42 @@ type Entry = {
 // Faltung
 // ============================================
 
+/// Ist dieses Ereignis eines der drei Entstehungs-Ereignisse? Genau eines davon darf
+/// die erste Zeile einer Buchung sein (Notes des Katalogs, umgesetzt in `apply`).
+let private isCreationEvent (body: LedgerEventBody) : bool =
+    match body with
+    | EntryObservedInYnab _
+    | EntryImportedFromComdirect _
+    | CashExpenseAdded _ -> true
+    | _ -> false
+
+/// Kategorie und Splits schliessen sich aus (ADR 0006/0019 gelten auch fuer die
+/// Entscheidungs-Familie): eine Buchung traegt entweder eine Top-Level-Kategorie oder
+/// Splits, nie beides gleichzeitig. Gesetzte Splits muessen ausserdem die
+/// `mkSplits`-Invarianten aus ADR 0006 erfuellen (mindestens zwei Zeilen,
+/// vorzeichenrichtige Summe gleich dem Buchungsbetrag, eine Waehrung); `mkSplits`
+/// selbst ist die einzige Stelle, die diese Regeln kennt, `apply` fragt sie nur ab.
+let private requireCategoryXorSplits
+    (eventName: string)
+    (total: Money)
+    (category: CategoryRef option)
+    (splits: TransactionSplit list)
+    =
+    if category.IsSome && not (List.isEmpty splits) then
+        invalidOp $"{eventName}: Kategorie und Splits schliessen sich aus"
+    if not (List.isEmpty splits) then
+        match mkSplits total splits with
+        | Ok _ -> ()
+        | Error err -> invalidOp $"{eventName}: Splits verletzen die mkSplits-Invarianten ({err})"
+
 /// Faltet ein Ereignis auf den Zustand einer Buchung. Rein, ohne I/O.
 ///
 /// Eine Erstbeobachtung erzeugt die Buchung; jedes andere Ereignis setzt eine
 /// vorhandene Buchung voraus. Ein Aenderungs-Ereignis ohne vorherige Buchung ist ein
-/// kaputtes Log und wird laut, nicht still, abgelehnt.
+/// kaputtes Log und wird laut, nicht still, abgelehnt. Genau eines der drei
+/// Entstehungs-Ereignisse (`EntryObservedInYnab`, `EntryImportedFromComdirect`,
+/// `CashExpenseAdded`) darf die erste Zeile sein; ein zweites Entstehungs-Ereignis auf
+/// derselben Buchung schlaegt ebenso laut fehl.
 let apply (existing: Entry option) (event: LedgerEvent) : Entry =
     let requireExisting () =
         match existing with
@@ -111,6 +142,11 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             let (EntryId id) = event.EntryId
             invalidOp
                 $"Ereignis '{eventTypeName event.Body}' fuer Buchung {id} ohne vorangehende Erstbeobachtung"
+
+    if isCreationEvent event.Body && existing.IsSome then
+        let (EntryId id) = event.EntryId
+        invalidOp
+            $"zweites Entstehungs-Ereignis '{eventTypeName event.Body}' fuer Buchung {id}: eine Buchung entsteht genau einmal"
 
     match event.Body with
     | EntryObservedInYnab p ->
@@ -149,6 +185,63 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         let e = requireExisting ()
         { e with DeletedInYnab = true }
 
+    | EntryImportedFromComdirect p ->
+        {
+            Id = event.EntryId
+            AccountId = p.AccountId
+            Date = p.Date
+            Amount = p.Amount
+            Payee = p.Payee
+            Memo = p.Memo
+            // Kategorielos: die Kategorisierung folgt als eigenes Ereignis (Regel oder
+            // Roman) in derselben Sequenz.
+            Category = None
+            Splits = []
+            Cleared = p.Cleared
+            TransferEntryId = None
+            DeletedInYnab = false
+        }
+
+    | EntryCategorizedByRule p ->
+        let e = requireExisting ()
+        if e.Category.IsSome || not (List.isEmpty e.Splits) then
+            let (EntryId id) = event.EntryId
+            invalidOp $"EntryCategorizedByRule auf bereits kategorisierter Buchung {id}"
+        requireCategoryXorSplits "EntryCategorizedByRule" e.Amount p.Category p.Splits
+        { e with
+            Category = p.Category
+            Splits = p.Splits
+            Payee = p.PayeeOverride |> Option.orElse e.Payee }
+
+    | EntryRecategorized p ->
+        let e = requireExisting ()
+        requireCategoryXorSplits "EntryRecategorized" e.Amount p.NewCategory p.NewSplits
+        { e with
+            Category = p.NewCategory
+            Splits = p.NewSplits
+            Payee = p.NewPayee }
+
+    | CashExpenseAdded p ->
+        {
+            Id = event.EntryId
+            AccountId = p.AccountId
+            Date = p.Date
+            Amount = p.Amount
+            Payee = p.Payee
+            Memo = p.Memo
+            Category = p.Category
+            Splits = []
+            Cleared = p.Cleared
+            TransferEntryId = None
+            DeletedInYnab = false
+        }
+
+    | EntryLinkedToYnab _ ->
+        // Die YNAB-Verknuepfung lebt in der Fremd-Id-Tabelle (ADR 0015), nicht als Feld
+        // auf `Entry`; `linksFrom` stiftet die Verknuepfung. `apply` selbst verlangt nur,
+        // dass die Buchung schon entstanden ist.
+        requireExisting ()
+
 /// Die Fremd-Ids, die ein Ereignis mitbringt. Rein: der Store schreibt sie beim
 /// Anhaengen mit, ohne selbst zu wissen, welches Ereignis welche Verknuepfung stiftet.
 let linksFrom (event: LedgerEvent) : EntryLink list =
@@ -161,6 +254,13 @@ let linksFrom (event: LedgerEvent) : EntryLink list =
                 { EntryId = event.EntryId; System = ImportIdSystem; Value = importId }
             | None -> ()
         ]
+    | EntryImportedFromComdirect p ->
+        [
+            { EntryId = event.EntryId; System = ImportIdSystem; Value = p.ImportId }
+            { EntryId = event.EntryId; System = ComdirectSystem; Value = p.ComdirectReference }
+        ]
+    | EntryLinkedToYnab p ->
+        [ { EntryId = event.EntryId; System = YnabSystem; Value = p.YnabTransactionId } ]
     | _ -> []
 
 /// Faltet eine ganze Historie zu einem Zustand. Die Ereignisse muessen in ihrer

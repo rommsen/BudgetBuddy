@@ -4,6 +4,88 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 12:52 - Nachtrag (ledger-cscw1): mkSplits-Invariante für EntryCategorizedByRule/EntryRecategorized
+
+**What I did:**
+Verifier-Fund aus Iteration 1 behoben: `apply` prüfte bei `EntryCategorizedByRule` und
+`EntryRecategorized` bisher nur, dass Kategorie und Splits sich ausschließen, nicht aber
+die `mkSplits`-Invarianten (mindestens zwei Zeilen, vorzeichenrichtige Summe gleich dem
+Buchungsbetrag, eine Währung). Beide Zweige rufen jetzt `Shared.Domain.mkSplits` auf und
+lehnen einen Verstoß laut ab.
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `src/Server/Ledger/Domain.fs` - `requireCategoryXorSplits` um den Buchungsbetrag und
+  einen `mkSplits`-Aufruf bei gesetzten Splits erweitert; beide Aufrufstellen
+  (`EntryCategorizedByRule`, `EntryRecategorized`) übergeben `e.Amount`.
+- `src/Tests/LedgerTests.fs` - fünf neue Testfälle (Summe falsch und einzeilig je
+  Ereignis, plus ein positiver Fall für gültige Splits), rot beobachtet vor dem Fix.
+- `.agentheim/contexts/ledger/README.md` - Satz zu Kategorie/Splits nennt jetzt die
+  `mkSplits`-Regeln namentlich.
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Der Task verlangt ausdrücklich, dass die `mkSplits`-Invarianten auch für die
+Entscheidungs-Ereignisse gelten (ADR 0006/0019); ohne die Prüfung hätte `apply` eine
+Buchung mit strukturell ungültigen Splits (falsche Summe, nur eine Zeile) klaglos
+übernommen.
+
+**Outcomes:**
+- Build: grün, 0 Warnungen (`dotnet build BudgetBuddy.sln`).
+- Tests: 736 bestanden (5 mehr als Iteration 1), 7 übersprungen (extern), 0 Fehler
+  (`dotnet test src/Tests/Tests.fsproj`).
+- Issues: keine. Vor dem Fix testweise die `mkSplits`-Prüfung entfernt: genau die vier
+  negativen neuen Tests liefen rot, danach wiederhergestellt und grün.
+
+---
+
+## 2026-09-11 12:39 - Ereignis-Katalog: Entscheidungs-Ereignisse im Kassenbuch (ledger-cscw1)
+
+**What I did:**
+Fünf Ereignistypen für BBs eigene Entscheidungen (`EntryImportedFromComdirect`,
+`EntryCategorizedByRule`, `EntryRecategorized`, `CashExpenseAdded`) und die
+YNAB-Verknüpfung (`EntryLinkedToYnab`, ADR 0021) im Kassenbuch-Ereignis-Katalog ergänzt,
+inklusive `apply`-Invarianten (genau eine Entstehung je Buchung, Kategorie/Splits
+schließen sich aus, Regel nur auf unkategorisierter Buchung) und JSON-Codecs.
+
+**Files Added:**
+- keine (nur bestehende Ledger-Dateien erweitert)
+
+**Files Modified:**
+- `src/Server/Ledger/Events.fs` - fünf neue Payload-Records, `LedgerEventBody` erweitert,
+  `ReservedDecisionEventName` auf `ValuationRecorded` reduziert, Typname/Schema-Version
+  und Codecs ergänzt.
+- `src/Server/Ledger/Domain.fs` - `apply` um die fünf neuen Ereignis-Zweige und die
+  Entstehungs-/Kategorie-Invarianten erweitert, `linksFrom` um Comdirect-Import- und
+  YNAB-Verknüpfung ergänzt.
+- `src/Server/Ledger/QueryHandlers.fs` - `ReadModel.describe` um fünf deutsche
+  Historien-Sätze für die neuen Ereignisse ergänzt (sonst unvollständiges Pattern-Match).
+- `src/Tests/LedgerTests.fs` - 14 neue Testfälle plus Erweiterung zweier bestehender
+  (Typname/Schema-Version, JSON-Roundtrip).
+- `.agentheim/contexts/ledger/README.md` - Abschnitt "Ereignisse": "Entstehung" und
+  "Verknüpfung" ergänzt, "Entscheidungen" mit Payload-Kurzbeschreibung statt nur Namen.
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Ohne Payloads konnte das Kassenbuch keine BB-Entscheidung aufnehmen; das v1-Vision-
+Kriterium verlangt genau das. ADR 0021 verlangt zusätzlich ein eigenes
+Verknüpfungs-Ereignis, damit Replay die YNAB-Id-Zuordnung aus dem Log herleiten kann.
+
+**Outcomes:**
+- Build: grün, 0 Warnungen (`dotnet build BudgetBuddy.sln`).
+- Tests: 731 bestanden, 7 übersprungen (extern), 0 Fehler (`dotnet test`
+  `src/Tests/Tests.fsproj`).
+- Issues: keine. Die Mirror-Tests (`LedgerMirrorTests.fs`) blieben unverändert grün, weil
+  `observe` eine zweite `EntryObservedInYnab` ohnehin nie erzeugt.
+
+---
+
 ## 2026-09-06 22:20 - Bugfix: Erstbefuellung des Spiegels holte nur zwoelf Monate
 
 **What I did:**
