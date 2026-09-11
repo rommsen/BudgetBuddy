@@ -1,7 +1,7 @@
 ---
 id: ledger-tdnpk
 title: "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-11

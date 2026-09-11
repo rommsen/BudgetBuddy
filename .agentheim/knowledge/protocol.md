@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 12:54 -- Batch started: [ledger-tdnpk]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-tdnpk - "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort"
+**Parallel:** yes (nachgeschoben in die laufende Session: ledger-tdnpk ist nach der Integration von ledger-cscw1 frei; design-system-t82sg läuft noch in Iteration 2; ledger-qvt84 wartet auf categorization-gdrx8, das an Roman eskaliert ist)
+
+---
+
 ## 2026-09-11 12:53 -- Task verified and completed: ledger-cscw1 - "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung"
 
 **Type:** Work / Task completion
