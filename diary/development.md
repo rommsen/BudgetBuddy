@@ -4,6 +4,72 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-11 16:30 - Export-Bundle des Design-Systems für Claude Design (design-system-t82sg)
+
+**What I did:**
+Ein wiederholbares Export-Kommando gebaut, das Tokens und die Kassenbuch-relevanten
+DS-Komponenten aus dem echten, gerenderten Code (`/#/styleguide`) als Claude-Design-Bundle
+nach `dist/design-system/` (git-ignoriert) schreibt. Dazu eine Navigation-Sektion in der
+Styleguide-Galerie ergänzt (fehlte bisher), zwei nicht-fixe Preview-Varianten der
+Navigation-Komponente gebaut, sowie (Iteration 2) Token-/Type-/Brand-Vorschaukarten und
+expliziten Font-Ladepfad für die Bundle-Vorschauen ergänzt.
+
+**Files Added:**
+- `scripts/export-design-system.mjs`: Node-Skript: `vite build` (temp outDir), `vite
+  preview` (freier Port), Playwright rendert `/#/styleguide`, schneidet `[data-ds-card]`
+  heraus, schreibt `colors_and_type.css`/`styles.css`/`preview/*.html`/`assets/`/
+  `README.md`/`SKILL.md`, prüft danach headless, dass die Fonts laden.
+- `.agentheim/knowledge/decisions/0024-export-bundle-build-nicht-dev-und-nicht-fixe-navigation-preview.md`
+- `.agentheim/contexts/design-system/backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
+- `.agentheim/contexts/design-system/backlog/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
+  (Iteration 2: Bug-Backlog-Item für den App-seitigen Font-Import-Fehler)
+
+**Files Modified:**
+- `src/Client/Components/Styleguide/View.fs`: `data-ds-card`-Marker auf Card-/Money-/
+  Badge-/Table-Sektion, neue Navigation-Sektion ("20. Navigation"), `data-ds-card-trigger`
+  am BottomSheet-Demo-Button, Voice-Sektion auf "21." umnummeriert. Iteration 2: Prosa in
+  neuen Kommentaren auf Punkt/Doppelpunkt statt Gedankenstrich umgestellt.
+- `src/Client/DesignSystem/Navigation.fs`: `desktopNavPreview`/`mobileNavPreview` ergänzt
+  (additiv, echte `desktopNav`/`mobileNav` unverändert). Iteration 2: Kommentare
+  dashfrei umformuliert.
+- `package.json`: `export:design-system`-Script ergänzt.
+- `.agentheim/contexts/design-system/README.md`: Abschnitt "Export-Bundle für Claude
+  Design" ergänzt (Iteration 2: Fonts, Token-/Brand-Karten, Bug-Verweis ergänzt, alle
+  Gedankenstriche entfernt).
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Das Kassenbuch braucht vor weiteren Screens einen UX-Durchgang mit Mockups in Claude Design.
+Damit die Mockups wie BudgetBuddy aussehen statt wie eine Nachempfindung, muss Claude Design
+echte Tokens/Komponenten bekommen, nicht von Hand nachgebaute. Gerendertes Markup statt
+Handarbeit verhindert genau die Drift, die das Styleguide-Gate sonst verhindern soll.
+Iteration 2 kam aus der Verifier-Prüfung: eine Stilregel (keine Gedankenstriche in neuer
+Prosa), ein echter Bundle-Mangel (Fonts luden nicht) und eine Conductor-Entscheidung
+(Token-Karten ergänzen, weil der "What"-Baum sie nennt).
+
+**Outcomes:**
+- Build: dotnet build erfolgreich (Client, Server, Shared, Tests, 0 Fehler, 0 Warnungen)
+- Tests: dotnet test erfolgreich, 717 bestanden, 7 übersprungen (Comdirect/YNAB-
+  Integrationstests, brauchen `.env`, vorbestehend, nicht Teil dieses Tasks), 0 fehlgeschlagen
+- npm run build: erfolgreich
+- `npm run export:design-system` zweimal hintereinander: byte-identisches Bundle
+  (`diff -rq` zwischen beiden Läufen: keine Unterschiede), inklusive der neuen
+  Token-/Brand-Karten
+- Screenshot-Vergleich Live-Route vs. exportierte `preview/*.html`: Card, Money, Badge,
+  Table, Navigation, BottomSheet visuell deckungsgleich (Layout, Farben, Typografie, Glow;
+  Screenshots nicht committet)
+- Headless `document.fonts`-Check gegen `preview/type-fonts.html`: Inter, Space Grotesk,
+  JetBrains Mono geladen (vorher: 0 geladene Fonts, Ersatzschrift)
+- Kein automatisierter E2E-Test dafür im Repo (kein Playwright-Harness in `dotnet test`):
+  Nachrüstung als Backlog-Item `design-system-w4n9r` angelegt, manuelle Verifikation s. o.
+- App-seitiger Font-Bug als Backlog-Item `design-system-f7k2p` erfasst, in diesem Task
+  bewusst nicht behoben (Umfang: nur der Export)
+- Issues: keine
+
+---
+
 ## 2026-09-11 16:27 - Quick Add: erst Kassenbuch, dann Push, dann Verknüpfung (ledger-tdnpk)
 
 **What I did:**

@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 7
+- **Doing:** 0
+- **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-t82sg** — Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route) (feature) — `doing/design-system-t82sg-export-bundle-fuer-claude-design.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-t82sg** — Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route) (feature) — `done/design-system-t82sg-export-bundle-fuer-claude-design.md`
 - **design-system-008 · PWA-App-Icon — "B" im Sync-Ring, Signatur-Gradient** — 2026-06-19 — `done/design-system-008-pwa-app-icon.md` (Master-SVG B-im-Sync-Ring + Gradient #00d4aa→#00ff88→#ff6b2c, vereinfachte solid-green favicon.svg, Raster-Set 192/512/maskable/apple-touch/16/32/.ico unter src/Client/public/; theme=bg #08081a für infra-002; Verifier PASS iter 1; **AC5 = Romans visuelles Gate offen**)
 - **design-system-007 · Konsolidierung roher Html.svg → Icons-DS-Komponente (SyncFlow-Views)** — 2026-06-19 — `done/design-system-007-svg-to-icons-consolidation.md` (3 SVGs → Icons.plus/check + neues Icons.chevronLeft; Toggle-Check bewusst roh; DS-Normalisierung akzeptiert (Roman) — Farbe identisch, Größe/Stroke DS-Standard; Verifier PASS iter 2)
 - **design-system-002 · Drift-Audit + Konsolidierung des View-Codes auf den Styleguide** — 2026-06-18 — `done/design-system-002-drift-audit-consolidation.md` (9e9526a; Token-Drift voll auf `Colors.onNeon`/`FontSizes.micro` gehoben (byte-identisch), Komponenten-Drift gesplittet → 006/007; ADR 0009; Verifier PASS iter 2)
@@ -38,12 +38,15 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-f7k2p** — Bug: Google-Fonts-@import in styles.css steht hinter @theme und wird vom Build verworfen (App rendert in Ersatzschriften) (bug) — `backlog/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
+- **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 - **design-system-h58y4** — Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman (chore) — `backlog/design-system-h58y4-erst-sync-nach-claude-design.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0024** — Export-Bundle rendert aus vite build und preview (nicht vite dev); Navigation bekommt additive nicht-fixe Preview-Varianten; Fonts per explizitem Link geladen — 2026-09-11 — `knowledge/decisions/0024-export-bundle-build-nicht-dev-und-nicht-fixe-navigation-preview.md`
 - **0009** — Token-Namen für „dunkle Schrift auf Neon" (`onNeon`) + Mikro-Schriftgrößen (`micro`/`microPlus`) — 2026-06-18 — `../../knowledge/decisions/0009-onneon-foreground-and-micro-font-tokens.md`
 - **0007** — Toast-Platzierung (Desktop unten-rechts / Mobile oben) und Zwei-Phasen-Abgang — 2026-06-16 — `knowledge/decisions/0007-toast-placement-and-soft-exit.md`
 <!-- adr-local:end -->

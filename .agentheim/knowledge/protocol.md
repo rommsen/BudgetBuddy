@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 16:28 -- Task verified and completed: design-system-t82sg - Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route)
+
+**Type:** Work / Task completion
+**Task:** design-system-t82sg - Wiederholbarer Export des Design-Systems als Claude-Design-Bundle (Tokens + Kassenbuch-Komponenten aus der /styleguide-Route)
+**Summary:** npm run export:design-system rendert /#/styleguide headless in ein wiederholbares Claude-Design-Bundle (Tokens, Komponenten-, Farb-, Schrift- und Marken-Karten, README und SKILL); Navigation-Sektion im Styleguide ergänzt
+**Duration:** 4h02m (12:28 bis 16:30, darin eine Session-Unterbrechung)
+**Verification:** PASS (iteration 2)
+**Files changed:** 9
+**Tests added:** 0
+**ADRs written:** 0024
+
+---
+
 ## 2026-09-11 16:28 -- Task verified and completed: ledger-tdnpk - "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort"
 
 **Type:** Work / Task completion

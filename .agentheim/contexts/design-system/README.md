@@ -91,6 +91,52 @@ Home-Screen-/PWA-Icon — gehört dem Design-System, geht durchs Styleguide-Gate
 - **Raster-Set:** `src/Client/public/icons/` (192/512 transparent, maskable-512,
   apple-touch-180 opak, favicon-16/32 + `favicon.ico`).
 
+## Export-Bundle für Claude Design (design-system-t82sg, 2026-09-11)
+`npm run export:design-system` (`scripts/export-design-system.mjs`) erzeugt unter
+`dist/design-system/` (git-ignoriert) ein wiederholbares Bundle im Format, das Claude
+Design für Design-System-Projekte erwartet: Tokens plus die Kassenbuch-relevanten
+Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
+- **Rendern statt nachbauen.** Das Skript baut die App (`vite build`), startet sie
+  headless (`vite preview` + Playwright) und schneidet je Sektion das gerenderte HTML
+  aus `/#/styleguide` heraus (kein von Hand geschriebenes Komponenten-Markup im
+  Skript). Läuft ohne Backend (rein präsentationale Route).
+- **`data-ds-card`**: stabiles Attribut in
+  `src/Client/Components/Styleguide/View.fs`, markiert eine Sektion als Export-Ziel
+  (`components-card`, `-money`, `-badge`, `-table`, `-navigation`; `BottomSheet`
+  portalt nach `document.body` und wird über `data-ds-card-trigger` + Klick gesondert
+  eingesammelt).
+- **`@dsCard`-Marker**: Zeile 1 jeder `preview/*.html` (`<!-- @dsCard group="…" -->`),
+  das Format, über das Claude Design die Karten im Design-System-Bereich baut. Gruppen
+  im Bundle: "Colors" (Neon-Palette, Flächen), "Type" (Font-Proben), "Components"
+  (Card/Money/Badge/Table/BottomSheet/Navigation), "Brand" (App-Icon).
+- **`colors_and_type.css`**: der `@theme`-Block aus `src/Client/styles.css` plus die
+  Basis-Variablen, auf die er per `var()` verweist, vollständig aufgelöst (das Skript
+  bricht ab, wenn eine referenzierte Variable fehlt). Die "Colors"-/"Type"-Preview-Karten
+  werden aus genau diesen Werten generiert, nicht von Hand gepflegt.
+- **Fonts laden explizit.** Jede Preview-Datei bindet die Google-Fonts-URL aus
+  `src/Client/styles.css` per `<link>` ein (aus dem Quelltext extrahiert, nicht im
+  Skript hart kodiert). Grund: der gebaute `dist/design-system/styles.css` enthält den
+  `@import` selbst nicht mehr (App-Bug, s. u.) und ohne den expliziten `<link>` würden
+  Card/Money/Navigation im Bundle in Ersatzschriften statt Inter/Space Grotesk/
+  JetBrains Mono rendern. Details und Alternativen: ADR 0024.
+- **Bekannter App-Bug (nicht Teil dieses Tasks):** der Google-Fonts-`@import` in
+  `src/Client/styles.css` steht hinter dem `@theme`-Block, verstößt damit gegen die
+  CSS-Regel, dass `@import` vor allen anderen Regeln außer `@charset`/`@layer` stehen
+  muss, und wird vom Build deshalb verworfen. Die gebaute App selbst rendert dadurch in
+  Ersatzschriften. Als Bug-Backlog-Item erfasst: `design-system-f7k2p`.
+- **Navigation-Preview-Varianten** (`Navigation.desktopNavPreview`/`mobileNavPreview`,
+  `src/Client/DesignSystem/Navigation.fs`): dieselbe Chrome wie
+  `desktopNav`/`mobileNav`, aber ohne `fixed`-Positionierung, zum Einbetten in
+  begrenzte Container (Styleguide-Galerie, Export-Bundle). Bewusst additive Funktionen
+  statt eines `transform`-Containment-Tricks auf den echten (fixen)
+  Navigationskomponenten (siehe `.claude/rules/css-animation-safety.md`).
+- Verifikation ist manuell (kein E2E-Harness im Repo): zweifacher Lauf, byte-identisches
+  Bundle (Idempotenz); Screenshot-Vergleich Live-Route vs. exportierte Preview-Dateien;
+  headless `document.fonts`-Check. Nachrüstung einer automatisierten Absicherung:
+  `design-system-w4n9r` (Backlog).
+- Hochladen nach Claude Design ist **kein Worker-Task** (kein `DesignSync`-Zugriff, jeder
+  Schreibplan wird von Roman freigegeben): das macht `design-system-h58y4`.
+
 ## Open questions
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht
   das Markdown-Dokument + CLAUDE.md-Referenz? (offen, erst bei Bedarf)

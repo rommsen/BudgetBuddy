@@ -160,6 +160,55 @@ let mobileNav (currentPage: NavPage) (onNavigate: NavPage -> unit) =
         ]
     ]
 
+// ============================================
+// Non-fixed preview variants (Styleguide-Galerie, Export-Bundle)
+// ============================================
+
+/// Desktop-Navbar ohne `fixed`-Positionierung, zum Einbetten in begrenzte Container
+/// (Styleguide-Galerie unter `/#/styleguide`, Export-Bundle `design-system-t82sg`).
+/// Gleiches Chrome wie `desktopNav`, nur die Positionierungs-Klassen sind relativ statt
+/// fixiert. Bewusst ein separater Pfad statt eines `transform`-Containment-Tricks auf
+/// dem echten `desktopNav` (siehe `.claude/rules/css-animation-safety.md`).
+let desktopNavPreview (currentPage: NavPage) (onNavigate: NavPage -> unit) =
+    Html.nav [
+        prop.className (
+            "flex relative w-full " +
+            "h-16 px-6 items-center justify-between " +
+            "bg-surface-app/85 backdrop-blur-xl border-b border-border-subtle"
+        )
+        prop.children [
+            Html.div [
+                prop.className "flex-shrink-0"
+                prop.children [ brand (fun () -> onNavigate SyncFlow) ]
+            ]
+            Html.div [
+                prop.className "flex items-center gap-1"
+                prop.children [
+                    for item in navItems do
+                        desktopNavItem item currentPage onNavigate
+                ]
+            ]
+        ]
+    ]
+
+/// Mobile Bottom-Nav ohne `fixed`-Positionierung: Preview-Pendant zu `mobileNav`.
+let mobileNavPreview (currentPage: NavPage) (onNavigate: NavPage -> unit) =
+    Html.nav [
+        prop.className (
+            "relative w-full " +
+            "bg-surface-app/95 backdrop-blur-xl border-t border-border-subtle"
+        )
+        prop.children [
+            Html.div [
+                prop.className "flex items-center justify-around px-2 py-1"
+                prop.children [
+                    for item in navItems do
+                        mobileNavItem item currentPage onNavigate
+                ]
+            ]
+        ]
+    ]
+
 /// Mobile header bar (shows brand on mobile)
 let mobileHeader (onNavigate: NavPage -> unit) =
     Html.header [

@@ -205,60 +205,87 @@ let private buttonSection =
 let private cardSection =
     section "4. Card" [
         note "Inhaltsblöcke. glow für featured, withAccent für Akzentlinie, emptyState sagt was als Nächstes zu tun ist. styleguide.md §5."
-        Primitives.Grid.two [
-            Card.standard [
-                Card.headerSimple "Standard"
-                Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Der Default-Inhaltsblock." ] ]
-            ]
-            Card.glass [
-                Card.headerSimple "Glass"
-                Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Blur-Hintergrund." ] ]
-            ]
-            Card.glow [
-                Card.headerSimple "Glow (featured)"
-                Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Neon-Border, hervorgehoben." ] ]
-            ]
-            Card.withAccent [
-                Card.headerSimple "With Accent"
-                Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Akzentlinie links." ] ]
+        // data-ds-card markiert die Sektion für den Export-Bundle-Build
+        // (scripts/export-design-system.mjs, design-system-t82sg): das Skript
+        // schneidet dieses Element aus der gerenderten Route heraus und schreibt es
+        // 1:1 nach dist/design-system/preview/components-card.html.
+        Html.div [
+            prop.custom ("data-ds-card", "components-card")
+            prop.custom ("data-ds-group", "Components")
+            prop.className "space-y-4"
+            prop.children [
+                Primitives.Grid.two [
+                    Card.standard [
+                        Card.headerSimple "Standard"
+                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Der Default-Inhaltsblock." ] ]
+                    ]
+                    Card.glass [
+                        Card.headerSimple "Glass"
+                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Blur-Hintergrund." ] ]
+                    ]
+                    Card.glow [
+                        Card.headerSimple "Glow (featured)"
+                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Neon-Border, hervorgehoben." ] ]
+                    ]
+                    Card.withAccent [
+                        Card.headerSimple "With Accent"
+                        Card.body [ Html.p [ prop.className "text-sm text-text-secondary"; prop.text "Akzentlinie links." ] ]
+                    ]
+                ]
+                Card.emptyState
+                    (Icons.banknotes Icons.XL Icons.Default)
+                    "Noch keine Transaktionen"
+                    "Starte einen Sync, um Transaktionen zu importieren."
+                    (Some (Button.primary "Sync starten" ignore))
             ]
         ]
-        Card.emptyState
-            (Icons.banknotes Icons.XL Icons.Default)
-            "Noch keine Transaktionen"
-            "Starte einen Sync, um Transaktionen zu importieren."
-            (Some (Button.primary "Sync starten" ignore))
     ]
 
 let private badgeSection =
     section "5. Badge" [
         note "Kompakter Status/Label. Semantisch + Domänen-Status. styleguide.md §5."
-        row [
-            Badge.success "Aktiv"
-            Badge.warning "Review"
-            Badge.error "Fehler"
-            Badge.info "Neu"
-        ]
-        row [
-            Badge.imported
-            Badge.pendingReview
-            Badge.autoCategorized
-            Badge.uncategorized
-            Badge.count 5
+        // data-ds-card (s. cardSection) ist der Export-Marker für components-badge.html.
+        Html.div [
+            prop.custom ("data-ds-card", "components-badge")
+            prop.custom ("data-ds-group", "Components")
+            prop.className "space-y-3"
+            prop.children [
+                row [
+                    Badge.success "Aktiv"
+                    Badge.warning "Review"
+                    Badge.error "Fehler"
+                    Badge.info "Neu"
+                ]
+                row [
+                    Badge.imported
+                    Badge.pendingReview
+                    Badge.autoCategorized
+                    Badge.uncategorized
+                    Badge.count 5
+                ]
+            ]
         ]
     ]
 
 let private moneySection =
     section "6. Money" [
         note "Jede Geldanzeige. Vorzeichen-Farbe + Glow werden automatisch gesetzt (positiv=Green, negativ=Red) — nicht manuell überschreiben. styleguide.md §2/§5."
-        Primitives.HStack.md [
-            Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.simple 1234.56m "EUR"; caption "positiv (simple)" ] ]
-            Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.simple -89.90m "EUR"; caption "negativ (simple)" ] ]
+        // data-ds-card (s. cardSection) ist der Export-Marker für components-money.html.
+        Html.div [
+            prop.custom ("data-ds-card", "components-money")
+            prop.custom ("data-ds-group", "Components")
+            prop.className "space-y-3"
+            prop.children [
+                Primitives.HStack.md [
+                    Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.simple 1234.56m "EUR"; caption "positiv (simple)" ] ]
+                    Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.simple -89.90m "EUR"; caption "negativ (simple)" ] ]
+                ]
+                Primitives.HStack.md [
+                    Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.large 2500.00m "EUR"; caption "large" ] ]
+                ]
+                Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.hero 4280.42m "EUR"; caption "hero (Balance)" ] ]
+            ]
         ]
-        Primitives.HStack.md [
-            Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.large 2500.00m "EUR"; caption "large" ] ]
-        ]
-        Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.hero 4280.42m "EUR"; caption "hero (Balance)" ] ]
     ]
 
 let private statsSection =
@@ -281,17 +308,24 @@ let private tableSection =
         els |> List.mapi (fun i el -> React.keyedFragment (i, [ el ]))
     section "8. Table" [
         note "Dichte tabellarische Daten (Desktop). Mobile Listen mit Zeilen-Aktionen → Card-Liste + Swipe. styleguide.md §5."
-        Table.simple [
-            Table.thead (keyed [
-                Table.th "Payee"
-                Table.th "Kategorie"
-                Table.thRight "Betrag"
-            ])
-            Table.tbody (keyed [
-                Table.tr (keyed [ Table.td "REWE"; Table.td "Lebensmittel"; Table.tdRight "-42,90 €" ])
-                Table.tr (keyed [ Table.td "Gehalt"; Table.td "Einkommen"; Table.tdRight "+2.500,00 €" ])
-                Table.tr (keyed [ Table.td "Netflix"; Table.td "Abos"; Table.tdRight "-12,99 €" ])
-            ])
+        // data-ds-card (s. cardSection) ist der Export-Marker für components-table.html.
+        Html.div [
+            prop.custom ("data-ds-card", "components-table")
+            prop.custom ("data-ds-group", "Components")
+            prop.children [
+                Table.simple [
+                    Table.thead (keyed [
+                        Table.th "Payee"
+                        Table.th "Kategorie"
+                        Table.thRight "Betrag"
+                    ])
+                    Table.tbody (keyed [
+                        Table.tr (keyed [ Table.td "REWE"; Table.td "Lebensmittel"; Table.tdRight "-42,90 €" ])
+                        Table.tr (keyed [ Table.td "Gehalt"; Table.td "Einkommen"; Table.tdRight "+2.500,00 €" ])
+                        Table.tr (keyed [ Table.td "Netflix"; Table.td "Abos"; Table.tdRight "-12,99 €" ])
+                    ])
+                ]
+            ]
         ]
     ]
 
@@ -457,7 +491,14 @@ let private BottomSheetDemo () =
     section "18. BottomSheet (mobiles Picker-Muster)" [
         note "Mobile Auswahl-/Picker-Flows (keyboard-aware, visual-viewport-Anker, Click-Commit). Baust du ein neues Sheet, erbe das Muster — erfinde Anker/Commit nicht neu. ADR 0005, styleguide.md §7.1."
         row [
-            Button.secondary "Konto wählen" (fun () -> setOpen true)
+            // data-ds-card-trigger: Export-Skript (design-system-t82sg) öffnet das Sheet
+            // über diesen stabilen Selektor, bevor es components-bottomsheet.html schreibt.
+            // BottomSheet.view portalt nach document.body, ein umschließendes data-ds-card
+            // würde das Sheet also nicht mit erfassen.
+            Html.span [
+                prop.custom ("data-ds-card-trigger", "components-bottomsheet")
+                prop.children [ Button.secondary "Konto wählen" (fun () -> setOpen true) ]
+            ]
             if chosen <> "" then Badge.info chosen
         ]
         BottomSheet.view
@@ -517,11 +558,41 @@ let private SwipeDemo () =
     ]
 
 // ============================================
+// Navigation
+// ============================================
+
+/// Navigation-Sektion (design-system-t82sg): die App-Navigation fehlte bisher in der
+/// Galerie. Rendert `Navigation.desktopNavPreview`/`mobileNavPreview`, dieselbe
+/// Chrome wie `Navigation.desktopNav`/`mobileNav`, nur ohne `fixed`-Positionierung,
+/// damit sie sich als begrenzter Ausschnitt statt als Overlay über die ganze
+/// Galerie-Seite legt. Rein präsentational: `currentPage`/`onNavigate` sind fix bzw.
+/// no-op, es gibt keine echte Navigation von hier aus.
+let private navigationSection =
+    section "20. Navigation" [
+        note "Seitennavigation. Desktop: Top-Navbar. Mobile: Header + Bottom-Nav. In der App fix positioniert; hier als begrenzte Vorschau eingebettet. styleguide.md §5."
+        // data-ds-card (s. cardSection) ist der Export-Marker für components-navigation.html.
+        Html.div [
+            prop.custom ("data-ds-card", "components-navigation")
+            prop.custom ("data-ds-group", "Components")
+            prop.className "space-y-4"
+            prop.children [
+                subTitle "Desktop"
+                Navigation.desktopNavPreview Navigation.Ledger ignore
+                subTitle "Mobile"
+                Html.div [
+                    prop.className "max-w-sm"
+                    prop.children [ Navigation.mobileNavPreview Navigation.Ledger ignore ]
+                ]
+            ]
+        ]
+    ]
+
+// ============================================
 // 8. Voice / Muster-Hinweise
 // ============================================
 
 let private voiceSection =
-    section "20. Voice & Muster" [
+    section "21. Voice & Muster" [
         note "Die UI spricht Deutsch, direkt, knapp, ohne Füllwörter. Beträge sprechen für sich (Vorzeichen + Farbe). \
               Empty States sagen, was als Nächstes zu tun ist. Ubiquitous Language der BCs (Import, Kategorie, Sync, Split, Transfer) \
               konsistent verwenden. Vollständige Regeln & ADR-Begründungen: standards/frontend/styleguide.md §7/§8 \
@@ -568,6 +639,7 @@ let view () =
                         ToastDemo()
                         BottomSheetDemo()
                         SwipeDemo()
+                        navigationSection
                         voiceSection
                     ]
                     |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))
