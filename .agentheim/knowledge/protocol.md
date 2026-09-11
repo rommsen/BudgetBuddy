@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 21:13 -- Batch started: [design-system-f7k2p, design-system-y6gkd]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export", design-system-y6gkd - Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export
+**Parallel:** yes (2 workers, beide ändern scripts/export-design-system.mjs und das design-system-README an getrennten Stellen; Merge nacheinander, f7k2p zuerst)
+**Planning advisory:** whats-next.md vom 2026-09-11 06:37 ist älter als der letzte Work-Eintrag (20:37), also veraltet und nur Hintergrund; beide Tasks blockieren ledger-xbrht
+
+---
+
 ## 2026-09-11 20:37 -- Modeling / Promoted: design-system-f7k2p - "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
 
 **Type:** Modeling / Promote

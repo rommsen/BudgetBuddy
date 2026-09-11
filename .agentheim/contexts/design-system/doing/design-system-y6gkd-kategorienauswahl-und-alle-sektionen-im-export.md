@@ -1,7 +1,7 @@
 ---
 id: design-system-y6gkd
 title: Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-09-11

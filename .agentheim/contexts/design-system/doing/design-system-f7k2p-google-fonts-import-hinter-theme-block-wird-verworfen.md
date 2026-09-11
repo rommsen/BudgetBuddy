@@ -1,7 +1,7 @@
 ---
 id: design-system-f7k2p
 title: "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export"
-status: todo
+status: doing
 type: bug
 context: design-system
 created: 2026-09-11
