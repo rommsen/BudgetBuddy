@@ -1,7 +1,7 @@
 ---
 id: design-system-h58y4
 title: Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman
-status: backlog
+status: todo
 type: chore
 context: design-system
 created: 2026-09-11

@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
-- **Todo:** 0
+- **Backlog:** 2
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-h58y4** — Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman (chore) — `todo/design-system-h58y4-erst-sync-nach-claude-design.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -40,7 +41,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **design-system-f7k2p** — Bug: Google-Fonts-@import in styles.css steht hinter @theme und wird vom Build verworfen (App rendert in Ersatzschriften) (bug) — `backlog/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
 - **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
-- **design-system-h58y4** — Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman (chore) — `backlog/design-system-h58y4-erst-sync-nach-claude-design.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-11 18:44 -- Modeling / Promoted: design-system-h58y4 - Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-11 18:28 -- Work session ended
 
 **Type:** Work / Session end
