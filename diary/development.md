@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-12 13:40 - Kassenbuch in Bau-Scheiben geschnitten, ADR 0028 zur einen schreibenden Fähigkeit vor v2
+
+**What I did:**
+Aus dem UX-Konzept sieben Bau-Scheiben abgeleitet, `ledger-p3n8k` eingeordnet und die
+offene Vision-Frage entschieden: der Prüfvermerk ist die einzige schreibende Fähigkeit,
+die vor v2 nach BB wandert. Die erste Scheibe (`ledger-b1xwe`) zusätzlich verfeinert.
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0028-pruefvermerk-als-einzige-schreibende-faehigkeit-vor-v2.md`
+- Sieben Scheiben-Tasks unter `.agentheim/contexts/ledger/backlog/`: `ledger-b1xwe`
+  (Liste seitenweise, Gesamtsicht, Kontostände), `ledger-vgfw3` (Filter mit Summenzeile),
+  `ledger-r1d2f` (Auswahl-Modus), `ledger-q1hw2` (Detail mit Herkunft und Historie),
+  `ledger-kdnnz` (Spiegel um Prüfvermerk und Flags erweitern), `ledger-kwwxz` (Available
+  je Kategorie), `ledger-r777c` (Prüfvermerk schreiben).
+
+**Files Modified:**
+- `.agentheim/vision.md` - v1 bekommt den Prüfvermerk als benannte schreibende Ausnahme.
+- `.agentheim/contexts/ledger/backlog/ledger-p3n8k-*.md` - hängt jetzt an `ledger-b1xwe`,
+  Begründung für die Eigenständigkeit ergänzt.
+- `.agentheim/contexts/ledger/INDEX.md` - sieben Backlog-Einträge, ADR 0028.
+
+**Rationale:**
+Romans häufigster Ablauf am Handy (Buchungen als geprüft markieren) ist schreibend. Ein
+rein lesendes v1 läuft damit genau in das Scheiterkriterium der Vision: "Kassenbuch
+gebaut, aber niemand schaut hinein." Der Prüfvermerk ist zugleich die kleinste denkbare
+schreibende Fähigkeit: ein Feld, idempotent, ohne Budget-Wirkung, mit trivialer
+Konfliktauflösung. Kategorie, Split und Lena-Zuweisung bleiben v2, weil sie den
+allgemeinen Rückschreibe-Weg und die Abweichungs-Sicht brauchen.
+
+**Outcomes:**
+- Build: nicht berührt (keine Code-Änderung)
+- Tests: nicht berührt
+- Issues: keine
+
+---
+
 ## 2026-09-12 13:05 - UX-Konzept Kassenbuch festgehalten, Prototyp-Umweg über Claude Design gestrichen
 
 **What I did:**

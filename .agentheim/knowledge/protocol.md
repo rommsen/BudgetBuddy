@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 14:13 -- Task completed (verification skipped): ledger-s8m3w - Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
+
+**Type:** Work / Task completion
+**Task:** ledger-s8m3w - Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
+**Summary:** Sieben Bau-Scheiben aus dem Kassenbuch-UX-Konzept geschnitten (lesend vor schreibend), ledger-p3n8k als eigenständig bestätigt, und per ADR 0028 entschieden: der Prüfvermerk ist die einzige schreibende Fähigkeit vor v2, Vision angepasst
+**Duration:** 25m (13:12 bis 13:37)
+**Verification:** SKIPPED — decision-only task (Modeling in der Hauptsession mit Roman, kein Code)
+**Files changed:** 11
+
+---
+
 ## 2026-09-12 13:28 -- Modeling / Refined: ledger-b1xwe - Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht, Kontostände-Leiste
 
 **Type:** Modeling / Refine

@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 14
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 11
+- **Doing:** 0
+- **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-s8m3w** — Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden (decision) — `doing/ledger-s8m3w-scheiben-aus-ux-konzept-ableiten-und-vorziehen-entscheiden.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-s8m3w** — Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden (decision) — `done/ledger-s8m3w-scheiben-aus-ux-konzept-ableiten-und-vorziehen-entscheiden.md`
 - **ledger-xbrht** — UX-Konzept Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau) (spike) — `done/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 - **ledger-qvt84** — "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs" (feature) — `done/ledger-qvt84-import-push-schreibt-ins-kassenbuch.md`
 - **ledger-tdnpk** — "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort" (feature) — `done/ledger-tdnpk-quick-add-erst-kassenbuch-dann-ynab.md`
@@ -42,6 +42,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-r777c** — Prüfvermerk in BB setzen und nach YNAB zurückschreiben (die eine schreibende Fähigkeit vor v2) (feature) — `backlog/ledger-r777c-pruefvermerk-setzen-und-nach-ynab-zurueckschreiben.md`
 - **ledger-b1xwe** — Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste (feature) — `backlog/ledger-b1xwe-liste-seitenweise-gesamtsicht-kontostaende.md`
 - **ledger-vgfw3** — Kassenbuch-Filter mit Summenzeile: Kategorie (Mehrfachauswahl), Zeitraum, Payee, Betrag, Memo (feature) — `backlog/ledger-vgfw3-filter-und-summenzeile.md`
 - **ledger-r1d2f** — Auswahl-Modus mit Summe der Auswahl (Handy und PC) (feature) — `backlog/ledger-r1d2f-auswahl-modus-mit-summe.md`
@@ -60,6 +61,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0028** — Der Prüfvermerk ist die einzige schreibende Fähigkeit, die vor v2 nach BB wandert — 2026-09-12 — `knowledge/decisions/0028-pruefvermerk-als-einzige-schreibende-faehigkeit-vor-v2.md`
 - **0025** — Order-ID-Abgleich als eigener Actor im Kassenbuch, kein eigenes Ereignis — 2026-09-11 — `knowledge/decisions/0025-order-id-abgleich-als-eigener-actor-kein-eigenes-ereignis.md`
 - **0021** — BB-geführte Buchungen entstehen zuerst im Kassenbuch, der YNAB-Push folgt; die Verknüpfung ist ein eigenes Ereignis — 2026-09-11 — `knowledge/decisions/0021-kassenbuch-zuerst-dann-push-verknuepfung-als-ereignis.md`
 - **0020** — Im Kassenbuch einen Elmish-Auslöser mit Entscheidungslogik in eine reine und eine unreine Nachricht teilen (Reduzierer unter .NET testbar) — 2026-09-06 — `knowledge/decisions/0020-elmish-ausloeser-in-reine-und-unreine-nachricht-teilen.md`

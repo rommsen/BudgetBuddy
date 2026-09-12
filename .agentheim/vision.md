@@ -61,6 +61,11 @@ Zwei Stufen, in dieser Reihenfolge. Die zweite ist das Gate für alles Weitere.
 - Das Kassenbuch ist vollständig, weil es YNABs Zustand laufend nachführt (Spiegel), und
   merkt sich zusätzlich, was BB selbst entschieden hat.
 - Das Budget-Loch durch den ETF ist geschlossen, in v1 über das manuelle YNAB-Konto.
+- **Der Prüfvermerk ist die eine schreibende Ausnahme in v1** (ADR 0028): Roman markiert
+  Buchungen in BB als geprüft, BB schreibt das nach YNAB zurück. Das ist sein häufigster
+  Ablauf am Handy und der Grund, aus dem er die YNAB-App heute öffnet. Ein Kassenbuch, das
+  ihn nicht übernimmt, wird nicht benutzt. Der Rückschreibe-Weg ist bewusst auf dieses eine
+  Feld zugeschnitten; alles andere Nachbearbeiten bleibt v2.
 
 **v2 · Ownership.** ("Das war es wert.")
 - Roman öffnet YNAB nicht mehr zum Nachbearbeiten: Kategorie ändern, Split ändern, Übertrag
