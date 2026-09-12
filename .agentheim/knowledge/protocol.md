@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 12:36 -- Capture / Captured: ledger-xfjcp - Buchung an Lena zuweisen statt nur ein Flag setzen
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Roman will Buchungen, zu denen er nichts findet, nicht "flaggen", sondern "Lena zuweisen"; das YNAB-Flag "Lena" ist nur die Umsetzung im Hintergrund. Später denkbar: Push an Lena oder Sicht "Für mich" in BB. Aus der YNAB-Referenz für Ablauf 5 in ledger-xbrht.
+
+---
+
 ## 2026-09-11 22:40 -- Capture / Captured: design-system-an22r - Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat
 
 **Type:** Capture
