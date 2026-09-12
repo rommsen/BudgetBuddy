@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 13:28 -- Modeling / Refined: ledger-b1xwe - Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht, Kontostände-Leiste
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (Promotion folgt)
+**Summary:** Neun Akzeptanzkriterien formuliert (seitenweise Lesefunktion mit Gesamtsumme über den Treffer, Kontostände in einem Aufruf, Kontostände-Leiste je Gerät, Gesamtsicht mit Konto je Zeile, Nachladen beim Scrollen, Styleguide-Gate, grüne Builds und Tests, keine Schreibzugriffe auf die Produktionsdatenbank). Drei offene Punkte als Annahmen entschieden: "Alle Konten" ist ein eigener Eintrag, Überträge erscheinen mit beiden Seiten, Nachladen per Beobachter statt Button. Offen bleibt Romans YNAB-Referenzweg für Ablauf 6, der die Scheibe nicht blockiert.
+**ADRs written:** none
+
+---
+
 ## 2026-09-12 13:20 -- Modeling / Scheiben abgeleitet: ledger-s8m3w - sechs Bau-Scheiben aus dem Kassenbuch-UX-Konzept
 
 **Type:** Modeling / Split

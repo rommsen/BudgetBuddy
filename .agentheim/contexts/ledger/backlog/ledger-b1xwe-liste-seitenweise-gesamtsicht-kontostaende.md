@@ -55,16 +55,50 @@ geladenen Liste.
 Detail-Umbau, Prüfvermerk, gelöschte ausblenden. Die haben eigene Tasks.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Eine neue Lesefunktion liefert Buchungen seitenweise: Parameter Konto (optional,
+      leer bedeutet alle Konten), Seitenzeiger und Seitengröße; Rückgabe sind die
+      Buchungen der Seite, die Gesamtzahl der Treffer und die Summe über den gesamten
+      Treffer. Die Summe wird in F# über exakten Dezimal-Text gebildet, nicht per
+      SQL-`SUM` (ADR 0017). Test: eine Seite aus einer mehrseitigen Menge trägt die
+      Gesamtsumme, nicht die Seitensumme.
+- [ ] Eine Lesefunktion liefert alle Konten mit ihrem Kontostand in einem Aufruf; der
+      Stand rechnet über die nicht gelöschten Buchungen und ist unabhängig davon, welche
+      Seite der Liste geladen ist. Test: Kontostand bleibt gleich, egal wie viele Seiten
+      geladen sind.
+- [ ] Die Kassenbuch-Seite zeigt oben die Kontostände: am Handy eine waagerecht
+      scrollbare Leiste, am PC eine linke Spalte; "Alle Konten" ist in beiden der erste
+      Eintrag und trägt die Summe aller Konten. Das aktive Konto ist hervorgehoben.
+- [ ] Ein Klick oder Tipp auf "Alle Konten" zeigt die Buchungen aller Konten, neueste
+      zuerst; jede Zeile trägt ihr Konto (Kürzel am Handy, eigene Spalte am PC). Ein Klick
+      auf ein Konto zeigt nur dessen Buchungen, ohne Konto-Angabe je Zeile.
+- [ ] Die Liste lädt beim Scrollen nach, 100 Buchungen je Seite. Während des Nachladens
+      steht ein Skeleton am Listenende; die Scroll-Position springt nicht.
+- [ ] Am Handy gruppiert die Liste nach Datum; am PC ist es eine Tabelle mit Sticky-Kopf.
+      Beide nutzen ausschließlich Komponenten und Tokens des Design-Systems
+      (Styleguide-Gate `design-system-001`).
+- [ ] Herkunfts-Badge und das Kennzeichen "in YNAB gelöscht" bleiben wie bisher; das
+      bestehende Historie-Sheet funktioniert unverändert weiter.
+- [ ] `dotnet build`, `dotnet test` und `npm run build` sind grün; die neuen
+      Lesefunktionen haben Tests, die Seitenlogik und Summenbildung abdecken.
+- [ ] Tests schreiben nie in die Produktionsdatenbank (In-Memory oder temporäre DB).
 
 ## Notes
-Geschnitten in `ledger-s8m3w` am 2026-09-12. Konzept und Begründung:
-`ledger/README.md`, Abschnitt "Oberfläche". Brief mit Schrittfolge und erfundenen
-Beispieldaten: `docs/ux/kassenbuch/briefs.md`, Ablauf 6.
+Geschnitten in `ledger-s8m3w` am 2026-09-12, verfeinert am selben Tag. Konzept und
+Begründung: `ledger/README.md`, Abschnitt "Oberfläche". Brief mit Schrittfolge und
+erfundenen Beispieldaten: `docs/ux/kassenbuch/briefs.md`, Ablauf 6.
 
-Offen für die Verfeinerung:
-- Ob "Alle Konten" ein eigener Eintrag in der Kontostände-Leiste ist oder ein Schalter.
-- Wie die Gesamtsicht mit Überträgen umgeht (beide Seiten sichtbar, Summe wäre 0).
-- Ob das Nachladen per Beobachter am Listenende oder per Button geschieht.
-- Der YNAB-Referenzweg für Ablauf 6 fehlt noch in `briefs.md`, Roman beschreibt ihn bei
-  der Verfeinerung.
+**Bei der Verfeinerung entschieden** (Annahmen von Claude, Roman kann beim Durchspielen
+korrigieren):
+- **"Alle Konten" ist ein eigener Eintrag** in der Kontostände-Leiste, kein Schalter. Es
+  ist damit sichtbar, dass es die Summe aller Konten trägt, und der Wechsel ist eine
+  Geste wie jeder Konto-Wechsel.
+- **Überträge erscheinen in der Gesamtsicht mit beiden Seiten.** Das ist ehrlich: es sind
+  zwei Buchungen. Dass sie sich in der Summe aufheben, ist richtig und kein Fehler. Eine
+  Zusammenfassung beider Seiten zu einer Bewegung ist v2 (`ledger-t7v2q`).
+- **Nachladen per Beobachter am Listenende**, nicht per Button. Ein Button wäre ein
+  Klick je hundert Buchungen; beim Durchsehen am Handy ist das zu viel.
+
+**Bleibt offen:** Roman hat den YNAB-Referenzweg für Ablauf 6 (wie er "All Accounts" und
+die Konto-Sicht heute nutzt, was ihm an den Kontoständen fehlt, wie er mit dem ETF-Konto
+umgeht) noch nicht beschrieben. Das blockiert diese Scheibe nicht, wäre aber beim
+Durchspielen der Maßstab.
