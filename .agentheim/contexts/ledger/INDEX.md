@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-s8m3w** — Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden (decision) — `todo/ledger-s8m3w-scheiben-aus-ux-konzept-ableiten-und-vorziehen-entscheiden.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-s8m3w** — Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden (decision) — `doing/ledger-s8m3w-scheiben-aus-ux-konzept-ableiten-und-vorziehen-entscheiden.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

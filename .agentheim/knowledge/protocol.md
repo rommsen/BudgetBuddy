@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 13:53 -- Batch started: [ledger-s8m3w]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-s8m3w - Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
+**Parallel:** no (kein Worker; Modeling-Arbeit in der Hauptsession mit Roman: Scheiben schneiden, p3n8k einordnen, v2-Entscheidung)
+
+---
+
 ## 2026-09-12 13:53 -- Modeling / Promoted: ledger-s8m3w - Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
 
 **Type:** Modeling / Promote
