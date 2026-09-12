@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 01:35 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** rund 27h (2026-09-11 22:14 bis 2026-09-13 01:35, mit Unterbrechungen; Hauptsession mit Roman)
+**Completed:** 5 — ledger-xbrht, ledger-s8m3w, ledger-b1xwe, ledger-vm3dk, ledger-x0yga
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Dispatches:** ledger-b1xwe: 2, ledger-x0yga: 2; ledger-xbrht, ledger-s8m3w, ledger-vm3dk: 0 (Human-Gate bzw. Hauptsession)
+**Commits:** 30
+**Vision-conformance:** none — batch aligns with vision. ledger-b1xwe und ledger-x0yga erfüllen zusammen das v1-Kriterium "Buchungen pro Konto und über alle Konten"; ledger-vm3dk stellt den Zustand her, in dem sich das beurteilen lässt. ADR 0028 ändert die Vision bewusst und mit Roman abgestimmt (Prüfvermerk als schreibende Ausnahme in v1). Kein Non-Goal berührt. **Eine Lücke aufgedeckt:** das v1-Kriterium "Budget-Loch durch den ETF geschlossen" stand neun Monate in keiner Aufgabe; jetzt ledger-nb4tv.
+**Carry-over:** none — working tree clean; keine Worktrees ausser dem Hauptbaum
+**Anmerkungen:**
+(1) **Das visuelle Gate hat sich beim ersten Einsatz bezahlt gemacht.** ledger-b1xwe erfüllte neun Akzeptanzkriterien, bestand die Verifikation und sah trotzdem nichts wie das Zielbild aus. Ursache war der Ablauf: das Mockup lag nur in Claude Design, der Worker hat Fließtext gelesen, und kein Schritt hat das gebaute Bild angesehen. Seit 2026-09-12 verbindlich im design-system-README: Zielbilder als PNG im Repo, und vor dem Integrieren wird die gebaute Seite aufgenommen und danebengelegt.
+(2) **Die Annahme, Claude könne Mockup-Projekte nicht lesen, war falsch.** Sie stützte sich allein auf `list_projects`, das Mockup-Projekte ausfiltert; `get_project` und `list_files` mit bekannter Projekt-Id gehen durch. Auf dieser ungeprüften Annahme war am 2026-09-12 der Prototyp gestrichen worden. Seither liegt das vollständige Übergabe-Dokument aus Claude Design im Repo (pixelgenaue Werte für alle zwölf Screens von Ablauf 1).
+(3) **Zwei Wurzelbefunde weit ausserhalb der Aufgaben:** `dotnet test` schrieb seit Bestehen der Ledger-Tests in Romans echte Entwicklungsdatenbank (ADR 0030, behoben und nachgemessen; Nachwirkung bereinigt in ledger-vm3dk, 106 Test-Konten und 195 Test-Buchungen entfernt, echte Daten per Hash-Vergleich unverändert). Und: `Table.view` setzt DaisyUI-Klassen, obwohl DaisyUI im Projekt gar nicht installiert ist — die Zellen hatten deshalb nie Padding (design-system-fq8dn).
+(4) **Neue Backlog-Einträge dieser Session:** design-system-hadjy, design-system-an22r, design-system-wa6wz, design-system-fq8dn, design-system-t3vqr, design-system-bq4tz, infra-za7fq, ledger-vm3dk (erledigt), ledger-xfjcp, ledger-nb4tv, ledger-w9skm, ledger-qns4j, plus die sechs Scheiben aus ledger-s8m3w und die schreibende Scheibe ledger-r777c.
+(5) Zwei Verifikations-Fehlschläge in Iteration 1, beide berechtigt und beide in einer knappen zweiten Iteration behoben. Zweimal fiel dem Conductor beim Integrieren ein Umlaut-Fehler auf, der die Verifikation passiert hatte; beide beim Ablegen korrigiert statt in eine dritte Iteration geschickt.
+
+---
+
 ## 2026-09-13 01:30 -- Capture / Captured: ledger-qns4j - Konten-Spalte haftend, Statusspalte neu belegen
 
 **Type:** Capture
