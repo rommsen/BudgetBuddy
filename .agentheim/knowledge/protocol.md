@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 17:37 -- Modeling / Promoted: ledger-vm3dk - Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-12 15:45 -- Work session ended
 
 **Type:** Work / Session end

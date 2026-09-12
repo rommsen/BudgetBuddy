@@ -1,7 +1,7 @@
 ---
 id: ledger-vm3dk
 title: Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-09-12
