@@ -1,7 +1,7 @@
 ---
 id: ledger-b1xwe
 title: "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-12

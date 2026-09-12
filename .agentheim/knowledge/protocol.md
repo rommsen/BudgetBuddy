@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 14:14 -- Modeling / Promoted: ledger-b1xwe - "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-12 14:13 -- Task completed (verification skipped): ledger-s8m3w - Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
 
 **Type:** Work / Task completion
