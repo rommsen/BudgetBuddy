@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 01:30 -- Capture / Captured: ledger-qns4j - Konten-Spalte haftend, Statusspalte neu belegen
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Zwei Befunde aus der Verifikation von ledger-x0yga. (1) Die Konten-Spalte scrollt weg, seit der Tabellenkopf klebt, fällt es auf; bei 14.000 Buchungen sind die Kontostände nach zwei Handgriffen verschwunden. (2) Die Statusspalte zeigt in jeder Zeile "YNAB-Spiegel", also die Regelherkunft, und verbraucht damit die zweitbreiteste Spalte für die geringste Information; der Entwurf sieht sie für den Status ("Zu prüfen") vor, die Herkunft gehört ins Detail. Dazu die Anmerkung des Verifiers, dass die Badge-Lösung aus x0yga (Spalte auf 208px, flex-nowrap) den Fehlerfall nur verschiebt: ein drittes Kennzeichen liefe waagerecht aus der Zelle. Die saubere Lösung liegt bei den Kennzeichen, nicht bei der Spaltenbreite.
+
+---
+
 ## 2026-09-12 23:59 -- Task verified and completed: ledger-x0yga - "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
 
 **Type:** Work / Task completion
