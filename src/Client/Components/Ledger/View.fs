@@ -21,13 +21,35 @@ open Client.DesignSystem
 // Formatierung
 // ============================================
 
-let private de = System.Globalization.CultureInfo("de-DE")
+/// `CultureInfo("de-DE")` funktioniert bei Datumsformaten (anders als bei
+/// Geldbetraegen, siehe `Money.formatAmountText`) auch in der nach JavaScript
+/// uebersetzten Fassung, weil `DateTime.ToString` mit festem Format-String keine
+/// kulturabhaengige Zifferngruppierung braucht. Bewusst *keine* gemeinsame
+/// Modul-Konstante: ein Top-Level-`let`-Wert wuerde beim ersten Zugriff das gesamte
+/// Modul initialisieren (F# "startup code"), inklusive der `Badge.view`-Werte weiter
+/// unten in dieser Datei — unter `dotnet test` (kein Fable/Feliz-Laufzeitkontext)
+/// reisst das eine bereits bestehende `Client.DesignSystem.Badge`-Feliz-Prop in eine
+/// `InvalidCastException`. Jede Funktion baut ihre eigene `CultureInfo`-Instanz, das
+/// haelt `formatEntryDate` unit-testbar ohne diese Kaskade auszuloesen.
+let private germanCulture () = System.Globalization.CultureInfo("de-DE")
 
-let private formatDate (d: DateTime) = d.ToString("dd.MM.yyyy", de)
+/// Volles Datum, fuer die Historie/das Detail (AC3: "das volle Datum bleibt im
+/// Detail sichtbar").
+let private formatDateFull (d: DateTime) = d.ToString("dd.MM.yyyy", germanCulture ())
 
-let private formatDateTime (d: DateTime) = d.ToLocalTime().ToString("dd.MM.yyyy HH:mm", de)
+let private formatDateTime (d: DateTime) = d.ToLocalTime().ToString("dd.MM.yyyy HH:mm", germanCulture ())
 
-let private formatMoneyText (m: Money) = $"""{m.Amount.ToString("N2", de)} {m.Currency}"""
+/// Das Datum einer Buchung in der Liste (AC3): `Heute`, `Gestern`, sonst `08.09.`
+/// ohne Jahr. Pure Funktion mit explizitem `today`, damit sie ohne Systemzeit-Mocking
+/// testbar ist (`LedgerViewTests`); `formatDate` bindet sie an `DateTime.Today` fuer
+/// die eigentliche Seite.
+let formatEntryDate (today: DateTime) (d: DateTime) : string =
+    match (d.Date - today.Date).Days with
+    | 0 -> "Heute"
+    | -1 -> "Gestern"
+    | _ -> d.ToString("dd.MM.", germanCulture ())
+
+let private formatDate (d: DateTime) = formatEntryDate DateTime.Today d
 
 // ============================================
 // Reine Bausteine (unit-testbar ohne DOM, siehe LedgerViewTests)
@@ -205,6 +227,29 @@ let private dateGroupHeader (date: DateTime) =
     ]
 
 /// Eine Zeile der Buchungsliste am PC, als Tabellenzeile mit denselben Feldern.
+/// Eine Zelle, die auf eine Zeile gekuerzt wird (Payee, Kategorie, Memo): die
+/// Tabelle hat feste Spaltenbreiten (`FixedLayout`), ohne Kuerzung wuerde langer
+/// Text sonst umbrechen und die Zeile hoeher machen als jede andere (AC4/AC5).
+let private tdTruncated (text: string) =
+    Table.cell { Table.defaultCellProps with IsTruncate = true } [ Html.text text ]
+
+/// Breite der Status-Spalte in der PC-Tabelle. Das Handoff (Screen 1.9) sieht
+/// 128px fuer *ein* Kennzeichen vor ("Zu pruefen"); traegt eine Zeile zwei
+/// Kennzeichen (Herkunft + "in YNAB geloescht"), brachen sie darin um und machten
+/// die Zeile rund 1,6-mal so hoch wie jede andere — AC4 verlangt aber gleich hohe
+/// Zeilen. Diesen Fall zeigt der Entwurf nicht; die Breite ist deshalb empirisch
+/// gegen einen Screenshot mit beiden Kennzeichen kalibriert, nicht aus dem Handoff
+/// abgelesen (ledger-x0yga, Verifier-Befund 2, Iteration 2).
+let private statusColumnWidth = "208"
+
+/// Der Betrag als eigene Zelle ueber die Money-Komponente statt als reiner Text:
+/// nur so tragen PC-Tabellen-Betraege dieselbe Farbsemantik (rot/gruen) und
+/// Ziffernschrift wie die Handy-Liste (AC1/AC2, ledger-x0yga).
+let private tdMoney (amount: decimal) (currency: string) =
+    Table.cell
+        { Table.defaultCellProps with Align = Some "right" }
+        [ Money.transactionWithCurrency amount currency ]
+
 let private entryTableRow
     (dispatch: Msg -> unit)
     (showAccountColumn: bool)
@@ -216,18 +261,21 @@ let private entryTableRow
         [
             Table.td (formatDate entry.Date)
             if showAccountColumn then Table.td (accountAbbreviationOf entry.AccountId)
-            Table.td (entry.Payee |> Option.defaultValue "ohne Payee")
-            Table.td (
+            tdTruncated (entry.Payee |> Option.defaultValue "ohne Payee")
+            tdTruncated (
                 match entry.CategoryName with
                 | Some name -> name
                 | None when not (List.isEmpty entry.Splits) -> $"{List.length entry.Splits} Split-Zeilen"
                 | None -> "ohne Kategorie"
             )
-            Table.td (entry.Memo |> Option.defaultValue "")
-            Table.tdRight (formatMoneyText entry.Amount)
+            tdTruncated (entry.Memo |> Option.defaultValue "")
+            tdMoney entry.Amount.Amount entry.Amount.Currency
             Table.tdContent [
                 Html.div [
-                    prop.className "flex flex-wrap items-center gap-1.5"
+                    // `flex-nowrap`, nicht `flex-wrap`: zwei Kennzeichen sollen die
+                    // Spalte in die Breite gehen lassen, nicht die Zeile in die Hoehe
+                    // (AC4, siehe `statusColumnWidth`).
+                    prop.className "flex flex-nowrap items-center gap-1.5"
                     prop.children [
                         originBadge entry.Origin
                         if entry.DeletedInYnab then deletedBadge
@@ -236,17 +284,30 @@ let private entryTableRow
             ]
         ]
 
-/// Die Kontostaende-Leiste (AC3): Handy waagerecht scrollbar, PC linke Spalte.
-/// "Alle Konten" ist immer der erste Eintrag, das aktive Konto ist hervorgehoben.
+/// Eine Karte der Handy-Kontostaende-Leiste (AC6): waagerecht scrollbare
+/// `Stats`-Kachel, Betrag ueber `Money.accountBalance` (Farbsemantik + Ziffernschrift
+/// statt reinem Text). Die PC-Ansicht nutzt seit `ledger-x0yga` `Money.accountListRow`
+/// statt dieser Karte — eine hohe Kachel mit Farbstreifen passt fuer eine Kennzahl,
+/// nicht fuer eine scanbare Kontoliste.
 let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
     Stats.view {
         Stats.defaultProps with
             Label = card.Label
-            Value = formatMoneyText card.Balance
+            ValueElement = Some (Money.accountBalance card.Balance.Amount card.Balance.Currency)
             Size = Stats.Compact
             IsActive = selected = Some card.Filter
             OnClick = Some (fun () -> dispatch (SelectFilter card.Filter))
     }
+
+/// Eine Zeile der PC-Kontostaende-Liste (AC6): kompakt, Name links, Betrag rechts,
+/// aktives Konto hervorgehoben — siehe `Money.accountListRow`.
+let private accountListRowView (dispatch: Msg -> unit) (selected: AccountFilter option) (card: AccountCard) =
+    Money.accountListRow
+        card.Label
+        card.Balance.Amount
+        card.Balance.Currency
+        (selected = Some card.Filter)
+        (fun () -> dispatch (SelectFilter card.Filter))
 
 let private accountStrip
     (dispatch: Msg -> unit)
@@ -259,7 +320,11 @@ let private accountStrip
     else
         let cards = buildAccountCards accounts balances
         Html.div [
-            prop.className "md:w-56 md:shrink-0"
+            // Breite nach Handoff Screen 1.9 (Konten-Spalte: 268px). Kein eigener
+            // Hintergrund (der Entwurf setzt dort `surface-app`, also denselben
+            // Grund wie die Seite) — die Spalte hebt sich nur ueber die rechte
+            // Kante ab.
+            prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3"
             prop.children [
                 Primitives.Responsive.mobileOnlyFlex [
                     Primitives.ScrollContainer.horizontal [
@@ -278,7 +343,14 @@ let private accountStrip
                     ]
                 ]
                 Primitives.Responsive.desktopOnly [
-                    Primitives.Stack.sm (cards |> List.map (accountCardView dispatch selected))
+                    Html.div [
+                        prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider px-3 pb-1"
+                        prop.text "Konten"
+                    ]
+                    Html.div [
+                        prop.className "flex flex-col gap-0.5"
+                        prop.children (cards |> List.map (accountListRowView dispatch selected))
+                    ]
                 ]
             ]
         ]
@@ -328,8 +400,9 @@ let private historySheet (model: Model) (dispatch: Msg -> unit) =
         |> Option.defaultValue "Buchung"
 
     let subtitle =
+        // Volles Datum im Detail (AC3), nicht die relative Form der Liste.
         model.HistoryFor
-        |> Option.map (fun e -> $"{formatDate e.Date} · Historie")
+        |> Option.map (fun e -> $"{formatDateFull e.Date} · Historie")
 
     BottomSheet.view
         {
@@ -420,16 +493,39 @@ let private entryListDesktop
     =
     Primitives.Responsive.desktopOnly [
         Table.view
-            { Table.defaultTableProps with Sticky = true }
+            // `FixedLayout`: feste Spaltenanteile statt Content-getriebener Breite
+            // (AC5) — ohne sie zwingt ein langer Payee/Kategorie-Text den Betrag aus
+            // dem sichtbaren Bereich, wie im Ausgangszustand. Spaltenraster nach dem
+            // Claude-Design-Handoff (`docs/ux/kassenbuch/handoff-ablauf-1-...md`,
+            // Screen 1.9): `96px 1fr 200px 1fr 132px 128px` fuer Datum, Payee,
+            // Kategorie, Memo, Betrag, Status (das Kaestchen `44px` davor gehoert zu
+            // `ledger-r1d2f`, nicht zu dieser Aufgabe). Payee und Memo bleiben ohne
+            // Breitenvorgabe und teilen sich den Rest zu gleichen Teilen (`1fr` je
+            // Spalte), wie im Handoff. Die Status-Spalte weicht vom Handoff-Wert
+            // (128px) ab — siehe `statusColumnWidth`.
+            // `Responsive = false`: `Sticky` and the wrapper's `overflow-x-auto`
+            // don't mix (see `TableProps.Responsive` doc) — without this the sticky
+            // header positions itself against the wrapper instead of the page and
+            // ends up floating mid-list. `ClassName` reapplies the wrapper's own
+            // decorative classes directly on the `<table>` so it keeps its border.
+            { Table.defaultTableProps with
+                Sticky = true
+                FixedLayout = true
+                Responsive = false
+                ClassName = Some "rounded-xl border border-border-subtle bg-surface-card" }
             [
                 Table.thead [
-                    Table.th "Datum"
-                    if showAccountColumn then Table.th "Konto"
+                    Table.thWidth "Datum" "96"
+                    if showAccountColumn then Table.thWidth "Konto" "72"
                     Table.th "Payee"
-                    Table.th "Kategorie"
+                    Table.thWidth "Kategorie" "200"
                     Table.th "Memo"
-                    Table.thRight "Betrag"
-                    Table.th "Status"
+                    Table.headerCell
+                        { Table.defaultHeaderCell with
+                            Text = "Betrag"
+                            Align = Some "right"
+                            Width = Some "132" }
+                    Table.thWidth "Status" statusColumnWidth
                 ]
                 Table.tbody (
                     entries |> List.map (entryTableRow dispatch showAccountColumn accountAbbreviationOf)

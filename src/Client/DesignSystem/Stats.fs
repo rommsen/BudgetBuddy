@@ -36,6 +36,11 @@ type StatSize =
 type StatProps = {
     Label: string
     Value: string
+    /// Overrides `Value` with a pre-rendered element (e.g. `Money.accountBalance`)
+    /// when the value needs to carry its own colour/font semantics instead of plain
+    /// text (ledger-x0yga: account balances lose their green/red colouring and
+    /// digit font if flattened to a string first).
+    ValueElement: ReactElement option
     Icon: ReactElement option
     Trend: Trend option
     Accent: StatAccent
@@ -49,6 +54,7 @@ type StatProps = {
 let defaultProps = {
     Label = ""
     Value = ""
+    ValueElement = None
     Icon = None
     Trend = None
     Accent = Gradient
@@ -172,10 +178,13 @@ let view (props: StatProps) =
                     Html.div [
                         prop.className "flex items-baseline gap-2"
                         prop.children [
-                            Html.span [
-                                prop.className $"font-mono font-bold {valueSize} text-text-primary tabular-nums"
-                                prop.text props.Value
-                            ]
+                            match props.ValueElement with
+                            | Some el -> el
+                            | None ->
+                                Html.span [
+                                    prop.className $"font-mono font-bold {valueSize} text-text-primary tabular-nums"
+                                    prop.text props.Value
+                                ]
                             match props.Trend with
                             | Some trend -> trendView trend
                             | None -> Html.none

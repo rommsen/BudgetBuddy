@@ -36,6 +36,7 @@
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
+    <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

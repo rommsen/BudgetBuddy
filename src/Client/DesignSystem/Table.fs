@@ -34,8 +34,23 @@ type TableVariant =
 type TableProps = {
     Variant: TableVariant
     Size: TableSize
-    Responsive: bool        // Wrap in responsive container
-    Sticky: bool            // Sticky header
+    /// Wraps the table in `wrapper`'s `overflow-x-auto` container. **Set this to
+    /// `false` whenever `Sticky = true`** (ledger-x0yga): CSS forces a `visible`
+    /// overflow-y to compute as `auto` on any element whose overflow-x is
+    /// non-visible (spec-mandated, not a bug — see MDN `overflow-x`), which turns
+    /// this wrapper into its own scroll container. A sticky `<thead>`'s `top` offset
+    /// is then measured against *that* container instead of the page, and since the
+    /// wrapper's height always equals its own content it never actually scrolls —
+    /// the header ends up floating at a fixed pixel offset from the wrapper's own
+    /// top, overlapping whatever row happens to sit there, instead of sticking below
+    /// the navbar. Caller must reapply `wrapper`'s decorative classes via
+    /// `ClassName` if `Responsive = false` is combined with `Sticky = true`.
+    Responsive: bool
+    Sticky: bool            // Sticky header, positioned below the app's fixed navbar
+    /// `table-layout: fixed` — column widths follow the `Width` set on header cells
+    /// (`thWidth`) instead of shrinking/growing with cell content. Needed wherever a
+    /// column must not be able to push others out of the visible area (ledger-x0yga).
+    FixedLayout: bool
     ClassName: string option
 }
 
@@ -44,6 +59,7 @@ let defaultTableProps = {
     Size = Normal
     Responsive = true
     Sticky = false
+    FixedLayout = false
     ClassName = None
 }
 
@@ -51,6 +67,11 @@ let defaultTableProps = {
 // Table Wrapper Component
 // ============================================
 
+// `table-sm`/`table-lg`/`table-zebra` are DaisyUI classes; DaisyUI isn't loaded in
+// this project, so today they're inert (ledger-x0yga found this for `.table`/
+// `.table-sm` cell padding, fixed directly on `cell`/`headerCell` below instead).
+// Whether to load DaisyUI or replace these with real CSS is `design-system-fq8dn`,
+// not this task — left as-is.
 let private sizeToClass = function
     | Compact -> "table-sm"
     | Normal -> ""
@@ -73,12 +94,17 @@ let wrapper (children: ReactElement list) =
 let view (props: TableProps) (children: ReactElement list) =
     let sizeClass = sizeToClass props.Size
     let variantClass = variantToClass props.Variant
-    let stickyClass = if props.Sticky then "[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10" else ""
+    // `.table-sticky-thead` (styles.css) sticks the header just below the app's
+    // fixed navbar (`Navigation`, h-16/64px at md+) instead of at the viewport's
+    // very top: a plain `top-0` sticky header hides behind the navbar and its first
+    // pixels get cut off (ledger-x0yga) — same pattern as `.filters` in styles.css.
+    let stickyClass = if props.Sticky then "table-sticky-thead" else ""
+    let fixedLayoutClass = if props.FixedLayout then "table-fixed" else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
 
     let table =
         Html.table [
-            prop.className $"table w-full {sizeClass} {variantClass} {stickyClass} {extraClass}"
+            prop.className $"table w-full {sizeClass} {variantClass} {stickyClass} {fixedLayoutClass} {extraClass}"
             prop.children children
         ]
 
@@ -145,7 +171,11 @@ let headerCell (props: HeaderCellProps) =
 
     Html.th [
         match widthStyle with Some s -> s | None -> ()
-        prop.className $"text-xs font-semibold uppercase tracking-wider text-text-muted/70 bg-surface-elevated {alignClass} {extraClass}"
+        // `px-3 py-2`: cell padding lives here, not in a `.table`/`.table-sm`
+        // DaisyUI class — DaisyUI isn't loaded in this project (ledger-x0yga,
+        // design-system-fq8dn tracks the underlying question). Without it these
+        // classes did nothing and adjacent columns' text touched with 0px gap.
+        prop.className $"text-xs font-semibold uppercase tracking-wider text-text-muted/70 bg-surface-elevated px-3 py-2 {alignClass} {extraClass}"
         if props.Sortable then
             prop.className $"cursor-pointer select-none hover:text-text-secondary transition-colors"
             match props.OnSort with
@@ -286,7 +316,9 @@ let cell (props: CellProps) (children: ReactElement list) =
 
     Html.td [
         match maxWidthStyle with Some s -> s | None -> ()
-        prop.className $"text-text-secondary {alignClass} {monoClass} {truncateClass} {extraClass}"
+        // Same reasoning as `headerCell` above: real padding instead of the
+        // absent `.table`/`.table-sm` DaisyUI classes.
+        prop.className $"text-text-secondary px-3 py-2 {alignClass} {monoClass} {truncateClass} {extraClass}"
         prop.children children
     ]
 

@@ -4,6 +4,55 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-13 01:24 - Kassenbuch-Liste an das Mockup angeglichen, erster Lauf des visuellen Gates
+
+**What I did:**
+Die sieben Abweichungen zwischen gebauter Kassenbuch-Liste und dem Claude-Design-Entwurf
+behoben (`ledger-x0yga`), in zwei Iterationen. Dies war die erste Aufgabe unter dem neuen
+visuellen Gate: Zielbild als PNG im Repo, Screenshots vor dem Integrieren.
+
+**Files Added:**
+- `src/Tests/MoneyFormatTests.fs` - acht Fälle für die neue Geldformatierung.
+- `docs/ux/kassenbuch/screenshots/` - drei Aufnahmen (PC, PC gescrollt, Handy).
+- `docs/ux/kassenbuch/handoff-ablauf-1-durchsehen-und-pruefen.md` - Übergabe-Dokument aus
+  Claude Design mit den pixelgenauen Werten.
+
+**Files Modified:**
+- `src/Client/DesignSystem/Money.fs` - `formatAmountText` ersetzt die kulturabhängige
+  Formatierung; neue Varianten `accountBalance` und `accountListRow`.
+- `src/Client/DesignSystem/Table.fs` - Zellen-Padding direkt auf `cell`/`headerCell`,
+  `FixedLayout`, Sticky-Kopf bei 64px statt 0.
+- `src/Client/DesignSystem/Stats.fs` - `ValueElement` (additiv).
+- `src/Client/Components/Ledger/View.fs` - relatives Datum, gekürzte Zellen, kompakte
+  Konten-Liste, Status-Spalte 208px ohne Umbruch.
+- `src/Client/styles.css` - Regel für den haftenden Tabellenkopf.
+
+**Rationale:**
+Die Liste erfüllte alle Akzeptanzkriterien von `ledger-b1xwe` und sah trotzdem falsch aus:
+englisches Zahlenformat, weiße Beträge, ungekürzter Bank-Rohtext, verschmolzene Spalten.
+Die Ursache lag im Ablauf, nicht am Code: das Mockup existierte nur in Claude Design, und
+kein Schritt hat das gebaute Bild angesehen.
+
+Der eigentliche Fehler beim Zahlenformat war, dass `CultureInfo("de-DE")` in der nach
+JavaScript übersetzten Fassung nicht greift. Die Lösung rechnet jetzt mit Ganzzahl-Cent und
+eigener Gruppierung, also ohne jede Kulturabhängigkeit.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build`, `npm run build`)
+- Tests: 819/826 bestanden, 7 übersprungen, 14 neu
+- Verifikation: PASS in Iteration 2 (Iteration 1 scheiterte an null Spaltenabstand und
+  einer Zeile, die wegen zweier Kennzeichen anderthalbmal so hoch war)
+- **Wurzelbefund:** `Table.view` setzt die DaisyUI-Klassen `.table`/`.table-sm`, aber
+  DaisyUI ist im Projekt gar nicht installiert. Die Klassen sind seit dem Bau der
+  Komponente wirkungslos, deshalb fehlte jedes Zellen-Padding. Die CLAUDE.md führt DaisyUI
+  trotzdem im Tech-Stack. Grundsatzentscheidung: `design-system-fq8dn`.
+- Weitere Folge-Tasks: `design-system-t3vqr` (neue Money-Varianten fehlen im Styleguide und
+  damit im Claude-Design-Export), `ledger-w9skm` (Kategorie nicht violett, Handy zeigt
+  Karten statt flacher Zeilen), `design-system-bq4tz` (Badge-Vorgabe bricht unter
+  `dotnet test`, vom Worker umgangen statt behoben).
+
+---
+
 ## 2026-09-12 17:47 - Testdaten aus der echten Entwicklungsdatenbank entfernt
 
 **What I did:**

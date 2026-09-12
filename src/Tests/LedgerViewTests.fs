@@ -86,6 +86,47 @@ let private groupByDateTests =
         }
     ]
 
+let private formatEntryDateTests =
+    testList "formatEntryDate" [
+
+        test "Dasselbe Datum wie heute ergibt 'Heute'" {
+            let today = DateTime(2026, 9, 12)
+            Expect.equal (formatEntryDate today today) "Heute" "Kalendertag-Vergleich, nicht Uhrzeit"
+        }
+
+        test "Heute mit einer Uhrzeit gt Null zaehlt trotzdem als 'Heute'" {
+            // Regression: ein reiner Zeitstempel-Vergleich (statt .Date) wuerde hier
+            // faelschlich einen Tagesunterschied sehen.
+            let today = DateTime(2026, 9, 12)
+            let withTime = DateTime(2026, 9, 12, 23, 59, 0)
+            Expect.equal (formatEntryDate today withTime) "Heute" "Nur das Kalenderdatum zaehlt"
+        }
+
+        test "Ein Tag vor heute ergibt 'Gestern'" {
+            let today = DateTime(2026, 9, 12)
+            let yesterday = DateTime(2026, 9, 11)
+            Expect.equal (formatEntryDate today yesterday) "Gestern" "Ein Tag Differenz"
+        }
+
+        test "Aeltere Daten stehen als TT.MM. ohne Jahr" {
+            let today = DateTime(2026, 9, 12)
+            let older = DateTime(2026, 9, 8)
+            Expect.equal (formatEntryDate today older) "08.09." "Kein Jahr in der Liste"
+        }
+
+        test "Zukuenftige Daten sind ebenfalls TT.MM., kein 'Heute'/'Gestern'" {
+            let today = DateTime(2026, 9, 12)
+            let future = DateTime(2026, 9, 13)
+            Expect.equal (formatEntryDate today future) "13.09." "Nur -1 und 0 Tage sind Sonderfaelle"
+        }
+
+        test "Jahreswechsel: 'Gestern' bleibt korrekt ueber den 1. Januar hinweg" {
+            let today = DateTime(2027, 1, 1)
+            let yesterday = DateTime(2026, 12, 31)
+            Expect.equal (formatEntryDate today yesterday) "Gestern" "DateTime.Date-Differenz, kein Tag-des-Jahres-Vergleich"
+        }
+    ]
+
 let private accountCardsTests =
     testList "buildAccountCards" [
 
@@ -111,4 +152,4 @@ let private accountCardsTests =
 
 [<Tests>]
 let ledgerViewTests =
-    testList "Kassenbuch-Seite: View-Bausteine" [ abbreviationTests; groupByDateTests; accountCardsTests ]
+    testList "Kassenbuch-Seite: View-Bausteine" [ abbreviationTests; groupByDateTests; formatEntryDateTests; accountCardsTests ]

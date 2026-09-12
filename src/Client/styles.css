@@ -1066,6 +1066,21 @@ nav a:focus-visible {
 }
 .filters::-webkit-scrollbar { display: none; }
 
+/* ============================================================
+   Design System: Table with sticky header below the fixed navbar
+   ============================================================ */
+/* `Table.view` with `Sticky = true` (ledger-x0yga: Kassenbuch-PC-Tabelle). Same
+   reasoning as `.filters` above: a plain `position: sticky; top: 0` sticks the
+   header at the viewport's very top, which is covered by the fixed navbar
+   (`Navigation`, 64px tall at md+, z-50) — the header's top pixels get cut off.
+   Sticking at 64px instead keeps it flush below the navbar, fully visible. Only
+   relevant at md+, since tables in this app are desktop-only. */
+.table-sticky-thead thead {
+  position: sticky;
+  top: 64px;
+  z-index: 10;
+}
+
 .filter-btn {
   display: flex;
   align-items: center;

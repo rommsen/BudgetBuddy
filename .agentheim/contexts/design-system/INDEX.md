@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 11
@@ -41,6 +41,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-bq4tz** — Badge.defaultProps bricht unter dotnet test (Modul-Initialisierung in View-Modulen mit Design-System-Import) (bug) — `backlog/design-system-bq4tz-badge-defaultprops-bricht-unter-dotnet-test.md`
 - **design-system-fq8dn** — Das Design-System nutzt DaisyUI-Klassen, aber DaisyUI ist nicht installiert (decision) — `backlog/design-system-fq8dn-daisyui-klassen-ohne-daisyui.md`
 - **design-system-t3vqr** — Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen (chore) — `backlog/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
 - **design-system-wa6wz** — Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate) (feature) — `backlog/design-system-wa6wz-skript-fuer-seiten-screenshots.md`

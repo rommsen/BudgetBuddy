@@ -67,14 +67,55 @@ let private getGlowClass amount glow =
     | GlowAll when amount < 0m -> "[text-shadow:0_0_10px_theme(colors.neon-red),0_0_20px_rgba(255,59,92,0.5)]"
     | _ -> ""
 
-let private formatAmount showSign showCurrency amount currency =
+/// Groups the digits of a (non-negative, integer-only) numeric string with `.`
+/// every three digits from the right (`21388` -> `21.388`). Deliberately written
+/// as plain string/substring arithmetic rather than `CultureInfo` or `Seq.chunkBySize`:
+/// .NET's culture-aware number formatting (`"N2"` with `CultureInfo("de-DE")`) does
+/// not transpile correctly via Fable — it silently falls back to English grouping
+/// regardless of the culture passed in (ledger-x0yga). This is the one place in the
+/// app that turns a raw decimal into German-grouped digits; every money display goes
+/// through `formatAmountText` below.
+let private groupThousands (digits: string) : string =
+    let len = digits.Length
+    if len <= 3 then
+        digits
+    else
+        let firstGroupLen =
+            match len % 3 with
+            | 0 -> 3
+            | r -> r
+        let firstGroup = digits.Substring(0, firstGroupLen)
+        let rest = [ for i in firstGroupLen .. 3 .. len - 1 -> digits.Substring(i, 3) ]
+        String.concat "." (firstGroup :: rest)
+
+/// Currency code to display symbol. Only EUR is in use today; anything else falls
+/// back to the code itself rather than guessing a symbol.
+let private currencySymbol =
+    function
+    | "EUR" -> "€"
+    | other -> other
+
+/// Formats a signed amount as German-style text (`-48,12 €`, `21.388,85 €`,
+/// `0,00 €`): thousands separated with `.`, decimals with `,`, always two decimal
+/// places, currency as a trailing symbol. Pure and covered directly by
+/// `MoneyFormatTests`; every convenience function below (and every other view that
+/// needs plain formatted text, e.g. account balances) builds on this single function.
+let formatAmountText (showSign: bool) (showCurrency: bool) (amount: decimal) (currency: string) : string =
     let sign = if showSign && amount >= 0m then "+" else ""
-    let currencyPart = if showCurrency then $" {currency}" else ""
-    // Note: F# format specifier :F2 doesn't work correctly with Fable transpilation
-    // Using explicit rounding and ToString instead
-    let absAmount = abs amount
-    let formattedAmount = System.Math.Round(float absAmount, 2).ToString("0.00")
     let signPrefix = if amount < 0m then "-" else sign
+    // Deliberately no `.ToString("0.00")`/`"F2"` here: both are format strings whose
+    // '.' and ',' are placeholders for the *current culture's* separators, not
+    // literal characters — on a machine or CI runner whose OS locale already uses
+    // ',' as the decimal separator, `ToString("0.00")` silently returns a
+    // comma-decimal string (e.g. `"21388,85"`), which then can't be split on '.'
+    // and comes out mangled (caught by `MoneyFormatTests` while writing this fix).
+    // Working in whole cents via plain integer arithmetic sidesteps every
+    // culture-dependent formatting path, in both the Fable build and `dotnet test`.
+    let totalCents = System.Math.Round(abs amount * 100m, 0) |> int64
+    let integerPart = string (totalCents / 100L)
+    let decimalPart = (string (totalCents % 100L)).PadLeft(2, '0')
+    let formattedAmount = $"{groupThousands integerPart},{decimalPart}"
+    let currencyPart = if showCurrency then $" {currencySymbol currency}" else ""
     $"{signPrefix}{formattedAmount}{currencyPart}"
 
 /// Create a money display with the specified props
@@ -83,7 +124,7 @@ let view (props: MoneyProps) =
     let colorClass = getColorClass props.Amount
     let glowClass = getGlowClass props.Amount props.Glow
     let extraClass = props.ClassName |> Option.defaultValue ""
-    let formatted = formatAmount props.ShowSign props.ShowCurrency props.Amount props.Currency
+    let formatted = formatAmountText props.ShowSign props.ShowCurrency props.Amount props.Currency
 
     Html.span [
         prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap {sizeClass} {colorClass} {glowClass} {extraClass}"
@@ -176,7 +217,7 @@ let available (amount: decimal) (currency: string) =
         else "text-text-muted"
     Html.span [
         prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base {colorClass}"
-        prop.text (formatAmount false true amount currency)
+        prop.text (formatAmountText false true amount currency)
     ]
 
 /// Money display from domain Money type with glow control
@@ -298,3 +339,60 @@ let transactionWithCurrency amount currency =
             Size = Small
             Glow = NoGlow
     }
+
+// ============================================
+// Account Balances (Kontostände-Leiste, ledger-b1xwe / ledger-x0yga)
+// ============================================
+
+/// Format an account balance: same colour semantics as a transaction (green/red),
+/// but without the leading `+` on positive balances — the Kontostände-Leiste never
+/// showed one, and the mockup (`1.9-pc-ausgangszustand-zeile-markiert.png`) doesn't
+/// either. Used both by the mobile card strip and the PC list row below, so the
+/// balance keeps its colour and digit font wherever it appears (ledger-x0yga).
+let accountBalance (amount: decimal) (currency: string) =
+    view {
+        defaultProps with
+            Amount = amount
+            Currency = currency
+            Size = Small
+            ShowSign = false
+            Glow = NoGlow
+    }
+
+/// Compact list row for the PC Kontostände-Liste (ledger-x0yga): account name on the
+/// left, colour-coded balance on the right, no card chrome. Replaces the tall
+/// gradient-topped `Stats` card the PC view used before — that shape is right for
+/// KPI tiles, not for a scannable list of accounts. Active account gets the same
+/// teal highlight as the desktop nav's active tab (`Navigation.desktopNavItem`).
+let accountListRow (label: string) (amount: decimal) (currency: string) (isActive: bool) (onClick: unit -> unit) =
+    Html.button [
+        prop.onClick (fun _ -> onClick ())
+        prop.className (
+            "w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors border-l-2 "
+            // Aktiv: erhoehte Flaeche + Teal-Akzentlinie links, dieselbe Kombination
+            // wie `Table.row`s `IsSelected`-Zeile (`bg-neon-teal/10 border-l-2
+            // border-l-neon-teal`) — Tokens statt der Hex-Literale aus dem
+            // Claude-Design-Handoff (`#1a1a36` / `inset 2px 0 0 #00d4aa`).
+            + if isActive then
+                  $"{Tokens.Backgrounds.surface} border-l-neon-teal"
+              else
+                  // `hover:bg-surface-hover` steht als Literal (nicht interpoliert):
+                  // Tailwind scannt den Quelltext nach ganzen Klassennamen, eine
+                  // zusammengesetzte Variante faellt beim Scan durch (vgl.
+                  // `Components.Ledger.View.entryRow`).
+                  "border-l-transparent hover:bg-surface-hover"
+        )
+        prop.children [
+            Html.span [
+                prop.className (
+                    "truncate text-sm "
+                    + if isActive then
+                          $"font-semibold {Tokens.Colors.textPrimary}"
+                      else
+                          Tokens.Colors.textSecondary
+                )
+                prop.text label
+            ]
+            accountBalance amount currency
+        ]
+    ]

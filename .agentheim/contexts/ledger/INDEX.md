@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 15
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 14
+- **Doing:** 0
+- **Done:** 15
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-x0yga** — "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte" (bug) — `doing/ledger-x0yga-kassenbuch-liste-an-das-mockup-angleichen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-x0yga** — "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte" (bug) — `done/ledger-x0yga-kassenbuch-liste-an-das-mockup-angleichen.md`
 - **ledger-vm3dk** — Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers) (bug) — `done/ledger-vm3dk-testdaten-in-echter-dev-datenbank-aufraeumen.md`
 - **ledger-b1xwe** — "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste" (feature) — `done/ledger-b1xwe-liste-seitenweise-gesamtsicht-kontostaende.md`
 - **ledger-s8m3w** — Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden (decision) — `done/ledger-s8m3w-scheiben-aus-ux-konzept-ableiten-und-vorziehen-entscheiden.md`

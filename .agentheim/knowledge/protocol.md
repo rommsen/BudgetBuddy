@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 23:59 -- Task verified and completed: ledger-x0yga - "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
+
+**Type:** Work / Task completion
+**Task:** ledger-x0yga - "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
+**Summary:** Kassenbuch-Liste an das Mockup angeglichen: deutsches Geldformat kulturunabhängig an einer Stelle, Beträge überall über die Money-Komponente, relatives Datum, einzeilig gekürzte Zellen mit echtem Zellenabstand, kompakte Konten-Liste und ein Tabellenkopf, der beim Scrollen unter der Navigationsleiste klebt
+**Duration:** 2h48m (22:36 bis 01:24, zwei Iterationen)
+**Verification:** PASS (iteration 2)
+**Files changed:** 14
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
 ## 2026-09-13 00:05 -- Verification failed: ledger-x0yga - Kassenbuch-Liste an das Mockup angleichen
 
 **Type:** Work / Verification failure
