@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 15:45 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 17h31m (2026-09-11 22:14 bis 2026-09-12 15:45, über Nacht unterbrochen; Hauptsession mit Roman)
+**Completed:** 3 (first-try PASS: 0, re-dispatched: 1, skipped: 2)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Dispatches:** ledger-xbrht: 0 (Human-Gate), ledger-s8m3w: 0 (Human-Gate), ledger-b1xwe: 2
+**Commits:** 14
+**Vision-conformance:** none — batch aligns with vision. `ledger-b1xwe` erfüllt unmittelbar das v1-Kriterium "Buchungen pro Konto und über alle Konten, wie YNABs All Accounts". `ledger-xbrht` und `ledger-s8m3w` zielen auf das Scheiterkriterium "Kassenbuch gebaut, aber niemand schaut hinein". Die Vision wurde in dieser Session selbst geändert (ADR 0028: der Prüfvermerk als schreibende Ausnahme in v1), das ist eine bewusste, mit Roman getroffene Entscheidung und keine Abweichung. Kein Non-Goal berührt; insbesondere bleibt Budgetieren unangetastet, `ledger-kwwxz` zeigt den Available-Betrag nur an, ohne ihn zu ändern.
+**Carry-over:** none — working tree clean; keine Worktrees ausser dem Hauptbaum
+**Anmerkungen:** (1) **Der wichtigste Fund der Session war ein Nebenfund:** `dotnet test` schrieb seit Bestehen der Ledger-Tests in Romans echte Entwicklungsdatenbank, weil VSTest den Einstiegspunkt in `Main.fs` nie aufruft und `USE_MEMORY_DB` damit nie griff. Behoben über `test.runsettings` (ADR 0030), empirisch nachgemessen. Die bereits geschriebenen Testdaten (106 Konten, 365 Buchungen) stehen noch in der Datei: `ledger-vm3dk`. Der Schutz lässt sich weiterhin still umgehen: `infra-za7fq`. Die Produktionsdatenbank war nie betroffen. (2) Der klickbare Prototyp in Claude Design wurde nach Brief 1 gestrichen (Entscheidung Roman): Claude kann Mockup-Projekte nicht lesen, jede Iteration hätte einen Screenshot von Hand gebraucht, und ein Mockup mit erfundenen Daten kann weder "mindestens so schnell wie YNAB" noch das Verhalten bei 14.000 Buchungen belegen. Der Durchgang wandert an echte Daten in die erste Scheibe. (3) Zwei Fehler am Claude-Design-Export gefunden und erfasst: `design-system-hadjy` (absolute Font-URLs), `design-system-an22r` (der Self-Check läuft erst auf eine Anfrage im Projekt-Chat und schreibt dabei das Bundle um). (4) Die Verifikation von `ledger-b1xwe` scheiterte in Iteration 1 an zwei reinen Textmängeln (falscher ADR-Verweis in zwei Kommentaren, ADR 0029 in Umschreibungen statt Umlauten); beide Befunde waren berechtigt und in einer knappen zweiten Iteration behoben. (5) Ein dritter Umlaut-Fehler (Frontmatter-Titel von ADR 0030) fiel dem Conductor beim Integrieren auf und wurde dort korrigiert, statt dafür eine dritte Iteration zu starten.
+
+---
+
 ## 2026-09-12 15:30 -- Task verified and completed: ledger-b1xwe - "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
 
 **Type:** Work / Task completion
