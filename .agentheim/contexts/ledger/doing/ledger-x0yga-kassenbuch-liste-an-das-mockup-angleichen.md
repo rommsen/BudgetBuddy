@@ -1,7 +1,7 @@
 ---
 id: ledger-x0yga
 title: "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-12

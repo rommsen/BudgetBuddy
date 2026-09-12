@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 22:43 -- Batch started: [ledger-x0yga]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-x0yga - "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
+**Parallel:** no (1 Worker; erste Aufgabe unter dem neuen visuellen Gate, Zielbild liegt als PNG im Repo)
+
+---
+
 ## 2026-09-12 22:43 -- Modeling / Promoted: ledger-x0yga - "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
 
 **Type:** Modeling / Promote
