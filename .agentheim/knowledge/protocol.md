@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 15:30 -- Task verified and completed: ledger-b1xwe - "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
+
+**Type:** Work / Task completion
+**Task:** ledger-b1xwe - "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
+**Summary:** Kassenbuch-Liste lädt serverseitig seitenweise (Konto oder alle Konten, Trefferzahl und Gesamtsumme über den ganzen Treffer) und zeigt eine Kontostände-Leiste; dabei ein projektweiter Test-Infra-Fehler behoben, durch den dotnet test in die echte Entwicklungsdatenbank schrieb
+**Duration:** 1h42m (13:47 bis 15:29, davon eine Verifikations-Iteration)
+**Verification:** PASS (iteration 2)
+**Files changed:** 20
+**Tests added:** 24
+**ADRs written:** 0029, 0030
+
+---
+
 ## 2026-09-12 15:36 -- Capture / Captured: infra-za7fq - Wächter-Test gegen Schreiben in die echte Datei-Datenbank
 
 **Type:** Capture

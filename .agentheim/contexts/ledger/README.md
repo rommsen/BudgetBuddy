@@ -87,10 +87,22 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Gelesen werden die Zustandstabellen; nur die Historie fasst das Ereignis-Log an.
   - `getLedgerAccounts` — alle Konten samt Vorauswahl der Seite: das gespiegelte
     YNAB-Standardkonto (`ynab_default_account_id`), sonst das erste.
-  - `getLedgerEntriesForAccount` — die Buchungen eines Kontos, neueste zuerst. In YNAB
-    gelöschte Buchungen sind enthalten und tragen ein Kennzeichen, sie werden nie
-    herausgefiltert. Der **Kontostand** wird aus dieser Liste in F# summiert
-    (`Shared.Domain.ledgerBalance`), nie per SQL-`SUM` (ADR 0017).
+  - `getLedgerEntriesForAccount` — die Buchungen eines Kontos, neueste zuerst, auf
+    einmal geladen. Bleibt bestehen, bis nichts mehr auf sie zeigt (ledger-b1xwe);
+    die Kassenbuch-Seite nutzt seit `ledger-b1xwe` `getLedgerEntriesPage` statt ihrer.
+  - `getLedgerEntriesPage` (ledger-b1xwe) — eine **Seite** der Buchungsliste: ein
+    Konto (optional, `None` heißt alle Konten) plus Seitenzeiger und Seitengröße.
+    Rückgabe: die Buchungen der Seite, die Gesamtzahl der Treffer und die Summe über
+    den **gesamten** Treffer (`Shared.Domain.sumMoney`), nicht die Seite — in F#
+    gebildet, nie per SQL-`SUM` (ADR 0017). Fundament für die künftigen Filter
+    (`ledger-vgfw3`) und die Summenzeile über der Liste.
+  - `getLedgerAccountBalances` (ledger-b1xwe) — die **Kontostände** aller Konten in
+    einem Aufruf, für die Kontostände-Leiste. Der Stand ist die Summe der nicht in
+    YNAB gelöschten Buchungen je Konto (`Shared.Domain.ledgerBalancesByAccount`),
+    unabhängig davon, welche Seite der Liste gerade geladen ist — er kommt nie aus
+    dem sichtbaren Ausschnitt. `ledgerBalance` (Buchungsliste eines geladenen
+    Kontos) bleibt daneben bestehen und rechnet dasselbe, nur aus bereits geladenen
+    Buchungen statt aus einer eigenen Abfrage.
   - `getEntryHistory` — die **Historie** einer Buchung, älteste Zeile zuerst: laufende
     Nummer, Zeitpunkt, Herkunft und ein sprechender Satz je Ereignis ("Kategorie in YNAB
     geändert: Lebensmittel → Restaurant"), nie ein Ereignis-Typname (ADR 0013). Die alten
@@ -293,8 +305,12 @@ damit kein Ankreuzen.
 zurück, ausgegraut und ohne Wirkung auf den Kontostand (`ledger-p3n8k`).
 
 **Große Listen.** Der Bestand liegt bei rund 14.000 Buchungen. Die Liste lädt seitenweise
-nach; Trefferzahl und Summe rechnet der Server über den gesamten Treffer, nie über den
-geladenen Ausschnitt. Kontostände kommen aus dem Zustand, nie aus der Liste.
+nach (`getLedgerEntriesPage`, 100 Buchungen je Seite, Beobachter am Listenende statt
+Button — ledger-b1xwe); Trefferzahl und Summe rechnet der Server über den gesamten
+Treffer, nie über den geladenen Ausschnitt. Kontostände kommen aus dem Zustand
+(`getLedgerAccountBalances`), nie aus der Liste. Konto ist ein Filter
+(`AllAccounts | OneAccount`), "Alle Konten" ist ein eigener, gleichberechtigter Wert,
+kein Schalter.
 
 **Was das Konzept voraussetzt und heute nicht gibt** (Scheiben-Material für
 `ledger-s8m3w`):
@@ -304,9 +320,9 @@ geladenen Ausschnitt. Kontostände kommen aus dem Zustand, nie aus der Liste.
 - **Available-Betrag je Kategorie.** Der Picker soll je Kategorie den verfügbaren Betrag
   zeigen und beim Wechsel beide Seiten (alt hoch, neu runter), wie die YNAB-App. Der
   Spiegel führt heute keine Budget-Zahlen mit.
-- **Seitenweises Laden mit serverseitiger Summe und Filterung.** `getLedgerEntriesForAccount`
-  liefert heute die ganze Liste eines Kontos und summiert in F# (ADR 0017); das bleibt für
-  den Kontostand richtig, trägt aber keine Filter und keine Gesamtsicht.
+- **Filter-Chips und Summenzeile über dem Treffer.** `getLedgerEntriesPage` liefert
+  Trefferzahl und Summe bereits (ledger-b1xwe), aber die Seite zeigt heute weder
+  Filter-Chips noch die Summenzeile an — das ist `ledger-vgfw3`.
 
 ## Open questions
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro

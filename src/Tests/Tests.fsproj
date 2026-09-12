@@ -4,6 +4,9 @@
     <TargetFramework>net9.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
+    <!-- Erzwingt USE_MEMORY_DB=true fuer `dotnet test` (VSTest ruft nie den
+         Einstiegspunkt in Main.fs auf, siehe dort und test.runsettings). -->
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +35,7 @@
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
+    <Compile Include="LedgerViewTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

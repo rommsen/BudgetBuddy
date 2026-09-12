@@ -19,6 +19,7 @@ open Shared.Domain
 open Ledger.Events
 open Ledger.Domain
 open Ledger.QueryHandlers
+open Ledger.Persistence
 open Types
 open Components.Ledger.Types
 
@@ -368,19 +369,34 @@ let private summary : MirrorRunSummary = {
     ServerKnowledge = 4711L
 }
 
+/// Baut die Ok-Antwort einer Seiten-Abfrage, so wie sie `EntriesPageLoaded` bekommt.
+let private page (entries: LedgerEntryView list) (totalCount: int) : LedgerEntryPage = {
+    Entries = entries
+    TotalCount = totalCount
+    TotalAmount = ledgerBalance "EUR" entries
+}
+
+/// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
+/// fuer Kommandos aus `Cmd.ofMsg` / `Cmd.batch` / `Cmd.map` — ein `Cmd.OfAsync` wuerde
+/// hier den Fable-only-Proxy anfassen und unter .NET werfen (ADR 0020).
+let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
+    let collected = ResizeArray<'msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
+
 let reducerTests =
     testList "Kassenbuch-Seite: Reduzierer" [
 
         test "Geladene Konten waehlen das Standardkonto vor" {
             let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) (freshModel ())
-            Expect.equal updated.SelectedAccountId (Some (accountGuid 2)) "Die Vorauswahl des Servers gilt"
+            Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 2))) "Die Vorauswahl des Servers gilt"
             Expect.isTrue (RemoteData.isSuccess updated.Accounts) "Konten sind geladen"
         }
 
         test "Ein leeres Kassenbuch waehlt nichts vor und laedt keine Buchungen" {
             let empty = { Accounts = []; DefaultAccountId = None }
             let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok empty)) (freshModel ())
-            Expect.equal updated.SelectedAccountId None "Es gibt kein Konto zu zeigen"
+            Expect.equal updated.SelectedFilter None "Es gibt keinen Filter zu zeigen"
             Expect.equal updated.Entries NotAsked "Ohne Konto gibt es nichts zu laden"
         }
 
@@ -390,16 +406,23 @@ let reducerTests =
             Expect.equal updated.Accounts (Failure "keine Verbindung") "Der Fehler wird nicht geschluckt"
         }
 
-        test "Kontowechsel waehlt das Konto und laedt dessen Buchungen" {
+        test "Kontowechsel waehlt das Konto und laedt dessen Buchungen ab Seite 0" {
             let loaded, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) (freshModel ())
-            let updated, _, _ = Components.Ledger.State.update (SelectAccount (accountGuid 1)) loaded
-            Expect.equal updated.SelectedAccountId (Some (accountGuid 1)) "Das gewaehlte Konto"
-            Expect.equal updated.Entries Loading "Die Buchungen des neuen Kontos werden geholt"
+            let updated, _, _ = Components.Ledger.State.update (SelectFilter (OneAccount (accountGuid 1))) loaded
+            Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 1))) "Der gewaehlte Filter"
+            Expect.equal updated.Entries Loading "Die Buchungen des neuen Filters werden geholt"
+            Expect.equal updated.NextPage 0 "Ein Filterwechsel beginnt wieder bei Seite 0"
         }
 
-        test "Geladene Buchungen behalten geloeschte Eintraege" {
+        test "Ein Klick auf 'Alle Konten' ist ein eigener Filter, kein Konto" {
+            let loaded, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (SelectFilter AllAccounts) loaded
+            Expect.equal updated.SelectedFilter (Some AllAccounts) "Gesamtsicht ist ein eigener Filterwert"
+        }
+
+        test "Geladene erste Seite ersetzt die Liste und behaelt geloeschte Eintraege" {
             let entries = [ entryView 1 -42.5m false; entryView 2 -10m true ]
-            let updated, _, _ = Components.Ledger.State.update (EntriesLoaded (Ok entries)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok (page entries 2))) (freshModel ())
             match updated.Entries with
             | Success loaded ->
                 Expect.equal (List.length loaded) 2 "Nichts wird herausgefiltert"
@@ -407,18 +430,79 @@ let reducerTests =
                     (loaded |> List.exists (fun e -> e.DeletedInYnab))
                     "Die geloeschte Buchung bleibt in der Liste"
             | other -> failtestf "Erwartet Success, war %A" other
+            Expect.isFalse updated.HasMoreEntries "Zwei von zwei Treffern: nichts mehr zu laden"
         }
 
-        test "Fehlgeschlagene Buchungen werden als Fehler gezeigt" {
-            let updated, _, _ = Components.Ledger.State.update (EntriesLoaded (Error "kaputt")) (freshModel ())
+        test "Eine zweite Seite wird an die erste angehaengt, nicht ersetzt" {
+            let first, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 3)))
+                    (freshModel ())
+            let second, _, _ =
+                Components.Ledger.State.update (EntriesPageLoaded (1, Ok (page [ entryView 2 -2m false ] 3))) first
+            match second.Entries with
+            | Success loaded -> Expect.equal (loaded |> List.map (fun e -> e.Id)) [ entryGuid 1; entryGuid 2 ] "Beide Seiten stehen in Ladereihenfolge"
+            | other -> failtestf "Erwartet Success, war %A" other
+            Expect.isTrue second.HasMoreEntries "Zwei von drei Treffern geladen: es gibt noch mehr"
+            Expect.equal second.NextPage 2 "Die naechste Seite waere Seite 2"
+        }
+
+        test "Fehlgeschlagene erste Seite wird als Fehler gezeigt" {
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Error "kaputt")) (freshModel ())
             Expect.equal updated.Entries (Failure "kaputt") "Der Fehler bleibt sichtbar"
+        }
+
+        test "Fehlgeschlagenes Nachladen loescht die sichtbare Liste nicht, sondern zeigt einen Toast" {
+            let loaded, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (freshModel ())
+            let updated, _, external = Components.Ledger.State.update (EntriesPageLoaded (1, Error "Netzwerkfehler")) loaded
+            Expect.equal updated.Entries loaded.Entries "Die bereits geladene Liste bleibt stehen"
+            Expect.isFalse updated.LoadingMore "Das Nachladen ist beendet, auch bei einem Fehler"
+            match external with
+            | ShowToast (message, ToastError) -> Expect.stringContains message "Netzwerkfehler" "Der Fehler wird genannt"
+            | other -> failtestf "Erwartet Fehler-Toast, war %A" other
+        }
+
+        test "Nachladen am Listenende laedt die naechste Seite" {
+            let loaded, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (freshModel ())
+            let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries loaded
+            Expect.isTrue updated.LoadingMore "Das Nachladen laeuft"
+            let msgs = dispatched cmd
+            Expect.contains msgs (RunLoadEntriesPage loaded.NextPage) "Die naechste Seite wird angefordert"
+        }
+
+        test "Nachladen tut nichts, waehrend schon nachgeladen wird" {
+            let loaded, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (freshModel ())
+            let alreadyLoading = { loaded with LoadingMore = true }
+            let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries alreadyLoading
+            Expect.equal updated alreadyLoading "Kein zweiter Nachlade-Aufruf waehrend einer laeuft"
+            Expect.isEmpty (dispatched cmd) "Kein Kommando"
+        }
+
+        test "Nachladen tut nichts, wenn es keine weitere Seite gibt" {
+            let loaded, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 1)))
+                    (freshModel ())
+            Expect.isFalse loaded.HasMoreEntries "Ein Treffer, eine Seite: nichts mehr zu laden"
+            let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries loaded
+            Expect.equal updated loaded "Unveraendert"
+            Expect.isEmpty (dispatched cmd) "Kein Kommando"
         }
 
         test "Spiegel-Start setzt den Hinweis, ohne die Liste zu leeren" {
             // ADR 0014: Roman wartet nie auf den Spiegel — die Seite zeigt den
             // bestehenden Stand weiter, waehrend der Lauf laeuft.
             let entries = [ entryView 1 -42.5m false ]
-            let loaded, _, _ = Components.Ledger.State.update (EntriesLoaded (Ok entries)) (freshModel ())
+            let loaded, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok (page entries 1))) (freshModel ())
             let running, _, _ = Components.Ledger.State.update StartMirror loaded
             Expect.isTrue running.MirrorRunning "Der Hinweis 'Spiegel laeuft' steht"
             Expect.equal running.Entries (Success entries) "Die Liste bleibt unveraendert stehen"
@@ -490,14 +574,6 @@ let reducerTests =
 //     Konten. Ohne gewaehltes Konto tat `LoadEntries` still nichts, also blieb die
 //     Seite auf dem leeren Stand stehen, obwohl der Lauf gerade die Konten anlegte.
 
-/// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
-/// fuer Kommandos aus `Cmd.ofMsg` / `Cmd.batch` / `Cmd.map` — ein `Cmd.OfAsync` wuerde
-/// hier den Fable-only-Proxy anfassen und unter .NET werfen (ADR 0020).
-let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
-    let collected = ResizeArray<'msg>()
-    cmd |> List.iter (fun effect -> effect collected.Add)
-    List.ofSeq collected
-
 let private erstlaufTests =
     testList "Erster Spiegel-Lauf auf leerem Kassenbuch" [
 
@@ -529,24 +605,197 @@ let private erstlaufTests =
             let _, cmd, _ = Components.Ledger.State.update (MirrorFinished (Ok summary)) (freshModel ())
             let msgs = dispatched cmd
             Expect.contains msgs LoadAccounts "Konten muessen nach dem Lauf neu geladen werden"
+            Expect.contains msgs LoadBalances "Kontostaende muessen nach dem Lauf neu geladen werden"
             Expect.contains msgs LoadMirrorStatus "Lauf-Status muss nach dem Lauf neu geladen werden"
         }
 
         test "Geladene Konten behalten eine bereits getroffene Auswahl" {
             // Sonst springt die Seite nach jedem Spiegel-Lauf zurueck auf das Standardkonto,
             // waehrend Roman ein anderes Konto ansieht.
-            let model = { freshModel () with SelectedAccountId = Some (accountGuid 1) }
+            let model = { freshModel () with SelectedFilter = Some (OneAccount (accountGuid 1)) }
             let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
-            Expect.equal updated.SelectedAccountId (Some (accountGuid 1)) "Die eigene Auswahl ueberlebt"
+            Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 1))) "Die eigene Auswahl ueberlebt"
+        }
+
+        test "Geladene Konten behalten die Gesamtsicht als Auswahl" {
+            let model = { freshModel () with SelectedFilter = Some AllAccounts }
+            let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
+            Expect.equal updated.SelectedFilter (Some AllAccounts) "Auch die Gesamtsicht ueberlebt ein Neuladen"
         }
 
         test "Verschwindet das gewaehlte Konto, greift wieder die Vorauswahl" {
-            let model = { freshModel () with SelectedAccountId = Some (accountGuid 9) }
+            let model = { freshModel () with SelectedFilter = Some (OneAccount (accountGuid 9)) }
             let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
-            Expect.equal updated.SelectedAccountId (Some (accountGuid 2)) "Faellt auf das Standardkonto zurueck"
+            Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 2))) "Faellt auf das Standardkonto zurueck"
         }
+    ]
+
+// ============================================
+// Seitenweise Liste und Kontostaende (ledger-b1xwe): reine Bausteine
+// ============================================
+
+let private balanceInputsTests =
+    testList "Kontostaende: reine Bausteine" [
+
+        test "sumMoney summiert exakt und uebernimmt die Waehrung der ersten Buchung" {
+            let amounts = [ eur -42.5m; eur 100m; eur -7.25m ]
+            Expect.equal (sumMoney "EUR" amounts) (eur 50.25m) "Summe wie ledgerBalance, aber ohne Ausschluss"
+        }
+
+        test "sumMoney ohne Betraege ist null in der Fallback-Waehrung" {
+            Expect.equal (sumMoney "EUR" []) (eur 0m) "Leerer Treffer, kein Fehler"
+        }
+
+        test "ledgerBalancesByAccount gruppiert je Konto und schliesst Geloeschte aus" {
+            let a1 = accountGuid 1
+            let a2 = accountGuid 2
+            let inputs =
+                [ { AccountId = a1; Amount = eur -42.5m; DeletedInYnab = false }
+                  { AccountId = a1; Amount = eur 100m; DeletedInYnab = false }
+                  { AccountId = a1; Amount = eur 1000m; DeletedInYnab = true }
+                  { AccountId = a2; Amount = eur 5m; DeletedInYnab = false } ]
+
+            let balances = ledgerBalancesByAccount "EUR" inputs
+            Expect.equal (Map.find a1 balances) (eur 57.5m) "Konto 1: 100 - 42,50, die geloeschte Buchung zaehlt nicht"
+            Expect.equal (Map.find a2 balances) (eur 5m) "Konto 2 unabhaengig von Konto 1"
+        }
+
+        test "Der Kontostand ist derselbe, ob man ihn aus zwei oder aus zwanzig Haeppchen zusammensetzt" {
+            // AC2: der Kontostand haengt nicht davon ab, wie viele Seiten der
+            // Buchungsliste geladen sind. `ledgerBalancesByAccount` bekommt nie eine
+            // Teilmenge von der Seiten-Abfrage: das Query-Handler laedt fuer die
+            // Kontostaende immer ALLE Betraege (`loadAmountsForBalances`), nicht die
+            // gerade sichtbare Seite. Dieser Test zeigt die Kehrseite: eine Teilmenge
+            // (wie "nur die erste Seite") ergaebe einen ANDEREN, falschen Stand — das
+            // ist der Grund, warum die Kontostaende-Abfrage getrennt von der
+            // Seiten-Abfrage laeuft.
+            let account = accountGuid 1
+            let full =
+                List.init 20 (fun i -> { AccountId = account; Amount = eur (decimal (i + 1)); DeletedInYnab = false })
+            let firstPageOnly = full |> List.truncate 2
+
+            let fullBalance = ledgerBalancesByAccount "EUR" full |> Map.find account
+            let partialBalance = ledgerBalancesByAccount "EUR" firstPageOnly |> Map.find account
+
+            Expect.equal fullBalance (eur 210m) "1+2+...+20"
+            Expect.notEqual partialBalance fullBalance
+                "Eine Teilmenge waere der falsche Kontostand — deshalb liest die Kontostaende-Abfrage immer alles"
+        }
+    ]
+
+// ============================================
+// Seitenweise Liste und Kontostaende (ledger-b1xwe): Persistence + Query-Handler
+// ============================================
+// In-Memory-SQLite (Main.fs setzt USE_MEMORY_DB=true vor dem Testlauf). Eigener
+// Konten-Namensraum (0195bb00...), damit die Tests unabhaengig vom Rest der
+// gemeinsam genutzten In-Memory-DB laufen.
+
+let private pageTestAccountA = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000a")
+let private pageTestAccountB = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000b")
+
+let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-0000000000{n:D2}")
+
+/// Legt eine Buchung per `appendAndApply` an: eine Erstbeobachtung, `n` bestimmt Id,
+/// Datum (steigend mit `n`, fuer eine eindeutige Sortierreihenfolge) und Betrag.
+let private seedEntry (accountId: LedgerAccountId) (n: int) (amount: decimal) : Async<unit> =
+    let payload : EntryObservedInYnabPayload = {
+        AccountId = accountId
+        YnabTransactionId = $"pagetest-{n}"
+        ImportId = None
+        Date = DateTime(2026, 4, 1).AddDays(float n)
+        Amount = { Amount = amount; Currency = "EUR" }
+        Payee = Some $"Payee {n}"
+        Memo = None
+        Category = None
+        Splits = []
+        Cleared = Uncleared
+        TransferAccountId = None
+        TransferYnabTransactionId = None
+    }
+    appendAndApply [
+        { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
+    ]
+
+let private seedAccounts () : Async<unit> =
+    async {
+        do! saveAccount { Id = pageTestAccountA; Name = "Konto A"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountB; Name = "Konto B"; Kind = BankAccount; Link = BbOwned; Closed = false }
+    }
+
+[<Tests>]
+let ledgerPagingTests =
+    initializeLedgerSchema ()
+    seedAccounts () |> Async.RunSynchronously
+
+    testSequenced
+    <| testList "Kassenbuch-Seite: seitenweise Liste und Kontostaende (Persistence)" [
+
+        testCase "Eine Seite aus einer mehrseitigen Menge traegt die Gesamtsumme, nicht die Seitensumme" <| fun () ->
+            // AC1: fuenf Buchungen auf einem Konto, Seitengroesse 2 -> drei Seiten.
+            // Jede Seite muss dieselbe Gesamtsumme tragen.
+            for n, amount in [ 1, -10m; 2, -20m; 3, -30m; 4, -40m; 5, -50m ] do
+                seedEntry pageTestAccountA n amount |> Async.RunSynchronously
+
+            let (LedgerAccountId rawId) = pageTestAccountA
+            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2 }
+
+            let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
+            let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
+            let page2 = Ledger.QueryHandlers.getLedgerEntriesPage (query 2) |> Async.RunSynchronously
+
+            Expect.equal page0.TotalCount 5 "Trefferzahl ueber die ganze Menge"
+            Expect.equal (List.length page0.Entries) 2 "Erste Seite traegt nur ihre eigenen zwei Buchungen"
+            Expect.equal (List.length page2.Entries) 1 "Letzte Seite ist nur teilweise gefuellt"
+
+            let expectedTotal = { Amount = -150m; Currency = "EUR" }
+            Expect.equal page0.TotalAmount expectedTotal "Erste Seite traegt die Gesamtsumme"
+            Expect.equal page1.TotalAmount expectedTotal "Zweite Seite traegt dieselbe Gesamtsumme"
+            Expect.equal page2.TotalAmount expectedTotal "Auch die letzte, nur teilweise gefuellte Seite"
+            Expect.notEqual page0.TotalAmount { Amount = -30m; Currency = "EUR" }
+                "Die Seitensumme (-10 + -20) waere falsch gewesen"
+
+            // Neueste zuerst: Buchung 5 (spaetestes Datum) steht zuerst auf Seite 0.
+            Expect.equal
+                (page0.Entries |> List.map (fun e -> e.Payee))
+                [ Some "Payee 5"; Some "Payee 4" ]
+                "Neueste zuerst"
+
+        testCase "Ohne Konto-Filter zeigt die Seite alle Konten, jede Zeile traegt ihr Konto" <| fun () ->
+            seedEntry pageTestAccountB 20 -5m |> Async.RunSynchronously
+            seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
+
+            let allAccountsPage =
+                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100 }
+                |> Async.RunSynchronously
+
+            let (LedgerAccountId rawB) = pageTestAccountB
+            Expect.isTrue
+                (allAccountsPage.Entries |> List.exists (fun e -> e.AccountId = rawB))
+                "Konto B ist in der Gesamtsicht enthalten"
+            Expect.isGreaterThanOrEqual allAccountsPage.TotalCount 7
+                "Mindestens die 5 Buchungen aus Konto A und die 2 aus Konto B"
+
+        testCase "Kontostaende aller Konten kommen in einem Aufruf und bleiben von Seiten unberuehrt" <| fun () ->
+            let balances = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously
+            let (LedgerAccountId rawA) = pageTestAccountA
+            let (LedgerAccountId rawB) = pageTestAccountB
+
+            let balanceA = balances |> List.find (fun b -> b.AccountId = rawA)
+            let balanceB = balances |> List.find (fun b -> b.AccountId = rawB)
+
+            Expect.equal balanceA.Balance { Amount = -150m; Currency = "EUR" }
+                "Kontostand A ist die Summe aller fuenf Buchungen, nicht nur einer Seite"
+            Expect.equal balanceB.Balance { Amount = -11m; Currency = "EUR" } "Kontostand B unabhaengig von A"
+
+            // Derselbe Aufruf noch einmal, ohne dass irgendeine Seite der Liste
+            // dazwischen geladen wurde: der Stand aendert sich nicht (AC2).
+            let balancesAgain = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously
+            let balanceAAgain = balancesAgain |> List.find (fun b -> b.AccountId = rawA)
+            Expect.equal balanceAAgain.Balance balanceA.Balance "Der Stand ist stabil, unabhaengig vom Seiten-Laden"
     ]
 
 [<Tests>]
 let ledgerPageTests =
-    testList "Kassenbuch-Seite" [ historyLanguageTests; readModelTests; reducerTests; erstlaufTests ]
+    testList
+        "Kassenbuch-Seite"
+        [ historyLanguageTests; readModelTests; balanceInputsTests; reducerTests; erstlaufTests ]

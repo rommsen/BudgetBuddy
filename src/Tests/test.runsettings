@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Erzwingt die In-Memory-SQLite-DB fuer `dotnet test` (VSTest/YoloDev.Expecto.TestSdk).
+
+  `dotnet test` ruft NIE `Tests/Main.fs`s `main` auf — der VSTest-Adapter laedt die
+  Test-Assembly als Bibliothek und startet Expecto per Reflection, nicht ueber den
+  Einstiegspunkt. `Environment.SetEnvironmentVariable("USE_MEMORY_DB", "true")` in
+  `main` griff also nur beim Direktaufruf `dotnet exec Tests.dll`, nie unter
+  `dotnet test`. Ohne diese Datei schreibt `dotnet test` in die echte Datei-Datenbank
+  unter `DATA_DIR` (Default `~/my_apps/budgetbuddy-dev/budgetbuddy.db`) — genau das
+  ist am 2026-09-12 bei der Arbeit an ledger-b1xwe passiert (siehe ADR 0030) und hat
+  Testdaten in eine echte, mit realen Kontostaenden gefuellte Entwickler-Datenbank
+  geschrieben.
+
+  `RunConfiguration/EnvironmentVariables` ist eine von VSTest selbst unterstuetzte
+  Einstellung (kein Custom-Code, kein F#-Compiler-Workaround noetig): die hier
+  gesetzten Variablen landen im Environment des Test-Host-Prozesses, BEVOR
+  `Persistence.dbConfig` (lazy, siehe `src/Server/Persistence.fs`) das erste Mal
+  ausgewertet wird.
+-->
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <USE_MEMORY_DB>true</USE_MEMORY_DB>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>

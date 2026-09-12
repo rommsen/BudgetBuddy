@@ -4,6 +4,60 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-12 15:29 - Kassenbuch-Liste lädt seitenweise, Gesamtsicht und Kontostände-Leiste; Test-Infra-Fehler behoben
+
+**What I did:**
+Erste lesende Bau-Scheibe des Kassenbuchs (`ledger-b1xwe`). Die Liste lädt jetzt
+serverseitig seitenweise, wahlweise für ein Konto oder über alle Konten, und die Seite
+zeigt eine Kontostände-Leiste. Dabei fiel ein projektweiter Test-Infrastruktur-Fehler auf,
+durch den `dotnet test` in die echte Entwicklungsdatenbank schrieb.
+
+**Files Added:**
+- `src/Tests/LedgerViewTests.fs` - Tests für Kontostände-Leiste, Datums-Gruppierung und
+  Konto-Kürzel.
+- `src/Tests/test.runsettings` - erzwingt `USE_MEMORY_DB` im Test-Host (ADR 0030).
+- `.agentheim/knowledge/decisions/0029-seitenweise-kassenbuch-liste-und-kontostaende-leiste.md`
+- `.agentheim/knowledge/decisions/0030-dotnet-test-erzwingt-in-memory-db-ueber-runsettings.md`
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - Seitentyp, `AccountFilter`, `sumMoney`,
+  `ledgerBalancesByAccount`, zwei neue Endpunkte im Kassenbuch-Vertrag.
+- `src/Server/Ledger/Persistence.fs`, `src/Server/Ledger/QueryHandlers.fs`,
+  `src/Server/Api.fs` - `getLedgerEntriesPage` und `getLedgerAccountBalances`. Beträge
+  werden als Text gelesen und in F# summiert, nie per SQL-`SUM` (ADR 0017).
+- `src/Client/Components/Ledger/{Types,State,View}.fs`, `src/Client/State.fs` -
+  `AccountFilter` löst die bisherige Doppelbedeutung von `Guid option`, Nachladen beim
+  Scrollen, Kontostände-Leiste, Datums-Gruppierung am Handy, Sticky-Tabelle am PC.
+- `src/Tests/LedgerPageTests.fs`, `src/Tests/Main.fs`, `src/Tests/Tests.fsproj` - 24 neue
+  Tests, `RunSettingsFilePath`.
+- `.agentheim/contexts/ledger/README.md` - Abschnitt "Sichten" um die beiden neuen
+  Lesefunktionen ergänzt.
+
+**Rationale:**
+Ohne serverseitige, seitenweise Abfrage gibt es weder Filter noch Summenzeile noch
+Gesamtsicht, und bei rund 14.000 Buchungen lud die Seite bisher alles eines Kontos auf
+einmal. Fünf weitere Scheiben hängen an dieser.
+
+Der Test-Infrastruktur-Fehler kam beim Verifizieren ans Licht: unbeteiligte Tests
+scheiterten deterministisch. Ursache war, dass `dotnet test` den Einstiegspunkt in
+`Main.fs` nie aufruft (VSTest lädt die Assembly als Bibliothek und startet Expecto per
+Reflexion), weshalb `USE_MEMORY_DB` nie gesetzt wurde und alle Ledger-Tests in
+`~/my_apps/budgetbuddy-dev/budgetbuddy.db` schrieben. Behoben über `test.runsettings`,
+eine VSTest-eigene Einstellung. Empirisch geprüft: nach einem vollen Testlauf ist die
+Datei byte-identisch.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build`, `npm run build`)
+- Tests: 805/812 bestanden, 7 übersprungen (Integrationstests ohne `.env`), 24 neu
+- Verifikation: PASS in Iteration 2 (Iteration 1 scheiterte an zwei Textmängeln: falscher
+  ADR-Verweis in zwei Kommentaren, ADR 0029 in Umschreibungen statt Umlauten)
+- Issues: Die bereits in die echte Entwicklungsdatenbank geschriebenen Testdaten (106
+  Konten, 365 Buchungen) stehen noch dort. Aufräumen: `ledger-vm3dk`. Der Schutz lässt
+  sich weiterhin still umgehen (`dotnet test --settings`, `dotnet vstest`), Wächter-Test:
+  `infra-za7fq`.
+
+---
+
 ## 2026-09-12 13:40 - Kassenbuch in Bau-Scheiben geschnitten, ADR 0028 zur einen schreibenden Fähigkeit vor v2
 
 **What I did:**

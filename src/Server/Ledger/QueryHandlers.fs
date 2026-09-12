@@ -280,6 +280,61 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
                 ReadModel.toEntryView origin entry)
     }
 
+/// Eine Seite der Buchungsliste (ledger-b1xwe): ein Konto (`query.AccountId`) oder,
+/// wenn `None`, die Gesamtsicht ueber alle Konten. Die Summe deckt den gesamten
+/// Treffer ab, nicht die geladene Seite (ADR 0017, AC1) — dafuer laedt diese Funktion
+/// zusaetzlich zur Seite alle Betraege des Treffers und summiert in F#.
+let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> =
+    async {
+        let accountId = query.AccountId |> Option.map LedgerAccountId
+        let pageSize = max 1 query.PageSize
+        let pageIndex = max 0 query.Page
+
+        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize
+        let! totalCount = Ledger.Persistence.countEntries accountId
+        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId
+        let! origins = Ledger.Persistence.loadEntryOrigins ()
+
+        let views =
+            pageEntries
+            |> List.map (fun entry ->
+                let (EntryId id) = entry.Id
+                let origin =
+                    origins |> Map.tryFind id |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
+                ReadModel.toEntryView origin entry)
+
+        return {
+            Entries = views
+            TotalCount = totalCount
+            TotalAmount = sumMoney "EUR" totalAmounts
+        }
+    }
+
+/// Die Kontostaende aller Konten in einem Durchlauf (ledger-b1xwe AC2): unabhaengig
+/// davon, welche Seite der Buchungsliste gerade geladen ist, weil sie ueber alle
+/// gespeicherten Buchungen gebildet werden, nicht ueber den geladenen Ausschnitt.
+let getLedgerAccountBalances () : Async<LedgerAccountBalanceView list> =
+    async {
+        let! accounts = Ledger.Persistence.loadAccounts ()
+        let! raw = Ledger.Persistence.loadAmountsForBalances ()
+
+        let inputs =
+            raw
+            |> List.map (fun (accountId, amount, deleted) ->
+                { AccountId = accountId; Amount = amount; DeletedInYnab = deleted })
+
+        let balances = ledgerBalancesByAccount "EUR" inputs
+
+        return
+            accounts
+            |> List.map (fun account ->
+                let (LedgerAccountId id) = account.Id
+                {
+                    AccountId = id
+                    Balance = balances |> Map.tryFind id |> Option.defaultValue { Amount = 0m; Currency = "EUR" }
+                })
+    }
+
 /// Die Historie einer Buchung, aelteste Zeile zuerst. Das ist die eine Stelle, an der
 /// die Seite das Ereignis-Log liest.
 let getEntryHistory (entryId: Guid) : Async<LedgerHistoryLine list> =

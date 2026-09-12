@@ -487,6 +487,97 @@ let loadEntriesForAccount (accountId: LedgerAccountId) : Async<Entry list> =
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
+// ============================================
+// Seitenweise Liste und Kontostaende (ledger-b1xwe)
+// ============================================
+// Zwei Zweige statt eines "IS NULL OR"-Tricks: ein Konto-Filter oder keiner. Explizit
+// statt clever, damit kein Nullable-Parameter-Sonderfall stillschweigend die falschen
+// Zeilen liefert. Kein SQL-`SUM`, kein `CAST(amount AS REAL)` irgendwo unten
+// (ADR 0017) — die Summenbildung bleibt F#.
+
+/// Eine Seite der Buchungen eines Kontos oder — `accountId = None` — aller Konten,
+/// neueste zuerst. Liest ausschliesslich die Zustandstabelle (ADR 0013).
+let loadEntriesPage (accountId: LedgerAccountId option) (pageIndex: int) (pageSize: int) : Async<Entry list> =
+    async {
+        use conn = Core.getConnection ()
+        let offset = pageIndex * pageSize
+        let! rows =
+            match accountId with
+            | Some (LedgerAccountId id) ->
+                conn.QueryAsync<EntryRow>(
+                    """SELECT * FROM ledger_entries WHERE account_id = @accountId
+                       ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
+                    {| accountId = id.ToString(); limit = pageSize; offset = offset |}
+                )
+                |> Async.AwaitTask
+            | None ->
+                conn.QueryAsync<EntryRow>(
+                    "SELECT * FROM ledger_entries ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset",
+                    {| limit = pageSize; offset = offset |}
+                )
+                |> Async.AwaitTask
+        return rows |> Seq.map rowToEntry |> Seq.toList
+    }
+
+/// Die Gesamtzahl der Buchungen eines Kontos oder aller Konten — die Trefferzahl
+/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite.
+let countEntries (accountId: LedgerAccountId option) : Async<int> =
+    async {
+        use conn = Core.getConnection ()
+        let! count =
+            match accountId with
+            | Some (LedgerAccountId id) ->
+                conn.ExecuteScalarAsync<int64>(
+                    "SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId",
+                    {| accountId = id.ToString() |}
+                )
+                |> Async.AwaitTask
+            | None -> conn.ExecuteScalarAsync<int64>("SELECT COUNT(*) FROM ledger_entries") |> Async.AwaitTask
+        return int count
+    }
+
+[<CLIMutable>]
+type private AmountRow = { amount: string; currency: string }
+
+/// Die Betraege aller Buchungen eines Treffers (ein Konto oder alle), fuer die in F#
+/// gebildete Summe ueber den GESAMTEN Treffer (ADR 0017, ledger-b1xwe AC1). Bewusst
+/// kein `SUM(amount)`: der Betrag liegt als exakter Dezimal-Text, nicht als `REAL`.
+let loadAmountsForQuery (accountId: LedgerAccountId option) : Async<Money list> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            match accountId with
+            | Some (LedgerAccountId id) ->
+                conn.QueryAsync<AmountRow>(
+                    "SELECT amount, currency FROM ledger_entries WHERE account_id = @accountId",
+                    {| accountId = id.ToString() |}
+                )
+                |> Async.AwaitTask
+            | None ->
+                conn.QueryAsync<AmountRow>("SELECT amount, currency FROM ledger_entries") |> Async.AwaitTask
+        return rows |> Seq.map (fun r -> { Amount = decimalFromText r.amount; Currency = r.currency }) |> Seq.toList
+    }
+
+[<CLIMutable>]
+type private BalanceRow = { account_id: string; amount: string; currency: string; deleted_in_ynab: int64 }
+
+/// Die Rohdaten fuer die Kontostaende aller Konten in einem Durchlauf (ledger-b1xwe
+/// AC2): Konto, Betrag und Geloescht-Kennzeichen jeder Buchung, ungefiltert — die
+/// Auswahl "nicht geloescht" trifft die reine Funktion `ledgerBalancesByAccount`
+/// (Shared.Domain), nicht diese Query. Kein SQL-`SUM`, kein `GROUP BY` mit Aggregat.
+let loadAmountsForBalances () : Async<(Guid * Money * bool) list> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<BalanceRow>("SELECT account_id, amount, currency, deleted_in_ynab FROM ledger_entries")
+            |> Async.AwaitTask
+        return
+            rows
+            |> Seq.map (fun r ->
+                Guid.Parse r.account_id, { Amount = decimalFromText r.amount; Currency = r.currency }, r.deleted_in_ynab = 1L)
+            |> Seq.toList
+    }
+
 [<CLIMutable>]
 type private OriginRow = { entry_id: string; actor_kind: string; actor_rule_id: string }
 

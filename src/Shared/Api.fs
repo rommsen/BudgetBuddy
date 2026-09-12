@@ -295,9 +295,22 @@ type LedgerApi = {
 
     /// The bookings of one account, newest first, deleted ones included.
     /// Purpose: the booking list and — summed in F#, never in SQL (ADR 0017) —
-    /// the account balance.
+    /// the account balance. Superseded by `getLedgerEntriesPage` for the page (paged,
+    /// all-accounts-capable) view; kept until nothing calls it anymore (ledger-b1xwe).
     /// Parameters: the Kassenbuch account id.
     getLedgerEntriesForAccount: Guid -> Async<LedgerEntryView list>
+
+    /// One page of the booking list: one account or — `AccountId = None` — every
+    /// account, newest first. Purpose: the seitenweise Kassenbuch-Liste (ledger-b1xwe).
+    /// Returns: the page's bookings, the total hit count and the sum over the WHOLE
+    /// hit set — summed in F#, never in SQL (ADR 0017), never just the page's sum.
+    getLedgerEntriesPage: LedgerEntryPageQuery -> Async<LedgerEntryPage>
+
+    /// Every account's balance in one call, so the Kontostaende-Leiste never has to
+    /// load per account. Purpose: the account balance strip/column (ledger-b1xwe).
+    /// Returns: one entry per account; the balance is the state's own sum (ADR 0017),
+    /// independent of which page of the booking list is loaded.
+    getLedgerAccountBalances: unit -> Async<LedgerAccountBalanceView list>
 
     /// The full history of one booking, oldest first.
     /// Purpose: the per-entry history sheet. Reads the append-only event log and

@@ -856,3 +856,71 @@ let ledgerBalance (fallbackCurrency: string) (entries: LedgerEntryView list) : M
         |> Option.map (fun e -> e.Amount.Currency)
         |> Option.defaultValue fallbackCurrency
     { Amount = counted |> List.sumBy (fun e -> e.Amount.Amount); Currency = currency }
+
+// ============================================
+// Seitenweise Liste und Kontostaende (ledger-b1xwe)
+// ============================================
+// Fundament der zweiten Scheibe: eine seitenweise Sicht ueber ein Konto oder alle
+// Konten, plus die Kontostaende aller Konten in einem Aufruf. Beide Summen werden in
+// F# ueber `decimal` gebildet, nie per SQL-`SUM` (ADR 0017) — dieselbe Regel wie bei
+// `ledgerBalance` oben, hier auf zwei weitere Faelle angewandt (Treffer-Summe,
+// Kontostand je Konto).
+
+/// Summe einer Liste von Betraegen, exakt in `decimal` gebildet. Anders als
+/// `ledgerBalance` schliesst diese Funktion nichts aus — welche Betraege zaehlen,
+/// entscheidet der Aufrufer vorher (z. B. "alle Treffer einer Seiten-Abfrage" oder
+/// "die Kontostaende aller Konten" fuer die Summe "Alle Konten").
+let sumMoney (fallbackCurrency: string) (amounts: Money list) : Money =
+    let currency =
+        amounts |> List.tryHead |> Option.map (fun m -> m.Currency) |> Option.defaultValue fallbackCurrency
+    { Amount = amounts |> List.sumBy (fun m -> m.Amount); Currency = currency }
+
+/// Parameter einer Seiten-Abfrage der Buchungsliste: ein Konto (optional — `None`
+/// heisst alle Konten, die Gesamtsicht), ein 0-basierter Seitenzeiger und die
+/// Seitengroesse.
+type LedgerEntryPageQuery = {
+    AccountId: Guid option
+    Page: int
+    PageSize: int
+}
+
+/// Eine Seite der Buchungsliste: die Buchungen dieser Seite, die Gesamtzahl der
+/// Treffer und die Summe ueber den **gesamten** Treffer — nicht ueber die Seite
+/// (Akzeptanzkriterium ledger-b1xwe). So kann die Seite waehrend des Nachladens immer
+/// dieselbe, richtige Summe zeigen, auch bevor alle Seiten geladen sind.
+type LedgerEntryPage = {
+    Entries: LedgerEntryView list
+    TotalCount: int
+    TotalAmount: Money
+}
+
+/// Der Rohwert einer Buchung, wie ihn die Kontostaende-Abfrage braucht: Konto, Betrag
+/// und ob sie in YNAB geloescht ist. Bewusst kein `LedgerEntryView`: die
+/// Kontostaende-Leiste laedt nicht die volle Buchungsliste, sie braucht nur so viel,
+/// wie der Kontostand verlangt (ADR 0016: Summe der nicht geloeschten Buchungen).
+type LedgerBalanceInput = {
+    AccountId: Guid
+    Amount: Money
+    DeletedInYnab: bool
+}
+
+/// Ein Konto mit seinem Kontostand, wie die Kontostaende-Leiste ihn braucht.
+type LedgerAccountBalanceView = {
+    AccountId: Guid
+    Balance: Money
+}
+
+/// Die Kontostaende aller Konten in einem Durchlauf: je Konto die Summe seiner nicht
+/// geloeschten Betraege, in F# gebildet (ADR 0017). Ein Konto ohne (zaehlende)
+/// Buchungen fehlt in der Rueckgabe-Map; der Aufrufer ergaenzt es mit einem
+/// Null-Stand — diese Funktion kennt die Konten-Liste selbst nicht.
+///
+/// Der Stand ist unabhaengig davon, wie viele Seiten der Buchungsliste geladen sind:
+/// er wird immer aus **allen** gespeicherten Buchungen gebildet, nie aus dem gerade
+/// sichtbaren Ausschnitt (Akzeptanzkriterium ledger-b1xwe).
+let ledgerBalancesByAccount (fallbackCurrency: string) (inputs: LedgerBalanceInput list) : Map<Guid, Money> =
+    inputs
+    |> List.filter (fun i -> not i.DeletedInYnab)
+    |> List.groupBy (fun i -> i.AccountId)
+    |> List.map (fun (accountId, group) -> accountId, sumMoney fallbackCurrency (group |> List.map (fun i -> i.Amount)))
+    |> Map.ofList

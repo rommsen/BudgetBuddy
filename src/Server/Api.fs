@@ -1396,6 +1396,10 @@ let ledgerApi : LedgerApi = {
 
     getLedgerEntriesForAccount = fun accountId -> Ledger.QueryHandlers.getLedgerEntriesForAccount accountId
 
+    getLedgerEntriesPage = fun query -> Ledger.QueryHandlers.getLedgerEntriesPage query
+
+    getLedgerAccountBalances = fun () -> Ledger.QueryHandlers.getLedgerAccountBalances ()
+
     getEntryHistory = fun entryId -> Ledger.QueryHandlers.getEntryHistory entryId
 }
 

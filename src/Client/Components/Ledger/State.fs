@@ -1,4 +1,5 @@
-/// Der Reduzierer der Kassenbuch-Seite (ledger-q5w9c).
+/// Der Reduzierer der Kassenbuch-Seite (ledger-q5w9c, seitenweise Liste und
+/// Kontostaende-Leiste ledger-b1xwe).
 ///
 /// Alle Zustandsaenderungen laufen durch `update`, alle Seiteneffekte durch `Cmd`.
 /// Die Seite blockiert nie hinter dem Spiegel: waehrend eines Laufs bleibt die
@@ -6,6 +7,7 @@
 module Components.Ledger.State
 
 open Elmish
+open Shared.Domain
 open Components.Ledger.Types
 open Types
 
@@ -15,14 +17,30 @@ open Types
 let init () : Model * Cmd<Msg> =
     let model = {
         Accounts = NotAsked
-        SelectedAccountId = None
+        Balances = NotAsked
+        SelectedFilter = None
         Entries = NotAsked
+        NextPage = 0
+        TotalCount = 0
+        HasMoreEntries = false
+        LoadingMore = false
         HistoryFor = None
         History = NotAsked
         LastMirrorRun = NotAsked
         MirrorRunning = false
     }
     model, Cmd.none
+
+/// Der Zustand einer frisch angestossenen Buchungsliste: Seite 0, nichts geladen.
+/// Von `LoadEntries` und `SelectFilter` geteilt — beide starten die Liste neu.
+let private resetEntries (model: Model) : Model = {
+    model with
+        Entries = Loading
+        NextPage = 0
+        TotalCount = 0
+        HasMoreEntries = false
+        LoadingMore = false
+}
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -42,54 +60,109 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | AccountsLoaded (Ok accounts) ->
         // Die Vorauswahl kommt vom Server (YNAB-Standardkonto, sonst das erste) —
         // die Seite entscheidet das nicht selbst. Eine bereits getroffene Auswahl
-        // ueberlebt aber ein Neuladen, solange es das Konto noch gibt: sonst
-        // springt die Seite nach jedem Spiegel-Lauf zurueck auf das Standardkonto,
-        // waehrend Roman ein anderes Konto ansieht.
-        let selected =
-            match model.SelectedAccountId with
-            | Some id when accounts.Accounts |> List.exists (fun a -> a.Id = id) -> Some id
-            | _ -> accounts.DefaultAccountId
-        let model' = { model with Accounts = Success accounts; SelectedAccountId = selected }
-        match selected with
-        | Some _ -> { model' with Entries = Loading }, Cmd.ofMsg LoadEntries, NoOp
+        // (auch "Alle Konten") ueberlebt ein Neuladen, solange das gewaehlte Konto
+        // noch existiert: sonst springt die Seite nach jedem Spiegel-Lauf zurueck
+        // auf das Standardkonto, waehrend Roman einen anderen Filter ansieht.
+        let filter =
+            match model.SelectedFilter with
+            | Some AllAccounts -> Some AllAccounts
+            | Some (OneAccount id) when accounts.Accounts |> List.exists (fun a -> a.Id = id) ->
+                Some (OneAccount id)
+            | _ -> accounts.DefaultAccountId |> Option.map OneAccount
+        let model' = { model with Accounts = Success accounts; SelectedFilter = filter }
+        match filter with
+        | Some _ -> resetEntries model', Cmd.ofMsg LoadEntries, NoOp
         | None -> { model' with Entries = NotAsked }, Cmd.none, NoOp
 
     | AccountsLoaded (Error message) ->
         { model with Accounts = Failure message }, Cmd.none, NoOp
 
-    | SelectAccount accountId ->
-        // Ein Kontowechsel schliesst ein offenes Historie-Sheet: es gehoerte zu einer
-        // Buchung, die gleich nicht mehr in der Liste steht.
-        { model with
-            SelectedAccountId = Some accountId
-            Entries = Loading
+    // ============================================
+    // Kontostaende
+    // ============================================
+    | LoadBalances ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.getLedgerAccountBalances
+                ()
+                (Ok >> BalancesLoaded)
+                (fun ex -> BalancesLoaded (Error ex.Message))
+        { model with Balances = Loading }, cmd, NoOp
+
+    | BalancesLoaded (Ok balances) ->
+        { model with Balances = Success balances }, Cmd.none, NoOp
+
+    | BalancesLoaded (Error message) ->
+        { model with Balances = Failure message }, Cmd.none, NoOp
+
+    // ============================================
+    // Konto-Filter
+    // ============================================
+    | SelectFilter filter ->
+        // Ein Filterwechsel schliesst ein offenes Historie-Sheet: es gehoerte zu
+        // einer Buchung, die gleich nicht mehr in der Liste steht. Die
+        // Scroll-Position wird bewusst NICHT gemerkt (Task-Notes) — alle anderen
+        // Zustaende (Kontostaende, Lauf-Status) bleiben unangetastet stehen.
+        { (resetEntries model) with
+            SelectedFilter = Some filter
             HistoryFor = None
             History = NotAsked },
         Cmd.ofMsg LoadEntries,
         NoOp
 
     // ============================================
-    // Buchungen
+    // Buchungen, seitenweise
     // ============================================
-    | LoadEntries ->
-        match model.SelectedAccountId with
+    | LoadEntries -> resetEntries model, Cmd.ofMsg (RunLoadEntriesPage 0), NoOp
+
+    | RunLoadEntriesPage page ->
+        match model.SelectedFilter with
         | None -> model, Cmd.none, NoOp
-        | Some accountId ->
+        | Some filter ->
+            let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
+            let query : LedgerEntryPageQuery = { AccountId = accountId; Page = page; PageSize = pageSize }
             let cmd =
                 Cmd.OfAsync.either
-                    Api.ledger.getLedgerEntriesForAccount
-                    accountId
-                    (Ok >> EntriesLoaded)
-                    (fun ex -> EntriesLoaded (Error ex.Message))
-            { model with Entries = Loading }, cmd, NoOp
+                    Api.ledger.getLedgerEntriesPage
+                    query
+                    (fun result -> EntriesPageLoaded (page, Ok result))
+                    (fun ex -> EntriesPageLoaded (page, Error ex.Message))
+            model, cmd, NoOp
 
-    | EntriesLoaded (Ok entries) ->
-        { model with Entries = Success entries }, Cmd.none, NoOp
+    | EntriesPageLoaded (page, Ok entryPage) ->
+        let entries =
+            if page = 0 then
+                entryPage.Entries
+            else
+                (model.Entries |> RemoteData.withDefault []) @ entryPage.Entries
+        { model with
+            Entries = Success entries
+            NextPage = page + 1
+            TotalCount = entryPage.TotalCount
+            HasMoreEntries = List.length entries < entryPage.TotalCount
+            LoadingMore = false },
+        Cmd.none,
+        NoOp
 
-    | EntriesLoaded (Error message) ->
+    | EntriesPageLoaded (0, Error message) ->
         // Der Fehler bleibt an der Liste stehen (ErrorDisplay), statt als Toast
         // wegzublenden — die Seite waere sonst still leer.
-        { model with Entries = Failure message }, Cmd.none, NoOp
+        { model with Entries = Failure message; LoadingMore = false }, Cmd.none, NoOp
+
+    | EntriesPageLoaded (_, Error message) ->
+        // Ein Fehler beim Nachladen loescht die bereits sichtbare Liste nicht: sie
+        // bleibt stehen, nur der Hinweis erscheint als Toast.
+        { model with LoadingMore = false },
+        Cmd.none,
+        ShowToast ($"Weitere Buchungen konnten nicht geladen werden: {message}", ToastError)
+
+    | LoadMoreEntries ->
+        // Reiner Wächter: kein zweiter Nachlade-Aufruf waehrend einer laeuft, keiner
+        // ohne weitere Seiten, keiner ohne eine erfolgreich geladene erste Seite.
+        if model.LoadingMore || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
+            model, Cmd.none, NoOp
+        else
+            { model with LoadingMore = true }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
 
     // ============================================
     // Historie einer Buchung
@@ -153,14 +226,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | MirrorFinished (Ok summary) ->
-        // Konten neu laden, nicht nur die Buchungen: der erste Lauf auf einem leeren
-        // Kassenbuch legt die Konten ueberhaupt erst an, und ein spaeterer Lauf kann
-        // ein in YNAB neu angelegtes Konto mitbringen. Vorher lud nur `LoadEntries`,
-        // das ohne gewaehltes Konto still nichts tat — die Seite blieb nach dem
-        // Erstlauf leer stehen, obwohl der Lauf 2508 Buchungen geschrieben hatte.
-        // `AccountsLoaded` zieht die Buchungen des gewaehlten Kontos selbst nach.
+        // Konten und Kontostaende neu laden, nicht nur die Buchungen: der erste Lauf
+        // auf einem leeren Kassenbuch legt die Konten ueberhaupt erst an, und ein
+        // spaeterer Lauf kann ein in YNAB neu angelegtes Konto oder geaenderte
+        // Staende mitbringen. `AccountsLoaded` zieht die Buchungen des gewaehlten
+        // Filters selbst nach (Regression ledger-kt0wq).
         { model with MirrorRunning = false },
-        Cmd.batch [ Cmd.ofMsg LoadAccounts; Cmd.ofMsg LoadMirrorStatus ],
+        Cmd.batch [ Cmd.ofMsg LoadAccounts; Cmd.ofMsg LoadBalances; Cmd.ofMsg LoadMirrorStatus ],
         ShowToast (mirrorSummaryText summary, ToastSuccess)
 
     | MirrorFinished (Error message) ->

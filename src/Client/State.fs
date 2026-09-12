@@ -150,6 +150,7 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
         // Folge-Arbeit (ADR 0014, ledger-h4p6c).
         Cmd.batch [
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadAccounts)
+            Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadBalances)
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
         ]
     | QuickAdd ->
