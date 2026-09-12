@@ -1,7 +1,7 @@
 ---
 id: ledger-s8m3w
 title: Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
-status: backlog
+status: todo
 type: decision
 context: ledger
 created: 2026-09-11

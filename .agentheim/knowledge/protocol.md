@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 13:53 -- Modeling / Promoted: ledger-s8m3w - Bau-Scheiben aus dem Kassenbuch-UX-Konzept ableiten und über das Vorziehen schreibender Scheiben vor v2 entscheiden
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-12 13:51 -- Task completed (verification skipped): ledger-xbrht - UX-Konzept Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
 
 **Type:** Work / Task completion
