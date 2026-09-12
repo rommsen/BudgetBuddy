@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 17:50 -- Work session ended (Nachtrag)
+
+**Type:** Work / Session end
+**Summary:** Korrigiert den Eintrag von 15:45. Nach dessen Abschluss kam auf Romans Zuruf ("dann räum auf") noch `ledger-vm3dk` dazu, die Bereinigung der echten Entwicklungsdatenbank. Damit sind es **4** abgeschlossene Tasks statt 3 und 19 Commits statt 14.
+**Completed (gesamt):** 4 — ledger-xbrht, ledger-s8m3w, ledger-b1xwe, ledger-vm3dk
+**Vision-conformance:** unverändert: none — batch aligns with vision. Die Bereinigung stellt den Zustand her, in dem die neue Liste an echten Daten überhaupt beurteilt werden kann, und dient damit demselben Ziel wie die Scheibe selbst.
+**Carry-over:** none — working tree clean; keine Worktrees ausser dem Hauptbaum
+**Anmerkung:** Der Lesepfad wurde nach der Bereinigung gegen die echten Daten verifiziert (13.864 Treffer, 38.686,82 EUR, 0,155 Sekunden). Ein Spiegel-Lauf wurde bewusst nicht ausgelöst; er kontaktiert YNAB und schreibt, das ist Romans Entscheidung. Deshalb steht `settings.ledger_mirror_last_run` noch auf einem Testwert und korrigiert sich beim nächsten "Jetzt spiegeln".
+
+---
+
 ## 2026-09-12 17:38 -- Task completed (verification skipped): ledger-vm3dk - Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
 
 **Type:** Work / Task completion
