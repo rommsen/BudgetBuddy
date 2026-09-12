@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 3
@@ -33,6 +33,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infra-za7fq** — Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt (feature) — `backlog/infra-za7fq-waechter-test-gegen-schreiben-in-die-echte-datenbank.md`
 <!-- backlog-list:end -->
 
 ## ADRs scoped to this BC

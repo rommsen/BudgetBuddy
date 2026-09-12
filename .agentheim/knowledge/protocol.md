@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 15:36 -- Capture / Captured: infra-za7fq - Wächter-Test gegen Schreiben in die echte Datei-Datenbank
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Befund des Verifiers bei ledger-b1xwe: der Schutz aus ADR 0030 hängt an der Projekt-Einstellung und lässt sich über `dotnet test --settings` oder einen direkten `dotnet vstest`-Aufruf stillschweigend umgehen. Ein Wächter-Test soll den aktiven Connection-String prüfen und laut scheitern, statt still in echte Daten zu schreiben.
+
+---
+
+## 2026-09-12 15:30 -- Verification failed: ledger-b1xwe - Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht, Kontostände-Leiste
+
+**Type:** Work / Verification failure
+**Task:** ledger-b1xwe - Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste
+**Iteration:** 1 of 3
+**Reasons:** Zwei Code-Kommentare (src/Tests/Main.fs, src/Tests/test.runsettings) verweisen für den Test-Datenbank-Fund auf ADR 0029 statt auf ADR 0030; ADR 0029 ist durchgehend in Umschreibungen statt echten Umlauten geschrieben und damit der einzige Ausreisser unter 28 ADRs. Inhaltlich bestanden: alle neun Akzeptanzkriterien gedeckt, ADR 0017 eingehalten (Summierung in F#, kein SQL-SUM), Scope sauber, 805 Tests grün, npm run build grün, der test.runsettings-Schutz empirisch nachgeprüft.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-12 14:14 -- Batch started: [ledger-b1xwe]
 
 **Type:** Work / Batch start
