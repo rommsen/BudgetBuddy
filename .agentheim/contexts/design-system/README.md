@@ -202,6 +202,48 @@ sechs. Beides erledigt.
   Screenshot-Stichprobe der neuen Karten (Kategorienauswahl, Modal, Toast, Button)
   bestätigt korrektes Rendering. Details und Testzahlen: Diary der Task-Datei.
 
+## Mockups gehören ins Repo, und Frontend-Arbeit hat ein visuelles Gate (2026-09-12)
+
+**Fund aus `ledger-b1xwe`.** Die erste Kassenbuch-Scheibe erfüllte alle neun
+Akzeptanzkriterien, bestand die Verifikation und sah trotzdem nichts wie das Zielbild aus:
+englisches Zahlenformat, weiße statt rot-grüner Beträge, ungekürzter Bank-Rohtext in der
+Memo-Spalte, verschmolzene Spalten, ein Tabellenkopf hinter dem Seitenkopf. Roman sah es
+als Erster, nach dem Commit.
+
+Zwei Ursachen, beide im Ablauf, nicht beim Worker:
+
+1. **Das Mockup lag nur in Claude Design.** Der Worker hat es nie gesehen, er hat den
+   Fließtext des UX-Konzepts gelesen. Aus "am PC eine Tabelle mit Sticky-Kopf" folgt kein
+   Spaltenlayout, aus "Money-Komponente" kein deutsches Zahlenformat. Text ist für
+   Gestaltung ein verlustbehafteter Kanal.
+2. **Kein Schritt im Ablauf hat das Bild angesehen.** Akzeptanzkriterien, die sich sauber
+   in Zusicherungen übersetzen lassen, beschreiben Verhalten, nicht Aussehen. Der Verifier
+   prüft Diff und Tests. Niemand prüft das Ergebnis.
+
+**Daraus zwei verbindliche Regeln für jede Frontend-Arbeit:**
+
+- **Das Zielbild liegt im Repo**, unter `docs/ux/<bereich>/mockups/`, als PNG mit
+  sprechendem Namen. Ein Screen, den nur Claude Design kennt, existiert für die Umsetzung
+  nicht. Der Task verweist im Abschnitt `## What` auf den Pfad; der Conductor gibt ihn dem
+  Worker im Spawn-Prompt mit. Worker können Bilder lesen und vergleichen.
+- **Vor dem Integrieren wird die gebaute Seite aufgenommen und neben das Mockup gelegt.**
+  Headless, in beiden Viewports (390 × 844 und 1440 × 900). Weicht das Bild sichtbar vom
+  Mockup ab, ist das ein Verifikations-Fehlschlag wie jeder andere, auch wenn alle
+  Akzeptanzkriterien erfüllt sind. Werkzeug dafür: Playwright liegt bereits im Projekt,
+  `scripts/export-design-system.mjs` zeigt das Muster (bauen, Preview-Server starten,
+  aufnehmen, aufräumen). Ein eigenes Skript für beliebige Routen: `design-system-wa6wz`.
+
+Die Richtung bleibt unverändert Repo → Claude Design. Ein Mockup-Bild im Repo ist kein
+Rückfluss von Gestaltung in das Design-System, sondern die Übergabe eines Entwurfs an die
+Umsetzung. Was am Design-System selbst geändert wird, entsteht weiterhin im Code und geht
+durch das Styleguide-Gate.
+
+**Warum Claude nicht selbst in das Mockup-Projekt schaut:** `DesignSync` liest und schreibt
+zwar in beide Richtungen, sieht aber ausschließlich Projekte vom Typ
+`PROJECT_TYPE_DESIGN_SYSTEM`. Mockup-Projekte tauchen in `list_projects` nicht auf. Deshalb
+der Umweg über das Bild im Repo, der ohnehin robuster ist: er überlebt Chats, Sessions und
+Werkzeugwechsel.
+
 ## Open questions
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht
   das Markdown-Dokument + CLAUDE.md-Referenz? (offen, erst bei Bedarf)

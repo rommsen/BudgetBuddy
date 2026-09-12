@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 22:45 -- Modeling / Visuelles Gate für Frontend-Arbeit eingeführt
+
+**Type:** Modeling / Capture + Doku
+**BC:** design-system, ledger
+**Filed to:** backlog (ledger-x0yga, design-system-wa6wz); design-system-README ergänzt
+**Summary:** Romans erster Blick auf die laufende Kassenbuch-Seite zeigte, dass ledger-b1xwe alle neun Akzeptanzkriterien erfüllt und trotzdem nicht wie das Zielbild aussieht (englisches Zahlenformat, weiße Beträge, ungekürzter Bank-Rohtext im Memo, verschmolzene Spalten, Tabellenkopf hinter dem Seitenkopf). Zwei Ursachen im Ablauf: das Mockup lag nur in Claude Design und der Worker hat es nie gesehen, und kein Schritt im Ablauf hat das gebaute Bild angesehen. Daraus zwei verbindliche Regeln im design-system-README: Zielbilder liegen als PNG im Repo unter docs/ux/<bereich>/mockups/ und werden dem Worker im Spawn-Prompt mitgegeben; vor dem Integrieren wird die gebaute Seite headless aufgenommen und neben das Mockup gelegt, eine sichtbare Abweichung ist ein Verifikations-Fehlschlag. Das erste Mockup liegt jetzt unter docs/ux/kassenbuch/mockups/. Neue Tasks: ledger-x0yga (Angleichung der Liste), design-system-wa6wz (Skript für die Aufnahmen).
+**Befund zu DesignSync:** das Werkzeug liest und schreibt in beide Richtungen, sieht aber ausschliesslich Projekte vom Typ PROJECT_TYPE_DESIGN_SYSTEM; Mockup-Projekte erscheinen nicht einmal in list_projects. Der Umweg über das Bild im Repo ist ohnehin robuster, weil er Chats und Werkzeugwechsel überlebt.
+
+---
+
 ## 2026-09-12 17:50 -- Work session ended (Nachtrag)
 
 **Type:** Work / Session end
