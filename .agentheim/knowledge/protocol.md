@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 14:14 -- Batch started: [ledger-b1xwe]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-b1xwe - "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
+**Parallel:** no (1 Worker; einzige Scheibe in todo, sie ist das Fundament für vgfw3, r1d2f, q1hw2, kdnnz und p3n8k, die alle an ihr hängen)
+**Planning advisory:** whats-next.md vom 2026-09-11 06:37 ist deutlich älter als der letzte Work-Eintrag und damit veraltet; die Reihenfolge kommt aus ledger-s8m3w
+
+---
+
 ## 2026-09-12 14:14 -- Modeling / Promoted: ledger-b1xwe - "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste"
 
 **Type:** Modeling / Promote

@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 13
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-b1xwe** — "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste" (feature) — `todo/ledger-b1xwe-liste-seitenweise-gesamtsicht-kontostaende.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-b1xwe** — "Kassenbuch-Liste neu: seitenweise laden, Gesamtsicht über alle Konten, Kontostände-Leiste" (feature) — `doing/ledger-b1xwe-liste-seitenweise-gesamtsicht-kontostaende.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
