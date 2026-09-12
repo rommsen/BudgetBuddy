@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 6
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 11
@@ -41,6 +41,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-fq8dn** — Das Design-System nutzt DaisyUI-Klassen, aber DaisyUI ist nicht installiert (decision) — `backlog/design-system-fq8dn-daisyui-klassen-ohne-daisyui.md`
+- **design-system-t3vqr** — Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen (chore) — `backlog/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
 - **design-system-wa6wz** — Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate) (feature) — `backlog/design-system-wa6wz-skript-fuer-seiten-screenshots.md`
 - **design-system-an22r** — Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport, thumbnail.html, @kind-Annotation (feature) — `backlog/design-system-an22r-export-uebernimmt-claude-design-manifest-ergaenzungen.md`
 - **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `backlog/design-system-hadjy-export-font-face-absolute-url.md`

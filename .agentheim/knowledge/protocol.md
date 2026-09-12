@@ -5,6 +5,21 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 00:05 -- Verification failed: ledger-x0yga - Kassenbuch-Liste an das Mockup angleichen
+
+**Type:** Work / Verification failure
+**Task:** ledger-x0yga - Kassenbuch-Liste an das Mockup angleichen
+**Iteration:** 1 of 3
+**Reasons:** AC4 verletzt (eine Zeile ist 1,6-mal so hoch, weil zwei Kennzeichen in der 128px-Status-Spalte umbrechen); AC8 verletzt für "Spalten verschmolzen" (die genannten Beispiele sind weg, dieselbe Verschmelzung tritt jetzt zwischen Payee und Kategorie sowie Memo und Betrag auf, mit 0px Abstand). Sonst bestanden: Geldformatierung kulturunabhängig an einer Stelle mit acht Tests, relatives Datum mit sechs Tests, 819 Tests grün, Bau grün, kein Scope-Verstoß, echte Umlaute.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+**Wurzelbefund über die Aufgabe hinaus:** `Table.view` stützt sich auf die Klassen `.table` und `.table-sm` aus DaisyUI, aber **DaisyUI ist im Projekt gar nicht installiert** (nicht in package.json, nicht in node_modules, styles.css importiert nur tailwindcss). Die Klassen sind wirkungslos, die Zellen haben deshalb kein Padding. Die CLAUDE.md führt DaisyUI trotzdem im Tech-Stack. Erfasst als `design-system-fq8dn` (Grundsatzentscheidung: nachrüsten oder entfernen). Der Fund lag seit dem Bau der Table-Komponente vor und ist nie aufgefallen, weil niemand eine Tabelle neben einen Entwurf gelegt hat; das visuelle Gate hat ihn beim ersten Einsatz gefunden.
+
+**Zwei weitere Folge-Tasks aus derselben Verifikation:** `design-system-t3vqr` (die neuen Money-Varianten `accountBalance` und `accountListRow` fehlen im Styleguide-Dokument und in der /styleguide-Route und damit auch im Claude-Design-Export) und `ledger-w9skm` (Kategorie nicht violett, Handy-Liste zeigt Karten statt flacher Zeilen).
+
+---
+
 ## 2026-09-12 23:15 -- Capture / Captured: ledger-nb4tv - Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären
 
 **Type:** Capture

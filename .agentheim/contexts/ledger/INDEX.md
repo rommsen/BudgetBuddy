@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
+- **Backlog:** 15
 - **Todo:** 0
 - **Doing:** 1
 - **Done:** 14
@@ -45,6 +45,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-w9skm** — Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten (bug) — `backlog/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`
 - **ledger-r777c** — Prüfvermerk in BB setzen und nach YNAB zurückschreiben (die eine schreibende Fähigkeit vor v2) (feature) — `backlog/ledger-r777c-pruefvermerk-setzen-und-nach-ynab-zurueckschreiben.md`
 - **ledger-vgfw3** — Kassenbuch-Filter mit Summenzeile: Kategorie (Mehrfachauswahl), Zeitraum, Payee, Betrag, Memo (feature) — `backlog/ledger-vgfw3-filter-und-summenzeile.md`
