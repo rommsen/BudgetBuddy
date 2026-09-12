@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 17:37 -- Batch started: [ledger-vm3dk]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-vm3dk - Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
+**Parallel:** no (kein Worker; einmalige Datenbereinigung an echten Daten in der Hauptsession, mit Romans ausdruecklicher Freigabe)
+
+---
+
 ## 2026-09-12 17:37 -- Modeling / Promoted: ledger-vm3dk - Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
 
 **Type:** Modeling / Promote
