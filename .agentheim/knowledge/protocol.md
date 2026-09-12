@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 13:20 -- Modeling / Scheiben abgeleitet: ledger-s8m3w - sechs Bau-Scheiben aus dem Kassenbuch-UX-Konzept
+
+**Type:** Modeling / Split
+**BC:** ledger
+**Summary:** Aus dem UX-Konzept (ledger/README.md, Abschnitt "Oberfläche") sechs Scheiben geschnitten, lesend vor schreibend: ledger-b1xwe (Liste seitenweise, Gesamtsicht, Kontostände; das Fundament), ledger-vgfw3 (Filter mit Summenzeile), ledger-r1d2f (Auswahl-Modus mit Summe), ledger-q1hw2 (Detail mit Herkunft, Historie, "noch nicht in YNAB"), ledger-kdnnz (Spiegel um Prüfvermerk und Flags erweitern, lesend), ledger-kwwxz (Available-Betrag je Kategorie). ledger-p3n8k bleibt eigenständig und hängt jetzt an ledger-b1xwe. Schreibende Scheiben sind bewusst noch nicht geschnitten: sie hängen an der offenen Entscheidung, ob sie vor v2 gebaut werden.
+**Offen:** die v2-Entscheidung mit Roman (Punkt 3 des Tasks), deshalb bleibt ledger-s8m3w in doing.
+
+---
+
 ## 2026-09-12 13:53 -- Batch started: [ledger-s8m3w]
 
 **Type:** Work / Batch start

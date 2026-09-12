@@ -5,7 +5,7 @@ status: backlog
 type: feature
 context: ledger
 created: 2026-09-11
-depends_on: []
+depends_on: [ledger-b1xwe, design-system-001]
 blocks: []
 tags: [frontend, ux, kassenbuch]
 related_adrs: [0013]
@@ -54,3 +54,10 @@ Offene Modellierungsfrage, **nicht** Teil dieses Tasks: wird eine Buchung in YNA
 und danach neu importiert, entstehen zwei Buchungen ohne Verbindung. Der Ereignis-Katalog
 kennt heute kein Ereignis, das eine neue Buchung als Ersatz einer gelöschten ausweist. Das
 ist Modellierung mit Roman, kein Anzeige-Thema.
+
+## Notes
+**Eingeordnet in `ledger-s8m3w` am 2026-09-12: bleibt eigenständig.** Der Task ist klein,
+gut verfeinert und betrifft genau eine Stelle der Liste; ihn in `ledger-b1xwe` aufgehen zu
+lassen hätte diese Scheibe nur vergrößert. Er hängt jetzt an `ledger-b1xwe`, weil er die
+neue Liste voraussetzt, und ist im Konzept (`ledger/README.md`, Abschnitt "Oberfläche")
+als Teil des Zielbilds benannt.
