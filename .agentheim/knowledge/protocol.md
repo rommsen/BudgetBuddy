@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 17:38 -- Task completed (verification skipped): ledger-vm3dk - Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
+
+**Type:** Work / Task completion
+**Task:** ledger-vm3dk - Testdaten aus der echten Entwicklungsdatenbank entfernen (Nachwirkung eines Test-Infra-Fehlers)
+**Summary:** 106 Test-Konten, 195 Test-Buchungen, 443 Ereignisse, 319 Verknüpfungen und 11 Test-Budget-Schlüssel aus der echten Entwicklungsdatenbank entfernt; die 7 echten Konten und 13.864 Buchungen sind per Hash-Vergleich nachweislich unverändert
+**Duration:** 22m (17:25 bis 17:47)
+**Verification:** SKIPPED — einmalige Datenbereinigung an echten Daten, kein Code; Pruefung per Fingerabdruck vor/nach statt per Verifier
+**Files changed:** 1
+
+---
+
 ## 2026-09-12 17:37 -- Batch started: [ledger-vm3dk]
 
 **Type:** Work / Batch start

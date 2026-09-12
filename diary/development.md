@@ -4,6 +4,44 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-12 17:47 - Testdaten aus der echten Entwicklungsdatenbank entfernt
+
+**What I did:**
+Die Nachwirkung des Test-Infrastruktur-Fehlers aus `ledger-b1xwe` bereinigt
+(`ledger-vm3dk`): 106 Test-Konten, 195 Test-Buchungen, 443 Ereignisse, 319 Verknüpfungen
+und 11 Test-Budget-Schlüssel aus `~/my_apps/budgetbuddy-dev/budgetbuddy.db` gelöscht, in
+einer einzigen Transaktion.
+
+**Files Modified:**
+- Keine Code-Änderung. Betroffen war ausschliesslich die Entwicklungsdatenbank ausserhalb
+  des Repos.
+
+**Rationale:**
+Solange 106 Test-Konten in der Kontostände-Leiste stehen, ist die neue Kassenbuch-Liste
+aus `ledger-b1xwe` nicht beurteilbar. Die Bereinigung war Voraussetzung dafür, dass Roman
+die Scheibe an echten Daten durchspielen kann.
+
+Die Trennung zwischen echt und Test wurde nicht über den Id-Präfix allein belegt, sondern
+über die Buchungszahl je Konto: die sieben echten Konten tragen zwischen 26 und 11.917
+Buchungen und zusammen genau 13.864, jedes Test-Konto höchstens fünf. Dazwischen liegt
+keine Grauzone. Gelöscht wurde mit einer expliziten Id-Liste der sieben echten Konten,
+nicht mit einem Präfix-Muster.
+
+**Outcomes:**
+- Eigenes Backup vor dem Eingriff: `budgetbuddy.db.backup-vor-vm3dk-20260912-173520`
+- Fingerabdrücke der echten Daten vor und nach dem Löschen identisch (Buchungen
+  `5229eda7…`, Konten `4cb4b531…`), auch nach `VACUUM` (21,5 → 20,6 MB)
+- `PRAGMA integrity_check`: ok, `PRAGMA foreign_key_check`: keine Verletzung
+- Zugangsdaten unangetastet (fünf `comdirect_*`, `ynab_token`, beide `ynab_default_*`)
+- Lesepfad danach verifiziert: `getLedgerEntriesPage` über alle Konten liefert 13.864
+  Treffer und 38.686,82 EUR in 0,155 Sekunden; die Differenz von 3,80 EUR zur Summe der
+  Kontostände ist genau die eine in YNAB gelöschte Buchung (ADR 0013, Grund für
+  `ledger-p3n8k`)
+- Offen: `settings.ledger_mirror_last_run` steht noch auf einem Testwert und korrigiert
+  sich beim nächsten "Jetzt spiegeln" von selbst
+
+---
+
 ## 2026-09-12 15:29 - Kassenbuch-Liste lädt seitenweise, Gesamtsicht und Kontostände-Leiste; Test-Infra-Fehler behoben
 
 **What I did:**
