@@ -4,6 +4,55 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-12 13:05 - UX-Konzept Kassenbuch festgehalten, Prototyp-Umweg über Claude Design gestrichen
+
+**What I did:**
+Den Re-Sync des Design-Systems nach Claude Design durchgeführt (23 Karten, drei Schriften
+erkannt), die YNAB-Referenzwege für die Abläufe 1 bis 5 mit Roman aufgenommen, die
+Konzept-Skizze abgestimmt und die Briefs dazu geschrieben. Danach den Zuschnitt von
+`ledger-xbrht` mit Roman geändert: der klickbare Prototyp über alle sieben Abläufe in
+Claude Design entfällt, das Konzept wandert stattdessen ins `ledger/README.md` und der
+Durchgang an echten Daten in die erste lesende Bau-Scheibe.
+
+**Files Added:**
+- `docs/ux/kassenbuch/briefs.md` - Briefs je Ablauf mit Romans YNAB-Referenzweg,
+  Gerätezuordnung, Schrittfolge, Pflicht-Komponenten und erfundenen Beispieldaten.
+- `docs/ux/kassenbuch/claude-design-kickoff.md` - Kickoff-Briefing für ein Mockup-Projekt
+  in Claude Design (Kontext, Regeln, gemeinsame Grundlage), jetzt nur noch für einzelne
+  Layout-Fragen auf Zuruf.
+- `.agentheim/contexts/design-system/backlog/design-system-hadjy-*.md` - Bug: der Export
+  trägt @font-face mit absolutem `url(/fonts/...)`.
+- `.agentheim/contexts/design-system/backlog/design-system-an22r-*.md` - Export soll
+  erzeugen, was Claude Design beim Self-Check nachgezogen hat.
+- `.agentheim/contexts/ledger/backlog/ledger-xfjcp-*.md` - "Lena zuweisen" statt Flag.
+
+**Files Modified:**
+- `.agentheim/contexts/ledger/README.md` - neuer Abschnitt "Oberfläche": Einstieg,
+  Navigation, Listenaufbau je Gerät, Prüfen als eine Geste, Auswahl mit Summe, Orte für
+  Bearbeiten/Historie/Flags, Verhalten bei rund 14.000 Buchungen, und die drei
+  Voraussetzungen, die heute fehlen (Prüfvermerk und Flags im Spiegel, Available je
+  Kategorie, seitenweises Laden mit serverseitiger Summe).
+- `.agentheim/contexts/ledger/doing/ledger-xbrht-*.md` - Zuschnitt und
+  Akzeptanzkriterien geändert.
+- `dist/design-system/styles.css` (git-ignoriert) - Workaround für design-system-hadjy,
+  absolute Font-URLs relativ gemacht und nur diese Datei neu nach Claude Design geladen.
+
+**Rationale:**
+Claude kann Mockup-Projekte in Claude Design nicht lesen (`DesignSync` erreicht nur
+Design-System-Projekte). Jede Iteration am Prototyp bräuchte Roman als Boten mit einem
+Screenshot; bei sieben Abläufen sind das Dutzende. Dazu kann ein Mockup mit erfundenen
+Daten das Maß "mindestens so schnell wie YNAB" nicht belegen und die Frage nach dem
+Verhalten bei 14.000 Buchungen grundsätzlich nicht beantworten. Der eigentliche Wert des
+Tasks, die abgestimmte Konzept-Skizze, war bereits eingetreten, bevor ein Screen entstand.
+
+**Outcomes:**
+- Build: nicht berührt (keine Code-Änderung)
+- Tests: nicht berührt
+- Issues: Zwei Fehler im Export-Skript gefunden und als Backlog erfasst; der Self-Check
+  in Claude Design läuft erst auf eine Anfrage im Projekt-Chat, nicht nach einem Upload.
+
+---
+
 ## 2026-09-11 21:50 - Kategorienauswahl im Styleguide, vollständiger Sektions-Export im Claude-Design-Bundle
 
 **What I did:**

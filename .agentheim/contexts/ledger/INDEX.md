@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 10
+- **Doing:** 0
+- **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-xbrht** — UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau) (spike) — `doing/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-xbrht** — UX-Konzept Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau) (spike) — `done/ledger-xbrht-ux-konzept-kassenbuch-als-arbeitsflaeche.md`
 - **ledger-qvt84** — "Import-Push schreibt zuerst die Kassenbuch-Buchung (Comdirect-Import + Review-Spur), dann YNAB, dann Verknüpfung; Push liefert YNAB-Ids und behebt drei Push-Bugs" (feature) — `done/ledger-qvt84-import-push-schreibt-ins-kassenbuch.md`
 - **ledger-tdnpk** — "Quick Add: erst Kassenbuch (CashExpenseAdded), dann Push nach YNAB, dann Verknüpfung über die Id aus der Push-Antwort" (feature) — `done/ledger-tdnpk-quick-add-erst-kassenbuch-dann-ynab.md`
 - **ledger-cscw1** — "Ereignis-Katalog: Entscheidungs-Ereignisse für Comdirect-Import, Regel, Korrektur, Quick Add und YNAB-Verknüpfung" (feature) — `done/ledger-cscw1-entscheidungs-ereignisse-im-katalog.md`

@@ -1,11 +1,11 @@
 ---
 id: ledger-xbrht
-title: UX-Konzept und klickbarer Prototyp Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
-status: doing
+title: UX-Konzept Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
+status: done
 type: spike
 context: ledger
 created: 2026-09-11
-completed:
+completed: 2026-09-12
 depends_on: [design-system-h58y4, design-system-001, design-system-y6gkd, design-system-f7k2p]
 blocks: [ledger-s8m3w]
 tags: [frontend, ux, kassenbuch, claude-design]
@@ -27,10 +27,27 @@ UX-Konzept für das **ganze Ziel**, auch wenn in Scheiben gebaut wird. Sonst wir
 Scheibe für sich entworfen und die Oberfläche später umgebaut.
 
 ## What
-Ein UX-Konzept mit einem **klickbaren Prototyp**, entworfen **für das Ziel** (Entscheidung
-Roman, 2026-09-11): der Prototyp zeigt den ganzen Arbeitsablauf einschließlich Bearbeiten.
-Gebaut wird danach in Scheiben; das Ableiten der Scheiben ist der Folge-Task
+Ein UX-Konzept **für das ganze Ziel**, festgehalten im `ledger/README.md` und in Briefs je
+Ablauf. Gebaut wird danach in Scheiben; das Ableiten der Scheiben ist der Folge-Task
 `ledger-s8m3w`, nicht Teil dieses Tasks (Entscheidung Roman, 2026-09-11).
+
+**Zuschnitt geändert am 2026-09-12 (Entscheidung Roman).** Ursprünglich sollte ein
+klickbarer Prototyp über alle sieben Abläufe in Claude Design entstehen und dort
+durchgespielt werden. Das ist gestrichen, aus drei Gründen:
+1. Claude kann Mockup-Projekte nicht lesen (`DesignSync` erreicht nur
+   Design-System-Projekte). Jede Rückkopplung bräuchte Roman als Boten; bei sieben
+   Abläufen mit Iterationen sind das Dutzende Screenshots von Hand.
+2. Ein Mockup mit erfundenen Daten kann das Maß "mindestens so schnell wie YNAB" nicht
+   belegen, und die Frage nach dem Verhalten bei rund 14.000 Buchungen beantwortet es
+   grundsätzlich nicht. Die echte App mit Romans Bestand beantwortet beides.
+3. Der eigentliche Wert des Tasks ist eingetreten, bevor ein einziger Screen entstand: die
+   Konzept-Skizze aus Schritt 3 der Session, mit Roman abgestimmt.
+
+**Stattdessen:** das Konzept und die Briefs werden festgehalten, der Durchgang wandert in
+die **erste lesende Bau-Scheibe** (aus `ledger-s8m3w`), wo Roman ihn an echten Daten
+durchspielt. Claude Design bleibt als Werkzeug für einzelne Layout-Fragen verfügbar, auf
+Zuruf und nicht als Pflichtstation je Ablauf. Der Design-System-Sync (`design-system-h58y4`)
+bleibt davon unberührt und hat seinen Wert unabhängig.
 
 **Geräte:** insgesamt etwa 70 % Handy, 30 % PC. Die Nachbearbeitung passiert fast nur am
 PC; am Handy ist der Hauptfall das Durchsehen und Bestätigen neuer Buchungen.
@@ -85,25 +102,22 @@ Design-System-Projekte); Roman zeigt Zwischenstände als Screenshot oder Export.
 7. **Festhalten:** Konzept im `ledger/README.md`, Briefs und Screenshots im Repo.
 
 ## Acceptance criteria
-- [ ] Re-Sync erledigt: Claude Design meldet keine fehlenden Schriften, die
+- [x] Re-Sync erledigt: Claude Design meldet keine fehlenden Schriften, die
       Kategorienauswahl ist als Karte im "BudgetBuddy Design System" sichtbar.
-- [ ] Für jeden der sieben Abläufe liegt ein Brief in `docs/ux/kassenbuch/briefs.md`,
+      (2026-09-12, Sichtprüfung Roman; Manifest: 23 Karten, drei Schriften "ok".
+      Zwei Funde als Backlog: design-system-hadjy, design-system-an22r.)
+- [x] Für jeden der sieben Abläufe liegt ein Brief in `docs/ux/kassenbuch/briefs.md`,
       jeweils mit dem YNAB-Referenzweg aus Romans Beschreibung.
-- [ ] Ein klickbarer Prototyp in Claude Design deckt alle sieben Abläufe auf ihrem
-      Hauptgerät ab (1 auf dem Handy, 2 bis 5 auf dem PC, 6 auf beiden); Ablauf 1 und 6
-      zusätzlich in der jeweils anderen Größe.
-- [ ] Roman hat die Abläufe 1 bis 5 im Prototyp durchgespielt und bestätigt, dass sie
-      mindestens so schnell gehen wie in YNAB-Web bzw. der YNAB-App, oder benannt, was
-      fehlt; Benanntes ist eingearbeitet oder als offener Punkt im Konzept vermerkt
-      (Human-Gate).
-- [ ] Das UX-Konzept steht im `ledger/README.md` (Abschnitt "Oberfläche"): Einstieg,
+- [x] Das UX-Konzept steht im `ledger/README.md` (Abschnitt "Oberfläche"): Einstieg,
       Navigation, Listenaufbau je Gerät, Auswahl-Modus, Orte für Bearbeiten, Historie und
-      Flags, Verhalten der Liste bei rund 14.000 Buchungen, Link auf das
-      Claude-Design-Projekt des Prototyps.
-- [ ] Screenshots der Prototyp-Screens liegen unter `docs/ux/kassenbuch/`, damit die
-      Scheiben aus `ledger-s8m3w` auf sie verweisen können.
-- [ ] Briefs, Prototyp und Screenshots enthalten nur erfundene Konten, Payees und
-      Beträge, keine echten Daten.
+      Flags, Verhalten der Liste bei rund 14.000 Buchungen.
+- [x] Die Briefs enthalten nur erfundene Konten, Payees und Beträge, keine echten Daten.
+- [x] Was das Konzept an Fähigkeiten voraussetzt, die es heute nicht gibt, ist im
+      Konzept benannt (Prüfvermerk und Flags im Spiegel, Available-Betrag je Kategorie,
+      seitenweises Laden mit serverseitiger Summe), damit `ledger-s8m3w` daraus Scheiben
+      schneiden kann.
+- [x] Roman hat das Konzept gelesen und bestätigt (Human-Gate). Der Durchgang an echten
+      Daten ist ausdrücklich in die erste lesende Scheibe verschoben.
 
 ## Notes
 - **Kein Worker-Task.** Läuft in der Hauptsession mit Roman, wie `design-system-h58y4`:
@@ -124,3 +138,48 @@ Design-System-Projekte); Roman zeigt Zwischenstände als Screenshot oder Export.
   Claude, Maßstab ist ein klickbarer Prototyp statt eines Bauchgefühls beim Durchsehen
   statischer Screens, Scheiben und v1/v2-Entscheidung wandern in den Folge-Task
   `ledger-s8m3w`.
+
+## Outcome
+
+**Was entstanden ist**
+- Re-Sync des Design-Systems nach Claude Design: 33 Dateien im Projekt "BudgetBuddy
+  Design System", Manifest mit 23 Karten (Brand 1, Colors 2, Type 1, Components 14,
+  Feedback 3, Forms 2), alle drei Schriften als "ok" erkannt, Kategorienauswahl als
+  Karte `components-categorypicker` vorhanden. Sichtprüfung durch Roman am 2026-09-12.
+- `docs/ux/kassenbuch/briefs.md`: Briefs für die Abläufe 1 bis 7, die ersten fünf mit
+  Romans YNAB-Referenzweg aus seiner eigenen Beschreibung; 6 und 7 tragen die Struktur,
+  ihr Referenzweg blieb offen (Ablauf 7 hat in YNAB ohnehin keinen).
+- `docs/ux/kassenbuch/claude-design-kickoff.md`: Kontext-Briefing für ein Mockup-Projekt.
+  Nach dem Zuschnitt-Wechsel nur noch für einzelne Layout-Fragen auf Zuruf.
+- `ledger/README.md`, Abschnitt "Oberfläche": das Konzept in dauerhafter Form.
+
+**Zwei Funde am Export-Weg** (beide als Backlog erfasst)
+- `design-system-hadjy`: der Export trägt die `@font-face`-Regeln der App mit absolutem
+  `url(/fonts/...)` in `styles.css`. In Claude Design liegen die Previews unter
+  `.../serve/preview/`, die absolute URL zeigt damit auf die Origin-Wurzel und liefert
+  404. Weil `styles.css` nach `colors_and_type.css` geladen wird, gewinnt die kaputte
+  Regel. Workaround in dieser Session: Bundle von Hand gepatcht, nur `styles.css` neu
+  hochgeladen.
+- `design-system-an22r`: Claude Design baut das Manifest **nicht** nach einem
+  DesignSync-Upload neu, sondern erst auf eine Anfrage im Projekt-Chat. Dabei hat es 26
+  Bundle-Dateien umgeschrieben (`@dsCard`-Marker um `name`/`subtitle`/`viewport`
+  ergänzt, `thumbnail.html` angelegt, Tailwind-Interna in `styles.css` annotiert). Der
+  nächste Export überschreibt das wieder, deshalb soll der Export es selbst erzeugen.
+
+**Zuschnitt-Wechsel am 2026-09-12 (Entscheidung Roman).** Der klickbare Prototyp über
+alle sieben Abläufe ist gestrichen; Begründung im Abschnitt "What". Roman brachte es auf
+den Punkt: "ständig Screenshots zu machen ist doch wild". Der Durchgang wandert an echte
+Daten in die erste lesende Scheibe aus `ledger-s8m3w`. Brief 1 war zu diesem Zeitpunkt in
+Claude Design gebaut und diente als Beleg, dass der Weg funktioniert, aber teuer ist.
+
+**Human-Gate.** Die Konzept-Skizze wurde am 2026-09-11/12 Punkt für Punkt mit Roman
+abgestimmt (Einstieg im zuletzt gewählten Konto, Prüfen per Wisch, Seitenpanel am PC,
+Split nur im Detail), dazu die YNAB-Referenzwege 1 bis 5 aus seiner Beschreibung. Der
+README-Abschnitt "Oberfläche" ist die Verschriftlichung genau dieser Abstimmung.
+
+**Was offen bleibt**
+- YNAB-Referenzweg für Ablauf 6 (Gesamtsicht, Konto-Sicht, ETF-Konto) fehlt in den
+  Briefs; bei der Scheibe nachzuholen.
+- Die drei Voraussetzungen aus dem README-Abschnitt (Prüfvermerk und Flags im Spiegel,
+  Available je Kategorie, seitenweises Laden mit serverseitiger Summe) sind
+  Scheiben-Material für `ledger-s8m3w`, nicht hier entschieden.

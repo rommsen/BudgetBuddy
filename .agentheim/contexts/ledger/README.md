@@ -242,6 +242,72 @@ geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchunge
 `observe`), `Ledger/Persistence.fs` (`appendAndApply`, Loads, Replay), später
 `Ledger/CommandHandlers.fs` und `Ledger/QueryHandlers.fs`.
 
+## Oberfläche (ledger-xbrht, 2026-09-12)
+Das Kassenbuch ist eine **Arbeitsfläche**, kein Bericht. Maßstab: die Arbeit, für die Roman
+heute YNAB öffnet, geht hier mindestens so schnell. Scheiterkriterium der Vision: BB wird
+langsamer oder umständlicher als YNAB-Web. Entworfen für das ganze Ziel, gebaut in Scheiben
+(`ledger-s8m3w`). Briefs je Ablauf mit Romans YNAB-Referenzweg:
+`docs/ux/kassenbuch/briefs.md`.
+
+**Geräte.** Etwa 70 % Handy, 30 % PC, beide gleichwertig bedienbar. Am Handy überwiegt
+Durchsehen und Prüfen, am PC das Nachbearbeiten. Filter und Summen gehören auf beide
+Geräte; in YNAB nutzt Roman den Filter am Handy heute nie, weil er dort zu umständlich ist.
+
+**Einstieg und Navigation.** Das Kassenbuch öffnet im zuletzt gewählten Konto. Konto ist
+fachlich ein **Filter**, nicht ein eigener Modus: der Wechsel zwischen Gesamtsicht und
+Konto lässt alle anderen Filter und eine laufende Auswahl stehen. Oben die Kontostände
+(Handy: waagerecht scrollbare Leiste; PC: linke Spalte, "Alle Konten" zuoberst), darunter
+die sticky Filterleiste, darunter die Liste. Erster Chip ist immer "Zu prüfen (n)".
+
+**Liste.** Am Handy Datum als Gruppenkopf, je Zeile Payee, Kategorie, Betrag, darunter
+klein Memo und nur die abweichenden Kennzeichen. Am PC eine Tabelle mit Sticky-Kopf
+(Auswahl, Datum, Konto in der Gesamtsicht, Payee, Kategorie, Memo, Betrag, Status). In der
+Gesamtsicht trägt jede Zeile ihr Konto.
+
+**Prüfen ist eine Geste.** Wisch nach rechts am Handy, Taste G oder die Auswahl-Leiste am
+PC. Genau eine Geste, kein zweiter Schritt: in YNAB braucht Roman zwei Wische an einem
+anderen Ort als dem, an dem die zu prüfenden Buchungen stehen. Wisch nach links bleibt
+bewusst frei, damit die Geste eindeutig bleibt.
+
+**Kategoriewechsel sortiert nie um und prüft nie mit.** In YNAB verschwindet eine Buchung
+aus dem Blickfeld, wenn sie beim Kategorisieren nebenbei geprüft und umsortiert wird.
+
+**Bearbeiten, Historie, Flags sitzen im Detail**: am Handy ein BottomSheet, am PC ein
+Seitenpanel rechts, damit die Liste sichtbar bleibt. Kategorie über den Picker (auch direkt
+aus der Tabellenzelle), Split als Zeilenliste mit Rest-Button wie im Split-Editor der
+Import-Prüfung, Memo, Geprüft-Schalter, Herkunft und Historie als Zeitleiste. Split wird
+nur hier bearbeitet, nicht aus der Auswahl heraus.
+
+**Rückfrage an Lena** heißt in der Oberfläche "Lena fragen", nicht "Flag setzen": fachlich
+weist Roman die Buchung einer Person zu, das YNAB-Flag ist die Umsetzung dahinter. Weiter
+gedachte Formen (Benachrichtigung, eine Sicht "Für mich" für Lena) liegen in
+`ledger-xfjcp`.
+
+**Auswahl mit Summe.** Sobald ein Filter aktiv ist, steht über der Liste die Trefferzahl
+und der Gesamtbetrag des **ganzen** Treffers. Erst wenn Roman eine Teilmenge markiert
+(langes Drücken am Handy, Kästchen oder Shift-Klick am PC), zeigt die Auswahl-Leiste
+Anzahl und Summe der Auswahl. Der häufige Fall (Kategorie wählen, Summe ablesen) braucht
+damit kein Ankreuzen.
+
+**Gelöschte Buchungen** sind standardmäßig ausgeblendet und kommen über einen Filter-Chip
+zurück, ausgegraut und ohne Wirkung auf den Kontostand (`ledger-p3n8k`).
+
+**Große Listen.** Der Bestand liegt bei rund 14.000 Buchungen. Die Liste lädt seitenweise
+nach; Trefferzahl und Summe rechnet der Server über den gesamten Treffer, nie über den
+geladenen Ausschnitt. Kontostände kommen aus dem Zustand, nie aus der Liste.
+
+**Was das Konzept voraussetzt und heute nicht gibt** (Scheiben-Material für
+`ledger-s8m3w`):
+- **Prüfvermerk und Flags im Spiegel.** Der Ereignis-Katalog oben kennt weder `approved`
+  noch Flags. Schon die lesende Anzeige "noch nicht geprüft" oder "Rückfrage Lena" braucht
+  eine Erweiterung von Snapshot und Beobachtungs-Ereignissen.
+- **Available-Betrag je Kategorie.** Der Picker soll je Kategorie den verfügbaren Betrag
+  zeigen und beim Wechsel beide Seiten (alt hoch, neu runter), wie die YNAB-App. Der
+  Spiegel führt heute keine Budget-Zahlen mit.
+- **Seitenweises Laden mit serverseitiger Summe und Filterung.** `getLedgerEntriesForAccount`
+  liefert heute die ganze Liste eines Kontos und summiert in F# (ADR 0017); das bleibt für
+  den Kontostand richtig, trägt aber keine Filter und keine Gesamtsicht.
+
 ## Open questions
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro
   Buchung als Quelle der Wahrheit, Zustandsmodell synchron in derselben Transaktion

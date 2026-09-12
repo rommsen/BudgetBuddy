@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 13:51 -- Task completed (verification skipped): ledger-xbrht - UX-Konzept Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
+
+**Type:** Work / Task completion
+**Task:** ledger-xbrht - UX-Konzept Kassenbuch als Arbeitsfläche (Handy und PC, mindestens YNAB-Niveau)
+**Summary:** UX-Konzept Kassenbuch im ledger-README festgehalten, Briefs je Ablauf mit YNAB-Referenzweg; Design-System-Re-Sync erledigt; klickbarer Prototyp in Claude Design gestrichen, Durchgang wandert an echte Daten in die erste lesende Scheibe
+**Duration:** 14h47m (2026-09-11 22:14 bis 2026-09-12 13:01, Human-Gate über mehrere Sitzungen)
+**Verification:** SKIPPED — decision-only task (kein Code, Human-Gate in der Hauptsession statt Verifier)
+**Files changed:** 8
+
+---
+
 ## 2026-09-12 12:36 -- Capture / Captured: ledger-xfjcp - Buchung an Lena zuweisen statt nur ein Flag setzen
 
 **Type:** Capture
