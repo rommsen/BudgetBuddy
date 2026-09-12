@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 23:15 -- Capture / Captured: ledger-nb4tv - Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus Romans YNAB-Referenz für Ablauf 6: das ETF-Konto ist in YNAB noch gar nicht angelegt, und wie der monatliche Abgleich aussehen soll, ist ungeklärt ("habe ich noch ehrlich gesagt keine Idee für"). Damit ist ein v1-Kriterium der Vision offen, ohne dass es bisher irgendwo als Aufgabe stand. Zu klären sind die Pflege des Werts, die Rolle von BB dabei, die Kursquelle (hängt an ledger-c7j8e) und wann das Kriterium als erfüllt gilt.
+**Zweiter Befund derselben Antwort:** Die Gesamtsicht über alle Konten nutzt Roman "eigentlich nicht"; der häufige Fall ist der Wechsel in ein einzelnes Konto, und die Gesamtsicht dient nur der Suche nach einer Buchung im falschen Konto. Ablauf 6 in docs/ux/kassenbuch/briefs.md entsprechend neu zugeschnitten ("Konto wechseln, Gesamtsicht als Suchhilfe"): der Konto-Wechsel ist der Ablauf, die Gesamtsicht ist fachlich näher an Ablauf 2 (Filter) als an einer eigenen Sicht. An den Kontoständen selbst stört Roman nichts.
+
+---
+
 ## 2026-09-12 22:43 -- Batch started: [ledger-x0yga]
 
 **Type:** Work / Batch start

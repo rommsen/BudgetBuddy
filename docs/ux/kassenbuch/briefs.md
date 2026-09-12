@@ -321,14 +321,58 @@ in YNAB" an der Änderung).
 
 ---
 
-## Ablauf 6: Gesamtsicht und Konto-Sicht mit Kontoständen
+## Ablauf 6: Konto wechseln, Gesamtsicht als Suchhilfe
 
-**Ziel:** Roman sieht alle Konten mit richtigem Stand und wechselt zwischen Gesamtsicht
-und einem Konto, ohne Filter oder Auswahl zu verlieren.
+> **Zuschnitt korrigiert am 2026-09-12 nach Romans YNAB-Referenz.** Der Ablauf hieß
+> vorher "Gesamtsicht und Konto-Sicht mit Kontoständen" und ging davon aus, dass die
+> Gesamtsicht ein eigener, häufiger Arbeitsplatz ist. Das stimmt nicht. Der häufige Fall
+> ist der **Wechsel in ein einzelnes Konto**; die Gesamtsicht hat genau einen, seltenen
+> Zweck.
 
-**Gerät:** beide Hauptgerät (Handy 390 × 844, PC 1440 × 900).
+**Ziel:** Roman wechselt schnell in das Konto, das er sehen will. Die Gesamtsicht ist die
+Rückfallebene für den einen Fall, in dem er nicht weiss, in welchem Konto eine Buchung
+liegt.
 
-**YNAB-Referenzweg:** *(offen, Roman beschreibt noch)*
+**Gerät:** beide (Handy 390 × 844, PC 1440 × 900).
+
+**YNAB-Referenzweg (Roman, 2026-09-12):** Die Gesamtsicht nutzt er **eigentlich nicht**.
+Wenn er in den Konten ist, wechselt er direkt in das, was er sehen will, mal Bar, mal ein
+anderes. Die Gesamtsicht braucht er nur, wenn eine Buchung im falschen Konto gelandet ist
+und er sie suchen muss; das kommt selten vor. Häufiger wäre sie nur, wenn er abwechselnd
+mit ING und Comdirect zahlen würde und für beide einen Abruf hätte, und das ist nicht der
+Fall. An den Kontoständen, wie YNAB sie zeigt, stört ihn **nichts**.
+
+**Was daraus folgt:**
+1. **Der Konto-Wechsel ist der Ablauf**, nicht die Gesamtsicht. Er muss mit einer Geste
+   gehen und darf nicht wie ein Seitenwechsel wirken. Am Handy über die
+   Kontostände-Leiste oder den Chevron im Titel, am PC über die Konten-Spalte.
+2. **Die Gesamtsicht ist eine Suchhilfe.** Ihr eigentlicher Zweck ist "finde die Buchung,
+   von der ich nicht weiss, in welchem Konto sie liegt". Das ist fachlich näher an
+   Ablauf 2 (Filter) als an einer eigenen Sicht: die Gesamtsicht ist der Zustand, in dem
+   die Filter über alle Konten greifen. Deshalb trägt dort jede Zeile ihr Konto.
+3. **Kein eigener Aufwand für die Kontostände.** Sie sollen stimmen und sichtbar sein,
+   mehr verlangt Roman nicht. Kein Verlauf, keine Kacheln, keine Auswertung.
+
+**Ausgangszustand:** Konto "ING Extra" (zuletzt gewählt), Chip "Zu prüfen" aktiv.
+
+**Schrittfolge (Handy):**
+1. Kontostände-Leiste oben, waagerecht scrollbar: "Alle Konten", danach die vier Konten.
+   Aktives Konto hervorgehoben.
+2. Tipp auf "Bar": die Liste zeigt sofort die Bar-Buchungen, der aktive Filter bleibt
+   stehen. Kein Ladebildschirm, kein Seitenwechsel.
+3. Tipp auf "Alle Konten": Liste über alle Konten, jede Zeile mit Konto-Kürzel. Hier
+   sucht Roman die verirrte Buchung, danach wechselt er zurück.
+
+**Schrittfolge (PC):**
+1. Konten-Spalte links, "Alle Konten" zuoberst, darunter die vier Konten mit Stand.
+2. Klick auf ein Konto wechselt die Liste; in der Konto-Sicht entfällt die Konto-Spalte
+   der Tabelle, in der Gesamtsicht kommt sie dazu.
+
+**Offen und nicht Teil dieses Ablaufs:** Der Geldmarkt-ETF ist in YNAB noch gar nicht
+angelegt, und wie der monatliche Abgleich aussehen soll, ist ungeklärt (Romans Idee
+bisher: vielleicht ein Reconcile einmal im Monat). Das ist ein v1-Kriterium der Vision und
+liegt als eigener Task `ledger-nb4tv` im Backlog. Der Entwurf zeigt das Konto trotzdem mit
+seinem Stand, damit die Sicht vollständig ist.
 
 **Ausgangszustand:** Kassenbuch im Konto "ING Extra" (zuletzt gewählt).
 
