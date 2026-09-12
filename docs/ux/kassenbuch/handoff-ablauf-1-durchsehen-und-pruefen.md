@@ -219,8 +219,8 @@ Kennzeichen. Ungeprüfte Zeilen tragen einen Punkt am linken Rand:
 `position:absolute; left:6px; top:50%; transform:translateY(-50%)`, 6 × 6px,
 `radius:999px`, `#ff1f8f`, `box-shadow:0 0 8px rgba(255,31,143,.7)`.
 
-Zusätzlich sichtbar, weil ohne Filter: „Café Lotte · Restaurants · -11,80 €" (06.09.,
-geprüft).
+Der Screen zeigt den oberen Ausschnitt; die Liste läuft nach unten weiter (07.09.
+Apotheke am Markt, 06.09. Café Lotte · Restaurants · -11,80 €).
 
 ### 1.9 PC: Ausgangszustand, Zeile mit Tastatur markiert
 
@@ -233,7 +233,7 @@ geprüft).
 `rgba(0,212,170,.1)`, Inter 600 14px `#00d4aa`) · Sync · Regeln · Einstellungen
 (Inter 500 14px `#4a4a68`), je `padding:10px 14px`, `radius:10px`.
 
-**Konten-Spalte** links, Breite 268px, Grund `#0a0a1c`, rechte Kante `#1c1c38`,
+**Konten-Spalte** links, Breite 268px, Grund `#08081a`, rechte Kante `#1c1c38`,
 `padding:18px 14px`: Overline „KONTEN", dann Zeilen `padding:11px 12px`,
 `radius:10px`, Name Inter 500 13px `#7a7a98` (ellipsis), Betrag Mono 600 13px
 `tabular-nums` `#00ff88`, `white-space:nowrap`.
@@ -263,7 +263,7 @@ Betrag (rechts) · Status (rechts). In der Gesamtsicht kommt eine Konto-Spalte d
 - Markierte Zeile (Tastatur): Grund `#1e1e3c`,
   `box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)`
 
-**Tastatur-Hinweis** als Fußzeile, `padding:12px 20px`, Grund `#0a0a1c`, Oberkante
+**Tastatur-Hinweis** als Fußzeile, `padding:12px 20px`, Grund `#08081a`, Oberkante
 `#1c1c38`, Inter 500 12px `#4a4a68`, Tasten in Mono `#7a7a98`:
 `↑ ↓` bewegen · `Leertaste` auswählen · `G` geprüft · `Enter` Detail öffnen.
 
@@ -363,8 +363,7 @@ die Screens sofort zeichnen — **im Code sind die Tokens zu verwenden**.
 
 | Wert | Verwendung |
 |---|---|
-| `#08081a` | surface-app, Geräte-Grund |
-| `#0a0a1c` | Konten-Spalte, Fußzeilen |
+| `#08081a` | surface-app, Geräte-Grund, Konten-Spalte, Fußzeilen |
 | `#111128` | surface-card, Summenzeile |
 | `#1a1a36` | surface-elevated, Sheet, Auswahl-Leiste, Tabellenkopf, Toast |
 | `#16162e` | surface-input, Knöpfe, inaktive Chips |
