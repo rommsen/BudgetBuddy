@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-12 22:43 -- Modeling / Promoted: ledger-x0yga - "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-12 22:45 -- Modeling / Visuelles Gate für Frontend-Arbeit eingeführt
 
 **Type:** Modeling / Capture + Doku
