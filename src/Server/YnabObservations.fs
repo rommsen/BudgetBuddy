@@ -95,8 +95,10 @@ module Decoders =
 
     /// YNABs `date` ist ein reiner Kalendertag ohne Zeitzone. Bewusst **nicht**
     /// `Decode.datetimeUtc`: das liest "2026-02-03" als Ortszeit und schiebt den Tag um
-    /// den lokalen Offset zurueck (in MEZ auf den 2. Februar, 23:00). Ein Kassenbuch,
-    /// das Buchungstage auditierbar fuehrt, darf diesen Versatz nicht haben.
+    /// den lokalen Offset zurück (in MEZ auf den 2. Februar, 23:00). Ein Kassenbuch,
+    /// das Buchungstage auditierbar führt, darf diesen Versatz nicht haben. Geteilt mit
+    /// `Server.YnabClient.Decoders.transactionDecoder` (ynab-r9k4t): derselbe Bug betraf
+    /// auch dort den Datumsteil, keine zweite Kopie dieses Decoders.
     let ynabDateDecoder : Decoder<DateTime> =
         Decode.string
         |> Decode.andThen (fun text ->

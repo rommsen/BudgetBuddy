@@ -4,6 +4,27 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-13 21:35 - ynab-r9k4t: since_date-Decoder verschiebt Buchungstage nicht mehr
+
+**What I did:**
+`Server.YnabClient.Decoders.transactionDecoder` las YNABs reinen Kalendertag ("2026-02-03") mit `Decode.datetimeUtc`. Das interpretiert die Ziffern als Ortszeit und rechnet nach UTC um; in MEZ landete der Buchungstag auf dem Vortag, 23:00. Der Decoder nutzt jetzt denselben Kalendertag-Decoder wie der Spiegel (`Server.YnabObservations.Decoders.ynabDateDecoder`), keine zweite Kopie. Duplikat-Erkennung und Quick-Add-Vorlagen auf Kompensationen geprüft: `DateToleranceDays = 1` ist ein allgemeines Toleranzfenster, Quick-Add-Vorlagen tragen kein Datum. Nichts zu entfernen.
+
+**Files Modified:**
+- `src/Server/YnabClient.fs` - Datumsteil von `transactionDecoder` auf den geteilten Decoder umgestellt
+- `src/Server/YnabObservations.fs` - Doc-Kommentar zur geteilten Nutzung
+- `src/Tests/YnabClientTests.fs` - Regressionstest: Kalendertag und `DateTimeKind.Utc`
+- `src/Tests/test.runsettings` - `TZ=Europe/Berlin` für den Testprozess, damit der Test auch auf einem UTC-Host (Docker, CI) greift
+
+**Rationale:**
+Der Bug zeigt sich nur östlich von UTC. Ohne feste Zeitzone im Testprozess wäre der Regressionstest auf einem UTC-Host mit dem alten Code grün geblieben. Der Verifier hat das in Iteration 1 gefunden; in Iteration 2 wurde per temporärem Revert unter `TZ=UTC` rot und mit Fix grün nachgewiesen.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 820 bestanden, 7 übersprungen, 0 Fehler (unter Shell-TZ UTC und Europe/Berlin)
+- Issues: Verifikation Iteration 1 FAIL (Test nicht host-unabhängig, falscher Kommentar, Umschreibungen), Iteration 2 PASS
+
+---
+
 ## 2026-09-13 16:00 - design-system-fq8dn, Iteration 2: Zebra schlug Hover, Umlaute korrigiert
 
 **What I did:**

@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 21:31 -- Task verified and completed: ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
+
+**Type:** Work / Task completion
+**Task:** ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
+**Summary:** since_date-Decoder liest YNABs Kalendertag ohne Zeitzonen-Versatz (geteilter ynabDateDecoder), Regressionstest per TZ=Europe/Berlin in test.runsettings host-unabhängig
+**Duration:** 15m (21:14 bis 21:33, zwei Iterationen)
+**Verification:** PASS (iteration 2)
+**Files changed:** 4
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
+## 2026-09-13 21:31 -- Verification failed: ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
+
+**Type:** Work / Verification failure
+**Task:** ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
+**Iteration:** 1 of 3
+**Reasons:** BC-README widerspricht sich (Herkunfts-Badge-Definition sagt weiter "bleibt sichtbar"), rund 61 hinzugefügte Zeilen mit Umschreibungen statt Umlauten und 24 mit Gedankenstrich (Kommentare, Testnamen, README, Task-Datei); fachlich geprüft und in Ordnung (826 Tests grün, Filter konsistent über Seite, Trefferzahl und Summe, Kontostand unberührt)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-09-13 21:27 -- Verification failed: ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
+
+**Type:** Work / Verification failure
+**Task:** ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
+**Iteration:** 1 of 3
+**Reasons:** Regressionstest schlägt vor dem Fix nur östlich von UTC fehl (auf UTC-Host, Docker oder CI, wäre der Bug unentdeckt), Kommentar behauptet eine TZ-Einstellung in Server.fsproj/CI, die es nicht gibt, DateTimeKind nicht geprüft, Umschreibungen statt Umlaute und Gedankenstriche in Kommentaren, Testname und Task-Datei
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-13 21:14 -- Batch started: [ledger-h4p6c, ledger-p3n8k, ynab-r9k4t]
 
 **Type:** Work / Batch start

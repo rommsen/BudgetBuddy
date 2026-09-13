@@ -12,16 +12,25 @@
   Testdaten in eine echte, mit realen Kontostaenden gefuellte Entwickler-Datenbank
   geschrieben.
 
-  `RunConfiguration/EnvironmentVariables` ist eine von VSTest selbst unterstuetzte
-  Einstellung (kein Custom-Code, kein F#-Compiler-Workaround noetig): die hier
+  `RunConfiguration/EnvironmentVariables` ist eine von VSTest selbst unterstützte
+  Einstellung (kein Custom-Code, kein F#-Compiler-Workaround nötig): die hier
   gesetzten Variablen landen im Environment des Test-Host-Prozesses, BEVOR
   `Persistence.dbConfig` (lazy, siehe `src/Server/Persistence.fs`) das erste Mal
   ausgewertet wird.
+
+  `TZ=Europe/Berlin` erzwingt aus demselben Grund eine feste, von UTC verschiedene
+  Zeitzone für den gesamten Testlauf: .NET liest `TZ` unter macOS und Linux beim
+  Prozessstart (unter Windows wird die Variable ignoriert, dort gilt die
+  Systemzeitzone). Ohne das wäre der Regressionstest gegen den Kalendertag-Bug in
+  `YnabClientTests.transactionDecoderTests` (ynab-r9k4t) auf einer UTC-Maschine
+  (Docker, CI) blind: `Decode.datetimeUtc` verschiebt nur östlich von UTC, unter
+  `TZ=UTC` bliebe der alte, fehlerhafte Code unbemerkt grün.
 -->
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
       <USE_MEMORY_DB>true</USE_MEMORY_DB>
+      <TZ>Europe/Berlin</TZ>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

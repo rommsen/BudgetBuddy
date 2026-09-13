@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 10
+- **Doing:** 0
+- **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ynab-r9k4t** — "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset" (bug) — `doing/ynab-r9k4t-bug-since-date-transaktions-decoder-verschiebt-ynab-buchungs.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-r9k4t** — "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset" (bug) — `done/ynab-r9k4t-bug-since-date-transaktions-decoder-verschiebt-ynab-buchungs.md`
 - **ynab-czk34** — Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract) (decision) — `done/ynab-czk34-mirror-mechanics.md`
 - **ynab-t4n8p · Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)** — 2026-06-27 — `done/ynab-t4n8p-quick-add-recent-templates.md`
 - **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — 2026-06-27 — `done/ynab-q7k3m-quick-add-in-bottom-nav.md`

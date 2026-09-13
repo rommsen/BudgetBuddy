@@ -107,7 +107,10 @@ module Decoders =
     let transactionDecoder : Decoder<YnabTransaction> =
         Decode.object (fun get -> {
             Id = get.Required.Field "id" Decode.string
-            Date = get.Required.Field "date" Decode.datetimeUtc
+            // Bewusst nicht Decode.datetimeUtc (liest den Kalendertag als Ortszeit und
+            // verschiebt ihn um den lokalen Offset, ynab-r9k4t): derselbe Kalendertag-
+            // Decoder wie der Spiegel, keine zweite Kopie.
+            Date = get.Required.Field "date" Server.YnabObservations.Decoders.ynabDateDecoder
             Amount = {
                 Amount = get.Required.Field "amount" Decode.int64 |> decimal |> fun milliunits -> milliunits / 1000m
                 Currency = "EUR"

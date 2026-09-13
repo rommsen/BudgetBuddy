@@ -495,6 +495,30 @@ let readyToAssignTests =
             | Error err -> failtest $"Failed to decode month to_be_budgeted: {err}"
     ]
 
+[<Tests>]
+let transactionDecoderTests =
+    testList "YNAB Transaction Decoder Tests (regression: since_date-Versatz, ynab-r9k4t)" [
+        // Bug: transactionDecoder las YNABs reinen Kalendertag ("2026-02-03") mit
+        // Decode.datetimeUtc. Der interpretiert die Ziffern als Ortszeit und rechnet
+        // nach UTC um; östlich von UTC (z. B. MEZ) landet der Buchungstag dadurch
+        // auf dem 2. Februar, 23:00 statt dem 3. Februar, 00:00, einen Kalendertag
+        // zu früh. Auf einer UTC-Maschine (Offset 0) fällt der alte, fehlerhafte
+        // Code mit diesem Test nicht auf: dort verschiebt Decode.datetimeUtc nichts.
+        // Der Regressionsschutz kommt deshalb nicht aus diesem Test allein, sondern
+        // aus TZ=Europe/Berlin in src/Tests/test.runsettings (RunConfiguration
+        // EnvironmentVariables, siehe Kommentar dort), das den gesamten Testlauf
+        // auf eine von UTC verschiedene Zeitzone festlegt.
+        testCase "\"2026-02-03\" dekodiert zu 2026-02-03 00:00:00 Utc" <| fun () ->
+            let json = """{ "id": "tx-1", "date": "2026-02-03", "amount": -1000, "cleared": "cleared" }"""
+            match Decode.fromString Decoders.transactionDecoder json with
+            | Ok tx ->
+                Expect.equal tx.Date (DateTime(2026, 2, 3, 0, 0, 0, DateTimeKind.Utc))
+                    "Der Buchungstag darf nicht um den lokalen Zeitzonen-Offset verschoben werden"
+                Expect.equal tx.Date.Kind DateTimeKind.Utc
+                    "Das dekodierte Datum muss als Utc gekennzeichnet sein"
+            | Error err -> failtest $"Failed to decode transaction: {err}"
+    ]
+
 // ============================================
 // Data Transformation Tests
 // ============================================
