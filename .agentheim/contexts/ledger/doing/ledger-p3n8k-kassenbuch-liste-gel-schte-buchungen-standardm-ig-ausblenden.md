@@ -1,7 +1,7 @@
 ---
 id: ledger-p3n8k
 title: Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-11

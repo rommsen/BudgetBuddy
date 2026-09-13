@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 14
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 15
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-p3n8k** — Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen (feature) — `todo/ledger-p3n8k-kassenbuch-liste-gel-schte-buchungen-standardm-ig-ausblenden.md`
-- **ledger-h4p6c** — Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push (feature) — `todo/ledger-h4p6c-spiegel-ausl-ser-frische-kriterium-beim-seitenaufruf-und-lau.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-p3n8k** — Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen (feature) — `doing/ledger-p3n8k-kassenbuch-liste-gel-schte-buchungen-standardm-ig-ausblenden.md`
+- **ledger-h4p6c** — Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push (feature) — `doing/ledger-h4p6c-spiegel-ausl-ser-frische-kriterium-beim-seitenaufruf-und-lau.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

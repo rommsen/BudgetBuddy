@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 21:14 -- Batch started: [ledger-h4p6c, ledger-p3n8k, ynab-r9k4t]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push, ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen, ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
+**Parallel:** yes (3 Worker; h4p6c und p3n8k fassen beide die Kassenbuch-Seite im Client an, Merge nacheinander mit merge-tree-Vorabcheck)
+**Planning advisory:** whats-next 2026-09-13T16:10Z (aktuell): genau diese drei Tasks in einen Batch, h4p6c und p3n8k besser nacheinander
+
+---
+
 ## 2026-09-13 21:12 -- Modeling / Promoted: ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
 
 **Type:** Modeling / Promote

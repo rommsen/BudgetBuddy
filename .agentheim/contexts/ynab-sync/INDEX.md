@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 10
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ynab-r9k4t** — "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset" (bug) — `todo/ynab-r9k4t-bug-since-date-transaktions-decoder-verschiebt-ynab-buchungs.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ynab-r9k4t** — "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset" (bug) — `doing/ynab-r9k4t-bug-since-date-transaktions-decoder-verschiebt-ynab-buchungs.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

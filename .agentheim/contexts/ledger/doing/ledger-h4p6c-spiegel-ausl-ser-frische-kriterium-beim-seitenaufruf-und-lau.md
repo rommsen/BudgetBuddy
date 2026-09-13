@@ -1,7 +1,7 @@
 ---
 id: ledger-h4p6c
 title: Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-06
