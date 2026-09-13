@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 02:10 -- Modeling / Bestandsaufnahme DaisyUI: sieben Stellen in drei Dateien, Schnitt verkleinert
+
+**Type:** Modeling / Refine + Dismiss
+**BC:** design-system
+**Summary:** Die Bestandsaufnahme aus design-system-fq8dn ist gemacht (alle String-Literale der 48 eigenen Client-Dateien gegen die Selektoren im gebauten CSS und gegen die bekannten DaisyUI-Komponentennamen, danach jede Fundstelle einzeln angesehen). Ergebnis: **sieben Stellen in drei Dateien** — Table.fs (table-sm, table-lg, zweimal table-zebra, table), Loading.fs (table) und Settings/View.fs (range, range-sm). Romans Vermutung "da sollte eigentlich nicht viel sein" hat sich bestätigt.
+**Wichtige Unterscheidungen:** `.table` existiert im gebauten CSS, aber als Tailwind-Utility `display: table`, nicht als DaisyUIs Tabellen-Gestaltung; auf einem table-Element wirkungslos, auf dem div in Loading.fs möglicherweise beabsichtigt. Falsch positiv und ausdrücklich nicht zu ändern: `prop.role "alert"` (10x), `prop.type' "checkbox"` (4x), `prop.ariaLabel "Close modal"` (2x), der Fehlertext "toggle" in Rules/State.fs und `Money.hero` — HTML-Attribute und eigene Funktionsnamen.
+**Folge für den Schnitt:** design-system-my32n (eigener Ersetzungs-Task) ist überdimensioniert und wurde aufgelöst; das Ersetzen steht jetzt in fq8dn, mit sechs konkreten Akzeptanzkriterien statt "to be defined". design-system-thtpp (Wächter) bleibt und ist der eigentliche Schutz vor Wiederkehr.
+**Methodischer Hinweis:** Der naive Vergleich "Klasse nicht im gebauten CSS" taugt nicht als Prüfung. Tailwind scannt die Fable-Ausgabe, nicht die F#-Quellen; eine Klasse fehlt im CSS auch dann, wenn ihr Code gerade nicht gerendert wird. Das ist beim Bau von design-system-thtpp zu beachten.
+
+---
+
 ## 2026-09-13 01:50 -- Modeling / Entscheidung: DaisyUI kommt raus, in drei Schritten
 
 **Type:** Modeling / Decision + Split
