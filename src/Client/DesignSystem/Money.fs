@@ -340,6 +340,17 @@ let transactionWithCurrency amount currency =
             Glow = NoGlow
     }
 
+/// Betrag einer in YNAB gelöschten Buchung (ledger-p3n8k): gedämpft und
+/// durchgestrichen statt in der roten/grünen Betrags-Farbe (so ist ohne Lesen
+/// des Kennzeichens klar, dass der Betrag nicht mehr mitzählt). Eigene Funktion statt
+/// eines Flags an `view`: die Rot/Grün-Farbsemantik (`getColorClass`) soll hier gar
+/// nicht erst greifen.
+let transactionDeleted (amount: decimal) (currency: string) =
+    Html.span [
+        prop.className $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base line-through {Colors.textMuted}"
+        prop.text (formatAmountText false true amount currency)
+    ]
+
 // ============================================
 // Account Balances (Kontostände-Leiste, ledger-b1xwe / ledger-x0yga)
 // ============================================

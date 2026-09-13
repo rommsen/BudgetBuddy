@@ -91,11 +91,17 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
     einmal geladen. Bleibt bestehen, bis nichts mehr auf sie zeigt (ledger-b1xwe);
     die Kassenbuch-Seite nutzt seit `ledger-b1xwe` `getLedgerEntriesPage` statt ihrer.
   - `getLedgerEntriesPage` (ledger-b1xwe) — eine **Seite** der Buchungsliste: ein
-    Konto (optional, `None` heißt alle Konten) plus Seitenzeiger und Seitengröße.
-    Rückgabe: die Buchungen der Seite, die Gesamtzahl der Treffer und die Summe über
-    den **gesamten** Treffer (`Shared.Domain.sumMoney`), nicht die Seite — in F#
-    gebildet, nie per SQL-`SUM` (ADR 0017). Fundament für die künftigen Filter
-    (`ledger-vgfw3`) und die Summenzeile über der Liste.
+    Konto (optional, `None` heißt alle Konten) plus Seitenzeiger und Seitengröße,
+    dazu `IncludeDeleted` (ledger-p3n8k, Standard `false`). Rückgabe: die Buchungen
+    der Seite, die Gesamtzahl der Treffer, die Summe über den **gesamten** Treffer
+    (`Shared.Domain.sumMoney`), nicht die Seite (in F# gebildet, nie per SQL-`SUM`,
+    ADR 0017), und `DeletedCount`, die Zahl der in YNAB gelöschten Buchungen im
+    Filter, unabhängig von `IncludeDeleted`. Ohne `IncludeDeleted` bleiben gelöschte
+    Buchungen aus Seite, Trefferzahl und Summe außen vor, sodass die sichtbare Liste
+    sich zum Kontostand summiert; `DeletedCount` bleibt trotzdem bekannt, damit die
+    Seite "N gelöschte Buchungen ausgeblendet" auch zeigen kann, während sie
+    ausgeblendet sind. Fundament für die künftigen Filter (`ledger-vgfw3`) und die
+    Summenzeile über der Liste.
   - `getLedgerAccountBalances` (ledger-b1xwe) — die **Kontostände** aller Konten in
     einem Aufruf, für die Kontostände-Leiste. Der Stand ist die Summe der nicht in
     YNAB gelöschten Buchungen je Konto (`Shared.Domain.ledgerBalancesByAccount`),
@@ -113,7 +119,8 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   *Order-ID-Abgleich* (`Shared.Domain.originLabel`). Die Herkunft einer Buchung ist der
   Actor ihres **ersten** Ereignisses und steht damit fest, sobald die Buchung entsteht.
   Eine in YNAB gelöschte Buchung trägt zusätzlich das Kennzeichen *in YNAB gelöscht*: sie
-  bleibt sichtbar und zählt nur beim Kontostand nicht mit.
+  ist in der Kassenbuch-Liste standardmäßig ausgeblendet (`ledger-p3n8k`), kommt über
+  den Schalter gedämpft und durchgestrichen zurück und zählt beim Kontostand nie mit.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -301,8 +308,14 @@ und der Gesamtbetrag des **ganzen** Treffers. Erst wenn Roman eine Teilmenge mar
 Anzahl und Summe der Auswahl. Der häufige Fall (Kategorie wählen, Summe ablesen) braucht
 damit kein Ankreuzen.
 
-**Gelöschte Buchungen** sind standardmäßig ausgeblendet und kommen über einen Filter-Chip
-zurück, ausgegraut und ohne Wirkung auf den Kontostand (`ledger-p3n8k`).
+**Gelöschte Buchungen** sind standardmäßig ausgeblendet und kommen über einen Schalter
+zurück, gedämpft und durchgestrichen (`Money.transactionDeleted`) und ohne Wirkung auf
+den Kontostand (`ledger-p3n8k`, umgesetzt als eigener Zweig in `getLedgerEntriesPage`,
+nicht als Client-Filter auf der geladenen Seite, sonst stimmten Seitengröße und
+Trefferzahl nicht mehr). Gibt es welche, steht darüber "N gelöschte Buchungen
+ausgeblendet" (bzw. "eingeblendet") samt Schalter; ohne welche steht dort nichts. Der
+heutige Schalter ist eine schlichte Zeile über der Liste, kein Filter-Chip (die
+Filter-Chip-Leiste selbst ist weiter `ledger-vgfw3`).
 
 **Große Listen.** Der Bestand liegt bei rund 14.000 Buchungen. Die Liste lädt seitenweise
 nach (`getLedgerEntriesPage`, 100 Buchungen je Seite, Beobachter am Listenende statt

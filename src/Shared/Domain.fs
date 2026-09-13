@@ -877,21 +877,29 @@ let sumMoney (fallbackCurrency: string) (amounts: Money list) : Money =
 
 /// Parameter einer Seiten-Abfrage der Buchungsliste: ein Konto (optional — `None`
 /// heisst alle Konten, die Gesamtsicht), ein 0-basierter Seitenzeiger und die
-/// Seitengroesse.
+/// Seitengröße. `IncludeDeleted` (ledger-p3n8k): in YNAB gelöschte Buchungen
+/// gehören standardmäßig NICHT in den Treffer (`false`), damit die sichtbare
+/// Liste sich zum angezeigten Kontostand summiert; der Schalter der Seite setzt
+/// `true`, um sie gedämpft wieder einzublenden.
 type LedgerEntryPageQuery = {
     AccountId: Guid option
     Page: int
     PageSize: int
+    IncludeDeleted: bool
 }
 
 /// Eine Seite der Buchungsliste: die Buchungen dieser Seite, die Gesamtzahl der
 /// Treffer und die Summe ueber den **gesamten** Treffer — nicht ueber die Seite
 /// (Akzeptanzkriterium ledger-b1xwe). So kann die Seite waehrend des Nachladens immer
 /// dieselbe, richtige Summe zeigen, auch bevor alle Seiten geladen sind.
+/// `DeletedCount` (ledger-p3n8k): die Zahl der in YNAB gelöschten Buchungen im
+/// Filter (Konto oder alle), unabhängig von `IncludeDeleted` (so kann die Seite
+/// "3 gelöschte Buchungen ausgeblendet" auch zeigen, während sie ausgeblendet sind).
 type LedgerEntryPage = {
     Entries: LedgerEntryView list
     TotalCount: int
     TotalAmount: Money
+    DeletedCount: int
 }
 
 /// Der Rohwert einer Buchung, wie ihn die Kontostaende-Abfrage braucht: Konto, Betrag

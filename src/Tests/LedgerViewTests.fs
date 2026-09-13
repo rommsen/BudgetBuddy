@@ -150,6 +150,21 @@ let private accountCardsTests =
         }
     ]
 
+let private deletedCountTextTests =
+    testList "deletedCountText" [
+
+        test "Ausgeblendet nennt Zahl und Zustand, Singular bei genau einer Buchung" {
+            Expect.equal (deletedCountText 1 false) "1 gelöschte Buchung ausgeblendet" "Singular"
+            Expect.equal (deletedCountText 3 false) "3 gelöschte Buchungen ausgeblendet" "Plural"
+        }
+
+        test "Eingeblendet sagt, dass sie zu sehen sind" {
+            Expect.equal (deletedCountText 3 true) "3 gelöschte Buchungen eingeblendet" "Anderer Zustand, anderer Satz"
+        }
+    ]
+
 [<Tests>]
 let ledgerViewTests =
-    testList "Kassenbuch-Seite: View-Bausteine" [ abbreviationTests; groupByDateTests; formatEntryDateTests; accountCardsTests ]
+    testList
+        "Kassenbuch-Seite: View-Bausteine"
+        [ abbreviationTests; groupByDateTests; formatEntryDateTests; accountCardsTests; deletedCountTextTests ]

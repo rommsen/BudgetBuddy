@@ -374,6 +374,7 @@ let private page (entries: LedgerEntryView list) (totalCount: int) : LedgerEntry
     Entries = entries
     TotalCount = totalCount
     TotalAmount = ledgerBalance "EUR" entries
+    DeletedCount = entries |> List.filter (fun e -> e.DeletedInYnab) |> List.length
 }
 
 /// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
@@ -496,6 +497,36 @@ let reducerTests =
             let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries loaded
             Expect.equal updated loaded "Unveraendert"
             Expect.isEmpty (dispatched cmd) "Kein Kommando"
+        }
+
+        // ============================================
+        // Gelöschte Buchungen ausblenden (ledger-p3n8k)
+        // ============================================
+
+        test "Geladene Seite übernimmt die vom Server gemeldete Zahl gelöschter Buchungen" {
+            // Der Reduzierer rechnet DeletedCount nicht selbst nach (das könnte er
+            // auf einer Seite ohnehin nicht, wenn gelöschte Buchungen ausgeblendet
+            // sind); er übernimmt genau den Server-Wert (AC2).
+            let serverPage = { page [ entryView 1 -1m false ] 1 with DeletedCount = 3 }
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok serverPage)) (freshModel ())
+            Expect.equal updated.DeletedCount 3 "Der Server-Wert steht im Modell"
+        }
+
+        test "Der Schalter kippt IncludeDeleted und lädt die Liste ab Seite 0 neu" {
+            let withEntries, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (freshModel ())
+            Expect.isFalse withEntries.IncludeDeleted "Standardmäßig ausgeblendet"
+
+            let updated, cmd, _ = Components.Ledger.State.update ToggleIncludeDeleted withEntries
+            Expect.isTrue updated.IncludeDeleted "Ein Klick blendet gelöschte Buchungen ein"
+            Expect.equal updated.Entries Loading "Die Liste wird neu geholt"
+            Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+
+            let toggledBack, _, _ = Components.Ledger.State.update ToggleIncludeDeleted updated
+            Expect.isFalse toggledBack.IncludeDeleted "Ein zweiter Klick blendet wieder aus"
         }
 
         test "Spiegel-Start setzt den Hinweis, ohne die Liste zu leeren" {
@@ -692,6 +723,9 @@ let private balanceInputsTests =
 
 let private pageTestAccountA = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000a")
 let private pageTestAccountB = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000b")
+let private pageTestAccountC = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000c")
+let private pageTestAccountD = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000d")
+let private pageTestAccountE = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000e")
 
 let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-0000000000{n:D2}")
 
@@ -716,10 +750,26 @@ let private seedEntry (accountId: LedgerAccountId) (n: int) (amount: decimal) : 
         { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
     ]
 
+/// Wie `seedEntry`, aber die Buchung ist in YNAB gelöscht (ledger-p3n8k): erst die
+/// Erstbeobachtung, danach `EntryDeletionObservedInYnab` in derselben Sequenz.
+let private seedDeletedEntry (accountId: LedgerAccountId) (n: int) (amount: decimal) : Async<unit> =
+    async {
+        do! seedEntry accountId n amount
+        do! appendAndApply [
+            { EntryId = pageEntryId n
+              OccurredAt = DateTime(2026, 4, 1)
+              Actor = YnabMirror
+              Body = EntryDeletionObservedInYnab }
+        ]
+    }
+
 let private seedAccounts () : Async<unit> =
     async {
         do! saveAccount { Id = pageTestAccountA; Name = "Konto A"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountB; Name = "Konto B"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountC; Name = "Konto C"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountD; Name = "Konto D"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountE; Name = "Konto E"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 [<Tests>]
@@ -737,7 +787,7 @@ let ledgerPagingTests =
                 seedEntry pageTestAccountA n amount |> Async.RunSynchronously
 
             let (LedgerAccountId rawId) = pageTestAccountA
-            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2 }
+            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2; IncludeDeleted = false }
 
             let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
             let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
@@ -765,7 +815,7 @@ let ledgerPagingTests =
             seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
 
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100 }
+                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100; IncludeDeleted = false }
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB
@@ -792,6 +842,67 @@ let ledgerPagingTests =
             let balancesAgain = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously
             let balanceAAgain = balancesAgain |> List.find (fun b -> b.AccountId = rawA)
             Expect.equal balanceAAgain.Balance balanceA.Balance "Der Stand ist stabil, unabhaengig vom Seiten-Laden"
+
+        // ============================================
+        // Gelöschte Buchungen ausblenden (ledger-p3n8k)
+        // ============================================
+
+        testCase "Ohne IncludeDeleted bleibt eine gelöschte Buchung aus Seite, Trefferzahl und Summe außen vor" <| fun () ->
+            // AC1: die sichtbare Liste (und ihre Summe) enthält standardmäßig keine
+            // gelöschten Buchungen mehr. Eigenes Konto C, unabhängig von den anderen
+            // beiden Tests dieser Gruppe.
+            seedEntry pageTestAccountC 30 -10m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountC 31 -1000m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawC) = pageTestAccountC
+            let hidden =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawC; Page = 0; PageSize = 100; IncludeDeleted = false }
+                |> Async.RunSynchronously
+
+            Expect.equal hidden.TotalCount 1 "Die gelöschte Buchung zählt nicht zum Treffer"
+            Expect.equal (List.length hidden.Entries) 1 "Sie steht auch nicht auf der Seite"
+            Expect.isFalse (hidden.Entries |> List.exists (fun e -> e.DeletedInYnab)) "Keine gelöschte Buchung sichtbar"
+            Expect.equal hidden.TotalAmount { Amount = -10m; Currency = "EUR" }
+                "Die Summe entspricht der lebenden Buchung, nicht der gelöschten"
+
+        testCase "IncludeDeleted=true zeigt die gelöschte Buchung mit, in Seite, Trefferzahl und Summe" <| fun () ->
+            // Eigenes Konto D, damit dieser Test nicht von der Saat des vorigen Tests
+            // abhängt.
+            seedEntry pageTestAccountD 32 -20m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountD 33 -2000m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawD) = pageTestAccountD
+            let shown =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawD; Page = 0; PageSize = 100; IncludeDeleted = true }
+                |> Async.RunSynchronously
+
+            Expect.equal shown.TotalCount 2 "Beide Buchungen zählen zum Treffer"
+            Expect.equal (List.length shown.Entries) 2 "Beide stehen auf der Seite"
+            Expect.isTrue (shown.Entries |> List.exists (fun e -> e.DeletedInYnab)) "Die gelöschte Buchung ist dabei"
+            Expect.equal shown.TotalAmount { Amount = -2020m; Currency = "EUR" }
+                "Eingeblendet zählt die gelöschte Buchung in der Summe mit"
+
+        testCase "DeletedCount zählt die gelöschten Buchungen unabhängig vom Schalter" <| fun () ->
+            // AC2: die Seite soll die Anzahl auch nennen können, während sie
+            // ausgeblendet sind. Eigenes Konto E, damit dieser Test nicht von der
+            // Saat der beiden vorigen Tests abhängt.
+            seedEntry pageTestAccountE 34 -30m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountE 35 -3000m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawE) = pageTestAccountE
+            let hidden =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = false }
+                |> Async.RunSynchronously
+            let shown =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = true }
+                |> Async.RunSynchronously
+
+            Expect.equal hidden.DeletedCount 1 "Eine gelöschte Buchung, obwohl ausgeblendet"
+            Expect.equal shown.DeletedCount 1 "Dieselbe Zahl, auch wenn eingeblendet"
     ]
 
 [<Tests>]

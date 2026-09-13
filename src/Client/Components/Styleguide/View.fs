@@ -293,6 +293,10 @@ let private moneySection =
                     Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.large 2500.00m "EUR"; caption "large" ] ]
                 ]
                 Html.div [ prop.className "flex flex-col gap-1"; prop.children [ Money.hero 4280.42m "EUR"; caption "hero (Balance)" ] ]
+                Html.div [
+                    prop.className "flex flex-col gap-1"
+                    prop.children [ Money.transactionDeleted -89.90m "EUR"; caption "transactionDeleted (in YNAB gelöscht, ledger-p3n8k)" ]
+                ]
             ]
         ]
     ]

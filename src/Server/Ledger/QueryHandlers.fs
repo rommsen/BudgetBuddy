@@ -284,15 +284,22 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
 /// wenn `None`, die Gesamtsicht ueber alle Konten. Die Summe deckt den gesamten
 /// Treffer ab, nicht die geladene Seite (ADR 0017, AC1) — dafuer laedt diese Funktion
 /// zusaetzlich zur Seite alle Betraege des Treffers und summiert in F#.
+///
+/// `query.IncludeDeleted` (ledger-p3n8k): standardmäßig `false`, dann bleiben in
+/// YNAB gelöschte Buchungen aus Seite, Trefferzahl und Summe außen vor, sodass die
+/// sichtbare Liste sich zum Kontostand summiert. `DeletedCount` wird unabhängig
+/// davon immer geliefert (AC2), damit die Seite "N gelöschte Buchungen
+/// ausgeblendet" auch zeigen kann, während sie ausgeblendet sind.
 let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> =
     async {
         let accountId = query.AccountId |> Option.map LedgerAccountId
         let pageSize = max 1 query.PageSize
         let pageIndex = max 0 query.Page
 
-        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize
-        let! totalCount = Ledger.Persistence.countEntries accountId
-        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId
+        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize query.IncludeDeleted
+        let! totalCount = Ledger.Persistence.countEntries accountId query.IncludeDeleted
+        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId query.IncludeDeleted
+        let! deletedCount = Ledger.Persistence.countDeletedEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
 
         let views =
@@ -307,6 +314,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
             Entries = views
             TotalCount = totalCount
             TotalAmount = sumMoney "EUR" totalAmounts
+            DeletedCount = deletedCount
         }
     }
 

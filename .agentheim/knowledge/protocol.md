@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 21:40 -- Task verified and completed: ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
+
+**Type:** Work / Task completion
+**Task:** ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
+**Summary:** Kassenbuch-Liste blendet in YNAB gelöschte Buchungen standardmäßig aus (Filter serverseitig in getLedgerEntriesPage), Schalter mit Anzahl, eingeblendet Betrag gedämpft und durchgestrichen
+**Duration:** 26m (21:14 bis 21:40, zwei Iterationen)
+**Verification:** PASS (iteration 2)
+**Files changed:** 11
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
+## 2026-09-13 21:41 -- Verification failed: ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
+
+**Type:** Work / Verification failure
+**Task:** ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
+**Iteration:** 1 of 3
+**Reasons:** Einzel-Flug-Schutz gibt nach einem fehlerhaften Lauf nicht frei (Freigabe nicht in try/finally, danach kein Spiegel-Lauf bis zum Neustart, ungetestet), triggerMirrorInBackground startet ohne Fehlerbehandlung (unbehandelte Ausnahme auf dem Thread-Pool nach einem Push), Umschreibungen und Gedankenstriche in hinzugefügten Zeilen, Testanzahl 24 statt 17
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-13 21:31 -- Task verified and completed: ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
 
 **Type:** Work / Task completion

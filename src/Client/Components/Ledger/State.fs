@@ -24,6 +24,8 @@ let init () : Model * Cmd<Msg> =
         TotalCount = 0
         HasMoreEntries = false
         LoadingMore = false
+        IncludeDeleted = false
+        DeletedCount = 0
         HistoryFor = None
         History = NotAsked
         LastMirrorRun = NotAsked
@@ -120,7 +122,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | None -> model, Cmd.none, NoOp
         | Some filter ->
             let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
-            let query : LedgerEntryPageQuery = { AccountId = accountId; Page = page; PageSize = pageSize }
+            let query : LedgerEntryPageQuery = {
+                AccountId = accountId
+                Page = page
+                PageSize = pageSize
+                IncludeDeleted = model.IncludeDeleted
+            }
             let cmd =
                 Cmd.OfAsync.either
                     Api.ledger.getLedgerEntriesPage
@@ -140,6 +147,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             NextPage = page + 1
             TotalCount = entryPage.TotalCount
             HasMoreEntries = List.length entries < entryPage.TotalCount
+            DeletedCount = entryPage.DeletedCount
             LoadingMore = false },
         Cmd.none,
         NoOp
@@ -163,6 +171,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, Cmd.none, NoOp
         else
             { model with LoadingMore = true }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
+
+    | ToggleIncludeDeleted ->
+        // Reine Zustandsänderung plus `Cmd.ofMsg LoadEntries` (dieselbe Teilung wie
+        // beim Filterwechsel `SelectFilter`): der Proxy-Aufruf steckt erst hinter
+        // `RunLoadEntriesPage`, nicht in diesem Zweig (ADR 0020).
+        { (resetEntries model) with IncludeDeleted = not model.IncludeDeleted }, Cmd.ofMsg LoadEntries, NoOp
 
     // ============================================
     // Historie einer Buchung

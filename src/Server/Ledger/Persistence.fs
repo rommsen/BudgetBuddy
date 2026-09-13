@@ -497,22 +497,31 @@ let loadEntriesForAccount (accountId: LedgerAccountId) : Async<Entry list> =
 
 /// Eine Seite der Buchungen eines Kontos oder — `accountId = None` — aller Konten,
 /// neueste zuerst. Liest ausschliesslich die Zustandstabelle (ADR 0013).
-let loadEntriesPage (accountId: LedgerAccountId option) (pageIndex: int) (pageSize: int) : Async<Entry list> =
+/// `includeDeleted = false` (Standard, ledger-p3n8k) lässt in YNAB gelöschte
+/// Buchungen aus der Seite weg, sonst zählen sie mit.
+let loadEntriesPage
+    (accountId: LedgerAccountId option)
+    (pageIndex: int)
+    (pageSize: int)
+    (includeDeleted: bool)
+    : Async<Entry list> =
     async {
         use conn = Core.getConnection ()
         let offset = pageIndex * pageSize
+        let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
         let! rows =
             match accountId with
             | Some (LedgerAccountId id) ->
                 conn.QueryAsync<EntryRow>(
-                    """SELECT * FROM ledger_entries WHERE account_id = @accountId
+                    $"""SELECT * FROM ledger_entries WHERE account_id = @accountId {deletedClause}
                        ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
                     {| accountId = id.ToString(); limit = pageSize; offset = offset |}
                 )
                 |> Async.AwaitTask
             | None ->
                 conn.QueryAsync<EntryRow>(
-                    "SELECT * FROM ledger_entries ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset",
+                    $"""SELECT * FROM ledger_entries WHERE 1 = 1 {deletedClause}
+                       ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
                     {| limit = pageSize; offset = offset |}
                 )
                 |> Async.AwaitTask
@@ -520,19 +529,44 @@ let loadEntriesPage (accountId: LedgerAccountId option) (pageIndex: int) (pageSi
     }
 
 /// Die Gesamtzahl der Buchungen eines Kontos oder aller Konten — die Trefferzahl
-/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite.
-let countEntries (accountId: LedgerAccountId option) : Async<int> =
+/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite. Derselbe
+/// `includeDeleted`-Schalter wie `loadEntriesPage` (ledger-p3n8k), damit Trefferzahl
+/// und Seite immer zum selben Treffer gehören.
+let countEntries (accountId: LedgerAccountId option) (includeDeleted: bool) : Async<int> =
+    async {
+        use conn = Core.getConnection ()
+        let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
+        let! count =
+            match accountId with
+            | Some (LedgerAccountId id) ->
+                conn.ExecuteScalarAsync<int64>(
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId {deletedClause}",
+                    {| accountId = id.ToString() |}
+                )
+                |> Async.AwaitTask
+            | None ->
+                conn.ExecuteScalarAsync<int64>($"SELECT COUNT(*) FROM ledger_entries WHERE 1 = 1 {deletedClause}")
+                |> Async.AwaitTask
+        return int count
+    }
+
+/// Die Zahl der in YNAB gelöschten Buchungen eines Kontos oder aller Konten
+/// (unabhängig von `includeDeleted`, ledger-p3n8k AC2): die Seite soll "N gelöschte
+/// Buchungen ausgeblendet" auch zeigen können, während sie ausgeblendet sind.
+let countDeletedEntries (accountId: LedgerAccountId option) : Async<int> =
     async {
         use conn = Core.getConnection ()
         let! count =
             match accountId with
             | Some (LedgerAccountId id) ->
                 conn.ExecuteScalarAsync<int64>(
-                    "SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId",
+                    "SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId AND deleted_in_ynab = 1",
                     {| accountId = id.ToString() |}
                 )
                 |> Async.AwaitTask
-            | None -> conn.ExecuteScalarAsync<int64>("SELECT COUNT(*) FROM ledger_entries") |> Async.AwaitTask
+            | None ->
+                conn.ExecuteScalarAsync<int64>("SELECT COUNT(*) FROM ledger_entries WHERE deleted_in_ynab = 1")
+                |> Async.AwaitTask
         return int count
     }
 
@@ -542,19 +576,23 @@ type private AmountRow = { amount: string; currency: string }
 /// Die Betraege aller Buchungen eines Treffers (ein Konto oder alle), fuer die in F#
 /// gebildete Summe ueber den GESAMTEN Treffer (ADR 0017, ledger-b1xwe AC1). Bewusst
 /// kein `SUM(amount)`: der Betrag liegt als exakter Dezimal-Text, nicht als `REAL`.
-let loadAmountsForQuery (accountId: LedgerAccountId option) : Async<Money list> =
+/// `includeDeleted = false` (ledger-p3n8k) schließt gelöschte Beträge aus der
+/// Summe aus, damit sie mit dem angezeigten Kontostand übereinstimmt.
+let loadAmountsForQuery (accountId: LedgerAccountId option) (includeDeleted: bool) : Async<Money list> =
     async {
         use conn = Core.getConnection ()
+        let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
         let! rows =
             match accountId with
             | Some (LedgerAccountId id) ->
                 conn.QueryAsync<AmountRow>(
-                    "SELECT amount, currency FROM ledger_entries WHERE account_id = @accountId",
+                    $"SELECT amount, currency FROM ledger_entries WHERE account_id = @accountId {deletedClause}",
                     {| accountId = id.ToString() |}
                 )
                 |> Async.AwaitTask
             | None ->
-                conn.QueryAsync<AmountRow>("SELECT amount, currency FROM ledger_entries") |> Async.AwaitTask
+                conn.QueryAsync<AmountRow>($"SELECT amount, currency FROM ledger_entries WHERE 1 = 1 {deletedClause}")
+                |> Async.AwaitTask
         return rows |> Seq.map (fun r -> { Amount = decimalFromText r.amount; Currency = r.currency }) |> Seq.toList
     }
 

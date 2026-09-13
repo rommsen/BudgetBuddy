@@ -51,6 +51,15 @@ type Model = {
     /// gegen `TotalCount`, nach jeder Seite neu gesetzt.
     HasMoreEntries: bool
 
+    /// Zeigt die Liste in YNAB gelöschte Buchungen mit (ledger-p3n8k)? Standardmäßig
+    /// `false`: die Liste blendet sie aus, ihre Summe entspricht dann dem
+    /// Kontostand. Geht in die nächste `getLedgerEntriesPage`-Abfrage ein.
+    IncludeDeleted: bool
+
+    /// Die Zahl der in YNAB gelöschten Buchungen im aktiven Filter, wie die zuletzt
+    /// geladene Seite sie gemeldet hat (unabhängig von `IncludeDeleted`, AC2).
+    DeletedCount: int
+
     /// Laeuft gerade das Nachladen einer weiteren Seite? Anders als `Entries = Loading`
     /// (Erstladen): waehrend des Nachladens bleibt die bisherige Liste stehen, nur ein
     /// Skeleton steht am Ende (AC5).
@@ -95,6 +104,9 @@ type Msg =
     /// Der Beobachter am Listenende ist sichtbar geworden: naechste Seite nachladen,
     /// wenn gerade keine laeuft und es noch etwas zu holen gibt.
     | LoadMoreEntries
+    /// Der Schalter "gelöschte Buchungen zeigen" wurde betätigt (ledger-p3n8k):
+    /// kippt `IncludeDeleted` und lädt die Liste ab Seite 0 neu.
+    | ToggleIncludeDeleted
 
     // Historie einer Buchung
     | OpenHistory of LedgerEntryView

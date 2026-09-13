@@ -85,6 +85,14 @@ let groupByDate (entries: LedgerEntryView list) : (DateTime * LedgerEntryView li
     |> List.rev
     |> List.map (fun (date, items) -> date, List.rev items)
 
+/// Der Satz über dem Schalter "gelöschte Buchungen zeigen" (ledger-p3n8k AC2):
+/// nennt die Zahl und ob sie gerade ausgeblendet oder eingeblendet sind. Singular
+/// bei genau einer Buchung, sonst Plural.
+let deletedCountText (count: int) (includeDeleted: bool) : string =
+    let noun = if count = 1 then "gelöschte Buchung" else "gelöschte Buchungen"
+    let state = if includeDeleted then "eingeblendet" else "ausgeblendet"
+    $"{count} {noun} {state}"
+
 /// Eine Karte der Kontostaende-Leiste: ein Filter (Konto oder "Alle Konten"), ihr
 /// Anzeigename und ihr Stand.
 type AccountCard = {
@@ -144,6 +152,14 @@ let private deletedBadge =
             Variant = Badge.Error
             Size = Badge.Small
     }
+
+/// Der Betrag einer Zeile: gedämpft und durchgestrichen, wenn die Buchung in YNAB
+/// gelöscht ist (AC3, ledger-p3n8k), sonst die gewohnte rot/grüne Betragsfarbe.
+let private entryMoney (entry: LedgerEntryView) =
+    if entry.DeletedInYnab then
+        Money.transactionDeleted entry.Amount.Amount entry.Amount.Currency
+    else
+        Money.transactionWithCurrency entry.Amount.Amount entry.Amount.Currency
 
 /// Das Konto-Kuerzel einer Zeile in der Gesamtsicht (AC4).
 let private accountBadge (abbreviation: string) =
@@ -211,9 +227,7 @@ let private entryRow
                 ]
                 Html.div [
                     prop.className "shrink-0 pl-3"
-                    prop.children [
-                        Money.transactionWithCurrency entry.Amount.Amount entry.Amount.Currency
-                    ]
+                    prop.children [ entryMoney entry ]
                 ]
             ]
         ]
@@ -244,11 +258,10 @@ let private statusColumnWidth = "208"
 
 /// Der Betrag als eigene Zelle ueber die Money-Komponente statt als reiner Text:
 /// nur so tragen PC-Tabellen-Betraege dieselbe Farbsemantik (rot/gruen) und
-/// Ziffernschrift wie die Handy-Liste (AC1/AC2, ledger-x0yga).
-let private tdMoney (amount: decimal) (currency: string) =
-    Table.cell
-        { Table.defaultCellProps with Align = Some "right" }
-        [ Money.transactionWithCurrency amount currency ]
+/// Ziffernschrift wie die Handy-Liste (AC1/AC2, ledger-x0yga); gedämpft und
+/// durchgestrichen für eine in YNAB gelöschte Buchung (AC3, ledger-p3n8k).
+let private tdMoney (entry: LedgerEntryView) =
+    Table.cell { Table.defaultCellProps with Align = Some "right" } [ entryMoney entry ]
 
 let private entryTableRow
     (dispatch: Msg -> unit)
@@ -269,7 +282,7 @@ let private entryTableRow
                 | None -> "ohne Kategorie"
             )
             tdTruncated (entry.Memo |> Option.defaultValue "")
-            tdMoney entry.Amount.Amount entry.Amount.Currency
+            tdMoney entry
             Table.tdContent [
                 Html.div [
                     // `flex-nowrap`, nicht `flex-wrap`: zwei Kennzeichen sollen die
@@ -596,6 +609,21 @@ let private entryList
                 ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore)
         ]
 
+/// Zeile über der Liste, solange es gelöschte Buchungen im Filter gibt (AC2,
+/// ledger-p3n8k): Anzahl-Satz plus Schalter. Ohne gelöschte Buchungen im Filter
+/// steht hier nichts (ein Schalter ohne Wirkung wäre nur Rauschen).
+let private deletedToggleRow (dispatch: Msg -> unit) (model: Model) =
+    if model.DeletedCount <= 0 then
+        Html.none
+    else
+        Html.div [
+            prop.className $"flex items-center justify-between gap-3 px-1 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
+            prop.children [
+                Html.span [ prop.text (deletedCountText model.DeletedCount model.IncludeDeleted) ]
+                Input.toggle model.IncludeDeleted (fun _ -> dispatch ToggleIncludeDeleted) (Some "Gelöschte zeigen")
+            ]
+        ]
+
 let view (model: Model) (dispatch: Msg -> unit) =
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
     let balances = model.Balances |> RemoteData.toOption |> Option.defaultValue []
@@ -631,6 +659,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     // stehen, der Hinweis steht daneben (ADR 0014).
                                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
 
+                                deletedToggleRow dispatch model
                                 entryList dispatch accounts isAllAccounts model
                             ]
                         ]

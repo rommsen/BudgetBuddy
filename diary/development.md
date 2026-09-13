@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-13 21:45 - ledger-p3n8k: gelöschte Buchungen in der Kassenbuch-Liste ausblenden
+
+**What I did:**
+In YNAB gelöschte Buchungen sind in der Kassenbuch-Liste standardmäßig ausgeblendet. Der Filter sitzt serverseitig in `getLedgerEntriesPage` (`IncludeDeleted` in der Query, `DeletedCount` in der Antwort), damit Seitengröße, Trefferzahl und Summe über den ganzen Treffer stimmen. Sind welche ausgeblendet, zeigt die Seite ihre Anzahl und einen Schalter (`Input.toggle`). Eingeblendet trägt eine gelöschte Buchung ihren Betrag gedämpft und durchgestrichen (`Money.transactionDeleted`), das Kennzeichen "in YNAB gelöscht" bleibt. Der Kontostand kommt weiter aus `getLedgerAccountBalances` und ändert sich durch den Schalter nicht.
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `LedgerEntryPageQuery.IncludeDeleted`, `LedgerEntryPage.DeletedCount`
+- `src/Server/Ledger/Persistence.fs` - Seite, Trefferzahl und Beträge mit `includeDeleted`, neue `countDeletedEntries`
+- `src/Server/Ledger/QueryHandlers.fs` - `getLedgerEntriesPage` reicht den Schalter durch
+- `src/Client/Components/Ledger/Types.fs`, `State.fs` - `IncludeDeleted`, `DeletedCount`, Msg `ToggleIncludeDeleted` (lädt ab Seite 0 neu)
+- `src/Client/Components/Ledger/View.fs` - `deletedCountText`, `deletedToggleRow`, gedämpfte Beträge
+- `src/Client/DesignSystem/Money.fs` - `transactionDeleted`
+- `src/Client/Components/Styleguide/View.fs` - Beispiel im Abschnitt Money
+- `src/Tests/LedgerPageTests.fs`, `src/Tests/LedgerViewTests.fs` - 7 neue Tests (Filter über Seite, Trefferzahl und Summe; DeletedCount; Reducer-Test für den Schalter ohne Proxy-Pfad)
+- `.agentheim/contexts/ledger/README.md` - Herkunfts-Badge, `getLedgerEntriesPage`, Abschnitt Oberfläche
+
+**Rationale:**
+Abnahme-Befund aus ledger-kt0wq: gelöschte und lebende Buchungen mit gleichem Betrag untereinander sahen wie eine Doppelbuchung aus, und die sichtbare Liste summierte sich scheinbar nicht zum Kontostand. Ein reiner Client-Filter auf der seitenweise geladenen Liste hätte Seitengröße und Anzahl verfälscht.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build`, `npm run build`)
+- Tests: 826 bestanden, 7 übersprungen, 0 Fehler
+- Issues: Verifikation Iteration 1 FAIL (README widersprach sich, Umschreibungen und Gedankenstriche in neuen Zeilen), Iteration 2 PASS. Paging-Tests in Iteration 2 voneinander unabhängig gemacht.
+
+---
+
 ## 2026-09-13 21:35 - ynab-r9k4t: since_date-Decoder verschiebt Buchungstage nicht mehr
 
 **What I did:**
