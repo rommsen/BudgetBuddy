@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 22:14 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h01m (21:14 bis 22:14)
+**Completed:** 3 (first-try PASS: 0, re-dispatched: 3, skipped: 0): ynab-r9k4t, ledger-p3n8k, ledger-h4p6c
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Dispatches:** ynab-r9k4t: 2, ledger-p3n8k: 2, ledger-h4p6c: 2
+**Commits:** 5 (Batch-Start, drei Task-Commits, dieser Eintrag)
+**Vision-conformance:** none: batch aligns with vision
+**Carry-over:** none: working tree clean, keine Git-Worktrees außer dem Hauptbaum. Unter `.worktrees/` liegen fünf Verzeichnisse mit je rund 12 KB `src/*/obj`-Stubs (ledger-m8r2v, ledger-q5w9c, ledger-qvt84 aus früheren Sitzungen, ledger-p3n8k und ynab-r9k4t aus dieser): left behind (owner: Editor-Sprachserver fsautocomplete, der die entfernten Worktree-Projekte offen hält und die obj-Stubs neu schreibt; gitignored, keine Git-Worktrees; Aufräumen nach Rückfrage bei Roman)
+**Anmerkungen:**
+(1) **Alle drei Tasks scheiterten in Iteration 1 an der Verifikation, alle bestanden in Iteration 2.** Zwei Befunde waren fachlich: bei ynab-r9k4t hätte der Regressionstest auf einem UTC-Host (Docker, CI) den Bug nicht gefunden; bei ledger-h4p6c gab der Einzel-Flug-Schutz nach einem gescheiterten Lauf nicht mehr frei, der Spiegel wäre bis zum Neustart ausgefallen, und `Async.Start` ohne Fehlerbehandlung hätte nach einem Push den Prozess gefährden können. Beides hat keiner der Worker selbst bemerkt.
+(2) **Umschreibungen statt Umlaute und Gedankenstriche in allen drei Iteration-1-Ergebnissen**, obwohl der Worker-Prompt das ausdrücklich verbot. Das ist nach der Sitzung vom 2026-09-13 früh die fünfte Wiederholung. Ein mechanischer Vorab-Check der hinzugefügten Zeilen vor dem Verifier würde Iterationen sparen; Kandidat für ein Backlog-Item (nicht angelegt, Modellierung mit Roman).
+(3) **Kombinierter Stand eigens geprüft.** Die Verifier testen jeden Branch gegen den Batch-Start; nach jedem Merge lief zusätzlich Build und Test auf `feature/kassenbuch`. Endstand mit allen drei Tasks: `dotnet build` grün, `dotnet test` 850 bestanden / 0 fehlgeschlagen / 6 übersprungen, `npm run build` grün. `src/Tests/LedgerPageTests.fs` wurde von Git automatisch zusammengeführt (beide Ledger-Branches), `git merge-tree` hatte das vorab als konfliktfrei gemeldet.
+(4) **Conductor-Fehler:** einmal die bereits verschobene `done/`-Datei in die `git add`-Liste genommen (bekannte Falle, all-or-nothing-Abbruch); sofort bemerkt und korrigiert, kein unvollständiger Commit.
+
+---
+
 ## 2026-09-13 22:12 -- Task verified and completed: ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
 
 **Type:** Work / Task completion
