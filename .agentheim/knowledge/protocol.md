@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 03:30 -- Work session ended (Nachtrag 2)
+
+**Type:** Work / Session end
+**Summary:** Korrigiert den Eintrag von 01:35. Danach kam auf Romans Zuruf noch design-system-fq8dn dazu (DaisyUI raus). Damit sind es **6** abgeschlossene Tasks statt 5 und 38 Commits statt 30.
+**Completed (gesamt):** 6 — ledger-xbrht, ledger-s8m3w, ledger-b1xwe, ledger-vm3dk, ledger-x0yga, design-system-fq8dn
+**Dispatches (Nachtrag):** design-system-fq8dn: 2
+**Vision-conformance:** unverändert: none — batch aligns with vision.
+**Carry-over:** none — working tree clean; keine Worktrees ausser dem Hauptbaum
+**Anmerkungen zum Nachtrag:**
+(1) **Die Bestandsaufnahme hat den Schnitt halbiert.** Romans Vermutung "da sollte eigentlich nicht viel sein" stimmte: sieben Stellen in drei Dateien. Die ursprünglich geplante Dreiteilung war überdimensioniert; design-system-my32n wurde aufgelöst, bevor jemand daran gearbeitet hat.
+(2) **Der Verifier fand eine Regression, die das visuelle Gate nicht finden konnte.** Die wiederbelebten Zebra-Streifen haben durch höhere CSS-Spezifität den Hover-Zustand auf jeder zweiten Zeile getötet. Ein Standbild kann das nicht zeigen, weil Hover ein Zustand ist und kein Aussehen. Der Verifier hat die berechneten Farbwerte im Browser ausgelesen statt hinzusehen. **Das ist die Grenze des Gates, wie es im design-system-README steht:** es fängt, was man sehen kann, und nichts, was man tun muss. Für Zustände (Hover, Fokus, Tastatur) braucht es Messung.
+(3) **Ein Fehler des Conductors:** die angekündigte Rücksetzung eines vom Worker umformulierten Akzeptanzkriteriums griff nicht (Textvergleich passte nicht), und der Conductor hat es nicht nachgeprüft. Der Verifier fand es in Iteration 2; vor dem Integrieren korrigiert. Dieselbe Nachlässigkeit, die der Conductor beim Worker beanstandet hatte.
+(4) **Zum dritten Mal in dieser Sitzung** rutschten Umschreibungen statt echter Umlaute durch eine Iteration. Der Verifier fängt sie inzwischen zuverlässig, aber die Häufigkeit spricht dafür, das mechanisch zu prüfen statt je Verifikation neu.
+
+---
+
 ## 2026-09-13 15:57 -- Task verified and completed: design-system-fq8dn - "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren"
 
 **Type:** Work / Task completion
