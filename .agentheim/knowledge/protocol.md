@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 21:11 -- Modeling / Promoted: ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-13 21:11 -- Modeling / Promoted: ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-13 03:30 -- Work session ended (Nachtrag 2)
 
 **Type:** Work / Session end
