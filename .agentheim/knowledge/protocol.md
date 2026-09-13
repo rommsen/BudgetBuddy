@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 01:50 -- Modeling / Entscheidung: DaisyUI kommt raus, in drei Schritten
+
+**Type:** Modeling / Decision + Split
+**BC:** design-system
+**Summary:** Roman hat die offene Grundsatzfrage aus design-system-fq8dn entschieden: DaisyUI wird nicht nachgerüstet, die toten Klassen kommen raus. Begründung: das Design-System trägt sich über den eigenen Token-Layer; ein zweites Gestaltungssystem daneben würde die Frage aufwerfen, welches gewinnt. Der Umfang ist grösser als die Tabelle, aus der der Fund stammt: eine erste Sichtung findet Verdachtsfälle auch bei alert, loading, stats, checkbox, range, badge, hero und footer, wobei die Liste aus einer Textsuche stammt und sicher falsche Treffer enthält.
+**Geschnitten in drei Aufgaben:** design-system-fq8dn (umgeschrieben von Entscheidung zu Grundlage: belastbare Bestandsaufnahme, ADR, CLAUDE.md-Korrektur, und die Kriterien für den nächsten Schritt), design-system-my32n (die toten Klassen ersetzen, unter dem visuellen Gate, hängt an fq8dn), design-system-thtpp (Wächter, der Klassen findet, die weder Tailwind-Utility noch in styles.css definiert sind, unabhängig baubar).
+**Begründung für den Wächter:** die Klassen standen seit dem Bau der Table-Komponente im Code und haben nie etwas getan. Eine Klasse, die es nicht gibt, wirft keinen Fehler; das Ergebnis sieht nicht kaputt aus, nur etwas anders als gedacht. Dasselbe Muster wie beim Testlauf, der still in die echte Datenbank schrieb (infra-za7fq).
+
+---
+
 ## 2026-09-13 01:35 -- Work session ended
 
 **Type:** Work / Session end
