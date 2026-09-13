@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 21:12 -- Modeling / Promoted: ynab-r9k4t - "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
+
+**Type:** Modeling / Promote
+**BC:** ynab-sync
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-13 21:11 -- Modeling / Promoted: ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
 
 **Type:** Modeling / Promote

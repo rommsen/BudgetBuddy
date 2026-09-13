@@ -1,7 +1,7 @@
 ---
 id: ynab-r9k4t
 title: "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset"
-status: backlog
+status: todo
 type: bug
 context: ynab-sync
 created: 2026-09-06
