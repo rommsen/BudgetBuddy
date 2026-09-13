@@ -74,6 +74,17 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Herkunft `YNAB-Spiegel`. Wiederholte Läufe mit denselben Daten erzeugen kein Ereignis;
   ein Lauf ohne gemerktes `server_knowledge` ist die Erstbefüllung und ebenso idempotent.
   Code: `src/Server/Ledger/CommandHandlers.fs` (`runMirror`, `mirrorYnabBudget`).
+  **Auslöser** (ADR 0014, `ledger-h4p6c`): manuell ("Jetzt spiegeln"), Frische-Kriterium
+  (Seitenaufruf und PWA-Vordergrund auf der Kassenbuch-Seite prüfen den geladenen
+  Lauf-Status gegen die 5-Minuten-Schwelle, `Components.Ledger.Types.isMirrorStale`, und
+  starten bei Bedarf denselben Hintergrund-Lauf wie der manuelle Knopf) und Lauf nach Push
+  (nach einem erfolgreich gesendeten Comdirect-Import oder Quick Add stößt der Server den
+  Lauf selbst an, `Ledger.CommandHandlers.triggerMirrorInBackground`, erst nachdem
+  `EntryLinkedToYnab` geschrieben ist, ADR 0021). Alle drei laufen durch dieselbe
+  `mirrorYnabBudget`-Stelle; ihr **Einzel-Flug-Schutz** (`runMirrorGuarded`) sorgt dafür,
+  dass zwei gleichzeitige Auslöser (zwei Tabs, oder ein Seitenaufruf zeitgleich mit einem
+  Lauf-nach-Push) nur einen YNAB-Abruf ergeben und das Ergebnis teilen (kein Server-Timer,
+  ADR 0014 lehnt ihn ausdrücklich ab).
 - **Lauf-Status** — Zeitpunkt und Ergebnis des zuletzt gelaufenen Spiegels
   (Anzahl neuer, geänderter und gelöschter Buchungen, sonst der Fehlertext). Wird immer
   festgehalten, auch wenn der Lauf abbricht: ein Fehler wird sichtbar gemacht, nicht still
@@ -182,9 +193,9 @@ Historie-Technik in der Decision-Task des Architekten.
 - *ÜbertragZusammenführen* (v2).
 - *KontoBewerten* — Kurs holen, Bewertungs-Buchung schreiben.
 - *StückzahlPflegen* — Stückzahl eines Wertpapierkontos setzen.
-- *MirrorYnabBudget* — ein Spiegel-Lauf über das ganze Budget. In v1 nur manuell
-  ausgelöst ("Jetzt spiegeln"); Frische-Kriterium und Lauf nach Push sind Folge-Arbeit
-  (ADR 0014).
+- *MirrorYnabBudget*: ein Spiegel-Lauf über das ganze Budget. Drei Auslöser (manuell,
+  Frische-Kriterium, Lauf nach Push), ein Einzel-Flug-Schutz gegen doppelte Läufe (ADR
+  0014, `ledger-h4p6c`, siehe **Spiegel-Lauf** oben).
 
 ## Relationships with other contexts
 - **Downstream of:** `banking-import` + `categorization` (kategorisierte Buchungen aus dem
@@ -341,10 +352,11 @@ kein Schalter.
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro
   Buchung als Quelle der Wahrheit, Zustandsmodell synchron in derselben Transaktion
   mitgeschrieben, reiner `apply`-Replay als Pflichttest. SQLite bleibt, kein Postgres.
-- **Spiegel-Mechanik** — *gelöst (ADR 0014, umgesetzt in ledger-m8r2v):* Delta-Sync über
-  `server_knowledge` je Budget, Löschung als Flag statt physischem Löschen, 429 bricht den
-  Lauf ab und steht im Lauf-Status. Konten werden je Lauf vollständig geholt (ADR 0018).
-  Offen bleibt allein der automatische Auslöser (Frische-Kriterium, Lauf nach Push).
+- **Spiegel-Mechanik**: *gelöst (ADR 0014, umgesetzt in ledger-m8r2v und ledger-h4p6c):*
+  Delta-Sync über `server_knowledge` je Budget, Löschung als Flag statt physischem
+  Löschen, 429 bricht den Lauf ab und steht im Lauf-Status. Konten werden je Lauf
+  vollständig geholt (ADR 0018). Alle drei Auslöser (manuell, Frische-Kriterium, Lauf
+  nach Push) und der serverseitige Einzel-Flug-Schutz stehen (`ledger-h4p6c`).
 - **Kursquelle** — *gelöst (ADR 0016, ledger-zm0zx):* Schnittstelle mit Handeingabe und späterem automatischem Abruf, konkrete Quelle als Research-Spike im Backlog.
 - **Bar- und Quick-Add-Konto** — *gelöst (ADR 0016):* ein Konto "Bar", Quick Add ist Herkunft.
 - **Quick Add** direkt ins Kassenbuch? *Gelöst (ADR 0021, 2026-09-11):* erst Kassenbuch, dann Push, dann Verknüpfung (`ledger-tdnpk`).

@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-13 22:12 - ledger-h4p6c: Spiegel läuft automatisch (Frische-Kriterium, Lauf nach Push)
+
+**What I did:**
+Die zwei fehlenden Auslöser aus ADR 0014 gebaut. Frische-Kriterium: öffnet Roman die Kassenbuch-Seite oder kommt die PWA in den Vordergrund, prüft der Client den Lauf-Status; ist der letzte Lauf älter als 5 Minuten (oder gab es keinen), startet ein Hintergrund-Lauf, und die Seite zeigt währenddessen den vorhandenen Stand. Lauf nach Push: nach einem erfolgreichen Comdirect-Import und nach Quick Add stößt der Server genau einen Lauf an, und zwar erst, wenn `EntryLinkedToYnab` geschrieben ist (ADR 0021). Ein serverseitiger Einzel-Flug-Schutz (`MirrorGuard`) führt gleichzeitige Auslöser auf einen YNAB-Abruf zusammen. Kein Server-Timer.
+
+**Files Modified:**
+- `src/Server/Ledger/CommandHandlers.fs` - `MirrorGuard` (Prüfen und Setzen unter Lock, Freigabe in try/finally, nur der Besitzer räumt ab), `runMirrorGuarded`, `runMirrorInBackground` (fängt jede Ausnahme, loggt, speichert best effort einen gescheiterten Lauf-Status), `triggerMirrorInBackground`; `addCashExpense` und `pushComdirectImports` bekommen einen `triggerMirror`-Parameter
+- `src/Server/Api.fs` - beide Push-Wege mit dem Hintergrund-Auslöser verdrahtet
+- `src/Client/Components/Ledger/Types.fs` - reine Funktion `isMirrorStale`, `freshnessThreshold`
+- `src/Client/Components/Ledger/State.fs` - `MirrorStatusLoaded` prüft die Frische, kein zweiter Lauf, solange einer läuft
+- `src/Client/State.fs`, `src/Client/App.fs` - Nachricht `VisibilityChanged`, Elmish-Subscription auf `visibilitychange` (einmal registriert, wirkt nur auf der Kassenbuch-Seite)
+- `src/Tests/LedgerMirrorTests.fs`, `LedgerPageTests.fs`, `LedgerTests.fs` - 22 neue Tests (Frische-Grenze, echte Nebenläufigkeit zweier Auslöser, Freigabe nach gescheitertem Lauf, Ausnahme im Hintergrund propagiert nicht, genau ein Lauf nach Push und keiner nach gescheitertem, Reihenfolge `EntryLinkedToYnab` vor Auslöser)
+- `.agentheim/contexts/ledger/README.md` - Spiegel-Lauf mit drei Auslösern und Einzel-Flug-Schutz, veraltete Aussagen "nur manuell" und "offen bleibt der Auslöser" ersetzt
+
+**Rationale:**
+Ohne automatische Auslöser stimmte das Kassenbuch nur, wenn Roman an "Jetzt spiegeln" dachte. Der Einzel-Flug-Schutz muss serverseitig sitzen, weil zwei Tabs oder Seitenaufruf und Push zeitgleich auftreten können.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build`, `npm run build`)
+- Tests: 841 bestanden, 7 übersprungen, 0 Fehler (im Worktree)
+- Issues: Verifikation Iteration 1 FAIL. Der Verifier fand einen echten Fehler: der Einzel-Flug-Schutz gab nach einem gescheiterten Lauf nicht frei (Spiegel bis zum Neustart tot), und `Async.Start` ohne Fehlerbehandlung konnte nach einem Push den Prozess gefährden. Dazu Umschreibungen, Gedankenstriche und eine falsche Testanzahl. Iteration 2 PASS.
+
+---
+
 ## 2026-09-13 21:45 - ledger-p3n8k: gelöschte Buchungen in der Kassenbuch-Liste ausblenden
 
 **What I did:**

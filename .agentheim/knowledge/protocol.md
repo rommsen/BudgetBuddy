@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 22:12 -- Task verified and completed: ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
+
+**Type:** Work / Task completion
+**Task:** ledger-h4p6c - Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push
+**Summary:** Spiegel läuft automatisch: Frische-Kriterium bei Seitenaufruf und PWA-Vordergrund, Lauf nach erfolgreichem Push (nach EntryLinkedToYnab), serverseitiger Einzel-Flug-Schutz mit Freigabe auch nach Fehlern
+**Duration:** 58m (21:14 bis 22:12, zwei Iterationen)
+**Verification:** PASS (iteration 2)
+**Files changed:** 10
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
 ## 2026-09-13 21:40 -- Task verified and completed: ledger-p3n8k - Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen
 
 **Type:** Work / Task completion

@@ -3,9 +3,12 @@
 ///
 /// Die Seite liest nur: Kontostaende, Buchungen seitenweise (ein Konto oder alle),
 /// die Historie einer Buchung und den Status des letzten Spiegel-Laufs. Geschrieben
-/// wird ausschliesslich ueber den manuellen Ausloeser "Jetzt spiegeln" (ADR 0014,
-/// Punkt 3); ein automatischer Ausloeser (Frische-Kriterium, Lauf nach Push) gehoert
-/// bewusst nicht hierher.
+/// wird über den manuellen Auslöser "Jetzt spiegeln" (ADR 0014, Punkt 3) und über das
+/// Frische-Kriterium (ADR 0014, Punkt 2, ledger-h4p6c): lädt die Seite einen zu alten
+/// Lauf-Status (Seitenaufruf oder PWA-Vordergrund), stößt sie denselben Hintergrund-
+/// Lauf an, den auch "Jetzt spiegeln" nutzt. Der Lauf nach Push gehört nicht hierher:
+/// er passiert serverseitig (`Ledger.CommandHandlers.triggerMirrorInBackground`), ohne
+/// dass diese Seite geöffnet sein muss.
 module Components.Ledger.Types
 
 open System
@@ -130,3 +133,15 @@ type ExternalMsg =
 /// Die Zusammenfassung eines Spiegel-Laufs als Satz.
 let mirrorSummaryText (summary: MirrorRunSummary) : string =
     $"Spiegel-Lauf fertig: {summary.NewEntries} neu, {summary.ChangedEntries} geändert, {summary.DeletedEntries} gelöscht"
+
+/// Wie lange ein Spiegel-Lauf gilt, bevor er beim Seitenaufruf oder beim PWA-Vordergrund
+/// einen neuen Hintergrund-Lauf auslöst (ADR 0014, Frische-Kriterium).
+let freshnessThreshold = TimeSpan.FromMinutes 5.0
+
+/// Reine Entscheidung: ist der letzte Lauf älter als die Frische-Schwelle, oder gab es
+/// noch nie einen? `now` kommt von außen (der Aufrufer trägt `DateTime.UtcNow`), damit
+/// diese Funktion ohne Uhr testbar bleibt.
+let isMirrorStale (now: DateTime) (lastRun: MirrorRunStatus option) : bool =
+    match lastRun with
+    | None -> true
+    | Some status -> now - status.RanAt > freshnessThreshold

@@ -442,7 +442,13 @@ let ynabApi : YnabApi = {
                         let push () =
                             YnabClient.createManualTransaction token (YnabBudgetId budgetId) ynabAccountId validRequest
 
-                        match! Ledger.CommandHandlers.addCashExpense DateTime.UtcNow push input with
+                        match!
+                            Ledger.CommandHandlers.addCashExpense
+                                DateTime.UtcNow
+                                push
+                                Ledger.CommandHandlers.triggerMirrorInBackground
+                                input
+                        with
                         | Ok _entryId -> return Ok ()
                         | Error err -> return Error err
     }
@@ -1162,7 +1168,12 @@ let syncApi : SyncApi = {
                             // `Ledger.CommandHandlers.pushComdirectImports`, injiziert und
                             // ohne Netz testbar (Muster wie `addCashExpense`).
                             let! pushResult =
-                                Ledger.CommandHandlers.pushComdirectImports now push ledgerAccount.Id candidates
+                                Ledger.CommandHandlers.pushComdirectImports
+                                    now
+                                    push
+                                    Ledger.CommandHandlers.triggerMirrorInBackground
+                                    ledgerAccount.Id
+                                    candidates
 
                             match pushResult.SendResult with
                             | Some (Error ynabError) ->

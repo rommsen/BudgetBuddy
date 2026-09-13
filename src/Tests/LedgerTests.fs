@@ -19,6 +19,11 @@ open Server.YnabClient
 
 let private eur (amount: decimal) = { Amount = amount; Currency = "EUR" }
 
+/// Steht für `triggerMirror` in Tests, die den Spiegel-Auslöser nach einem Push
+/// (ADR 0014 Punkt 2, ledger-h4p6c) nicht selbst prüfen. Die eigenen Tests dafür
+/// stehen bei `addCashExpense`/`pushComdirectImports`.
+let private noTrigger () = ()
+
 let private testAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-000000000001")
 let private otherAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-000000000002")
 
@@ -916,7 +921,7 @@ let ledgerQuickAddCommandTests =
             let push () : Async<YnabResult<string>> = async.Return (Ok ynabTxId)
 
             match
-                addCashExpense (DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)) push input
+                addCashExpense (DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc)) push noTrigger input
                 |> Async.RunSynchronously
             with
             | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
@@ -948,7 +953,7 @@ let ledgerQuickAddCommandTests =
                 async.Return (Error (YnabError.NetworkError "Timeout"))
 
             let result =
-                addCashExpense (DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc)) push input
+                addCashExpense (DateTime(2026, 3, 2, 9, 0, 0, DateTimeKind.Utc)) push noTrigger input
                 |> Async.RunSynchronously
 
             match result with
@@ -972,6 +977,91 @@ let ledgerQuickAddCommandTests =
             Expect.isNone
                 (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
                 "keine YNAB-Verknuepfung nach gescheitertem Push"
+
+        testCase "ein erfolgreicher Push stößt den Spiegel genau einmal an" <| fun () ->
+            // ledger-h4p6c, ADR 0014 Punkt 2: der Spiegel läuft nach einem
+            // erfolgreichen Push, aber erst nachdem `EntryLinkedToYnab` steht (Task-
+            // Nachtrag, ADR 0021): `triggerMirror` hängt darum hinter der
+            // Verknüpfung, nicht hinter dem Schreiben der Buchung.
+            let input : CashExpenseInput = {
+                AccountId = testAccountId
+                Date = DateTime(2026, 3, 8, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -2.10m
+                Payee = Some "Spiegel-Auslöser Erfolg"
+                Memo = None
+                Category = None
+            }
+            let push () : Async<YnabResult<string>> = async.Return (Ok $"ynab-{Guid.NewGuid()}")
+            let mutable triggerCount = 0
+            let triggerMirror () = triggerCount <- triggerCount + 1
+
+            addCashExpense (DateTime(2026, 3, 8, 9, 0, 0, DateTimeKind.Utc)) push triggerMirror input
+            |> Async.RunSynchronously
+            |> ignore
+
+            Expect.equal triggerCount 1 "genau ein Auslöser nach erfolgreichem Push"
+
+        testCase "EntryLinkedToYnab steht schon im Log, wenn der Auslöser feuert" <| fun () ->
+            // Task-Nachtrag, ADR 0021: ein Lauf, der zwischen dem Push und der
+            // Verknüpfung dazwischenkommt, sähe die YNAB-Buchung ungematcht (Quick Add
+            // trägt keine ImportId) und legte eine zweite Buchung an. Der Zähler-Test
+            // oben prüft nur, dass triggerMirror überhaupt feuert, nicht wann; dieser
+            // Test schaut während des Callbacks selbst ins Log.
+            let payee = $"Spiegel-Reihenfolge {Guid.NewGuid()}"
+            let input : CashExpenseInput = {
+                AccountId = testAccountId
+                Date = DateTime(2026, 3, 10, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -2.30m
+                Payee = Some payee
+                Memo = None
+                Category = None
+            }
+            let push () : Async<YnabResult<string>> = async.Return (Ok $"ynab-{Guid.NewGuid()}")
+            let mutable eventTypesAtTriggerTime : string list option = None
+            let triggerMirror () =
+                let entryId =
+                    loadAllEvents ()
+                    |> Async.RunSynchronously
+                    |> List.tryPick (fun recorded ->
+                        match recorded.Event.Body with
+                        | CashExpenseAdded body when body.Payee = Some payee -> Some recorded.Event.EntryId
+                        | _ -> None)
+                eventTypesAtTriggerTime <-
+                    entryId
+                    |> Option.map (fun id ->
+                        loadEventsForEntry id |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+
+            addCashExpense (DateTime(2026, 3, 10, 9, 0, 0, DateTimeKind.Utc)) push triggerMirror input
+            |> Async.RunSynchronously
+            |> ignore
+
+            match eventTypesAtTriggerTime with
+            | Some types ->
+                Expect.contains
+                    types
+                    "EntryLinkedToYnab"
+                    "EntryLinkedToYnab steht schon im Log, wenn triggerMirror aufgerufen wird"
+            | None -> failtest "die Buchung wurde im Auslöser-Callback nicht gefunden"
+
+        testCase "ein gescheiterter Push löst keinen Spiegel-Lauf aus" <| fun () ->
+            let input : CashExpenseInput = {
+                AccountId = testAccountId
+                Date = DateTime(2026, 3, 9, 0, 0, 0, DateTimeKind.Utc)
+                Amount = eur -2.20m
+                Payee = Some "Spiegel-Auslöser Fehlschlag"
+                Memo = None
+                Category = None
+            }
+            let push () : Async<YnabResult<string>> =
+                async.Return (Error (YnabError.NetworkError "Timeout"))
+            let mutable triggerCount = 0
+            let triggerMirror () = triggerCount <- triggerCount + 1
+
+            addCashExpense (DateTime(2026, 3, 9, 9, 0, 0, DateTimeKind.Utc)) push triggerMirror input
+            |> Async.RunSynchronously
+            |> ignore
+
+            Expect.equal triggerCount 0 "kein Auslöser ohne erfolgreiche Verknüpfung"
     ]
 
 // ============================================
@@ -1061,6 +1151,7 @@ let ledgerImportPushCommandTests =
                 pushComdirectImports
                     (DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc))
                     (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
                     testAccountId
                     [ cand ]
                 |> Async.RunSynchronously
@@ -1087,7 +1178,7 @@ let ledgerImportPushCommandTests =
                 async.Return (Error (YnabError.NetworkError "Timeout"))
 
             let result =
-                pushComdirectImports (DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                pushComdirectImports (DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
                 |> Async.RunSynchronously
 
             match Map.tryFind (TransactionId txId) result.Outcomes with
@@ -1113,7 +1204,7 @@ let ledgerImportPushCommandTests =
             let push = PushFixtures.successfulPush ynabTxId
 
             let firstOutcome =
-                pushComdirectImports (DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                pushComdirectImports (DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
                 |> Async.RunSynchronously
             let firstEntryId =
                 match Map.tryFind (TransactionId txId) firstOutcome.Outcomes with
@@ -1121,7 +1212,7 @@ let ledgerImportPushCommandTests =
                 | other -> failtest $"erster Versuch sollte Linked liefern, war {other}"
 
             let secondResult =
-                pushComdirectImports (DateTime(2026, 3, 3, 11, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                pushComdirectImports (DateTime(2026, 3, 3, 11, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
                 |> Async.RunSynchronously
 
             match Map.tryFind (TransactionId txId) secondResult.Outcomes with
@@ -1147,7 +1238,7 @@ let ledgerImportPushCommandTests =
 
             let firstEntryId =
                 match
-                    pushComdirectImports (DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)) firstPush testAccountId [ cand ]
+                    pushComdirectImports (DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)) firstPush noTrigger testAccountId [ cand ]
                     |> Async.RunSynchronously
                     |> fun r -> Map.tryFind (TransactionId txId) r.Outcomes
                 with
@@ -1158,6 +1249,7 @@ let ledgerImportPushCommandTests =
                 pushComdirectImports
                     (DateTime(2026, 3, 6, 11, 0, 0, DateTimeKind.Utc))
                     (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
                     testAccountId
                     [ cand ]
                 |> Async.RunSynchronously
@@ -1182,7 +1274,7 @@ let ledgerImportPushCommandTests =
                 async.Return (Ok { emptyCreateResult with DuplicateImportIds = [ importId ] })
 
             let result =
-                pushComdirectImports (DateTime(2026, 3, 4, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                pushComdirectImports (DateTime(2026, 3, 4, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
                 |> Async.RunSynchronously
 
             match Map.tryFind (TransactionId txId) result.Outcomes with
@@ -1205,7 +1297,7 @@ let ledgerImportPushCommandTests =
                 async.Return (Ok { emptyCreateResult with ResponseUnparseable = true })
 
             let result =
-                pushComdirectImports (DateTime(2026, 3, 7, 10, 0, 0, DateTimeKind.Utc)) push testAccountId [ cand ]
+                pushComdirectImports (DateTime(2026, 3, 7, 10, 0, 0, DateTimeKind.Utc)) push noTrigger testAccountId [ cand ]
                 |> Async.RunSynchronously
 
             match Map.tryFind (TransactionId txId) result.Outcomes with
@@ -1238,6 +1330,7 @@ let ledgerImportPushCommandTests =
                 pushComdirectImports
                     (DateTime(2026, 3, 5, 10, 0, 0, DateTimeKind.Utc))
                     (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
                     testAccountId
                     [ cand ]
                 |> Async.RunSynchronously
@@ -1293,6 +1386,7 @@ let ledgerImportPushCommandTests =
                 pushComdirectImports
                     (DateTime(2026, 3, 6, 9, 0, 0, DateTimeKind.Utc))
                     (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
                     testAccountId
                     [ cand ]
                 |> Async.RunSynchronously
@@ -1309,6 +1403,106 @@ let ledgerImportPushCommandTests =
                     [ "EntryImportedFromComdirect"; "EntryRecategorized"; "EntryRecategorized"; "EntryLinkedToYnab" ]
                     "beide Review-Schritte plus Entstehung und Verknüpfung stehen im Log"
             | other -> failtest $"erwartete Linked, war {other}"
+
+        testCase "ein erfolgreicher Sende-Versuch stößt den Spiegel genau einmal an" <| fun () ->
+            // ledger-h4p6c, ADR 0014 Punkt 2.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -8.40m) []
+            let ynabTxId = $"ynab-{txId}"
+            let mutable triggerCount = 0
+            let triggerMirror () = triggerCount <- triggerCount + 1
+
+            pushComdirectImports
+                (DateTime(2026, 3, 8, 10, 0, 0, DateTimeKind.Utc))
+                (PushFixtures.successfulPush ynabTxId)
+                triggerMirror
+                testAccountId
+                [ cand ]
+            |> Async.RunSynchronously
+            |> ignore
+
+            Expect.equal triggerCount 1 "genau ein Auslöser nach erfolgreich gesendetem Push"
+
+        testCase "EntryLinkedToYnab steht schon im Log, wenn der Auslöser beim Import feuert" <| fun () ->
+            // Sinngemäß dieselbe Reihenfolge-Sicherung wie bei `addCashExpense`, hier für
+            // den Import-Push (`ledger-qvt84`): die ImportId fängt Duplikate zwar ab
+            // (ADR 0004), aber ein dazwischenkommender Lauf soll trotzdem erst starten,
+            // wenn die Verknüpfung dieses Sende-Versuchs schon im Log steht.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -6.60m) []
+            let ynabTxId = $"ynab-{txId}"
+            let mutable eventTypesAtTriggerTime : string list option = None
+            let triggerMirror () =
+                let entryId = findEntryByLink ImportIdSystem importId |> Async.RunSynchronously
+                eventTypesAtTriggerTime <-
+                    entryId
+                    |> Option.map (fun id ->
+                        loadEventsForEntry id |> Async.RunSynchronously |> List.map (fun r -> r.EventType))
+
+            pushComdirectImports
+                (DateTime(2026, 3, 8, 14, 0, 0, DateTimeKind.Utc))
+                (PushFixtures.successfulPush ynabTxId)
+                triggerMirror
+                testAccountId
+                [ cand ]
+            |> Async.RunSynchronously
+            |> ignore
+
+            match eventTypesAtTriggerTime with
+            | Some types ->
+                Expect.contains
+                    types
+                    "EntryLinkedToYnab"
+                    "EntryLinkedToYnab steht schon im Log, wenn triggerMirror aufgerufen wird"
+            | None -> failtest "die Buchung wurde im Auslöser-Callback nicht gefunden"
+
+        testCase "ein gescheiterter Sende-Versuch löst keinen Spiegel-Lauf aus" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -9.10m) []
+            let push (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Error (YnabError.NetworkError "Timeout"))
+            let mutable triggerCount = 0
+            let triggerMirror () = triggerCount <- triggerCount + 1
+
+            pushComdirectImports (DateTime(2026, 3, 8, 11, 0, 0, DateTimeKind.Utc)) push triggerMirror testAccountId [ cand ]
+            |> Async.RunSynchronously
+            |> ignore
+
+            Expect.equal triggerCount 0 "kein Auslöser ohne erfolgreichen Sende-Versuch"
+
+        testCase "kein neuer Versand (alles schon AlreadyImported) löst keinen Spiegel-Lauf aus" <| fun () ->
+            let txId = $"tx-{Guid.NewGuid()}"
+            let importId = $"import-{txId}"
+            let cand = PushFixtures.candidate txId importId (eur -3.30m) []
+            let ynabTxId = $"ynab-{txId}"
+            let mutable triggerCount = 0
+            let triggerMirror () = triggerCount <- triggerCount + 1
+
+            pushComdirectImports
+                (DateTime(2026, 3, 8, 12, 0, 0, DateTimeKind.Utc))
+                (PushFixtures.successfulPush ynabTxId)
+                triggerMirror
+                testAccountId
+                [ cand ]
+            |> Async.RunSynchronously
+            |> ignore
+            triggerCount <- 0
+
+            // Zweiter Versuch für dieselbe ImportId: schon verknüpft, nichts zu
+            // senden (`AlreadyImported`, `SendResult = None`).
+            pushComdirectImports
+                (DateTime(2026, 3, 8, 13, 0, 0, DateTimeKind.Utc))
+                (PushFixtures.successfulPush ynabTxId)
+                triggerMirror
+                testAccountId
+                [ cand ]
+            |> Async.RunSynchronously
+            |> ignore
+
+            Expect.equal triggerCount 0 "ohne neuen Versand gibt es nichts, was der Spiegel sofort sehen müsste"
     ]
 
 // ============================================

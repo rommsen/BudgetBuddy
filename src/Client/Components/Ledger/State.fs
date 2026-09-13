@@ -6,6 +6,7 @@
 /// vorhandene Liste stehen und wird erst danach neu geladen (ADR 0014).
 module Components.Ledger.State
 
+open System
 open Elmish
 open Shared.Domain
 open Components.Ledger.Types
@@ -217,7 +218,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with LastMirrorRun = Loading }, cmd, NoOp
 
     | MirrorStatusLoaded (Ok status) ->
-        { model with LastMirrorRun = Success status }, Cmd.none, NoOp
+        // Frische-Kriterium (ADR 0014): ist der geladene Lauf-Status älter als die
+        // Schwelle (oder gab es noch nie einen), stößt dieselbe Seite denselben
+        // Hintergrund-Lauf an wie der manuelle Knopf, nur ohne den zusätzlichen
+        // Nutzer-Klick. Läuft bereits ein Lauf, greift dieselbe Doppeldruck-Sperre wie
+        // bei `StartMirror`: kein zweiter Auslöser aus diesem Tab. Der serverseitige
+        // Einzel-Flug-Schutz (`Ledger.CommandHandlers.runMirrorGuarded`) hält zusätzlich
+        // gegen einen zweiten Tab oder einen zeitgleichen Lauf-nach-Push.
+        let model' = { model with LastMirrorRun = Success status }
+        if not model.MirrorRunning && isMirrorStale DateTime.UtcNow status then
+            { model' with MirrorRunning = true }, Cmd.ofMsg RunMirror, NoOp
+        else
+            model', Cmd.none, NoOp
 
     | MirrorStatusLoaded (Error message) ->
         { model with LastMirrorRun = Failure message }, Cmd.none, NoOp

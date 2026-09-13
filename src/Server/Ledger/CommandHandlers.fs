@@ -292,6 +292,65 @@ let runMirror
     }
 
 // ============================================
+// Einzel-Flug-Schutz: zwei gleichzeitige Auslöser ergeben nur einen Lauf
+// ============================================
+//
+// ADR 0014 Punkt 3 verlangt, dass ein bereits laufender Spiegel nicht ein zweites Mal
+// gestartet wird. Der Client-Zustand (`MirrorRunning`) hält das nur pro Tab; zwei
+// Browser-Tabs oder ein Seiten-Öffnen, das mit einem Post-Push-Auslöser
+// zusammentrifft, müssen serverseitig geteilt werden (ledger-h4p6c, Task-Nachtrag).
+// `runGuarded` hält den gerade laufenden Task fest: ein zweiter Aufruf während eines
+// Laufs startet keinen zweiten YNAB-Abruf, sondern wartet auf denselben Task und teilt
+// sein Ergebnis (single flight). Die Freigabe steht in `finally`, damit sie auch nach
+// einem fehlgeschlagenen oder abgebrochenen Lauf greift: der nächste Auslöser darf es
+// dann erneut versuchen, statt dauerhaft zu blockieren (ledger-h4p6c, Verifier-Fund
+// Iteration 1). `internal` statt `private`, damit `runGuarded` selbst mit einem
+// werfenden Lauf getestet werden kann (`InternalsVisibleTo "Tests"`), ohne den Umweg
+// über `runMirror`s eigenes Fehlerhandling.
+module internal MirrorGuard =
+    open System.Threading.Tasks
+
+    let private gate = obj ()
+    let mutable private inFlight : Task<Result<MirrorRunSummary, string>> option = None
+
+    let runGuarded
+        (run: unit -> Async<Result<MirrorRunSummary, string>>)
+        : Async<Result<MirrorRunSummary, string>> =
+        async {
+            let task =
+                lock gate (fun () ->
+                    match inFlight with
+                    | Some running -> running
+                    | None ->
+                        let started = Async.StartAsTask(run ())
+                        inFlight <- Some started
+                        started)
+
+            try
+                return! Async.AwaitTask task
+            finally
+                // Nur der Aufrufer, dessen Task noch der aktuelle ist, räumt den
+                // Platzhalter wieder ab: ein späterer, schon neuerer Lauf darf dadurch
+                // nicht versehentlich verworfen werden. `finally` statt eines Schritts
+                // nach `let!`, damit die Freigabe auch bei einem fehlgeschlagenen oder
+                // abgebrochenen Task läuft, nicht nur beim normalen Abschluss.
+                lock gate (fun () ->
+                    match inFlight with
+                    | Some current when obj.ReferenceEquals(current, task) -> inFlight <- None
+                    | _ -> ())
+        }
+
+/// `runMirror`, aber mit dem Einzel-Flug-Schutz: der Auslöser für alle drei
+/// Wege aus ADR 0014 (Seitenaufruf/Vordergrund über den manuellen Endpunkt, Lauf nach
+/// Push, "Jetzt spiegeln").
+let runMirrorGuarded
+    (now: DateTime)
+    (fetchers: MirrorFetchers)
+    (budgetId: YnabBudgetId)
+    : Async<Result<MirrorRunSummary, string>> =
+    MirrorGuard.runGuarded (fun () -> runMirror now fetchers budgetId)
+
+// ============================================
 // Quick Add: Kassenbuch zuerst, dann Push, dann Verknuepfung (ADR 0021)
 // ============================================
 
@@ -308,18 +367,25 @@ type CashExpenseInput = {
 }
 
 /// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `QuickAdd`), ruft
-/// danach `push` auf und verknuepft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
+/// danach `push` auf und verknüpft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
 /// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts, die einzige Stelle,
-/// an der eine Quick-Add-Buchung ohne ImportId verknuepft werden kann (ADR 0004, ADR
-/// 0015). Scheitert der Push, bleibt die Kassenbuch-Buchung unveraendert stehen, kein
+/// an der eine Quick-Add-Buchung ohne ImportId verknüpft werden kann (ADR 0004, ADR
+/// 0015). Scheitert der Push, bleibt die Kassenbuch-Buchung unverändert stehen, kein
 /// Rollback (ADR 0021, Punkt 2); der Fehler wird durchgereicht, die Buchung bleibt ohne
-/// YNAB-Verknuepfung bis zu einem erneuten Push oder dem naechsten Spiegel-Lauf.
+/// YNAB-Verknüpfung bis zu einem erneuten Push oder dem nächsten Spiegel-Lauf.
 ///
-/// `now` und `push` kommen von aussen, damit der Ablauf ohne Uhr und ohne Netz testbar
-/// ist (Muster wie `MirrorFetchers` beim Spiegel-Lauf).
+/// Nach erfolgreichem Push stößt `triggerMirror` den Spiegel an (ADR 0014 Punkt 2):
+/// erst wenn `EntryLinkedToYnab` geschrieben ist, nie davor (Task-Nachtrag, ADR 0021),
+/// sonst sähe ein dazwischenkommender Lauf die YNAB-Buchung ungematcht und legte eine
+/// zweite Buchung an (Quick Add trägt keine ImportId, ADR 0004).
+///
+/// `now`, `push` und `triggerMirror` kommen von außen, damit der Ablauf ohne Uhr, ohne
+/// Netz und ohne Spiegel-Lauf testbar ist (Muster wie `MirrorFetchers` beim
+/// Spiegel-Lauf).
 let addCashExpense
     (now: DateTime)
     (push: unit -> Async<YnabResult<string>>)
+    (triggerMirror: unit -> unit)
     (input: CashExpenseInput)
     : Async<YnabResult<EntryId>> =
     async {
@@ -351,6 +417,7 @@ let addCashExpense
                 Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
             }
             do! Ledger.Persistence.appendAndApply [ linked ]
+            triggerMirror ()
             return Ok entryId
         | Error err ->
             return Error err
@@ -418,9 +485,17 @@ type ComdirectPushResult = {
 /// angelegte Buchung mit `EntryLinkedToYnab` verknüpft; ein Push-Fehler, ein Duplikat
 /// oder eine nicht auswertbare Antwort lassen die geschriebenen Buchungen unverändert
 /// und unverknüpft stehen (kein Rollback).
+///
+/// `triggerMirror` stößt nach einem tatsächlich erfolgreichen Sende-Versuch den
+/// Spiegel an (ADR 0014 Punkt 2), erst nachdem alle `EntryLinkedToYnab`-Verknüpfungen
+/// dieses Versuchs geschrieben sind. Ohne Sendung (nichts Neues, alles schon
+/// `AlreadyImported`) oder bei einem gescheiterten Sende-Versuch bleibt der Auslöser
+/// aus: der nächste Spiegel-Lauf (Frische-Kriterium oder ein erneuter Push) holt das
+/// nach.
 let pushComdirectImports
     (now: DateTime)
     (push: Ynab.PreparedTransaction list -> Async<YnabResult<Ynab.TransactionCreateResult>>)
+    (triggerMirror: unit -> unit)
     (accountId: LedgerAccountId)
     (candidates: ComdirectImportCandidate list)
     : Async<ComdirectPushResult> =
@@ -527,6 +602,14 @@ let pushComdirectImports
                 })
             |> Async.Sequential
 
+        // Nach dem Push (ADR 0014 Punkt 2): nur wenn tatsächlich etwas gesendet und
+        // die Antwort auswertbar war, nicht bei einem leeren Versuch oder einem
+        // Sende-Fehler (Task-Nachtrag zu ADR 0021: alle `EntryLinkedToYnab` dieses
+        // Versuchs stehen zu diesem Zeitpunkt schon im Log, `linkedOutcomes` ist fertig).
+        match sendResultOpt with
+        | Some (Ok _) -> triggerMirror ()
+        | _ -> ()
+
         let outcomeMap =
             [
                 yield! alreadyImported |> Array.map (fun (txId, entryId) -> txId, AlreadyImported entryId)
@@ -551,8 +634,11 @@ let summarizeLedgerWriteFailures (result: ComdirectPushResult) : (int * string) 
     if failures.IsEmpty then None else Some (failures.Length, String.concat "; " failures)
 
 /// Verdrahtet den Lauf mit dem echten YNAB-Client und den gespeicherten Einstellungen.
-/// Der manuelle Ausloeser ("Jetzt spiegeln"); Frische-Kriterium und Lauf nach Push sind
-/// Folge-Arbeit (ADR 0014).
+/// Die eine Stelle, durch die alle drei Auslöser aus ADR 0014 laufen: der manuelle
+/// Knopf ("Jetzt spiegeln"), das Frische-Kriterium (Seitenaufruf/Vordergrund, über
+/// denselben Endpunkt vom Client angestoßen) und der Lauf nach Push
+/// (`triggerMirrorInBackground`). Der Einzel-Flug-Schutz (`runMirrorGuarded`) sorgt
+/// dafür, dass zwei gleichzeitige Auslöser nur einen YNAB-Abruf auslösen.
 let mirrorYnabBudget () : Async<Result<MirrorRunSummary, string>> =
     async {
         let! token = Core.Settings.getSetting "ynab_token"
@@ -569,5 +655,35 @@ let mirrorYnabBudget () : Async<Result<MirrorRunSummary, string>> =
                     fun knowledge -> Server.YnabClient.getTransactionsDelta token budgetId knowledge
             }
 
-            return! runMirror DateTime.UtcNow fetchers budgetId
+            return! runMirrorGuarded DateTime.UtcNow fetchers budgetId
     }
+
+/// Der Async-Rumpf von `triggerMirrorInBackground`, mit `run` injiziert: testbar ohne
+/// echten Spiegel-Lauf und ohne `Async.Start`, sodass ein Test synchron auf das Ergebnis
+/// warten kann. Fängt jede Ausnahme aus `run` ab, einschließlich einer, die schon vor
+/// `runMirror`s eigenem try geworfen wird (z. B. `Core.Settings.getSetting`) oder aus
+/// einem fehlgeschlagenen Task im Einzel-Flug-Schutz kommt: `Async.Start` lässt
+/// Ausnahmen sonst unbehandelt auf dem Thread-Pool landen und kann den Prozess
+/// mitreißen (Verifier-Fund Iteration 1). Best effort wird der Fehler zusätzlich als
+/// Lauf-Status gespeichert (ADR 0014: Fehler sichtbar, nicht verschluckt); scheitert
+/// auch das (z. B. weil die Datenbank selbst der Grund war), bleibt wenigstens die
+/// Log-Ausgabe.
+let runMirrorInBackground (run: unit -> Async<Result<MirrorRunSummary, string>>) : Async<unit> =
+    async {
+        try
+            let! _ = run ()
+            return ()
+        with ex ->
+            printfn "Spiegel-Lauf im Hintergrund fehlgeschlagen: %s" ex.Message
+            try
+                do! saveLastMirrorRun { RanAt = DateTime.UtcNow; Outcome = MirrorRunFailed ex.Message }
+            with _ -> ()
+    }
+
+/// Stößt `mirrorYnabBudget` im Hintergrund an, ohne auf sein Ende zu warten: der
+/// Aufrufer (die Push-Antwort an Roman) soll nicht auf einen weiteren YNAB-Roundtrip
+/// warten (ADR 0014, "Roman wartet nie auf den Spiegel"). Der Einzel-Flug-Schutz in
+/// `mirrorYnabBudget` sorgt dafür, dass ein gleichzeitiger zweiter Auslöser (z. B.
+/// ein Seitenaufruf kurz danach) denselben Lauf teilt statt einen zweiten anzustoßen.
+let triggerMirrorInBackground () : unit =
+    Async.Start (runMirrorInBackground mirrorYnabBudget)

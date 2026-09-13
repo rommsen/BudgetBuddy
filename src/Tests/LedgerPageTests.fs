@@ -586,6 +586,103 @@ let reducerTests =
             | Success loaded -> Expect.equal (loaded |> List.map (fun l -> l.Sequence)) [ 1; 2 ] "Reihenfolge bleibt"
             | other -> failtestf "Erwartet Success, war %A" other
         }
+
+        // ============================================
+        // Frische-Kriterium (ADR 0014 Punkt 1, ledger-h4p6c)
+        // ============================================
+
+        test "Ein zu alter Lauf-Status löst genau einen Hintergrund-Lauf aus" {
+            // `DateTime.UtcNow` statt eines festen Datums: der Reduzierer trägt die
+            // Uhr selbst (kein injizierter Clock im Client, anders als serverseitig bei
+            // `runMirror`), darum muss der Test-Zeitpunkt real "jetzt" sein.
+            let staleStatus : MirrorRunStatus = {
+                RanAt = DateTime.UtcNow - TimeSpan.FromMinutes 6.0
+                Outcome = MirrorRunSucceeded summary
+            }
+            let entries = [ entryView 1 -42.5m false ]
+            let withEntries, _, _ =
+                Components.Ledger.State.update (EntriesPageLoaded (0, Ok (page entries 1))) (freshModel ())
+            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some staleStatus))) withEntries
+            Expect.isTrue updated.MirrorRunning "der Hintergrund-Lauf ist gestartet"
+            Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser für den Hintergrund-Lauf"
+            Expect.equal updated.Entries (Success entries) "die Liste bleibt stehen, während der Hintergrund-Lauf läuft (ADR 0014)"
+        }
+
+        test "Ein jüngerer Lauf-Status löst keinen Hintergrund-Lauf aus" {
+            let freshStatus : MirrorRunStatus = {
+                RanAt = DateTime.UtcNow - TimeSpan.FromMinutes 1.0
+                Outcome = MirrorRunSucceeded summary
+            }
+            let updated, cmd, _ =
+                Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some freshStatus))) (freshModel ())
+            Expect.isFalse updated.MirrorRunning "kein Hintergrund-Lauf nötig"
+            Expect.isEmpty (dispatched cmd) "kein Kommando"
+        }
+
+        test "Noch nie ein Lauf-Status löst einen Hintergrund-Lauf aus" {
+            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok None)) (freshModel ())
+            Expect.isTrue updated.MirrorRunning "der erste Lauf überhaupt zählt als 'nicht frisch'"
+            Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser"
+        }
+
+        test "Ein bereits laufender Spiegel wird nicht ein zweites Mal angestoßen" {
+            // Die client-seitige Hälfte von "zwei gleichzeitige Auslöser ergeben nur
+            // einen Lauf" (ADR 0014 Punkt 3): läuft im selben Tab schon ein Lauf, tut
+            // ein zweiter, spät eintreffender Lauf-Status nichts. Die serverseitige
+            // Hälfte (zwei Tabs, Lauf nach Push) sitzt im Einzel-Flug-Schutz von
+            // `Ledger.CommandHandlers.runMirrorGuarded` (`LedgerTests`/`LedgerMirrorTests`).
+            let staleStatus : MirrorRunStatus = {
+                RanAt = DateTime.UtcNow - TimeSpan.FromHours 1.0
+                Outcome = MirrorRunSucceeded summary
+            }
+            let running = { freshModel () with MirrorRunning = true }
+            let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some staleStatus))) running
+            Expect.isTrue updated.MirrorRunning "der laufende Lauf bleibt unverändert stehen"
+            Expect.isEmpty (dispatched cmd) "kein zweiter Auslöser während eines laufenden Spiegels"
+        }
+    ]
+
+// ============================================
+// Frische-Kriterium: die reine Entscheidung (`isMirrorStale`), unabhängig vom
+// Reduzierer testbar (ledger-h4p6c)
+// ============================================
+
+let private freshnessTests =
+    testList "Frische-Kriterium: isMirrorStale" [
+
+        test "Genau an der Schwelle gilt noch als frisch" {
+            let now = DateTime(2026, 4, 1, 12, 5, 0, DateTimeKind.Utc)
+            let lastRun : MirrorRunStatus = {
+                RanAt = DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc)
+                Outcome = MirrorRunSucceeded summary
+            }
+            Expect.isFalse (isMirrorStale now (Some lastRun)) "genau 5 Minuten sind noch nicht 'älter als'"
+        }
+
+        test "Eine Sekunde über der Schwelle gilt als nicht mehr frisch" {
+            let now = DateTime(2026, 4, 1, 12, 5, 1, DateTimeKind.Utc)
+            let lastRun : MirrorRunStatus = {
+                RanAt = DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc)
+                Outcome = MirrorRunSucceeded summary
+            }
+            Expect.isTrue (isMirrorStale now (Some lastRun)) "eine Sekunde drüber ist 'älter als'"
+        }
+
+        test "Ein gescheiterter Lauf zählt trotzdem als Lauf-Zeitpunkt" {
+            // Ein Fehler wird sichtbar gemacht, aber löst keinen Dauer-Retry-Loop aus:
+            // der Zeitpunkt des gescheiterten Versuchs gilt für die nächste
+            // Frische-Prüfung genauso wie ein erfolgreicher.
+            let now = DateTime(2026, 4, 1, 12, 1, 0, DateTimeKind.Utc)
+            let lastRun : MirrorRunStatus = {
+                RanAt = DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc)
+                Outcome = MirrorRunFailed "YNAB-Limit erreicht"
+            }
+            Expect.isFalse (isMirrorStale now (Some lastRun)) "eine Minute nach einem gescheiterten Lauf ist noch frisch"
+        }
+
+        test "Ohne jeden Lauf gilt sofort als nicht frisch" {
+            Expect.isTrue (isMirrorStale DateTime.UtcNow None) "kein Lauf ist per Definition 'nicht frisch'"
+        }
     ]
 
 // ============================================
@@ -658,6 +755,48 @@ let private erstlaufTests =
             let model = { freshModel () with SelectedFilter = Some (OneAccount (accountGuid 9)) }
             let updated, _, _ = Components.Ledger.State.update (AccountsLoaded (Ok accountsView)) model
             Expect.equal updated.SelectedFilter (Some (OneAccount (accountGuid 2))) "Faellt auf das Standardkonto zurueck"
+        }
+    ]
+
+// ============================================
+// PWA-Vordergrund (ADR 0014 Punkt 1, ledger-h4p6c): verhält sich wie ein
+// Seitenaufruf, aber nur auf der Kassenbuch-Seite
+// ============================================
+
+/// Ein Root-Modell für den Reduzierer-Test, ohne `State.init()`: das ruft
+/// `Routing.currentPage()` auf, was unter .NET an `Browser.Dom.window` scheitert (Fable-
+/// only, wie der Fable.Remoting-Proxy, den die Kopfnotiz dieser Datei schon nennt). Die
+/// Kind-Modelle allein sind reine Konstruktion, deshalb ungefährlich.
+let private rootModel (page: Types.Page) : State.Model =
+    let settingsModel, _ = Components.Settings.State.init ()
+    let syncFlowModel, _ = Components.SyncFlow.State.init ()
+    let rulesModel, _ = Components.Rules.State.init ()
+    let ledgerModel, _ = Components.Ledger.State.init ()
+    {
+        CurrentPage = page
+        Toasts = []
+        Settings = settingsModel
+        SyncFlow = syncFlowModel
+        Rules = rulesModel
+        Ledger = ledgerModel
+        QuickAdd = None
+        QuickAddTemplates = NotAsked
+    }
+
+let private visibilityTests =
+    testList "PWA-Vordergrund (VisibilityChanged)" [
+
+        test "Auf der Kassenbuch-Seite lädt der Vordergrund-Wechsel den Lauf-Status neu" {
+            let updated, cmd = State.update State.VisibilityChanged (rootModel Types.Page.Ledger)
+            Expect.equal updated.CurrentPage Types.Page.Ledger "die Seite selbst ändert sich nicht"
+            Expect.contains (dispatched cmd) (State.LedgerMsg LoadMirrorStatus) "der Lauf-Status wird neu geladen"
+        }
+
+        test "Auf jeder anderen Seite tut der Vordergrund-Wechsel nichts" {
+            let onSettings = rootModel Types.Page.Settings
+            let updated, cmd = State.update State.VisibilityChanged onSettings
+            Expect.equal updated onSettings "kein Zustandswechsel"
+            Expect.isEmpty (dispatched cmd) "kein Kommando außerhalb des Kassenbuchs"
         }
     ]
 
@@ -909,4 +1048,10 @@ let ledgerPagingTests =
 let ledgerPageTests =
     testList
         "Kassenbuch-Seite"
-        [ historyLanguageTests; readModelTests; balanceInputsTests; reducerTests; erstlaufTests ]
+        [ historyLanguageTests
+          readModelTests
+          balanceInputsTests
+          reducerTests
+          erstlaufTests
+          freshnessTests
+          visibilityTests ]

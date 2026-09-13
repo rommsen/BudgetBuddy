@@ -43,6 +43,10 @@ type Msg =
     | NavigateTo of Page        // Triggers URL change (does NOT directly change state)
     | UrlChanged of string list // Handles URL changes from router or initial load
 
+    // PWA kommt in den Vordergrund (ADR 0014, Frische-Kriterium): verhält sich auf der
+    // Kassenbuch-Seite wie ein Seitenaufruf, sonst tut sie nichts (ledger-h4p6c).
+    | VisibilityChanged
+
     // Toast (two-phase removal: StartDismissToast marks exiting → ToastExited removes)
     | ShowToast of string * ToastType
     | StartDismissToast of Guid  // phase 1: mark exiting + schedule removal (auto or manual)
@@ -224,6 +228,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             model, Cmd.none
         else
             { model with CurrentPage = page }, pageLoadCmd page
+
+    // Die PWA kam in den Vordergrund: auf der Kassenbuch-Seite verhält sich das wie
+    // ein Seitenaufruf, es wird nur der Lauf-Status neu geladen. Dessen Frische-Prüfung
+    // (`MirrorStatusLoaded`, `Components.Ledger.State`) entscheidet, ob ein
+    // Hintergrund-Lauf nötig ist. Auf jeder anderen Seite passiert nichts: ADR 0014
+    // nennt das Frische-Kriterium für die Kassenbuch-Seite, nicht für die ganze App.
+    | VisibilityChanged ->
+        match model.CurrentPage with
+        | Ledger -> model, Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
+        | _ -> model, Cmd.none
 
     // ============================================
     // Toast

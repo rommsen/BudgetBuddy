@@ -709,7 +709,7 @@ let mirrorRunTests =
             let push () : Async<YnabResult<string>> = async.Return (Ok ynabTxId)
 
             let entryId =
-                match addCashExpense (Run.at 3) push input |> Async.RunSynchronously with
+                match addCashExpense (Run.at 3) push (fun () -> ()) input |> Async.RunSynchronously with
                 | Ok entryId -> entryId
                 | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
 
@@ -804,7 +804,7 @@ let mirrorRunTests =
 
             let entryId =
                 match
-                    pushComdirectImports (Run.at 3) push ledgerAccountId [ candidate ]
+                    pushComdirectImports (Run.at 3) push (fun () -> ()) ledgerAccountId [ candidate ]
                     |> Async.RunSynchronously
                     |> fun r -> Map.tryFind (TransactionId txId) r.Outcomes
                 with
@@ -847,4 +847,150 @@ let mirrorRunTests =
                 (recorded |> List.map (fun r -> r.EventType))
                 [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
                 "der Spiegel-Lauf hängt kein EntryDetailsChangeObservedInYnab an, weil Memo/Payee bereits übereinstimmen"
+    ]
+
+// ============================================
+// Einzel-Flug-Schutz: zwei gleichzeitige Auslöser ergeben nur einen Lauf
+// (ledger-h4p6c, ADR 0014 Punkt 3, Task-Nachtrag: hält auch serverseitig, nicht nur
+// im Client-Zustand)
+// ============================================
+
+[<Tests>]
+let mirrorGuardTests =
+    initializeLedgerSchema ()
+    global.Persistence.initializeDatabase ()
+
+    testSequenced
+    <| testList "Ledger Spiegel: Einzel-Flug-Schutz (runMirrorGuarded)" [
+
+        testCase "zwei gleichzeitige Auslöser teilen sich einen Lauf, nur ein YNAB-Abruf" <| fun () ->
+            let budgetId = Run.budget "guard-concurrent"
+            let obs = { observation "guard-concurrent-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+            let baseFetchers = Run.fetchers 1L [ obs ]
+            let mutable fetchCount = 0
+            let fetchers : MirrorFetchers = {
+                baseFetchers with
+                    FetchTransactions =
+                        fun knowledge ->
+                            async {
+                                fetchCount <- fetchCount + 1
+                                // Künstliche Verzögerung, damit der zweite Auslöser
+                                // garantiert während des ersten Laufs ankommt, sonst
+                                // wäre der Test von der Ausführungsreihenfolge des
+                                // Thread-Pools abhängig, statt den Schutz selbst zu
+                                // prüfen.
+                                do! Async.Sleep 100
+                                return! baseFetchers.FetchTransactions knowledge
+                            }
+            }
+
+            let results =
+                Async.Parallel [
+                    runMirrorGuarded (Run.at 3) fetchers budgetId
+                    runMirrorGuarded (Run.at 3) fetchers budgetId
+                ]
+                |> Async.RunSynchronously
+
+            Expect.equal fetchCount 1 "nur ein YNAB-Abruf trotz zwei gleichzeitiger Auslöser"
+            for result in results do
+                match result with
+                | Ok summary -> Expect.equal summary.NewEntries 1 "beide Auslöser teilen das Ergebnis desselben Laufs"
+                | Error err -> failtest $"beide Auslöser sollten gelingen, war: {err}"
+
+        testCase "zwei nacheinander abgeschlossene Läufe teilen sich nichts" <| fun () ->
+            let budgetId = Run.budget "guard-sequential"
+            let obs = { observation "guard-sequential-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+            let baseFetchers = Run.fetchers 1L [ obs ]
+            let mutable fetchCount = 0
+            let fetchers : MirrorFetchers = {
+                baseFetchers with
+                    FetchTransactions =
+                        fun knowledge ->
+                            async {
+                                fetchCount <- fetchCount + 1
+                                return! baseFetchers.FetchTransactions knowledge
+                            }
+            }
+
+            runMirrorGuarded (Run.at 3) fetchers budgetId |> Async.RunSynchronously |> ignore
+            runMirrorGuarded (Run.at 4) fetchers budgetId |> Async.RunSynchronously |> ignore
+
+            Expect.equal fetchCount 2 "ein Lauf nach dem anderen ist kein gleichzeitiger Auslöser"
+
+        testCase "ein fehlgeschlagener Lauf gibt den Einzel-Flug-Schutz wieder frei" <| fun () ->
+            // Verifier-Fund Iteration 1: `MirrorGuard.runGuarded` räumte `inFlight` nur
+            // beim normalen Abschluss ab. Wirft der Lauf-Task, blieb der Platzhalter
+            // stehen, und jeder spätere Aufrufer bekam denselben, kaputten Task zurück,
+            // dauerhaft, bis zum Neustart. Direkter Zugriff auf `MirrorGuard` (jetzt
+            // `internal`), weil `runMirror` selbst so gut wie jeden Fehler intern
+            // abfängt: dieser Test prüft den Schutz unabhängig davon.
+            let mutable runCount = 0
+            let failingRun () : Async<Result<MirrorRunSummary, string>> =
+                runCount <- runCount + 1
+                async { return failwith "geplanter Fehler im Testlauf" }
+            let succeedingRun () : Async<Result<MirrorRunSummary, string>> =
+                runCount <- runCount + 1
+                async {
+                    return Ok {
+                        NewEntries = 0
+                        ChangedEntries = 0
+                        DeletedEntries = 0
+                        ServerKnowledge = 1L
+                    }
+                }
+
+            Expect.throws
+                (fun () -> MirrorGuard.runGuarded failingRun |> Async.RunSynchronously |> ignore)
+                "der erste Lauf wirft, wie im Testlauf geplant"
+
+            let result = MirrorGuard.runGuarded succeedingRun |> Async.RunSynchronously
+
+            Expect.equal runCount 2 "der zweite Aufruf startet einen frischen Lauf, nicht den kaputten Platzhalter"
+            match result with
+            | Ok _ -> ()
+            | Error err -> failtest $"der zweite Lauf sollte gelingen, war: {err}"
+    ]
+
+// ============================================
+// Hintergrund-Start: eine Ausnahme darf den Prozess nicht mitreißen
+// (ledger-h4p6c, Verifier-Fund Iteration 1; `triggerMirrorInBackground` nutzt
+// `Async.Start`, das unbehandelte Ausnahmen sonst auf dem Thread-Pool verschluckt)
+// ============================================
+
+[<Tests>]
+let runMirrorInBackgroundTests =
+    initializeLedgerSchema ()
+    global.Persistence.initializeDatabase ()
+
+    testList "Ledger Spiegel: Hintergrund-Start (runMirrorInBackground)" [
+
+        testCase "eine Ausnahme aus dem Lauf propagiert nicht und landet als fehlgeschlagener Lauf-Status" <| fun () ->
+            let failingRun () : Async<Result<MirrorRunSummary, string>> =
+                async { return failwith "geplanter Fehler beim Hintergrund-Start" }
+
+            // Propagiert `runMirrorInBackground` die Ausnahme doch, wirft schon dieser
+            // Aufruf, nicht erst eine Assertion danach.
+            runMirrorInBackground failingRun |> Async.RunSynchronously
+
+            match loadLastMirrorRun () |> Async.RunSynchronously with
+            | Some { Outcome = MirrorRunFailed message } ->
+                Expect.stringContains
+                    message
+                    "geplanter Fehler beim Hintergrund-Start"
+                    "der Fehlertext aus dem Lauf landet im Lauf-Status (ADR 0014: sichtbar, nicht verschluckt)"
+            | other -> failtest $"ein fehlgeschlagener Lauf-Status wurde erwartet, war: {other}"
+
+        testCase "ein erfolgreicher Lauf propagiert unauffällig" <| fun () ->
+            let succeedingRun () : Async<Result<MirrorRunSummary, string>> =
+                async {
+                    return Ok {
+                        NewEntries = 0
+                        ChangedEntries = 0
+                        DeletedEntries = 0
+                        ServerKnowledge = 1L
+                    }
+                }
+
+            // Kein Wurf ist hier schon die Aussage des Tests.
+            runMirrorInBackground succeedingRun |> Async.RunSynchronously
     ]
