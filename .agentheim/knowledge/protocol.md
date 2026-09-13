@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 15:24 -- Batch started: [design-system-fq8dn]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-fq8dn - "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren"
+**Parallel:** no (1 Worker; Bestandsaufnahme lag bereits vor, Umfang sieben Stellen in drei Dateien)
+
+---
+
 ## 2026-09-13 15:24 -- Modeling / Promoted: design-system-fq8dn - "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren"
 
 **Type:** Modeling / Promote

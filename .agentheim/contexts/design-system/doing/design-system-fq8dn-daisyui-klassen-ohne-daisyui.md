@@ -1,7 +1,7 @@
 ---
 id: design-system-fq8dn
 title: "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren"
-status: todo
+status: doing
 type: refactor
 context: design-system
 created: 2026-09-12
