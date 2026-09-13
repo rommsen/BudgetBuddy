@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-13 15:57 -- Task verified and completed: design-system-fq8dn - "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren"
+
+**Type:** Work / Task completion
+**Task:** design-system-fq8dn - "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren"
+**Summary:** DaisyUI raus: die sieben inerten Klassen in Table.fs, Loading.fs und Settings/View.fs durch eigene Tailwind-Lösungen ersetzt (Zeilendichte über eine CSS-Variable mit Rückfallwert, Zebra als Variante am Zeilen-Selektor), ADR 0031 und die Tech-Stack-Zeile in CLAUDE.md korrigiert
+**Duration:** 1h05m (02:20 bis 03:25, zwei Iterationen)
+**Verification:** PASS (iteration 2)
+**Files changed:** 8
+**Tests added:** 0
+**ADRs written:** 0031
+
+---
+
 ## 2026-09-13 15:24 -- Batch started: [design-system-fq8dn]
 
 **Type:** Work / Batch start

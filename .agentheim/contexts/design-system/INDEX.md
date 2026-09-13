@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 7
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 11
+- **Doing:** 0
+- **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-fq8dn** — "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren" (refactor) — `doing/design-system-fq8dn-daisyui-klassen-ohne-daisyui.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-fq8dn** — "DaisyUI raus: sieben tote Klassen in drei Dateien ersetzen, ADR schreiben, CLAUDE.md korrigieren" (refactor) — `done/design-system-fq8dn-daisyui-klassen-ohne-daisyui.md`
 - **design-system-y6gkd** — Kategorienauswahl (BottomSheet.categoryPicker) im Styleguide und alle Styleguide-Sektionen im Claude-Design-Export (feature) — `done/design-system-y6gkd-kategorienauswahl-und-alle-sektionen-im-export.md`
 - **design-system-f7k2p** — "Bug: App lädt ihre Schriften nicht (Google-Fonts-@import hinter @theme wird verworfen); Lösung: Schriften selbst ausliefern, auch im Claude-Design-Export" (bug) — `done/design-system-f7k2p-google-fonts-import-hinter-theme-block-wird-verworfen.md`
 - **design-system-h58y4** — Erst-Sync des Design-Systems nach Claude Design ("BudgetBuddy Design System") und Sichtprüfung durch Roman (chore) — `done/design-system-h58y4-erst-sync-nach-claude-design.md`
@@ -54,6 +54,7 @@ research touching this BC, and concept synthesis pages.
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0031** — DaisyUI raus: Tailwind plus eigener Token-Layer, die inerten Klassen ersetzt — 2026-09-13 — `knowledge/decisions/0031-daisyui-raus-tailwind-eigener-token-layer.md`
 - **0027** — Kategorienauswahl als eine Karte mit beiden Zuständen; Sektions-Export-Umfang und -Ausnahmen; Portal-Karten schließen sich nacheinander — 2026-09-11 — `knowledge/decisions/0027-kategorienauswahl-und-vollstaendiger-sektions-export.md`
 - **0026** — Schriften (Inter, JetBrains Mono, Space Grotesk) selbst ausliefern statt Google-Fonts-Import (löst Decision 3 von 0024 ab) — 2026-09-11 — `knowledge/decisions/0026-schriften-selbst-ausliefern-statt-google-fonts-import.md`
 - **0024** — Export-Bundle rendert aus vite build und preview (nicht vite dev); Navigation bekommt additive nicht-fixe Preview-Varianten; Fonts per explizitem Link geladen (Decision 3 abgelöst durch 0026) — 2026-09-11 — `knowledge/decisions/0024-export-bundle-build-nicht-dev-und-nicht-fixe-navigation-preview.md`

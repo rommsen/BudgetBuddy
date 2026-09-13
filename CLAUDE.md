@@ -506,7 +506,7 @@ Before marking a feature complete:
 | Layer | Technology |
 |-------|------------|
 | Frontend | Elmish.React + Feliz |
-| Styling | TailwindCSS 4.3, DaisyUI |
+| Styling | TailwindCSS 4.3 (kein DaisyUI, ADR 0031) |
 | Build | Vite + fable-plugin |
 | Backend | Giraffe + Fable.Remoting |
 | Database | SQLite + Dapper |

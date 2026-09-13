@@ -508,7 +508,14 @@ let private entryListDesktop
             // header positions itself against the wrapper instead of the page and
             // ends up floating mid-list. `ClassName` reapplies the wrapper's own
             // decorative classes directly on the `<table>` so it keeps its border.
+            // `Variant = Hover`: pins today's look. `defaultTableProps.Variant` is
+            // `ZebraHover`, but `Zebra` used to be the DaisyUI class `table-zebra`,
+            // inert without DaisyUI (design-system-fq8dn, ADR 0031) — this list's
+            // reference screenshots (`docs/ux/kassenbuch/screenshots/`) show no
+            // stripe. Now that `Zebra` actually renders, the implicit default would
+            // add one here; explicit `Hover` keeps only what was already visible.
             { Table.defaultTableProps with
+                Variant = Table.Hover
                 Sticky = true
                 FixedLayout = true
                 Responsive = false

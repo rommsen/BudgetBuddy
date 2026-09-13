@@ -56,8 +56,13 @@ am Gate (Hard-Enforcement, gewählt 2026-06-13).
 ## Relationships with other contexts
 - **Supplier für** banking-import, categorization, ynab-sync — liefert die UI-Bausteine,
   gegen die deren View-Schichten bauen (Customer-Supplier; DS ist upstream der UI).
-- **Conformist gegenüber** Tailwind 4 / DaisyUI (Token-Layer ordnet sich deren Klassen-
-  Modell unter).
+- **Conformist gegenüber** Tailwind 4 (Token-Layer ordnet sich dessen Klassen-Modell
+  unter). **Kein DaisyUI:** trotz `CLAUDE.md`s früherer Tech-Stack-Zeile nie installiert
+  (nicht in `package.json`/`node_modules`); sieben Stellen setzten trotzdem inerte
+  DaisyUI-Klassen (`table-sm`/`-lg`/`-zebra`, `range`/`range-sm`), unbemerkt seit dem Bau
+  der `Table`-Komponente. Entscheidung Roman: nachrüsten verworfen, ein zweites
+  Gestaltungssystem neben dem eigenen Token-Layer würde die Frage aufwerfen, welches
+  gewinnt (`design-system-fq8dn`, ADR 0031).
 - Voller Kontext-Überblick: `../../context-map.md`.
 
 ## Drift-Audit-Ergebnis (design-system-002, 2026-06-18)

@@ -4,6 +4,50 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-13 16:00 - design-system-fq8dn, Iteration 2: Zebra schlug Hover, Umlaute korrigiert
+
+**What I did:**
+Der Verifier fand nach Iteration 1 eine echte Regression in `Table.fs`: die neue
+Zebra-Regel (`[&_tbody_tr:nth-child(even)]:bg-white/[0.03]`, Spezifität (0,2,2)) schlug
+auf geraden Zeilen die Hover-Regel (`[&_tr:hover]:bg-white/5`, Spezifität (0,2,1)) —
+unabhängig von der Reihenfolge im Stylesheet, weil höhere Spezifität immer gewinnt. Vor
+dem `table-zebra`-Fix gab es diesen Konflikt nicht, weil die DaisyUI-Klasse inert war;
+jetzt fehlte auf jeder zweiten Zeile die Hover-Rückmeldung.
+
+**Files Modified:**
+- `src/Client/DesignSystem/Table.fs:72,74` — `Zebra`/`ZebraHover` nutzen jetzt
+  `[&_tbody_tr:nth-child(even):not(:hover)]:bg-white/[0.03]`. `:not(:hover)` nimmt der
+  Zebra-Regel die Zeile, sobald sie gehovert wird, damit gewinnt dort die Hover-Regel,
+  ohne von der Deklarationsreihenfolge abzuhängen.
+- `src/Client/Components/Settings/View.fs:554-559` — Umschreibungen „dafuer"/„fuer"
+  (zweimal) im deutschen Kommentar zu „dafür"/„für" korrigiert.
+
+**Rationale:**
+Spezifität, nicht Reihenfolge, entscheidet bei CSS-Konflikten mit gleicher `!important`-
+Stufe. `:not(:hover)` macht den Ausschluss explizit, statt sich auf eine zufällig
+richtige Quellreihenfolge zu verlassen, die beim nächsten Refactoring wieder kippen
+könnte. Die Umlaute-Korrektur folgt der Projektkonvention (echte Umlaute, keine
+Umschreibung).
+
+**Verification (headless, Playwright, `/#/styleguide`, Sektion 8,
+`[data-ds-card="components-table"]`, `Table.simple` = `ZebraHover`):**
+- Ruhezustand, gerade Zeile (Zebra, kein Hover): `oklab(0.999994 .../ 0.03)`.
+- Hover, ungerade Zeile: `oklab(0.999994 .../ 0.05)`.
+- Hover, gerade Zeile: `oklab(0.999994 .../ 0.05)` — vorher exakt der Zebra-Wert
+  (`0.03`), jetzt identisch zur ungeraden Zeile. Die Hover-Rückmeldung ist auf jeder
+  Zeile wieder sichtbar.
+- Gebautes CSS geprüft: `nth-child(2n):not(:hover){background-color:...3%...}` und
+  `tr:hover{background-color:...5%...}` beide vorhanden, wie erwartet kompiliert.
+
+**Outcomes:**
+- Build: dotnet build ✅ (0 Fehler, 0 Warnungen)
+- Tests: dotnet test ✅ 819 bestanden, 0 fehlgeschlagen, 7 übersprungen (Integrationstests
+  ohne `.env`, wie üblich) — unverändert zu Iteration 1, keine neue Testabdeckung nötig
+  (reine CSS-Selektor-Korrektur, verifiziert per headless-Messung statt Unit-Test).
+- `npm run build` ✅
+
+---
+
 ## 2026-09-13 01:24 - Kassenbuch-Liste an das Mockup angeglichen, erster Lauf des visuellen Gates
 
 **What I did:**

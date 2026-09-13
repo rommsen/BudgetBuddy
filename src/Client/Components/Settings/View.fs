@@ -551,7 +551,13 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 ]
                             ]
                             Html.input [
-                                prop.className "range range-sm w-full accent-neon-teal"
+                                // `range`/`range-sm` waren DaisyUI-Klassen (DaisyUI ist
+                                // in diesem Projekt nicht geladen, ADR 0031); ohne
+                                // Stylesheet dafür taten sie nichts. Der native
+                                // Browser-Schieberegler mit `accent-neon-teal`
+                                // (Akzentfarbe für Spur/Griff) reicht für diesen
+                                // einzigen Slider im Projekt (design-system-fq8dn).
+                                prop.className "w-full accent-neon-teal"
                                 prop.type'.range
                                 prop.min 7
                                 prop.max 90

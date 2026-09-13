@@ -280,7 +280,7 @@ let tableSkeleton colCount rowCount =
         prop.className "overflow-x-auto rounded-xl border border-border-subtle bg-surface-card"
         prop.children [
             Html.table [
-                prop.className "table w-full"
+                prop.className "w-full"
                 prop.children [
                     Html.thead [
                         Html.tr [

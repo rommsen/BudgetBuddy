@@ -67,21 +67,24 @@ let defaultTableProps = {
 // Table Wrapper Component
 // ============================================
 
-// `table-sm`/`table-lg`/`table-zebra` are DaisyUI classes; DaisyUI isn't loaded in
-// this project, so today they're inert (ledger-x0yga found this for `.table`/
-// `.table-sm` cell padding, fixed directly on `cell`/`headerCell` below instead).
-// Whether to load DaisyUI or replace these with real CSS is `design-system-fq8dn`,
-// not this task — left as-is.
-let private sizeToClass = function
-    | Compact -> "table-sm"
-    | Normal -> ""
-    | Spacious -> "table-lg"
-
 let private variantToClass = function
     | Default -> ""
-    | Zebra -> "table-zebra"
+    | Zebra -> "[&_tbody_tr:nth-child(even):not(:hover)]:bg-white/[0.03]"
     | Hover -> "[&_tr:hover]:bg-white/5"
-    | ZebraHover -> "table-zebra [&_tr:hover]:bg-white/5"
+    | ZebraHover -> "[&_tbody_tr:nth-child(even):not(:hover)]:bg-white/[0.03] [&_tr:hover]:bg-white/5"
+
+/// Row density (`Compact`/`Spacious`). `cell`/`headerCell` already own the padding
+/// (`px-3 py-2`, ledger-x0yga) instead of a `.table-sm`/`.table-lg` class cascading
+/// from a stylesheet DaisyUI doesn't provide (design-system-fq8dn: DaisyUI isn't
+/// loaded in this project, ADR 0031) — so density overrides attach there too, via a
+/// CSS custom property set here as a `style` (not a class) on `<table>`. `cell`/
+/// `headerCell`'s own padding utilities read the variable with a fallback equal to
+/// the previous fixed `px-3 py-2` (0.75rem/0.5rem), so `Normal` — every caller today
+/// — renders byte-identical.
+let private sizeStyle = function
+    | Compact -> [ style.custom ("--table-cell-px", "0.5rem"); style.custom ("--table-cell-py", "0.25rem") ]
+    | Normal -> []
+    | Spacious -> [ style.custom ("--table-cell-px", "1rem"); style.custom ("--table-cell-py", "0.75rem") ]
 
 /// Responsive table wrapper
 let wrapper (children: ReactElement list) =
@@ -92,7 +95,6 @@ let wrapper (children: ReactElement list) =
 
 /// Create a styled table
 let view (props: TableProps) (children: ReactElement list) =
-    let sizeClass = sizeToClass props.Size
     let variantClass = variantToClass props.Variant
     // `.table-sticky-thead` (styles.css) sticks the header just below the app's
     // fixed navbar (`Navigation`, h-16/64px at md+) instead of at the viewport's
@@ -104,7 +106,8 @@ let view (props: TableProps) (children: ReactElement list) =
 
     let table =
         Html.table [
-            prop.className $"table w-full {sizeClass} {variantClass} {stickyClass} {fixedLayoutClass} {extraClass}"
+            prop.className $"w-full {variantClass} {stickyClass} {fixedLayoutClass} {extraClass}"
+            prop.style (sizeStyle props.Size)
             prop.children children
         ]
 
@@ -171,11 +174,12 @@ let headerCell (props: HeaderCellProps) =
 
     Html.th [
         match widthStyle with Some s -> s | None -> ()
-        // `px-3 py-2`: cell padding lives here, not in a `.table`/`.table-sm`
-        // DaisyUI class — DaisyUI isn't loaded in this project (ledger-x0yga,
-        // design-system-fq8dn tracks the underlying question). Without it these
-        // classes did nothing and adjacent columns' text touched with 0px gap.
-        prop.className $"text-xs font-semibold uppercase tracking-wider text-text-muted/70 bg-surface-elevated px-3 py-2 {alignClass} {extraClass}"
+        // Cell padding lives here, not in a `.table`/`.table-sm` DaisyUI class —
+        // DaisyUI isn't loaded in this project (ledger-x0yga, ADR 0031). Without it
+        // that class did nothing and adjacent columns' text touched with 0px gap.
+        // The var() fallback is the previous fixed `px-3 py-2`; `Table.view`'s
+        // `Size` overrides it via `style` on `<table>` (`sizeStyle`, not a class).
+        prop.className $"text-xs font-semibold uppercase tracking-wider text-text-muted/70 bg-surface-elevated px-[var(--table-cell-px,0.75rem)] py-[var(--table-cell-py,0.5rem)] {alignClass} {extraClass}"
         if props.Sortable then
             prop.className $"cursor-pointer select-none hover:text-text-secondary transition-colors"
             match props.OnSort with
@@ -318,7 +322,7 @@ let cell (props: CellProps) (children: ReactElement list) =
         match maxWidthStyle with Some s -> s | None -> ()
         // Same reasoning as `headerCell` above: real padding instead of the
         // absent `.table`/`.table-sm` DaisyUI classes.
-        prop.className $"text-text-secondary px-3 py-2 {alignClass} {monoClass} {truncateClass} {extraClass}"
+        prop.className $"text-text-secondary px-[var(--table-cell-px,0.75rem)] py-[var(--table-cell-py,0.5rem)] {alignClass} {monoClass} {truncateClass} {extraClass}"
         prop.children children
     ]
 
