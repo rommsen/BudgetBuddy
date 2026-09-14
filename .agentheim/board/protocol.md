@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-14 22:41 -- Modeling / Refined: ledger-kdnnz - Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip "Zu prüfen" und Kennzeichen "Rückfrage Lena" anzeigen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (Promotion folgt als eigener Schritt)
+**Summary:** Mit Roman festgelegt: geprüft heißt approved und cleared (Reconciled zählt als cleared), kein Nachholen für den Bestand (alte Ereignisse gelten als approved, ohne Flag), "Lena" wird am Flag-Namen erkannt, neue Beobachtungen stehen in der Historie. Taktik über den Orchestrator: zwei neue Beobachtungs-Ereignisse, Schema-Version 2 für EntryObservedInYnab, EntryImportedFromComdirect und CashExpenseAdded (abweichend vom Orchestrator-Vorschlag, der approved=false fest in apply gesetzt hätte und damit alte BB-Buchungen beim Replay in "Zu prüfen" gezogen hätte), Flags roh im Log, NeedsReviewCount und OnlyNeedsReview in getLedgerEntriesPage, minimaler Chip. 20 Akzeptanzkriterien. ledger-r777c-Notes an ADR 0032 angepasst, blocks-Kante kdnnz → r777c ergänzt.
+**Split into:** none
+**ADRs written:** 0032 (ergänzt 0028)
+
+---
+
 ## 2026-09-13 22:14 -- Work session ended
 
 **Type:** Work / Session end

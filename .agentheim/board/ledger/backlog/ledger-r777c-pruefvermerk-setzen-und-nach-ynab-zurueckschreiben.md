@@ -55,5 +55,6 @@ Geschnitten in `ledger-s8m3w` am 2026-09-12 nach der Entscheidung in ADR 0028. B
 Setzt `ledger-kdnnz` voraus: ohne den beobachteten Prüfvermerk gibt es keinen Zustand, den
 BB ändern könnte, und keinen Chip "Zu prüfen".
 
-Beim Modellieren festzurren: ob "geprüft" technisch YNABs `approved` ist. `cleared` trägt
-für Roman keine Information, weil importierte Buchungen immer schon bei der Bank sind.
+Festgezurrt in ADR 0032 (2026-09-14, beim Verfeinern von `ledger-kdnnz`): "geprüft" heißt
+YNABs `approved` und `cleared` (Cleared oder Reconciled). Die Geste setzt also beide Felder,
+und der Rückschreibe-Weg schreibt beide zurück. Die Konfliktregel aus ADR 0028 gilt für beide.

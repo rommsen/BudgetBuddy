@@ -7,7 +7,7 @@ date: 2026-09-12
 supersedes: []
 superseded_by: []
 related_tasks: [ledger-s8m3w, ledger-xbrht, ledger-kdnnz]
-related_adrs: [0012, 0013, 0014, 0021]
+related_adrs: [0012, 0013, 0014, 0021, 0032]
 related_research: []
 ---
 

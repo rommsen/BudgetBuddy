@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0032** — Geprüft heißt approved und cleared; Flags werden roh beobachtet, "Lena" am Flag-Namen erkannt — 2026-09-14 — `../../decisions/0032-pruefvermerk-ist-approved-und-cleared-flags-roh-beobachtet.md`
 - **0029** — Seitenweise Kassenbuch-Liste, Kontostände-Leiste und Konto-Filter (AllAccounts vs. OneAccount) — 2026-09-12 — `../../decisions/0029-seitenweise-kassenbuch-liste-und-kontostaende-leiste.md`
 - **0028** — Der Prüfvermerk ist die einzige schreibende Fähigkeit, die vor v2 nach BB wandert — 2026-09-12 — `../../decisions/0028-pruefvermerk-als-einzige-schreibende-faehigkeit-vor-v2.md`
 - **0025** — Order-ID-Abgleich als eigener Actor im Kassenbuch, kein eigenes Ereignis — 2026-09-11 — `../../decisions/0025-order-id-abgleich-als-eigener-actor-kein-eigenes-ereignis.md`
