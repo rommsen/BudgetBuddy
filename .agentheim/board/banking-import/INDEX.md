@@ -32,22 +32,7 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 <!-- backlog-list:end -->
 
-## ADRs scoped to this BC
-
-<!-- adr-local:start -->
-<!-- adr-local:end -->
-
-## Research touching this BC
-
-<!-- research-local:start -->
-- **comdirect-kreditkarten-transaktionen-2026-08-04** — Programmatischer Zugriff auf comdirect Kreditkarten-Transaktionen (Visa/Mastercard) — 2026-08-04 — `knowledge/research/comdirect-kreditkarten-transaktionen-2026-08-04.md`
-<!-- research-local:end -->
-
-## Concepts (opt-in synthesis pages)
-
-<!-- concepts:start -->
-<!-- concepts:end -->
 
 ## Pointers
 
-- BC README (ubiquitous language, invariants): `README.md`
+- Knowledge half (ADRs / research / concepts / BC README) for this BC: `../../knowledge/contexts/banking-import/INDEX.md`
