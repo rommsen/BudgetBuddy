@@ -4,6 +4,28 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-14 11:08 - agentheim 0.9.4: Zwei-Wurzel-Layout (ADR-0078)
+
+**What I did:**
+`.agentheim/` mit dem migrate-Verb von agentheim 0.9.4 auf das Zwei-Wurzel-Layout umgezogen: `knowledge/` (Vision, Context-Map, ADRs, Research, BC-README, Wissens-INDEX, concepts) und `board/` (Lifecycle-Ordner, Task-INDEX, Protokoll). Danach die Altpfade außerhalb von `.agentheim/` nachgezogen und die Link-Form in den BC-Wissens-INDEX auf das Template vereinheitlicht.
+
+**Files Modified:**
+- `.agentheim/**` - Umzug nach `knowledge/` und `board/` (87 Renames, INDEX je BC in Task- und Wissens-Hälfte geteilt)
+- `.agentheim/knowledge/contexts/*/INDEX.md` - 19 Einträge von `knowledge/decisions|research/…` auf `../../decisions|research/…` (Form aus `knowledge-index-template.md`)
+- `src/Server/Ledger/Events.fs` - Doc-Kommentar zeigt auf `.agentheim/knowledge/contexts/ledger/README.md`
+- `docs/idea-ynab-replacement.md` - Vision-Pfad
+- `.gitignore` - Kommentar auf `knowledge/`, `board/`; `.agentheim/salvage/` ignoriert (ADR-0063)
+
+**Rationale:**
+Seit 0.9.4 verweigern alle agentheim-Verben außer `migrate` ein Legacy-Layout. `knowledge/index.md` bleibt bei `knowledge/decisions/…`, weil `top-index-template.md` diese Form vorgibt. Historische Einträge (dieses Diary, `done/`-Tasks, Protokoll-Archiv, ADR-Texte) behalten ihre alten Pfade.
+
+**Outcomes:**
+- Build: ✅
+- Tests: nicht ausgeführt, keine Logik geändert
+- Issues: Das Verb findet `.fs`-Dateien beim Rest-Scan nicht (Events.fs fehlte im Manifest).
+
+---
+
 ## 2026-09-13 22:12 - ledger-h4p6c: Spiegel läuft automatisch (Frische-Kriterium, Lauf nach Push)
 
 **What I did:**

@@ -14,8 +14,10 @@ data/
 .auto-claude/
 
 # Agentheim machine-written runtime/advisory artifacts (ADR-0027) — local only,
-# never committed. Tracked agentheim content (vision, contexts, knowledge) is NOT
+# never committed. Tracked agentheim content (knowledge/, board/) is NOT
 # ignored; only these generated dirs are.
 .agentheim/.dashboard/
 .agentheim/state/
+# Diff-Salvage abgebrochener Worktrees (agentheim ADR-0063), Forensik für einen Lauf.
+.agentheim/salvage/
 .worktrees/

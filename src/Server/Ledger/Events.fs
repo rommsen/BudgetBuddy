@@ -1,7 +1,7 @@
 /// Die Sprache der Kassenbuch-Historie (ADR 0013).
 ///
 /// Verbindlicher Ereignis-Katalog, modelliert mit Roman am 2026-09-06 und gepflegt in
-/// `.agentheim/contexts/ledger/README.md` unter "Ereignisse". Hier stehen ausschliesslich
+/// `.agentheim/knowledge/contexts/ledger/README.md` unter "Ereignisse". Hier stehen ausschliesslich
 /// Umschlag, Actor, das Ereignis-DU und die Payload-Records samt JSON-Codecs. Kein I/O.
 module Ledger.Events
 
