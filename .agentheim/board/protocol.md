@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-14 22:44 -- Modeling / Promoted: ledger-kdnnz - "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-14 22:41 -- Modeling / Refined: ledger-kdnnz - Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip "Zu prüfen" und Kennzeichen "Rückfrage Lena" anzeigen
 
 **Type:** Modeling / Refine
