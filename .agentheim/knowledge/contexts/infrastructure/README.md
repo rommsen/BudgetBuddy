@@ -35,6 +35,7 @@ Konkret bei BudgetBuddy:
   (cached keine Daten). **Manifest-MIME:** der Giraffe-Static-Handler (`Program.fs`) muss
   `.webmanifest → application/manifest+json` mappen (ASP.NET-Default kennt die Endung nicht).
   Siehe ADR 0010.
+- **Test-Datenbank-Wächter:** `Persistence.activeConnectionString ()` gibt den tatsächlich aufgelösten Connection-String zurück, ohne selbst eine Connection zu öffnen. `src/Tests/TestDatabaseGuardTests.fs` prüft ihn als erste Compile-Unit in `Tests.fsproj` gegen `:memory:` und scheitert laut, wenn ein Testlauf `test.runsettings` umgeht (z. B. `dotnet test --settings andere.runsettings` oder ein direkter `dotnet vstest`-Aufruf) und dadurch auf die echte Datei-Datenbank zurückfällt. Grund: ADR 0030 und der Vorfall vom 2026-09-12, siehe `ledger-vm3dk`.
 
 ## Classification
 **generic / supporting** — trägt keine fachlichen Entscheidungen, ermöglicht aber alle.

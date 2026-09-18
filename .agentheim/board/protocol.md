@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 22:06 -- Task verified and completed: infra-za7fq - "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
+
+**Type:** Work / Task completion
+**Task:** infra-za7fq - "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
+**Summary:** Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt
+**Duration:** 22m
+**Verification:** PASS (iteration 2)
+**Files changed:** 3
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
+## 2026-09-18 22:03 -- Verification failed: design-system-wa6wz - Skript für headless Screenshots beliebiger App-Routen
+
+**Type:** Work / Verification failure
+**Task:** design-system-wa6wz - Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)
+**Iteration:** 1 of 3
+**Reasons:** Vier funktionale Mängel plus die Schreibregel. (1) AC7 verletzt: startFrontend rennt einen 20-Sekunden-setTimeout per Promise.race gegen die Bereitschaftsmeldung, der Timeout resolved statt zu werfen, also läuft das Skript bei kaltem Fable-Build weiter, als wäre das Frontend bereit. (2) waitForPageLoaded wartet nur auf das Verschwinden von .proto-spinner, die Kassenbuch-Route zeigt aber überwiegend Skeletons mit animate-pulse, der Wartepunkt kehrt also zurück, während noch Platzhalter stehen. (3) Der Isolations-Guard assertDataDirIsolated bekommt immer das frisch erzeugte Temp-Verzeichnis und kann nie auslösen; der realistische Weg über gesetztes DATA_DIR läuft daran vorbei. (4) Aufräumen lückenhaft: SIGTERM nur an das direkte Kind, keine Prozessgruppe, keine SIGKILL-Eskalation, keine Portprüfung, und das Temp-Verzeichnis entsteht vor der Registrierung der Signal-Handler. Dazu durchgängige ae/oe/ue-Umschreibungen in beiden scripts-Dateien. Ein Punkt des Urteils (fehlender Prüfsummen-Beleg) geht auf den Conductor zurück, der dem Verifier den OUTCOME-Block zusammengefasst statt wörtlich übergeben hat.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-09-18 21:54 -- Verification failed: infra-za7fq - Wächter-Test gegen Schreiben in die echte Datei-Datenbank
+
+**Type:** Work / Verification failure
+**Task:** infra-za7fq - Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt
+**Iteration:** 1 of 3
+**Reasons:** Verstoß gegen die verbindliche Schreibregel (echte Umlaute statt ae/oe/ue-Umschrift) in allen drei geänderten Dateien, einschließlich des Testlisten-Namens "Test-Datenbank-Waechter", der so in jeder Testausgabe steht; im selben Commit inkonsistent (Persistence.fs:100 schreibt korrekt "Wächter"). Die sieben Akzeptanzkriterien sind erfüllt und belegt (dotnet test Exit 0, 850 grün; Umgehungslauf scheitert mit Exit 1 und nennt den Pfad). Nicht blockierender Nebenbefund: der Wächter meldet, verhindert aber nicht, weil LedgerMirrorTests.fs und PersistenceTypeConversionTests.fs initializeDatabase() auf Modulebene aufrufen und so auch im umgangenen Lauf eine Datei-Datenbank anlegen.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-18 21:42 -- Batch started: [ledger-kdnnz, design-system-wa6wz, infra-za7fq]
 
 **Type:** Work / Batch start

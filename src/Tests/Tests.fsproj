@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Wächter gegen ADR 0030 (infra-za7fq): muss vor jedem Test stehen, der die
+         Datenbank anfasst, damit ein Rückfall auf die Datei-Datenbank sofort und
+         laut auffällt. -->
+    <Compile Include="TestDatabaseGuardTests.fs" />
     <Compile Include="RemoteDataTests.fs" />
     <Compile Include="EncryptionTests.fs" />
     <Compile Include="PersistenceTypeConversionTests.fs" />

@@ -93,6 +93,17 @@ let ensureDataDir () =
     let _ = dbConfig.Force() // This triggers directory creation if needed
     ()
 
+/// Gibt den tatsächlich aufgelösten Connection-String zurück, ohne selbst eine
+/// Connection zu öffnen (die Konfiguration ist bereits geladen, sobald irgendein
+/// Testfall zuvor die Datenbank angefasst hat; ist sie es noch nicht, löst
+/// `dbConfig.Force()` sie genau einmal auf, wie jeder andere Zugriff auch).
+/// Wächter gegen ADR 0030: `dotnet test --settings` oder ein direkter
+/// `dotnet vstest`-Aufruf umgehen `test.runsettings` stillschweigend und lassen
+/// `USE_MEMORY_DB` ungesetzt, siehe TestDatabaseGuardTests.fs.
+let activeConnectionString () =
+    let config = dbConfig.Force()
+    config.ConnectionString
+
 // `internal` statt `private`: `Ledger.Persistence` (gleiche Assembly) baut seinen
 // appendAndApply-Schreibpfad auf derselben frischen Connection auf (ADR 0008/0013).
 let internal getConnection () =
