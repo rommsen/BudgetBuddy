@@ -201,8 +201,7 @@ Jahr". Summenzeile "34 Buchungen · -2.140,00 €".
    -2.140,00 €".
 3. Auswahl aufheben, dann die obersten zwölf per Klick auf das erste Kästchen und
    Shift-Klick auf das zwölfte. Auswahl-Leiste "12 ausgewählt · -780,00 €".
-4. Aktion "Kopieren" in der Auswahl-Leiste kopiert die Summe (Prototyp: nur der Button).
-5. "Auswahl aufheben": Summenzeile zeigt wieder den Treffer.
+4. "Auswahl aufheben": Summenzeile zeigt wieder den Treffer.
 
 **Schrittfolge (Handy):**
 1. Summenzeile wie am PC über der Liste.
