@@ -4,6 +4,61 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-18 21:06 - Zwei Entscheidungen getroffen, Übergabe-Dokumente für Ablauf 3 und 7 verfasst
+
+**What I did:**
+Roman hat die Screens der Abläufe 3 bis 7 abgenommen und die zwei Widersprüche aus dem
+Design-Abgleich entschieden. Übergabepakete gibt es im Design-Projekt nur für Ablauf 1 und
+2, also sind die Dokumente für Ablauf 3 und 7 hier im Repo aus den Tafeln verfasst. Genau
+die beiden hängen an den nächsten Scheiben (`ledger-r1d2f` und `ledger-q1hw2`); 4, 5 und 6
+folgen auf Zuruf.
+
+**Files Added:**
+- `docs/ux/kassenbuch/handoff-ablauf-3-mehrfachauswahl-mit-summe.md` - 566 Zeilen, sieben
+  Screens (Handy 3.1 bis 3.4, PC 3.5 bis 3.7)
+- `docs/ux/kassenbuch/handoff-ablauf-7-was-nur-bb-kann.md` - 711 Zeilen, zehn Screens
+  (Handy 7.1 bis 7.5, PC 7.6 bis 7.10)
+- `.agentheim/board/design-system/backlog/design-system-k2vgz-alte-doku-saetze-abloesen-oder-loeschen.md` -
+  `docs/DESIGN-SYSTEM.md` und `docs/README.md` sind vom `standards/`-Satz abgelöst;
+  Farbpalette vorher sichern, weil `.claude/agents/design-quality.md:74` sie zitiert
+
+**Files Modified:**
+- `.agentheim/board/ledger/backlog/ledger-h9tq2-...` - Entscheidung: Historie zeigt die
+  neueste Zeile oben, gedreht wird nur in der Anzeige; die Abfrage bleibt aufsteigend,
+  damit laufende Nummer und Replay-Pflichttest (ADR 0013) unberührt bleiben. Betrifft auch
+  die heute schon gebaute Historie-Anzeige, nicht nur die künftige Detail-Sicht
+- `.agentheim/board/ledger/backlog/ledger-d4kx8-...` - Entscheidung: eingeblendet zählen
+  gelöschte Buchungen in Trefferzahl und Summe, damit die sichtbaren Zeilen sich zur Summe
+  addieren; die Zeile über der Liste sagt es aus. Am Code für Zähler und Summe ändert sich
+  nichts, die Arbeit steckt in der Beschriftung
+- `docs/ux/kassenbuch/briefs.md` - Ablauf 7: die zwei Punkte sind entschieden, nicht mehr
+  offen
+- `.agentheim/board/design-system/INDEX.md` - ein Backlog-Eintrag, Zähler 7 auf 8
+- `.agentheim/board/protocol.md` - Eintrag zu den Entscheidungen und zur Erfassung
+
+**Rationale:**
+Die Briefs sind Prosa ohne Maße. Für `ledger-r1d2f` und `ledger-q1hw2` hätte ein Worker
+sonst keine pixelgenaue Vorlage gehabt, während sie für Ablauf 1 und 2 vorliegt. Beide neuen
+Dokumente sagen im Vorspann ausdrücklich, dass sie im Repo aus der Tafel abgelesen sind und
+kein wortgleiches Paket dahintersteht, damit ihr Status erkennbar bleibt.
+
+**Outcomes:**
+- Build: nicht nötig, nur Markdown
+- Tests: nicht nötig, kein Code geändert
+- Geprüft: beide Dokumente null Gedankenstriche, keine Umschreibungen statt Umlaute, kein
+  DaisyUI als Anweisung, keine `_ds/`-Pfade, Abschnittsfolge wie die zwei Vorlagen, alle
+  Screens abgedeckt
+- Issues: Die Tafeln haben beim Ablesen echte Ungereimtheiten gezeigt, im Dokument benannt
+  statt glattgezogen. Wichtig für Roman: „Abweichung" und „Zu prüfen" tragen dasselbe Pink,
+  in der Zeile „REWE Mitte" stehen also zwei farbgleiche Badges übereinander; bei der
+  gelöschten Buchung liegt die Löschung (11.09.) vor Import (15.09.) und Prüfung (16.09.);
+  drei Werte in Ablauf 7 weichen von den Repo-Kopien zu Ablauf 1 und 2 ab (Tabellenkopf
+  40px statt 42px, Memo-Spalte und PC-Summe); am PC fehlen in Ablauf 3 die Chips „Flag" und
+  „Gelöschte zeigen"; der Kita-Beitrag steht in den zwölf Zeilen von Ablauf 3 nur zweimal,
+  obwohl die Annahme einen Monatsrhythmus behauptet
+
+---
+
 ## 2026-09-18 20:51 - DaisyUI-Angaben auf ADR 0031 nachgezogen (neun Stellen)
 
 **What I did:**

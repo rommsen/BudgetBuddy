@@ -52,6 +52,24 @@ gewählte Variante herstellen.
 um den eingeschalteten Schalter. Die Anzeige "N gelöschte Buchungen eingeblendet" steht
 schon über der Liste und ist der natürliche Ort für den Hinweis.
 
+## Entscheidung (Roman, 2026-09-18)
+**Variante 2 gilt: eingeblendet zählen gelöschte Buchungen in Trefferzahl und Summe.** Der
+gebaute Stand bleibt, der Entwurf wird angepasst. Begründung: so addieren sich die
+sichtbaren Zeilen genau zur angezeigten Summe. Die Variante des Entwurfs hätte Zähler und
+Summe über verschiedene Mengen gebildet, was ohne erklärenden Text nicht zu verstehen ist.
+
+Was daraus folgt:
+1. **Die Zeile über der Liste sagt es aus**, im Stil "13 Buchungen, davon 1 in YNAB
+   gelöscht". Die bestehende Zeile "N gelöschte Buchungen eingeblendet" aus `ledger-p3n8k`
+   ist der Ort dafür.
+2. Der **Kontostand** lässt gelöschte weiterhin immer draußen
+   (`ledgerBalancesByAccount`). Dass Summe und Kontostand bei eingeschaltetem Schalter
+   auseinanderlaufen, ist damit gewollt und benannt, nicht mehr ein stiller Widerspruch.
+3. **Am Code ändert sich nichts** an Trefferzahl und Summe; die Arbeit steckt in der
+   Beschriftung und darin, dass die Summenzeile aus `ledger-vgfw3` dieselbe Regel trägt.
+4. Im Design-Projekt steht die Gegenregel noch in der `CLAUDE.md` (Abschnitt "Aus Ablauf 7
+   dazugekommen"). Dort nachziehen, sonst kommt sie beim nächsten Zeichnen zurück.
+
 ## Acceptance criteria
 - [ ] To be defined during refinement.
 

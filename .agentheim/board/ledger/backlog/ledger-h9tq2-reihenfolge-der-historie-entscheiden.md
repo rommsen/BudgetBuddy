@@ -49,6 +49,21 @@ Zu klären ist außerdem, **wo** gedreht wird, falls die Richtung wechselt: in d
 aus ADR 0013 fasst die Ereignis-Reihenfolge nicht an, die bleibt aufsteigend; hier geht es
 nur um die Lese-Sicht.
 
+## Entscheidung (Roman, 2026-09-18)
+**Die Anzeige zeigt die neueste Zeile oben, gedreht wird nur in der Anzeige.** Die Abfrage
+bleibt aufsteigend (`ORDER BY sequence`), damit laufende Nummer, Replay-Pflichttest (ADR
+0013) und die Ereignis-Reihenfolge unberührt bleiben. Begründung: im Detail-Sheet am Handy
+scrollt die Historie, und gesucht wird die letzte Änderung, nicht die Entstehung.
+
+Was daraus folgt:
+1. Die **heute gebaute** Historie-Anzeige (`src/Client/Components/Ledger/View.fs`, die
+   Liste um Zeile 441) dreht die Zeilen. Das ist eine kleine, sichtbare Änderung am
+   bestehenden Stand, keine Neuentwicklung.
+2. Die Detail-Sicht aus `ledger-q1hw2` übernimmt dieselbe Richtung; das Übergabe-Dokument
+   zu Ablauf 7 nennt sie als bewusste Abweichung vom Entwurf.
+3. `getEntryHistory` und der Lesepfad bleiben, wie sie sind. Wer die Zeilen aufsteigend
+   braucht, bekommt sie weiterhin aufsteigend.
+
 ## Acceptance criteria
 - [ ] To be defined during refinement.
 

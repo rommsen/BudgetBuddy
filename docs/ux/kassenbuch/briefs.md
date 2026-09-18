@@ -467,11 +467,15 @@ sie in YNAB gelöscht wurde, und ob sie noch nicht in YNAB ist.
   beziehungsweise plus "Abweichung"). Das steht quer zu `ledger-qns4j`, wo dieselbe Spalte
   schmaler werden soll.
 
-**Zwei Punkte widersprechen dem gebauten Lesepfad und sind nicht entschieden:**
-- Die Historie läuft im Entwurf **von neu nach alt**. `getEntryHistory` liefert sie älteste
-  zuerst (`ORDER BY sequence`), der Client dreht nicht um. Erfasst als `ledger-h9tq2`.
-- Gelöschte Buchungen zählen im Entwurf **in der Trefferzahl, nicht in der Summe**.
-  Eingeblendet zählen sie heute in beidem. Erfasst als `ledger-d4kx8`.
+**Zwei Punkte widersprachen dem gebauten Lesepfad, entschieden am 2026-09-18:**
+- **Historie:** die Anzeige zeigt die neueste Zeile oben, gedreht wird nur in der Anzeige.
+  `getEntryHistory` bleibt aufsteigend (`ORDER BY sequence`), damit laufende Nummer und
+  Replay unberührt bleiben. Umsetzung in `ledger-h9tq2`.
+- **Gelöschte Buchungen:** eingeblendet zählen sie in Trefferzahl **und** Summe, damit die
+  sichtbaren Zeilen sich zur Summe addieren. Der Entwurf wollte sie aus der Summe nehmen,
+  das gilt nicht; stattdessen sagt die Zeile über der Liste es aus ("13 Buchungen, davon 1
+  in YNAB gelöscht"). Der Kontostand lässt sie weiterhin immer draußen. Umsetzung in
+  `ledger-d4kx8`, dort auch der Hinweis, die Gegenregel im Design-Projekt nachzuziehen.
 
 **Pflicht-Komponenten:** Badge (Herkunft, Kennzeichen), BottomSheet, Card, Button,
 Icons.

@@ -5,6 +5,33 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 20:59 -- Modeling / Entscheidungen: Historie-Reihenfolge und gelöschte Buchungen in der Summe
+
+**Type:** Modeling / Refine + Capture (von Hand, ohne Skill)
+**BC:** ledger, design-system
+**Summary:** Roman hat die zwei Widersprüche zwischen Entwurf und gebautem Lesepfad
+entschieden, die der Design-Abgleich um 18:12 gefunden hatte. **Historie** (`ledger-h9tq2`):
+die Anzeige zeigt die neueste Zeile oben, gedreht wird nur in der Anzeige, die Abfrage bleibt
+aufsteigend, damit laufende Nummer und Replay-Pflichttest (ADR 0013) unberührt bleiben.
+**Gelöschte Buchungen** (`ledger-d4kx8`): der gebaute Stand gewinnt, eingeblendet zählen sie
+in Trefferzahl und Summe, damit die sichtbaren Zeilen sich zur Summe addieren; die Zeile über
+der Liste sagt es aus ("13 Buchungen, davon 1 in YNAB gelöscht"), der Kontostand lässt sie
+weiter immer draußen. Die Gegenregel steht noch in der `CLAUDE.md` des Design-Projekts und
+ist dort nachzuziehen, sonst kommt sie beim nächsten Zeichnen zurück.
+**Beide Entscheidungen stehen in den Task-Dateien und im Brief** (Ablauf 7); die Tasks
+bleiben im Backlog, weil aus jeder Entscheidung noch eine kleine Umsetzung folgt.
+**Captured:** design-system-k2vgz (abgelöste Doku-Sätze `docs/DESIGN-SYSTEM.md` und
+`docs/README.md` aufräumen, Farbpalette vorher für `.claude/agents/design-quality.md`
+sichern; `template/**` bleibt eine eigene Frage)
+**Updated:** ledger-h9tq2, ledger-d4kx8, docs/ux/kassenbuch/briefs.md
+**Außerdem:** Roman hat die Screens der Abläufe 3 bis 7 abgenommen. Übergabepakete gibt es
+im Design-Projekt nur für Ablauf 1 und 2; für Ablauf 3 und 7 werden die Dokumente im Repo
+aus den Tafeln verfasst (läuft), weil die nächsten Scheiben `ledger-r1d2f` und
+`ledger-q1hw2` daran hängen. Abläufe 4, 5 und 6 auf Zuruf.
+**ADRs written:** none
+
+---
+
 ## 2026-09-18 18:12 -- Design-Abgleich: Entscheidungen aus Claude Design ins Repo gezogen
 
 **Type:** Modeling / Capture (von Hand, ohne Skill)
