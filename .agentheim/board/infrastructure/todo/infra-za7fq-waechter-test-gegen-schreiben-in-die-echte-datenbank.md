@@ -1,7 +1,7 @@
 ---
 id: infra-za7fq
 title: "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
-status: backlog
+status: todo
 type: feature
 context: infrastructure
 created: 2026-09-12

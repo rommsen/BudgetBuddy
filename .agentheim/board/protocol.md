@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 21:39 -- Modeling / Promoted: infra-za7fq - "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-18 21:37 -- Modeling / Promoted: design-system-wa6wz - "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)"
 
 **Type:** Modeling / Promote
