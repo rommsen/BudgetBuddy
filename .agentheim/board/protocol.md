@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 22:29 -- Verification failed: ledger-kdnnz - Spiegel erweitern: Prüfvermerk und Flags
+
+**Type:** Work / Verification failure
+**Task:** ledger-kdnnz - Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten
+**Iteration:** 1 of 3
+**Reasons:** Zwei Mängel plus eine Kleinigkeit. (1) Der Migrationstest prüft eine Kopie statt des Produktionscodes: LedgerTests.fs:999 baut migrateColumn im Testkörper nach und wiederholt die drei ALTER TABLE wörtlich. Streicht jemand die Migration in Ledger/Persistence.fs:147-163, bleibt der Test grün, und der Fall fällt erst an der echten Datenbank auf. Ursache: initializeLedgerSchema hängt fest an Core.getConnection und lässt sich nicht auf eine Testverbindung richten. (2) Das Screenshot-Kriterium ist nicht erfüllt; der Verifier wertet es als echten Mangel statt als Augenprüfung, weil es keinen [human-eye]-Marker trägt und der Diff die Zeilenlayouts tatsächlich ändert (zweispaltige Flex-Struktur am Handy, Rahmen links statt trClickable am PC). (3) Eine Umschrift im Kommentar, LedgerPageTests.fs:1012. Die übrigen 17 Kriterien sind belegt, dotnet test Exit 0 mit 870 grün, npm run build Exit 0.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-09-18 22:28 -- Task verified and completed: design-system-wa6wz - "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)"
+
+**Type:** Work / Task completion
+**Task:** design-system-wa6wz - "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)"
+**Summary:** Skript für headless Screenshots beliebiger App-Routen als Werkzeug für das visuelle Gate
+**Duration:** 1h02m
+**Verification:** PASS (iteration 2)
+**Files changed:** 3
+**Tests added:** 18
+**ADRs written:** none
+
+---
+
 ## 2026-09-18 22:06 -- Task verified and completed: infra-za7fq - "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
 
 **Type:** Work / Task completion

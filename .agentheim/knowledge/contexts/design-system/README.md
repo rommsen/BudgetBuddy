@@ -234,9 +234,18 @@ Zwei Ursachen, beide im Ablauf, nicht beim Worker:
 - **Vor dem Integrieren wird die gebaute Seite aufgenommen und neben das Mockup gelegt.**
   Headless, in beiden Viewports (390 × 844 und 1440 × 900). Weicht das Bild sichtbar vom
   Mockup ab, ist das ein Verifikations-Fehlschlag wie jeder andere, auch wenn alle
-  Akzeptanzkriterien erfüllt sind. Werkzeug dafür: Playwright liegt bereits im Projekt,
-  `scripts/export-design-system.mjs` zeigt das Muster (bauen, Preview-Server starten,
-  aufnehmen, aufräumen). Ein eigenes Skript für beliebige Routen: `design-system-wa6wz`.
+  Akzeptanzkriterien erfüllt sind. Werkzeug dafür: `scripts/screenshot-route.mjs`
+  (`design-system-wa6wz`), Aufruf `node scripts/screenshot-route.mjs '#/ledger' --out
+  docs/ux/kassenbuch/screenshots/` bzw. `npm run screenshot:route -- '#/ledger' --out ...`.
+  Ohne `--out` gilt die dokumentierte Vorgabe `docs/ux/screenshots/` (kein
+  bereichsspezifischer Pfad, weil das Skript für beliebige Routen der App gilt, nicht nur
+  fürs Kassenbuch); für den Abgleich mit einem abgelegten Mockup ist explizit `--out
+  docs/ux/kassenbuch/screenshots/` (oder der passende Bereichs-Pfad) anzugeben. Das Skript
+  startet Server und Frontend selbst, gegen eine Kopie der Entwicklungsdatenbank in einem
+  Temp-Verzeichnis, niemals gegen das Original (ADR 0030), wartet auf einen echten
+  Ladezustand (Spinner und Skeleton-Platzhalter verschwunden, kein `setTimeout` als
+  Warte-Ersatz) und räumt Kindprozesse samt Temp-Verzeichnis auch bei Abbruch (`SIGINT`)
+  zuverlässig auf (Prozessgruppen-Kill, SIGKILL-Eskalation, Port-Prüfung danach).
 
 Die Richtung bleibt unverändert Repo → Claude Design. Ein Mockup-Bild im Repo ist kein
 Rückfluss von Gestaltung in das Design-System, sondern die Übergabe eines Entwurfs an die
