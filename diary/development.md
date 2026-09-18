@@ -57,6 +57,13 @@ einen stillen Fix.
   ("Ablauf 4 - Kategorie und Split.dc.html" und "Ablauf 4 - Kategorie aendern und
   Split.dc.html"), die Projekt-`CLAUDE.md` nennt nur die erste. Übergabepakete für die
   Abläufe 3 bis 7 fehlen noch, die Screens sind bei Roman zur Abnahme.
+- Nachtrag (gleicher Tag): Alle sieben Tafeln auf Vollständigkeit geprüft, über ihre
+  Sprungmarken `id="sN-M"` gezählt: 1.1 bis 1.12, 2.1 bis 2.16, 3.1 bis 3.7, 4.1 bis 4.11,
+  5.1 bis 5.12, 6.1 bis 6.10, 7.1 bis 7.10, zusammen 78 Screens, deckungsgleich mit der
+  Projekt-`CLAUDE.md`. Leer waren nur zwei Dateien: die doppelte Ablauf-4-Datei (Rest einer
+  Umbenennung) und `Canvas.dc.html` aus der Projektvorlage. Die doppelte Datei ist nach
+  Romans Freigabe im Design-Projekt gelöscht, `Canvas.dc.html` bleibt stehen. Kein
+  Repo-Inhalt betroffen.
 
 ---
 
