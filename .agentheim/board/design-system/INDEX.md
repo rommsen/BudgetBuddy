@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-wa6wz** — "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)" (feature) — `todo/design-system-wa6wz-skript-fuer-seiten-screenshots.md`
 - **design-system-bq4tz** — "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden" (bug) — `todo/design-system-bq4tz-badge-defaultprops-bricht-unter-dotnet-test.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-wa6wz** — "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)" (feature) — `doing/design-system-wa6wz-skript-fuer-seiten-screenshots.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

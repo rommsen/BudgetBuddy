@@ -1,7 +1,7 @@
 ---
 id: design-system-wa6wz
 title: "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-09-12

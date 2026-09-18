@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 21:42 -- Batch started: [ledger-kdnnz, design-system-wa6wz, infra-za7fq]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-kdnnz - "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen", design-system-wa6wz - "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)", infra-za7fq - "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
+**Parallel:** yes (3 workers, cap MAX_PARALLEL=3) — 4 Aufgaben waren ready; design-system-bq4tz bewusst in Welle 2 zurückgehalten, weil es als einzige Aufgabe mit ledger-kdnnz eine Datei teilt (src/Client/Components/Ledger/View.fs, deletedBadge Zeile 148 plus Aufrufe 223 und 294). Nach der Integration von kdnnz entfällt die Überschneidung ganz, statt über den Merge-Ladder aufgelöst zu werden.
+
+---
+
 ## 2026-09-18 21:39 -- Modeling / Promoted: infra-za7fq - "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt"
 
 **Type:** Modeling / Promote

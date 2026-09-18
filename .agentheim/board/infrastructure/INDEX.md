@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 3
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infra-za7fq** — "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt" (feature) — `todo/infra-za7fq-waechter-test-gegen-schreiben-in-die-echte-datenbank.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infra-za7fq** — "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt" (feature) — `doing/infra-za7fq-waechter-test-gegen-schreiben-in-die-echte-datenbank.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

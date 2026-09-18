@@ -1,7 +1,7 @@
 ---
 id: ledger-kdnnz
 title: "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-12
