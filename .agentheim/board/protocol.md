@@ -17,7 +17,13 @@ aufsteigend, damit laufende Nummer und Replay-Pflichttest (ADR 0013) unberührt 
 in Trefferzahl und Summe, damit die sichtbaren Zeilen sich zur Summe addieren; die Zeile über
 der Liste sagt es aus ("13 Buchungen, davon 1 in YNAB gelöscht"), der Kontostand lässt sie
 weiter immer draußen. Die Gegenregel steht noch in der `CLAUDE.md` des Design-Projekts und
-ist dort nachzuziehen, sonst kommt sie beim nächsten Zeichnen zurück.
+muss dort weg, sonst kommt sie beim nächsten Zeichnen zurück. **Schreiben lässt sich das
+von hier aus nicht:** `CLAUDE.md` und `.claude/` sind im Design-Projekt reservierte Pfade
+und werden unabhängig vom Plan abgelehnt, weil sie den Design-Agenten steuern. Der Text
+liegt deshalb einfügefertig in `docs/ux/kassenbuch/design-projekt-nachtrag-2026-09-18.md`
+und geht über einen Chat im Design-Projekt hinein. Derselbe Nachtrag trägt auch die
+DaisyUI-Korrektur (die Angabe stammt aus jener `CLAUDE.md` und lief über das Export-Skript
+im Kreis) und acht Ungereimtheiten, die beim Ablesen der Tafeln aufgefallen sind.
 **Beide Entscheidungen stehen in den Task-Dateien und im Brief** (Ablauf 7); die Tasks
 bleiben im Backlog, weil aus jeder Entscheidung noch eine kleine Umsetzung folgt.
 **Captured:** design-system-k2vgz (abgelöste Doku-Sätze `docs/DESIGN-SYSTEM.md` und

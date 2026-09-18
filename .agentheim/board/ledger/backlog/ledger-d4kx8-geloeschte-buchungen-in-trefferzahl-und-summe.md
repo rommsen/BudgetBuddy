@@ -68,7 +68,12 @@ Was daraus folgt:
 3. **Am Code ändert sich nichts** an Trefferzahl und Summe; die Arbeit steckt in der
    Beschriftung und darin, dass die Summenzeile aus `ledger-vgfw3` dieselbe Regel trägt.
 4. Im Design-Projekt steht die Gegenregel noch in der `CLAUDE.md` (Abschnitt "Aus Ablauf 7
-   dazugekommen"). Dort nachziehen, sonst kommt sie beim nächsten Zeichnen zurück.
+   dazugekommen"). Sie muss dort weg, sonst kommt sie beim nächsten Zeichnen zurück.
+   **Das kann kein Werkzeug von hier aus tun:** `CLAUDE.md` und `.claude/` sind im
+   Design-Projekt reservierte Pfade und werden abgelehnt, weil sie den Design-Agenten
+   steuern. Der einzufügende Text liegt fertig in
+   `docs/ux/kassenbuch/design-projekt-nachtrag-2026-09-18.md`, Abschnitt 2; Roman gibt ihn
+   in einen Chat des Design-Projekts.
 
 ## Acceptance criteria
 - [ ] To be defined during refinement.

@@ -4,6 +4,51 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-18 21:20 - Rückmeldung ans Design-Projekt: CLAUDE.md ist ein reservierter Pfad, Nachtrag liegt im Repo
+
+**What I did:**
+Die Entscheidungen sollten zurück in die `CLAUDE.md` des Design-Projekts, sonst kommt die
+Gegenregel zu den gelöschten Buchungen beim nächsten Zeichnen wieder. Die vollständige neue
+Fassung war lokal fertig und strukturell geprüft (382 Zeilen, alle Abschnitte und erfundenen
+Beträge vorhanden, die schiefe Nummerierung der offenen Punkte absichtlich wie im Original).
+Der Schreibvorgang wurde abgelehnt: **`CLAUDE.md` und `.claude/` sind im Design-Projekt
+reservierte Pfade und werden unabhängig vom Plan blockiert**, weil sie den Design-Agenten
+steuern. Das ist eine gewollte Sperre, kein Fehler, und ich habe nichts daran vorbei
+versucht.
+
+Stattdessen liegt der Inhalt jetzt als einfügefertiger Nachtrag im Repo. Roman gibt ihn in
+einen Chat des Design-Projekts, der Agent pflegt seine Anweisungsdatei selbst.
+
+**Files Added:**
+- `docs/ux/kassenbuch/design-projekt-nachtrag-2026-09-18.md` - 99 Zeilen, sechs Abschnitte:
+  DaisyUI aus der Übergabe-Anweisung streichen, die zwei geänderten Regeln aus Ablauf 7
+  (gelöschte zählen eingeblendet in Trefferzahl und Summe, also -722,06 € statt -712,26 €;
+  Historie-Richtung bestätigt mit dem Hinweis, dass nur die Anzeige dreht), offener Punkt 16
+  ist entschieden, Tabelle „Stand der Abläufe" nachziehen, acht neue offene Punkte aus dem
+  Ablesen der Tafeln, und was aufgeräumt wurde
+
+**Files Modified:**
+- `.agentheim/board/ledger/backlog/ledger-d4kx8-...` - Punkt 4 sagt jetzt, dass kein
+  Werkzeug das schreiben kann und wo der Text liegt, statt „dort nachziehen"
+- `.agentheim/board/protocol.md` - derselbe Sachstand im Eintrag von 20:59
+
+**Rationale:**
+Die DaisyUI-Angabe stammt aus genau dieser `CLAUDE.md` und lief über das Export-Skript im
+Kreis: Repo sagt DaisyUI, Design-Projekt schreibt es in sein Übergabe-Dokument, Repo holt es
+zurück. Solange sie dort steht, ist die Korrektur im Repo nur die Hälfte. Dasselbe gilt für
+die Regel zu den gelöschten Buchungen: im Repo entschieden, im Entwurf noch anders
+gezeichnet.
+
+**Outcomes:**
+- Build: nicht nötig, nur Markdown
+- Tests: nicht nötig, kein Code geändert
+- Geprüft: Nachtrag ohne Gedankenstriche und ohne Umschreibungen statt Umlaute
+- Issues: Der Rückweg ins Design-Projekt ist manuell und bleibt es. Das Werkzeug kann dort
+  Screens und Pakete schreiben, aber nicht die Anweisungsdatei. Für künftige Abgleiche heißt
+  das: Rückmeldungen als Nachtrag ins Repo legen, nicht versuchen zu schreiben
+
+---
+
 ## 2026-09-18 21:06 - Zwei Entscheidungen getroffen, Übergabe-Dokumente für Ablauf 3 und 7 verfasst
 
 **What I did:**
