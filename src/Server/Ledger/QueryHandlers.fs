@@ -48,6 +48,20 @@ module ReadModel =
         | QuickAdd -> AddedViaQuickAdd
         | OrderIdMatch _ -> MatchedByOrderId
 
+    /// Deutet Farbe und Name eines rohen YNAB-Flags (ADR 0032): der Name "Lena" (nach
+    /// Trim, ohne Beachtung der Groß-/Kleinschreibung) ist *Rückfrage Lena*, jedes
+    /// andere gesetzte Flag (auch nur eine Farbe ohne Namen) ist *Markiert*, sonst
+    /// *kein Flag*. Rein, ohne I/O.
+    let flagOf (flagColor: string option) (flagName: string option) : LedgerFlag =
+        let isLena =
+            match flagName with
+            | Some name -> String.Equals(name.Trim(), "Lena", StringComparison.OrdinalIgnoreCase)
+            | None -> false
+
+        if isLena then AskLena
+        elif flagColor.IsSome || flagName.IsSome then Marked
+        else NoFlag
+
     let private accountKindOf (kind: AccountKind) : LedgerAccountKindView =
         match kind with
         | BankAccount -> LedgerBankAccount
@@ -100,6 +114,8 @@ module ReadModel =
             Splits = entry.Splits
             Origin = origin
             DeletedInYnab = entry.DeletedInYnab
+            NeedsReview = needsReview entry
+            Flag = flagOf entry.FlagColor entry.FlagName
         }
 
     // --- Die Sprache der Historie ---
@@ -162,6 +178,17 @@ module ReadModel =
         let parts = categoryPart @ splitPart
         if List.isEmpty parts then "Kategorisierung in YNAB geändert" else String.Join("; ", parts)
 
+    /// Sätze für die Prüfvermerk-Beobachtungen (ADR 0032). Wortlaut aus dem Task
+    /// festgelegt, nicht erfunden.
+    let private describeApprovalChange (p: EntryApprovalChangeObservedInYnabPayload) =
+        if p.NewApproved then "In YNAB genehmigt" else "Genehmigung in YNAB zurückgenommen"
+
+    let private describeFlagChange (p: EntryFlagChangeObservedInYnabPayload) =
+        match flagOf p.NewFlagColor p.NewFlagName with
+        | AskLena -> "Flag „Lena“ in YNAB gesetzt"
+        | Marked -> "Flag in YNAB gesetzt"
+        | NoFlag -> "Flag in YNAB entfernt"
+
     let private describeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
         $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
 
@@ -217,6 +244,8 @@ module ReadModel =
         | EntryCategorizationChangeObservedInYnab p -> describeCategorizationChange p
         | EntryClearedStateChangeObservedInYnab p ->
             $"Status in YNAB geändert: {clearedLabel p.OldCleared} → {clearedLabel p.NewCleared}"
+        | EntryApprovalChangeObservedInYnab p -> describeApprovalChange p
+        | EntryFlagChangeObservedInYnab p -> describeFlagChange p
         | EntryDeletionObservedInYnab -> "In YNAB gelöscht"
         | EntryImportedFromComdirect p -> describeImportedFromComdirect p
         | EntryCategorizedByRule p -> describeCategorizedByRule p
@@ -290,16 +319,23 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
 /// sichtbare Liste sich zum Kontostand summiert. `DeletedCount` wird unabhängig
 /// davon immer geliefert (AC2), damit die Seite "N gelöschte Buchungen
 /// ausgeblendet" auch zeigen kann, während sie ausgeblendet sind.
+///
+/// `query.OnlyNeedsReview` (ADR 0032): standardmäßig `false`, dann bleiben nur zu
+/// prüfende Buchungen (`approved = false` oder `cleared = Uncleared`) im Treffer.
+/// `NeedsReviewCount` wird unabhängig davon immer geliefert, für den Chip
+/// "Zu prüfen (n)": dasselbe Muster wie `DeletedCount`.
 let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> =
     async {
         let accountId = query.AccountId |> Option.map LedgerAccountId
         let pageSize = max 1 query.PageSize
         let pageIndex = max 0 query.Page
 
-        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize query.IncludeDeleted
-        let! totalCount = Ledger.Persistence.countEntries accountId query.IncludeDeleted
-        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId query.IncludeDeleted
+        let! pageEntries =
+            Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize query.IncludeDeleted query.OnlyNeedsReview
+        let! totalCount = Ledger.Persistence.countEntries accountId query.IncludeDeleted query.OnlyNeedsReview
+        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId query.IncludeDeleted query.OnlyNeedsReview
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId
+        let! needsReviewCount = Ledger.Persistence.countNeedsReviewEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
 
         let views =
@@ -315,6 +351,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
             TotalCount = totalCount
             TotalAmount = sumMoney "EUR" totalAmounts
             DeletedCount = deletedCount
+            NeedsReviewCount = needsReviewCount
         }
     }
 

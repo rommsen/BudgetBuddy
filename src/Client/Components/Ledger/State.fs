@@ -27,6 +27,8 @@ let init () : Model * Cmd<Msg> =
         LoadingMore = false
         IncludeDeleted = false
         DeletedCount = 0
+        OnlyNeedsReview = false
+        NeedsReviewCount = 0
         HistoryFor = None
         History = NotAsked
         LastMirrorRun = NotAsked
@@ -128,6 +130,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 Page = page
                 PageSize = pageSize
                 IncludeDeleted = model.IncludeDeleted
+                OnlyNeedsReview = model.OnlyNeedsReview
             }
             let cmd =
                 Cmd.OfAsync.either
@@ -149,6 +152,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             TotalCount = entryPage.TotalCount
             HasMoreEntries = List.length entries < entryPage.TotalCount
             DeletedCount = entryPage.DeletedCount
+            NeedsReviewCount = entryPage.NeedsReviewCount
             LoadingMore = false },
         Cmd.none,
         NoOp
@@ -178,6 +182,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         // beim Filterwechsel `SelectFilter`): der Proxy-Aufruf steckt erst hinter
         // `RunLoadEntriesPage`, nicht in diesem Zweig (ADR 0020).
         { (resetEntries model) with IncludeDeleted = not model.IncludeDeleted }, Cmd.ofMsg LoadEntries, NoOp
+
+    | ToggleOnlyNeedsReview ->
+        // Reine Zustandsänderung plus `Cmd.ofMsg LoadEntries` (derselbe Schnitt wie
+        // `ToggleIncludeDeleted`/ADR 0020): der Proxy-Aufruf steckt erst hinter
+        // `RunLoadEntriesPage`, nicht in diesem Zweig.
+        { (resetEntries model) with OnlyNeedsReview = not model.OnlyNeedsReview }, Cmd.ofMsg LoadEntries, NoOp
 
     // ============================================
     // Historie einer Buchung

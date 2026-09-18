@@ -92,7 +92,21 @@ type Entry = {
     TransferEntryId: EntryId option
     /// In YNAB geloescht gesehen. Die Buchung bleibt im Kassenbuch stehen.
     DeletedInYnab: bool
+    /// YNABs `approved` (ADR 0032): die eine Hälfte des Prüfvermerks neben
+    /// `Cleared`. Bestandsereignisse ohne dieses Feld (Schema-Version 1) gelten als
+    /// `true` (`Ledger.Events.Codec.decodeObservedV1` und Geschwister).
+    Approved: bool
+    /// YNABs `flag_color`/`flag_name`, roh (ADR 0032). Die Deutung (Rückfrage Lena,
+    /// Markiert, kein Flag) ist Sache des Lesepfads (`Ledger.QueryHandlers.ReadModel`).
+    FlagColor: string option
+    FlagName: string option
 }
+
+/// Ist eine Buchung "zu prüfen"? Wahr, wenn sie in YNAB nicht genehmigt ist oder ihr
+/// Cleared-Status noch offen ist (ADR 0032): Roman markiert eine Buchung erst als
+/// geprüft, wenn beides erledigt ist; `Reconciled` zählt wie `Cleared` als geprüft.
+let needsReview (entry: Entry) : bool =
+    not entry.Approved || entry.Cleared = Uncleared
 
 // ============================================
 // Faltung
@@ -162,6 +176,9 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Cleared = p.Cleared
             TransferEntryId = None
             DeletedInYnab = false
+            Approved = p.Approved
+            FlagColor = p.FlagColor
+            FlagName = p.FlagName
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -180,6 +197,14 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
     | EntryClearedStateChangeObservedInYnab p ->
         let e = requireExisting ()
         { e with Cleared = p.NewCleared }
+
+    | EntryApprovalChangeObservedInYnab p ->
+        let e = requireExisting ()
+        { e with Approved = p.NewApproved }
+
+    | EntryFlagChangeObservedInYnab p ->
+        let e = requireExisting ()
+        { e with FlagColor = p.NewFlagColor; FlagName = p.NewFlagName }
 
     | EntryDeletionObservedInYnab ->
         let e = requireExisting ()
@@ -200,6 +225,9 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Cleared = p.Cleared
             TransferEntryId = None
             DeletedInYnab = false
+            Approved = p.Approved
+            FlagColor = None
+            FlagName = None
         }
 
     | EntryCategorizedByRule p ->
@@ -234,6 +262,9 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Cleared = p.Cleared
             TransferEntryId = None
             DeletedInYnab = false
+            Approved = p.Approved
+            FlagColor = None
+            FlagName = None
         }
 
     | EntryLinkedToYnab _ ->
@@ -327,6 +358,9 @@ let recordComdirectPush (input: ComdirectPushInput) : LedgerEvent list =
                 Payee = input.Payee
                 Memo = input.Memo
                 Cleared = Uncleared
+                // Der Push sendet kein `approved`; YNAB legt die Buchung unbestätigt
+                // an (ADR 0032).
+                Approved = false
             }
     }
 
@@ -442,6 +476,9 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
                     Cleared = obs.Cleared
                     TransferAccountId = obs.TransferAccountId
                     TransferYnabTransactionId = obs.TransferYnabTransactionId
+                    Approved = obs.Approved
+                    FlagColor = obs.FlagColor
+                    FlagName = obs.FlagName
                 })
         ]
 
@@ -457,6 +494,10 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             entry.Category <> obs.Category || entry.Splits <> obs.Splits
 
         let clearedChanged = entry.Cleared <> obs.Cleared
+
+        let approvalChanged = entry.Approved <> obs.Approved
+
+        let flagChanged = entry.FlagColor <> obs.FlagColor || entry.FlagName <> obs.FlagName
 
         [
             if detailsChanged then
@@ -488,5 +529,21 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
                     EntryClearedStateChangeObservedInYnab {
                         OldCleared = entry.Cleared
                         NewCleared = obs.Cleared
+                    })
+
+            if approvalChanged then
+                event (
+                    EntryApprovalChangeObservedInYnab {
+                        OldApproved = entry.Approved
+                        NewApproved = obs.Approved
+                    })
+
+            if flagChanged then
+                event (
+                    EntryFlagChangeObservedInYnab {
+                        OldFlagColor = entry.FlagColor
+                        OldFlagName = entry.FlagName
+                        NewFlagColor = obs.FlagColor
+                        NewFlagName = obs.FlagName
                     })
         ]

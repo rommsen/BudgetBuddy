@@ -93,6 +93,10 @@ let deletedCountText (count: int) (includeDeleted: bool) : string =
     let state = if includeDeleted then "eingeblendet" else "ausgeblendet"
     $"{count} {noun} {state}"
 
+/// Der Text des Chips "Zu prüfen (n)" (ADR 0032). Reine Funktion, unit-testbar ohne
+/// Fable/Badge-Kontext.
+let needsReviewChipLabel (count: int) : string = $"Zu prüfen ({count})"
+
 /// Eine Karte der Kontostaende-Leiste: ein Filter (Konto oder "Alle Konten"), ihr
 /// Anzeigename und ihr Stand.
 type AccountCard = {
@@ -153,6 +157,15 @@ let private deletedBadge =
             Size = Badge.Small
     }
 
+/// Das Kennzeichen eines gesetzten Flags (ADR 0032): *Rückfrage Lena* violett,
+/// *Markiert* orange. `NoFlag` zeigt nichts.
+let private flagBadge (flag: LedgerFlag) : ReactElement =
+    match flagLabel flag with
+    | None -> Html.none
+    | Some label ->
+        let variant = match flag with AskLena -> Badge.Purple | _ -> Badge.Orange
+        Badge.view { Badge.defaultProps with Text = label; Variant = variant; Size = Badge.Small }
+
 /// Der Betrag einer Zeile: gedämpft und durchgestrichen, wenn die Buchung in YNAB
 /// gelöscht ist (AC3, ledger-p3n8k), sonst die gewohnte rot/grüne Betragsfarbe.
 let private entryMoney (entry: LedgerEntryView) =
@@ -190,44 +203,62 @@ let private entryRow
         )
         prop.onClick (fun _ -> dispatch (OpenHistory entry))
         prop.children [
-            Primitives.HStack.spaceBetween [
-                Html.div [
-                    prop.className "min-w-0 flex-1"
-                    prop.children [
-                        Html.div [
-                            prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary} truncate"
-                            prop.text (entry.Payee |> Option.defaultValue "ohne Payee")
-                        ]
-                        Html.div [
-                            prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} mt-0.5"
-                            prop.text (
-                                match entry.CategoryName with
-                                | Some name -> $"{formatDate entry.Date} · {name}"
-                                | None when not (List.isEmpty entry.Splits) ->
-                                    $"{formatDate entry.Date} · {List.length entry.Splits} Split-Zeilen"
-                                | None -> $"{formatDate entry.Date} · ohne Kategorie"
-                            )
-                        ]
-                        if not (String.IsNullOrWhiteSpace(entry.Memo |> Option.defaultValue "")) then
-                            Html.div [
-                                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} mt-0.5 truncate"
-                                prop.text (entry.Memo |> Option.defaultValue "")
-                            ]
-                        Html.div [
-                            prop.className "flex flex-wrap items-center gap-1.5 mt-1.5"
-                            prop.children [
-                                match accountAbbreviationOf with
-                                | Some abbreviationOf -> accountBadge (abbreviationOf entry.AccountId)
-                                | None -> ()
-                                originBadge entry.Origin
-                                if entry.DeletedInYnab then deletedBadge
+            Html.div [
+                // Der Punkt am linken Zeilenrand für ungeprüfte Buchungen (ADR 0032):
+                // eine schmale, immer vorhandene Spalte, damit geprüfte und
+                // ungeprüfte Zeilen nicht gegeneinander verrutschen.
+                prop.className "flex items-start gap-2"
+                prop.children [
+                    Html.div [
+                        prop.className "w-2 pt-1.5 shrink-0"
+                        prop.children [ if entry.NeedsReview then Badge.dot Badge.Warning ]
+                    ]
+                    Html.div [
+                        prop.className "min-w-0 flex-1"
+                        prop.children [
+                            Primitives.HStack.spaceBetween [
+                                Html.div [
+                                    prop.className "min-w-0 flex-1"
+                                    prop.children [
+                                        Html.div [
+                                            prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary} truncate"
+                                            prop.text (entry.Payee |> Option.defaultValue "ohne Payee")
+                                        ]
+                                        Html.div [
+                                            prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} mt-0.5"
+                                            prop.text (
+                                                match entry.CategoryName with
+                                                | Some name -> $"{formatDate entry.Date} · {name}"
+                                                | None when not (List.isEmpty entry.Splits) ->
+                                                    $"{formatDate entry.Date} · {List.length entry.Splits} Split-Zeilen"
+                                                | None -> $"{formatDate entry.Date} · ohne Kategorie"
+                                            )
+                                        ]
+                                        if not (String.IsNullOrWhiteSpace(entry.Memo |> Option.defaultValue "")) then
+                                            Html.div [
+                                                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} mt-0.5 truncate"
+                                                prop.text (entry.Memo |> Option.defaultValue "")
+                                            ]
+                                        Html.div [
+                                            prop.className "flex flex-wrap items-center gap-1.5 mt-1.5"
+                                            prop.children [
+                                                match accountAbbreviationOf with
+                                                | Some abbreviationOf -> accountBadge (abbreviationOf entry.AccountId)
+                                                | None -> ()
+                                                originBadge entry.Origin
+                                                flagBadge entry.Flag
+                                                if entry.DeletedInYnab then deletedBadge
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                                Html.div [
+                                    prop.className "shrink-0 pl-3"
+                                    prop.children [ entryMoney entry ]
+                                ]
                             ]
                         ]
                     ]
-                ]
-                Html.div [
-                    prop.className "shrink-0 pl-3"
-                    prop.children [ entryMoney entry ]
                 ]
             ]
         ]
@@ -269,8 +300,15 @@ let private entryTableRow
     (accountAbbreviationOf: Guid -> string)
     (entry: LedgerEntryView)
     =
-    Table.trClickable
-        (fun () -> dispatch (OpenHistory entry))
+    // Der Punkt am linken Zeilenrand (ADR 0032) wird an der PC-Tabellenzeile als
+    // schmaler linker Rahmen nachgebildet: dasselbe Muster wie `Table.row`s eigenes
+    // `IsSelected` (`border-l-2 border-l-neon-teal`), nur für "zu prüfen" statt
+    // "ausgewählt". `Table.trClickable` deckt keinen eigenen `ClassName` ab, deshalb
+    // direkt `Table.row` mit `OnClick`.
+    Table.row
+        { Table.defaultRowProps with
+            OnClick = Some (fun () -> dispatch (OpenHistory entry))
+            ClassName = Some (if entry.NeedsReview then "border-l-2 border-l-neon-pink" else "") }
         [
             Table.td (formatDate entry.Date)
             if showAccountColumn then Table.td (accountAbbreviationOf entry.AccountId)
@@ -291,6 +329,7 @@ let private entryTableRow
                     prop.className "flex flex-nowrap items-center gap-1.5"
                     prop.children [
                         originBadge entry.Origin
+                        flagBadge entry.Flag
                         if entry.DeletedInYnab then deletedBadge
                     ]
                 ]
@@ -609,6 +648,25 @@ let private entryList
                 ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore)
         ]
 
+/// Der Chip "Zu prüfen (n)" über der Liste (ADR 0032), in Konto- und Gesamtsicht
+/// immer sichtbar (anders als `deletedToggleRow`, die erst ab einem Treffer
+/// erscheint): das ist Romans häufigster Handy-Ablauf, kein Randfall. Aktiv gefärbt
+/// (Warning/pink, gefüllt), sonst neutral/soft. Antippen kippt `OnlyNeedsReview`
+/// (ADR 0020: der Proxy-Aufruf steckt hinter `RunLoadEntriesPage`, nicht hier).
+let private needsReviewChip (dispatch: Msg -> unit) (model: Model) =
+    Html.button [
+        prop.className "self-start"
+        prop.onClick (fun _ -> dispatch ToggleOnlyNeedsReview)
+        prop.children [
+            Badge.view {
+                Badge.defaultProps with
+                    Text = needsReviewChipLabel model.NeedsReviewCount
+                    Variant = Badge.Warning
+                    Style = (if model.OnlyNeedsReview then Badge.Filled else Badge.Soft)
+            }
+        ]
+    ]
+
 /// Zeile über der Liste, solange es gelöschte Buchungen im Filter gibt (AC2,
 /// ledger-p3n8k): Anzahl-Satz plus Schalter. Ohne gelöschte Buchungen im Filter
 /// steht hier nichts (ein Schalter ohne Wirkung wäre nur Rauschen).
@@ -659,6 +717,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     // stehen, der Hinweis steht daneben (ADR 0014).
                                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
 
+                                needsReviewChip dispatch model
                                 deletedToggleRow dispatch model
                                 entryList dispatch accounts isAllAccounts model
                             ]

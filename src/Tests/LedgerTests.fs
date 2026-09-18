@@ -45,6 +45,9 @@ let private observedPayload (ynabTxId: string) (importId: string option) : Entry
     Cleared = Uncleared
     TransferAccountId = None
     TransferYnabTransactionId = None
+    Approved = true
+    FlagColor = None
+    FlagName = None
 }
 
 let private observedEvent (entryId: EntryId) (payload: EntryObservedInYnabPayload) : LedgerEvent = {
@@ -95,6 +98,18 @@ let private clearedChange = EntryClearedStateChangeObservedInYnab {
     NewCleared = Cleared
 }
 
+let private approvalChange = EntryApprovalChangeObservedInYnab {
+    OldApproved = false
+    NewApproved = true
+}
+
+let private flagChange = EntryFlagChangeObservedInYnab {
+    OldFlagColor = None
+    OldFlagName = None
+    NewFlagColor = Some "purple"
+    NewFlagName = Some "Lena"
+}
+
 let private categoryDrogerie = category "Drogerie"
 
 let private categoryHaushalt = {
@@ -111,6 +126,7 @@ let private importedFromComdirectPayload (importId: string) (comdirectRef: strin
     Payee = Some "dm"
     Memo = None
     Cleared = Uncleared
+    Approved = false
 }
 
 let private cashExpenseAddedPayload : CashExpenseAddedPayload = {
@@ -121,6 +137,7 @@ let private cashExpenseAddedPayload : CashExpenseAddedPayload = {
     Memo = None
     Category = None
     Cleared = Uncleared
+    Approved = false
 }
 
 let private categorizedByRule = EntryCategorizedByRule {
@@ -414,6 +431,8 @@ let ledgerDomainTests =
                 detailsChange
                 categorizationChange
                 clearedChange
+                approvalChange
+                flagChange
                 EntryDeletionObservedInYnab
                 EntryImportedFromComdirect (importedFromComdirectPayload "import-7" "comdirect-7")
                 categorizedByRule
@@ -428,6 +447,8 @@ let ledgerDomainTests =
                   "EntryDetailsChangeObservedInYnab"
                   "EntryCategorizationChangeObservedInYnab"
                   "EntryClearedStateChangeObservedInYnab"
+                  "EntryApprovalChangeObservedInYnab"
+                  "EntryFlagChangeObservedInYnab"
                   "EntryDeletionObservedInYnab"
                   "EntryImportedFromComdirect"
                   "EntryCategorizedByRule"
@@ -436,6 +457,18 @@ let ledgerDomainTests =
                   "EntryLinkedToYnab" ]
                 "Ereignisnamen sind fachlich, in Vergangenheitsform, kein CRUD-Naming"
             Expect.all (bodies |> List.map schemaVersion) (fun v -> v >= 1) "Schema-Version ab 1"
+            Expect.equal
+                (schemaVersion (EntryObservedInYnab (observedPayload "ynab-7" None)))
+                2
+                "EntryObservedInYnab schreibt seit ADR 0032 Schema-Version 2"
+            Expect.equal
+                (schemaVersion (EntryImportedFromComdirect (importedFromComdirectPayload "import-7" "comdirect-7")))
+                2
+                "EntryImportedFromComdirect schreibt seit ADR 0032 Schema-Version 2"
+            Expect.equal
+                (schemaVersion (CashExpenseAdded cashExpenseAddedPayload))
+                2
+                "CashExpenseAdded schreibt seit ADR 0032 Schema-Version 2"
 
         testCase "Payloads ueberstehen den JSON-Roundtrip verlustfrei" <| fun () ->
             let bodies = [
@@ -448,6 +481,10 @@ let ledgerDomainTests =
                 detailsChange
                 categorizationChange
                 clearedChange
+                approvalChange
+                flagChange
+                EntryFlagChangeObservedInYnab
+                    { OldFlagColor = Some "purple"; OldFlagName = Some "Lena"; NewFlagColor = None; NewFlagName = None }
                 EntryDeletionObservedInYnab
                 EntryImportedFromComdirect (importedFromComdirectPayload "import-8b" "comdirect-8b")
                 categorizedByRule
@@ -467,6 +504,59 @@ let ledgerDomainTests =
             match decodePayload "EntryTeleportedToMars" 1 "{}" with
             | Ok _ -> failtest "unbekannter Typ darf nicht stillschweigend gelesen werden"
             | Error _ -> ()
+
+        // ============================================
+        // Schema-Version 1 -> 2 (ADR 0032, ledger-kdnnz): kein Nachholen für den
+        // Bestand, gespeicherte Ereignisse ohne die neuen Felder gelten als
+        // genehmigt, ohne Flag.
+        // ============================================
+
+        testCase "EntryObservedInYnab in Schema-Version 1 dekodiert zu Approved = true, ohne Flag" <| fun () ->
+            // AC3: Regressionstest gegen eine tatsächlich vor ADR 0032 gespeicherte
+            // Payload, handgeschrieben ohne approved/flagColor/flagName.
+            let v1Json =
+                """{"accountId":"0195c000-0000-7000-8000-000000000001","ynabTransactionId":"ynab-v1","importId":null,"date":"2026-01-15T00:00:00.0000000Z","amount":{"amount":-42.5,"currency":"EUR"},"payee":"Rewe","memo":null,"category":null,"splits":[],"cleared":"Uncleared","transferAccountId":null,"transferYnabTransactionId":null}"""
+
+            match decodePayload "EntryObservedInYnab" 1 v1Json with
+            | Ok (EntryObservedInYnab payload) ->
+                Expect.isTrue payload.Approved "Bestand ohne das Feld gilt als genehmigt"
+                Expect.isNone payload.FlagColor "kein Flag im Bestand"
+                Expect.isNone payload.FlagName "kein Flag im Bestand"
+                Expect.equal payload.YnabTransactionId "ynab-v1" "die restlichen Felder bleiben unverändert"
+                Expect.equal payload.Cleared Uncleared "Cleared aus der Version 1"
+            | other -> failtestf "EntryObservedInYnab in Version 1 sollte lesbar sein, war %A" other
+
+        testCase "EntryImportedFromComdirect in Schema-Version 1 dekodiert zu Approved = true" <| fun () ->
+            // AC4: eine alte BB-Buchung fällt nicht in "Zu prüfen".
+            let v1Json =
+                """{"accountId":"0195c000-0000-7000-8000-000000000001","importId":"import-v1","comdirectReference":"comdirect-v1","date":"2026-02-01T00:00:00.0000000Z","amount":{"amount":-17.4,"currency":"EUR"},"payee":"dm","memo":null,"cleared":"Uncleared"}"""
+
+            match decodePayload "EntryImportedFromComdirect" 1 v1Json with
+            | Ok (EntryImportedFromComdirect payload) ->
+                Expect.isTrue payload.Approved "Bestand ohne das Feld gilt als genehmigt"
+            | other -> failtestf "EntryImportedFromComdirect in Version 1 sollte lesbar sein, war %A" other
+
+        testCase "CashExpenseAdded in Schema-Version 1 dekodiert zu Approved = true" <| fun () ->
+            // AC4.
+            let v1Json =
+                """{"accountId":"0195c000-0000-7000-8000-000000000001","date":"2026-02-05T00:00:00.0000000Z","amount":{"amount":-8.0,"currency":"EUR"},"payee":"Baecker","memo":null,"category":null,"cleared":"Uncleared"}"""
+
+            match decodePayload "CashExpenseAdded" 1 v1Json with
+            | Ok (CashExpenseAdded payload) ->
+                Expect.isTrue payload.Approved "Bestand ohne das Feld gilt als genehmigt"
+            | other -> failtestf "CashExpenseAdded in Version 1 sollte lesbar sein, war %A" other
+
+        testCase "Neu geschriebene Entstehungs-Ereignisse tragen Schema-Version 2" <| fun () ->
+            // AC5: eine neue Comdirect- oder Quick-Add-Buchung hat Approved = false.
+            let comdirect = EntryImportedFromComdirect (importedFromComdirectPayload "import-neu" "comdirect-neu")
+            let cash = CashExpenseAdded cashExpenseAddedPayload
+            Expect.equal (schemaVersion comdirect) 2 "EntryImportedFromComdirect schreibt Version 2"
+            Expect.equal (schemaVersion cash) 2 "CashExpenseAdded schreibt Version 2"
+            match comdirect, cash with
+            | EntryImportedFromComdirect p1, CashExpenseAdded p2 ->
+                Expect.isFalse p1.Approved "der Push sendet kein approved"
+                Expect.isFalse p2.Approved "Quick Add sendet kein approved"
+            | _ -> failtest "unerwartete Form"
 
         testCase "Erstbeobachtung stiftet die Fremd-Id-Verknuepfungen" <| fun () ->
             let entryId = newEntryId ()
@@ -681,7 +771,10 @@ let ledgerPersistenceTests =
                 (recorded |> List.map (fun r -> r.EventType))
                 [ "EntryObservedInYnab"; "EntryClearedStateChangeObservedInYnab" ]
                 "Typnamen im Log"
-            Expect.all (recorded |> List.map (fun r -> r.SchemaVersion)) ((=) 1) "Schema-Version gespeichert"
+            Expect.equal
+                (recorded |> List.map (fun r -> r.SchemaVersion))
+                [ 2; 1 ]
+                "EntryObservedInYnab schreibt seit ADR 0032 Schema-Version 2, Cleared-Aenderung bleibt Version 1"
             Expect.equal
                 (loadEntry entryId |> Async.RunSynchronously).Value.Cleared
                 Cleared
@@ -736,6 +829,11 @@ let ledgerPersistenceTests =
                 eventOn entryId YnabMirror detailsChange
                 eventOn entryId YnabMirror categorizationChange
                 eventOn entryId YnabMirror clearedChange
+                // ADR 0032: die beiden neuen Beobachtungs-Ereignisse gehören mit in
+                // die Pflichtgegenprobe (AC9), sonst fällt eine Drift bei Approved/
+                // Flag nicht auf.
+                eventOn entryId YnabMirror approvalChange
+                eventOn entryId YnabMirror flagChange
             ]
             |> Async.RunSynchronously
 
@@ -897,6 +995,51 @@ let ledgerPersistenceTests =
             | Some found -> Expect.equal found account "Konto vollstaendig zurueckgelesen"
 
             Expect.contains (loadAccounts () |> Async.RunSynchronously) account "Konto ist in der Liste"
+
+        testCase "Migration fügt approved/flag_color/flag_name einer bestehenden Zustandstabelle hinzu" <| fun () ->
+            // AC (ledger-kdnnz, ADR 0032): eine Zustandstabelle vor dieser Änderung
+            // hatte diese Spalten nicht. Die im Bestand vorhandenen Zeilen müssen
+            // danach `approved = 1` und kein Flag tragen, ohne dass ein Ereignis dafür
+            // nötig ist. Ruft dafür die echte Produktionsfunktion
+            // `Ledger.Persistence.migrateLedgerEntryColumns` gegen eine eigene,
+            // isolierte Verbindung auf, statt die ALTER-TABLE-Anweisungen im Test zu
+            // wiederholen: die geteilte In-Memory-Testdatenbank hat die drei Spalten
+            // schon seit dem allerersten `initializeLedgerSchema()`-Aufruf dieses
+            // Prozesses, ein zweiter Aufruf könnte die Migration selbst also nicht
+            // mehr beobachten.
+            use conn =
+                new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+            conn.Open()
+
+            use createOldTable =
+                new Microsoft.Data.Sqlite.SqliteCommand(
+                    """CREATE TABLE ledger_entries (
+                        id TEXT PRIMARY KEY,
+                        account_id TEXT NOT NULL,
+                        deleted_in_ynab INTEGER NOT NULL DEFAULT 0
+                    )""",
+                    conn)
+            createOldTable.ExecuteNonQuery() |> ignore
+
+            use insertOldRow =
+                new Microsoft.Data.Sqlite.SqliteCommand(
+                    "INSERT INTO ledger_entries (id, account_id) VALUES ('bestand-1', 'konto-1')", conn)
+            insertOldRow.ExecuteNonQuery() |> ignore
+
+            Ledger.Persistence.migrateLedgerEntryColumns conn
+
+            use readBack =
+                new Microsoft.Data.Sqlite.SqliteCommand(
+                    "SELECT approved, flag_color, flag_name FROM ledger_entries WHERE id = 'bestand-1'", conn)
+            use reader = readBack.ExecuteReader()
+            Expect.isTrue (reader.Read()) "die Bestandszeile ist weiterhin da"
+            Expect.equal (reader.GetInt64 0) 1L "approved = 1 ohne Nachholen"
+            Expect.isTrue (reader.IsDBNull 1) "kein flag_color im Bestand"
+            Expect.isTrue (reader.IsDBNull 2) "kein flag_name im Bestand"
+
+            // Ein zweiter Migrationsversuch (z. B. ein weiterer Prozessstart) bleibt
+            // folgenlos statt zu werfen.
+            Ledger.Persistence.migrateLedgerEntryColumns conn
     ]
 
 // ============================================

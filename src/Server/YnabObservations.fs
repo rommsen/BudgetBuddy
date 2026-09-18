@@ -48,6 +48,13 @@ type YnabObservation = {
     TransferYnabTransactionId: string option
     /// In YNAB geloescht (`deleted: true` im Delta).
     Deleted: bool
+    /// YNABs `approved` (nie null, ADR 0032): Teil des Prüfvermerks neben `Cleared`.
+    Approved: bool
+    /// YNABs `flag_color` (red, orange, yellow, green, blue, purple oder null), roh.
+    FlagColor: string option
+    /// YNABs `flag_name`, roh. Die Deutung ("Rückfrage Lena", "Markiert") passiert im
+    /// Lesepfad des Kassenbuchs, nicht hier (ADR 0032).
+    FlagName: string option
 }
 
 /// Das Ergebnis eines Transaktions-Abrufs: die Beobachtungen des Laufs und das
@@ -193,6 +200,9 @@ module Decoders =
                 TransferYnabTransactionId =
                     get.Optional.Field "transfer_transaction_id" Decode.string
                 Deleted = get.Optional.Field "deleted" Decode.bool |> Option.defaultValue false
+                Approved = get.Required.Field "approved" Decode.bool
+                FlagColor = get.Optional.Field "flag_color" Decode.string
+                FlagName = get.Optional.Field "flag_name" Decode.string
             })
 
     /// `GET /budgets/{id}/transactions[?last_knowledge_of_server=N]`

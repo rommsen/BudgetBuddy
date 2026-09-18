@@ -65,6 +65,9 @@ let private entry (n: int) (amount: decimal) : Entry = {
     Cleared = Uncleared
     TransferEntryId = None
     DeletedInYnab = false
+    Approved = true
+    FlagColor = None
+    FlagName = None
 }
 
 let private recorded (seq: int) (actor: Actor) (body: LedgerEventBody) : RecordedLedgerEvent = {
@@ -104,6 +107,9 @@ let historyLanguageTests =
                     Cleared = Uncleared
                     TransferAccountId = None
                     TransferYnabTransactionId = None
+                    Approved = true
+                    FlagColor = None
+                    FlagName = None
                 }
             Expect.equal
                 (ReadModel.describe body)
@@ -223,6 +229,35 @@ let historyLanguageTests =
                 "Die Anzeige uebersetzt YNABs Status"
         }
 
+        test "Genehmigungs-Wechsel spricht in ganzen Sätzen, nie den Typnamen" {
+            // AC15 (ledger-kdnnz): Wortlaut aus der Aufgabe festgelegt.
+            let genehmigt = ReadModel.describe (EntryApprovalChangeObservedInYnab { OldApproved = false; NewApproved = true })
+            let zurückgenommen =
+                ReadModel.describe (EntryApprovalChangeObservedInYnab { OldApproved = true; NewApproved = false })
+            Expect.equal genehmigt "In YNAB genehmigt" "Neu genehmigt"
+            Expect.equal zurückgenommen "Genehmigung in YNAB zurückgenommen" "Neu zurückgenommen"
+            Expect.isFalse (genehmigt.Contains "EntryApprovalChangeObservedInYnab") "Kein Typname in der Historie"
+        }
+
+        test "Flag-Wechsel nennt Lena namentlich, ein anderes Flag nur allgemein" {
+            let lena =
+                ReadModel.describe (
+                    EntryFlagChangeObservedInYnab
+                        { OldFlagColor = None; OldFlagName = None; NewFlagColor = Some "purple"; NewFlagName = Some "Lena" })
+            let markiert =
+                ReadModel.describe (
+                    EntryFlagChangeObservedInYnab
+                        { OldFlagColor = None; OldFlagName = None; NewFlagColor = Some "red"; NewFlagName = None })
+            let entfernt =
+                ReadModel.describe (
+                    EntryFlagChangeObservedInYnab
+                        { OldFlagColor = Some "red"; OldFlagName = None; NewFlagColor = None; NewFlagName = None })
+            Expect.equal lena "Flag „Lena“ in YNAB gesetzt" "Lena wird namentlich genannt"
+            Expect.equal markiert "Flag in YNAB gesetzt" "Ein anderes Flag bleibt allgemein"
+            Expect.equal entfernt "Flag in YNAB entfernt" "Kein Flag mehr"
+            Expect.isFalse (lena.Contains "EntryFlagChangeObservedInYnab") "Kein Typname in der Historie"
+        }
+
         test "Loeschung ist ein Satz, die Buchung bleibt" {
             Expect.equal
                 (ReadModel.describe EntryDeletionObservedInYnab)
@@ -276,6 +311,46 @@ let readModelTests =
             Expect.equal view.CategoryName (Some "Lebensmittel") "Der Name, nicht die Id"
             Expect.equal view.Origin MirroredFromYnab "Die Herkunft wird durchgereicht"
             Expect.isFalse view.DeletedInYnab "Nicht geloescht"
+            Expect.isTrue view.NeedsReview "Cleared = Uncleared, also zu prüfen (ADR 0032)"
+            Expect.equal view.Flag NoFlag "Kein Flag gesetzt"
+        }
+
+        // ============================================
+        // NeedsReview und Flag-Deutung (ADR 0032, ledger-kdnnz)
+        // ============================================
+
+        test "NeedsReview ist wahr genau bei approved = false oder cleared = Uncleared" {
+            // AC12: alle Kombinationen, Reconciled zählt wie Cleared als geprüft.
+            let reviewed = entry 1 -1m
+            Expect.isFalse
+                (needsReview { reviewed with Approved = true; Cleared = Cleared })
+                "genehmigt und bestätigt: geprüft"
+            Expect.isFalse
+                (needsReview { reviewed with Approved = true; Cleared = Reconciled })
+                "genehmigt und abgeglichen: geprüft"
+            Expect.isTrue
+                (needsReview { reviewed with Approved = true; Cleared = Uncleared })
+                "genehmigt, aber noch offen: zu prüfen"
+            Expect.isTrue
+                (needsReview { reviewed with Approved = false; Cleared = Cleared })
+                "nicht genehmigt, obwohl bestätigt: zu prüfen"
+            Expect.isTrue
+                (needsReview { reviewed with Approved = false; Cleared = Uncleared })
+                "beides offen: zu prüfen"
+            Expect.isTrue
+                (needsReview { reviewed with Approved = false; Cleared = Reconciled })
+                "nicht genehmigt, obwohl abgeglichen: zu prüfen"
+        }
+
+        test "Flag-Deutung: kein Flag, Lena (case-insensitiv, getrimmt), sonst Markiert" {
+            // AC10.
+            Expect.equal (ReadModel.flagOf None None) NoFlag "kein Flag gesetzt"
+            Expect.equal (ReadModel.flagOf (Some "purple") (Some "Lena")) AskLena "genauer Name"
+            Expect.equal (ReadModel.flagOf (Some "purple") (Some "lena")) AskLena "Klein geschrieben"
+            Expect.equal (ReadModel.flagOf (Some "purple") (Some " Lena ")) AskLena "mit Leerzeichen"
+            Expect.equal (ReadModel.flagOf (Some "red") (Some "Temporär")) Marked "ein anderer Name"
+            Expect.equal (ReadModel.flagOf (Some "red") None) Marked "nur eine Farbe, kein Name"
+            Expect.equal (ReadModel.flagOf None (Some "Lena's Kram")) Marked "kein exakter Treffer auf 'Lena'"
         }
 
         test "Geloeschte Buchung bleibt sichtbar und traegt das Kennzeichen" {
@@ -375,6 +450,7 @@ let private page (entries: LedgerEntryView list) (totalCount: int) : LedgerEntry
     TotalCount = totalCount
     TotalAmount = ledgerBalance "EUR" entries
     DeletedCount = entries |> List.filter (fun e -> e.DeletedInYnab) |> List.length
+    NeedsReviewCount = entries |> List.filter (fun e -> e.NeedsReview) |> List.length
 }
 
 /// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
@@ -527,6 +603,33 @@ let reducerTests =
 
             let toggledBack, _, _ = Components.Ledger.State.update ToggleIncludeDeleted updated
             Expect.isFalse toggledBack.IncludeDeleted "Ein zweiter Klick blendet wieder aus"
+        }
+
+        // ============================================
+        // Chip "Zu prüfen (n)" (ADR 0032, ledger-kdnnz)
+        // ============================================
+
+        test "Geladene Seite übernimmt die vom Server gemeldete Zahl zu prüfender Buchungen" {
+            let serverPage = { page [ entryView 1 -1m false ] 1 with NeedsReviewCount = 5 }
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok serverPage)) (freshModel ())
+            Expect.equal updated.NeedsReviewCount 5 "Der Server-Wert steht im Modell"
+        }
+
+        test "Der Chip kippt OnlyNeedsReview und lädt die Liste ab Seite 0 neu (AC16)" {
+            let withEntries, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (freshModel ())
+            Expect.isFalse withEntries.OnlyNeedsReview "Standardmäßig aus"
+
+            let updated, cmd, _ = Components.Ledger.State.update ToggleOnlyNeedsReview withEntries
+            Expect.isTrue updated.OnlyNeedsReview "Ein Antippen filtert auf ungeprüfte Buchungen"
+            Expect.equal updated.Entries Loading "Die Liste wird neu geholt"
+            Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+
+            let toggledBack, _, _ = Components.Ledger.State.update ToggleOnlyNeedsReview updated
+            Expect.isFalse toggledBack.OnlyNeedsReview "Erneutes Antippen hebt den Filter auf"
         }
 
         test "Spiegel-Start setzt den Hinweis, ohne die Liste zu leeren" {
@@ -865,6 +968,7 @@ let private pageTestAccountB = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8
 let private pageTestAccountC = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000c")
 let private pageTestAccountD = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000d")
 let private pageTestAccountE = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000e")
+let private pageTestAccountF = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000f")
 
 let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-0000000000{n:D2}")
 
@@ -884,6 +988,9 @@ let private seedEntry (accountId: LedgerAccountId) (n: int) (amount: decimal) : 
         Cleared = Uncleared
         TransferAccountId = None
         TransferYnabTransactionId = None
+        Approved = true
+        FlagColor = None
+        FlagName = None
     }
     appendAndApply [
         { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
@@ -902,6 +1009,30 @@ let private seedDeletedEntry (accountId: LedgerAccountId) (n: int) (amount: deci
         ]
     }
 
+/// Wie `seedEntry`, aber bereits geprüft: `Approved = true` und `Cleared = Cleared`
+/// (ADR 0032), damit `NeedsReview` für diese Buchung falsch ist.
+let private seedReviewedEntry (accountId: LedgerAccountId) (n: int) (amount: decimal) : Async<unit> =
+    let payload : EntryObservedInYnabPayload = {
+        AccountId = accountId
+        YnabTransactionId = $"pagetest-{n}"
+        ImportId = None
+        Date = DateTime(2026, 4, 1).AddDays(float n)
+        Amount = { Amount = amount; Currency = "EUR" }
+        Payee = Some $"Payee {n}"
+        Memo = None
+        Category = None
+        Splits = []
+        Cleared = Cleared
+        TransferAccountId = None
+        TransferYnabTransactionId = None
+        Approved = true
+        FlagColor = None
+        FlagName = None
+    }
+    appendAndApply [
+        { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
+    ]
+
 let private seedAccounts () : Async<unit> =
     async {
         do! saveAccount { Id = pageTestAccountA; Name = "Konto A"; Kind = BankAccount; Link = BbOwned; Closed = false }
@@ -909,6 +1040,7 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountC; Name = "Konto C"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountD; Name = "Konto D"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountE; Name = "Konto E"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountF; Name = "Konto F"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 [<Tests>]
@@ -926,7 +1058,7 @@ let ledgerPagingTests =
                 seedEntry pageTestAccountA n amount |> Async.RunSynchronously
 
             let (LedgerAccountId rawId) = pageTestAccountA
-            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2; IncludeDeleted = false }
+            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2; IncludeDeleted = false; OnlyNeedsReview = false }
 
             let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
             let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
@@ -954,7 +1086,7 @@ let ledgerPagingTests =
             seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
 
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100; IncludeDeleted = false }
+                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB
@@ -996,7 +1128,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawC) = pageTestAccountC
             let hidden =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawC; Page = 0; PageSize = 100; IncludeDeleted = false }
+                    { AccountId = Some rawC; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
                 |> Async.RunSynchronously
 
             Expect.equal hidden.TotalCount 1 "Die gelöschte Buchung zählt nicht zum Treffer"
@@ -1014,7 +1146,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawD) = pageTestAccountD
             let shown =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawD; Page = 0; PageSize = 100; IncludeDeleted = true }
+                    { AccountId = Some rawD; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false }
                 |> Async.RunSynchronously
 
             Expect.equal shown.TotalCount 2 "Beide Buchungen zählen zum Treffer"
@@ -1033,15 +1165,56 @@ let ledgerPagingTests =
             let (LedgerAccountId rawE) = pageTestAccountE
             let hidden =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = false }
+                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
                 |> Async.RunSynchronously
             let shown =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = true }
+                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false }
                 |> Async.RunSynchronously
 
             Expect.equal hidden.DeletedCount 1 "Eine gelöschte Buchung, obwohl ausgeblendet"
             Expect.equal shown.DeletedCount 1 "Dieselbe Zahl, auch wenn eingeblendet"
+
+        // ============================================
+        // Chip "Zu prüfen (n)" (ADR 0032, ledger-kdnnz)
+        // ============================================
+
+        testCase "OnlyNeedsReview liefert nur ungeprüfte, nicht gelöschte Buchungen samt Summe" <| fun () ->
+            // AC13: eine geprüfte (36), eine ungeprüfte (37) und eine gelöschte,
+            // ansonsten ungeprüfte (38) Buchung. Eigenes Konto F.
+            seedReviewedEntry pageTestAccountF 36 -10m |> Async.RunSynchronously
+            seedEntry pageTestAccountF 37 -20m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountF 38 -3000m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawF) = pageTestAccountF
+            let onlyNeedsReview =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true }
+                |> Async.RunSynchronously
+
+            Expect.equal onlyNeedsReview.TotalCount 1 "Nur die ungeprüfte, nicht gelöschte Buchung zählt"
+            Expect.equal (List.length onlyNeedsReview.Entries) 1 "Sie steht auch als einzige auf der Seite"
+            Expect.equal
+                (onlyNeedsReview.Entries |> List.map (fun e -> e.Payee))
+                [ Some "Payee 37" ]
+                "Die geprüfte und die gelöschte Buchung bleiben außen vor"
+            Expect.equal onlyNeedsReview.TotalAmount { Amount = -20m; Currency = "EUR" }
+                "Die Summe entspricht nur dem Treffer"
+
+        testCase "NeedsReviewCount folgt dem Kontofilter, zählt unabhängig vom Schalter und nie Gelöschte" <| fun () ->
+            // AC14.
+            let (LedgerAccountId rawF) = pageTestAccountF
+            let off =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
+                |> Async.RunSynchronously
+            let on =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true }
+                |> Async.RunSynchronously
+
+            Expect.equal off.NeedsReviewCount 1 "Eine zu prüfende Buchung, obwohl der Filter aus ist"
+            Expect.equal on.NeedsReviewCount 1 "Dieselbe Zahl, auch wenn der Filter an ist"
     ]
 
 [<Tests>]

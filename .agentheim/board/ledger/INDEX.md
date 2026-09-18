@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 15
+- **Backlog:** 16
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 17
+- **Doing:** 0
+- **Done:** 18
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-kdnnz** — "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen" (feature) — `doing/ledger-kdnnz-spiegel-pruefvermerk-und-flags-lesend.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-kdnnz** — "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen" (feature) — `done/ledger-kdnnz-spiegel-pruefvermerk-und-flags-lesend.md`
 - **ledger-h4p6c** — Spiegel-Auslöser: Frische-Kriterium beim Seitenaufruf und Lauf nach jedem Push (feature) — `done/ledger-h4p6c-spiegel-ausl-ser-frische-kriterium-beim-seitenaufruf-und-lau.md`
 - **ledger-p3n8k** — Kassenbuch-Liste: gelöschte Buchungen standardmäßig ausblenden, eingeblendet klar als nicht mitzählend zeigen (feature) — `done/ledger-p3n8k-kassenbuch-liste-gel-schte-buchungen-standardm-ig-ausblenden.md`
 - **ledger-x0yga** — "Kassenbuch-Liste an das Mockup angleichen: Zahlenformat, Betragsfarbe, Datum, Memo, Spaltenbreiten, Konten-Spalte" (bug) — `done/ledger-x0yga-kassenbuch-liste-an-das-mockup-angleichen.md`
@@ -48,6 +48,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `backlog/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-qns4j** — Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen (bug) — `backlog/ledger-qns4j-konten-spalte-haftend-und-statusspalte-neu-belegen.md`
 - **ledger-w9skm** — Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten (bug) — `backlog/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`

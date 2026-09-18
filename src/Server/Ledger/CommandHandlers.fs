@@ -264,7 +264,9 @@ let runMirror
                                         match e.Body with
                                         | EntryDetailsChangeObservedInYnab _
                                         | EntryCategorizationChangeObservedInYnab _
-                                        | EntryClearedStateChangeObservedInYnab _ -> true
+                                        | EntryClearedStateChangeObservedInYnab _
+                                        | EntryApprovalChangeObservedInYnab _
+                                        | EntryFlagChangeObservedInYnab _ -> true
                                         | _ -> false) then
                                     changedEntries <- changedEntries + 1
 
@@ -404,6 +406,9 @@ let addCashExpense
                     Category = input.Category
                     // Manuelle Eintraege sind immer uncleared (ADR 0004, Punkt 4).
                     Cleared = Uncleared
+                    // Quick Add sendet kein `approved`; YNAB legt die Buchung
+                    // unbestätigt an (ADR 0032).
+                    Approved = false
                 }
         }
         do! Ledger.Persistence.appendAndApply [ cashExpenseAdded ]

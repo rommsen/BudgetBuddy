@@ -63,6 +63,14 @@ type Model = {
     /// geladene Seite sie gemeldet hat (unabhängig von `IncludeDeleted`, AC2).
     DeletedCount: int
 
+    /// Zeigt die Liste nur zu prüfende Buchungen (ADR 0032)? Standardmäßig `false`.
+    /// Geht in die nächste `getLedgerEntriesPage`-Abfrage ein, wie `IncludeDeleted`.
+    OnlyNeedsReview: bool
+
+    /// Die Zahl der zu prüfenden Buchungen im aktiven Filter, wie die zuletzt
+    /// geladene Seite sie gemeldet hat (unabhängig von `OnlyNeedsReview`).
+    NeedsReviewCount: int
+
     /// Laeuft gerade das Nachladen einer weiteren Seite? Anders als `Entries = Loading`
     /// (Erstladen): waehrend des Nachladens bleibt die bisherige Liste stehen, nur ein
     /// Skeleton steht am Ende (AC5).
@@ -110,6 +118,11 @@ type Msg =
     /// Der Schalter "gelöschte Buchungen zeigen" wurde betätigt (ledger-p3n8k):
     /// kippt `IncludeDeleted` und lädt die Liste ab Seite 0 neu.
     | ToggleIncludeDeleted
+    /// Der Chip "Zu prüfen (n)" wurde angetippt (ADR 0032): kippt `OnlyNeedsReview`
+    /// und lädt die Liste ab Seite 0 neu. Derselbe rein/unrein-Schnitt wie
+    /// `ToggleIncludeDeleted` (ADR 0020): der Proxy-Aufruf steckt hinter
+    /// `RunLoadEntriesPage`, nicht in diesem Zweig.
+    | ToggleOnlyNeedsReview
 
     // Historie einer Buchung
     | OpenHistory of LedgerEntryView

@@ -26,6 +26,8 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     Splits = []
     Origin = MirroredFromYnab
     DeletedInYnab = false
+    NeedsReview = false
+    Flag = NoFlag
 }
 
 let private accountView (n: int) (name: string) : LedgerAccountView = {
@@ -163,8 +165,22 @@ let private deletedCountTextTests =
         }
     ]
 
+let private needsReviewChipLabelTests =
+    testList "needsReviewChipLabel" [
+
+        test "Zeigt die Zahl in Klammern, auch bei Null (ADR 0032)" {
+            Expect.equal (needsReviewChipLabel 0) "Zu prüfen (0)" "Kein Sonderfall für Null"
+            Expect.equal (needsReviewChipLabel 7) "Zu prüfen (7)" "Die Zahl aus dem Server-Wert"
+        }
+    ]
+
 [<Tests>]
 let ledgerViewTests =
     testList
         "Kassenbuch-Seite: View-Bausteine"
-        [ abbreviationTests; groupByDateTests; formatEntryDateTests; accountCardsTests; deletedCountTextTests ]
+        [ abbreviationTests
+          groupByDateTests
+          formatEntryDateTests
+          accountCardsTests
+          deletedCountTextTests
+          needsReviewChipLabelTests ]

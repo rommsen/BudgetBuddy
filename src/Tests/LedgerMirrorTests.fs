@@ -50,6 +50,9 @@ let private observation (ynabTxId: string) : YnabObservation = {
     TransferAccountId = None
     TransferYnabTransactionId = None
     Deleted = false
+    Approved = true
+    FlagColor = None
+    FlagName = None
 }
 
 let private context (entryId: EntryId) : ObservationContext = {
@@ -87,6 +90,9 @@ let observeTests =
                 Expect.equal payload.Amount obs.Amount "Betrag im Snapshot"
                 Expect.equal payload.Category obs.Category "Kategorie mit Namen im Snapshot"
                 Expect.equal payload.Cleared obs.Cleared "Cleared im Snapshot"
+                Expect.equal payload.Approved obs.Approved "Prüfvermerk im Snapshot"
+                Expect.equal payload.FlagColor obs.FlagColor "Flag-Farbe im Snapshot"
+                Expect.equal payload.FlagName obs.FlagName "Flag-Name im Snapshot"
             | events -> failtestf "genau eine Erstbeobachtung erwartet, waren %A" events
 
         testCase "unveraenderte Beobachtung erzeugt kein Ereignis" <| fun () ->
@@ -160,6 +166,100 @@ let observeTests =
                 (observe (context entryId) None obs)
                 "eine Buchung anlegen, nur um sie als geloescht zu markieren, waere Rauschen"
 
+        testCase "geänderter Prüfvermerk erzeugt genau ein Genehmigungs-Ereignis" <| fun () ->
+            // AC7 (ledger-kdnnz): approved geändert, sonst nichts.
+            let entryId = newEntryId ()
+            let obs = observation "ynab-approved"
+            let state = stateFrom entryId obs
+
+            match observe (context entryId) (Some state) { obs with Approved = false } with
+            | [ { Body = EntryApprovalChangeObservedInYnab payload } ] ->
+                Expect.isTrue payload.OldApproved "alter Stand: genehmigt"
+                Expect.isFalse payload.NewApproved "neuer Stand: zurückgenommen"
+            | events -> failtestf "genau ein Genehmigungs-Ereignis erwartet, waren %A" events
+
+        testCase "geändertes Flag erzeugt genau ein Flag-Ereignis" <| fun () ->
+            let entryId = newEntryId ()
+            let obs = observation "ynab-flag"
+            let state = stateFrom entryId obs
+
+            match observe (context entryId) (Some state) { obs with FlagColor = Some "purple"; FlagName = Some "Lena" } with
+            | [ { Body = EntryFlagChangeObservedInYnab payload } ] ->
+                Expect.isNone payload.OldFlagColor "vorher kein Flag"
+                Expect.equal payload.NewFlagColor (Some "purple") "neue Farbe"
+                Expect.equal payload.NewFlagName (Some "Lena") "neuer Name"
+            | events -> failtestf "genau ein Flag-Ereignis erwartet, waren %A" events
+
+        testCase "unveränderter Prüfvermerk und unverändertes Flag erzeugen kein Ereignis" <| fun () ->
+            // AC6: Idempotenz gilt auch für die beiden neuen Gruppen.
+            let entryId = newEntryId ()
+            let obs = { observation "ynab-flag-gleich" with FlagColor = Some "red"; FlagName = None }
+            let state = stateFrom entryId obs
+
+            Expect.isEmpty
+                (observe (context entryId) (Some state) obs)
+                "gleicher Prüfvermerk und gleiches Flag sind kein Delta"
+
+        testCase "Kopfdaten-, Genehmigungs- und Flag-Änderung ergeben drei Ereignisse in fester Reihenfolge" <| fun () ->
+            // AC7: mehrere Gruppen ändern sich gleichzeitig, Reihenfolge nach ADR 0032
+            // (Kopfdaten, Kategorisierung, Cleared, Genehmigung, Flag).
+            let entryId = newEntryId ()
+            let obs = observation "ynab-mehrere-neue-gruppen"
+            let state = stateFrom entryId obs
+
+            let changed =
+                { obs with
+                    Amount = eur -30.00m
+                    Approved = false
+                    FlagColor = Some "orange"
+                    FlagName = None }
+
+            match observe (context entryId) (Some state) changed with
+            | [ { Body = EntryDetailsChangeObservedInYnab _ }
+                { Body = EntryApprovalChangeObservedInYnab approval }
+                { Body = EntryFlagChangeObservedInYnab flag } ] ->
+                Expect.isFalse approval.NewApproved "Genehmigung zurückgenommen"
+                Expect.equal flag.NewFlagColor (Some "orange") "Flag-Farbe gesetzt"
+            | events -> failtestf "Kopfdaten-, Genehmigungs- und Flag-Ereignis in dieser Reihenfolge erwartet, waren %A" events
+
+        testCase "frisch gepushte Buchung erzeugt beim ersten Spiegel-Lauf kein Prüf-Ereignis" <| fun () ->
+            // AC8: der Push selbst sendet `Approved = false`; sieht der Spiegel danach
+            // dieselbe unbestätigte Buchung, ist das kein Delta.
+            let entryId = newEntryId ()
+            let pushed =
+                apply None {
+                    EntryId = entryId
+                    OccurredAt = DateTime(2026, 2, 6, 8, 0, 0, DateTimeKind.Utc)
+                    Actor = ComdirectImport
+                    Body =
+                        EntryImportedFromComdirect {
+                            AccountId = ledgerAccount
+                            ImportId = "BB:push-1"
+                            ComdirectReference = "comdirect-push-1"
+                            Date = DateTime(2026, 2, 6, 0, 0, 0, DateTimeKind.Utc)
+                            Amount = eur -12.00m
+                            Payee = Some "dm"
+                            Memo = None
+                            Cleared = Uncleared
+                            Approved = false
+                        }
+                }
+            Expect.isFalse pushed.Approved "die gepushte Buchung ist zunächst unbestätigt"
+
+            let firstMirrorObservation =
+                { observation "BB:push-1-ynab" with
+                    Payee = Some "dm"
+                    Memo = None
+                    Category = None
+                    Amount = eur -12.00m
+                    Date = pushed.Date
+                    Cleared = Uncleared
+                    Approved = false }
+
+            Expect.isEmpty
+                (observe (context entryId) (Some pushed) firstMirrorObservation)
+                "der erste Spiegel-Lauf nach dem Push sieht denselben unbestätigten Stand"
+
         testCase "Uebertrags-Verknuepfungen werden in der Erstbeobachtung mitgefuehrt" <| fun () ->
             let entryId = newEntryId ()
             let gegenkonto = YnabAccountId (Guid.Parse "0195d000-0000-7000-8000-0000000000a2")
@@ -198,6 +298,8 @@ module private Fixture =
             "memo": "Einkauf mit Abhebung",
             "cleared": "cleared",
             "approved": true,
+            "flag_color": null,
+            "flag_name": null,
             "account_id": "0195d000-0000-7000-8000-0000000000a1",
             "account_name": "Comdirect Giro",
             "payee_name": "Rewe",
@@ -256,6 +358,9 @@ module private Fixture =
             "amount": -100000,
             "memo": null,
             "cleared": "uncleared",
+            "approved": false,
+            "flag_color": "purple",
+            "flag_name": "Lena",
             "account_id": "0195d000-0000-7000-8000-0000000000a1",
             "payee_name": "Transfer : ING",
             "category_id": null,
@@ -270,6 +375,7 @@ module private Fixture =
             "amount": -1234,
             "memo": null,
             "cleared": "reconciled",
+            "approved": true,
             "account_id": "0195d000-0000-7000-8000-0000000000a1",
             "payee_name": "Aldi",
             "category_id": null,
@@ -328,6 +434,9 @@ let decoderTests =
                 Expect.isNone split.Category "eine Split-Buchung hat keine eigene Kategorie"
                 Expect.equal split.Date (DateTime(2026, 2, 3, 0, 0, 0, DateTimeKind.Utc)) "Datum gelesen"
                 Expect.isFalse split.Deleted "nicht geloescht"
+                Expect.isTrue split.Approved "approved: true gelesen"
+                Expect.isNone split.FlagColor "flag_color: null gelesen"
+                Expect.isNone split.FlagName "flag_name: null gelesen"
 
                 Expect.equal split.Splits.Length 3 "die geloeschte Split-Zeile faellt weg"
                 Expect.equal
@@ -354,6 +463,9 @@ let decoderTests =
                     transfer.TransferYnabTransactionId
                     (Some "tx-transfer-gegen")
                     "transfer_transaction_id gelesen"
+                Expect.isFalse transfer.Approved "approved: false gelesen"
+                Expect.equal transfer.FlagColor (Some "purple") "flag_color gelesen"
+                Expect.equal transfer.FlagName (Some "Lena") "flag_name gelesen"
 
                 let geloescht = batch.Observations |> List.find (fun o -> o.YnabTransactionId = "tx-weg")
                 Expect.isTrue geloescht.Deleted "deleted: true gelesen"
@@ -502,6 +614,32 @@ let mirrorRunTests =
 
             let entry = loadEntry entryId |> Async.RunSynchronously |> Option.get
             Expect.equal entry.Category (Some haushalt) "Zustand traegt die neue Kategorie"
+
+        testCase "Prüfvermerk-Änderung in YNAB zählt als geänderte Buchung im Lauf-Status" <| fun () ->
+            // Task-Schritt 6 (ADR 0032): ein Lauf, der nur Approved oder Flag ändert,
+            // zählt die Buchung trotzdem als geändert.
+            let budgetId = Run.budget "pruefvermerk"
+            let obs = { observation "pruefvermerk-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+
+            Run.run 4 budgetId (Run.fetchers 1L [ obs ]) |> Run.expectOk |> ignore
+
+            let summary =
+                Run.run 5 budgetId (Run.fetchers 2L [ { obs with Approved = false } ]) |> Run.expectOk
+
+            Expect.equal summary.ChangedEntries 1 "eine geänderte Buchung, obwohl nur der Prüfvermerk sich ändert"
+            Expect.equal summary.NewEntries 0 "keine neue Buchung"
+
+        testCase "Flag-Änderung in YNAB zählt als geänderte Buchung im Lauf-Status" <| fun () ->
+            let budgetId = Run.budget "flag"
+            let obs = { observation "flag-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+
+            Run.run 4 budgetId (Run.fetchers 1L [ obs ]) |> Run.expectOk |> ignore
+
+            let summary =
+                Run.run 5 budgetId (Run.fetchers 2L [ { obs with FlagColor = Some "purple"; FlagName = Some "Lena" } ])
+                |> Run.expectOk
+
+            Expect.equal summary.ChangedEntries 1 "eine geänderte Buchung, obwohl nur das Flag sich ändert"
 
         testCase "Loeschung in YNAB setzt das Flag, loescht aber nichts" <| fun () ->
             let budgetId = Run.budget "loeschung"
@@ -714,6 +852,8 @@ let mirrorRunTests =
                 | Error err -> failtest $"addCashExpense sollte gelingen, war: {err}"
 
             // Unveraenderte Daten unter derselben YNAB-Id: der Lauf darf nichts Neues sehen.
+            // `Approved = false` wie beim Push (ADR 0032): Quick Add sendet kein
+            // `approved`, sonst sähe der Lauf hier fälschlich eine Genehmigung.
             let obs = {
                 observation ynabTxId with
                     AccountId = quickAddYnabAccount
@@ -722,6 +862,7 @@ let mirrorRunTests =
                     Payee = input.Payee
                     Memo = input.Memo
                     Category = None
+                    Approved = false
             }
             let summary = Run.run 4 budgetId (Run.fetchers 99L [ obs ]) |> Run.expectOk
 
@@ -815,6 +956,8 @@ let mirrorRunTests =
             // gesendeten Request-Werte, nicht von Hand nachgebaute rohe Bank-Werte
             // (Verifier-Fund, Iteration 3, sonst deckt der Test die Memo/Payee-Abweichung
             // nicht auf).
+            // `Approved = false` wie beim Push (ADR 0032): der Comdirect-Import sendet
+            // kein `approved`, sonst sähe der Lauf hier fälschlich eine Genehmigung.
             let obs = {
                 observation ynabTxId with
                     AccountId = comdirectYnabAccount
@@ -824,6 +967,7 @@ let mirrorRunTests =
                     Payee = Some request.PayeeName
                     Memo = Some request.Memo
                     Category = None
+                    Approved = false
             }
             let summary = Run.run 4 budgetId (Run.fetchers 99L [ obs ]) |> Run.expectOk
 

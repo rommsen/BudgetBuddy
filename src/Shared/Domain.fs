@@ -789,6 +789,23 @@ type LedgerAccountKindView =
     | LedgerCashAccount
     | LedgerSecuritiesAccount
 
+/// Das Flag einer Buchung, gedeutet (ADR 0032): roh im Log/Zustand nur Farbe und
+/// Name, hier die drei Fälle, die das Kassenbuch unterscheidet. `AskLena` erkennt
+/// den Flag-Namen "Lena" (nach Trim, ohne Beachtung der Groß-/Kleinschreibung),
+/// `Marked` jedes andere gesetzte Flag (auch nur eine Farbe ohne Namen).
+type LedgerFlag =
+    | NoFlag
+    | AskLena
+    | Marked
+
+/// Wie ein Flag im Kassenbuch heisst. `None` bei `NoFlag`: kein Flag zeigt kein
+/// Kennzeichen, statt eines leeren.
+let flagLabel (flag: LedgerFlag) : string option =
+    match flag with
+    | NoFlag -> None
+    | AskLena -> Some "Rückfrage Lena"
+    | Marked -> Some "Markiert"
+
 /// Ein Konto in der Kontoauswahl. Kein Kontostand als Feld: der Stand ist die Summe
 /// der Buchungen (ADR 0016/0017) und wird aus der geladenen Liste gerechnet.
 type LedgerAccountView = {
@@ -826,6 +843,11 @@ type LedgerEntryView = {
     /// In YNAB geloescht. Die Buchung bleibt sichtbar und traegt ein Kennzeichen;
     /// sie zaehlt nicht mehr zum Kontostand (ADR 0013).
     DeletedInYnab: bool
+    /// Zu prüfen: `approved = false` oder `cleared = Uncleared` (ADR 0032). Der Chip
+    /// "Zu prüfen (n)" und der Punkt am linken Zeilenrand hängen daran.
+    NeedsReview: bool
+    /// Das gedeutete Flag der Buchung (ADR 0032).
+    Flag: LedgerFlag
 }
 
 /// Eine Zeile der Historie einer Buchung: wann, von wem, und was passiert ist —
@@ -881,11 +903,15 @@ let sumMoney (fallbackCurrency: string) (amounts: Money list) : Money =
 /// gehören standardmäßig NICHT in den Treffer (`false`), damit die sichtbare
 /// Liste sich zum angezeigten Kontostand summiert; der Schalter der Seite setzt
 /// `true`, um sie gedämpft wieder einzublenden.
+/// `OnlyNeedsReview` (ADR 0032): Standard `false`, der Chip "Zu prüfen (n)" setzt
+/// `true` und lässt nur ungeprüfte Buchungen (`approved = false` oder
+/// `cleared = Uncleared`) im Treffer.
 type LedgerEntryPageQuery = {
     AccountId: Guid option
     Page: int
     PageSize: int
     IncludeDeleted: bool
+    OnlyNeedsReview: bool
 }
 
 /// Eine Seite der Buchungsliste: die Buchungen dieser Seite, die Gesamtzahl der
@@ -895,11 +921,15 @@ type LedgerEntryPageQuery = {
 /// `DeletedCount` (ledger-p3n8k): die Zahl der in YNAB gelöschten Buchungen im
 /// Filter (Konto oder alle), unabhängig von `IncludeDeleted` (so kann die Seite
 /// "3 gelöschte Buchungen ausgeblendet" auch zeigen, während sie ausgeblendet sind).
+/// `NeedsReviewCount` (ADR 0032): die Zahl der zu prüfenden Buchungen im Filter
+/// (Konto oder alle), unabhängig von `OnlyNeedsReview`: dasselbe Muster wie
+/// `DeletedCount`/`IncludeDeleted`.
 type LedgerEntryPage = {
     Entries: LedgerEntryView list
     TotalCount: int
     TotalAmount: Money
     DeletedCount: int
+    NeedsReviewCount: int
 }
 
 /// Der Rohwert einer Buchung, wie ihn die Kontostaende-Abfrage braucht: Konto, Betrag

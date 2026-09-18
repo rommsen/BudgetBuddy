@@ -73,6 +73,27 @@ let private accountKindFromText =
 // Schema
 // ============================================
 
+/// Migration: `approved`/`flag_color`/`flag_name` (ADR 0032) für Zustandstabellen,
+/// die vor diesen Spalten angelegt wurden. Das `CREATE TABLE IF NOT EXISTS` in
+/// `initializeLedgerSchema` deckt frische Datenbanken bereits ab; SQLite kennt kein
+/// "ADD COLUMN IF NOT EXISTS", deshalb je Spalte ein eigener Versuch nach dem Muster
+/// von `Persistence.initializeDatabase` (`review_steps`-Migration). Bestehende Zeilen
+/// bekommen dabei den SQL-Standardwert `1` für `approved`, kein Flag: genau die
+/// Vorgabe für den Bestand (ADR 0032, Punkt 3). Nimmt die Connection als Parameter,
+/// damit Tests sie gegen eine eigene, isolierte Verbindung ausführen können, statt
+/// eine Kopie der SQL-Anweisungen zu wiederholen.
+let migrateLedgerEntryColumns (conn: SqliteConnection) =
+    let migrateColumn (sql: string) =
+        try
+            use migrateCmd = new SqliteCommand(sql, conn)
+            migrateCmd.ExecuteNonQuery() |> ignore
+        with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
+            ()
+
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN approved INTEGER NOT NULL DEFAULT 1"
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_color TEXT"
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_name TEXT"
+
 /// Legt die Kassenbuch-Tabellen an. Bestehende Tabellen bleiben unangetastet; der
 /// Aufruf folgt dem Muster von `Persistence.initializeDatabase` und ist idempotent.
 let initializeLedgerSchema () =
@@ -122,7 +143,10 @@ let initializeLedgerSchema () =
             splits TEXT NOT NULL,
             cleared TEXT NOT NULL,
             transfer_entry_id TEXT,
-            deleted_in_ynab INTEGER NOT NULL DEFAULT 0
+            deleted_in_ynab INTEGER NOT NULL DEFAULT 0,
+            approved INTEGER NOT NULL DEFAULT 1,
+            flag_color TEXT,
+            flag_name TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -140,6 +164,8 @@ let initializeLedgerSchema () =
         )
 
     cmd.ExecuteNonQuery() |> ignore
+
+    migrateLedgerEntryColumns conn
 
 // ============================================
 // Zeilen-Typen
@@ -172,6 +198,9 @@ type private EntryRow = {
     cleared: string
     transfer_entry_id: string
     deleted_in_ynab: int64
+    approved: int64
+    flag_color: string
+    flag_name: string
 }
 
 [<CLIMutable>]
@@ -234,6 +263,9 @@ let private rowToEntry (row: EntryRow) : Entry =
         Cleared = clearedFromText row.cleared
         TransferEntryId = toOption row.transfer_entry_id |> Option.map (Guid.Parse >> EntryId)
         DeletedInYnab = row.deleted_in_ynab = 1L
+        Approved = row.approved = 1L
+        FlagColor = toOption row.flag_color
+        FlagName = toOption row.flag_name
     }
 
 let private rowToAccount (row: AccountRow) : LedgerAccount =
@@ -281,15 +313,19 @@ let private entryParams (entry: Entry) =
             | Some (EntryId t) -> box (t.ToString())
             | None -> null
         deleted_in_ynab = (if entry.DeletedInYnab then 1 else 0)
+        approved = (if entry.Approved then 1 else 0)
+        flag_color = orNull entry.FlagColor
+        flag_name = orNull entry.FlagName
     |}
 
 let private upsertEntrySql =
     """INSERT INTO ledger_entries
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
-          splits, cleared, transfer_entry_id, deleted_in_ynab)
+          splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
-          @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab)
+          @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
+          @flag_color, @flag_name)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -302,7 +338,10 @@ let private upsertEntrySql =
           splits = excluded.splits,
           cleared = excluded.cleared,
           transfer_entry_id = excluded.transfer_entry_id,
-          deleted_in_ynab = excluded.deleted_in_ynab"""
+          deleted_in_ynab = excluded.deleted_in_ynab,
+          approved = excluded.approved,
+          flag_color = excluded.flag_color,
+          flag_name = excluded.flag_name"""
 
 /// Haengt Ereignisse an das Log und schreibt den daraus abgeleiteten Zustand fort:
 /// beides auf **einer** Connection in **einer** Transaktion (ADR 0013, Punkt 5).
@@ -495,32 +534,41 @@ let loadEntriesForAccount (accountId: LedgerAccountId) : Async<Entry list> =
 // Zeilen liefert. Kein SQL-`SUM`, kein `CAST(amount AS REAL)` irgendwo unten
 // (ADR 0017) — die Summenbildung bleibt F#.
 
+/// Die WHERE-Klausel für "zu prüfen" (ADR 0032): nicht genehmigt oder noch offen.
+/// `Reconciled` zählt wie `Cleared` als geprüft, deshalb reicht der Vergleich auf
+/// `Uncleared`.
+let private needsReviewSqlClause = "(approved = 0 OR cleared = 'Uncleared')"
+
 /// Eine Seite der Buchungen eines Kontos oder — `accountId = None` — aller Konten,
 /// neueste zuerst. Liest ausschliesslich die Zustandstabelle (ADR 0013).
 /// `includeDeleted = false` (Standard, ledger-p3n8k) lässt in YNAB gelöschte
-/// Buchungen aus der Seite weg, sonst zählen sie mit.
+/// Buchungen aus der Seite weg, sonst zählen sie mit. `onlyNeedsReview = true`
+/// (ADR 0032) lässt nur ungeprüfte Buchungen stehen; beide Schalter sind
+/// unabhängig voneinander und werden mit UND verknüpft.
 let loadEntriesPage
     (accountId: LedgerAccountId option)
     (pageIndex: int)
     (pageSize: int)
     (includeDeleted: bool)
+    (onlyNeedsReview: bool)
     : Async<Entry list> =
     async {
         use conn = Core.getConnection ()
         let offset = pageIndex * pageSize
         let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
+        let needsReviewClause = if onlyNeedsReview then $"AND {needsReviewSqlClause}" else ""
         let! rows =
             match accountId with
             | Some (LedgerAccountId id) ->
                 conn.QueryAsync<EntryRow>(
-                    $"""SELECT * FROM ledger_entries WHERE account_id = @accountId {deletedClause}
+                    $"""SELECT * FROM ledger_entries WHERE account_id = @accountId {deletedClause} {needsReviewClause}
                        ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
                     {| accountId = id.ToString(); limit = pageSize; offset = offset |}
                 )
                 |> Async.AwaitTask
             | None ->
                 conn.QueryAsync<EntryRow>(
-                    $"""SELECT * FROM ledger_entries WHERE 1 = 1 {deletedClause}
+                    $"""SELECT * FROM ledger_entries WHERE 1 = 1 {deletedClause} {needsReviewClause}
                        ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
                     {| limit = pageSize; offset = offset |}
                 )
@@ -529,23 +577,25 @@ let loadEntriesPage
     }
 
 /// Die Gesamtzahl der Buchungen eines Kontos oder aller Konten — die Trefferzahl
-/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite. Derselbe
-/// `includeDeleted`-Schalter wie `loadEntriesPage` (ledger-p3n8k), damit Trefferzahl
-/// und Seite immer zum selben Treffer gehören.
-let countEntries (accountId: LedgerAccountId option) (includeDeleted: bool) : Async<int> =
+/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite. Dieselben
+/// `includeDeleted`/`onlyNeedsReview`-Schalter wie `loadEntriesPage`, damit
+/// Trefferzahl und Seite immer zum selben Treffer gehören.
+let countEntries (accountId: LedgerAccountId option) (includeDeleted: bool) (onlyNeedsReview: bool) : Async<int> =
     async {
         use conn = Core.getConnection ()
         let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
+        let needsReviewClause = if onlyNeedsReview then $"AND {needsReviewSqlClause}" else ""
         let! count =
             match accountId with
             | Some (LedgerAccountId id) ->
                 conn.ExecuteScalarAsync<int64>(
-                    $"SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId {deletedClause}",
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId {deletedClause} {needsReviewClause}",
                     {| accountId = id.ToString() |}
                 )
                 |> Async.AwaitTask
             | None ->
-                conn.ExecuteScalarAsync<int64>($"SELECT COUNT(*) FROM ledger_entries WHERE 1 = 1 {deletedClause}")
+                conn.ExecuteScalarAsync<int64>(
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE 1 = 1 {deletedClause} {needsReviewClause}")
                 |> Async.AwaitTask
         return int count
     }
@@ -570,6 +620,28 @@ let countDeletedEntries (accountId: LedgerAccountId option) : Async<int> =
         return int count
     }
 
+/// Die Zahl der zu prüfenden Buchungen eines Kontos oder aller Konten (ADR 0032),
+/// unabhängig von `onlyNeedsReview` (wie `countDeletedEntries`/`IncludeDeleted`):
+/// die Seite soll den Chip "Zu prüfen (n)" auch zeigen können, während der Filter
+/// aus ist. Gelöschte Buchungen zählen nie mit.
+let countNeedsReviewEntries (accountId: LedgerAccountId option) : Async<int> =
+    async {
+        use conn = Core.getConnection ()
+        let! count =
+            match accountId with
+            | Some (LedgerAccountId id) ->
+                conn.ExecuteScalarAsync<int64>(
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId AND deleted_in_ynab = 0 AND {needsReviewSqlClause}",
+                    {| accountId = id.ToString() |}
+                )
+                |> Async.AwaitTask
+            | None ->
+                conn.ExecuteScalarAsync<int64>(
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE deleted_in_ynab = 0 AND {needsReviewSqlClause}")
+                |> Async.AwaitTask
+        return int count
+    }
+
 [<CLIMutable>]
 type private AmountRow = { amount: string; currency: string }
 
@@ -577,21 +649,28 @@ type private AmountRow = { amount: string; currency: string }
 /// gebildete Summe ueber den GESAMTEN Treffer (ADR 0017, ledger-b1xwe AC1). Bewusst
 /// kein `SUM(amount)`: der Betrag liegt als exakter Dezimal-Text, nicht als `REAL`.
 /// `includeDeleted = false` (ledger-p3n8k) schließt gelöschte Beträge aus der
-/// Summe aus, damit sie mit dem angezeigten Kontostand übereinstimmt.
-let loadAmountsForQuery (accountId: LedgerAccountId option) (includeDeleted: bool) : Async<Money list> =
+/// Summe aus, `onlyNeedsReview = true` (ADR 0032) schließt sie auf die zu prüfenden
+/// Buchungen ein, damit die Summe zum tatsächlichen Treffer passt.
+let loadAmountsForQuery
+    (accountId: LedgerAccountId option)
+    (includeDeleted: bool)
+    (onlyNeedsReview: bool)
+    : Async<Money list> =
     async {
         use conn = Core.getConnection ()
         let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
+        let needsReviewClause = if onlyNeedsReview then $"AND {needsReviewSqlClause}" else ""
         let! rows =
             match accountId with
             | Some (LedgerAccountId id) ->
                 conn.QueryAsync<AmountRow>(
-                    $"SELECT amount, currency FROM ledger_entries WHERE account_id = @accountId {deletedClause}",
+                    $"SELECT amount, currency FROM ledger_entries WHERE account_id = @accountId {deletedClause} {needsReviewClause}",
                     {| accountId = id.ToString() |}
                 )
                 |> Async.AwaitTask
             | None ->
-                conn.QueryAsync<AmountRow>($"SELECT amount, currency FROM ledger_entries WHERE 1 = 1 {deletedClause}")
+                conn.QueryAsync<AmountRow>(
+                    $"SELECT amount, currency FROM ledger_entries WHERE 1 = 1 {deletedClause} {needsReviewClause}")
                 |> Async.AwaitTask
         return rows |> Seq.map (fun r -> { Amount = decimalFromText r.amount; Currency = r.currency }) |> Seq.toList
     }

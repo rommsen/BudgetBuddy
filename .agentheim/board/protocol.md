@@ -5,6 +5,31 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 23:00 -- Task verified and completed: ledger-kdnnz - "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen"
+
+**Type:** Work / Task completion
+**Task:** ledger-kdnnz - "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen"
+**Summary:** Spiegel beobachtet Prüfvermerk und Flags: zwei neue Ereignisse, Schema-Version 2 mit Bestandsregel, Chip "Zu prüfen" und Kennzeichen, rein lesend
+**Duration:** 1h20m
+**Verification:** PASS (iteration 2)
+**Files changed:** 14
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
+## 2026-09-18 22:56 -- Verification failed: ledger-kdnnz (Iteration 2) - Ursache beim Conductor, nicht beim Worker
+
+**Type:** Work / Verification failure
+**Task:** ledger-kdnnz - Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten
+**Iteration:** 2 of 3
+**Reasons:** Einziger offener Punkt ist Kriterium 19 (Ereignis-Katalog im BC-README ergänzt). Der Verifier fand dafür kein prüfbares Artefakt, weil ihm kein README_DELTA vorlag. Der Worker hat in beiden Iterationen einen geliefert, inhaltlich vollständig (zwei neue Beobachtungs-Ereignisse, Schema-Version 2 der drei Entstehungs-Ereignisse, Bestandsvorgabe approved = true ohne Flag, dazu Migration und drei Begriffe für die Ubiquitous language). Der Conductor hat ihn im Verifier-Prompt schlicht ausgelassen. Der Verifier hat die Lücke selbst als mögliches Weiterreich-Loch eingeordnet und empfohlen, den Block nachzureichen statt neu zu dispatchen. Genau das passiert: kein Worker-Re-Dispatch, sondern Nachverifikation dieses einen Punktes durch denselben Verifier.
+**Alle übrigen 18 Kriterien sind in diesem Durchgang belegt:** dotnet test Exit 0 mit 871 bestanden, npm run build Exit 0, die Migration läuft jetzt echt über Ledger.Persistence.migrateLedgerEntryColumns und wird vom Test gegen eine selbst gebaute alte Tabelle gefahren (keine kopierte SQL mehr), beide Screenshots vom Verifier selbst angesehen (Handy: Punkt in eigener schmaler Spalte, Chip gefüllt; PC: rosa linker Rahmen nur an der ungeprüften Zeile, Rückfrage Lena violett, Markiert orange, passend zur Farbsemantik des Styleguides), Entwicklungsdatenbank unberührt, keine Konfliktmarker, Schreibregel sauber.
+**Iteration hint:** likely-fixable
+**Next:** Nachverifikation ohne Re-Dispatch
+
+---
+
 ## 2026-09-18 22:29 -- Verification failed: ledger-kdnnz - Spiegel erweitern: Prüfvermerk und Flags
 
 **Type:** Work / Verification failure

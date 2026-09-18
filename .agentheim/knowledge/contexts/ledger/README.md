@@ -132,6 +132,18 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Eine in YNAB gelöschte Buchung trägt zusätzlich das Kennzeichen *in YNAB gelöscht*: sie
   ist in der Kassenbuch-Liste standardmäßig ausgeblendet (`ledger-p3n8k`), kommt über
   den Schalter gedämpft und durchgestrichen zurück und zählt beim Kontostand nie mit.
+- **Prüfvermerk** — ob eine Buchung noch zu prüfen ist: `NeedsReview` ist wahr, wenn
+  `Approved = false` oder `Cleared = Uncleared` (`Ledger.Domain.needsReview`, ADR 0032).
+  Ungeprüfte Buchungen tragen einen Punkt am linken Zeilenrand (Handy) bzw. einen linken
+  Rahmen (PC), unabhängig vom Flag.
+- **Flag** — YNABs `flag_color`/`flag_name`, roh im Zustand gehalten, gedeutet im Lesepfad
+  (`Ledger.QueryHandlers.ReadModel.flagOf`, ADR 0032): der Name "Lena" (getrimmt, ohne
+  Beachtung der Groß-/Kleinschreibung) ergibt *Rückfrage Lena* (violett), jedes andere
+  gesetzte Flag *Markiert* (orange), sonst kein Kennzeichen.
+- **Zu prüfen** — der Chip "Zu prüfen (n)" über der Liste
+  (`Components.Ledger.View.needsReviewChipLabel`): n ist die Zahl der ungeprüften, nicht
+  gelöschten Buchungen im gewählten Kontofilter, unabhängig davon, ob der Filter aktiv ist.
+  Antippen kippt `OnlyNeedsReview`.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -230,6 +242,11 @@ MatchedByOrderId`).
 - `EntryClearedStateChangeObservedInYnab`: Cleared-Status geändert (alt/neu); eigenes
   Ereignis, damit die Anzeige dieses Rauschen ausblenden kann.
 - `EntryDeletionObservedInYnab`: in YNAB gelöscht; die Buchung bleibt mit Flag.
+- `EntryApprovalChangeObservedInYnab`: `approved` in YNAB geändert (alt/neu). Eigenes
+  Ereignis, wie beim Cleared-Status; in der Gruppen-Reihenfolge nach Cleared (ADR 0032).
+- `EntryFlagChangeObservedInYnab`: `flag_color`/`flag_name` in YNAB geändert (alt/neu),
+  roh. Die Deutung (*Rückfrage Lena*, *Markiert*, kein Flag) sitzt im Lesepfad, nicht im
+  Ereignis (ADR 0032). Letzte Gruppe in der Reihenfolge.
 
 Mehrere Gruppen in einer Beobachtung ergeben mehrere Ereignisse (Details, Kategorisierung,
 Cleared). Unveränderte Daten ergeben kein Ereignis.
@@ -237,6 +254,13 @@ Cleared). Unveränderte Daten ergeben kein Ereignis.
 **Entstehung:** Eine Buchung entsteht mit genau einem von `EntryObservedInYnab`,
 `EntryImportedFromComdirect`, `CashExpenseAdded`. Ein zweites Entstehungs-Ereignis auf
 derselben Buchung ist ein kaputtes Log und wird von `apply` laut abgelehnt.
+
+**Prüfvermerk und Flags in Schema-Version 2** (ADR 0032): `EntryObservedInYnab` trägt seit
+Version 2 zusätzlich `approved`, `flagColor`, `flagName`; `EntryImportedFromComdirect` und
+`CashExpenseAdded` tragen `approved`, beim Schreiben immer `false` (der Push sendet kein
+`approved`, YNAB legt die Buchung unbestätigt an). **Version 1 aller drei bleibt lesbar**
+und liefert `approved = true`, kein Flag: kein Nachholen für den Bestand, alte BB-Buchungen
+fallen nicht in "Zu prüfen".
 
 **Entscheidungen** (BB hat etwas festgelegt):
 - `EntryImportedFromComdirect`: Comdirect-Buchung beim Push angelegt, ohne Kategorie. Die
@@ -267,6 +291,14 @@ Fehler oder still idempotent ist, entscheidet der Aufrufer (`appendAndApply`-Fas
 
 **Konten** haben in v1 keine Historie (reiner Zustand: Id, Name, Art, Verknüpfung,
 geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchungen.
+
+**Migration bestehender Zustandstabellen** (ADR 0032):
+`Ledger.Persistence.migrateLedgerEntryColumns` fügt `approved`, `flag_color` und
+`flag_name` einer vor diesen Spalten angelegten Tabelle nach; bestehende Zeilen bekommen
+`approved = 1` und kein Flag. Die Funktion nimmt die Connection als Parameter, damit sie
+sowohl aus `initializeLedgerSchema` als auch aus einem Test gegen eine isolierte
+Verbindung laufen kann; ein zweiter Aufruf bleibt folgenlos (SQLite kennt kein
+`ADD COLUMN IF NOT EXISTS`, die Migration fängt den Duplikat-Fehler ab).
 
 **Code-Layout** (souls-Muster): `src/Server/Ledger/Events.fs`, `Ledger/Domain.fs` (`apply`,
 `observe`), `Ledger/Persistence.fs` (`appendAndApply`, Loads, Replay), später
@@ -338,9 +370,12 @@ kein Schalter.
 
 **Was das Konzept voraussetzt und heute nicht gibt** (Scheiben-Material für
 `ledger-s8m3w`):
-- **Prüfvermerk und Flags im Spiegel.** Der Ereignis-Katalog oben kennt weder `approved`
-  noch Flags. Schon die lesende Anzeige "noch nicht geprüft" oder "Rückfrage Lena" braucht
-  eine Erweiterung von Snapshot und Beobachtungs-Ereignissen.
+- **Prüfvermerk und Flags im Spiegel** *gelöst (ADR 0032, `ledger-kdnnz`):* Der
+  Ereignis-Katalog oben kennt `approved` und Flags; `EntryApprovalChangeObservedInYnab`
+  und `EntryFlagChangeObservedInYnab` beobachten Änderungen, die drei
+  Entstehungs-Ereignisse tragen den Prüfstand in Schema-Version 2. Die lesende Anzeige
+  steht: Chip "Zu prüfen (n)", Punkt am linken Zeilenrand, Kennzeichen *Rückfrage Lena*
+  und *Markiert*. Das Setzen aus BB heraus bleibt `ledger-r777c`.
 - **Available-Betrag je Kategorie.** Der Picker soll je Kategorie den verfügbaren Betrag
   zeigen und beim Wechsel beide Seiten (alt hoch, neu runter), wie die YNAB-App. Der
   Spiegel führt heute keine Budget-Zahlen mit.

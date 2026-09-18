@@ -75,6 +75,10 @@ type CategoryRef = {
 // erzeugt werden sie vom Spiegel-Lauf (ledger-m8r2v).
 
 /// Erstbeobachtung: die Buchung wurde zum ersten Mal in YNAB gesehen. Voller Snapshot.
+///
+/// `Approved`/`FlagColor`/`FlagName` sind Schema-Version 2 (ADR 0032, Punkt 4): ein
+/// gespeichertes Ereignis in Version 1 kennt diese Felder nicht und gilt beim Lesen
+/// als `Approved = true`, ohne Flag (`Codec.decodeObservedV1`).
 type EntryObservedInYnabPayload = {
     AccountId: LedgerAccountId
     YnabTransactionId: string
@@ -90,6 +94,12 @@ type EntryObservedInYnabPayload = {
     TransferAccountId: YnabAccountId option
     /// Die YNAB-Transaction-Id der Gegenbuchung (`transfer_transaction_id`).
     TransferYnabTransactionId: string option
+    /// YNABs `approved` (nie null). Teil des Prüfvermerks neben `Cleared` (ADR 0032).
+    Approved: bool
+    /// YNABs `flag_color`, roh. Die Deutung passiert im Lesepfad (ADR 0032).
+    FlagColor: string option
+    /// YNABs `flag_name`, roh.
+    FlagName: string option
 }
 
 /// Kopfdaten in YNAB geaendert, auch die Verschiebung auf ein anderes Konto.
@@ -121,6 +131,22 @@ type EntryClearedStateChangeObservedInYnabPayload = {
     NewCleared: ClearedState
 }
 
+/// `approved` in YNAB geändert (ADR 0032): die eine Hälfte des Prüfvermerks neben
+/// `Cleared`. Eigenes Ereignis, analog zu `EntryClearedStateChangeObservedInYnab`.
+type EntryApprovalChangeObservedInYnabPayload = {
+    OldApproved: bool
+    NewApproved: bool
+}
+
+/// `flag_color`/`flag_name` in YNAB geändert (ADR 0032). Roh, wie YNAB sie liefert;
+/// die Deutung (Rückfrage Lena, Markiert, kein Flag) passiert im Lesepfad.
+type EntryFlagChangeObservedInYnabPayload = {
+    OldFlagColor: string option
+    OldFlagName: string option
+    NewFlagColor: string option
+    NewFlagName: string option
+}
+
 // ============================================
 // Entscheidungs-Familie
 // ============================================
@@ -139,6 +165,10 @@ type EntryImportedFromComdirectPayload = {
     Payee: string option
     Memo: string option
     Cleared: ClearedState
+    /// Immer `false` beim Schreiben (ADR 0032, Schema-Version 2): der Push sendet
+    /// kein `approved`, YNAB legt die Buchung unbestätigt an. Version 1 ohne dieses
+    /// Feld gilt beim Lesen als `true` (`Codec.decodeImportedFromComdirectV1`).
+    Approved: bool
 }
 
 /// Eine Kategorisierungs-Regel hat entschieden. Nur auf einer noch unkategorisierten
@@ -170,6 +200,10 @@ type CashExpenseAddedPayload = {
     Memo: string option
     Category: CategoryRef option
     Cleared: ClearedState
+    /// Immer `false` beim Schreiben (ADR 0032, Schema-Version 2): Quick Add sendet
+    /// kein `approved` an YNAB. Version 1 ohne dieses Feld gilt beim Lesen als `true`
+    /// (`Codec.decodeCashExpenseAddedV1`).
+    Approved: bool
 }
 
 /// Die YNAB-Id ist bekannt geworden: aus der Push-Antwort (Actor `ComdirectImport`
@@ -184,6 +218,8 @@ type LedgerEventBody =
     | EntryDetailsChangeObservedInYnab of EntryDetailsChangeObservedInYnabPayload
     | EntryCategorizationChangeObservedInYnab of EntryCategorizationChangeObservedInYnabPayload
     | EntryClearedStateChangeObservedInYnab of EntryClearedStateChangeObservedInYnabPayload
+    | EntryApprovalChangeObservedInYnab of EntryApprovalChangeObservedInYnabPayload
+    | EntryFlagChangeObservedInYnab of EntryFlagChangeObservedInYnabPayload
     /// In YNAB geloescht gesehen. Nur Umschlag, keine Payload; der Zustand behaelt die
     /// Buchung und setzt das Flag `DeletedInYnab`.
     | EntryDeletionObservedInYnab
@@ -234,6 +270,8 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryDetailsChangeObservedInYnab _ -> "EntryDetailsChangeObservedInYnab"
     | EntryCategorizationChangeObservedInYnab _ -> "EntryCategorizationChangeObservedInYnab"
     | EntryClearedStateChangeObservedInYnab _ -> "EntryClearedStateChangeObservedInYnab"
+    | EntryApprovalChangeObservedInYnab _ -> "EntryApprovalChangeObservedInYnab"
+    | EntryFlagChangeObservedInYnab _ -> "EntryFlagChangeObservedInYnab"
     | EntryDeletionObservedInYnab -> "EntryDeletionObservedInYnab"
     | EntryImportedFromComdirect _ -> "EntryImportedFromComdirect"
     | EntryCategorizedByRule _ -> "EntryCategorizedByRule"
@@ -243,18 +281,22 @@ let eventTypeName (body: LedgerEventBody) : string =
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
-/// bleiben unangetastet lesbar (ADR 0013, Punkt 7).
+/// bleiben unangetastet lesbar (ADR 0013, Punkt 7). `EntryObservedInYnab`,
+/// `EntryImportedFromComdirect` und `CashExpenseAdded` schreiben seit ADR 0032 Version 2
+/// (`approved`, bei `EntryObservedInYnab` zusätzlich Flag); Version 1 bleibt lesbar.
 let schemaVersion (body: LedgerEventBody) : int =
     match body with
-    | EntryObservedInYnab _ -> 1
+    | EntryObservedInYnab _ -> 2
     | EntryDetailsChangeObservedInYnab _ -> 1
     | EntryCategorizationChangeObservedInYnab _ -> 1
     | EntryClearedStateChangeObservedInYnab _ -> 1
+    | EntryApprovalChangeObservedInYnab _ -> 1
+    | EntryFlagChangeObservedInYnab _ -> 1
     | EntryDeletionObservedInYnab -> 1
-    | EntryImportedFromComdirect _ -> 1
+    | EntryImportedFromComdirect _ -> 2
     | EntryCategorizedByRule _ -> 1
     | EntryRecategorized _ -> 1
-    | CashExpenseAdded _ -> 1
+    | CashExpenseAdded _ -> 2
     | EntryLinkedToYnab _ -> 1
 
 // ============================================
@@ -402,8 +444,12 @@ module Codec =
             "transferAccountId",
                 encodeOption (fun (YnabAccountId id) -> Encode.guid id) p.TransferAccountId
             "transferYnabTransactionId", encodeOptionalString p.TransferYnabTransactionId
+            "approved", Encode.bool p.Approved
+            "flagColor", encodeOptionalString p.FlagColor
+            "flagName", encodeOptionalString p.FlagName
         ]
 
+    /// Schema-Version 2 (ADR 0032): mit `approved`/`flagColor`/`flagName`.
     let decodeObserved : Decoder<EntryObservedInYnabPayload> =
         Decode.object (fun get -> {
             AccountId = get.Required.Field "accountId" decodeAccountId
@@ -420,6 +466,32 @@ module Codec =
                 get.Optional.Field "transferAccountId" Decode.guid |> Option.map YnabAccountId
             TransferYnabTransactionId =
                 get.Optional.Field "transferYnabTransactionId" Decode.string
+            Approved = get.Required.Field "approved" Decode.bool
+            FlagColor = get.Optional.Field "flagColor" Decode.string
+            FlagName = get.Optional.Field "flagName" Decode.string
+        })
+
+    /// Schema-Version 1 (ADR 0032, Punkt 3): ohne `approved`/`flagColor`/`flagName`.
+    /// Ein Bestandsereignis in dieser Form gilt beim Lesen als genehmigt, ohne Flag.
+    let decodeObservedV1 : Decoder<EntryObservedInYnabPayload> =
+        Decode.object (fun get -> {
+            AccountId = get.Required.Field "accountId" decodeAccountId
+            YnabTransactionId = get.Required.Field "ynabTransactionId" Decode.string
+            ImportId = get.Optional.Field "importId" Decode.string
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Category = get.Optional.Field "category" decodeCategory
+            Splits = get.Optional.Field "splits" decodeSplits |> Option.defaultValue []
+            Cleared = get.Required.Field "cleared" decodeClearedState
+            TransferAccountId =
+                get.Optional.Field "transferAccountId" Decode.guid |> Option.map YnabAccountId
+            TransferYnabTransactionId =
+                get.Optional.Field "transferYnabTransactionId" Decode.string
+            Approved = true
+            FlagColor = None
+            FlagName = None
         })
 
     let encodeDetailsChange (p: EntryDetailsChangeObservedInYnabPayload) =
@@ -478,6 +550,34 @@ module Codec =
             NewCleared = get.Required.Field "newCleared" decodeClearedState
         })
 
+    let encodeApprovalChange (p: EntryApprovalChangeObservedInYnabPayload) =
+        Encode.object [
+            "oldApproved", Encode.bool p.OldApproved
+            "newApproved", Encode.bool p.NewApproved
+        ]
+
+    let decodeApprovalChange : Decoder<EntryApprovalChangeObservedInYnabPayload> =
+        Decode.object (fun get -> {
+            OldApproved = get.Required.Field "oldApproved" Decode.bool
+            NewApproved = get.Required.Field "newApproved" Decode.bool
+        })
+
+    let encodeFlagChange (p: EntryFlagChangeObservedInYnabPayload) =
+        Encode.object [
+            "oldFlagColor", encodeOptionalString p.OldFlagColor
+            "oldFlagName", encodeOptionalString p.OldFlagName
+            "newFlagColor", encodeOptionalString p.NewFlagColor
+            "newFlagName", encodeOptionalString p.NewFlagName
+        ]
+
+    let decodeFlagChange : Decoder<EntryFlagChangeObservedInYnabPayload> =
+        Decode.object (fun get -> {
+            OldFlagColor = get.Optional.Field "oldFlagColor" Decode.string
+            OldFlagName = get.Optional.Field "oldFlagName" Decode.string
+            NewFlagColor = get.Optional.Field "newFlagColor" Decode.string
+            NewFlagName = get.Optional.Field "newFlagName" Decode.string
+        })
+
     let encodeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
         Encode.object [
             "accountId", encodeAccountId p.AccountId
@@ -488,8 +588,10 @@ module Codec =
             "payee", encodeOptionalString p.Payee
             "memo", encodeOptionalString p.Memo
             "cleared", encodeClearedState p.Cleared
+            "approved", Encode.bool p.Approved
         ]
 
+    /// Schema-Version 2 (ADR 0032): mit `approved`.
     let decodeImportedFromComdirect : Decoder<EntryImportedFromComdirectPayload> =
         Decode.object (fun get -> {
             AccountId = get.Required.Field "accountId" decodeAccountId
@@ -500,6 +602,21 @@ module Codec =
             Payee = get.Optional.Field "payee" Decode.string
             Memo = get.Optional.Field "memo" Decode.string
             Cleared = get.Required.Field "cleared" decodeClearedState
+            Approved = get.Required.Field "approved" Decode.bool
+        })
+
+    /// Schema-Version 1: ohne `approved`. Gilt beim Lesen als genehmigt (ADR 0032).
+    let decodeImportedFromComdirectV1 : Decoder<EntryImportedFromComdirectPayload> =
+        Decode.object (fun get -> {
+            AccountId = get.Required.Field "accountId" decodeAccountId
+            ImportId = get.Required.Field "importId" Decode.string
+            ComdirectReference = get.Required.Field "comdirectReference" Decode.string
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Cleared = get.Required.Field "cleared" decodeClearedState
+            Approved = true
         })
 
     let encodeCategorizedByRule (p: EntryCategorizedByRulePayload) =
@@ -547,8 +664,10 @@ module Codec =
             "memo", encodeOptionalString p.Memo
             "category", encodeOption encodeCategory p.Category
             "cleared", encodeClearedState p.Cleared
+            "approved", Encode.bool p.Approved
         ]
 
+    /// Schema-Version 2 (ADR 0032): mit `approved`.
     let decodeCashExpenseAdded : Decoder<CashExpenseAddedPayload> =
         Decode.object (fun get -> {
             AccountId = get.Required.Field "accountId" decodeAccountId
@@ -558,6 +677,20 @@ module Codec =
             Memo = get.Optional.Field "memo" Decode.string
             Category = get.Optional.Field "category" decodeCategory
             Cleared = get.Required.Field "cleared" decodeClearedState
+            Approved = get.Required.Field "approved" Decode.bool
+        })
+
+    /// Schema-Version 1: ohne `approved`. Gilt beim Lesen als genehmigt (ADR 0032).
+    let decodeCashExpenseAddedV1 : Decoder<CashExpenseAddedPayload> =
+        Decode.object (fun get -> {
+            AccountId = get.Required.Field "accountId" decodeAccountId
+            Date = get.Required.Field "date" decodeDate
+            Amount = get.Required.Field "amount" decodeMoney
+            Payee = get.Optional.Field "payee" Decode.string
+            Memo = get.Optional.Field "memo" Decode.string
+            Category = get.Optional.Field "category" decodeCategory
+            Cleared = get.Required.Field "cleared" decodeClearedState
+            Approved = true
         })
 
     let encodeLinkedToYnab (p: EntryLinkedToYnabPayload) =
@@ -576,6 +709,8 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryDetailsChangeObservedInYnab p -> Codec.encodeDetailsChange p
         | EntryCategorizationChangeObservedInYnab p -> Codec.encodeCategorizationChange p
         | EntryClearedStateChangeObservedInYnab p -> Codec.encodeClearedChange p
+        | EntryApprovalChangeObservedInYnab p -> Codec.encodeApprovalChange p
+        | EntryFlagChangeObservedInYnab p -> Codec.encodeFlagChange p
         | EntryDeletionObservedInYnab -> Encode.object []
         | EntryImportedFromComdirect p -> Codec.encodeImportedFromComdirect p
         | EntryCategorizedByRule p -> Codec.encodeCategorizedByRule p
@@ -589,6 +724,8 @@ let encodePayload (body: LedgerEventBody) : string =
 let decodePayload (eventType: string) (version: int) (payload: string) : Result<LedgerEventBody, string> =
     match eventType, version with
     | "EntryObservedInYnab", 1 ->
+        Decode.fromString Codec.decodeObservedV1 payload |> Result.map EntryObservedInYnab
+    | "EntryObservedInYnab", 2 ->
         Decode.fromString Codec.decodeObserved payload |> Result.map EntryObservedInYnab
     | "EntryDetailsChangeObservedInYnab", 1 ->
         Decode.fromString Codec.decodeDetailsChange payload |> Result.map EntryDetailsChangeObservedInYnab
@@ -596,14 +733,22 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeCategorizationChange payload |> Result.map EntryCategorizationChangeObservedInYnab
     | "EntryClearedStateChangeObservedInYnab", 1 ->
         Decode.fromString Codec.decodeClearedChange payload |> Result.map EntryClearedStateChangeObservedInYnab
+    | "EntryApprovalChangeObservedInYnab", 1 ->
+        Decode.fromString Codec.decodeApprovalChange payload |> Result.map EntryApprovalChangeObservedInYnab
+    | "EntryFlagChangeObservedInYnab", 1 ->
+        Decode.fromString Codec.decodeFlagChange payload |> Result.map EntryFlagChangeObservedInYnab
     | "EntryDeletionObservedInYnab", 1 -> Ok EntryDeletionObservedInYnab
     | "EntryImportedFromComdirect", 1 ->
+        Decode.fromString Codec.decodeImportedFromComdirectV1 payload |> Result.map EntryImportedFromComdirect
+    | "EntryImportedFromComdirect", 2 ->
         Decode.fromString Codec.decodeImportedFromComdirect payload |> Result.map EntryImportedFromComdirect
     | "EntryCategorizedByRule", 1 ->
         Decode.fromString Codec.decodeCategorizedByRule payload |> Result.map EntryCategorizedByRule
     | "EntryRecategorized", 1 ->
         Decode.fromString Codec.decodeRecategorized payload |> Result.map EntryRecategorized
     | "CashExpenseAdded", 1 ->
+        Decode.fromString Codec.decodeCashExpenseAddedV1 payload |> Result.map CashExpenseAdded
+    | "CashExpenseAdded", 2 ->
         Decode.fromString Codec.decodeCashExpenseAdded payload |> Result.map CashExpenseAdded
     | "EntryLinkedToYnab", 1 ->
         Decode.fromString Codec.decodeLinkedToYnab payload |> Result.map EntryLinkedToYnab
