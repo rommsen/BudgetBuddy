@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 00:02 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 2h19m (Batch-Start 21:43 bis 00:02)
+**Completed:** 4 (first-try PASS: 0, re-dispatched: 4, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** infra-za7fq: 2, design-system-wa6wz: 2, ledger-kdnnz: 2, design-system-bq4tz: 3
+**Commits:** 6
+**Vision-conformance:** none — batch aligns with vision. Der Wächter-Test schützt das Vertrauen ins Kassenbuch, das Screenshot-Werkzeug dient dem visuellen Gate und damit dem Vision-Ziel eines angenehmeren Ablaufs als YNAB-Web, der lesende Spiegel für Prüfvermerk und Flags ist die Vorstufe genau des v1-Kriteriums, das den Prüfvermerk als einzige schreibende Ausnahme vorsieht (ADR 0028), und die Testbarkeits-Korrektur ist Infrastruktur. Kein Non-Goal berührt.
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (4 tasks)
+**Carry-over:** left behind (user WIP, 1 file) — .serena/project.yml; keine .agentheim/-Datei gestrandet, keine Worktrees übrig, 9 verwaiste RESULT-Sidecars entfernt.
+**Bemerkenswert:** Jede der vier Aufgaben hat in Iteration 1 einen Verifier-FAIL kassiert, und jeder war berechtigt. Zwei davon trafen echte Substanz: ein auflösender setTimeout, der bei kaltem Fable-Build stillschweigend weitergelaufen wäre, und ein Migrationstest, der eine Kopie der SQL statt der Produktionsfunktion prüfte und damit gegen genau den Datenverlust nicht geschützt hätte, für den er gedacht war. Ein FAIL ging auf den Conductor zurück (ein README_DELTA nicht weitergereicht) und wurde ohne neuen Worker-Lauf geheilt. Bei design-system-bq4tz hat sich das Kriterium selbst als untauglich erwiesen: als Suchlauf formuliert, zweimal von Grep-Mustern verfehlt, am Ende durch einen Laufzeittest ersetzt, der jeden Typinitialisierer aller 20 Design-System-Module erzwingt.
+
+---
+
 ## 2026-09-19 00:00 -- Task verified and completed: design-system-bq4tz - "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden"
 
 **Type:** Work / Task completion
