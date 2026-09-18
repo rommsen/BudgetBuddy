@@ -23,7 +23,7 @@ First-class BC für Frontend-Infrastruktur (analog `infrastructure` für Backend
 - **Styleguide** — das reviewbare Dokument (`standards/frontend/styleguide.md`), das die
   visuelle Sprache, Farbsemantik, das Komponenten-Inventar, Muster, Motion und Voice
   festhält. Die **Single Source of Truth** für UI-Entscheidungen. *Das Gate* (s.u.).
-- **Token** — benannte Tailwind/DaisyUI-Klasse in `Tokens.fs` (Farben, Glow-Shadows,
+- **Token** — benannte Tailwind-Klasse in `Tokens.fs` (Farben, Glow-Shadows,
   Spacing, Fonts, Presets). UI referenziert Tokens statt hartkodierter Klassen.
 - **Visuelle Sprache: neon-on-dark** — dunkler Grund, neon-Akzente
   (`neon-green/teal/orange/purple/pink/red`) mit Glow-Shadows, Mono-Font für Zahlen/Daten.

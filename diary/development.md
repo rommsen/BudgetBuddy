@@ -4,6 +4,56 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-18 20:51 - DaisyUI-Angaben auf ADR 0031 nachgezogen (neun Stellen)
+
+**What I did:**
+Beim Design-Abgleich aufgefallen: die zwei frisch geholten Übergabe-Dokumente schicken den
+Worker zu „Tailwind 4 und DaisyUI". DaisyUI ist mit **ADR 0031** (2026-09-13,
+`design-system-fq8dn`) aus dem Projekt entfernt und steht auch nicht in `package.json`.
+Die falsche Angabe lag nicht nur in den Design-Dokumenten, sondern auch in drei
+Standards-Dateien, im Wurzel-README, in der Serena-Memory und im Export-Skript. Aktuell war
+einzig die Wurzel-`CLAUDE.md`. ADR 0031 hatte diese Doku-Leiche beim Schreiben benannt,
+nachgezogen wurde damals nur eine von neun Stellen.
+
+**Files Modified:**
+- `docs/ux/kassenbuch/handoff-ablauf-1-durchsehen-und-pruefen.md`,
+  `handoff-ablauf-2-buchungen-finden.md` - DaisyUI gestrichen; im Vorspann steht jetzt, dass
+  das eine bewusste Abweichung zur Design-Fassung ist und beim nächsten Abgleich nicht
+  zurückgezogen wird (vorher behauptete er „unverändert übernommen")
+- `standards/README.md`, `standards/global/architecture.md` - Tech-Stack-Zeile
+- `standards/frontend/styleguide.md` - der Token-Layer liegt über Tailwind 4, nicht über
+  „Tailwind 4 / DaisyUI"
+- `README.md` - Tech-Stack-Tabelle
+- `.serena/memories/tech_stack.md` - die Memory, die Serena Agenten als Projektwissen gibt
+- `.agentheim/knowledge/contexts/design-system/README.md` - Definition von „Token" in der
+  Ubiquitous Language (widersprach Zeile 60 derselben Datei, die „Kein DaisyUI" sagt)
+- `scripts/export-design-system.mjs` - der generierte Bundle-README für Claude Design nannte
+  das App-CSS „Tailwind 4 + DaisyUI". Wirkt erst beim nächsten
+  `npm run export:design-system` im Design-Projekt
+
+**Rationale:**
+Der gefährlichere Import aus einem Entwurfswerkzeug ist nicht Code, sondern eine veraltete
+Tech-Angabe in einem Dokument, das ansonsten verbindlich ist. Sie liest sich wie eine
+Anweisung, kommt aber aus einem Kontext, der das Projekt nicht kennt. Über das Export-Skript
+lief die Angabe sogar im Kreis: Repo sagt DaisyUI, Design-Projekt schreibt es in sein
+Übergabe-Dokument, Repo holt es zurück.
+
+**Absichtlich nicht angefasst:**
+Diary, Blogposts, Protokoll, erledigte Tasks, ADR 0031 selbst und die Code-Kommentare in
+`Table.fs`, `Settings/View.fs` und `Ledger/View.fs`, die erklären, dass DaisyUI nicht
+geladen ist. Das ist Geschichte oder aktive Erklärung, keine falsche Anweisung. Offen und
+mit Roman zu klären: `docs/DESIGN-SYSTEM.md` (Abschnitt 10 ist ein Installationsrezept für
+DaisyUI) und `docs/README.md` stammen vom 2025-11-29/30, liegen auf keinem Leseweg mehr
+(einzige Ausnahme: `.claude/agents/design-quality.md:74` zitiert die Farbpalette) und sind
+vom `standards/`-Satz abgelöst; dazu `template/**` als eigenes Gerüst.
+
+**Outcomes:**
+- Build: nicht nötig, eine Zeile Kommentartext im Export-Skript, sonst Markdown
+- Tests: nicht nötig; `node --check scripts/export-design-system.mjs` grün
+- Issues: keine
+
+---
+
 ## 2026-09-18 18:12 - Design-Abgleich Kassenbuch: Entscheidungen aus Claude Design ins Repo geholt
 
 **What I did:**

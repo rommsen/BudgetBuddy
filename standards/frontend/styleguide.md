@@ -86,8 +86,8 @@ Interactive"*).
 ## 3. Token-Layer — Tokens statt hartkodierter Klassen
 
 UI referenziert **benannte Tokens** aus `Tokens.fs`, nicht rohe Tailwind-Klassen. Der
-Token-Layer ist die Indirektionsschicht über Tailwind 4 / DaisyUI: ändert sich der
-Look, ändert sich der Token — nicht hunderte Call-Sites.
+Token-Layer ist die Indirektionsschicht über Tailwind 4 (kein DaisyUI, ADR 0031): ändert
+sich der Look, ändert sich der Token — nicht hunderte Call-Sites.
 
 Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 

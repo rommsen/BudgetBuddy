@@ -51,7 +51,7 @@ BudgetBuddy bridges the gap between your German bank account (Comdirect) and YNA
 
 | Component | Technology |
 |-----------|------------|
-| Frontend | F# Elmish.React + Feliz + TailwindCSS + DaisyUI |
+| Frontend | F# Elmish.React + Feliz + TailwindCSS 4.3 |
 | Backend | F# Giraffe + Fable.Remoting |
 | Database | SQLite |
 | Deployment | Docker + Tailscale |

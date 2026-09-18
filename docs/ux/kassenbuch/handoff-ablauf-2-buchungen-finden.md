@@ -2,9 +2,12 @@
 
 > **Herkunft.** Erzeugt in Claude Design (Projekt „Gelesen UI-Mockups",
 > `5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`, Datei
-> `design_handoff_kassenbuch_ablauf2/README.md`), am 2026-09-18 unverändert ins Repo
-> übernommen. Die zugehörige Tafel mit allen sechzehn Screens liegt dort als
-> `Ablauf 2 - Buchungen finden.dc.html`.
+> `design_handoff_kassenbuch_ablauf2/README.md`), am 2026-09-18 ins Repo übernommen. Die
+> zugehörige Tafel mit allen sechzehn Screens liegt dort als
+> `Ablauf 2 - Buchungen finden.dc.html`. Zwei bewusste Abweichungen zur Design-Fassung:
+> die Verweise auf das mitgelieferte `_ds/`-Bundle sind gekürzt, und **DaisyUI ist
+> gestrichen** (mit ADR 0031 aus dem Projekt entfernt; das Design-Projekt weiß davon
+> nichts, beim nächsten Abgleich nicht zurückziehen).
 >
 > **Status: Referenz, nicht Code.** Die Werte hier sind verbindlich für die Umsetzung;
 > die Quelle der Wahrheit für das Design-System selbst bleibt das Repo
@@ -34,9 +37,9 @@ Ausgangszustand in allen Screens: Gesamtsicht **„Alle Konten"**, kein Filter a
 Die Dateien im Ursprungspaket sind **Design-Referenzen in HTML** — Prototypen, die
 Aussehen und Verhalten festhalten. Sie sind **kein Produktionscode zum Übernehmen**.
 
-Nachzubauen in der bestehenden Umgebung: F# / Fable / Elmish mit Tailwind 4 und
-DaisyUI, mit den Komponenten aus `src/Client/DesignSystem/*.fs` und den Tokens aus
-`src/Client/styles.css`. Nicht das HTML einbetten, sondern die vorhandenen Komponenten
+Nachzubauen in der bestehenden Umgebung: F# / Fable / Elmish mit Tailwind 4 (**ohne
+DaisyUI**, ADR 0031), mit den Komponenten aus `src/Client/DesignSystem/*.fs` und den
+Tokens aus `src/Client/styles.css`. Nicht das HTML einbetten, sondern die vorhandenen Komponenten
 benutzen: `Kategorienauswahl` (components-categorypicker), `BottomSheet`, `Modal`,
 `Input`, `Badge`, `Money`, `Table`, `Card`, `Navigation`, `Button`, `Icons`,
 `Primitives`, `Loading`, `ErrorDisplay`.

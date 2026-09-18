@@ -12,7 +12,7 @@ This architecture uses a functional-first approach with type safety across all l
 |-------|------------|---------|
 | Frontend | Elmish.React + Feliz | MVU architecture |
 | Build | Vite + fable-plugin | HMR development |
-| Styling | TailwindCSS + DaisyUI | Utility-first CSS |
+| Styling | TailwindCSS 4.3 | Utility-first CSS, eigener Token-Layer (kein DaisyUI, ADR 0031) |
 | Routing | Feliz.Router | Client-side routing |
 | Backend | Giraffe | Functional ASP.NET Core |
 | RPC | Fable.Remoting | Type-safe client/server |

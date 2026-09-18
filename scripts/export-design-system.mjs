@@ -616,8 +616,8 @@ höchstens eine, Orange. Sekundär/Abbrechen/Navigation: Teal. Löschen/Zerstör
 
 \`colors_and_type.css\` enthält den vollständigen \`@theme\`-Block aus
 \`src/Client/styles.css\` plus die Basis-Variablen, auf die er verweist: alle Werte
-aufgelöst, keine Platzhalter. \`styles.css\` ist das gebaute App-CSS (Tailwind 4 +
-DaisyUI), damit die Vorschauen exakt so aussehen wie in der App.
+aufgelöst, keine Platzhalter. \`styles.css\` ist das gebaute App-CSS (Tailwind 4, kein
+DaisyUI, ADR 0031), damit die Vorschauen exakt so aussehen wie in der App.
 \`preview/color-neon.html\`, \`preview/color-surfaces.html\` und \`preview/type-fonts.html\`
 zeigen dieselben Tokens als Karten, generiert aus denselben Werten.
 

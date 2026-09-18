@@ -2,8 +2,11 @@
 
 > **Herkunft.** Erzeugt in Claude Design (Projekt „Gelesen UI-Mockups",
 > `5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`, Datei
-> `design_handoff_kassenbuch_ablauf1/README.md`), am 2026-09-12 unverändert ins Repo
-> übernommen. Die zugehörige Tafel mit allen zwölf Screens liegt dort als
+> `design_handoff_kassenbuch_ablauf1/README.md`), am 2026-09-12 ins Repo übernommen. Zwei
+> bewusste Abweichungen zur Design-Fassung: die Verweise auf das mitgelieferte
+> `_ds/`-Bundle sind gekürzt, und **DaisyUI ist gestrichen** (mit ADR 0031 aus dem Projekt
+> entfernt; das Design-Projekt weiß davon nichts, beim nächsten Abgleich nicht
+> zurückziehen). Die zugehörige Tafel mit allen zwölf Screens liegt dort als
 > `Ablauf 1 - Durchsehen und pruefen.dc.html`. Ein Ausschnitt (Screen 1.9) liegt als Bild
 > unter `mockups/1.9-pc-ausgangszustand-zeile-markiert.png`.
 >
@@ -32,8 +35,8 @@ Die Dateien im Ursprungspaket sind **Design-Referenzen in HTML** — Prototypen,
 Aussehen und Verhalten festhalten. Sie sind **kein Produktionscode zum Übernehmen**.
 
 Die Aufgabe ist, diese Entwürfe **in der bestehenden Umgebung des Ziel-Codebase
-nachzubauen** — bei BudgetBuddy also F# / Fable / Elmish mit Tailwind 4 und DaisyUI,
-mit den Komponenten aus `src/Client/DesignSystem/*.fs` und den Tokens aus
+nachzubauen** — bei BudgetBuddy also F# / Fable / Elmish mit Tailwind 4 (**ohne DaisyUI**,
+ADR 0031), mit den Komponenten aus `src/Client/DesignSystem/*.fs` und den Tokens aus
 `src/Client/styles.css`. Nicht das HTML einbetten, sondern die vorhandenen
 Komponenten benutzen: `Card`, `Money`, `Badge`, `Table`, `Navigation`, `BottomSheet`,
 `Swipe`, `Button`, `Stats`, `Input`, `Toast`, `Icons`, `PageHeader`, `Primitives`.

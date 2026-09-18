@@ -84,7 +84,7 @@ standards/
 | Layer | Technology |
 |-------|------------|
 | Frontend | Elmish.React + Feliz |
-| Styling | TailwindCSS, DaisyUI |
+| Styling | TailwindCSS 4.3 (kein DaisyUI, ADR 0031) |
 | Build | Vite + fable-plugin |
 | Backend | Giraffe + Fable.Remoting |
 | Database | SQLite + Dapper |

@@ -3,7 +3,7 @@
 ## Frontend
 - **Framework**: Elmish.React + Feliz (F# React bindings)
 - **State Management**: MVU (Model-View-Update) / Elmish
-- **Styling**: TailwindCSS 4.3, DaisyUI
+- **Styling**: TailwindCSS 4.3 (kein DaisyUI, ADR 0031)
 - **Build Tool**: Vite + Fable plugin
 - **Design System**: Custom components in `src/Client/DesignSystem/`
 
