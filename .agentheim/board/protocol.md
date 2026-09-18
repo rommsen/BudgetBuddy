@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 21:36 -- Modeling / Refined: design-system-bq4tz, design-system-wa6wz, infra-za7fq
+
+**Type:** Modeling / Refine
+**BC:** design-system, infrastructure
+**Status after:** todo (alle drei)
+**Summary:** Drei bereits erfasste Aufgaben verfeinert, damit sie parallel zu ledger-kdnnz laufen koennen, ohne auf denselben Dateien zu kollidieren. **bq4tz:** Ursache praezisiert. Nicht Badge.defaultProps ist das Problem, sondern eager ausgewertete Top-Level-Werte, die beim Modul-Load rendern (sieben in Badge.fs, acht in Loading.fs, tdEmpty in Table.fs, deletedBadge in Components/Ledger/View.fs). Bisher unbemerkt, weil die bestehenden View-Tests nur Funktionen aufrufen, und Funktionen den F#-Startup-Code nicht ausloesen. Entscheidung Roman: Umstellung auf Funktionen mit ()-Parameter; die 17 Sektions-Werte in Styleguide/View.fs bleiben bewusst aussen vor. Der Hebel ist deletedBadge, weil ledger-kdnnz genau dieses Modul unter .NET testen muss (ADR 0020). **wa6wz:** zwei offene Fragen entschieden. Nur aufnehmen statt Bildvergleich (Zielbild weicht noch bewusst ab, ein Pixelvergleich waere dauerhaft rot); Datenbank als Kopie in einem Temp-Verzeichnis statt lesend gegen die Entwicklungsdatenbank, weil der Server beim Start migriert und rein lesend nie ist (ADR 0030). **za7fq:** Waechter wird ein normaler Expecto-Test statt einer Zusicherung im Produktivpfad, weil beide bekannten Umgehungswege (--settings, dotnet vstest) durch die Testsuite laufen. Braucht einen schmalen Lesezugang Persistence.activeConnectionString, der Name ist frei.
+**Split into:** none
+**ADRs written:** none
+
+---
+
 ## 2026-09-18 20:59 -- Modeling / Entscheidungen: Historie-Reihenfolge und gelöschte Buchungen in der Summe
 
 **Type:** Modeling / Refine + Capture (von Hand, ohne Skill)
