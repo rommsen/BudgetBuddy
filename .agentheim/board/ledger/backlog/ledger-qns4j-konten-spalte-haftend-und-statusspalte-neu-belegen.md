@@ -60,3 +60,10 @@ Captured am 2026-09-13 aus der Verifikation von `ledger-x0yga`. Vorlage bleibt
 Berührt sich mit `ledger-kdnnz`: sobald der Prüfvermerk gespiegelt wird, bekommt die
 Statusspalte ihren eigentlichen Inhalt („Zu prüfen"). Bei der Verfeinerung entscheiden, ob
 diese Aufgabe darauf wartet oder die Spalte vorher schon aufräumt.
+
+Gegenläufiger Befund aus Ablauf 7 (2026-09-18): der Entwurf sieht in der Status-Spalte
+**bis zu zwei Badges** vor („Zu prüfen" plus „Nicht in YNAB" beziehungsweise plus
+„Abweichung"). Punkt 3 dieser Aufgabe will die Kennzeichen dagegen kürzen, damit die Spalte
+schmal werden kann. Beides zugleich geht nicht; bei der Verfeinerung entscheiden, ob zwei
+Badges nebeneinander passen (dann kürzere Beschriftung oder Symbole) oder ob das zweite
+Kennzeichen in die Zeile wandert.

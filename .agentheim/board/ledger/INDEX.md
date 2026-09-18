@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 15
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 17
@@ -61,6 +61,8 @@ research touching this BC, and concept synthesis pages.
 - **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `backlog/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 - **ledger-t7v2q** — Übertrag: die beiden Buchungen miteinander verknüpfen (feature) — `backlog/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
 - **ledger-c7j8e** — Kursquelle für Geldmarkt-ETF per ISIN (Research-Spike) (spike) — `backlog/ledger-c7j8e-kursquelle-etf-isin-research-spike.md`
+- **ledger-h9tq2** — "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst" (decision) — `backlog/ledger-h9tq2-reihenfolge-der-historie-entscheiden.md`
+- **ledger-d4kx8** — "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem" (decision) — `backlog/ledger-d4kx8-geloeschte-buchungen-in-trefferzahl-und-summe.md`
 <!-- backlog-list:end -->
 
 

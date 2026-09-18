@@ -40,6 +40,25 @@ Seite.
 - Filterwechsel springt an den Listenanfang, die Chips bleiben sichtbar (Styleguide 7.3).
 - Jeder Chip trägt ein "×", am Ende der Leiste "Alle Filter löschen".
 
+Aus den fertigen Screens nachgetragen (2026-09-18, Übergabepaket
+`docs/ux/kassenbuch/handoff-ablauf-2-buchungen-finden.md`):
+
+- **Am Handy wandern aktive Chips nach vorn**, weil die Leiste scrollt und der aktive
+  Filter sichtbar bleiben muss; am PC bleibt die Reihenfolge fest.
+- Beschriftung im Aktivzustand: Zähler bei Mehrfachauswahl ("Kategorie: 2"), Kurzform beim
+  Zeitraum ("12 Monate"), Klartext beim Payee ("Café Lotte").
+- Am PC hängt die Auswahl als **Popover unter seinem Chip**, die Liste bleibt sichtbar,
+  `Esc` und Klick daneben schließen ohne zu filtern. Ein Muster für Kategorie, Zeitraum und
+  Payee, später auch für die Kategoriezuweisung (Ablauf 4) und den Flag-Chip (Ablauf 5).
+- **Payee-Vorschläge kommen mit Anzahl aus dem aktuellen Treffer**, nicht aus allen
+  Buchungen. Das ist eine eigene Abfrage über den Treffer, nicht über die geladene Seite.
+- Die Zeitraum-Schnellwahl **schreibt Von und Bis mit**, damit sichtbar ist, was gefiltert
+  wird.
+- **Passt eine Zeile nach einer Änderung nicht mehr zum aktiven Filter, bleibt sie
+  ausgegraut an ihrem Platz** ("passt nicht mehr zum Filter"), Trefferzahl und Summe gehen
+  sofort mit (Entscheidung aus Ablauf 5, gilt für alle Filter). Das verträgt sich nicht mit
+  einem blinden Neuladen der Seite nach jeder Änderung und gehört in die Verfeinerung.
+
 ## Acceptance criteria
 - [ ] To be defined during refinement.
 

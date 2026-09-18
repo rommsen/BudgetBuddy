@@ -4,6 +4,62 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-18 18:12 - Design-Abgleich Kassenbuch: Entscheidungen aus Claude Design ins Repo geholt
+
+**What I did:**
+Das Mockup-Projekt "Gelesen UI-Mockups" in Claude Design gegen den Repo-Stand gelegt. Die
+Briefs waren als Einbahnstraße gedacht, beim Zeichnen sind aber fachliche Entscheidungen
+entstanden, die nur in der `CLAUDE.md` des Design-Projekts standen. Auslöser war Romans
+Frage nach der Aktion "Kopieren" in Ablauf 3: die stand im Brief, war eine Erfindung beim
+Schreiben und wurde im Design-Projekt schon am 2026-09-14 gestrichen.
+
+Zwei Befunde betreffen nicht das Design, sondern den gebauten Lesepfad, beide am Code
+belegt und als Entscheidungs-Tasks erfasst statt still umgebaut.
+
+**Files Added:**
+- `docs/ux/kassenbuch/handoff-ablauf-2-buchungen-finden.md` - Übergabepaket Ablauf 2
+  (sechzehn Screens, Popover-Muster der Filter, Kategorienauswahl mit Mehrfachauswahl,
+  Auswahl-Leiste auf beiden Geräten), gleiche Konvention wie Ablauf 1
+- `.agentheim/board/ledger/backlog/ledger-h9tq2-reihenfolge-der-historie-entscheiden.md` -
+  Entwurf zeigt die Historie neueste zuerst, gebaut ist älteste zuerst
+- `.agentheim/board/ledger/backlog/ledger-d4kx8-geloeschte-buchungen-in-trefferzahl-und-summe.md` -
+  Entwurf zählt gelöschte im Zähler, nicht in der Summe; gebaut zählen sie in beidem
+
+**Files Modified:**
+- `docs/ux/kassenbuch/briefs.md` - "Kopieren" aus Ablauf 3 gestrichen (eigener Commit);
+  Rückfluss-Absatz im Kopf; Ablauf 3 um Kopfzeilen-Kästchen über den ganzen Treffer,
+  Anker der Shift-Spanne und "Auswahl aufheben" statt "Fertig" ergänzt; Ablauf 5 um die
+  zwei Flag-Arten und die Regel "Zeile bleibt bei Filter-Nichttreffer ausgegraut stehen";
+  Ablauf 6 doppelter Block aus der Umarbeitung vom 2026-09-12 zusammengeführt, Konto-Kürzel
+  korrigiert (`GIRO` statt `CD`), Chevron-Wechsler und Zu-prüfen-Zahlen ergänzt; Ablauf 7
+  um Herkunft-Arten, Hinweisleisten und die zwei offenen Widersprüche ergänzt
+- `.agentheim/board/ledger/backlog/ledger-r1d2f-...` - Auswahl über den ganzen Treffer,
+  Beschriftung des Ausstiegs, Höhen der Handy-Leiste
+- `.agentheim/board/ledger/backlog/ledger-vgfw3-...` - Chip-Verhalten, Popover-Muster,
+  Payee-Vorschläge aus dem Treffer, ausgegraute Nichttreffer
+- `.agentheim/board/ledger/backlog/ledger-q1hw2-...` - HERKUNFT-Zeile, Hinweisleisten,
+  Punktfarben der Zeitleiste, Lesezustand gelöschter Buchungen
+- `.agentheim/board/ledger/backlog/ledger-qns4j-...` - gegenläufiger Befund: der Entwurf
+  will bis zu zwei Status-Badges, diese Aufgabe will die Spalte schmaler
+- `.agentheim/board/ledger/INDEX.md` - zwei Backlog-Einträge, Zähler 13 auf 15
+
+**Rationale:**
+Der Entwurf läuft dem Repo davon, sobald beim Zeichnen entschieden wird. Ohne Rückfluss
+baut später jemand gegen einen Brief, der nicht mehr gilt. Die zwei Code-Widersprüche sind
+Produktfragen (was zeigt die Summe, wie herum liest man eine Historie) und gehören nicht in
+einen stillen Fix.
+
+**Outcomes:**
+- Build: nicht nötig, nur Markdown
+- Tests: nicht nötig, kein Code geändert
+- Issues: Das Ablauf-1-Übergabedokument hat sich im Design-Projekt nicht verändert, die
+  Repo-Kopie ist aktuell. Im Design-Projekt liegen zwei Ablauf-4-Dateien
+  ("Ablauf 4 - Kategorie und Split.dc.html" und "Ablauf 4 - Kategorie aendern und
+  Split.dc.html"), die Projekt-`CLAUDE.md` nennt nur die erste. Übergabepakete für die
+  Abläufe 3 bis 7 fehlen noch, die Screens sind bei Roman zur Abnahme.
+
+---
+
 ## 2026-09-14 11:08 - agentheim 0.9.4: Zwei-Wurzel-Layout (ADR-0078)
 
 **What I did:**

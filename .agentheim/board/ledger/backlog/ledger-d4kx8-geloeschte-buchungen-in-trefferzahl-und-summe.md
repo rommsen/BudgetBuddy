@@ -1,0 +1,63 @@
+---
+id: ledger-d4kx8
+title: "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem"
+status: backlog
+type: decision
+context: ledger
+created: 2026-09-18
+completed:
+depends_on: []
+blocks: []
+tags: [frontend, backend, kassenbuch, summenzeile, entwurf-gegen-code]
+related_adrs: [0017]
+related_research: []
+prior_art: [ledger-p3n8k, ledger-b1xwe]
+---
+
+## Why
+Beim Abgleich der Screens aus Claude Design mit dem Repo (2026-09-18) aufgefallen.
+
+**Der Entwurf** (Ablauf 7): gelöschte Buchungen "zählen **in der Trefferzahl, nicht in der
+Summe**" und nie im Kontostand. Als offener Punkt steht dort die Alternative daneben: sie
+ganz aus Zähler und Summe nehmen, dann stimmt die Zahl aber nicht mehr mit den sichtbaren
+Zeilen überein.
+
+**Gebaut ist das nicht so.** Bei eingeblendeten gelöschten Buchungen
+(`IncludeDeleted = true`) läuft dieselbe SQL-Klausel für beides:
+- `src/Server/Ledger/Persistence.fs:538` (Trefferzahl) und `:584` (Beträge) bauen je
+  `let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"`.
+- `src/Server/Ledger/QueryHandlers.fs:300-316` bildet daraus `TotalCount` und
+  `TotalAmount = sumMoney "EUR" totalAmounts`; `sumMoney` (`src/Shared/Domain.fs:873-876`)
+  summiert alles, was es bekommt.
+
+Gelöschte zählen eingeblendet also in Zähler **und** Summe. Der Kontostand geht bewusst
+einen anderen Weg (`ledgerBalancesByAccount` lässt gelöschte immer draußen), deshalb können
+Summenzeile und Kontostand bei eingeschaltetem Schalter auseinanderlaufen. Genau diese
+Übereinstimmung nennt der Doc-Kommentar in `Persistence.fs:579-580` als Zweck des
+Standardfalls.
+
+## What
+Entscheiden, was die Summenzeile bei eingeblendeten gelöschten Buchungen zeigt, und die
+gewählte Variante herstellen.
+
+1. **Wie im Entwurf:** Zähler mit, Summe ohne. Die Summe bleibt dann mit dem Kontostand
+   vergleichbar. Preis: Zähler und Summe beziehen sich auf verschiedene Mengen, das braucht
+   eine Beschriftung, die das sagt.
+2. **Wie gebaut:** beides mit. Ehrlich gegenüber der sichtbaren Liste (die Zeilen summieren
+   sich zur Summe), weicht aber vom Kontostand ab.
+3. **Dritte Variante aus dem Entwurf:** gelöschte ganz aus Zähler und Summe nehmen, obwohl
+   sie sichtbar sind.
+
+`ledger-p3n8k` hat den Standardfall (ausgeblendet) bereits sauber gelöst; hier geht es nur
+um den eingeschalteten Schalter. Die Anzeige "N gelöschte Buchungen eingeblendet" steht
+schon über der Liste und ist der natürliche Ort für den Hinweis.
+
+## Acceptance criteria
+- [ ] To be defined during refinement.
+
+## Notes
+Erfasst am 2026-09-18 beim Abgleich mit dem Design-Projekt "Gelesen UI-Mockups"
+(`5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`). Brief: `docs/ux/kassenbuch/briefs.md`, Ablauf 7.
+
+Betrifft die Summenzeile aus `ledger-vgfw3` mit: sobald sie gebaut wird, muss die Regel
+feststehen.

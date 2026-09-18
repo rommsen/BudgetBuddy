@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 18:12 -- Design-Abgleich: Entscheidungen aus Claude Design ins Repo gezogen
+
+**Type:** Modeling / Capture (von Hand, ohne Skill)
+**BC:** ledger
+**Summary:** Das Mockup-Projekt "Gelesen UI-Mockups" gegen `docs/ux/kassenbuch/briefs.md`
+und die Ledger-Tasks gelegt. Beim Zeichnen entstandene Entscheidungen der Abläufe 3 bis 7
+nachgetragen: Auswahl über den ganzen Treffer statt über die geladene Seite, Ausstieg heißt
+"Auswahl aufheben", zwei benannte Flag-Arten, Zeile bleibt bei Filter-Nichttreffer
+ausgegraut stehen, vier Herkunft-Arten mit eigener HERKUNFT-Zeile, Hinweisleisten in drei
+Färbungen. Das Übergabepaket für Ablauf 2 ins Repo geholt; das von Ablauf 1 war unverändert.
+**Captured:** ledger-h9tq2 (Reihenfolge der Historie), ledger-d4kx8 (gelöschte in
+Trefferzahl und Summe) — beide `decision`, beide Entwurf gegen gebauten Code, am Code
+belegt statt still umgebaut.
+**Updated:** ledger-r1d2f, ledger-vgfw3, ledger-q1hw2, ledger-qns4j
+**ADRs written:** none
+
+---
+
 ## 2026-09-14 22:44 -- Modeling / Promoted: ledger-kdnnz - "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen"
 
 **Type:** Modeling / Promote

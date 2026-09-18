@@ -8,6 +8,14 @@ so gut") und was nur BB zeigt.
 
 Alle Konten, Payees, Kategorien und Beträge sind erfunden.
 
+**Rückfluss (Stand 2026-09-18).** Die Briefs waren als Auftrag gedacht, aber beim Zeichnen
+sind fachliche Entscheidungen entstanden, die hier nachgetragen werden. Der laufende
+Entscheidungs-Speicher ist die `CLAUDE.md` des Design-Projekts („Gelesen UI-Mockups",
+`5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`), Abschnitte „Aus Ablauf N dazugekommen". Fertige
+Übergabepakete liegen als `handoff-ablauf-1-durchsehen-und-pruefen.md` und
+`handoff-ablauf-2-buchungen-finden.md` neben dieser Datei; für die Abläufe 3 bis 7 stehen
+sie noch aus, die Screens sind bei Roman zur Abnahme.
+
 ## Gemeinsame Grundlage (Konzept-Skizze, mit Roman abgestimmt am 2026-09-11)
 
 - **Geräte:** Handy (Viewport 390 × 844) und PC (Viewport 1440 × 900) sind gleichwertig.
@@ -192,22 +200,28 @@ einzeln ankreuzen; die Summe der Auswahl erscheint unten. Roman möchte, dass de
 selbst schon eine Summe zeigt, ohne einzeln anzukreuzen, und das auch am Handy.
 
 **Ausgangszustand:** Ende von Ablauf 2, Filter "Kategorie: Kinder", Zeitraum "Dieses
-Jahr". Summenzeile "34 Buchungen · -2.140,00 €".
+Jahr". Summenzeile "34 Buchungen · -2.140,00 €". Der Kita-Beitrag Stadt liegt bei 125,00 €
+im Monat, damit die 34 Buchungen auf -2.140,00 € und die obersten zwölf auf -780,00 €
+aufgehen (festgelegt beim Zeichnen).
 
 **Schrittfolge (PC):**
 1. Die Summenzeile steht ohne weiteres Zutun da (Ergebnis von Ablauf 2). Für viele Fälle
    ist Roman hier fertig.
 2. Kästchen in der Kopfzeile: alle 34 auswählen. Auswahl-Leiste unten "34 ausgewählt ·
-   -2.140,00 €".
+   -2.140,00 €". Das Kopfzeilen-Kästchen wählt den **gesamten Treffer**, nicht die
+   geladene Seite; bei Teilauswahl zeigt es einen Teal-Strich statt des Hakens.
 3. Auswahl aufheben, dann die obersten zwölf per Klick auf das erste Kästchen und
-   Shift-Klick auf das zwölfte. Auswahl-Leiste "12 ausgewählt · -780,00 €".
+   Shift-Klick auf das zwölfte. Auswahl-Leiste "12 ausgewählt · -780,00 €". Die Spanne
+   markiert ihren Anker mit `box-shadow:inset 2px 0 0 #00d4aa`.
 4. "Auswahl aufheben": Summenzeile zeigt wieder den Treffer.
 
 **Schrittfolge (Handy):**
 1. Summenzeile wie am PC über der Liste.
 2. Langes Drücken auf eine Zeile: Auswahl-Modus, Kästchen erscheinen links, Auswahl-Leiste
    unten über der Navigation. Weitere Zeilen per Tipp. "Alle" als Aktion in der Leiste.
-3. Summe der Auswahl in der Leiste, "Fertig" beendet den Modus.
+3. Summe der Auswahl in der Leiste. **"Auswahl aufheben" beendet den Modus**; der Ausstieg
+   heißt überall so, nie "Fertig". Die Leiste am Handy trägt "Alle" als vierte Aktion
+   (dritte Reihe: Flag, Alle, Auswahl aufheben).
 
 **Pflicht-Komponenten:** Table mit Auswahlzeilen (`IsSelected`), Money, Button (Leiste),
 BottomSheet-artige Auswahl-Leiste am Handy (kein Sheet, sondern eine feste Leiste über
@@ -307,6 +321,25 @@ Kategorien auf der YNAB-Startseite). Festgehalten als Backlog-Idee `ledger-xfjcp
 5. Temporäres Flag: im Panel "Markieren" (Icon: Fähnchen, orange) zum Gruppieren; Filter
    "Temporär" zeigt sie; "Alle Markierungen aufheben" in der Filterleiste.
 
+**Dazugekommen beim Zeichnen (2026-09-18):**
+- Zwei Flag-Arten mit eigenen Namen statt "Flag setzen": die Zuweisung **"Rückfrage Lena"**
+  (violett, Sprechblase, Zustände offen und erledigt, Rücknahme über "Erledigt") und die
+  **temporäre Markierung** (orange, Fähnchen, Badge "Markiert", Filter "Temporär",
+  Sammelausstieg "Alle Markierungen aufheben" am Ende der Filterleiste).
+- Im Detail steht unter den Feldern der Bereich "Zuweisen" mit zwei Ghost-Buttons; bei
+  offener Zuweisung ersetzt der Status-Block "Zugewiesen an Lena, offen" plus "Erledigt"
+  die Knöpfe.
+- Aus der einen Aktion "Flag" in der Auswahl-Leiste werden zwei ("Lena fragen",
+  "Markieren"). Am Handy sind das sechs Aktionen auf drei Reihen à 44px, die Leiste ist
+  dort 197px hoch und lässt 450px für die Liste.
+- Der Flag-Chip öffnet das Popover-Muster mit beiden Arten und ihrer Anzahl aus dem
+  aktuellen Treffer; Einzelauswahl filtert sofort.
+- **Passt eine Zeile nach einer Änderung nicht mehr zum aktiven Filter, bleibt sie
+  ausgegraut an ihrem Platz** ("passt nicht mehr zum Filter"), Trefferzahl und Summe gehen
+  sofort mit (Screen 5.8). Das folgt der Regel "Prüfen sortiert nie um" und gilt für alle
+  Filter, nicht nur für Flags.
+- Zuweisen prüft nicht mit und sortiert nie um.
+
 **Schrittfolge (Handy):**
 1. Detail-Sheet, Button "Lena fragen" unter den Feldern. Kennzeichen in der Zeile.
 2. Im Auswahl-Modus (langes Drücken) Aktion "Lena fragen" in der Auswahl-Leiste.
@@ -355,40 +388,37 @@ Fall. An den Kontoständen, wie YNAB sie zeigt, stört ihn **nichts**.
 **Ausgangszustand:** Konto "ING Extra" (zuletzt gewählt), Chip "Zu prüfen" aktiv.
 
 **Schrittfolge (Handy):**
-1. Kontostände-Leiste oben, waagerecht scrollbar: "Alle Konten", danach die vier Konten.
-   Aktives Konto hervorgehoben.
+1. Kontostände-Leiste oben, waagerecht scrollbar: Karten "Alle Konten 21.388,85 €",
+   "ING Extra 6.902,10 €", "Girokonto Comdirect 2.418,37 €", "Bar 63,50 €",
+   "Geldmarkt-ETF 12.004,88 €". Aktives Konto hervorgehoben (Glow).
 2. Tipp auf "Bar": die Liste zeigt sofort die Bar-Buchungen, der aktive Filter bleibt
    stehen. Kein Ladebildschirm, kein Seitenwechsel.
-3. Tipp auf "Alle Konten": Liste über alle Konten, jede Zeile mit Konto-Kürzel. Hier
-   sucht Roman die verirrte Buchung, danach wechselt er zurück.
+3. Tipp auf "Alle Konten": Gesamtsicht, jede Zeile mit Konto-Kürzel (`ING`, `GIRO`, `BAR`,
+   `ETF`). Hier sucht Roman die verirrte Buchung, danach wechselt er zurück. Der aktive
+   Filter bleibt und zählt neu.
+4. Tipp auf "Geldmarkt-ETF": Liste zeigt die Bewertungs-Buchungen ("Kursgewinn Juli
+   +42,10 €") und die Einzahlungen.
+5. Der Wechsel geht auch über den **Chevron im Titel**: dieselbe Auswahl als BottomSheet,
+   Zeilen 56px, aktives Konto Teal mit Haken, **kein "Übernehmen"** (ein Tipp wechselt und
+   schließt).
 
 **Schrittfolge (PC):**
-1. Konten-Spalte links, "Alle Konten" zuoberst, darunter die vier Konten mit Stand.
+1. Konten-Spalte links, "Alle Konten" zuoberst, darunter die vier Konten mit Stand und
+   ganz unten der Lauf-Status des Spiegels ("Zuletzt gespiegelt: heute 21:40").
 2. Klick auf ein Konto wechselt die Liste; in der Konto-Sicht entfällt die Konto-Spalte
-   der Tabelle, in der Gesamtsicht kommt sie dazu.
+   der Tabelle (116px), in der Gesamtsicht kommt sie dazu.
+
+**Zu prüfen je Konto** (erfunden, beim Zeichnen festgelegt): ING Extra 12 (-625,38 €),
+Girokonto 9 (-334,79 €), Bar 3 (-35,80 €), Geldmarkt-ETF 3 (+310,70 €), zusammen 27 ·
+-685,27 €. Der ETF trägt statt "Zu prüfen" den Status "Nicht in YNAB" und eine
+Orange-Hinweisleiste "in YNAB noch nicht angelegt"; seine Bewertungs-Buchungen sind das,
+was nur BB zeigt.
 
 **Offen und nicht Teil dieses Ablaufs:** Der Geldmarkt-ETF ist in YNAB noch gar nicht
 angelegt, und wie der monatliche Abgleich aussehen soll, ist ungeklärt (Romans Idee
 bisher: vielleicht ein Reconcile einmal im Monat). Das ist ein v1-Kriterium der Vision und
 liegt als eigener Task `ledger-nb4tv` im Backlog. Der Entwurf zeigt das Konto trotzdem mit
 seinem Stand, damit die Sicht vollständig ist.
-
-**Ausgangszustand:** Kassenbuch im Konto "ING Extra" (zuletzt gewählt).
-
-**Schrittfolge (Handy):**
-1. Kontostände-Leiste oben: Karten "Alle Konten 21.388,85 €", "ING Extra 6.902,10 €",
-   "Girokonto Comdirect 2.418,37 €", "Bar 63,50 €", "Geldmarkt-ETF 12.004,88 €". Aktives
-   Konto hervorgehoben (Glow).
-2. Tipp auf "Alle Konten": Liste wechselt auf die Gesamtsicht, Zeilen zeigen ein
-   Konto-Kürzel (ING, CD, Bar, ETF). Aktiver Filter "Zu prüfen" bleibt.
-3. Tipp auf "Geldmarkt-ETF": Liste zeigt die Bewertungs-Buchungen ("Kursgewinn Juli
-   +42,10 €") und die Einzahlungen.
-
-**Schrittfolge (PC):**
-1. Linke Spalte mit "Alle Konten" zuoberst und den vier Konten samt Ständen, darunter der
-   Lauf-Status des Spiegels ("Zuletzt gespiegelt: heute 21:40").
-2. Klick auf ein Konto wechselt die Liste, die Tabelle verliert in der Konto-Sicht die
-   Konto-Spalte.
 
 **Pflicht-Komponenten:** Stats (Kontostände), Card, Money.balance, Navigation, Table.
 
@@ -419,6 +449,29 @@ sie in YNAB gelöscht wurde, und ob sie noch nicht in YNAB ist.
    sagt Haushalt" mit Aktionen "YNAB übernehmen", "BB durchsetzen".
 3. Chip "Gelöschte zeigen": Zeile "Café Lotte -9,80 €" erscheint ausgegraut mit "in YNAB
    gelöscht", zählt nicht zum Kontostand.
+
+**Dazugekommen beim Zeichnen (2026-09-18), gilt ab jetzt für alle Abläufe:**
+- **Vier Herkunft-Arten:** Comdirect-Import, Regel, YNAB-Spiegel und später Handeingabe
+  (Quick Add). Im Detail steht die Art als eigene **HERKUNFT**-Zeile (Teal-Badge) direkt
+  über der Historie.
+- **Hinweisleiste mit Grund und Aktion**, immer direkt unter dem Kopf, in drei Färbungen:
+  Orange "Noch nicht in YNAB" samt Orange-CTA "Erneut senden", Pink "Abweichung" (v2, mit
+  "YNAB übernehmen" orange und "BB durchsetzen" als Ghost), Rot "in YNAB gelöscht" ohne
+  Aktion. **"Noch nicht in YNAB" erscheint nie ohne Grund** (Push gescheitert, Zeitstempel,
+  Fehlerart).
+- Punktfarbe der Zeitleiste nach Urheber: Teal Import, Violett Regel, Grau YNAB-Spiegel,
+  Rot Fehler und Löschung, Green eigene Prüfung.
+- **Gelöschte Buchungen sind ein Lesezustand:** Betrag grau statt rot, Felder ohne Chevron,
+  kein Geprüft-Schalter, keine primäre Aktion.
+- Die Status-Spalte am PC trägt **bis zu zwei Badges** ("Zu prüfen" plus "Nicht in YNAB"
+  beziehungsweise plus "Abweichung"). Das steht quer zu `ledger-qns4j`, wo dieselbe Spalte
+  schmaler werden soll.
+
+**Zwei Punkte widersprechen dem gebauten Lesepfad und sind nicht entschieden:**
+- Die Historie läuft im Entwurf **von neu nach alt**. `getEntryHistory` liefert sie älteste
+  zuerst (`ORDER BY sequence`), der Client dreht nicht um. Erfasst als `ledger-h9tq2`.
+- Gelöschte Buchungen zählen im Entwurf **in der Trefferzahl, nicht in der Summe**.
+  Eingeblendet zählen sie heute in beidem. Erfasst als `ledger-d4kx8`.
 
 **Pflicht-Komponenten:** Badge (Herkunft, Kennzeichen), BottomSheet, Card, Button,
 Icons.

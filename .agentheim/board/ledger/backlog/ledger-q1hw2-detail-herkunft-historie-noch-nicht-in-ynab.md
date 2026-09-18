@@ -33,6 +33,21 @@ die Liste sichtbar bleibt und man mit den Pfeiltasten zur nächsten Buchung geht
   senden" wäre schreibend und gehört nicht in diese Scheibe.
 - Das bisherige Historie-Sheet geht darin auf.
 
+Aus den fertigen Screens von Ablauf 7 nachgetragen (2026-09-18):
+
+- Die Herkunft steht als eigene **HERKUNFT**-Zeile (Teal-Badge) direkt über der Historie.
+  Vier Arten: Comdirect-Import, Regel, YNAB-Spiegel, später Handeingabe (Quick Add).
+- Die **Hinweisleiste sitzt immer direkt unter dem Kopf** und trägt Grund und Aktion, in
+  drei Färbungen: Orange "Noch nicht in YNAB", Pink "Abweichung" (v2), Rot "in YNAB
+  gelöscht" ohne Aktion. Der Grund ist Pflicht (Push gescheitert, Zeitstempel, Fehlerart).
+- Punktfarbe der Zeitleiste nach Urheber: Teal Import, Violett Regel, Grau YNAB-Spiegel,
+  Rot Fehler und Löschung, Green eigene Prüfung.
+- **Gelöschte Buchungen sind ein Lesezustand:** Betrag grau statt rot, Felder ohne Chevron,
+  kein Geprüft-Schalter, keine primäre Aktion.
+- Die Historie im Sheet scrollt; im Seitenpanel am PC hat die Zeitleiste Platz.
+- **Offen:** der Entwurf zeigt die Historie von neu nach alt, `getEntryHistory` liefert sie
+  älteste zuerst. Entschieden wird das in `ledger-h9tq2`, nicht hier.
+
 ## Acceptance criteria
 - [ ] To be defined during refinement.
 
