@@ -6,6 +6,8 @@ module LedgerViewTests
 // (Fable-only), die reine Logik aber schon.
 
 open System
+open System.Reflection
+open System.Runtime.CompilerServices
 open Expecto
 open Shared.Domain
 open Components.Ledger.Types
@@ -174,6 +176,28 @@ let private needsReviewChipLabelTests =
         }
     ]
 
+let private moduleStartupTests =
+    testList "Modul-Startup (design-system-bq4tz)" [
+
+        test "Der CLR-Typinitialisierer von Components.Ledger.View wirft keine TypeInitializationException" {
+            // Regression: `deletedBadge` war ein parameterloser Top-Level-`let`-Wert, also
+            // ein Feld. Ein Feldzugriff löst unter .NET F#s Modul-Startup-Code aus, der
+            // ALLE Top-Level-Werte des Moduls initialisiert - hier `Badge.view { Badge.defaultProps
+            // with ... }`, was unter echtem .NET (kein Fable/Feliz-Laufzeitkontext) eine
+            // InvalidCastException wirft (ein Tuple lässt sich nicht auf Feliz.IReactProperty
+            // casten). `deletedBadge` ist privat, deshalb erzwingt dieser Test den
+            // Typinitialisierer direkt per Reflection (RunClassConstructor) statt ihn
+            // über einen öffentlichen Aufruf indirekt zu triggern. Das bleibt auch nach dem
+            // Fix ein sinnvoller Wächter: er scheitert wieder, sollte je ein neuer eager
+            // ausgewerteter Top-Level-Wert in dieses Modul einziehen, unabhängig davon, ob es
+            // wieder `deletedBadge` heißt oder anders.
+            let startupType =
+                Assembly.GetAssembly(typeof<Model>).GetType("<StartupCode$Client>.$Components.Ledger.View")
+            RuntimeHelpers.RunClassConstructor(startupType.TypeHandle)
+            Expect.isTrue true "Der Modul-Start lief durch, ohne dass ein Feld eager eine Feliz-Komponente gerendert hat"
+        }
+    ]
+
 [<Tests>]
 let ledgerViewTests =
     testList
@@ -183,4 +207,5 @@ let ledgerViewTests =
           formatEntryDateTests
           accountCardsTests
           deletedCountTextTests
-          needsReviewChipLabelTests ]
+          needsReviewChipLabelTests
+          moduleStartupTests ]

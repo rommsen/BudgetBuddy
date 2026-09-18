@@ -83,7 +83,7 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
         prop.text text
     ]
 
-let private closeIcon : ReactElement =
+let private closeIcon () : ReactElement =
     Svg.svg [
         svg.width 14
         svg.height 14
@@ -163,7 +163,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                                     prop.className "sheet-close"
                                     prop.ariaLabel "Schließen"
                                     prop.onClick (fun _ -> props.OnClose())
-                                    prop.children [ closeIcon ]
+                                    prop.children [ closeIcon () ]
                                 ]
                             ]
                         ]
@@ -290,7 +290,7 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                     prop.className "sheet-close"
                                     prop.ariaLabel "Schließen"
                                     prop.onClick (fun _ -> closeAndClear())
-                                    prop.children [ closeIcon ]
+                                    prop.children [ closeIcon () ]
                                 ]
                             ]
                         ]
@@ -530,7 +530,7 @@ let private AccountPickerInternal (input: AccountPickerInternalProps) =
                                     prop.className "sheet-close"
                                     prop.ariaLabel "Schließen"
                                     prop.onClick (fun _ -> closeAndClear())
-                                    prop.children [ closeIcon ]
+                                    prop.children [ closeIcon () ]
                                 ]
                             ]
                         ]

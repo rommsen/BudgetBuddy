@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 00:00 -- Task verified and completed: design-system-bq4tz - "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden"
+
+**Type:** Work / Task completion
+**Task:** design-system-bq4tz - "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden"
+**Summary:** Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen gemacht und die Regel per Laufzeittest über alle 20 Module durchgesetzt
+**Duration:** 1h10m
+**Verification:** PASS (iteration 3)
+**Files changed:** 12
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
+## 2026-09-18 23:44 -- Verification failed: design-system-bq4tz (Iteration 2)
+
+**Type:** Work / Verification failure
+**Task:** design-system-bq4tz - Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen
+**Iteration:** 2 of 3
+**Reasons:** Kriterium 6 ist jetzt zur Laufzeit belegt erfüllt: der Verifier hat alle 48 StartupCode-Typen der gebauten Client.dll erzwungen, alle 19 Design-System-Typen laufen sauber, einschliesslich der in Iteration 1 werfenden Primitives und BottomSheet. Den Wächter hat er durch Eingriff geprüft (Spacer.md zurückgebaut, Test schlug fehl und nannte das Modul, danach restauriert, Arbeitsbaum sauber). Offen bleiben zwei Punkte. (1) Schreibregel: fünf Umschriften in DesignSystemStartupTests.fs, darunter der Testname selbst, der in jeder Testausgabe erscheint, plus heisst statt heisst mit scharfem s in LedgerViewTests.fs:190. Präzedenzfall in derselben Charge ist infra-za7fq, dort war genau das ein FAIL-Grund. (2) Blinder Fleck im Wächter: ErrorDisplay.fs deklariert namespace plus inneres module, sein Startup-Typ heisst deshalb $ErrorDisplay und fällt durch den Präfixfilter. 19 von 20 Dateien abgedeckt. Dieselbe Fehlerklasse wie der ursprüngliche Fund: eine Prüfung, die eine Struktur voraussetzt, die nicht überall gilt.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker (letzte Iteration vor Eskalation)
+
+---
+
+## 2026-09-18 23:31 -- Verification failed: design-system-bq4tz - eager Top-Level-Werte im Design-System
+
+**Type:** Work / Verification failure
+**Task:** design-system-bq4tz - Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen
+**Iteration:** 1 of 3
+**Reasons:** Kriterium 6 (Suchlauf über src/Client/DesignSystem/ findet keinen eager rendernden Top-Level-let mehr) ist nicht erfüllt. Der Verifier hat den Suchlauf als Laufzeitprüfung gemacht statt als grep und jeden StartupCode-Typinitialisierer der Design-System-Module erzwungen: Badge, Loading, Table und Ledger.View laufen sauber, Primitives und BottomSheet werfen weiterhin dieselbe InvalidCastException. Betroffen sind zehn Werte in Primitives.fs (Spacer.xs bis Divider.vertical) und closeIcon in BottomSheet.fs:86. Sie liegen in verschachtelten Modulen und sind deshalb eingerückt, weshalb ein an Spalte 0 verankerter grep sie verfehlt. Derselbe Fehler steckt in der Gegenprobe des Conductors, die fälschlich keine Reste meldete. Alles Übrige hält: dotnet test Exit 0 mit 872 grün, npm run build Exit 0, der Reflection-Wächter ist nachweislich nicht leer (er schlägt bei den zwei gefundenen Modulen an), die erweiterte Reichweite ist legitime Kriteriumserfüllung, die ausgeschlossenen 17 Styleguide-Werte sind unberührt.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-18 23:01 -- Batch started: [design-system-bq4tz]
 
 **Type:** Work / Batch start

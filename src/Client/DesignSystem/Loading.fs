@@ -65,13 +65,13 @@ let spinner (size: SpinnerSize) (color: SpinnerColor) =
     ]
 
 /// Default medium teal spinner
-let spinnerDefault = spinner MD Teal
+let spinnerDefault () = spinner MD Teal
 
 /// Small inline spinner
-let spinnerInline = spinner SM Default
+let spinnerInline () = spinner SM Default
 
 /// Large page spinner
-let spinnerLarge = spinner XL Teal
+let spinnerLarge () = spinner XL Teal
 
 // ============================================
 // Ring Spinner (alternative style)
@@ -175,7 +175,7 @@ let line width =
     skeleton { defaultSkeleton with Width = Some width }
 
 /// Full-width line skeleton
-let lineFull =
+let lineFull () =
     skeleton { defaultSkeleton with Width = Some "100" }
 
 /// Circle skeleton (avatar placeholder)
@@ -187,7 +187,7 @@ let square size =
     skeleton { defaultSkeleton with Shape = Square; Width = Some size; Height = Some size }
 
 /// Card skeleton
-let card =
+let card () =
     skeleton { defaultSkeleton with Shape = Card; Width = Some "100" }
 
 // ============================================
@@ -206,7 +206,7 @@ let textBlock lineCount =
     ]
 
 /// Avatar with text skeleton
-let avatarWithText =
+let avatarWithText () =
     Html.div [
         prop.className "flex items-center gap-3"
         prop.children [
@@ -222,7 +222,7 @@ let avatarWithText =
     ]
 
 /// Card skeleton with content
-let cardSkeleton =
+let cardSkeleton () =
     Html.div [
         prop.className "bg-surface-card border border-border-subtle rounded-xl p-4 space-y-3"
         prop.children [
@@ -233,7 +233,7 @@ let cardSkeleton =
                     circle "24"
                 ]
             ]
-            lineFull
+            lineFull ()
             line "80"
             Html.div [
                 prop.className "flex gap-2 pt-2"
@@ -356,7 +356,7 @@ let inlineWithText (text: string) =
     Html.div [
         prop.className "flex items-center gap-2 text-text-secondary"
         prop.children [
-            spinnerInline
+            spinnerInline ()
             Html.span [
                 prop.className "text-sm"
                 prop.text text
@@ -369,7 +369,7 @@ let centered (message: string) =
     Html.div [
         prop.className "flex flex-col items-center justify-center gap-4 py-12"
         prop.children [
-            spinnerLarge
+            spinnerLarge ()
             Html.p [
                 prop.className "text-text-muted text-sm"
                 prop.text message
@@ -399,14 +399,14 @@ let pageOverlay (message: string option) =
     ]
 
 /// Card with loading state
-let cardLoading =
+let cardLoading () =
     Html.div [
         prop.className "bg-surface-card border border-border-subtle rounded-xl p-6 flex items-center justify-center min-h-[200px]"
         prop.children [
             Html.div [
                 prop.className "flex flex-col items-center gap-3"
                 prop.children [
-                    spinnerDefault
+                    spinnerDefault ()
                     Html.span [
                         prop.className "text-sm text-text-muted/70"
                         prop.text "Loading..."
@@ -421,7 +421,7 @@ let cardLoading =
 // ============================================
 
 /// Button with loading spinner (to be used with Button module)
-let buttonSpinner =
+let buttonSpinner () =
     Html.span [
         prop.className "proto-spinner sm"
     ]
@@ -508,13 +508,13 @@ let progressIndeterminate (color: SpinnerColor) =
 // ============================================
 
 /// Shimmer loading effect overlay
-let shimmer =
+let shimmer () =
     Html.div [
         prop.className "absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent"
     ]
 
 /// Neon shimmer effect overlay (enhanced with neon gradient)
-let shimmerNeon =
+let shimmerNeon () =
     Html.div [
         prop.className "absolute inset-0 shimmer-neon"
     ]
@@ -525,7 +525,7 @@ let withShimmer (children: ReactElement list) =
         prop.className "relative overflow-hidden"
         prop.children [
             yield! children
-            shimmer
+            shimmer ()
         ]
     ]
 
@@ -535,7 +535,7 @@ let withShimmerNeon (children: ReactElement list) =
         prop.className "relative overflow-hidden"
         prop.children [
             yield! children
-            shimmerNeon
+            shimmerNeon ()
         ]
     ]
 

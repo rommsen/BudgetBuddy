@@ -546,7 +546,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         for i in 1..3 do
                             Html.div [
                                 prop.key (string i)
-                                prop.children [ Loading.cardSkeleton ]
+                                prop.children [ Loading.cardSkeleton () ]
                             ]
                     ]
                 ]

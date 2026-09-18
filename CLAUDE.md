@@ -672,10 +672,10 @@ Badge.error "Failed"
 Badge.info "New"
 
 // Status badges (for transactions)
-Badge.imported
-Badge.pendingReview
-Badge.autoCategorized
-Badge.uncategorized
+Badge.imported ()
+Badge.pendingReview ()
+Badge.autoCategorized ()
+Badge.uncategorized ()
 
 // Count badge
 Badge.count 5

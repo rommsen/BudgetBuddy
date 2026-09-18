@@ -165,14 +165,14 @@ module Spacer =
             prop.ariaHidden true
         ]
 
-    let xs = view SpacerXS
-    let sm = view SpacerSM
-    let md = view SpacerMD
-    let lg = view SpacerLG
-    let xl = view SpacerXL
+    let xs () = view SpacerXS
+    let sm () = view SpacerSM
+    let md () = view SpacerMD
+    let lg () = view SpacerLG
+    let xl () = view SpacerXL
 
     /// Flexible spacer that grows to fill space
-    let flex =
+    let flex () =
         Html.div [
             prop.className "flex-1"
             prop.ariaHidden true
@@ -184,25 +184,25 @@ module Spacer =
 
 module Divider =
     /// Subtle horizontal divider
-    let horizontal =
+    let horizontal () =
         Html.hr [
             prop.className "border-t border-border-subtle my-4"
         ]
 
     /// Divider with more spacing
-    let large =
+    let large () =
         Html.hr [
             prop.className "border-t border-border-subtle my-6 md:my-8"
         ]
 
     /// Divider with gradient accent
-    let gradient =
+    let gradient () =
         Html.div [
             prop.className "h-px bg-gradient-to-r from-transparent via-neon-teal/30 to-transparent my-4"
         ]
 
     /// Vertical divider (for horizontal layouts)
-    let vertical =
+    let vertical () =
         Html.div [
             prop.className "w-px h-6 bg-border-default"
             prop.ariaHidden true

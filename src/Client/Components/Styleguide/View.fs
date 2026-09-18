@@ -266,10 +266,10 @@ let private badgeSection =
                     Badge.info "Neu"
                 ]
                 row [
-                    Badge.imported
-                    Badge.pendingReview
-                    Badge.autoCategorized
-                    Badge.uncategorized
+                    Badge.imported ()
+                    Badge.pendingReview ()
+                    Badge.autoCategorized ()
+                    Badge.uncategorized ()
                     Badge.count 5
                 ]
             ]

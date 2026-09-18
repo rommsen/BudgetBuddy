@@ -149,7 +149,7 @@ let private originBadge (origin: LedgerOrigin) =
 
 /// Kennzeichen einer in YNAB geloeschten Buchung. Sie bleibt stehen, zaehlt aber
 /// nicht mehr zum Kontostand (ADR 0013).
-let private deletedBadge =
+let private deletedBadge () =
     Badge.view {
         Badge.defaultProps with
             Text = "in YNAB gelöscht"
@@ -247,7 +247,7 @@ let private entryRow
                                                 | None -> ()
                                                 originBadge entry.Origin
                                                 flagBadge entry.Flag
-                                                if entry.DeletedInYnab then deletedBadge
+                                                if entry.DeletedInYnab then deletedBadge ()
                                             ]
                                         ]
                                     ]
@@ -330,7 +330,7 @@ let private entryTableRow
                     prop.children [
                         originBadge entry.Origin
                         flagBadge entry.Flag
-                        if entry.DeletedInYnab then deletedBadge
+                        if entry.DeletedInYnab then deletedBadge ()
                     ]
                 ]
             ]

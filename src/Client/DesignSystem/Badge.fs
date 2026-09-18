@@ -200,25 +200,25 @@ let withIcon icon variant text =
 // ============================================
 
 /// Status badge for imported transactions
-let imported = success "Imported"
+let imported () = success "Imported"
 
 /// Status badge for pending review transactions
-let pendingReview = warning "Review"
+let pendingReview () = warning "Review"
 
 /// Status badge for auto-categorized transactions
-let autoCategorized = info "Auto"
+let autoCategorized () = info "Auto"
 
 /// Status badge for manual categorized transactions
-let manual = neutral "Manual"
+let manual () = neutral "Manual"
 
 /// Status badge for uncategorized transactions
-let uncategorized = orange "Uncategorized"
+let uncategorized () = orange "Uncategorized"
 
 /// Status badge for skipped transactions
-let skipped = neutral "Skipped"
+let skipped () = neutral "Skipped"
 
 /// Status badge for error state
-let failed = error "Failed"
+let failed () = error "Failed"
 
 // ============================================
 // Count Badge (for notifications)

@@ -351,7 +351,7 @@ let tdTruncate maxWidth (text: string) =
     cell { defaultCellProps with IsTruncate = true; MaxWidth = Some maxWidth } [ Html.text text ]
 
 /// Empty cell
-let tdEmpty =
+let tdEmpty () =
     Html.td [
         prop.className "text-text-muted"
         prop.children [ Html.text "—" ]
