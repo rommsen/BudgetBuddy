@@ -1,7 +1,7 @@
 ---
 id: design-system-bq4tz
 title: "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden"
-status: backlog
+status: todo
 type: bug
 context: design-system
 created: 2026-09-12

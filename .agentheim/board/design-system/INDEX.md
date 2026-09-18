@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-wa6wz** — "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)" (feature) — `todo/design-system-wa6wz-skript-fuer-seiten-screenshots.md`
+- **design-system-bq4tz** — "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden" (bug) — `todo/design-system-bq4tz-badge-defaultprops-bricht-unter-dotnet-test.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -43,9 +45,7 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **design-system-thtpp** — Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind (feature) — `backlog/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
-- **design-system-bq4tz** — Badge.defaultProps bricht unter dotnet test (Modul-Initialisierung in View-Modulen mit Design-System-Import) (bug) — `backlog/design-system-bq4tz-badge-defaultprops-bricht-unter-dotnet-test.md`
 - **design-system-t3vqr** — Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen (chore) — `backlog/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
-- **design-system-wa6wz** — Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate) (feature) — `backlog/design-system-wa6wz-skript-fuer-seiten-screenshots.md`
 - **design-system-an22r** — Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport, thumbnail.html, @kind-Annotation (feature) — `backlog/design-system-an22r-export-uebernimmt-claude-design-manifest-ergaenzungen.md`
 - **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `backlog/design-system-hadjy-export-font-face-absolute-url.md`
 - **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`

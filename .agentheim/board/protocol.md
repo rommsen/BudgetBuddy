@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 21:37 -- Modeling / Promoted: design-system-wa6wz - "Skript für headless Screenshots beliebiger App-Routen (Werkzeug für das visuelle Gate)"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-18 21:37 -- Modeling / Promoted: design-system-bq4tz - "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-18 21:36 -- Modeling / Refined: design-system-bq4tz, design-system-wa6wz, infra-za7fq
 
 **Type:** Modeling / Refine
