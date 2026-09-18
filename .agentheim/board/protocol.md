@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-18 23:01 -- Batch started: [design-system-bq4tz]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-bq4tz - "Eager ausgewertete Top-Level-Werte im Design-System zu Funktionen machen, damit View-Module unter dotnet test testbar werden"
+**Parallel:** no (1 worker) — Welle 2 von 2. Die Aufgabe wurde bewusst bis nach der Integration von ledger-kdnnz zurückgehalten, weil beide src/Client/Components/Ledger/View.fs anfassen (deletedBadge). Auf dem integrierten Stand entfällt die Überschneidung.
+
+---
+
 ## 2026-09-18 23:00 -- Task verified and completed: ledger-kdnnz - "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen"
 
 **Type:** Work / Task completion
