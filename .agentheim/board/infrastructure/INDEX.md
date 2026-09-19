@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 5
+- **Doing:** 0
+- **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infra-jh7g9** — "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen" (bug) — `doing/infra-jh7g9-backend-port-konfigurierbar-machen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infra-jh7g9** — "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen" (bug) — `done/infra-jh7g9-backend-port-konfigurierbar-machen.md`
 - **infra-sdad8** — "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben" (refactor) — `done/infra-sdad8-initializedatabase-in-testcase-setup-verschieben.md`
 - **infra-za7fq** — "Wächter-Test, der laut scheitert, wenn ein Testlauf auf die echte Datei-Datenbank zeigt" (feature) — `done/infra-za7fq-waechter-test-gegen-schreiben-in-die-echte-datenbank.md`
 - **infra-002 · PWA-Mechanik — installierbar (Manifest, Shell-SW, iOS-Meta, vite-plugin-pwa)** — 2026-06-19 — `done/infra-002-pwa-installable.md` (vite-plugin-pwa: Workbox-Shell-Precache-SW, `/api` strikt network-only — `runtimeCaching:[]` + `navigateFallbackDenylist:[/^\/api\//]`, kein Daten-Cache; `autoUpdate`; gebrandete `offline.html`-Floor; iOS/Favicon/theme-color auf `#08081a`; `.webmanifest`-MIME im Giraffe-Static-Handler; ADR 0010; Verifier-PASS iter 2 — device-/Tailscale-ACs = Human-Gate)

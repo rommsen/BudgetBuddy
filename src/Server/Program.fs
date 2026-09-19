@@ -20,6 +20,17 @@ let pwaContentTypeProvider () =
 
 [<EntryPoint>]
 let main args =
+    // ASPNETCORE_URLS legt fest, worauf Kestrel bindet (app.Run() unten wird
+    // ohne Argument aufgerufen und respektiert die Variable von selbst). Muss
+    // VOR WebApplication.CreateBuilder gesetzt werden, weil die Konfiguration
+    // Umgebungsvariablen dort einliest; ein späteres Setzen käme zu spät.
+    // Server.ServerConfig.resolveUrls (rein, siehe dort) hält den bisherigen
+    // Standardport 5081, wenn nichts gesetzt ist (infra-jh7g9: der Fehler war,
+    // dass ein explizites URL-Argument an app.Run ASPNETCORE_URLS bisher
+    // überschrieb, compose.yamls Zeile also wirkungslos war).
+    let urls = Server.ServerConfig.resolveUrls (System.Environment.GetEnvironmentVariable("ASPNETCORE_URLS"))
+    System.Environment.SetEnvironmentVariable("ASPNETCORE_URLS", urls)
+
     let builder = WebApplication.CreateBuilder(args)
 
     // Add Giraffe
@@ -80,7 +91,10 @@ let main args =
                 FileProvider = new PhysicalFileProvider(publicPath)
             )) |> ignore
 
-    printfn "🚀 BudgetBuddy server starting on http://localhost:5081"
+    // Nennt den tatsächlich gebundenen Wert (urls, oben aus ASPNETCORE_URLS
+    // aufgelöst), nicht einen festen Port: app.Run() unten bindet auf genau
+    // diesen Wert, weil er ohne Argument aufgerufen wird.
+    printfn $"🚀 BudgetBuddy server starting on {urls}"
 
-    app.Run("http://0.0.0.0:5081")
+    app.Run()
     0

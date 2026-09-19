@@ -4,6 +4,63 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 14:45 - Backend-Port kommt aus der Konfiguration, und beide Regeln sind bewacht
+
+**What I did:**
+Der Backend-Port stand als Literal in `app.Run("http://0.0.0.0:5081")`. Das überschrieb
+still die `ASPNETCORE_URLS`-Zeile, die in `compose.yaml` längst stand: die Konfigurierbarkeit
+war vorgetäuscht. Wer den Port dort änderte, änderte nichts, und es fiel erst im Betrieb auf.
+Aufgefallen ist es, als ein laufender Entwicklungsserver auf 5081 einen Screenshot-Lauf
+blockierte, der sich fürs Frontend längst einen freien Port reserviert, fürs Backend aber
+nicht konnte.
+
+**Files Added:**
+- `src/Server/ServerConfig.fs` - reine Funktion `resolveUrls`: ohne gesetzte Variable der
+  bisherige Standard `http://0.0.0.0:5081`, sonst der gesetzte Wert.
+- `src/Tests/ServerConfigTests.fs` - vier Tests dafür.
+- `src/Tests/BackendPortGuardTests.fs` - liest `Program.fs` selbst und lehnt jeden
+  `app.Run(...)`-Aufruf mit Argument ab.
+
+**Files Modified:**
+- `src/Server/Program.fs` - `app.Run()` ohne Argument, die Variable wird vor
+  `WebApplication.CreateBuilder` gesetzt, die Start-Log-Zeile nennt den gebundenen Wert.
+- `vite.config.js` - Proxy-Ziel liest `BACKEND_PORT`, Standard bleibt 5081.
+- `scripts/screenshot-route.mjs` - reserviert auch fürs Backend einen freien Port und reicht
+  ihn an beide Kindprozesse weiter; die Abbruchprüfung auf belegten Port 5081 entfällt.
+- `scripts/screenshot-route.test.mjs` - zwei Tests, die die Weitergabe von `BACKEND_PORT`
+  festhalten.
+- `src/Server/Server.fsproj`, `src/Tests/Tests.fsproj` - neue Dateien eingetragen.
+
+**Rationale:**
+Der Container muss weiter auf 5081 binden, weil Healthcheck und `tailscale serve` darauf
+zeigen (ADR 0010). Ziel war deshalb nicht, den Port zu ändern, sondern dass sein Wert aus der
+Konfiguration kommt statt aus dem Quelltext. `compose.yaml` und `Dockerfile` blieben
+unangetastet; ihre `ASPNETCORE_URLS`-Zeile tut jetzt, was sie verspricht.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` und `npm run build` grün)
+- Tests: 908 bestanden, 7 übersprungen, 915 gesamt; `node --test scripts/screenshot-route.test.mjs` 21/21
+- Verifikation: FAIL in Iteration 1, PASS in Iteration 2. Der erste Verifier hat die
+  inhaltlichen Kriterien selbst nachgefahren und bestätigt (zwei Instanzen parallel auf 5081
+  und 6123, per `lsof` belegt, beide gegen Scratch-Verzeichnisse; der Vite-Proxy folgt der
+  Variable nachweislich). Abgelehnt hat er, dass die neue Regel unbewacht blieb: ein künftiges
+  URL-Argument an `app.Run` hätte alle Tests grün gelassen.
+- Iteration 2 hat die Durchsetzung nachgeliefert. Dabei ist dem Worker die eigene Falle
+  aufgefallen: seine erste Wächter-Fassung schnitt jede Zeile am ersten `//` ab, und weil
+  `app.Run("http://0.0.0.0:5081")` selbst ein `//` enthält, schnitt sie genau den Verstoß
+  weg, den sie finden sollte. Zwei der sieben neuen Testfälle wurden rot und haben es
+  aufgedeckt; die Ersatzfassung verfolgt String-Literale zeichenweise.
+- Der zweite Verifier hat alle drei Wächter selbst falsifiziert und den Parser zusätzlich mit
+  vier Grenzfällen geprüft, darunter einer, der bei kaputtem Escape-Handling einen Fehlalarm
+  erzeugt hätte.
+- Benannte Grenzen (in ADR 0034 festgehalten): der Parser kennt keine `(* ... *)`-Kommentare
+  und keine verschachtelten Anführungszeichen jenseits einfacher Escapes; die beiden
+  Node-Tests erkennen eine korrekt benannte, aber falsch verdrahtete Variable nicht.
+
+**ADR:** 0034 (Backend-Port über ASPNETCORE_URLS statt Literal, mechanisch abgesichert)
+
+---
+
 ## 2026-09-19 14:20 - Historie zeigt die neueste Zeile oben, gedreht wird nur in der Anzeige
 
 **What I did:**

@@ -19,6 +19,11 @@
          oben, prüft aber deren Quelltext statisch, unabhängig von der Compile-Reihenfolge. -->
     <Compile Include="ModuleLevelDbInitGuardTests.fs" />
     <Compile Include="RemoteDataTests.fs" />
+    <Compile Include="ServerConfigTests.fs" />
+    <!-- Mechanisierte Durchsetzung von "app.Run() bekommt nie ein URL-Argument"
+         (infra-jh7g9, Iteration 2, ADR 0034): liest Program.fs selbst, unabhängig
+         von der Compile-Reihenfolge, muss also nicht vor anderen Tests stehen. -->
+    <Compile Include="BackendPortGuardTests.fs" />
     <Compile Include="EncryptionTests.fs" />
     <Compile Include="PersistenceTypeConversionTests.fs" />
     <Compile Include="YnabClientTests.fs" />

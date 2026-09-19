@@ -209,12 +209,52 @@ test("screenshot-route.mjs prüft nicht mehr auf .proto-spinner/.animate-pulse, 
   assert.match(source, /data-app-ready/, "das App-eigene Bereitschaftssignal muss abgefragt werden");
 });
 
+// Mechanisierte Durchsetzung der zweiten Regel aus infra-jh7g9/ADR 0034: der
+// Backend-Port ist seit dieser Aufgabe konfigurierbar (Program.fs respektiert
+// ASPNETCORE_URLS), das allein reicht aber nicht: startFrontend() und
+// vite.config.js müssen denselben Port über BACKEND_PORT konsistent
+// weiterreichen bzw. lesen, sonst redet das Frontend mit dem falschen
+// Backend-Port, obwohl der Server selbst korrekt auf einem anderen Port
+// läuft. Beide Tests lesen die tatsächliche Quelldatei (wie der
+// data-app-ready-Test oben), kein funktionaler Lauf: ein echter
+// Vite-Prozess-Start wäre für diesen schmalen Zweck unverhältnismäßig teuer.
+// Dokumentierte Grenze: ein Scan über Quelltext kann eine korrekt benannte,
+// aber falsch verdrahtete Variable nicht erkennen (z. B. BACKEND_PORT wird
+// gesetzt, aber nie gelesen); das deckt vite.config.js-Test unten separat ab,
+// indem er speziell auf process.env.BACKEND_PORT im Proxy-Ziel prüft, nicht
+// nur auf irgendeine Erwähnung des Namens.
+test("startFrontend gibt BACKEND_PORT an den Vite-Kindprozess weiter (infra-jh7g9)", () => {
+  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
+  const source = readFileSync(scriptPath, "utf8");
+  const startFrontendIdx = source.indexOf("async function startFrontend");
+  assert.notEqual(startFrontendIdx, -1, "startFrontend nicht gefunden (Funktion umbenannt oder verschoben?)");
+  const nextFunctionIdx = source.indexOf("\nasync function", startFrontendIdx + 1);
+  const body = source.slice(startFrontendIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
+  assert.match(
+    body,
+    /BACKEND_PORT:\s*String\(backendPort\)/,
+    "startFrontend muss BACKEND_PORT an den Vite-Kindprozess übergeben, sonst proxyt Vite gegen den falschen Backend-Port (siehe ADR 0034)"
+  );
+});
+
+test("vite.config.js liest BACKEND_PORT aus der Umgebung fürs Proxy-Ziel (infra-jh7g9)", () => {
+  const viteConfigPath = path.join(__dirname, "..", "vite.config.js");
+  const source = readFileSync(viteConfigPath, "utf8");
+  assert.match(
+    source,
+    /process\.env\.BACKEND_PORT/,
+    "vite.config.js muss BACKEND_PORT lesen, sonst bleibt das Proxy-Ziel fest auf 5081 (siehe ADR 0034)"
+  );
+});
+
 test("startBackend: scheitert laut, BEVOR ein Prozess gestartet wird, wenn dataDir auf das Original zeigt", async () => {
   // Das ist der eigentliche Wachtposten aus AC6, nicht nur die reine
   // Helfer-Funktion: startBackend() ruft assertDataDirIsolated() mit genau
   // dem Wert auf, der unten in env.DATA_DIR landen würde. assertDataDirIsolated()
   // wirft synchron als erste Anweisung, vor jedem await. Hier läuft also
   // nie ein echter dotnet-Prozess, obwohl startBackend() selbst geprüft wird.
+  // Der Port (zweites Argument seit infra-jh7g9) ist für diesen Test
+  // gleichgültig: er wird nie erreicht, weil assertDataDirIsolated vorher wirft.
   const originalDir = path.join(os.homedir(), "my_apps", "budgetbuddy-dev");
-  await assert.rejects(() => startBackend(originalDir, originalDir), /Original/);
+  await assert.rejects(() => startBackend(originalDir, 5081, originalDir), /Original/);
 });

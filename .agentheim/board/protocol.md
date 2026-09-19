@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 14:06 -- Task verified and completed: infra-jh7g9 - "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen"
+
+**Type:** Work / Task completion
+**Task:** infra-jh7g9 - "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen"
+**Summary:** Der Backend-Port kommt aus ASPNETCORE_URLS statt aus einem Literal, Vite-Proxy und Screenshot-Skript folgen ihm über BACKEND_PORT, und beide Regeln sind durch Wächter-Tests abgesichert statt nur dokumentiert
+**Duration:** 1h12m
+**Verification:** PASS (iteration 2)
+**Files changed:** 9
+**Tests added:** 13
+**ADRs written:** 0034
+
+---
+
+## 2026-09-19 13:47 -- Verification failed: infra-jh7g9 - Backend-Port konfigurierbar machen
+
+**Type:** Work / Verification failure
+**Task:** infra-jh7g9 - Backend-Port konfigurierbar machen
+**Iteration:** 1 of 3
+**Reasons:** Prüfung 6c (mechanize-or-drop) gescheitert: die Aufgabe schreibt eine Nie-Regel fest (der Backend-Port kommt aus ASPNETCORE_URLS, nie aus einem Literal), dazu die Kopplung, dass screenshot-route.mjs und vite.config.js BACKEND_PORT konsistent setzen und lesen, ohne sie durchzusetzen und ohne die Lücke als bewusst ungeprüft zu vermerken. Ein künftiges URL-Argument an app.Run oder ein verlorenes BACKEND_PORT im Kind-Env ließe alle 908 Tests grün. Die Kriterien 1 bis 6b hat der Verifier selbst nachgefahren und bestätigt, einschließlich zweier gleichzeitig laufender Instanzen auf 5081 und 6123 und des Nachweises, dass der Vite-Proxy der Variable folgt.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-19 13:45 -- Task verified and completed: ledger-h9tq2 - "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
 
 **Type:** Work / Task completion

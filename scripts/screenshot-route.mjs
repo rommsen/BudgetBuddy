@@ -16,9 +16,10 @@
 // Anders als scripts/export-design-system.mjs (rein präsentationale
 // /#/styleguide-Route, kommt mit `vite preview` aus) braucht das hier den
 // echten Server: die meisten Routen laden Daten über den Vite-Proxy /api ->
-// localhost:5081 (vite.config.js). Muster für Aufbau/Aufräumen übernommen
-// aus export-design-system.mjs (getFreePort, startPreviewServer/stopServer,
-// der finally-Block), hier auf Server + Frontend verdoppelt.
+// Backend (vite.config.js, Ziel folgt BACKEND_PORT). Muster für
+// Aufbau/Aufräumen übernommen aus export-design-system.mjs (getFreePort,
+// startPreviewServer/stopServer, der finally-Block), hier auf Server +
+// Frontend verdoppelt.
 //
 // Festgelegt mit Roman am 2026-09-18 (s. Task-Datei):
 //   - Nur aufnehmen, nicht vergleichen. Der Abgleich mit dem Mockup bleibt
@@ -32,11 +33,10 @@
 //     entstanden, als ein Testlauf ohne diese Vorsicht in die echte Datei
 //     schrieb).
 //
-// Bekannte Grenze: der Backend-Port 5081 ist in src/Server/Program.fs fest
-// verdrahtet (app.Run("http://0.0.0.0:5081")), nicht über ASPNETCORE_URLS
-// konfigurierbar. Das Skript kann sich hier keinen freien Port reservieren
-// (anders als beim Frontend); ist 5081 belegt, scheitert der Lauf laut,
-// statt einen falschen Port zu erraten.
+// Der Backend-Port ist seit infra-jh7g9 über ASPNETCORE_URLS konfigurierbar
+// (src/Server/Program.fs), das Skript reserviert sich hier deshalb, genau wie
+// beim Frontend, einen freien Port statt den festen Port 5081 zu belegen: ein
+// laufender Entwicklungsserver auf 5081 blockiert den Lauf damit nicht mehr.
 //
 // Bekannte Grenze: eine unbekannte Route in Feliz.Router fällt in der App
 // selbst still auf SyncFlow zurück (Routing.parseUrl in
@@ -73,9 +73,6 @@ const ROOT = path.resolve(__dirname, "..");
 // dokumentiert im README-Delta dieser Aufgabe und im Kommentar zu
 // "screenshot:route" in package.json.
 export const DEFAULT_OUT_DIR = path.join(ROOT, "docs", "ux", "screenshots");
-
-// Fester Backend-Port (s. Kommentar oben, Program.fs).
-const BACKEND_PORT = 5081;
 
 // Spiegel von `Routing.parseUrl` (src/Client/Types.fs). Bewusst dupliziert:
 // das Skript darf laut Task nur scripts/, package.json und das README
@@ -242,30 +239,33 @@ async function isPortFree(port) {
   });
 }
 
-/// Startet den Giraffe-Server gegen `dataDir`. `sourceDataDir` ist ein
-/// optionaler Test-Haken (Vorgabe: die echte Quelle aus
+/// Startet den Giraffe-Server gegen `dataDir` auf `port`. `sourceDataDir` ist
+/// ein optionaler Test-Haken (Vorgabe: die echte Quelle aus
 /// resolveSourceDataDir()); im echten Lauf ist es immer die tatsächliche
 /// Quelle. assertDataDirIsolated() prüft hier, am Ort der Wahrheit, bevor
 /// irgendein Prozess startet: genau `dataDir`, so wie es unten in
 /// `env.DATA_DIR` landet (AC6).
 ///
+/// `port` geht als ASPNETCORE_URLS an den Server-Prozess (infra-jh7g9:
+/// Program.fs respektiert diese Variable seither über app.Run() ohne
+/// Argument). Kein isPortFree-Vorabcheck mehr nötig: `port` kommt vom
+/// Aufrufer aus getFreePort(), ein laufender Entwicklungsserver auf 5081
+/// blockiert diesen Lauf damit nicht.
+///
 /// USE_MEMORY_DB wird explizit auf "false" gesetzt, damit ein vom Aufrufer
 /// vererbtes USE_MEMORY_DB=true (z. B. aus einer Testumgebung) nicht die
 /// Kopie umgeht und eine leere In-Memory-DB rendert.
-export async function startBackend(dataDir, sourceDataDir = resolveSourceDataDir()) {
+export async function startBackend(dataDir, port, sourceDataDir = resolveSourceDataDir()) {
   assertDataDirIsolated(dataDir, sourceDataDir);
 
-  const portFree = await isPortFree(BACKEND_PORT);
-  if (!portFree) {
-    throw new Error(
-      `Port ${BACKEND_PORT} ist belegt. Der Backend-Port ist in ` +
-        `src/Server/Program.fs fest verdrahtet, das Skript kann keinen ` +
-        `anderen wählen. Port freimachen und erneut versuchen.`
-    );
-  }
   const child = spawn("dotnet", ["run", "--project", "src/Server/Server.fsproj"], {
     cwd: ROOT,
-    env: { ...process.env, DATA_DIR: dataDir, USE_MEMORY_DB: "false" },
+    env: {
+      ...process.env,
+      DATA_DIR: dataDir,
+      USE_MEMORY_DB: "false",
+      ASPNETCORE_URLS: `http://0.0.0.0:${port}`,
+    },
     stdio: ["ignore", "pipe", "pipe"],
     detached: true,
   });
@@ -278,15 +278,17 @@ export async function startBackend(dataDir, sourceDataDir = resolveSourceDataDir
       log(`Server-Prozess beendete sich mit Code ${code}.\n${stderrOutput}`);
     }
   });
-  await waitForPort(BACKEND_PORT, 30000, "Server").catch((err) => {
+  await waitForPort(port, 30000, "Server").catch((err) => {
     throw new Error(`${err.message}\n${stderrOutput}`);
   });
   return child;
 }
 
-/// Startet den Vite-Dev-Server auf einem vorab reservierten freien Port
-/// (der Backend-Port ist fest, s.o.; hier lohnt sich getFreePort wirklich).
-/// Wartet auf einen echten TCP-Connect (waitForPort, dieselbe Technik wie
+/// Startet den Vite-Dev-Server auf einem vorab reservierten freien Port.
+/// `backendPort` geht als BACKEND_PORT an den Vite-Prozess, damit
+/// vite.config.js sein Proxy-Ziel auf denselben Backend-Port richtet, den
+/// startBackend() oben tatsächlich gebunden hat (sonst redet das Frontend mit
+/// dem falschen Port). Wartet auf einen echten TCP-Connect (waitForPort, dieselbe Technik wie
 /// beim Backend), nicht auf ein unbedingtes setTimeout: der frühere Code
 /// rannte einen 20-Sekunden-Timer per Promise.race gegen die Bereitschaft,
 /// aber der Timer LÖSTE AUF statt abzulehnen, das .catch griff also nie.
@@ -296,11 +298,16 @@ export async function startBackend(dataDir, sourceDataDir = resolveSourceDataDir
 /// Zusätzlich: läuft der vite-Prozess vorher mit einem Fehlercode ab (z. B.
 /// weil der reservierte Port inzwischen doch belegt ist), rennt das gegen
 /// dieselbe Wette und gewinnt, statt bis zum Timeout zu warten.
-async function startFrontend(port) {
+async function startFrontend(port, backendPort) {
   const child = spawn(
     "npx",
     ["vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"],
-    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], detached: true }
+    {
+      cwd: ROOT,
+      env: { ...process.env, BACKEND_PORT: String(backendPort) },
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+    }
   );
 
   let stderrOutput = "";
@@ -444,13 +451,14 @@ async function main() {
   // DB-Kopie liegen.
   let tempDataDir;
   let backend;
+  let backendPort;
   let frontend;
   let frontendPort;
   let cleaningUp = false;
 
   const cleanup = async () => {
     await stopServer(frontend, frontendPort);
-    await stopServer(backend, BACKEND_PORT);
+    await stopServer(backend, backendPort);
     if (tempDataDir) {
       await rm(tempDataDir, { recursive: true, force: true });
     }
@@ -476,12 +484,13 @@ async function main() {
     await copyFile(sourceDbPath, path.join(tempDataDir, "budgetbuddy.db"));
     log(`Entwicklungsdatenbank nach ${tempDataDir} kopiert (nur lesend gegen das Original).`);
 
-    log(`Server startet gegen ${tempDataDir} (Port ${BACKEND_PORT}) ...`);
-    backend = await startBackend(tempDataDir, sourceDataDir);
+    backendPort = await getFreePort();
+    log(`Server startet gegen ${tempDataDir} (Port ${backendPort}) ...`);
+    backend = await startBackend(tempDataDir, backendPort, sourceDataDir);
 
     frontendPort = await getFreePort();
     log(`Frontend startet auf Port ${frontendPort} ...`);
-    frontend = await startFrontend(frontendPort);
+    frontend = await startFrontend(frontendPort, backendPort);
 
     const browser = await chromium.launch();
     try {

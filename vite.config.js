@@ -3,6 +3,14 @@ import fable from 'vite-plugin-fable';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// infra-jh7g9: der Backend-Port ist über ASPNETCORE_URLS konfigurierbar
+// (src/Server/Program.fs), also muss das Proxy-Ziel derselben Variable
+// folgen, sonst redet das Frontend weiter mit dem falschen Port. BACKEND_PORT
+// (nicht ASPNETCORE_URLS selbst, das eine ganze URL ist) wird von
+// scripts/screenshot-route.mjs gesetzt, wenn es einen freien Port reserviert;
+// ohne gesetzte Variable bleibt der bisherige Standard 5081.
+const backendPort = process.env.BACKEND_PORT || '5081';
+
 export default defineConfig({
   plugins: [
     fable({
@@ -74,7 +82,7 @@ export default defineConfig({
     port: 5181,
     proxy: {
       '/api': {
-        target: 'http://localhost:5081',
+        target: `http://localhost:${backendPort}`,
         changeOrigin: true
       }
     }
