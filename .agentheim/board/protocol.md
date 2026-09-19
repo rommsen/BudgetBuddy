@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 19:27 -- Batch started: [ledger-ezrw0, ledger-p9k3w]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-ezrw0 - "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen", ledger-p9k3w - "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt"
+**Parallel:** yes (2 Worker, dritte Welle — ledger-ezrw0, ledger-p9k3w; disjunkte Dateimengen). ledger-ezrw0 laeuft jetzt bewusst NACH ledger-vgfw3, damit es die endgueltige getLedgerEntriesPage-Signatur dokumentiert statt der alten. ledger-p9k3w laeuft nach design-system-m4kp7, weil beide scripts/screenshot-route.mjs anfassen. infrastructure-qwthn bleibt nicht dispatchbar: sein Ergebnis liegt in .agentheim/board/*/INDEX.md, was ein Worker nach ADR-0032 (ghcaj) nicht schreiben darf; liegt beim Builder zur Entscheidung.
+
+---
+
 ## 2026-09-19 19:27 -- Task verified and completed: ledger-vgfw3 - "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren"
 
 **Type:** Work / Task completion

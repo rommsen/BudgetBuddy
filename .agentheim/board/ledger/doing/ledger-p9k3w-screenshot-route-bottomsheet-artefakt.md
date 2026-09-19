@@ -1,7 +1,7 @@
 ---
 id: ledger-p9k3w
 title: "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-18

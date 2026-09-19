@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 13
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 24
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `todo/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
-- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `todo/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `doing/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
+- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `doing/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
