@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 20:01 -- Task completed (verification skipped): infrastructure-qwthn - "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-qwthn - "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
+**Summary:** Vierzehn Done-Listen-Zeilen in vier Kontexten auf die von ENTRY_LINE erwartete Form gebracht; Rotationslauf meldet für alle sechs Kontexte kein unmatched mehr
+**Duration:** 14m
+**Verification:** SKIPPED — vom Conductor selbst ausgeführt, kein Worker-Ergebnis; Kriterien maschinell durch den Werkzeuglauf belegt
+**Files changed:** 4
+
+---
+
+## 2026-09-19 20:00 -- Batch started: [infrastructure-qwthn]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-qwthn - "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
+**Parallel:** nein (1, vom Conductor selbst ausgefuehrt). Diese Aufgabe ist an keinen Worker dispatchbar: ihr Ergebnis sind Zeilen in .agentheim/board/*/INDEX.md, und ein Worker darf keinen .agentheim/-Pfad schreiben (ADR-0032/ghcaj, der Checkpoint-Guard verwirft solche Pfade als bookkeeping-path). Roman hat am 2026-09-19 entschieden, dass der Conductor sie selbst ausfuehrt.
+
+---
+
 ## 2026-09-19 19:58 -- Task verified and completed: ledger-p9k3w - "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt"
 
 **Type:** Work / Task completion

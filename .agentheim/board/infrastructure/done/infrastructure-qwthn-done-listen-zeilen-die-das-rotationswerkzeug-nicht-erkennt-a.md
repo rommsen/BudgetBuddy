@@ -1,7 +1,7 @@
 ---
 id: infrastructure-qwthn
 title: "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
-status: todo
+status: done
 type: chore
 context: infrastructure
 created: 2026-09-19
@@ -82,3 +82,78 @@ und lehnt mit `context-mismatch` ab, auch wenn man ihm `{"context":"infrastructu
 mitgibt. Die bestehenden `infra-*`-Tasks stammen aus `modeling` und sind davon nicht
 betroffen. Ob der Kontext umbenannt oder die Ids künftig ausgeschrieben werden, ist eine
 eigene, offene Frage.
+
+## Outcome
+
+Vom Conductor selbst ausgeführt, nicht von einem Worker. Grund: das Ergebnis dieser Aufgabe
+sind Zeilen in `.agentheim/board/*/INDEX.md`, und ein Worker darf seit ADR-0032 (Fassung
+ghcaj) keinen `.agentheim/`-Pfad schreiben; der Checkpoint-Guard verwirft solche Pfade mit
+`bookkeeping-path`. Ein Dispatch hätte per Konstruktion ein leeres Worktree ergeben. Roman
+hat am 2026-09-19 entschieden, dass der Conductor sie übernimmt.
+
+**Die erwartete Zeilenform** steht in `lib/index-rotation.mjs:78` (Plugin-Cache, Version
+0.9.4):
+
+```js
+const ENTRY_LINE = /^- \*\*([^*]+)\*\* .+ `done\/([^`]+)`\r?$/;
+```
+
+Eine Done-Zeile muss also mit `- **<etwas>**` beginnen **und** auf einem
+backtick-gequoteten `` `done/<datei>` `` enden. Der Block selbst wird über
+`DONE_LIST_BLOCK` (`:75`) zwischen den Markern `<!-- done-list:start -->` und
+`<!-- done-list:end -->` gefunden; `parseDoneList` (`:105`) zählt jede nicht leere Zeile,
+die `ENTRY_LINE` verfehlt, als `unmatched`.
+
+**Es war eine einzige Ursache, nicht mehrere.** Die beim Verfeinern offen gelassene Frage
+("ob die betroffenen Zeilen überhaupt aus derselben Ursache stammen") ist damit beantwortet:
+alle vierzehn Zeilen tragen nach dem `` `done/…` ``-Pfad noch eine Klammer-Anmerkung
+(Commit-SHA, Stichworte, ADR-Verweise). Genau das verletzt das vom Regex geforderte
+Zeilenende. Weder ein fehlendes Datum noch ein abweichendes Datumsformat noch ein
+mehrzeiliger Eintrag war beteiligt.
+
+Nebenbefund, nicht behoben und nicht Teil der Kriterien: dieselben vierzehn Zeilen folgen
+einer älteren Konvention, die Id und Titel gemeinsam in die Fettschrift setzt
+(`- **cat-001 · Titel** — Datum — …`), während die heutige Form nur die Id fett setzt und
+den Titel in Anführungszeichen dahinter (`- **ledger-p9k3w** — "Titel" (bug) — …`). Für
+`ENTRY_LINE` ist das unerheblich (die Klammer `([^*]+)` fängt bei der alten Form den ganzen
+Fettschrift-Inhalt als "Id"), und ein Umschreiben hätte Titel verändert, was Kriterium 4
+ausdrücklich verbietet.
+
+**Die vierzehn Zeilen, je Kontext:**
+
+| Kontext | Einträge | umgeformt |
+|---|---|---|
+| banking-import | 0 | 0 |
+| categorization | 4 | 2 (`ynab-k7m3q`, `cat-001`) |
+| design-system | 21 | 7 (`design-system-001` bis `-008`, ohne `-006`) |
+| infrastructure | 6 | 2 (`infra-001`, `infra-002`) |
+| ledger | 25 | 0 |
+| ynab-sync | 11 | 3 (`ynab-002`, `ynab-003`, `ynab-004`) |
+
+**Die Umformung** verschiebt die Klammer-Anmerkung vor den Pfad, statt sie zu löschen:
+
+```
+vorher:   - **<fett>** — <Datum> — `done/<datei>` (<Anmerkung>)
+nachher:  - **<fett>** — <Datum> — (<Anmerkung>) — `done/<datei>`
+```
+
+Damit bleiben Id, Titel, Datum und Anmerkung zeichengleich erhalten; nur ihre Reihenfolge
+ändert sich, und die Zeile endet jetzt dort, wo der Regex es verlangt.
+
+**Nachweis durch tatsächlichen Lauf** (Kriterium 2 verlangt ausdrücklich einen Lauf, kein
+Lesen): `rotateAllIndexDoneLists` über den Standard-Bootstrap ausgeführt, Ergebnis
+`{"ok":true,"rotated":false,"healed":false,"changed":[]}` und je Kontext `ok:true` **ohne**
+`unmatched`-Feld. Das Feld erscheint laut Manifest-Form nur bei einem Wert größer null, sein
+Fehlen ist also die gesuchte Null. `rotated:false` ist korrekt: keine Liste hat ihre Kappe
+erreicht, es war nichts auszurollen.
+
+**Eintragszahlen vor und nach der Umformung identisch** (Kriterium 3), je Kontext gezählt:
+0, 4, 21, 6, 25, 11. Die in der Aufgabe genannten Zahlen (12, 8, 2, 4, 20, 0) stammen vom
+Lauf am 2026-09-19 vor dieser Sitzung; die Differenz sind die seither hinzugekommenen
+Done-Einträge, kein Verlust.
+
+**Keine Verifikation durch den `verifier`-Agenten.** Das Gate ist für Worker-Ergebnisse
+definiert, und diese Aufgabe hat kein Worker ausgeführt. Die vier Kriterien sind
+stattdessen maschinell belegt: die Regel ist aus der Quelle zitiert, `unmatched` ist durch
+den Lauf des Werkzeugs selbst auf null, die Eintragszahlen sind vorher und nachher gezählt,
+und die Umformung ist eine reine Umstellung ohne Textverlust.

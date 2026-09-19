@@ -30,9 +30,9 @@ research touching this BC, and concept synthesis pages.
 - **ynab-czk34** — Spiegel-Mechanik YNAB → Kassenbuch festlegen (Delta-Sync, Intervall, Löschungen, Contract) (decision) — `done/ynab-czk34-mirror-mechanics.md`
 - **ynab-t4n8p · Quick Add — letzte 5 Buchungen des Quick-Add-Kontos als Vorlagen (dedupliziert)** — 2026-06-27 — `done/ynab-t4n8p-quick-add-recent-templates.md`
 - **ynab-q7k3m · Quick Add als eigene Seite, erreichbar aus der Haupt-Navigation** — 2026-06-27 — `done/ynab-q7k3m-quick-add-in-bottom-nav.md`
-- **ynab-004 · Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen** — 2026-06-16 — `done/ynab-004-split-row-label.md` (ae7d448)
-- **ynab-003 · Split-Editor: Vorzeichen-Fix + editierbare Beträge + Rest-Button** — 2026-06-16 — `done/ynab-003-split-amount-sign-rest-button.md` (14e1f61)
-- **ynab-002 · Split-Review-UI — Cashback-Shortcut + generischer Editor** — 2026-06-13 — `done/ynab-002-split-review-ui.md` (f2a71ac)
+- **ynab-004 · Split-Transaktion in der Liste als "Aufgeteilt" kennzeichnen** — 2026-06-16 — — (ae7d448) — `done/ynab-004-split-row-label.md`
+- **ynab-003 · Split-Editor: Vorzeichen-Fix + editierbare Beträge + Rest-Button** — 2026-06-16 — — (14e1f61) — `done/ynab-003-split-amount-sign-rest-button.md`
+- **ynab-002 · Split-Review-UI — Cashback-Shortcut + generischer Editor** — 2026-06-13 — — (f2a71ac) — `done/ynab-002-split-review-ui.md`
 - **ynab-001 · Split mit Transfer-Zeile — Domain + YNAB-Push (Fundament)** — 2026-06-13 — `done/ynab-001-split-with-transfer-cashback.md`
 - **Quick Add Feedback-Runde: eigenes Konto, echter Picker, kein FAB, Payee optional** — 2026-06-12 — `done/2026-06-12-quick-add-feedback-round.md`
 - **Quick Add: manuelle Transaktions-Eingabe → YNAB (Phase 0)** — 2026-06-11 — `done/2026-06-11-quick-add-manual-entry.md`
