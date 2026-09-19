@@ -4,6 +4,43 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 12:55 - Bug: Design-System-Export trug @font-face mit absolutem url(/fonts/...)
+
+**What I did:**
+`scripts/export-design-system.mjs` kopierte das gebaute App-CSS unverändert ins
+Claude-Design-Bundle. Die absolute @font-face-Regel aus dem App-Build gewann dort gegenüber
+der relativen aus `colors_and_type.css`, die Font-Anfragen gingen an die Bundle-Origin-Wurzel
+und liefen in 404: in Claude Design blieb die Warnung "Missing brand fonts" stehen.
+
+**Files Modified:**
+- `scripts/export-design-system.mjs` - neue reine Funktion `rewriteAbsoluteAssetUrls`, genutzt
+  in `copyBuiltCss` (liest, schreibt um, schreibt) statt des bisherigen `copyFile`; der
+  `main()`-Aufruf steht jetzt hinter einem Guard, der nur bei Direktstart greift, damit der
+  Test die Funktion importieren kann, ohne den ganzen Export anzustoßen.
+- `src/Tests/FontFaceRegressionTests.fs` - vier neue Testfälle, die die reale Funktion per
+  Node-Subprozess aus dem Export-Skript importieren statt die Logik in F# nachzubauen.
+
+**Rationale:**
+Die App liefert sich selbst von der Origin-Wurzel aus, deshalb sind die @font-face-Pfade im
+Quell-CSS absolut korrekt. Im abgeleiteten Bundle liegt die Wurzel woanders; der Export muss
+diesen Unterschied beim Kopieren ausgleichen, statt die App ihre eigenen Pfade verbiegen zu
+lassen.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 878 bestanden, 7 übersprungen, 0 fehlgeschlagen
+- Verifikation: PASS in Iteration 1. Der Verifier hat den Export selbst zweimal laufen lassen
+  (Bundle byte-identisch, 33 Dateien), alle Bundle-Dateien auf absolute `url(/…)`-Pfade
+  durchsucht (0 Treffer) und den neuen Entry-Point-Guard separat geprüft, weil ein nicht
+  greifender Guard den Export stillschweigend nichts tun und trotzdem mit Status 0 enden
+  ließe.
+- Benannte Restlücke: die Tests prüfen die Rewrite-Funktion und `src/Client/styles.css`, nicht
+  das erzeugte Bundle. Ein Rückfall auf `copyFile` bei erhaltener Funktion bliebe ungefangen;
+  ein Bundle-Test braucht ein E2E-Harness, das `dotnet test` nicht hat (Backlog:
+  design-system-w4n9r).
+
+---
+
 ## 2026-09-18 21:20 - Rückmeldung ans Design-Projekt: CLAUDE.md ist ein reservierter Pfad, Nachtrag liegt im Repo
 
 **What I did:**

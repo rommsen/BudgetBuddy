@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:55 -- Task verified and completed: design-system-hadjy - "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht"
+
+**Type:** Work / Task completion
+**Task:** design-system-hadjy - "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht"
+**Summary:** Der Design-System-Export schreibt absolute url(/...)-Asset-Pfade beim Kopieren des gebauten App-CSS relativ zur Bundle-Wurzel um, damit die Marken-Schriften in Claude Design laden
+**Duration:** 14m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 12:34 -- Batch started: [design-system-yxrxb, infra-sdad8, design-system-hadjy]
 
 **Type:** Work / Batch start

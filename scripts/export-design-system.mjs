@@ -303,6 +303,21 @@ async function buildApp() {
   return buildDir;
 }
 
+/// Schreibt absolute Asset-Pfade (`url(/...)`) im kopierten App-CSS relativ zur
+/// Bundle-Wurzel um (design-system-hadjy). Das gebaute styles.css bindet
+/// @font-face mit `url(/fonts/...)` ein (absolut, passend für die App, die von
+/// der Origin-Wurzel ausgeliefert wird). Im Claude-Design-Bundle liegen die
+/// Previews aber unter `.../serve/preview/...`; die absolute Regel gewinnt dort
+/// gegenüber der relativen aus FONT_FACE_CSS (`url('fonts/...')` in
+/// colors_and_type.css), die Font-Anfrage geht an die Origin-Wurzel und liefert
+/// 404. Schneidet daher den führenden "/" direkt nach "url(" (optional mit
+/// Anführungszeichen) weg, außer bei protokoll-relativen URLs (`url(//...)`) -
+/// generisch für das ganze Bundle, nicht nur für die drei Marken-Fonts, falls
+/// das gebaute CSS künftig weitere root-relative Asset-Pfade referenziert.
+export function rewriteAbsoluteAssetUrls(css) {
+  return css.replace(/url\((['"]?)\/(?!\/)/g, "url($1");
+}
+
 async function copyBuiltCss(buildDir) {
   const assetsDir = path.join(buildDir, "assets");
   const files = await readdir(assetsDir);
@@ -317,8 +332,10 @@ async function copyBuiltCss(buildDir) {
   );
   sized.sort((a, b) => b.size - a.size);
   const largest = sized[0].f;
-  await copyFile(path.join(assetsDir, largest), path.join(OUT_DIR, "styles.css"));
-  log(`styles.css kopiert (aus ${largest}).`);
+  const rawCss = await readFile(path.join(assetsDir, largest), "utf8");
+  const css = rewriteAbsoluteAssetUrls(rawCss);
+  await writeFile(path.join(OUT_DIR, "styles.css"), css, "utf8");
+  log(`styles.css kopiert und umgeschrieben (aus ${largest}, absolute url(/...)-Pfade relativ zur Bundle-Wurzel).`);
 }
 
 async function copyAssets() {
@@ -741,7 +758,14 @@ async function main() {
   log(`Fertig: ${OUT_DIR}`);
 }
 
-main().catch((err) => {
-  console.error("[export-design-system] FEHLER:", err.message);
-  process.exitCode = 1;
-});
+// Nur ausführen, wenn das Skript direkt gestartet wurde (npm run export:design-system),
+// nicht beim Import als Modul (design-system-hadjy: der Regressionstest importiert
+// rewriteAbsoluteAssetUrls aus diesem Skript per Node-Subprozess und darf dabei nicht
+// den ganzen Export - vite build + Playwright - mit anstoßen).
+const isMainModule = process.argv[1] && import.meta.url === `file://${path.resolve(process.argv[1])}`;
+if (isMainModule) {
+  main().catch((err) => {
+    console.error("[export-design-system] FEHLER:", err.message);
+    process.exitCode = 1;
+  });
+}

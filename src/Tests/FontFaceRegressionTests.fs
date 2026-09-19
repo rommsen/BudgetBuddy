@@ -1,5 +1,7 @@
 module FontFaceRegressionTests
 
+open System
+open System.Diagnostics
 open System.IO
 open System.Text.RegularExpressions
 open Expecto
@@ -29,6 +31,76 @@ let private repoRoot =
 let private stylesCssPath = Path.Combine(repoRoot, "src", "Client", "styles.css")
 
 let private readStylesCss () = File.ReadAllText(stylesCssPath)
+
+// design-system-hadjy: Bug: der Export (scripts/export-design-system.mjs) kopierte das
+// gebaute App-CSS unverändert ins Claude-Design-Bundle, also mit absolutem
+// `src: url(/fonts/...)`. Weil styles.css im Bundle nach colors_and_type.css eingebunden
+// ist, gewinnt die absolute Regel gegenüber der relativen aus FONT_FACE_CSS
+// (`url('fonts/...')`), und die Previews (ausgeliefert unter .../serve/preview/...)
+// fragen die Fonts an der Bundle-Origin-Wurzel an: 404, Schriften laden nicht.
+//
+// Fix: scripts/export-design-system.mjs exportiert eine reine Funktion
+// `rewriteAbsoluteAssetUrls(css)`, die jedes `url(/...)` relativ zur Bundle-Wurzel
+// umschreibt; `copyBuiltCss` liest das gebaute CSS, schreibt es damit um und schreibt es
+// erst dann ins Bundle (statt es per copyFile unverändert zu kopieren).
+//
+// Diese Tests rufen die REALE Funktion aus dem Export-Skript per Node-Subprozess auf
+// (kein Playwright/vite nötig, s. design-system-t82sg: "kein Playwright-Harness in
+// dotnet test") - keine in F# nachgebaute Kopie der Rewrite-Logik mit Drift-Risiko. Sie
+// fallen vor dem Fix fehl (die Funktion existiert nicht, der Node-Aufruf schlägt fehl).
+
+let private exportScriptPath =
+    Path.Combine(repoRoot, "scripts", "export-design-system.mjs")
+
+/// Ruft `rewriteAbsoluteAssetUrls` aus scripts/export-design-system.mjs per
+/// Node-Subprozess auf: CSS geht über stdin rein, das Ergebnis kommt über stdout
+/// zurück. Ein eigenes, temporäres Harness-Skript importiert die Funktion aus dem
+/// echten Export-Skript - es testet also dessen tatsächliches Verhalten.
+let private runRewriteAbsoluteAssetUrls (css: string) : string =
+    let scriptUrl = "file://" + exportScriptPath.Replace("\\", "/")
+
+    let harnessSource =
+        String.concat
+            "\n"
+            [ sprintf "import { rewriteAbsoluteAssetUrls } from '%s';" scriptUrl
+              "let input = '';"
+              "process.stdin.setEncoding('utf8');"
+              "process.stdin.on('data', (chunk) => { input += chunk; });"
+              "process.stdin.on('end', () => { process.stdout.write(rewriteAbsoluteAssetUrls(input)); });" ]
+
+    let harnessPath =
+        Path.Combine(Path.GetTempPath(), sprintf "rewrite-absolute-asset-urls-%s.mjs" (Guid.NewGuid().ToString("N")))
+
+    File.WriteAllText(harnessPath, harnessSource)
+
+    try
+        let psi = ProcessStartInfo("node", harnessPath)
+        psi.RedirectStandardInput <- true
+        psi.RedirectStandardOutput <- true
+        psi.RedirectStandardError <- true
+        psi.UseShellExecute <- false
+
+        use proc = Process.Start(psi)
+        proc.StandardInput.Write(css: string)
+        proc.StandardInput.Close()
+        let output = proc.StandardOutput.ReadToEnd()
+        let errOutput = proc.StandardError.ReadToEnd()
+        proc.WaitForExit()
+
+        if proc.ExitCode <> 0 then
+            failwithf
+                "node-Aufruf für rewriteAbsoluteAssetUrls (scripts/export-design-system.mjs) schlug mit Exit-Code %d fehl: %s"
+                proc.ExitCode
+                errOutput
+
+        output
+    finally
+        File.Delete(harnessPath)
+
+/// Prüft, ob im CSS-Text noch ein absoluter Asset-Pfad der Form `url(/...)` steht
+/// (aber nicht `url(//...)`, protokoll-relativ, und nicht `url(data:...)`).
+let private hasAbsoluteAssetUrl (css: string) =
+    Regex.IsMatch(css, @"url\(\s*['""]?/(?!/)")
 
 /// Prüft, ob ein @font-face-Block existiert, dessen font-family (in Anführungszeichen
 /// oder ohne) den gegebenen Namen enthält und dessen src eine lokale
@@ -116,4 +188,63 @@ let fontFaceRegressionTests =
                 Expect.isTrue
                     (File.Exists(filePath))
                     (sprintf "Font-Datei fehlt: %s (erwartet unter %s)" url filePath)
+
+        testCase "rewriteAbsoluteAssetUrls schreibt url(/fonts/...) relativ zur Bundle-Wurzel um" <| fun () ->
+            let input =
+                "@font-face {\n  src: url(/fonts/inter-latin-wght-normal.woff2) format('woff2-variations');\n}"
+
+            let output = runRewriteAbsoluteAssetUrls input
+
+            Expect.isFalse
+                (hasAbsoluteAssetUrl output)
+                "rewriteAbsoluteAssetUrls muss jeden absoluten url(/...)-Pfad relativ zur Bundle-Wurzel machen."
+            Expect.stringContains
+                output
+                "url(fonts/inter-latin-wght-normal.woff2)"
+                "rewriteAbsoluteAssetUrls muss url(/fonts/...) zu url(fonts/...) machen (relativ, wie FONT_FACE_CSS in colors_and_type.css)."
+
+        testCase "rewriteAbsoluteAssetUrls lässt bereits relative und gequotete url(...)-Pfade unverändert" <| fun () ->
+            let input =
+                "@font-face { src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations'); }"
+
+            let output = runRewriteAbsoluteAssetUrls input
+
+            Expect.equal
+                output
+                input
+                "rewriteAbsoluteAssetUrls darf bereits relative url(...)-Pfade nicht verändern."
+
+        testCase "rewriteAbsoluteAssetUrls lässt protokoll-relative url(//...)-Pfade unverändert" <| fun () ->
+            let input = "@font-face { src: url(//cdn.example.com/fonts/inter.woff2); }"
+
+            let output = runRewriteAbsoluteAssetUrls input
+
+            Expect.equal
+                output
+                input
+                "rewriteAbsoluteAssetUrls darf protokoll-relative url(//...)-Pfade nicht anfassen (kein root-relativer Bug)."
+
+        testCase "rewriteAbsoluteAssetUrls macht das gebaute App-CSS (src/Client/styles.css) frei von absoluten url(/...)-Pfaden" <| fun () ->
+            // Regressions-Reproduktion des gemeldeten Bugs: src/Client/styles.css enthält
+            // die drei absoluten @font-face-Regeln, die die App als von der Origin-Wurzel
+            // ausgelieferte App braucht (korrekt für die App selbst); im Claude-Design-Bundle
+            // müssen dieselben Regeln aber relativ zur Bundle-Wurzel sein.
+            let css = readStylesCss ()
+
+            let output = runRewriteAbsoluteAssetUrls css
+
+            Expect.isFalse
+                (hasAbsoluteAssetUrl output)
+                "Bundle-CSS darf nach rewriteAbsoluteAssetUrls keine absoluten url(/...)-Pfade mehr enthalten."
+
+            for fontFile in
+                [ "inter-latin-wght-normal.woff2"
+                  "jetbrains-mono-latin-wght-normal.woff2"
+                  "space-grotesk-latin-wght-normal.woff2" ] do
+                // src/Client/styles.css bindet die Fonts gequotet ein (url('/fonts/...')),
+                // die Umschreibung erhält das Quoting und schneidet nur den führenden "/" weg.
+                Expect.stringContains
+                    output
+                    (sprintf "url('fonts/%s')" fontFile)
+                    (sprintf "erwartet relative Einbindung url('fonts/%s') im umgeschriebenen Bundle-CSS." fontFile)
     ]
