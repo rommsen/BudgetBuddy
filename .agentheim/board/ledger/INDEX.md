@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
+- **Backlog:** 12
 - **Todo:** 3
-- **Doing:** 1
-- **Done:** 22
+- **Doing:** 0
+- **Done:** 23
 <!-- task-counts:end -->
 
 ### Todo
@@ -25,11 +25,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `doing/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `done/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-t7v2q** — "Übertrag: die beiden Buchungen miteinander verknüpfen" (feature) — `done/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
 - **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `done/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 - **ledger-d4kx8** — "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem" (decision) — `done/ledger-d4kx8-geloeschte-buchungen-in-trefferzahl-und-summe.md`
@@ -56,6 +56,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Kategoriegruppe bis ins ReadModel durchreichen" (feature) — `backlog/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 - **ledger-h4nxz** — "Split-Zeilen-Überträge: transfer_transaction_id auf Subtransaction-Ebene fehlt im Beobachtungs-Contract" (decision) — `backlog/ledger-h4nxz-split-zeilen-bertr-ge-transfer-transaction-id-auf-subtransac.md`
 - **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `backlog/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
 - **ledger-qns4j** — Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen (bug) — `backlog/ledger-qns4j-konten-spalte-haftend-und-statusspalte-neu-belegen.md`

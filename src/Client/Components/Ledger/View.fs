@@ -195,6 +195,47 @@ let private accountBadge (abbreviation: string) =
             Size = Badge.Small
     }
 
+/// Die Kategorie-Beschriftung einer Buchung (AC1/AC2, ledger-w9skm): der
+/// Kategoriename, bei einer aufgeteilten Buchung ohne eigene Kategorie die Anzahl
+/// der Split-Zeilen, sonst "ohne Kategorie". Reine Funktion, geteilt zwischen
+/// Handy-Zeile (`entryRow`) und PC-Tabelle (`entryTableRow`), damit beide
+/// Ansichten denselben Text zeigen (siehe `LedgerViewTests`).
+///
+/// Zeigt bewusst nur den Blattnamen, nicht "Gruppe: Name": `CategoryRef`
+/// (`Server/Ledger/Events.fs`) traegt keine Kategoriegruppe, nur `CategoryName`
+/// als einzelnen String — die volle Qualifizierung aus dem Handoff kaeme erst
+/// durch einen eigenen Zug durch Events/ReadModel (siehe Backlog-Item, Notes
+/// dieser Aufgabe hatten das als Risiko benannt).
+let categoryLabel (entry: LedgerEntryView) : string =
+    match entry.CategoryName with
+    | Some name -> name
+    | None when not (List.isEmpty entry.Splits) -> $"{List.length entry.Splits} Split-Zeilen"
+    | None -> "ohne Kategorie"
+
+/// Die Kategorie-Farbrolle (AC1, ledger-w9skm, Handoff 1.1/1.9: `#a855f7` an
+/// beiden Stellen). Über den Token `Tokens.Colors.neonPurple`, kein Hex-Literal
+/// im View-Code; als eigener Wert ausgelagert und geteilt zwischen Handy-Zeile
+/// und PC-Tabelle, damit beide dieselbe Farbe verwenden und der Regressionstest
+/// prueft, dass hier tatsaechlich der Token steht statt eines Literals.
+let categoryColorClassName : string = Tokens.Colors.neonPurple
+
+/// Klassen der Handy-Listenzeile (AC3, ledger-w9skm): flache Zeile mit einer
+/// Unterkante als Trenner statt einer Karte mit Rahmen und Eckenradius (Handoff
+/// 1.1: `padding:13px 16px`, Unterkante `1px solid #1c1c38`). Als eigener Wert
+/// ausgelagert, weil `dotnet test` (kein Fable/React-Laufzeitkontext) das
+/// gerenderte `Html.button` selbst nicht pruefen kann; der Klassen-String ist
+/// aber reiner Text und wird von `entryRow` unveraendert als `prop.className`
+/// gesetzt — der Regressionstest in `LedgerViewTests` prueft also exakt das,
+/// was am DOM-Knoten landet: kein `rounded-*`, kein umlaufender `border` mehr
+/// (das war die Karte aus dem Befund), stattdessen `border-b`.
+let entryRowClassName : string =
+    "w-full text-left px-4 py-3 transition-colors touch-manipulation " +
+    // `hover:bg-surface-hover` steht bewusst als Literal: Tailwind scannt den
+    // Quelltext nach ganzen Klassennamen, eine zusammengesetzte Variante
+    // (`hover:` + Token) fiele beim Scan durch und wuerde nie erzeugt.
+    $"{Tokens.Backgrounds.dark} hover:bg-surface-hover " +
+    $"border-b {Tokens.Borders.subtle}"
+
 /// Eine Zeile der Buchungsliste am Handy. `accountAbbreviationOf` ist nur in der
 /// Gesamtsicht gesetzt (AC4): das Konto steht dann als Kuerzel-Badge in der Zeile,
 /// in der Konto-Sicht fehlt es ganz.
@@ -205,14 +246,7 @@ let private entryRow
     =
     Html.button [
         prop.key (string entry.Id)
-        prop.className (
-            "w-full text-left rounded-lg px-3 py-3 transition-colors touch-manipulation " +
-            // `hover:bg-surface-hover` steht bewusst als Literal: Tailwind scannt den
-            // Quelltext nach ganzen Klassennamen, eine zusammengesetzte Variante
-            // (`hover:` + Token) fiele beim Scan durch und wuerde nie erzeugt.
-            $"{Tokens.Backgrounds.dark} hover:bg-surface-hover " +
-            $"border {Tokens.Borders.subtle}"
-        )
+        prop.className entryRowClassName
         prop.onClick (fun _ -> dispatch (OpenHistory entry))
         prop.children [
             Html.div [
@@ -236,21 +270,27 @@ let private entryRow
                                             prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary} truncate"
                                             prop.text (entry.Payee |> Option.defaultValue "ohne Payee")
                                         ]
+                                        // Zeile 2 (AC2, ledger-w9skm): Kategorie in der
+                                        // Kategorie-Farbrolle (AC1) zusammen mit dem Memo,
+                                        // nicht mehr mit dem Datum verschmolzen — das Datum
+                                        // steht seither nur noch im `dateGroupHeader` der
+                                        // Gruppe.
                                         Html.div [
-                                            prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} mt-0.5"
-                                            prop.text (
-                                                match entry.CategoryName with
-                                                | Some name -> $"{formatDate entry.Date} · {name}"
-                                                | None when not (List.isEmpty entry.Splits) ->
-                                                    $"{formatDate entry.Date} · {List.length entry.Splits} Split-Zeilen"
-                                                | None -> $"{formatDate entry.Date} · ohne Kategorie"
-                                            )
-                                        ]
-                                        if not (String.IsNullOrWhiteSpace(entry.Memo |> Option.defaultValue "")) then
-                                            Html.div [
-                                                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} mt-0.5 truncate"
-                                                prop.text (entry.Memo |> Option.defaultValue "")
+                                            prop.className "flex items-center gap-2 mt-0.5 min-w-0"
+                                            prop.children [
+                                                Html.span [
+                                                    prop.className $"{Tokens.FontSizes.xs} {categoryColorClassName} shrink-0"
+                                                    prop.text (categoryLabel entry)
+                                                ]
+                                                match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
+                                                | Some memo ->
+                                                    Html.span [
+                                                        prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} truncate min-w-0"
+                                                        prop.text memo
+                                                    ]
+                                                | None -> ()
                                             ]
+                                        ]
                                         Html.div [
                                             prop.className "flex flex-wrap items-center gap-1.5 mt-1.5"
                                             prop.children [
@@ -290,6 +330,17 @@ let private dateGroupHeader (date: DateTime) =
 let private tdTruncated (text: string) =
     Table.cell { Table.defaultCellProps with IsTruncate = true } [ Html.text text ]
 
+/// Die Kategorie-Zelle der PC-Tabelle (AC1, ledger-w9skm): derselbe gekuerzte
+/// `Table.cell` wie `tdTruncated`, aber der Text steckt in einem eigenen `span`
+/// mit der Kategorie-Farbrolle statt in `Table.cell`s Standard-Textfarbe. Ein
+/// `span` mit eigener `color`-Klasse gewinnt gegenueber der vererbten Farbe der
+/// `<td>`, unabhaengig von der Reihenfolge im kompilierten CSS (anders als eine
+/// zusaetzliche Klasse auf der Zelle selbst, siehe ADR 0031).
+let private tdTruncatedCategory (text: string) =
+    Table.cell { Table.defaultCellProps with IsTruncate = true } [
+        Html.span [ prop.className categoryColorClassName; prop.text text ]
+    ]
+
 /// Breite der Status-Spalte in der PC-Tabelle. Das Handoff (Screen 1.9) sieht
 /// 128px fuer *ein* Kennzeichen vor ("Zu pruefen"); traegt eine Zeile zwei
 /// Kennzeichen (Herkunft + "in YNAB geloescht"), brachen sie darin um und machten
@@ -325,12 +376,7 @@ let private entryTableRow
             Table.td (formatDate entry.Date)
             if showAccountColumn then Table.td (accountAbbreviationOf entry.AccountId)
             tdTruncated (entry.Payee |> Option.defaultValue "ohne Payee")
-            tdTruncated (
-                match entry.CategoryName with
-                | Some name -> name
-                | None when not (List.isEmpty entry.Splits) -> $"{List.length entry.Splits} Split-Zeilen"
-                | None -> "ohne Kategorie"
-            )
+            tdTruncatedCategory (categoryLabel entry)
             tdTruncated (entry.Memo |> Option.defaultValue "")
             tdMoney entry
             Table.tdContent [
@@ -359,6 +405,10 @@ let private accountCardView (dispatch: Msg -> unit) (selected: AccountFilter opt
             Label = card.Label
             ValueElement = Some (Money.accountBalance card.Balance.Amount card.Balance.Currency)
             Size = Stats.Compact
+            // AC4 (ledger-w9skm): keine Farbverlaufsstreifen mehr — `Stats.view`
+            // zeichnet ihn sonst per `defaultProps.Accent = Gradient` (siehe
+            // `Stats.fs`), unabhaengig davon, was die Seite hier setzt.
+            Accent = Stats.NoAccent
             IsActive = selected = Some card.Filter
             OnClick = Some (fun () -> dispatch (SelectFilter card.Filter))
     }

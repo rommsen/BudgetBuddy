@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 17:44 -- Task verified and completed: ledger-w9skm - "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten"
+
+**Type:** Work / Task completion
+**Task:** ledger-w9skm - "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten"
+**Summary:** Kassenbuch-Kategorie in Violett über den Tokens-Layer, flache Handy-Zeilen statt Karten, Kontostände-Karten ohne Farbverlaufsstreifen
+**Duration:** 23m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 7
+**ADRs written:** 0035
+
+---
+
 ## 2026-09-19 17:43 -- Task verified and completed: ledger-t7v2q - "Übertrag: die beiden Buchungen miteinander verknüpfen"
 
 **Type:** Work / Task completion

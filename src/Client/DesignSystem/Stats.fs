@@ -22,6 +22,11 @@ type StatAccent =
     | Purple
     | Pink
     | Gradient  // Default: teal -> green -> orange
+    /// No accent line at all (ledger-w9skm): unlike the coloured variants above,
+    /// this suppresses the decorative bar entirely instead of just recolouring
+    /// it — needed for the mobile account cards, which must show no colour
+    /// stripe per the Kassenbuch mockup.
+    | NoAccent
 
 /// Size variants for stat cards
 type StatSize =
@@ -76,6 +81,9 @@ let private accentToGradient = function
     | Purple -> "from-neon-purple to-neon-purple"
     | Pink -> "from-neon-pink to-neon-pink"
     | Gradient -> "from-neon-teal via-neon-green to-neon-orange"
+    // Never rendered: `view` skips the accent bar entirely for `NoAccent`
+    // before this function would be called for it.
+    | NoAccent -> ""
 
 let private sizeToClasses = function
     | Compact -> "p-3 md:p-4", "text-lg md:text-xl", $"{FontSizes.micro} md:text-xs"
@@ -147,10 +155,14 @@ let view (props: StatProps) =
         | Some onClick -> prop.onClick (fun _ -> onClick ())
         | None -> ()
         prop.children [
-            // Decorative gradient accent line at top
-            Html.div [
-                prop.className $"absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r {gradientClass}"
-            ]
+            // Decorative gradient accent line at top — suppressed entirely for
+            // `NoAccent` (ledger-w9skm), not just recoloured.
+            match props.Accent with
+            | NoAccent -> Html.none
+            | _ ->
+                Html.div [
+                    prop.className $"absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r {gradientClass}"
+                ]
 
             // Main content
             Html.div [

@@ -32,6 +32,12 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     Flag = NoFlag
 }
 
+let private splitLine (amount: decimal) : TransactionSplit = {
+    Target = ToCategory(YnabCategoryId(Guid.NewGuid()), "Egal")
+    Amount = eur amount
+    Memo = None
+}
+
 let private historyLineAt (sequence: int) : LedgerHistoryLine = {
     Sequence = sequence
     OccurredAt = DateTime(2026, 3, 1).AddDays(float sequence)
@@ -135,6 +141,64 @@ let private formatEntryDateTests =
             let today = DateTime(2027, 1, 1)
             let yesterday = DateTime(2026, 12, 31)
             Expect.equal (formatEntryDate today yesterday) "Gestern" "DateTime.Date-Differenz, kein Tag-des-Jahres-Vergleich"
+        }
+    ]
+
+let private categoryLabelTests =
+    testList "categoryLabel (ledger-w9skm)" [
+
+        test "Eine Buchung mit Kategorie zeigt den Kategorienamen" {
+            let entry = { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with CategoryName = Some "Lebensmittel" }
+            Expect.equal (categoryLabel entry) "Lebensmittel" "Kategoriename direkt"
+        }
+
+        test "Eine aufgeteilte Buchung ohne eigene Kategorie zeigt die Anzahl der Split-Zeilen" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                    CategoryName = None
+                    Splits = [ splitLine -5m; splitLine -3m ] }
+            Expect.equal (categoryLabel entry) "2 Split-Zeilen" "Split-Zeilenanzahl statt Kategoriename"
+        }
+
+        test "Ohne Kategorie und ohne Splits steht 'ohne Kategorie'" {
+            let entry = { entryView (accountId 1) (DateTime(2026, 9, 12)) "Amazon Marketplace" with CategoryName = None }
+            Expect.equal (categoryLabel entry) "ohne Kategorie" "Platzhaltertext"
+        }
+    ]
+
+/// Regression fuer ledger-w9skm: die Kategorie war vorher in der normalen
+/// Textfarbe gesetzt (kein eigener Token), obwohl der Handoff durchgehend
+/// `#a855f7` vorschreibt (Screens 1.1 und 1.9). Dieser Test prueft, dass die
+/// Handy-Zeile und die PC-Tabelle denselben Farb-Token verwenden und dass
+/// dieser Token tatsaechlich auf die Kategorie-Farbrolle zeigt, nicht auf ein
+/// Hex-Literal im View-Code.
+let private categoryColorTests =
+    testList "categoryColorClassName (ledger-w9skm)" [
+
+        test "Zeigt auf die Kategorie-Farbrolle des Tokens-Layers, kein Hex-Literal" {
+            Expect.equal categoryColorClassName Client.DesignSystem.Tokens.Colors.neonPurple
+                "Derselbe Token wie in styles.css fuer #a855f7 (--color-neon-purple)"
+        }
+    ]
+
+/// Regression fuer ledger-w9skm: die Handy-Zeile war eine Karte (`rounded-lg`,
+/// umlaufender `border`), der Entwurf sieht aber eine flache Listenzeile mit nur
+/// einer Unterkante vor (Handoff 1.1: `padding:13px 16px`, Unterkante
+/// `1px solid #1c1c38`). `dotnet test` kann das gerenderte `Html.button` nicht
+/// pruefen (kein Fable/React-Laufzeitkontext, siehe Modulkopf), wohl aber den
+/// Klassen-String, den `entryRow` unveraendert als `prop.className` setzt.
+let private entryRowClassNameTests =
+    testList "entryRowClassName (ledger-w9skm)" [
+
+        test "Kein Eckenradius mehr (vorher rounded-lg, die Karte aus dem Befund)" {
+            Expect.isFalse (entryRowClassName.Contains "rounded") "Eine flache Zeile hat keinen Radius"
+        }
+
+        test "Kein umlaufender Rahmen mehr, nur eine Unterkante" {
+            Expect.isFalse (entryRowClassName.Contains "border ") "border (alle Seiten) war die Karte"
+            Expect.stringContains entryRowClassName "border-b" "Unterkante als Trenner"
+            Expect.stringContains entryRowClassName Client.DesignSystem.Tokens.Borders.subtle
+                "Dieselbe gedaempfte Trennfarbe wie sonst im Design-System"
         }
     ]
 
@@ -256,6 +320,9 @@ let ledgerViewTests =
         [ abbreviationTests
           groupByDateTests
           formatEntryDateTests
+          categoryLabelTests
+          categoryColorTests
+          entryRowClassNameTests
           accountCardsTests
           deletedCountTextTests
           needsReviewChipLabelTests
