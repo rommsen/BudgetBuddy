@@ -1,7 +1,7 @@
 ---
 id: infra-sdad8
 title: "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben"
-status: backlog
+status: todo
 type: refactor
 context: infrastructure
 created: 2026-09-18

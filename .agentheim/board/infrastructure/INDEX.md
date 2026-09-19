@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infra-sdad8** — "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben" (refactor) — `todo/infra-sdad8-initializedatabase-in-testcase-setup-verschieben.md`
+- **infra-jh7g9** — "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen" (bug) — `todo/infra-jh7g9-backend-port-konfigurierbar-machen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -34,8 +36,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infra-jh7g9** — Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen (bug) — `backlog/infra-jh7g9-backend-port-konfigurierbar-machen.md`
-- **infra-sdad8** — Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben (refactor) — `backlog/infra-sdad8-initializedatabase-in-testcase-setup-verschieben.md`
 <!-- backlog-list:end -->
 
 

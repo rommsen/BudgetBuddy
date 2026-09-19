@@ -1,7 +1,7 @@
 ---
 id: infra-jh7g9
 title: "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen"
-status: backlog
+status: todo
 type: bug
 context: infrastructure
 created: 2026-09-19

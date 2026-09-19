@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:25 -- Modeling / Promoted: infra-sdad8 - "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:25 -- Modeling / Promoted: infra-jh7g9 - "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-19 12:23 -- Modeling / Promoted: ledger-h9tq2 - "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
 
 **Type:** Modeling / Promote
