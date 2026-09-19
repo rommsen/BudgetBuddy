@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:10 -- Captured: infra-jh7g9 - Backend-Port konfigurierbar machen
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Der Backend-Port steht als Literal in src/Server/Program.fs:85 (app.Run("http://0.0.0.0:5081")), deshalb lässt sich keine zweite Instanz starten. Aufgefallen, als Roman mit laufendem Entwicklungsserver einen Screenshot ziehen wollte: das Skript startet einen eigenen Server gegen eine Temp-Kopie der Datenbank (ADR 0030) und scheiterte mit AddressInUseException. Fürs Frontend reserviert es längst einen freien Port, fürs Backend kann es das nicht.
+
+**Der schwerere Fund dabei:** compose.yaml:28 setzt bereits ASPNETCORE_URLS=http://+:5081, und der Header-Kommentar der Datei beschreibt den Port so, als sei er darüber gesetzt. Ein explizites URL-Argument an app.Run überschreibt ASPNETCORE_URLS aber, die Zeile ist also wirkungslos und die Konfigurierbarkeit vorgetäuscht. Wer den Port dort ändert, ändert nichts, und das fällt erst im Betrieb auf. Dieselbe Fehlerklasse wie in design-system-bq4tz: eine Stelle, die aussieht, als kontrolliere sie etwas, und es nicht tut.
+
+Das Item listet alle neun Fundstellen ausserhalb von Doku und Diary (Program.fs, vite.config.js, compose.yaml viermal, Dockerfile zweimal, screenshot-route.mjs) und hält fest, dass der Container weiterhin auf 5081 binden muss, weil Healthcheck und tailscale serve darauf zeigen (ADR 0010).
+
+**Erfasst wegen des context-mismatch im capture-Verb von Hand:** Id-Präfix infra passt nicht zum Ordner infrastructure, deshalb Index-Zeile und dieser Eintrag manuell statt über capture.
+**Related:** design-system-yxrxb (zweiter, unabhängiger Befund aus demselben Aufruf)
+
+---
+
 ## 2026-09-19 12:06 -- Capture / Captured: design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
 
 **Type:** Capture
