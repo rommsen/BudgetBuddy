@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 19
+- **Doing:** 1
+- **Done:** 20
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-k4mtx** — "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen" (chore) — `doing/design-system-k4mtx-template-daisyui-verweise-gegen-budgetbuddys-adr-0031-entsch.md`
 - **design-system-m4kp7** — "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server" (feature) — `doing/design-system-m4kp7-praesentationale-routen-ohne-backend-aufnehmen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-k4mtx** — "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen" (chore) — `done/design-system-k4mtx-template-daisyui-verweise-gegen-budgetbuddys-adr-0031-entsch.md`
 - **design-system-k2vgz** — "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern" (refactor) — `done/design-system-k2vgz-alte-doku-saetze-abloesen-oder-loeschen.md`
 - **design-system-t3vqr** — "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen" (chore) — `done/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
 - **design-system-e5vfc** — "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen" (chore) — `done/design-system-e5vfc-waechter-abdeckung-gegen-eigenen-verlust-sichern.md`

@@ -5,7 +5,7 @@
 | Layer | Technology |
 |-------|------------|
 | Frontend | Elmish.React + Feliz |
-| Styling | TailwindCSS, DaisyUI |
+| Styling | TailwindCSS |
 | Build | Vite + fable-plugin |
 | Backend | Giraffe + Fable.Remoting |
 | Database | SQLite + Dapper |

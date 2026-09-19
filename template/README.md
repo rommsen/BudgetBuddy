@@ -4,7 +4,7 @@ A production-ready template for F# full-stack applications with Claude Code inte
 
 ## Tech Stack
 
-- **Frontend**: Elmish.React + Feliz + TailwindCSS/DaisyUI
+- **Frontend**: Elmish.React + Feliz + TailwindCSS
 - **Backend**: Giraffe + Fable.Remoting
 - **Database**: SQLite + Dapper
 - **Tests**: Expecto

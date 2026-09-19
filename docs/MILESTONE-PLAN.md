@@ -15,7 +15,7 @@ BudgetBuddy is a self-hosted web application that:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        Frontend                              │
-│  Elmish.React + Feliz + TailwindCSS + DaisyUI               │
+│  Elmish.React + Feliz + TailwindCSS                         │
 │  - SyncFlow UI (transaction list, categorization)           │
 │  - Rules Management                                          │
 │  - Settings Page                                             │

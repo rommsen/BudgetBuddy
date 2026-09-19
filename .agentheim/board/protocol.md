@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 17:55 -- Task verified and completed: design-system-k4mtx - "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
+
+**Type:** Work / Task completion
+**Task:** design-system-k4mtx - "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
+**Summary:** DaisyUI-Verweise in template/** entfernt und das Architektur-Diagramm in docs/MILESTONE-PLAN.md auf den heutigen Stack gezogen
+**Duration:** 10m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 17:45 -- Batch started: [ledger-vgfw3, design-system-m4kp7, design-system-k4mtx]
 
 **Type:** Work / Batch start
