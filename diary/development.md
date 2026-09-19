@@ -4,6 +4,47 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 14:10 - Wächter-Abdeckung im Design-System gegen den eigenen Verlust gesichert
+
+**What I did:**
+`src/Tests/DesignSystemStartupTests.fs` erzwingt per Reflection jeden Typinitialisierer der
+Design-System-Module und fängt damit eager ausgewertete Top-Level-Werte ab. Diese Abdeckung
+war echt, aber unbewacht: der begleitende Wächter-gegen-Wächter prüfte nur, dass die
+Typliste nicht leer ist, und das hält auch bei 19 statt 20 erfassten Typen. Der Verifier von
+`design-system-bq4tz` hatte das gemessen, nicht vermutet: Sonderfallzeile entfernt, Suite
+blieb grün.
+
+**Files Modified:**
+- `src/Tests/DesignSystemStartupTests.fs` - zwei neue Tests. Der erste nagelt den bekannten
+  `ErrorDisplay`-Sonderfall per `Expect.contains` fest. Der zweite ist die eigentliche
+  Absicherung: er vergleicht die Zahl der erfassten Startup-Typen gegen die Zahl der
+  `.fs`-Dateien unter `src/Client/DesignSystem/`. Damit wird nicht nur die eine bekannte
+  Abweichung gefangen, sondern auch die nächste, noch unbekannte.
+
+**Rationale:**
+Eine Prüfung, die aussieht als decke sie etwas ab und es nicht mehr tut, sobald sich eine
+Annahme verschiebt, ist genau die Fehlerklasse, an der diese Aufgabe zweimal gescheitert
+ist: erst ein Suchmuster, das eingerückte Werte übersah, dann ein Präfixfilter, der eine
+abweichende Moduldeklaration übersah. Der Abgleich gegen die Dateizahl stellt die Frage
+anders: nicht „findet der Filter irgendetwas", sondern „findet er alles".
+
+**Outcomes:**
+- Build: ✅
+- Tests: 899 bestanden, 7 übersprungen, 906 gesamt
+- Verifikation: PASS in Iteration 1. Der Verifier hat beide geforderten Eingriffe selbst
+  nachgefahren (Filterzeile entfernt: 2 Tests rot, 19 gegen 20; Fremddatei angelegt: 1 Test
+  rot, 20 gegen 21) und zusätzlich eine dritte Probe gefahren, die ich ihm als Risiko
+  mitgegeben hatte: eine korrekt benannte neue Komponentendatei ohne Modul-Level-Werte,
+  kompiliert und eingebunden. Die Suite blieb grün. Damit ist belegt, dass F# je
+  kompilierter Datei einen Startup-Typ erzeugt, die 1:1-Zuordnung also echt ist und der
+  Wächter bei legitimer neuer Arbeit nicht fälschlich anschlägt.
+- Randbefund, bewusst nicht angefasst: `src/Tests/ModuleLevelDbInitGuardTests.fs` (heute
+  Morgen aus `infra-sdad8` integriert) trägt mit `totalBlocks > 0` strukturell dieselbe
+  schwache Absicherung. Andere Datei, anderer Kontext, deshalb außerhalb dieser Aufgabe.
+  Der hier gebaute Mechanismus ließe sich dort sinngemäß übertragen.
+
+---
+
 ## 2026-09-19 13:35 - DB-Setup nur noch in testCase-Closures, jetzt mechanisch durchgesetzt
 
 **What I did:**

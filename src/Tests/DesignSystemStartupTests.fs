@@ -36,6 +36,35 @@ module DesignSystemStartupTests
 // bekannten Sonderfall hält den Suchlauf auf `src/Client/DesignSystem/` beschränkt, wie
 // Akzeptanzkriterium 6 es verlangt.
 
+// design-system-e5vfc härtet diesen Wächter gegen seinen eigenen Verlust. Der Verifier
+// von design-system-bq4tz hat gemessen, nicht vermutet, dass die Sonderfallzeile für
+// ErrorDisplay unbemerkt verschwinden kann: er hat `|| t.FullName = errorDisplayStartupTypeName`
+// aus dem Filter entfernt, und die Suite blieb grün, weil der einzige begleitende Test
+// nur `Expect.isNonEmpty` auf die gefundene Typliste prüfte, was auch bei 19 statt 20
+// Typen hält.
+//
+// Zwei neue Tests schließen diese Lücke:
+//
+// 1. `Expect.contains` nagelt genau den bekannten Sonderfall fest. Bricht die Filterzeile,
+//    fehlt der Name in der Liste, und der Test wird rot, unabhängig davon, ob irgendwo
+//    ein eager Wert existiert.
+//
+// 2. Die eigentliche Absicherung vergleicht die Zahl der gefundenen Startup-Typen gegen die
+//    Zahl der `.fs`-Dateien unter `src/Client/DesignSystem/` (Ermittlung über
+//    `__SOURCE_DIRECTORY__` relativ zum Testlauf, demselben Muster wie in
+//    `ModuleLevelDbInitGuardTests.fs` und `FontFaceRegressionTests.fs`, kein neuer
+//    Mechanismus). Das fängt nicht nur den einen bekannten Sonderfall, sondern jede
+//    künftige Abweichung von der Namenskonvention: eine neue Datei, deren Modul nicht dem
+//    `$Client.DesignSystem.*`-Muster folgt (und auch nicht wie ErrorDisplay explizit
+//    aufgenommen wird), ändert die Dateizahl, ohne die Typzahl mitzuziehen, und der
+//    Vergleich schlägt fehl.
+//
+// Beide Fälle wurden tatsächlich ausgeführt (nicht nur gelesen): die Sonderfallzeile
+// entfernt und wieder eingesetzt, sowie testweise eine neue Datei mit abweichender
+// Moduldeklaration unter `src/Client/DesignSystem/` angelegt und wieder gelöscht. Ergebnis
+// im Outcome-Text der Task.
+
+open System.IO
 open System.Reflection
 open System.Runtime.CompilerServices
 open Expecto
@@ -52,6 +81,18 @@ let private designSystemStartupTypes () =
         t.FullName.StartsWith(startupTypePrefix) || t.FullName = errorDisplayStartupTypeName)
     |> Array.sortBy (fun t -> t.FullName)
 
+// Gleiches Muster wie `repoRoot` in `ModuleLevelDbInitGuardTests.fs` und
+// `FontFaceRegressionTests.fs`: `__SOURCE_DIRECTORY__` liegt unter `src/Tests`, zwei
+// Ebenen darüber liegt die Repo-Wurzel. Kein neuer Mechanismus, kein fest verdrahteter
+// Pfad, der beim Verschieben des Testprojekts veralten würde.
+let private designSystemDir =
+    let testDir = __SOURCE_DIRECTORY__
+    let repoRoot = Directory.GetParent(Directory.GetParent(testDir).FullName).FullName
+    Path.Combine(repoRoot, "src", "Client", "DesignSystem")
+
+let private designSystemSourceFileCount () =
+    Directory.GetFiles(designSystemDir, "*.fs") |> Array.length
+
 [<Tests>]
 let designSystemStartupTests =
     testList "Modul-Startup: Design System (design-system-bq4tz)" [
@@ -62,6 +103,32 @@ let designSystemStartupTests =
             // der Test darunter bestünde grün, ohne je etwas geprüft zu haben.
             let types = designSystemStartupTypes ()
             Expect.isNonEmpty types "Kein <StartupCode$Client>.$Client.DesignSystem.*-Typ gefunden - Filter oder Namenskonvention prüfen"
+        }
+
+        test "Die ErrorDisplay-Sonderfallzeile im Filter bleibt erhalten (design-system-e5vfc)" {
+            // Nagelt genau den Sonderfall fest, dessen Verschwinden der Verifier von
+            // design-system-bq4tz unbemerkt an `Expect.isNonEmpty` vorbeischleusen konnte.
+            // Verschwindet die Zeile `|| t.FullName = errorDisplayStartupTypeName`, fehlt
+            // der Name unten in der Liste und dieser Test wird rot, ganz ohne dass
+            // irgendwo ein eager ausgewerteter Wert existieren müsste.
+            let typeNames = designSystemStartupTypes () |> Array.map (fun t -> t.FullName)
+            Expect.contains
+                typeNames
+                errorDisplayStartupTypeName
+                "ErrorDisplay-Startup-Typ fehlt in der erfassten Liste - Sonderfallzeile im Filter geprüft?"
+        }
+
+        test "Die Zahl der erfassten Startup-Typen entspricht der Zahl der .fs-Dateien unter src/Client/DesignSystem/ (design-system-e5vfc)" {
+            // Die eigentliche Absicherung: statt nur den einen bekannten Sonderfall zu
+            // pflegen, wird die Abdeckung insgesamt gegen die Wirklichkeit abgeglichen.
+            // Das fängt auch die nächste, noch unbekannte Namenskonventions-Abweichung,
+            // nicht nur die eine, die design-system-bq4tz bereits aufgedeckt hat.
+            let typeCount = designSystemStartupTypes () |> Array.length
+            let fileCount = designSystemSourceFileCount ()
+            Expect.equal
+                typeCount
+                fileCount
+                $"Erfasste Startup-Typen ({typeCount}) und .fs-Dateien unter src/Client/DesignSystem/ ({fileCount}) laufen auseinander - eine Datei folgt vermutlich nicht der Namenskonvention"
         }
 
         test "Kein Design-System-Modul wirft beim Typinitialisierer eine TypeInitializationException" {
