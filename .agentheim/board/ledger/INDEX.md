@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 13
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 24
+- **Doing:** 1
+- **Done:** 25
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,12 +22,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `doing/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `doing/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `done/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `done/ledger-vgfw3-filter-und-summenzeile.md`
 - **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `done/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-t7v2q** — "Übertrag: die beiden Buchungen miteinander verknüpfen" (feature) — `done/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`

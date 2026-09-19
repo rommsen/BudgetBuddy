@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 19:58 -- Task verified and completed: ledger-p9k3w - "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt"
+
+**Type:** Work / Task completion
+**Task:** ledger-p9k3w - "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt"
+**Summary:** screenshot-route.mjs setzt den Viewport auf die gemessene Dokumenthöhe und nimmt ohne fullPage auf, damit die inaktive BottomSheet-Leiste nicht mehr ins Bild rutscht
+**Duration:** 22m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 19:27 -- Batch started: [ledger-ezrw0, ledger-p9k3w]
 
 **Type:** Work / Batch start

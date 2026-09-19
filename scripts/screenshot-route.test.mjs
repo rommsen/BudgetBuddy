@@ -17,7 +17,9 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 import {
   DEFAULT_OUT_DIR,
   KNOWN_ROUTES,
@@ -31,6 +33,7 @@ import {
   parseArgs,
   assertDataDirIsolated,
   startBackend,
+  computeCaptureViewport,
 } from "./screenshot-route.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -279,4 +282,140 @@ test("startBackend: scheitert laut, BEVOR ein Prozess gestartet wird, wenn dataD
   // gleichgültig: er wird nie erreicht, weil assertDataDirIsolated vorher wirft.
   const originalDir = path.join(os.homedir(), "my_apps", "budgetbuddy-dev");
   await assert.rejects(() => startBackend(originalDir, 5081, originalDir), /Original/);
+});
+
+// ledger-p9k3w: fullPage-Aufnahmen ließen Chromium den Viewport intern auf
+// die volle Scroll-Höhe vergrößern, wobei `100dvh` in .bottom-sheet
+// (src/Client/styles.css:1556ff.) neu berechnet wurde und die eigentlich
+// inaktive Leiste ins Bild rutschte. computeCaptureViewport() ist die reine
+// Rechenregel des Fixes (s. Kommentar bei captureScreenshot in
+// screenshot-route.mjs): Viewport wächst auf die gemessene Dokumenthöhe,
+// schrumpft aber nie unter die angeforderte Höhe.
+test("computeCaptureViewport: wächst auf die Dokumenthöhe, wenn der Inhalt höher als der Viewport ist (AC2)", () => {
+  assert.deepEqual(computeCaptureViewport({ width: 390, height: 844 }, 2400), {
+    width: 390,
+    height: 2400,
+  });
+});
+
+test("computeCaptureViewport: behält die angeforderte Höhe, wenn der Inhalt kleiner ist (AC3)", () => {
+  // Regressionstest für den ursprünglichen Bug: eine Route ohne scrollbaren
+  // Inhalt darf durch den Fix NICHT schrumpfen, sonst ändern sich ihre
+  // bisherigen Bildabmessungen (AC3), obwohl an ihr nichts auszusetzen war.
+  assert.deepEqual(computeCaptureViewport({ width: 1440, height: 900 }, 600), {
+    width: 1440,
+    height: 900,
+  });
+});
+
+test("computeCaptureViewport: exakt passender Inhalt behält die angeforderte Höhe", () => {
+  assert.deepEqual(computeCaptureViewport({ width: 1440, height: 900 }, 900), {
+    width: 1440,
+    height: 900,
+  });
+});
+
+test("captureScreenshot verwendet computeCaptureViewport und nimmt ohne fullPage auf (ledger-p9k3w)", () => {
+  // Regressionstest gegen die Quelldatei (wie der data-app-ready-Test oben):
+  // captureScreenshot selbst braucht einen echten Playwright-Kontext gegen
+  // die laufende App und ist hier nicht sinnvoll aufzurufen (s. Kopfkommentar
+  // dieser Datei). Die eigentliche Rechenregel prüfen die drei Tests oben an
+  // der reinen Funktion; die zwei folgenden Tests prüfen den echten
+  // Browser-Mechanismus (setViewportSize + fullPage:false) direkt. Dieser
+  // Test schließt die Lücke dazwischen: er stellt sicher, dass
+  // captureScreenshot die geprüfte Funktion tatsächlich verwendet, statt
+  // weiter unbedingt mit `fullPage: true` aufzunehmen.
+  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
+  const source = readFileSync(scriptPath, "utf8");
+  const startIdx = source.indexOf("async function captureScreenshot");
+  assert.notEqual(startIdx, -1, "captureScreenshot nicht gefunden (Funktion umbenannt oder verschoben?)");
+  const nextFunctionIdx = source.indexOf("\nasync function", startIdx + 1);
+  const body = source.slice(startIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
+  assert.doesNotMatch(body, /fullPage:\s*true/, "captureScreenshot darf nicht mehr mit fullPage: true aufnehmen");
+  assert.match(body, /computeCaptureViewport\(/, "captureScreenshot muss computeCaptureViewport verwenden");
+  assert.match(body, /setViewportSize\(/, "captureScreenshot muss den Viewport vor der Aufnahme setzen");
+  assert.match(body, /fullPage:\s*false/, "captureScreenshot muss ohne fullPage aufnehmen (Viewport ist bereits passend)");
+});
+
+/// Liest Breite/Höhe direkt aus den IHDR-Bytes eines PNG-Puffers (big-endian
+/// uint32 ab Byte 16 bzw. 20, PNG-Spezifikation). Kein neues Abhängigkeit
+/// nötig (kein image-size/sharp im Projekt): der Signatur- und
+/// IHDR-Chunk-Aufbau ist fest und einfach genug, um ihn hier direkt zu lesen,
+/// statt den Bildinhalt nur per Augenschein zu beurteilen (Testvorgabe AC2:
+/// "maschinell belegt").
+function pngDimensions(buffer) {
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+// Die beiden folgenden Tests prüfen den echten Browser-Mechanismus hinter
+// dem Fix (setViewportSize + page.screenshot({fullPage: false})) gegen eine
+// selbst erzeugte, lokale Seite — ohne App, ohne Backend, ohne
+// Datenbankkopie (kein DATA_DIR-Zugriff, ADR 0030 bleibt unberührt). Das ist
+// bewusst dieselbe Mechanik, die captureScreenshot oben laut
+// Quelldatei-Test tatsächlich verwendet, nur ohne den App-Overhead.
+test("computeCaptureViewport + fullPage:false: das Bild einer langen Seite hat exakt die Dokumenthöhe (AC2, echter Browser)", async () => {
+  const browser = await chromium.launch();
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
+  const outPath = path.join(tmpDir, "tall.png");
+  let documentHeight;
+  try {
+    const baseViewport = { width: 390, height: 600 };
+    const context = await browser.newContext({ viewport: baseViewport });
+    const page = await context.newPage();
+    try {
+      // Deutlich höher als der Viewport, damit fullPage:true diese Seite
+      // früher hätte vergrößern müssen.
+      await page.setContent(
+        '<html><body style="margin:0"><div style="height:2200px;background:#000"></div></body></html>'
+      );
+      documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      assert.ok(documentHeight > baseViewport.height, "Testaufbau: Inhalt muss höher als der Viewport sein");
+      const captureViewport = computeCaptureViewport(baseViewport, documentHeight);
+      await page.setViewportSize(captureViewport);
+      await page.screenshot({ path: outPath, fullPage: false });
+    } finally {
+      await context.close();
+    }
+    const dims = pngDimensions(readFileSync(outPath));
+    assert.equal(dims.width, baseViewport.width);
+    assert.equal(dims.height, documentHeight, "Bildhöhe muss der gemessenen Dokumenthöhe entsprechen (AC2)");
+    assert.ok(dims.height > baseViewport.height, "Bildhöhe muss über die ursprüngliche Viewport-Höhe hinausgewachsen sein");
+  } finally {
+    await browser.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("computeCaptureViewport + fullPage:false: das Bild einer kurzen Seite behält die ursprünglichen Abmessungen (AC3, echter Browser)", async () => {
+  const browser = await chromium.launch();
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
+  const outPath = path.join(tmpDir, "short.png");
+  try {
+    const baseViewport = { width: 1440, height: 900 };
+    const context = await browser.newContext({ viewport: baseViewport });
+    const page = await context.newPage();
+    try {
+      // Deutlich niedriger als der Viewport: keine scrollbare Seite.
+      await page.setContent(
+        '<html><body style="margin:0"><div style="height:100px;background:#000"></div></body></html>'
+      );
+      // document.documentElement.scrollHeight ist nie kleiner als der
+      // Viewport (das <html>-Element füllt ihn per UA-Vorgabe aus, auch bei
+      // kürzerem Inhalt) — genau der Fall, den AC3 abdeckt: kein Scrollen,
+      // die Rechenregel darf hier nicht künstlich schrumpfen.
+      const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      assert.ok(documentHeight <= baseViewport.height, "Testaufbau: Inhalt darf den Viewport nicht überragen");
+      const captureViewport = computeCaptureViewport(baseViewport, documentHeight);
+      await page.setViewportSize(captureViewport);
+      await page.screenshot({ path: outPath, fullPage: false });
+    } finally {
+      await context.close();
+    }
+    const dims = pngDimensions(readFileSync(outPath));
+    assert.equal(dims.width, baseViewport.width);
+    assert.equal(dims.height, baseViewport.height, "Bildhöhe muss die bisherige Viewport-Höhe behalten (AC3)");
+  } finally {
+    await browser.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  }
 });

@@ -444,6 +444,35 @@ async function waitForPageLoaded(page, normalizedRoute) {
   }
 }
 
+/// AC2/AC3 (ledger-p9k3w): Zielviewport für die eigentliche Aufnahme. Wächst
+/// auf die gemessene Dokumenthöhe, schrumpft aber nie unter die angeforderte
+/// Höhe — eine Route ohne scrollbaren Inhalt behält so ihre bisherigen
+/// Abmessungen (AC3), eine längere Route bekommt genau ihre Inhaltshöhe
+/// (AC2). Reine Funktion, absichtlich von captureScreenshot getrennt: ein
+/// echter Playwright-Lauf ist hier nicht nötig, um diese Rechenregel zu
+/// prüfen (s. screenshot-route.test.mjs).
+export function computeCaptureViewport(baseViewport, documentHeight) {
+  return { width: baseViewport.width, height: Math.max(baseViewport.height, documentHeight) };
+}
+
+/// captureScreenshot nahm bisher mit `fullPage: true` auf. Chromium
+/// vergrößert dafür intern das Layout-Viewport auf die volle Scroll-Höhe der
+/// Seite, BEVOR es den Screenshot schneidet. `.bottom-sheet` (src/Client/
+/// DesignSystem/BottomSheet.fs, src/Client/styles.css:1556ff.) positioniert
+/// sich im inaktiven Zustand über `top: calc(var(--vv-top, 0px) +
+/// var(--vvh, 100dvh))`, also knapp unterhalb des sichtbaren Bereichs — aber
+/// `100dvh` wird bei dieser internen Vergrößerung neu gegen die größere
+/// effektive Höhe berechnet, und die eigentlich inaktive Leiste rutscht ins
+/// Bild (ledger-p9k3w). Entschieden (Roman, 2026-09-19): der Viewport wird
+/// stattdessen VOR der Aufnahme selbst auf die gemessene Inhaltshöhe gesetzt
+/// (computeCaptureViewport oben) und ohne `fullPage` aufgenommen. Damit
+/// entfällt Chromiums interne Vergrößerung, `100dvh` bleibt unverändert, und
+/// die Leiste bleibt außerhalb des Bildes. Verworfen: die Leiste beim
+/// Screenshot künstlich auszublenden (zeigt dann nicht mehr den echten
+/// DOM-Zustand, für ein Abgleichs-Werkzeug die falsche Richtung) und die
+/// App-CSS selbst anzufassen (rührt an die Visual-Viewport-Positionierung,
+/// ADR 0005, und riskiert das echte Geräteverhalten). Die App bleibt
+/// unangetastet, die Änderung ist auf dieses Skript begrenzt.
 async function captureScreenshot(browser, baseUrl, normalizedRoute, viewport, outPath) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
@@ -451,7 +480,10 @@ async function captureScreenshot(browser, baseUrl, normalizedRoute, viewport, ou
   try {
     await page.goto(`${baseUrl}/#${normalizedRoute}`, { waitUntil: "networkidle" });
     await waitForPageLoaded(page, normalizedRoute);
-    await page.screenshot({ path: outPath, fullPage: true });
+    const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    const captureViewport = computeCaptureViewport(viewport, documentHeight);
+    await page.setViewportSize(captureViewport);
+    await page.screenshot({ path: outPath, fullPage: false });
     log(`${path.relative(ROOT, outPath)} geschrieben.`);
   } catch (err) {
     throw new Error(`Aufnahme für Route '${normalizedRoute}' fehlgeschlagen: ${err.message}`);
