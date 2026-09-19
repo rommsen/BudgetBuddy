@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
+- **Backlog:** 15
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 20
@@ -50,6 +50,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `backlog/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 - **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `backlog/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-qns4j** — Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen (bug) — `backlog/ledger-qns4j-konten-spalte-haftend-und-statusspalte-neu-belegen.md`
 - **ledger-w9skm** — Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten (bug) — `backlog/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`

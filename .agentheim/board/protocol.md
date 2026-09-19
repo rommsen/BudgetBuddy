@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 16:10 -- Zwei Randbefunde des Laufs als Backlog-Items erfasst
+
+**Type:** Work / Nachtragung
+**BC:** infrastructure, ledger
+**Erfasst:** infrastructure-qwthn (Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt), ledger-ezrw0 (getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen)
+**Anlass:** Beide Befunde fielen im Work-Lauf vom 2026-09-19 an, ohne zu einer der neun Aufgaben zu gehören. Der erste stammt aus den Rotations-Checks am Sitzungsende (vier Kontexte mit insgesamt vierzehn nicht geparsten Done-Zeilen, nichts blockiert, aber bei Erreichen der Kappe rollt für diese Einträge nichts aus), der zweite aus der Verifikation von ledger-d4kx8 (der Sichten-Eintrag wird durch die dort getroffene Entscheidung unvollständig, nicht falsch). Beide auf ausdrückliche Anweisung von Roman nach Abschluss des Laufs angelegt, nicht vom Lauf selbst erfunden.
+**Hinweis zur Id:** infrastructure-qwthn traegt bewusst den ausgeschriebenen Kontext statt des Hausstils infra-. deriveContext liefert fuer infra- den Wert infra, fuer den es kein Board-Verzeichnis gibt; materializeTaskFile nutzt die Ableitung ohne Override und capture lehnt sonst mit context-mismatch ab. Begruendung steht im Task selbst.
+
+---
+
 ## 2026-09-19 14:50 -- Work session ended
 
 **Type:** Work / Session end
