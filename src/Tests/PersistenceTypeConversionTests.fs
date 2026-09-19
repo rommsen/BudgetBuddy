@@ -67,8 +67,13 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
 
 [<Tests>]
 let typeConversionTests =
-    // Initialize test database
-    initializeDatabase()
+    // initializeDatabase() läuft erst, wenn ein Testfall tatsächlich ausgeführt wird,
+    // nicht schon beim Modul-Laden (ADR 0030, infra-sdad8). Idempotent (CREATE TABLE IF
+    // NOT EXISTS), der wiederholte Aufruf pro Testfall kostet nur eine überflüssige Prüfung.
+    let testCase name body =
+        testCase name (fun () ->
+            initializeDatabase ()
+            body ())
 
     testList "Persistence Type Conversions" [
         testList "PatternType Conversions" [
@@ -394,7 +399,12 @@ let typeConversionTests =
 
 [<Tests>]
 let connectionDisposalRegressionTests =
-    initializeDatabase()
+    // Siehe typeConversionTests oben: Initialisierung erst innerhalb der Testausführung,
+    // nicht beim Modul-Laden (ADR 0030, infra-sdad8).
+    let testCase name body =
+        testCase name (fun () ->
+            initializeDatabase ()
+            body ())
 
     testList "Persistence Connection Disposal" [
         // Concurrency guard for infra-001: the flaky

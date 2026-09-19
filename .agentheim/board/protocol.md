@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 13:23 -- Task verified and completed: infra-sdad8 - "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben"
+
+**Type:** Work / Task completion
+**Task:** infra-sdad8 - "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben"
+**Summary:** DB-Setup-Aufrufe laufen in allen [<Tests>]-Bindings nur noch innerhalb einer testCase-Closure, und ein neuer Wächter-Test setzt die Konvention mechanisch durch statt sie nur zu dokumentieren
+**Duration:** 56m
+**Verification:** PASS (iteration 2)
+**Files changed:** 6
+**Tests added:** 5
+**ADRs written:** 0033
+
+---
+
+## 2026-09-19 13:03 -- Verification failed: infra-sdad8 - Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben
+
+**Type:** Work / Verification failure
+**Task:** infra-sdad8 - Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben
+**Iteration:** 1 of 3
+**Reasons:** Prüfung 6c (mechanize-or-drop) gescheitert: die Aufgabe etabliert eine vorwärtsgerichtete Konvention (DB-Setup nur in testCase-Closures, festgehalten in README-Delta und ADR 0033) ohne jede Durchsetzung und ohne Marker, der die Lücke als bewusst ungeprüft festhält. Der bestehende Wächter deckt sie nicht ab, weil er unter normalem dotnet test grün bleibt. Nebenbefunde: ADR-Frontmatter nutzt id ADR-0033 statt der Hausform 0033; ADR- und README-Delta-Text nutzen ae/ss-Umschreibungen statt echter Umlaute. Kriterien 1 bis 5 hat der Verifier selbst nachgefahren und bestätigt, einschließlich des Umgehungslaufs im Scratch-Verzeichnis.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-19 13:00 -- Task verified and completed: design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
 
 **Type:** Work / Task completion

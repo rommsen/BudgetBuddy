@@ -1045,8 +1045,16 @@ let private seedAccounts () : Async<unit> =
 
 [<Tests>]
 let ledgerPagingTests =
-    initializeLedgerSchema ()
-    seedAccounts () |> Async.RunSynchronously
+    // initializeLedgerSchema()/seedAccounts() laufen erst, wenn ein Testfall
+    // tatsächlich ausgeführt wird, nicht schon beim Modul-Laden (ADR 0030, infra-sdad8).
+    // initializeLedgerSchema() ist idempotent (CREATE TABLE IF NOT EXISTS); seedAccounts()
+    // schreibt dieselben Konten per Id, ein wiederholter Aufruf pro Testfall überschreibt
+    // nur mit denselben Werten.
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            seedAccounts () |> Async.RunSynchronously
+            body ())
 
     testSequenced
     <| testList "Kassenbuch-Seite: seitenweise Liste und Kontostaende (Persistence)" [

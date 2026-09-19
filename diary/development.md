@@ -4,6 +4,61 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 13:35 - DB-Setup nur noch in testCase-Closures, jetzt mechanisch durchgesetzt
+
+**What I did:**
+Sieben `[<Tests>]`-Bindings riefen `initializeDatabase()`/`initializeLedgerSchema()`/
+`seedAccounts()` direkt im `let`-Body auf, also beim Modul-Laden statt in der
+Testausführung. F# wertet Modul-Level-Bindings beim ersten Zugriff aus, und genau diesen
+Zugriff löst Expectos `[<Tests>]`-Entdeckung per Reflection aus, bevor ein einziger
+Testfall läuft. Dadurch entstand in einem Umgehungslauf eine vollständige Datei-Datenbank,
+bevor der Wächter aus `infra-za7fq` überhaupt scheitern konnte: der meldet, er verhindert
+nicht.
+
+**Files Added:**
+- `src/Tests/ModuleLevelDbInitGuardTests.fs` - durchsucht jeden `[<Tests>]`-Block unter
+  `src/Tests/` auf Aufrufe außerhalb einer Closure und schlägt fehl, wenn das Muster
+  zurückkehrt. Arbeitet über einen Einrücktiefen-Stack statt über eine feste Spalte, damit
+  verschachtelte Module nicht durchrutschen.
+
+**Files Modified:**
+- `src/Tests/LedgerMirrorTests.fs`, `src/Tests/LedgerPageTests.fs`,
+  `src/Tests/LedgerTests.fs`, `src/Tests/PersistenceTypeConversionTests.fs` - Setup-Aufrufe
+  in eine lokal geschattete `testCase`-Closure verschoben. Da ein `let` ohne `rec` in F#
+  keinen Selbstbezug erlaubt, löst der Bezeichner auf Expectos `testCase` auf; die
+  Schattierung greift dadurch für jeden Testfall im selben Bindungs-Scope, ohne eine
+  einzige bestehende Testzeile anzufassen.
+- `src/Tests/Tests.fsproj` - neue Wächter-Datei direkt nach `TestDatabaseGuardTests.fs`.
+
+**Rationale:**
+Der ursprüngliche Auftrag war das Verschieben allein. Die Verifikation hat in Iteration 1
+zu Recht abgelehnt: die Aufgabe schrieb damit eine Konvention für künftige Testdateien
+fest, ohne sie durchzusetzen und ohne die Lücke als bewusst ungeprüft zu vermerken. Genau
+diese Fehlerklasse, eine Stelle die aussieht als sichere sie etwas ab, verfolgt dieser
+Aufgaben-Cluster. Iteration 2 hat die Durchsetzung nachgeliefert.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 879 bestanden, 7 übersprungen, 886 gesamt (874 vorher plus 5 neue)
+- Verifikation: FAIL in Iteration 1 (fehlende Durchsetzung), PASS in Iteration 2. Der
+  Verifier hat die Wirksamkeit selbst geprüft statt sie zu übernehmen: altes Bug-Muster
+  eingespielt, Suite ging rot mit Exit-Status 1 und nannte `LedgerMirrorTests.fs:539`,
+  danach zurückgesetzt, Arbeitsbaum sauber. Er hat außerdem gezählt, dass der Scan
+  102 `[<Tests>]`-Blöcke über 30 Dateien durchläuft, die Prüfung also nicht leer
+  durchrauscht.
+- Bewusst dokumentierte Lücke: der Scan erfasst namentlich nur `initializeDatabase` und
+  `initializeLedgerSchema`, nicht `seedAccounts()`. Ein Rückfall dort bliebe unentdeckt,
+  bis die Namensliste erweitert wird. Festgehalten in ADR 0033 und im README-Eintrag, nach
+  dem Vorbild von `infra-za7fq`.
+- Ebenfalls notiert, nicht behoben: der begleitende Wächter-gegen-Wächter prüft nur
+  `totalBlocks > 0`. Das ist dieselbe schwache Form, die `design-system-e5vfc` im Backlog
+  bereits an der Design-System-Variante kritisiert.
+
+**ADR:** 0033 (DB-Setup in `[<Tests>]`-Bindings nur in `testCase`-Closures, mechanisch
+durchgesetzt)
+
+---
+
 ## 2026-09-19 13:05 - Wartepredikat blockierte die /styleguide-Route: App meldet ihre Bereitschaft jetzt selbst
 
 **What I did:**

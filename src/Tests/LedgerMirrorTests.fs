@@ -536,8 +536,15 @@ module private Run =
 
 [<Tests>]
 let mirrorRunTests =
-    initializeLedgerSchema ()
-    global.Persistence.initializeDatabase ()
+    // initializeLedgerSchema()/initializeDatabase() laufen erst, wenn ein Testfall
+    // tatsächlich ausgeführt wird, nicht schon beim Modul-Laden (ADR 0030, infra-sdad8).
+    // Beide sind idempotent (CREATE TABLE IF NOT EXISTS); der wiederholte Aufruf pro
+    // Testfall kostet nur eine überflüssige Prüfung.
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
 
     testSequenced
     <| testList "Ledger Spiegel-Lauf (mirrorYnabBudget)" [
@@ -1001,8 +1008,13 @@ let mirrorRunTests =
 
 [<Tests>]
 let mirrorGuardTests =
-    initializeLedgerSchema ()
-    global.Persistence.initializeDatabase ()
+    // Siehe mirrorRunTests oben: Initialisierung erst innerhalb der Testausführung,
+    // nicht beim Modul-Laden (ADR 0030, infra-sdad8).
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
 
     testSequenced
     <| testList "Ledger Spiegel: Einzel-Flug-Schutz (runMirrorGuarded)" [
@@ -1103,8 +1115,13 @@ let mirrorGuardTests =
 
 [<Tests>]
 let runMirrorInBackgroundTests =
-    initializeLedgerSchema ()
-    global.Persistence.initializeDatabase ()
+    // Siehe mirrorRunTests oben: Initialisierung erst innerhalb der Testausführung,
+    // nicht beim Modul-Laden (ADR 0030, infra-sdad8).
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
 
     testList "Ledger Spiegel: Hintergrund-Start (runMirrorInBackground)" [
 

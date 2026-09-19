@@ -731,7 +731,13 @@ let recordComdirectPushTests =
 
 [<Tests>]
 let ledgerPersistenceTests =
-    initializeLedgerSchema ()
+    // initializeLedgerSchema() läuft erst, wenn ein Testfall tatsächlich ausgeführt wird,
+    // nicht schon beim Modul-Laden (ADR 0030, infra-sdad8). Idempotent (CREATE TABLE IF
+    // NOT EXISTS), der wiederholte Aufruf pro Testfall kostet nur eine überflüssige Prüfung.
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            body ())
 
     testSequenced
     <| testList "Ledger Persistence (appendAndApply)" [

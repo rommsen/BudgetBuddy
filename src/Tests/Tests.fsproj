@@ -14,6 +14,10 @@
          Datenbank anfasst, damit ein Rückfall auf die Datei-Datenbank sofort und
          laut auffällt. -->
     <Compile Include="TestDatabaseGuardTests.fs" />
+    <!-- Mechanisierte Durchsetzung der Konvention "DB-Setup nur in testCase-Closures"
+         (infra-sdad8, Iteration 2): muss nicht vor den DB-Tests stehen wie der Wächter
+         oben, prüft aber deren Quelltext statisch, unabhängig von der Compile-Reihenfolge. -->
+    <Compile Include="ModuleLevelDbInitGuardTests.fs" />
     <Compile Include="RemoteDataTests.fs" />
     <Compile Include="EncryptionTests.fs" />
     <Compile Include="PersistenceTypeConversionTests.fs" />
