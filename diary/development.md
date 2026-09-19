@@ -4,6 +4,51 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 15:05 - Neue Money-Varianten im Styleguide und in der /styleguide-Route nachgezogen
+
+**What I did:**
+`ledger-x0yga` hatte die Money-Komponente um `accountBalance` und `accountListRow`
+erweitert, letztere keine reine Formatierung, sondern eine klickbare Kontozeile mit Name
+links und Betrag rechts. Nachgezogen wurde davon nichts: weder das Komponenten-Inventar im
+Styleguide noch die `/styleguide`-Route zeigten die beiden Varianten.
+
+**Files Modified:**
+- `standards/frontend/styleguide.md` - Money-Zeile im Komponenten-Inventar nennt beide
+  Varianten, je mit Zweck statt nur dem Namen.
+- `src/Client/Components/Styleguide/View.fs` - die Money-Sektion zeigt `accountBalance` mit
+  einem erfundenen Beispielwert und `accountListRow` in beiden Zuständen, aktiv und inaktiv.
+
+**Rationale:**
+Die Folge reichte weiter als eine Doku-Lücke. Der Claude-Design-Export schneidet seine
+Karten aus der gerenderten Styleguide-Route (ADR 0024). Was dort nicht steht, existiert im
+Entwurfsprojekt nicht, und beim nächsten Zeichnen sieht niemand, dass es eine fertige
+Kontozeile bereits gibt. Sie würde ein zweites Mal erfunden.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` und `npm run build` grün)
+- Tests: 914 bestanden, 7 übersprungen, 921 gesamt (keine neuen Tests, reiner Inhaltsnachtrag)
+- Export: `npm run export:design-system` zweimal gelaufen, Bundle byte-identisch
+- Verifikation: PASS in Iteration 1. Der Verifier hat die Aufrufsignaturen gegen
+  `src/Client/DesignSystem/Money.fs` geprüft (`accountListRow label amount currency isActive
+  onClick`), den Export selbst zweimal gefahren und per SHA-256 über alle 33 Bundle-Dateien
+  verglichen, die Feldzahl der Markdown-Tabellenzeile gemessen, und bestätigt, dass die
+  beiden Zustände im exportierten Bundle wirklich unterscheidbar sind
+  (`border-l-neon-teal` gegen `border-l-transparent`).
+- Wechselwirkung geprüft, nicht angenommen: die Demo-Werte stehen in einem Modul-Level-Wert,
+  und `design-system-e5vfc` hat heute früh einen Wächter dafür eingebaut. Die
+  Styleguide-Ansicht ist einer der drei legitim ausgenommenen Startup-Typen und liegt
+  außerhalb des Namensfilters; der Dateizähl-Abgleich bleibt unberührt.
+- Bewusst nicht gebaut: die im `What` angerissene Zusicherung, die jede öffentliche Funktion
+  eines Design-System-Moduls gegen die Route abgleicht. Der Task schließt sie ausdrücklich
+  aus und verweist auf `design-system-thtpp`, das im Backlog liegt.
+
+**Offen für Roman:** Das letzte Akzeptanzkriterium ist der Re-Sync nach Claude Design und
+trägt `[human-eye]`. `DesignSync` gibt es nur in der Hauptsitzung, ein Subagent sieht das
+Werkzeug nicht. Der Export ist gelaufen, der neue Bundle-Stand liegt vor; der Re-Sync selbst
+bleibt Romans Schritt.
+
+---
+
 ## 2026-09-19 14:45 - Backend-Port kommt aus der Konfiguration, und beide Regeln sind bewacht
 
 **What I did:**

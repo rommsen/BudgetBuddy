@@ -297,6 +297,18 @@ let private moneySection =
                     prop.className "flex flex-col gap-1"
                     prop.children [ Money.transactionDeleted -89.90m "EUR"; caption "transactionDeleted (in YNAB gelöscht, ledger-p3n8k)" ]
                 ]
+                Html.div [
+                    prop.className "flex flex-col gap-1"
+                    prop.children [ Money.accountBalance 1250.40m "EUR"; caption "accountBalance (ohne führendes Plus, ledger-x0yga)" ]
+                ]
+                Html.div [
+                    prop.className "max-w-sm space-y-1"
+                    prop.children [
+                        Money.accountListRow "Girokonto" 1250.40m "EUR" true ignore
+                        Money.accountListRow "Tagesgeld" -84.30m "EUR" false ignore
+                        caption "accountListRow (aktiv / inaktiv, ledger-x0yga)"
+                    ]
+                ]
             ]
         ]
     ]

@@ -1,7 +1,7 @@
 ---
 id: design-system-t3vqr
 title: "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
-status: doing
+status: done
 type: chore
 context: design-system
 created: 2026-09-12
@@ -69,3 +69,41 @@ gehört in eine eigene Runde, sonst wächst dieser Task vom Nachtrag zum Werkzeu
 Captured am 2026-09-12 aus der Verifikation von `ledger-x0yga`. Zusammenhang:
 `design-system-t82sg` (Export aus der Route), ADR 0024, `design-system-y6gkd` (vollständiger
 Sektions-Export), `design-system-fq8dn` (tote DaisyUI-Klassen im selben Modulbereich).
+
+## Outcome
+
+Beide von `ledger-x0yga` eingeführten Money-Varianten sind jetzt im Styleguide-Dokument
+und in der `/styleguide`-Route sichtbar, damit der Claude-Design-Export sie mitnimmt.
+
+- `standards/frontend/styleguide.md` (Abschnitt 5, Money-Zeile): `accountBalance` und
+  `accountListRow` ergänzt, je mit Zweck statt nur dem Namen (Kontostand ohne führendes
+  Plus für Kontostände-Leiste/-Liste; klickbare Kontozeile mit Name links, farbcodiertem
+  Betrag rechts, aktivem Zustand mit Teal-Akzentlinie).
+- `src/Client/Components/Styleguide/View.fs` (`moneySection`, Sektion 6, Export-Marker
+  `data-ds-card="components-money"`): eine neue Demo-Zeile für `accountBalance` (erfundener
+  Beispielwert `1250,40 €`) und eine neue Gruppe für `accountListRow` mit beiden
+  Zuständen, `"Girokonto"` aktiv/positiv und `"Tagesgeld"` inaktiv/negativ, analog zum
+  Beispielmuster aus `design-system-y6gkd`.
+
+Verifikation:
+- `dotnet build`: grün, 0 Warnungen.
+- `dotnet test`: 914 bestanden, 7 übersprungen (Integrationstests ohne `.env`), 921
+  gesamt, keine Fehlschläge.
+- `npm run build`: grün.
+- `npm run export:design-system`: zweimal ausgeführt, `dist/design-system` beider Läufe
+  per SHA-256 über alle Dateien verglichen, byte-identisch. `preview/components-money.html`
+  enthält die neuen Varianten (Girokonto/Tagesgeld-Zeilen und die accountBalance-Caption
+  geprüft).
+
+Die "Styleguide-Sektionen im Export"-Liste in der BC-README wurde geprüft und bewusst
+nicht geändert: sie führt Karten (Komponenten), nicht deren einzelne Varianten, und die
+Money-Karte selbst ist dort bereits gelistet.
+
+Offen und nicht Teil dieser Aufgabe: der Re-Sync nach Claude Design (letztes
+Akzeptanzkriterium, `[human-eye]`). Das `DesignSync`-Werkzeug existiert nur in der
+Hauptsitzung; das bleibt Romans Schritt, nachdem `npm run export:design-system` (oben
+bereits zweifach grün gelaufen) den neuen Bundle-Stand erzeugt hat.
+
+Die im Task-`What` angerissene weitergehende Zusicherung (jede öffentliche Funktion
+eines Design-System-Moduls gegen die Route abgleichen) wurde bewusst nicht gebaut, wie
+vom Task selbst verlangt; sie deckt sich mit dem bereits vorhandenen `design-system-thtpp`.

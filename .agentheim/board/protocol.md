@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 14:23 -- Task verified and completed: design-system-t3vqr - "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
+
+**Type:** Work / Task completion
+**Task:** design-system-t3vqr - "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
+**Summary:** Money-Inventar im Styleguide und die Money-Sektion der /styleguide-Route zeigen jetzt auch accountBalance und accountListRow (aktiv und inaktiv), damit der Claude-Design-Export beide Varianten erfasst
+**Duration:** 48m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
+## 2026-09-19 14:22 -- Verification failed: ledger-d4kx8 - Gelöschte Buchungen in Trefferzahl und Summe
+
+**Type:** Work / Verification failure
+**Task:** ledger-d4kx8 - Gelöschte Buchungen in Trefferzahl und Summe
+**Iteration:** 1 of 3
+**Reasons:** Nur das README-Delta, Code und Tests sind grün. Zwei Befunde: die README zitiert an anderer Stelle das eingeblendete Label noch in der alten Fassung, dieser Satz wird durch die Änderung falsch, und ein blosses append kann ihn nicht korrigieren. Ausserdem landet die angehängte Zeile am Ende der Unterliste Was das Konzept voraussetzt und heute nicht gibt, sodass eine entschiedene Regel als unerfüllte Voraussetzung gelesen würde. Die Checks 1 bis 4 hat der Verifier selbst gefahren und bestätigt, einschließlich der Aufrufstelle mit nicht vertauschten Argumenten und der Fixture-Isolation.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-19 14:08 -- Batch started: [ledger-d4kx8, design-system-t3vqr]
 
 **Type:** Work / Batch start
