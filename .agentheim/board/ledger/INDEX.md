@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 12
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 2
+- **Doing:** 1
 - **Done:** 23
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `todo/ledger-vgfw3-filter-und-summenzeile.md`
 - **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `todo/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `todo/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `doing/ledger-vgfw3-filter-und-summenzeile.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

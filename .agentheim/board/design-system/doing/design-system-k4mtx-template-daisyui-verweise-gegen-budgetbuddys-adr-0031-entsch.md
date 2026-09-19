@@ -1,7 +1,7 @@
 ---
 id: design-system-k4mtx
 title: "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-19

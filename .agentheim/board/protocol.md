@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 17:45 -- Batch started: [ledger-vgfw3, design-system-m4kp7, design-system-k4mtx]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-vgfw3 - "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren", design-system-m4kp7 - "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server", design-system-k4mtx - "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
+**Parallel:** yes (3 Worker, zweite Welle — ledger-vgfw3, design-system-m4kp7, design-system-k4mtx; disjunkte Dateimengen). Zurückgehalten: ledger-ezrw0, weil es getLedgerEntriesPage im ledger-README dokumentiert und ledger-vgfw3 genau diese Signatur in derselben Welle ändert (semantische Reihenfolge, kein Git-Konflikt: README-Deltas werden sequenziell auf main angewandt, nie gemerged). ledger-p9k3w, weil es dieselbe Datei scripts/screenshot-route.mjs anfasst wie design-system-m4kp7. infrastructure-qwthn bleibt nicht dispatchbar (Ergebnis liegt in .agentheim/board/*/INDEX.md, für Worker gesperrt).
+
+---
+
 ## 2026-09-19 17:44 -- Task verified and completed: ledger-w9skm - "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten"
 
 **Type:** Work / Task completion

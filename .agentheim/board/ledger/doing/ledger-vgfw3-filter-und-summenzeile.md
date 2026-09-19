@@ -1,7 +1,7 @@
 ---
 id: ledger-vgfw3
 title: "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-12
