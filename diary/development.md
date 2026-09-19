@@ -4,6 +4,66 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 15:35 - Gelöschte Buchungen: Zählweise benannt, Regel in der README festgehalten
+
+**What I did:**
+Entwurf und gebauter Stand liefen auseinander. Der Entwurf zählte eingeblendete gelöschte
+Buchungen in der Trefferzahl, aber nicht in der Summe; gebaut zählten sie in beidem. Roman
+hat am 2026-09-18 Variante 2 entschieden: der gebaute Stand bleibt, weil sich die sichtbaren
+Zeilen dann genau zur angezeigten Summe addieren. Diese Aufgabe setzt das um und macht es
+sichtbar; entschieden wurde nichts neu.
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - `deletedCountText` sagt bei eingeblendeten
+  gelöschten Buchungen jetzt "13 Buchungen, davon 1 in YNAB gelöscht" statt nur zu melden,
+  dass sie eingeblendet sind. Singular und Plural richten sich dabei nach der Trefferzahl.
+  Der ausgeblendete Fall bleibt unverändert.
+- `src/Tests/LedgerViewTests.fs` - Tests für beide Zustände samt Grenzfall bei genau einer
+  Buchung.
+- `src/Tests/LedgerPageTests.fs` - ein Test hält fest, dass Summenzeile und Kontostand bei
+  eingeschaltetem Schalter bewusst auseinanderlaufen.
+- `.agentheim/knowledge/contexts/ledger/README.md` - der Absatz über gelöschte Buchungen
+  trägt jetzt die Regel, damit die künftige Summenzeile aus `ledger-vgfw3` sie übernimmt
+  statt sie neu zu entscheiden.
+
+**Rationale:**
+Am Code für Trefferzahl und Summe ändert sich nichts. Die Arbeit steckt darin, die
+Abweichung zwischen Summenzeile und Kontostand zu benennen, statt sie als stillen
+Widerspruch stehen zu lassen, und sie gegen späteres Kippen zu sichern.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` und `npm run build` grün)
+- Tests: 916 bestanden, 7 übersprungen, 923 gesamt
+- Verifikation: FAIL in Iteration 1, PASS in Iteration 2. Beide Male ging es nicht um den
+  Code: der erste Verifier hat Kriterien, Aufrufstelle, Argumentreihenfolge und
+  Fixture-Isolation selbst geprüft und für richtig befunden.
+
+**Der eigentliche Befund dieser Aufgabe betrifft das Werkzeug, nicht das Kassenbuch.**
+Iteration 1 wollte die Regel per `append` an den Abschnitt hängen. Der Verifier hat zwei
+Dinge gesehen, die ich in meinem eigenen Trockenlauf übersehen hatte: die Zeile wäre am Ende
+der Liste „Was das Konzept voraussetzt und heute nicht gibt" gelandet, eine entschiedene
+Regel hätte sich dort als offene Voraussetzung gelesen. Und weiter oben stand ein Halbsatz,
+den die Änderung falsch macht, weil er das eingeblendete Label noch in der alten Fassung
+zitierte. Ein Anhängen kann einen widersprechenden Satz nicht korrigieren.
+
+Iteration 2 lieferte dafür ein `replace`. Der Trockenlauf ergab `anchor-missing`: der
+Zielabsatz beginnt nicht mit einem Listenmarker, und `applyReadmeDelta` adressiert
+ausschließlich Zeilen, die an Spalte 0 mit `- ` beginnen. Der Absatz ist für den Mechanismus
+also grundsätzlich unerreichbar, und jeder weitere Versuch wäre identisch gescheitert. Hätte
+ich das Delta ungeprüft angewendet, stünde die alte, falsche Aussage weiterhin da und die
+neue darunter. Die Korrektur ist deshalb von Hand gesetzt, mit einem Skript, das bei jeder
+nicht zutreffenden Vorbedingung abbricht, bevor es schreibt.
+
+Das war heute der zweite Fall dieser Art. Beim ersten (`design-system-yxrxb`) passte ein
+einzeiliger `expected` nicht auf ein hart umbrochenes Bullet. Gemeinsam ist beiden, dass
+nichts scheitert: der Mechanismus hängt den neuen Text an und meldet Erfolg.
+
+**Offen, bewusst nicht erledigt:** Der `getLedgerEntriesPage`-Eintrag unter `## Sichten`
+beschreibt weiterhin nur den ausgeblendeten Fall. Er wird dadurch unvollständig, nicht
+falsch. Der Verifier hat das als Backlog-Kandidaten benannt, nicht als Mangel dieser Aufgabe.
+
+---
+
 ## 2026-09-19 15:05 - Neue Money-Varianten im Styleguide und in der /styleguide-Route nachgezogen
 
 **What I did:**

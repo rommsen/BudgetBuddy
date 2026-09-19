@@ -161,16 +161,31 @@ let private accountCardsTests =
         }
     ]
 
+/// Entscheidung Roman, 2026-09-18 (`ledger-d4kx8`, Variante 2): eingeblendet zählen
+/// gelöschte Buchungen in Trefferzahl UND Summe (Code bleibt, nur der Entwurf wird
+/// angepasst). Die Zeile über der Liste sagt das jetzt explizit, im Stil "13
+/// Buchungen, davon 1 in YNAB gelöscht". Ausgeblendet bleibt der Satz aus
+/// `ledger-p3n8k` unverändert.
 let private deletedCountTextTests =
     testList "deletedCountText" [
 
         test "Ausgeblendet nennt Zahl und Zustand, Singular bei genau einer Buchung" {
-            Expect.equal (deletedCountText 1 false) "1 gelöschte Buchung ausgeblendet" "Singular"
-            Expect.equal (deletedCountText 3 false) "3 gelöschte Buchungen ausgeblendet" "Plural"
+            Expect.equal (deletedCountText 0 1 false) "1 gelöschte Buchung ausgeblendet" "Singular"
+            Expect.equal (deletedCountText 0 3 false) "3 gelöschte Buchungen ausgeblendet" "Plural"
         }
 
-        test "Eingeblendet sagt, dass sie zu sehen sind" {
-            Expect.equal (deletedCountText 3 true) "3 gelöschte Buchungen eingeblendet" "Anderer Zustand, anderer Satz"
+        test "Eingeblendet nennt die Trefferzahl und wie viele davon gelöscht sind" {
+            Expect.equal
+                (deletedCountText 13 1 true)
+                "13 Buchungen, davon 1 in YNAB gelöscht"
+                "Beispiel aus der Entscheidung"
+        }
+
+        test "Eingeblendet: Singular bei genau einer Buchung insgesamt" {
+            Expect.equal
+                (deletedCountText 1 1 true)
+                "1 Buchung, davon 1 in YNAB gelöscht"
+                "Die Trefferzahl bekommt Singular, nicht die Zahl der gelöschten"
         }
     ]
 

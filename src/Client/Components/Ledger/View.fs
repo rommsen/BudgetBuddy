@@ -85,13 +85,25 @@ let groupByDate (entries: LedgerEntryView list) : (DateTime * LedgerEntryView li
     |> List.rev
     |> List.map (fun (date, items) -> date, List.rev items)
 
-/// Der Satz über dem Schalter "gelöschte Buchungen zeigen" (ledger-p3n8k AC2):
-/// nennt die Zahl und ob sie gerade ausgeblendet oder eingeblendet sind. Singular
-/// bei genau einer Buchung, sonst Plural.
-let deletedCountText (count: int) (includeDeleted: bool) : string =
-    let noun = if count = 1 then "gelöschte Buchung" else "gelöschte Buchungen"
-    let state = if includeDeleted then "eingeblendet" else "ausgeblendet"
-    $"{count} {noun} {state}"
+/// Der Satz über dem Schalter "gelöschte Buchungen zeigen" (ledger-p3n8k AC2,
+/// erweitert um Entscheidung Roman 2026-09-18 / `ledger-d4kx8`, Variante 2).
+///
+/// Ausgeblendet (Standard): nennt nur, wie viele gelöschte Buchungen fehlen, wie
+/// bisher ("N gelöschte Buchungen ausgeblendet").
+///
+/// Eingeblendet: gelöschte Buchungen zählen dann in Trefferzahl UND Summe mit (am
+/// Code ändert sich dabei nichts, `getLedgerEntriesPage` tut das schon). Die Zeile
+/// sagt das jetzt, im Stil "13 Buchungen, davon 1 in YNAB gelöscht", statt nur
+/// "eingeblendet" zu melden: sonst bliebe unklar, dass sie in der Summe mitzählen.
+/// Singular/Plural richtet sich hier nach der Trefferzahl (`totalCount`), nicht nach
+/// der Zahl der gelöschten.
+let deletedCountText (totalCount: int) (deletedCount: int) (includeDeleted: bool) : string =
+    if includeDeleted then
+        let noun = if totalCount = 1 then "Buchung" else "Buchungen"
+        $"{totalCount} {noun}, davon {deletedCount} in YNAB gelöscht"
+    else
+        let noun = if deletedCount = 1 then "gelöschte Buchung" else "gelöschte Buchungen"
+        $"{deletedCount} {noun} ausgeblendet"
 
 /// Der Text des Chips "Zu prüfen (n)" (ADR 0032). Reine Funktion, unit-testbar ohne
 /// Fable/Badge-Kontext.
@@ -684,7 +696,7 @@ let private deletedToggleRow (dispatch: Msg -> unit) (model: Model) =
         Html.div [
             prop.className $"flex items-center justify-between gap-3 px-1 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
             prop.children [
-                Html.span [ prop.text (deletedCountText model.DeletedCount model.IncludeDeleted) ]
+                Html.span [ prop.text (deletedCountText model.TotalCount model.DeletedCount model.IncludeDeleted) ]
                 Input.toggle model.IncludeDeleted (fun _ -> dispatch ToggleIncludeDeleted) (Some "Gelöschte zeigen")
             ]
         ]

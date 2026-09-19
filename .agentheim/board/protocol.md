@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 14:33 -- Task verified and completed: ledger-d4kx8 - "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem"
+
+**Type:** Work / Task completion
+**Task:** ledger-d4kx8 - "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem"
+**Summary:** Eingeblendete gelöschte Buchungen zählen bewusst in Trefferzahl und Summe, der Kontostand klammert sie weiter immer aus; die Zeile über der Liste benennt das jetzt und die Regel steht im ledger-README
+**Duration:** 1h20m
+**Verification:** PASS (iteration 2)
+**Files changed:** 3
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 14:23 -- Task verified and completed: design-system-t3vqr - "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
 
 **Type:** Work / Task completion

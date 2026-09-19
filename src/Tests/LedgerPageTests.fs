@@ -969,6 +969,7 @@ let private pageTestAccountC = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8
 let private pageTestAccountD = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000d")
 let private pageTestAccountE = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000e")
 let private pageTestAccountF = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000f")
+let private pageTestAccountG = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000010")
 
 let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-0000000000{n:D2}")
 
@@ -1041,6 +1042,7 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountD; Name = "Konto D"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountE; Name = "Konto E"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountF; Name = "Konto F"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountG; Name = "Konto G"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 [<Tests>]
@@ -1146,6 +1148,9 @@ let ledgerPagingTests =
                 "Die Summe entspricht der lebenden Buchung, nicht der gelöschten"
 
         testCase "IncludeDeleted=true zeigt die gelöschte Buchung mit, in Seite, Trefferzahl und Summe" <| fun () ->
+            // Pinnt Entscheidung Roman 2026-09-18 (`ledger-d4kx8`, Variante 2): eingeblendet
+            // zählen gelöschte Buchungen in Trefferzahl UND Summe. Der Entwurf hatte das
+            // anders vorgesehen, der gebaute Stand (dieser Test) bleibt.
             // Eigenes Konto D, damit dieser Test nicht von der Saat des vorigen Tests
             // abhängt.
             seedEntry pageTestAccountD 32 -20m |> Async.RunSynchronously
@@ -1182,6 +1187,31 @@ let ledgerPagingTests =
 
             Expect.equal hidden.DeletedCount 1 "Eine gelöschte Buchung, obwohl ausgeblendet"
             Expect.equal shown.DeletedCount 1 "Dieselbe Zahl, auch wenn eingeblendet"
+
+        testCase "Summenzeile und Kontostand laufen bei eingeschaltetem Schalter bewusst auseinander" <| fun () ->
+            // AC5 (Entscheidung Roman 2026-09-18, `ledger-d4kx8`): die Summenzeile
+            // (`getLedgerEntriesPage`) zählt eingeblendete gelöschte Buchungen mit, der
+            // Kontostand (`getLedgerAccountBalances` / `ledgerBalancesByAccount`) lässt
+            // sie immer draußen. Beide Werte weichen dann absichtlich voneinander ab,
+            // das ist kein stiller Widerspruch mehr, sondern die getroffene Wahl.
+            // Eigenes Konto G, unabhängig von den übrigen Tests dieser Gruppe.
+            seedEntry pageTestAccountG 40 -20m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountG 41 -2000m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawG) = pageTestAccountG
+            let shown =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { AccountId = Some rawG; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false }
+                |> Async.RunSynchronously
+            let balances = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously
+            let balanceG = balances |> List.find (fun b -> b.AccountId = rawG)
+
+            Expect.equal shown.TotalAmount { Amount = -2020m; Currency = "EUR" }
+                "Summenzeile zählt die gelöschte Buchung mit"
+            Expect.equal balanceG.Balance { Amount = -20m; Currency = "EUR" }
+                "Kontostand lässt die gelöschte Buchung weiterhin draußen"
+            Expect.notEqual shown.TotalAmount balanceG.Balance
+                "Die Abweichung ist gewollt, nicht ein stiller Fehler"
 
         // ============================================
         // Chip "Zu prüfen (n)" (ADR 0032, ledger-kdnnz)

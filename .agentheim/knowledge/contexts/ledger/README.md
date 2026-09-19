@@ -361,12 +361,16 @@ damit kein Ankreuzen.
 
 **Gelöschte Buchungen** sind standardmäßig ausgeblendet und kommen über einen Schalter
 zurück, gedämpft und durchgestrichen (`Money.transactionDeleted`) und ohne Wirkung auf
-den Kontostand (`ledger-p3n8k`, umgesetzt als eigener Zweig in `getLedgerEntriesPage`,
-nicht als Client-Filter auf der geladenen Seite, sonst stimmten Seitengröße und
-Trefferzahl nicht mehr). Gibt es welche, steht darüber "N gelöschte Buchungen
-ausgeblendet" (bzw. "eingeblendet") samt Schalter; ohne welche steht dort nichts. Der
-heutige Schalter ist eine schlichte Zeile über der Liste, kein Filter-Chip (die
-Filter-Chip-Leiste selbst ist weiter `ledger-vgfw3`).
+den Kontostand: der bleibt immer die Summe der nicht gelöschten Buchungen
+(`ledger-p3n8k`, umgesetzt als eigener Zweig in `getLedgerEntriesPage`, nicht als
+Client-Filter auf der geladenen Seite, sonst stimmten Seitengröße und Trefferzahl nicht
+mehr). Sind welche ausgeblendet, steht darüber "N gelöschte Buchungen ausgeblendet" samt
+Schalter; ohne welche steht dort nichts. Blendet Roman sie ein, zählen sie bewusst in
+Trefferzahl und Summe der Liste mit (Variante 2, Entscheidung Roman 2026-09-18,
+`ledger-d4kx8`): die Zeile über der Liste weicht dann absichtlich vom Kontostand ab und
+sagt das auch, im Stil "13 Buchungen, davon 1 in YNAB gelöscht". Der heutige Schalter ist
+eine schlichte Zeile über der Liste, kein Filter-Chip (die Filter-Chip-Leiste selbst ist
+weiter `ledger-vgfw3`).
 
 **Große Listen.** Der Bestand liegt bei rund 14.000 Buchungen. Die Liste lädt seitenweise
 nach (`getLedgerEntriesPage`, 100 Buchungen je Seite, Beobachter am Listenende statt
