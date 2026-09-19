@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 18:03 -- Task verified and completed: design-system-m4kp7 - "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server"
+
+**Type:** Work / Task completion
+**Task:** design-system-m4kp7 - "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server"
+**Summary:** screenshot-route.mjs startet für präsentationale Routen kein Backend und keine Datenbankkopie mehr
+**Duration:** 25m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 17:55 -- Task verified and completed: design-system-k4mtx - "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
 
 **Type:** Work / Task completion

@@ -13,9 +13,10 @@
 //   node scripts/screenshot-route.mjs '#/ledger' --out docs/ux/kassenbuch/screenshots/
 //   npm run screenshot:route -- '#/ledger'
 //
-// Anders als scripts/export-design-system.mjs (rein präsentationale
-// /#/styleguide-Route, kommt mit `vite preview` aus) braucht das hier den
-// echten Server: die meisten Routen laden Daten über den Vite-Proxy /api ->
+// Wie scripts/export-design-system.mjs kommt dieses Skript für rein
+// präsentationale Routen (aktuell nur /#/styleguide, `ROUTES_WITHOUT_BACKEND`
+// unten, design-system-m4kp7) ohne Backend aus. Für jede andere Route bleibt
+// das echte Backend nötig: sie laden Daten über den Vite-Proxy /api ->
 // Backend (vite.config.js, Ziel folgt BACKEND_PORT). Muster für
 // Aufbau/Aufräumen übernommen aus export-design-system.mjs (getFreePort,
 // startPreviewServer/stopServer, der finally-Block), hier auf Server +
@@ -31,7 +32,8 @@
 //     gegen die Entwicklungsdatenbank" gibt es nicht: der Server legt beim
 //     Start Tabellen an und migriert (ADR 0030 ist genau an dieser Stelle
 //     entstanden, als ein Testlauf ohne diese Vorsicht in die echte Datei
-//     schrieb).
+//     schrieb). Gilt nur für datenbedürftige Routen: eine präsentationale
+//     Route bekommt gar keine Kopie und gar kein Backend (design-system-m4kp7).
 //
 // Der Backend-Port ist seit infra-jh7g9 über ASPNETCORE_URLS konfigurierbar
 // (src/Server/Program.fs), das Skript reserviert sich hier deshalb, genau wie
@@ -81,6 +83,25 @@ export const DEFAULT_OUT_DIR = path.join(ROOT, "docs", "ux", "screenshots");
 // screenshot-route.test.mjs liest Types.fs tatsächlich und schlägt fehl,
 // wenn diese Liste von dort abweicht.
 export const KNOWN_ROUTES = new Set(["/", "/rules", "/settings", "/styleguide", "/quickadd", "/ledger"]);
+
+// Routen, die rein präsentational sind und deshalb ohne Backend und ohne
+// Datenbankkopie aufgenommen werden können (design-system-m4kp7). Alles, was
+// hier NICHT drinsteht, gilt als datenbedürftig — auch eine künftige Route,
+// die noch kein Kennzeichen bekommen hat (sichere Voreinstellung, AC4).
+// Bewusst eine eigene, kleine Liste statt eines Felds direkt in KNOWN_ROUTES:
+// KNOWN_ROUTES bleibt dadurch unverändert ein Set<string>, gegen das der
+// bestehende Abgleichs-Test (oben) unverändert weiterprüfen kann.
+// /styleguide ist die einzige Route hier, aus demselben Grund, aus dem
+// export-design-system.mjs seit Monaten ohne Server auskommt (Kommentar am
+// Dateianfang): die Route lädt keine Daten über den Vite-Proxy /api.
+export const ROUTES_WITHOUT_BACKEND = new Set(["/styleguide"]);
+
+/// AC4: eine Route ohne Kennzeichen in ROUTES_WITHOUT_BACKEND gilt als
+/// datenbedürftig, nicht als präsentational — die sichere Annahme bleibt die
+/// Voreinstellung.
+export function routeNeedsBackend(normalizedRoute) {
+  return !ROUTES_WITHOUT_BACKEND.has(normalizedRoute);
+}
 
 function log(msg) {
   console.log(`[screenshot-route] ${msg}`);
@@ -288,7 +309,10 @@ export async function startBackend(dataDir, port, sourceDataDir = resolveSourceD
 /// `backendPort` geht als BACKEND_PORT an den Vite-Prozess, damit
 /// vite.config.js sein Proxy-Ziel auf denselben Backend-Port richtet, den
 /// startBackend() oben tatsächlich gebunden hat (sonst redet das Frontend mit
-/// dem falschen Port). Wartet auf einen echten TCP-Connect (waitForPort, dieselbe Technik wie
+/// dem falschen Port). Ist `backendPort` undefined (präsentationale Route,
+/// main() hat startBackend() übersprungen), bleibt BACKEND_PORT unangetastet;
+/// vite.config.js fällt dann auf seine eigene Vorgabe zurück, die ohnehin nie
+/// kontaktiert wird. Wartet auf einen echten TCP-Connect (waitForPort, dieselbe Technik wie
 /// beim Backend), nicht auf ein unbedingtes setTimeout: der frühere Code
 /// rannte einen 20-Sekunden-Timer per Promise.race gegen die Bereitschaft,
 /// aber der Timer LÖSTE AUF statt abzulehnen, das .catch griff also nie.
@@ -304,7 +328,10 @@ async function startFrontend(port, backendPort) {
     ["vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"],
     {
       cwd: ROOT,
-      env: { ...process.env, BACKEND_PORT: String(backendPort) },
+      env: {
+        ...process.env,
+        ...(backendPort !== undefined ? { BACKEND_PORT: String(backendPort) } : {}),
+      },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,
     }
@@ -441,6 +468,7 @@ async function main() {
   const outDir = path.resolve(ROOT, outDirArg);
   await mkdir(outDir, { recursive: true });
   const { mobile, desktop } = screenshotFilenames(name, outDir);
+  const needsBackend = routeNeedsBackend(normalizedRoute);
 
   // Zustand, den cleanup() aufräumen muss. Bewusst VOR dem try-Block und VOR
   // dem Anlegen des Temp-Verzeichnisses deklariert und die Signal-Handler
@@ -474,19 +502,23 @@ async function main() {
   process.on("SIGTERM", () => onSignal("SIGTERM"));
 
   try {
-    const sourceDataDir = resolveSourceDataDir();
-    const sourceDbPath = path.join(sourceDataDir, "budgetbuddy.db");
-    await access(sourceDbPath).catch(() => {
-      throw new Error(`Keine Entwicklungsdatenbank unter ${sourceDbPath} gefunden.`);
-    });
+    if (needsBackend) {
+      const sourceDataDir = resolveSourceDataDir();
+      const sourceDbPath = path.join(sourceDataDir, "budgetbuddy.db");
+      await access(sourceDbPath).catch(() => {
+        throw new Error(`Keine Entwicklungsdatenbank unter ${sourceDbPath} gefunden.`);
+      });
 
-    tempDataDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-"));
-    await copyFile(sourceDbPath, path.join(tempDataDir, "budgetbuddy.db"));
-    log(`Entwicklungsdatenbank nach ${tempDataDir} kopiert (nur lesend gegen das Original).`);
+      tempDataDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-"));
+      await copyFile(sourceDbPath, path.join(tempDataDir, "budgetbuddy.db"));
+      log(`Entwicklungsdatenbank nach ${tempDataDir} kopiert (nur lesend gegen das Original).`);
 
-    backendPort = await getFreePort();
-    log(`Server startet gegen ${tempDataDir} (Port ${backendPort}) ...`);
-    backend = await startBackend(tempDataDir, backendPort, sourceDataDir);
+      backendPort = await getFreePort();
+      log(`Server startet gegen ${tempDataDir} (Port ${backendPort}) ...`);
+      backend = await startBackend(tempDataDir, backendPort, sourceDataDir);
+    } else {
+      log(`Route '${normalizedRoute}' ist präsentational: kein Backend, keine Datenbankkopie.`);
+    }
 
     frontendPort = await getFreePort();
     log(`Frontend startet auf Port ${frontendPort} ...`);

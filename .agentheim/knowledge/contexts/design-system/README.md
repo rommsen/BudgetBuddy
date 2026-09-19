@@ -241,14 +241,17 @@ Zwei Ursachen, beide im Ablauf, nicht beim Worker:
   Ohne `--out` gilt die dokumentierte Vorgabe `docs/ux/screenshots/` (kein
   bereichsspezifischer Pfad, weil das Skript für beliebige Routen der App gilt, nicht nur
   fürs Kassenbuch); für den Abgleich mit einem abgelegten Mockup ist explizit `--out
-  docs/ux/kassenbuch/screenshots/` (oder der passende Bereichs-Pfad) anzugeben. Das Skript
-  startet Server und Frontend selbst, gegen eine Kopie der Entwicklungsdatenbank in einem
-  Temp-Verzeichnis, niemals gegen das Original (ADR 0030), wartet auf das App-eigene
-  Bereitschaftssignal (`data-app-ready`, gesetzt aus `State.isPageReady`,
-  `design-system-yxrxb`: eine Route ohne eigenen Ladezustand wie `/styleguide` ist sofort
-  bereit, eine Route mit Ladezustand erst, wenn keiner ihrer Datenstränge mehr lädt; kein
-  `setTimeout` als Warte-Ersatz und keine Heuristik über CSS-Klassen mehr) und räumt
-  Kindprozesse samt Temp-Verzeichnis auch bei Abbruch (`SIGINT`)
+  docs/ux/kassenbuch/screenshots/` (oder der passende Bereichs-Pfad) anzugeben. Für
+  datenbedürftige Routen startet das Skript Server und Frontend selbst, gegen eine Kopie der
+  Entwicklungsdatenbank in einem Temp-Verzeichnis, niemals gegen das Original (ADR 0030);
+  eine rein präsentationale Route (aktuell nur `/styleguide`, `ROUTES_WITHOUT_BACKEND` im
+  Skript, `design-system-m4kp7`) bekommt dagegen weder ein Backend noch eine Datenbankkopie
+  — eine Route ohne Kennzeichen in dieser Liste gilt sicherheitshalber als datenbedürftig.
+  Das Skript wartet auf das App-eigene Bereitschaftssignal (`data-app-ready`, gesetzt aus
+  `State.isPageReady`, `design-system-yxrxb`: eine Route ohne eigenen Ladezustand wie
+  `/styleguide` ist sofort bereit, eine Route mit Ladezustand erst, wenn keiner ihrer
+  Datenstränge mehr lädt; kein `setTimeout` als Warte-Ersatz und keine Heuristik über
+  CSS-Klassen mehr) und räumt Kindprozesse samt Temp-Verzeichnis auch bei Abbruch (`SIGINT`)
   zuverlässig auf (Prozessgruppen-Kill, SIGKILL-Eskalation, Port-Prüfung danach).
 
 Die Richtung bleibt unverändert Repo → Claude Design. Ein Mockup-Bild im Repo ist kein

@@ -21,6 +21,8 @@ import { fileURLToPath } from "node:url";
 import {
   DEFAULT_OUT_DIR,
   KNOWN_ROUTES,
+  ROUTES_WITHOUT_BACKEND,
+  routeNeedsBackend,
   normalizeRoute,
   routeSegments,
   slugifyRoute,
@@ -111,6 +113,26 @@ test("assertKnownRoute: unbekannte Route wirft eine Fehlermeldung, die die Route
     assert.match(err.message, /frobnicate/);
     return true;
   });
+});
+
+// design-system-m4kp7 (AC4): eine Route ohne Kennzeichen in
+// ROUTES_WITHOUT_BACKEND gilt als datenbedürftig, nicht als präsentational —
+// die sichere Annahme bleibt die Voreinstellung. Geprüft an einer bekannten
+// Route ohne Kennzeichen (/ledger, taucht bewusst NICHT in
+// ROUTES_WITHOUT_BACKEND auf) und an einer völlig unbekannten Route, die auch
+// in keiner der beiden Listen steht.
+test("routeNeedsBackend: eine Route ohne Kennzeichen in ROUTES_WITHOUT_BACKEND gilt als datenbedürftig", () => {
+  assert.equal(ROUTES_WITHOUT_BACKEND.has("/ledger"), false);
+  assert.equal(routeNeedsBackend("/ledger"), true);
+  assert.equal(routeNeedsBackend("/frobnicate"), true);
+});
+
+test("routeNeedsBackend: /styleguide ist als einzige Route als präsentational gekennzeichnet", () => {
+  assert.equal(routeNeedsBackend("/styleguide"), false);
+  for (const route of KNOWN_ROUTES) {
+    if (route === "/styleguide") continue;
+    assert.equal(routeNeedsBackend(route), true, `${route} sollte datenbedürftig sein`);
+  }
 });
 
 test("screenshotFilenames: folgt der Konvention handy-390x844-<name>/pc-1440x900-<name>", () => {
