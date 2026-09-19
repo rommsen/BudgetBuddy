@@ -1,7 +1,7 @@
 ---
 id: ledger-t7v2q
 title: "Übertrag: die beiden Buchungen miteinander verknüpfen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-06

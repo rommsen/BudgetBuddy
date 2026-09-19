@@ -1,7 +1,7 @@
 ---
 id: ledger-w9skm
 title: "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-12

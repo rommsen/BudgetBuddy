@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 17:21 -- Batch started: [ledger-fq3kd, ledger-t7v2q, ledger-w9skm]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-fq3kd - Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch, ledger-t7v2q - "Übertrag: die beiden Buchungen miteinander verknüpfen", ledger-w9skm - "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten"
+**Parallel:** yes (3 Worker — ledger-fq3kd, ledger-t7v2q, ledger-w9skm; disjunkte Dateimengen). Zurückgehalten: ledger-vgfw3, ledger-ezrw0, design-system-k4mtx wegen MAX_PARALLEL=3, kommen in späteren Wellen. design-system-m4kp7 und ledger-p9k3w fassen beide scripts/screenshot-route.mjs an und laufen deshalb in getrennten Wellen. infrastructure-qwthn ist nicht an einen Worker dispatchbar: sein Ergebnis liegt in .agentheim/board/*/INDEX.md, was ein Worker nach ADR-0032 (ghcaj) nicht schreiben darf; dem Builder gemeldet.
+
+---
+
 ## 2026-09-19 16:51 -- Modeling / Promoted: ledger-t7v2q - "Übertrag: die beiden Buchungen miteinander verknüpfen"
 
 **Type:** Modeling / Promote

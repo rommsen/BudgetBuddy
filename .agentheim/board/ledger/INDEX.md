@@ -11,23 +11,23 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 10
-- **Todo:** 6
-- **Doing:** 0
+- **Todo:** 3
+- **Doing:** 3
 - **Done:** 20
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-t7v2q** — "Übertrag: die beiden Buchungen miteinander verknüpfen" (feature) — `todo/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
 - **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `todo/ledger-vgfw3-filter-und-summenzeile.md`
-- **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `todo/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
-- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `todo/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 - **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `todo/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `todo/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `doing/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
+- **ledger-t7v2q** — "Übertrag: die beiden Buchungen miteinander verknüpfen" (feature) — `doing/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
+- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `doing/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
