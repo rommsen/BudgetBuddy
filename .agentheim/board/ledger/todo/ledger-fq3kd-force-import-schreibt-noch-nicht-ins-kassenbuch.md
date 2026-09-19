@@ -1,7 +1,7 @@
 ---
 id: ledger-fq3kd
 title: Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-11

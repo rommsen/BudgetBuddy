@@ -5,6 +5,92 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 16:24 -- Modeling / Promoted: design-system-k4mtx - "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: ledger-vgfw3 - "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: ledger-w9skm - "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Refined: Sammel-Verfeinerung von zehn Backlog-Aufgaben fuer einen Work-Lauf
+
+**Type:** Modeling / Refine
+**BC:** ledger, design-system, infrastructure
+**Status after:** todo
+**Summary:** Auf Romans Wunsch zehn Aufgaben in einem Zug verfeinert statt einzeln. Fuenf trugen bereits vollstaendige, prueffbare Kriterien (ledger-ezrw0, infrastructure-qwthn, design-system-m4kp7, ledger-p9k3w, ledger-fq3kd) und gingen unveraendert durch das Promote-Gate. Fuenf wurden ausgeschrieben: ledger-w9skm und ledger-qns4j haben aus Platzhaltern belegte Kriterien bekommen, samt am Code festgestelltem Ist-Zustand (entryRow ist eine Karte, die Kategorie steht mit dem Datum in einer Mono-Zeile verschmolzen, md:w-[268px] ohne sticky, statusColumnWidth 208 gegen Handoff 128). Die offene Frage aus w9skm nach dem Farbverlaufsstreifen ist beantwortet: er kommt aus Stats.defaultProps.Accent = Gradient, nicht aus der Seite. design-system-k4mtx hat Romans Entscheidung (Template folgt BudgetBuddy, kein DaisyUI), eine vierte Fundstelle (docs/MILESTONE-PLAN.md als lebendes Dokument, waehrend docs/UI-REFACTORING-MILESTONES.md als Protokoll bewusst unangetastet bleibt) und den Typwechsel decision -> chore bekommen.
+**Entscheidungen Roman (2026-09-19):** Template folgt ADR 0031 ohne DaisyUI. Statusspalte traegt Status statt Herkunft, zwei Badges nebeneinander bleiben erlaubt, Beschriftungen werden dafuer gekuerzt. Das Uebertrag-Ereignis fuer ledger-t7v2q entscheidet der tactical-modeler.
+**Split into:** ledger-vgfw3 (Server-Haelfte, behaelt die Id, weil ledger-r1d2f und der README-Abschnitt darauf zeigen) und ledger-j8xq4 (Oberflaechen-Haelfte, blockt jetzt ledger-r1d2f). Grund: Lesepfad um fuenf Filter erweitern plus Chip-Leiste, Mehrfachauswahl, Popover-Muster und Summenzeile ist mehr, als ein Worker in einem Zug sauber abliefert.
+**Abhaengigkeit ergaenzt:** ledger-qns4j haengt jetzt an ledger-w9skm, weil beide entryTableRow anfassen.
+**ADRs written:** keine
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: ledger-fq3kd - Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: ledger-p9k3w - "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: design-system-m4kp7 - "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: infrastructure-qwthn - "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Promoted: ledger-ezrw0 - "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:24 -- Modeling / Captured: ledger-j8xq4 - "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Oberflaechen-Haelfte der zweiten lesenden Scheibe, abgespalten von ledger-vgfw3: Filter-Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC, Summenzeile.
+
+---
+
 ## 2026-09-19 16:10 -- Zwei Randbefunde des Laufs als Backlog-Items erfasst
 
 **Type:** Work / Nachtragung

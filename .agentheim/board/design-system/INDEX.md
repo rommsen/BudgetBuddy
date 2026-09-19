@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 3
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 19
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-k4mtx** — "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen" (chore) — `todo/design-system-k4mtx-template-daisyui-verweise-gegen-budgetbuddys-adr-0031-entsch.md`
+- **design-system-m4kp7** — "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server" (feature) — `todo/design-system-m4kp7-praesentationale-routen-ohne-backend-aufnehmen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -49,8 +51,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-k4mtx** — "template/**: DaisyUI-Verweise gegen BudgetBuddys ADR-0031-Entscheidung prüfen" (decision) — `backlog/design-system-k4mtx-template-daisyui-verweise-gegen-budgetbuddys-adr-0031-entsch.md`
-- **design-system-m4kp7** — "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server" (feature) — `backlog/design-system-m4kp7-praesentationale-routen-ohne-backend-aufnehmen.md`
 - **design-system-thtpp** — Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind (feature) — `backlog/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
 - **design-system-an22r** — Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport, thumbnail.html, @kind-Annotation (feature) — `backlog/design-system-an22r-export-uebernimmt-claude-design-manifest-ergaenzungen.md`
 - **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`

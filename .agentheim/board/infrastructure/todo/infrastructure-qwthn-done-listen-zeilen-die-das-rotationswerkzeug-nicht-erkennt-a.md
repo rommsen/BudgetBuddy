@@ -1,7 +1,7 @@
 ---
 id: infrastructure-qwthn
 title: "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-09-19

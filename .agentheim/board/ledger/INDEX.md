@@ -10,14 +10,19 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 15
-- **Todo:** 0
+- **Backlog:** 11
+- **Todo:** 5
 - **Doing:** 0
 - **Done:** 20
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `todo/ledger-vgfw3-filter-und-summenzeile.md`
+- **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `todo/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
+- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `todo/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
+- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `todo/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
+- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `todo/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -50,19 +55,15 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `backlog/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
-- **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `backlog/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
+- **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `backlog/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
 - **ledger-qns4j** — Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen (bug) — `backlog/ledger-qns4j-konten-spalte-haftend-und-statusspalte-neu-belegen.md`
-- **ledger-w9skm** — Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten (bug) — `backlog/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`
 - **ledger-r777c** — Prüfvermerk in BB setzen und nach YNAB zurückschreiben (die eine schreibende Fähigkeit vor v2) (feature) — `backlog/ledger-r777c-pruefvermerk-setzen-und-nach-ynab-zurueckschreiben.md`
-- **ledger-vgfw3** — Kassenbuch-Filter mit Summenzeile: Kategorie (Mehrfachauswahl), Zeitraum, Payee, Betrag, Memo (feature) — `backlog/ledger-vgfw3-filter-und-summenzeile.md`
 - **ledger-r1d2f** — Auswahl-Modus mit Summe der Auswahl (Handy und PC) (feature) — `backlog/ledger-r1d2f-auswahl-modus-mit-summe.md`
 - **ledger-q1hw2** — Buchungs-Detail: Herkunft, Historie und "noch nicht in YNAB" (Sheet am Handy, Seitenpanel am PC) (feature) — `backlog/ledger-q1hw2-detail-herkunft-historie-noch-nicht-in-ynab.md`
 - **ledger-kwwxz** — Available-Betrag je Kategorie spiegeln und in der Kategorienauswahl zeigen (feature) — `backlog/ledger-kwwxz-available-betrag-je-kategorie-spiegeln.md`
 - **ledger-xfjcp** — Buchung an Lena zuweisen statt nur ein Flag setzen; später Sicht "Für mich" und Benachrichtigung (feature) — `backlog/ledger-xfjcp-lena-zuweisen-statt-flag.md`
 - **ledger-tpbe7** — Randfälle, in denen die Kassenbuch-Buchung nach dem Push von YNAB abweicht, und ungetesteter Klebecode im Import-Push (bug) — `backlog/ledger-tpbe7-randfaelle-kassenbuch-weicht-nach-push-von-ynab-ab.md`
-- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `backlog/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 - **ledger-t7v2q** — Übertrag: die beiden Buchungen miteinander verknüpfen (feature) — `backlog/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
 - **ledger-c7j8e** — Kursquelle für Geldmarkt-ETF per ISIN (Research-Spike) (spike) — `backlog/ledger-c7j8e-kursquelle-etf-isin-research-spike.md`
 <!-- backlog-list:end -->

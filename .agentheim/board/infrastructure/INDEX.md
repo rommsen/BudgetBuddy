@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-qwthn** — "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen" (chore) — `todo/infrastructure-qwthn-done-listen-zeilen-die-das-rotationswerkzeug-nicht-erkennt-a.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -36,7 +37,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-qwthn** — "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen" (chore) — `backlog/infrastructure-qwthn-done-listen-zeilen-die-das-rotationswerkzeug-nicht-erkennt-a.md`
 <!-- backlog-list:end -->
 
 

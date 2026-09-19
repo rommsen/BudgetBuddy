@@ -1,7 +1,7 @@
 ---
 id: design-system-m4kp7
 title: "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server"
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-09-19

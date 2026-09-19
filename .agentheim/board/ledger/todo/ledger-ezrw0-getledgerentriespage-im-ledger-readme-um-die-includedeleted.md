@@ -1,7 +1,7 @@
 ---
 id: ledger-ezrw0
 title: "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen"
-status: backlog
+status: todo
 type: chore
 context: ledger
 created: 2026-09-19
