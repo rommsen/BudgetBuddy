@@ -317,6 +317,22 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
                 ReadModel.toEntryView origin entry)
     }
 
+/// Baut das `Ledger.Persistence.EntryFilter` aus den Such-Feldern einer
+/// `LedgerEntryPageQuery` (ledger-vgfw3, ADR 0036) — die gemeinsame Grundlage fuer
+/// `getLedgerEntriesPage` und `getLedgerPayeeSuggestions`, damit beide nie
+/// auseinanderlaufen koennen.
+let private toEntryFilter (query: LedgerEntryPageQuery) : Ledger.Persistence.EntryFilter = {
+    IncludeDeleted = query.IncludeDeleted
+    OnlyNeedsReview = query.OnlyNeedsReview
+    CategoryIds = query.CategoryIds
+    DateFrom = query.DateFrom
+    DateTo = query.DateTo
+    Payee = query.Payee
+    Memo = query.Memo
+    AmountMin = query.AmountMin
+    AmountMax = query.AmountMax
+}
+
 /// Eine Seite der Buchungsliste (ledger-b1xwe): ein Konto (`query.AccountId`) oder,
 /// wenn `None`, die Gesamtsicht ueber alle Konten. Die Summe deckt den gesamten
 /// Treffer ab, nicht die geladene Seite (ADR 0017, AC1) — dafuer laedt diese Funktion
@@ -332,17 +348,23 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
 /// prüfende Buchungen (`approved = false` oder `cleared = Uncleared`) im Treffer.
 /// `NeedsReviewCount` wird unabhängig davon immer geliefert, für den Chip
 /// "Zu prüfen (n)": dasselbe Muster wie `DeletedCount`.
+///
+/// Die fünf Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3, ADR
+/// 0036) wirken zusätzlich auf Seite, Trefferzahl, Summe UND `DeletedCount` — sonst
+/// zeigt die Summenzeile eine Summe, die nicht zur Trefferzahl gehört. Bewusst NICHT
+/// auf `NeedsReviewCount`: der Chip "Zu prüfen (n)" ist ein fester Zähler über das
+/// Konto, keine Trefferzahl der laufenden Suche.
 let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> =
     async {
         let accountId = query.AccountId |> Option.map LedgerAccountId
         let pageSize = max 1 query.PageSize
         let pageIndex = max 0 query.Page
+        let filter = toEntryFilter query
 
-        let! pageEntries =
-            Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize query.IncludeDeleted query.OnlyNeedsReview
-        let! totalCount = Ledger.Persistence.countEntries accountId query.IncludeDeleted query.OnlyNeedsReview
-        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId query.IncludeDeleted query.OnlyNeedsReview
-        let! deletedCount = Ledger.Persistence.countDeletedEntries accountId
+        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize filter
+        let! totalCount = Ledger.Persistence.countEntries accountId filter
+        let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId filter
+        let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter
         let! needsReviewCount = Ledger.Persistence.countNeedsReviewEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
 
@@ -361,6 +383,27 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
             DeletedCount = deletedCount
             NeedsReviewCount = needsReviewCount
         }
+    }
+
+/// Die Payees eines Filters samt ihrer Anzahl **innerhalb dieses Filters**
+/// (ledger-vgfw3 AC, ADR 0036): Grundlage der Payee-Auswahl. `query` trägt nie
+/// `query.Payee` selbst — der ist ja gerade das, was hier zur Auswahl steht.
+let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<LedgerPayeeSuggestion list> =
+    async {
+        let accountId = query.AccountId |> Option.map LedgerAccountId
+        let filter : Ledger.Persistence.EntryFilter = {
+            IncludeDeleted = query.IncludeDeleted
+            OnlyNeedsReview = query.OnlyNeedsReview
+            CategoryIds = query.CategoryIds
+            DateFrom = query.DateFrom
+            DateTo = query.DateTo
+            Payee = None
+            Memo = query.Memo
+            AmountMin = query.AmountMin
+            AmountMax = query.AmountMax
+        }
+        let! suggestions = Ledger.Persistence.loadPayeeSuggestions accountId filter
+        return suggestions |> List.map (fun (payee, count) -> { Payee = payee; Count = count })
     }
 
 /// Die Kontostaende aller Konten in einem Durchlauf (ledger-b1xwe AC2): unabhaengig

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 19:27 -- Task verified and completed: ledger-vgfw3 - "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren"
+
+**Type:** Work / Task completion
+**Task:** ledger-vgfw3 - "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren"
+**Summary:** Kassenbuch-Lesepfad filtert serverseitig nach Kategorie, Zeitraum, Payee, Betrag und Memo über alle vier Zählwege plus Payee-Vorschläge
+**Duration:** 1h12m
+**Verification:** PASS (iteration 2)
+**Files changed:** 7
+**Tests added:** 8
+**ADRs written:** 0036
+
+---
+
+## 2026-09-19 18:11 -- Verification failed: ledger-vgfw3 - Kassenbuch-Filter im Lesepfad
+
+**Type:** Work / Verification failure
+**Task:** ledger-vgfw3 - Kassenbuch-Filter im Lesepfad
+**Iteration:** 1 of 3
+**Reasons:** Zeitraum-Filter vergleicht ISO-8601-Roundtrip-Text direkt in SQL; das Format ist Kind-abhängig und nicht gleich lang (Utc hängt Z an, Local +02:00, Unspecified nichts). Gespiegelte Buchungen liegen mit Z vor, Comdirect/Quick Add ohne — unter SQLites BINARY-Kollation verliert der Randtag-Vergleich still Treffer, und keine Wahl des Client-Kinds macht beide Ränder richtig. Der AC5-Test sät beide Seiten aus Unspecified-Literalen und kann deshalb nie fehlschlagen. ADR 0036 Decision 5 beruht auf einer Fehllesung von ADR 0017 Punkt 4 (Roundtrip ist genau die Eigenschaft, die die Länge Kind-abhängig macht) und muss mitkorrigiert werden.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-19 18:03 -- Task verified and completed: design-system-m4kp7 - "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server"
 
 **Type:** Work / Task completion

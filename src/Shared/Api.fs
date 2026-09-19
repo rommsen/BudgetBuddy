@@ -306,6 +306,12 @@ type LedgerApi = {
     /// hit set — summed in F#, never in SQL (ADR 0017), never just the page's sum.
     getLedgerEntriesPage: LedgerEntryPageQuery -> Async<LedgerEntryPage>
 
+    /// The payees that occur within a given filter, most frequent first, each with
+    /// its count WITHIN that filter's hit set (ledger-vgfw3, ADR 0036) — never over
+    /// all bookings and never over just the loaded page. Purpose: the Payee picker's
+    /// suggestion list.
+    getLedgerPayeeSuggestions: LedgerPayeeSuggestionQuery -> Async<LedgerPayeeSuggestion list>
+
     /// Every account's balance in one call, so the Kontostaende-Leiste never has to
     /// load per account. Purpose: the account balance strip/column (ledger-b1xwe).
     /// Returns: one entry per account; the balance is the state's own sum (ADR 0017),

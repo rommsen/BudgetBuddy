@@ -984,6 +984,16 @@ let private pageTestAccountD = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8
 let private pageTestAccountE = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000e")
 let private pageTestAccountF = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000000f")
 let private pageTestAccountG = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000010")
+// Konten H..L (ledger-vgfw3): eigene Konten je Filter-Testgruppe, damit die Fünf-
+// Filter-Tests nicht von der Saat der obigen Gruppen abhängen.
+let private pageTestAccountH = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000011")
+let private pageTestAccountI = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000012")
+let private pageTestAccountJ = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000013")
+let private pageTestAccountK = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000014")
+let private pageTestAccountL = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000015")
+let private pageTestAccountM = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000016")
+let private pageTestAccountN = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000017")
+let private pageTestAccountO = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000018")
 
 let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-0000000000{n:D2}")
 
@@ -1057,7 +1067,86 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountE; Name = "Konto E"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountF; Name = "Konto F"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountG; Name = "Konto G"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountH; Name = "Konto H"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountI; Name = "Konto I"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountJ; Name = "Konto J"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountK; Name = "Konto K"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountL; Name = "Konto L"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountM; Name = "Konto M"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountN; Name = "Konto N"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountO; Name = "Konto O"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
+
+/// Wie `seedEntry`, aber mit voller Kontrolle ueber Payee, Memo, Kategorie und Datum
+/// (ledger-vgfw3): die Fünf-Filter-Tests brauchen mehr als nur Betrag und laufenden
+/// Index.
+let private seedEntryFull
+    (accountId: LedgerAccountId)
+    (n: int)
+    (amount: decimal)
+    (date: DateTime)
+    (payee: string option)
+    (memo: string option)
+    (categoryRef: CategoryRef option)
+    : Async<unit> =
+    let payload : EntryObservedInYnabPayload = {
+        AccountId = accountId
+        YnabTransactionId = $"pagetest-{n}"
+        ImportId = None
+        Date = date
+        Amount = { Amount = amount; Currency = "EUR" }
+        Payee = payee
+        Memo = memo
+        Category = categoryRef
+        Splits = []
+        Cleared = Uncleared
+        TransferAccountId = None
+        TransferYnabTransactionId = None
+        Approved = true
+        FlagColor = None
+        FlagName = None
+    }
+    appendAndApply [
+        { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryObservedInYnab payload }
+    ]
+
+/// Wie `seedEntryFull`, aber in YNAB gelöscht (analog `seedDeletedEntry`).
+let private seedDeletedEntryFull
+    (accountId: LedgerAccountId)
+    (n: int)
+    (amount: decimal)
+    (date: DateTime)
+    (payee: string option)
+    (memo: string option)
+    (categoryRef: CategoryRef option)
+    : Async<unit> =
+    async {
+        do! seedEntryFull accountId n amount date payee memo categoryRef
+        do! appendAndApply [
+            { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
+        ]
+    }
+
+/// Der rohe `Guid` einer Test-Kategorie, fuer `LedgerEntryPageQuery.CategoryIds`.
+let private catGuid (n: int) = let (YnabCategoryId g) = catId n in g
+
+/// Eine `LedgerEntryPageQuery` ohne gesetzte Such-Filter (ledger-vgfw3): die
+/// Rückwärtskompatibilitäts-Basislinie, mit der jeder neue Test seine eigenen Felder
+/// per `with` überschreibt, statt alle zwölf Felder auszuschreiben.
+let private baseQuery (accountId: Guid option) : LedgerEntryPageQuery = {
+    AccountId = accountId
+    Page = 0
+    PageSize = 100
+    IncludeDeleted = false
+    OnlyNeedsReview = false
+    CategoryIds = []
+    DateFrom = None
+    DateTo = None
+    Payee = None
+    Memo = None
+    AmountMin = None
+    AmountMax = None
+}
 
 [<Tests>]
 let ledgerPagingTests =
@@ -1082,7 +1171,7 @@ let ledgerPagingTests =
                 seedEntry pageTestAccountA n amount |> Async.RunSynchronously
 
             let (LedgerAccountId rawId) = pageTestAccountA
-            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2; IncludeDeleted = false; OnlyNeedsReview = false }
+            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
 
             let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
             let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
@@ -1110,7 +1199,7 @@ let ledgerPagingTests =
             seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
 
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
+                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB
@@ -1152,7 +1241,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawC) = pageTestAccountC
             let hidden =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawC; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
+                    { AccountId = Some rawC; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
 
             Expect.equal hidden.TotalCount 1 "Die gelöschte Buchung zählt nicht zum Treffer"
@@ -1173,7 +1262,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawD) = pageTestAccountD
             let shown =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawD; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false }
+                    { AccountId = Some rawD; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
 
             Expect.equal shown.TotalCount 2 "Beide Buchungen zählen zum Treffer"
@@ -1192,11 +1281,11 @@ let ledgerPagingTests =
             let (LedgerAccountId rawE) = pageTestAccountE
             let hidden =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
+                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
             let shown =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false }
+                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
 
             Expect.equal hidden.DeletedCount 1 "Eine gelöschte Buchung, obwohl ausgeblendet"
@@ -1215,7 +1304,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawG) = pageTestAccountG
             let shown =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawG; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false }
+                    { AccountId = Some rawG; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
             let balances = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously
             let balanceG = balances |> List.find (fun b -> b.AccountId = rawG)
@@ -1241,7 +1330,7 @@ let ledgerPagingTests =
             let (LedgerAccountId rawF) = pageTestAccountF
             let onlyNeedsReview =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true }
+                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
 
             Expect.equal onlyNeedsReview.TotalCount 1 "Nur die ungeprüfte, nicht gelöschte Buchung zählt"
@@ -1258,11 +1347,11 @@ let ledgerPagingTests =
             let (LedgerAccountId rawF) = pageTestAccountF
             let off =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false }
+                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
             let on =
                 Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true }
+                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
                 |> Async.RunSynchronously
 
             Expect.equal off.NeedsReviewCount 1 "Eine zu prüfende Buchung, obwohl der Filter aus ist"
@@ -1293,6 +1382,243 @@ let ledgerPagingTests =
                 (history |> List.map (fun l -> l.Sequence))
                 [ 1; 2 ]
                 "aufsteigend, älteste Sequenznummer zuerst. Die Abfrage dreht nicht"
+
+        // ============================================
+        // Fünf Such-Filter im Lesepfad (ledger-vgfw3, ADR 0036)
+        // ============================================
+
+        testCase "AC1: Ohne gesetzte Such-Filter bleibt das Ergebnis unveraendert" <| fun () ->
+            seedEntryFull pageTestAccountH 50 -10m (DateTime(2026, 5, 1)) (Some "Rewe") (Some "Einkauf") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountH 51 -20m (DateTime(2026, 5, 2)) (Some "Aldi") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountH 52 -30m (DateTime(2026, 5, 3)) None (Some "Bar") None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawH) = pageTestAccountH
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawH)) |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 3 "Alle drei Buchungen, kein Filter grenzt ein"
+            Expect.equal (List.length page.Entries) 3 "Alle drei stehen auf der Seite"
+            Expect.equal page.TotalAmount { Amount = -60m; Currency = "EUR" } "Summe ueber alle drei"
+
+        testCase "AC2: Kategorie-Filter mit zwei Kategorien liefert die Vereinigung, nicht den Schnitt" <| fun () ->
+            seedEntryFull pageTestAccountI 53 -1m (DateTime(2026, 5, 1)) (Some "Payee 53") None (Some (category 21 "Kategorie A"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountI 54 -2m (DateTime(2026, 5, 2)) (Some "Payee 54") None (Some (category 22 "Kategorie B"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountI 55 -3m (DateTime(2026, 5, 3)) (Some "Payee 55") None (Some (category 23 "Kategorie C"))
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawI) = pageTestAccountI
+            let query = { baseQuery (Some rawI) with CategoryIds = [ catGuid 21; catGuid 22 ] }
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 2 "Die Vereinigung beider Kategorien, nicht nur eine"
+            Expect.equal
+                (page.Entries |> List.map (fun e -> e.Payee) |> List.sort)
+                [ Some "Payee 53"; Some "Payee 54" ]
+                "Kategorie C bleibt aussen vor, Kategorie A und B sind beide dabei"
+
+        testCase "AC3: Trefferzahl und Summe eines Kategorie-Filters gelten ueber den gesamten Treffer, nicht die Seite" <| fun () ->
+            for n, amount in [ 56, -10m; 57, -20m; 58, -30m; 59, -40m; 60, -50m ] do
+                seedEntryFull pageTestAccountJ n amount (DateTime(2026, 5, 1).AddDays(float n)) None None (Some (category 24 "Kategorie D"))
+                |> Async.RunSynchronously
+
+            let (LedgerAccountId rawJ) = pageTestAccountJ
+            let query = { baseQuery (Some rawJ) with PageSize = 2; CategoryIds = [ catGuid 24 ] }
+            let page0 = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            let page2 = Ledger.QueryHandlers.getLedgerEntriesPage { query with Page = 2 } |> Async.RunSynchronously
+
+            Expect.equal page0.TotalCount 5 "Trefferzahl ueber alle fuenf gefilterten Buchungen"
+            Expect.equal (List.length page0.Entries) 2 "Erste Seite traegt nur ihre eigenen zwei Buchungen"
+            Expect.equal (List.length page2.Entries) 1 "Letzte Seite ist nur teilweise gefuellt"
+            let expectedTotal = { Amount = -150m; Currency = "EUR" }
+            Expect.equal page0.TotalAmount expectedTotal "Erste Seite traegt die Gesamtsumme des Filters"
+            Expect.equal page2.TotalAmount expectedTotal "Auch die letzte Seite traegt dieselbe Gesamtsumme"
+
+        testCase "AC4: Die Summe eines aktiven Filters wird exakt in F# gebildet, nicht per SQL-SUM" <| fun () ->
+            // ADR 0017/0036: zehn mal 0,10 EUR ergeben in `decimal` genau 1,00 — ueber
+            // `REAL`/`CAST(amount AS REAL)` waere das Ergebnis 0,9999999999999999.
+            for n in 61 .. 70 do
+                seedEntryFull pageTestAccountK n 0.1m (DateTime(2026, 5, 1).AddDays(float n)) None None (Some (category 25 "Kategorie E"))
+                |> Async.RunSynchronously
+
+            let (LedgerAccountId rawK) = pageTestAccountK
+            let query = { baseQuery (Some rawK) with CategoryIds = [ catGuid 25 ] }
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 10 "Alle zehn Buchungen treffen den Filter"
+            Expect.equal page.TotalAmount { Amount = 1.0m; Currency = "EUR" } "Genau 1,00, nicht 0,9999999999999999"
+
+        testCase "AC5: Zeitraum filtert einschliesslich der Randtage, auch bei gemischtem DateTimeKind wie im echten Bestand" <| fun () ->
+            let von = DateTime(2026, 6, 10)
+            let bis = DateTime(2026, 6, 12)
+            seedEntryFull pageTestAccountL 71 -1m (von.AddDays(-1.0)) (Some "Vor dem Zeitraum") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountL 72 -2m von (Some "Genau am Von-Tag (ohne Kind)") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountL 73 -3m (DateTime(2026, 6, 11)) (Some "Mitten im Zeitraum") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountL 74 -4m bis (Some "Genau am Bis-Tag (ohne Kind)") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountL 75 -5m (bis.AddDays(1.0)) (Some "Nach dem Zeitraum") None None
+            |> Async.RunSynchronously
+            // Wie der Spiegel es wirklich schreibt (`YnabObservations.fs`:
+            // `DateTime.SpecifyKind(date, DateTimeKind.Utc)`, `Persistence.fs`:
+            // `dateToText entry.Date` haengt dadurch ein "Z" an). Der reale Bestand
+            // besteht ueberwiegend aus genau solchen Zeilen; ohne den
+            // Kind-unabhaengigen Vergleich (`substr(date, 1, 10)`) fallen sie am
+            // Rand still raus (Verifier-Befund, Iteration 1).
+            seedEntryFull
+                pageTestAccountL
+                94
+                -6m
+                (DateTime.SpecifyKind(von, DateTimeKind.Utc))
+                (Some "Genau am Von-Tag (Utc, wie der Spiegel)")
+                None
+                None
+            |> Async.RunSynchronously
+            seedEntryFull
+                pageTestAccountL
+                95
+                -7m
+                (DateTime.SpecifyKind(bis, DateTimeKind.Utc))
+                (Some "Genau am Bis-Tag (Utc, wie der Spiegel)")
+                None
+                None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawL) = pageTestAccountL
+            let query = { baseQuery (Some rawL) with DateFrom = Some von; DateTo = Some bis }
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+
+            Expect.equal
+                page.TotalCount
+                5
+                "Von-Tag, Mitte und Bis-Tag zaehlen (je zweimal fuer Von/Bis: ohne Kind und Utc wie der Spiegel), die beiden Aussenseiter nicht"
+            Expect.equal
+                (page.Entries |> List.map (fun e -> e.Payee) |> List.sort)
+                [ Some "Genau am Bis-Tag (Utc, wie der Spiegel)"
+                  Some "Genau am Bis-Tag (ohne Kind)"
+                  Some "Genau am Von-Tag (Utc, wie der Spiegel)"
+                  Some "Genau am Von-Tag (ohne Kind)"
+                  Some "Mitten im Zeitraum" ]
+                "Beide Randtage sind eingeschlossen, unabhaengig vom DateTimeKind der gespeicherten Buchung"
+
+        testCase "AC6: Payee-, Memo- und Betragsfilter wirken einzeln und als Und-Verknuepfung kombiniert" <| fun () ->
+            seedEntryFull pageTestAccountM 76 -4.50m (DateTime(2026, 5, 1)) (Some "Cafe Lotte") (Some "Kaffee") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountM 77 -6.00m (DateTime(2026, 5, 2)) (Some "Cafe Lotte") (Some "Kuchen") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountM 78 -4.50m (DateTime(2026, 5, 3)) (Some "Rewe") (Some "Kaffee") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountM 79 -32.10m (DateTime(2026, 5, 4)) (Some "Rewe") (Some "Einkauf") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountM 80 -4.50m (DateTime(2026, 5, 5)) (Some "Aldi") (Some "Kaffee to go") None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawM) = pageTestAccountM
+            let byPayee =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawM) with Payee = Some "cafe lotte" }
+                |> Async.RunSynchronously
+            let byMemo =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawM) with Memo = Some "kaffee" }
+                |> Async.RunSynchronously
+            let byAmount =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawM) with AmountMin = Some -4.50m; AmountMax = Some -4.50m }
+                |> Async.RunSynchronously
+            let combined =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawM) with
+                        Payee = Some "cafe lotte"
+                        Memo = Some "kaffee"
+                        AmountMin = Some -4.50m
+                        AmountMax = Some -4.50m }
+                |> Async.RunSynchronously
+
+            Expect.equal byPayee.TotalCount 2 "Payee (ohne Beachtung der Gross-/Kleinschreibung) trifft beide Cafe-Lotte-Buchungen"
+            Expect.equal byMemo.TotalCount 3 "Memo-Teiltext 'kaffee' trifft drei Buchungen, auch 'Kaffee to go'"
+            Expect.equal byAmount.TotalCount 3 "Exakt -4,50 EUR trifft drei Buchungen"
+            Expect.equal combined.TotalCount 1 "Nur die Buchung, die alle drei Filter zugleich erfuellt"
+            Expect.equal
+                (combined.Entries |> List.map (fun e -> e.Memo))
+                [ Some "Kaffee" ]
+                "Die Und-Verknuepfung laesst nur Cafe Lotte + Kaffee + -4,50 EUR durch"
+
+        testCase "AC7: Payee-Vorschlaege zaehlen nur innerhalb des uebergebenen Filters" <| fun () ->
+            // Rewe kommt insgesamt fünfmal vor, aber nur zweimal in Kategorie 26.
+            // Baecker kommt insgesamt nur dreimal vor, aber alle drei in Kategorie 26 —
+            // innerhalb des Filters hat Baecker also die groessere, nicht Rewe.
+            seedEntryFull pageTestAccountN 82 -1m (DateTime(2026, 5, 1)) (Some "Rewe") None (Some (category 26 "Kategorie F"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 83 -2m (DateTime(2026, 5, 2)) (Some "Rewe") None (Some (category 26 "Kategorie F"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 84 -3m (DateTime(2026, 5, 3)) (Some "Rewe") None (Some (category 27 "Kategorie G"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 85 -4m (DateTime(2026, 5, 4)) (Some "Rewe") None (Some (category 27 "Kategorie G"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 86 -5m (DateTime(2026, 5, 5)) (Some "Rewe") None (Some (category 27 "Kategorie G"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 87 -6m (DateTime(2026, 5, 6)) (Some "Baecker") None (Some (category 26 "Kategorie F"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 88 -7m (DateTime(2026, 5, 7)) (Some "Baecker") None (Some (category 26 "Kategorie F"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountN 89 -8m (DateTime(2026, 5, 8)) (Some "Baecker") None (Some (category 26 "Kategorie F"))
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawN) = pageTestAccountN
+            let suggestionsQuery : LedgerPayeeSuggestionQuery = {
+                AccountId = Some rawN
+                IncludeDeleted = false
+                OnlyNeedsReview = false
+                CategoryIds = [ catGuid 26 ]
+                DateFrom = None
+                DateTo = None
+                Memo = None
+                AmountMin = None
+                AmountMax = None
+            }
+            let suggestions =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions suggestionsQuery |> Async.RunSynchronously
+
+            let countOf payee =
+                suggestions |> List.tryFind (fun s -> s.Payee = payee) |> Option.map (fun s -> s.Count)
+
+            Expect.equal (countOf "Rewe") (Some 2) "Rewe zaehlt nur die zwei Treffer innerhalb des Filters, nicht alle fuenf"
+            Expect.equal (countOf "Baecker") (Some 3) "Baecker zaehlt alle drei, weil alle drei im Filter liegen"
+            Expect.isTrue
+                ((countOf "Baecker" |> Option.get) > (countOf "Rewe" |> Option.get))
+                "Innerhalb des Filters hat Baecker die groessere Zahl, obwohl Rewe insgesamt haeufiger vorkommt"
+
+        testCase "AC8: Die Regel fuer geloeschte Buchungen gilt unveraendert weiter, auch mit gesetzten Filtern" <| fun () ->
+            seedEntryFull pageTestAccountO 90 -10m (DateTime(2026, 5, 1)) None None (Some (category 28 "Kategorie H"))
+            |> Async.RunSynchronously
+            seedDeletedEntryFull pageTestAccountO 91 -1000m (DateTime(2026, 5, 2)) None None (Some (category 28 "Kategorie H"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountO 92 -20m (DateTime(2026, 5, 3)) None None (Some (category 29 "Kategorie I"))
+            |> Async.RunSynchronously
+            seedDeletedEntryFull pageTestAccountO 93 -500m (DateTime(2026, 5, 4)) None None (Some (category 29 "Kategorie I"))
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawO) = pageTestAccountO
+            let hidden =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawO) with CategoryIds = [ catGuid 28 ] }
+                |> Async.RunSynchronously
+            let shown =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawO) with CategoryIds = [ catGuid 28 ]; IncludeDeleted = true }
+                |> Async.RunSynchronously
+
+            Expect.equal hidden.TotalCount 1 "Ohne IncludeDeleted zaehlt nur die lebende Buchung der Kategorie"
+            Expect.equal hidden.TotalAmount { Amount = -10m; Currency = "EUR" } "Summe ohne die geloeschte Buchung"
+            Expect.equal hidden.DeletedCount 1
+                "DeletedCount zaehlt nur die geloeschte Buchung INNERHALB des Kategorie-Filters, nicht die aus Kategorie I"
+            Expect.equal shown.TotalCount 2 "Mit IncludeDeleted zaehlen beide Buchungen der Kategorie"
+            Expect.equal shown.TotalAmount { Amount = -1010m; Currency = "EUR" } "Summe inklusive der geloeschten Buchung"
+            Expect.equal shown.DeletedCount 1 "DeletedCount bleibt gleich, unabhaengig vom Schalter"
     ]
 
 [<Tests>]

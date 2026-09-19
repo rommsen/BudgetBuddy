@@ -125,12 +125,22 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | None -> model, Cmd.none, NoOp
         | Some filter ->
             let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
+            // Die fuenf Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3)
+            // sind Server-seitig da (ADR 0036), aber ohne Bedienoberflaeche noch immer
+            // neutral: die Chipleiste, die sie setzt, ist ledger-j8xq4.
             let query : LedgerEntryPageQuery = {
                 AccountId = accountId
                 Page = page
                 PageSize = pageSize
                 IncludeDeleted = model.IncludeDeleted
                 OnlyNeedsReview = model.OnlyNeedsReview
+                CategoryIds = []
+                DateFrom = None
+                DateTo = None
+                Payee = None
+                Memo = None
+                AmountMin = None
+                AmountMax = None
             }
             let cmd =
                 Cmd.OfAsync.either

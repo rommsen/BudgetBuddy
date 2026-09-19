@@ -906,12 +906,31 @@ let sumMoney (fallbackCurrency: string) (amounts: Money list) : Money =
 /// `OnlyNeedsReview` (ADR 0032): Standard `false`, der Chip "Zu prüfen (n)" setzt
 /// `true` und lässt nur ungeprüfte Buchungen (`approved = false` oder
 /// `cleared = Uncleared`) im Treffer.
+///
+/// Die fünf Such-Filter (ledger-vgfw3, ADR 0036): `CategoryIds`, `DateFrom`/`DateTo`,
+/// `Payee`, `Memo`. Leer/`None` heisst "kein Filter" — ein Aufruf ohne gesetzte
+/// Filter liefert dasselbe Ergebnis wie vor dieser Erweiterung. Alle gesetzten Filter
+/// wirken als Und-Verknüpfung; `CategoryIds` selbst ist eine Mehrfachauswahl
+/// (Oder-Verknüpfung innerhalb der Liste) — der Punkt, an dem BB mehr kann als
+/// YNAB-Web (nur eine Kategorie je Filter). `Payee` ist eine exakte, `Memo` eine
+/// Teiltext-Übereinstimmung (beide ohne Berücksichtigung der Groß-/Kleinschreibung),
+/// `DateFrom`/`DateTo` schließen die Randtage ein. `AmountMin`/`AmountMax` grenzen
+/// den Betrag ein (beide Enden unabhängig voneinander, offen wenn `None`); weil der
+/// Betrag als Text liegt (ADR 0017), wertet `Ledger.Persistence` sie in F# aus, nie
+/// per SQL-Vergleich (ADR 0036).
 type LedgerEntryPageQuery = {
     AccountId: Guid option
     Page: int
     PageSize: int
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    CategoryIds: Guid list
+    DateFrom: DateTime option
+    DateTo: DateTime option
+    Payee: string option
+    Memo: string option
+    AmountMin: decimal option
+    AmountMax: decimal option
 }
 
 /// Eine Seite der Buchungsliste: die Buchungen dieser Seite, die Gesamtzahl der
@@ -930,6 +949,32 @@ type LedgerEntryPage = {
     TotalAmount: Money
     DeletedCount: int
     NeedsReviewCount: int
+}
+
+/// Ein Payee-Vorschlag mit seiner Anzahl **innerhalb des übergebenen Filters**
+/// (ledger-vgfw3, ADR 0036) — nicht über alle Buchungen und nicht über die geladene
+/// Seite, sondern über den gesamten Treffer der anderen aktiven Filter. Grundlage
+/// der Payee-Auswahl (Handoff Ablauf 2, Screens 2.7/2.13: "Vorschläge aus den 148
+/// Treffern").
+type LedgerPayeeSuggestion = {
+    Payee: string
+    Count: int
+}
+
+/// Die Filter für die Payee-Vorschlagsabfrage: dieselben Such-Filter wie
+/// `LedgerEntryPageQuery`, ohne Seiten-Parameter (eine Vorschlagsliste hat keine
+/// Seite) und ohne `Payee` selbst — der ist ja gerade das, was gleich ausgewählt
+/// wird.
+type LedgerPayeeSuggestionQuery = {
+    AccountId: Guid option
+    IncludeDeleted: bool
+    OnlyNeedsReview: bool
+    CategoryIds: Guid list
+    DateFrom: DateTime option
+    DateTo: DateTime option
+    Memo: string option
+    AmountMin: decimal option
+    AmountMax: decimal option
 }
 
 /// Der Rohwert einer Buchung, wie ihn die Kontostaende-Abfrage braucht: Konto, Betrag

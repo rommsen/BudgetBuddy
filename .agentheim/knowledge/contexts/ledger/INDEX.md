@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0036** — Kassenbuch-Suchfilter über eine gemeinsame `EntryFilter`/`buildFilterClause` für alle vier Zählwege plus Payee-Vorschläge; Betrag wird nie in SQL verglichen, sondern in F# nachgefiltert (ADR 0017), Zeitraum kind-unabhängig über `substr(date,1,10)` — 2026-09-19 — `knowledge/decisions/0036-kassenbuch-filter-lesepfad-betrag-in-fsharp.md`
 - **0032** — Geprüft heißt approved und cleared; Flags werden roh beobachtet, "Lena" am Flag-Namen erkannt — 2026-09-14 — `../../decisions/0032-pruefvermerk-ist-approved-und-cleared-flags-roh-beobachtet.md`
 - **0029** — Seitenweise Kassenbuch-Liste, Kontostände-Leiste und Konto-Filter (AllAccounts vs. OneAccount) — 2026-09-12 — `../../decisions/0029-seitenweise-kassenbuch-liste-und-kontostaende-leiste.md`
 - **0028** — Der Prüfvermerk ist die einzige schreibende Fähigkeit, die vor v2 nach BB wandert — 2026-09-12 — `../../decisions/0028-pruefvermerk-als-einzige-schreibende-faehigkeit-vor-v2.md`

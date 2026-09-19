@@ -150,6 +150,8 @@ let initializeLedgerSchema () =
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
+        CREATE INDEX IF NOT EXISTS idx_ledger_entries_category ON ledger_entries(category_id);
+        CREATE INDEX IF NOT EXISTS idx_ledger_entries_date ON ledger_entries(date);
 
         CREATE TABLE IF NOT EXISTS ledger_entry_links (
             entry_id TEXT NOT NULL,
@@ -539,91 +541,225 @@ let loadEntriesForAccount (accountId: LedgerAccountId) : Async<Entry list> =
 /// `Uncleared`.
 let private needsReviewSqlClause = "(approved = 0 OR cleared = 'Uncleared')"
 
+/// Die fünf Such-Filter (ledger-vgfw3, ADR 0036), plus die beiden bestehenden
+/// Schalter — gebündelt, weil inzwischen fünf der acht Lese-Funktionen unten
+/// dieselben Kriterien anwenden müssen (AC "alle vier Zählwege ziehen mit").
+/// `AmountMin`/`AmountMax` werden bewusst NICHT Teil der SQL-Klausel unten: der
+/// Betrag liegt als exakter Dezimal-Text (ADR 0017), ein SQL-Vergleich (auch über
+/// `CAST(amount AS REAL)`) würde dieselbe Rundungsdrift riskieren, die ADR 0017
+/// gerade ausschließt. Sie wirken stattdessen als Nachfilter in F#
+/// (`amountMatches`) auf die SQL-vorgefilterte Treffermenge — ADR 0017 sah diesen
+/// Fall bereits vor ("wenn [Vergleich nach Betrag] auftritt, wird in F# sortiert").
+type EntryFilter = {
+    IncludeDeleted: bool
+    OnlyNeedsReview: bool
+    CategoryIds: Guid list
+    DateFrom: DateTime option
+    DateTo: DateTime option
+    Payee: string option
+    Memo: string option
+    AmountMin: decimal option
+    AmountMax: decimal option
+}
+
+/// Kein Filter gesetzt — die Rückwärtskompatibilitäts-Basislinie (AC1): ein Aufruf
+/// mit `noFilter` (plus `IncludeDeleted`/`OnlyNeedsReview` wie zuvor) liefert
+/// dasselbe Ergebnis wie vor ledger-vgfw3.
+let noFilter = {
+    IncludeDeleted = false
+    OnlyNeedsReview = false
+    CategoryIds = []
+    DateFrom = None
+    DateTo = None
+    Payee = None
+    Memo = None
+    AmountMin = None
+    AmountMax = None
+}
+
+let private hasAmountFilter (filter: EntryFilter) = filter.AmountMin.IsSome || filter.AmountMax.IsSome
+
+/// Prüft `AmountMin`/`AmountMax` gegen einen geladenen Betrag, in `decimal`, nie
+/// über eine SQL-Bedingung (siehe `EntryFilter`). Beide Enden sind unabhängig
+/// voneinander offen: nur `AmountMin` gesetzt heißt "mindestens", nur `AmountMax`
+/// heißt "höchstens".
+let private amountMatches (filter: EntryFilter) (amount: decimal) : bool =
+    (filter.AmountMin |> Option.forall (fun min -> amount >= min))
+    && (filter.AmountMax |> Option.forall (fun max -> amount <= max))
+
+/// Baut die WHERE-Klausel (ohne die führende `WHERE`) und die dazugehörigen
+/// Dapper-Parameter aus Konto und `EntryFilter` — ohne `AmountMin`/`AmountMax`
+/// (siehe `EntryFilter`). Gemeinsame Grundlage für alle Lese-Funktionen unten,
+/// damit sie nie auseinanderlaufen können (AC "denselben Filter anwenden").
+let private buildFilterClause (accountId: LedgerAccountId option) (filter: EntryFilter) : string * DynamicParameters =
+    let clause = System.Text.StringBuilder("1 = 1")
+    let ps = DynamicParameters()
+
+    match accountId with
+    | Some (LedgerAccountId id) ->
+        clause.Append(" AND account_id = @accountId") |> ignore
+        ps.Add("accountId", id.ToString())
+    | None -> ()
+
+    if not filter.IncludeDeleted then
+        clause.Append(" AND deleted_in_ynab = 0") |> ignore
+
+    if filter.OnlyNeedsReview then
+        clause.Append($" AND {needsReviewSqlClause}") |> ignore
+
+    match filter.CategoryIds with
+    | [] -> ()
+    | ids ->
+        // Nur die einfache Kategorie (`category_id`-Spalte), nicht die Split-Zeilen:
+        // die liegen als JSON-Text, und Queries dürfen keine SQLite-JSON-Funktionen
+        // benutzen (ADR 0013, Punkt 8). Eine Buchung, deren einzige Kategorie in
+        // einem Split steckt, findet der Kategorie-Filter also nicht — bewusst in
+        // Kauf genommen für den weit häufigeren Fall (ADR 0036).
+        clause.Append(" AND category_id IN @categoryIds") |> ignore
+        ps.Add("categoryIds", ids |> List.map (fun g -> g.ToString()))
+
+    // Datum liegt als ISO-8601-Roundtrip-Text (ADR 0017, Punkt 4: "`\"o\"` plus
+    // `RoundtripKind`"). Roundtrip heißt: die Länge hängt vom `DateTimeKind` ab —
+    // `Utc` hängt ein `Z` an, `Local` eine Zonenverschiebung, `Unspecified` nichts.
+    // Die `date`-Spalte mischt beides: der Spiegel schreibt `Utc`
+    // (`YnabObservations.fs`, `SpecifyKind(..., Utc)`), Comdirect-/Quick-Add-Zeilen
+    // kommen aus `DateTime.Parse` ohne Kind. Ein direkter Textvergleich des vollen
+    // Roundtrip-Strings ist deshalb falsch: je nach Kind-Mix verliert ein Rand still
+    // Buchungen genau am Grenztag (siehe Verifier-Befund, Iteration 1). Der Vergleich
+    // greift stattdessen nur den Datumsanteil ab (die ersten 10 Zeichen, `yyyy-MM-dd`
+    // — bei jedem Kind gleich, weil der Kind-Suffix erst danach beginnt) und
+    // vergleicht ihn gegen denselben `yyyy-MM-dd`-Text auf der Bound-Seite. `substr`
+    // ist gewöhnliches SQL, keine SQLite-Spezialität (ADR 0013, Punkt 8 verbietet nur
+    // `json_extract` u. Ä.). `.Date` kappt eine evtl. Uhrzeit auf der Bound-Seite,
+    // damit die Randtage (AC "einschließlich") nicht an einer Uhrzeit scheitern.
+    match filter.DateFrom with
+    | Some d ->
+        clause.Append(" AND substr(date, 1, 10) >= @dateFrom") |> ignore
+        ps.Add("dateFrom", d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+    | None -> ()
+
+    match filter.DateTo with
+    | Some d ->
+        clause.Append(" AND substr(date, 1, 10) <= @dateTo") |> ignore
+        ps.Add("dateTo", d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+    | None -> ()
+
+    // Payee kommt aus der Vorschlagsliste (Klick, "Payee ist immer nur einer"), also
+    // exakter Vergleich; Memo ist ein Suchfeld, also Teiltext. Beide ohne
+    // Berücksichtigung der Groß-/Kleinschreibung.
+    match filter.Payee with
+    | Some payee ->
+        clause.Append(" AND payee = @payee COLLATE NOCASE") |> ignore
+        ps.Add("payee", payee)
+    | None -> ()
+
+    match filter.Memo with
+    | Some memo ->
+        clause.Append(" AND memo LIKE @memo COLLATE NOCASE") |> ignore
+        ps.Add("memo", $"%%{memo}%%")
+    | None -> ()
+
+    clause.ToString(), ps
+
+/// Lädt ALLE Buchungen, die Konto und `EntryFilter` (ohne Betrag) treffen, neueste
+/// zuerst, ohne `LIMIT`. Nur der Weg für `AmountMin`/`AmountMax`: weil der Betrag
+/// nicht in SQL geprüft werden kann (`EntryFilter`), braucht der Nachfilter in F#
+/// die volle Treffermenge der übrigen Kriterien. Ohne Betrags-Filter benutzen
+/// `loadEntriesPage`/`countEntries`/`loadAmountsForQuery`/`countDeletedEntries`/
+/// `loadPayeeSuggestions` weiterhin ihre eigene, gezielte SQL-Abfrage (LIMIT/OFFSET,
+/// COUNT, Projektion) statt dieser Funktion — sonst würde jede Abfrage ohne Not
+/// erst alle rund 14.000 Buchungen laden (Task-Vorgabe: "Die Filterung gehört in
+/// die Abfrage, nicht hinter sie").
+let private loadAllMatching (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<Entry list> =
+    async {
+        use conn = Core.getConnection ()
+        let whereSql, ps = buildFilterClause accountId filter
+        let! rows =
+            conn.QueryAsync<EntryRow>($"SELECT * FROM ledger_entries WHERE {whereSql} ORDER BY date DESC, id DESC", ps)
+            |> Async.AwaitTask
+        return rows |> Seq.map rowToEntry |> Seq.toList
+    }
+
+let private safePage (pageIndex: int) (pageSize: int) (xs: Entry list) : Entry list =
+    let offset = pageIndex * pageSize
+    if offset >= List.length xs then [] else xs |> List.skip offset |> List.truncate pageSize
+
 /// Eine Seite der Buchungen eines Kontos oder — `accountId = None` — aller Konten,
 /// neueste zuerst. Liest ausschliesslich die Zustandstabelle (ADR 0013).
-/// `includeDeleted = false` (Standard, ledger-p3n8k) lässt in YNAB gelöschte
-/// Buchungen aus der Seite weg, sonst zählen sie mit. `onlyNeedsReview = true`
-/// (ADR 0032) lässt nur ungeprüfte Buchungen stehen; beide Schalter sind
-/// unabhängig voneinander und werden mit UND verknüpft.
+/// `filter.IncludeDeleted = false` (Standard, ledger-p3n8k) lässt in YNAB gelöschte
+/// Buchungen aus der Seite weg, sonst zählen sie mit. `filter.OnlyNeedsReview = true`
+/// (ADR 0032) lässt nur ungeprüfte Buchungen stehen. Die fünf Such-Filter
+/// (ledger-vgfw3) wirken zusätzlich, alle als Und-Verknüpfung.
 let loadEntriesPage
     (accountId: LedgerAccountId option)
     (pageIndex: int)
     (pageSize: int)
-    (includeDeleted: bool)
-    (onlyNeedsReview: bool)
+    (filter: EntryFilter)
     : Async<Entry list> =
     async {
-        use conn = Core.getConnection ()
-        let offset = pageIndex * pageSize
-        let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
-        let needsReviewClause = if onlyNeedsReview then $"AND {needsReviewSqlClause}" else ""
-        let! rows =
-            match accountId with
-            | Some (LedgerAccountId id) ->
+        if hasAmountFilter filter then
+            let! all = loadAllMatching accountId filter
+            return all |> List.filter (fun e -> amountMatches filter e.Amount.Amount) |> safePage pageIndex pageSize
+        else
+            use conn = Core.getConnection ()
+            let offset = pageIndex * pageSize
+            let whereSql, ps = buildFilterClause accountId filter
+            ps.Add("limit", pageSize)
+            ps.Add("offset", offset)
+            let! rows =
                 conn.QueryAsync<EntryRow>(
-                    $"""SELECT * FROM ledger_entries WHERE account_id = @accountId {deletedClause} {needsReviewClause}
-                       ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
-                    {| accountId = id.ToString(); limit = pageSize; offset = offset |}
+                    $"SELECT * FROM ledger_entries WHERE {whereSql} ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset",
+                    ps
                 )
                 |> Async.AwaitTask
-            | None ->
-                conn.QueryAsync<EntryRow>(
-                    $"""SELECT * FROM ledger_entries WHERE 1 = 1 {deletedClause} {needsReviewClause}
-                       ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset""",
-                    {| limit = pageSize; offset = offset |}
-                )
-                |> Async.AwaitTask
-        return rows |> Seq.map rowToEntry |> Seq.toList
+            return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
 /// Die Gesamtzahl der Buchungen eines Kontos oder aller Konten — die Trefferzahl
-/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite. Dieselben
-/// `includeDeleted`/`onlyNeedsReview`-Schalter wie `loadEntriesPage`, damit
-/// Trefferzahl und Seite immer zum selben Treffer gehören.
-let countEntries (accountId: LedgerAccountId option) (includeDeleted: bool) (onlyNeedsReview: bool) : Async<int> =
+/// einer Seiten-Abfrage, nicht die Zahl der geladenen Seite. Derselbe `filter` wie
+/// `loadEntriesPage`, damit Trefferzahl und Seite immer zum selben Treffer gehören.
+let countEntries (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<int> =
     async {
-        use conn = Core.getConnection ()
-        let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
-        let needsReviewClause = if onlyNeedsReview then $"AND {needsReviewSqlClause}" else ""
-        let! count =
-            match accountId with
-            | Some (LedgerAccountId id) ->
-                conn.ExecuteScalarAsync<int64>(
-                    $"SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId {deletedClause} {needsReviewClause}",
-                    {| accountId = id.ToString() |}
-                )
-                |> Async.AwaitTask
-            | None ->
-                conn.ExecuteScalarAsync<int64>(
-                    $"SELECT COUNT(*) FROM ledger_entries WHERE 1 = 1 {deletedClause} {needsReviewClause}")
-                |> Async.AwaitTask
-        return int count
+        if hasAmountFilter filter then
+            let! all = loadAllMatching accountId filter
+            return all |> List.filter (fun e -> amountMatches filter e.Amount.Amount) |> List.length
+        else
+            use conn = Core.getConnection ()
+            let whereSql, ps = buildFilterClause accountId filter
+            let! count = conn.ExecuteScalarAsync<int64>($"SELECT COUNT(*) FROM ledger_entries WHERE {whereSql}", ps) |> Async.AwaitTask
+            return int count
     }
 
 /// Die Zahl der in YNAB gelöschten Buchungen eines Kontos oder aller Konten
-/// (unabhängig von `includeDeleted`, ledger-p3n8k AC2): die Seite soll "N gelöschte
-/// Buchungen ausgeblendet" auch zeigen können, während sie ausgeblendet sind.
-let countDeletedEntries (accountId: LedgerAccountId option) : Async<int> =
+/// (unabhängig von `filter.IncludeDeleted`/`filter.OnlyNeedsReview`, ledger-p3n8k
+/// AC2): die Seite soll "N gelöschte Buchungen ausgeblendet" auch zeigen können,
+/// während sie ausgeblendet sind. Die fünf Such-Filter (ledger-vgfw3) gelten
+/// trotzdem mit, sonst passt die Zahl nicht mehr zum aktiven Filter (AC).
+let countDeletedEntries (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<int> =
     async {
-        use conn = Core.getConnection ()
-        let! count =
-            match accountId with
-            | Some (LedgerAccountId id) ->
-                conn.ExecuteScalarAsync<int64>(
-                    "SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId AND deleted_in_ynab = 1",
-                    {| accountId = id.ToString() |}
-                )
+        let deletedFilter = { filter with IncludeDeleted = true; OnlyNeedsReview = false }
+        if hasAmountFilter filter then
+            let! all = loadAllMatching accountId deletedFilter
+            return
+                all
+                |> List.filter (fun e -> e.DeletedInYnab && amountMatches filter e.Amount.Amount)
+                |> List.length
+        else
+            use conn = Core.getConnection ()
+            let whereSql, ps = buildFilterClause accountId deletedFilter
+            let! count =
+                conn.ExecuteScalarAsync<int64>($"SELECT COUNT(*) FROM ledger_entries WHERE {whereSql} AND deleted_in_ynab = 1", ps)
                 |> Async.AwaitTask
-            | None ->
-                conn.ExecuteScalarAsync<int64>("SELECT COUNT(*) FROM ledger_entries WHERE deleted_in_ynab = 1")
-                |> Async.AwaitTask
-        return int count
+            return int count
     }
 
 /// Die Zahl der zu prüfenden Buchungen eines Kontos oder aller Konten (ADR 0032),
 /// unabhängig von `onlyNeedsReview` (wie `countDeletedEntries`/`IncludeDeleted`):
 /// die Seite soll den Chip "Zu prüfen (n)" auch zeigen können, während der Filter
-/// aus ist. Gelöschte Buchungen zählen nie mit.
+/// aus ist. Gelöschte Buchungen zählen nie mit. Bewusst OHNE die fünf Such-Filter
+/// (ledger-vgfw3): der Chip ist ein fester Zähler über das Konto, keine
+/// Trefferzahl der laufenden Suche — anders als `countDeletedEntries`, das die
+/// Summenzeile stützt.
 let countNeedsReviewEntries (accountId: LedgerAccountId option) : Async<int> =
     async {
         use conn = Core.getConnection ()
@@ -648,31 +784,51 @@ type private AmountRow = { amount: string; currency: string }
 /// Die Betraege aller Buchungen eines Treffers (ein Konto oder alle), fuer die in F#
 /// gebildete Summe ueber den GESAMTEN Treffer (ADR 0017, ledger-b1xwe AC1). Bewusst
 /// kein `SUM(amount)`: der Betrag liegt als exakter Dezimal-Text, nicht als `REAL`.
-/// `includeDeleted = false` (ledger-p3n8k) schließt gelöschte Beträge aus der
-/// Summe aus, `onlyNeedsReview = true` (ADR 0032) schließt sie auf die zu prüfenden
-/// Buchungen ein, damit die Summe zum tatsächlichen Treffer passt.
-let loadAmountsForQuery
-    (accountId: LedgerAccountId option)
-    (includeDeleted: bool)
-    (onlyNeedsReview: bool)
-    : Async<Money list> =
+/// Derselbe `filter` wie `loadEntriesPage`/`countEntries`, damit die Summe zum
+/// tatsächlichen Treffer passt.
+let loadAmountsForQuery (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<Money list> =
     async {
-        use conn = Core.getConnection ()
-        let deletedClause = if includeDeleted then "" else "AND deleted_in_ynab = 0"
-        let needsReviewClause = if onlyNeedsReview then $"AND {needsReviewSqlClause}" else ""
-        let! rows =
-            match accountId with
-            | Some (LedgerAccountId id) ->
-                conn.QueryAsync<AmountRow>(
-                    $"SELECT amount, currency FROM ledger_entries WHERE account_id = @accountId {deletedClause} {needsReviewClause}",
-                    {| accountId = id.ToString() |}
+        if hasAmountFilter filter then
+            let! all = loadAllMatching accountId filter
+            return all |> List.filter (fun e -> amountMatches filter e.Amount.Amount) |> List.map (fun e -> e.Amount)
+        else
+            use conn = Core.getConnection ()
+            let whereSql, ps = buildFilterClause accountId filter
+            let! rows =
+                conn.QueryAsync<AmountRow>($"SELECT amount, currency FROM ledger_entries WHERE {whereSql}", ps)
+                |> Async.AwaitTask
+            return rows |> Seq.map (fun r -> { Amount = decimalFromText r.amount; Currency = r.currency }) |> Seq.toList
+    }
+
+[<CLIMutable>]
+type private PayeeCountRow = { payee: string; cnt: int64 }
+
+/// Die Payees eines Treffers samt ihrer Anzahl **innerhalb dieses Treffers**
+/// (ledger-vgfw3 AC, ADR 0036) — nicht über alle Buchungen, nicht über die geladene
+/// Seite. `filter.Payee` ist bei diesem Aufruf erwartungsgemäß `None` (der Aufrufer,
+/// `getLedgerPayeeSuggestions`, übergibt nie einen bereits gewählten Payee-Filter);
+/// wäre er trotzdem gesetzt, würde er wie jeder andere Filter mitwirken, statt
+/// stillschweigend ignoriert zu werden.
+let loadPayeeSuggestions (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<(string * int) list> =
+    async {
+        if hasAmountFilter filter then
+            let! all = loadAllMatching accountId filter
+            return
+                all
+                |> List.filter (fun e -> amountMatches filter e.Amount.Amount)
+                |> List.choose (fun e -> e.Payee)
+                |> List.countBy id
+                |> List.sortByDescending snd
+        else
+            use conn = Core.getConnection ()
+            let whereSql, ps = buildFilterClause accountId filter
+            let! rows =
+                conn.QueryAsync<PayeeCountRow>(
+                    $"SELECT payee, COUNT(*) as cnt FROM ledger_entries WHERE {whereSql} AND payee IS NOT NULL GROUP BY payee ORDER BY cnt DESC",
+                    ps
                 )
                 |> Async.AwaitTask
-            | None ->
-                conn.QueryAsync<AmountRow>(
-                    $"SELECT amount, currency FROM ledger_entries WHERE 1 = 1 {deletedClause} {needsReviewClause}")
-                |> Async.AwaitTask
-        return rows |> Seq.map (fun r -> { Amount = decimalFromText r.amount; Currency = r.currency }) |> Seq.toList
+            return rows |> Seq.map (fun r -> r.payee, int r.cnt) |> Seq.toList
     }
 
 [<CLIMutable>]

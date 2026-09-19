@@ -152,6 +152,7 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Ereignis-Log und zählt in der Anzeige deshalb von oben nach unten abwärts.
   Diese Richtung gilt auch für die Detail-Sicht aus `ledger-q1hw2`, die sie
   übernimmt statt neu zu entscheiden.
+- **Such-Filter (Kassenbuch)** — die fuenf Kriterien Kategorie (Mehrfachauswahl), Zeitraum (von/bis, randtag-einschliessend), Payee (exakt, ohne Gross-/Kleinschreibung), Betrag (von/bis) und Memo (Teiltext, ohne Gross-/Kleinschreibung) auf `LedgerEntryPageQuery`/`LedgerPayeeSuggestionQuery`. Gelten als Und-Verknuepfung ueber alle vier Zaehlwege (`loadEntriesPage`, `countEntries`, `loadAmountsForQuery`, `countDeletedEntries`) und `loadPayeeSuggestions` hinweg, gebuendelt in `Ledger.Persistence.EntryFilter`/`buildFilterClause`. `countNeedsReviewEntries` (Chip "Zu pruefen") bleibt bewusst aussen vor: fester Kontozaehler, keine Trefferzahl der laufenden Suche. Der Kategorie-Filter trifft nur `category_id` (die einfache Kategorie), nicht Split-Zeilen (JSON-Text, ADR 0013 Punkt 8) — eine Buchung, deren einzige Kategorie in einem Split steckt, findet er nicht. Zeitraum vergleicht nur den Datumsanteil (erste 10 Zeichen des gespeicherten ISO-8601-Textes), Kind-unabhaengig (ADR 0036).
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
