@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 13:27 -- Batch started: [infra-jh7g9, design-system-e5vfc, ledger-h9tq2]
+
+**Type:** Work / Batch start
+**Tasks:** infra-jh7g9 - "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen", design-system-e5vfc - "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen", ledger-h9tq2 - "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
+**Parallel:** yes (3 Worker — infra-jh7g9, design-system-e5vfc, ledger-h9tq2; dateilich disjunkt. Zweite Welle dieses Laufs. Zurueckgehalten: ledger-d4kx8 (kollidiert mit ledger-h9tq2 auf src/Client/Components/Ledger/View.fs), design-system-k2vgz und design-system-t3vqr (kollidieren miteinander auf standards/frontend/styleguide.md). ledger-h9tq2 hat Vorrang vor ledger-d4kx8, weil sie ledger-q1hw2 entsperrt)
+
+---
+
 ## 2026-09-19 13:25 -- Work session ended
 
 **Type:** Work / Session end

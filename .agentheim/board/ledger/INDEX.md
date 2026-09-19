@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 14
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 18
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-h9tq2** — "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst" (decision) — `todo/ledger-h9tq2-reihenfolge-der-historie-entscheiden.md`
 - **ledger-d4kx8** — "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem" (decision) — `todo/ledger-d4kx8-geloeschte-buchungen-in-trefferzahl-und-summe.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-h9tq2** — "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst" (decision) — `doing/ledger-h9tq2-reihenfolge-der-historie-entscheiden.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

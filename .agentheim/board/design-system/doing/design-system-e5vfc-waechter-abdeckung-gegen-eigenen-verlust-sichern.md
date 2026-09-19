@@ -1,7 +1,7 @@
 ---
 id: design-system-e5vfc
 title: "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-18
