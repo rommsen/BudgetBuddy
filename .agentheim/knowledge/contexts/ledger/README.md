@@ -111,8 +111,13 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
     Buchungen aus Seite, Trefferzahl und Summe außen vor, sodass die sichtbare Liste
     sich zum Kontostand summiert; `DeletedCount` bleibt trotzdem bekannt, damit die
     Seite "N gelöschte Buchungen ausgeblendet" auch zeigen kann, während sie
-    ausgeblendet sind. Fundament für die künftigen Filter (`ledger-vgfw3`) und die
-    Summenzeile über der Liste.
+    ausgeblendet sind. Ist `IncludeDeleted = true` gesetzt, zählen gelöschte
+    Buchungen dagegen bewusst in Seite, Trefferzahl und Summe mit (Variante 2,
+    Entscheidung Roman 2026-09-18, `ledger-d4kx8`); der Kontostand
+    (`getLedgerAccountBalances` / `Shared.Domain.ledgerBalancesByAccount`) lässt sie
+    davon unabhängig immer draußen, die Abweichung zwischen Summenzeile und
+    Kontostand ist damit gewollt. Fundament für die künftigen Filter (`ledger-vgfw3`)
+    und die Summenzeile über der Liste.
   - `getLedgerAccountBalances` (ledger-b1xwe) — die **Kontostände** aller Konten in
     einem Aufruf, für die Kontostände-Leiste. Der Stand ist die Summe der nicht in
     YNAB gelöschten Buchungen je Konto (`Shared.Domain.ledgerBalancesByAccount`),

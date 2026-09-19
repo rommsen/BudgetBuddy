@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
+- **Backlog:** 16
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 25
+- **Doing:** 0
+- **Done:** 26
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `doing/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `done/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 - **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `done/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `done/ledger-vgfw3-filter-und-summenzeile.md`
 - **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `done/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
@@ -56,6 +56,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im Abschnitt Oberfläche korrigieren" (chore) — `backlog/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
+- **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `backlog/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
 - **ledger-xk9wq** — "Kategorie-Filter im Kassenbuch-Lesepfad erfasst keine Split-Zeilen-Kategorien" (feature) — `backlog/ledger-xk9wq-kategorie-filter-im-kassenbuch-lesepfad-erfasst-keine-split.md`
 - **ledger-h4qtx** — "Payee-Vorschläge case-insensitiv gruppieren, wie der Payee-Filter selbst" (chore) — `backlog/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
 - **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Kategoriegruppe bis ins ReadModel durchreichen" (feature) — `backlog/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`

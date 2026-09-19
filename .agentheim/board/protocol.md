@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 20:13 -- Task verified and completed: ledger-ezrw0 - "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen"
+
+**Type:** Work / Task completion
+**Task:** ledger-ezrw0 - "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen"
+**Summary:** getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzt
+**Duration:** 52m
+**Verification:** PASS (iteration 2)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
+## 2026-09-19 20:02 -- Verification failed: ledger-ezrw0 - getLedgerEntriesPage im ledger-README
+
+**Type:** Work / Verification failure
+**Task:** ledger-ezrw0 - getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen
+**Iteration:** 1 of 3
+**Reasons:** Das README_DELTA entfernt die Einrückung des gesamten Sichten-Blocks (31 von 32 Zeilen), weil replaceRange den body wörtlich einspliced. Der Verifier hat applyReadmeDelta tatsächlich laufen lassen: die sechs Lesefunktionen landen auf Spalte 0 und werden Geschwister der Ubiquitous-language-Begriffe statt Kinder von Sichten. Zweitschaden: danach tragen sie keinen fetten Begriffskopf mehr, termHeadOf liefert null, und kein künftiges replace kann sie je wieder erreichen.
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-19 20:01 -- Task completed (verification skipped): infrastructure-qwthn - "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen"
 
 **Type:** Work / Task completion
