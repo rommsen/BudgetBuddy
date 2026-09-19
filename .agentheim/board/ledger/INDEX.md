@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
-- **Todo:** 5
+- **Backlog:** 10
+- **Todo:** 6
 - **Doing:** 0
 - **Done:** 20
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-t7v2q** — "Übertrag: die beiden Buchungen miteinander verknüpfen" (feature) — `todo/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
 - **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `todo/ledger-vgfw3-filter-und-summenzeile.md`
 - **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `todo/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `todo/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
@@ -64,7 +65,6 @@ research touching this BC, and concept synthesis pages.
 - **ledger-kwwxz** — Available-Betrag je Kategorie spiegeln und in der Kategorienauswahl zeigen (feature) — `backlog/ledger-kwwxz-available-betrag-je-kategorie-spiegeln.md`
 - **ledger-xfjcp** — Buchung an Lena zuweisen statt nur ein Flag setzen; später Sicht "Für mich" und Benachrichtigung (feature) — `backlog/ledger-xfjcp-lena-zuweisen-statt-flag.md`
 - **ledger-tpbe7** — Randfälle, in denen die Kassenbuch-Buchung nach dem Push von YNAB abweicht, und ungetesteter Klebecode im Import-Push (bug) — `backlog/ledger-tpbe7-randfaelle-kassenbuch-weicht-nach-push-von-ynab-ab.md`
-- **ledger-t7v2q** — Übertrag: die beiden Buchungen miteinander verknüpfen (feature) — `backlog/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
 - **ledger-c7j8e** — Kursquelle für Geldmarkt-ETF per ISIN (Research-Spike) (spike) — `backlog/ledger-c7j8e-kursquelle-etf-isin-research-spike.md`
 <!-- backlog-list:end -->
 

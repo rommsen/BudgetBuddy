@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 16:51 -- Modeling / Promoted: ledger-t7v2q - "Übertrag: die beiden Buchungen miteinander verknüpfen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 16:51 -- Modeling / Refined: ledger-t7v2q - Uebertrag: die beiden Buchungen miteinander verknuepfen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Die offene Modellierungsfrage ist entschieden, auf Romans ausdrueckliche Delegation an den tactical-modeler. Das neue Ereignis heisst EntryTransferCounterpartObservedInYnab und gehoert zur Beobachtungs-Familie (Actor YnabMirror). Ausschlaggebend war ADR 0013s Definition von Abweichung als Widerspruch zwischen letzter Entscheidung und letzter Beobachtung: mit dem Entscheidungs-Etikett stuende im Log eine Festlegung, die Roman nie getroffen hat, und ein spaeteres Aufheben des Uebertrags in YNAB saehe wie eine Abweichung aus, obwohl keine besteht. Je Seite ein Ereignis, beide in einem appendAndApply-Aufruf und damit einer Transaktion, weil der Umschlag genau eine Buchungs-Id traegt. Die Idempotenz sitzt im Erzeuger, nicht in apply; eine abweichende bestehende Verknuepfung wird bewusst NICHT abgelehnt, weil YNAB einen Uebertrag aufheben und neu verbinden darf und ein hartes invalidOp sonst den ganzen Spiegel-Lauf an einem erlaubten Vorgang mitrisse. Laut abgelehnt wird nur die Selbstverknuepfung. Die Aufgabe traegt jetzt den fertigen Katalog-Wortlaut, den F#-Fall, die apply-Regel, die Erzeugungsstelle im Spiegel-Lauf mit fuenf Bedingungen und zehn maschinell pruefbare Kriterien.
+**Offen gelassen, ausdruecklich statt geraten:** Codec-Form fuer EntryId, ob YnabObservations transfer_transaction_id aus Subtransaktionen mitfuehrt (dann ist es eine eigene Modellierungsfrage und der Worker meldet zurueck ins Backlog), und ob der Historien-Satz den Kontonamen der Gegenseite tragen soll.
+**ADRs written:** keine. Die Entscheidung wendet ADR 0013 und ADR 0015 an, sie begruendet keinen neuen Grundsatz; der verbindliche Ort ist der Ereignis-Katalog im ledger-README.
+
+---
+
 ## 2026-09-19 16:24 -- Modeling / Promoted: design-system-k4mtx - "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen"
 
 **Type:** Modeling / Promote
