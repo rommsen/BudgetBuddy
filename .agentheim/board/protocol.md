@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 14:34 -- Batch started: [design-system-k2vgz]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-k2vgz - "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern"
+**Parallel:** no (1 Worker — design-system-k2vgz, die letzte offene Aufgabe dieses Laufs. Vierte Welle. In Welle 3 zurückgehalten, weil sie möglicherweise standards/frontend/styleguide.md anfasst, das design-system-t3vqr sicher angefasst hat; t3vqr ist inzwischen integriert, der Styleguide-Stand also bekannt und die Kollisionsgefahr aufgelöst.)
+
+---
+
 ## 2026-09-19 14:33 -- Task verified and completed: ledger-d4kx8 - "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem"
 
 **Type:** Work / Task completion
