@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:06 -- Capture / Captured: design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Das Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, weil deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen. Gefunden beim Versuch, das offene Augen-Kriterium von design-system-bq4tz mit dem neuen Werkzeug abzuschliessen; Roman hat die Route stattdessen von Hand geprüft, Befund passt.
+
+---
+
 ## 2026-09-19 00:02 -- Work session ended
 
 **Type:** Work / Session end
