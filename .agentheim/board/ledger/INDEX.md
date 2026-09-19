@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 3
-- **Doing:** 3
-- **Done:** 20
+- **Doing:** 2
+- **Done:** 21
 <!-- task-counts:end -->
 
 ### Todo
@@ -27,11 +27,11 @@ research touching this BC, and concept synthesis pages.
 <!-- doing-list:start -->
 - **ledger-w9skm** — "Kassenbuch-Liste: Kategorie in Violett, und am Handy flache Zeilen statt Karten" (bug) — `doing/ledger-w9skm-kategorie-violett-und-flache-handy-zeilen.md`
 - **ledger-t7v2q** — "Übertrag: die beiden Buchungen miteinander verknüpfen" (feature) — `doing/ledger-t7v2q-bertrag-die-beiden-buchungen-miteinander-verkn-pfen.md`
-- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `doing/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-fq3kd** — Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch (feature) — `done/ledger-fq3kd-force-import-schreibt-noch-nicht-ins-kassenbuch.md`
 - **ledger-d4kx8** — "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem" (decision) — `done/ledger-d4kx8-geloeschte-buchungen-in-trefferzahl-und-summe.md`
 - **ledger-h9tq2** — "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst" (decision) — `done/ledger-h9tq2-reihenfolge-der-historie-entscheiden.md`
 - **ledger-kdnnz** — "Spiegel erweitern: Prüfvermerk (approved und cleared) und Flags beobachten, Chip \"Zu prüfen\" und Kennzeichen \"Rückfrage Lena\" anzeigen" (feature) — `done/ledger-kdnnz-spiegel-pruefvermerk-und-flags-lesend.md`

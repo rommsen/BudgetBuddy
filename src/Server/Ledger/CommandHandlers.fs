@@ -444,6 +444,15 @@ type ComdirectImportCandidate = {
     Payee: string option
     Memo: string option
     ReviewSteps: ReviewStep list
+    /// Die ImportId, über die nach einer schon bestehenden Kassenbuch-Buchung gesucht
+    /// wird, falls sie von `Prepared.ImportId` abweicht (Force-Import, ledger-fq3kd):
+    /// der normale Push schreibt die Buchung vor YNABs Duplikat-Meldung bereits mit der
+    /// alten, deterministischen ImportId (`Shared.Domain.generateImportId`); Force-
+    /// Import sendet danach mit einer neuen ImportId (`forceNewImportId = true`, nur für
+    /// YNABs Dedup), muss die bestehende Buchung aber über die alte ImportId finden.
+    /// `None` (Normalfall, Import-Push): Suche und Versand teilen sich dieselbe
+    /// ImportId, wie bisher.
+    ExistingEntryImportId: string option
 }
 
 /// Wie eine einzelne Buchung aus einem Push-Versuch hervorgegangen ist.
@@ -510,8 +519,12 @@ let pushComdirectImports
             |> List.map (fun candidate ->
                 async {
                     let prepared = candidate.Prepared
+                    // Force-Import (ledger-fq3kd): sucht über die alte, deterministische
+                    // ImportId, sendet aber mit der neuen (`ExistingEntryImportId`,
+                    // gesetzt vom Aufrufer). Normalfall: beide sind dieselbe ImportId.
+                    let searchImportId = candidate.ExistingEntryImportId |> Option.defaultValue prepared.ImportId
 
-                    match! Ledger.Persistence.findEntryByLink ImportIdSystem prepared.ImportId with
+                    match! Ledger.Persistence.findEntryByLink ImportIdSystem searchImportId with
                     | Some entryId ->
                         // Schon eine Buchung für diese ImportId (ADR 0021 Punkt 3): kein
                         // zweites Entstehen. Ob sie erneut gesendet werden muss, hängt
@@ -533,7 +546,15 @@ let pushComdirectImports
                             recordComdirectPush {
                                 EntryId = entryId
                                 AccountId = accountId
-                                ImportId = prepared.ImportId
+                                // Die neu geschriebene Buchung trägt dieselbe ImportId,
+                                // über die sie gesucht wurde (`searchImportId`), nicht
+                                // zwingend `prepared.ImportId`: im Force-Fall wäre das
+                                // sonst die neue, nur für YNABs Dedup erzeugte ImportId,
+                                // unter der ein späterer Versuch (mit wieder einer neuen
+                                // ImportId) diese Buchung nie wiederfände und erneut eine
+                                // zweite anlegen würde (AC "zweiter Force-Import-Versuch
+                                // erzeugt keine zweite Buchung", ledger-fq3kd).
+                                ImportId = searchImportId
                                 ComdirectReference = candidate.ComdirectReference
                                 Date = candidate.Date
                                 Amount = candidate.Amount

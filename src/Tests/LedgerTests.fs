@@ -1251,6 +1251,22 @@ module private PushFixtures =
             Payee = Some "dm"
             Memo = None
             ReviewSteps = reviewSteps
+            ExistingEntryImportId = None
+        }
+
+    /// Wie `candidate`, aber mit einer eigenen ImportId für die Kassenbuch-Suche, die von
+    /// der ImportId im vorbereiteten Request abweicht (Force-Import, ledger-fq3kd): der
+    /// Versand trägt eine neue ImportId (YNABs Dedup), die Suche nach der schon
+    /// bestehenden Buchung läuft über die alte, deterministische ImportId.
+    let forceCandidate
+        (txId: string)
+        (existingEntryImportId: string)
+        (newImportId: string)
+        (amount: Money)
+        : ComdirectImportCandidate =
+        {
+            candidate txId newImportId amount []
+                with ExistingEntryImportId = Some existingEntryImportId
         }
 
     /// Ein injizierter `push`, der jede vorbereitete Buchung unter einer eigenen
@@ -1652,6 +1668,127 @@ let ledgerImportPushCommandTests =
             |> ignore
 
             Expect.equal triggerCount 0 "ohne neuen Versand gibt es nichts, was der Spiegel sofort sehen müsste"
+
+        testCase "Force-Import verknüpft die schon bestehende Buchung über die alte ImportId, statt eine zweite anzulegen" <| fun () ->
+            // Regressionstest (ledger-fq3kd, Verifier-Fund aus ledger-qvt84 Iteration 2):
+            // der normale Push schreibt die Kassenbuch-Buchung schon vor YNABs
+            // Duplikat-Meldung mit der alten, deterministischen ImportId. Ruft
+            // Force-Import `pushComdirectImports` mit einer NEUEN ImportId auf (wie
+            // `forceNewImportId = true` sie erzeugt), ohne `ExistingEntryImportId` zu
+            // setzen, findet die Suche über die neue ImportId nichts und legt eine
+            // zweite "Comdirect-Import"-Buchung an. Mit `ExistingEntryImportId` (gesetzt
+            // auf die alte ImportId) muss stattdessen dieselbe Buchung wiederverwendet
+            // und neu verknüpft werden.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let oldImportId = $"import-{txId}"
+            let newImportId = $"force-{Guid.NewGuid()}"
+
+            // Normaler Push zuvor: schreibt die Buchung mit der alten ImportId, aber der
+            // Sende-Versuch scheitert (Netzwerkfehler o.ä.) - die Buchung bleibt
+            // unverknüpft stehen, genau wie sie dastünde, wenn YNAB sie als Duplikat
+            // abgelehnt hätte.
+            let firstCand = PushFixtures.candidate txId oldImportId (eur -12.30m) []
+            let failingPush (_: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
+                async.Return (Error (YnabError.NetworkError "Timeout"))
+            let firstEntryId =
+                match
+                    pushComdirectImports (DateTime(2026, 3, 9, 10, 0, 0, DateTimeKind.Utc)) failingPush noTrigger testAccountId [ firstCand ]
+                    |> Async.RunSynchronously
+                    |> fun r -> Map.tryFind (TransactionId txId) r.Outcomes
+                with
+                | Some (WrittenNotLinked entryId) -> entryId
+                | other -> failtest $"Vorbereitung sollte WrittenNotLinked liefern, war {other}"
+
+            // Force-Import: neue ImportId für YNABs Dedup, aber die Suche nach der schon
+            // bestehenden Buchung läuft über die alte ImportId.
+            let forceCand = PushFixtures.forceCandidate txId oldImportId newImportId (eur -12.30m)
+            let ynabTxId = $"ynab-{txId}"
+
+            let forceResult =
+                pushComdirectImports
+                    (DateTime(2026, 3, 9, 11, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
+                    testAccountId
+                    [ forceCand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) forceResult.Outcomes with
+            | Some (Linked (entryId, gotYnabTxId)) ->
+                Expect.equal entryId firstEntryId "dieselbe Buchung wird wiederverwendet, keine zweite entsteht"
+                Expect.equal gotYnabTxId ynabTxId "Verknüpfung über die Force-Import-Antwort"
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                    "genau eine Entstehung (vom ersten Versuch), keine zweite \"Comdirect-Import\"-Buchung"
+            | other -> failtest $"erwartete Linked, war {other}"
+
+        testCase "Force-Import ohne bestehende Buchung legt genau eine neue an" <| fun () ->
+            // AC (Randfall): existiert noch keine Kassenbuch-Buchung für die alte
+            // ImportId, entsteht genau eine, wie beim normalen Import-Push.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let oldImportId = $"import-{txId}"
+            let newImportId = $"force-{Guid.NewGuid()}"
+            let forceCand = PushFixtures.forceCandidate txId oldImportId newImportId (eur -5.50m)
+            let ynabTxId = $"ynab-{txId}"
+
+            let result =
+                pushComdirectImports
+                    (DateTime(2026, 3, 9, 12, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
+                    testAccountId
+                    [ forceCand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) result.Outcomes with
+            | Some (Linked (entryId, _)) ->
+                let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
+                Expect.equal
+                    (recorded |> List.map (fun r -> r.EventType))
+                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                    "genau eine neue Buchung, wie beim normalen Import-Push"
+            | other -> failtest $"erwartete Linked, war {other}"
+
+        testCase "ein zweiter Force-Import-Versuch erzeugt keine zweite Buchung" <| fun () ->
+            // AC: ein zweiter Force-Import-Versuch für dieselbe (alte) ImportId erzeugt
+            // keine zweite Buchung, sobald der erste Versuch erfolgreich verknüpft hat.
+            let txId = $"tx-{Guid.NewGuid()}"
+            let oldImportId = $"import-{txId}"
+            let firstNewImportId = $"force-{Guid.NewGuid()}"
+            let secondNewImportId = $"force-{Guid.NewGuid()}"
+            let ynabTxId = $"ynab-{txId}"
+
+            let firstForceCand = PushFixtures.forceCandidate txId oldImportId firstNewImportId (eur -2.70m)
+            let firstEntryId =
+                match
+                    pushComdirectImports
+                        (DateTime(2026, 3, 9, 13, 0, 0, DateTimeKind.Utc))
+                        (PushFixtures.successfulPush ynabTxId)
+                        noTrigger
+                        testAccountId
+                        [ firstForceCand ]
+                    |> Async.RunSynchronously
+                    |> fun r -> Map.tryFind (TransactionId txId) r.Outcomes
+                with
+                | Some (Linked (entryId, _)) -> entryId
+                | other -> failtest $"erster Force-Import sollte Linked liefern, war {other}"
+
+            let secondForceCand = PushFixtures.forceCandidate txId oldImportId secondNewImportId (eur -2.70m)
+            let secondResult =
+                pushComdirectImports
+                    (DateTime(2026, 3, 9, 14, 0, 0, DateTimeKind.Utc))
+                    (PushFixtures.successfulPush ynabTxId)
+                    noTrigger
+                    testAccountId
+                    [ secondForceCand ]
+                |> Async.RunSynchronously
+
+            match Map.tryFind (TransactionId txId) secondResult.Outcomes with
+            | Some (AlreadyImported entryId) -> Expect.equal entryId firstEntryId "derselbe Eintrag, keine zweite Buchung"
+            | other -> failtest $"zweiter Force-Import sollte AlreadyImported liefern, war {other}"
+            Expect.isNone secondResult.SendResult "der zweite Force-Import sendet nichts erneut an YNAB"
     ]
 
 // ============================================

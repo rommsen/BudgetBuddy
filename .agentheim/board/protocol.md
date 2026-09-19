@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 17:40 -- Task verified and completed: ledger-fq3kd - Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch
+
+**Type:** Work / Task completion
+**Task:** ledger-fq3kd - Force-Import (Duplikat erneut pushen) schreibt noch nicht ins Kassenbuch
+**Summary:** Force-Import verknüpft die bestehende Kassenbuch-Buchung neu, statt eine zweite anzulegen
+**Duration:** 16m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 17:21 -- Batch started: [ledger-fq3kd, ledger-t7v2q, ledger-w9skm]
 
 **Type:** Work / Batch start

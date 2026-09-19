@@ -937,6 +937,7 @@ let mirrorRunTests =
                 Payee = Some request.PayeeName
                 Memo = Some request.Memo
                 ReviewSteps = []
+                ExistingEntryImportId = None
             }
             let ynabTxId = "import-push-1"
             let push (prepared: PreparedTransaction list) : Async<YnabResult<TransactionCreateResult>> =
