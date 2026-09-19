@@ -188,6 +188,68 @@ let private resolveEntry (obs: YnabObservation) : Async<EntryId * bool> =
             | None -> return newEntryId (), false
     }
 
+/// Verknuepft die Gegenbuchung eines Uebertrags, nachdem die Beobachtung selbst
+/// geschrieben ist (ADR 0015, `EntryTransferCounterpartObservedInYnab`, ledger-t7v2q).
+///
+/// Bedingungen, alle erfuellt, sonst passiert nichts (kein Fehler, der Normalfall):
+/// die Beobachtung ist nicht geloescht, traegt eine `transfer_transaction_id`, und der
+/// Lookup ueber die YNAB-Verknuepfung findet die Gegenbuchung im Kassenbuch. Beide
+/// Zustaende werden geladen; je Seite entsteht nur dann ein Ereignis, wenn ihr
+/// `TransferEntryId` noch nicht auf die jeweils andere Buchung zeigt (Idempotenz sitzt
+/// hier, im Erzeuger, nicht in `apply`). Das heilt auch den halbseitigen Fall: kommt die
+/// Gegenseite erst in einem spaeteren Lauf, traegt dieser Aufruf die Verknuepfung auf
+/// BEIDEN Buchungen nach, obwohl nur eine der beiden in diesem Lauf tatsaechlich
+/// beobachtet wurde. Die ein oder zwei entstehenden Ereignisse gehen in einen
+/// `appendAndApply`-Aufruf (eine Transaktion).
+let private linkTransferCounterpart
+    (now: DateTime)
+    (entryId: EntryId)
+    (obs: YnabObservation)
+    : Async<unit> =
+    async {
+        if obs.Deleted then
+            return ()
+        else
+            match obs.TransferYnabTransactionId with
+            | None -> return ()
+            | Some counterpartYnabTxId ->
+                match! Ledger.Persistence.findEntryByLink YnabSystem counterpartYnabTxId with
+                | None ->
+                    // Kein Treffer ist der Normalfall: die Gegenbuchung ist im
+                    // Kassenbuch (noch) nicht bekannt.
+                    return ()
+                | Some counterpartId ->
+                    let! thisEntry = Ledger.Persistence.loadEntry entryId
+                    let! counterpartEntry = Ledger.Persistence.loadEntry counterpartId
+
+                    let linkEvent (side: EntryId) (counterpart: EntryId) (counterpartYnabTransactionId: string) =
+                        {
+                            EntryId = side
+                            OccurredAt = now
+                            Actor = YnabMirror
+                            Body =
+                                EntryTransferCounterpartObservedInYnab {
+                                    CounterpartEntryId = counterpart
+                                    CounterpartYnabTransactionId = counterpartYnabTransactionId
+                                }
+                        }
+
+                    let events =
+                        [
+                            match thisEntry with
+                            | Some e when e.TransferEntryId <> Some counterpartId ->
+                                linkEvent entryId counterpartId counterpartYnabTxId
+                            | _ -> ()
+
+                            match counterpartEntry with
+                            | Some e when e.TransferEntryId <> Some entryId ->
+                                linkEvent counterpartId entryId obs.YnabTransactionId
+                            | _ -> ()
+                        ]
+
+                    do! Ledger.Persistence.appendAndApply events
+    }
+
 /// Ein Spiegel-Lauf: Beobachtungen holen, Konten nachziehen, je Beobachtung die Buchung
 /// suchen, den Snapshot gegen den Zustand vergleichen und nur bei Unterschied Ereignisse
 /// schreiben. Am Ende steht das `server_knowledge` des Laufs in den Settings und der
@@ -253,6 +315,14 @@ let runMirror
                                         obs
 
                                 do! Ledger.Persistence.appendAndApply events
+
+                                // Uebertrags-Verknuepfung (ADR 0015): erst nachdem die
+                                // Beobachtung selbst steht, sonst findet der Lookup die
+                                // gerade eben geschriebene Buchung nicht. Zaehlt bewusst
+                                // NICHT in changedEntries/newEntries/deletedEntries: die
+                                // Zaehler beschreiben, was sich in YNAB geaendert hat,
+                                // die Verknuepfung ist BBs eigener Nachtrag.
+                                do! linkTransferCounterpart now entryId obs
 
                                 if events |> List.exists (fun e ->
                                         match e.Body with

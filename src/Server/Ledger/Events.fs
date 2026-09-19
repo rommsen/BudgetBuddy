@@ -147,6 +147,17 @@ type EntryFlagChangeObservedInYnabPayload = {
     NewFlagName: string option
 }
 
+/// Die Gegenbuchung eines Uebertrags ist gefunden. YNAB fuehrt beide Seiten ueber
+/// `transfer_transaction_id`; der Spiegel loest diese Fremd-Id auf die eigene
+/// Buchungs-Id auf (ADR 0015). Wechselseitig, aber je Seite ein eigenes Ereignis:
+/// der Umschlag traegt genau eine Buchungs-Id.
+type EntryTransferCounterpartObservedInYnabPayload = {
+    /// Die Kassenbuch-Id der Gegenbuchung.
+    CounterpartEntryId: EntryId
+    /// YNABs `transfer_transaction_id`, ueber die aufgeloest wurde.
+    CounterpartYnabTransactionId: string
+}
+
 // ============================================
 // Entscheidungs-Familie
 // ============================================
@@ -220,6 +231,10 @@ type LedgerEventBody =
     | EntryClearedStateChangeObservedInYnab of EntryClearedStateChangeObservedInYnabPayload
     | EntryApprovalChangeObservedInYnab of EntryApprovalChangeObservedInYnabPayload
     | EntryFlagChangeObservedInYnab of EntryFlagChangeObservedInYnabPayload
+    /// Die Gegenbuchung eines Uebertrags ist gefunden (ADR 0015). Beobachtung, nicht
+    /// Entscheidung (ADR 0013): BB uebersetzt nur eine Fremd-Id in die eigene
+    /// Buchungs-Id, festgestellt hat YNAB, dass beide Buchungen eine Bewegung sind.
+    | EntryTransferCounterpartObservedInYnab of EntryTransferCounterpartObservedInYnabPayload
     /// In YNAB geloescht gesehen. Nur Umschlag, keine Payload; der Zustand behaelt die
     /// Buchung und setzt das Flag `DeletedInYnab`.
     | EntryDeletionObservedInYnab
@@ -272,6 +287,7 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryClearedStateChangeObservedInYnab _ -> "EntryClearedStateChangeObservedInYnab"
     | EntryApprovalChangeObservedInYnab _ -> "EntryApprovalChangeObservedInYnab"
     | EntryFlagChangeObservedInYnab _ -> "EntryFlagChangeObservedInYnab"
+    | EntryTransferCounterpartObservedInYnab _ -> "EntryTransferCounterpartObservedInYnab"
     | EntryDeletionObservedInYnab -> "EntryDeletionObservedInYnab"
     | EntryImportedFromComdirect _ -> "EntryImportedFromComdirect"
     | EntryCategorizedByRule _ -> "EntryCategorizedByRule"
@@ -292,6 +308,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryClearedStateChangeObservedInYnab _ -> 1
     | EntryApprovalChangeObservedInYnab _ -> 1
     | EntryFlagChangeObservedInYnab _ -> 1
+    | EntryTransferCounterpartObservedInYnab _ -> 1
     | EntryDeletionObservedInYnab -> 1
     | EntryImportedFromComdirect _ -> 2
     | EntryCategorizedByRule _ -> 1
@@ -424,6 +441,7 @@ module Codec =
     let private encodeOptionalString = encodeOption Encode.string
 
     let private encodeEntryId (EntryId id) = Encode.guid id
+    let private decodeEntryId : Decoder<EntryId> = Decode.guid |> Decode.map EntryId
     let private encodeAccountId (LedgerAccountId id) = Encode.guid id
     let private decodeAccountId = Decode.guid |> Decode.map LedgerAccountId
 
@@ -578,6 +596,18 @@ module Codec =
             NewFlagName = get.Optional.Field "newFlagName" Decode.string
         })
 
+    let encodeTransferCounterpart (p: EntryTransferCounterpartObservedInYnabPayload) =
+        Encode.object [
+            "counterpartEntryId", encodeEntryId p.CounterpartEntryId
+            "counterpartYnabTransactionId", Encode.string p.CounterpartYnabTransactionId
+        ]
+
+    let decodeTransferCounterpart : Decoder<EntryTransferCounterpartObservedInYnabPayload> =
+        Decode.object (fun get -> {
+            CounterpartEntryId = get.Required.Field "counterpartEntryId" decodeEntryId
+            CounterpartYnabTransactionId = get.Required.Field "counterpartYnabTransactionId" Decode.string
+        })
+
     let encodeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
         Encode.object [
             "accountId", encodeAccountId p.AccountId
@@ -711,6 +741,7 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryClearedStateChangeObservedInYnab p -> Codec.encodeClearedChange p
         | EntryApprovalChangeObservedInYnab p -> Codec.encodeApprovalChange p
         | EntryFlagChangeObservedInYnab p -> Codec.encodeFlagChange p
+        | EntryTransferCounterpartObservedInYnab p -> Codec.encodeTransferCounterpart p
         | EntryDeletionObservedInYnab -> Encode.object []
         | EntryImportedFromComdirect p -> Codec.encodeImportedFromComdirect p
         | EntryCategorizedByRule p -> Codec.encodeCategorizedByRule p
@@ -737,6 +768,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeApprovalChange payload |> Result.map EntryApprovalChangeObservedInYnab
     | "EntryFlagChangeObservedInYnab", 1 ->
         Decode.fromString Codec.decodeFlagChange payload |> Result.map EntryFlagChangeObservedInYnab
+    | "EntryTransferCounterpartObservedInYnab", 1 ->
+        Decode.fromString Codec.decodeTransferCounterpart payload |> Result.map EntryTransferCounterpartObservedInYnab
     | "EntryDeletionObservedInYnab", 1 -> Ok EntryDeletionObservedInYnab
     | "EntryImportedFromComdirect", 1 ->
         Decode.fromString Codec.decodeImportedFromComdirectV1 payload |> Result.map EntryImportedFromComdirect

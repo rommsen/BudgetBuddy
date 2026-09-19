@@ -395,6 +395,84 @@ let ledgerDomainTests =
                 (fun () -> apply None (eventOn entryId2 YnabMirror (EntryLinkedToYnab { YnabTransactionId = "ynab-16" })) |> ignore)
                 "EntryLinkedToYnab ohne vorangehende Entstehung ist ein kaputtes Log"
 
+        testCase "EntryTransferCounterpartObservedInYnab setzt TransferEntryId, alle uebrigen Felder unveraendert" <| fun () ->
+            // AC2 (ledger-t7v2q).
+            let entryId = newEntryId ()
+            let counterpartId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-transfer-a" None))
+            let linked =
+                apply
+                    (Some before)
+                    (eventOn
+                        entryId
+                        YnabMirror
+                        (EntryTransferCounterpartObservedInYnab
+                            { CounterpartEntryId = counterpartId; CounterpartYnabTransactionId = "ynab-transfer-b" }))
+
+            Expect.equal linked.TransferEntryId (Some counterpartId) "TransferEntryId zeigt auf die Gegenbuchung"
+            Expect.equal
+                { linked with TransferEntryId = before.TransferEntryId }
+                before
+                "alle uebrigen Felder bleiben unveraendert (Record-Gleichheit prueft jedes Feld)"
+
+        testCase "EntryTransferCounterpartObservedInYnab wirft bei Selbstverknuepfung und ohne vorangehende Erstbeobachtung" <| fun () ->
+            // AC3.
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-transfer-self" None))
+            Expect.throws
+                (fun () ->
+                    apply
+                        (Some before)
+                        (eventOn
+                            entryId
+                            YnabMirror
+                            (EntryTransferCounterpartObservedInYnab
+                                { CounterpartEntryId = entryId; CounterpartYnabTransactionId = "ynab-transfer-self" }))
+                    |> ignore)
+                "eine Buchung darf sich nicht selbst als Uebertrags-Gegenseite verknuepfen"
+
+            let unknownId = newEntryId ()
+            Expect.throws
+                (fun () ->
+                    apply
+                        None
+                        (eventOn
+                            unknownId
+                            YnabMirror
+                            (EntryTransferCounterpartObservedInYnab
+                                { CounterpartEntryId = newEntryId (); CounterpartYnabTransactionId = "ynab-transfer-unbekannt" }))
+                    |> ignore)
+                "ohne vorangehende Erstbeobachtung ist das Log kaputt"
+
+        testCase "ein zweites EntryTransferCounterpartObservedInYnab mit anderer Gegenbuchung ueberschreibt TransferEntryId, ohne zu werfen" <| fun () ->
+            // AC4: YNAB kann einen Uebertrag aufheben und neu verbinden, das letzte
+            // Ereignis gewinnt.
+            let entryId = newEntryId ()
+            let counterpartB = newEntryId ()
+            let counterpartC = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-transfer-overwrite" None))
+            let firstLink =
+                apply
+                    (Some before)
+                    (eventOn
+                        entryId
+                        YnabMirror
+                        (EntryTransferCounterpartObservedInYnab
+                            { CounterpartEntryId = counterpartB; CounterpartYnabTransactionId = "ynab-transfer-b" }))
+            let secondLink =
+                apply
+                    (Some firstLink)
+                    (eventOn
+                        entryId
+                        YnabMirror
+                        (EntryTransferCounterpartObservedInYnab
+                            { CounterpartEntryId = counterpartC; CounterpartYnabTransactionId = "ynab-transfer-c" }))
+
+            Expect.equal
+                secondLink.TransferEntryId
+                (Some counterpartC)
+                "die neue Gegenbuchung gewinnt, kein Wurf trotz abweichender bestehender Verknuepfung"
+
         testCase "zwei Entstehungs-Ereignisse auf derselben Buchung schlagen fehl" <| fun () ->
             let creationBodies () = [
                 EntryObservedInYnab (observedPayload "ynab-dup" None)
@@ -433,6 +511,8 @@ let ledgerDomainTests =
                 clearedChange
                 approvalChange
                 flagChange
+                EntryTransferCounterpartObservedInYnab
+                    { CounterpartEntryId = newEntryId (); CounterpartYnabTransactionId = "ynab-7-transfer-gegen" }
                 EntryDeletionObservedInYnab
                 EntryImportedFromComdirect (importedFromComdirectPayload "import-7" "comdirect-7")
                 categorizedByRule
@@ -449,6 +529,7 @@ let ledgerDomainTests =
                   "EntryClearedStateChangeObservedInYnab"
                   "EntryApprovalChangeObservedInYnab"
                   "EntryFlagChangeObservedInYnab"
+                  "EntryTransferCounterpartObservedInYnab"
                   "EntryDeletionObservedInYnab"
                   "EntryImportedFromComdirect"
                   "EntryCategorizedByRule"
@@ -485,6 +566,8 @@ let ledgerDomainTests =
                 flagChange
                 EntryFlagChangeObservedInYnab
                     { OldFlagColor = Some "purple"; OldFlagName = Some "Lena"; NewFlagColor = None; NewFlagName = None }
+                EntryTransferCounterpartObservedInYnab
+                    { CounterpartEntryId = newEntryId (); CounterpartYnabTransactionId = "ynab-8-transfer-gegen" }
                 EntryDeletionObservedInYnab
                 EntryImportedFromComdirect (importedFromComdirectPayload "import-8b" "comdirect-8b")
                 categorizedByRule
@@ -904,6 +987,36 @@ let ledgerPersistenceTests =
                 (findEntryByLink YnabSystem cashYnabTxId |> Async.RunSynchronously)
                 (Some cashId)
                 "Quick-Add-Buchung ist ueber die Push-Antwort mit YNAB verknuepft"
+
+        testCase "Replay reproduziert die Uebertrags-Verknuepfung (TransferEntryId)" <| fun () ->
+            // AC8 (ledger-t7v2q): Pflichtgegenprobe auch fuer das neue Feld.
+            let entryA = newEntryId ()
+            let entryB = newEntryId ()
+            appendAndApply [
+                observedEvent entryA (observedPayload $"ynab-{entryIdText entryA}" None)
+                observedEvent entryB (observedPayload $"ynab-{entryIdText entryB}" None)
+                eventOn
+                    entryA
+                    YnabMirror
+                    (EntryTransferCounterpartObservedInYnab
+                        { CounterpartEntryId = entryB; CounterpartYnabTransactionId = $"ynab-{entryIdText entryB}" })
+                eventOn
+                    entryB
+                    YnabMirror
+                    (EntryTransferCounterpartObservedInYnab
+                        { CounterpartEntryId = entryA; CounterpartYnabTransactionId = $"ynab-{entryIdText entryA}" })
+            ]
+            |> Async.RunSynchronously
+
+            let byId (entries: Entry list) =
+                entries |> List.sortBy (fun e -> entryIdText e.Id)
+
+            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
+            let fromLog = replayAll () |> Async.RunSynchronously |> byId
+            Expect.equal fromLog fromTables "Replay reproduziert TransferEntryId wie die Zustandstabellen"
+
+            let entryAState = fromTables |> List.find (fun e -> e.Id = entryA)
+            Expect.equal entryAState.TransferEntryId (Some entryB) "TransferEntryId steht im replizierten Zustand"
 
         testCase "schlaegt das Zustands-Update fehl, steht auch kein Ereignis im Log" <| fun () ->
             // Ein Aenderungs-Ereignis auf eine unbekannte Buchung laesst `apply` scheitern,

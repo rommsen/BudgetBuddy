@@ -234,6 +234,13 @@ module ReadModel =
     let private describeLinkedToYnab (p: EntryLinkedToYnabPayload) =
         $"Mit YNAB verknüpft: {p.YnabTransactionId}"
 
+    /// Die Payload traegt bewusst keinen Kontonamen der Gegenbuchung (nur ihre eigene
+    /// Buchungs-Id und die YNAB-Transaction-Id, ueber die aufgeloest wurde, ledger-t7v2q
+    /// Katalog-Eintrag): ein Nachschlagen des Namens wuerde `describe` unrein machen
+    /// (I/O in einer reinen Funktion). Der Satz bleibt deshalb ohne Kontonamen.
+    let private describeTransferCounterpart (_: EntryTransferCounterpartObservedInYnabPayload) =
+        "Als Übertrag mit einer anderen Buchung verbunden"
+
     /// Ein Ereignis als Satz in der Sprache des Kassenbuchs (ADR 0013). Die Payloads
     /// tragen die alten und neuen **Namen**, deshalb braucht dieser Satz kein
     /// Nachschlagen.
@@ -246,6 +253,7 @@ module ReadModel =
             $"Status in YNAB geändert: {clearedLabel p.OldCleared} → {clearedLabel p.NewCleared}"
         | EntryApprovalChangeObservedInYnab p -> describeApprovalChange p
         | EntryFlagChangeObservedInYnab p -> describeFlagChange p
+        | EntryTransferCounterpartObservedInYnab p -> describeTransferCounterpart p
         | EntryDeletionObservedInYnab -> "In YNAB gelöscht"
         | EntryImportedFromComdirect p -> describeImportedFromComdirect p
         | EntryCategorizedByRule p -> describeCategorizedByRule p

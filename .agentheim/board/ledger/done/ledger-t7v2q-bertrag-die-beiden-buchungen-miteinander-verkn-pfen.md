@@ -1,7 +1,7 @@
 ---
 id: ledger-t7v2q
 title: "Übertrag: die beiden Buchungen miteinander verknüpfen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-06
@@ -228,3 +228,24 @@ Der Modellierer hat sie ausdrücklich als ungeprüft benannt, statt zu raten:
    Nachschlagen. Mit dieser Payload lautet er etwa "Als Übertrag mit einer anderen Buchung
    verbunden", ohne den Kontonamen der Gegenseite. Ob Roman den Namen dort sehen will
    (dann gehört er in die Payload), ist offen.
+
+## Outcome
+
+`EntryTransferCounterpartObservedInYnab` (Beobachtungs-Familie, Actor `YnabMirror`) verknüpft die beiden Buchungen eines Übertrags über `Entry.TransferEntryId`, wie ADR 0015 vorsieht und die Modellierung vom 2026-09-19 entschieden hat (Task-Text, Abschnitt "Modelliert am 2026-09-19").
+
+**Code:**
+- `src/Server/Ledger/Events.fs`: Payload `EntryTransferCounterpartObservedInYnabPayload` (`CounterpartEntryId`, `CounterpartYnabTransactionId`), DU-Fall in `LedgerEventBody`, `eventTypeName`/`schemaVersion` (= 1), Codec-Paar (`encodeTransferCounterpart`/`decodeTransferCounterpart`, Felder `counterpartEntryId`/`counterpartYnabTransactionId`), `encodePayload`/`decodePayload`-Zweige. Offener Punkt 1 (Codec-Form für `EntryId`) gelöst: ein `decodeEntryId`-Helfer ergänzt den bereits vorhandenen, bisher ungenutzten `encodeEntryId`, nach demselben Muster wie `decodeAccountId`.
+- `src/Server/Ledger/Domain.fs`: `apply`-Fall setzt `TransferEntryId`, verlangt eine bestehende Buchung (`requireExisting`), lehnt nur die Selbstverknüpfung laut ab (`invalidOp`); eine abweichende bestehende Verknüpfung wird überschrieben, nicht abgelehnt (YNAB kann einen Übertrag aufheben und neu verbinden). Idempotenz sitzt bewusst nicht hier.
+- `src/Server/Ledger/CommandHandlers.fs`: neue private Funktion `linkTransferCounterpart`, aufgerufen in `runMirror` direkt nach dem bestehenden `appendAndApply events` je Beobachtung. Prüft die vier Bedingungen aus der Modellierung (nicht gelöscht, `transfer_transaction_id` vorhanden, Gegenbuchung per `findEntryByLink` auffindbar, `TransferEntryId` noch nicht auf die Gegenseite gesetzt je Seite), baut ein oder zwei Ereignisse und schreibt sie in einem `appendAndApply`-Aufruf. Heilt den halbseitigen Fall: kommt die Gegenseite erst in einem späteren Lauf, trägt dieser Aufruf die Verknüpfung auf beiden Buchungen nach, auch wenn nur eine davon in diesem Lauf tatsächlich neu beobachtet wurde. Zählt bewusst nicht in `changedEntries`/`newEntries`/`deletedEntries`.
+- `src/Server/Ledger/QueryHandlers.fs`: Offener Punkt 3 (Historien-Satz) gelöst — `describe` bekommt einen Zweig `describeTransferCounterpart`, Satz "Als Übertrag mit einer anderen Buchung verbunden" ohne Kontonamen der Gegenbuchung (die Payload trägt bewusst keinen Namen; ein Nachschlagen würde `describe` unrein machen). Ohne diesen Zweig wäre der Pattern-Match auf `LedgerEventBody` unvollständig gewesen (Compiler-Warnung FS0025).
+
+**Tests (7 neu, TDD je Akzeptanzkriterium):**
+- `src/Tests/LedgerTests.fs`: vier neue `apply`-Tests (Feld-für-Feld-Gleichheit nach dem Setzen über Record-Gleichheit, Selbstverknüpfung/fehlende Erstbeobachtung wirft, Überschreiben mit anderer Gegenbuchung wirft nicht, Replay reproduziert `TransferEntryId`); die bestehenden `eventTypeName`- und Roundtrip-Listen um den neuen Fall erweitert.
+- `src/Tests/LedgerMirrorTests.fs`: bestehender Übertrags-Test korrigiert (die Verknüpfung ist jetzt v1 statt v2, Assertion vorher `Expect.isNone` mit veraltetem Kommentar) plus zwei neue Lauf-Tests: Idempotenz über einen zweiten identischen Lauf (keine neue laufende Nummer), Nachtrag der Verknüpfung auf beiden Seiten, wenn die Gegenseite erst im zweiten Lauf ankommt und die schon bekannte Seite dabei gar nicht erneut beobachtet wird.
+- `src/Tests/LedgerPageTests.fs`: ein `describe`-Test für den neuen Historien-Satz.
+
+Alle Tests laufen gegen In-Memory-SQLite (`USE_MEMORY_DB=true`, ADR 0030), nie gegen die Entwicklungsdatenbank.
+
+**Offener Punkt 2 (Split-Zeilen-Überträge)** ist keine Implementierungsdetail dieses Ereignisses, sondern eine eigene Modellierungsfrage, wie der Task-Text verlangt: `Server.YnabObservations.Decoders.RawSubtransaction` liest heute pro Split-Zeile nur `transfer_account_id`, nicht `transfer_transaction_id` — obwohl YNABs Subtransaction-Read-Modell laut Recherche `ynab-transfer-in-split-subtransaction-2026-06-13` beides führt. Dieser Task deckt deshalb bewusst nur Überträge auf Buchungsebene ab (die einzige Form, die der heutige Beobachtungs-Contract liefert); die Lücke ist als Backlog-Item gemeldet, siehe `BACKLOG_ITEMS`.
+
+`dotnet build` (Server, Tests) und `dotnet test` sind grün: 923 erfolgreich, 7 übersprungen (unveränderte YNAB-/Comdirect-Integrationstests, die `.env` brauchen), 0 Fehler.

@@ -265,6 +265,20 @@ let historyLanguageTests =
                 "Geloescht heisst gekennzeichnet, nicht verschwunden"
         }
 
+        test "Uebertrags-Verknuepfung spricht ohne Kontonamen, kein Typname" {
+            // ledger-t7v2q, Offener Punkt 3: die Payload traegt keinen Kontonamen der
+            // Gegenbuchung, der Satz bleibt deshalb allgemein.
+            let text =
+                ReadModel.describe (
+                    EntryTransferCounterpartObservedInYnab
+                        { CounterpartEntryId = EntryId (entryGuid 2)
+                          CounterpartYnabTransactionId = "txn-gegen" })
+            Expect.equal text "Als Übertrag mit einer anderen Buchung verbunden" "Wortlaut ohne Kontonamen"
+            Expect.isFalse
+                (text.Contains "EntryTransferCounterpartObservedInYnab")
+                "Kein Typname in der Historie"
+        }
+
         test "Historien-Zeile traegt Nummer, Zeitpunkt und Herkunft" {
             let line = ReadModel.toHistoryLine (recorded 3 Actor.YnabMirror EntryDeletionObservedInYnab)
             Expect.equal line.Sequence 3 "Die laufende Nummer kommt aus dem Log"

@@ -700,16 +700,119 @@ let mirrorRunTests =
             let entryA = loadEntry entryHin |> Async.RunSynchronously |> Option.get
             let entryB = loadEntry entryHer |> Async.RunSynchronously |> Option.get
             Expect.notEqual entryA.AccountId entryB.AccountId "je Konto eine Buchung"
-            Expect.isNone entryA.TransferEntryId "die Aufloesung zur Gegen-Buchung ist v2 (ADR 0015)"
+            // ledger-t7v2q: die Aufloesung zur Gegen-Buchung ist inzwischen v1, nicht
+            // mehr v2 (ADR 0015 wird durch EntryTransferCounterpartObservedInYnab erfuellt).
+            Expect.equal entryA.TransferEntryId (Some entryHer) "A verweist auf die Gegenbuchung B"
+            Expect.equal entryB.TransferEntryId (Some entryHin) "B verweist auf die Gegenbuchung A"
 
             match loadEventsForEntry entryHin |> Async.RunSynchronously with
-            | [ { Event = { Body = EntryObservedInYnab payload } } ] ->
+            | [ { Event = { Body = EntryObservedInYnab payload } }
+                { Event = { Body = EntryTransferCounterpartObservedInYnab link; Actor = actor } } ] ->
                 Expect.equal payload.TransferAccountId (Some kontoB) "Gegenkonto mitgefuehrt"
                 Expect.equal
                     payload.TransferYnabTransactionId
                     (Some "uebertrag-her")
                     "Gegenbuchungs-Id mitgefuehrt"
-            | events -> failtestf "genau eine Erstbeobachtung erwartet, waren %A" events
+                Expect.equal link.CounterpartEntryId entryHer "Verknuepfungs-Ereignis zeigt auf die Gegenbuchung"
+                Expect.equal actor YnabMirror "die Verknuepfung traegt den Actor YnabMirror"
+            | events -> failtestf "Erstbeobachtung gefolgt von genau einem Verknuepfungs-Ereignis erwartet, waren %A" events
+
+        testCase "ein zweiter Lauf ueber denselben Uebertrag haengt kein weiteres Verknuepfungs-Ereignis an" <| fun () ->
+            // AC6 (ledger-t7v2q): Idempotenz sitzt im Erzeuger (`linkTransferCounterpart`),
+            // nicht in `apply`.
+            let budgetId = Run.budget "uebertrag-idempotent"
+            let kontoA = YnabAccountId (Guid.NewGuid())
+            let kontoB = YnabAccountId (Guid.NewGuid())
+
+            let hin =
+                { observation "uebertrag-idempotent-hin" with
+                    AccountId = kontoA
+                    Amount = eur -500.00m
+                    Category = None
+                    TransferAccountId = Some kontoB
+                    TransferYnabTransactionId = Some "uebertrag-idempotent-her" }
+
+            let her =
+                { observation "uebertrag-idempotent-her" with
+                    AccountId = kontoB
+                    Amount = eur 500.00m
+                    Category = None
+                    TransferAccountId = Some kontoA
+                    TransferYnabTransactionId = Some "uebertrag-idempotent-hin" }
+
+            Run.run 4 budgetId (Run.fetchers 1L [ hin; her ]) |> Run.expectOk |> ignore
+            let entryHin =
+                findEntryByLink YnabSystem "uebertrag-idempotent-hin" |> Async.RunSynchronously |> Option.get
+            let entryHer =
+                findEntryByLink YnabSystem "uebertrag-idempotent-her" |> Async.RunSynchronously |> Option.get
+            let hinEventsAfterFirst = loadEventsForEntry entryHin |> Async.RunSynchronously
+            let herEventsAfterFirst = loadEventsForEntry entryHer |> Async.RunSynchronously
+
+            // Vollabruf mit denselben Daten: genau der Fall "server_knowledge verloren".
+            let second = Run.run 5 budgetId (Run.fetchers 2L [ hin; her ]) |> Run.expectOk
+            Expect.equal second.NewEntries 0 "keine neuen Buchungen"
+            Expect.equal second.ChangedEntries 0 "keine Aenderung, auch die Verknuepfung zaehlt nicht mit"
+
+            Expect.equal
+                (loadEventsForEntry entryHin |> Async.RunSynchronously |> List.length)
+                hinEventsAfterFirst.Length
+                "kein weiteres Verknuepfungs-Ereignis auf A, keine neue laufende Nummer"
+            Expect.equal
+                (loadEventsForEntry entryHer |> Async.RunSynchronously |> List.length)
+                herEventsAfterFirst.Length
+                "kein weiteres Verknuepfungs-Ereignis auf B, keine neue laufende Nummer"
+
+        testCase "kommt die Gegenseite erst im zweiten Lauf, wird die Verknuepfung dort auf beiden Seiten nachgetragen" <| fun () ->
+            // AC7 (ledger-t7v2q): der halbseitige Fall heilt, auch wenn die schon
+            // bekannte Seite im zweiten Lauf gar nicht erneut beobachtet wird.
+            let budgetId = Run.budget "uebertrag-nachtrag"
+            let kontoA = YnabAccountId (Guid.NewGuid())
+            let kontoB = YnabAccountId (Guid.NewGuid())
+
+            let hin =
+                { observation "uebertrag-nachtrag-hin" with
+                    AccountId = kontoA
+                    Amount = eur -700.00m
+                    Category = None
+                    TransferAccountId = Some kontoB
+                    TransferYnabTransactionId = Some "uebertrag-nachtrag-her" }
+
+            let firstSummary = Run.run 4 budgetId (Run.fetchers 1L [ hin ]) |> Run.expectOk
+            Expect.equal firstSummary.NewEntries 1 "nur die Hinbuchung entsteht, die Gegenseite ist noch unbekannt"
+
+            let entryHin =
+                findEntryByLink YnabSystem "uebertrag-nachtrag-hin" |> Async.RunSynchronously |> Option.get
+            Expect.isNone
+                (loadEntry entryHin |> Async.RunSynchronously |> Option.get).TransferEntryId
+                "ohne Gegenseite bleibt die Verknuepfung offen"
+            Expect.isEmpty
+                (loadEventsForEntry entryHin |> Async.RunSynchronously
+                 |> List.filter (fun e -> e.EventType = "EntryTransferCounterpartObservedInYnab"))
+                "kein Verknuepfungs-Ereignis ohne auffindbare Gegenseite"
+
+            let her =
+                { observation "uebertrag-nachtrag-her" with
+                    AccountId = kontoB
+                    Amount = eur 700.00m
+                    Category = None
+                    TransferAccountId = Some kontoA
+                    TransferYnabTransactionId = Some "uebertrag-nachtrag-hin" }
+
+            // Zweiter Lauf: nur die Gegenbuchung ist im Delta, die Hinbuchung hat sich
+            // in YNAB nicht geaendert und taucht nicht erneut auf.
+            let secondSummary = Run.run 5 budgetId (Run.fetchers 2L [ her ]) |> Run.expectOk
+            Expect.equal secondSummary.NewEntries 1 "nur die Gegenbuchung ist neu"
+
+            let entryHer =
+                findEntryByLink YnabSystem "uebertrag-nachtrag-her" |> Async.RunSynchronously |> Option.get
+            let entryAAfter = loadEntry entryHin |> Async.RunSynchronously |> Option.get
+            let entryBAfter = loadEntry entryHer |> Async.RunSynchronously |> Option.get
+
+            Expect.equal
+                entryAAfter.TransferEntryId
+                (Some entryHer)
+                "die Hinbuchung wird nachtraeglich verknuepft, obwohl sie im zweiten Lauf nicht erneut beobachtet wurde"
+            Expect.equal entryBAfter.TransferEntryId (Some entryHin) "die Gegenbuchung verweist auf die Hinbuchung"
 
         testCase "Matching nimmt die YNAB-Id vor der ImportId" <| fun () ->
             let budgetId = Run.budget "matching"

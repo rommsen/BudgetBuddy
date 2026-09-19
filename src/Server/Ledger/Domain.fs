@@ -206,6 +206,20 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         let e = requireExisting ()
         { e with FlagColor = p.NewFlagColor; FlagName = p.NewFlagName }
 
+    | EntryTransferCounterpartObservedInYnab p ->
+        // Kein zweites Entstehungs-Ereignis: eine unbekannte Buchung ist ein kaputtes
+        // Log (`requireExisting`). Eine abweichende bestehende Verknuepfung wird NICHT
+        // abgelehnt (das letzte Ereignis gewinnt): YNAB kann einen Uebertrag aufheben
+        // und neu verbinden. Nur die Selbstverknuepfung ist laut abgelehnt, sie kann
+        // nur aus einem Lookup-Fehler stammen. Idempotenz sitzt im Erzeuger (dem
+        // Spiegel-Lauf), nicht hier: `apply` bleibt eine reine Faltung ohne
+        // Sonderwissen ueber Wiederholungen.
+        let e = requireExisting ()
+        if p.CounterpartEntryId = event.EntryId then
+            let (EntryId id) = event.EntryId
+            invalidOp $"Uebertrags-Verknuepfung fuer Buchung {id} zeigt auf sich selbst"
+        { e with TransferEntryId = Some p.CounterpartEntryId }
+
     | EntryDeletionObservedInYnab ->
         let e = requireExisting ()
         { e with DeletedInYnab = true }
