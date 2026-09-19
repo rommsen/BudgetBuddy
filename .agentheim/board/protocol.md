@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 14:08 -- Batch started: [ledger-d4kx8, design-system-t3vqr]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-d4kx8 - "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem", design-system-t3vqr - "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
+**Parallel:** yes (2 Worker — ledger-d4kx8, design-system-t3vqr; dateilich disjunkt. Dritte Welle dieses Laufs. Bewusst nur zwei statt drei: es sind nur drei Aufgaben offen, und design-system-k2vgz wird zurückgehalten, weil es möglicherweise standards/frontend/styleguide.md anfasst, das t3vqr sicher anfasst. k2vgz folgt allein in einer vierten Welle, dann mit bekanntem Styleguide-Stand. ledger-d4kx8 ist frei geworden, seit ledger-h9tq2 integriert ist (beide teilten sich src/Client/Components/Ledger/View.fs).)
+
+---
+
 ## 2026-09-19 14:06 -- Task verified and completed: infra-jh7g9 - "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen"
 
 **Type:** Work / Task completion
