@@ -1,7 +1,7 @@
 ---
 id: ledger-h9tq2
 title: "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
-status: backlog
+status: todo
 type: decision
 context: ledger
 created: 2026-09-18

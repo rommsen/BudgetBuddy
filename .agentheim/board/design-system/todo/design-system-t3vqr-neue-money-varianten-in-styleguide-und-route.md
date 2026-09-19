@@ -1,7 +1,7 @@
 ---
 id: design-system-t3vqr
 title: "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
-status: backlog
+status: todo
 type: chore
 context: design-system
 created: 2026-09-12

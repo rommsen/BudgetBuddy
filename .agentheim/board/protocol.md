@@ -5,6 +5,62 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:23 -- Modeling / Promoted: ledger-h9tq2 - "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Promoted: ledger-d4kx8 - "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Promoted: design-system-k2vgz - "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Promoted: design-system-t3vqr - "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Promoted: design-system-hadjy - "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Promoted: design-system-e5vfc - "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Promoted: design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-19 12:23 -- Modeling / Refined: Charge von 10 Backlog-Items plus 1 Capture
 
 **Type:** Modeling / Refine

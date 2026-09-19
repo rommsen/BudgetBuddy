@@ -10,14 +10,19 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 5
 - **Doing:** 0
 - **Done:** 14
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-k2vgz** — "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern" (refactor) — `todo/design-system-k2vgz-alte-doku-saetze-abloesen-oder-loeschen.md`
+- **design-system-t3vqr** — "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen" (chore) — `todo/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
+- **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `todo/design-system-hadjy-export-font-face-absolute-url.md`
+- **design-system-e5vfc** — "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen" (chore) — `todo/design-system-e5vfc-waechter-abdeckung-gegen-eigenen-verlust-sichern.md`
+- **design-system-yxrxb** — "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen" (bug) — `todo/design-system-yxrxb-wartepredikat-blockiert-styleguide-route.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -45,14 +50,9 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **design-system-m4kp7** — "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server" (feature) — `backlog/design-system-m4kp7-praesentationale-routen-ohne-backend-aufnehmen.md`
-- **design-system-yxrxb** — "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen" (bug) — `backlog/design-system-yxrxb-wartepredikat-blockiert-styleguide-route.md`
-- **design-system-e5vfc** — "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen" (chore) — `backlog/design-system-e5vfc-waechter-abdeckung-gegen-eigenen-verlust-sichern.md`
 - **design-system-thtpp** — Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind (feature) — `backlog/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
-- **design-system-t3vqr** — Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen (chore) — `backlog/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
 - **design-system-an22r** — Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport, thumbnail.html, @kind-Annotation (feature) — `backlog/design-system-an22r-export-uebernimmt-claude-design-manifest-ergaenzungen.md`
-- **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `backlog/design-system-hadjy-export-font-face-absolute-url.md`
 - **design-system-w4n9r** — E2E-/Playwright-Testinfrastruktur für die /styleguide-Route und den Export-Bundle-Build (chore) — `backlog/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
-- **design-system-k2vgz** — "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern" (refactor) — `backlog/design-system-k2vgz-alte-doku-saetze-abloesen-oder-loeschen.md`
 <!-- backlog-list:end -->
 
 

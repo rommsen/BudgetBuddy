@@ -1,7 +1,7 @@
 ---
 id: ledger-d4kx8
 title: "Gelöschte Buchungen: Entwurf zählt sie in der Trefferzahl, aber nicht in der Summe; gebaut zählen sie in beidem"
-status: backlog
+status: todo
 type: decision
 context: ledger
 created: 2026-09-18

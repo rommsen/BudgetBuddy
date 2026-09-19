@@ -1,7 +1,7 @@
 ---
 id: design-system-yxrxb
 title: "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
-status: backlog
+status: todo
 type: bug
 context: design-system
 created: 2026-09-19

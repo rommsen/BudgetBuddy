@@ -1,7 +1,7 @@
 ---
 id: design-system-k2vgz
 title: "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern"
-status: backlog
+status: todo
 type: refactor
 context: design-system
 created: 2026-09-18
