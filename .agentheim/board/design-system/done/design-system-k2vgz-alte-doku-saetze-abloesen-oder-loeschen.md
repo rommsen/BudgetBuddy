@@ -1,7 +1,7 @@
 ---
 id: design-system-k2vgz
 title: "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern"
-status: doing
+status: done
 type: refactor
 context: design-system
 created: 2026-09-18
@@ -82,3 +82,60 @@ Erfasst am 2026-09-18 nach Romans Freigabe, beim Nachziehen der DaisyUI-Angaben 
 `095dd71`, neun Stellen korrigiert). Die beiden hier genannten Dateien waren bewusst
 ausgenommen, weil dort nicht ein Wort falsch ist, sondern die Frage offen ist, ob das
 Dokument noch lebt.
+
+## Outcome
+
+`docs/DESIGN-SYSTEM.md` (1295 Zeilen) und `docs/README.md` (383 Zeilen) sind gelöscht, wie
+von Roman am 2026-09-19 entschieden: löschen statt bannern, weil eine zweite Quelle, die ein
+Agent für verbindlich hält, selbst das Problem ist. `docs/README.md` verwies ohnehin auf eine
+Kapitelstruktur (`00-ARCHITECTURE.md` bis `09-QUICK-REFERENCE.md`), die unter `docs/` gar
+nicht mehr existiert.
+
+**Farbpalette vorher gesichert, aber nicht in den Styleguide kopiert.** Der Fund vom
+2026-09-19 stimmte: `standards/frontend/styleguide.md` enthält keinen Hex-Wert, sondern
+verweist selbst auf `Tokens.fs` als Quelle (§1) und nennt im Quellen-Abschnitt „bei Konflikt
+gewinnt der Code". Beim Nachsehen in `Tokens.fs` zeigt sich: die sechs Neon-Basisfarben sind
+dort selbst nur Tailwind-Klassennamen (`text-neon-green` usw.), keine Hex-Werte. Die echten
+Hex-Werte stehen ausschließlich im `@theme`-Block von `src/Client/styles.css` (ab Zeile 7).
+Deshalb die zweite der beiden angebotenen Optionen gewählt: `.claude/agents/design-quality.md`
+verweist jetzt auf `src/Client/styles.css` (Hex-Werte) und `standards/frontend/styleguide.md`
+§2 „Farbsemantik" (Bedeutung je Farbe), statt eine dritte Kopie der Werte zu führen. Eine
+Kopie in den Styleguide zu schreiben hätte exakt das Muster wiederholt, das diese Aufgabe
+beseitigen soll: eine zweite Quelle, die auseinanderlaufen kann.
+
+Und sie ist auseinandergelaufen, genau wie befürchtet: `--neon-pink` stand in
+design-quality.md mit `#ff2e97` (dem Wert aus der gelöschten DESIGN-SYSTEM.md), tatsächlich
+ist `--color-neon-pink` in `styles.css` heute `#ff1f8f`. Die drei Hintergrundvariablen
+`--bg-void`/`--bg-dark`/`--bg-surface` aus der alten Doku existieren in `styles.css` gar
+nicht mehr; das Schema heißt inzwischen `--bg-app`/`--bg-card`/`--bg-elevated`/`--bg-input`/
+`--bg-hover` mit eigenen Werten. Beide Abweichungen stehen jetzt namentlich im neuen Text von
+`.claude/agents/design-quality.md`, nicht stillschweigend übernommen.
+
+**Suchlauf-Kriterium.** Ein repoweiter Grep nach `DESIGN-SYSTEM.md` und `docs/README.md`
+findet nach der Änderung nur noch: `.claude/agents/design-quality.md` (erklärt die
+Historie der eigenen Palette-Kopie, keine Anweisung mehr), `docs/UI-REFACTORING-MILESTONES.md`
+(siehe unten), sowie Diary, Blogpost, Protokoll, INDEX.md, ADR 0031 und der Task selbst: alle
+auf der Ausnahmeliste.
+
+**Der zusätzliche Fund `docs/UI-REFACTORING-MILESTONES.md`** stand nicht auf der
+Ausnahmeliste der Aufgabe, war aber im Kern selbst schon Geschichte: ein Milestone-Plan von
+November/Dezember 2025 mit sechs „Read First"-Verweisen auf die gelöschte Datei, dessen
+Milestones R0-R12 laut den eingetragenen „✅ Complete"-Abschnitten alle abgeschlossen sind
+(letzter Eintrag 2025-12-05). Löschen war nicht in der Aufgabe vorgesehen und hätte über die
+zwei genannten Dateien hinausgegriffen; stattdessen einen Hinweis direkt unter der
+Überschrift eingefügt, der erklärt, dass die Datei historisch ist und die „Read First"-
+Verweise veraltet sind (abgelöst durch `standards/frontend/styleguide.md` und
+`src/Client/styles.css`). Das entspricht demselben Muster, das die Aufgabe für Code-
+Kommentare als unangetastet einstuft: aktive Erklärung statt gültige Anweisung. Die
+wörtlichen Vorkommen von `docs/DESIGN-SYSTEM.md` im Fließtext darunter blieben unverändert
+stehen, sind aber durch den Hinweis jetzt als historisches Zitat erklärt, nicht mehr als
+lebender Verweis.
+
+**Unangetastet:** Diary, Blogposts, Protokoll, erledigte Tasks, ADR 0031 selbst, die Code-
+Kommentare in `Table.fs`/`Settings/View.fs`/`Ledger/View.fs` sowie `template/**` (dort stehen
+DaisyUI-Verweise in `template/CLAUDE.md:254`, `template/README.md:7` und
+`template/docs/00-ARCHITECTURE.md:8`: eigene Frage, dafür ein Backlog-Item unten).
+
+**Gates:** `dotnet test` aus dem Worktree-Root: 916 bestanden, 7 übersprungen, 923 gesamt.
+Deckt sich exakt mit der genannten Baseline; eine reine Doku-Änderung sollte diese Zahl nicht
+verschieben, tut es auch nicht.

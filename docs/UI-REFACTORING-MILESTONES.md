@@ -1,5 +1,11 @@
 # UI Refactoring Milestone Plan
 
+> **Historisches Planungsdokument** (November/Dezember 2025, alle Milestones R0-R12
+> abgeschlossen). Die „Read First"-Verweise unten auf `docs/DESIGN-SYSTEM.md` sind
+> veraltet: die Datei wurde am 2026-09-19 gelöscht (`design-system-k2vgz`), abgelöst durch
+> `standards/frontend/styleguide.md` und den `@theme`-Block in `src/Client/styles.css`.
+> Nicht als Anweisung lesen, sondern als Protokoll, wie der Design-System-Umbau ablief.
+
 This document outlines the step-by-step plan to refactor BudgetBuddy's UI to implement the **Neon Glow Dark Mode Theme** design system defined in `docs/DESIGN-SYSTEM.md`.
 
 ## Overview

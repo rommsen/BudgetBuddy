@@ -4,6 +4,57 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 16:05 - Abgelöste Design-Doku gelöscht, Farbpalette auf die lebende Quelle umgehängt
+
+**What I did:**
+`docs/DESIGN-SYSTEM.md` (1295 Zeilen) und `docs/README.md` (383 Zeilen) stammten aus der Zeit
+vor dem `standards/`-Satz und lasen sich wie gültige Anweisung. Abschnitt 10 der einen
+enthielt ein DaisyUI-Installationsrezept, obwohl DaisyUI mit ADR 0031 aus dem Projekt
+entfernt ist und nie in `package.json` stand. Roman hat am 2026-09-19 entschieden: löschen
+statt bannern, weil eine zweite Quelle, die ein Agent für verbindlich hält, selbst das
+Problem ist.
+
+**Files Deleted:**
+- `docs/DESIGN-SYSTEM.md`, `docs/README.md`
+
+**Files Modified:**
+- `.claude/agents/design-quality.md` - der Abschnitt zitiert keine Farbpalette mehr, sondern
+  verweist auf den `@theme`-Block in `src/Client/styles.css` (Hex-Werte) und auf den
+  Styleguide-Abschnitt „Farbsemantik" (Bedeutung je Farbe).
+- `docs/UI-REFACTORING-MILESTONES.md` - Hinweis unter der Überschrift, der das Dokument als
+  historisch ausweist und die „Read First"-Verweise als veraltet markiert.
+
+**Rationale:**
+Die naheliegende Lösung wäre gewesen, die Farbwerte in den Styleguide zu kopieren und den
+Agenten dorthin zu verweisen. Das hätte genau das Muster wiederholt, das diese Aufgabe
+beseitigen soll: eine weitere Kopie, die auseinanderlaufen kann. Der Styleguide enthält
+bewusst keinen einzigen Hex-Wert und verweist selbst auf den Code als Quelle.
+
+**Und sie war bereits auseinandergelaufen.** Der Abgleich der neun im Agenten eingebetteten
+Werte gegen `src/Client/styles.css` ergab: fünf stimmen, `--neon-pink` stand mit `#ff2e97`,
+ist aber heute `#ff1f8f`, und die drei Hintergrundvariablen `--bg-void`/`--bg-dark`/
+`--bg-surface` existieren unter diesen Namen gar nicht mehr (heute `--bg-app`/`--bg-card`/
+`--bg-elevated`/`--bg-input`/`--bg-hover`). Ein Agent, der diese Datei als verbindlich gelesen
+hätte, hätte mit falschen Farben gearbeitet. Beide Abweichungen stehen jetzt namentlich im
+neuen Text, nicht stillschweigend korrigiert.
+
+**Outcomes:**
+- Tests: 916 bestanden, 7 übersprungen, 923 gesamt, unverändert zur Basis (reine Doku-Änderung)
+- Verifikation: PASS in Iteration 1. Der Verifier hat alle neun Farbwerte selbst gegen
+  `styles.css` abgeglichen und bestätigt, dass „zwei Abweichungen" die vollständige Wahrheit
+  ist und keine Teilprüfung. Er hat außerdem geprüft, dass keine der Kapitel-Dateien
+  existiert, auf die `docs/README.md` verwies, und dass kein Skript, kein npm-Eintrag und
+  keine `.claude/rules/`-Datei die gelöschten Dateien noch liest.
+- `docs/UI-REFACTORING-MILESTONES.md` war ein Zusatzfund: die Datei verweist auf die
+  gelöschten Dokumente und stand nicht auf der Ausnahmeliste der Aufgabe. Sie wurde nicht
+  gelöscht (das wäre über den Auftrag hinausgegangen), sondern als historisch markiert. Der
+  Verifier hat das als erklärend statt anweisend eingestuft, konsistent mit der Ausnahme, die
+  der Task den Code-Kommentaren gewährt.
+- Aufgeschoben und erfasst: `template/**` führt DaisyUI weiter an drei Stellen. Das ist eine
+  eigene Frage und liegt jetzt als `design-system-k4mtx` im Backlog.
+
+---
+
 ## 2026-09-19 15:35 - Gelöschte Buchungen: Zählweise benannt, Regel in der README festgehalten
 
 **What I did:**

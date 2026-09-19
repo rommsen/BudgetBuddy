@@ -71,21 +71,20 @@ Then read standards for detailed patterns:
 
 ### Step 2: Design System Reference
 
-**Color Palette (from DESIGN-SYSTEM.md)**
-```css
-/* Neon Colors */
---neon-green: #00ff88;   /* Success, positive amounts */
---neon-orange: #ff6b2c;  /* Primary CTA, action */
---neon-teal: #00d4aa;    /* Info, navigation, links */
---neon-purple: #a855f7;  /* Special, premium */
---neon-pink: #ff2e97;    /* Warning, attention */
---neon-red: #ff3b5c;     /* Error, negative amounts */
+**Color Palette (lebende Quelle, nicht hier zwischenspeichern)**
 
-/* Backgrounds */
---bg-void: #0a0a0f;      /* Deepest background */
---bg-dark: #0f1117;      /* Primary surface */
---bg-surface: #161922;   /* Elevated surface */
-```
+Die Hex-Werte stehen im `@theme`-Block von `src/Client/styles.css` (ab Zeile 7) und in den
+Hintergrundvariablen direkt darunter (`--bg-app`, `--bg-card`, `--bg-elevated`, `--bg-input`,
+`--bg-hover`). Dort nachschlagen. Die Bedeutung jeder Farbe (welche für Erfolg, welche für
+CTA, …) steht in `standards/frontend/styleguide.md`, Abschnitt 2 „Farbsemantik".
+
+Dieser Abschnitt hat früher genau das getan, wovor die Quellen-Regel schützen soll: eine
+Kopie der Hex-Werte „from DESIGN-SYSTEM.md" geführt (diese Datei wurde am 2026-09-19
+gelöscht, siehe `design-system-k2vgz`). Die Kopie ist dabei unbemerkt vom Original
+abgewichen: `--color-neon-pink` ist heute `#ff1f8f`, nicht mehr `#ff2e97`, und die
+Hintergrundvariablen heißen inzwischen `--bg-app`/`--bg-card`/`--bg-elevated`/`--bg-input`/
+`--bg-hover` statt `--bg-void`/`--bg-dark`/`--bg-surface`. Bei Zweifel gewinnt der Code
+(`src/Client/styles.css`), nie eine Kopie in diesem Dokument.
 
 **Typography**
 - UI Text: Outfit, Exo 2
