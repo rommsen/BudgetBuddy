@@ -46,14 +46,26 @@ die beim Modul-Load rendern und unter .NET werfen). Dieselbe F#-Eigenheit, zwei
 verschiedene Schäden.
 
 ## Acceptance criteria
-- [ ] `src/Tests/LedgerMirrorTests.fs:428` ruft `initializeDatabase()` nicht mehr auf
-      Modulebene auf, sondern innerhalb des Test-Setups.
-- [ ] `src/Tests/PersistenceTypeConversionTests.fs:71` ruft `initializeDatabase()` nicht mehr
-      auf Modulebene auf, sondern innerhalb des Test-Setups.
+- [ ] Kein Testmodul unter `src/Tests/` ruft `initializeDatabase()` (oder
+      `initializeLedgerSchema()`) noch auf Modulebene auf. Der Suchlauf vom 2026-09-19 fand
+      **fünf** solcher Stellen, nicht zwei: drei in `LedgerMirrorTests.fs`
+      (`mirrorRunTests`, `mirrorGuardTests`, `runMirrorInBackgroundTests`) und zwei in
+      `PersistenceTypeConversionTests.fs` (`typeConversionTests`,
+      `connectionDisposalRegressionTests`). Alle fünf stehen im Muster
+      `[<Tests>] let xyz = initializeDatabase()`, also im Wert selbst und damit im
+      Modul-Startup.
+- [ ] Die Umstellung wird durch einen Suchlauf belegt, nicht durch die Liste oben:
+      nach der Änderung findet eine Suche über `src/Tests/` keine Persistenz-Initialisierung
+      mehr außerhalb einer Testausführung. Zeilennummern sind kein Nachweis — die im
+      ursprünglichen Fund genannten (`LedgerMirrorTests.fs:428`,
+      `PersistenceTypeConversionTests.fs:71`) sind bereits gedriftet.
 - [ ] In einem reproduzierten Umgehungslauf (abweichende Runsettings oder gesetztes
-      `DATA_DIR`, wie in der Verifikation von `infra-za7fq` demonstriert) entsteht keine
-      Datei-Datenbank mehr, bevor der Wächter-Test scheitert.
-- [ ] `dotnet build` und `dotnet test` sind grün.
+      `DATA_DIR`, wie in der Verifikation von `infra-za7fq` demonstriert) entsteht **keine**
+      Datei-Datenbank mehr, bevor der Wächter-Test scheitert. Belegt durch einen
+      tatsächlichen Lauf mit Blick ins Zielverzeichnis, nicht durch Lesen des Codes.
+- [ ] Der Wächter-Test `TestDatabaseGuardTests.fs` bleibt unverändert und weiterhin die
+      erste Compile-Unit in `Tests.fsproj`.
+- [ ] `dotnet build` und `dotnet test` sind grün, mit unveränderter Testzahl.
 
 ## Notes
 Gefunden bei der Verifikation von `infra-za7fq` (Iteration 1, 2026-09-18), bestätigt in

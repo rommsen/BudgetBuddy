@@ -47,7 +47,23 @@ Funktion eines Design-System-Moduls gegen die Route abgleicht und laut scheitert
 fehlt. Ohne das bleibt es davon abhängig, dass jemand daran denkt.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Das Money-Inventar in `standards/frontend/styleguide.md` (Abschnitt 5, die Money-Zeile
+      führt heute `simple`, `large`, `hero`, `noSign`, `fromMoney`) nennt zusätzlich
+      `accountBalance` und `accountListRow`, je mit ihrem Zweck, nicht nur dem Namen.
+- [ ] Die `/styleguide`-Route zeigt beide Varianten in der Money-Sektion (die Sektion trägt
+      den Export-Marker `data-ds-card="components-money"` und zeigt heute `simple`, `large`,
+      `hero`, `transactionDeleted`).
+- [ ] `Money.accountListRow` erscheint dort in **beiden** Zuständen, aktiv und inaktiv, weil
+      die Komponente beide trägt.
+- [ ] `npm run export:design-system` nimmt beide Varianten in
+      `preview/components-money.html` auf; zwei Läufe bleiben byte-identisch.
+- [ ] `dotnet build` und `npm run build` sind grün.
+- [ ] Re-Sync nach Claude Design nach dem Ablauf im design-system-README. [human-eye]
+
+**Nicht Teil dieser Aufgabe:** die im `What` angerissene Zusicherung, die jede öffentliche
+Funktion eines Design-System-Moduls gegen die Route abgleicht. Das ist der allgemeinere
+Befund und deckt sich mit `design-system-thtpp` (Wächter gegen undefinierte Klassen); beides
+gehört in eine eigene Runde, sonst wächst dieser Task vom Nachtrag zum Werkzeugbau.
 
 ## Notes
 Captured am 2026-09-12 aus der Verifikation von `ledger-x0yga`. Zusammenhang:

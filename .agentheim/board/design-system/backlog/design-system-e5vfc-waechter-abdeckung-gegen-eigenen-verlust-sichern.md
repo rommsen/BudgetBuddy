@@ -68,3 +68,11 @@ Fehlertext scheitern. Die Abdeckung funktioniert also, sie ist nur nicht bewacht
 
 Kein Blocker: `design-system-bq4tz` erfüllt sein Kriterium 6 nachweislich, alle zwanzig
 Dateien sind erfasst. Diese Aufgabe härtet den Wächter, sie repariert ihn nicht.
+
+**Stand bei der Verfeinerung (2026-09-19, nachgesehen, nicht vermutet):** Der Filter sitzt
+in `designSystemStartupTypes` (`src/Tests/DesignSystemStartupTests.fs`) und lautet
+`t.FullName.StartsWith(startupTypePrefix) || t.FullName = errorDisplayStartupTypeName`. Der
+begleitende Wächter-gegen-Wächter ist der Test "Es gibt mindestens ein
+Design-System-Startup-Modul zu prüfen" und prüft ausschließlich `Expect.isNonEmpty` — genau
+die Lücke, die der Verifier gemessen hat. Die Kriterien oben stehen unverändert; sie waren
+bereits konkret und falsifizierbar.

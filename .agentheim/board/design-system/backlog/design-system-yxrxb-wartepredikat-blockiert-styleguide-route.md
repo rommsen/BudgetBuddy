@@ -7,7 +7,7 @@ context: design-system
 created: 2026-09-19
 completed:
 depends_on: []
-blocks: []
+blocks: [ledger-p9k3w]
 tags: [test-infra, visuelles-gate, screenshot]
 related_adrs: []
 related_research: []
@@ -40,30 +40,38 @@ nicht aufnehmen. Roman hat sie am 2026-09-19 von Hand geprüft (Befund: passt), 
 Hand ist genau das, was das Werkzeug ablösen sollte.
 
 ## What
-Das Wartepredikat differenzieren, statt es global zu lockern. Beim Verfeinern zu
-entscheiden, welcher Weg trägt:
+**Entschieden (Roman, 2026-09-19): die App sagt selbst, wann sie fertig ist.** Statt aus
+dem Verschwinden von CSS-Klassen zu raten, setzt der Client ein Bereitschaftssignal, und
+das Skript wartet darauf.
 
-- **Auf einen Bereich beschränken:** nur innerhalb des Inhalts-Containers warten, nicht
-  über das ganze Dokument. Scheitert, wenn die Demo-Elemente im selben Container liegen.
-- **Ein Opt-out je Route:** ein Flag wie `--no-wait-loading` oder eine kleine Liste von
-  Routen, die absichtlich Ladezustände zeigen. Einfach, aber wieder eine Pflegeliste,
-  genau die Sorte, die in `design-system-bq4tz` zweimal veraltet ist.
-- **Auf ein Bereitschaftssignal warten statt auf das Verschwinden von Platzhaltern:** ein
-  Marker, den die App setzt, wenn die Seite fertig gerendert ist. Am robustesten, verlangt
-  aber eine Änderung an der App.
+Die beiden verworfenen Wege und warum: *nur im Inhalts-Container warten* scheitert
+voraussichtlich genau bei `/styleguide`, weil die Demo-Spinner im selben Container liegen;
+*ein Opt-out je Route* wäre eine Pflegeliste, und genau die Sorte ist in
+`design-system-bq4tz` zweimal veraltet, bevor jemand es merkte.
 
-Die dritte Variante löst zugleich ein verwandtes Problem: Das aktuelle Predikat ist eine
-Heuristik über CSS-Klassen und bricht, sobald eine Komponente ihre Klassennamen ändert.
+**Was "fertig" heißt, ist der Kern der Aufgabe.** Ein Signal, das nur das Mounten meldet,
+wäre ein Rückschritt: es käme, bevor die Kassenbuch-Tabelle ihre Daten hat, und das
+Werkzeug nähme wieder Platzhalter auf. Das Signal muss den Ladezustand der Seite tragen,
+nicht ihr Vorhandensein. Die Seiten halten ihn bereits als `RemoteData` im Elmish-Modell;
+die App mountet über `Program.withReactSynchronous "root"` (`src/Client/App.fs`), das
+Wurzel-Element steht in `src/Client/index.html`.
+
+Eine Route ohne eigenen Ladezustand (`/styleguide`) ist demnach sofort bereit. Eine Route
+mit Ladezustand ist bereit, wenn keiner ihrer Datenstränge mehr lädt.
 
 ## Acceptance criteria
 - [ ] `npm run screenshot:route -- '#/styleguide'` erzeugt beide Bilder, statt nach 30 s
       abzubrechen.
-- [ ] Das Kassenbuch bleibt korrekt: eine Aufnahme von `#/ledger` wartet weiterhin, bis
-      Tabelle und Liste wirklich gefüllt sind, und liefert kein Bild mit Platzhaltern.
+- [ ] Das Signal trägt den Ladezustand, nicht das Mounten: eine Aufnahme von `#/ledger`
+      wartet, bis Tabelle und Liste gefüllt sind, und zeigt keine Skeleton-Platzhalter.
+      Belegt durch eine tatsächliche Aufnahme, nicht durch Lesen des Codes.
 - [ ] Eine Route, die tatsächlich nicht lädt, scheitert weiterhin laut mit der Route im
-      Fehlertext (Akzeptanzkriterium aus `design-system-wa6wz` bleibt erfüllt).
-- [ ] Der gewählte Weg ist im Skript kurz begründet.
-- [ ] `node --test scripts/screenshot-route.test.mjs` ist grün.
+      Fehlertext (Kriterium aus `design-system-wa6wz` bleibt erfüllt).
+- [ ] Das Skript prüft nicht mehr auf `.proto-spinner`/`.animate-pulse`; die Heuristik über
+      Klassennamen ist ersetzt, nicht ergänzt.
+- [ ] Der gewählte Weg ist an der Setz-Stelle im Client und im Skript kurz begründet.
+- [ ] `node --test scripts/screenshot-route.test.mjs` und `dotnet test` sind grün,
+      `npm run build` läuft sauber.
 
 ## Notes
 Gefunden am 2026-09-19 beim Versuch, das offene Augen-Kriterium von

@@ -7,7 +7,7 @@ context: infrastructure
 created: 2026-09-19
 completed:
 depends_on: []
-blocks: []
+blocks: [design-system-m4kp7]
 tags: [deployment, dev-umgebung, test-infra]
 related_adrs: [0010]
 related_research: []
@@ -100,6 +100,9 @@ bereits vorhandene `ASPNETCORE_URLS`-Zeile endlich das tut, was sie verspricht.
 - [ ] Der Container bindet weiterhin auf 5081: `compose.yaml`-Healthcheck und
       `tailscale serve` funktionieren unverändert, und die `ASPNETCORE_URLS`-Zeile ist jetzt
       tatsächlich wirksam (nachweisbar, indem eine Änderung dort den gebundenen Port ändert).
+- [ ] Die Log-Zeile beim Start (`src/Server/Program.fs`, heute
+      `printfn "🚀 BudgetBuddy server starting on http://localhost:5081"`) nennt keinen
+      festen Port mehr.
 - [ ] `dotnet build`, `dotnet test` und `npm run build` sind grün.
 
 ## Notes
@@ -111,9 +114,13 @@ Beide Befunde stammen aus demselben Aufruf, sind aber verschiedene Ursachen und 
 verschiedene Kontexte: der Port hierher nach `infrastructure`, das Predikat ins
 Design-System.
 
-Eine kleinere, aber sofort wirksame Entlastung wäre unabhängig davon möglich: Für rein
-präsentationale Routen wie `/styleguide` braucht das Skript gar kein Backend.
-`scripts/export-design-system.mjs` nimmt diese Route seit Monaten ohne Server auf, allein
-mit `vite preview`. Das löst den Konflikt für diesen Fall vollständig, ohne dass am Port
-etwas geändert werden muss, aber eben nur für Routen ohne Datenbedarf. Beim Verfeinern
-entscheiden, ob das als eigener, kleiner Schritt vorgezogen wird.
+**Entschieden (Roman, 2026-09-19):** Die zweite, unabhängige Entlastung — präsentationale
+Routen wie `/styleguide` brauchen gar kein Backend, `scripts/export-design-system.mjs` nimmt
+sie seit Monaten allein mit `vite preview` auf — wird gebaut, aber als eigener Task
+(`design-system-m4kp7`). Diese Aufgabe hier heilt die Ursache: der Port kommt aus der
+Konfiguration statt aus dem Quelltext, und `compose.yaml`s `ASPNETCORE_URLS`-Zeile tut
+endlich, was sie verspricht.
+
+**Fasst `scripts/screenshot-route.mjs` an** (`startBackend`, `main`). Dieselbe Datei
+bearbeiten auch `design-system-yxrxb` (Wartepredikat), `ledger-p9k3w` (Screenshot-Aufruf)
+und `design-system-m4kp7`. Letzterer hängt deshalb an dieser Aufgabe.

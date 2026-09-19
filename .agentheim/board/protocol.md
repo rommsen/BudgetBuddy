@@ -5,6 +5,27 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:23 -- Modeling / Refined: Charge von 10 Backlog-Items plus 1 Capture
+
+**Type:** Modeling / Refine
+**BC:** design-system, ledger, infrastructure
+**Status after:** todo (alle 11)
+**Summary:** Sammel-Verfeinerung auf Romans Wunsch, eine Runde statt elf Einzelsitzungen. Vier offene Weggabelungen von Roman entschieden: Wartepredikat wird durch ein Bereitschaftssignal aus der App ersetzt (design-system-yxrxb); das Sheet-Artefakt weicht einem auf die Inhaltshoehe gesetzten Viewport ohne fullPage (ledger-p9k3w); der Backend-Port wird konfigurierbar UND praesentationale Routen verlieren den Backend-Bedarf, als zwei Tasks (infra-jh7g9 plus neuer design-system-m4kp7); die abgeloesten Doku-Dateien werden geloescht, Farbpalette vorher gesichert (design-system-k2vgz). Drei Funde beim Nachpruefen der Annahmen: infra-sdad8 nennt zwei Fundstellen, es sind fuenf, und die Zeilennummern sind gedriftet; design-system-k2vgz nimmt an, der Styleguide trage dieselben Farbwerte, er enthaelt keinen einzigen Hex-Wert; ledger-h9tq2 ist eine Einzeiler-Aenderung in historySheet. Vier Tasks fassen scripts/screenshot-route.mjs an und wurden zu zwei Ketten serialisiert (yxrxb -> p9k3w, jh7g9 -> m4kp7).
+**Refined:** design-system-yxrxb, ledger-p9k3w, infra-jh7g9, infra-sdad8, design-system-e5vfc, design-system-hadjy, design-system-t3vqr, design-system-k2vgz, ledger-d4kx8, ledger-h9tq2
+**Captured:** design-system-m4kp7
+**ADRs written:** keine
+
+---
+
+## 2026-09-19 12:23 -- Modeling / Captured: design-system-m4kp7 - "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Praesentationale Routen wie /styleguide brauchen kein Backend; screenshot-route.mjs soll fuer sie keinen Server, keine Datenbankkopie und keinen Port belegen. Abgespalten von infra-jh7g9 (Entscheidung Roman 2026-09-19: beide Wege bauen, als zwei Tasks).
+
+---
+
 ## 2026-09-19 12:10 -- Captured: infra-jh7g9 - Backend-Port konfigurierbar machen
 
 **Type:** Modeling / Capture

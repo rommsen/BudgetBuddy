@@ -55,7 +55,27 @@ Code-Kommentare in `Table.fs`, `Settings/View.fs` und `Ledger/View.fs`, die erkl
 DaisyUI nicht geladen ist. Das ist Geschichte oder aktive Erklärung.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] `docs/DESIGN-SYSTEM.md` und `docs/README.md` sind gelöscht (Entscheidung Roman,
+      2026-09-19: löschen statt bannern — eine zweite Quelle, die ein Agent für verbindlich
+      hält, ist genau das Problem).
+- [ ] **Vorher** ist die Farbpalette gesichert. Der Fund vom 2026-09-19 korrigiert die
+      Annahme des Tasks: `standards/frontend/styleguide.md` enthält **keinen einzigen
+      Hex-Wert**. Ein bloßes Umhängen des Verweises ginge also ins Leere. Zu wählen und im
+      Ergebnis zu begründen: entweder die Werte wandern in den Styleguide, oder
+      `.claude/agents/design-quality.md` verweist auf `src/Client/styles.css` (den
+      `@theme`-Block, die tatsächliche Quelle der Tokens).
+- [ ] `.claude/agents/design-quality.md` zitiert danach keine Palette mehr "from
+      DESIGN-SYSTEM.md", sondern verweist auf die gewählte lebende Quelle. Die dort heute
+      eingebetteten Werte (`--neon-green: #00ff88`, `--neon-orange: #ff6b2c`,
+      `--neon-teal: #00d4aa`, `--neon-purple: #a855f7`, `--neon-pink: #ff2e97`,
+      `--neon-red: #ff3b5c`, `--bg-void`, `--bg-dark`, `--bg-surface`) sind gegen die Quelle
+      abgeglichen; Abweichungen sind benannt, nicht stillschweigend übernommen.
+- [ ] Ein Suchlauf über das Repo (ohne Diary, Blogposts, Protokoll, erledigte Tasks und
+      `template/**`) findet keinen lebenden Verweis mehr auf die beiden gelöschten Dateien.
+- [ ] Unangetastet bleiben: Diary, Blogposts, Protokoll, erledigte Tasks, ADR 0031 und die
+      Code-Kommentare in `Table.fs`, `Settings/View.fs`, `Ledger/View.fs`, die erklären,
+      dass DaisyUI nicht geladen ist.
+- [ ] `template/**` bleibt unangetastet — eigene Frage, eigener Task.
 
 ## Notes
 Erfasst am 2026-09-18 nach Romans Freigabe, beim Nachziehen der DaisyUI-Angaben (Commit

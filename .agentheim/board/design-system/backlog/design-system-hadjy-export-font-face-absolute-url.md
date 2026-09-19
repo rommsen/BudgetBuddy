@@ -33,7 +33,22 @@ wie `FONT_FACE_CSS` in `colors_and_type.css`), plus Regressionstest, der das Bun
 (`styles.css`, `colors_and_type.css`, Previews) auf absolute `url(/`-Pfade prüft.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Nach `npm run export:design-system` enthält keine Datei unter `dist/design-system/`
+      einen absoluten Asset-Pfad der Form `url(/…)`. Geprüft über das ganze Bundle
+      (`styles.css`, `colors_and_type.css`, jede `preview/*.html`), nicht nur über die
+      Datei, in der der Fehler gefunden wurde.
+- [ ] `dist/design-system/styles.css` bindet die drei Schriften relativ zur Bundle-Wurzel
+      ein (`url(fonts/…)`), wie `FONT_FACE_CSS` in `colors_and_type.css` es bereits tut.
+- [ ] Das Umschreiben geschieht beim Erzeugen des Bundles, nicht von Hand danach: die
+      Stelle, die das gebaute App-CSS ins Bundle kopiert (heute ein reines `copyFile` in
+      `scripts/export-design-system.mjs`), liest, schreibt um und schreibt.
+- [ ] Ein Regressionstest scheitert, wenn ein absoluter `url(/…)`-Pfad ins Bundle
+      zurückkehrt. Andockpunkt ist `src/Tests/FontFaceRegressionTests.fs`, das bereits
+      `src/Client/styles.css` auf lokale `@font-face`-Regeln prüft — erweitern statt eine
+      zweite Prüfstelle daneben zu stellen.
+- [ ] Zwei Läufe hintereinander erzeugen ein byte-identisches Bundle (Idempotenz-Kriterium
+      aus `design-system-t82sg` bleibt erfüllt).
+- [ ] `dotnet test` ist grün.
 
 ## Notes
 Captured via `quick-capture` on 2026-09-11 — raw, unrefined. Needs a `modeling` refine pass before

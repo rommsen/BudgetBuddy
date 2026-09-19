@@ -65,7 +65,21 @@ Was daraus folgt:
    braucht, bekommt sie weiterhin aufsteigend.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Die Historie im Detail-Sheet zeigt die neueste Zeile oben. Die Drehung sitzt in der
+      Anzeige: `historySheet` in `src/Client/Components/Ledger/View.fs` rendert heute
+      `lines |> List.map historyLine`, genau dort wird gedreht.
+- [ ] `getEntryHistory` und der Lesepfad bleiben unverändert aufsteigend:
+      `Ledger.Persistence` behält `ORDER BY sequence`, `Ledger.QueryHandlers` gibt die
+      Zeilen unverändert weiter. Ein Test hält die aufsteigende Reihenfolge der Abfrage
+      fest, damit die Drehung nicht später nach unten wandert.
+- [ ] Die laufende Nummer je Zeile bleibt die aus dem Ereignis-Log; sie wird nicht
+      umnummeriert, läuft in der Anzeige also von oben nach unten abwärts.
+- [ ] Der Replay-Pflichttest aus ADR 0013 ist unberührt und grün.
+- [ ] Ein Test über die Anzeige-Reihenfolge scheitert, wenn die Drehung entfällt — die Regel
+      ist zugesichert, nicht nur umgesetzt.
+- [ ] Die Richtung steht im ledger-README (Abschnitt Sichten, `getEntryHistory`), damit die
+      Detail-Sicht aus `ledger-q1hw2` sie übernimmt und nicht neu entscheidet.
+- [ ] `dotnet build`, `dotnet test` und `npm run build` sind grün.
 
 ## Notes
 Erfasst am 2026-09-18 beim Abgleich mit dem Design-Projekt "Gelesen UI-Mockups"

@@ -76,7 +76,30 @@ Was daraus folgt:
    in einen Chat des Design-Projekts.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Am Code für Trefferzahl und Summe ändert sich nichts: `getLedgerEntriesPage` liefert
+      bei `IncludeDeleted = true` weiterhin beide **einschließlich** gelöschter Buchungen
+      (Variante 2). Ein Test hält das fest, damit die Regel nicht später still kippt.
+- [ ] Die Zeile über der Liste sagt bei eingeblendeten gelöschten Buchungen, wie viele der
+      gezählten gelöscht sind, im Stil "13 Buchungen, davon 1 in YNAB gelöscht". Ort ist die
+      bestehende Zeile aus `ledger-p3n8k` (`deletedCountText` /
+      `deletedBanner` in `src/Client/Components/Ledger/View.fs`).
+- [ ] Sind gelöschte Buchungen ausgeblendet (Standard), bleibt die Zeile wie heute
+      ("N gelöschte Buchungen ausgeblendet") — dieser Fall ist von `ledger-p3n8k` gelöst und
+      wird nicht angefasst.
+- [ ] Singular und Plural stimmen in beiden Zuständen; durch Tests der reinen
+      Textfunktion belegt, nicht per Augenschein.
+- [ ] Der Kontostand lässt gelöschte Buchungen weiterhin immer draußen
+      (`ledgerBalancesByAccount`), auch bei eingeschaltetem Schalter. Ein Test hält fest,
+      dass Summenzeile und Kontostand hier bewusst auseinanderlaufen dürfen.
+- [ ] Die Regel steht im ledger-README, damit die Summenzeile aus `ledger-vgfw3` sie
+      übernimmt statt sie neu zu entscheiden.
+- [ ] `dotnet build`, `dotnet test` und `npm run build` sind grün.
+
+**Nicht Teil dieser Aufgabe:** Punkt 4 der Entscheidung (die Gegenregel in der `CLAUDE.md`
+des Design-Projekts). Das kann kein Werkzeug von hier aus: `CLAUDE.md` und `.claude/` sind
+dort reservierte Pfade. Der fertige Text liegt in
+`docs/ux/kassenbuch/design-projekt-nachtrag-2026-09-18.md`, Abschnitt 2; Roman gibt ihn in
+einen Chat des Design-Projekts.
 
 ## Notes
 Erfasst am 2026-09-18 beim Abgleich mit dem Design-Projekt "Gelesen UI-Mockups"

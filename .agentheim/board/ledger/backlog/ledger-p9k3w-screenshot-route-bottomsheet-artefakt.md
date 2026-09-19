@@ -6,7 +6,7 @@ type: bug
 context: ledger
 created: 2026-09-18
 completed:
-depends_on: []
+depends_on: [design-system-yxrxb]
 blocks: []
 tags: [test-infra, visuelles-gate, screenshot]
 related_adrs: []
@@ -35,20 +35,34 @@ liegt also normalerweise knapp unterhalb des sichtbaren Bereichs. Ein
 vergrössern; dabei wird `100dvh` gegen die neue, grössere effektive Höhe neu berechnet und
 die Leiste rutscht in den aufgenommenen Bereich.
 
-Mögliche Wege, beim Verfeinern zu entscheiden: `fullPage: false` mit definierter Zielhöhe,
-ein Ausschluss beim Screenshot, oder eine CSS-Änderung, die die inaktive Leiste zuverlässig
-ausserhalb des aufgenommenen Bereichs hält. Die dritte Variante ist die riskanteste, weil
-sie die App selbst anfasst und die Positionierung am Visual Viewport hängt (ADR 0005).
+**Entschieden (Roman, 2026-09-19): Viewport auf die Inhaltshöhe setzen, `fullPage` aus.**
+Das Skript misst die Höhe des Dokuments, setzt den Viewport darauf und nimmt ohne
+`fullPage` auf. Damit entfällt Chromiums interne Vergrößerung, `100dvh` wird nicht neu
+gerechnet, und die inaktive Leiste bleibt außerhalb des Bildes. Die App wird nicht
+angefasst.
+
+Die beiden verworfenen Wege: *die Leiste beim Screenshot ausblenden* würde ein Bild
+erzeugen, das bewusst nicht den echten DOM-Zustand zeigt — für ein Werkzeug, dessen Zweck
+der Abgleich mit dem Entwurf ist, die falsche Richtung. *Die CSS in der App ändern* fasst
+die Positionierung am Visual Viewport an (ADR 0005) und riskiert am echten Gerät genau das
+Verhalten, das dort funktioniert.
+
+Betroffene Stelle: `captureScreenshot` in `scripts/screenshot-route.mjs` (Aufruf
+`page.screenshot({ path: outPath, fullPage: true })`; der Kontext wird dort mit
+`browser.newContext({ viewport })` erzeugt).
 
 ## Acceptance criteria
 - [ ] Ein Screenshot einer Route mit einer Liste, die länger als der Handy-Viewport ist
       (etwa `#/ledger` mit mehreren Buchungen), zeigt am unteren Bildrand keine
-      Sheet-Leiste mehr.
-- [ ] Der gewählte Weg ist im Skript oder im design-system-README kurz begründet, damit die
-      nächste Person nicht dieselbe Ursache erneut herleiten muss.
-- [ ] Die bestehenden Tests in `scripts/screenshot-route.test.mjs` bleiben grün.
-- [ ] Ein Screenshot einer Route ohne scrollbaren Inhalt (etwa der PC-Viewport derselben
-      Seite) sieht unverändert aus.
+      Sheet-Leiste mehr. [human-eye]
+- [ ] Das Bild enthält weiterhin den **ganzen** Inhalt der Seite, nicht nur den ersten
+      Viewport-Ausschnitt: die Bildhöhe entspricht der Inhaltshöhe. Maschinell belegt
+      (Bildabmessungen gegen die gemessene Dokumenthöhe), nicht nur per Augenschein.
+- [ ] Ein Screenshot einer Route ohne scrollbaren Inhalt (PC-Viewport derselben Seite)
+      behält seine bisherigen Abmessungen.
+- [ ] Der gewählte Weg ist im Skript kurz begründet, damit die nächste Person die Ursache
+      nicht erneut herleiten muss.
+- [ ] `node --test scripts/screenshot-route.test.mjs` ist grün.
 
 ## Notes
 Gefunden bei `ledger-kdnnz`, Iteration 2 (2026-09-18), im Screenshot
@@ -61,3 +75,8 @@ Kein Blocker für `ledger-kdnnz` gewesen: die dort gelieferten Zeilen- und
 Kennzeichen-Layouts waren auf beiden Bildern klar erkennbar und korrekt. Das Artefakt
 betrifft die immer im DOM vorhandene BottomSheet-Komponente und ist von der konkreten Route
 unabhängig, tritt also bei jeder ausreichend langen Seite auf.
+
+**Fasst `scripts/screenshot-route.mjs` an**, und zwar dieselbe Funktion (`captureScreenshot`)
+wie `design-system-yxrxb`. Deshalb `depends_on: [design-system-yxrxb]`: nacheinander, nicht
+gleichzeitig. `infra-jh7g9` und `design-system-m4kp7` fassen dieselbe Datei an anderer
+Stelle an (`startBackend`/`main`).
