@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 14
 - **Todo:** 0
 - **Doing:** 1
 - **Done:** 25
@@ -56,6 +56,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-xk9wq** — "Kategorie-Filter im Kassenbuch-Lesepfad erfasst keine Split-Zeilen-Kategorien" (feature) — `backlog/ledger-xk9wq-kategorie-filter-im-kassenbuch-lesepfad-erfasst-keine-split.md`
 - **ledger-h4qtx** — "Payee-Vorschläge case-insensitiv gruppieren, wie der Payee-Filter selbst" (chore) — `backlog/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
 - **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Kategoriegruppe bis ins ReadModel durchreichen" (feature) — `backlog/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 - **ledger-h4nxz** — "Split-Zeilen-Überträge: transfer_transaction_id auf Subtransaction-Ebene fehlt im Beobachtungs-Contract" (decision) — `backlog/ledger-h4nxz-split-zeilen-bertr-ge-transfer-transaction-id-auf-subtransac.md`
