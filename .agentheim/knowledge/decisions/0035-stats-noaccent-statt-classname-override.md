@@ -1,5 +1,5 @@
 ---
-id: ADR-0035
+id: 0035
 title: "Stats.NoAccent statt ClassName-Override: der Gradient-Akzentstreifen lässt sich jetzt ganz abschalten"
 scope: design-system
 status: accepted
