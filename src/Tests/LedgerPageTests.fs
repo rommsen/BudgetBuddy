@@ -1223,6 +1223,32 @@ let ledgerPagingTests =
 
             Expect.equal off.NeedsReviewCount 1 "Eine zu prüfende Buchung, obwohl der Filter aus ist"
             Expect.equal on.NeedsReviewCount 1 "Dieselbe Zahl, auch wenn der Filter an ist"
+
+        // ============================================
+        // Reihenfolge der Historie (ledger-h9tq2, Entscheidung Roman 2026-09-18)
+        // ============================================
+
+        testCase "getEntryHistory bleibt aufsteigend, älteste Sequenznummer zuerst" <| fun () ->
+            // Die Anzeige dreht die Zeilen (neueste zuerst), aber nur im Client
+            // (`Components.Ledger.View.historyLinesForDisplay`). `Ledger.Persistence`
+            // behält `ORDER BY sequence`, `Ledger.QueryHandlers.getEntryHistory` gibt
+            // die Zeilen unverändert weiter. Dieser Test hält das fest, damit die
+            // Drehung nicht später in die Abfrage abwandert.
+            seedEntry pageTestAccountA 39 -5m |> Async.RunSynchronously
+            appendAndApply [
+                { EntryId = pageEntryId 39
+                  OccurredAt = DateTime(2026, 4, 2)
+                  Actor = YnabMirror
+                  Body = EntryDeletionObservedInYnab }
+            ]
+            |> Async.RunSynchronously
+
+            let (EntryId rawId) = pageEntryId 39
+            let history = Ledger.QueryHandlers.getEntryHistory rawId |> Async.RunSynchronously
+            Expect.equal
+                (history |> List.map (fun l -> l.Sequence))
+                [ 1; 2 ]
+                "aufsteigend, älteste Sequenznummer zuerst. Die Abfrage dreht nicht"
     ]
 
 [<Tests>]

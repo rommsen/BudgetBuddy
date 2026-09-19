@@ -4,6 +4,47 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 14:20 - Historie zeigt die neueste Zeile oben, gedreht wird nur in der Anzeige
+
+**What I did:**
+Entwurf und gebauter Stand liefen auseinander: der Entwurf zeigt die Historie von neu nach
+alt, gebaut war sie von alt nach neu. Roman hat am 2026-09-18 entschieden, dass die Anzeige
+die neueste Zeile oben zeigt und ausschließlich die Anzeige dreht. Diese Aufgabe setzt das
+um; entschieden wurde nichts neu.
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - neue reine Funktion `historyLinesForDisplay`
+  (`List.rev`), aufgerufen in `historySheet`. Die laufende Nummer je Zeile bleibt die
+  `Sequence` aus dem Ereignis-Log und zählt in der Anzeige deshalb abwärts.
+- `src/Tests/LedgerViewTests.fs` - drei Tests für die Drehung, inklusive leerer Liste.
+- `src/Tests/LedgerPageTests.fs` - ein Persistence-Test, der die aufsteigende Reihenfolge
+  der Abfrage festhält, damit die Drehung nicht später nach unten wandert.
+
+**Rationale:**
+Im Detail-Sheet am Handy scrollt die Historie, und gesucht wird die letzte Änderung, nicht
+die Entstehung. Die Abfrage bleibt aufsteigend, damit laufende Nummer, Ereignis-Reihenfolge
+und der Replay-Pflichttest aus ADR 0013 unberührt bleiben. `src/Server/Ledger/Persistence.fs`
+und `QueryHandlers.fs` sind nachweislich nicht angefasst.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` und `npm run build` grün)
+- Tests: 901 bestanden, 7 übersprungen, 908 gesamt
+- Verifikation: PASS in Iteration 1. Der Verifier hat die entscheidende Probe selbst
+  gefahren: `List.rev` durch die Identität ersetzt, zwei Tests wurden rot, Datei aus der
+  Sicherung zurückgespielt, Prüfsumme identisch, Arbeitsbaum sauber. Er hat außerdem den
+  Replay-Pflichttest gefiltert laufen lassen (3/3 grün) und bestätigt, dass die verwendete
+  Test-Buchungsnummer im Fixture-Namensraum sonst unbenutzt ist.
+- Einen Verdacht habe ich ihm mitgegeben und er hat ihn geprüft: der zweite Test sah nach
+  einer Tautologie aus. Befund: inhaltlich redundant zum ersten, aber eigenständig
+  falsifizierbar, weil die Erwartung aus der Eingabeliste gebildet wird und nicht aus der
+  Ausgabe. Kein Tautologie-Fall.
+- Benannte Restschwäche: die Regel steht als neuer Begriff "Historie-Anzeige" am Ende des
+  Abschnitts "Ubiquitous language" des ledger-README, nicht direkt bei `getEntryHistory`.
+  Die bestehende `getEntryHistory`-Zeile bekommt keinen Vorwärtsverweis auf die Drehung.
+  Sie bleibt sachlich richtig, weil die Abfrage tatsächlich nicht dreht.
+
+---
+
 ## 2026-09-19 14:10 - Wächter-Abdeckung im Design-System gegen den eigenen Verlust gesichert
 
 **What I did:**

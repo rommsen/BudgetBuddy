@@ -426,6 +426,13 @@ let private lastRunSubtitle (status: RemoteData<MirrorRunStatus option>) : strin
 // Historie (BottomSheet nach ADR 0005)
 // ============================================
 
+/// Die Anzeige-Reihenfolge der Historie (ledger-h9tq2, Entscheidung Roman
+/// 2026-09-18): die neueste Zeile steht oben. `getEntryHistory` liefert aufsteigend
+/// (älteste zuerst, ADR 0013), die Drehung sitzt bewusst nur hier in der Anzeige,
+/// nicht in der Abfrage oder im Lesepfad. Die laufende Nummer je Zeile bleibt die
+/// aus dem Ereignis-Log und zählt dadurch in der Liste von oben nach unten abwärts.
+let historyLinesForDisplay (lines: LedgerHistoryLine list) : LedgerHistoryLine list = List.rev lines
+
 let private historyLine (line: LedgerHistoryLine) =
     Html.div [
         prop.key (string line.Sequence)
@@ -479,7 +486,7 @@ let private historySheet (model: Model) (dispatch: Msg -> unit) =
                 ]
             | Success lines ->
                 Html.div [
-                    prop.children (lines |> List.map historyLine)
+                    prop.children (lines |> historyLinesForDisplay |> List.map historyLine)
                 ]
         ]
 

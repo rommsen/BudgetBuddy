@@ -144,6 +144,14 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   (`Components.Ledger.View.needsReviewChipLabel`): n ist die Zahl der ungeprüften, nicht
   gelöschten Buchungen im gewählten Kontofilter, unabhängig davon, ob der Filter aktiv ist.
   Antippen kippt `OnlyNeedsReview`.
+- **Historie-Anzeige** (ledger-h9tq2, Entscheidung Roman 2026-09-18) — im
+  Detail-Sheet steht die neueste Zeile oben. Gedreht wird ausschließlich in der
+  Anzeige (`Components.Ledger.View.historyLinesForDisplay`); `getEntryHistory`
+  und der Lesepfad bleiben aufsteigend, älteste Zeile zuerst (siehe oben,
+  `getEntryHistory`). Die laufende Nummer je Zeile bleibt die aus dem
+  Ereignis-Log und zählt in der Anzeige deshalb von oben nach unten abwärts.
+  Diese Richtung gilt auch für die Detail-Sicht aus `ledger-q1hw2`, die sie
+  übernimmt statt neu zu entscheiden.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine

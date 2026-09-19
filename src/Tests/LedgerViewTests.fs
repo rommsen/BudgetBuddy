@@ -32,6 +32,13 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     Flag = NoFlag
 }
 
+let private historyLineAt (sequence: int) : LedgerHistoryLine = {
+    Sequence = sequence
+    OccurredAt = DateTime(2026, 3, 1).AddDays(float sequence)
+    Origin = MirroredFromYnab
+    Description = $"Ereignis {sequence}"
+}
+
 let private accountView (n: int) (name: string) : LedgerAccountView = {
     Id = accountId n
     Name = name
@@ -176,6 +183,35 @@ let private needsReviewChipLabelTests =
         }
     ]
 
+let private historyLinesForDisplayTests =
+    testList "historyLinesForDisplay" [
+
+        test "Zeigt die neueste Zeile oben, der Lesepfad liefert aber aufsteigend" {
+            // ledger-h9tq2, Entscheidung Roman 2026-09-18: die Drehung sitzt in der
+            // Anzeige. Ohne `List.rev` in `historyLinesForDisplay` bliebe die Liste
+            // aufsteigend und dieser Test scheiterte: [1; 2; 3] statt [3; 2; 1].
+            let ascending = [ historyLineAt 1; historyLineAt 2; historyLineAt 3 ]
+            let displayed = historyLinesForDisplay ascending
+            Expect.equal
+                (displayed |> List.map (fun l -> l.Sequence))
+                [ 3; 2; 1 ]
+                "Neueste Zeile (höchste Sequenznummer) zuerst"
+        }
+
+        test "Die laufende Nummer je Zeile bleibt die aus dem Ereignis-Log, sie wird nicht neu vergeben" {
+            let ascending = [ historyLineAt 1; historyLineAt 2; historyLineAt 3 ]
+            let displayed = historyLinesForDisplay ascending
+            Expect.equal
+                (displayed |> List.map (fun l -> l.Sequence))
+                (ascending |> List.map (fun l -> l.Sequence) |> List.rev)
+                "Dieselben Sequenznummern wie im Log, nur die Reihenfolge dreht sich"
+        }
+
+        test "Eine leere Historie bleibt leer" {
+            Expect.equal (historyLinesForDisplay []) [] "Nichts zu drehen"
+        }
+    ]
+
 let private moduleStartupTests =
     testList "Modul-Startup (design-system-bq4tz)" [
 
@@ -208,4 +244,5 @@ let ledgerViewTests =
           accountCardsTests
           deletedCountTextTests
           needsReviewChipLabelTests
+          historyLinesForDisplayTests
           moduleStartupTests ]

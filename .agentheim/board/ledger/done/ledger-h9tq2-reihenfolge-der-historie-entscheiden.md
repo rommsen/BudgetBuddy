@@ -1,7 +1,7 @@
 ---
 id: ledger-h9tq2
 title: "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
-status: doing
+status: done
 type: decision
 context: ledger
 created: 2026-09-18
@@ -87,3 +87,75 @@ Erfasst am 2026-09-18 beim Abgleich mit dem Design-Projekt "Gelesen UI-Mockups"
 
 Die Umsetzung der Detail-Sicht liegt in `ledger-q1hw2`; diese Entscheidung gehört davor,
 sonst baut der Worker eine Richtung, die später wieder gedreht wird.
+
+## Outcome
+
+Die Entscheidung aus dem Task (Roman, 2026-09-18) ist umgesetzt: die Historie im
+Detail-Sheet zeigt die neueste Zeile oben, die Drehung sitzt ausschließlich in der
+Anzeige.
+
+**Was geändert wurde:**
+- `src/Client/Components/Ledger/View.fs` — neue reine Funktion
+  `historyLinesForDisplay (lines: LedgerHistoryLine list) : LedgerHistoryLine list`
+  (`List.rev`), direkt vor `historyLine` platziert. `historySheet` ruft sie jetzt
+  auf: `lines |> historyLinesForDisplay |> List.map historyLine` statt vorher
+  `lines |> List.map historyLine`. Die laufende Nummer je Zeile bleibt die
+  `Sequence` aus dem Ereignis-Log, sie wird nicht neu vergeben.
+- `src/Server/Ledger/Persistence.fs` und `src/Server/Ledger/QueryHandlers.fs`
+  sind **nicht** angefasst (`git diff --stat` zeigt keine Änderung an beiden
+  Dateien): `ORDER BY sequence` und `getEntryHistory`s Durchreichen der Zeilen
+  bleiben wie vor der Aufgabe.
+
+**Tests (4 neu):**
+- `src/Tests/LedgerViewTests.fs` — drei Tests für `historyLinesForDisplay`: die
+  Umkehrung liefert `[3; 2; 1]` aus `[1; 2; 3]`, dieselben Sequenznummern bleiben
+  erhalten (nur die Reihenfolge dreht sich), eine leere Liste bleibt leer.
+- `src/Tests/LedgerPageTests.fs` — ein Persistence-Test in
+  `ledgerPagingTests` (In-Memory-SQLite, `initializeLedgerSchema()` in der
+  lokal geschatteten `testCase`-Closure nach ADR 0033): eine Buchung mit zwei
+  Ereignissen, `Ledger.QueryHandlers.getEntryHistory` muss `[1; 2]` liefern,
+  also aufsteigend. Das pinnt die AC "ein Test hält die aufsteigende
+  Reihenfolge der Abfrage fest", damit die Drehung nicht später in die Abfrage
+  abwandert.
+
+**Wie ich bestätigt habe, dass der Anzeige-Test ohne Drehung wirklich rot
+wird:** `historyLinesForDisplay` testweise auf `lines` (Identität statt
+`List.rev`) gesetzt und gezielt
+`dotnet test --filter "FullyQualifiedName~historyLinesForDisplay"` laufen
+lassen. Beide betroffenen Tests scheiterten wie erwartet (`expected: [3; 2; 1]
+actual: [1; 2; 3]`), der dritte (leere Liste) blieb grün. Danach die
+Drehung wieder auf `List.rev` zurückgesetzt und die volle Suite erneut grün
+bekommen (siehe unten).
+
+**Replay-Pflichttest (ADR 0013):** unberührt.
+`dotnet test --filter "FullyQualifiedName~Replay"` läuft weiterhin mit 3/3
+grün; die drei Testfälle in `LedgerTests.fs` sind nicht angefasst.
+
+**Verifikation:**
+- `dotnet build`: grün, 0 Warnungen, 0 Fehler.
+- `dotnet test`: 901 erfolgreich, 7 übersprungen (Integrationstests ohne
+  `.env`), 0 Fehler, 908 gesamt.
+- `npm run build`: grün (die vorbestehende `eval`-Warnung in
+  `src/Client/Components/Rules/State.fs` und der Chunk-Size-Hinweis sind
+  unverändert und außerhalb dieser Aufgabe).
+
+**README-Delta:** Abschnitt "Ubiquitous language" der ledger-README, Sektion
+`Sichten` (in derselben Bullet-Liste wie `getEntryHistory`). `append` statt
+`replace`, weil die README hart umgebrochen ist und ein `replace` mit
+einzeiligem `expected` gegen einen umbrochenen Bullet nicht träfe (siehe
+Task-Hinweis). Die neue Bullet-Zeile "Historie-Anzeige" landet am Ende der
+letzten Bullet-Liste des Abschnitts (nach "Zu prüfen"), nicht direkt hinter
+`getEntryHistory` — das ist die bekannte Grenze von `append` bei einem
+gemischten Abschnitt, nicht der von mir bevorzugte Ort. Ich habe sie so
+formuliert, dass sie unabhängig von ihrer Position auf `getEntryHistory`
+verweist und die Richtung eindeutig festhält, damit `ledger-q1hw2` sie
+übernehmen kann.
+
+Kein ADR: die Entscheidung selbst ist bereits im Task-File
+(`## Entscheidung (Roman, 2026-09-18)`) und jetzt in der README festgehalten;
+für eine reine Lese-Anzeige-Regel ohne neue Modellierung ist ein eigenes ADR
+nicht nötig.
+
+Kein Diary-Eintrag von mir: `diary/development.md` liegt unter den Pfaden, die
+ein Worker laut Vorgabe nicht selbst beschreibt; der Inhalt steht stattdessen
+hier im Outcome.

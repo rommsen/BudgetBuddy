@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 13:45 -- Task verified and completed: ledger-h9tq2 - "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
+
+**Type:** Work / Task completion
+**Task:** ledger-h9tq2 - "Reihenfolge der Historie entscheiden: Entwurf zeigt neueste zuerst, gebaut ist älteste zuerst"
+**Summary:** Die Historie im Detail-Sheet zeigt die neueste Zeile oben; gedreht wird ausschliesslich in der Anzeige, Abfrage und Lesepfad bleiben aufsteigend und sind durch einen Test festgehalten
+**Duration:** 45m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 13:43 -- Task verified and completed: design-system-e5vfc - "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen"
 
 **Type:** Work / Task completion
