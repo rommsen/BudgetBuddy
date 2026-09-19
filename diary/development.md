@@ -4,6 +4,80 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 20:14 - Work-Lauf: neun Aufgaben (Kassenbuch-Filter, Übertrag, Force-Import, Oberfläche, Werkzeuge)
+
+**What I did:**
+Ein `work`-Lauf über drei Wellen, neun Aufgaben aus vier Kontexten. Acht liefen über Worker
+in eigenen Worktrees, eine (`infrastructure-qwthn`) habe ich als Conductor selbst ausgeführt,
+weil ihr Ergebnis in `.agentheim/board/*/INDEX.md` liegt und Worker dort nach ADR 0032
+(Fassung ghcaj) nicht schreiben dürfen. Jede Worker-Aufgabe ging durch einen
+`verifier`-Agenten mit frischem Kontext; zwei fielen in Iteration 1 durch und bestanden nach
+gezielter Nachbesserung.
+
+**Files Modified (fachlich):**
+- `src/Server/Api.fs`, `src/Server/Ledger/CommandHandlers.fs` - Force-Import verknüpft die
+  bestehende Kassenbuch-Buchung über die alte, deterministische ImportId neu, statt eine
+  zweite "Comdirect-Import"-Buchung anzulegen (`ledger-fq3kd`, ADR 0021).
+- `src/Server/Ledger/Events.fs`, `Domain.fs`, `CommandHandlers.fs`, `QueryHandlers.fs` - neues
+  Ereignis `EntryTransferCounterpartObservedInYnab` verknüpft die beiden Buchungen eines
+  Übertrags über `Entry.TransferEntryId` (`ledger-t7v2q`, ADR 0013/0015).
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs`, `src/Server/Ledger/Persistence.fs`,
+  `QueryHandlers.fs`, `src/Server/Api.fs` - fünf Such-Filter im Kassenbuch-Lesepfad plus
+  `getLedgerPayeeSuggestions`, alle über eine gemeinsame `EntryFilter`/`buildFilterClause`
+  (`ledger-vgfw3`, ADR 0036).
+- `src/Client/Components/Ledger/View.fs`, `src/Client/DesignSystem/Stats.fs` - Kategorie in
+  Violett über den Tokens-Layer, flache Handy-Zeilen statt Karten, neuer `StatAccent`-Fall
+  `NoAccent` (`ledger-w9skm`, ADR 0035).
+- `scripts/screenshot-route.mjs`, `scripts/screenshot-route.test.mjs` - präsentationale Routen
+  ohne Backend und ohne Datenbankkopie (`design-system-m4kp7`); Viewport auf Dokumenthöhe
+  statt `fullPage`, damit die inaktive BottomSheet-Leiste nicht mehr ins Bild rutscht
+  (`ledger-p9k3w`).
+- `template/CLAUDE.md`, `template/README.md`, `template/docs/00-ARCHITECTURE.md`,
+  `docs/MILESTONE-PLAN.md` - DaisyUI-Verweise entfernt (`design-system-k4mtx`, ADR 0031).
+- `.agentheim/board/*/INDEX.md` (vier Kontexte) - vierzehn Done-Listen-Zeilen auf die von
+  `ENTRY_LINE` erwartete Form gebracht (`infrastructure-qwthn`).
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0035-stats-noaccent-statt-classname-override.md`
+- `.agentheim/knowledge/decisions/0036-kassenbuch-filter-lesepfad-betrag-in-fsharp.md`
+- `docs/ux/kassenbuch/screenshots/` - zwei Belegaufnahmen zu `ledger-w9skm`
+- sechs neue Backlog-Aufgaben: `ledger-h4nxz`, `ledger-h6ptn`, `ledger-h4qtx`,
+  `ledger-xk9wq`, `ledger-f8q2x`, `ledger-t4m9c`, dazu `design-system-p3vqk`
+
+**Rationale:**
+Die Aufgaben stammen aus der Modellierungsrunde vom selben Tag. Die Reihenfolge war nicht
+beliebig: `ledger-ezrw0` lief bewusst nach `ledger-vgfw3`, damit es die endgültige
+`getLedgerEntriesPage`-Signatur dokumentiert; `ledger-p9k3w` nach `design-system-m4kp7`, weil
+beide dieselbe Datei anfassen.
+
+**Outcomes:**
+- Build: OK
+- Tests: 940 bestanden, 7 übersprungen (.env-gebundene Integrationstests), 0 Fehler
+- Verifikation: 6 von 8 Worker-Aufgaben bestanden in Iteration 1, 2 in Iteration 2
+- Zwei echte Funde der Verifikation, die ohne sie in den Produktivcode gegangen wären:
+  1. `ledger-vgfw3` verglich den Zeitraum-Filter als vollen ISO-8601-Roundtrip-Text in SQL.
+     Dessen Länge hängt vom `DateTimeKind` ab (`Utc` hängt `Z` an, `Local` `+02:00`,
+     `Unspecified` nichts), und die `date`-Spalte enthält beide Formen gemischt: der
+     YNAB-Spiegel schreibt `Utc`, Comdirect und Quick Add schreiben ohne Kind. Unter SQLites
+     BINARY-Kollation verlor der Randtag-Vergleich damit still Buchungen, und keine Wahl des
+     Client-Kinds machte beide Ränder richtig. Der eigene Test konnte das nicht finden, weil
+     er beide Seiten aus denselben `Unspecified`-Literalen baute. Behoben über
+     `substr(date, 1, 10)`; ADR 0036 Decision 5 mitkorrigiert, weil sie den unsicheren
+     Vergleich mit einer Fehllesung von ADR 0017 gerechtfertigt hatte.
+  2. `ledger-ezrw0`s README-Delta hätte die Einrückung eines 32-zeiligen Blocks entfernt und
+     damit sechs Unterpunkte aus ihrer Gruppierung gerissen - und künftige `replace`-Anker
+     auf diesen Block dauerhaft unerreichbar gemacht. Der sichtbare Text war korrekt, nur der
+     Leerraum nicht.
+
+**Issues:**
+Wiederkehrend, drei Aufgaben betroffen: die `README_DELTA`-Grammatik erreicht nur einzeilige
+Bullets mit fettem Anfang. Die READMEs dieses Projekts brechen ihre Bullets über viele Zeilen
+um und benutzen teils Inline-Code als Anfang. Das scheitert leise (Disposition `merged` oder
+`applied`, Commit sieht sauber aus) und brauchte dreimal eine andere Umgehung, einmal eine
+Reparatur von Hand. Gehört über `modeling` erfasst.
+
+---
+
 ## 2026-09-19 16:05 - Abgelöste Design-Doku gelöscht, Farbpalette auf die lebende Quelle umgehängt
 
 **What I did:**

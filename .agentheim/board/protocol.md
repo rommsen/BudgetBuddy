@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 20:14 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 2h52m (erster Batch-Start 17:22, Ende 20:14)
+**Completed:** 9 (first-try PASS: 6, re-dispatched: 2, skipped: 1)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-fq3kd: 1, ledger-t7v2q: 1, ledger-w9skm: 1, design-system-k4mtx: 1, design-system-m4kp7: 1, ledger-vgfw3: 3, ledger-p9k3w: 1, ledger-ezrw0: 2, infrastructure-qwthn: 0 (vom Conductor selbst ausgeführt). Hinweis zu ledger-vgfw3: der zweite der drei Dispatches wurde von einem Sitzungslimit abgebrochen, bevor er irgendetwas geschrieben hatte, und hat keine FAIL-Iteration verbraucht; der Iterationszähler blieb bei 2.
+**Commits:** 15
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 67% product-facing / 33% harness / 0% bookkeeping (9 tasks)
+**Carry-over:** left behind (user WIP, 1 file: .serena/project.yml, lag schon vor Sitzungsbeginn geändert vor); 10 gestrandete RESULT-Sidecars entfernt; keine Worktrees, keine Salvage-Patches
+
+---
+
 ## 2026-09-19 20:13 -- Task verified and completed: ledger-ezrw0 - "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen"
 
 **Type:** Work / Task completion
