@@ -1,7 +1,7 @@
 ---
 id: design-system-hadjy
 title: "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht"
-status: todo
+status: doing
 type: bug
 context: design-system
 created: 2026-09-11

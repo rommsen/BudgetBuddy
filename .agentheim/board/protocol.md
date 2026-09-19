@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 12:34 -- Batch started: [design-system-yxrxb, infra-sdad8, design-system-hadjy]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen", infra-sdad8 - "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben", design-system-hadjy - "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht"
+**Parallel:** yes (3 Worker — design-system-yxrxb, infra-sdad8, design-system-hadjy; dateilich disjunkt. Zurueckgehalten: infra-jh7g9 (fasst scripts/screenshot-route.mjs an wie yxrxb, Merge-Reihenfolge), ledger-d4kx8 und ledger-h9tq2 (beide src/Client/Components/Ledger/View.fs, kollidieren miteinander), design-system-e5vfc, design-system-k2vgz, design-system-t3vqr (Kappe MAX_PARALLEL=3))
+
+---
+
 ## 2026-09-19 12:25 -- Modeling / Promoted: infra-sdad8 - "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben"
 
 **Type:** Modeling / Promote

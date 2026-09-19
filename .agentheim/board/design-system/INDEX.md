@@ -11,8 +11,8 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 5
-- **Doing:** 0
+- **Todo:** 3
+- **Doing:** 2
 - **Done:** 14
 <!-- task-counts:end -->
 
@@ -20,13 +20,13 @@ research touching this BC, and concept synthesis pages.
 <!-- todo-list:start -->
 - **design-system-k2vgz** — "Abgelöste Doku-Sätze aufräumen: docs/DESIGN-SYSTEM.md und docs/README.md, Farbpalette vorher sichern" (refactor) — `todo/design-system-k2vgz-alte-doku-saetze-abloesen-oder-loeschen.md`
 - **design-system-t3vqr** — "Neue Money-Varianten in Styleguide-Dokument und /styleguide-Route nachziehen" (chore) — `todo/design-system-t3vqr-neue-money-varianten-in-styleguide-und-route.md`
-- **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `todo/design-system-hadjy-export-font-face-absolute-url.md`
 - **design-system-e5vfc** — "Wächter-Abdeckung gegen den eigenen Verlust sichern: erfasste Startup-Typen gegen die Dateien unter src/Client/DesignSystem/ abgleichen" (chore) — `todo/design-system-e5vfc-waechter-abdeckung-gegen-eigenen-verlust-sichern.md`
-- **design-system-yxrxb** — "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen" (bug) — `todo/design-system-yxrxb-wartepredikat-blockiert-styleguide-route.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-hadjy** — "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht" (bug) — `doing/design-system-hadjy-export-font-face-absolute-url.md`
+- **design-system-yxrxb** — "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen" (bug) — `doing/design-system-yxrxb-wartepredikat-blockiert-styleguide-route.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
