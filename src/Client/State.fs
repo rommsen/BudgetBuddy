@@ -169,6 +169,37 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
         ]
 
 // ============================================
+// Bereitschaftssignal (design-system-yxrxb)
+// ============================================
+
+/// Ist die aktuelle Seite fertig geladen? Das App-eigene Bereitschaftssignal für
+/// `scripts/screenshot-route.mjs`: das Skript riet früher aus dem Verschwinden von
+/// CSS-Klassen ("proto-spinner"/"animate-pulse"), was auf der /styleguide-Route
+/// scheiterte, weil die dort gezeigten Spinner/Skeletons Demo-Inhalte der
+/// Loading-Sektion sind und naturgemäß nie verschwinden. Diese Funktion trägt
+/// stattdessen den tatsächlichen Ladezustand: eine Seite ohne eigenen Ladezustand
+/// (Styleguide) ist sofort bereit, jede andere Seite ist bereit, wenn keiner der
+/// Datenstränge mehr `Loading` ist, die `pageLoadCmd` für sie anstößt (direkt
+/// abgefragte Felder). Bewusst nicht `NotAsked`-sensitiv: eine Seite, die noch gar
+/// nichts angefordert hat, gilt als bereit (das betrifft nur Datenstränge, die erst
+/// auf Nutzeraktion hin laden, z. B. `Settings.YnabBudgets` beim Verbindungstest).
+/// `View.fs` rendert dieses Ergebnis als DOM-Attribut, das Skript wartet darauf.
+let isPageReady (model: Model) : bool =
+    let notLoading (rd: RemoteData<'a>) = not (RemoteData.isLoading rd)
+    match model.CurrentPage with
+    | Styleguide -> true
+    | SyncFlow ->
+        notLoading model.SyncFlow.CurrentSession
+        && notLoading model.SyncFlow.SyncTransactions
+    | Rules -> notLoading model.Rules.Rules
+    | Settings -> notLoading model.Settings.Settings
+    | QuickAdd -> notLoading model.QuickAddTemplates
+    | Ledger ->
+        notLoading model.Ledger.Accounts
+        && notLoading model.Ledger.Balances
+        && notLoading model.Ledger.Entries
+
+// ============================================
 // Init
 // ============================================
 

@@ -4,6 +4,53 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-19 13:05 - Wartepredikat blockierte die /styleguide-Route: App meldet ihre Bereitschaft jetzt selbst
+
+**What I did:**
+`scripts/screenshot-route.mjs` wartete darauf, dass `.proto-spinner` und `.animate-pulse` aus
+dem DOM verschwinden. Auf der `/styleguide`-Route verschwinden die nie, weil sie dort
+Demo-Inhalte der Loading-Sektion sind. Eine Heuristik über Klassennamen kann nicht
+unterscheiden zwischen "die Seite lädt noch" und "die Seite zeigt absichtlich einen
+Ladezustand". Ersetzt durch ein Bereitschaftssignal, das die App selbst setzt.
+
+**Files Added:**
+- `src/Tests/AppReadinessTests.fs` - 14 Expecto-Fälle für `State.isPageReady`, je Seite,
+  inklusive des Kettenfalls bei SyncFlow und des Failure-Falls beim Kassenbuch.
+
+**Files Modified:**
+- `src/Client/State.fs` - neue reine Funktion `isPageReady`: Styleguide ist sofort bereit,
+  jede andere Seite erst, wenn keiner ihrer von `pageLoadCmd` geladenen RemoteData-Stränge
+  mehr lädt. `NotAsked` zählt als bereit, damit ein erst auf Nutzeraktion ladender Strang
+  (Settings/YnabBudgets) das Signal nicht blockiert.
+- `src/Client/View.fs` - rendert das Ergebnis als unsichtbares Element mit
+  `data-app-ready="true"|"false"`, als eigenes Element statt als Prop auf `appWrapper`.
+- `scripts/screenshot-route.mjs` - `waitForPageLoaded` wartet auf
+  `[data-app-ready="true"]` statt auf das Verschwinden der beiden Klassen. Timeout- und
+  Fehlerpfad unverändert, die Route steht weiterhin im Fehlertext.
+- `scripts/screenshot-route.test.mjs` - Regressionstest, der die echte Quelldatei liest und
+  das Wiedereinführen der Klassen-Heuristik rot werden lässt.
+- `src/Tests/Tests.fsproj` - neue Testdatei aufgenommen.
+
+**Rationale:**
+Das Signal musste den Ladezustand tragen, nicht bloß das Mounten. Ein Signal, das nur meldet
+"die Seite ist da", hätte das Werkzeug wieder Platzhalter aufnehmen lassen, bevor die
+Kassenbuch-Tabelle ihre Daten hat. Die Seiten halten diesen Zustand ohnehin als RemoteData im
+Elmish-Modell, es war also vorhanden und musste nur sichtbar gemacht werden.
+
+**Outcomes:**
+- Build: ✅ (`npm run build` sauber)
+- Tests: 888 bestanden, 7 übersprungen, 0 fehlgeschlagen; `node --test scripts/screenshot-route.test.mjs` 19/19
+- Verifikation: PASS in Iteration 1. Der Verifier hat die beiden Augen-Kriterien selbst
+  nachgefahren statt sie zu übernehmen: die vom Worker behaupteten Bilder lagen nicht am
+  Standardort, also hat er `#/styleguide` und `#/ledger` eigenhändig aufgenommen und die
+  Bilder angesehen. Das Kassenbuch-Bild zeigt Kontostände und Buchungsliste gefüllt, keine
+  Skeleton-Platzhalter. Er hat außerdem geprüft, dass der `Page`-Match alle sechs Fälle aus
+  `src/Client/Types.fs` abdeckt, also keine unvollständige Verzweigung zur Laufzeit entsteht.
+- Offen und getrennt verfolgt: das teilweise gerenderte Sheet in der Full-Page-Aufnahme ist
+  `ledger-p9k3w`, nicht Teil dieser Aufgabe.
+
+---
+
 ## 2026-09-19 12:55 - Bug: Design-System-Export trug @font-face mit absolutem url(/fonts/...)
 
 **What I did:**

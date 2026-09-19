@@ -50,6 +50,20 @@ let view (model: Model) (dispatch: Msg -> unit) =
         router.onUrlChanged (UrlChanged >> dispatch)
         router.children [
             Navigation.appWrapper [
+                // Bereitschaftssignal für scripts/screenshot-route.mjs (design-system-yxrxb):
+                // ein unsichtbares, immer vorhandenes Element, dessen Attribut
+                // `data-app-ready` `State.isPageReady model` widerspiegelt. Ersetzt die
+                // frühere Heuristik über CSS-Klassen ("proto-spinner"/"animate-pulse"),
+                // die auf /styleguide nie auf "fertig" ging, weil deren Spinner/Skeletons
+                // Demo-Inhalte sind, keine echten Ladezustände. Als eigenes Element statt
+                // als Attribut auf appWrapper selbst, um dessen feste Prop-Liste
+                // (`Navigation.appWrapper`) unangetastet zu lassen.
+                Html.div [
+                    prop.id "app-ready"
+                    prop.custom ("data-app-ready", if isPageReady model then "true" else "false")
+                    prop.style [ style.display.none ]
+                ]
+
                 // Navigation (desktop top + mobile header/bottom)
                 Navigation.navigation
                     (toNavPage model.CurrentPage)

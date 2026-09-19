@@ -377,31 +377,35 @@ async function stopServer(child, portToVerify) {
   }
 }
 
-/// Wartet auf einen echten Ladezustand statt auf eine feste Zeitspanne:
-/// Netzwerk-Ruhe (page.goto waitUntil networkidle) plus das Verschwinden
-/// jedes Loading-Spinners (Klasse "proto-spinner", src/Client/DesignSystem/
-/// Loading.fs) UND jedes Skeleton-Platzhalters (Klasse "animate-pulse",
-/// dieselbe Datei, Loading.txListSkeleton/tableSkeleton). Die Zielrouten
-/// zeigen ihren Ladezustand überwiegend als Skeleton, nicht als Spinner
-/// (z. B. src/Client/Components/Ledger/View.fs: Loading.txListSkeleton /
-/// Loading.tableSkeleton für den Fall RemoteData.Loading). Nur
-/// Loading.centered nutzt proto-spinner. Ohne die zweite Bedingung konnte
-/// dieser Wartepunkt zurückkehren, während die Tabelle noch
-/// Platzhalter-Balken zeigte.
-/// AC7 (kein unbedingtes setTimeout als Warte-Ersatz) und die "nicht
-/// ladende Route"-Hälfte von AC8: läuft dieser Wartepunkt in den Timeout
-/// (page.setDefaultTimeout, s. captureScreenshot), scheitert der Lauf laut
-/// mit der Route im Fehlertext.
+/// Wartet auf ein Bereitschaftssignal aus der App selbst statt auf eine feste
+/// Zeitspanne ODER auf das Verschwinden von CSS-Klassen (design-system-yxrxb).
+///
+/// Die frühere Fassung wartete auf das Verschwinden von ".proto-spinner" UND
+/// ".animate-pulse" (Loading-Spinner- bzw. Skeleton-Klassen aus
+/// src/Client/DesignSystem/Loading.fs). Das scheiterte laut an der
+/// /styleguide-Route: deren Loading-Sektion zeigt Spinner und Skeletons als
+/// DEMO-Inhalte der lebenden Komponenten-Galerie, die naturgemäß nie
+/// verschwinden. Eine Klassen-Heuristik kann nicht unterscheiden zwischen
+/// "die Seite lädt noch" und "die Seite zeigt absichtlich einen Ladezustand".
+///
+/// Roman hat entschieden: die App sagt selbst, wann sie fertig ist. `State.fs`
+/// (`isPageReady`) trägt den Ladezustand als reine Funktion des Elmish-Modells
+/// (RemoteData je Datenstrang der aktuellen Seite, nicht bloß "gemountet"), und
+/// `View.fs` rendert das Ergebnis als unsichtbares Element mit dem Attribut
+/// `data-app-ready="true"|"false"`. Für /styleguide (kein eigener Ladezustand)
+/// ist das Signal sofort "true"; für z. B. /ledger erst, wenn Konten,
+/// Kontostände UND Buchungen fertig geladen sind.
+///
+/// AC7 (kein unbedingtes setTimeout als Warte-Ersatz) und die "nicht ladende
+/// Route"-Hälfte von AC8 aus design-system-wa6wz bleiben erfüllt: läuft dieser
+/// Wartepunkt in den Timeout (page.setDefaultTimeout, s. captureScreenshot),
+/// scheitert der Lauf laut mit der Route im Fehlertext.
 async function waitForPageLoaded(page, normalizedRoute) {
   try {
-    await page.waitForFunction(
-      () =>
-        document.querySelectorAll(".proto-spinner").length === 0 &&
-        document.querySelectorAll(".animate-pulse").length === 0
-    );
+    await page.waitForSelector('[data-app-ready="true"]', { state: "attached" });
   } catch (err) {
     throw new Error(
-      `Route '${normalizedRoute}' lädt nicht (Spinner oder Skeleton-Platzhalter hängen fest): ${err.message}`
+      `Route '${normalizedRoute}' lädt nicht (data-app-ready wird nicht "true"): ${err.message}`
     );
   }
 }

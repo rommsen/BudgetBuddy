@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-19 13:00 -- Task verified and completed: design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
+
+**Type:** Work / Task completion
+**Task:** design-system-yxrxb - "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
+**Summary:** Die App meldet ihre Bereitschaft selbst (State.isPageReady, gerendert als data-app-ready); screenshot-route.mjs wartet darauf statt auf das Verschwinden von CSS-Klassen, wodurch die /styleguide-Route nicht mehr blockiert
+**Duration:** 26m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-09-19 12:55 -- Task verified and completed: design-system-hadjy - "Bug: Claude-Design-Export trägt @font-face mit absolutem url(/fonts/...) in styles.css, Schriften laden in Claude Design nicht"
 
 **Type:** Work / Task completion

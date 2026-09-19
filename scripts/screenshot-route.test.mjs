@@ -188,6 +188,27 @@ test("assertDataDirIsolated: lässt ein echtes Temp-Verzeichnis unbeanstandet", 
   );
 });
 
+// Regressionstest für design-system-yxrxb: waitForPageLoaded wartete früher auf das
+// Verschwinden von ".proto-spinner"/".animate-pulse", was an der /styleguide-Route
+// scheiterte, weil deren Spinner/Skeletons Demo-Inhalte sind und nie verschwinden
+// (s. Kommentar bei waitForPageLoaded in screenshot-route.mjs). Ersetzt durch das
+// App-eigene Bereitschaftssignal `data-app-ready` (State.isPageReady, View.fs). Dieser
+// Test liest die tatsächliche Quelldatei, nicht eine Kopie der Behauptung, damit ein
+// künftiges Wiedereinführen der Klassen-Heuristik hier laut auffällt.
+test("screenshot-route.mjs prüft nicht mehr auf .proto-spinner/.animate-pulse, sondern auf data-app-ready", () => {
+  // Prüft die tatsächliche DOM-Abfrage, nicht jede Erwähnung der Klassennamen: der
+  // Kommentar bei waitForPageLoaded erklärt die frühere Heuristik bewusst weiter
+  // (Begründung des gewählten Wegs, AC5), ohne sie wieder auszuführen.
+  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
+  const source = readFileSync(scriptPath, "utf8");
+  assert.doesNotMatch(
+    source,
+    /querySelectorAll\(["'`]\.(proto-spinner|animate-pulse)["'`]\)/,
+    "die Klassen-Heuristik darf nicht mehr tatsächlich abgefragt werden"
+  );
+  assert.match(source, /data-app-ready/, "das App-eigene Bereitschaftssignal muss abgefragt werden");
+});
+
 test("startBackend: scheitert laut, BEVOR ein Prozess gestartet wird, wenn dataDir auf das Original zeigt", async () => {
   // Das ist der eigentliche Wachtposten aus AC6, nicht nur die reine
   // Helfer-Funktion: startBackend() ruft assertDataDirIsolated() mit genau

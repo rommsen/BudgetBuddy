@@ -1,7 +1,7 @@
 ---
 id: design-system-yxrxb
 title: "Wartepredikat von screenshot-route.mjs blockiert die /styleguide-Route, deren Demo-Inhalte dauerhaft Spinner und Skeletons zeigen"
-status: doing
+status: done
 type: bug
 context: design-system
 created: 2026-09-19
@@ -81,3 +81,54 @@ die Route genannt, statt ein Bild voller Platzhalter abzulegen.
 
 Verwandt: `ledger-p9k3w` (BottomSheet-Leiste in Full-Page-Aufnahmen). Beide betreffen
 `scripts/screenshot-route.mjs` und könnten zusammen angegangen werden.
+
+## Outcome
+
+`scripts/screenshot-route.mjs` wartete bisher darauf, dass `.proto-spinner` UND
+`.animate-pulse` aus dem DOM verschwinden. Das scheiterte laut an der `/styleguide`-Route:
+deren Loading-Sektion zeigt Spinner und Skeletons als Demo-Inhalte der lebenden
+Komponenten-Galerie, und die verschwinden naturgemäß nie. Eine Klassen-Heuristik konnte
+nicht unterscheiden zwischen "die Seite lädt noch" und "die Seite zeigt absichtlich einen
+Ladezustand".
+
+**Die App sagt jetzt selbst, wann sie fertig ist (Romans Entscheidung, s. Task `## What`).**
+`State.isPageReady` (`src/Client/State.fs`) ist eine reine Funktion des Elmish-Modells:
+für `Styleguide` (kein eigener Ladezustand) immer `true`; für jede andere Seite `true`,
+sobald keiner ihrer von `pageLoadCmd` geladenen `RemoteData`-Datenströme mehr `Loading` ist
+(bei `SyncFlow` sowohl `CurrentSession` als auch das ggf. anschließend nachgeladene
+`SyncTransactions`; bei `Ledger` `Accounts`, `Balances` und `Entries`; bei `Rules` `Rules`;
+bei `Settings` `Settings`, bewusst ohne das nutzergetriggerte `YnabBudgets`; bei `QuickAdd`
+`QuickAddTemplates`). `NotAsked` zählt als bereit, nicht nur `Success`/`Failure`: eine
+Seite, die noch gar nichts angefordert hat, blockiert das Signal nicht.
+
+`src/Client/View.fs` rendert das Ergebnis als unsichtbares, immer vorhandenes Element mit
+dem Attribut `data-app-ready="true"|"false"`, als eigenständiges Element statt als Prop auf
+`Navigation.appWrapper`, um dessen feste Prop-Liste nicht anzutasten.
+
+`scripts/screenshot-route.mjs` (`waitForPageLoaded`) wartet jetzt auf
+`page.waitForSelector('[data-app-ready="true"]', { state: "attached" })` statt auf die
+beiden CSS-Klassen; die Begründung des gewählten Wegs steht an beiden Setz-Stellen im
+Kommentar (`State.fs` bei `isPageReady`, `View.fs` beim Marker-Element,
+`screenshot-route.mjs` bei `waitForPageLoaded`). Der Timeout- und Fehlerpfad (Route im
+Fehlertext bei einer tatsächlich nicht ladenden Route) ist unverändert.
+
+**Tatsächlich verifiziert, nicht nur gelesen (AC1/AC2):** `node scripts/screenshot-route.mjs
+'#/styleguide'` läuft jetzt ohne Timeout durch und legt beide Bilder ab. `node
+scripts/screenshot-route.mjs '#/ledger'` ebenso; das aufgenommene Bild (1440×900) zeigt
+Kontostände-Tabelle und Buchungsliste vollständig gefüllt mit echten Daten, keine
+Skeleton-Platzhalter.
+
+**Tests:** `src/Tests/AppReadinessTests.fs` (14 Expecto-Fälle, nach dem Muster von
+`QuickAddTests.modelWithForm` ohne `State.init`) deckt `isPageReady` für alle sechs Seiten
+ab, inklusive des Kettenfalls bei `SyncFlow` (`CurrentSession` fertig, `SyncTransactions`
+noch am Laden) und des Failure-Falls beim Kassenbuch. `scripts/screenshot-route.test.mjs`
+hat einen neuen Regressionstest, der die tatsächliche Quelldatei liest und sicherstellt,
+dass `querySelectorAll(".proto-spinner"|".animate-pulse")` nicht wieder eingeführt wird
+und `data-app-ready` tatsächlich abgefragt wird.
+
+`dotnet test` (888/888 grün, 7 übersprungen wie zuvor), `node --test
+scripts/screenshot-route.test.mjs` (19/19 grün) und `npm run build` sind sauber.
+
+Kein neuer ADR: die Entscheidung (App-eigenes Signal statt Container-Scoping oder
+Routen-Opt-out) ist bereits vollständig im `## What`-Abschnitt dieser Task-Datei
+festgehalten, inklusive der beiden verworfenen Wege und ihrer Begründung.

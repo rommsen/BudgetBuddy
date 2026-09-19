@@ -243,9 +243,12 @@ Zwei Ursachen, beide im Ablauf, nicht beim Worker:
   fürs Kassenbuch); für den Abgleich mit einem abgelegten Mockup ist explizit `--out
   docs/ux/kassenbuch/screenshots/` (oder der passende Bereichs-Pfad) anzugeben. Das Skript
   startet Server und Frontend selbst, gegen eine Kopie der Entwicklungsdatenbank in einem
-  Temp-Verzeichnis, niemals gegen das Original (ADR 0030), wartet auf einen echten
-  Ladezustand (Spinner und Skeleton-Platzhalter verschwunden, kein `setTimeout` als
-  Warte-Ersatz) und räumt Kindprozesse samt Temp-Verzeichnis auch bei Abbruch (`SIGINT`)
+  Temp-Verzeichnis, niemals gegen das Original (ADR 0030), wartet auf das App-eigene
+  Bereitschaftssignal (`data-app-ready`, gesetzt aus `State.isPageReady`,
+  `design-system-yxrxb`: eine Route ohne eigenen Ladezustand wie `/styleguide` ist sofort
+  bereit, eine Route mit Ladezustand erst, wenn keiner ihrer Datenstränge mehr lädt; kein
+  `setTimeout` als Warte-Ersatz und keine Heuristik über CSS-Klassen mehr) und räumt
+  Kindprozesse samt Temp-Verzeichnis auch bei Abbruch (`SIGINT`)
   zuverlässig auf (Prozessgruppen-Kill, SIGKILL-Eskalation, Port-Prüfung danach).
 
 Die Richtung bleibt unverändert Repo → Claude Design. Ein Mockup-Bild im Repo ist kein
