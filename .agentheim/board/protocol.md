@@ -5,6 +5,89 @@ Newest entries on top.
 
 ---
 
+## 2026-09-20 21:55 -- Modeling / Refined: Sammel-Verfeinerung von sechs Backlog-Items (2026-09-20)
+
+**Type:** Modeling / Refine
+**BC:** ledger, design-system, infrastructure
+**Status after:** backlog (Promotion einzeln im Anschluss)
+**Summary:** Sechs Items in einer Sitzung ueber fuenf parallele Orchestratoren verfeinert. Drei Praemissen der Task-Dateien wurden dabei gemessen und widerlegt, statt weitergereicht: (1) ledger-h6ptn wollte die Kategoriegruppe ins Ereignis schreiben, beide Spezialisten verwarfen das, weil ein neues Payload-Feld bei Delta-Zulieferung praktisch keine der ~14.000 Bestandsbuchungen erreicht; Roman hat den Lesepfad-Weg und die heutige-Gruppe-Semantik bestaetigt. (2) infrastructure-b6kzp diagnostizierte umbrochene Bullets als Ankerproblem, gemessen falsch: collapseWs faengt das ab, der wirkliche Mechanismus ist findBulletsInRange plus endOfBulletList. (3) ledger-r7dm2 behauptete einen QA-Review-Volltext im Diary, der nicht existiert; die Testdefinitionen wurden stattdessen aus dem Produktionscode abgeleitet. Zusaetzlich: ledger-h4qtx schlug GROUP BY payee COLLATE NOCASE vor und haette damit den Umlaut-Defekt aus ledger-k3wqn an zweiter Stelle neu eingebaut, gruen durch alle Tests.
+**Split into:** ledger-p3wnq (aus h6ptn); ledger-c4mzp, ledger-w6tbq, design-system-j9xnd, design-system-q2bmv, ledger-v5hkt, ledger-n3pqw (aus r7dm2); ledger-v8n4t (aus b6kzp)
+**ADRs written:** 0037 (Suchfilter-Faltung ueber anwendungsdefinierte SQL-Funktion bb_lower), 0038 (Split-Kategorien als abgeleitete Indextabelle), 0039 (Kategoriegruppe im Lesepfad statt im Ereignis-Log), 0040 (README-Deltas durch repo-lokales Gate statt Grammatik-Erweiterung)
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: ledger-v8n4t - "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: ledger-n3pqw - "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: ledger-v5hkt - "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: design-system-q2bmv - "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: design-system-j9xnd - "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: ledger-w6tbq - "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: ledger-c4mzp - "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
+## 2026-09-20 21:54 -- Modeling / Captured: ledger-p3wnq - "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus der Verfeinerungs-Sitzung vom 2026-09-20 hervorgegangen.
+
+---
+
 ## 2026-09-20 21:03 -- Modeling / Promoted: ledger-t4m9c - "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
 
 **Type:** Modeling / Promote

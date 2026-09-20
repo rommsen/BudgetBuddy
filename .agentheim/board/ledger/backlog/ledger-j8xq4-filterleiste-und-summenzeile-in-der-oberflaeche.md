@@ -108,3 +108,13 @@ Der Chip „Zu prüfen" existiert bereits (`ledger-kdnnz`) und ist in die neue L
 einzuordnen, nicht neu zu bauen. Der Available-Betrag je Kategorie im Picker kommt aus
 `ledger-kwwxz`; ohne ihn zeigt der Picker die Kategorien ohne Betrag, was hier kein
 Fehler ist.
+
+**Chip "ohne Kategorie" (erfasst am 2026-09-20 bei der Verfeinerung von `ledger-xk9wq`):**
+Die Kategorienauswahl dieser Leiste speist sich aus `getCategories` gegen YNAB, also aus dem
+Katalog, nicht aus dem Bestand des Kassenbuchs. Zwei Fälle fallen deshalb durch jeden
+Kategorie-Filter, egal wie gut er gebaut ist: eine Buchung ohne Kategorie, und eine
+aufgeteilte Buchung, deren Split-Zeilen alle `Uncategorized` sind. Beide sind fachlich
+"unkategorisiert", aber es gibt keine Kategorie, die man auswählen könnte, um sie zu finden.
+Das ist genau die Menge, die Roman beim Durchsehen sucht. Ein eigener Chip "ohne Kategorie"
+neben der Kategorienauswahl löst es; `ledger-xk9wq` deckt es ausdrücklich nicht ab und hält
+die Grenze in ADR 0038 fest.

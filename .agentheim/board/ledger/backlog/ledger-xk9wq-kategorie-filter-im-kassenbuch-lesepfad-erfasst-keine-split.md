@@ -1,15 +1,15 @@
 ---
 id: ledger-xk9wq
-title: "Kategorie-Filter im Kassenbuch-Lesepfad erfasst keine Split-Zeilen-Kategorien"
+title: "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
 status: backlog
 type: feature
 context: ledger
 created: 2026-09-19
 completed:
-depends_on: [ledger-vgfw3]
+depends_on: [ledger-vgfw3, ledger-k3wqn]
 blocks: []
 tags: [backend, kassenbuch, filter, splits]
-related_adrs: [0006, 0013, 0036]
+related_adrs: [0006, 0013, 0019, 0036, 0038]
 related_research: []
 prior_art: [ledger-vgfw3]
 ---
@@ -17,45 +17,184 @@ prior_art: [ledger-vgfw3]
 ## Why
 
 `ledger-vgfw3` baut den Kategorie-Filter im Lesepfad (`LedgerEntryPageQuery.CategoryIds`)
-gegen die `category_id`-Spalte der Zustandstabelle (ADR 0036). Eine aufgeteilte
-Buchung (Splits, ADR 0006) trägt dort `NULL` — ihre Kategorien stecken in den
-einzelnen Split-Zeilen, die als JSON-Text in der Spalte `splits` liegen. ADR 0013,
-Punkt 8 verbietet SQLite-JSON-Funktionen in Abfragen; deshalb filtert der
-Kategorie-Filter aus `ledger-vgfw3` bewusst NICHT über Split-Zeilen-Kategorien. Eine
+gegen die `category_id`-Spalte der Zustandstabelle (ADR 0036 Punkt 2). Eine aufgeteilte
+Buchung (Splits, ADR 0006) trägt dort `NULL`, ihre Kategorien stecken als JSON-Text in der
+Spalte `splits`. ADR 0013 Punkt 8 verbietet SQLite-JSON-Funktionen in Abfragen. Eine
 Buchung, deren einzige Kategorie in einem Split steckt, findet der Filter also nicht.
-Bei einer geschätzten Kategorie-Filter-Nutzung von 70-80 % (Romans eigene Angabe,
-`ledger-vgfw3` Task-Text) ist das eine reale Lücke, sobald Roman eine aufgeteilte
-Buchung über ihre Kategorie sucht.
+
+**Das ist keine fehlende Zeile in einer langen Liste, sondern eine falsche Antwort.** Die
+Kategorie-Auswahl der Oberfläche kommt aus `getCategories` gegen YNAB
+(`src/Shared/Api.fs`), nicht aus dem Bestand des Kassenbuchs. Roman kann also eine
+Kategorie wählen, die es nur in Split-Zeilen gibt, und bekommt darauf eine leere Liste mit
+Summe 0,00. Die Frage war gültig, die Antwort ist falsch, und nichts an der Oberfläche sagt
+das.
+
+Dazu kommen Häufigkeit und Breite. Roman setzt den Kategorie-Filter nach eigener Schätzung
+in 70 bis 80 Prozent der Fälle. Und der Filter sitzt in
+`Ledger.Persistence.buildFilterClause`, wirkt damit auf alle fünf Lesewege: `Entries`,
+`TotalCount`, `TotalAmount`, `DeletedCount` und die Payee-Vorschläge zählen alle
+gleichsinnig zu wenig. Weil sie gleichsinnig irren, widersprechen sie sich nie, und der
+Fehler fällt nicht auf. `NeedsReviewCount` ist nicht betroffen: `countNeedsReviewEntries`
+nimmt bewusst gar keinen `EntryFilter` (ADR 0036 Punkt 6).
 
 ## What
 
-Eine Lösung finden, die Split-Zeilen-Kategorien im Kategorie-Filter erfasst, ohne die
-14.000-Buchungen-Performance-Vorgabe aus `ledger-vgfw3` aufzugeben und ohne
-SQLite-JSON-Funktionen (ADR 0013). Denkbare Richtungen (nicht vorentschieden, gehört
-in die Verfeinerung):
-- Eine eigene, normalisierte Tabelle (z. B. `ledger_entry_split_categories`:
-  `entry_id`, `category_id`), parallel zur JSON-Spalte `splits` in `appendAndApply`
-  gepflegt, mit eigenem Index — macht den Filter wieder SQL-tauglich, kostet aber
-  eine zweite Schreibstelle im Schreibpfad.
-- Split-Zeilen-Kategorien im Kategorie-Filter über einen F#-seitigen Nachfilter
-  einschließen, analog zum Betrags-Filter aus ADR 0036 (SQL-vorgefilterte
-  Kandidatenmenge laden, in F# auf Split-Kategorien prüfen) — mit denselben
-  Performance-Abwägungen wie dort.
+Der Weg ist entschieden (ADR 0038): eine abgeleitete Indextabelle, die nur
+Split-Zeilen-Kategorien führt, in derselben Transaktion gepflegt wie Log und Zustand. Der
+Filter bleibt reines, indexfähiges SQL. Der F#-seitige Nachfilter ist verworfen, weil er
+den häufigsten Fall auf `loadAllMatching` zwingen würde, was dieser Task ausschließt.
+
+Alle Codeänderungen liegen in `src/Server/Ledger/Domain.fs` und
+`src/Server/Ledger/Persistence.fs` plus Tests. `QueryHandlers.fs` wird nicht angefasst:
+`toEntryFilter` reicht die Kategorie-Ids bereits durch, nur die Klausel war zu eng.
+
+1. **`src/Server/Ledger/Domain.fs`**: reine Funktion
+   `splitCategoryIds : Entry -> Guid list`. Wählt aus `entry.Splits` die `ToCategory`-Ziele
+   aus, entdoppelt (`List.distinct`), überspringt `ToTransfer` und `Uncategorized`
+   (ADR 0006, ADR 0019). Kein I/O.
+2. **`src/Server/Ledger/Persistence.fs`, `initializeLedgerSchema`**: neue Tabelle
+   `ledger_entry_split_categories (category_id TEXT NOT NULL, entry_id TEXT NOT NULL,
+   PRIMARY KEY (category_id, entry_id))` plus
+   `CREATE INDEX IF NOT EXISTS idx_ledger_entry_split_categories_entry ON
+   ledger_entry_split_categories(entry_id)`. Die Spaltenreihenfolge im Primärschlüssel ist
+   tragend (deckende Suche nach `category_id`, Rückgabe `entry_id`), der zweite Index
+   bedient das `DELETE` des Schreibpfads.
+3. **`src/Server/Ledger/Persistence.fs`, neuer privater Helfer
+   `writeSplitCategoryIndex (conn) (tx) (entry)`**: erst `DELETE` aller Zeilen dieser
+   Buchung, dann `INSERT` je Kategorie aus `splitCategoryIds`. Immer beides, auch bei leerer
+   Split-Liste, sonst bleibt eine Zeile stehen, nachdem eine aufgeteilte Buchung wieder zu
+   einer einfachen wurde.
+4. **`src/Server/Ledger/Persistence.fs`, `appendAndApply` (Zeile ~433)**: Aufruf von
+   `writeSplitCategoryIndex` unmittelbar hinter dem einen `conn.Execute(upsertEntrySql,
+   entryParams newState, tx)`, auf derselben Connection und in derselben Transaktion
+   (ADR 0013 Punkt 5). Das ist die einzige Stelle im Repo, die `ledger_entries` schreibt.
+5. **`src/Server/Ledger/Persistence.fs`, `rebuildSplitCategoryIndex (conn: SqliteConnection)
+   : int`**: leert die Tabelle und baut sie aus `ledger_entries` neu auf, Kandidaten über
+   `WHERE splits <> '[]'` eingeschränkt. Nimmt die Connection als Parameter wie
+   `migrateLedgerEntryColumns`, wird am Ende von `initializeLedgerSchema` direkt hinter
+   diesem gerufen. Liefert die Zahl der geschriebenen Indexzeilen. Liest und schreibt das
+   Ereignis-Log nicht. Muss nach `rowToEntry` (Zeile ~244) und nach `writeSplitCategoryIndex`
+   im Modul stehen, F# kennt keine Vorwärtsreferenz.
+6. **`src/Server/Ledger/Persistence.fs`, `buildFilterClause`, Kategorie-Zweig
+   (Zeilen ~610-619)**: ersetzt `AND category_id IN @categoryIds` durch die geklammerte
+   OR-Form `AND (category_id IN @categoryIds OR id IN (SELECT entry_id FROM
+   ledger_entry_split_categories WHERE category_id IN @splitCategoryIds))`. Die äußere
+   Klammer ist tragend (`countDeletedEntries` und `loadPayeeSuggestions` hängen weitere
+   `AND`-Glieder an). Die Unterabfrage bleibt nicht korreliert, kein `EXISTS` mit
+   Rückverweis auf `ledger_entries.id`. Dieselbe Id-Liste geht unter zwei Parameternamen
+   hinein. Die Payee- und Memo-Zweige derselben Funktion bleiben unangetastet (sie gehören
+   `ledger-k3wqn`, das vorher läuft).
+7. **`src/Server/Ledger/Persistence.fs`, `explainEntryFilterPlan (accountId) (filter) :
+   string list`**: gibt `EXPLAIN QUERY PLAN` der gebauten Filter-Abfrage zeilenweise zurück,
+   damit AC12 prüfbar wird. Nur für die Prüfung, kein Aufrufer im Produktivpfad. Gleiche
+   Rolle wie das Herausziehen von `accentBarClassName` in `ledger-w9skm`: dieses Projekt
+   zieht Entscheidungen so weit heraus, dass sie etwas rot machen können.
+   Sie beantwortet ausdrücklich die Frage "welchen Zugriffspfad nimmt diese Abfrage", nicht
+   "wie lautet das SQL". Der Rückgabewert ist deshalb der Plan, nicht die Klausel, und
+   `buildFilterClause` bleibt `private`. Eine Variante, die den SQL-Text nach außen gibt,
+   ist nicht zulässig: sie lädt zu einem Test ein, der bei jeder Umformulierung bricht und
+   dann entschärft statt repariert wird.
+8. **`src/Tests/LedgerPageTests.fs`**: Seed-Helfer `seedSplitEntry` neben `seedEntryFull`
+   (Zeile ~1083, das heute `Splits = []` fest verdrahtet). Der Gesamtbetrag muss aus den
+   Split-Zeilen gebildet werden, sonst lehnt `apply` die Splits über `mkSplits` ab
+   (ADR 0006). Neue Tests in die bestehende Gruppe "Fünf Such-Filter im Lesepfad"
+   (ab Zeile ~1387).
 
 ## Acceptance criteria
 
-- [ ] Eine Buchung mit Splits, deren einzige Kategorie in einer Split-Zeile steckt
-      (kein `category_id` auf der Buchung selbst gesetzt), erscheint im Treffer, wenn
-      diese Kategorie im Kategorie-Filter (`CategoryIds`) steht.
-- [ ] Bestehende Kategorie-Filter-Tests aus `ledger-vgfw3`
-      (`src/Tests/LedgerPageTests.fs`, Testgruppe "Fünf Such-Filter im Lesepfad")
-      bleiben unverändert grün.
-- [ ] Performance bei ~14.000 Buchungen bleibt in derselben Größenordnung wie der
-      reine `category_id`-Filter aus `ledger-vgfw3` (kein unbedingtes Laden aller
-      Buchungen für den häufigsten Fall).
-- [ ] `dotnet build` und `dotnet test` grün.
+- [ ] AC1 Liste: Eine Buchung mit Splits, deren einzige Kategorie in einer Split-Zeile
+      steckt (`category_id` der Buchung ist `NULL`), erscheint in `Entries`, wenn diese
+      Kategorie in `CategoryIds` steht.
+- [ ] AC2 `TotalCount`: Dieselbe Buchung zählt in der Trefferzahl mit. Test mit drei
+      Buchungen (eine Split-Buchung mit Kategorie X, eine einfache mit X, eine mit Y)
+      liefert bei Filter auf X `TotalCount = 2`.
+- [ ] AC3 `TotalAmount`: Die Summe desselben Treffers enthält den Betrag der Split-Buchung,
+      exakt in F# gebildet (kein SQL-`SUM`, ADR 0017).
+- [ ] AC4 `DeletedCount`: Eine in YNAB gelöschte Split-Buchung mit Kategorie X wird bei
+      Filter auf X in `DeletedCount` gezählt, unabhängig von `IncludeDeleted`.
+- [ ] AC5 Payee-Vorschläge: `getLedgerPayeeSuggestions` mit `CategoryIds = [X]` enthält den
+      Payee der Split-Buchung.
+- [ ] AC6 `NeedsReviewCount` bleibt ungefiltert: ein Kategorie-Filter, der die Treffermenge
+      verkleinert, ändert `NeedsReviewCount` nicht (Gegenprobe zu ADR 0036 Punkt 6).
+- [ ] AC7 Keine veralteten Indexzeilen: Wandern die Splits einer Buchung per
+      `EntryCategorizationChangeObservedInYnab` von Kategorie X nach Y, findet der Filter
+      sie unter X nicht mehr und unter Y schon. Wird aus derselben Buchung wieder eine
+      einfache Buchung ohne Splits, findet kein Kategorie-Filter sie mehr über X.
+- [ ] AC8 Ableitung: `splitCategoryIds` liefert für zwei Split-Zeilen derselben Kategorie
+      genau einen Eintrag, und für eine Buchung, deren Zeilen ausschließlich `ToTransfer`
+      oder `Uncategorized` sind, eine leere Liste. Eine solche Buchung wird von keinem
+      Kategorie-Filter gefunden.
+- [ ] AC9 Backfill und Bestand: `rebuildSplitCategoryIndex` stellt nach einem vollständigen
+      `DELETE FROM ledger_entry_split_categories` den Index so wieder her, dass der Filter
+      die Split-Buchung wieder findet. Ein zweiter Aufruf liefert denselben Rückgabewert und
+      dieselbe Treffermenge. Bereits gespeicherte Buchungen kommen damit allein aus
+      `ledger_entries` nach, ohne dass das Ereignis-Log gelesen, neu geschrieben oder
+      migriert wird.
+- [ ] AC10 Keine Drift: Der Inhalt von `ledger_entry_split_categories` stimmt mit dem
+      überein, was `splitCategoryIds` auf das Ergebnis von `replayAll ()` angewandt ergibt
+      (Gegenprobe im Sinne von ADR 0013 Punkt 6).
+- [ ] AC11 Backfill-Prädikat festgenagelt: Eine über `appendAndApply` geschriebene Buchung
+      ohne Splits hat in der Spalte `splits` exakt den Text `[]`.
+- [ ] AC12 Performance, Zugriffspfad: `explainEntryFilterPlan` liefert bei gesetztem
+      Kategorie-Filter einen Plan, in dem `ledger_entry_split_categories` vorkommt und per
+      `SEARCH` bedient wird, und der weder `SCAN ledger_entry_split_categories` noch
+      `CORRELATED` enthält. Geprüft wird ausschließlich der **Zugriffspfad**, nie der
+      SQL-Text: ein Test, der die erzeugte WHERE-Klausel als Zeichenkette vergleicht, ist
+      nicht zulässig, er bricht bei jeder Umformulierung und wird dann entschärft statt
+      repariert. Geprüft wird auf Teilstrings des Plans, nicht auf seinen Volltext (die
+      Formulierung ist SQLite-versionsabhängig). Zeigt sich im Versuch, dass SQLite trotz
+      Index anders plant, wird das Kriterium auf sein Minimum zurückgenommen:
+      `ledger_entry_split_categories` kommt im Plan vor, die Split-Prüfung findet also in
+      der Abfrage statt und nicht dahinter. Eine Abweichung davon gehört in die
+      Outcome-Notiz.
+- [ ] AC13 Performance, häufigster Fall bleibt vom Ladepfad weg: In
+      `src/Server/Ledger/Persistence.fs` gibt es weiterhin genau fünf Aufrufe von
+      `loadAllMatching` (die Definition bei Zeile ~673 nicht mitgezählt) und genau fünf
+      Vorkommen von `if hasAmountFilter filter then`. Quelltext-Zusicherung nach dem Muster
+      von `FontFaceRegressionTests.fs` und `BackendPortGuardTests.fs`.
+- [ ] AC14 Performance, Arbeitsumfang: Bei 1.000 Buchungen auf einem Konto, von denen drei
+      die gesuchte Split-Kategorie tragen, liefert `getLedgerEntriesPage` `TotalCount = 3`.
+      Läuft der Testfall über etwa zwei Sekunden, wird die Zahl gesenkt und die tatsächlich
+      benutzte in der Outcome-Notiz vermerkt.
+- [ ] AC15 Kombination mit dem Betragsfilter: Kategorie-Filter plus gesetzter Betragsfilter
+      findet dieselbe Split-Buchung (der `loadAllMatching`-Zweig ruft dieselbe
+      `buildFilterClause`).
+- [ ] AC16 Die acht bestehenden Filter-Tests aus `ledger-vgfw3`
+      (`src/Tests/LedgerPageTests.fs`, Testgruppe "Fünf Such-Filter im Lesepfad", AC1 bis
+      AC8) sind im Diff unverändert und grün.
+- [ ] AC17 Doku: `.agentheim/knowledge/contexts/ledger/README.md` beschreibt den
+      Kategorie-Filter unter "Such-Filter (Kassenbuch)" nicht mehr als "trifft nur
+      `category_id`", sondern als "einfache Kategorie und Split-Zeilen-Kategorien
+      (ADR 0038)", und führt `rebuildSplitCategoryIndex` unter "Migration bestehender
+      Zustandstabellen" neben `migrateLedgerEntryColumns`.
+- [ ] AC18 `dotnet build` und `dotnet test` grün.
 
 ## Notes
 
-Entdeckt und bewusst nicht gelöst bei `ledger-vgfw3` (Server-Hälfte der
-Kassenbuch-Filter) — Scope-Grenze laut ADR 0036, Alternativen-Abschnitt.
+Entdeckt und bewusst nicht gelöst bei `ledger-vgfw3` (Server-Hälfte der Kassenbuch-Filter),
+Scope-Grenze laut ADR 0036 Punkt 2 und Alternatives-Abschnitt. Der Weg ist in ADR 0038
+entschieden, die verworfene Alternative dort begründet.
+
+**Zum `depends_on` auf `ledger-k3wqn`:** das ist eine Sequenzierungs-Kante gegen einen
+Merge-Konflikt, keine fachliche Abhängigkeit. `ledger-k3wqn` (Umlaut-Faltung) ändert die
+Payee- und Memo-Zweige derselben Funktion `buildFilterClause` und registriert dafür eine
+anwendungsdefinierte SQL-Funktion `bb_lower` in `Persistence.getConnection`. Es fasst weder
+Schema noch Migration an, überschneidet sich mit dieser Aufgabe also nur textuell in einer
+Funktion. Läuft es zuerst, setzt diese Aufgabe ihren Kategorie-Zweig in eine bereits
+stabile Fassung ein.
+
+**Nicht Teil dieser Aufgabe:** die Testschuld des Betragsfilter-Zweigs aus `ledger-r7dm2`
+Punkt 1. AC15 nimmt davon ein Stück mit, weil es ohnehin anfällt; der Rest bleibt dort.
+Ebenso nicht hier: ein Filter "ohne Kategorie" für Buchungen, deren Split-Zeilen alle
+`Uncategorized` sind. Das ist eine Produktfrage für die Filterleiste, vermerkt an
+`ledger-j8xq4`.
+
+**Stolpersteine für den Worker:** `seedEntryFull` verdrahtet `Splits = []` fest, ein eigener
+Seed-Helfer ist Pflicht. `apply` erzwingt die `mkSplits`-Invarianten (mindestens zwei
+Zeilen, vorzeichenrichtige Summe gleich dem Buchungsbetrag, eine Währung). Dapper von F#
+aus verschluckt sich gelegentlich an `conn.Execute(sql, null, tx)`, dann hilft
+`(null: obj)` oder ein leeres `DynamicParameters()`. `EXPLAIN QUERY PLAN` liefert vier
+Spalten, die interessante ist `detail`; notfalls über einen `[<CLIMutable>]`-Zeilentyp
+lesen statt über `Query<string>`. Der Betragsfilter-Zweig sitzt vollständig in
+`Persistence.fs` (`hasAmountFilter` 580, `amountMatches` 586, `loadAllMatching` 673,
+`safePage` 683, Gabelungen bei 700/723/741/791/814), nicht in `QueryHandlers.fs`.
