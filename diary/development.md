@@ -78,6 +78,25 @@ Reparatur von Hand. Gehört über `modeling` erfasst.
 
 ---
 
+**Nachtrag QA-Review (2026-09-20):**
+Der von der Projekt-CLAUDE.md vorgeschriebene `qa-milestone-reviewer` hat die Tests der sechs
+code-berührenden Aufgaben durchgesehen und dabei einen echten Defekt im gerade ausgelieferten
+`ledger-vgfw3` gefunden: `COLLATE NOCASE` faltet in SQLite nur ASCII, also finden Payee- und
+Memo-Filter keine Umlaut-Schreibweisen. `müller gmbh` findet `Müller GmbH`, aber nicht
+`MÜLLER GMBH` (unabhängig gegen sqlite3 nachgeprüft). Das trifft genau die Daten, die
+BudgetBuddy verarbeitet, weil Comdirect- und YNAB-Verwendungszwecke oft in Großbuchstaben
+stehen. Kein Verifier hat es gesehen, weil alle acht Filter-Tests reines ASCII säen, teils
+sogar transliteriert (`"Baecker"`) — dieselbe Form wie beim `DateTimeKind`-Fund: der Test baut
+seine Daten in einer Gestalt, die die Produktion nie erzeugt.
+
+Erfasst als `ledger-k3wqn` (bug, Umlaut-Faltung) und `ledger-r7dm2` (chore, die übrigen
+Abdeckungslücken samt der im Review definierten Tests). Zwei Zahlen oben sind vom Review
+korrigiert: die Suite meldet je nach Umgebung 941/6 statt 940/7, und `ledger-w9skm` hat sechs
+statt sieben Tests hinzugefügt (die 7 stammte aus der Selbstauskunft des Workers und ist
+ungeprüft ins Protokoll gewandert).
+
+---
+
 ## 2026-09-19 16:05 - Abgelöste Design-Doku gelöscht, Farbpalette auf die lebende Quelle umgehängt
 
 **What I did:**
