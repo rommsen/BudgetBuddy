@@ -5,6 +5,94 @@ Newest entries on top.
 
 ---
 
+## 2026-09-20 21:56 -- Modeling / Promoted: design-system-p3vqk - "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: infrastructure-b6kzp - "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-v8n4t - "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-n3pqw - "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-v5hkt - "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: design-system-q2bmv - "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: design-system-j9xnd - "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-w6tbq - "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-c4mzp - "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-p3wnq - "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-09-20 21:56 -- Modeling / Promoted: ledger-k3wqn - "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-20 21:55 -- Modeling / Refined: Sammel-Verfeinerung von sechs Backlog-Items (2026-09-20)
 
 **Type:** Modeling / Refine

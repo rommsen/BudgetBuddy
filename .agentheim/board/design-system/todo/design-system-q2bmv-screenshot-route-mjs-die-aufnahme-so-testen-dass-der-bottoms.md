@@ -1,7 +1,7 @@
 ---
 id: design-system-q2bmv
 title: "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
-status: backlog
+status: todo
 type: chore
 context: design-system
 created: 2026-09-20

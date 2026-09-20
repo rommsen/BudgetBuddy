@@ -1,7 +1,7 @@
 ---
 id: ledger-p3wnq
 title: "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-20

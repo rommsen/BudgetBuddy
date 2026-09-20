@@ -1,7 +1,7 @@
 ---
 id: ledger-w6tbq
 title: "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
-status: backlog
+status: todo
 type: chore
 context: ledger
 created: 2026-09-20

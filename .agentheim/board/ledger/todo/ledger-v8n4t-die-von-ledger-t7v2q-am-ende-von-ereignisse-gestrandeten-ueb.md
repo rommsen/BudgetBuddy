@@ -1,7 +1,7 @@
 ---
 id: ledger-v8n4t
 title: "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
-status: backlog
+status: todo
 type: chore
 context: ledger
 created: 2026-09-20

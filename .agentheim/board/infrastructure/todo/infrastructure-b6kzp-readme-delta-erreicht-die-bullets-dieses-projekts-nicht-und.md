@@ -1,7 +1,7 @@
 ---
 id: infrastructure-b6kzp
 title: "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-09-20

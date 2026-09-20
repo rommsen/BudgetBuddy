@@ -1,7 +1,7 @@
 ---
 id: ledger-k3wqn
 title: "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-09-20
