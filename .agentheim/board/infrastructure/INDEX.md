@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 7
@@ -37,6 +37,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-b6kzp** — "README_DELTA erreicht die Bullets dieses Projekts nicht und scheitert dabei leise" (bug) — `backlog/infrastructure-b6kzp-readme-delta-erreicht-die-bullets-dieses-projekts-nicht-und.md`
 <!-- backlog-list:end -->
 
 

@@ -1,6 +1,6 @@
 ---
 id: ledger-t4m9c
-title: "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im Abschnitt Oberfläche korrigieren"
+title: "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
 status: backlog
 type: chore
 context: ledger
@@ -31,12 +31,21 @@ Beide Stellen behaupten einen Zustand ("gibt es noch nicht", "ist offen"), der s
 `ledger-vgfw3` nicht mehr stimmt. Wer diese Stellen liest, ohne den Task-Status von
 `ledger-vgfw3` zu kennen, bekommt ein falsches Bild vom aktuellen Stand der Oberfläche.
 
-`ledger-ezrw0`s Verifier hat dieselbe Beobachtung auch für den Satz "Fundament für die
-künftigen Filter (`ledger-vgfw3`)" im `## Sichten`-Eintrag zu `getLedgerEntriesPage`
-gemacht, aber ausdrücklich entschieden, dass dessen Korrektur eine Erweiterung der
-Akzeptanzkriterien jener Aufgabe gewesen wäre und daher hier gesondert zu behandeln ist.
-Diese Aufgabe deckt beide oben genannten Stellen in `## Oberfläche` ab; ob der
-`## Sichten`-Satz mit hinein soll, entscheidet der Builder beim Verfeinern.
+Eine dritte Stelle liegt im Abschnitt `## Sichten`, im Eintrag zu `getLedgerEntriesPage`:
+- "Fundament für die künftigen Filter (`ledger-vgfw3`) und die Summenzeile über der Liste."
+
+`ledger-ezrw0`s Verifier hatte empfohlen, diese dritte Stelle gleich beim Neu-Ausgeben des
+Blocks mitzukorrigieren, weil sie ohnehin gerade von Hand neu geschrieben wurde. Der Worker
+hat das korrekt nicht getan, weil es eine Erweiterung der Akzeptanzkriterien jener Aufgabe
+gewesen wäre. **Roman hat am 2026-09-20 entschieden, dass sie hierher gehört**, also deckt
+diese Aufgabe alle drei Stellen ab.
+
+Zu beachten beim Umsetzen: die `## Sichten`-Stelle sitzt in einem mehrzeilig umbrochenen
+Unterbullet auf Einrückung 2. Die `README_DELTA`-Grammatik erreicht nur Bullets auf Spalte 0
+mit fettem Anfang, weshalb `ledger-ezrw0` auf das Eltern-Bullet `**Sichten**` ausweichen und
+den gesamten 32-Zeilen-Block ersetzen musste — mit erhaltener Einrückung in `expected` UND
+`body`, sonst wird der Block flachgeklopft. Siehe `ledger-ezrw0`s Outcome und den dortigen
+Verifier-Befund aus Iteration 1; derselbe Weg ist hier nötig.
 
 ## What
 Die beiden oben zitierten Stellen im Abschnitt `## Oberfläche` so korrigieren, dass sie
@@ -51,7 +60,11 @@ jetzt) oder wird, falls ein Rest offen ist, präzisiert, was genau noch fehlt.
 - [ ] Der Bullet "Filter-Chips und Summenzeile über dem Treffer" unter "Was das Konzept
       voraussetzt und heute nicht gibt" ist entfernt oder auf einen tatsächlich noch
       offenen Rest präzisiert — nicht länger pauschal als fehlend beschrieben.
-- [ ] Beide Korrekturen decken sich mit dem Stand von `ledger-vgfw3` in `done/`.
+- [ ] Der Satz "Fundament für die künftigen Filter (`ledger-vgfw3`)" im `## Sichten`-Eintrag
+      zu `getLedgerEntriesPage` nennt `ledger-vgfw3` nicht mehr als künftig.
+- [ ] Alle drei Korrekturen decken sich mit dem Stand von `ledger-vgfw3` in `done/`.
+- [ ] Die Einrückung des `## Sichten`-Blocks ist unverändert: die sechs Unterbullets stehen
+      weiterhin auf Einrückung 2, ihre Fortsetzungszeilen auf 4.
 - [ ] Keine anderen Stellen im README werden angefasst.
 
 ## Notes
