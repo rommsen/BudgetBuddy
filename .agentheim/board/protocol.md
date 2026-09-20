@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-09-20 21:03 -- Modeling / Refined: ledger-t4m9c + ledger-f8q2x - README-Aufgaben sequenziert
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (Promotion folgt unmittelbar)
+**Summary:** Beide Aufgaben fassen denselben `## Sichten`-Block des ledger-README an und muessen ihn wegen der Spalte-0-Grenze der README_DELTA-Grammatik als Ganzes neu ausgeben. Parallel ausgefuehrt haetten sich ihre Deltas beim Integrieren leise gegenseitig ueberschrieben, derselbe Fehlermodus, den infrastructure-b6kzp beschreibt. ledger-f8q2x erhaelt depends_on [ledger-t4m9c], ledger-t4m9c die Rueckwaerts-Kante blocks [ledger-f8q2x], und die Begruendung steht in den Notes von ledger-f8q2x. Inhaltlich unveraendert: beide trugen bereits konkrete, maschinen-pruefbare Akzeptanzkriterien.
+**Split into:** keine
+**ADRs written:** keine
+
+---
+
 ## 2026-09-19 20:14 -- Work session ended
 
 **Type:** Work / Session end

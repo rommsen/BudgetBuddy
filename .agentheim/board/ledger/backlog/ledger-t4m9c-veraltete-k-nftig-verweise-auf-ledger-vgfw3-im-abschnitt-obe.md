@@ -7,7 +7,7 @@ context: ledger
 created: 2026-09-19
 completed:
 depends_on: []
-blocks: []
+blocks: [ledger-f8q2x]
 tags: [doku, kassenbuch, readme]
 related_adrs: [0036]
 related_research: []

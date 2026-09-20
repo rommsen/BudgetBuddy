@@ -6,7 +6,7 @@ type: chore
 context: ledger
 created: 2026-09-19
 completed:
-depends_on: []
+depends_on: [ledger-t4m9c]
 blocks: []
 tags: [doku, kassenbuch, readme]
 related_adrs: [0036]
@@ -57,3 +57,12 @@ Filter-Chip, ADR 0036).
 ## Notes
 Erfasst am 2026-09-19 aus der Bearbeitung von `ledger-ezrw0`. Reine Doku-Aufgabe: am
 Code ändert sich nichts.
+
+**Reihenfolge (ergänzt bei der Verfeinerung am 2026-09-20):** `depends_on: [ledger-t4m9c]`.
+Beide Aufgaben fassen denselben `## Sichten`-Block an, und beide müssen ihn wegen der
+Spalte-0-Grenze der README_DELTA-Grammatik als Ganzes neu ausgeben (siehe
+`infrastructure-b6kzp`). Liefen sie parallel, würden sich ihre Deltas beim Integrieren
+gegenseitig überschreiben, ohne dass die Disposition das meldet. `ledger-t4m9c` korrigiert
+zuerst den Bestand, danach ergänzt diese Aufgabe den neuen Unterbullet im bereits
+korrigierten Block. Wer hier arbeitet, gibt den Block also in der Fassung aus, die
+`ledger-t4m9c` hinterlassen hat, nicht in der heutigen.
