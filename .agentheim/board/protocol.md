@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-20 21:03 -- Modeling / Promoted: ledger-t4m9c - "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-20 21:03 -- Modeling / Refined: ledger-t4m9c + ledger-f8q2x - README-Aufgaben sequenziert
 
 **Type:** Modeling / Refine

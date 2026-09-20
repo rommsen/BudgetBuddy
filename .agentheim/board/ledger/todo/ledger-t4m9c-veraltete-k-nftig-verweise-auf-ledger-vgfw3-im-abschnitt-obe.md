@@ -1,7 +1,7 @@
 ---
 id: ledger-t4m9c
 title: "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
-status: backlog
+status: todo
 type: chore
 context: ledger
 created: 2026-09-19

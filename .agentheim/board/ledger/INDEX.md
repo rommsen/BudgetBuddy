@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 18
-- **Todo:** 0
+- **Backlog:** 17
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 26
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)" (chore) — `todo/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -58,7 +59,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **ledger-r7dm2** — "Testlücken aus dem QA-Review des Work-Laufs 2026-09-19 schließen" (chore) — `backlog/ledger-r7dm2-testl-cken-aus-dem-qa-review-des-work-laufs-2026-09-19-schli.md`
 - **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `backlog/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
-- **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)" (chore) — `backlog/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
 - **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `backlog/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
 - **ledger-xk9wq** — "Kategorie-Filter im Kassenbuch-Lesepfad erfasst keine Split-Zeilen-Kategorien" (feature) — `backlog/ledger-xk9wq-kategorie-filter-im-kassenbuch-lesepfad-erfasst-keine-split.md`
 - **ledger-h4qtx** — "Payee-Vorschläge case-insensitiv gruppieren, wie der Payee-Filter selbst" (chore) — `backlog/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
