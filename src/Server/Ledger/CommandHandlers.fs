@@ -35,6 +35,20 @@ type MirrorFetchers = {
     /// Buchungen des Budgets, ab dem uebergebenen `server_knowledge`. `None` ist die
     /// Erstbefuellung (Vollabruf).
     FetchTransactions: int64 option -> Async<YnabResult<YnabObservationBatch>>
+    /// Kategorie-Stammdaten des Budgets, immer voll (kein `server_knowledge`-Parameter:
+    /// `getCategories` kennt keinen, ADR 0039 Punkt 3). Bestes Bemühen: weder ein
+    /// `Error` noch eine Ausnahme aus diesem Abruf darf den Lauf scheitern lassen
+    /// (ADR 0039 Punkt 4).
+    FetchCategories: unit -> Async<YnabResult<YnabCategory list>>
+}
+
+/// Standard-Fetchers für Testfixturen: jedes Feld liefert eine leere, erfolgreiche
+/// Antwort. Ein Test überschreibt nur das Feld, das er tatsächlich braucht, statt
+/// den ganzen Record auszuschreiben (Notes zu ledger-p3wnq).
+let emptyMirrorFetchers: MirrorFetchers = {
+    FetchAccounts = fun _ -> async { return Ok { Accounts = []; ServerKnowledge = 0L } }
+    FetchTransactions = fun _ -> async { return Ok { Observations = []; ServerKnowledge = 0L } }
+    FetchCategories = fun () -> async { return Ok [] }
 }
 
 // ============================================
@@ -165,6 +179,23 @@ let private syncAccounts
             resolution <- Map.add observed.AccountId account.Id resolution
 
         return resolution
+    }
+
+/// Spiegelt die Kategorie-Stammdaten, bestes Bemühen (ADR 0039, Punkt 4): weder ein
+/// `Error` des Abrufs noch eine Ausnahme darf den Lauf scheitern lassen, der seine
+/// eigentliche Arbeit (Buchungen) an dieser Stelle bereits erledigt hat. Schlägt der
+/// Abruf fehl, behält `ledger_categories` ihren letzten Stand.
+let private refreshCategories
+    (fetchCategories: unit -> Async<YnabResult<YnabCategory list>>)
+    : Async<unit> =
+    async {
+        try
+            match! fetchCategories () with
+            | Ok categories -> do! Ledger.Persistence.upsertCategories categories
+            | Error e ->
+                printfn "Kategorie-Spiegel übersprungen (bestes Bemühen, ADR 0039 Punkt 4): %s" (describeYnabError e)
+        with ex ->
+            printfn "Kategorie-Spiegel übersprungen (bestes Bemühen, ADR 0039 Punkt 4): %s" ex.Message
     }
 
 /// Sucht die Buchung zu einer Beobachtung: erst ueber die YNAB-Id, dann ueber die
@@ -369,6 +400,11 @@ let runMirror
                         // Gedaechtnis vor: ein abgebrochener Lauf holt beim naechsten Mal
                         // dasselbe Delta erneut, was dank Idempotenz folgenlos ist.
                         do! saveServerKnowledge budgetId batch.ServerKnowledge
+
+                        // Nach der eigentlichen Arbeit, bestes Bemühen (ADR 0039,
+                        // Punkt 4): ein 429 aus diesem Abruf darf einen Lauf nicht
+                        // kippen, der seine Buchungen schon geschrieben hat.
+                        do! refreshCategories fetchers.FetchCategories
 
                         return!
                             finish (
@@ -768,6 +804,7 @@ let mirrorYnabBudget () : Async<Result<MirrorRunSummary, string>> =
                 FetchAccounts = fun knowledge -> Server.YnabClient.getAccountsDelta token budgetId knowledge
                 FetchTransactions =
                     fun knowledge -> Server.YnabClient.getTransactionsDelta token budgetId knowledge
+                FetchCategories = fun () -> Server.YnabClient.getCategories token budgetId
             }
 
             return! runMirrorGuarded DateTime.UtcNow fetchers budgetId

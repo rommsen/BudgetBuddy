@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 15
 - **Todo:** 2
-- **Doing:** 1
-- **Done:** 31
+- **Doing:** 0
+- **Done:** 32
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `doing/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `done/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
 - **ledger-n3pqw** — "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln" (chore) — `done/ledger-n3pqw-kassenbuch-zeilen-die-kategorie-farbe-an-die-css-variable-bi.md`
 - **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)" (chore) — `done/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
 - **ledger-v8n4t** — "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen" (chore) — `done/ledger-v8n4t-die-von-ledger-t7v2q-am-ende-von-ereignisse-gestrandeten-ueb.md`

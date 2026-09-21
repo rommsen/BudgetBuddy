@@ -158,6 +158,14 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Diese Richtung gilt auch für die Detail-Sicht aus `ledger-q1hw2`, die sie
   übernimmt statt neu zu entscheiden.
 - **Such-Filter (Kassenbuch)**: die fünf Kriterien Kategorie (Mehrfachauswahl), Zeitraum (von/bis, randtag-einschließend), Payee (exakt, ohne Groß-/Kleinschreibung, auch für Umlaute gefaltet), Betrag (von/bis) und Memo (Teiltext, ohne Groß-/Kleinschreibung, auch für Umlaute gefaltet) auf `LedgerEntryPageQuery`/`LedgerPayeeSuggestionQuery`. Gelten als Und-Verknüpfung über alle vier Zählwege (`loadEntriesPage`, `countEntries`, `loadAmountsForQuery`, `countDeletedEntries`) und `loadPayeeSuggestions` hinweg, gebündelt in `Ledger.Persistence.EntryFilter`/`buildFilterClause`. Payee und Memo vergleichen über die anwendungsdefinierte SQL-Funktion `bb_lower` (ADR 0037), nicht über eine SQLite-Kollation: `müller` findet `MÜLLER GMBH` ebenso wie `Müller GmbH`. Die Faltung bildet nur Groß-/Kleinschreibung ab, keine Diakritika-Entfernung: `mueller` findet `Müller` nicht, `STRASSE` findet `Straße` nicht. `countNeedsReviewEntries` (Chip "Zu prüfen") bleibt bewusst außen vor: fester Kontozähler, keine Trefferzahl der laufenden Suche. Der Kategorie-Filter trifft nur `category_id` (die einfache Kategorie), nicht Split-Zeilen (JSON-Text, ADR 0013 Punkt 8): eine Buchung, deren einzige Kategorie in einem Split steckt, findet er nicht. Zeitraum vergleicht nur den Datumsanteil (erste 10 Zeichen des gespeicherten ISO-8601-Textes), Kind-unabhängig (ADR 0036).
+- **Kategorie-Stammdaten** (`ledger_categories`) — gespiegelte Kategorie-Id, Name und
+  Gruppenname, nach dem Muster der Konten. Am Ende jedes Spiegel-Laufs, bestes Bemühen:
+  weder ein fehlgeschlagener Abruf noch eine Ausnahme lässt den Lauf scheitern (ADR 0039).
+  Auch ein fehlgeschlagenes Schreiben lässt den Lauf `Ok`, sichtbar nur auf stdout.
+  Voller Abruf je Lauf, nur Upsert, nie Löschen: eine in YNAB gelöschte Kategorie behält
+  ihre letzte Beschriftung. Code: `Ledger.Persistence.upsertCategories`,
+  `Ledger.Persistence.loadCategoryGroups`. Der Lesepfad, der die Gruppe an die Buchung
+  qualifiziert, ist `ledger-h6ptn`, nicht hier.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine

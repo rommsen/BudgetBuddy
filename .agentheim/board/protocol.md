@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 15:48 -- Task verified and completed: ledger-p3wnq - "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)"
+
+**Type:** Work / Task completion
+**Task:** ledger-p3wnq - "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)"
+**Summary:** Kategorie-Stammdaten werden wie die Konten in ledger_categories gespiegelt (Vollabruf, nur Upsert, nie Loeschen); der Abruf laeuft als bestes Bemuehen am Ende des Spiegel-Laufs und kann ihn nicht kippen
+**Duration:** 2h01m
+**Verification:** PASS (iteration 2)
+**Files changed:** 4
+**Tests added:** 10
+**ADRs written:** none
+
+---
+
+## 2026-09-21 15:36 -- Verification failed: ledger-p3wnq - Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)
+
+**Type:** Work / Verification failure
+**Task:** ledger-p3wnq - Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)
+**Iteration:** 1 of 3
+**Reasons:** Akzeptanzkriterium 5 nur zur Haelfte belegt (kein Test fuer die leere Tabelle; der angebotene Ersatz prueft einen fehlenden Schluessel in einer gefuellten Map), und die Begruendung der Nicht-Testbarkeit trifft nicht zu: der Verifier hat den Test in einer Arbeitskopie in sechs Zeilen nachgestellt, mit demselben DELETE-Muster das der Worker drei Tests weiter oben selbst benutzt; dazu eine Umschreibung in einer neuen Assertion-Meldung
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-21 15:30 -- Task verified and completed: ledger-n3pqw - "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
 
 **Type:** Work / Task completion

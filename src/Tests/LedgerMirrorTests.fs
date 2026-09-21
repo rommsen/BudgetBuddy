@@ -507,17 +507,19 @@ module private Run =
     /// Abrufe, die genau die uebergebenen Beobachtungen liefern, samt der Konten, die
     /// sie brauchen.
     let fetchers (knowledge: int64) (observations: YnabObservation list) : MirrorFetchers = {
-        FetchAccounts =
-            fun _ ->
-                async.Return (Ok { Accounts = accountsOf observations; ServerKnowledge = knowledge })
-        FetchTransactions =
-            fun _ -> async.Return (Ok { Observations = observations; ServerKnowledge = knowledge })
+        emptyMirrorFetchers with
+            FetchAccounts =
+                fun _ ->
+                    async.Return (Ok { Accounts = accountsOf observations; ServerKnowledge = knowledge })
+            FetchTransactions =
+                fun _ -> async.Return (Ok { Observations = observations; ServerKnowledge = knowledge })
     }
 
     let failingTransactions (error: YnabError) (observations: YnabObservation list) : MirrorFetchers = {
-        FetchAccounts =
-            fun _ -> async.Return (Ok { Accounts = accountsOf observations; ServerKnowledge = 1L })
-        FetchTransactions = fun _ -> async.Return (Error error)
+        emptyMirrorFetchers with
+            FetchAccounts =
+                fun _ -> async.Return (Ok { Accounts = accountsOf observations; ServerKnowledge = 1L })
+            FetchTransactions = fun _ -> async.Return (Error error)
     }
 
     let at (day: int) = DateTime(2026, 2, day, 6, 0, 0, DateTimeKind.Utc)
@@ -598,6 +600,98 @@ let mirrorRunTests =
                 (loadEventsForEntry entryId |> Async.RunSynchronously |> List.length)
                 afterFirst.Length
                 "die Erstbefuellung ist idempotent (ADR 0015)"
+
+        // ============================================
+        // Kategorie-Stammdaten-Abruf (ADR 0039): bestes Bemühen, kein Zähler
+        // ============================================
+
+        testCase "ein erfolgreicher Kategorie-Abruf spiegelt alle gelieferten Kategorien nach ledger_categories" <| fun () ->
+            let budgetId = Run.budget "kategorie-abruf-erfolg"
+            let categories : YnabCategory list = [
+                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+                { Id = haushalt.CategoryId; Name = "Haushalt"; GroupName = "Zuhause"; Available = None }
+            ]
+            let fetchers =
+                { Run.fetchers 1L [] with
+                    FetchCategories = fun () -> async.Return (Ok categories) }
+
+            let summary = Run.run 4 budgetId fetchers |> Run.expectOk
+
+            Expect.equal summary.NewEntries 0 "kein Beobachtungs-Ereignis, der Kategorie-Abruf zählt für sich nicht mit"
+            Expect.equal summary.ChangedEntries 0 "der Kategorie-Abruf verändert keine Buchung"
+            Expect.equal summary.DeletedEntries 0 "der Kategorie-Abruf löscht keine Buchung"
+
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            let (YnabCategoryId lebensmittelRaw) = lebensmittel.CategoryId
+            let (YnabCategoryId haushaltRaw) = haushalt.CategoryId
+            Expect.equal (Map.tryFind lebensmittelRaw groups) (Some "Alltag") "Lebensmittel-Gruppe gespiegelt"
+            Expect.equal (Map.tryFind haushaltRaw groups) (Some "Zuhause") "Haushalt-Gruppe gespiegelt"
+
+        testCase "ein Lauf mit Buchungen und erfolgreichem Kategorie-Abruf meldet dieselben Zähler wie ohne Kategorie-Abruf" <| fun () ->
+            let budgetId = Run.budget "kategorie-abruf-zaehler"
+            let obs = { observation "kategorie-abruf-zaehler-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+            let categories : YnabCategory list = [
+                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+            ]
+            let fetchers =
+                { Run.fetchers 1L [ obs ] with
+                    FetchCategories = fun () -> async.Return (Ok categories) }
+
+            let summary = Run.run 4 budgetId fetchers |> Run.expectOk
+
+            Expect.equal summary.NewEntries 1 "genau die eine neue Buchung, wie ohne den Kategorie-Abruf"
+            Expect.equal summary.ChangedEntries 0 "keine Änderung durch den Kategorie-Abruf"
+            Expect.equal summary.DeletedEntries 0 "keine Löschung durch den Kategorie-Abruf"
+
+        testCase "FetchCategories liefert Error: der Lauf bleibt Ok, die Buchung steht, ledger_categories behält den vorherigen Stand" <| fun () ->
+            let budgetId = Run.budget "kategorie-abruf-error"
+            let obs = { observation "kategorie-abruf-error-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+            let vorherigeKategorie : YnabCategory =
+                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+            upsertCategories [ vorherigeKategorie ] |> Async.RunSynchronously
+
+            let fetchers =
+                { Run.fetchers 5L [ obs ] with
+                    FetchCategories = fun () -> async.Return (Error (YnabError.RateLimitExceeded 30)) }
+
+            let summary = Run.run 4 budgetId fetchers |> Run.expectOk
+            Expect.equal summary.NewEntries 1 "die Buchung des Laufs ist trotz gescheitertem Kategorie-Abruf geschrieben"
+
+            match findEntryByLink YnabSystem "kategorie-abruf-error-1" |> Async.RunSynchronously with
+            | None -> failtest "die Buchung des Laufs wurde nicht geschrieben"
+            | Some _ -> ()
+
+            let (YnabCategoryId lebensmittelRaw) = lebensmittel.CategoryId
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.equal
+                (Map.tryFind lebensmittelRaw groups)
+                (Some "Alltag")
+                "der vorherige Stand von ledger_categories bleibt trotz gescheitertem Abruf stehen"
+
+        testCase "FetchCategories wirft eine Ausnahme: der Lauf bleibt Ok, die Buchung steht, ledger_categories behält den vorherigen Stand" <| fun () ->
+            let budgetId = Run.budget "kategorie-abruf-ausnahme"
+            let obs = { observation "kategorie-abruf-ausnahme-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
+            let vorherigeKategorie : YnabCategory =
+                { Id = haushalt.CategoryId; Name = "Haushalt"; GroupName = "Zuhause"; Available = None }
+            upsertCategories [ vorherigeKategorie ] |> Async.RunSynchronously
+
+            let fetchers =
+                { Run.fetchers 6L [ obs ] with
+                    FetchCategories = fun () -> async { return failwith "YNAB nicht erreichbar (simuliert)" } }
+
+            let summary = Run.run 4 budgetId fetchers |> Run.expectOk
+            Expect.equal summary.NewEntries 1 "die Buchung des Laufs ist trotz werfendem Kategorie-Abruf geschrieben"
+
+            match findEntryByLink YnabSystem "kategorie-abruf-ausnahme-1" |> Async.RunSynchronously with
+            | None -> failtest "die Buchung des Laufs wurde nicht geschrieben"
+            | Some _ -> ()
+
+            let (YnabCategoryId haushaltRaw) = haushalt.CategoryId
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.equal
+                (Map.tryFind haushaltRaw groups)
+                (Some "Zuhause")
+                "der vorherige Stand von ledger_categories bleibt trotz werfendem Abruf stehen"
 
         testCase "Kategorie-Aenderung in YNAB erzeugt ein Ereignis auf derselben Buchungs-Id" <| fun () ->
             let budgetId = Run.budget "kategorie"

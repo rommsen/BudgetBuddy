@@ -1115,6 +1115,104 @@ let ledgerPersistenceTests =
 
             Expect.contains (loadAccounts () |> Async.RunSynchronously) account "Konto ist in der Liste"
 
+        // ============================================
+        // Kategorie-Stammdaten (ledger_categories, ADR 0039)
+        // ============================================
+
+        testCase "Kategorie wird upsertet und die Ladefunktion findet sie unter ihrer Id" <| fun () ->
+            let categoryId = YnabCategoryId (Guid.NewGuid())
+            let (YnabCategoryId rawId) = categoryId
+            let category : YnabCategory =
+                { Id = categoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+
+            upsertCategories [ category ] |> Async.RunSynchronously
+
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.equal (Map.tryFind rawId groups) (Some "Alltag") "Gruppenname unter der Kategorie-Id gefunden"
+
+        testCase "ein zweiter Upsert mit geändertem Gruppennamen überschreibt, keine zweite Zeile entsteht" <| fun () ->
+            let categoryId = YnabCategoryId (Guid.NewGuid())
+            let (YnabCategoryId rawId) = categoryId
+            let erste : YnabCategory =
+                { Id = categoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+            let zweite : YnabCategory = { erste with GroupName = "Haushalt" }
+
+            upsertCategories [ erste ] |> Async.RunSynchronously
+            upsertCategories [ zweite ] |> Async.RunSynchronously
+
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.equal (Map.tryFind rawId groups) (Some "Haushalt") "der geänderte Gruppenname ist sichtbar"
+
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection(global.Persistence.activeConnectionString())
+            conn.Open()
+            use countCmd =
+                new Microsoft.Data.Sqlite.SqliteCommand(
+                    "SELECT COUNT(*) FROM ledger_categories WHERE ynab_category_id = @id", conn)
+            countCmd.Parameters.AddWithValue("@id", rawId.ToString()) |> ignore
+            Expect.equal (Convert.ToInt32(countCmd.ExecuteScalar())) 1 "genau eine Zeile für diese Kategorie-Id"
+
+        testCase "ein Upsert ohne eine zuvor gespeicherte Kategorie löscht deren Zeile nicht" <| fun () ->
+            let bleibtId = YnabCategoryId (Guid.NewGuid())
+            let (YnabCategoryId rawBleibtId) = bleibtId
+            let verschwindetId = YnabCategoryId (Guid.NewGuid())
+            let (YnabCategoryId rawVerschwindetId) = verschwindetId
+            let bleibt : YnabCategory =
+                { Id = bleibtId; Name = "Miete"; GroupName = "Wohnen"; Available = None }
+            let verschwindet : YnabCategory =
+                { Id = verschwindetId; Name = "Alte Kategorie"; GroupName = "Früher"; Available = None }
+
+            upsertCategories [ bleibt; verschwindet ] |> Async.RunSynchronously
+            // Zweiter Lauf liefert nur noch "bleibt": "verschwindet" ist in YNAB gelöscht.
+            upsertCategories [ bleibt ] |> Async.RunSynchronously
+
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.equal (Map.tryFind rawBleibtId groups) (Some "Wohnen") "die verbliebene Kategorie ist da"
+            Expect.equal
+                (Map.tryFind rawVerschwindetId groups)
+                (Some "Früher")
+                "die in YNAB gelöschte Kategorie behält ihre letzte Beschriftung, keine Zeile wird gelöscht"
+
+        testCase "loadCategoryGroups liefert für eine nie gespeicherte Kategorie-Id keinen Eintrag, keinen Fehler" <| fun () ->
+            let neverSeen = Guid.NewGuid()
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.equal (Map.tryFind neverSeen groups) None "eine unbekannte Kategorie-Id liefert keinen Gruppennamen"
+
+        testCase "loadCategoryGroups liefert für eine leere Tabelle eine leere Map statt eines Fehlers" <| fun () ->
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection(global.Persistence.activeConnectionString())
+            conn.Open()
+            use clearCmd = new Microsoft.Data.Sqlite.SqliteCommand("DELETE FROM ledger_categories", conn)
+            clearCmd.ExecuteNonQuery() |> ignore
+
+            let groups = loadCategoryGroups () |> Async.RunSynchronously
+            Expect.isTrue (Map.isEmpty groups) "eine leere Tabelle liefert eine leere Map, keinen Fehler"
+
+        testCase "das Schema legt ledger_categories auf einer bestehenden Datenbank an, die die Tabelle noch nicht hat" <| fun () ->
+            // Eigene, isolierte Verbindung (nicht die geteilte Test-DB): nur so lässt
+            // sich "eine bestehende Datenbank, die die Tabelle noch nicht hat" überhaupt
+            // herstellen, weil die geteilte Test-DB die Tabelle längst kennt.
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:")
+            conn.Open()
+
+            // Ein unbeteiligtes Bestandsdatum steht für "eine bestehende Datenbank":
+            // keine Kopie der echten `ledger_accounts`-Spalten hier, sonst weicht dieser
+            // Stellvertreter vom Produktionsschema ab, sobald sich dort etwas ändert.
+            use createUnrelatedTable =
+                new Microsoft.Data.Sqlite.SqliteCommand(
+                    "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)", conn)
+            createUnrelatedTable.ExecuteNonQuery() |> ignore
+
+            Ledger.Persistence.createLedgerSchemaOn conn
+
+            use insertRow =
+                new Microsoft.Data.Sqlite.SqliteCommand(
+                    """INSERT INTO ledger_categories (ynab_category_id, name, group_name, updated_at)
+                       VALUES ('probe', 'Probe', 'Probegruppe', '2026-01-01T00:00:00.0000000Z')""",
+                    conn)
+            Expect.equal (insertRow.ExecuteNonQuery()) 1 "die neu angelegte Tabelle nimmt eine Zeile an"
+
+            // Ein zweiter Aufruf (z. B. weiterer Prozessstart) bleibt folgenlos statt zu werfen.
+            Ledger.Persistence.createLedgerSchemaOn conn
+
         testCase "Migration fügt approved/flag_color/flag_name einer bestehenden Zustandstabelle hinzu" <| fun () ->
             // AC (ledger-kdnnz, ADR 0032): eine Zustandstabelle vor dieser Änderung
             // hatte diese Spalten nicht. Die im Bestand vorhandenen Zeilen müssen

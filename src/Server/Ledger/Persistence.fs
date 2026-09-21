@@ -94,10 +94,13 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_color TEXT"
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_name TEXT"
 
-/// Legt die Kassenbuch-Tabellen an. Bestehende Tabellen bleiben unangetastet; der
-/// Aufruf folgt dem Muster von `Persistence.initializeDatabase` und ist idempotent.
-let initializeLedgerSchema () =
-    let conn = Core.getConnection ()
+/// Legt die Kassenbuch-Tabellen an, auf der übergebenen Connection. Bestehende
+/// Tabellen bleiben unangetastet (`CREATE TABLE IF NOT EXISTS`); der Aufruf ist
+/// idempotent, auch auf einer bestehenden Datenbank, die einzelne dieser Tabellen
+/// (z. B. `ledger_categories`, ADR 0039) noch nicht hat. Connection als Parameter wie
+/// bei `migrateLedgerEntryColumns`, damit Tests sie gegen eine eigene, isolierte
+/// Verbindung ausführen können.
+let internal createLedgerSchemaOn (conn: SqliteConnection) =
     if conn.State <> System.Data.ConnectionState.Open then conn.Open()
 
     use cmd =
@@ -161,6 +164,13 @@ let initializeLedgerSchema () =
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entry_links_entry ON ledger_entry_links(entry_id);
+
+        CREATE TABLE IF NOT EXISTS ledger_categories (
+            ynab_category_id TEXT PRIMARY KEY,
+            name             TEXT NOT NULL,
+            group_name       TEXT NOT NULL,
+            updated_at       TEXT NOT NULL
+        );
     """,
             conn
         )
@@ -168,6 +178,12 @@ let initializeLedgerSchema () =
     cmd.ExecuteNonQuery() |> ignore
 
     migrateLedgerEntryColumns conn
+
+/// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an; der Aufruf folgt dem
+/// Muster von `Persistence.initializeDatabase`.
+let initializeLedgerSchema () =
+    let conn = Core.getConnection ()
+    createLedgerSchemaOn conn
 
 // ============================================
 // Zeilen-Typen
@@ -217,6 +233,14 @@ type private AccountRow = {
 
 [<CLIMutable>]
 type private LinkRow = { entry_id: string; system: string; value: string }
+
+[<CLIMutable>]
+type private CategoryRow = {
+    ynab_category_id: string
+    name: string
+    group_name: string
+    updated_at: string
+}
 
 let private rowToRecordedEvent (row: EventRow) : RecordedLedgerEvent =
     let actor =
@@ -984,4 +1008,59 @@ let findAccountByYnabAccountId (YnabAccountId ynabId: YnabAccountId) : Async<Led
             )
             |> Async.AwaitTask
         return if isNull (box row) then None else Some (rowToAccount row)
+    }
+
+// ============================================
+// Kategorien (Stammdaten, gespiegelt wie die Konten; ADR 0039)
+// ============================================
+
+let private upsertCategorySql =
+    """INSERT INTO ledger_categories (ynab_category_id, name, group_name, updated_at)
+       VALUES (@ynab_category_id, @name, @group_name, @updated_at)
+       ON CONFLICT(ynab_category_id) DO UPDATE SET
+          name = excluded.name,
+          group_name = excluded.group_name,
+          updated_at = excluded.updated_at"""
+
+/// Schreibt die gelieferten Kategorien als Upsert: ein geänderter Gruppenname
+/// überschreibt die bestehende Zeile, es entsteht keine zweite. Kategorien, die in der
+/// übergebenen Liste fehlen (in YNAB gelöscht), bleiben unverändert stehen, diese
+/// Funktion löscht nie (ADR 0039, Punkt 3).
+let upsertCategories (categories: YnabCategory list) : Async<unit> =
+    async {
+        if List.isEmpty categories then
+            ()
+        else
+            use conn = Core.getConnection ()
+            let now = dateToText DateTime.UtcNow
+
+            let parameters =
+                categories
+                |> List.map (fun c ->
+                    let (YnabCategoryId id) = c.Id
+
+                    {|
+                        ynab_category_id = id.ToString()
+                        name = c.Name
+                        group_name = c.GroupName
+                        updated_at = now
+                    |})
+
+            do! conn.ExecuteAsync(upsertCategorySql, parameters) |> Async.AwaitTask |> Async.Ignore
+    }
+
+/// Die Zuordnung Kategorie-Id auf Gruppenname für den Lesepfad (`ledger-h6ptn`). Eine
+/// leere Tabelle liefert eine leere Map, nie einen Fehler: nach einem frischen Deploy
+/// ohne gelaufenen Spiegel-Lauf ist die Tabelle leer, das ist der vorgesehene Zustand.
+let loadCategoryGroups () : Async<Map<Guid, string>> =
+    async {
+        use conn = Core.getConnection ()
+
+        let! rows =
+            conn.QueryAsync<CategoryRow>("SELECT * FROM ledger_categories") |> Async.AwaitTask
+
+        return
+            rows
+            |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.group_name)
+            |> Map.ofSeq
     }
