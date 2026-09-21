@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 16:07 -- Task verified and completed: ledger-c4mzp - "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
+
+**Type:** Work / Task completion
+**Task:** ledger-c4mzp - "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
+**Summary:** Sechs Testfaelle decken den Betragsfilter-Zweig des Kassenbuch-Lesepfads ab: Summe, Geloeschten-Zahl, Payee-Vorschlaege, Blaettern und einseitige Grenzen
+**Duration:** 1h02m
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-09-21 15:49 -- Batch started: [ledger-c4mzp, ledger-w6tbq]
 
 **Type:** Work / Batch start

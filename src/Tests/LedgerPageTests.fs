@@ -998,6 +998,15 @@ let private pageTestAccountO = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8
 // von Konto M (AC6), damit die dort gesäten ASCII-Payees den Umlaut-Fall nicht
 // verdecken.
 let private pageTestAccountP = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000019")
+// Konten Q..V (ledger-c4mzp): Betragsfilter-Zweig (`hasAmountFilter`) des Lesepfads,
+// eigenes Konto je Testfall. `...019` (P) ist von ledger-k3wqn belegt, deshalb ab
+// `...01a`, nicht ab `...019` wie im ursprünglichen Task-Text.
+let private pageTestAccountQ = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001a")
+let private pageTestAccountR = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001b")
+let private pageTestAccountS = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001c")
+let private pageTestAccountT = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001d")
+let private pageTestAccountU = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001e")
+let private pageTestAccountV = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001f")
 
 // `D3` statt `D2`, ein Prefix-Nullen weniger (`000000000` statt `0000000000`): für
 // n=0..99 liefert das exakt dieselbe Guid wie zuvor (`n:D3` mit vier statt drei
@@ -1083,6 +1092,12 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountN; Name = "Konto N"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountO; Name = "Konto O"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountP; Name = "Konto P"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountQ; Name = "Konto Q"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountR; Name = "Konto R"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountS; Name = "Konto S"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountT; Name = "Konto T"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountU; Name = "Konto U"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountV; Name = "Konto V"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 /// Wie `seedEntry`, aber mit voller Kontrolle ueber Payee, Memo, Kategorie und Datum
@@ -1156,6 +1171,20 @@ let private baseQuery (accountId: Guid option) : LedgerEntryPageQuery = {
     AmountMax = None
 }
 
+/// Wie `baseQuery`, aber für `getLedgerPayeeSuggestions`: keine Seiten-Parameter,
+/// kein `Payee` (der ist ja gerade das, was gleich ausgewählt wird).
+let private baseSuggestionQuery (accountId: Guid option) : LedgerPayeeSuggestionQuery = {
+    AccountId = accountId
+    IncludeDeleted = false
+    OnlyNeedsReview = false
+    CategoryIds = []
+    DateFrom = None
+    DateTo = None
+    Memo = None
+    AmountMin = None
+    AmountMax = None
+}
+
 [<Tests>]
 let ledgerPagingTests =
     // initializeLedgerSchema()/seedAccounts() laufen erst, wenn ein Testfall
@@ -1179,7 +1208,7 @@ let ledgerPagingTests =
                 seedEntry pageTestAccountA n amount |> Async.RunSynchronously
 
             let (LedgerAccountId rawId) = pageTestAccountA
-            let query pageIndex = { AccountId = Some rawId; Page = pageIndex; PageSize = 2; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+            let query pageIndex = { baseQuery (Some rawId) with Page = pageIndex; PageSize = 2 }
 
             let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
             let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
@@ -1207,7 +1236,7 @@ let ledgerPagingTests =
             seedEntry pageTestAccountB 21 -6m |> Async.RunSynchronously
 
             let allAccountsPage =
-                Ledger.QueryHandlers.getLedgerEntriesPage { AccountId = None; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery None)
                 |> Async.RunSynchronously
 
             let (LedgerAccountId rawB) = pageTestAccountB
@@ -1248,8 +1277,7 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawC) = pageTestAccountC
             let hidden =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawC; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawC))
                 |> Async.RunSynchronously
 
             Expect.equal hidden.TotalCount 1 "Die gelöschte Buchung zählt nicht zum Treffer"
@@ -1269,8 +1297,7 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawD) = pageTestAccountD
             let shown =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawD; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawD) with IncludeDeleted = true }
                 |> Async.RunSynchronously
 
             Expect.equal shown.TotalCount 2 "Beide Buchungen zählen zum Treffer"
@@ -1288,12 +1315,10 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawE) = pageTestAccountE
             let hidden =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawE))
                 |> Async.RunSynchronously
             let shown =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawE; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawE) with IncludeDeleted = true }
                 |> Async.RunSynchronously
 
             Expect.equal hidden.DeletedCount 1 "Eine gelöschte Buchung, obwohl ausgeblendet"
@@ -1311,8 +1336,7 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawG) = pageTestAccountG
             let shown =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawG; Page = 0; PageSize = 100; IncludeDeleted = true; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawG) with IncludeDeleted = true }
                 |> Async.RunSynchronously
             let balances = Ledger.QueryHandlers.getLedgerAccountBalances () |> Async.RunSynchronously
             let balanceG = balances |> List.find (fun b -> b.AccountId = rawG)
@@ -1337,8 +1361,7 @@ let ledgerPagingTests =
 
             let (LedgerAccountId rawF) = pageTestAccountF
             let onlyNeedsReview =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawF) with OnlyNeedsReview = true }
                 |> Async.RunSynchronously
 
             Expect.equal onlyNeedsReview.TotalCount 1 "Nur die ungeprüfte, nicht gelöschte Buchung zählt"
@@ -1354,12 +1377,10 @@ let ledgerPagingTests =
             // AC14.
             let (LedgerAccountId rawF) = pageTestAccountF
             let off =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = false; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawF))
                 |> Async.RunSynchronously
             let on =
-                Ledger.QueryHandlers.getLedgerEntriesPage
-                    { AccountId = Some rawF; Page = 0; PageSize = 100; IncludeDeleted = false; OnlyNeedsReview = true; CategoryIds = []; DateFrom = None; DateTo = None; Payee = None; Memo = None; AmountMin = None; AmountMax = None }
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawF) with OnlyNeedsReview = true }
                 |> Async.RunSynchronously
 
             Expect.equal off.NeedsReviewCount 1 "Eine zu prüfende Buchung, obwohl der Filter aus ist"
@@ -1652,17 +1673,7 @@ let ledgerPagingTests =
             |> Async.RunSynchronously
 
             let (LedgerAccountId rawN) = pageTestAccountN
-            let suggestionsQuery : LedgerPayeeSuggestionQuery = {
-                AccountId = Some rawN
-                IncludeDeleted = false
-                OnlyNeedsReview = false
-                CategoryIds = [ catGuid 26 ]
-                DateFrom = None
-                DateTo = None
-                Memo = None
-                AmountMin = None
-                AmountMax = None
-            }
+            let suggestionsQuery = { baseSuggestionQuery (Some rawN) with CategoryIds = [ catGuid 26 ] }
             let suggestions =
                 Ledger.QueryHandlers.getLedgerPayeeSuggestions suggestionsQuery |> Async.RunSynchronously
 
@@ -1702,6 +1713,198 @@ let ledgerPagingTests =
             Expect.equal shown.TotalCount 2 "Mit IncludeDeleted zaehlen beide Buchungen der Kategorie"
             Expect.equal shown.TotalAmount { Amount = -1010m; Currency = "EUR" } "Summe inklusive der geloeschten Buchung"
             Expect.equal shown.DeletedCount 1 "DeletedCount bleibt gleich, unabhaengig vom Schalter"
+
+        // ============================================
+        // Betragsfilter-Zweig: SQL-Pfad vs. F#-Nachfilter (ledger-c4mzp, ADR 0017/0036)
+        // ============================================
+        // `hasAmountFilter` gabelt fünf Lese-Funktionen in zwei Implementierungen.
+        // Geprüft war bisher nur `TotalCount` (AC6, min = max). Die folgenden
+        // Testfälle decken `TotalAmount`, `DeletedCount`, `safePage`, die
+        // Payee-Vorschläge und die einseitig offenen Grenzen ab, je auf eigenem Konto.
+
+        testCase "Betrags-Zweig: TotalAmount folgt dem Treffer, nicht der geladenen Seite und nicht der ungefilterten Menge" <| fun () ->
+            seedEntry pageTestAccountQ 101 -5.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountQ 102 -50.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountQ 103 -500.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountQ 104 20.00m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawQ) = pageTestAccountQ
+            let page =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawQ) with PageSize = 1; AmountMin = Some -100m; AmountMax = Some 0m }
+                |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 2 "Nur -5 und -50 EUR liegen im Intervall [-100; 0]"
+            Expect.equal page.TotalAmount { Amount = -55m; Currency = "EUR" }
+                "Die Summe deckt den gesamten Treffer ab (-5 + -50); ungefiltert wären es -535, nur die Seite wäre -5"
+            Expect.equal (List.length page.Entries) 1 "Die Seite trägt nur ihre eigene Größe, unabhängig von der Summe"
+
+        testCase "Betrags-Zweig: DeletedCount übernimmt IncludeDeleted=true wie der SQL-Zweig, statt es vom Filter zu erben" <| fun () ->
+            seedEntry pageTestAccountR 105 -10.00m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountR 106 -20.00m |> Async.RunSynchronously
+            seedDeletedEntry pageTestAccountR 107 -900.00m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawR) = pageTestAccountR
+            let page =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawR) with AmountMin = Some -100m; AmountMax = Some -1m }
+                |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 1 "Nur die lebende Buchung zählt zum sichtbaren Treffer"
+            Expect.equal page.TotalAmount { Amount = -10m; Currency = "EUR" } "Die Summe der sichtbaren Buchung"
+            Expect.equal page.DeletedCount 1
+                "Von den zwei gelöschten Buchungen erfüllt nur -20 EUR den Betragsfilter, -900 EUR liegt außerhalb; ungefiltert wären es 2, ohne IncludeDeleted=true im Betrags-Zweig 0"
+
+        testCase "Betrags-Zweig: Payee-Vorschläge zählen und sortieren wie der SQL-Zweig, der Betragsfilter wirkt vor dem Gruppieren" <| fun () ->
+            seedEntryFull pageTestAccountS 108 -1.00m (DateTime(2026, 7, 1)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountS 109 -2.00m (DateTime(2026, 7, 2)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountS 110 -300.00m (DateTime(2026, 7, 3)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountS 111 -3.00m (DateTime(2026, 7, 4)) (Some "Baecker") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountS 112 -4.00m (DateTime(2026, 7, 5)) (Some "Baecker") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountS 113 -500.00m (DateTime(2026, 7, 6)) (Some "Aldi") None None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawS) = pageTestAccountS
+            let sqlPath =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions (baseSuggestionQuery (Some rawS))
+                |> Async.RunSynchronously
+            let amountPath =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions
+                    { baseSuggestionQuery (Some rawS) with AmountMin = Some -1000m; AmountMax = Some 0m }
+                |> Async.RunSynchronously
+            let narrowedAmountPath =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions
+                    { baseSuggestionQuery (Some rawS) with AmountMax = Some -250m }
+                |> Async.RunSynchronously
+
+            let byPayeeAscending (suggestions: LedgerPayeeSuggestion list) =
+                suggestions |> List.sortBy (fun s -> s.Payee) |> List.map (fun s -> s.Payee, s.Count)
+
+            let expected = [ "Aldi", 1; "Baecker", 2; "Rewe", 3 ]
+            // Fängt einen F#-Pfad, der über die geladene Seite statt über den Treffer
+            // zählt, der `List.choose (fun e -> e.Payee)` vergisst, oder der nach
+            // einem anderen Feld gruppiert.
+            Expect.equal (byPayeeAscending sqlPath) expected "SQL-Zweig (kein Betragsfilter): drei Payees mit ihrer jeweiligen Anzahl"
+            Expect.equal (byPayeeAscending amountPath) expected
+                "F#-Zweig mit einem Intervall, das alle sechs Buchungen einschließt, liefert dasselbe wie der SQL-Zweig"
+
+            // Sortierrichtung: die eindeutig größte Zahl steht vorn. Fängt ein
+            // `List.sortBy snd` statt `List.sortByDescending snd` im F#-Pfad. Die
+            // Reihenfolge bei Gleichstand (Aldi/Baecker) wird bewusst nicht geprüft:
+            // `ORDER BY cnt DESC` hat im SQL-Pfad keinen Tiebreak.
+            Expect.equal (sqlPath |> List.head |> fun s -> s.Payee) "Rewe" "Die eindeutig größte Zahl steht im SQL-Zweig vorn"
+            Expect.equal (amountPath |> List.head |> fun s -> s.Payee) "Rewe" "Dieselbe Sortierrichtung im F#-Zweig"
+
+            // Der Betragsfilter wirkt auf die Vorschläge. Fängt einen F#-Pfad, der
+            // `amountMatches` vor dem Gruppieren auslässt.
+            Expect.equal (byPayeeAscending narrowedAmountPath) [ "Aldi", 1; "Rewe", 1 ]
+                "Nur Buchungen bis -250 EUR bleiben übrig: je eine von Aldi und Rewe"
+            Expect.isNone
+                (narrowedAmountPath |> List.tryFind (fun s -> s.Payee = "Baecker"))
+                "Baecker fällt komplett heraus: amountMatches muss vor dem Gruppieren wirken"
+
+        testCase "Betrags-Zweig: Blättern über safePage, ohne Dubletten und ohne Ausnahme hinter dem Listenende" <| fun () ->
+            // Fängt ein `safePage` ohne Offset-Wächter (`List.skip` über das
+            // Listenende wirft) und eines, das `List.truncate` vor `List.skip`
+            // anwendet (Seite 1 lieferte dann dieselben zwei wie Seite 0).
+            for n, amount in [ 114, -1m; 115, -2m; 116, -3m; 117, -4m; 118, -5m ] do
+                seedEntry pageTestAccountT n amount |> Async.RunSynchronously
+
+            let (LedgerAccountId rawT) = pageTestAccountT
+            let query pageIndex =
+                { baseQuery (Some rawT) with PageSize = 2; Page = pageIndex; AmountMin = Some -10m }
+            let page0 = Ledger.QueryHandlers.getLedgerEntriesPage (query 0) |> Async.RunSynchronously
+            let page1 = Ledger.QueryHandlers.getLedgerEntriesPage (query 1) |> Async.RunSynchronously
+            let page2 = Ledger.QueryHandlers.getLedgerEntriesPage (query 2) |> Async.RunSynchronously
+            let page3 = Ledger.QueryHandlers.getLedgerEntriesPage (query 3) |> Async.RunSynchronously
+
+            Expect.equal (List.length page0.Entries) 2 "Seite 0 trägt zwei Buchungen"
+            Expect.equal (List.length page1.Entries) 2 "Seite 1 trägt zwei weitere, nicht dieselben wie Seite 0"
+            Expect.equal (List.length page2.Entries) 1 "Seite 2 ist nur teilweise gefüllt"
+            Expect.equal (List.length page3.Entries) 0 "Seite 3 liegt hinter dem Ende, wirft aber keine Ausnahme"
+
+            let expectedTotal = { Amount = -15m; Currency = "EUR" }
+            for page in [ page0; page1; page2; page3 ] do
+                Expect.equal page.TotalCount 5 "Alle vier Antworten tragen dieselbe Trefferzahl über den gesamten Treffer"
+                Expect.equal page.TotalAmount expectedTotal "Alle vier Antworten tragen dieselbe Gesamtsumme"
+
+            let idsOf (page: LedgerEntryPage) = page.Entries |> List.map (fun e -> e.Id)
+            let seenIds = idsOf page0 @ idsOf page1 @ idsOf page2
+            let expectedIds = [ 114 .. 118 ] |> List.map (fun n -> let (EntryId g) = pageEntryId n in g)
+            Expect.equal (List.sort seenIds) (List.sort expectedIds)
+                "Die Ids der Seiten 0 bis 2 ergeben zusammen genau die fünf gesäten Ids, ohne Dublette"
+            Expect.equal (List.length seenIds) (List.length (List.distinct seenIds)) "Keine Buchung erscheint auf zwei Seiten zugleich"
+
+        testCase "Betrags-Zweig: einseitig offene Grenzen und ein vertauschtes Intervall" <| fun () ->
+            seedEntry pageTestAccountU 119 -100.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountU 120 -50.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountU 121 -5.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountU 122 30.00m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawU) = pageTestAccountU
+
+            // Nur `AmountMin` gesetzt. Fängt eine Umsetzung, die beide Enden verlangt
+            // (ergäbe 0 Treffer) und eine, die `>=` und `<=` vertauscht (ergäbe nur -100,00).
+            let onlyMin =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawU) with AmountMin = Some -50m }
+                |> Async.RunSynchronously
+            Expect.equal onlyMin.TotalCount 3 "Mindestens -50: -100 fällt heraus, die anderen drei bleiben"
+            Expect.equal
+                (onlyMin.Entries |> List.map (fun e -> e.Amount.Amount) |> List.sort)
+                [ -50m; -5m; 30m ]
+                "Genau die drei Beträge ab -50 aufwärts, -100 ist nicht dabei"
+
+            // Nur `AmountMax` gesetzt, Randwert eingeschlossen (>=/<=, nicht >/<).
+            let onlyMax =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawU) with AmountMax = Some -50m }
+                |> Async.RunSynchronously
+            Expect.equal onlyMax.TotalCount 2 "Höchstens -50: der Randwert -50 zählt mit"
+            Expect.equal
+                (onlyMax.Entries |> List.map (fun e -> e.Amount.Amount) |> List.sort)
+                [ -100m; -50m ]
+                "Der Randwert -50 ist eingeschlossen, nicht per >/< ausgeschlossen"
+
+            // Vertauschtes Intervall (AmountMin > AmountMax). Fängt eine Umsetzung,
+            // die die Grenzen hilfsbereit tauscht, und eine, die die beiden Enden mit
+            // ODER statt UND verknüpft.
+            let swapped =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawU) with AmountMin = Some 0m; AmountMax = Some -100m }
+                |> Async.RunSynchronously
+            Expect.equal swapped.TotalCount 0 "Ein vertauschtes Intervall bleibt leer, statt getauscht oder per ODER verknüpft zu werden"
+            Expect.equal swapped.Entries [] "Keine Buchung erfüllt ein leeres Intervall"
+            Expect.equal swapped.TotalAmount { Amount = 0m; Currency = "EUR" } "Die Summe eines leeren Treffers ist 0"
+
+        testCase "Betrags-Zweig: NeedsReviewCount bleibt von jedem Such-Filter unberührt, auch vom Betragsfilter" <| fun () ->
+            // Fängt ein späteres „Vereinheitlichen“, das den Filter an
+            // `countNeedsReviewEntries` durchreicht (ergäbe 3, 2 und 1 statt 4, 3, 1 bei
+            // TotalCount, aber 3, 3, 3 bei NeedsReviewCount).
+            seedEntry pageTestAccountV 123 -10.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountV 124 -20.00m |> Async.RunSynchronously
+            seedEntry pageTestAccountV 125 -3000.00m |> Async.RunSynchronously
+            seedReviewedEntry pageTestAccountV 126 -40.00m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawV) = pageTestAccountV
+            let unfiltered = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawV)) |> Async.RunSynchronously
+            let amountFiltered =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawV) with AmountMin = Some -100m }
+                |> Async.RunSynchronously
+            let payeeFiltered =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawV) with Payee = Some "payee 123" }
+                |> Async.RunSynchronously
+
+            Expect.equal unfiltered.TotalCount 4 "Alle vier Buchungen ohne Filter"
+            Expect.equal amountFiltered.TotalCount 3 "Der Betragsfilter (F#-Zweig) schließt die -3000,00 EUR aus"
+            Expect.equal payeeFiltered.TotalCount 1 "Der Payee-Filter (SQL-Zweig) trifft genau eine Buchung"
+
+            Expect.equal unfiltered.NeedsReviewCount 3 "Drei ungeprüfte Buchungen, unabhängig vom Filter"
+            Expect.equal amountFiltered.NeedsReviewCount 3 "Derselbe feste Zähler, auch mit aktivem Betragsfilter"
+            Expect.equal payeeFiltered.NeedsReviewCount 3 "Derselbe feste Zähler, auch mit aktivem Payee-Filter"
     ]
 
 [<Tests>]

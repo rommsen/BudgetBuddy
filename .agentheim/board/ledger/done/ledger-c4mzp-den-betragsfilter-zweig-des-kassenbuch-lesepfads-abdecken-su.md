@@ -1,7 +1,7 @@
 ---
 id: ledger-c4mzp
 title: "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
-status: doing
+status: done
 type: chore
 context: ledger
 created: 2026-09-20
@@ -167,3 +167,72 @@ Schreibweise, die Zusicherung gilt der Gleichheit beider Pfade, nicht einer best
 Gruppierungsregel. Läuft dieser Task vor `h4qtx`, bekommt `h4qtx` damit genau das
 Sicherheitsnetz, das sein eigenes drittes Kriterium („gilt in beiden Pfaden gleich")
 verlangt.
+
+## Outcome
+
+Der Betragsfilter-Zweig (`hasAmountFilter`) des Kassenbuch-Lesepfads war bis auf `TotalCount`
+(AC6 aus `ledger-vgfw3`) ungetestet: fünf Lesefunktionen mit je zwei Implementierungen, eine
+davon geprüft. Sechs neue Testfälle in `src/Tests/LedgerPageTests.fs` schließen die Lücke, je
+einer pro Kriteriengruppe: `TotalAmount` (Konto Q), `DeletedCount` (R), Payee-Vorschläge samt
+Sortierrichtung und Betragswirkung (S), Blättern über `safePage` (T), einseitig offene Grenzen
+samt vertauschtem Intervall (U), Unberührtheit von `NeedsReviewCount` (V).
+
+Nebenher, ohne neue Abdeckung: die zehn ausgeschriebenen `LedgerEntryPageQuery`-Literale sind
+auf `{ baseQuery ... with ... }` umgestellt, und für die Payee-Vorschläge ist analog
+`baseSuggestionQuery` eingeführt. `AmountMax = None` kommt dadurch genau zweimal im Text vor.
+
+`dotnet test`: 969 erfolgreich, 7 übersprungen, 0 Fehler.
+
+**Drei Vorgaben des Task-Texts waren beim Start überholt und wurden bewusst verschoben.** Die
+Aufgabe wurde am 2026-09-20 verfeinert; ihre eigenen Notes sahen die Kollision mit
+`ledger-k3wqn` voraus, nahmen aber an, dieser Task liefe zuerst. Tatsächlich lief `k3wqn` in
+Welle 1 desselben Laufs. Gemessen und angewiesen vom Conductor vor dem Dispatch:
+
+- `pageEntryId` war bereits dreistellig (`{n:D3}`), von `k3wqn`. Der Task beansprucht diese
+  Änderung ausdrücklich für sich ("**Dieser Task besitzt diese Änderung**"); sie ist nicht
+  erneut gemacht worden, und kein Kriterium hängt daran. Im Diff erscheint `pageEntryId` nur
+  als Verwendung in einem neuen Test.
+- `pageTestAccountP` (`...019`) war von `k3wqn` belegt. Die sechs neuen Konten heißen deshalb
+  **Q bis V** (`...01a` bis `...01f`) statt P bis U, mit gleicher Zuordnung zu den Kriterien
+  (P→Q, Q→R, R→S, S→T, T→U, U→V).
+- Die laufenden Nummern 96 bis 100 waren belegt. Die neuen Buchungen beginnen bei **101** und
+  laufen bis 126. Entsprechend nennt der `NeedsReviewCount`-Test `"payee 123"` statt des im
+  Task-Text stehenden `"payee 130"`.
+
+**Verifikation (Iteration 1, PASS), mit sechs Mutationen.** Der Verifier hat jede Zusicherung
+gebrochen, die das Kriterium als falsifizierend beschreibt, und den gemeldeten Istwert gegen
+den im Kriterium vorhergesagten gehalten:
+
+| Mutation | Ergebnis |
+|---|---|
+| `loadAmountsForQuery` ohne `amountMatches` im F#-Zweig | rot: "Expected -55M, but got -535.00M", exakt der vorhergesagte Wert |
+| `loadAllMatching` mit `filter` statt `deletedFilter` | rot, `DeletedCount` erwartet 1 |
+| `List.sortBy snd` statt `List.sortByDescending snd` | rot: "Expected char 'R', but got 'A'" |
+| `amountMatches` vor dem Gruppieren ausgelassen | rot, Baecker bleibt mit Count 2 im dritten Aufruf |
+| `safePage` ohne Offset-Wächter | rot: `invalidArgOutOfRange` aus `List.skip` bei Seite 3 |
+| `truncate` vor `skip`, und `>=`/`<=` vertauscht | rot: "Seite 1 trägt zwei weitere, nicht dieselben wie Seite 0" bzw. `TotalCount` erwartet 3 |
+
+Die Mutationen belegen nebenbei auch die Zweig-Zuordnung: die F#-only-Mutation machte nur die
+F#-Zusicherung des Payee-Tests rot, nicht die SQL-Zusicherung, womit gezeigt ist, dass der erste
+Aufruf wirklich den SQL-Pfad nimmt. Und der Betrags-Aufruf des `NeedsReviewCount`-Tests wurde
+von Mutation 2 getroffen, läuft also tatsächlich über den F#-Zweig.
+
+**Die 29 gelöschten Zeilen sind kein entfernter Test.** Der Verifier hat das eigens geprüft:
+keine der gelöschten Zeilen enthält `testCase`, `testSequenced` oder `Expect.`; die Zahl der
+`testCase`-Deklarationen steigt von 19 auf 25, die der `Expect.`-Aufrufe von 219 auf 252. Die
+zehn ersetzten Literale sind **feldweise** gegen `baseQuery` geprüft (alle zwölf Felder), jede
+`with`-Form setzt genau die Felder, die das alte Literal abweichend trug, keine stille
+Feldänderung. Das Vorschlags-Literal ist in allen neun Feldern identisch.
+
+Weiter bestätigt: `seedAccounts ()` legt alle sechs neuen Konten an und steht innerhalb der
+`testCase`-Closure (ADR 0033, `ModuleLevelDbInitGuardTests` läuft grün mit); die
+Payee-Vorschlags-Tests sichern bewusst nichts über die Reihenfolge bei Gleichstand zu, weil
+`ORDER BY cnt DESC` im SQL-Pfad keinen Tiebreak hat; der Diff fasst genau eine Datei an, kein
+`Tests.fsproj`, nichts vom parallel laufenden Schwester-Task.
+
+**Eine Änderung nach der Verifikation, deklariert.** Der Verifier hat in einer neuen
+Kommentarzeile "ausgewaehlt" statt "ausgewählt" gefunden und als nicht verdikt-relevant
+eingestuft. Der Conductor hat das eine Wort beim Integrieren korrigiert; der integrierte Diff
+weicht damit um dieses Wort in einem Kommentar vom verifizierten ab, an keiner Prüfung hängt
+etwas davon. Die beiden gleichlautenden Stellen in Zeile 408 und 411 sind Altbestand und
+unberührt geblieben.
