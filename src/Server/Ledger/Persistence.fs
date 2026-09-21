@@ -646,17 +646,21 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
 
     // Payee kommt aus der Vorschlagsliste (Klick, "Payee ist immer nur einer"), also
     // exakter Vergleich; Memo ist ein Suchfeld, also Teiltext. Beide ohne
-    // Berücksichtigung der Groß-/Kleinschreibung.
+    // Berücksichtigung der Groß-/Kleinschreibung, auch für Umlaute: `bb_lower`
+    // (ADR 0037) statt der früheren SQLite-Kollation, die nur ASCII A-Z faltet und
+    // `LIKE` ohnehin nicht erreicht. Beide Seiten des Vergleichs laufen durch dieselbe
+    // Funktion, sonst faltet nur die Spalte und jeder Suchtext mit einem
+    // Großbuchstaben findet still nichts (derselbe Fehler in neuer Verkleidung).
     match filter.Payee with
     | Some payee ->
-        clause.Append(" AND payee = @payee COLLATE NOCASE") |> ignore
-        ps.Add("payee", payee)
+        clause.Append(" AND bb_lower(payee) = @payee") |> ignore
+        ps.Add("payee", Core.searchFold payee)
     | None -> ()
 
     match filter.Memo with
     | Some memo ->
-        clause.Append(" AND memo LIKE @memo COLLATE NOCASE") |> ignore
-        ps.Add("memo", $"%%{memo}%%")
+        clause.Append(" AND bb_lower(memo) LIKE @memo") |> ignore
+        ps.Add("memo", $"%%{Core.searchFold memo}%%")
     | None -> ()
 
     clause.ToString(), ps

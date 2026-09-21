@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 15
 - **Todo:** 7
-- **Doing:** 1
-- **Done:** 26
+- **Doing:** 0
+- **Done:** 27
 <!-- task-counts:end -->
 
 ### Todo
@@ -29,11 +29,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `doing/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `done/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
 - **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `done/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 - **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `done/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`
 - **ledger-vgfw3** — "Kassenbuch-Filter im Lesepfad: Kategorie, Zeitraum, Payee, Betrag und Memo serverseitig filtern, zählen und summieren" (feature) — `done/ledger-vgfw3-filter-und-summenzeile.md`

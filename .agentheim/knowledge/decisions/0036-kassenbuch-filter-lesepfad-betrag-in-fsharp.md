@@ -121,6 +121,12 @@ Client-Kinds macht beide Ränder zugleich richtig, weil der Bestand selbst gemis
   dieser Aufgabe (siehe Backlog `ledger-h4qtx`): eine korrekte Lösung müsste zusätzlich
   festlegen, welche Schreibweise als Vorschlag angezeigt wird, das ist mehr als eine
   Ein-Zeilen-Änderung.
+- **Nachtrag (ledger-k3wqn, ADR 0037):** die oben beschriebene `COLLATE NOCASE`-Faltung
+  des Payee-Filters ist entfallen. Payee und Memo vergleichen jetzt über die
+  anwendungsdefinierte SQL-Funktion `bb_lower`, die auch Umlaute faltet; `COLLATE NOCASE`
+  faltet nur ASCII A-Z und wird von `LIKE` ohnehin ignoriert. `loadPayeeSuggestions`
+  selbst gruppiert unverändert groß-/kleinschreibungs-empfindlich, das bleibt
+  `ledger-h4qtx`.
 
 ## Alternatives considered
 - **Zeitpunkte beim Schreiben auf ein einheitliches `DateTimeKind` (z. B. immer `Utc`)

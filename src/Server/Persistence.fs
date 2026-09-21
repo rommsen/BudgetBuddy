@@ -106,6 +106,25 @@ let activeConnectionString () =
 
 // `internal` statt `private`: `Ledger.Persistence` (gleiche Assembly) baut seinen
 // appendAndApply-Schreibpfad auf derselben frischen Connection auf (ADR 0008/0013).
+// ADR 0037: SQLites eingebautes `COLLATE NOCASE` faltet nur ASCII A-Z, `lower()`/
+// `upper()` sind ebenfalls ASCII-only, und es gibt kein ICU im gebundenen SQLite.
+// `ToLowerInvariant` bildet dagegen unicodefähig ab, sowohl unter Globalization-
+// Invariant (Container) als auch lokal unter de-DE identisch. Eine Zerlegung in
+// Unicode-Normalform darf hier NICHT vorkommen: sie zerlegt im Invariant-Modus
+// nicht mehr, ein darauf gebauter Test wäre lokal grün und in Produktion
+// wirkungslos (ADR 0037 Context 4).
+let internal searchFold (s: string) : string =
+    if isNull s then s else s.ToLowerInvariant()
+
+// Registriert `bb_lower` als anwendungsdefinierte SQL-Skalarfunktion auf einer
+// noch nicht geöffneten Connection (ADR 0037 Decision 1). `isDeterministic = true`
+// ist das dritte Argument von `CreateFunction`. `null` läuft unverändert durch
+// `searchFold` und bleibt damit SQL-`NULL`, eine Buchung ohne Payee trifft die
+// Gleichheit also weiterhin nicht.
+let private withSearchFunctions (conn: SqliteConnection) : SqliteConnection =
+    conn.CreateFunction<string, string>("bb_lower", (fun s -> searchFold s), true)
+    conn
+
 let internal getConnection () =
     let config = dbConfig.Force()
     // Always hand out a FRESH connection (Dapper auto-opens/closes closed connections).
@@ -115,7 +134,11 @@ let internal getConnection () =
     // internal command list at the same time (infra-001: SqliteConnection.RemoveCommand
     // index-out-of-range during disposal). This mirrors how production already behaves.
     let _keepAlive = config.SharedConnection
-    new SqliteConnection(config.ConnectionString)
+    // `withSearchFunctions` läuft VOR `Open()` durch `getConnection`: Microsoft.Data.Sqlite
+    // legt registrierte Funktionen bei jedem `Open()` neu auf den Handle, über
+    // Pool-Zyklen hinweg (ADR 0037). Jede über diesen Flaschenhals ausgegebene
+    // Connection trägt `bb_lower` deshalb garantiert.
+    new SqliteConnection(config.ConnectionString) |> withSearchFunctions
 
 // ============================================
 // Encryption Helper

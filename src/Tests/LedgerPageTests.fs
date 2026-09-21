@@ -994,8 +994,15 @@ let private pageTestAccountL = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8
 let private pageTestAccountM = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000016")
 let private pageTestAccountN = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000017")
 let private pageTestAccountO = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000018")
+// Eigenes Konto für den Umlaut-Faltungstest (ledger-k3wqn, ADR 0037): unabhängig
+// von Konto M (AC6), damit die dort gesäten ASCII-Payees den Umlaut-Fall nicht
+// verdecken.
+let private pageTestAccountP = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000019")
 
-let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-0000000000{n:D2}")
+// `D3` statt `D2`, ein Prefix-Nullen weniger (`000000000` statt `0000000000`): für
+// n=0..99 liefert das exakt dieselbe Guid wie zuvor (`n:D3` mit vier statt drei
+// Ziffern Nullpadding hat denselben Text), n=100 (ledger-k3wqn) passt jetzt auch.
+let private pageEntryId (n: int) = EntryId (Guid.Parse $"0195bb01-0000-7000-8000-000000000{n:D3}")
 
 /// Legt eine Buchung per `appendAndApply` an: eine Erstbeobachtung, `n` bestimmt Id,
 /// Datum (steigend mit `n`, fuer eine eindeutige Sortierreihenfolge) und Betrag.
@@ -1075,6 +1082,7 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountM; Name = "Konto M"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountN; Name = "Konto N"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountO; Name = "Konto O"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountP; Name = "Konto P"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 /// Wie `seedEntry`, aber mit voller Kontrolle ueber Payee, Memo, Kategorie und Datum
@@ -1546,6 +1554,81 @@ let ledgerPagingTests =
                 (combined.Entries |> List.map (fun e -> e.Memo))
                 [ Some "Kaffee" ]
                 "Die Und-Verknuepfung laesst nur Cafe Lotte + Kaffee + -4,50 EUR durch"
+
+        testCase "AC-Umlaut: Payee- und Memo-Filter falten Groß-/Kleinschreibung auch bei Umlauten (ledger-k3wqn, ADR 0037)" <| fun () ->
+            // Echte Produktionsschreibweisen, kein transliteriertes ASCII (anders als
+            // AC6/AC7): Comdirect und YNAB liefern Payee/Memo häufig in
+            // Großbuchstaben, genau der Fall, an dem die frühere SQLite-Kollation
+            // lautlos versagt, weil sie nur ASCII A-Z faltet (ADR 0037 Context).
+            seedEntryFull pageTestAccountP 96 -10.00m (DateTime(2026, 5, 1)) (Some "MÜLLER GMBH") (Some "GRÜNE ERDE Rechnung") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountP 97 -20.00m (DateTime(2026, 5, 2)) (Some "Müller GmbH") (Some "Grüne Erde Rechnung") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountP 98 -30.00m (DateTime(2026, 5, 3)) (Some "Schmidt AG") (Some "Blaue Erde") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountP 99 -4.50m (DateTime(2026, 5, 4)) (Some "STRAßE DES 17. JUNI") (Some "Parkgebühr") None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountP 100 -4.50m (DateTime(2026, 5, 5)) (Some "MÜLLER GMBH") (Some "GRÜNE ERDE Nachtrag") None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawP) = pageTestAccountP
+
+            let byPayeeLower =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "müller gmbh" }
+                |> Async.RunSynchronously
+            let byPayeeUpper =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "MÜLLER GMBH" }
+                |> Async.RunSynchronously
+            let byMemoLower =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Memo = Some "grüne" }
+                |> Async.RunSynchronously
+            let byMemoUpper =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Memo = Some "GRÜNE ERDE" }
+                |> Async.RunSynchronously
+            let byPayeeStrasse =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "straße des 17. juni" }
+                |> Async.RunSynchronously
+
+            Expect.equal byPayeeLower.TotalCount 3 "'müller gmbh' faltet beide Großschreibungen von MÜLLER GMBH/Müller GmbH (heute: nur 1, weil die frühere Kollation nur ASCII faltet)"
+            Expect.equal byPayeeUpper.TotalCount 3 "Auch von der Großschreibung aus muss die Faltung greifen, nicht nur einseitig (heute: nur 2)"
+            Expect.equal byMemoLower.TotalCount 3 "Memo-Teiltext 'grüne' faltet alle drei GRÜNE-ERDE-Schreibweisen (heute: nur 1); Beleg, dass eine SQLite-Kollation nicht gereicht hätte, weil LIKE Kollationen ignoriert (ADR 0037)"
+            Expect.equal byMemoUpper.TotalCount 3 "Auch von der Großschreibung des Memo-Suchtexts aus muss die Faltung greifen"
+            Expect.equal byPayeeStrasse.TotalCount 1 "STRAßE DES 17. JUNI wird über ToLowerInvariant gefunden"
+
+            Expect.equal (List.length byPayeeLower.Entries) 3 "loadEntriesPage trägt alle drei gefundenen Buchungen"
+            Expect.equal byPayeeLower.TotalAmount { Amount = -34.50m; Currency = "EUR" } "loadAmountsForQuery summiert über die gefaltete Treffermenge, nicht nur die ASCII-lesbare"
+
+            // loadAllMatching-Zweig (Betragsfilter zwingt den F#-Nachfilter-Pfad, ADR 0017/0036)
+            let byPayeeAndAmount =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawP) with
+                        Payee = Some "müller gmbh"
+                        AmountMin = Some -4.50m
+                        AmountMax = Some -4.50m }
+                |> Async.RunSynchronously
+            Expect.equal byPayeeAndAmount.TotalCount 1 "Nur n=100 (-4,50 EUR) erfüllt Payee und Betrag zugleich"
+            Expect.equal byPayeeAndAmount.TotalAmount { Amount = -4.50m; Currency = "EUR" } "Summe des loadAllMatching-Zweigs stimmt"
+
+            // Registrierung über den Verbindungs-Pool: derselbe gefilterte Aufruf ein
+            // zweites Mal, mit einer neuen, aus dem Pool geholten Connection (ADR 0037
+            // Consequences: Microsoft.Data.Sqlite legt Funktionen bei jedem Open() neu
+            // auf den Handle, der einzige echte Ausfallmodus dieser Lösung).
+            let byPayeeLowerAgain =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "müller gmbh" }
+                |> Async.RunSynchronously
+            Expect.equal byPayeeLowerAgain.TotalCount byPayeeLower.TotalCount "Zweiter Aufruf über eine neue Connection liefert dasselbe Ergebnis"
+
+            // Scope-Grenze (ADR 0037 Decision 5): Diakritika-Entfernung ist ausdrücklich
+            // nicht Teil dieser Lösung. 'strasse' (transliteriert) findet 'Straße'
+            // nicht, 'gruene' (transliteriert) findet 'Grüne' nicht.
+            let byPayeeTransliterated =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Payee = Some "strasse des 17. juni" }
+                |> Async.RunSynchronously
+            let byMemoTransliterated =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawP) with Memo = Some "gruene" }
+                |> Async.RunSynchronously
+            Expect.equal byPayeeTransliterated.TotalCount 0 "'strasse' (ss statt ß) fällt bewusst durch, Diakritika-Entfernung ist nicht Teil von ADR 0037"
+            Expect.equal byMemoTransliterated.TotalCount 0 "'gruene' (ue statt ü) fällt bewusst durch, aus demselben Grund"
 
         testCase "AC7: Payee-Vorschlaege zaehlen nur innerhalb des uebergebenen Filters" <| fun () ->
             // Rewe kommt insgesamt fünfmal vor, aber nur zweimal in Kategorie 26.

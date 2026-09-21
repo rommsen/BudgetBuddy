@@ -1,7 +1,7 @@
 ---
 id: ledger-k3wqn
 title: "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-09-20
@@ -174,3 +174,61 @@ Terminierung: `ledger-xk9wq` ändert dieselbe Funktion `buildFilterClause` (Kate
 Z. 638-648, unmittelbar oberhalb). Nicht parallel in getrennten Worktrees laufen lassen.
 `ledger-h4qtx` sollte nach dieser Aufgabe laufen und dann `bb_lower`/`Core.searchFold`
 wiederverwenden.
+
+## Outcome
+
+Der Payee- und der Memo-Filter des Kassenbuchs falten Groß-/Kleinschreibung jetzt auch für
+Umlaute. Der Fix folgt ADR 0037 wörtlich: eine anwendungsdefinierte SQL-Skalarfunktion
+`bb_lower` (`Persistence.searchFold`, `ToLowerInvariant`, `null` durchgereicht) wird über
+`withSearchFunctions` auf jeder von `Persistence.getConnection` ausgegebenen Connection
+registriert, vor `Open()` (`src/Server/Persistence.fs`, zwischen `activeConnectionString` und
+`getConnection`). `Ledger.Persistence.buildFilterClause` vergleicht beide Textfilter jetzt über
+`bb_lower(payee) = @payee` und `bb_lower(memo) LIKE @memo`, mit dem Parameterwert über
+`Core.searchFold` vorgefaltet, `COLLATE NOCASE` ist an beiden Stellen restlos verschwunden
+(`src/Server/Ledger/Persistence.fs`, Payee-/Memo-Zweig von `buildFilterClause`). Schreibpfad,
+Schema und `Ledger.Domain.Entry` sind unangetastet.
+
+Neuer Test `src/Tests/LedgerPageTests.fs`, Testgruppe "Fünf Such-Filter im Lesepfad", direkt
+nach AC6: `AC-Umlaut: Payee- und Memo-Filter falten Groß-/Kleinschreibung auch bei Umlauten
+(ledger-k3wqn, ADR 0037)` auf einem eigenen Testkonto `pageTestAccountP`
+(`0195bb00-0000-7000-8000-000000000019`) mit fünf Buchungen in echter Produktionsschreibweise
+(`MÜLLER GMBH`/`GRÜNE ERDE Rechnung`, `Müller GmbH`/`Grüne Erde Rechnung`, `Schmidt AG`/`Blaue
+Erde`, `STRAßE DES 17. JUNI`/`Parkgebühr`, `MÜLLER GMBH`/`GRÜNE ERDE Nachtrag`). Er deckt beide
+Filterrichtungen (Suchtext klein wie groß), den Memo-Teiltext als Beleg gegen eine reine
+SQLite-Kollation (die `LIKE` nicht erreicht), `loadEntriesPage`/`loadAmountsForQuery` über
+`TotalCount`/`List.length`/`TotalAmount`, den `loadAllMatching`-Zweig mit Betragsfilter, die
+Registrierung über den Verbindungs-Pool sowie die bewusste Scope-Grenze (`strasse`/`gruene`
+transliteriert finden `Straße`/`Grüne` nicht).
+
+Rot vor Grün, mit Zahlen: gegen den Stand vor der Änderung lieferte
+`Payee = Some "müller gmbh"` `TotalCount = 1` statt der erwarteten `3`
+(`dotnet test --filter "FullyQualifiedName~Umlaut"`, Fehlermeldung "expected: 3, actual: 1",
+exakt der in den Task-Notes vorhergesagte Ist-Zustand). Nach der Änderung grün.
+
+Nebenbefund während der Umsetzung: `pageEntryId` (`src/Tests/LedgerPageTests.fs`) baute die
+Entry-Guid mit `n:D2`; für n=100 (von AC1 verlangt) lieferte das drei statt zwei Ziffern und
+damit eine ungültige Guid. Behoben durch eine Nullstelle weniger im Präfix plus `n:D3`
+(`000000000{n:D3}` statt `0000000000{n:D2}`); für n=0..99 identischer Text wie zuvor, für n=100
+jetzt gültig. Keine bestehende Entry-Id ändert sich dadurch.
+
+**Verifikation (Iteration 1, PASS).** Der Verifier hat den Rot-Zustand nicht geglaubt, sondern
+unabhängig nachgemessen: ein eigenes `dotnet fsi`-Skript gegen denselben gebundenen Provider
+(Microsoft.Data.Sqlite 9.0.13) mit exakt denselben fünf Zeilen ergab für die alten Klauseln
+`payee = @p COLLATE NOCASE` → 1 (Suchtext klein) und 2 (Suchtext groß), `memo LIKE '%grüne%'
+COLLATE NOCASE` → 1, also punktgenau die im Kriterium vorhergesagten Ist-Werte. Mit `bb_lower`
+liefern dieselben Abfragen 3/3/3. Zusätzlich hat er die **einseitige** Faltung nachgestellt (nur
+die Spalte gefaltet, Parameter roh): Ergebnis 0. Die Zusicherung auf den großgeschriebenen
+Suchtext ist damit nachweislich falsifizierend und fängt genau die Lösung ab, die nur eine Seite
+faltet. Der laute Ausfallmodus aus ADR 0037 ist ebenfalls nachgestellt worden
+(`SQLite Error 1: 'no such function: bb_lower'` auf einer Connection ohne Registrierung), womit
+die Registrierung vor `Open()` auch empirisch belegt ist. `dotnet test` im Worktree: Exit 0,
+941 erfolgreich, 7 übersprungen (`.env`-gebundene Comdirect-/YNAB-Integrationstests, vorbestehend),
+0 Fehler. Die drei Replay-Pflichttests (`src/Tests/LedgerTests.fs:912, :938, :991`) laufen mit.
+Die `pageEntryId`-Änderung hat er für alle 100 Werte nachgerechnet statt den Kommentar zu
+glauben, und geprüft, dass kein Test eine Entry-Guid als Literal festnagelt.
+
+**Vom Conductor auf dem Hauptbaum nachgezogen** (der Worker darf unter `.agentheim/` nicht
+schreiben): der Eintrag **Such-Filter (Kassenbuch)** im `ledger`-README nennt jetzt die Faltung
+über `bb_lower` und ihre Grenze; der Neutral-Abschnitt von ADR 0036 trägt einen Nachtrag, der
+seine `COLLATE NOCASE`-Aussage als mit ADR 0037 entfallen kennzeichnet; ADR 0037 hat einen
+Eintrag im `adr-local`-Block des ledger-INDEX bekommen, der bisher fehlte.

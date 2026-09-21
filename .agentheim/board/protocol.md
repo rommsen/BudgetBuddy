@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:32 -- Task verified and completed: ledger-k3wqn - "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII"
+
+**Type:** Work / Task completion
+**Task:** ledger-k3wqn - "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII"
+**Summary:** Payee- und Memo-Filter falten Gross-/Kleinschreibung jetzt auch fuer Umlaute ueber die SQL-Funktion bb_lower statt ueber COLLATE NOCASE
+**Duration:** 12m10s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 1
+**ADRs written:** none (ADR 0037 lag bereits vor)
+
+---
+
 ## 2026-09-21 07:23 -- Task verified and completed: design-system-p3vqk - "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen"
 
 **Type:** Work / Task completion
