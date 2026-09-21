@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 16:29 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 9h16m (07:13 bis 16:29, Batch-Start bis Abschluss)
+**Completed:** 12 (first-try PASS: 7, re-dispatched: 4, skipped: 1)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 2 (ledger-n3pqw, ledger-p3wnq; beide vom Stream-Watchdog abgebrochen nachdem die Arbeit fertig war, RESULT nie geschrieben; selectResultSource meldete no-valid-source, onLostResult entschied dispatch-lost-result)
+**Lost-result escalations:** 0
+**Dispatches:** design-system-p3vqk: 1, ledger-k3wqn: 1, design-system-q2bmv: 1, ledger-v5hkt: 1, design-system-j9xnd: 2, infrastructure-b6kzp: 2, ledger-v8n4t: 0 (Conductor-Arbeit ohne Worker), ledger-t4m9c: 1, ledger-n3pqw: 2, ledger-p3wnq: 3, ledger-c4mzp: 1, ledger-w6tbq: 2. Von den Zweit-Dispatches sind zwei Transportverluste (n3pqw, p3wnq) und vier Verifikations-Fehlschlaege (j9xnd, b6kzp, p3wnq, w6tbq); die Lost-Result-Faelle haben keine FAIL-Iteration verbraucht.
+**Commits:** 17 (4 Batch-Starts, 12 Task-Integrationen, 1 Session-Ende-Bookkeeping)
+**Vision-conformance:** none — batch aligns with vision. Kein Item zieht Richtung eines Non-Goals; ledger-v5hkt und ledger-k3wqn treffen den in der Vision benannten Fehlermodus ("Wenn der Spiegel unzuverlaessig ist") direkt.
+**Batch mix:** 25% product-facing / 75% harness / 0% bookkeeping (12 tasks). Einordnung: die Heuristik typisiert jeden chore als harness, ausser er faesst ausschliesslich Protokoll-/INDEX-/State-Flaechen an; sechs der neun Chores dieses Laufs beruehren echten Produktcode und -tests. Der Lauf war trotzdem stark aufraeumend: ein feature, zwei bugs, neun chores, fast alles aus dem QA-Review ledger-r7dm2 vom 2026-09-19.
+**Carry-over:** left behind (user WIP, 1 file: .serena/project.yml). Keine .agentheim/-eigene Datei gestrandet, keine verwaisten Worktrees, 6 verwaiste RESULT-Sidecars entfernt.
+
+---
+
 ## 2026-09-21 16:28 -- Task verified and completed: ledger-w6tbq - "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
 
 **Type:** Work / Task completion
