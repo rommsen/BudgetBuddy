@@ -1,7 +1,7 @@
 ---
 id: design-system-j9xnd
 title: "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-20

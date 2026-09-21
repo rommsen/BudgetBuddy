@@ -11,8 +11,8 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 15
-- **Todo:** 7
-- **Doing:** 0
+- **Todo:** 6
+- **Doing:** 1
 - **Done:** 27
 <!-- task-counts:end -->
 
@@ -20,7 +20,6 @@ research touching this BC, and concept synthesis pages.
 <!-- todo-list:start -->
 - **ledger-v8n4t** — "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen" (chore) — `todo/ledger-v8n4t-die-von-ledger-t7v2q-am-ende-von-ereignisse-gestrandeten-ueb.md`
 - **ledger-n3pqw** — "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln" (chore) — `todo/ledger-n3pqw-kassenbuch-zeilen-die-kategorie-farbe-an-die-css-variable-bi.md`
-- **ledger-v5hkt** — "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still" (bug) — `todo/ledger-v5hkt-selbstbezuegliche-uebertrags-verknuepfung-legt-den-spiegel-d.md`
 - **ledger-w6tbq** — "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln" (chore) — `todo/ledger-w6tbq-force-import-die-ableitung-der-alten-importid-gegen-den-norm.md`
 - **ledger-c4mzp** — "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen" (chore) — `todo/ledger-c4mzp-den-betragsfilter-zweig-des-kassenbuch-lesepfads-abdecken-su.md`
 - **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `todo/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
@@ -29,6 +28,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-v5hkt** — "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still" (bug) — `doing/ledger-v5hkt-selbstbezuegliche-uebertrags-verknuepfung-legt-den-spiegel-d.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

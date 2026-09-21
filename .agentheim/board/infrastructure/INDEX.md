@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infrastructure-b6kzp** — "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)" (chore) — `todo/infrastructure-b6kzp-readme-delta-erreicht-die-bullets-dieses-projekts-nicht-und.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-b6kzp** — "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)" (chore) — `doing/infrastructure-b6kzp-readme-delta-erreicht-die-bullets-dieses-projekts-nicht-und.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

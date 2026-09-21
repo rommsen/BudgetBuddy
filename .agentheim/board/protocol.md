@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:35 -- Batch started: [ledger-v5hkt, design-system-j9xnd, infrastructure-b6kzp]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-v5hkt - "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still", design-system-j9xnd - "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen", infrastructure-b6kzp - "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
+**Parallel:** yes (3 workers) — Welle 2. 9 Tasks ready, MAX_PARALLEL=3, also 6 zurueckgehalten. Auswahl wieder ueberlappungsfrei: v5hkt (src/Server/Ledger/**, LedgerMirrorTests), j9xnd (DesignSystem/Stats.fs + neue StatsAccentTests + Tests.fsproj), b6kzp (scripts/readme-delta-check*, package.json, CLAUDE.md). Zurueckgehalten: ledger-w6tbq (teilt Tests.fsproj mit j9xnd), ledger-c4mzp und ledger-p3wnq (teilen Ledger/Persistence.fs), ledger-p3wnq zusaetzlich Api.fs/YnabClient.fs mit w6tbq, ledger-n3pqw (Client-Ledger-Ansicht), ledger-t4m9c und ledger-v8n4t (beide reine ledger-README-Aufgaben, laufen als Delta-Only besser sequenziell).
+
+---
+
 ## 2026-09-21 07:34 -- Task verified and completed: design-system-q2bmv - "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
 
 **Type:** Work / Task completion

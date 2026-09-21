@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 23
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-j9xnd** — "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen" (chore) — `todo/design-system-j9xnd-stats-fs-die-akzentstreifen-entscheidung-als-reine-funktion.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-j9xnd** — "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen" (chore) — `doing/design-system-j9xnd-stats-fs-die-akzentstreifen-entscheidung-als-reine-funktion.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

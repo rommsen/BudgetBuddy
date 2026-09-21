@@ -1,7 +1,7 @@
 ---
 id: ledger-v5hkt
 title: "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-20
