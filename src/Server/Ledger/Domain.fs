@@ -214,6 +214,12 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         // nur aus einem Lookup-Fehler stammen. Idempotenz sitzt im Erzeuger (dem
         // Spiegel-Lauf), nicht hier: `apply` bleibt eine reine Faltung ohne
         // Sonderwissen ueber Wiederholungen.
+        //
+        // ledger-v5hkt: der Erzeuger (`linkTransferCounterpart`,
+        // CommandHandlers.fs) fängt den Selbstbezug jetzt VOR dem Bau dieses
+        // Ereignisses ab und überspringt ihn still. Trifft der `invalidOp` unten
+        // trotzdem, ist das kein Datenfehler mehr, sondern ein Programmierfehler im
+        // Erzeuger, und darf laut sein.
         let e = requireExisting ()
         if p.CounterpartEntryId = event.EntryId then
             let (EntryId id) = event.EntryId

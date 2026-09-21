@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 15
 - **Todo:** 6
-- **Doing:** 1
-- **Done:** 27
+- **Doing:** 0
+- **Done:** 28
 <!-- task-counts:end -->
 
 ### Todo
@@ -28,11 +28,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-v5hkt** — "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still" (bug) — `doing/ledger-v5hkt-selbstbezuegliche-uebertrags-verknuepfung-legt-den-spiegel-d.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-v5hkt** — "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still" (bug) — `done/ledger-v5hkt-selbstbezuegliche-uebertrags-verknuepfung-legt-den-spiegel-d.md`
 - **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `done/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
 - **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `done/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`
 - **ledger-p9k3w** — "screenshot-route.mjs zeigt die inaktive BottomSheet-Leiste bei Full-Page-Aufnahmen mit scrollbarem Inhalt" (bug) — `done/ledger-p9k3w-screenshot-route-bottomsheet-artefakt.md`

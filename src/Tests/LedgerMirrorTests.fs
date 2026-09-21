@@ -814,6 +814,80 @@ let mirrorRunTests =
                 "die Hinbuchung wird nachtraeglich verknuepft, obwohl sie im zweiten Lauf nicht erneut beobachtet wurde"
             Expect.equal entryBAfter.TransferEntryId (Some entryHin) "die Gegenbuchung verweist auf die Hinbuchung"
 
+        testCase "eine selbstbezügliche Übertrags-Verknüpfung wird übersprungen, der Lauf läuft weiter" <| fun () ->
+            // ledger-v5hkt: `findEntryByLink` kann über die eigene YNAB-Verknüpfung
+            // auf die gerade eben beobachtete Buchung selbst zeigen. Ohne Sperre in
+            // `linkTransferCounterpart` baut das ein Ereignis, das `apply` laut ablehnt
+            // (Domain.fs), und der Lauf bricht im äußeren `try/with` ab (Z. 362): das
+            // server_knowledge rückt nicht vor, alle folgenden Beobachtungen des
+            // Deltas fehlen.
+            let budgetId = Run.budget "uebertrag-selbstbezug"
+            let konto = YnabAccountId (Guid.NewGuid())
+
+            let selbstbezug =
+                { observation "selbstbezug-1" with
+                    AccountId = konto
+                    TransferAccountId = Some konto
+                    TransferYnabTransactionId = Some "selbstbezug-1" }
+
+            let normal =
+                { observation "normale-buchung-1" with AccountId = konto }
+
+            let summary = Run.run 4 budgetId (Run.fetchers 100L [ selbstbezug; normal ]) |> Run.expectOk
+
+            Expect.equal summary.NewEntries 2 "beide Buchungen entstehen, der Selbstbezug hält den Lauf nicht auf"
+            Expect.equal summary.ServerKnowledge 100L "das Gedächtnis rückt trotz des Selbstbezugs vor"
+            Expect.equal
+                (loadServerKnowledge budgetId |> Async.RunSynchronously)
+                (Some 100L)
+                "server_knowledge der defekten Buchung wird persistiert, kein Stillstand"
+
+            let entrySelbstbezug =
+                findEntryByLink YnabSystem "selbstbezug-1" |> Async.RunSynchronously |> Option.get
+            let entrySelbstbezugState = loadEntry entrySelbstbezug |> Async.RunSynchronously |> Option.get
+            Expect.isNone entrySelbstbezugState.TransferEntryId "keine Verknüpfung aus dem Selbstbezug"
+            Expect.equal
+                (loadEventsForEntry entrySelbstbezug |> Async.RunSynchronously |> List.map (fun e -> e.EventType))
+                [ "EntryObservedInYnab" ]
+                "kein sinnloses EntryTransferCounterpartObservedInYnab-Ereignis"
+
+            // Zweiter Lauf mit demselben Delta: bliebe der Spiegel wegen des
+            // Selbstbezugs auf diesem Delta stehen, holte er dasselbe noch einmal.
+            let second = Run.run 5 budgetId (Run.fetchers 100L [ selbstbezug; normal ]) |> Run.expectOk
+            Expect.equal second.NewEntries 0 "kein weiterer Lauf über dasselbe Delta legt etwas Neues an"
+            Expect.equal
+                (loadEventsForEntry entrySelbstbezug |> Async.RunSynchronously |> List.length)
+                1
+                "kein weiteres Ereignis aus dem wiederholten Selbstbezug"
+
+        testCase "die Sperre vergleicht die aufgelöste Buchungs-Id, nicht die YNAB-Id-Strings" <| fun () ->
+            // ledger-v5hkt, zweiter Fall: ADR 0015 macht System plus Wert eindeutig,
+            // nicht Buchung plus System. Eine Buchung kann eine zweite `ynab`-Verknüpfung
+            // mit einem anderen Wert tragen (Force-Import). Zeigt `TransferYnabTransactionId`
+            // auf diesen zweiten Wert, sind die YNAB-Id-Strings verschieden, aber die
+            // aufgelöste Buchung ist dieselbe: ein Stringvergleich der YNAB-Ids fällt
+            // hier durch, die Sperre auf der aufgelösten Id nicht.
+            let budgetId = Run.budget "uebertrag-selbstbezug-ueber-zweitverknuepfung"
+            let konto = YnabAccountId (Guid.NewGuid())
+
+            let erst = { observation "zweitversand-1" with AccountId = konto }
+            Run.run 4 budgetId (Run.fetchers 1L [ erst ]) |> Run.expectOk |> ignore
+            let entryId = findEntryByLink YnabSystem "zweitversand-1" |> Async.RunSynchronously |> Option.get
+
+            Ledger.Persistence.linkEntry entryId YnabSystem "zweitversand-1-zweitversand" |> Async.RunSynchronously
+
+            let mitSelbstbezugUeberZweitverknuepfung =
+                { erst with TransferYnabTransactionId = Some "zweitversand-1-zweitversand" }
+
+            Run.run 5 budgetId (Run.fetchers 2L [ mitSelbstbezugUeberZweitverknuepfung ]) |> Run.expectOk |> ignore
+
+            let entryState = loadEntry entryId |> Async.RunSynchronously |> Option.get
+            Expect.isNone entryState.TransferEntryId "keine Verknüpfung: die aufgelöste Gegenbuchung ist die eigene"
+            Expect.isEmpty
+                (loadEventsForEntry entryId |> Async.RunSynchronously
+                 |> List.filter (fun e -> e.EventType = "EntryTransferCounterpartObservedInYnab"))
+                "kein Verknüpfungs-Ereignis, obwohl die YNAB-Id-Strings verschieden sind"
+
         testCase "Matching nimmt die YNAB-Id vor der ImportId" <| fun () ->
             let budgetId = Run.budget "matching"
             let ynabAcc = YnabAccountId (Guid.NewGuid())

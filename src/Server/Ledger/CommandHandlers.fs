@@ -192,8 +192,12 @@ let private resolveEntry (obs: YnabObservation) : Async<EntryId * bool> =
 /// geschrieben ist (ADR 0015, `EntryTransferCounterpartObservedInYnab`, ledger-t7v2q).
 ///
 /// Bedingungen, alle erfuellt, sonst passiert nichts (kein Fehler, der Normalfall):
-/// die Beobachtung ist nicht geloescht, traegt eine `transfer_transaction_id`, und der
-/// Lookup ueber die YNAB-Verknuepfung findet die Gegenbuchung im Kassenbuch. Beide
+/// die Beobachtung ist nicht gelöscht, trägt eine `transfer_transaction_id`, der
+/// Lookup über die YNAB-Verknüpfung findet die Gegenbuchung im Kassenbuch, und die
+/// aufgelöste Gegenbuchungs-Id weicht von der eigenen ab (fünfter Fall, ledger-v5hkt:
+/// ein Lookup über BBs eigene Verknüpfungstabelle kann auf die gerade eben
+/// beobachtete Buchung selbst zeigen, auch ohne dass YNAB das so meint, weil ADR 0015
+/// nur System plus Wert eindeutig macht, nicht Buchung plus System). Beide
 /// Zustaende werden geladen; je Seite entsteht nur dann ein Ereignis, wenn ihr
 /// `TransferEntryId` noch nicht auf die jeweils andere Buchung zeigt (Idempotenz sitzt
 /// hier, im Erzeuger, nicht in `apply`). Das heilt auch den halbseitigen Fall: kommt die
@@ -217,6 +221,21 @@ let private linkTransferCounterpart
                 | None ->
                     // Kein Treffer ist der Normalfall: die Gegenbuchung ist im
                     // Kassenbuch (noch) nicht bekannt.
+                    return ()
+                | Some counterpartId when counterpartId = entryId ->
+                    // Selbstbezug: der Lookup über die eigene Verknüpfungstabelle
+                    // zeigt auf die gerade eben beobachtete Buchung selbst. Kein
+                    // Ereignis bauen, denn `apply` (Domain.fs) lehnt das laut ab und
+                    // würde den ganzen Lauf abbrechen (ADR 0014: ein abgebrochener
+                    // Lauf holt beim nächsten Mal dasselbe Delta erneut, der
+                    // Selbstbezug in den Daten verschwindet nicht von allein).
+                    // Stilles Überspringen statt Abbruch: die Verknüpfung ist
+                    // ohnehin nur ein Nachtrag, kein Beobachtungsergebnis.
+                    let (EntryId id) = entryId
+                    printfn
+                        "Übertrags-Verknüpfung übersprungen: Buchung %O zeigt auf sich selbst (YNAB-Transaktion %s)"
+                        id
+                        obs.YnabTransactionId
                     return ()
                 | Some counterpartId ->
                     let! thisEntry = Ledger.Persistence.loadEntry entryId

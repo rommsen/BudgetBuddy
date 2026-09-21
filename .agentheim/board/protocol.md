@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:51 -- Task verified and completed: ledger-v5hkt - "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still"
+
+**Type:** Work / Task completion
+**Task:** ledger-v5hkt - "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still"
+**Summary:** Selbstbezuegliche Uebertrags-Verknuepfung wird im Spiegel-Lauf still uebersprungen statt den Lauf abzubrechen; die Sperre vergleicht die aufgeloeste Buchungs-Id
+**Duration:** 24m10s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
+## 2026-09-21 07:49 -- Verification failed: design-system-j9xnd - Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen
+
+**Type:** Work / Verification failure
+**Task:** design-system-j9xnd - Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen
+**Iteration:** 1 of 3
+**Reasons:** AC2 nicht erfuellt und die einzige Zusicherung dafuer entfernt (benannter Fall `| NoAccent -> ""` in accentToGradient durch Wildcard `| _ -> ""` ersetzt, dadurch keine FS0025-Warnung mehr bei einem achten StatAccent-Fall, empirisch gegen HEAD~1 nachgemessen), die vier neuen Tests iterieren fest verdrahtete Listen und fangen den Fall ebenfalls nicht, Widerspruch zu ADR 0035 Decision ohne supersedes
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-21 07:35 -- Batch started: [ledger-v5hkt, design-system-j9xnd, infrastructure-b6kzp]
 
 **Type:** Work / Batch start

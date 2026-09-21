@@ -1,7 +1,7 @@
 ---
 id: ledger-v5hkt
 title: "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-09-20
@@ -136,3 +136,73 @@ Buchung mit sich selbst, die in keinem gültigen Log vorkommt." bekommt den Nach
 der Spiegel-Lauf ein solches Ereignis gar nicht erst baut, den Fall wie „Gegenbuchung
 nicht gefunden" überspringt, eine Warnzeile schreibt und weiterarbeitet, und dass der
 `invalidOp` daneben nur noch einen Programmierfehler abdeckt.
+
+## Outcome
+
+`linkTransferCounterpart` (`src/Server/Ledger/CommandHandlers.fs:225`) prüft im
+`Some counterpartId`-Zweig jetzt vor dem Laden der beiden Zustände, ob die aufgelöste
+Gegenbuchungs-Id mit der eigenen `entryId` übereinstimmt (neuer `when`-Guard-Fall vor dem
+bisherigen `Some counterpartId ->`-Zweig, Z. 241). Trifft das zu, wird kein Ereignis gebaut,
+eine Warnzeile über `printfn` mit der Buchungs-Id und `obs.YnabTransactionId` geschrieben, und
+der Lauf läuft mit der nächsten Beobachtung weiter, statt im äußeren `try/with` von `runMirror`
+(Z. 362) abzubrechen. Die Sperre vergleicht bewusst die aufgelöste Id, nicht die
+YNAB-Id-Strings (ADR 0015: System plus Wert ist eindeutig, nicht Buchung plus System; eine
+Buchung kann mehr als eine `ynab`-Verknüpfung tragen).
+
+`apply` (`src/Server/Ledger/Domain.fs:220`) ist unverändert stehen geblieben; der Kommentar
+über dem `invalidOp` hält jetzt fest, dass der Erzeuger den Selbstbezug vorher abfängt und ein
+Treffer dort ab jetzt ein Programmierfehler ist, kein Datenfehler.
+
+**Tests (2 neu, TDD, rot vor der Änderung):**
+
+- `src/Tests/LedgerMirrorTests.fs:817`, "eine selbstbezügliche Übertrags-Verknüpfung wird
+  übersprungen, der Lauf läuft weiter": eigenes `Run.budget "uebertrag-selbstbezug"`, Delta aus
+  einer selbstbezüglichen Beobachtung und einer gewöhnlichen zweiten Buchung. Nach der
+  Änderung: `Ok`, `NewEntries = 2`, `summary.ServerKnowledge = 100L` und persistiert
+  (`loadServerKnowledge budgetId = Some 100L`), ein zweiter Lauf über dasselbe Delta liefert
+  `NewEntries = 0` bei unveränderter Ereigniszahl. Der Log der defekten Buchung ist auf seinen
+  Inhalt geprüft, nicht nur auf `TransferEntryId`: `loadEventsForEntry |> List.map EventType`
+  gleich `[ "EntryObservedInYnab" ]`.
+- `src/Tests/LedgerMirrorTests.fs:863`, "die Sperre vergleicht die aufgelöste Buchungs-Id,
+  nicht die YNAB-Id-Strings": die Buchung bekommt über
+  `Ledger.Persistence.linkEntry entryId YnabSystem "zweitversand-1-zweitversand"` eine zweite
+  `ynab`-Verknüpfung mit anderem Wert; die Beobachtung derselben Buchung
+  (`YnabTransactionId = "zweitversand-1"`) zeigt mit `TransferYnabTransactionId` auf genau
+  diesen zweiten Wert. Die YNAB-Id-Strings sind verschieden, die aufgelöste Buchung ist
+  dieselbe. Nach der Änderung `Ok`, `TransferEntryId = None`, kein Verknüpfungs-Ereignis.
+
+Der bestehende Wächter-Test in `src/Tests/LedgerTests.fs:431` und die drei bestehenden
+Übertrags-Lauf-Tests in `LedgerMirrorTests.fs` bleiben unverändert grün (74 Einfügungen, 0
+Löschungen in der Testdatei).
+
+`dotnet build` und `dotnet test` (`USE_MEMORY_DB=true`, ohne `--settings`): 943 erfolgreich, 7
+übersprungen (`.env`-gebundene Comdirect-/YNAB-Integrationstests), 0 Fehler.
+
+**Verifikation (Iteration 1, PASS).** Der Verifier hat zwei Dinge unabhängig nachgestellt,
+statt sie zu glauben.
+
+Erstens **Rot vor Grün**: in einer Arbeitskopie des Worktrees (`rsync` ohne `bin`/`obj`/`.git`,
+der Worktree selbst unangetastet, `git status --porcelain` danach leer) hat er
+`CommandHandlers.fs` und `Domain.fs` auf `HEAD~1` zurückgesetzt und die beiden neuen Tests
+gefahren: beide rot, jeweils mit exakt
+`Spiegel-Lauf abgebrochen: Uebertrags-Verknuepfung fuer Buchung <guid> zeigt auf sich selbst`.
+
+Zweitens eine **Mutationsprobe** auf die entscheidende Frage, ob der zweite Test wirklich
+diskriminiert: ersetzt man den Guard durch den Stringvergleich
+`obs.TransferYnabTransactionId = Some obs.YnabTransactionId`, läuft Test 1 grün und Test 2 rot.
+Der Test fängt also nachweislich genau die Halb-Lösung ab, die das Kriterium benennt.
+
+Außerdem geprüft: der Guard steht vor beiden `loadEntry`-Aufrufen (F#-Match-Reihenfolge, ein
+`when`-Guard nach dem allgemeinen Fall hätte nie gefeuert); auf dem Selbstbezug-Pfad wird
+weder der `Error`-Kanal noch `NewEntries`/`ChangedEntries`/`DeletedEntries` noch der Lauf-Status
+berührt, der `printfn` geht nur nach stdout (ADR 0014: ein erfolgreicher Lauf soll nicht wegen
+eines übersprungenen Nachtrags als Fehler erscheinen).
+
+**Vom Conductor auf dem Hauptbaum nachgezogen.** Das README-Delta des Workers zielte korrekt
+auf den Absatz `**Übertrags-Verknüpfung:**` im Abschnitt `## Ereignisse`, war über
+`applyReadmeDelta` aber nicht anwendbar: der Trockenlauf ergab Disposition `anchor-missing`,
+weil die Stelle ein Absatz ist und kein Spalte-0-Bullet, `findBulletsInRange` dort also nichts
+zum Ankern findet. Angewandt hätte das Werkzeug den neuen Text unter den alten gehängt, sodass
+das README zwei widersprechende Fassungen getragen hätte. ADR 0040 führt genau diesen Abschnitt
+als per `replace` unerreichbar und weist den Fall dem Conductor zu; der Absatz ist deshalb von
+Hand ersetzt worden, mit dem `body`-Text des Workers unverändert.
