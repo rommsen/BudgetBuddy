@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:23 -- Task verified and completed: design-system-p3vqk - "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen"
+
+**Type:** Work / Task completion
+**Task:** design-system-p3vqk - "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen"
+**Summary:** Die lebende Stilrichtlinie kennt jetzt Stats NoAccent: das Komponenten-Inventar nennt den Fall, und die /styleguide-Route rendert eine echte Stats-Karte ohne Akzentstreifen.
+**Duration:** 4m57s
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-09-21 07:13 -- Batch started: [ledger-k3wqn, design-system-p3vqk, design-system-q2bmv]
 
 **Type:** Work / Batch start

@@ -326,6 +326,13 @@ let private statsSection =
                     Stats.withTrend "Importe" "42" (Stats.Trend.Up 12.5m)
                     Stats.syncCount 8
                 ]
+                Html.div [
+                    prop.className "max-w-xs"
+                    prop.children [
+                        Stats.withAccent "Kontostand" "1.250,40 €" Stats.NoAccent
+                        caption "withAccent NoAccent (kein Akzentstreifen, ledger-w9skm/ADR 0035)"
+                    ]
+                ]
             ]
         ]
     ]
