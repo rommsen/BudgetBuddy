@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 08:17 -- Task verified and completed: infrastructure-b6kzp - "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-b6kzp - "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
+**Summary:** Repo-lokales Gate scripts/readme-delta-check.mjs prueft ein README_DELTA gegen das echte Plugin-Modul und lehnt die drei real beobachteten Fehlschlagsformen mit benanntem Grund ab
+**Duration:** 48m30s
+**Verification:** PASS (iteration 2)
+**Files changed:** 4
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
+## 2026-09-21 08:02 -- Verification failed: infrastructure-b6kzp - Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-b6kzp - Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)
+**Iteration:** 1 of 3
+**Reasons:** Exit-Code-Kontrakt verletzt: der applyReadmeDelta-Aufruf (readme-delta-check.mjs:510) ist nicht in try/catch geklammert, das Plugin-Modul wirft bei Op-Formfehlern, Node beendet mit Exit 1 statt Exit 2 (empirisch an drei Fehlformen reproduziert); HELP_TEXT und der neue CLAUDE.md-Abschnitt versprechen fuer ungueltige Eingabe ausdruecklich Exit 2; der dafuer vorgesehene Zweig evaluateOp:371-375 ist dadurch toter Code ohne Testabdeckung
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-21 07:59 -- Task verified and completed: design-system-j9xnd - "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen"
 
 **Type:** Work / Task completion

@@ -9,7 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "export:design-system": "node scripts/export-design-system.mjs",
-    "screenshot:route": "node scripts/screenshot-route.mjs"
+    "screenshot:route": "node scripts/screenshot-route.mjs",
+    "check:readme-delta": "node scripts/readme-delta-check.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "@executeautomation/playwright-mcp-server": "^1.0.6",

@@ -395,6 +395,16 @@ The `deploy-rules.sh` script imports categorization rules from `rules.yml` to th
 - Docker container running
 - Volume mounted at `~/my_apps/budgetbuddy/`
 
+## README-Deltas (Agentheim)
+
+Vor dem Integrieren eines README_DELTA lokal gegen das echte Grammatik-Modul prüfen: `npm run check:readme-delta -- --bc <kontext> --delta <datei|->` (direkt: `node scripts/readme-delta-check.mjs --bc <kontext> --delta <datei|->`).
+Ein rotes Gate heißt: den README-Block von Hand platzieren, nicht das Delta blind anwenden.
+Exit 1: das Delta wurde inhaltlich abgelehnt, Grund in der Meldung.
+Exit 2: das Gate konnte gar nicht urteilen (Plugin-Modul nicht gefunden, Eingabe ungültig), das ist etwas anderes als "abgelehnt".
+Umgehung bei einem per replace nicht erreichbaren Bullet: auf das nächstgelegene Spalte-0-Bullet mit fettem Kopf ankern und den ganzen Extent in expected und body mit exakter Einrückung neu ausgeben.
+Diese Aufruf-Regel ("vor dem Integrieren durch das Gate") ist prose-only und nicht mechanisch erzwungen (ADR 0059): die Aufrufstelle liegt im Conductor-Plugin-Code, außerhalb dieses Repos.
+Erzwungen ist nur das Gate selbst (`npm run test:scripts`) und die Kopplung von Skriptpfad und Text in dieser Datei.
+
 ## Development Diary
 
 **CRITICAL**: After ANY meaningful code changes (more than a few characters), you MUST update `diary/development.md`.

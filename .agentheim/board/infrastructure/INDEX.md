@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 7
+- **Doing:** 0
+- **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-b6kzp** — "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)" (chore) — `doing/infrastructure-b6kzp-readme-delta-erreicht-die-bullets-dieses-projekts-nicht-und.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-b6kzp** — "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)" (chore) — `done/infrastructure-b6kzp-readme-delta-erreicht-die-bullets-dieses-projekts-nicht-und.md`
 - **infrastructure-qwthn** — "Done-Listen-Zeilen, die das Rotationswerkzeug nicht erkennt, auf die erwartete Form bringen" (chore) — `done/infrastructure-qwthn-done-listen-zeilen-die-das-rotationswerkzeug-nicht-erkennt-a.md`
 - **infra-jh7g9** — "Backend-Port konfigurierbar machen: app.Run überschreibt das bereits gesetzte ASPNETCORE_URLS, zwei Instanzen können nicht nebeneinander laufen" (bug) — `done/infra-jh7g9-backend-port-konfigurierbar-machen.md`
 - **infra-sdad8** — "Modul-Level-initializeDatabase()-Aufrufe in Testcase-Setup verschieben" (refactor) — `done/infra-sdad8-initializedatabase-in-testcase-setup-verschieben.md`

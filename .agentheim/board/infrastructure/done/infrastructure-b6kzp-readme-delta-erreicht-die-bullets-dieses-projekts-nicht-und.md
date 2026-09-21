@@ -1,7 +1,7 @@
 ---
 id: infrastructure-b6kzp
 title: "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-09-20
@@ -243,3 +243,199 @@ nicht Kriterium: sie dürfen sich ändern, ohne dass das Gate rot wird.
 **Nicht in diesem Task:** die beiden Blöcke, die `ledger-t7v2q` am Ende von `## Ereignisse`
 im ledger-README hinterlassen hat, stehen dort noch. Ihre Umplatzierung ist eine
 `.agentheim/`-Schreibung und damit Conductor-Arbeit, siehe `ledger-v8n4t`.
+
+## Verifier note (iteration 1)
+
+**VERDICT: FAIL** — `likely-fixable`. Der Befund ist schmal: eine fehlende Absicherung, ein
+toter Zweig, ein fehlender Testfall. Alles andere ist geprüft und sauber (Liste unten), damit
+die nächste Runde nicht daran churnt.
+
+**REASONS:**
+
+- **Exit-Code-Kontrakt verletzt** (Kriterium: "Exit 2 ist bewusst von Exit 1 (Delta abgelehnt)
+  verschieden, damit der Aufrufer 'Gate sagt nein' von 'Gate konnte nicht urteilen'
+  unterscheiden kann"): der Aufruf von `applyReadmeDelta` in
+  `scripts/readme-delta-check.mjs:510` ist nicht abgesichert. Das echte Plugin-Modul wirft bei
+  Op-Formfehlern (`readme-delta.mjs:232`, `throw new Error('applyReadmeDelta: unknown op ...')`,
+  ebenso bei fehlenden Feldern); die Ausnahme läuft ungefangen durch, und Node beendet mit
+  **Exit 1** plus Stacktrace, ohne "Grund:"-Zeile und ohne Plugin-Versionszeile. Empirisch
+  reproduziert (cwd = synthetisches Fixture-Repo, `--bc demo`): `{"op":"bogus","body":"..."}`
+  → Exit 1; `{"op":"append"}` ohne `body` → Exit 1; `{"op":"replace","anchor":"Foo:"}` ohne
+  `body`/`expected` → Exit 1. Gerade die letzte Form ist eine realistische Worker-Fehlform, und
+  ein Leser der Regel bekommt "Delta inhaltlich abgelehnt" gemeldet, obwohl das Gate gar nicht
+  geurteilt hat.
+- **Das Skript dokumentiert diesen Fall anders, als es sich verhält.** `HELP_TEXT`
+  (`scripts/readme-delta-check.mjs:418`) und der neue `CLAUDE.md`-Abschnitt versprechen
+  ausdrücklich Exit 2 für "Eingabe ungültig". Für JSON-, Argument- und `document`-Fehler stimmt
+  das (geprüft: Exit 2 mit "Grund:"), für Op-Formfehler nicht.
+- **Der dafür vorgesehene Zweig ist toter Code.** `evaluateOp`s Rückfall
+  `Unbekannte Op "${op.op}"` (`scripts/readme-delta-check.mjs:371-375`) ist unerreichbar, weil
+  das Plugin-Modul vorher wirft. Kein Test deckt den Pfad ab.
+
+**SUGGESTED_FIX:** Den `applyReadmeDelta`-Aufruf in `main` in try/catch klammern und im
+Fehlerfall über `fail2(...)` mit Exit 2 und benanntem Grund abbrechen (alternativ oder
+zusätzlich die Op-Form vorab prüfen: `op.op` in `{append, replace}`, `body` vorhanden, bei
+`replace` zusätzlich `anchor`/`expected`). Dazu ein Testfall, der eine formfehlerhafte Op auf
+Exit 2 festnagelt, nicht 1 und nicht 0. Sonst nichts anfassen.
+
+**ITERATION_HINT:** likely-fixable
+
+### Geprüft und in Ordnung (nicht nacharbeiten)
+
+- **Testlauf**, Urteil aus dem Runner-Exitcode, nicht aus Printausgaben: `npm run test:scripts`
+  48/48 grün, Exit 0 (16 neue Fälle plus die 32 unveränderten aus
+  `scripts/screenshot-route.test.mjs`). `dotnet test` 941 bestanden, 0 Fehler, 7 übersprungen,
+  Exit 0.
+- **Falsifizierbarkeit per Mutation** (Scratch-Kopie außerhalb des Worktrees, Worktree
+  unverändert): Prüfung 3 entfernt → T1 rot. Prüfung 6 entfernt → T5 rot. Prüfungen 4 und 5
+  zusammen entfernt → T3 und T3b rot. Die Tests fangen echtes Verhalten, keine Tautologien.
+  Zwei überlebende Mutanten, beide ohne Kriteriums-Lücke: Prüfung 4 allein aus dem
+  `replace`-Zweig entfernt bleibt grün, weil Prüfung 5 dieselbe T3-Fixture fängt (T3 assertiert
+  bewusst `/Prüfung 4|Prüfung 5/`); und das `+1`-Budget beim `append` hat keinen roten Fall, ist
+  aber von keinem T-Fall gefordert. Der entfernte `merged`-Zweig ist ein äquivalenter Mutant
+  (der Sammelzweig erzeugt dieselbe Meldung), kein Defekt.
+- **`TDD_SKIPPED` ist im Kern ehrlich.** Die Behauptung "jeder der neun Fälle schlägt fehl,
+  wenn die jeweilige Prüfung entfernt wird" stimmt für T1 und T5 wörtlich, für T3 nur, wenn
+  Prüfung 4 **und** 5 entfernt werden.
+- **Empirische Gegenprobe am echten Schadensfall dieser Sitzung** (`ledger-v5hkt`, `replace`
+  mit Anker `Übertrags-Verknüpfung:` in `## Ereignisse`, gegen die Worktree-Kopie des
+  ledger-README): Exit 1, Meldung `Prüfung 6 (Anker-Erreichbarkeit) verletzt: Anker
+  "Übertrags-Verknüpfung:" trägt kein Bullet in "Ereignisse". Abschnitt "Ereignisse" ist per
+  replace grundsätzlich nicht erreichbar (kein Bullet mit fettem Begriffskopf).` Der
+  ausgegebene Diff zeigt zusätzlich genau den Schaden, also die zweite, widersprechende Kopie
+  des Absatzes. **Das Gate verdient seinen Platz.**
+- **Schreibt nie:** kein `writeFile`/`appendFile`/`rename`/`--write`, nur
+  `process.stdout.write`/`process.stderr.write` (ADR 0040 Entscheidung 3, ADR 0054).
+- **Keine hart kodierte Version:** einzige Versionszeichenkette ist das Kommentarbeispiel
+  `0.8.10 > 0.8.9 > 0.8.3`. `compareSemver` vergleicht numerisch je Feld; T9 belegt `0.10.0`
+  vor `0.9.4` unit und end-to-end über eine Fake-Cache-Wurzel mit echtem Modul.
+- **Keine Kopie der Grammatik:** `applyReadmeDelta` kommt immer aus dem aufgelösten
+  Plugin-Modul, ohne Rückfall. Die eigenen Helfer (`columnZeroBulletCount`, `indentWidths`,
+  `trimTrailingBlank`, `findBulletBlocks`, `termHeadOf`) messen das Ergebnis bzw. erzeugen
+  Diagnosetext; die Anwend- und Dispositions-Entscheidung trifft keiner von ihnen.
+  `termHeadOf`/`findBulletBlocks` liegen an der Grenze (sie bilden Plugin-Interna nach),
+  beeinflussen aber nur den Text von Prüfung 6, nicht das Urteil; `trimTrailingBlank` treibt
+  zwar Prüfung 3, ist aber wörtlich die Messvorschrift, die das Kriterium vorgibt.
+- **Fixtures synthetisch:** alle Delta/README-Paare entstehen in `os.tmpdir()`; die Tests lesen
+  aus dem Live-Baum nur `CLAUDE.md` (T8, genau die geforderte mechanische Klammer) und das
+  Plugin-Modul für die T9-Kopie. Nichts unter `.agentheim/` wird gelesen oder geschrieben.
+- **Zuschnitt:** genau die vier zugesagten Dateien; `scripts/screenshot-route.test.mjs` ist
+  unberührt und läuft unter dem neuen `test:scripts`-Eintrag grün mit. Kein `.agentheim/`-Pfad
+  im Diff, keine Git-Operationen.
+- **README-Delta:** der vorgeschlagene `append` in `## Invariants / conventions` der
+  infrastructure-README ist inhaltlich korrekt. Der Verifier hat ihn durch das neue Gate selbst
+  laufen lassen (`--bc infrastructure`): Exit 0, `Plugin-Version: 0.9.4`, Einfügepunkt am
+  Listenende. Kleiner Sprachfehler im Body: "ein `README_DELTA`-Block" statt "einen".
+- **ADR-Lage:** `ADRS_WRITTEN: none` ist richtig, ADR 0040 deckt Exit-Codes, Nicht-Schreiben,
+  echtes Modul und prose-only vollständig ab. ADR 0059 greift und ist erfüllt: mechanisiert ist
+  das Gate (T1-T9) plus die Kopplung Skriptpfad/Prosa (T8), und die Aufruf-Regel ist sowohl in
+  den Task-Notes als auch in `CLAUDE.md` ausdrücklich als prose-only/unenforced mit Begründung
+  benannt, nicht als erzwungen verkleidet.
+- **Schreibkonventionen:** in den `^+`-Zeilen keine Gedankenstriche, durchgehend echte Umlaute.
+
+## Outcome
+
+Repo-lokales Gate gegen leise danebengehende README-Deltas gebaut (ADR 0040).
+`scripts/readme-delta-check.mjs` nimmt ein Paar aus README bzw. `context-map.md` und einem
+`README_DELTA`-Block, lädt **immer** das echte `lib/readme-delta.mjs` aus dem
+Agentheim-Plugin-Cache (Semver-höchste Version, numerisch je Feld, aus `os.homedir()`
+abgeleitet, keine hart kodierte Version, kein Rückfall auf eine eigene Kopie der Grammatik),
+wendet jeden Op einzeln an und prüft das Ergebnis gegen sechs Kriterien:
+
+1. **Disposition** — nur `applied` und `noop-already` bestehen.
+2. **Abschnitt vorhanden** — nennt bei `appended-fallback` die tatsächlichen `## `-Überschriften.
+3. **Einfügepunkt bei `append`** — muss unmittelbar auf einen Bullet-Block folgen, nicht auf Fließtext.
+4. **Bullet-Budget** — unverändert bei `replace`, plus eins bei `append`.
+5. **Einrückungsprofil bei `replace`** — keine vorher vorhandene Einrückungsbreite darf verschwinden.
+6. **Anker-Erreichbarkeit** vor dem Anwenden — nennt die erreichbaren `termHead`s des Abschnitts,
+   oder dass der Abschnitt per `replace` grundsätzlich nicht erreichbar ist.
+
+Exit 0 sauber, Exit 1 inhaltliche Ablehnung mit benanntem Grund, Exit 2 nicht urteilsfähig. Bei
+Erfolg wie Fehlschlag gibt es die Plugin-Versionszeile und einen Diff der berührten Abschnitte.
+Das Skript schreibt nie (kein `--write`, kein Schreibpfad).
+
+`scripts/readme-delta-check.test.mjs`: 19 Tests unter `node --test`, synthetische Fixtures in
+`os.tmpdir()`, nie gegen den Live-Baum (damit eine legitime README-Änderung die Tests nicht rot
+macht). T1 stellt `ledger-t7v2q` nach, T2 `design-system-m4kp7`, T3/T3b `ledger-ezrw0`, T4 ein
+falscher Abschnittsname, T5 ein backtick-geführtes Bullet, T6 die Gegenprobe (sauberes Delta →
+Exit 0), T7 der Lader-Fehlerfall, T8 die Kopplung von Skriptpfad und Prosa, T9 die
+Versionsauflösung (`0.10.0` schlägt `0.9.4`), T10a-c die Op-Formfehler aus Iteration 2.
+
+`package.json` trägt `check:readme-delta` und `test:scripts`; letzteres nimmt das bestehende
+`scripts/screenshot-route.test.mjs` mit auf, das bisher nur von Hand lief. `CLAUDE.md` trägt den
+Abschnitt "README-Deltas (Agentheim)" mit Aufrufbefehl, Exit-1/Exit-2-Unterscheidung, Umgehung
+und der ausdrücklichen Kennzeichnung der Aufruf-Regel als prose-only und unenforced (ADR 0059):
+die Aufrufstelle liegt im Conductor-Plugin-Code außerhalb dieses Repos.
+
+`npm run test:scripts` 51/51 grün, `dotnet test` 941 bestanden, 0 Fehler, 7 übersprungen.
+
+**Iteration 1 wurde verworfen (FAIL).** Das Werkzeug, das leise falsche Signale abstellen soll,
+trug selbst ein lautes: der `applyReadmeDelta`-Aufruf war nicht abgesichert, das Plugin-Modul
+wirft bei Op-Formfehlern (`readme-delta.mjs:232`), und die Ausnahme lief durch. Node beendete
+mit **Exit 1** plus Stacktrace, ohne "Grund:"-Zeile und ohne Versionszeile. Der Aufrufer liest
+damit "Delta inhaltlich abgelehnt", obwohl das Gate nie geurteilt hat, und genau diese
+Unterscheidung ist laut ADR 0040 Entscheidung 3 der ganze Zweck. `HELP_TEXT` und der
+`CLAUDE.md`-Abschnitt versprachen beide Exit 2 für ungültige Eingabe. Als dritte Folge desselben
+Fehlers war `evaluateOp`s Rückfallzweig toter, ungetesteter Code. Der Verifier hat drei
+Fehlformen reproduziert, darunter `{"op":"replace","anchor":"Foo:"}` ohne `body`/`expected`, eine
+realistische Worker-Fehlform.
+
+**Iteration 2 (PASS)** schließt das mit Gürtel und Hosenträger, und der Worker hat beide
+Ermessensfragen begründet beantwortet statt sie zu übergehen:
+
+- **Validierung plus try/catch, nicht nur eines.** Die neue exportierte
+  `validateOpShape(op, section)` prüft die Form vor dem Aufruf und meldet `fail2(...)` mit Exit 2
+  und benanntem Grund. Zusätzlich bleibt der Aufruf in try/catch, weil `lib/readme-delta.mjs`
+  außerhalb dieses Repos liegt und bei jedem Plugin-Update überschrieben wird: eine künftige
+  Version könnte an einer Stelle werfen, die die Validierung nicht vorhersieht. Reine Validierung
+  wäre brüchig gegenüber fremdem Code, reines try/catch hätte präzise Gründe verschenkt.
+- **Der tote Zweig wurde gelöscht, nicht künstlich testbar gemacht**, mit einem Kommentar, der
+  die Invariante benennt. Ein defensiver Rückfall wäre wieder unerreichbarer, ungetesteter Code
+  gewesen, also derselbe Mangel in neuer Form.
+- **Drei Testfälle statt einem** (T10a/b/c), je ein Zweig von `validateOpShape`, alle
+  End-to-End über einen echten Prozessaufruf gegen das echte Plugin-Modul. Geprüft wird
+  `status === 2`, eine "Grund:"-Zeile auf stderr, die erwartete Teilmeldung und **leeres stdout**
+  (kein Diff, keine Versionszeile: das Gate hat nichts angewandt, bevor es scheiterte). T10a
+  prüft zusätzlich, dass stderr **keinen** `at applyReadmeDelta`-Stackframe trägt.
+
+**Verifikation.** Der Verifier hat beide Iterationen empirisch geprüft, nicht anhand der Berichte.
+Zu Iteration 1: Mutationen belegen, dass T1, T3, T3b und T5 echtes Verhalten fangen (Prüfung 3
+entfernt → T1 rot; Prüfung 6 entfernt → T5 rot; Prüfungen 4 und 5 zusammen entfernt → T3 und T3b
+rot), und er hat zwei überlebende Mutanten ehrlich benannt, statt sie zu verschweigen. Zu
+Iteration 2: alle drei Fehlformen selbst gegen ein eigenes Fixture gefahren (je Exit 2, leeres
+stdout, kein Stacktrace), und belegt, dass die drei Ausgänge nicht kollabiert sind (sauberes
+`append` → Exit 0 mit Diff und Versionszeile; `append` hinter Fließtext → Exit 1 mit
+`Prüfung 3 ... verletzt`). T10as Stackframe-Zusicherung ist nicht vakuum: gegen `HEAD~1`
+enthielt stderr tatsächlich `at applyReadmeDelta (.../0.9.4/lib/readme-delta.mjs:232:13)`.
+
+**Das Gate ist an einem echten Schadensfall dieser Sitzung belegt.** Gegen das `README_DELTA`,
+das `ledger-v5hkt` heute geliefert hat (`replace`, Anker `Übertrags-Verknüpfung:`, Abschnitt
+`## Ereignisse`), liefert es Exit 1 mit `Prüfung 6 (Anker-Erreichbarkeit) verletzt: Anker
+"Übertrags-Verknüpfung:" trägt kein Bullet in "Ereignisse". Abschnitt "Ereignisse" ist per
+replace grundsätzlich nicht erreichbar (kein Bullet mit fettem Begriffskopf).` Der Diff zeigt
+dabei genau den Schaden, also die zweite, widersprechende Kopie des Absatzes. Der Conductor
+musste jenes Delta in derselben Sitzung von Hand platzieren; das ist die Handarbeit, die dieses
+Gate ab jetzt sichtbar macht.
+
+### Zwei Beobachtungen, die der Verifier ausdrücklich zu Protokoll genommen hat
+
+1. **`evaluateOp` endet ohne abschließendes `return`.** Erreichte die Kontrolle das Ende, wäre
+   `result.ok` auf `undefined` ein TypeError, also ein unabgefangener Exit 1 mit Stacktrace,
+   genau die Fehlerklasse, die diese Iteration beseitigt. Der Verifier hat die
+   Unerreichbarkeit geprüft statt sie zu übernehmen: beide Zweige sind total, `validateOpShape`
+   steht in derselben Schleife vor dem einzigen Aufruf, und selbst ohne sie würfe das
+   Plugin-Modul vorher in den neuen Catch. `evaluateOp` ist exportiert und wird von zwei Tests
+   direkt aufgerufen, beide mit früh zurückkehrenden Dispositionen. Urteil: vertretbar, ein
+   defensiver Zweig wäre wieder ungetesteter Code. **Bei der nächsten Berührung dieser Datei ist
+   ein `throw new Error(...)` am Funktionsende die billige Absicherung**; als eigener Task ist es
+   die Sache nicht wert.
+2. **`validateOpShape` verlangt `expected` bei jedem `replace`.** Gemessen: die einzige Form, die
+   vorher angenommen wurde und jetzt zurückgewiesen wird, ist ein redundanter No-op-`replace`
+   (Body entspricht bereits wörtlich dem Bullet), vorher Exit 0 über `noop-already`, jetzt
+   Exit 2. Jedes andere `replace` ohne `expected` lieferte schon vorher `merged`, also eine
+   Ablehnung, weil `collapseWs(undefined)` die Zeichenkette `"undefined"` ergibt. Kein Regress:
+   `references/worker-return-format.md` definiert `replace` als `{op, anchor, body, expected}`,
+   und Exit 2 ist nach ADR 0040 Entscheidung 5 der richtige Kanal für nicht urteilbare Eingabe.
+
+Das Gate wurde vor dem Integrieren am eigenen Delta gegen die echte infrastructure-README
+gefahren: Exit 0, `Plugin-Version: 0.9.4`, Einfügepunkt am Listenende.
