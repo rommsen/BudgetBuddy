@@ -116,8 +116,8 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
     Entscheidung Roman 2026-09-18, `ledger-d4kx8`); der Kontostand
     (`getLedgerAccountBalances` / `Shared.Domain.ledgerBalancesByAccount`) lässt sie
     davon unabhängig immer draußen, die Abweichung zwischen Summenzeile und
-    Kontostand ist damit gewollt. Fundament für die künftigen Filter (`ledger-vgfw3`)
-    und die Summenzeile über der Liste.
+    Kontostand ist damit gewollt. Grundlage für den serverseitigen Such-Filter
+    (`ledger-vgfw3`, erledigt) und die Summenzeile über der Liste.
   - `getLedgerAccountBalances` (ledger-b1xwe) — die **Kontostände** aller Konten in
     einem Aufruf, für die Kontostände-Leiste. Der Stand ist die Summe der nicht in
     YNAB gelöschten Buchungen je Konto (`Shared.Domain.ledgerBalancesByAccount`),
@@ -407,8 +407,8 @@ Schalter; ohne welche steht dort nichts. Blendet Roman sie ein, zählen sie bewu
 Trefferzahl und Summe der Liste mit (Variante 2, Entscheidung Roman 2026-09-18,
 `ledger-d4kx8`): die Zeile über der Liste weicht dann absichtlich vom Kontostand ab und
 sagt das auch, im Stil "13 Buchungen, davon 1 in YNAB gelöscht". Der heutige Schalter ist
-eine schlichte Zeile über der Liste, kein Filter-Chip (die Filter-Chip-Leiste selbst ist
-weiter `ledger-vgfw3`).
+eine schlichte Zeile über der Liste, kein Filter-Chip; die Filter-Chip-Leiste selbst
+ist weiter offen (`ledger-j8xq4`).
 
 **Große Listen.** Der Bestand liegt bei rund 14.000 Buchungen. Die Liste lädt seitenweise
 nach (`getLedgerEntriesPage`, 100 Buchungen je Seite, Beobachter am Listenende statt
@@ -430,8 +430,9 @@ kein Schalter.
   zeigen und beim Wechsel beide Seiten (alt hoch, neu runter), wie die YNAB-App. Der
   Spiegel führt heute keine Budget-Zahlen mit.
 - **Filter-Chips und Summenzeile über dem Treffer.** `getLedgerEntriesPage` liefert
-  Trefferzahl und Summe bereits (ledger-b1xwe), aber die Seite zeigt heute weder
-  Filter-Chips noch die Summenzeile an — das ist `ledger-vgfw3`.
+  Trefferzahl, Summe und die fünf Filterkriterien serverseitig bereits (`ledger-vgfw3`),
+  aber die Seite selbst zeigt weder Filter-Chips noch die Summenzeile an: das ist
+  `ledger-j8xq4`.
 
 ## Open questions
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro

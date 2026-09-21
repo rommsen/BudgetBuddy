@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 15:26 -- Task verified and completed: ledger-t4m9c - "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
+
+**Type:** Work / Task completion
+**Task:** ledger-t4m9c - "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
+**Summary:** Alle drei veralteten kuenftig-Verweise auf ledger-vgfw3 im ledger-README korrigiert; die per Grammatik unerreichbare dritte Stelle vom Conductor von Hand gesetzt
+**Duration:** 41m
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-09-21 08:26 -- Batch started: [ledger-p3wnq, ledger-n3pqw, ledger-t4m9c]
 
 **Type:** Work / Batch start
