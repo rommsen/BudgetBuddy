@@ -1,7 +1,7 @@
 ---
 id: ledger-n3pqw
 title: "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-09-20

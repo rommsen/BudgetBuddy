@@ -11,22 +11,22 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 15
-- **Todo:** 5
-- **Doing:** 0
+- **Todo:** 2
+- **Doing:** 3
 - **Done:** 29
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-n3pqw** — "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln" (chore) — `todo/ledger-n3pqw-kassenbuch-zeilen-die-kategorie-farbe-an-die-css-variable-bi.md`
 - **ledger-w6tbq** — "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln" (chore) — `todo/ledger-w6tbq-force-import-die-ableitung-der-alten-importid-gegen-den-norm.md`
 - **ledger-c4mzp** — "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen" (chore) — `todo/ledger-c4mzp-den-betragsfilter-zweig-des-kassenbuch-lesepfads-abdecken-su.md`
-- **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `todo/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
-- **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)" (chore) — `todo/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)" (chore) — `doing/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
+- **ledger-n3pqw** — "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln" (chore) — `doing/ledger-n3pqw-kassenbuch-zeilen-die-kategorie-farbe-an-die-css-variable-bi.md`
+- **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `doing/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

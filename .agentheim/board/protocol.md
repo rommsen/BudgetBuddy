@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 08:26 -- Batch started: [ledger-p3wnq, ledger-n3pqw, ledger-t4m9c]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-p3wnq - "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)", ledger-n3pqw - "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln", ledger-t4m9c - "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
+**Parallel:** yes (3 workers) — Welle 3. 5 Tasks ready, MAX_PARALLEL=3, also 2 zurueckgehalten. p3wnq zuerst, weil es ein feature ist, ledger-h6ptn blockt und mit Abstand das groesste Stueck dieser Restmenge ist. Ueberlappungsfrei: p3wnq (src/Server/Ledger/** + Api.fs + YnabClient.fs + Shared/Domain.fs + LedgerMirrorTests), n3pqw (Client/Components/Ledger/View.fs + LedgerViewTests + styles.css lesend), t4m9c (nur README_DELTA, keine Quelldatei). Zurueckgehalten fuer Welle 4: ledger-c4mzp (teilt Ledger/Persistence.fs mit p3wnq) und ledger-w6tbq (teilt Api.fs und YnabClient.fs mit p3wnq). ledger-v8n4t wurde vorab als Conductor-Arbeit erledigt, weil es nicht dispatchbar ist.
+
+---
+
 ## 2026-09-21 08:20 -- Task completed (verification skipped): ledger-v8n4t - "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
 
 **Type:** Work / Task completion
