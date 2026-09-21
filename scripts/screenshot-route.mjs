@@ -455,9 +455,9 @@ export function computeCaptureViewport(baseViewport, documentHeight) {
   return { width: baseViewport.width, height: Math.max(baseViewport.height, documentHeight) };
 }
 
-/// captureScreenshot nahm bisher mit `fullPage: true` auf. Chromium
-/// vergrößert dafür intern das Layout-Viewport auf die volle Scroll-Höhe der
-/// Seite, BEVOR es den Screenshot schneidet. `.bottom-sheet` (src/Client/
+/// Aufnahme mit `fullPage: true` nahm bisher Chromium intern zum Anlass, das
+/// Layout-Viewport auf die volle Scroll-Höhe der Seite zu vergrößern, BEVOR
+/// es den Screenshot schneidet. `.bottom-sheet` (src/Client/
 /// DesignSystem/BottomSheet.fs, src/Client/styles.css:1556ff.) positioniert
 /// sich im inaktiven Zustand über `top: calc(var(--vv-top, 0px) +
 /// var(--vvh, 100dvh))`, also knapp unterhalb des sichtbaren Bereichs — aber
@@ -473,6 +473,20 @@ export function computeCaptureViewport(baseViewport, documentHeight) {
 /// App-CSS selbst anzufassen (rührt an die Visual-Viewport-Positionierung,
 /// ADR 0005, und riskiert das echte Geräteverhalten). Die App bleibt
 /// unangetastet, die Änderung ist auf dieses Skript begrenzt.
+///
+/// Als eigene, exportierte Funktion herausgezogen (design-system-q2bmv):
+/// captureScreenshot bildete diese Mechanik bisher nur inline ab, wodurch die
+/// Browser-Tests in screenshot-route.test.mjs sie ein zweites Mal nachbauen
+/// mussten, statt die echte Funktion zu prüfen. Kehrte jemand hier zu
+/// `fullPage: true` zurück, wird das jetzt an genau dieser Funktion
+/// (captureAtDocumentHeight) rot, nicht an einem Nachbau.
+export async function captureAtDocumentHeight(page, baseViewport, outPath) {
+  const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  const captureViewport = computeCaptureViewport(baseViewport, documentHeight);
+  await page.setViewportSize(captureViewport);
+  await page.screenshot({ path: outPath, fullPage: false });
+}
+
 async function captureScreenshot(browser, baseUrl, normalizedRoute, viewport, outPath) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
@@ -480,10 +494,7 @@ async function captureScreenshot(browser, baseUrl, normalizedRoute, viewport, ou
   try {
     await page.goto(`${baseUrl}/#${normalizedRoute}`, { waitUntil: "networkidle" });
     await waitForPageLoaded(page, normalizedRoute);
-    const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    const captureViewport = computeCaptureViewport(viewport, documentHeight);
-    await page.setViewportSize(captureViewport);
-    await page.screenshot({ path: outPath, fullPage: false });
+    await captureAtDocumentHeight(page, viewport, outPath);
     log(`${path.relative(ROOT, outPath)} geschrieben.`);
   } catch (err) {
     throw new Error(`Aufnahme für Route '${normalizedRoute}' fehlgeschlagen: ${err.message}`);

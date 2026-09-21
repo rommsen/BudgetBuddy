@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:34 -- Task verified and completed: design-system-q2bmv - "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
+
+**Type:** Work / Task completion
+**Task:** design-system-q2bmv - "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
+**Summary:** Die Aufnahme-Mechanik ist als captureAtDocumentHeight herausgezogen; die Browser-Tests pruefen jetzt die echte Funktion, mit einer Gegenprobe die belegt dass fullPage:true die BottomSheet-Leiste ins Bild rutschen laesst
+**Duration:** 15m37s
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-09-21 07:32 -- Task verified and completed: ledger-k3wqn - "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII"
 
 **Type:** Work / Task completion

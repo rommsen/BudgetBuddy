@@ -1,7 +1,7 @@
 ---
 id: design-system-q2bmv
 title: "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
-status: doing
+status: done
 type: chore
 context: design-system
 created: 2026-09-20
@@ -129,3 +129,67 @@ synthetischen Seite kein rotes Pixel liefert), ist der Fehler mit diesem Aufbau 
 nachgestellt. Dann gehört der Task mit einer Notiz zurück in den Backlog, statt einen
 grünen Test auszuliefern, der nichts belegt. Genau dieser Fehler wird hier ja gerade
 behoben.
+
+## Outcome
+
+`captureScreenshot` in `scripts/screenshot-route.mjs` bildete die eigentliche Aufnahme-Mechanik
+(Dokumenthöhe messen, `computeCaptureViewport`, `setViewportSize`, `screenshot` ohne `fullPage`)
+bisher nur inline ab. Die zwei Chromium-Tests in `scripts/screenshot-route.test.mjs` bauten diese
+Mechanik ein zweites Mal nach, statt die echte Funktion zu prüfen: keiner enthielt eine
+`.bottom-sheet`, ein `100dvh` oder eine Aussage darüber, was im Bild zu sehen ist. Kehrte jemand
+zu `fullPage: true` zurück, wären beide grün geblieben.
+
+Umgesetzt: die Mechanik ist jetzt die eigene, exportierte Funktion
+`captureAtDocumentHeight(page, baseViewport, outPath)`; `captureScreenshot` behält `goto` plus
+`waitForPageLoaded` und ruft danach diese Funktion, statt selbst `fullPage` zu setzen.
+
+Die Gegenprobe wurde vor jeder Test-Änderung tatsächlich ausgeführt: eine synthetische Seite
+(Basis-Viewport 390x600, ein 2200px hohes Inhalts-Div, ein zweites Element mit derselben
+Positionierungsregel wie `.bottom-sheet` in `src/Client/styles.css:1556`,
+`top: calc(var(--vv-top, 0px) + var(--vvh, 100dvh))`, `background: rgb(255,0,0)`).
+`page.screenshot({ fullPage: true })` lieferte 31200 rote Pixel (390 x 80, die Leiste
+vollständig sichtbar). Der Fehler ist mit diesem Aufbau also wirklich nachgestellt; andernfalls
+wäre die Aufgabe laut ihren eigenen Notes zurück in den Backlog gegangen.
+
+Genau diese Seite steckt jetzt im neuen Test: er hält zuerst per `fullPage: true` die Gegenprobe
+fest (mindestens ein rotes Pixel, sonst schlägt der Test selbst fehl), ruft dann die echte
+`captureAtDocumentHeight` auf derselben Seite auf und erwartet null rote Pixel sowie eine
+Bildhöhe gleich der gemessenen `document.documentElement.scrollHeight`. Die Pixelprüfung
+(`countRedPixels`) liest das PNG als Data-URL auf ein `<canvas>` im bereits geöffneten Browser
+und zählt per `getImageData`, ohne neue Abhängigkeit, im selben Motiv wie das vorhandene
+`pngDimensions`.
+
+Die beiden bestehenden AC2/AC3-Browser-Tests rufen jetzt ebenfalls `captureAtDocumentHeight`;
+ein echter `page.setViewportSize(`-Aufruf kommt in der Testdatei gar nicht mehr vor. Der
+Quelltext-Regressionstest gegen `fullPage: true` zielt jetzt auf den Rumpf von
+`captureAtDocumentHeight`; ein neuer, separater Test stellt sicher, dass `captureScreenshot`
+diese Funktion ruft und selbst kein `fullPage` mehr setzt. Der statische
+`import { chromium } from "playwright"` ist aus dem Modulkopf der Testdatei verschwunden; die
+drei browsergebundenen Tests laden Playwright per `await import("playwright")`, abgesichert durch
+einen eigenen Quelltext-Test.
+
+Die zwei ADR-0034-Tests (`BACKEND_PORT` in `screenshot-route.mjs` und `vite.config.js`) sind
+unberührt und grün. `node --test scripts/screenshot-route.test.mjs`: 32/32 grün (29 vorher,
+3 neu). `dotnet test`: 940 bestanden, 7 übersprungen, 0 fehlgeschlagen.
+
+**Verifikation (Iteration 1, PASS).** Der Verifier hat nicht nur die Gegenprobe nachgemessen
+(31200 rote Pixel in den Bildzeilen y=600..679 eines 2200px hohen Bilds), sondern eine
+Kontrollprobe gefahren, die die eigentliche Frage beantwortet: wird der Test aus dem *richtigen*
+Grund rot? Mit identischer Fixture, aber hart `top: 600px` statt `100dvh`, liefert auch
+`captureAtDocumentHeight` 31200 rote Pixel. Die Null-Zusicherung hängt damit nachweislich an der
+`100dvh`-Neuberechnung aus ADR 0005 und nicht an einer unbeteiligten Eigenschaft der Fixture. Vor
+der Aufnahme steht die Leiste bei `top: 600px`, nach der Viewport-Vergrößerung rechnet `dvh` auf
+2200 um (`getComputedStyle(...).top === "2200px"`) und sie verlässt das Bild. Zusätzlich hat er
+die Slice-Grenzen beider Quelltext-Tests von Hand nachgerechnet (kein Überlaufen in die
+Nachbarfunktion, beide Anker genau einmal an Spalte 0), die Testarithmetik geprüft (3 entfernte
+gegen 6 neue `test(`-Deklarationen, jede entfernte mit umbenanntem Gegenstück, kein stiller
+Verlust) und AC7 empirisch nachgestellt, indem er `PLAYWRIGHT_BROWSERS_PATH` auf ein leeres
+Verzeichnis zeigen ließ: genau die drei browsergebundenen Tests scheitern, die übrigen 29 laufen
+durch.
+
+**Nicht blockierender Restbefund des Verifiers, außerhalb des Zuschnitts dieser Aufgabe:** fehlt
+nicht nur die Browser-Binary, sondern das Paket `playwright` selbst, fällt weiterhin die ganze
+Testdatei aus (0 von 32), weil `scripts/screenshot-route.mjs:67` seinen
+`import { chromium } from "playwright"` unverändert auf Modulebene hält und die Testdatei dieses
+Modul zwangsläufig importiert. Der Task verlangt an dieser Stelle ausdrücklich nichts anderes
+("Nebenher, ohne neue Abdeckung"), ein Eingriff wäre Scope-Ausweitung gewesen.

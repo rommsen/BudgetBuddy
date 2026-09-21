@@ -19,7 +19,11 @@ import os from "node:os";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+// Playwright wird hier bewusst NICHT auf Modulebene importiert
+// (design-system-q2bmv): nur die browsergebundenen Tests weiter unten laden
+// es per dynamischem Import, genau dann, wenn ein Browser gebraucht wird. So
+// verlieren die restlichen, browserfreien Tests dieser Datei nicht mit,
+// falls Playwright auf einer Maschine fehlt.
 import {
   DEFAULT_OUT_DIR,
   KNOWN_ROUTES,
@@ -34,6 +38,7 @@ import {
   assertDataDirIsolated,
   startBackend,
   computeCaptureViewport,
+  captureAtDocumentHeight,
 } from "./screenshot-route.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -315,26 +320,44 @@ test("computeCaptureViewport: exakt passender Inhalt behält die angeforderte H�
   });
 });
 
-test("captureScreenshot verwendet computeCaptureViewport und nimmt ohne fullPage auf (ledger-p9k3w)", () => {
+// AC6 (design-system-q2bmv): die Aufnahme-Mechanik lebt jetzt in der eigenen,
+// exportierten Funktion captureAtDocumentHeight, nicht mehr inline in
+// captureScreenshot. Die Quelltext-Zusicherung gegen `fullPage: true` zielt
+// deshalb ab jetzt auf den Rumpf von captureAtDocumentHeight; ein separater
+// Test darunter stellt sicher, dass captureScreenshot diese Funktion
+// tatsächlich ruft statt selbst wieder fullPage zu setzen.
+test("captureAtDocumentHeight verwendet computeCaptureViewport und nimmt ohne fullPage auf (ledger-p9k3w)", () => {
   // Regressionstest gegen die Quelldatei (wie der data-app-ready-Test oben):
-  // captureScreenshot selbst braucht einen echten Playwright-Kontext gegen
-  // die laufende App und ist hier nicht sinnvoll aufzurufen (s. Kopfkommentar
-  // dieser Datei). Die eigentliche Rechenregel prüfen die drei Tests oben an
-  // der reinen Funktion; die zwei folgenden Tests prüfen den echten
-  // Browser-Mechanismus (setViewportSize + fullPage:false) direkt. Dieser
-  // Test schließt die Lücke dazwischen: er stellt sicher, dass
-  // captureScreenshot die geprüfte Funktion tatsächlich verwendet, statt
-  // weiter unbedingt mit `fullPage: true` aufzunehmen.
+  // captureAtDocumentHeight selbst braucht einen echten Playwright-Kontext
+  // gegen eine geladene Seite und ist hier nicht sinnvoll aufzurufen (s.
+  // Kopfkommentar dieser Datei). Die eigentliche Rechenregel prüfen die drei
+  // Tests oben an der reinen Funktion computeCaptureViewport; die
+  // Browser-Tests weiter unten rufen captureAtDocumentHeight tatsächlich auf
+  // und prüfen das entstandene PNG. Dieser Test schließt die Lücke
+  // dazwischen: er stellt sicher, dass captureAtDocumentHeight die geprüfte
+  // Rechenregel tatsächlich verwendet, statt unbedingt mit `fullPage: true`
+  // aufzunehmen.
+  const scriptPath = path.join(__dirname, "screenshot-route.mjs");
+  const source = readFileSync(scriptPath, "utf8");
+  const startIdx = source.indexOf("export async function captureAtDocumentHeight");
+  assert.notEqual(startIdx, -1, "captureAtDocumentHeight nicht gefunden (Funktion umbenannt oder verschoben?)");
+  const nextFunctionIdx = source.indexOf("\nasync function", startIdx + 1);
+  const body = source.slice(startIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
+  assert.doesNotMatch(body, /fullPage:\s*true/, "captureAtDocumentHeight darf nicht mehr mit fullPage: true aufnehmen");
+  assert.match(body, /computeCaptureViewport\(/, "captureAtDocumentHeight muss computeCaptureViewport verwenden");
+  assert.match(body, /setViewportSize\(/, "captureAtDocumentHeight muss den Viewport vor der Aufnahme setzen");
+  assert.match(body, /fullPage:\s*false/, "captureAtDocumentHeight muss ohne fullPage aufnehmen (Viewport ist bereits passend)");
+});
+
+test("captureScreenshot ruft captureAtDocumentHeight statt selbst fullPage zu setzen (design-system-q2bmv)", () => {
   const scriptPath = path.join(__dirname, "screenshot-route.mjs");
   const source = readFileSync(scriptPath, "utf8");
   const startIdx = source.indexOf("async function captureScreenshot");
   assert.notEqual(startIdx, -1, "captureScreenshot nicht gefunden (Funktion umbenannt oder verschoben?)");
   const nextFunctionIdx = source.indexOf("\nasync function", startIdx + 1);
   const body = source.slice(startIdx, nextFunctionIdx === -1 ? source.length : nextFunctionIdx);
-  assert.doesNotMatch(body, /fullPage:\s*true/, "captureScreenshot darf nicht mehr mit fullPage: true aufnehmen");
-  assert.match(body, /computeCaptureViewport\(/, "captureScreenshot muss computeCaptureViewport verwenden");
-  assert.match(body, /setViewportSize\(/, "captureScreenshot muss den Viewport vor der Aufnahme setzen");
-  assert.match(body, /fullPage:\s*false/, "captureScreenshot muss ohne fullPage aufnehmen (Viewport ist bereits passend)");
+  assert.doesNotMatch(body, /fullPage/, "captureScreenshot darf selbst kein fullPage mehr setzen, das gehört jetzt zu captureAtDocumentHeight");
+  assert.match(body, /captureAtDocumentHeight\(/, "captureScreenshot muss die echte Aufnahme-Funktion verwenden, kein Nachbau");
 });
 
 /// Liest Breite/Höhe direkt aus den IHDR-Bytes eines PNG-Puffers (big-endian
@@ -347,13 +370,46 @@ function pngDimensions(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
-// Die beiden folgenden Tests prüfen den echten Browser-Mechanismus hinter
-// dem Fix (setViewportSize + page.screenshot({fullPage: false})) gegen eine
-// selbst erzeugte, lokale Seite — ohne App, ohne Backend, ohne
-// Datenbankkopie (kein DATA_DIR-Zugriff, ADR 0030 bleibt unberührt). Das ist
-// bewusst dieselbe Mechanik, die captureScreenshot oben laut
-// Quelldatei-Test tatsächlich verwendet, nur ohne den App-Overhead.
-test("computeCaptureViewport + fullPage:false: das Bild einer langen Seite hat exakt die Dokumenthöhe (AC2, echter Browser)", async () => {
+/// Zählt Pixel exakt rgb(255,0,0) in einem PNG (design-system-q2bmv, AC3
+/// dieser Aufgabe: die Pixelprüfung kommt ohne neue Abhängigkeit aus). Das
+/// PNG wird als Data-URL auf ein `<canvas>` innerhalb des bereits geöffneten
+/// Browsers gezeichnet und per `getImageData` gelesen, statt eine
+/// PNG-Decoding-Bibliothek einzuführen: dasselbe Motiv wie bei
+/// pngDimensions oben, nur für Pixelinhalt statt nur für die Maße.
+async function countRedPixels(page, pngPath) {
+  const dataUrl = `data:image/png;base64,${readFileSync(pngPath).toString("base64")}`;
+  return page.evaluate(async (url) => {
+    const img = new Image();
+    const loaded = new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+    img.src = url;
+    await loaded;
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let redCount = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] === 255 && data[i + 1] === 0 && data[i + 2] === 0) {
+        redCount++;
+      }
+    }
+    return redCount;
+  }, dataUrl);
+}
+
+// Die drei folgenden Tests prüfen den echten Browser-Mechanismus hinter dem
+// Fix (captureAtDocumentHeight, also setViewportSize + page.screenshot mit
+// fullPage:false) gegen eine selbst erzeugte, lokale Seite: ohne App, ohne
+// Backend, ohne Datenbankkopie (kein DATA_DIR-Zugriff, ADR 0030 bleibt
+// unberührt). Alle drei rufen die echte, aus screenshot-route.mjs
+// importierte Funktion auf, kein Nachbau (design-system-q2bmv, AC5/AC6).
+test("captureAtDocumentHeight: das Bild einer langen Seite hat exakt die Dokumenthöhe (AC4, echter Browser)", async () => {
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch();
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
   const outPath = path.join(tmpDir, "tall.png");
@@ -370,15 +426,13 @@ test("computeCaptureViewport + fullPage:false: das Bild einer langen Seite hat e
       );
       documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
       assert.ok(documentHeight > baseViewport.height, "Testaufbau: Inhalt muss höher als der Viewport sein");
-      const captureViewport = computeCaptureViewport(baseViewport, documentHeight);
-      await page.setViewportSize(captureViewport);
-      await page.screenshot({ path: outPath, fullPage: false });
+      await captureAtDocumentHeight(page, baseViewport, outPath);
     } finally {
       await context.close();
     }
     const dims = pngDimensions(readFileSync(outPath));
     assert.equal(dims.width, baseViewport.width);
-    assert.equal(dims.height, documentHeight, "Bildhöhe muss der gemessenen Dokumenthöhe entsprechen (AC2)");
+    assert.equal(dims.height, documentHeight, "Bildhöhe muss der gemessenen Dokumenthöhe entsprechen (AC4)");
     assert.ok(dims.height > baseViewport.height, "Bildhöhe muss über die ursprüngliche Viewport-Höhe hinausgewachsen sein");
   } finally {
     await browser.close();
@@ -386,7 +440,8 @@ test("computeCaptureViewport + fullPage:false: das Bild einer langen Seite hat e
   }
 });
 
-test("computeCaptureViewport + fullPage:false: das Bild einer kurzen Seite behält die ursprünglichen Abmessungen (AC3, echter Browser)", async () => {
+test("captureAtDocumentHeight: das Bild einer kurzen Seite behält die ursprünglichen Abmessungen (AC3, echter Browser)", async () => {
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch();
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
   const outPath = path.join(tmpDir, "short.png");
@@ -401,13 +456,11 @@ test("computeCaptureViewport + fullPage:false: das Bild einer kurzen Seite behä
       );
       // document.documentElement.scrollHeight ist nie kleiner als der
       // Viewport (das <html>-Element füllt ihn per UA-Vorgabe aus, auch bei
-      // kürzerem Inhalt) — genau der Fall, den AC3 abdeckt: kein Scrollen,
-      // die Rechenregel darf hier nicht künstlich schrumpfen.
+      // kürzerem Inhalt): genau der Fall, den AC3 abdeckt. Kein Scrollen, die
+      // Rechenregel darf hier nicht künstlich schrumpfen.
       const documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
       assert.ok(documentHeight <= baseViewport.height, "Testaufbau: Inhalt darf den Viewport nicht überragen");
-      const captureViewport = computeCaptureViewport(baseViewport, documentHeight);
-      await page.setViewportSize(captureViewport);
-      await page.screenshot({ path: outPath, fullPage: false });
+      await captureAtDocumentHeight(page, baseViewport, outPath);
     } finally {
       await context.close();
     }
@@ -418,4 +471,85 @@ test("computeCaptureViewport + fullPage:false: das Bild einer kurzen Seite behä
     await browser.close();
     await rm(tmpDir, { recursive: true, force: true });
   }
+});
+
+// AC1/AC2/AC3 (design-system-q2bmv), der eigentliche Kern dieser Aufgabe:
+// baut per page.setContent eine Seite mit demselben Aufbau wie ADR 0005
+// (`.bottom-sheet` in src/Client/styles.css:1556, `top: calc(var(--vv-top,
+// 0px) + var(--vvh, 100dvh))`) und stellt zuerst per Gegenprobe sicher, dass
+// `fullPage: true` den Fehler aus ledger-p9k3w hier wirklich zeigt (sonst
+// wäre die zweite Zusicherung nicht falsifizierend). Erst danach prüft der
+// Test die echte Funktion captureAtDocumentHeight gegen dieselbe Seite.
+test("captureAtDocumentHeight hält die .bottom-sheet-Leiste außerhalb des Bilds, wo fullPage:true sie hineinrutschen ließe (ADR 0005, ledger-p9k3w)", async () => {
+  const { chromium } = await import("playwright");
+  const browser = await chromium.launch();
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "bb-screenshot-route-test-"));
+  const fullPagePath = path.join(tmpDir, "fullpage.png");
+  const fixedPath = path.join(tmpDir, "fixed.png");
+  try {
+    const baseViewport = { width: 390, height: 600 };
+    const context = await browser.newContext({ viewport: baseViewport });
+    const page = await context.newPage();
+    let documentHeight;
+    try {
+      // Dieselbe Positionierungsregel wie .bottom-sheet: im inaktiven
+      // Zustand knapp unterhalb des sichtbaren Bereichs positioniert.
+      await page.setContent(
+        '<html><body style="margin:0">' +
+          '<div style="height:2200px;background:#000"></div>' +
+          '<div style="position:fixed;top:calc(var(--vv-top, 0px) + var(--vvh, 100dvh));' +
+          'left:0;right:0;height:80px;background:rgb(255,0,0)"></div>' +
+          "</body></html>"
+      );
+      documentHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+
+      // Gegenprobe (AC1): ohne den Fix muss die Leiste im Bild landen, sonst
+      // ist der Fehler mit diesem Aufbau nicht nachgestellt.
+      await page.screenshot({ path: fullPagePath, fullPage: true });
+      const fullPageRedCount = await countRedPixels(page, fullPagePath);
+      assert.ok(
+        fullPageRedCount > 0,
+        "Gegenprobe: fullPage:true muss mindestens ein Pixel rgb(255,0,0) zeigen, sonst ist der Fehler hier nicht nachgestellt"
+      );
+
+      // Die echte Funktion (kein Nachbau, AC2): hält die Leiste draußen.
+      await captureAtDocumentHeight(page, baseViewport, fixedPath);
+      const fixedRedCount = await countRedPixels(page, fixedPath);
+      assert.equal(
+        fixedRedCount,
+        0,
+        "captureAtDocumentHeight darf kein einziges Pixel rgb(255,0,0) ins Bild lassen"
+      );
+    } finally {
+      await context.close();
+    }
+    const dims = pngDimensions(readFileSync(fixedPath));
+    assert.equal(dims.height, documentHeight, "Bildhöhe muss der gemessenen Dokumenthöhe entsprechen");
+  } finally {
+    await browser.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// AC7 (design-system-q2bmv): stellt sicher, dass diese Datei Playwright
+// nicht mehr am Modulkopf lädt, sondern erst innerhalb der Tests, die einen
+// Browser tatsächlich brauchen. Liest die eigene Quelldatei (wie der
+// data-app-ready-Test oben screenshot-route.mjs liest), statt nur zu
+// behaupten, dass der Import entfernt wurde.
+test("screenshot-route.test.mjs lädt Playwright nicht mehr am Modulkopf, sondern erst wenn ein Browser gebraucht wird", () => {
+  const selfPath = fileURLToPath(import.meta.url);
+  const source = readFileSync(selfPath, "utf8");
+  const firstTestIdx = source.indexOf('test("');
+  assert.notEqual(firstTestIdx, -1, "kein test(-Aufruf gefunden, Testdatei umgebaut?");
+  const header = source.slice(0, firstTestIdx);
+  assert.doesNotMatch(
+    header,
+    /import\s*\{\s*chromium\s*\}\s*from\s*["']playwright["']/,
+    "playwright darf nicht mehr am Modulkopf importiert werden, sonst verlieren auch die browserfreien Tests ihre Fähigkeit, ohne installiertes Playwright zu laufen"
+  );
+  assert.match(
+    source,
+    /await import\(\s*["']playwright["']\s*\)/,
+    'die browsergebundenen Tests müssen Playwright per await import("playwright") lazy laden'
+  );
 });

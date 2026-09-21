@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 22
+- **Doing:** 0
+- **Done:** 23
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-q2bmv** — "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele" (chore) — `doing/design-system-q2bmv-screenshot-route-mjs-die-aufnahme-so-testen-dass-der-bottoms.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-q2bmv** — "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele" (chore) — `done/design-system-q2bmv-screenshot-route-mjs-die-aufnahme-so-testen-dass-der-bottoms.md`
 - **design-system-p3vqk** — "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen" (chore) — `done/design-system-p3vqk-stats-noaccent-im-styleguide-view-fs-und-standards-frontend.md`
 - **design-system-m4kp7** — "Präsentationale Routen ohne Backend aufnehmen: screenshot-route.mjs startet für /styleguide keinen Server" (feature) — `done/design-system-m4kp7-praesentationale-routen-ohne-backend-aufnehmen.md`
 - **design-system-k4mtx** — "DaisyUI-Verweise in template/** und docs/MILESTONE-PLAN.md auf ADR 0031 nachziehen" (chore) — `done/design-system-k4mtx-template-daisyui-verweise-gegen-budgetbuddys-adr-0031-entsch.md`
