@@ -11,8 +11,8 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 15
-- **Todo:** 8
-- **Doing:** 0
+- **Todo:** 7
+- **Doing:** 1
 - **Done:** 26
 <!-- task-counts:end -->
 
@@ -24,12 +24,12 @@ research touching this BC, and concept synthesis pages.
 - **ledger-w6tbq** — "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln" (chore) — `todo/ledger-w6tbq-force-import-die-ableitung-der-alten-importid-gegen-den-norm.md`
 - **ledger-c4mzp** — "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen" (chore) — `todo/ledger-c4mzp-den-betragsfilter-zweig-des-kassenbuch-lesepfads-abdecken-su.md`
 - **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `todo/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
-- **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `todo/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
 - **ledger-t4m9c** — "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)" (chore) — `todo/ledger-t4m9c-veraltete-k-nftig-verweise-auf-ledger-vgfw3-im-abschnitt-obe.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `doing/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

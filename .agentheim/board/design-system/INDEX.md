@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 2
 - **Done:** 21
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-p3vqk** — "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen" (chore) — `todo/design-system-p3vqk-stats-noaccent-im-styleguide-view-fs-und-standards-frontend.md`
-- **design-system-q2bmv** — "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele" (chore) — `todo/design-system-q2bmv-screenshot-route-mjs-die-aufnahme-so-testen-dass-der-bottoms.md`
 - **design-system-j9xnd** — "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen" (chore) — `todo/design-system-j9xnd-stats-fs-die-akzentstreifen-entscheidung-als-reine-funktion.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-q2bmv** — "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele" (chore) — `doing/design-system-q2bmv-screenshot-route-mjs-die-aufnahme-so-testen-dass-der-bottoms.md`
+- **design-system-p3vqk** — "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen" (chore) — `doing/design-system-p3vqk-stats-noaccent-im-styleguide-view-fs-und-standards-frontend.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

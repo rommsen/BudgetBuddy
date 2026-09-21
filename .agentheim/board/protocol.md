@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:13 -- Batch started: [ledger-k3wqn, design-system-p3vqk, design-system-q2bmv]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-k3wqn - "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII", design-system-p3vqk - "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen", design-system-q2bmv - "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele"
+**Parallel:** yes (3 workers) — 12 Tasks ready in 3 Kontexten, MAX_PARALLEL=3. Die 9 uebrigen bleiben fuer spaetere Wellen; diese drei wurden gewaehlt, weil sie sich keine einzige Quell- oder Testdatei teilen: k3wqn (src/Server/**), p3vqk (Styleguide/View.fs + Stats-Abschnitt), q2bmv (scripts/screenshot-route*). Zurueckgehalten u.a.: design-system-j9xnd (teilt Stats.fs/styleguide.md mit p3vqk), ledger-c4mzp + ledger-p3wnq (teilen Ledger/Persistence.fs mit k3wqn), ledger-v5hkt (teilt LedgerTests.fs mit k3wqn), ledger-w6tbq (teilt Tests.fsproj mit j9xnd, Api.fs/YnabClient.fs mit p3wnq), infrastructure-b6kzp (teilt package.json mit q2bmv).
+
+---
+
 ## 2026-09-21 07:07 -- Modeling / Dismissed: ledger-r7dm2
 
 **Type:** Modeling / Dismiss

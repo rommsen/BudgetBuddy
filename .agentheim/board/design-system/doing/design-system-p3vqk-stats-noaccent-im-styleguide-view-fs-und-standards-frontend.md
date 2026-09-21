@@ -1,7 +1,7 @@
 ---
 id: design-system-p3vqk
 title: "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-19
