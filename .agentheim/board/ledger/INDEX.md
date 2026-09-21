@@ -11,14 +11,13 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 15
-- **Todo:** 6
+- **Todo:** 5
 - **Doing:** 0
-- **Done:** 28
+- **Done:** 29
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-v8n4t** — "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen" (chore) — `todo/ledger-v8n4t-die-von-ledger-t7v2q-am-ende-von-ereignisse-gestrandeten-ueb.md`
 - **ledger-n3pqw** — "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln" (chore) — `todo/ledger-n3pqw-kassenbuch-zeilen-die-kategorie-farbe-an-die-css-variable-bi.md`
 - **ledger-w6tbq** — "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln" (chore) — `todo/ledger-w6tbq-force-import-die-ableitung-der-alten-importid-gegen-den-norm.md`
 - **ledger-c4mzp** — "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen" (chore) — `todo/ledger-c4mzp-den-betragsfilter-zweig-des-kassenbuch-lesepfads-abdecken-su.md`
@@ -32,6 +31,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-v8n4t** — "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen" (chore) — `done/ledger-v8n4t-die-von-ledger-t7v2q-am-ende-von-ereignisse-gestrandeten-ueb.md`
 - **ledger-v5hkt** — "Selbstbezügliche Übertrags-Verknüpfung legt den Spiegel dauerhaft still" (bug) — `done/ledger-v5hkt-selbstbezuegliche-uebertrags-verknuepfung-legt-den-spiegel-d.md`
 - **ledger-k3wqn** — "Payee- und Memo-Filter finden keine Umlaut-Schreibweisen: COLLATE NOCASE faltet nur ASCII" (bug) — `done/ledger-k3wqn-payee-und-memo-filter-finden-keine-umlaut-schreibweisen-coll.md`
 - **ledger-ezrw0** — "getLedgerEntriesPage im ledger-README um die IncludeDeleted-true-Hälfte ergänzen" (chore) — `done/ledger-ezrw0-getledgerentriespage-im-ledger-readme-um-die-includedeleted.md`

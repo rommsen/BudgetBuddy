@@ -1,7 +1,7 @@
 ---
 id: ledger-v8n4t
 title: "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
-status: todo
+status: done
 type: chore
 context: ledger
 created: 2026-09-20
@@ -121,3 +121,60 @@ Stelle, nur im falschen Umbruch. Ein Reflow dieser drei ist kosmetisch und gehö
 eigene Aufgabe, zusammen mit `ledger-t4m9c` und `ledger-f8q2x`, die dieselbe Datei anfassen.
 Zeile 160 trägt zusätzlich den Umlaut-Defekt aus `ledger-k3wqn` (ue/ae/oe statt ä/ö/ü), der
 dort behandelt wird.
+
+## Outcome
+
+Die beiden von `ledger-t7v2q` am Ende von `## Ereignisse` gestrandeten Blöcke stehen jetzt an
+ihren vorgesehenen Stellen, im Umbruchstil der Datei, inhaltlich unverändert bis auf die von
+Kriterium 5 verlangte Ergänzung.
+
+- Das Bullet `` - `EntryTransferCounterpartObservedInYnab` `` steht in der Beobachtungs-Liste
+  (Zeile 265), zwischen `` - `EntryFlagChangeObservedInYnab` `` (262) und dem Absatz
+  `Mehrere Gruppen in einer Beobachtung` (278). Aus einer Zeile mit 687 Zeichen sind zwölf
+  umbrochene Zeilen geworden.
+- Der Absatz `**Übertrags-Verknüpfung:**` steht unmittelbar hinter `**Verknüpfung:**` und vor
+  `**Konten**` (312 < 319 < 338). Aus einer Zeile mit 1544 Zeichen sind achtzehn geworden.
+
+**Ausgeführt vom Conductor, nicht von einem Worker** (wie in den Notes vorgesehen). Das Ergebnis
+ist ausschließlich eine Änderung an `.agentheim/knowledge/contexts/ledger/README.md`; ein Worker
+darf seit ADR 0032 (Fassung ghcaj) keinen `.agentheim/`-Pfad schreiben, der Checkpoint-Guard
+verwirft solche Pfade als `bookkeeping-path`, ein Dispatch hätte per Konstruktion ein leeres
+Worktree ergeben. Präzedenzfall: `infrastructure-qwthn`. Der `verifier` greift aus demselben
+Grund nicht, sein Gate ist für Worker-Ergebnisse definiert. **Es gibt für diese Aufgabe deshalb
+keine unabhängige Zweitprüfung**; die Kriterien waren so geschnitten, dass sie ohne eine solche
+maschinell belegbar sind, und genau so sind sie belegt worden:
+
+| Kriterium | Prüfung | Ergebnis |
+|---|---|---|
+| 1 Bullet in der Beobachtungs-Liste | Zeilennummernvergleich | 262 < 265 < 278 |
+| 2 Absatz zwischen `**Verknüpfung:**` und `**Konten**` | Zeilennummernvergleich | 312 < 319 < 338 |
+| 3 keine Zeile > 100 Zeichen im Abschnitt | `awk 'length($0)>100'` über 238..351 | 0 Treffer (vorher 687 und 1544) |
+| 4 kein Textverlust, keine stille Umformulierung | whitespace-kollabierter Vergleich vorher/nachher | Absatz zeichengleich; Bullet zeichengleich nach Abzug der Ergänzung aus 5 |
+| 5 beide Sätze vorhanden | `grep -c` | "Letzte Gruppe in der Reihenfolge." 1x, der neue Halbsatz 1x |
+| 6 Abschnitt endet mit `**Code-Layout**` | letzte nicht leere Zeile des Abschnitts | `` `Ledger/CommandHandlers.fs` und `Ledger/QueryHandlers.fs`. `` |
+| 7 Gate lehnt `append` weiterhin ab | `node scripts/readme-delta-check.mjs --bc ledger` mit Sondierungs-Delta | Exit 1, `Prüfung 3 (Einfügepunkt bei append) verletzt: der Einfügepunkt in "Ereignisse" liegt hinter Fließtext, nicht hinter einem Bullet.` |
+| 8 Build und Tests nicht betroffen | nicht ausgeführt, genau eine Markdown-Datei geändert | vermerkt |
+
+**Zur Ergänzung aus Kriterium 5.** Das letzte Bullet der Beobachtungs-Liste endet mit "Letzte
+Gruppe in der Reihenfolge.", was die Gruppen-Reihenfolge der Änderungserkennung meint (ADR 0032),
+nicht die Reihenfolge der Bullets. Das neu einsortierte Bullet steht dahinter und wäre ohne
+Hinweis widersprüchlich, weil es überhaupt keine dieser Gruppen ist. Es trägt deshalb jetzt den
+Halbsatz: "Anders als die Bullets darüber entsteht es nicht aus der Änderungserkennung, sondern
+in einem späteren Schritt des Spiegel-Laufs, nachdem die Beobachtung geschrieben ist; die
+Gruppen-Reihenfolge (ADR 0032) betrifft es deshalb nicht."
+
+**Kriterium 7 ist der interessante Teil.** Der Abschnitt endet bewusst weiterhin mit Fließtext
+und bleibt damit einer der zehn Abschnitte, in die ein `append` an der falschen Stelle fällt. Das
+ist kein Versehen: nicht der Abschnitt soll repariert werden, sondern das Melden. Das Gate aus
+`infrastructure-b6kzp`, das in derselben Sitzung integriert wurde, weist genau das jetzt zurück,
+statt dass es jemand nachträglich aufräumt. Die Sondierung oben belegt, dass die Umstellung daran
+nichts geändert hat.
+
+**Nebenbefund aus den Notes, nicht Teil dieser Aufgabe und weiterhin offen.** Dasselbe Muster
+(ein wörtlich eingespleißter Worker-Body als überlange Einzelzeile) steht an drei weiteren
+Stellen derselben Datei: der Eintrag **Such-Filter (Kassenbuch)** in `## Ubiquitous language`
+(in dieser Sitzung von `ledger-k3wqn` neu geschrieben, dabei ist der dort genannte
+Umlaut-Defekt behoben worden, die Einzelzeile blieb), `- *BuchungÜbernehmen (Force-Import)*` in
+`## Key commands`, und zwei Zeilen in `## Open questions`. Sie stehen an der richtigen Stelle,
+nur im falschen Umbruch. Ein Reflow gehört in eine eigene Aufgabe, zusammen mit `ledger-t4m9c`
+und `ledger-f8q2x`, die dieselbe Datei anfassen.

@@ -262,6 +262,18 @@ MatchedByOrderId`).
 - `EntryFlagChangeObservedInYnab`: `flag_color`/`flag_name` in YNAB geändert (alt/neu),
   roh. Die Deutung (*Rückfrage Lena*, *Markiert*, kein Flag) sitzt im Lesepfad, nicht im
   Ereignis (ADR 0032). Letzte Gruppe in der Reihenfolge.
+- `EntryTransferCounterpartObservedInYnab`: die Gegenbuchung eines Übertrags ist
+  gefunden. YNAB führt beide Seiten über `transfer_transaction_id`, der Spiegel hat
+  diese Fremd-Id über `findEntryByLink` (System `ynab`) auf die eigene Buchungs-Id
+  aufgelöst (ADR 0015). Payload: Buchungs-Id der Gegenbuchung und die
+  YNAB-Transaction-Id, über die aufgelöst wurde (sie macht die Historie-Zeile
+  nachprüfbar, ohne die Gegenbuchung zu laden). Setzt `Entry.TransferEntryId`. Anders
+  als die Bullets darüber entsteht es nicht aus der Änderungserkennung, sondern in einem
+  späteren Schritt des Spiegel-Laufs, nachdem die Beobachtung geschrieben ist; die
+  Gruppen-Reihenfolge (ADR 0032) betrifft es deshalb nicht. Die Verknüpfung ist
+  wechselseitig, der Umschlag trägt aber genau eine Buchungs-Id: deshalb **zwei**
+  Ereignisse, eins je Seite, mit demselben Zeitpunkt und in einem
+  `appendAndApply`-Aufruf, also einer Transaktion.
 
 Mehrere Gruppen in einer Beobachtung ergeben mehrere Ereignisse (Details, Kategorisierung,
 Cleared). Unveränderte Daten ergeben kein Ereignis.
@@ -304,6 +316,25 @@ die Fremd-Id-Verknüpfung (ADR 0015); ob ein Aufruf auf eine bereits verknüpfte
 Fehler oder still idempotent ist, entscheidet der Aufrufer (`appendAndApply`-Fassade), nicht
 `apply`.
 
+**Übertrags-Verknüpfung:** Die Buchung-zu-Buchung-Verknüpfung aus ADR 0015 entsteht
+nicht beim Entstehungs-Ereignis. `EntryObservedInYnab` trägt nur YNABs Fremd-Ids
+(`TransferAccountId`, `TransferYnabTransactionId`), und die Gegenbuchung ist beim ersten
+Sehen oft noch nicht angelegt. Aufgelöst wird sie im Spiegel-Lauf, nachdem die
+Beobachtung geschrieben ist: findet der Lookup die Gegenseite, schreibt der Lauf
+`EntryTransferCounterpartObservedInYnab` für beide Buchungen, sonst nichts. Zeigt eine
+Seite bereits auf die andere, entsteht kein weiteres Ereignis (Idempotenz wie bei allen
+Beobachtungen: unveränderte Daten ergeben kein Ereignis). `apply` selbst setzt das Feld
+ohne Rückfrage auf den Wert der Payload: eine spätere Umverknüpfung ist in YNAB möglich
+und darf keinen Lauf abbrechen. Laut abgelehnt wird nur die Verknüpfung einer Buchung
+mit sich selbst, die in keinem gültigen Log vorkommt. Der Spiegel-Lauf baut ein solches
+Ereignis inzwischen gar nicht erst (ledger-v5hkt): `linkTransferCounterpart` prüft die
+aufgelöste Gegenbuchungs-Id vor dem Bau des Ereignisses, überspringt den Selbstbezug wie
+den Fall „Gegenbuchung nicht gefunden“ (kein Ereignis, kein abgebrochener Lauf),
+schreibt eine Warnzeile über `printfn` und läuft weiter; der `invalidOp` daneben deckt
+seitdem nur noch einen Programmierfehler im Erzeuger ab, keinen Datenfehler mehr. Das
+Aufheben eines Übertrags in YNAB ist heute nicht modelliert: die Verknüpfung bleibt dann
+stehen, bis die zusammengefasste Übertrags-Sicht in v2 kommt.
+
 **Konten** haben in v1 keine Historie (reiner Zustand: Id, Name, Art, Verknüpfung,
 geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchungen.
 
@@ -318,8 +349,6 @@ Verbindung laufen kann; ein zweiter Aufruf bleibt folgenlos (SQLite kennt kein
 **Code-Layout** (souls-Muster): `src/Server/Ledger/Events.fs`, `Ledger/Domain.fs` (`apply`,
 `observe`), `Ledger/Persistence.fs` (`appendAndApply`, Loads, Replay), später
 `Ledger/CommandHandlers.fs` und `Ledger/QueryHandlers.fs`.
-- `EntryTransferCounterpartObservedInYnab`: die Gegenbuchung eines Übertrags ist gefunden. YNAB führt beide Seiten über `transfer_transaction_id`, der Spiegel hat diese Fremd-Id über `findEntryByLink` (System `ynab`) auf die eigene Buchungs-Id aufgelöst (ADR 0015). Payload: Buchungs-Id der Gegenbuchung und die YNAB-Transaction-Id, über die aufgelöst wurde (sie macht die Historie-Zeile nachprüfbar, ohne die Gegenbuchung zu laden). Setzt `Entry.TransferEntryId`. Die Verknüpfung ist wechselseitig, der Umschlag trägt aber genau eine Buchungs-Id: deshalb **zwei** Ereignisse, eins je Seite, mit demselben Zeitpunkt und in einem `appendAndApply`-Aufruf, also einer Transaktion.
-**Übertrags-Verknüpfung:** Die Buchung-zu-Buchung-Verknüpfung aus ADR 0015 entsteht nicht beim Entstehungs-Ereignis. `EntryObservedInYnab` trägt nur YNABs Fremd-Ids (`TransferAccountId`, `TransferYnabTransactionId`), und die Gegenbuchung ist beim ersten Sehen oft noch nicht angelegt. Aufgelöst wird sie im Spiegel-Lauf, nachdem die Beobachtung geschrieben ist: findet der Lookup die Gegenseite, schreibt der Lauf `EntryTransferCounterpartObservedInYnab` für beide Buchungen, sonst nichts. Zeigt eine Seite bereits auf die andere, entsteht kein weiteres Ereignis (Idempotenz wie bei allen Beobachtungen: unveränderte Daten ergeben kein Ereignis). `apply` selbst setzt das Feld ohne Rückfrage auf den Wert der Payload: eine spätere Umverknüpfung ist in YNAB möglich und darf keinen Lauf abbrechen. Laut abgelehnt wird nur die Verknüpfung einer Buchung mit sich selbst, die in keinem gültigen Log vorkommt. Der Spiegel-Lauf baut ein solches Ereignis inzwischen gar nicht erst (ledger-v5hkt): `linkTransferCounterpart` prüft die aufgelöste Gegenbuchungs-Id vor dem Bau des Ereignisses, überspringt den Selbstbezug wie den Fall „Gegenbuchung nicht gefunden“ (kein Ereignis, kein abgebrochener Lauf), schreibt eine Warnzeile über `printfn` und läuft weiter; der `invalidOp` daneben deckt seitdem nur noch einen Programmierfehler im Erzeuger ab, keinen Datenfehler mehr. Das Aufheben eines Übertrags in YNAB ist heute nicht modelliert: die Verknüpfung bleibt dann stehen, bis die zusammengefasste Übertrags-Sicht in v2 kommt.
 
 ## Oberfläche (ledger-xbrht, 2026-09-12)
 Das Kassenbuch ist eine **Arbeitsfläche**, kein Bericht. Maßstab: die Arbeit, für die Roman

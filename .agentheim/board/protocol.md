@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 08:20 -- Task completed (verification skipped): ledger-v8n4t - "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
+
+**Type:** Work / Task completion
+**Task:** ledger-v8n4t - "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
+**Summary:** Die zwei von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Bloecke stehen an ihren vorgesehenen Stellen, im Umbruchstil der Datei
+**Duration:** 9m
+**Verification:** SKIPPED — Conductor-Aufgabe ohne Worker: reine .agentheim/-Schreibung, das verifier-Gate ist fuer Worker-Ergebnisse definiert; alle acht Kriterien maschinell belegt
+**Files changed:** 1
+
+---
+
+## 2026-09-21 08:19 -- Batch started: [ledger-v8n4t]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-v8n4t - "Die von ledger-t7v2q am Ende von ## Ereignisse gestrandeten Übertrags-Blöcke an ihre vorgesehenen Stellen bringen"
+**Parallel:** no (1 task, Conductor-Arbeit ohne Worker) — ledger-v8n4t ist laut seinen eigenen Notes nicht dispatchbar: das Ergebnis ist eine Aenderung an .agentheim/knowledge/contexts/ledger/README.md, und ein Worker darf seit ADR 0032 (ghcaj) keinen .agentheim/-Pfad schreiben; der Checkpoint-Guard verwirft solche Pfade als bookkeeping-path, ein Dispatch ergaebe ein leeres Worktree. Praezedenzfall infrastructure-qwthn. Der verifier greift ebenfalls nicht, das Gate ist fuer Worker-Ergebnisse definiert; die Kriterien sind deshalb maschinell belegbar geschnitten. Allein gezogen und vor der naechsten Welle erledigt, damit es nicht mit ledger-t4m9c um dieselbe Datei rennt.
+
+---
+
 ## 2026-09-21 08:17 -- Task verified and completed: infrastructure-b6kzp - "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)"
 
 **Type:** Work / Task completion
