@@ -51,6 +51,7 @@
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
+    <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>

@@ -74,16 +74,29 @@ let defaultProps = {
 // Stat Implementation
 // ============================================
 
-let private accentToGradient = function
-    | Teal -> "from-neon-teal to-neon-teal"
-    | Green -> "from-neon-green to-neon-green"
-    | Orange -> "from-neon-orange to-neon-orange"
-    | Purple -> "from-neon-purple to-neon-purple"
-    | Pink -> "from-neon-pink to-neon-pink"
-    | Gradient -> "from-neon-teal via-neon-green to-neon-orange"
-    // Never rendered: `view` skips the accent bar entirely for `NoAccent`
-    // before this function would be called for it.
-    | NoAccent -> ""
+/// Baut den vollständigen Klassen-String des Streifen-`div`s aus dem Gradient-Fragment.
+let private bar (gradient: string) : string option =
+    Some $"absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r {gradient}"
+
+/// Die Akzentstreifen-Entscheidung als reine Funktion (ADR 0035, design-system-j9xnd):
+/// `NoAccent` unterdrückt den dekorativen Streifen vollständig (`None`), jeder andere
+/// Fall liefert den vollständigen Klassen-String des Streifen-`div`s (`Some`). `view`
+/// trifft diese Entscheidung nicht mehr selbst, sondern konsumiert nur noch das Ergebnis
+/// dieser einen Stelle. Die frühere separate `accentToGradient`-Funktion ist hier
+/// hineingefaltet: mit nur diesem einen Aufrufer wäre ihr eigener Pattern-Match sonst nur
+/// über einen Wildcard-Fall vollständig zu halten gewesen, der einen künftigen achten
+/// `StatAccent`-Fall stillschweigend als farblosen Streifen gerendert hätte (ADR 0035s
+/// Begründung für den benannten `NoAccent`-Fall wäre damit unterlaufen worden). Ein
+/// einziger benannter Match hier hält `FS0025` als Warnschuss für jeden künftigen Fall.
+let accentBarClassName (accent: StatAccent) : string option =
+    match accent with
+    | NoAccent -> None
+    | Teal -> bar "from-neon-teal to-neon-teal"
+    | Green -> bar "from-neon-green to-neon-green"
+    | Orange -> bar "from-neon-orange to-neon-orange"
+    | Purple -> bar "from-neon-purple to-neon-purple"
+    | Pink -> bar "from-neon-pink to-neon-pink"
+    | Gradient -> bar "from-neon-teal via-neon-green to-neon-orange"
 
 let private sizeToClasses = function
     | Compact -> "p-3 md:p-4", "text-lg md:text-xl", $"{FontSizes.micro} md:text-xs"
@@ -139,7 +152,6 @@ let private trendView (trend: Trend) =
 /// Create a stat card with the specified props
 let view (props: StatProps) =
     let padding, valueSize, labelSize = sizeToClasses props.Size
-    let gradientClass = accentToGradient props.Accent
     let extraClass = props.ClassName |> Option.defaultValue ""
     let clickableClass =
         match props.OnClick with
@@ -155,14 +167,12 @@ let view (props: StatProps) =
         | Some onClick -> prop.onClick (fun _ -> onClick ())
         | None -> ()
         prop.children [
-            // Decorative gradient accent line at top — suppressed entirely for
-            // `NoAccent` (ledger-w9skm), not just recoloured.
-            match props.Accent with
-            | NoAccent -> Html.none
-            | _ ->
-                Html.div [
-                    prop.className $"absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r {gradientClass}"
-                ]
+            // Decorative gradient accent line at top: die Entscheidung, ob und mit
+            // welcher Klasse gerendert wird, steht nur noch in `accentBarClassName`
+            // (design-system-j9xnd).
+            match accentBarClassName props.Accent with
+            | None -> Html.none
+            | Some cls -> Html.div [ prop.className cls ]
 
             // Main content
             Html.div [
