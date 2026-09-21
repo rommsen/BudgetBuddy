@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 15:49 -- Batch started: [ledger-c4mzp, ledger-w6tbq]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-c4mzp - "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen", ledger-w6tbq - "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
+**Parallel:** yes (2 workers) — letzte Welle, die beiden verbleibenden Tasks. Kein Cap-Effekt: das ist die gesamte Restmenge. Beide waren bisher zurueckgehalten, weil sie sich mit ledger-p3wnq Ledger/Persistence.fs bzw. Api.fs und YnabClient.fs geteilt haetten; untereinander sind sie ueberlappungsfrei (c4mzp: LedgerPageTests.fs, w6tbq: Api.fs + neue ForceImportCandidateTests.fs + Tests.fsproj). Hinweis fuer c4mzp im Prompt: drei seiner Vorgaben sind durch ledger-k3wqn aus Welle 1 ueberholt (pageEntryId ist bereits dreistellig, pageTestAccountP belegt, laufende Nummern bis 100 vergeben).
+
+---
+
 ## 2026-09-21 15:48 -- Task verified and completed: ledger-p3wnq - "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)"
 
 **Type:** Work / Task completion

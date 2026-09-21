@@ -1,7 +1,7 @@
 ---
 id: ledger-c4mzp
 title: "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-09-20
