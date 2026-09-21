@@ -11,7 +11,7 @@ blocks: []
 tags: [backend, kassenbuch, spiegel, uebertrag]
 related_adrs: [0013, 0014, 0015]
 related_research: []
-prior_art: [ledger-t7v2q, ledger-r7dm2]
+prior_art: [ledger-t7v2q]
 ---
 
 ## Why

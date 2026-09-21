@@ -11,7 +11,7 @@ blocks: []
 tags: [tests, force-import, ynab, abdeckung]
 related_adrs: [0015, 0021]
 related_research: []
-prior_art: [ledger-fq3kd, ledger-r7dm2]
+prior_art: [ledger-fq3kd]
 ---
 
 ## Why

@@ -9,7 +9,7 @@ completed:
 depends_on: []
 blocks: []
 tags: [agentheim, werkzeug, readme, buchhaltung]
-related_adrs: []
+related_adrs: [0040]
 related_research: []
 prior_art: [ledger-ezrw0, design-system-m4kp7, ledger-t7v2q]
 ---

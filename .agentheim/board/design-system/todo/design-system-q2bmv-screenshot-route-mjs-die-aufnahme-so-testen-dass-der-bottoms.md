@@ -11,7 +11,7 @@ blocks: []
 tags: [test-infra, visuelles-gate, screenshot, playwright]
 related_adrs: [0005, 0034]
 related_research: []
-prior_art: [ledger-p9k3w, ledger-r7dm2]
+prior_art: [ledger-p9k3w]
 ---
 
 ## Why

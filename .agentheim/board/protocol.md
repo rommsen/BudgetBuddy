@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 07:07 -- Modeling / Dismissed: ledger-r7dm2
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-r7dm2 - "Testlücken aus dem QA-Review des Work-Laufs 2026-09-19 schließen" (ledger)
+
+---
+
 ## 2026-09-20 21:56 -- Modeling / Promoted: design-system-p3vqk - "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen"
 
 **Type:** Modeling / Promote

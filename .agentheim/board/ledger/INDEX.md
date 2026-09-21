@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 16
+- **Backlog:** 15
 - **Todo:** 8
 - **Doing:** 0
 - **Done:** 26
@@ -64,7 +64,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-r7dm2** — "Testlücken aus dem QA-Review des Work-Laufs 2026-09-19 schließen" (chore) — `backlog/ledger-r7dm2-testl-cken-aus-dem-qa-review-des-work-laufs-2026-09-19-schli.md`
 - **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `backlog/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
 - **ledger-xk9wq** — "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen" (feature) — `backlog/ledger-xk9wq-kategorie-filter-im-kassenbuch-lesepfad-erfasst-keine-split.md`
 - **ledger-h4qtx** — "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)" (chore) — `backlog/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`

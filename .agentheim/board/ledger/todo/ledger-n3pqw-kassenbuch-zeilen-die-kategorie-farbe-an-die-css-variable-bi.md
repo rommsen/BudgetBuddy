@@ -11,7 +11,7 @@ blocks: []
 tags: [tests, kassenbuch, oberflaeche, abdeckung]
 related_adrs: [0031, 0035]
 related_research: []
-prior_art: [ledger-w9skm, ledger-r7dm2]
+prior_art: [ledger-w9skm]
 ---
 
 ## Why

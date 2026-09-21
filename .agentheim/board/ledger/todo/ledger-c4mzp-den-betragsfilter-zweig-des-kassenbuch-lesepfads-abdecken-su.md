@@ -11,7 +11,7 @@ blocks: []
 tags: [tests, kassenbuch, filter, abdeckung]
 related_adrs: [0017, 0030, 0032, 0033, 0036]
 related_research: []
-prior_art: [ledger-vgfw3, ledger-r7dm2]
+prior_art: [ledger-vgfw3]
 ---
 
 ## Why
