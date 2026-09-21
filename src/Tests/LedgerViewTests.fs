@@ -6,8 +6,10 @@ module LedgerViewTests
 // (Fable-only), die reine Logik aber schon.
 
 open System
+open System.IO
 open System.Reflection
 open System.Runtime.CompilerServices
+open System.Text.RegularExpressions
 open Expecto
 open Shared.Domain
 open Components.Ledger.Types
@@ -181,6 +183,133 @@ let private categoryColorTests =
         }
     ]
 
+// ============================================
+// Quelltext-Zusicherungen (ledger-n3pqw, Lücken 8 und 9 des QA-Reviews)
+//
+// Nach dem Muster von `FontFaceRegressionTests.fs` (liest styles.css als Text) und
+// `BackendPortGuardTests.fs` (liest Program.fs als Text): `dotnet test` hat keinen
+// Fable/React-Laufzeitkontext, kann also `entryRow`/`entryTableRow` nicht rendern.
+// Der Quelltext selbst ist hier das ehrliche Prüfobjekt.
+// ============================================
+
+let private repoRoot =
+    let testDir = __SOURCE_DIRECTORY__
+    Directory.GetParent(Directory.GetParent(testDir).FullName).FullName
+
+let private stylesCssPath = Path.Combine(repoRoot, "src", "Client", "styles.css")
+let private ledgerViewPath = Path.Combine(repoRoot, "src", "Client", "Components", "Ledger", "View.fs")
+
+let private readStylesCss () = File.ReadAllText(stylesCssPath)
+let private readLedgerView () = File.ReadAllText(ledgerViewPath)
+
+/// Leitet aus einem Farb-Token wie `"text-neon-purple"` den Namen der zugehörigen
+/// CSS-Variable ab (`"--color-neon-purple"`). Bewusst aus dem Token abgeleitet statt
+/// im Test hingeschrieben (Lücke 8): benennt jemand `Tokens.Colors.neonPurple` um,
+/// ohne `styles.css` mitzuziehen, wird der Test rot, statt sich selbst zu bestätigen.
+let private cssVariableNameFromColorToken (token: string) : string =
+    if not (token.StartsWith "text-") then
+        failwithf "Erwartetes Präfix 'text-' fehlt im Farb-Token '%s' (Tokens.fs umgebaut?)" token
+    let suffix = token.Substring("text-".Length)
+    $"--color-{suffix}"
+
+/// Zählt, wie oft `needle` in `haystack` vorkommt (nicht überlappend).
+let private countOccurrences (haystack: string) (needle: string) : int =
+    let rec go (fromIdx: int) (acc: int) =
+        let i = haystack.IndexOf(needle, fromIdx)
+        if i = -1 then acc else go (i + needle.Length) (acc + 1)
+    go 0 0
+
+/// Schneidet den Rumpf einer Top-Level-Funktion aus dem Quelltext: von ihrem Kopf
+/// (`functionHeader`, z. B. `"let private entryRow"`) bis zum nächsten `let` auf
+/// Spalte 0. Findet der Test den Funktionskopf nicht, schlägt er mit einer
+/// benannten Meldung fehl statt still einen leeren Bereich zu liefern (Muster:
+/// `captureScreenshot`-Zusicherung in `scripts/screenshot-route.test.mjs`).
+let private sliceFunctionBody (source: string) (functionHeader: string) : string =
+    let startIdx = source.IndexOf(functionHeader)
+    if startIdx = -1 then
+        failwithf "Funktionskopf '%s' nicht gefunden (umbenannt oder verschoben?)" functionHeader
+    let searchFrom = startIdx + functionHeader.Length
+    let nextLetIdx = source.IndexOf("\nlet ", searchFrom)
+    if nextLetIdx = -1 then
+        source.Substring(startIdx)
+    else
+        source.Substring(startIdx, nextLetIdx - startIdx)
+
+/// Regression für ledger-n3pqw, Lücke 8: nichts band `text-neon-purple` an
+/// `--color-neon-purple: #a855f7`. Benennt jemand die CSS-Variable um, erzeugt
+/// Tailwind die Utility nicht mehr, die Kategorie-Farbe fällt still aus der
+/// Ausgabe, und `categoryColorTests` oben bliebe grün (der vergleicht nur mit
+/// seiner eigenen Definition).
+let private categoryColorCssBindingTests =
+    testList "Kategorie-Farbe an --color-neon-purple gebunden (ledger-n3pqw)" [
+
+        test "styles.css deklariert die CSS-Variable, auf die der Token zeigt, mit dem Wert aus dem Entwurf" {
+            let css = readStylesCss ()
+            let variableName = cssVariableNameFromColorToken Client.DesignSystem.Tokens.Colors.neonPurple
+
+            let m =
+                Regex.Match(css, Regex.Escape(variableName) + @"\s*:\s*([^;]+);")
+
+            Expect.isTrue m.Success
+                $"styles.css muss eine @theme-Deklaration für {variableName} enthalten, sonst fällt die Tailwind-Utility für die Kategorie-Farbe still aus."
+            Expect.equal (m.Groups.[1].Value.Trim()) "#a855f7"
+                "Die Kategorie-Farbrolle muss #a855f7 bleiben (Handoff 1.1 und 1.9); eine stille Änderung der Palette fällt hierüber auf."
+        }
+    ]
+
+/// Regression für ledger-n3pqw, Lücke 9: nichts pinnte, dass Handy-Zeile
+/// (`entryRow`) und PC-Tabelle (`entryTableRow`) dieselben geteilten Helfer
+/// (`categoryLabel`, `payeeLabel`, `originBadge`) benutzen. Vor dem Umbau stand
+/// "ohne Payee" zweimal im File (je einmal pro Ansicht); dieser Test war vor der
+/// Einführung von `payeeLabel` rot mit dem gemeldeten Fund von 2 statt 1.
+let private sharedHelpersAndNoColorLiteralsTests =
+    testList "Handy-Zeile und PC-Tabelle teilen ihre Helfer (ledger-n3pqw)" [
+
+        test "Keine Farbliterale in der Kassenbuch-Ansicht: 'text-neon-' kommt nicht vor" {
+            let view = readLedgerView ()
+            Expect.isFalse (view.Contains "text-neon-")
+                "Farbklassen laufen ausschließlich über Tokens.Colors.* (ADR 0031), kein direktes text-neon-* im View-Code."
+        }
+
+        test "'ohne Kategorie' steht genau einmal, in categoryLabel" {
+            let view = readLedgerView ()
+            Expect.equal (countOccurrences view "ohne Kategorie") 1
+                "Ein wieder eingebauter abweichender Platzhalter in nur einer der beiden Ansichten würde hier auffallen."
+        }
+
+        test "'ohne Payee' steht genau einmal, in payeeLabel" {
+            let view = readLedgerView ()
+            Expect.equal (countOccurrences view "ohne Payee") 1
+                "Vor der Einführung von payeeLabel standen hier zwei Vorkommen (je eines pro Ansicht, entryRow und entryTableRow)."
+        }
+
+        test "entryRow und entryTableRow rufen beide categoryLabel, payeeLabel und originBadge auf" {
+            let view = readLedgerView ()
+            let entryRowBody = sliceFunctionBody view "let private entryRow"
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+
+            for helperCall in [ "categoryLabel entry"; "payeeLabel entry"; "originBadge entry.Origin" ] do
+                Expect.stringContains entryRowBody helperCall
+                    $"entryRow muss {helperCall} aufrufen, sonst weicht die Handy-Zeile von der PC-Tabelle ab."
+                Expect.stringContains entryTableRowBody helperCall
+                    $"entryTableRow muss {helperCall} aufrufen, sonst weicht die PC-Tabelle von der Handy-Zeile ab."
+        }
+
+        test "Beide Ansichten speisen die Kategorie-Farbrolle aus demselben Wert (categoryColorClassName)" {
+            let view = readLedgerView ()
+            let entryRowBody = sliceFunctionBody view "let private entryRow"
+            let tdTruncatedCategoryBody = sliceFunctionBody view "let private tdTruncatedCategory"
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+
+            Expect.stringContains entryRowBody "categoryColorClassName"
+                "Die Handy-Zeile muss die Kategorie-Farbrolle über categoryColorClassName einfärben."
+            Expect.stringContains tdTruncatedCategoryBody "categoryColorClassName"
+                "Die PC-Tabellenzelle muss dieselbe Kategorie-Farbrolle über categoryColorClassName einfärben."
+            Expect.stringContains entryTableRowBody "tdTruncatedCategory (categoryLabel entry)"
+                "Die PC-Tabelle muss ihre Kategoriezelle über tdTruncatedCategory rendern, sonst verliert sie die Farbe (fällt zurück auf tdTruncated)."
+        }
+    ]
+
 /// Regression fuer ledger-w9skm: die Handy-Zeile war eine Karte (`rounded-lg`,
 /// umlaufender `border`), der Entwurf sieht aber eine flache Listenzeile mit nur
 /// einer Unterkante vor (Handoff 1.1: `padding:13px 16px`, Unterkante
@@ -322,6 +451,8 @@ let ledgerViewTests =
           formatEntryDateTests
           categoryLabelTests
           categoryColorTests
+          categoryColorCssBindingTests
+          sharedHelpersAndNoColorLiteralsTests
           entryRowClassNameTests
           accountCardsTests
           deletedCountTextTests

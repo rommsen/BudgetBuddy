@@ -1,7 +1,7 @@
 ---
 id: ledger-n3pqw
 title: "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
-status: doing
+status: done
 type: chore
 context: ledger
 created: 2026-09-20
@@ -115,3 +115,79 @@ das ehrlichere Prüfobjekt.
 Keine Überschneidung mit den parallel verfeinerten Backend-Tasks
 (`ledger-k3wqn`, `ledger-h4qtx`, `ledger-xk9wq`) und keine mit `design-system-j9xnd`
 (`Stats.fs`).
+
+## Outcome
+
+Lücken 8 und 9 aus dem QA-Review geschlossen.
+
+**Produktionscode** (`src/Client/Components/Ledger/View.fs`): `payeeLabel : LedgerEntryView ->
+string` neben `categoryLabel` eingeführt (der Payee, sonst der Platzhaltertext) und in `entryRow`
+wie `entryTableRow` eingesetzt, sodass der Platzhalter wie der Kategorietext nur noch an einer
+Stelle im Modul steht.
+
+**Tests** (`src/Tests/LedgerViewTests.fs`), nach dem Muster von `FontFaceRegressionTests.fs` und
+`BackendPortGuardTests.fs` (Quelltext als Text, `repoRoot` über `__SOURCE_DIRECTORY__`):
+die CSS-Bindung (`--color-neon-purple: #a855f7`, Variablenname aus dem Token abgeleitet), kein
+`"text-neon-"` im View-Code, `"ohne Kategorie"` und `"ohne Payee"` je genau einmal, beide
+Ansichten rufen `categoryLabel`, `payeeLabel` und `originBadge` auf, und beide speisen die
+Kategorie-Farbrolle aus `categoryColorClassName`.
+
+`dotnet build` 0 Warnungen, `dotnet test` 953 erfolgreich / 7 übersprungen, `npm run build` grün.
+
+**Verifikation (Iteration 1, PASS), mit vier Mutationsnachweisen.** Der Verifier hat die Tests
+nicht gelesen, sondern gebrochen und zugesehen, ob sie rot werden:
+
+- CSS-Variable in einer Arbeitskopie zu `--color-neon-violet` umbenannt → rot.
+- Wert auf `#b955f7` geändert → rot ("Wert #b955f7 statt #a855f7"); der Test liest den Wert
+  tatsächlich aus der Deklaration, statt nur ihre Existenz zu prüfen.
+- Token auf `"text-neon-violet"` gesetzt bei unveränderter CSS → rot. **Damit ist belegt, dass
+  die Tautologie beseitigt ist**, die diese Aufgabe beanstandet hat: beide Seiten stammen aus
+  verschiedenen Quellen (`Tokens.fs` und `styles.css`), nirgends steht `"neon-purple"` im Test.
+- PC-Tabelle auf `tdTruncated (categoryLabel entry)` zurückgedreht → rot.
+
+Zusätzlich hat er die Schnittgrenzen des Rumpf-Tests von Hand nachgerechnet (`entryRow`
+253..330, nächstes Spalte-0-`let` bei 331; `entryTableRow` 371..412; `tdTruncatedCategory`
+350..361): kein Schnitt verschluckt die Nachbarfunktion, keine Zusicherung kann aus dem falschen
+Rumpf erfüllt werden. Das laute Scheitern ist belegt: Funktionskopf umbenannt →
+`failwithf "Funktionskopf 'let private entryRow' nicht gefunden (umbenannt oder verschoben?)"`.
+Das Vorher/Nachher für Kriterium 6 hat er selbst nachgezählt: `"ohne Payee"` zweimal in `HEAD~1`
+(Z. 271 und 378, je eine Ansicht), einmal in `HEAD` (Z. 224, in `payeeLabel`).
+
+### Drei Befunde des Verifiers, die kein Kriterium reißen, aber notiert gehören
+
+1. **Kriterium 5 wurde durch eine Kommentar-Umschreibung grün, nicht durch eine Codeänderung.**
+   `"ohne Kategorie"` stand im Code schon vorher genau einmal; rot war der Test nur wegen des
+   Doc-Kommentars, der den String zitierte. Die Zählung über die ganze Datei misst also mehr als
+   die gemeinte Eigenschaft: sie bindet auch die Prosa, und ein künftiger harmloser Kommentar,
+   der den String nennt, macht den Test rot. Der Konstruktionsfehler liegt in der Formulierung
+   des Kriteriums, nicht in der Umsetzung; der Worker hat die Vorgabe umgesetzt, wie sie
+   dasteht. Die eigentliche Regression (ein abweichender Platzhalter, wieder in eine der beiden
+   Ansichten eingebaut) fängt der Test weiterhin, und zwar doppelt: die Mutation liefert
+   gleichzeitig "ohne Payee=2" und "entryRow ohne payeeLabel entry" aus dem Helfer-Test. Eine
+   engere Zusicherung (nur Nicht-Kommentarzeilen, oder nur die beiden Ansichts-Rümpfe) hätte
+   dieselbe Regression gefangen, ohne den Kommentar zu verbiegen.
+2. **Die CSS-Regex sucht im ganzen Dateitext, nicht auf den `@theme`-Block eingegrenzt**, wie das
+   Kriterium es formuliert. Heute existiert genau eine Deklaration (`styles.css:12`, innerhalb
+   `@theme` 7..43), die gemeinte Regression wird also gefangen. Ein zusätzliches
+   `--color-neon-purple` außerhalb von `@theme` (etwa in `:root`) könnte den Test künftig grün
+   halten, obwohl Tailwind die Utility nicht mehr erzeugt. Kein Kriteriumsverstoß, ein möglicher
+   Feinschliff.
+3. **`IndexOf` matcht als Präfix:** eine Umbenennung nach `entryRowMobile` würde gefunden statt
+   gemeldet. Der Schnitt trifft dann denselben Rumpf, es entsteht also kein falsches Grün über
+   die gepinnte Eigenschaft, nur ein nicht gemeldeter Rename.
+
+Der Verifier weist außerdem darauf hin, dass `TESTS_ADDED: 5` untertrieben ist: der Runner führt
+sechs neue Fälle. Untertrieben, nicht übertrieben, ohne Wirkung auf das Verdikt.
+
+**Eine Änderung nach der Verifikation, deklariert.** Der Verifier hat in zwei neu hinzugefügten
+Doc-Kommentaren Umschrift statt Umlauten gefunden (`Zaehlt`, `schlaegt`) und sie als nicht
+verdikt-relevant eingestuft. Der Conductor hat sie beim Integrieren auf `Zählt` und `schlägt`
+korrigiert. Der integrierte Diff weicht damit um genau diese zwei Wörter in Kommentaren vom
+verifizierten ab; an keiner Prüfung des Verifiers hängt etwas davon. Die übrige Umschrift in
+`View.fs` ist Altbestand und nicht Sache dieser Aufgabe.
+
+**Zur Historie:** ein erster Worker-Prozess für diese Aufgabe wurde vom Watchdog abgebrochen,
+nachdem er die Arbeit gemacht, aber bevor er sie berichtet hatte. Der Wiederholungslauf im selben
+Worktree hat das Ergebnis geprüft, neun im Testfile verstreute Umschreibungen des abgebrochenen
+Laufs korrigiert und regulär berichtet. Ein Transportverlust zählt nicht als fehlgeschlagene
+Verifikations-Iteration; dies ist Iteration 1.

@@ -197,9 +197,11 @@ let private accountBadge (abbreviation: string) =
 
 /// Die Kategorie-Beschriftung einer Buchung (AC1/AC2, ledger-w9skm): der
 /// Kategoriename, bei einer aufgeteilten Buchung ohne eigene Kategorie die Anzahl
-/// der Split-Zeilen, sonst "ohne Kategorie". Reine Funktion, geteilt zwischen
-/// Handy-Zeile (`entryRow`) und PC-Tabelle (`entryTableRow`), damit beide
-/// Ansichten denselben Text zeigen (siehe `LedgerViewTests`).
+/// der Split-Zeilen, sonst der Platzhaltertext für eine fehlende Kategorie (siehe
+/// Rückfallzeile unten). Reine Funktion, geteilt zwischen Handy-Zeile
+/// (`entryRow`) und PC-Tabelle (`entryTableRow`), damit beide Ansichten denselben
+/// Text zeigen (siehe `LedgerViewTests`; der Platzhaltertext steht bewusst nur an
+/// dieser einen Stelle im Modul, ledger-n3pqw).
 ///
 /// Zeigt bewusst nur den Blattnamen, nicht "Gruppe: Name": `CategoryRef`
 /// (`Server/Ledger/Events.fs`) traegt keine Kategoriegruppe, nur `CategoryName`
@@ -211,6 +213,15 @@ let categoryLabel (entry: LedgerEntryView) : string =
     | Some name -> name
     | None when not (List.isEmpty entry.Splits) -> $"{List.length entry.Splits} Split-Zeilen"
     | None -> "ohne Kategorie"
+
+/// Der Payee-Text einer Buchung: der Payee, sonst der Platzhaltertext für eine
+/// fehlende Angabe (siehe Rückfallzeile unten). Reine Funktion, analog zu
+/// `categoryLabel` geteilt zwischen Handy-Zeile (`entryRow`) und PC-Tabelle
+/// (`entryTableRow`), damit beide Ansichten denselben Platzhaltertext zeigen
+/// (ledger-n3pqw, Lücke 9 aus dem QA-Review: vorher stand dieser Platzhalter an
+/// zwei Stellen im File, je einmal pro Ansicht).
+let payeeLabel (entry: LedgerEntryView) : string =
+    entry.Payee |> Option.defaultValue "ohne Payee"
 
 /// Die Kategorie-Farbrolle (AC1, ledger-w9skm, Handoff 1.1/1.9: `#a855f7` an
 /// beiden Stellen). Über den Token `Tokens.Colors.neonPurple`, kein Hex-Literal
@@ -268,7 +279,7 @@ let private entryRow
                                     prop.children [
                                         Html.div [
                                             prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary} truncate"
-                                            prop.text (entry.Payee |> Option.defaultValue "ohne Payee")
+                                            prop.text (payeeLabel entry)
                                         ]
                                         // Zeile 2 (AC2, ledger-w9skm): Kategorie in der
                                         // Kategorie-Farbrolle (AC1) zusammen mit dem Memo,
@@ -375,7 +386,7 @@ let private entryTableRow
         [
             Table.td (formatDate entry.Date)
             if showAccountColumn then Table.td (accountAbbreviationOf entry.AccountId)
-            tdTruncated (entry.Payee |> Option.defaultValue "ohne Payee")
+            tdTruncated (payeeLabel entry)
             tdTruncatedCategory (categoryLabel entry)
             tdTruncated (entry.Memo |> Option.defaultValue "")
             tdMoney entry

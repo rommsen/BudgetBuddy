@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 15:30 -- Task verified and completed: ledger-n3pqw - "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
+
+**Type:** Work / Task completion
+**Task:** ledger-n3pqw - "Kassenbuch-Zeilen: die Kategorie-Farbe an die CSS-Variable binden und die geteilten Helfer von Handy-Zeile und PC-Tabelle festnageln"
+**Summary:** payeeLabel als geteilter Helfer eingefuehrt; Quelltext-Zusicherungen binden die Kategorie-Farbrolle an die echte CSS-Variable und pinnen die geteilten Helfer beider Ansichten
+**Duration:** 53m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-09-21 15:26 -- Task verified and completed: ledger-t4m9c - "Veraltete 'künftig'-Verweise auf ledger-vgfw3 im ledger-README korrigieren (Oberfläche und Sichten)"
 
 **Type:** Work / Task completion
