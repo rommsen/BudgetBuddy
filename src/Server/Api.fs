@@ -720,6 +720,54 @@ let rulesApi : RulesApi = {
 }
 
 // ============================================
+// Comdirect-Import-Kandidaten (ledger-w6tbq)
+// ============================================
+
+/// Baut aus einem `prepareTransactions`-Ergebnis die Kassenbuch-Kandidaten für einen
+/// Comdirect-Import-Push. Einzige Stelle, die `ExistingEntryImportId` setzt: vorher
+/// stand dieser gut 20-zeilige Block doppelt im normalen Import-Push und in
+/// Force-Import und unterschied sich in genau diesem einen Feld (Verifier-Fund).
+/// `forceImport = false` (normaler Push): Suche und Versand teilen sich dieselbe
+/// ImportId (`ExistingEntryImportId = None`, ledger-fq3kd). `forceImport = true`:
+/// `prepared` trägt schon die von `prepareTransactions ... true` neu erzeugte
+/// ImportId zum Versand (YNABs Dedup); die Suche nach der schon bestehenden
+/// Kassenbuch-Buchung muss aber über die alte, deterministische ImportId laufen
+/// (`Shared.Domain.generateImportId`), denn genau darüber hat der normale Push sie
+/// ursprünglich angelegt (ADR 0021, ADR 0015: die Buchung ist nur über ihre
+/// Fremd-Id erreichbar, solange keine YNAB-Id verknüpft ist).
+/// Payee/Memo kommen aus dem tatsächlich vorbereiteten Request (`p.Request`), nicht
+/// aus den rohen Comdirect-Feldern (Verifier-Fund, ledger-qvt84 Iteration 3):
+/// YNAB bekommt PayeeName (Override-Fallback "Unknown") und Memo über
+/// `buildMemoWithReference` (immer mit ", Ref: <Referenz>"-Suffix); schreibt die
+/// Entstehung stattdessen die rohen Werte, sieht der nächste Spiegel-Lauf ein
+/// falsches Kopfdaten-Ereignis. Die rohe Comdirect-Reference bleibt unverändert in
+/// ihrem eigenen Feld (`ComdirectReference`). Pure, kein I/O.
+let buildComdirectImportCandidates
+    (forceImport: bool)
+    (transactions: SyncTransaction list)
+    (prepared: PrepareResult)
+    : Ledger.CommandHandlers.ComdirectImportCandidate list =
+    let byTransactionId =
+        transactions |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
+    prepared.ToSend
+    |> List.map (fun p ->
+        let tx = Map.find p.TransactionId byTransactionId
+        ({
+            Prepared = p
+            ComdirectReference = tx.Transaction.Reference
+            Date = tx.Transaction.BookingDate
+            Amount = tx.Transaction.Amount
+            Payee = Some p.Request.PayeeName
+            Memo = Some p.Request.Memo
+            ReviewSteps = tx.ReviewSteps
+            ExistingEntryImportId =
+                if forceImport then
+                    Some (Shared.Domain.generateImportId p.TransactionId)
+                else
+                    None
+        } : Ledger.CommandHandlers.ComdirectImportCandidate))
+
+// ============================================
 // Sync API Implementation
 // ============================================
 
@@ -1130,38 +1178,14 @@ let syncApi : SyncApi = {
                             let prepared =
                                 prepareTransactions today ynabAccountId transferPayees false toImport
 
-                            let byTransactionId =
-                                toImport |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
-
                             // Teil 2 (ADR 0021): je vorbereiteter Buchung die Rohdaten und
                             // die Review-Spur (categorization-gdrx8) mitgeben, aus der das
-                            // Kassenbuch die Kategorisierungs-Ereignisse baut.
+                            // Kassenbuch die Kategorisierungs-Ereignisse baut. Normaler
+                            // Import-Push (kein Force-Import): Suche und Versand teilen
+                            // sich dieselbe ImportId (`buildComdirectImportCandidates`,
+                            // ledger-w6tbq, ehemals dieser Block doppelt).
                             let candidates =
-                                prepared.ToSend
-                                |> List.map (fun p ->
-                                    let tx = Map.find p.TransactionId byTransactionId
-                                    // Payee/Memo kommen aus dem tatsächlich vorbereiteten
-                                    // Request (p.Request), nicht aus den rohen Bank-Feldern:
-                                    // YNAB bekommt PayeeName (Override-Fallback "Unknown")
-                                    // und Memo über buildMemoWithReference (immer mit
-                                    // ", Ref: <Referenz>"-Suffix), keins davon deckt sich mit
-                                    // dem rohen Comdirect-Wert. Schreibt die Entstehung die
-                                    // rohen Werte, sieht der nächste Spiegel-Lauf ein
-                                    // falsches Kopfdaten-Ereignis (Verifier-Fund, Iteration
-                                    // 3). Die rohe Comdirect-Reference bleibt unverändert in
-                                    // ihrem eigenen Feld.
-                                    ({
-                                        Prepared = p
-                                        ComdirectReference = tx.Transaction.Reference
-                                        Date = tx.Transaction.BookingDate
-                                        Amount = tx.Transaction.Amount
-                                        Payee = Some p.Request.PayeeName
-                                        Memo = Some p.Request.Memo
-                                        ReviewSteps = tx.ReviewSteps
-                                        // Normaler Import-Push: Suche und Versand teilen
-                                        // sich dieselbe ImportId (ledger-fq3kd).
-                                        ExistingEntryImportId = None
-                                    } : Ledger.CommandHandlers.ComdirectImportCandidate))
+                                buildComdirectImportCandidates false toImport prepared
 
                             let now = DateTime.UtcNow
                             let push preparedList = sendPrepared token (YnabBudgetId budgetId) preparedList
@@ -1364,35 +1388,13 @@ let syncApi : SyncApi = {
                             let today = DateTime.Today
                             // Force import with NEW import_ids (forceNewImportId = true):
                             // nur für YNABs Dedup. Die Kassenbuch-Suche läuft über die
-                            // alte, deterministische ImportId (ExistingEntryImportId
-                            // unten), nicht über diese neue (ledger-fq3kd).
+                            // alte, deterministische ImportId
+                            // (`buildComdirectImportCandidates true`, ledger-w6tbq), nicht
+                            // über diese neue (ledger-fq3kd).
                             let prepared = prepareTransactions today ynabAccountId transferPayees true transactionsToForce
 
-                            let byTransactionId =
-                                transactionsToForce |> List.map (fun tx -> tx.Transaction.Id, tx) |> Map.ofList
-
                             let candidates =
-                                prepared.ToSend
-                                |> List.map (fun p ->
-                                    let tx = Map.find p.TransactionId byTransactionId
-                                    // Payee/Memo wie gesendet (wie beim normalen
-                                    // Import-Push, Verifier-Fund ledger-qvt84 Iteration 3).
-                                    ({
-                                        Prepared = p
-                                        ComdirectReference = tx.Transaction.Reference
-                                        Date = tx.Transaction.BookingDate
-                                        Amount = tx.Transaction.Amount
-                                        Payee = Some p.Request.PayeeName
-                                        Memo = Some p.Request.Memo
-                                        ReviewSteps = tx.ReviewSteps
-                                        // Die schon bestehende Kassenbuch-Buchung wurde
-                                        // vom normalen Push mit der alten,
-                                        // deterministischen ImportId geschrieben; sie
-                                        // muss wiedergefunden und neu verknüpft werden,
-                                        // statt eine zweite "Comdirect-Import"-Buchung
-                                        // anzulegen (ledger-fq3kd).
-                                        ExistingEntryImportId = Some (Shared.Domain.generateImportId p.TransactionId)
-                                    } : Ledger.CommandHandlers.ComdirectImportCandidate))
+                                buildComdirectImportCandidates true transactionsToForce prepared
 
                             let now = DateTime.UtcNow
                             let push preparedList = sendPrepared token (YnabBudgetId budgetId) preparedList

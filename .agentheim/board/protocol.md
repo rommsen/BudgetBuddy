@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-21 16:28 -- Task verified and completed: ledger-w6tbq - "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
+
+**Type:** Work / Task completion
+**Task:** ledger-w6tbq - "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln"
+**Summary:** Force-Import und normaler Push teilen sich buildComdirectImportCandidates, die einzige Stelle die ExistingEntryImportId setzt; drei Tests halten die gesuchte ImportId gegen die vom normalen Push tatsaechlich vergebene
+**Duration:** 1h38m
+**Verification:** PASS (iteration 2)
+**Files changed:** 3
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
+## 2026-09-21 16:12 -- Verification failed: ledger-w6tbq - Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln
+
+**Type:** Work / Verification failure
+**Task:** ledger-w6tbq - Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln
+**Iteration:** 1 of 3
+**Reasons:** Kriterium 5 nur zu einem Viertel abgedeckt (nur ComdirectReference, nicht Date/Amount/ReviewSteps); Kriterium 1 mit einer statt drei SyncTransaction gebaut, wodurch die Zuordnung Rohdaten-zu-Vorbereitung ungeprueft bleibt: eine Mutation von Map.find auf List.head laesst alle vier Tests gruen; Kriterium 3 als Einzelpruefung statt List.forall
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-21 16:07 -- Task verified and completed: ledger-c4mzp - "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen"
 
 **Type:** Work / Task completion
