@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-24 07:21 -- Capture / Captured: ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf die beiden Ansichts-Rümpfe eingrenzen, statt über die ganze Datei"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Die Platzhalter-Zaehlung in LedgerViewTests bindet auch Kommentarprosa; auf die beiden Ansichts-Ruempfe eingrenzen
+
+---
+
 ## 2026-09-21 16:29 -- Work session ended
 
 **Type:** Work / Session end
