@@ -1,7 +1,7 @@
 ---
 id: ledger-f8q2x
 title: "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-09-19

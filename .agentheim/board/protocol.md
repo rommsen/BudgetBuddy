@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 16:26 -- Batch started: [ledger-nnn47, ledger-j8xq4, ledger-f8q2x]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf", ledger-j8xq4 - "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC", ledger-f8q2x - "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren"
+**Parallel:** yes (3 workers, cap 3, wave 4, the last three ready tasks). ledger-nnn47 and ledger-j8xq4 both touch src/Tests/LedgerViewTests.fs: merged sequentially, ledger-nnn47 first.
+
+---
+
 ## 2026-09-25 16:24 -- Task verified and completed: ledger-h6ptn - "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
 
 **Type:** Work / Task completion

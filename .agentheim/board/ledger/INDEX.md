@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 13
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 3
 - **Done:** 41
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `todo/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
-- **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `todo/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
-- **ledger-nnn47** — "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf" (chore) — `todo/ledger-nnn47-platzhalter-zaehlung-auf-die-ansichts-ruempfe-eingrenzen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `doing/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
+- **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `doing/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
+- **ledger-nnn47** — "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf" (chore) — `doing/ledger-nnn47-platzhalter-zaehlung-auf-die-ansichts-ruempfe-eingrenzen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

@@ -1,7 +1,7 @@
 ---
 id: ledger-nnn47
 title: "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-09-24
