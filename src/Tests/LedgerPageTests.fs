@@ -1021,6 +1021,11 @@ let private pageTestAccountAC = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-
 let private pageTestAccountAD = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000027")
 let private pageTestAccountAE = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000028")
 let private pageTestAccountAF = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000029")
+// Konten AG..AJ (ledger-h4qtx): Payee-Vorschläge falten wie der Payee-Filter.
+let private pageTestAccountAG = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002a")
+let private pageTestAccountAH = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002b")
+let private pageTestAccountAI = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002c")
+let private pageTestAccountAJ = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002d")
 
 // `D3` statt `D2`, ein Prefix-Nullen weniger (`000000000` statt `0000000000`): für
 // n=0..99 liefert das exakt dieselbe Guid wie zuvor (`n:D3` mit vier statt drei
@@ -2303,6 +2308,140 @@ let ledgerPagingTests =
             // Iteration senken, nicht den Test flackern lassen.
             Expect.isLessThan sw.Elapsed.TotalSeconds 2.0
                 $"Seeding plus Abfrage über 1000 Buchungen blieb unter 2s (tatsächlich: {sw.Elapsed.TotalSeconds:F2}s)"
+
+        // ============================================
+        // Payee-Vorschläge falten wie der Payee-Filter (ledger-h4qtx, ADR 0037)
+        // ============================================
+
+        testCase "AC1+AC6: 'Rewe' und 'REWE' liefern einen Vorschlag mit Anzahl n+m, die Anzahl stimmt mit dem Filter-Treffer überein" <| fun () ->
+            seedEntryFull pageTestAccountAG 220 -1m (DateTime(2026, 9, 1)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAG 221 -2m (DateTime(2026, 9, 2)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAG 222 -3m (DateTime(2026, 9, 3)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAG 223 -4m (DateTime(2026, 9, 4)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAG 224 -5m (DateTime(2026, 9, 5)) (Some "REWE") None None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAG) = pageTestAccountAG
+            let suggestions =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions (baseSuggestionQuery (Some rawAG))
+                |> Async.RunSynchronously
+
+            Expect.equal (List.length suggestions) 1
+                "'Rewe' (2x) und 'REWE' (3x) gehören zu einem einzigen Vorschlag, nicht zwei getrennten"
+            let suggestion = List.head suggestions
+            Expect.equal suggestion.Count 5 "die Anzahl ist die Summe beider Schreibweisen (2 + 3)"
+            Expect.equal suggestion.Payee "REWE" "AC3: die häufigere Schreibweise (3x) gewinnt gegenüber der selteneren (2x)"
+
+            // AC6: die Anzahl am Vorschlag muss mit der Treffermenge übereinstimmen,
+            // wenn genau dieser Payee als Filter gewählt wird.
+            let filtered =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAG) with Payee = Some suggestion.Payee }
+                |> Async.RunSynchronously
+            Expect.equal filtered.TotalCount suggestion.Count
+                "ein Filter auf die vorgeschlagene Schreibweise liefert genau so viele Buchungen, wie der Vorschlag verspricht"
+
+        testCase "AC2 (Umlaut): 'MÜLLER GMBH' und 'Müller GmbH' liefern einen Vorschlag mit Anzahl n+m" <| fun () ->
+            // Ohne ledger-k3wqn (ADR 0037, bb_lower) wäre dies rot: eine reine
+            // COLLATE-NOCASE-Faltung erreicht Umlaute nicht.
+            seedEntryFull pageTestAccountAH 225 -1m (DateTime(2026, 9, 1)) (Some "MÜLLER GMBH") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAH 226 -2m (DateTime(2026, 9, 2)) (Some "MÜLLER GMBH") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAH 227 -3m (DateTime(2026, 9, 3)) (Some "Müller GmbH") None None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAH) = pageTestAccountAH
+            let suggestions =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions (baseSuggestionQuery (Some rawAH))
+                |> Async.RunSynchronously
+
+            Expect.equal (List.length suggestions) 1
+                "'MÜLLER GMBH' (2x) und 'Müller GmbH' (1x) gehören zu einem einzigen Vorschlag"
+            let suggestion = List.head suggestions
+            Expect.equal suggestion.Count 3 "die Anzahl ist die Summe beider Schreibweisen (2 + 1)"
+            Expect.equal suggestion.Payee "MÜLLER GMBH" "die häufigere Schreibweise (2x) gewinnt"
+
+        testCase "AC3: Anzeige-Schreibweise ist die häufigste, bei Gleichstand die lexikografisch kleinste nach Ordinalvergleich" <| fun () ->
+            // Eindeutige Mehrheit: 'REWE' (3x) schlägt 'Rewe' (1x).
+            seedEntryFull pageTestAccountAI 228 -1m (DateTime(2026, 9, 1)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAI 229 -2m (DateTime(2026, 9, 2)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAI 230 -3m (DateTime(2026, 9, 3)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAI 231 -4m (DateTime(2026, 9, 4)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+
+            // Gleichstand: 'Netto' (2x) und 'netto' (2x), ordinal ist 'N' (0x4E) kleiner als
+            // 'n' (0x6E), 'Netto' gewinnt also den Tiebreak, nicht die Mehrheit (es
+            // gibt keine), und nicht 'zufällig' die zuerst gesäte Schreibweise.
+            seedEntryFull pageTestAccountAI 232 -5m (DateTime(2026, 9, 5)) (Some "netto") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAI 233 -6m (DateTime(2026, 9, 6)) (Some "netto") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAI 234 -7m (DateTime(2026, 9, 7)) (Some "Netto") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAI 235 -8m (DateTime(2026, 9, 8)) (Some "Netto") None None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAI) = pageTestAccountAI
+            let suggestions =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions (baseSuggestionQuery (Some rawAI))
+                |> Async.RunSynchronously
+
+            let rewe = suggestions |> List.tryFind (fun s -> Persistence.searchFold s.Payee = "rewe")
+            let netto = suggestions |> List.tryFind (fun s -> Persistence.searchFold s.Payee = "netto")
+
+            Expect.equal (rewe |> Option.map (fun s -> s.Payee, s.Count)) (Some ("REWE", 4))
+                "eindeutige Mehrheit: 'REWE' (3x) gewinnt gegen 'Rewe' (1x), Anzahl ist die Summe"
+            Expect.equal (netto |> Option.map (fun s -> s.Payee, s.Count)) (Some ("Netto", 4))
+                "Gleichstand (2x/2x): 'Netto' gewinnt den Ordinal-Tiebreak gegen 'netto' ('N' < 'n')"
+
+        testCase "AC4: SQL-Zweig (ohne Betragsfilter) und F#-Zweig (mit Betragsfilter) liefern dieselbe Gruppierung und Anzeige-Schreibweise" <| fun () ->
+            seedEntryFull pageTestAccountAJ 236 -1m (DateTime(2026, 9, 1)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAJ 237 -2m (DateTime(2026, 9, 2)) (Some "Rewe") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAJ 238 -3m (DateTime(2026, 9, 3)) (Some "REWE") None None
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAJ 239 -4m (DateTime(2026, 9, 4)) (Some "Aldi") None None
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAJ) = pageTestAccountAJ
+            let sqlPath =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions (baseSuggestionQuery (Some rawAJ))
+                |> Async.RunSynchronously
+            // Ein Intervall, das alle vier Buchungen einschließt, zwingt den
+            // F#-Zweig (`hasAmountFilter`, ADR 0017/0036), ohne den Treffer
+            // einzuschränken.
+            let amountPath =
+                Ledger.QueryHandlers.getLedgerPayeeSuggestions
+                    { baseSuggestionQuery (Some rawAJ) with AmountMin = Some -1000m; AmountMax = Some 0m }
+                |> Async.RunSynchronously
+
+            let sorted (suggestions: LedgerPayeeSuggestion list) =
+                suggestions |> List.sortBy (fun s -> s.Payee) |> List.map (fun s -> s.Payee, s.Count)
+
+            let expected = [ "Aldi", 1; "REWE", 3 ]
+            Expect.equal (sorted sqlPath) expected "SQL-Zweig: 'REWE'/'Rewe' zu einem Vorschlag gefaltet, 'Aldi' für sich"
+            Expect.equal (sorted amountPath) expected "F#-Zweig (Betragsfilter): dieselbe Gruppierung und Anzeige-Schreibweise wie der SQL-Zweig"
+
+        testCase "AC5: loadPayeeSuggestions enthält keine eigene Groß-/Kleinschreibungs-Faltung, nur Core.searchFold" <| fun () ->
+            // Quelltext-Zusicherung nach dem Muster von AC13: eine zweite,
+            // eigenständige Normalisierung (statt der gemeinsamen `Core.searchFold`)
+            // wäre hier still möglich, ohne dass ein Verhaltens-Test es zwingend
+            // aufdeckt, solange sie zufällig dasselbe Ergebnis liefert.
+            let testDir = __SOURCE_DIRECTORY__
+            let repoRoot = Directory.GetParent(Directory.GetParent(testDir).FullName).FullName
+            let persistenceFsPath = Path.Combine(repoRoot, "src", "Server", "Ledger", "Persistence.fs")
+            let text = File.ReadAllText persistenceFsPath
+
+            Expect.isFalse (Regex.IsMatch(text, @"\.ToLower\b|\.ToUpper\b|\.Replace\("))
+                "keine eigene ToLower/ToUpper/Replace-Faltung in Ledger.Persistence, nur Core.searchFold (ADR 0037)"
     ]
 
 [<Tests>]

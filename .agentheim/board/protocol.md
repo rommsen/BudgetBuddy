@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 15:48 -- Task verified and completed: ledger-h4qtx - "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)"
+
+**Type:** Work / Task completion
+**Task:** ledger-h4qtx - "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)"
+**Summary:** Payee-Vorschläge gruppieren über dieselbe Faltung wie der Payee-Filter
+**Duration:** 15m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 5
+**ADRs written:** 0042
+
+---
+
 ## 2026-09-25 15:29 -- Batch started: [ledger-h6ptn, ledger-h4qtx, design-system-w4n9r]
 
 **Type:** Work / Batch start

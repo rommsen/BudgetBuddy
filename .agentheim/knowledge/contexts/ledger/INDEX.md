@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0042**: Payee-Vorschläge über eine gemeinsame F#-Faltung (`groupFoldedPayeeCounts`, `Core.searchFold`) gruppieren statt über `GROUP BY bb_lower(payee)`, weil SQLite die angezeigte Schreibweise einer nicht gruppierten Spalte offenlässt; häufigste Schreibweise gewinnt, bei Gleichstand die ordinal kleinste (2026-09-25), `../../decisions/0042-payee-vorschlaege-faltung-in-fsharp-statt-group-by-bb-lower.md`
 - **0037** — Groß-/Kleinschreibung der Payee- und Memo-Filter über die anwendungsdefinierte SQL-Funktion `bb_lower` falten statt über `COLLATE NOCASE` (faltet nur ASCII, und `LIKE` ignoriert Kollationen); Lesepfad statt Normalform-Spalte, keine Diakritika-Entfernung — 2026-09-20 — `knowledge/decisions/0037-suchfilter-falten-ueber-anwendungsdefinierte-sql-funktion.md`
 - **0036** — Kassenbuch-Suchfilter über eine gemeinsame `EntryFilter`/`buildFilterClause` für alle vier Zählwege plus Payee-Vorschläge; Betrag wird nie in SQL verglichen, sondern in F# nachgefiltert (ADR 0017), Zeitraum kind-unabhängig über `substr(date,1,10)` — 2026-09-19 — `knowledge/decisions/0036-kassenbuch-filter-lesepfad-betrag-in-fsharp.md`
 - **0032** — Geprüft heißt approved und cleared; Flags werden roh beobachtet, "Lena" am Flag-Namen erkannt — 2026-09-14 — `../../decisions/0032-pruefvermerk-ist-approved-und-cleared-flags-roh-beobachtet.md`

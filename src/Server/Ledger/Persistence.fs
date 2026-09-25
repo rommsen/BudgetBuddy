@@ -932,12 +932,48 @@ let loadAmountsForQuery (accountId: LedgerAccountId option) (filter: EntryFilter
 [<CLIMutable>]
 type private PayeeCountRow = { payee: string; cnt: int64 }
 
+/// Fasst literale Payee-Zählungen (eine Zeile je tatsächlich vorkommender
+/// Schreibweise, z. B. aus `GROUP BY payee`) zu den eigentlichen Vorschlägen
+/// zusammen: gruppiert über `Core.searchFold` (dieselbe Faltung wie der
+/// Payee-Filter selbst, ADR 0037), summiert die Anzahl je gefalteter Gruppe und
+/// wählt als Anzeige-Schreibweise die häufigste vorkommende Schreibweise, bei
+/// Gleichstand die lexikografisch kleinste nach Ordinalvergleich (ledger-h4qtx).
+/// Beide Zweige von `loadPayeeSuggestions` rufen ausschließlich diese eine
+/// Funktion auf, damit ihre Gruppierung nicht auseinanderlaufen kann. Bewusst
+/// NICHT `GROUP BY bb_lower(payee)` in SQL: SQLite legt bei einer Aggregation
+/// ohne `MIN`/`MAX` nicht fest, welche Zeile ein nicht gruppiertes Feld wie
+/// `payee` liefert (SQLite-Dokumentation: "the specific value returned for bare
+/// columns in aggregate queries is undefined" ohne `min()`/`max()`). Das hätte
+/// die Anzeige-Schreibweise dem Ausführungsplan überlassen, nicht der hier
+/// getroffenen Entscheidung.
+let private groupFoldedPayeeCounts (literalCounts: (string * int) list) : (string * int) list =
+    literalCounts
+    |> List.groupBy (fun (payee, _) -> Core.searchFold payee)
+    |> List.map (fun (_, group) ->
+        let totalCount = group |> List.sumBy snd
+        let display =
+            group
+            |> List.sortWith (fun (payeeA, countA) (payeeB, countB) ->
+                if countA <> countB then
+                    compare countB countA
+                else
+                    String.CompareOrdinal(payeeA, payeeB))
+            |> List.head
+            |> fst
+        display, totalCount)
+    |> List.sortByDescending snd
+
 /// Die Payees eines Treffers samt ihrer Anzahl **innerhalb dieses Treffers**
 /// (ledger-vgfw3 AC, ADR 0036) — nicht über alle Buchungen, nicht über die geladene
 /// Seite. `filter.Payee` ist bei diesem Aufruf erwartungsgemäß `None` (der Aufrufer,
 /// `getLedgerPayeeSuggestions`, übergibt nie einen bereits gewählten Payee-Filter);
 /// wäre er trotzdem gesetzt, würde er wie jeder andere Filter mitwirken, statt
 /// stillschweigend ignoriert zu werden.
+///
+/// Beide Schreibweisen desselben Payees (z. B. "Rewe" und "REWE") gehören zu
+/// einem Vorschlag, nicht zu zwei getrennten (ledger-h4qtx, ADR 0037): dieselbe
+/// Faltung wie der Payee-Filter selbst, über die gemeinsame
+/// `groupFoldedPayeeCounts`.
 let loadPayeeSuggestions (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<(string * int) list> =
     async {
         if hasAmountFilter filter then
@@ -947,17 +983,17 @@ let loadPayeeSuggestions (accountId: LedgerAccountId option) (filter: EntryFilte
                 |> List.filter (fun e -> amountMatches filter e.Amount.Amount)
                 |> List.choose (fun e -> e.Payee)
                 |> List.countBy id
-                |> List.sortByDescending snd
+                |> groupFoldedPayeeCounts
         else
             use conn = Core.getConnection ()
             let whereSql, ps = buildFilterClause accountId filter
             let! rows =
                 conn.QueryAsync<PayeeCountRow>(
-                    $"SELECT payee, COUNT(*) as cnt FROM ledger_entries WHERE {whereSql} AND payee IS NOT NULL GROUP BY payee ORDER BY cnt DESC",
+                    $"SELECT payee, COUNT(*) as cnt FROM ledger_entries WHERE {whereSql} AND payee IS NOT NULL GROUP BY payee",
                     ps
                 )
                 |> Async.AwaitTask
-            return rows |> Seq.map (fun r -> r.payee, int r.cnt) |> Seq.toList
+            return rows |> Seq.map (fun r -> r.payee, int r.cnt) |> Seq.toList |> groupFoldedPayeeCounts
     }
 
 [<CLIMutable>]

@@ -1,7 +1,7 @@
 ---
 id: ledger-h4qtx
 title: "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)"
-status: doing
+status: done
 type: chore
 context: ledger
 created: 2026-09-19
@@ -9,7 +9,7 @@ completed:
 depends_on: [ledger-vgfw3, ledger-k3wqn]
 blocks: []
 tags: [backend, kassenbuch, filter, suche]
-related_adrs: [0036, 0037]
+related_adrs: [0036, 0037, 0042]
 related_research: []
 prior_art: [ledger-vgfw3, ledger-k3wqn]
 ---
@@ -105,3 +105,64 @@ können: SQLite lehnt anwendungsdefinierte Funktionen in Index-Ausdrücken ab, a
 `isDeterministic = true` (bei `ledger-k3wqn` nachgemessen). Auf `payee` gibt es heute ohnehin
 keinen Index, es geht also nichts verloren. Bei rund 14.000 Buchungen unproblematisch, siehe
 die Messungen in ADR 0037.
+
+## Outcome
+
+`Ledger.Persistence.loadPayeeSuggestions` gruppiert Payees jetzt über dieselbe Faltung wie
+der Payee-Filter selbst (`Core.searchFold`, ADR 0037): "Rewe" und "REWE" erscheinen als ein
+Vorschlag mit der Summe beider Anzahlen, nicht als zwei getrennte. Die Anzeige-Schreibweise
+ist die häufigste vorkommende, bei Gleichstand die lexikografisch kleinste nach
+Ordinalvergleich (`System.String.CompareOrdinal`), die in der Aufgabe getroffene
+Entscheidung. Eine neue, gemeinsame Funktion `groupFoldedPayeeCounts`
+(`src/Server/Ledger/Persistence.fs`) trägt diese Logik; beide Zweige von
+`loadPayeeSuggestions` (SQL-Zweig ohne Betragsfilter, F#-Zweig mit aktivem Betragsfilter,
+ADR 0017/0036) rufen ausschließlich sie auf, damit ihre Gruppierung nicht auseinanderlaufen
+kann.
+
+**Abweichung von der Task-Vorgabe, dokumentiert in ADR 0042:** der SQL-Zweig behält
+`GROUP BY payee` (literale Schreibweise) statt auf `GROUP BY bb_lower(payee)`
+umzustellen. Grund: SQLite legt ohne `MIN()`/`MAX()` nicht fest, welche Zeile ein nicht
+gruppiertes Feld wie `payee` in einer Aggregatabfrage liefert ("the specific value
+returned for bare columns in aggregate queries is undefined"): die konkrete
+Anzeige-Schreibweise hinge damit vom Ausführungsplan ab, nicht von der getroffenen
+Tiebreak-Regel. `GROUP BY payee` liefert bereits literale Zählungen (eine kleine, von der
+Datenbank aggregierte Menge, kein Laden aller ~14.000 Buchungen); `groupFoldedPayeeCounts`
+faltet sie danach deterministisch in F#. Zähl-Verhalten und Anzeige-Schreibweise sind
+dadurch identisch zu dem, was `GROUP BY bb_lower(payee)` an Zählung geliefert hätte, nur
+ohne dessen Undefiniertheit bei der Schreibweise.
+
+Fünf neue Tests in `src/Tests/LedgerPageTests.fs` (Testgruppe "Kassenbuch-Seite:
+seitenweise Liste und Kontostaende (Persistence)", neuer Abschnitt "Payee-Vorschläge
+falten wie der Payee-Filter"):
+- AC1+AC6: "Rewe"(2x)/"REWE"(3x) liefern einen Vorschlag mit Anzahl 5, Anzeige "REWE"
+  (Mehrheit); ein Filter auf diese Schreibweise liefert genau 5 Treffer.
+- AC2 (Umlaut): "MÜLLER GMBH"(2x)/"Müller GmbH"(1x) liefern einen Vorschlag mit Anzahl 3.
+  Ohne `ledger-k3wqn` (ADR 0037, `bb_lower`) wäre dies rot, eine reine
+  `COLLATE NOCASE`-Faltung erreicht Umlaute nicht.
+- AC3: Mehrheitsfall ("REWE" 3x schlägt "Rewe" 1x) und Gleichstandsfall ("Netto" 2x
+  gegen "netto" 2x, Ordinal-Tiebreak: 'N' < 'n') in einem Test.
+- AC4: SQL-Zweig (kein Betragsfilter) und F#-Zweig (weiter Betragsfilter, erzwingt
+  `hasAmountFilter`) liefern identische Gruppierung und Anzeige-Schreibweise.
+- AC5: Quelltext-Zusicherung (nach dem Muster von AC13), dass
+  `src/Server/Ledger/Persistence.fs` keine eigene `ToLower`/`ToUpper`/`Replace`-Faltung
+  enthält, nur `Core.searchFold`.
+
+Rot-vor-Grün per Analyse bestätigt (nicht per Ausführung des alten Codes, da Test und Fix
+im selben Durchgang entstanden): der Vorzustand gruppierte im SQL-Zweig über
+`GROUP BY payee ORDER BY cnt DESC` und im F#-Zweig über `List.countBy id`, beide auf
+literaler Schreibweise ohne Faltung: "Rewe" und "REWE" hätten dort zwei Einträge ergeben,
+`List.length suggestions = 1` in AC1 und AC2 wäre damit rot gewesen.
+
+Nicht angefasst: `buildFilterClause`, der Payee-/Memo-Filter selbst, die vier anderen
+Zählwege (`loadEntriesPage`, `countEntries`, `loadAmountsForQuery`,
+`countDeletedEntries`) und die Quelltext-Zusicherung AC13 (fünf `loadAllMatching`-Aufrufe,
+fünf `hasAmountFilter`-Gabelungen), die unverändert bleibt, weil diese Aufgabe keine
+sechste Gabelung einführt.
+
+Tests: `dotnet build` (0 Warnungen, 0 Fehler) und `dotnet test` beide grün, 1030
+erfolgreich / 7 übersprungen (`.env`-gebunden, vorbestehend) / 0 fehlgeschlagen.
+
+Schlüsseldateien:
+- `src/Server/Ledger/Persistence.fs`: `groupFoldedPayeeCounts` (neu),
+  `loadPayeeSuggestions` (beide Zweige rufen sie jetzt auf)
+- `src/Tests/LedgerPageTests.fs`: fünf neue Testfälle, Konten AG-AJ
