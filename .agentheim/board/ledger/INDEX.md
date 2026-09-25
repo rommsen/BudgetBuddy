@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
-- **Todo:** 4
+- **Backlog:** 12
+- **Todo:** 5
 - **Doing:** 0
 - **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `todo/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
 - **ledger-qns4j** — "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen" (bug) — `todo/ledger-qns4j-konten-spalte-haftend-und-statusspalte-neu-belegen.md`
 - **ledger-xk9wq** — "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen" (feature) — `todo/ledger-xk9wq-kategorie-filter-im-kassenbuch-lesepfad-erfasst-keine-split.md`
 - **ledger-h4qtx** — "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)" (chore) — `todo/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
@@ -69,7 +70,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **ledger-saqsk** — "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden" (feature) — `backlog/ledger-saqsk-chip-ohne-kategorie-in-der-filterleiste.md`
-- **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `backlog/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
 - **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `backlog/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 - **ledger-h4nxz** — "Split-Zeilen-Überträge: transfer_transaction_id auf Subtransaction-Ebene fehlt im Beobachtungs-Contract" (decision) — `backlog/ledger-h4nxz-split-zeilen-bertr-ge-transfer-transaction-id-auf-subtransac.md`
 - **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `backlog/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
