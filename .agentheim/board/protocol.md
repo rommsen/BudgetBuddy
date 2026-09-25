@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:55 -- Modeling / Refined: design-system-thtpp - Waechter gegen undefinierte Klassennamen
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** backlog
+**Summary:** Orchestrator (architect-Route) hat die vier offenen Fragen entschieden: Kern als Node-Skript unter scripts/ mit @tailwindcss/node __unstable__loadDesignSystem als Utility-Orakel (kein Build noetig), Aufruf aus Expecto per Subprozess wie FontFaceRegressionTests, dynamische Tokens ueber Tokens.fs-Literale aufloesen, Ausnahmeliste als JSON mit mechanisierter Veraltet-Pruefung. Probe fand zwei echte Funde (ErrorDisplay.warning ohne --color-warning, qa-page), die der Task mit repariert.
+
+---
+
 ## 2026-09-25 10:53 -- Modeling / Promoted: ledger-h6ptn - "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
 
 **Type:** Modeling / Promote
