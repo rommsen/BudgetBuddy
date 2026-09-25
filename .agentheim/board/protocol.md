@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Refined: ledger-nnn47 - Platzhalter-Zaehlung in LedgerViewTests auf Code eingrenzen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** Entscheidung fuer Kommentarzeilen-Ausnahme statt Einschraenkung auf zwei Ansichts-Ruempfe (Modulweite bleibt); Helfer withoutCommentLines mit eigenem Test; View.fs bleibt unangetastet, der Doc-Kommentar wandert zu ledger-h6ptn (blocks).
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Captured: ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
 
 **Type:** Modeling / Capture
