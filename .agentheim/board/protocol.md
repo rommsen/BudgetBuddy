@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 16:04 -- Task verified and completed: design-system-w4n9r - "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern"
+
+**Type:** Work / Task completion
+**Task:** design-system-w4n9r - "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern"
+**Summary:** Automatischer Test für den Design-System-Export, und das Skript prüft sein Bundle selbst auf Vollständigkeit
+**Duration:** 42m
+**Verification:** PASS (iteration 2)
+**Files changed:** 3
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
+## 2026-09-25 15:49 -- Verification failed: design-system-w4n9r - Automatischer Test für den Design-System-Export
+
+**Type:** Work / Verification failure
+**Task:** design-system-w4n9r - Automatischer Test für den Design-System-Export
+**Iteration:** 1 of 3
+**Reasons:** Das Export-Skript ruft expectedBundleFiles nicht selbst auf, die Funktion ist damit eine zweite, von Hand gepflegte Dateiliste (AC1), Outcome behauptet das Gegenteil
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 15:48 -- Task verified and completed: ledger-h4qtx - "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)"
 
 **Type:** Work / Task completion

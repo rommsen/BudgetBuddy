@@ -145,10 +145,18 @@ Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
   begrenzte Container (Styleguide-Galerie, Export-Bundle). Bewusst additive Funktionen
   statt eines `transform`-Containment-Tricks auf den echten (fixen)
   Navigationskomponenten (siehe `.claude/rules/css-animation-safety.md`).
-- Verifikation ist manuell (kein E2E-Harness im Repo): zweifacher Lauf, byte-identisches
-  Bundle (Idempotenz); Screenshot-Vergleich Live-Route vs. exportierte Preview-Dateien;
-  headless `document.fonts`-Check. Nachrüstung einer automatisierten Absicherung:
-  `design-system-w4n9r` (Backlog).
+- Verifikation: automatisiert über `npm run test:scripts`
+  (`scripts/export-design-system.test.mjs`, design-system-w4n9r). Browserfrei geprüft:
+  `resolveOutDir`, `expectedBundleFiles`, `findMissingBundleFiles` (dieselbe Funktion,
+  die `main()` im Skript selbst am Ende jedes Exports aufruft und den Export
+  fehlschlagen lässt, wenn eine erwartete Bundle-Datei fehlt oder leer ist) sowie ein
+  Regressionsanker auf die 16 bekannten Komponenten-Karten-IDs. Browsergebunden: ein
+  echter Vollauf in ein temporäres Verzeichnis (`DS_EXPORT_OUT_DIR`), der jede
+  erwartete Datei, jeden `@dsCard`-Marker und die Fonts prüft; ohne Browser wird
+  dieser Test mit benanntem Grund übersprungen. Ergänzend weiterhin manuell:
+  zweifacher Lauf auf byte-identisches Bundle (Idempotenz) und
+  Screenshot-Vergleich Live-Route gegen exportierte Preview-Dateien, beide nicht
+  Teil dieser Aufgabe.
 - Hochladen nach Claude Design ist **kein Worker-Task** (kein `DesignSync`-Zugriff, jeder
   Schreibplan wird von Roman freigegeben): das macht `design-system-h58y4`.
 

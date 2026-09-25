@@ -43,7 +43,26 @@ import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
-const OUT_DIR = path.join(ROOT, "dist", "design-system");
+
+/// Reine, exportierte Auflösung des Zielverzeichnisses (design-system-w4n9r):
+/// `DS_EXPORT_OUT_DIR` (absoluter Pfad) überschreibt die Vorgabe
+/// `<root>/dist/design-system`. Ohne Build/Playwright testbar; der Vollauf-Test
+/// nutzt sie, um das Bundle in ein `mkdtemp`-Verzeichnis statt in den Repo-Baum
+/// zu schreiben, ohne das Skript selbst zu verzweigen.
+export function resolveOutDir(env, root) {
+  const override = env.DS_EXPORT_OUT_DIR;
+  if (override === undefined || override === "") {
+    return path.join(root, "dist", "design-system");
+  }
+  if (!path.isAbsolute(override)) {
+    throw new Error(
+      `DS_EXPORT_OUT_DIR muss ein absoluter Pfad sein, erhalten: ${override}`
+    );
+  }
+  return override;
+}
+
+const OUT_DIR = resolveOutDir(process.env, ROOT);
 const PREVIEW_DIR = path.join(OUT_DIR, "preview");
 const ASSETS_DIR = path.join(OUT_DIR, "assets");
 
@@ -51,7 +70,7 @@ const ASSETS_DIR = path.join(OUT_DIR, "assets");
 // (design-system-y6gkd: alle Sektionen von /#/styleguide außer Colors/Type/Brand
 // (aus Tokens generiert, s. writeTokenAndBrandPreviews) und Voice (reiner Text,
 // steht in README/SKILL statt in einer Karte)).
-const COMPONENT_CARDS = [
+export const COMPONENT_CARDS = [
   { id: "components-card", title: "Card", group: "Components" },
   { id: "components-money", title: "Money", group: "Components" },
   { id: "components-badge", title: "Badge", group: "Components" },
@@ -80,6 +99,47 @@ const COMPONENT_CARDS = [
 const BOTTOMSHEET_CARD = { id: "components-bottomsheet", title: "BottomSheet", group: "Components" };
 const CATEGORY_PICKER_CARD = { id: "components-categorypicker", title: "Kategorienauswahl", group: "Components" };
 const MODAL_CARD = { id: "components-modal", title: "Modal", group: "Components" };
+
+/// Reine, exportierte Soll-Liste des Bundles relativ zur Bundle-Wurzel
+/// (design-system-w4n9r): die fünf festen Dateien plus genau ein
+/// `preview/<id>.html` je übergebener Karte. Der Vollauf-Test bezieht seine
+/// Erwartung aus dieser Funktion (mit `COMPONENT_CARDS`), statt die Liste ein
+/// zweites Mal von Hand zu pflegen; ändert sich `COMPONENT_CARDS`, wandert der
+/// Test mit. Bewusst außen vor: die aus Tokens generierten Karten
+/// (`color-neon`, `color-surfaces`, `type-fonts`, `brand-icon`) sowie die
+/// Portal-Karten (BottomSheet, Kategorienauswahl, Modal): die Soll-Liste
+/// deckt nur die per `COMPONENT_CARDS` deklarierten Komponenten-Karten ab.
+export function expectedBundleFiles(cards) {
+  const fixed = [
+    "colors_and_type.css",
+    "styles.css",
+    "README.md",
+    "SKILL.md",
+    "fonts/LICENSE.md",
+  ];
+  const previews = cards.map((card) => `preview/${card.id}.html`);
+  return [...fixed, ...previews];
+}
+
+/// Prüft, ob jede Datei aus `expectedBundleFiles(cards)` unter `outDir` existiert
+/// und nicht leer ist (design-system-w4n9r, Verifier-Fund Iteration 1: das Skript
+/// muss seine eigene Soll-Liste tatsächlich benutzen statt nur der Test). `statFn`
+/// ist injizierbar (Vorgabe: `node:fs/promises`' `stat`), damit die Prüfung ohne
+/// echten Export gegen ein präpariertes Verzeichnis getestet werden kann. Liefert
+/// die fehlenden oder leeren Einträge relativ zu `outDir`, leeres Array bei
+/// vollständigem Bundle.
+export async function findMissingBundleFiles(outDir, cards, statFn = stat) {
+  const missing = [];
+  for (const rel of expectedBundleFiles(cards)) {
+    try {
+      const info = await statFn(path.join(outDir, rel));
+      if (!info.isFile() || info.size === 0) missing.push(rel);
+    } catch {
+      missing.push(rel);
+    }
+  }
+  return missing;
+}
 
 function log(msg) {
   console.log(`[export-design-system] ${msg}`);
@@ -754,6 +814,16 @@ async function main() {
   }
 
   await verifyFontsLoaded();
+
+  // AC1: das Skript benutzt seine eigene Soll-Liste (expectedBundleFiles) auch
+  // selbst, statt sie nur dem Test zu überlassen (Verifier-Fund Iteration 1).
+  const missing = await findMissingBundleFiles(OUT_DIR, COMPONENT_CARDS);
+  if (missing.length > 0) {
+    throw new Error(
+      `Export unvollständig, folgende erwartete Dateien fehlen oder sind leer unter ` +
+        `${OUT_DIR}: ${missing.join(", ")}`
+    );
+  }
 
   log(`Fertig: ${OUT_DIR}`);
 }

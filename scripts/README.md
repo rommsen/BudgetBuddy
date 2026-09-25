@@ -142,6 +142,37 @@ dotnet test
 
 **Note:** The Comdirect integration tests only go up to the TAN challenge step, as TAN confirmation cannot be automated. For full end-to-end testing, use the `test-comdirect.fsx` script.
 
+## Node-Skript-Tests (`npm run test:scripts`)
+
+Die `.mjs`-Skripte in diesem Ordner (`export-design-system.mjs`, `screenshot-route.mjs`,
+`tailwind-class-guard.mjs`, `readme-delta-check.mjs`) haben eigene Tests über Node's
+eingebauten Test-Runner, keine neue Abhängigkeit:
+
+```bash
+npm run test:scripts
+```
+
+Das läuft `node --test scripts/*.test.mjs`; jede neue `*.test.mjs`-Datei wird über diesen
+Glob automatisch mitgenommen, ohne `package.json` anzufassen.
+
+`export-design-system.test.mjs` (design-system-w4n9r) prüft den Design-System-Export:
+- Browserfrei, immer ausgeführt: `resolveOutDir` (Auflösung von `DS_EXPORT_OUT_DIR`),
+  `expectedBundleFiles` (Soll-Dateiliste aus `COMPONENT_CARDS`), `findMissingBundleFiles`
+  (dieselbe Funktion, die `main()` im Skript selbst am Ende jedes Exports aufruft, um
+  fehlende oder leere Dateien der Soll-Liste namentlich zu melden und den Export
+  fehlschlagen zu lassen) sowie ein Regressionsanker, der die heute bekannten 16
+  Komponenten-Karten-IDs fest pinnt.
+- Browser-gebunden: ein echter Vollauf des Exports (`vite build` + `vite preview` +
+  Playwright) mit `DS_EXPORT_OUT_DIR` auf ein temporäres Verzeichnis, geprüft wird das
+  vollständige Bundle inklusive der `<!-- @dsCard` -Marker in jeder Komponenten-Vorschau.
+  `dist/design-system` im Repo bleibt dabei unberührt.
+
+**Skip-Verhalten ohne Browser:** fehlt Playwright oder ein installierter Chromium
+(`npx playwright install chromium`), überspringt der Vollauf-Test sich selbst mit
+benanntem Grund (`t.skip(...)`); die browserfreien Tests laufen trotzdem und der
+Gesamtlauf bleibt grün. Dasselbe Muster nutzen die browsergebundenen Tests in
+`screenshot-route.test.mjs`.
+
 ## Troubleshooting
 
 ### YNAB Token Issues
