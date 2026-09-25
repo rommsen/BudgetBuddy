@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
-- **Todo:** 9
+- **Backlog:** 11
+- **Todo:** 10
 - **Doing:** 0
 - **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `todo/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
 - **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `todo/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
 - **ledger-jkb0f** — "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request" (bug) — `todo/ledger-jkb0f-kassenbuch-ereignis-beim-push-entspricht-ynab-request.md`
 - **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `todo/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
@@ -74,7 +75,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `backlog/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
-- **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `backlog/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
 - **ledger-saqsk** — "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden" (feature) — `backlog/ledger-saqsk-chip-ohne-kategorie-in-der-filterleiste.md`
 - **ledger-h4nxz** — "Split-Zeilen-Überträge: transfer_transaction_id auf Subtransaction-Ebene fehlt im Beobachtungs-Contract" (decision) — `backlog/ledger-h4nxz-split-zeilen-bertr-ge-transfer-transaction-id-auf-subtransac.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`
