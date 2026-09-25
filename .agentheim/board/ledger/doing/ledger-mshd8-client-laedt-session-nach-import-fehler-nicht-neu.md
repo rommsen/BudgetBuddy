@@ -1,7 +1,7 @@
 ---
 id: ledger-mshd8
 title: "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-25

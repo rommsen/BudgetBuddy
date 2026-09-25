@@ -11,16 +11,13 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 10
-- **Todo:** 10
-- **Doing:** 0
+- **Todo:** 7
+- **Doing:** 3
 - **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `todo/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
-- **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `todo/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
-- **ledger-jkb0f** — "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request" (bug) — `todo/ledger-jkb0f-kassenbuch-ereignis-beim-push-entspricht-ynab-request.md`
 - **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `todo/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 - **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `todo/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
 - **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `todo/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
@@ -32,6 +29,9 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `doing/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
+- **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `doing/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
+- **ledger-jkb0f** — "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request" (bug) — `doing/ledger-jkb0f-kassenbuch-ereignis-beim-push-entspricht-ynab-request.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

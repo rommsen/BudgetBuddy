@@ -1,7 +1,7 @@
 ---
 id: ledger-jkb0f
 title: "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-25

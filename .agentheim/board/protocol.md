@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 12:15 -- Batch started: [ledger-jkb0f, ledger-na3rq, ledger-mshd8]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request", ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab", ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
+**Parallel:** yes (3 workers, cap 3). Held to a later wave: design-system-thtpp, design-system-w4n9r, ledger-f8q2x, ledger-h4qtx, ledger-h6ptn, ledger-j8xq4, ledger-nnn47, ledger-qns4j, ledger-xk9wq (cap; the three fresh bug slices from ledger-tpbe7 go first). jkb0f and na3rq both touch src/Server/Api.fs: merged sequentially, jkb0f first.
+
+---
+
 ## 2026-09-25 11:29 -- Modeling / Dismissed: ledger-tpbe7
 
 **Type:** Modeling / Dismiss
