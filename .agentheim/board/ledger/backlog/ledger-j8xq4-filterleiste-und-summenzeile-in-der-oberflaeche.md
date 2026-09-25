@@ -74,6 +74,15 @@ er einem blinden Neuladen nach jeder Änderung widerspricht.
       belegt, nicht nur per Augenschein.
 - [ ] Versteckte Kategorien sind eingeklappt und erst nach einem zusätzlichen Schritt
       erreichbar.
+- [ ] `YnabCategory` (`src/Shared/Domain.fs`) trägt `Hidden: bool`, dekodiert aus YNABs
+      `hidden`-Feld in beiden Kategorie-Decodern (`categoryDecoder` und
+      `categoryInGroupDecoder` in `src/Server/YnabClient.fs`). Ein Decoder-Test belegt:
+      `hidden: true` ergibt `Hidden = true`, fehlendes Feld ergibt `false`. Die
+      Einklapp-Regel oben speist sich aus diesem Feld, nicht aus einer Namenskonvention.
+- [ ] Die Kategorienauswahl zeigt je Kategorie `YnabCategory.Available`, wenn es `Some`
+      ist, rechtsbündig wie im Design-System-Muster `components-categorypicker`; bei `None`
+      bleibt die Stelle leer. Kein neuer Spiegel-Lauf und keine neue Tabelle dafür: das
+      Feld kommt seit dem Import-Ablauf aus `getCategories`.
 - [ ] Die Zeitraum-Schnellwahl trägt Von und Bis sichtbar ein, statt sie nur intern zu
       setzen.
 - [ ] Die Summenzeile erscheint genau dann, wenn mindestens ein Filter aktiv ist, und
@@ -117,4 +126,29 @@ aufgeteilte Buchung, deren Split-Zeilen alle `Uncategorized` sind. Beide sind fa
 "unkategorisiert", aber es gibt keine Kategorie, die man auswählen könnte, um sie zu finden.
 Das ist genau die Menge, die Roman beim Durchsehen sucht. Ein eigener Chip "ohne Kategorie"
 neben der Kategorienauswahl löst es; `ledger-xk9wq` deckt es ausdrücklich nicht ab und hält
-die Grenze in ADR 0038 fest.
+die Grenze in ADR 0038 fest. **Nicht Teil dieser Aufgabe:** der Chip ist als eigenes
+Backlog-Item `ledger-saqsk` erfasst (2026-09-25); er braucht einen eigenen Filterzweig im
+Lesepfad und eine Produktentscheidung zu Überträgen ohne Kategorie.
+
+**Am Code nachgesehen bei der Verfeinerung am 2026-09-25:**
+
+- `YnabCategory` hat **kein** `Hidden`-Feld; `categoryDecoder` und `categoryInGroupDecoder`
+  (`src/Server/YnabClient.fs`, ab Zeile 55) lesen `id`, `name`, `category_group_name` und
+  das Available. YNABs Kategorie-Objekt führt `hidden` (bool) und `deleted` (bool). Für die
+  eingeklappte Gruppe "Versteckt (n)" muss `hidden` mit durch den Vertrag, deshalb das
+  Kriterium oben. Gelöschte Kategorien (`deleted: true`) sind heute schon nicht im Katalog
+  und bleiben draußen.
+- `YnabCategory.Available: Money option` existiert bereits (Import-Ablauf, mit
+  `applyReadyToAssign` für die Inflow-Kategorie). Der Picker im Kassenbuch kann es sofort
+  zeigen. `ledger-kwwxz` Punkt 1 und 2 (Spiegel führt Budget-Zahlen, Picker zeigt Betrag)
+  sind damit für den Picker abgedeckt, ohne den Spiegel zu erweitern; was von `kwwxz`
+  bleibt, ist Punkt 3 (Hinweis beim Wechsel, v2) und die Frage, ob der Betrag auch ohne
+  YNAB-Erreichbarkeit stehen soll. Das ist dort zu entscheiden, nicht hier.
+- Dateien, die diese Aufgabe voraussichtlich anfasst: `src/Shared/Domain.fs`
+  (`YnabCategory.Hidden`), `src/Server/YnabClient.fs` (zwei Decoder),
+  `src/Client/Components/Ledger/State.fs` und `View.fs` (Chips, Summenzeile, Popover,
+  Reduzierer-Zustand für Mehrfachauswahl und Chip-Reihenfolge), neue Komponenten unter
+  `src/Client/DesignSystem/` (Chip-Leiste, Filter-Popover, Kategorienauswahl mit
+  Mehrfachauswahl, Summenzeile), `src/Client/Components/Styleguide/View.fs` (die neuen
+  Komponenten gehören als Karten in die `/styleguide`-Route, `design-system-t3vqr`),
+  `src/Tests/LedgerViewTests.fs` und `src/Tests/YnabClientTests.fs`.

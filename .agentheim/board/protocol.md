@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Refined: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** Am Code nachgesehen: YnabCategory hat kein Hidden-Feld (neues Kriterium: hidden in beiden Decodern), Available existiert bereits (Kriterium: Picker zeigt es); Chip ohne Kategorie als ledger-saqsk abgetrennt; voraussichtliche Dateiliste ergaenzt.
+**Split into:** ledger-saqsk (Chip ohne Kategorie, backlog)
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Refined: ledger-h6ptn - Kassenbuch-Kategorie voll qualifizieren
 
 **Type:** Modeling / Refine
