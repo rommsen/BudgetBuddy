@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:53 -- Modeling / Promoted: ledger-h6ptn - "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-25 10:53 -- Modeling / Refined: ledger-h6ptn - Kassenbuch-Kategorie voll qualifizieren (Kante zu nnn47 gelockert)
 
 **Type:** Modeling / Refine

@@ -1,7 +1,7 @@
 ---
 id: ledger-h6ptn
 title: "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-19
