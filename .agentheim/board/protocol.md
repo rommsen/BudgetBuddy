@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:04 -- Modeling / Captured: ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus ledger-tpbe7 geschnitten: SyncFlow laedt nach ImportCompleted (Error) die Session nicht neu, obwohl Teile des Batches gespeichert wurden
+
+---
+
 ## 2026-09-25 11:04 -- Modeling / Captured: ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
 
 **Type:** Modeling / Capture
