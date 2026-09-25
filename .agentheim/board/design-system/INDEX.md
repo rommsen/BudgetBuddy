@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 2
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 25
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-w4n9r** — "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern" (chore) — `todo/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-w4n9r** — "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern" (chore) — `doing/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

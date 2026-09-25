@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 15:29 -- Batch started: [ledger-h6ptn, ledger-h4qtx, design-system-w4n9r]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-h6ptn - "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle", ledger-h4qtx - "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)", design-system-w4n9r - "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern"
+**Parallel:** yes (3 workers, cap 3, wave 3). Held to a later wave: ledger-nnn47, ledger-j8xq4 (share src/Client/Components/Ledger/View.fs or LedgerViewTests.fs with ledger-h6ptn), ledger-f8q2x (cap).
+
+---
+
 ## 2026-09-25 15:28 -- Task verified and completed: ledger-qns4j - "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen"
 
 **Type:** Work / Task completion

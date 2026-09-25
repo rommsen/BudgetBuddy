@@ -1,7 +1,7 @@
 ---
 id: ledger-h4qtx
 title: "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)"
-status: todo
+status: doing
 type: chore
 context: ledger
 created: 2026-09-19

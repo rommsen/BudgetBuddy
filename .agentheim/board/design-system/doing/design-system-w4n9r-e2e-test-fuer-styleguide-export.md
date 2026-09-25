@@ -1,7 +1,7 @@
 ---
 id: design-system-w4n9r
 title: "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-11

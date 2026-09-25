@@ -11,22 +11,22 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 12
-- **Todo:** 5
-- **Doing:** 0
+- **Todo:** 3
+- **Doing:** 2
 - **Done:** 39
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `todo/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 - **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `todo/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
 - **ledger-f8q2x** — "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren" (chore) — `todo/ledger-f8q2x-getledgerpayeesuggestions-im-ledger-readme-unter-sichten-dok.md`
-- **ledger-h4qtx** — "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)" (chore) — `todo/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
 - **ledger-nnn47** — "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf" (chore) — `todo/ledger-nnn47-platzhalter-zaehlung-auf-die-ansichts-ruempfe-eingrenzen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-h4qtx** — "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)" (chore) — `doing/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
+- **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `doing/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
