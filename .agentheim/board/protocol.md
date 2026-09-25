@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:04 -- Modeling / Promoted: ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-25 11:04 -- Modeling / Refined: ledger-tpbe7 - Randfaelle nach dem Push, in drei Aufgaben geschnitten
 
 **Type:** Modeling / Refine
