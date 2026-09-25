@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:04 -- Modeling / Captured: ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus ledger-tpbe7 geschnitten: Outcome-Klassifikation des Import-Pushs in eine reine, getestete Funktion ziehen; behebt nebenbei, dass forceImportDuplicates die Session trotz gescheitertem Kassenbuch-Schreiben abschliesst (ADR 0021)
+
+---
+
 ## 2026-09-25 11:04 -- Modeling / Captured: ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
 
 **Type:** Modeling / Capture
