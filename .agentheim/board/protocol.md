@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:04 -- Modeling / Refined: ledger-tpbe7 - Randfaelle nach dem Push, in drei Aufgaben geschnitten
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (ersetzt, DISMISS steht aus)
+**Summary:** Orchestrator und tactical-modeler haben alle sieben Punkte am Code bestaetigt (keiner zwischenzeitlich erledigt) und in drei bearbeitbare Aufgaben geschnitten; Force-Import-Session-Sperre als neuer Bug mit aufgenommen; Fund zum Kategorie-Vergleich im Spiegel separat erfasst.
+**Split into:** ledger-jkb0f, ledger-na3rq, ledger-mshd8 (plus Nebenfund ledger-ggzdw)
+
+---
+
 ## 2026-09-25 11:04 -- Modeling / Captured: ledger-ggzdw - "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
 
 **Type:** Modeling / Capture

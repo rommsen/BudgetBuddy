@@ -47,3 +47,10 @@ To be defined during refinement.
 Quelle: Verifier-Bericht zu `ledger-qvt84`, Iteration 3 (Protokoll 2026-09-11 18:24).
 Punkt 1 bis 4 sind fachlich zu gewichten (wie oft kommen sie vor), Punkt 5 bis 7 sind
 kleine Aufräumarbeiten.
+
+**Aufgeteilt am 2026-09-25** (Orchestrator mit tactical-modeler, alle sieben Punkte am Code
+bestätigt, keiner zwischenzeitlich erledigt): Punkte 1 bis 4 und 6 in `ledger-jkb0f`,
+Punkt 5 samt neuem Force-Import-Fund in `ledger-na3rq`, Punkt 7 in `ledger-mshd8`. Ein
+darüber hinausgehender Fund (Spiegel wertet Kategorie-Umbenennung als Umkategorisierung)
+liegt in `ledger-ggzdw`. Dieses Item ist damit vollständig ersetzt und kann per DISMISS
+entfernt werden; das steht noch aus.
