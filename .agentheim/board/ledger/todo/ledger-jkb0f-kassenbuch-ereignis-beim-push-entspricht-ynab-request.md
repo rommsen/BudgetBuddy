@@ -11,7 +11,7 @@ blocks: []
 tags: [ledger, push, spiegel, kassenbuch]
 related_adrs: [0013, 0021]
 related_research: []
-prior_art: [ledger-tpbe7, ledger-qvt84, ledger-p3wnq]
+prior_art: [ledger-qvt84, ledger-p3wnq]
 ---
 
 ## Why

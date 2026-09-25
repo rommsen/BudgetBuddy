@@ -11,7 +11,7 @@ blocks: []
 tags: [ledger, client, syncflow]
 related_adrs: [0021]
 related_research: []
-prior_art: [ledger-tpbe7, ledger-qvt84]
+prior_art: [ledger-qvt84]
 ---
 
 ## Why

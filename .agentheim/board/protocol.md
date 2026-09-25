@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:29 -- Modeling / Dismissed: ledger-tpbe7
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-tpbe7 - Randfälle, in denen die Kassenbuch-Buchung nach dem Push von YNAB abweicht, und ungetesteter Klebecode im Import-Push (ledger)
+
+---
+
 ## 2026-09-25 11:04 -- Modeling / Promoted: ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
 
 **Type:** Modeling / Promote

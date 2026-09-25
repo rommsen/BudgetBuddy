@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
+- **Backlog:** 10
 - **Todo:** 10
 - **Doing:** 0
 - **Done:** 34
@@ -83,7 +83,6 @@ research touching this BC, and concept synthesis pages.
 - **ledger-q1hw2** — Buchungs-Detail: Herkunft, Historie und "noch nicht in YNAB" (Sheet am Handy, Seitenpanel am PC) (feature) — `backlog/ledger-q1hw2-detail-herkunft-historie-noch-nicht-in-ynab.md`
 - **ledger-kwwxz** — Available-Betrag je Kategorie spiegeln und in der Kategorienauswahl zeigen (feature) — `backlog/ledger-kwwxz-available-betrag-je-kategorie-spiegeln.md`
 - **ledger-xfjcp** — Buchung an Lena zuweisen statt nur ein Flag setzen; später Sicht "Für mich" und Benachrichtigung (feature) — `backlog/ledger-xfjcp-lena-zuweisen-statt-flag.md`
-- **ledger-tpbe7** — Randfälle, in denen die Kassenbuch-Buchung nach dem Push von YNAB abweicht, und ungetesteter Klebecode im Import-Push (bug) — `backlog/ledger-tpbe7-randfaelle-kassenbuch-weicht-nach-push-von-ynab-ab.md`
 - **ledger-c7j8e** — Kursquelle für Geldmarkt-ETF per ISIN (Research-Spike) (spike) — `backlog/ledger-c7j8e-kursquelle-etf-isin-research-spike.md`
 <!-- backlog-list:end -->
 
