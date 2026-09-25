@@ -280,24 +280,36 @@ let private accountBadge (abbreviation: string) =
             Size = Badge.Small
     }
 
-/// Die Kategorie-Beschriftung einer Buchung (AC1/AC2, ledger-w9skm): der
-/// Kategoriename, bei einer aufgeteilten Buchung ohne eigene Kategorie die Anzahl
-/// der Split-Zeilen, sonst der Platzhaltertext für eine fehlende Kategorie (siehe
-/// Rückfallzeile unten). Reine Funktion, geteilt zwischen Handy-Zeile
-/// (`entryRow`) und PC-Tabelle (`entryTableRow`), damit beide Ansichten denselben
-/// Text zeigen (siehe `LedgerViewTests`; der Platzhaltertext steht bewusst nur an
-/// dieser einen Stelle im Modul, ledger-n3pqw).
+/// Die Kategorie-Beschriftung einer Buchung, als Blattname (AC1/AC2,
+/// ledger-w9skm): der Kategoriename, bei einer aufgeteilten Buchung ohne eigene
+/// Kategorie die Anzahl der Split-Zeilen, sonst der Platzhaltertext für eine
+/// fehlende Kategorie (siehe Rückfallzeile unten). Reine Funktion, von der
+/// Handy-Zeile (`entryRow`) benutzt (siehe `LedgerViewTests`; der Platzhaltertext
+/// steht bewusst nur an dieser einen Stelle im Modul, ledger-n3pqw).
 ///
-/// Zeigt bewusst nur den Blattnamen, nicht "Gruppe: Name": `CategoryRef`
-/// (`Server/Ledger/Events.fs`) traegt keine Kategoriegruppe, nur `CategoryName`
-/// als einzelnen String — die volle Qualifizierung aus dem Handoff kaeme erst
-/// durch einen eigenen Zug durch Events/ReadModel (siehe Backlog-Item, Notes
-/// dieser Aufgabe hatten das als Risiko benannt).
+/// Die PC-Tabelle (`entryTableRow`) benutzt stattdessen `categoryLabelQualified`
+/// unten: seit ADR 0039 zwei benannte Funktionen über derselben Quelle statt
+/// eines zweiten Zweigs in den Views, weil der Entwurf für beide Ansichten
+/// unterschiedliche Formen verlangt (Blattname am Handy, volle Qualifizierung am
+/// PC).
 let categoryLabel (entry: LedgerEntryView) : string =
     match entry.CategoryName with
     | Some name -> name
     | None when not (List.isEmpty entry.Splits) -> $"{List.length entry.Splits} Split-Zeilen"
     | None -> "ohne Kategorie"
+
+/// Die Kategorie-Beschriftung voll qualifiziert ("Gruppe: Name", Handoff 1.9 Zeile
+/// 260), für die PC-Tabelle (ADR 0039, ledger-h6ptn). `CategoryGroupName` kommt
+/// aus dem Lesepfad (`ledger_categories`, `ledger-p3wnq`), nicht aus dem
+/// Ereignis-Log: fehlt sie (Kategorie nie gespiegelt) oder ist sie nach `Trim()`
+/// leer, fällt diese Funktion auf `categoryLabel` zurück, nie ein führendes
+/// ": " und nie ein erfundener Gruppenname. Fehlt jede eigene Kategorie (Split
+/// oder Platzhaltertext), liefert `categoryLabel` unverändert dasselbe Ergebnis,
+/// weil es dann nichts zu qualifizieren gibt.
+let categoryLabelQualified (entry: LedgerEntryView) : string =
+    match entry.CategoryName, entry.CategoryGroupName with
+    | Some name, Some group when not (String.IsNullOrWhiteSpace group) -> $"{group.Trim()}: {name}"
+    | _ -> categoryLabel entry
 
 /// Der Payee-Text einer Buchung: der Payee, sonst der Platzhaltertext für eine
 /// fehlende Angabe (siehe Rückfallzeile unten). Reine Funktion, analog zu
@@ -473,7 +485,7 @@ let private entryTableRow
             Table.td (formatDate entry.Date)
             if showAccountColumn then Table.td (accountAbbreviationOf entry.AccountId)
             tdTruncated (payeeLabel entry)
-            tdTruncatedCategory (categoryLabel entry)
+            tdTruncatedCategory (categoryLabelQualified entry)
             tdTruncated (entry.Memo |> Option.defaultValue "")
             tdMoney entry
             Table.tdContent [

@@ -594,6 +594,47 @@ let ledgerDomainTests =
             | Error _ -> ()
 
         // ============================================
+        // Kategoriegruppe im Lesepfad, nicht im Ereignis-Log (ADR 0039, ledger-h6ptn):
+        // `CategoryRef` bleibt unverändert, es gibt keine Migration. Diese beiden
+        // Tests halten genau das fest, statt es nur zu behaupten.
+        // ============================================
+
+        testCase "Codec.encodeCategory trägt genau categoryId und categoryName, keine Gruppe (ADR 0039)" <| fun () ->
+            let json : string = Thoth.Json.Net.Encode.toString 0 (Codec.encodeCategory (category "Lebensmittel"))
+            use doc = System.Text.Json.JsonDocument.Parse(json)
+            let keys =
+                doc.RootElement.EnumerateObject()
+                |> Seq.map (fun p -> p.Name)
+                |> Set.ofSeq
+            Expect.equal
+                keys
+                (Set.ofList [ "categoryId"; "categoryName" ])
+                "CategoryRef darf im Log nur Id und Name tragen, keine Gruppe (ADR 0039, Punkt 1)"
+
+        testCase "EntryObservedInYnab mit Kategorie bleibt in Schema-Version 1 und 2 lesbar (ADR 0039)" <| fun () ->
+            // Tritt an die Stelle des ursprünglich geforderten Migrations-Kriteriums:
+            // es gibt keine Migration, weil das Ereignisformat unverändert bleibt.
+            let v1Json =
+                """{"accountId":"0195c000-0000-7000-8000-000000000001","ynabTransactionId":"ynab-v1-cat","importId":null,"date":"2026-01-15T00:00:00.0000000Z","amount":{"amount":-42.5,"currency":"EUR"},"payee":"Rewe","memo":null,"category":{"categoryId":"0195c000-0000-7000-8000-0000000000aa","categoryName":"Lebensmittel"},"splits":[],"cleared":"Uncleared","transferAccountId":null,"transferYnabTransactionId":null}"""
+
+            match decodePayload "EntryObservedInYnab" 1 v1Json with
+            | Ok (EntryObservedInYnab p) ->
+                Expect.equal
+                    (p.Category |> Option.map (fun c -> c.CategoryName))
+                    (Some "Lebensmittel")
+                    "Version 1 mit Kategorie bleibt lesbar, unverändert durch dieses Item"
+            | other -> failtestf "Version 1 mit Kategorie sollte lesbar sein, war %A" other
+
+            let v2Json = encodePayload (EntryObservedInYnab (observedPayload "ynab-v2-cat" None))
+            match decodePayload "EntryObservedInYnab" 2 v2Json with
+            | Ok (EntryObservedInYnab p) ->
+                Expect.equal
+                    (p.Category |> Option.map (fun c -> c.CategoryName))
+                    (Some "Lebensmittel")
+                    "Version 2 mit Kategorie bleibt lesbar, unverändert durch dieses Item"
+            | other -> failtestf "Version 2 mit Kategorie sollte lesbar sein, war %A" other
+
+        // ============================================
         // Schema-Version 1 -> 2 (ADR 0032, ledger-kdnnz): kein Nachholen für den
         // Bestand, gespeicherte Ereignisse ohne die neuen Felder gelten als
         // genehmigt, ohne Flag.

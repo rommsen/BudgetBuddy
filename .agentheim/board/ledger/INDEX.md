@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 13
 - **Todo:** 3
-- **Doing:** 1
-- **Done:** 40
+- **Doing:** 0
+- **Done:** 41
 <!-- task-counts:end -->
 
 ### Todo
@@ -25,11 +25,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `doing/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-h6ptn** — "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle" (feature) — `done/ledger-h6ptn-kassenbuch-kategorie-voll-qualifizieren-kategoriegruppe-bis.md`
 - **ledger-h4qtx** — "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)" (chore) — `done/ledger-h4qtx-payee-vorschl-ge-case-insensitiv-gruppieren-wie-der-payee-fi.md`
 - **ledger-qns4j** — "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen" (bug) — `done/ledger-qns4j-konten-spalte-haftend-und-statusspalte-neu-belegen.md`
 - **ledger-xk9wq** — "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen" (feature) — `done/ledger-xk9wq-kategorie-filter-im-kassenbuch-lesepfad-erfasst-keine-split.md`
@@ -74,6 +74,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-b7qmx** — "Split-Zeilen-Kategorie in der PC-Tabelle voll qualifizieren?" (decision) — `backlog/ledger-b7qmx-split-zeilen-kategorie-in-der-pc-tabelle-voll-qualifizieren.md`
 - **ledger-fgt4k** — "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind" (bug) — `backlog/ledger-fgt4k-deletedcount-widerspricht-den-zur-ckgegebenen-buchungen-wenn.md`
 - **ledger-fgw2q** — "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen" (bug) — `backlog/ledger-fgw2q-nicht-auswertbare-ynab-antwort-beim-comdirect-push-l-sst-die.md`
 - **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `backlog/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`

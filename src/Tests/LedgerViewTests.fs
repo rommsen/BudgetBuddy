@@ -27,6 +27,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     Payee = Some payee
     Memo = None
     CategoryName = None
+    CategoryGroupName = None
     Splits = []
     Origin = MirroredFromYnab
     DeletedInYnab = false
@@ -147,7 +148,7 @@ let private formatEntryDateTests =
     ]
 
 let private categoryLabelTests =
-    testList "categoryLabel (ledger-w9skm)" [
+    testList "categoryLabel (ledger-w9skm, ledger-h6ptn)" [
 
         test "Eine Buchung mit Kategorie zeigt den Kategorienamen" {
             let entry = { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with CategoryName = Some "Lebensmittel" }
@@ -165,6 +166,68 @@ let private categoryLabelTests =
         test "Ohne Kategorie und ohne Splits steht 'ohne Kategorie'" {
             let entry = { entryView (accountId 1) (DateTime(2026, 9, 12)) "Amazon Marketplace" with CategoryName = None }
             Expect.equal (categoryLabel entry) "ohne Kategorie" "Platzhaltertext"
+        }
+    ]
+
+/// Die PC-Tabelle qualifiziert die Kategorie voll (Handoff 1.9 Zeile 260,
+/// "Alltag: Lebensmittel"), die Handy-Zeile bleibt beim Blattnamen (Handoff 1.1
+/// Zeile 104-112). `categoryLabelQualified` ist eine eigene, reine Funktion über
+/// derselben Quelle wie `categoryLabel`, kein zweiter Zweig in den Views
+/// (ADR 0039, ledger-h6ptn).
+let private categoryLabelQualifiedTests =
+    testList "categoryLabelQualified (ledger-h6ptn, ADR 0039)" [
+
+        test "Gruppe und Name vorhanden ergibt 'Gruppe: Name'" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                    CategoryName = Some "Lebensmittel"
+                    CategoryGroupName = Some "Alltag" }
+            Expect.equal (categoryLabelQualified entry) "Alltag: Lebensmittel" "Volle Qualifizierung wie im Handoff"
+        }
+
+        test "Gruppe None fällt auf den Blattnamen zurück" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                    CategoryName = Some "Lebensmittel"
+                    CategoryGroupName = None }
+            Expect.equal (categoryLabelQualified entry) "Lebensmittel" "Keine gespiegelte Kategorie, also nur der Blattname"
+        }
+
+        test "Gruppe leer oder nur Leerzeichen fällt auf den Blattnamen zurück, kein führendes ': '" {
+            for leereGruppe in [ Some ""; Some "   " ] do
+                let entry =
+                    { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                        CategoryName = Some "Lebensmittel"
+                        CategoryGroupName = leereGruppe }
+                Expect.equal (categoryLabelQualified entry) "Lebensmittel" "Eine leere Gruppe zählt wie keine Gruppe"
+        }
+
+        test "Keine Kategorie, aber Splits zeigt weiterhin die Split-Zeilenanzahl" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                    CategoryName = None
+                    CategoryGroupName = None
+                    Splits = [ splitLine -5m; splitLine -3m ] }
+            Expect.equal (categoryLabelQualified entry) "2 Split-Zeilen" "Keine Kategorie, also nichts zu qualifizieren"
+        }
+
+        test "Keine Kategorie und keine Splits zeigt 'ohne Kategorie'" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "Amazon Marketplace" with
+                    CategoryName = None
+                    CategoryGroupName = None }
+            Expect.equal (categoryLabelQualified entry) "ohne Kategorie" "Platzhaltertext, wie categoryLabel"
+        }
+
+        test "categoryLabel und categoryLabelQualified liefern bei gesetzter Gruppe unterschiedliche Ergebnisse" {
+            let entry =
+                { entryView (accountId 1) (DateTime(2026, 9, 12)) "REWE" with
+                    CategoryName = Some "Lebensmittel"
+                    CategoryGroupName = Some "Alltag" }
+            Expect.equal (categoryLabel entry) "Lebensmittel" "Handy-Zeile bleibt beim Blattnamen"
+            Expect.equal (categoryLabelQualified entry) "Alltag: Lebensmittel" "PC-Tabelle qualifiziert voll"
+            Expect.notEqual (categoryLabel entry) (categoryLabelQualified entry)
+                "Der Unterschied ist über zwei benannte Funktionen ausgedrückt, nicht über Zweige in den Views"
         }
     ]
 
@@ -304,16 +367,26 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "Vor der Einführung von payeeLabel standen hier zwei Vorkommen (je eines pro Ansicht, entryRow und entryTableRow)."
         }
 
-        test "entryRow und entryTableRow rufen beide categoryLabel und payeeLabel auf" {
+        test "entryRow und entryTableRow teilen payeeLabel; die Kategorie-Funktion unterscheidet sich bewusst (ADR 0039)" {
             let view = readLedgerView ()
             let entryRowBody = sliceFunctionBody view "let private entryRow"
             let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
 
-            for helperCall in [ "categoryLabel entry"; "payeeLabel entry" ] do
-                Expect.stringContains entryRowBody helperCall
-                    $"entryRow muss {helperCall} aufrufen, sonst weicht die Handy-Zeile von der PC-Tabelle ab."
-                Expect.stringContains entryTableRowBody helperCall
-                    $"entryTableRow muss {helperCall} aufrufen, sonst weicht die PC-Tabelle von der Handy-Zeile ab."
+            Expect.stringContains entryRowBody "payeeLabel entry"
+                "entryRow muss payeeLabel entry aufrufen, sonst weicht die Handy-Zeile von der PC-Tabelle ab."
+            Expect.stringContains entryTableRowBody "payeeLabel entry"
+                "entryTableRow muss payeeLabel entry aufrufen, sonst weicht die PC-Tabelle von der Handy-Zeile ab."
+
+            // Seit ledger-h6ptn (ADR 0039) unterscheiden sich die beiden Ansichten
+            // bewusst: die Handy-Zeile bleibt beim Blattnamen, die PC-Tabelle
+            // qualifiziert voll. Der Unterschied ist über zwei benannte Funktionen
+            // ausgedrückt, nicht über einen Zweig in einer gemeinsamen Funktion.
+            Expect.stringContains entryRowBody "categoryLabel entry"
+                "entryRow muss categoryLabel entry aufrufen (Blattname)."
+            Expect.isFalse (entryRowBody.Contains "categoryLabelQualified")
+                "entryRow zeigt bewusst nur den Blattnamen, keine Qualifizierung."
+            Expect.stringContains entryTableRowBody "categoryLabelQualified entry"
+                "entryTableRow muss categoryLabelQualified entry aufrufen (volle Qualifizierung)."
         }
 
         /// Regression für ledger-qns4j, AC3: die Statusspalte der PC-Tabelle trug
@@ -349,7 +422,7 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "Die Handy-Zeile muss die Kategorie-Farbrolle über categoryColorClassName einfärben."
             Expect.stringContains tdTruncatedCategoryBody "categoryColorClassName"
                 "Die PC-Tabellenzelle muss dieselbe Kategorie-Farbrolle über categoryColorClassName einfärben."
-            Expect.stringContains entryTableRowBody "tdTruncatedCategory (categoryLabel entry)"
+            Expect.stringContains entryTableRowBody "tdTruncatedCategory (categoryLabelQualified entry)"
                 "Die PC-Tabelle muss ihre Kategoriezelle über tdTruncatedCategory rendern, sonst verliert sie die Farbe (fällt zurück auf tdTruncated)."
         }
     ]
@@ -699,6 +772,7 @@ let ledgerViewTests =
           groupByDateTests
           formatEntryDateTests
           categoryLabelTests
+          categoryLabelQualifiedTests
           categoryColorTests
           categoryColorCssBindingTests
           sharedHelpersAndNoColorLiteralsTests

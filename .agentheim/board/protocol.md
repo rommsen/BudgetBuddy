@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 16:24 -- Task verified and completed: ledger-h6ptn - "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
+
+**Type:** Work / Task completion
+**Task:** ledger-h6ptn - "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
+**Summary:** Kassenbuch-Kategorie in der PC-Tabelle voll qualifiziert, Gruppe aus dem Lesepfad
+**Duration:** 1h40m
+**Verification:** PASS (iteration 2, nach Merge-Konflikt nachverifiziert)
+**Files changed:** 9
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
+## 2026-09-25 16:07 -- Verification failed: ledger-h6ptn - Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle
+
+**Type:** Work / Verification failure
+**Task:** ledger-h6ptn - Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle
+**Iteration:** 1 of 3
+**Reasons:** Browsertest überschreibt bei jedem npm run test:scripts die eingecheckten Screenshots unter docs/ (verändert den Arbeitsbaum), testList-Name nicht wie in What §3 verlangt erweitert
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 16:04 -- Task verified and completed: design-system-w4n9r - "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern"
 
 **Type:** Work / Task completion

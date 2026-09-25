@@ -99,10 +99,18 @@ module ReadModel =
         | None -> accounts |> List.tryHead |> Option.map (fun a -> a.Id)
 
     /// Eine Buchung als Sicht. Die Herkunft kommt von aussen: sie steckt im Actor des
-    /// ersten Ereignisses, nicht im Zustand.
-    let toEntryView (origin: LedgerOrigin) (entry: Entry) : LedgerEntryView =
+    /// ersten Ereignisses, nicht im Zustand. `categoryGroups` ist die Zuordnung
+    /// Kategorie-Id -> Gruppenname (ADR 0039, ledger-h6ptn): einmal je Abfrage
+    /// geladen (`Ledger.Persistence.loadCategoryGroups`), hier nur nachgeschlagen.
+    /// Die Funktion bleibt rein: kein I/O, die Zuordnung kommt als Parameter herein.
+    let toEntryView (categoryGroups: Map<Guid, string>) (origin: LedgerOrigin) (entry: Entry) : LedgerEntryView =
         let (EntryId id) = entry.Id
         let (LedgerAccountId accountId) = entry.AccountId
+        let categoryGroupName =
+            entry.Category
+            |> Option.bind (fun c ->
+                let (YnabCategoryId categoryId) = c.CategoryId
+                categoryGroups |> Map.tryFind categoryId)
         {
             Id = id
             AccountId = accountId
@@ -111,6 +119,7 @@ module ReadModel =
             Payee = entry.Payee
             Memo = entry.Memo
             CategoryName = entry.Category |> Option.map (fun c -> c.CategoryName)
+            CategoryGroupName = categoryGroupName
             Splits = entry.Splits
             Origin = origin
             DeletedInYnab = entry.DeletedInYnab
@@ -301,6 +310,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
     async {
         let! entries = Ledger.Persistence.loadEntriesForAccount (LedgerAccountId accountId)
         let! origins = Ledger.Persistence.loadEntryOrigins ()
+        let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
 
         return
             entries
@@ -314,7 +324,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
                     |> Option.map ReadModel.originOf
                     |> Option.defaultValue MirroredFromYnab
 
-                ReadModel.toEntryView origin entry)
+                ReadModel.toEntryView categoryGroups origin entry)
     }
 
 /// Baut das `Ledger.Persistence.EntryFilter` aus den Such-Feldern einer
@@ -367,6 +377,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter
         let! needsReviewCount = Ledger.Persistence.countNeedsReviewEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
+        let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
 
         let views =
             pageEntries
@@ -374,7 +385,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
                 let (EntryId id) = entry.Id
                 let origin =
                     origins |> Map.tryFind id |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
-                ReadModel.toEntryView origin entry)
+                ReadModel.toEntryView categoryGroups origin entry)
 
         return {
             Entries = views

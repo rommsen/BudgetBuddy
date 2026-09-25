@@ -837,6 +837,13 @@ type LedgerEntryView = {
     /// Der Kategorie-Name aus der letzten Beobachtung. `None`, wenn die Buchung
     /// keine Kategorie traegt (auch bei Splits).
     CategoryName: string option
+    /// Die Kategoriegruppe, im Lesepfad nachgeschlagen (ADR 0039, ledger-h6ptn): die
+    /// Gruppe ist Stammdatum der Kategorie, nicht Zustand der Buchung, und steht
+    /// deshalb NICHT im Ereignis-Log. `None`, wenn die Buchung keine Kategorie
+    /// trägt, oder wenn die Kategorie noch nie gespiegelt wurde
+    /// (`ledger_categories`, `ledger-p3wnq`). In beiden Fällen zeigt die Anzeige
+    /// dann nur `CategoryName`, nie ein erfundenes Präfix.
+    CategoryGroupName: string option
     Splits: TransactionSplit list
     /// Woher die Buchung stammt: der Actor ihres ersten Ereignisses.
     Origin: LedgerOrigin

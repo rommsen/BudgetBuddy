@@ -1,7 +1,7 @@
 ---
 id: ledger-h6ptn
 title: "Kassenbuch-Kategorie voll qualifizieren: Gruppe im Lesepfad und in der PC-Tabelle"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-19
@@ -278,3 +278,59 @@ Aufrufstellen 317 und 377), `src/Client/Components/Ledger/View.fs` (`categoryLab
 fachliche Abhängigkeit, nur Dateiüberschneidung; der Conductor lässt sie nacheinander
 laufen. Wer zuerst kommt, ist egal, das Kriterium zum Doc-Kommentar oben deckt beide
 Reihenfolgen ab.
+
+## Verifier note (iteration 1)
+
+REASONS:
+- scripts/ledger-category-qualified.test.mjs:55 and :140-144/:178-182: the new browser test writes both PNGs straight into the tracked `docs/ux/kassenbuch/screenshots/` directory on every `npm run test:scripts` run. Confirmed in the worktree: before the run `git status --short` was clean, after the run both tracked files were modified with different binary content each run (handy 36463 -> 38014 bytes, pc 50451 -> 63947 bytes). So every test run dirties the tree. Every other script test writes to `os.tmpdir()` via mkdtemp, and the prior-art pattern ledger-status-column.test.mjs writes no screenshots at all. The task needs committed screenshots once, for the [human-eye] check; it does not need the test suite to regenerate them.
+- Secondary: task `## What` §3 asks that the testList name "categoryLabel (ledger-w9skm)" be extended to name this item. It is unchanged at src/Tests/LedgerViewTests.fs:151.
+- Everything else checked out: build/test/guard/test:scripts green, Events.fs untouched, `toEntryView` pure with the map loaded once per query, adjusted source assertions keep their meaning, README_DELTA passes the gate.
+
+SUGGESTED_FIX: Have scripts/ledger-category-qualified.test.mjs write its screenshots to a mkdtemp dir under os.tmpdir() by default. Write to docs/ux/kassenbuch/screenshots/ only when an explicit opt-in env var or flag is set (or move the capture into a separate npm script), so `npm run test:scripts` leaves tracked files untouched. Keep the committed PNGs as they are, and extend the testList name "categoryLabel (ledger-w9skm)" with ledger-h6ptn as §3 of the task asks.
+
+ITERATION_HINT: likely-fixable
+
+## Merge-conflict note (iteration 2)
+
+Sibling: ledger-h4qtx (Payee-Vorschläge falten wie der Payee-Filter), bereits auf main integriert (5b969f0).
+New base SHA: 3a635a4363e31c5b56627a61592ef8c9beb33317
+Resolution allow-list: src/Tests/LedgerPageTests.fs
+
+Konflikt: beide Tasks legen `pageTestAccountAG` mit derselben Guid (...00000000002a) an; h4qtx zusätzlich AH, AI, AJ (...2b bis ...2d). Die h6ptn-Testgruppe braucht ein eigenes, noch freies Konto (z. B. AK, ...2e) statt AG.
+
+```
+5b969f0 chore(ledger): Payee-Vorschläge gruppieren über dieselbe Faltung wie der Payee-Filter [ledger-h4qtx]
+
+ src/Tests/LedgerPageTests.fs | 139 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 139 insertions(+)
+```
+
+## Outcome
+
+Die PC-Tabelle des Kassenbuchs zeigt die Kategorie jetzt voll qualifiziert ("Alltag: Lebensmittel", Handoff 1.9 Zeile 260), die Handy-Zeile bleibt beim Blattnamen (Handoff 1.1 Zeile 104-112), wie ADR 0039 es festgelegt hat: die Gruppe ist Stammdatum der Kategorie und wird im Lesepfad nachgeschlagen, nicht ins Ereignis-Log geschrieben.
+
+**`src/Server/Ledger/Events.fs` unangetastet** (per Diff belegt): kein neues Feld in `CategoryRef`, keine neue Schema-Version, kein neuer Zweig in `decodePayload`. Zwei neue Tests in `src/Tests/LedgerTests.fs` pinnen das: `Codec.encodeCategory` erzeugt ein JSON-Objekt mit genau den Schlüsseln `categoryId`/`categoryName`, und ein `EntryObservedInYnab` mit Kategorie bleibt sowohl in Schema-Version 1 als auch 2 über `decodePayload` lesbar.
+
+**Lesepfad:** `LedgerEntryView` (`src/Shared/Domain.fs`) trägt jetzt `CategoryGroupName: string option` neben `CategoryName`. `Ledger.QueryHandlers.ReadModel.toEntryView` (`src/Server/Ledger/QueryHandlers.fs`) bekommt die Zuordnung `Map<Guid, string>` (Kategorie-Id -> Gruppenname) als ersten Parameter und schlägt sie für `entry.Category` nach; die Funktion bleibt rein (kein I/O, durch die Signatur erzwungen). Die beiden Aufrufstellen `getLedgerEntriesForAccount` und `getLedgerEntriesPage` laden die Map einmal je Abfrage über `Ledger.Persistence.loadCategoryGroups()` (bereits vorhanden aus `ledger-p3wnq`) und reichen sie durch, kein zusätzlicher Netzaufruf, die bestehenden In-Memory-Fixtures laufen unverändert grün.
+
+**Anzeige (`src/Client/Components/Ledger/View.fs`):** `categoryLabelQualified` ist neu und liefert `"{Gruppe}: {Name}"`, wenn Gruppe und Name vorliegen und die Gruppe nach `Trim()` nicht leer ist, sonst fällt sie auf `categoryLabel` zurück (nie ein führendes ": ", nie ein erfundener Gruppenname). `categoryLabel` selbst ist unverändert im Verhalten (nur sein veralteter Doc-Kommentar wurde ersetzt, ohne die Zeichenkette "ohne Kategorie" ein zweites Mal zu nennen, weil `ledger-nnn47`, der Zähl-Test-Nachbar, noch in `todo/` liegt). Die PC-Tabelle (`entryTableRow`) benutzt jetzt `categoryLabelQualified`, die Handy-Zeile (`entryRow`) weiterhin `categoryLabel`.
+
+**Kaskade "Kategorie in YNAB gelöscht"** (Notes der Aufgabe) ist durch zwei End-to-End-Tests gegen In-Memory-SQLite belegt: eine vorher gespiegelte, dann aus einem neuen Kategorie-Lauf verschwundene Kategorie behält ihre Beschriftung (`ledger_categories` löscht nie, ADR 0039 Punkt 3); eine nie gespiegelte Kategorie liefert `CategoryGroupName = None` und fällt auf den Blattnamen aus dem Ereignis zurück, nie eine leere Zelle oder ein nacktes ": ".
+
+**Tests (16 neu, TDD je Akzeptanzkriterium):**
+- `src/Tests/LedgerTests.fs`: Codec-Schlüssel-Test, Schema-Version-1/2-Lesbarkeits-Test mit Kategorie.
+- `src/Tests/LedgerPageTests.fs`: neue `testList` "Kassenbuch-Seite: Kategorie voll qualifizieren (ledger-h6ptn)" (bekannte Kategorie, nie gespiegelte Kategorie, gelöscht-aber-vorher-gespiegelt, keine Kategorie, Reinheit von `toEntryView`), plus ein Test, der `describe` explizit gegen eine Qualifizierung absichert (Historie bleibt beim Blattnamen).
+- `src/Tests/LedgerViewTests.fs`: neue `testList` "categoryLabelQualified" (Gruppe+Name, Gruppe `None`, Gruppe leer/nur Leerzeichen, Splits ohne Kategorie, weder Kategorie noch Splits, Unterschied zu `categoryLabel`); zwei bestehende Quelltext-Zusicherungen (`ohne Kategorie`-Zähltest, `entryRow`/`entryTableRow`-Helferaufrufe) an die neue Aufteilung angepasst, ohne ihre ursprüngliche Aussage zu verlieren. Der bestehende `testList`-Name "categoryLabel (ledger-w9skm)" heißt jetzt "categoryLabel (ledger-w9skm, ledger-h6ptn)", wie Aufgabentext §3 verlangt.
+- `scripts/ledger-category-qualified.test.mjs` (neu, Muster aus `scripts/ledger-status-column.mjs`/`.test.mjs`, ledger-qns4j): ein echter, per Vite gestarteter Fable-Client gegen gemockte `ILedgerApi`-Antworten (kein Backend, keine Datenbank, nie die echte Entwicklungsdatenbank), zwei Buchungen (eine mit gespiegelter Gruppe, eine ohne), rendert PC-Tabelle (1440x900) und Handy-Zeile (390x844), prüft den sichtbaren Text. Beide Bilder wurden gesichtet: die PC-Tabelle zeigt "Alltag: Lebensmittel" und (ohne Gruppe) "Bahn", die Handy-Zeile zeigt nur "Lebensmittel".
+
+**Iteration 2 (dieser Durchgang) behebt zwei vom Verifier gemeldete Punkte, sonst unverändert:**
+1. **Screenshots dürfen `npm run test:scripts` nicht mehr verschmutzen.** `scripts/ledger-category-qualified.test.mjs` schrieb die beiden PNGs bei jedem Lauf direkt nach `docs/ux/kassenbuch/screenshots/` und veränderte damit getrackte Dateien bei jedem Testlauf. Jetzt schreibt der `before`-Hook standardmäßig in ein per `mkdtemp` unter `os.tmpdir()` angelegtes Verzeichnis, das der `after`-Hook wieder löscht (`rm(..., { recursive: true, force: true })`); nur mit explizitem Opt-in `LEDGER_SCREENSHOTS_TO_DOCS=1` schreibt der Lauf wieder nach `docs/ux/kassenbuch/screenshots/`, dokumentiert im Dateikopf. `scripts/README.md` listet keine Skript-Tests (nur die F#-Handskripte `test-ynab.fsx`/`test-comdirect.fsx`), deshalb entfällt die dort bedingte Ergänzung. Die beiden committeten PNGs bleiben byteidentisch zum Stand aus Iteration 1 (vom Conductor auf den committeten Stand zurückgesetzt, von diesem Durchgang nicht mehr angefasst). Geprüft: `npm run test:scripts` zweimal hintereinander ausgeführt (88/88 grün, davon beide neuen Kategorie-Tests), `git status --short` danach beide Male sauber bis auf die zwei beabsichtigten Quelldateien.
+2. **`testList`-Name erweitert.** Aufgabentext §3 verlangte, den Namen "categoryLabel (ledger-w9skm)" in `src/Tests/LedgerViewTests.fs` um dieses Item zu ergänzen; er heißt jetzt "categoryLabel (ledger-w9skm, ledger-h6ptn)". Keine andere Stelle im Quelltext hat den alten Namen als Zeichenkette referenziert (per Grep geprüft).
+
+Alle Server/Test-Tests laufen gegen In-Memory-SQLite (`USE_MEMORY_DB=true`, ADR 0030), nie gegen die Entwicklungsdatenbank. `dotnet build` (Server, Client, Tests), `dotnet test` (1039 erfolgreich, 7 übersprungen, YNAB-/Comdirect-Integrationstests, die `.env` brauchen, 0 Fehler), `npm run build`, `npm run guard:classes` und `npm run test:scripts` (88 erfolgreich, zweimal ausgeführt) sind grün. `git -C <worktree> status --short` zeigt nach beiden Testläufen ausschließlich die zwei beabsichtigten Quelldateien, keine PNG-Änderung.
+
+**Nicht in diesem Item** (wie im Task-Text festgelegt): Detail-Panel-Qualifizierung (erbt `CategoryGroupName` mit der Scheibe, die das Panel baut), das orangene "Keine Kategorie"-Badge (eigenes Item aus `ledger-w9skm`), die Kategorie-Mehrfachauswahl des Filters (`ledger-j8xq4`, eigener Katalog). Ein Backlog-Punkt für die im Task-Text offen gelassene Frage "Split-Zeilen-Kategorie voll qualifizieren?" ist unten gemeldet, damit sie nicht stillschweigend verloren geht.
+
+**Merge-Konflikt bei der Integration (gelöst):** `ledger-h4qtx` hatte parallel dasselbe Testkonto `pageTestAccountAG` (Guid ...002a) in `src/Tests/LedgerPageTests.fs` angelegt. Der Resolve-Durchgang hat die Testgruppe dieser Aufgabe auf ein eigenes Konto `pageTestAccountAK` (...002e) verschoben, die Konten AG bis AJ von ledger-h4qtx unverändert gelassen und in `seedAccounts()` eine Zeile für AK ergänzt. Nachverifikation gegen die neue Basis: PASS, 1044 Tests grün. Kosmetischer Rest laut Verifier: `seedAccounts()` registriert jetzt auch AG, was auf main vorher nicht der Fall war; harmlos.
+
+**Offen:** die Screenshot-Kriterien sind als Sichtprüfung markiert, die Bilder liegen unter `docs/ux/kassenbuch/screenshots/`.

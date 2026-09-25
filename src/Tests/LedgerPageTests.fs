@@ -85,7 +85,7 @@ let private recorded (seq: int) (actor: Actor) (body: LedgerEventBody) : Recorde
 }
 
 let private entryView (n: int) (amount: decimal) (deleted: bool) : LedgerEntryView =
-    ReadModel.toEntryView MirroredFromYnab { entry n amount with DeletedInYnab = deleted }
+    ReadModel.toEntryView Map.empty MirroredFromYnab { entry n amount with DeletedInYnab = deleted }
 
 // ============================================
 // Reine Abbildung: Ereignis -> Historien-Satz
@@ -117,6 +117,35 @@ let historyLanguageTests =
                 (ReadModel.describe body)
                 "Erstmals in YNAB gesehen: Rewe, -42,50 EUR, Kategorie Lebensmittel"
                 "Die Erstbeobachtung erzaehlt, was gesehen wurde"
+        }
+
+        test "Die Historie zeigt den Blattnamen, nie die Kategoriegruppe (ADR 0039, ledger-h6ptn)" {
+            // `describe` kennt gar keine Zuordnung Kategorie-Id -> Gruppe (anders als
+            // `ReadModel.toEntryView`): die Historie bleibt rein und schlägt nichts
+            // nach, auch wenn die Kategorie längst gespiegelt und einer Gruppe
+            // zugeordnet ist.
+            let body =
+                EntryObservedInYnab {
+                    AccountId = LedgerAccountId (accountGuid 1)
+                    YnabTransactionId = "txn-h6ptn"
+                    ImportId = None
+                    Date = DateTime(2026, 3, 4)
+                    Amount = eur -12.0m
+                    Payee = Some "Rewe"
+                    Memo = None
+                    Category = Some (category 1 "Lebensmittel")
+                    Splits = []
+                    Cleared = Uncleared
+                    TransferAccountId = None
+                    TransferYnabTransactionId = None
+                    Approved = true
+                    FlagColor = None
+                    FlagName = None
+                }
+            let text = ReadModel.describe body
+            Expect.stringContains text "Kategorie Lebensmittel" "Der Blattname steht weiterhin in der Historie"
+            Expect.isFalse (text.Contains "Alltag") "Keine Gruppe in der Historie, auch nicht als Zufallstreffer"
+            Expect.isFalse (text.Contains "Alltag: Lebensmittel") "Keine Qualifizierung 'Gruppe: Name' in der Historie"
         }
 
         test "Kategorie-Wechsel nennt alten und neuen Namen, keinen Typnamen" {
@@ -322,7 +351,7 @@ let readModelTests =
     testList "Kassenbuch-Sichten" [
 
         test "Buchung wird mit Kategorie-Name und Herkunft zur Sicht" {
-            let view = ReadModel.toEntryView MirroredFromYnab (entry 1 -42.5m)
+            let view = ReadModel.toEntryView Map.empty MirroredFromYnab (entry 1 -42.5m)
             Expect.equal view.Id (entryGuid 1) "Die eigene Buchungs-Id bleibt"
             Expect.equal view.CategoryName (Some "Lebensmittel") "Der Name, nicht die Id"
             Expect.equal view.Origin MirroredFromYnab "Die Herkunft wird durchgereicht"
@@ -370,7 +399,7 @@ let readModelTests =
         }
 
         test "Geloeschte Buchung bleibt sichtbar und traegt das Kennzeichen" {
-            let view = ReadModel.toEntryView MirroredFromYnab { entry 1 -42.5m with DeletedInYnab = true }
+            let view = ReadModel.toEntryView Map.empty MirroredFromYnab { entry 1 -42.5m with DeletedInYnab = true }
             Expect.isTrue view.DeletedInYnab "Das Kennzeichen ueberlebt die Abbildung"
         }
 
@@ -1026,6 +1055,10 @@ let private pageTestAccountAG = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-
 let private pageTestAccountAH = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002b")
 let private pageTestAccountAI = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002c")
 let private pageTestAccountAJ = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002d")
+// Konto AK (ledger-h6ptn, ADR 0039): Kategorie voll qualifizieren, eigenes Konto
+// für die Gruppennamen-Lookup-Tests, damit sie von keinem der obigen Konten
+// gespeiste Kategorien "sehen".
+let private pageTestAccountAK = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000002e")
 
 // `D3` statt `D2`, ein Prefix-Nullen weniger (`000000000` statt `0000000000`): für
 // n=0..99 liefert das exakt dieselbe Guid wie zuvor (`n:D3` mit vier statt drei
@@ -1127,6 +1160,8 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountAD; Name = "Konto AD"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountAE; Name = "Konto AE"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountAF; Name = "Konto AF"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAG; Name = "Konto AG"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAK; Name = "Konto AK"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 /// Wie `seedEntry`, aber mit voller Kontrolle ueber Payee, Memo, Kategorie und Datum
@@ -2442,6 +2477,102 @@ let ledgerPagingTests =
 
             Expect.isFalse (Regex.IsMatch(text, @"\.ToLower\b|\.ToUpper\b|\.Replace\("))
                 "keine eigene ToLower/ToUpper/Replace-Faltung in Ledger.Persistence, nur Core.searchFold (ADR 0037)"
+    ]
+
+// ============================================
+// Kategorie voll qualifizieren (ledger-h6ptn, ADR 0039): der Lesepfad schlägt die
+// Kategoriegruppe in `ledger_categories` nach, Events.fs bleibt unangetastet.
+// ============================================
+
+[<Tests>]
+let categoryGroupLookupTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            seedAccounts () |> Async.RunSynchronously
+            body ())
+
+    testSequenced
+    <| testList "Kassenbuch-Seite: Kategorie voll qualifizieren (ledger-h6ptn)" [
+
+        testCase "getLedgerEntriesPage liefert den gespiegelten Gruppennamen für eine bekannte Kategorie" <| fun () ->
+            let cat = category 90 "Lebensmittel"
+            upsertCategories [ { Id = cat.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None } ]
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAK 500 -12m (DateTime(2026, 5, 1)) (Some "Rewe") None (Some cat)
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAK) = pageTestAccountAK
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawAK)) |> Async.RunSynchronously
+
+            match page.Entries |> List.tryFind (fun e -> e.CategoryName = Some "Lebensmittel") with
+            | Some view -> Expect.equal view.CategoryGroupName (Some "Alltag") "die gespiegelte Gruppe kommt in der Sicht an"
+            | None -> failtest "Buchung mit der gesuchten Kategorie nicht in der Seite gefunden"
+
+        testCase "getLedgerEntriesPage liefert None für eine nie gespiegelte Kategorie-Id" <| fun () ->
+            let cat = category 91 "Nie gespiegelt"
+            seedEntryFull pageTestAccountAK 501 -13m (DateTime(2026, 5, 2)) (Some "Aldi") None (Some cat)
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAK) = pageTestAccountAK
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawAK)) |> Async.RunSynchronously
+
+            match page.Entries |> List.tryFind (fun e -> e.CategoryName = Some "Nie gespiegelt") with
+            | Some view ->
+                Expect.equal view.CategoryGroupName None
+                    "ohne gespiegelte Kategorie gibt es keine Gruppe, aber der Blattname aus dem Ereignis bleibt (kein Absturz)"
+                Expect.equal view.CategoryName (Some "Nie gespiegelt") "der Blattname aus dem Ereignis ist die Rückfallebene"
+            | None -> failtest "Buchung mit der gesuchten Kategorie nicht in der Seite gefunden"
+
+        testCase "Kategorie in YNAB gelöscht, aber vorher gespiegelt: die Buchung zeigt weiterhin die Gruppe" <| fun () ->
+            // Fall 1 aus den Notes: ledger_categories löscht nie (ADR 0039, Punkt 3).
+            let cat = category 92 "Streaming"
+            seedEntryFull pageTestAccountAK 502 -9m (DateTime(2026, 5, 3)) (Some "Netflix") None (Some cat)
+            |> Async.RunSynchronously
+            let ynabCat : YnabCategory = { Id = cat.CategoryId; Name = "Streaming"; GroupName = "Freizeit"; Available = None }
+            upsertCategories [ ynabCat ] |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAK) = pageTestAccountAK
+            let query = baseQuery (Some rawAK)
+            let vorher = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            match vorher.Entries |> List.tryFind (fun e -> e.CategoryName = Some "Streaming") with
+            | Some view -> Expect.equal view.CategoryGroupName (Some "Freizeit") "die Gruppe steht vor der Löschung"
+            | None -> failtest "Buchung vor der Löschung nicht gefunden"
+
+            // Ein neuer Kategorie-Lauf ohne "Streaming": die Zeile bleibt trotzdem stehen.
+            let andereKategorie = category 93 "Andere Kategorie"
+            upsertCategories [ { Id = andereKategorie.CategoryId; Name = "Andere Kategorie"; GroupName = "Sonstiges"; Available = None } ]
+            |> Async.RunSynchronously
+
+            let nachher = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            match nachher.Entries |> List.tryFind (fun e -> e.CategoryName = Some "Streaming") with
+            | Some view ->
+                Expect.equal view.CategoryGroupName (Some "Freizeit")
+                    "eine in YNAB gelöschte, aber vorher gespiegelte Kategorie behält ihre Beschriftung (ADR 0039, Punkt 3)"
+            | None -> failtest "Buchung nach dem zweiten Kategorie-Lauf nicht mehr gefunden"
+
+        testCase "Buchung ohne Kategorie liefert CategoryGroupName = None, ohne dass der Lookup läuft oder wirft" <| fun () ->
+            seedEntry pageTestAccountAK 503 -5m |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAK) = pageTestAccountAK
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawAK)) |> Async.RunSynchronously
+
+            match page.Entries |> List.tryFind (fun e -> e.CategoryName = None && e.Splits = []) with
+            | Some view -> Expect.equal view.CategoryGroupName None "ohne Kategorie gibt es nichts nachzuschlagen"
+            | None -> failtest "Buchung ohne Kategorie nicht gefunden"
+
+        testCase "toEntryView bleibt rein: dieselbe Zuordnung liefert bei gleicher Eingabe immer dasselbe Ergebnis" <| fun () ->
+            // AC: die Zuordnung kommt als Parameter herein, keine I/O in toEntryView
+            // selbst, durch die Signatur erzwungen (ein Map-Parameter, kein Zugriff
+            // auf die Datenbank innerhalb der Funktion).
+            let groups = Map.ofList [ (let (YnabCategoryId id) = (category 1 "x").CategoryId in id), "Alltag" ]
+            let view1 = ReadModel.toEntryView groups MirroredFromYnab (entry 1 -42.5m)
+            let view2 = ReadModel.toEntryView groups MirroredFromYnab (entry 1 -42.5m)
+            Expect.equal view1 view2 "reine Funktion: gleiche Eingabe, gleiches Ergebnis"
+            Expect.equal view1.CategoryGroupName (Some "Alltag") "die übergebene Zuordnung wird tatsächlich benutzt"
+
+            let leer = ReadModel.toEntryView Map.empty MirroredFromYnab (entry 1 -42.5m)
+            Expect.equal leer.CategoryGroupName None "eine leere Zuordnung ergibt keine Gruppe, keinen Fehler"
     ]
 
 [<Tests>]
