@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Promoted: ledger-h4qtx - "Payee-Vorschläge über dieselbe Faltung gruppieren wie der Payee-Filter (bb_lower, ADR 0037)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Promoted: ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf"
 
 **Type:** Modeling / Promote
