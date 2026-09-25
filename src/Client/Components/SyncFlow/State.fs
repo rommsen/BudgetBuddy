@@ -725,7 +725,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model', Cmd.ofMsg LoadCurrentSession, ShowToast (toastMsg, toastType)
 
     | ImportCompleted (Error err) ->
-        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+        // Ein Teilfehlschlag (`YnabImportFailed` für einzelne Buchungen im Batch)
+        // kann trotzdem bereits gespeicherte Buchungen hinterlassen haben
+        // (`Server.Api.importToYnab`, "Persisted regardless of a ledger write
+        // failure"). Ohne Neuladen zeigt der Client diese Buchungen mit ihrem
+        // alten Stand an (ledger-mshd8).
+        model, Cmd.ofMsg LoadCurrentSession, ShowToast (syncErrorToString err, ToastError)
 
     | ForceImportDuplicates ->
         match model.CurrentSession with

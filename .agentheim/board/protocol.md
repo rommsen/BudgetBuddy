@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 12:27 -- Task verified and completed: ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
+
+**Type:** Work / Task completion
+**Task:** ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
+**Summary:** SyncFlow lädt die Session nach gescheitertem YNAB-Import neu
+**Duration:** 12m
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-09-25 12:15 -- Batch started: [ledger-jkb0f, ledger-na3rq, ledger-mshd8]
 
 **Type:** Work / Batch start

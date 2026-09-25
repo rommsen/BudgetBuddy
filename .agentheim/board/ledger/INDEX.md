@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 7
-- **Doing:** 3
-- **Done:** 34
+- **Doing:** 2
+- **Done:** 35
 <!-- task-counts:end -->
 
 ### Todo
@@ -29,13 +29,13 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `doing/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
 - **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `doing/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
 - **ledger-jkb0f** — "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request" (bug) — `doing/ledger-jkb0f-kassenbuch-ereignis-beim-push-entspricht-ynab-request.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `done/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
 - **ledger-w6tbq** — "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln" (chore) — `done/ledger-w6tbq-force-import-die-ableitung-der-alten-importid-gegen-den-norm.md`
 - **ledger-c4mzp** — "Den Betragsfilter-Zweig des Kassenbuch-Lesepfads abdecken: Summe, Gelöschten-Zahl, Payee-Vorschläge, Blättern, einseitige Grenzen" (chore) — `done/ledger-c4mzp-den-betragsfilter-zweig-des-kassenbuch-lesepfads-abdecken-su.md`
 - **ledger-p3wnq** — "Kategorie-Stammdaten im Spiegel-Lauf mitspiegeln (ledger_categories)" (feature) — `done/ledger-p3wnq-kategorie-stammdaten-im-spiegel-lauf-mitspiegeln-ledger-cate.md`
