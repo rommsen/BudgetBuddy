@@ -1,7 +1,7 @@
 ---
 id: ledger-xk9wq
 title: "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-19
