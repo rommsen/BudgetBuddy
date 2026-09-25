@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Refined: design-system-w4n9r - Automatischer Test fuer den Design-System-Export
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** backlog
+**Summary:** Runner entschieden (node --test unter scripts/, Muster screenshot-route.test.mjs mit Browser-Skip); Zielverzeichnis per DS_EXPORT_OUT_DIR ueberschreibbar; Soll-Dateiliste aus reiner Funktion expectedBundleFiles statt abgeschrieben; visueller Regressionstest und Doppel-Lauf ausgeklammert.
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Refined: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile
 
 **Type:** Modeling / Refine
