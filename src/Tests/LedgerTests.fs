@@ -24,6 +24,11 @@ let private eur (amount: decimal) = { Amount = amount; Currency = "EUR" }
 /// stehen bei `addCashExpense`/`pushComdirectImports`.
 let private noTrigger () = ()
 
+/// Steht für `resolveCategoryName` in Tests, die den Kategorie-Namen-Resolver
+/// (ledger-jkb0f) nicht selbst prüfen: liefert nie einen Namen, `recordComdirectPush`
+/// fällt dann immer auf `ReviewStep.CategoryName` zurück, wie vor dem Fix.
+let private noResolveCategoryName (_: YnabCategoryId) : string option = None
+
 let private testAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-000000000001")
 let private otherAccountId = LedgerAccountId (Guid.Parse "0195c000-0000-7000-8000-000000000002")
 
@@ -690,7 +695,7 @@ let recordComdirectPushTests =
             let entryId = newEntryId ()
             let pushedAt = DateTime(2026, 3, 1, 10, 0, 0, DateTimeKind.Utc)
             let events =
-                recordComdirectPush {
+                recordComdirectPush noResolveCategoryName {
                     EntryId = entryId
                     AccountId = testAccountId
                     ImportId = "import-1"
@@ -698,6 +703,7 @@ let recordComdirectPushTests =
                     Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
                     Amount = eur -17.40m
                     Payee = Some "dm"
+                    RawPayee = Some "dm"
                     Memo = None
                     PushedAt = pushedAt
                     ReviewSteps = []
@@ -735,7 +741,7 @@ let recordComdirectPushTests =
             }
 
             let events =
-                recordComdirectPush {
+                recordComdirectPush noResolveCategoryName {
                     EntryId = entryId
                     AccountId = testAccountId
                     ImportId = "import-2"
@@ -743,6 +749,7 @@ let recordComdirectPushTests =
                     Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
                     Amount = eur -17.40m
                     Payee = Some "dm"
+                    RawPayee = Some "dm"
                     Memo = None
                     PushedAt = pushedAt
                     ReviewSteps = [ ruleStep; userStep ]
@@ -787,7 +794,7 @@ let recordComdirectPushTests =
             }
 
             let events =
-                recordComdirectPush {
+                recordComdirectPush noResolveCategoryName {
                     EntryId = entryId
                     AccountId = testAccountId
                     ImportId = "import-3"
@@ -795,6 +802,7 @@ let recordComdirectPushTests =
                     Date = DateTime(2026, 3, 2, 0, 0, 0, DateTimeKind.Utc)
                     Amount = eur -25.00m
                     Payee = Some "Amazon"
+                    RawPayee = Some "Amazon"
                     Memo = None
                     PushedAt = DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ orderIdStep ]
@@ -806,6 +814,216 @@ let recordComdirectPushTests =
                 "Order-ID-Abgleich ist ein Recategorized-Ereignis mit eigenem Urheber"
             Expect.equal events.[1].Actor (OrderIdMatch "order-42")
                 "Actor trägt die Bestell-Id, weder Regel noch Roman für DIESE Buchung"
+
+        // ============================================
+        // Vier Randfälle, in denen das Kassenbuch-Ereignis beim Push nicht dem
+        // tatsächlichen YNAB-Request entsprach (ledger-jkb0f)
+        // ============================================
+
+        testCase "Regel setzt Payee-Override, Roman entfernt ihn: NewPayee fällt auf den rohen Bank-Payee zurück, nicht auf den entfernten Override" <| fun () ->
+            let entryId = newEntryId ()
+            let ruleAt = DateTime(2026, 3, 3, 8, 0, 0, DateTimeKind.Utc)
+            let userAt = DateTime(2026, 3, 3, 9, 0, 0, DateTimeKind.Utc)
+            let ruleStep : ReviewStep = {
+                At = ruleAt
+                By = ByRule (RuleId (Guid.NewGuid()), "dm -> Drogerie mit Override")
+                Category = Some categoryDrogerie.CategoryId
+                CategoryName = Some categoryDrogerie.CategoryName
+                Splits = None
+                PayeeOverride = Some "dm Drogeriemarkt"
+            }
+            let removeOverrideStep : ReviewStep = {
+                At = userAt
+                By = ByUser
+                Category = Some categoryDrogerie.CategoryId
+                CategoryName = Some categoryDrogerie.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush noResolveCategoryName {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-payee-override"
+                    ComdirectReference = "comdirect-payee-override"
+                    Date = DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -12.00m
+                    // Wie tatsächlich gesendet: der Override war beim Push noch aktiv.
+                    Payee = Some "dm Drogeriemarkt"
+                    RawPayee = Some "dm"
+                    Memo = None
+                    PushedAt = DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)
+                    ReviewSteps = [ ruleStep; removeOverrideStep ]
+                }
+
+            match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
+            | Some { Body = EntryRecategorized p } ->
+                Expect.equal
+                    p.NewPayee
+                    (Some "dm")
+                    "NewPayee entspricht dem rohen Bank-Payee nach Entfernen des Overrides, nicht dem alten Override"
+            | other -> failtest $"erwartete EntryRecategorized, war {other}"
+
+        testCase "kein Bank-Payee und kein Override: NewPayee entspricht genau dem PayeeName, den YnabClient tatsächlich sendet (Unknown), nicht None" <| fun () ->
+            // Verifier-Fund, Iteration 1: `YnabClient.buildTransactionRequest` fällt bei
+            // fehlendem Bank-Payee auf den festen Text "Unknown" zurück
+            // (`Server.PayeeFormatting.resolvePayeeName`); ein Review-Schritt ohne
+            // Override darf im Kassenbuch-Ereignis nicht `NewPayee = None` schreiben,
+            // sonst sieht der nächste Spiegel-Lauf "Unknown" gegen None und meldet
+            // fälschlich eine Änderung in YNAB.
+            let entryId = newEntryId ()
+            let step : ReviewStep = {
+                At = DateTime(2026, 3, 6, 8, 0, 0, DateTimeKind.Utc)
+                By = ByUser
+                Category = Some categoryDrogerie.CategoryId
+                CategoryName = Some categoryDrogerie.CategoryName
+                Splits = None
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush noResolveCategoryName {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-no-payee"
+                    ComdirectReference = "comdirect-no-payee"
+                    Date = DateTime(2026, 3, 6, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -3.50m
+                    // Wie tatsächlich gesendet: kein Override aktiv, kein Bank-Payee
+                    // bekannt, `buildTransactionRequest` sendet also "Unknown".
+                    Payee = Some (Server.PayeeFormatting.resolvePayeeName None None)
+                    RawPayee = None
+                    Memo = None
+                    PushedAt = DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)
+                    ReviewSteps = [ step ]
+                }
+
+            let expectedPayeeName = Server.PayeeFormatting.resolvePayeeName step.PayeeOverride None
+
+            match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
+            | Some { Body = EntryRecategorized p } ->
+                Expect.equal
+                    p.NewPayee
+                    (Some expectedPayeeName)
+                    "NewPayee entspricht genau dem PayeeName, den YnabClient tatsächlich sendet"
+            | other -> failtest $"erwartete EntryRecategorized, war {other}"
+
+        testCase "ein Split-Memo über 300 Zeichen wird im Ereignis genauso gekürzt wie im tatsächlich gesendeten Request" <| fun () ->
+            let entryId = newEntryId ()
+            let longMemo = String.replicate 40 "Supermarkt Einkauf mit sehr langer Beschreibung "
+            let splitLine : TransactionSplit = {
+                Target = ToCategory (categoryDrogerie.CategoryId, categoryDrogerie.CategoryName)
+                Amount = eur -5.00m
+                Memo = Some longMemo
+            }
+            let step : ReviewStep = {
+                At = DateTime(2026, 3, 4, 8, 0, 0, DateTimeKind.Utc)
+                By = ByUser
+                Category = None
+                CategoryName = None
+                Splits = Some [ splitLine ]
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush noResolveCategoryName {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-split-memo"
+                    ComdirectReference = "comdirect-split-memo"
+                    Date = DateTime(2026, 3, 4, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -5.00m
+                    Payee = Some "Supermarkt"
+                    RawPayee = Some "Supermarkt"
+                    Memo = None
+                    PushedAt = DateTime(2026, 3, 4, 10, 0, 0, DateTimeKind.Utc)
+                    ReviewSteps = [ step ]
+                }
+
+            match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
+            | Some { Body = EntryRecategorized p } ->
+                let expected = Server.MemoFormatting.truncateSplitMemo longMemo
+                match p.NewSplits with
+                | [ s ] ->
+                    Expect.equal
+                        s.Memo
+                        (Some expected)
+                        "das Split-Memo im Ereignis entspricht der Kürzung, die YnabClient tatsächlich sendet"
+                | other -> failtest $"erwartete genau eine Split-Zeile, war {other}"
+            | other -> failtest $"erwartete EntryRecategorized, war {other}"
+
+        testCase "fehlender CategoryName im Review-Schritt (gescheiterter getCategories-Aufruf): der Resolver liefert trotzdem eine vollständige CategoryRef" <| fun () ->
+            let entryId = newEntryId ()
+            let catId = YnabCategoryId (Guid.NewGuid())
+            let resolve (id: YnabCategoryId) = if id = catId then Some "Freizeit" else None
+            let step : ReviewStep = {
+                At = DateTime(2026, 3, 5, 8, 0, 0, DateTimeKind.Utc)
+                By = ByUser
+                Category = Some catId
+                CategoryName = None
+                Splits = None
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush resolve {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-missing-name"
+                    ComdirectReference = "comdirect-missing-name"
+                    Date = DateTime(2026, 3, 5, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -8.00m
+                    Payee = Some "Kino"
+                    RawPayee = Some "Kino"
+                    Memo = None
+                    PushedAt = DateTime(2026, 3, 5, 10, 0, 0, DateTimeKind.Utc)
+                    ReviewSteps = [ step ]
+                }
+
+            match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
+            | Some { Body = EntryRecategorized p } ->
+                Expect.equal
+                    p.NewCategory
+                    (Some { CategoryId = catId; CategoryName = "Freizeit" })
+                    "der Resolver liefert den Namen, obwohl der Review-Schritt keinen CategoryName trägt"
+            | other -> failtest $"erwartete EntryRecategorized, war {other}"
+
+        testCase "veralteter, gecachter CategoryName im Review-Schritt: der Resolver liefert den frischeren Namen" <| fun () ->
+            let entryId = newEntryId ()
+            let catId = YnabCategoryId (Guid.NewGuid())
+            let resolve (id: YnabCategoryId) = if id = catId then Some "Freizeit (neu)" else None
+            let step : ReviewStep = {
+                At = DateTime(2026, 3, 6, 8, 0, 0, DateTimeKind.Utc)
+                By = ByRule (RuleId (Guid.NewGuid()), "Kino -> Freizeit")
+                Category = Some catId
+                CategoryName = Some "Freizeit (alt, aus dem Regel-Cache)"
+                Splits = None
+                PayeeOverride = None
+            }
+
+            let events =
+                recordComdirectPush resolve {
+                    EntryId = entryId
+                    AccountId = testAccountId
+                    ImportId = "import-stale-name"
+                    ComdirectReference = "comdirect-stale-name"
+                    Date = DateTime(2026, 3, 6, 0, 0, 0, DateTimeKind.Utc)
+                    Amount = eur -8.00m
+                    Payee = Some "Kino"
+                    RawPayee = Some "Kino"
+                    Memo = None
+                    PushedAt = DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)
+                    ReviewSteps = [ step ]
+                }
+
+            match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryCategorizedByRule") with
+            | Some { Body = EntryCategorizedByRule p } ->
+                Expect.equal
+                    p.Category
+                    (Some { CategoryId = catId; CategoryName = "Freizeit (neu)" })
+                    "der Resolver liefert den frischeren Namen, nicht den gecachten aus dem Review-Schritt"
+            | other -> failtest $"erwartete EntryCategorizedByRule, war {other}"
     ]
 
 // ============================================
@@ -1177,6 +1395,22 @@ let ledgerPersistenceTests =
             let groups = loadCategoryGroups () |> Async.RunSynchronously
             Expect.equal (Map.tryFind neverSeen groups) None "eine unbekannte Kategorie-Id liefert keinen Gruppennamen"
 
+        testCase "loadCategoryNames findet den Namen unter der Kategorie-Id (ledger-jkb0f)" <| fun () ->
+            let categoryId = YnabCategoryId (Guid.NewGuid())
+            let (YnabCategoryId rawId) = categoryId
+            let category : YnabCategory =
+                { Id = categoryId; Name = "Freizeit"; GroupName = "Alltag"; Available = None }
+
+            upsertCategories [ category ] |> Async.RunSynchronously
+
+            let names = loadCategoryNames () |> Async.RunSynchronously
+            Expect.equal (Map.tryFind rawId names) (Some "Freizeit") "eigener Name unter der Kategorie-Id gefunden, nicht der Gruppenname"
+
+        testCase "loadCategoryNames liefert für eine nie gespeicherte Kategorie-Id keinen Eintrag, keinen Fehler" <| fun () ->
+            let neverSeen = Guid.NewGuid()
+            let names = loadCategoryNames () |> Async.RunSynchronously
+            Expect.equal (Map.tryFind neverSeen names) None "eine unbekannte Kategorie-Id liefert keinen Namen"
+
         testCase "loadCategoryGroups liefert für eine leere Tabelle eine leere Map statt eines Fehlers" <| fun () ->
             use conn = new Microsoft.Data.Sqlite.SqliteConnection(global.Persistence.activeConnectionString())
             conn.Open()
@@ -1460,6 +1694,7 @@ module private PushFixtures =
             Date = DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc)
             Amount = amount
             Payee = Some "dm"
+            RawPayee = Some "dm"
             Memo = None
             ReviewSteps = reviewSteps
             ExistingEntryImportId = None

@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 12:49 -- Task verified and completed: ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
+
+**Type:** Work / Task completion
+**Task:** ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
+**Summary:** Kassenbuch-Ereignis beim Comdirect-Push folgt dem tatsächlich gesendeten YNAB-Request
+**Duration:** 47m
+**Verification:** PASS (iteration 2)
+**Files changed:** 10
+**Tests added:** 7
+**ADRs written:** none
+
+---
+
+## 2026-09-25 12:39 -- Verification failed: ledger-jkb0f - Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request
+
+**Type:** Work / Verification failure
+**Task:** ledger-jkb0f - Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request
+**Iteration:** 1 of 3
+**Reasons:** Payee-Fallback ohne Override nutzt den rohen Bank-Payee, YNAB bekommt bei fehlendem Bank-Payee aber "Unknown" (neue Regression, falsches Spiegel-Ereignis), Regressionstest vergleicht gegen festen Wert statt gegen den gesendeten Request
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-09-25 12:37 -- Verification failed: ledger-na3rq - Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab
+
+**Type:** Work / Verification failure
+**Task:** ledger-na3rq - Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab
+**Iteration:** 1 of 3
+**Reasons:** Force-Import-Gate prüft nur noch den erzwungenen Batch statt aller Session-Buchungen (allCategorizedImported entfallen), ungeprüfte Nebenänderungen am Force-Pfad (RejectedByYnab für Transfer und Duplikat), Umschreibungen abschliessen/liess im Test
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 12:27 -- Task verified and completed: ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
 
 **Type:** Work / Task completion

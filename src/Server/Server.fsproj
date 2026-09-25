@@ -21,6 +21,10 @@
          `Ledger.Domain.observe` konsumiert ihn, er selbst leiht sich nur die beiden
          YNAB-geformten Wertobjekte aus `Ledger.Events`. -->
     <Compile Include="YnabObservations.fs" />
+    <!-- Reine Memo-Kürzung, gemeinsam von YnabClient und Ledger.Domain genutzt
+         (ledger-jkb0f): muss vor beiden stehen. -->
+    <Compile Include="MemoFormatting.fs" />
+    <Compile Include="PayeeFormatting.fs" />
     <Compile Include="Ledger/Domain.fs" />
     <Compile Include="Ledger/Persistence.fs" />
     <Compile Include="YnabClient.fs" />

@@ -10,6 +10,8 @@ open System
 open Shared.Domain
 open Ledger.Events
 open Server.YnabObservations
+open Server.MemoFormatting
+open Server.PayeeFormatting
 
 // ============================================
 // Konto (reiner Zustand, keine Historie in v1)
@@ -326,7 +328,8 @@ let replay (events: LedgerEvent list) : Entry option =
 
 /// Was `recordComdirectPush` braucht, um die Ereignisfolge einer Comdirect-Buchung zu
 /// bauen: die Rohdaten der Bank-Buchung (Kassenbuch-Konto, ImportId, Comdirect-
-/// Reference, Datum, Betrag, roher Payee/Memo von der Bank) plus die Review-Spur
+/// Reference, Datum, Betrag, Payee/Memo wie tatsächlich im YNAB-Request, plus der rohe
+/// Bank-Payee als eigenes Feld, `RawPayee`, ledger-jkb0f) plus die Review-Spur
 /// (`Shared.Domain.ReviewStep list`, categorization-gdrx8), älteste zuerst. `PushedAt`
 /// ist der Zeitpunkt der Entstehung (`EntryImportedFromComdirect`); jeder Review-Schritt
 /// behält seinen eigenen, ursprünglichen Zeitpunkt (`ReviewStep.At`), nicht `PushedAt`.
@@ -337,9 +340,19 @@ type ComdirectPushInput = {
     ComdirectReference: string
     Date: DateTime
     Amount: Money
-    /// Der rohe, von der Bank gelieferte Payee. Ein Payee-Override aus der Review-Spur
-    /// kommt erst als eigenes Ereignis dazu, die Entstehung selbst bleibt roh.
+    /// Der Payee, wie er tatsächlich im YNAB-Request steht (`PreparedTransaction.Request.PayeeName`,
+    /// also mit einem zu diesem Zeitpunkt schon aktiven Override, falls einer gesetzt
+    /// war). Das ist die Entstehung, kein roher Bankwert (ledger-jkb0f: dieser
+    /// Kommentar behauptete das bisher fälschlich, siehe `RawPayee` für den echten
+    /// Rohwert).
     Payee: string option
+    /// Der rohe, von der Bank gelieferte Payee, unabhängig von jedem Override
+    /// (`BankTransaction.Payee`). Fallback für `toEvent`, wenn ein Review-Schritt
+    /// keinen Override (mehr) trägt: ohne diesen rohen Wert würde ein entfernter
+    /// Override fälschlich auf den vorherigen Override zurückfallen statt auf die
+    /// eigentliche Bankangabe (ledger-jkb0f).
+    RawPayee: string option
+    /// Das Memo, wie es tatsächlich im YNAB-Request steht.
     Memo: string option
     PushedAt: DateTime
     ReviewSteps: ReviewStep list
@@ -357,13 +370,30 @@ type ComdirectPushInput = {
 ///     dieselbe Kategorisierungs-Semantik wie eine Umkategorisierung, nur mit einem
 ///     anderen Urheber (Entscheidung Roman, 2026-09-11, siehe Task-Notes).
 /// `Old*`-Felder der Recategorized-Ereignisse verfolgen den Stand des jeweils
-/// vorherigen Schritts (leer/`None` für den ersten); `NewPayee` übernimmt
-/// `PayeeOverride`, sonst bleibt der vorherige Payee erhalten (kein stilles Wischen auf
-/// `None`, analog zum `Option.orElse`-Verhalten von `EntryCategorizedByRule` in `apply`).
-/// Rein: kein I/O, keine Uhr. Ob eine ImportId schon verknüpft ist (kein zweites
-/// Entstehen) und das eigentliche Schreiben ist Sache des Aufrufers
+/// vorherigen Schritts (leer/`None` für den ersten); `NewPayee` kommt aus
+/// `Server.PayeeFormatting.resolvePayeeName`, derselben Funktion, die
+/// `YnabClient.buildTransactionRequest` für `PayeeName` benutzt: `PayeeOverride`,
+/// sonst der rohe Bank-Payee (`input.RawPayee`), sonst der feste YNAB-Text "Unknown",
+/// nie der Override des vorherigen Schritts (ledger-jkb0f: sonst bliebe ein entfernter
+/// Override fälschlich stehen, statt auf die Bankangabe zurückzufallen, und ohne den
+/// gemeinsamen "Unknown"-Fallback wiche `NewPayee = None` von dem ab, was YNAB
+/// tatsächlich sendet, sobald weder Override noch Bank-Payee existieren). Splits
+/// übernehmen dieselbe Memo-Kürzung
+/// (`Server.MemoFormatting.truncateSplitMemo`), die `YnabClient` beim Senden
+/// tatsächlich anwendet, sonst zeigt das Ereignis ein ungekürztes Memo, das YNAB nie
+/// bekommen hat. Kategorie-Namen kommen zuerst vom injizierten `resolveCategoryName`
+/// (Muster wie der injizierte `push`-Parameter in `pushComdirectImports`), erst wenn
+/// der keinen Namen kennt, fällt `categoryRefOf` auf `step.CategoryName` zurück; so
+/// bekommt eine Buchung auch dann eine vollständige `CategoryRef`, wenn der
+/// Review-Schritt selbst keinen (mehr aktuellen) Namen trägt.
+/// Rein: kein I/O, keine Uhr, `resolveCategoryName` ist ein reiner Lookup gegen eine
+/// vom Aufrufer schon geladene Map. Ob eine ImportId schon verknüpft ist (kein
+/// zweites Entstehen) und das eigentliche Schreiben ist Sache des Aufrufers
 /// (`Ledger.CommandHandlers`, ADR 0021 Punkt 3).
-let recordComdirectPush (input: ComdirectPushInput) : LedgerEvent list =
+let recordComdirectPush
+    (resolveCategoryName: YnabCategoryId -> string option)
+    (input: ComdirectPushInput)
+    : LedgerEvent list =
     let creation = {
         EntryId = input.EntryId
         OccurredAt = input.PushedAt
@@ -385,9 +415,12 @@ let recordComdirectPush (input: ComdirectPushInput) : LedgerEvent list =
     }
 
     let categoryRefOf (step: ReviewStep) : CategoryRef option =
-        match step.Category, step.CategoryName with
-        | Some catId, Some name -> Some { CategoryId = catId; CategoryName = name }
-        | _ -> None
+        match step.Category with
+        | Some catId ->
+            match resolveCategoryName catId |> Option.orElse step.CategoryName with
+            | Some name -> Some { CategoryId = catId; CategoryName = name }
+            | None -> None
+        | None -> None
 
     // Roman kann eine Buchung erst aufteilen und danach über den Kategorie-Chip
     // "Aufgeteilt" eine Kategorie wählen; `categorizeTransaction` setzt dann `CategoryId`,
@@ -402,8 +435,20 @@ let recordComdirectPush (input: ComdirectPushInput) : LedgerEvent list =
         if splits.Length >= 2 then None, splits else category, splits
 
     let toEvent (prevCategory, prevSplits, prevPayee) (step: ReviewStep) =
-        let category, splits = resolveCategoryVsSplits (categoryRefOf step) (step.Splits |> Option.defaultValue [])
-        let newPayee = step.PayeeOverride |> Option.orElse prevPayee
+        let rawSplits =
+            step.Splits
+            |> Option.defaultValue []
+            |> List.map (fun split -> { split with Memo = split.Memo |> Option.map truncateSplitMemo })
+        let category, splits = resolveCategoryVsSplits (categoryRefOf step) rawSplits
+        // Dieselbe Auflösung wie `YnabClient.buildTransactionRequest` (`Server.PayeeFormatting.resolvePayeeName`),
+        // nicht auf `prevPayee`: `step.PayeeOverride = None` heißt, DIESER Schritt hat
+        // (mehr) keinen Override, nicht "unverändert gegenüber dem letzten Schritt"
+        // (ledger-jkb0f). Der gemeinsame Resolver liefert auch den Fallback auf den
+        // festen YNAB-Text "Unknown", wenn weder Override noch Bank-Payee existieren,
+        // sonst würde ein Review-Schritt ohne Override und ohne Bank-Payee `NewPayee =
+        // None` schreiben, obwohl YNAB tatsächlich "Unknown" bekommt (Verifier-Fund,
+        // Iteration 1).
+        let newPayee = Some (resolvePayeeName step.PayeeOverride input.RawPayee)
 
         let recategorizedBody actor =
             actor,

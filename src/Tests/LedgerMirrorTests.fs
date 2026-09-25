@@ -1206,6 +1206,7 @@ let mirrorRunTests =
                 Date = date
                 Amount = amount
                 Payee = Some request.PayeeName
+                RawPayee = Some request.PayeeName
                 Memo = Some request.Memo
                 ReviewSteps = []
                 ExistingEntryImportId = None

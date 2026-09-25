@@ -758,6 +758,11 @@ let buildComdirectImportCandidates
             Date = tx.Transaction.BookingDate
             Amount = tx.Transaction.Amount
             Payee = Some p.Request.PayeeName
+            // Der rohe Bank-Payee, unabhängig von einem Override (ledger-jkb0f):
+            // `p.Request.PayeeName` hat einen zu diesem Zeitpunkt aktiven Override
+            // schon eingebacken, taugt also nicht als Fallback, wenn ein späterer
+            // Review-Schritt genau diesen Override wieder entfernt.
+            RawPayee = tx.Transaction.Payee
             Memo = Some p.Request.Memo
             ReviewSteps = tx.ReviewSteps
             ExistingEntryImportId =

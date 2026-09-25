@@ -566,7 +566,13 @@ type ComdirectImportCandidate = {
     ComdirectReference: string
     Date: DateTime
     Amount: Money
+    /// Wie im tatsächlich gesendeten Request (`Prepared.Request.PayeeName`), also mit
+    /// einem zu diesem Zeitpunkt schon aktiven Override.
     Payee: string option
+    /// Der rohe, von der Bank gelieferte Payee (`BankTransaction.Payee`), unabhängig
+    /// von jedem Override. Fallback in `recordComdirectPush`, wenn ein Review-Schritt
+    /// keinen Override (mehr) trägt (ledger-jkb0f).
+    RawPayee: string option
     Memo: string option
     ReviewSteps: ReviewStep list
     /// Die ImportId, über die nach einer schon bestehenden Kassenbuch-Buchung gesucht
@@ -639,6 +645,13 @@ let pushComdirectImports
     (candidates: ComdirectImportCandidate list)
     : Async<ComdirectPushResult> =
     async {
+        // Kategorie-Namen-Resolver (ledger-jkb0f): einmal vorab geladen (Muster wie
+        // `loadCategoryGroups`, ADR 0039), damit `recordComdirectPush` einen frischeren
+        // Namen liefern kann als der Review-Schritt selbst kennt, ohne je Buchung
+        // erneut nachzuschlagen.
+        let! categoryNames = Ledger.Persistence.loadCategoryNames ()
+        let resolveCategoryName (YnabCategoryId id) = Map.tryFind id categoryNames
+
         let! writeResults =
             candidates
             |> List.map (fun candidate ->
@@ -668,7 +681,7 @@ let pushComdirectImports
                     | None ->
                         let entryId = newEntryId ()
                         let events =
-                            recordComdirectPush {
+                            recordComdirectPush resolveCategoryName {
                                 EntryId = entryId
                                 AccountId = accountId
                                 // Die neu geschriebene Buchung trägt dieselbe ImportId,
@@ -684,6 +697,7 @@ let pushComdirectImports
                                 Date = candidate.Date
                                 Amount = candidate.Amount
                                 Payee = candidate.Payee
+                                RawPayee = candidate.RawPayee
                                 Memo = candidate.Memo
                                 PushedAt = now
                                 ReviewSteps = candidate.ReviewSteps

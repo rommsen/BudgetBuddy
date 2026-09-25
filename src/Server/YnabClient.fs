@@ -4,6 +4,8 @@ open System
 open FsHttp
 open Thoth.Json.Net
 open Shared.Domain
+open Server.MemoFormatting
+open Server.PayeeFormatting
 
 // ============================================
 // YNAB API Configuration
@@ -335,20 +337,10 @@ let getPayees (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<Ynab
             return Error (YnabError.NetworkError $"Failed to fetch payees: {ex.Message}")
     }
 
-/// YNAB memo character limit (testing with 300, may need adjustment)
-let private memoLimit = 300
-
-/// Compresses multiple consecutive whitespace characters into a single space
-let private compressWhitespace (text: string) =
-    System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim()
-
-/// Simple truncation for split memos (no reference needed - parent has it)
-let private truncateSplitMemo (memo: string) =
-    let compressed = compressWhitespace memo
-    if compressed.Length > memoLimit then
-        compressed.Substring(0, memoLimit - 3) + "..."
-    else
-        compressed
+/// `memoLimit`, `compressWhitespace` und `truncateSplitMemo` sind nach
+/// `Server.MemoFormatting` gezogen (ledger-jkb0f): `Ledger.Domain.recordComdirectPush`
+/// muss dieselbe Kürzung anwenden wie der tatsächlich gesendete Request, eine zweite,
+/// unabhängige Kopie hier würde genau das wieder auseinanderlaufen lassen.
 
 /// Builds memo with reference suffix for YNAB, ensuring reference is never truncated.
 /// Format: "<memo>, Ref: <reference>"
@@ -587,10 +579,7 @@ let buildTransactionRequest
         AccountId = accountId.ToString()
         Date = tx.Transaction.BookingDate.ToString("yyyy-MM-dd")
         Amount = int (tx.Transaction.Amount.Amount * 1000m)  // Convert to milliunits
-        PayeeName =
-            tx.PayeeOverride
-            |> Option.orElse tx.Transaction.Payee
-            |> Option.defaultValue "Unknown"
+        PayeeName = resolvePayeeName tx.PayeeOverride tx.Transaction.Payee
         Memo = buildMemoWithReference tx.Transaction.Memo tx.Transaction.Reference
         Cleared = "uncleared"
         ImportId = importId  // Prevents duplicates (max 36 chars)

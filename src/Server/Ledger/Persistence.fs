@@ -1064,3 +1064,23 @@ let loadCategoryGroups () : Async<Map<Guid, string>> =
             |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.group_name)
             |> Map.ofSeq
     }
+
+/// Die Zuordnung Kategorie-Id auf eigenen Namen (ledger-jkb0f), dieselbe Tabelle wie
+/// `loadCategoryGroups`, nur die Spalte `name` statt `group_name`. Speist den
+/// Kategorie-Namen-Resolver für `Ledger.Domain.recordComdirectPush`: ein Review-Schritt
+/// kann einen fehlenden oder veralteten `CategoryName` tragen (gescheiterter
+/// `getCategories`-Aufruf zum Zeitpunkt der Kategorisierung, oder ein seither in YNAB
+/// umbenannter Regel-Cache-Name), der Spiegel hält hier den frischeren Stand. Leere
+/// Tabelle liefert eine leere Map, nie einen Fehler, wie `loadCategoryGroups`.
+let loadCategoryNames () : Async<Map<Guid, string>> =
+    async {
+        use conn = Core.getConnection ()
+
+        let! rows =
+            conn.QueryAsync<CategoryRow>("SELECT * FROM ledger_categories") |> Async.AwaitTask
+
+        return
+            rows
+            |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.name)
+            |> Map.ofSeq
+    }
