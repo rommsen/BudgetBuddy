@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 13:03 -- Batch started: [ledger-qns4j, ledger-xk9wq, design-system-thtpp]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-qns4j - "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen", ledger-xk9wq - "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen", design-system-thtpp - "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
+**Parallel:** yes (3 workers, cap 3, wave 2). Held to a later wave: ledger-nnn47, ledger-h6ptn, ledger-j8xq4 (share src/Client/Components/Ledger/View.fs or LedgerViewTests.fs with ledger-qns4j), design-system-w4n9r, ledger-f8q2x, ledger-h4qtx (cap).
+
+---
+
 ## 2026-09-25 13:03 -- Task verified and completed: ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
 
 **Type:** Work / Task completion

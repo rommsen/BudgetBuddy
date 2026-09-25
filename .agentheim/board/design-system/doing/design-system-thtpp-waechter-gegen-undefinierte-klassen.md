@@ -1,7 +1,7 @@
 ---
 id: design-system-thtpp
 title: "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-09-13

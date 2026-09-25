@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 24
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-thtpp** — "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind" (feature) — `todo/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
 - **design-system-w4n9r** — "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern" (chore) — `todo/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-thtpp** — "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind" (feature) — `doing/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
