@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:55 -- Modeling / Promoted: design-system-thtpp - "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-25 10:55 -- Modeling / Refined: design-system-thtpp - Waechter gegen undefinierte Klassennamen
 
 **Type:** Modeling / Refine
