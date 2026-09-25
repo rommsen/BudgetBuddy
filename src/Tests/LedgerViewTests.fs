@@ -282,6 +282,18 @@ let private countOccurrences (haystack: string) (needle: string) : int =
         if i = -1 then acc else go (i + needle.Length) (acc + 1)
     go 0 0
 
+/// Entfernt jede Zeile, deren getrimmter Anfang `//` ist (deckt `///`-Doc-Kommentare
+/// und `//`-Zeilenkommentare ab; Blockkommentare `(* *)` kommen in `View.fs` nicht vor
+/// und werden nicht behandelt). Grenzt eine Platzhalter-Zählung auf Code ein: gemeint
+/// ist "der Platzhalter lebt an genau einer Stelle im Modul", eine Zählung über den
+/// ganzen Dateitext misst aber zusätzlich die Prosa (ledger-nnn47, Fund aus
+/// `ledger-n3pqw` Iteration 1). Eine Zeile, deren getrimmter Anfang kein `//` ist,
+/// zählt weiterhin mit, auch wenn sie selbst einen `//`-Kommentar am Ende trägt.
+let private withoutCommentLines (source: string) : string =
+    source.Split('\n')
+    |> Array.filter (fun line -> not (line.TrimStart().StartsWith("//")))
+    |> String.concat "\n"
+
 /// Schneidet den Rumpf EINER CSS-Regel aus dem Quelltext, ab ihrem Selektor
 /// (`"{selector} {"`, exakt) bis zur ersten schließenden Klammer danach. Bewusst
 /// naiv (keine verschachtelten Klammern erwartet): reicht für die Regeln in
@@ -341,6 +353,39 @@ let private categoryColorCssBindingTests =
         }
     ]
 
+/// `withoutCommentLines` selbst gegen synthetischen Quelltext festgenagelt, damit
+/// er nicht nur indirekt über die beiden Zähl-Tests unten geprüft ist.
+let private withoutCommentLinesTests =
+    testList "withoutCommentLines (ledger-nnn47)" [
+
+        test "Das Literal in einer ///-Zeile und einer //-Zeile fällt weg, in einer Codezeile bleibt es (genau 1)" {
+            let source =
+                String.concat "\n" [
+                    "/// Kommentar nennt \"ohne Payee\""
+                    "// Kommentar nennt \"ohne Payee\" ebenfalls"
+                    "let x = \"ohne Payee\""
+                ]
+            Expect.equal (countOccurrences (withoutCommentLines source) "ohne Payee") 1
+                "Nur die Codezeile zählt, beide Kommentarzeilen fallen weg"
+        }
+
+        test "Dieselbe Quelle ohne die Codezeile ergibt 0" {
+            let source =
+                String.concat "\n" [
+                    "/// Kommentar nennt \"ohne Payee\""
+                    "// Kommentar nennt \"ohne Payee\" ebenfalls"
+                ]
+            Expect.equal (countOccurrences (withoutCommentLines source) "ohne Payee") 0
+                "Beide verbliebenen Zeilen sind Kommentare, nichts bleibt übrig"
+        }
+
+        test "Ein Trailing-Kommentar hinter Code zählt weiterhin mit, die Zeile beginnt getrimmt nicht mit //" {
+            let source = "let x = \"ohne Payee\" // Kommentar dahinter"
+            Expect.equal (countOccurrences (withoutCommentLines source) "ohne Payee") 1
+                "Die Zeile ist eine Codezeile mit angehängtem Kommentar, sie fällt nicht weg"
+        }
+    ]
+
 /// Regression für ledger-n3pqw, Lücke 9: nichts pinnte, dass Handy-Zeile
 /// (`entryRow`) und PC-Tabelle (`entryTableRow`) dieselben geteilten Helfer
 /// (`categoryLabel`, `payeeLabel`) benutzen. Vor dem Umbau stand "ohne Payee"
@@ -356,15 +401,15 @@ let private sharedHelpersAndNoColorLiteralsTests =
         }
 
         test "'ohne Kategorie' steht genau einmal, in categoryLabel" {
-            let view = readLedgerView ()
+            let view = readLedgerView () |> withoutCommentLines
             Expect.equal (countOccurrences view "ohne Kategorie") 1
-                "Ein wieder eingebauter abweichender Platzhalter in nur einer der beiden Ansichten würde hier auffallen."
+                "Ein wieder eingebauter abweichender Platzhalter in nur einer der beiden Ansichten würde hier auffallen. Kommentarzeilen zählen bewusst nicht mit (ledger-nnn47): gemeint ist der Code, nicht die Prosa."
         }
 
         test "'ohne Payee' steht genau einmal, in payeeLabel" {
-            let view = readLedgerView ()
+            let view = readLedgerView () |> withoutCommentLines
             Expect.equal (countOccurrences view "ohne Payee") 1
-                "Vor der Einführung von payeeLabel standen hier zwei Vorkommen (je eines pro Ansicht, entryRow und entryTableRow)."
+                "Vor der Einführung von payeeLabel standen hier zwei Vorkommen (je eines pro Ansicht, entryRow und entryTableRow). Kommentarzeilen zählen bewusst nicht mit (ledger-nnn47)."
         }
 
         test "entryRow und entryTableRow teilen payeeLabel; die Kategorie-Funktion unterscheidet sich bewusst (ADR 0039)" {
@@ -775,6 +820,7 @@ let ledgerViewTests =
           categoryLabelQualifiedTests
           categoryColorTests
           categoryColorCssBindingTests
+          withoutCommentLinesTests
           sharedHelpersAndNoColorLiteralsTests
           statusColumnTests
           accountStripStickyTests

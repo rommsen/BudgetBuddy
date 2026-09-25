@@ -1,7 +1,7 @@
 ---
 id: ledger-nnn47
 title: "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf"
-status: doing
+status: done
 type: chore
 context: ledger
 created: 2026-09-24
@@ -88,3 +88,45 @@ von `.agentheim/board/ledger/done/ledger-n3pqw-kassenbuch-zeilen-die-kategorie-f
 Die Testdatei hat bereits `countOccurrences` und `readLedgerView` als Helfer (Zeile 227 ff.
 liegt `sliceFunctionBody`, das für ein anderes Kriterium Rümpfe herausschneidet); der neue
 Helfer gehört daneben.
+
+## Outcome
+
+`src/Tests/LedgerViewTests.fs` bekommt einen privaten Helfer `withoutCommentLines : string ->
+string` (neben `countOccurrences`), der jede Zeile entfernt, deren getrimmter Anfang `//` ist
+(deckt `///`-Doc-Kommentare und `//`-Zeilenkommentare ab). Die beiden Zähl-Tests
+("'ohne Kategorie' steht genau einmal, in categoryLabel" und "'ohne Payee' steht genau einmal,
+in payeeLabel") zählen jetzt über `readLedgerView () |> withoutCommentLines` statt über den
+rohen Dateitext, Erwartungswert bleibt 1. Ihre Fehlermeldungen nennen jetzt explizit, dass
+Kommentarzeilen bewusst nicht mitzählen.
+
+Ein neuer Testblock `withoutCommentLinesTests` nagelt den Helfer selbst an synthetischem
+Quelltext fest: das Literal je einmal in einer `///`-Zeile, einer `//`-Zeile und einer
+Codezeile ergibt nach `withoutCommentLines` und `countOccurrences` genau 1; dieselbe Quelle
+ohne die Codezeile ergibt 0; eine Codezeile mit angehängtem Kommentar (`let x = "ohne Payee"
+// Kommentar dahinter`) zählt weiterhin mit, weil ihr getrimmter Anfang kein `//` ist.
+
+`src/Client/Components/Ledger/View.fs` ist im Diff dieser Aufgabe unverändert (per
+`git diff b5cbd85 -- src/Client/Components/Ledger/View.fs` geprüft, leer).
+
+**Mutationsproben (dokumentiert, nicht committet):**
+
+1. Ein zusätzlicher `let _mutationProbe = "ohne Kategorie"` in den Rumpf von `entryRow`
+   eingebaut (Codezeile) → `dotnet test` wird rot: "'ohne Kategorie' steht genau einmal, in
+   categoryLabel", erwartet 1, tatsächlich 2. Danach wieder entfernt.
+2. Stattdessen eine `///`-Zeile mit demselben Literal direkt vor `Html.button [` in `entryRow`
+   eingefügt (Kommentarzeile) → derselbe Test bleibt grün (1047/1047 wie vorher). Danach wieder
+   entfernt; `git diff` gegen `View.fs` ist wieder leer.
+3. Zusätzlich den Helfer selbst probeweise auf `let private withoutCommentLines (source: string)
+   : string = source` (Identität, keine Filterung) reduziert → zwei der drei neuen Pin-Tests
+   werden aus dem richtigen Grund rot ("Dieselbe Quelle ohne die Codezeile ergibt 0", erwartet 0
+   tatsächlich 2; "...fällt weg...", erwartet 1 tatsächlich 3). Danach die echte Implementierung
+   wiederhergestellt, wieder 1047/1047 grün.
+
+`dotnet build`: 0 Warnungen, 0 Fehler. `dotnet test`: 1047 erfolgreich, 7 übersprungen (unverändert
+gegenüber dem Stand vor dieser Aufgabe zzgl. der 3 neuen Tests). `npm run build`: grün.
+
+Kein ADR nötig (reine Testschärfung, keine Architektur- oder Modellentscheidung). Kein
+README-Delta (keine Änderung an Ubiquitous Language, Aggregaten, Events oder Invarianten).
+
+Tagebuch-Notiz: Testdatei-Helfer `withoutCommentLines` neben `countOccurrences` ergänzt, zwei
+Quelltext-Zusicherungen umgestellt, drei neue Pin-Tests, `View.fs` unangetastet.

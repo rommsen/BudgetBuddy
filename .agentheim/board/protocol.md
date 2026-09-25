@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 16:38 -- Task verified and completed: ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf"
+
+**Type:** Work / Task completion
+**Task:** ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf"
+**Summary:** Platzhalter-Zählung in LedgerViewTests auf Code eingegrenzt, Kommentarzeilen zählen nicht mit
+**Duration:** 12m
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-09-25 16:35 -- Task verified and completed: ledger-f8q2x - "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren"
 
 **Type:** Work / Task completion
