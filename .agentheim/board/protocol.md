@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Captured: ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bei der Verfeinerung von ledger-j8xq4 abgetrennt: eigener Filter-Chip fuer Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie; braucht Filterleiste und Split-Indextabelle
+
+---
+
 ## 2026-09-24 07:21 -- Capture / Captured: ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf die beiden Ansichts-Rümpfe eingrenzen, statt über die ganze Datei"
 
 **Type:** Capture
