@@ -1,7 +1,7 @@
 ---
 id: design-system-thtpp
 title: "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-09-13
@@ -9,7 +9,7 @@ completed:
 depends_on: []
 blocks: []
 tags: [test-infra, styleguide, sicherheitsnetz]
-related_adrs: [0031]
+related_adrs: [0031, 0041]
 related_research: []
 prior_art: [infra-za7fq, design-system-fq8dn, design-system-t3vqr]
 ---
@@ -215,3 +215,168 @@ Verwandt: `infra-za7fq` (derselbe Wächter-Gedanke gegen einen anderen stillen A
 `design-system-t3vqr` (nennt dieselbe allgemeine Sorge für Design-System-Funktionen
 gegen die `/styleguide`-Route, verwandt, aber eine andere Prüfung: dort geht es um
 fehlende Styleguide-Einträge für neue Komponenten, hier um undefinierte CSS-Klassen).
+
+## Verifier note (iteration 1)
+
+REASONS:
+- Writing rule (user CLAUDE.md: "Keine Gedankenstriche, nimm stattdessen Punkt, Komma, Doppelpunkt oder Klammern"). The new code comments and JSON notes use a spaced hyphen " - " as a Gedankenstrich throughout. Occurrences: all four "reason" strings in scripts/tailwind-class-guard-exceptions.json (e.g. "...selbst - reine Textanalyse..."); about 25 comment lines in scripts/tailwind-class-guard.mjs; scripts/tailwind-class-guard.test.mjs (two places); src/Client/DesignSystem/Money.fs comment ("ADR 0031) - anders als..."); src/Client/DesignSystem/Tokens.fs comment ("(nicht in styles.css definiert) - Arbitrary-Property-Syntax"); src/Client/styles.css comment ("...Regel dafür stand - derselbe stille Ausfall"); src/Tests/TailwindClassGuardTests.fs ("ADR 0031 - die", "src/Client - der Wächter"). The ADR and OUTCOME prose are clean.
+- Lockfile drift: package.json adds "@tailwindcss/node": "^4.1.17" to devDependencies, but package-lock.json's root `packages[""].devDependencies` still lacks it. It resolves transitively today (Dockerfile uses `npm install`, no `npm ci`), but the manifests are out of sync: `npm ci` would refuse, and the next `npm install` leaves an unrelated lock change behind. `npm install --package-lock-only` rewrites only package-lock.json and leaves the shared node_modules alone.
+- Minor: ADR 0041's counts are inconsistent. The Context says the first real run "fand vier weitere" and lists five items (qa-page was already known from refinement); Decision 4 repeats "Vier weitere Funde". The OUTCOME says "drei aus der Aufgabenverfeinerung", but refinement named two (ErrorDisplay.warning, qa-page). The OUTCOME also says the skipped exception list under --client-dir is covered in "ADR 0041 Consequences/Negative", but the ADR never mentions it.
+- Everything else passes: all nine ACs covered, falsifiability independently confirmed against the pre-change tree, visual fixes match the styleguide (reduced-motion covered globally), README_DELTA fits, scope clean.
+
+SUGGESTED_FIX: Rewrite every spaced-hyphen dash in the new comments and JSON reason strings using a period, comma, colon or parentheses. Run `npm install --package-lock-only` so package-lock.json lists @tailwindcss/node, and include that lock change. Correct the finding counts and the "Consequences/Negative" reference in ADR 0041 and the OUTCOME.
+
+ITERATION_HINT: likely-fixable
+
+## Outcome
+
+Neuer Wächter `scripts/tailwind-class-guard.mjs` (CLI: `npm run guard:classes` /
+`node scripts/tailwind-class-guard.mjs [--client-dir <pfad>]`) prüft jeden
+`prop.className`-Klassen-Token in `src/Client/**/*.fs` gegen (a) den echten
+Tailwind-4-Compiler (`@tailwindcss/node`s `__unstable__loadDesignSystem(...)
+.candidatesToCss(...)` gegen `src/Client/styles.css`) und (b) jeden Klassennamen, den
+`styles.css` selbst über irgendeinen Selektor definiert (Top-Level, zusammengesetzt,
+Nachfahren, innerhalb `@media`/`@supports`). `group`/`peer`(`/name`) und sprintf-
+Formatplatzhalter (`%s` u. ä., aus `sprintf "... %s" ...`-Konstrukten) gelten als
+Sonderfälle ohne eigenen Fund.
+
+**Gefundene und behobene Stellen** (zwei aus der Aufgabenverfeinerung selbst genannt,
+vier weitere, die der erste echte Lauf meldete):
+- `src/Client/DesignSystem/ErrorDisplay.fs` (`ErrorDisplay.warning`): `bg-warning`/
+  `border-warning`/`text-warning` (kein `--color-warning` in `styles.css`) durch die
+  echte Warn-Farbrolle Hot Pink (`neon-pink`, wie `Badge.warning`) ersetzt.
+- `src/Client/Views/QuickAddPage.fs`: totes Token `qa-page` entfernt (im ganzen Repo nur
+  an dieser Stelle, kein Selektor, kein Test).
+- `src/Client/Components/Settings/View.fs`: totes Token `card-header` entfernt.
+- `src/Client/DesignSystem/BottomSheet.fs`: totes Token `sheet-header-sub` entfernt.
+- `src/Client/styles.css`: `.animate-neon-pulse`/`@keyframes neonPulse` ergänzt (analog
+  zum vorhandenen `.animate-glow-pulse`-Muster). Die Klasse stand in `Tokens.fs`
+  (`Animations.neonPulse`) und an drei Aufrufstellen (`StatusViews.fs` ×2, `Loading.fs`),
+  ohne dass je eine CSS-Regel existierte.
+- `src/Client/DesignSystem/Money.fs` (`getGlowClass`) und `src/Client/DesignSystem/
+  Tokens.fs` (`TextGlows.green`, `Presets.moneyPositive`): `text-glow-green` (keine
+  Tailwind-Utility, keine `styles.css`-Regel) durch dieselbe Arbitrary-Property-Syntax
+  ersetzt, die der negative Glow-Fall in derselben Funktion bereits nutzte
+  (`[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]`, mit
+  denselben rgba-Werten wie `--shadow-glow-green`). `TextGlows.orange`/`TextGlows.teal`
+  sind vom selben Muster betroffen, aber unbenutzt (kein Aufrufer, vom Wächter also nicht
+  gemeldet), als Backlog-Item erfasst, nicht in dieser Aufgabe repariert.
+
+**Ausnahmeliste** (`scripts/tailwind-class-guard-exceptions.json`, 5 Einträge, jeder mit
+Begründung, jeder bei jedem Lauf gegen den aktuellen Scan geprüft): `{extraClass}`
+(Durchreiche-Parameter an acht DS-Komponenten), `{animation}` (Loading.fs'
+`staggeredList`-Parameter), `{maxHeight}` (Primitives' `ScrollContainer.vertical`-
+Parameter), `cls` (Stats.fs, aus einem Aufruf mit literalem Argument an eine
+parametrisierte Funktion gebunden) und `{alignClass}` (Table.fs, `Option.map`-Pipeline
+über einen vom Aufrufer frei wählbaren String). Alle fünf sind echte, zur Laufzeit vom
+Aufrufer bestimmte Werte, keine feste Tailwind-Klasse (siehe ADR 0041 für die
+Auflösungsgrenze, die das begründet).
+
+**Dynamische Auflösung** (`resolveIdentifierToLiterals` in `tailwind-class-guard.mjs`):
+zweistufig wie in der Aufgabe skizziert (zuerst `Tokens.fs`-Literale inkl. eigener
+Tokens.fs-Funktionen mit endlich vielen Zweigen wie `StaggerDelays.forIndex`, danach
+`let`-Bindungen im selben Quelltext), erweitert um Tupel-Destrukturierung (`let a, b, c =
+...` und `let (a, b, c) = ...`, mit und ohne Klammern) und mehrstufige reine
+Weiterleitung (ein Arm, dessen Wert selbst nur ein Aufruf einer anderen, ebenfalls
+endlich verzweigenden Funktion ist). Während der Entwicklung mehrfach gegen den echten
+`src/Client`-Baum verifiziert und dabei drei eigene Bugs gefunden und behoben: `\s*`
+zwischen `->`/`then`/`else` und dem Wert las über Zeilengrenzen hinweg und fing dadurch
+fälschlich den Kopf eines verschachtelten `match`s als Arm-Wert ein (behoben mit
+`[ \t]*` plus expliziter, durch `isControlFlowKeywordStart` geschützter
+Nächste-Zeile-Behandlung); `|>` (Pipe-Operator) wurde als Match-Arm-Anfang gelesen, weil
+beides mit `|` beginnt; ein erklärender Kommentar direkt nach einem wertlosen `| Pattern
+->` wurde fälschlich als dessen Wert gelesen (`nextNonBlankLine` überspringt jetzt
+`//`-Kommentarzeilen).
+
+**Falsifizierbarkeit** (`src/Tests/TailwindClassGuardTests.fs`): eine testweise in ein
+Scratch-Verzeichnis geschriebene Phantom-Klasse (`bb-phantom-nicht-real`, per
+`--client-dir` isoliert vom echten `src/Client`-Baum) lässt den Wächter mit Exit-Code ≠ 0
+und der Klasse wörtlich in der Meldung scheitern; nach Entfernen der Datei ist er wieder
+grün (Exit-Code 0). Belegt per `dotnet test` (siehe Testausführung unten). Die reale
+Ausnahmeliste wird bei einem per `--client-dir` umgeleiteten Scan bewusst NICHT geladen
+(sonst wären alle fünf realen Einträge zwangsläufig "veraltet", weil sie im
+Scratch-Verzeichnis naturgemäß nicht vorkommen können, siehe ADR 0041 Consequences/Negative).
+
+**Unit-Tests** (`scripts/tailwind-class-guard.test.mjs`, 26 Fälle, `npm run
+test:scripts`): Token-Zerlegung (einfaches Literal, gemischt statisch/dynamisch,
+Interpolationsloch mit eigenem Leerzeichen, zwei aneinandergrenzende Löcher ohne
+Leerzeichen, geklammerte if/then/else-Ausdrücke, nackter Bezeichner), Stylesheet-
+Selektor-Extraktion (Top-Level, zusammengesetzt, Nachfahren, `@media`, Kommentare,
+Dezimalzahl-Fehlalarm-Regression), `isKnownMarkerClass`, `isPrintfFormatSpecifier`,
+`extractTokensModuleLiterals` (inkl. Funktionsbindungen, die NICHT als Literal gelten),
+`loadExceptions` sowie drei `checkCodebase`-Integrationsfälle (veralteter
+Ausnahmeliste-Eintrag, per Ausnahmeliste erlaubte Klasse, echte unentdeckte
+Phantom-Klasse).
+
+**`package.json`**: `"guard:classes": "node scripts/tailwind-class-guard.mjs"` ergänzt;
+`@tailwindcss/node` explizit als devDependency gepinnt (`^4.1.17`, wie
+`@tailwindcss/vite`/`tailwindcss`, vorher nur transitiv aufgelöst). **`package-lock.json`
+(Iteration 2):** `npm install --package-lock-only` ausgeführt, damit der Root-
+`devDependencies`-Eintrag den neuen Direct-Dependency-Pin widerspiegelt (vorher stand er
+nur in `package.json`, ein `npm ci` hätte das abgelehnt). `node_modules` ist in diesem
+Worktree ein Symlink auf den geteilten Haupt-Tree; `--package-lock-only` schreibt
+ausschließlich die Lock-Datei, `node_modules` blieb vor und nach dem Lauf byte-identisch
+derselbe unveränderte Symlink (`readlink node_modules` vor/nach geprüft). Der Lock-Diff
+ist klein und ausschließlich additiv (61 Zeilen, 0 Löschungen): der neue Root-
+`devDependencies`-Eintrag plus `@tailwindcss/oxide-wasm32-wasi`s optionale,
+plattformspezifische Transitiv-Abhängigkeiten, die erst durch den direkten statt nur
+transitiven Pin in den Lock-Baum aufgenommen wurden, keine unabhängigen Änderungen an
+anderer Stelle der Datei.
+
+**`src/Client/**/*.fs`-Scan schließt `fable_modules/`/`bin`/`obj` aus**: `fable_modules`
+ist Fables lokaler, nicht in git getrackter Paket-Cache (vendorierte Kopien von
+Feliz/Elmish-Quelltext); ohne den Ausschluss meldete der Wächter Funde in Bibliothekscode,
+den dieses Projekt nicht kontrolliert (während der Entwicklung entdeckt, nachdem `npm run
+build` diesen Cache befüllt hatte).
+
+**Iteration 2** behebt ausschließlich die von der Verifikation der ersten Iteration
+gemeldeten Hygiene-Verstöße, die funktionale Umsetzung (Wächter, Ausnahmeliste, Tests,
+behobene Stellen) blieb unverändert:
+- Jeder mit einem Leerzeichen umgebene Bindestrich als Gedankenstrich in den neuen
+  Kommentaren und JSON-Begründungen dieser Aufgabe (`scripts/tailwind-class-guard.mjs`,
+  `scripts/tailwind-class-guard-exceptions.json`, `scripts/tailwind-class-guard.test.mjs`,
+  `src/Client/DesignSystem/Money.fs`, `src/Client/DesignSystem/Tokens.fs`,
+  `src/Client/styles.css`, `src/Tests/TailwindClassGuardTests.fs`) durch Punkt, Komma
+  oder Doppelpunkt ersetzt. Verbliebene Treffer sind ausschließlich Arithmetik im
+  JS-Code (`depth - 1`, `line.length - line.trimStart().length`) oder ein
+  Markdown-Listenpunkt am Zeilenanfang (` * - Ein Literal ...`), beide laut
+  Verifikations-Hinweis zulässige Ausnahmen.
+- `package-lock.json` per `npm install --package-lock-only` synchronisiert (siehe oben),
+  `node_modules` dabei nachweislich unverändert.
+- Die Fund-Zählung in ADR 0041 (Context, Decision 4) und in diesem Outcome korrigiert:
+  die Aufgabenverfeinerung selbst nannte zwei Funde (`ErrorDisplay.warning`, `qa-page`),
+  nicht drei; der erste echte Lauf des fertigen Wächters fand die verbleibenden vier
+  (`card-header`, `sheet-header-sub`, `animate-neon-pulse`, `text-glow-green`). ADR 0041
+  nennt den `--client-dir`-Ausnahmeliste-Sonderfall jetzt explizit unter
+  Consequences/Negative, worauf dieses Outcome bereits verwies.
+
+### Build/Tests
+- `dotnet build`: 0 Fehler, 0 Warnungen.
+- `dotnet test`: 994 erfolgreich, 0 fehlgeschlagen, 7 übersprungen (Integrationstests ohne
+  `.env`, wie üblich), 1001 gesamt.
+- `npm run test:scripts`: 77 bestanden (26 neu für den Wächter, Rest vorbestehend), 0
+  fehlgeschlagen.
+- `npm run build`: erfolgreich; das gebaute CSS-Bundle enthält `.animate-neon-pulse`
+  (`animation:1.5s ease-in-out infinite neonPulse`) und die neue
+  `[text-shadow:...neon-green...]`-Utility, geprüft per `grep` gegen
+  `dist/public/assets/*.css`.
+- `npm run guard:classes`: Exit-Code 0 gegen den aktuellen `src/Client`-Baum.
+- Iteration 2 erneut gegen den korrigierten Stand ausgeführt: `dotnet build` 0/0,
+  `dotnet test` 994/0/7/1001, `npm run test:scripts` 77/0, `npm run build` erfolgreich,
+  `npm run guard:classes` Exit-Code 0. `node_modules` vor/nach `npm install
+  --package-lock-only` als unveränderter Symlink auf den Haupt-Tree bestätigt.
+
+### Diary-Notiz
+Was: Wächter gegen undefinierte `prop.className`-Klassen gebaut (Node-Skript + Expecto-
+Subprozess-Test + Unit-Tests), sechs echte stille Funde behoben (ErrorDisplay.warning,
+qa-page, card-header, sheet-header-sub, animate-neon-pulse, text-glow-green), fünf
+irreduzible Durchreiche-Parameter begründet ausgenommen. Iteration 2: Gedankenstriche in
+neuen Kommentaren/JSON-Begründungen entfernt, `package-lock.json` synchronisiert,
+Fund-Zählung in ADR 0041/Outcome korrigiert.
+Dateien: siehe FILE_LIST oben.
+Warum: ADR 0031 fand sieben DaisyUI-Klassen ohne Wirkung; ohne Wächter kehrt das Muster
+zurück. Die Aufgabenverfeinerung selbst fand bereits zwei Beispiele (ErrorDisplay.warning,
+qa-page); der erste echte Lauf des fertigen Wächters fand vier weitere.
+Ergebnis: Build grün (0 Fehler/Warnungen), dotnet test 994/1001 grün (7 übersprungen wie
+immer), npm run test:scripts 77/77 grün, npm run build grün, npm run guard:classes
+Exit-Code 0.

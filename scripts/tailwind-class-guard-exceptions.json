@@ -1,0 +1,36 @@
+[
+  {
+    "token": "{extraClass}",
+    "reason": "Durchreiche-Parameter (ClassName: string option, per Option.defaultValue \"\" aufgelöst) für zusätzliche, vom Aufrufer wählbare Klassen an mehreren Design-System-Komponenten. Der tatsächliche Wert steht als Literal an der jeweiligen Aufrufstelle (z. B. `ClassName = Some \"mb-4\"`), nicht am `prop.className`-Aufruf selbst: reine Textanalyse ohne F#-Symbolwertfluss kann diesen Wert an dieser Stelle nicht nachvollziehen.",
+    "locations": [
+      "src/Client/DesignSystem/Badge.fs",
+      "src/Client/DesignSystem/Button.fs",
+      "src/Client/DesignSystem/Card.fs",
+      "src/Client/DesignSystem/Input.fs",
+      "src/Client/DesignSystem/Loading.fs",
+      "src/Client/DesignSystem/Money.fs",
+      "src/Client/DesignSystem/Stats.fs",
+      "src/Client/DesignSystem/Table.fs"
+    ]
+  },
+  {
+    "token": "{animation}",
+    "reason": "Loading.fs' staggeredList nimmt die Animationsklasse als Funktionsparameter (animation: string) vom Aufrufer entgegen: ein echter Durchreiche-Wert, keine endliche, aus dem Text ableitbare Menge.",
+    "locations": ["src/Client/DesignSystem/Loading.fs"]
+  },
+  {
+    "token": "{maxHeight}",
+    "reason": "Primitives.ScrollContainer.vertical nimmt die volle Tailwind-Klasse (z. B. max-h-[400px]) als Funktionsparameter (maxHeight: string) vom Aufrufer entgegen.",
+    "locations": ["src/Client/DesignSystem/Primitives.fs"]
+  },
+  {
+    "token": "cls",
+    "reason": "Stats.fs' view bindet `cls` per `Some cls ->` aus dem Ergebnis von accentBarClassName props.Accent (string option). Der Wert entsteht durch einen Aufruf der Hilfsfunktion `bar` mit einem literalen Argument pro Fall: Auflösung würde Argumentsubstitution durch eine parametrisierte Funktion erfordern, die über reine Textanalyse ohne F#-Symbolauswertung hinausgeht (siehe Aufgaben-Stolperstein 3).",
+    "locations": ["src/Client/DesignSystem/Stats.fs"]
+  },
+  {
+    "token": "{alignClass}",
+    "reason": "Table.fs' headerCell/cell leiten die Ausrichtungsklasse aus `props.Align: string option` per `Option.map (fun a -> $\"text-{a}\")` her: eine Pipeline über einen vom Aufrufer frei wählbaren String, keine endliche Menge literaler Zweige.",
+    "locations": ["src/Client/DesignSystem/Table.fs"]
+  }
+]

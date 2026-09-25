@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 24
+- **Doing:** 0
+- **Done:** 25
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-thtpp** — "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind" (feature) — `doing/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-thtpp** — "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind" (feature) — `done/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
 - **design-system-j9xnd** — "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen" (chore) — `done/design-system-j9xnd-stats-fs-die-akzentstreifen-entscheidung-als-reine-funktion.md`
 - **design-system-q2bmv** — "screenshot-route.mjs: die Aufnahme so testen, dass der BottomSheet-Fehler auch wirklich auffiele" (chore) — `done/design-system-q2bmv-screenshot-route-mjs-die-aufnahme-so-testen-dass-der-bottoms.md`
 - **design-system-p3vqk** — "Stats.NoAccent im Styleguide/View.fs und standards/frontend/styleguide.md nachziehen" (chore) — `done/design-system-p3vqk-stats-noaccent-im-styleguide-view-fs-und-standards-frontend.md`
@@ -56,6 +56,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-tg2wn** — "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen" (chore) — `backlog/design-system-tg2wn-textglows-orange-textglows-teal-in-tokens-fs-sind-wie-vormal.md`
 - **design-system-an22r** — Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport, thumbnail.html, @kind-Annotation (feature) — `backlog/design-system-an22r-export-uebernimmt-claude-design-manifest-ergaenzungen.md`
 <!-- backlog-list:end -->
 

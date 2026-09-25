@@ -59,11 +59,18 @@ let private getColorClass amount =
     if amount >= 0m then "text-neon-green"
     else "text-neon-red"
 
+// design-system-thtpp: "text-glow-green" war keine echte Tailwind-Utility und
+// in styles.css nicht definiert (stiller Ausfall wie die DaisyUI-Klassen aus
+// ADR 0031): anders als "shadow-glow-*" gibt es für "text-*" kein Theme-Token,
+// das Tailwind automatisch in eine Utility auflöst. Der negative Fall (Zeile
+// unten, GlowAll bei negativem Betrag) nutzte bereits die funktionierende
+// Arbitrary-Property-Syntax; der positive Fall folgt jetzt demselben Muster,
+// mit denselben rgba-Werten wie --shadow-glow-green in styles.css.
 let private getGlowClass amount glow =
     match glow with
     | NoGlow -> ""
-    | GlowPositive when amount >= 0m -> "text-glow-green"
-    | GlowAll when amount >= 0m -> "text-glow-green"
+    | GlowPositive when amount >= 0m -> "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
+    | GlowAll when amount >= 0m -> "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
     | GlowAll when amount < 0m -> "[text-shadow:0_0_10px_theme(colors.neon-red),0_0_20px_rgba(255,59,92,0.5)]"
     | _ -> ""
 

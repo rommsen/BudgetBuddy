@@ -506,6 +506,20 @@ nav a:focus-visible {
   50% { filter: brightness(1.2); }
 }
 
+/* Neon pulse (processing/in-progress indicators, e.g. sync spinner, icon badges).
+   design-system-thtpp: die Klasse existierte in Tokens.fs (Animations.neonPulse)
+   und an drei Aufrufstellen, ohne dass hier je eine Regel dafür stand, derselbe
+   stille Ausfall wie die DaisyUI-Klassen aus ADR 0031, nur unbemerkt geblieben,
+   weil ein Icon ohne Puls-Animation nicht kaputt aussieht. */
+.animate-neon-pulse {
+  animation: neonPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes neonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 /* Staggered animation delays */
 .stagger-1 { animation-delay: 50ms; }
 .stagger-2 { animation-delay: 100ms; }

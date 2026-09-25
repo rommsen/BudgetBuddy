@@ -118,7 +118,7 @@ let view
                 templatesSection templates dispatch
 
                 Html.div [
-                    prop.className "qa-page space-y-4"
+                    prop.className "space-y-4"
                     prop.children [
                         // Direction toggle (expense is the overwhelmingly common case)
                         Html.div [

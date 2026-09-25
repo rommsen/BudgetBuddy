@@ -308,10 +308,12 @@ module ErrorDisplay =
     let simple (message: string) =
         card message None
 
-    /// Warning-style display (uses warning colors instead of error)
+    /// Warning-style display (uses die Warn-Farbrolle Hot Pink, ADR 0031/design-system-thtpp:
+    /// vorher `bg-warning`/`border-warning`/`text-warning`, ohne `--color-warning` in
+    /// styles.css definiert und damit wirkungslos, wie die DaisyUI-Klassen aus ADR 0031)
     let warning (message: string) (onAction: (unit -> unit) option) =
         Html.div [
-            prop.className "rounded-lg bg-warning/5 border border-warning/20 px-4 py-3 flex items-start gap-3"
+            prop.className "rounded-lg bg-neon-pink/5 border border-neon-pink/20 px-4 py-3 flex items-start gap-3"
             prop.role "alert"
             prop.children [
                 Icons.warning MD Warning
@@ -325,7 +327,7 @@ module ErrorDisplay =
                         match onAction with
                         | Some action ->
                             Html.button [
-                                prop.className "text-warning hover:text-warning/80 text-sm font-medium mt-2 underline"
+                                prop.className "text-neon-pink hover:text-neon-pink/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> action())
                                 prop.text "Dismiss"
                             ]

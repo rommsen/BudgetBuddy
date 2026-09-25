@@ -153,7 +153,6 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                                         match props.Subtitle with
                                         | Some sub ->
                                             Html.div [
-                                                prop.className "sheet-header-sub"
                                                 prop.text sub
                                             ]
                                         | None -> ()

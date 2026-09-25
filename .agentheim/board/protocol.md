@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 14:07 -- Task verified and completed: design-system-thtpp - "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
+
+**Type:** Work / Task completion
+**Task:** design-system-thtpp - "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
+**Summary:** Wächter gegen Klassennamen, die weder Tailwind-Utility noch in styles.css definiert sind, sechs stille Funde behoben
+**Duration:** 1h07m
+**Verification:** PASS (iteration 2)
+**Files changed:** 14
+**Tests added:** 28
+**ADRs written:** 0041
+
+---
+
+## 2026-09-25 13:54 -- Verification failed: design-system-thtpp - Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind
+
+**Type:** Work / Verification failure
+**Task:** design-system-thtpp - Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind
+**Iteration:** 1 of 3
+**Reasons:** Bindestrich mit Leerzeichen als Gedankenstrich in rund 30 neuen Kommentaren und JSON-Begründungen, package-lock.json ohne die neue devDependency @tailwindcss/node, widersprüchliche Fundzahlen in ADR-Entwurf 0041 und Outcome
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 13:45 -- Task verified and completed: ledger-xk9wq - "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
 
 **Type:** Work / Task completion

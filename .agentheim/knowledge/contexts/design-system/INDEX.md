@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0041**: Tailwind-Klassen-Wächter prüft jeden className-Token gegen den echten Tailwind-4-Compiler und `styles.css`, läuft in `dotnet test` mit; dynamische Tokens nur per Textanalyse aufgelöst, der Rest steht begründet in einer mechanisch geprüften Ausnahmeliste (2026-09-25), `../../decisions/0041-tailwind-klassen-waechter-echter-compiler-textanalyse-grenzen.md`
 - **0035** — `Stats.NoAccent` statt ClassName-Override: der Gradient-Akzentstreifen von `Stats.view` lässt sich jetzt ganz abschalten, statt nur umgefärbt zu werden. Additiver siebter `StatAccent`-Fall, gewählt gegen ein Verstecken per CSS-Positionsselektor am Aufrufer — 2026-09-19 — `knowledge/decisions/0035-stats-noaccent-statt-classname-override.md`
 - **0031** — DaisyUI raus: Tailwind plus eigener Token-Layer, die inerten Klassen ersetzt — 2026-09-13 — `../../decisions/0031-daisyui-raus-tailwind-eigener-token-layer.md`
 - **0027** — Kategorienauswahl als eine Karte mit beiden Zuständen; Sektions-Export-Umfang und -Ausnahmen; Portal-Karten schließen sich nacheinander — 2026-09-11 — `../../decisions/0027-kategorienauswahl-und-vollstaendiger-sektions-export.md`

@@ -97,7 +97,10 @@ module Glows =
 
 /// Text glow effects (text-shadow)
 module TextGlows =
-    let green = "text-glow-green"
+    // design-system-thtpp: "text-glow-green" war keine echte Tailwind-Utility
+    // (nicht in styles.css definiert): Arbitrary-Property-Syntax wie in
+    // Money.fs' getGlowClass, dieselben rgba-Werte wie --shadow-glow-green.
+    let green = "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
     let orange = "text-glow-orange"
     let teal = "text-glow-teal"
 
@@ -301,7 +304,7 @@ module Presets =
     let monoNumber = "font-mono font-semibold tabular-nums"
 
     /// Positive money amount
-    let moneyPositive = "font-mono font-semibold text-neon-green text-glow-green"
+    let moneyPositive = $"font-mono font-semibold text-neon-green {TextGlows.green}"
 
     /// Negative money amount
     let moneyNegative = "font-mono font-semibold text-neon-red"

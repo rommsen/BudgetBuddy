@@ -12,7 +12,7 @@ open Client.DesignSystem
 
 let private sectionHeader (title: string) (isConfigured: bool) =
     Html.div [
-        prop.className "card-header flex items-center justify-between p-4 border-b border-border-subtle"
+        prop.className "flex items-center justify-between p-4 border-b border-border-subtle"
         prop.children [
             Html.h2 [
                 prop.className "text-sm font-semibold font-display"
