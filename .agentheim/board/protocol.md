@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:53 -- Modeling / Refined: ledger-h6ptn - Kassenbuch-Kategorie voll qualifizieren (Kante zu nnn47 gelockert)
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** depends_on auf ledger-nnn47 wieder entfernt: die Promote-Gate verlangt done/, nnn47 liegt erst in todo/. Nur Dateiueberschneidung in LedgerViewTests.fs, keine fachliche Abhaengigkeit; Kriterium zum Doc-Kommentar deckt beide Reihenfolgen ab. blocks in nnn47 entsprechend geleert.
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Promoted: design-system-w4n9r - "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern"
 
 **Type:** Modeling / Promote

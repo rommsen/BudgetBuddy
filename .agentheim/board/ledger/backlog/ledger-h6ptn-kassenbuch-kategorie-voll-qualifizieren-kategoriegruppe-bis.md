@@ -6,7 +6,7 @@ type: feature
 context: ledger
 created: 2026-09-19
 completed:
-depends_on: [ledger-p3wnq, ledger-nnn47]
+depends_on: [ledger-p3wnq]
 blocks: []
 tags: [frontend, backend, kassenbuch, styleguide]
 related_adrs: [0013, 0014, 0032, 0039]
@@ -183,9 +183,10 @@ braucht das neue Feld.
       `EntryObservedInYnab` mit Kategorie weiterhin den Blattnamen liefert und keine Gruppe
       enthält.
 - [ ] Der veraltete Doc-Kommentar an `categoryLabel` (`View.fs:204-208`) ist ersetzt und
-      verweist nicht mehr auf ein offenes Backlog-Item. Er darf den Platzhalter
-      `"ohne Kategorie"` wieder wörtlich nennen: `ledger-nnn47` grenzt die Zählung in
-      `LedgerViewTests` auf Code ein und läuft vorher.
+      verweist nicht mehr auf ein offenes Backlog-Item. Liegt `ledger-nnn47`
+      (Zählung in `LedgerViewTests` auf Code eingegrenzt) schon in `done/`, darf er den
+      Platzhalter `"ohne Kategorie"` wieder wörtlich nennen; sonst bleibt er umschrieben,
+      damit der Zähl-Test grün bleibt.
 - [ ] Screenshots (Handy + PC) zeigen die Kategorie gegen den Entwurf: PC-Tabelle voll
       qualifiziert (1.9 Zeile 260), Handy-Zeile Blattname (1.1 Zeile 104-112).
       [human-eye]
@@ -272,7 +273,8 @@ Aufrufstellen 317 und 377), `src/Client/Components/Ledger/View.fs` (`categoryLab
 (Konstruktion der erwarteten `LedgerEntryView`, plus neue Lookup-Tests).
 `src/Tests/LedgerPageTests.fs:35` baut ein `CategoryRef` und bleibt unverändert.
 
-**Reihenfolge (ergänzt am 2026-09-25):** `depends_on` um `ledger-nnn47` erweitert. Beide
-Aufgaben fassen `src/Tests/LedgerViewTests.fs` und den Doc-Kommentar an `categoryLabel` an;
-`nnn47` zuerst, damit der neue Kommentar hier den Platzhalter nennen darf, ohne den
-Zähl-Test rot zu machen.
+**Nachbar-Aufgabe (ergänzt am 2026-09-25):** `ledger-nnn47` (todo) fasst ebenfalls
+`src/Tests/LedgerViewTests.fs` an, an anderer Stelle (Zähl-Tests ab Zeile 274). Keine
+fachliche Abhängigkeit, nur Dateiüberschneidung; der Conductor lässt sie nacheinander
+laufen. Wer zuerst kommt, ist egal, das Kriterium zum Doc-Kommentar oben deckt beide
+Reihenfolgen ab.

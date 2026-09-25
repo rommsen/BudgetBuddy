@@ -7,7 +7,7 @@ context: ledger
 created: 2026-09-24
 completed:
 depends_on: []
-blocks: [ledger-h6ptn]
+blocks: []
 tags: [tests, kassenbuch, quelltext-zusicherung]
 related_adrs: [0031]
 related_research: []
@@ -53,8 +53,8 @@ festgenagelt ist und nicht nur durch die Zähl-Tests indirekt geprüft wird.
 
 **Nicht in dieser Aufgabe:** der Doc-Kommentar an `categoryLabel`
 (`src/Client/Components/Ledger/View.fs`, Zeile 203 bis 210) bleibt unverändert. `ledger-h6ptn`
-ersetzt ihn ohnehin und darf ihn dann wieder wörtlich formulieren; deshalb `blocks:
-[ledger-h6ptn]`. Diese Aufgabe fasst ausschließlich `src/Tests/LedgerViewTests.fs` an.
+ersetzt ihn ohnehin und darf ihn wieder wörtlich formulieren, sobald diese Aufgabe in
+`done/` liegt (keine harte Abhängigkeit, nur Dateiüberschneidung in der Testdatei). Diese Aufgabe fasst ausschließlich `src/Tests/LedgerViewTests.fs` an.
 
 ## Acceptance criteria
 
