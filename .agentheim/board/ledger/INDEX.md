@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 14
 - **Todo:** 7
 - **Doing:** 0
 - **Done:** 34
@@ -71,6 +71,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `backlog/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
 - **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `backlog/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
 - **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `backlog/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
 - **ledger-jkb0f** — "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request" (bug) — `backlog/ledger-jkb0f-kassenbuch-ereignis-beim-push-entspricht-ynab-request.md`

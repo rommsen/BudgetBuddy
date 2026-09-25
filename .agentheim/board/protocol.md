@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:04 -- Modeling / Captured: ledger-ggzdw - "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Fund des tactical-modelers bei ledger-tpbe7: observe vergleicht CategoryRef samt Name, eine Kategorie-Umbenennung in YNAB erzeugt je Buchung ein falsches Umkategorisierungs-Ereignis; ADR-wuerdig
+
+---
+
 ## 2026-09-25 11:04 -- Modeling / Captured: ledger-mshd8 - "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu"
 
 **Type:** Modeling / Capture
