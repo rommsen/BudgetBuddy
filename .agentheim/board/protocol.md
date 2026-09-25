@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Promoted: ledger-j8xq4 - "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Promoted: ledger-f8q2x - "getLedgerPayeeSuggestions im ledger-README unter Sichten dokumentieren"
 
 **Type:** Modeling / Promote

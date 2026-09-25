@@ -1,7 +1,7 @@
 ---
 id: ledger-j8xq4
 title: "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-19
