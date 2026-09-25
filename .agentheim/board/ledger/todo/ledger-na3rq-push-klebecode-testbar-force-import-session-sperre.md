@@ -1,7 +1,7 @@
 ---
 id: ledger-na3rq
 title: "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-09-25
