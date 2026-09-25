@@ -134,6 +134,15 @@ stdin/CLI-Flags rein, Ergebnis über stdout/Exit-Code raus).
    eigenständiger Styling-Auftrag dieser Aufgabe, sondern eine Bedingung dafür, dass die
    Aufgabe grün wird.
 
+   Am Code nachgesehen (2026-09-25), damit der Worker nicht raten muss:
+   - `qa-page` kommt im ganzen Repo nur an dieser einen Stelle vor (kein Selektor in
+     `styles.css`, kein Test, kein Skript): das Token wird ersatzlos entfernt.
+   - Die Warn-Farbrolle des Design-Systems ist Hot Pink (`src/Client/DesignSystem/Tokens.fs`,
+     Zeile 28, "Warning: Hot Pink"; `Icons.warning MD Warning` in derselben Funktion nutzt
+     sie bereits). `ErrorDisplay.warning` wird auf diese Rolle umgestellt, mit den Klassen,
+     die die Nachbarn `Badge.warning` und `Toast.warning'` dafür benutzen; keine neue
+     Farbe in `@theme`. Keine Ausnahmeliste für diese beiden Fälle.
+
 ## Acceptance criteria
 - [ ] `scripts/tailwind-class-guard.mjs` prüft jeden `prop.className`-Klassen-Token in
       `src/Client/**/*.fs` gegen (a) `@tailwindcss/node`s

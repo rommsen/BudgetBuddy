@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:56 -- Modeling / Refined: design-system-thtpp - Sofort-Funde praezisiert
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** todo
+**Summary:** Nachtrag zu den zwei Sofort-Funden: qa-page ersatzlos entfernen (einzige Stelle im Repo), ErrorDisplay.warning auf die Warn-Farbrolle Hot Pink aus Tokens.fs umstellen wie Badge.warning/Toast.warning; keine Ausnahmeliste dafuer.
+
+---
+
 ## 2026-09-25 10:55 -- Modeling / Promoted: design-system-thtpp - "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
 
 **Type:** Modeling / Promote
