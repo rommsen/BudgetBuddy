@@ -118,6 +118,17 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
     davon unabhängig immer draußen, die Abweichung zwischen Summenzeile und
     Kontostand ist damit gewollt. Grundlage für den serverseitigen Such-Filter
     (`ledger-vgfw3`, erledigt) und die Summenzeile über der Liste.
+  - `getLedgerPayeeSuggestions` (ledger-vgfw3): die **Payee-Vorschläge** eines
+    Filters, jeweils mit ihrer Anzahl innerhalb des aktuellen Treffers, nie über
+    alle Buchungen und nie über die geladene Seite. Grundlage der Payee-Auswahl
+    im Filter-Chip (ADR 0036). Teilt sich dieselben Such-Kriterien wie
+    `getLedgerEntriesPage` (Kategorie, Zeitraum, Betrag, Memo, Payee selbst
+    ausgenommen), baut sich den `EntryFilter` dafür aber bewusst separat auf
+    statt `toEntryFilter` zu benutzen (zwei parallele Aufbauten, ADR 0036);
+    `Payee` steht darin fest auf `None`, weil der Aufruf nie einen bereits
+    gewählten Payee-Filter an sich selbst übergibt. Details zu Gruppierung und
+    Faltung stehen beim Eintrag "Such-Filter (Kassenbuch)" unter Ubiquitous
+    language.
   - `getLedgerAccountBalances` (ledger-b1xwe) — die **Kontostände** aller Konten in
     einem Aufruf, für die Kontostände-Leiste. Der Stand ist die Summe der nicht in
     YNAB gelöschten Buchungen je Konto (`Shared.Domain.ledgerBalancesByAccount`),
