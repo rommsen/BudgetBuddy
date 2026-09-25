@@ -219,6 +219,27 @@ let private countOccurrences (haystack: string) (needle: string) : int =
         if i = -1 then acc else go (i + needle.Length) (acc + 1)
     go 0 0
 
+/// Schneidet den Rumpf EINER CSS-Regel aus dem Quelltext, ab ihrem Selektor
+/// (`"{selector} {"`, exakt) bis zur ersten schließenden Klammer danach. Bewusst
+/// naiv (keine verschachtelten Klammern erwartet): reicht für die Regeln in
+/// `styles.css`, die diese Datei prüft (`.ledger-account-strip` u. ä.), auch wenn
+/// sie selbst innerhalb eines `@media`-Blocks liegen: die äußere Klammer des
+/// `@media`-Blocks wird dabei nicht mitgenommen. Ohne diesen Zuschnitt prüften
+/// frühere Fassungen dieser Datei nur, ob eine Eigenschaft IRGENDWO in styles.css
+/// vorkommt (z. B. "position: sticky;", das steht auch in `.table-sticky-thead`),
+/// was schon vor der eigentlichen Änderung wahr war und daher nichts belegte
+/// (Verifier-Befund, Iteration 1 von ledger-qns4j).
+let private sliceCssRuleBody (css: string) (selector: string) : string =
+    let header = $"{selector} {{"
+    let startIdx = css.IndexOf(header)
+    if startIdx = -1 then
+        failwithf "CSS-Selektor '%s' nicht gefunden (umbenannt oder verschoben?)" selector
+    let bodyStart = startIdx + header.Length
+    let closeIdx = css.IndexOf("}", bodyStart)
+    if closeIdx = -1 then
+        failwithf "Keine schließende Klammer für '%s' gefunden" selector
+    css.Substring(startIdx, closeIdx + 1 - startIdx)
+
 /// Schneidet den Rumpf einer Top-Level-Funktion aus dem Quelltext: von ihrem Kopf
 /// (`functionHeader`, z. B. `"let private entryRow"`) bis zum nächsten `let` auf
 /// Spalte 0. Findet der Test den Funktionskopf nicht, schlägt er mit einer
@@ -259,9 +280,9 @@ let private categoryColorCssBindingTests =
 
 /// Regression für ledger-n3pqw, Lücke 9: nichts pinnte, dass Handy-Zeile
 /// (`entryRow`) und PC-Tabelle (`entryTableRow`) dieselben geteilten Helfer
-/// (`categoryLabel`, `payeeLabel`, `originBadge`) benutzen. Vor dem Umbau stand
-/// "ohne Payee" zweimal im File (je einmal pro Ansicht); dieser Test war vor der
-/// Einführung von `payeeLabel` rot mit dem gemeldeten Fund von 2 statt 1.
+/// (`categoryLabel`, `payeeLabel`) benutzen. Vor dem Umbau stand "ohne Payee"
+/// zweimal im File (je einmal pro Ansicht); dieser Test war vor der Einführung von
+/// `payeeLabel` rot mit dem gemeldeten Fund von 2 statt 1.
 let private sharedHelpersAndNoColorLiteralsTests =
     testList "Handy-Zeile und PC-Tabelle teilen ihre Helfer (ledger-n3pqw)" [
 
@@ -283,16 +304,39 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "Vor der Einführung von payeeLabel standen hier zwei Vorkommen (je eines pro Ansicht, entryRow und entryTableRow)."
         }
 
-        test "entryRow und entryTableRow rufen beide categoryLabel, payeeLabel und originBadge auf" {
+        test "entryRow und entryTableRow rufen beide categoryLabel und payeeLabel auf" {
             let view = readLedgerView ()
             let entryRowBody = sliceFunctionBody view "let private entryRow"
             let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
 
-            for helperCall in [ "categoryLabel entry"; "payeeLabel entry"; "originBadge entry.Origin" ] do
+            for helperCall in [ "categoryLabel entry"; "payeeLabel entry" ] do
                 Expect.stringContains entryRowBody helperCall
                     $"entryRow muss {helperCall} aufrufen, sonst weicht die Handy-Zeile von der PC-Tabelle ab."
                 Expect.stringContains entryTableRowBody helperCall
                     $"entryTableRow muss {helperCall} aufrufen, sonst weicht die PC-Tabelle von der Handy-Zeile ab."
+        }
+
+        /// Regression für ledger-qns4j, AC3: die Statusspalte der PC-Tabelle trug
+        /// bisher `originBadge` (Herkunft) statt Status, genau der gemeldete
+        /// Befund ("Die Statusspalte trägt Herkunft, nicht Status"). Die Handy-Zeile
+        /// zeigt die Herkunft weiterhin inline (unverändert), nur die PC-Tabelle
+        /// verliert sie aus der Statusspalte; sie bleibt über die Historie
+        /// erreichbar (`historyLine` ruft `originBadge` weiterhin auf).
+        ///
+        /// Das hier ist ein Quelltext-Wächter (schnell, ohne Browser); die von AC3
+        /// verlangte Zusicherung "über die gerenderte Zeile, nicht nur durch das
+        /// Lesen des Diffs" liefert `scripts/ledger-status-column.test.mjs`: dort
+        /// prüft eine echte, im Browser gerenderte Tabellenzeile, dass kein
+        /// Herkunfts-Text (z. B. "YNAB-Spiegel") in der Statusspalte auftaucht.
+        test "entryRow ruft weiterhin originBadge auf, entryTableRow nicht mehr" {
+            let view = readLedgerView ()
+            let entryRowBody = sliceFunctionBody view "let private entryRow"
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+
+            Expect.stringContains entryRowBody "originBadge entry.Origin"
+                "Die Handy-Zeile zeigt die Herkunft weiterhin inline, das ändert diese Aufgabe nicht."
+            Expect.isFalse (entryTableRowBody.Contains "originBadge entry.Origin")
+                "Die PC-Statusspalte darf keinen originBadge mehr rendern (AC3, ledger-qns4j): Status statt Herkunft."
         }
 
         test "Beide Ansichten speisen die Kategorie-Farbrolle aus demselben Wert (categoryColorClassName)" {
@@ -307,6 +351,211 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "Die PC-Tabellenzelle muss dieselbe Kategorie-Farbrolle über categoryColorClassName einfärben."
             Expect.stringContains entryTableRowBody "tdTruncatedCategory (categoryLabel entry)"
                 "Die PC-Tabelle muss ihre Kategoriezelle über tdTruncatedCategory rendern, sonst verliert sie die Farbe (fällt zurück auf tdTruncated)."
+        }
+    ]
+
+/// PC-Statusspalte (AC4/AC5/AC6, ledger-qns4j, Entscheidung Roman 2026-09-19): nur
+/// noch Status statt Herkunft, Quelle bleibt `entry.NeedsReview` (kein neuer
+/// Zustand), Spaltenbreite zurück auf den Handoff-Wert 128px, zwei Kennzeichen
+/// nebeneinander ohne Umbruch. `dotnet test` hat keinen Fable/React-Laufzeitkontext
+/// (siehe Modulkopf), die Zusicherungen laufen deshalb wie oben über den
+/// Funktionsrumpf im Quelltext.
+let private statusColumnTests =
+    testList "PC-Statusspalte zeigt Status statt Herkunft (ledger-qns4j)" [
+
+        test "statusColumnWidth ist auf den Handoff-Wert 128 zurückgesetzt (AC6)" {
+            // `statusColumnWidth` ist `private`, deshalb über den Quelltext geprüft
+            // wie die übrigen Rumpf-Zusicherungen in dieser Datei.
+            let view = readLedgerView ()
+            Expect.stringContains view "let private statusColumnWidth = \"128\""
+                "Screen 1.9 sieht 128px vor; die 208px waren ein Pflaster von ledger-x0yga."
+        }
+
+        /// Quelltext-Wächter (schnell, ohne Browser). Beweist für sich allein noch
+        /// nicht, dass die 80px tatsächlich bei Payee/Memo landen. Payee/Memo
+        /// waren schon vor dieser Aufgabe ohne `Table.thWidth` (sie hatten die
+        /// 1fr-Aufteilung bereits seit `ledger-x0yga`). Die tatsächliche
+        /// Spaltenraster-Messung ("Belegt am Spaltenraster, nicht nur am
+        /// geänderten Literal") liefert `scripts/ledger-status-column.test.mjs`:
+        /// eine echte, `table-layout: fixed` gerenderte Tabelle, an der die
+        /// gerenderten Breiten von Datum/Kategorie/Betrag/Status UND die Summe aus
+        /// Payee+Memo gemessen werden.
+        test "Payee und Memo bleiben ohne eigene Spaltenbreite (AC6, Quelltext-Wächter)" {
+            let view = readLedgerView ()
+            let desktopBody = sliceFunctionBody view "let private entryListDesktop"
+            Expect.stringContains desktopBody "Table.th \"Payee\""
+                "Payee darf keine eigene Table.thWidth tragen, sonst blieben die freigewordenen 80px ungenutzt."
+            Expect.stringContains desktopBody "Table.th \"Memo\""
+                "Memo darf keine eigene Table.thWidth tragen, aus demselben Grund."
+            Expect.isFalse (desktopBody.Contains "Table.thWidth \"Payee\"")
+                "Payee mit fester Breite würde die 1fr-Aufteilung mit Memo verhindern."
+            Expect.isFalse (desktopBody.Contains "Table.thWidth \"Memo\"")
+                "Memo mit fester Breite würde die 1fr-Aufteilung mit Payee verhindern."
+        }
+
+        test "needsReviewStatusBadge zeigt den Text 'Zu prüfen' als Warning-Badge (ADR 0032, AC4)" {
+            let view = readLedgerView ()
+            let badgeBody = sliceFunctionBody view "let private needsReviewStatusBadge"
+            Expect.stringContains badgeBody "Text = \"Zu prüfen\""
+                "Der Wortlaut aus dem Handoff und der Chip-Beschriftung (needsReviewChipLabel)."
+            Expect.stringContains badgeBody "Variant = Badge.Warning"
+                "Dieselbe Farbsemantik wie der Chip und der Punkt am Handy (Pink/Warning)."
+        }
+
+        test "entryTableRow rendert needsReviewStatusBadge nur bei entry.NeedsReview, kein neuer Zustand (AC4)" {
+            let view = readLedgerView ()
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+            Expect.stringContains entryTableRowBody "if entry.NeedsReview then needsReviewStatusBadge ()"
+                "Die Quelle bleibt entry.NeedsReview (ADR 0032); eine geprüfte Buchung trägt kein Badge."
+        }
+
+        test "entryTableRow rendert deletedStatusIcon nur bei entry.DeletedInYnab" {
+            let view = readLedgerView ()
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+            Expect.stringContains entryTableRowBody "if entry.DeletedInYnab then deletedStatusIcon ()"
+                "Das Ausnahme-Kennzeichen bleibt an entry.DeletedInYnab gebunden, wie zuvor an deletedBadge()."
+        }
+
+        /// Regression für AC5: zwei Kennzeichen nebeneinander dürfen die Spalte
+        /// nicht in die Höhe treiben. `flex-nowrap` ist die notwendige (aber nicht
+        /// hinreichende) Bedingung dafür, dass zwei gleichzeitig gesetzte
+        /// Kennzeichen nicht umbrechen: sie stand schon vor dieser Aufgabe hier
+        /// (ledger-x0yga, das ursprüngliche Pflaster) und beweist allein nichts.
+        /// Die tatsächliche Breitenpassung (128px-Spalte, zwei echte Kennzeichen
+        /// nebeneinander, unveränderte Zeilenhöhe) misst
+        /// `scripts/ledger-status-column.test.mjs` gegen die echte, im Browser
+        /// gerenderte Tabelle (Vite-Entwicklungsserver, echtes Tailwind-CSS):
+        /// `dotnet test` hat keinen Browser und keine Pixelbreiten.
+        test "Status-Kennzeichen der PC-Tabelle bleiben ohne Zeilenumbruch nebeneinander (AC5)" {
+            let view = readLedgerView ()
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+            Expect.stringContains entryTableRowBody "flex flex-nowrap items-center"
+                "flex-wrap würde zwei Kennzeichen in zwei Zeilen umbrechen und die Zeile höher machen als jede andere."
+        }
+
+        /// Regression für den Verifier-Fund der Iteration 1: der volle Wortlaut aus
+        /// `flagBadge` ("Rückfrage Lena") passt zusammen mit "Zu prüfen" nicht mehr
+        /// in die 128px-Spalte, genau der Rückfall auf das in `What`, Punkt 3,
+        /// benannte Pflaster-Verhalten. `entryTableRow` muss deshalb die gekürzte
+        /// `flagStatusBadge` verwenden, nicht `flagBadge`; die Handy-Zeile
+        /// (`entryRow`) behält den vollen Wortlaut, dort ist keine Spaltenbreite zu
+        /// wahren.
+        test "entryTableRow verwendet die gekürzte flagStatusBadge, nicht die volltextige flagBadge (AC5)" {
+            let view = readLedgerView ()
+            let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
+            Expect.stringContains entryTableRowBody "flagStatusBadge entry.Flag"
+                "Die Statusspalte muss die gekürzte Fassung rendern, sonst überläuft sie neben 'Zu prüfen' wieder."
+            Expect.isFalse (entryTableRowBody.Contains "flagBadge entry.Flag")
+                "flagBadge (voller Wortlaut) darf in der PC-Statusspalte nicht mehr aufgerufen werden."
+
+            let entryRowBody = sliceFunctionBody view "let private entryRow"
+            Expect.stringContains entryRowBody "flagBadge entry.Flag"
+                "Die Handy-Zeile behält den vollen Wortlaut über flagBadge, dort ist keine Spaltenbreite zu wahren."
+        }
+
+        /// `flagStatusBadge` selbst: gekürzter Wortlaut für *Rückfrage Lena*
+        /// ("Lena?" statt "Rückfrage Lena"), mit der vollen Bedeutung als
+        /// title/aria-label nachgetragen (Verifier-Befund Iteration 2); `NoFlag`
+        /// zeigt nichts (wie `flagBadge`).
+        test "flagStatusBadge kürzt Rückfrage Lena mit voller Bedeutung für assistive Technologie, NoFlag bleibt unverändert" {
+            let view = readLedgerView ()
+            let body = sliceFunctionBody view "let private flagStatusBadge"
+            Expect.stringContains body "Text = \"Lena?\""
+                "Der volle Wortlaut 'Rückfrage Lena' passt neben 'Zu prüfen' nicht mehr in 128px."
+            Expect.stringContains body "withAccessibleName \"Rückfrage Lena\""
+                "Der gekürzte Wortlaut 'Lena?' muss die volle Bedeutung als title/aria-label nachtragen."
+            Expect.stringContains body "| NoFlag -> Html.none"
+                "Kein Flag zeigt kein Kennzeichen, wie bei flagBadge."
+        }
+
+        /// Regression Iteration 3: der Verifier von Iteration 2 hat vorgerechnet,
+        /// dass "Zu prüfen" + der Text "Markiert" die 128px-Statuszelle noch um 3px
+        /// waagerecht überläuft (scrollWidth 131 > clientWidth 128). *Markiert*
+        /// wird deshalb, wie schon `deletedStatusIcon`, zu einem reinen Symbol statt
+        /// Text: die primäre Coverage dafür ist der Browser-Test in
+        /// `scripts/ledger-status-column.test.mjs` (AC5), dieser Test ist nur der
+        /// Quelltext-Wächter dazu.
+        test "flagStatusBadge zeigt Markiert als Symbol statt Text, mit voller Bedeutung für assistive Technologie" {
+            let view = readLedgerView ()
+            let body = sliceFunctionBody view "let private flagStatusBadge"
+            Expect.isFalse (body.Contains "Text = \"Markiert\"")
+                "Der volle Text 'Markiert' passt zusammen mit 'Zu prüfen' nicht mehr in 128px (scrollWidth 131 > clientWidth 128)."
+            Expect.stringContains body "withAccessibleName \"Markiert\""
+                "Ohne Text muss die volle Bedeutung 'Markiert' als title/aria-label nachgetragen werden."
+            Expect.stringContains body "Icons.flag"
+                "Ein Symbol ersetzt den Text (Entscheidung Roman: 'gekürzt oder durch Symbole ersetzt')."
+        }
+
+        /// `withAccessibleName` selbst: setzt `title` UND `aria-label`, nicht nur
+        /// eines von beiden (Verifier-Befund Iteration 2: "Hover-Hinweis UND für
+        /// assistive Technologie").
+        test "withAccessibleName trägt title und aria-label nach" {
+            let view = readLedgerView ()
+            let body = sliceFunctionBody view "let private withAccessibleName"
+            Expect.stringContains body "prop.title fullMeaning"
+                "Der Hover-Hinweis (title) muss die volle Bedeutung tragen."
+            Expect.stringContains body "aria-label"
+                "Assistive Technologie braucht ein aria-label mit der vollen Bedeutung."
+        }
+
+        /// Regression: `deletedStatusIcon` ersetzt den vollen Text durch ein Symbol
+        /// (Entscheidung Roman 2026-09-19), damit "Zu prüfen" plus das
+        /// Ausnahme-Kennzeichen zusammen in die 128px-Spalte passen. Die
+        /// Handy-Zeile behält weiterhin den vollen Text über `deletedBadge`.
+        test "deletedStatusIcon zeigt kein Text-Kennzeichen mehr, nur ein Symbol mit voller Bedeutung für assistive Technologie" {
+            let view = readLedgerView ()
+            let iconBadgeBody = sliceFunctionBody view "let private deletedStatusIcon"
+            Expect.stringContains iconBadgeBody "Text = \"\""
+                "Der volle Text 'in YNAB gelöscht' passt neben 'Zu prüfen' nicht mehr in 128px."
+            Expect.stringContains iconBadgeBody "Icon = Some"
+                "Ein Symbol ersetzt den Text (Entscheidung Roman: 'gekürzt oder durch Symbole ersetzt')."
+            Expect.stringContains iconBadgeBody "withAccessibleName \"in YNAB gelöscht\""
+                "Ohne Text muss die volle Bedeutung 'in YNAB gelöscht' als title/aria-label nachgetragen werden."
+
+            let entryRowBody = sliceFunctionBody view "let private entryRow"
+            Expect.stringContains entryRowBody "deletedBadge ()"
+                "Die Handy-Zeile behält den vollen Text, dort ist keine Spaltenbreite zu wahren."
+        }
+    ]
+
+/// Konten-Spalte am PC bleibt beim senkrechten Scrollen sichtbar (AC1/AC2,
+/// ledger-qns4j): sie war nie `sticky`, seit der Tabellenkopf klebt (ledger-x0yga)
+/// fiel das auf. `dotnet test` kann das tatsächliche Scrollverhalten nicht
+/// prüfen (kein Fable/React/Browser-Kontext); dafür rendert und misst
+/// `scripts/ledger-status-column.test.mjs` (echter Chromium, gemockte API-Antworten,
+/// über zwanzig Konten) tatsächlich, ob die Spalte beim Scrollen stehen bleibt und
+/// eine zu hohe Liste in sich scrollt. Diese Tests hier prüfen nur, dass die
+/// CSS-Regel, auf der jene Messung aufsetzt, tatsächlich die erwarteten
+/// Eigenschaften trägt, als Quelltext-Wächter, nicht als Ersatz für die Messung
+/// (Verifier-Befund, Iteration 1: die vorherige Fassung suchte "position: sticky;"
+/// irgendwo in der ganzen Datei, wo es schon vor dieser Aufgabe stand, z. B. in
+/// `.table-sticky-thead`, und belegte dadurch nichts).
+let private accountStripStickyTests =
+    testList "Konten-Spalte haftet beim Scrollen (ledger-qns4j, AC1/AC2)" [
+
+        test "accountStrip trägt die Sticky-Klasse ledger-account-strip" {
+            let view = readLedgerView ()
+            let accountStripBody = sliceFunctionBody view "let private accountStrip"
+            Expect.stringContains accountStripBody "ledger-account-strip"
+                "Ohne die Klasse scrollt die Konten-Spalte mit der Seite weg (der gemeldete Befund)."
+        }
+
+        test "Die Regel .ledger-account-strip selbst (nicht irgendeine andere Stelle in styles.css) haftet unter der Navbar (AC1)" {
+            let css = readStylesCss ()
+            let ruleBody = sliceCssRuleBody css ".ledger-account-strip"
+            Expect.stringContains ruleBody "position: sticky;"
+                "Sticky-Positionierung, direkt in dieser Regel, nicht nur irgendwo in der Datei (z. B. .table-sticky-thead)."
+            Expect.stringContains ruleBody "top: 64px;"
+                "Direkt unter der 64px hohen fixen Navbar, direkt in dieser Regel."
+        }
+
+        test "Die Regel .ledger-account-strip selbst lässt eine zu hohe Kontoliste in sich scrollen (AC2)" {
+            let css = readStylesCss ()
+            let ruleBody = sliceCssRuleBody css ".ledger-account-strip"
+            Expect.stringContains ruleBody "overflow-y: auto;"
+                "Ohne eigenes Scrollen würde eine lange Kontoliste den Seiteninhalt abschneiden oder über den Rand laufen."
+            Expect.stringContains ruleBody "max-height: calc(100vh - 64px);"
+                "Die Höhen-Obergrenze ist die sichtbare Fensterhöhe abzüglich der Navbar, sonst greift overflow-y nie."
         }
     ]
 
@@ -453,6 +702,8 @@ let ledgerViewTests =
           categoryColorTests
           categoryColorCssBindingTests
           sharedHelpersAndNoColorLiteralsTests
+          statusColumnTests
+          accountStripStickyTests
           entryRowClassNameTests
           accountCardsTests
           deletedCountTextTests

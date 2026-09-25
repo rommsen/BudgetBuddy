@@ -216,7 +216,12 @@ export function resolveSourceDataDir(env = process.env) {
   return env.DATA_DIR && env.DATA_DIR !== "" ? env.DATA_DIR : path.join(os.homedir(), "my_apps", "budgetbuddy-dev");
 }
 
-async function getFreePort() {
+// Exportiert (ledger-qns4j, `scripts/ledger-status-column.test.mjs`): dieselbe
+// Port-/Prozess-Verwaltung wird dort wiederverwendet, um den echten
+// Vite-Entwicklungsserver zu starten (echtes Tailwind-CSS, echtes Fable-Bundle),
+// ohne ein zweites Mal ~150 Zeilen Prozess-Handling nachzubauen. Reines
+// Sichtbarkeits-`export`, kein Verhaltensunterschied für dieses Skript selbst.
+export async function getFreePort() {
   return new Promise((resolve, reject) => {
     const srv = createNetServer();
     srv.unref();
@@ -322,7 +327,7 @@ export async function startBackend(dataDir, port, sourceDataDir = resolveSourceD
 /// Zusätzlich: läuft der vite-Prozess vorher mit einem Fehlercode ab (z. B.
 /// weil der reservierte Port inzwischen doch belegt ist), rennt das gegen
 /// dieselbe Wette und gewinnt, statt bis zum Timeout zu warten.
-async function startFrontend(port, backendPort) {
+export async function startFrontend(port, backendPort) {
   const child = spawn(
     "npx",
     ["vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"],
@@ -375,7 +380,7 @@ async function startFrontend(port, backendPort) {
 /// (das verbietet AC7): sie sind eine begrenzte Gnadenfrist vor der
 /// Eskalation zu SIGKILL, und am Ende steht eine echte, laute Prüfung statt
 /// eines stillen Weiterlaufens.
-async function stopServer(child, portToVerify) {
+export async function stopServer(child, portToVerify) {
   if (!child || child.killed || child.exitCode !== null) return;
   const pid = child.pid;
   const exited = new Promise((resolve) => child.once("exit", resolve));
@@ -434,7 +439,7 @@ async function stopServer(child, portToVerify) {
 /// Route"-Hälfte von AC8 aus design-system-wa6wz bleiben erfüllt: läuft dieser
 /// Wartepunkt in den Timeout (page.setDefaultTimeout, s. captureScreenshot),
 /// scheitert der Lauf laut mit der Route im Fehlertext.
-async function waitForPageLoaded(page, normalizedRoute) {
+export async function waitForPageLoaded(page, normalizedRoute) {
   try {
     await page.waitForSelector('[data-app-ready="true"]', { state: "attached" });
   } catch (err) {

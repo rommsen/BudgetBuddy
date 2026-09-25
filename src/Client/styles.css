@@ -1095,6 +1095,27 @@ nav a:focus-visible {
   z-index: 10;
 }
 
+/* ============================================================
+   Kassenbuch: Konten-Spalte haftet beim Scrollen (ledger-qns4j)
+   ============================================================ */
+/* `accountStrip` (Components.Ledger.View): dieselbe Begründung wie
+   `.table-sticky-thead` oben. Die feste Navbar (64px bei md+) verdeckt die
+   obersten Pixel eines `top: 0`-Stickys, deshalb `top: 64px`. Zusätzlich eine
+   `max-height` plus eigener `overflow-y: auto`, damit eine Kontoliste, die höher
+   als der sichtbare Bereich ist, in sich scrollt statt den Seiteninhalt
+   abzuschneiden oder die Haftung zu verlieren (AC2). Nur ab `md`: am Handy zeigt
+   dieselbe Zelle die waagerechte Kartenleiste ohne Sticky, dafür sorgt bereits
+   `Primitives.Responsive.desktopOnly`/`mobileOnlyFlex` in der Komponente selbst. */
+@media (min-width: 768px) {
+  .ledger-account-strip {
+    position: sticky;
+    top: 64px;
+    align-self: flex-start;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+  }
+}
+
 .filter-btn {
   display: flex;
   align-items: center;

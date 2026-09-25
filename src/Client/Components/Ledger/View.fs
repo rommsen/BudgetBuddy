@@ -169,14 +169,99 @@ let private deletedBadge () =
             Size = Badge.Small
     }
 
+/// Das Status-Kennzeichen "Zu prüfen" der PC-Statusspalte (ADR 0032, Entscheidung
+/// Roman 2026-09-19, `ledger-qns4j`): dieselbe Quelle wie der Punkt am linken
+/// Zeilenrand der Handy-Zeile (`entry.NeedsReview`), am PC aber als Badge mit Text
+/// statt als Punkt: "Ungeprüft-Kennzeichen ist Pink (Punkt am Handy, Badge am PC)"
+/// aus dem Ablauf-1-Handoff.
+let private needsReviewStatusBadge () =
+    Badge.view {
+        Badge.defaultProps with
+            Text = "Zu prüfen"
+            Variant = Badge.Warning
+            Size = Badge.Small
+    }
+
+/// Trägt die volle Bedeutung eines gekürzten oder reinen Symbol-Kennzeichens der
+/// PC-Statusspalte nach (`flagStatusBadge`, `deletedStatusIcon`), als Hover-Hinweis
+/// (`title`) und für assistive Technologie (`aria-label`): Verifier-Befund
+/// Iteration 2, `ledger-qns4j`. `Badge.view` (Client.DesignSystem.Badge) kennt weder
+/// `title` noch `aria-label` als eigenes Prop; ein minimaler Wrapper hier ist der
+/// kleinere Eingriff gegenüber einer Erweiterung der von der ganzen App geteilten
+/// DS-Komponente um ein Feld, das nur dieser eine Aufrufer braucht.
+let private withAccessibleName (fullMeaning: string) (badge: ReactElement) : ReactElement =
+    Html.span [
+        prop.title fullMeaning
+        prop.custom ("aria-label", fullMeaning)
+        prop.children [ badge ]
+    ]
+
+/// Das Ausnahme-Kennzeichen "in YNAB gelöscht" in der PC-Statusspalte, als Symbol
+/// statt als Text (Entscheidung Roman 2026-09-19): der volle Text aus `deletedBadge`
+/// passt neben "Zu prüfen" nicht mehr in die auf 128px zurückgesetzte Spalte
+/// (`statusColumnWidth`). Romans Vorgabe war ausdrücklich, die Beschriftungen zu
+/// kürzen oder durch Symbole zu ersetzen, statt die Spalte wieder zu verbreitern.
+/// Die Handy-Zeile (`entryRow`) behält den vollen Text über `deletedBadge`, dort
+/// ist keine Spaltenbreite zu wahren. `withAccessibleName` trägt "in YNAB gelöscht"
+/// als `title`/`aria-label` nach, weil das Symbol allein keinen Text mehr zeigt.
+let private deletedStatusIcon () =
+    withAccessibleName "in YNAB gelöscht" (
+        Badge.view {
+            Badge.defaultProps with
+                Text = ""
+                Icon = Some (Icons.trash Icons.XS Icons.Error)
+                Variant = Badge.Error
+                Size = Badge.Small
+        })
+
 /// Das Kennzeichen eines gesetzten Flags (ADR 0032): *Rückfrage Lena* violett,
-/// *Markiert* orange. `NoFlag` zeigt nichts.
+/// *Markiert* orange. `NoFlag` zeigt nichts. Voller Wortlaut, für die Handy-Zeile
+/// (`entryRow`), dort ist keine Spaltenbreite zu wahren.
 let private flagBadge (flag: LedgerFlag) : ReactElement =
     match flagLabel flag with
     | None -> Html.none
     | Some label ->
         let variant = match flag with AskLena -> Badge.Purple | _ -> Badge.Orange
         Badge.view { Badge.defaultProps with Text = label; Variant = variant; Size = Badge.Small }
+
+/// Das Kennzeichen eines gesetzten Flags in der PC-Statusspalte (Entscheidung Roman
+/// 2026-09-19, `ledger-qns4j`): derselbe volle Wortlaut aus `flagBadge` ("Rückfrage
+/// Lena") passt zusammen mit `needsReviewStatusBadge` ("Zu prüfen") nicht mehr in die
+/// auf 128px zurückgesetzte Spalte (`statusColumnWidth`), genau der Rückfall auf das
+/// Pflaster-Verhalten aus `What`, Punkt 3, den der Verifier von Iteration 1
+/// zurecht bemängelt hat. *Rückfrage Lena* bekommt hier die gekürzte Fassung "Lena?"
+/// (Romans Vorgabe: "Beschriftungen gekürzt oder durch Symbole ersetzt").
+///
+/// *Markiert* (Iteration 3: der Verifier von Iteration 2 hat vorgerechnet, dass
+/// "Zu prüfen" + der Text "Markiert" die 128px-Zelle noch um 3px waagerecht
+/// überläuft, scrollWidth 131 gegen clientWidth 128) wird deshalb, statt weiter
+/// gekürzt, komplett zum Symbol wie `deletedStatusIcon` (`Icons.flag`, orange,
+/// dieselbe Farbrolle wie der bisherige Text-Badge): das schafft deutlich mehr
+/// Reserve als eine weitere Kürzung des Wortlauts und folgt demselben, schon
+/// etablierten Muster. `withAccessibleName` trägt "Markiert" als `title`/
+/// `aria-label` nach, weil das Symbol allein keinen Text mehr zeigt.
+///
+/// Gemessen gegen die echte, tatsächlich gerenderte PC-Tabelle
+/// (Vite-Entwicklungsserver, echtes Tailwind-CSS) in
+/// `scripts/ledger-status-column.test.mjs`: zwei Kennzeichen nebeneinander in der
+/// 128px breiten Statuszelle, ohne Umbruch und ohne höhere Zeile, für jede der drei
+/// Kombinationen "Zu prüfen"+"Lena?", "Zu prüfen"+Ausnahme-Symbol und
+/// "Zu prüfen"+"Markiert"-Symbol.
+let private flagStatusBadge (flag: LedgerFlag) : ReactElement =
+    match flag with
+    | NoFlag -> Html.none
+    | AskLena ->
+        withAccessibleName "Rückfrage Lena" (
+            Badge.view { Badge.defaultProps with Text = "Lena?"; Variant = Badge.Purple; Size = Badge.Small })
+    | Marked ->
+        withAccessibleName "Markiert" (
+            Badge.view {
+                Badge.defaultProps with
+                    Text = ""
+                    Icon = Some (Icons.flag Icons.XS Icons.Warning)
+                    Variant = Badge.Orange
+                    Size = Badge.Small
+            })
 
 /// Der Betrag einer Zeile: gedämpft und durchgestrichen, wenn die Buchung in YNAB
 /// gelöscht ist (AC3, ledger-p3n8k), sonst die gewohnte rot/grüne Betragsfarbe.
@@ -352,14 +437,15 @@ let private tdTruncatedCategory (text: string) =
         Html.span [ prop.className categoryColorClassName; prop.text text ]
     ]
 
-/// Breite der Status-Spalte in der PC-Tabelle. Das Handoff (Screen 1.9) sieht
-/// 128px fuer *ein* Kennzeichen vor ("Zu pruefen"); traegt eine Zeile zwei
-/// Kennzeichen (Herkunft + "in YNAB geloescht"), brachen sie darin um und machten
-/// die Zeile rund 1,6-mal so hoch wie jede andere — AC4 verlangt aber gleich hohe
-/// Zeilen. Diesen Fall zeigt der Entwurf nicht; die Breite ist deshalb empirisch
-/// gegen einen Screenshot mit beiden Kennzeichen kalibriert, nicht aus dem Handoff
-/// abgelesen (ledger-x0yga, Verifier-Befund 2, Iteration 2).
-let private statusColumnWidth = "208"
+/// Breite der Status-Spalte in der PC-Tabelle: der Handoff-Wert aus Screen 1.9
+/// (Entscheidung Roman 2026-09-19, `ledger-qns4j`). Die vorherige Verbreiterung auf
+/// 208px (ledger-x0yga, Verifier-Befund 2) war ausdrücklich ein Pflaster gegen
+/// zwei umbrechende Kennzeichen; die Lösung liegt jetzt bei den Kennzeichen selbst
+/// (kurze Beschriftung bzw. Symbol statt Text, siehe `needsReviewStatusBadge` und
+/// `deletedStatusIcon`), nicht mehr bei der Spaltenbreite. Die 80px Differenz
+/// gehen automatisch an Payee und Memo zurück: beide sind `Table.th` ohne eigene
+/// `Width`, teilen sich also den frei gewordenen Platz als `1fr`-Spalten.
+let private statusColumnWidth = "128"
 
 /// Der Betrag als eigene Zelle ueber die Money-Komponente statt als reiner Text:
 /// nur so tragen PC-Tabellen-Betraege dieselbe Farbsemantik (rot/gruen) und
@@ -392,14 +478,17 @@ let private entryTableRow
             tdMoney entry
             Table.tdContent [
                 Html.div [
-                    // `flex-nowrap`, nicht `flex-wrap`: zwei Kennzeichen sollen die
-                    // Spalte in die Breite gehen lassen, nicht die Zeile in die Hoehe
-                    // (AC4, siehe `statusColumnWidth`).
-                    prop.className "flex flex-nowrap items-center gap-1.5"
+                    // `flex-nowrap`, nicht `flex-wrap`: die Kennzeichen sollen die
+                    // Spalte in die Breite gehen lassen, nicht die Zeile in die Höhe
+                    // (AC5, ledger-qns4j, siehe `statusColumnWidth`). Kein
+                    // `originBadge` mehr (AC3): die Herkunft steht nur noch in der
+                    // Historie (`historyLine`) und, sobald gebaut, im Detail
+                    // (`ledger-q1hw2`): die Statusspalte trägt nur noch Status.
+                    prop.className "flex flex-nowrap items-center gap-1"
                     prop.children [
-                        originBadge entry.Origin
-                        flagBadge entry.Flag
-                        if entry.DeletedInYnab then deletedBadge ()
+                        if entry.NeedsReview then needsReviewStatusBadge ()
+                        flagStatusBadge entry.Flag
+                        if entry.DeletedInYnab then deletedStatusIcon ()
                     ]
                 ]
             ]
@@ -449,7 +538,18 @@ let private accountStrip
             // Hintergrund (der Entwurf setzt dort `surface-app`, also denselben
             // Grund wie die Seite) — die Spalte hebt sich nur ueber die rechte
             // Kante ab.
-            prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3"
+            //
+            // `ledger-account-strip` (styles.css, AC1/AC2 ledger-qns4j): haftet beim
+            // Scrollen unter der fixen Navbar, wie `.table-sticky-thead`. Ohne sie
+            // scrollte die Spalte mit weg und die Kontostände verschwanden nach
+            // wenigen Buchungen. Eine `max-height` plus eigener `overflow-y: auto`
+            // sorgt dafür, dass eine Kontoliste, die höher als der sichtbare
+            // Bereich ist (AC2, z. B. zwanzig Konten), in sich scrollt statt den
+            // Seiteninhalt abzuschneiden oder die Haftung zu verlieren. Nur ab `md`
+            // wirksam (die Klasse selbst ist per `@media` in styles.css auf md+
+            // begrenzt): am Handy zeigt dieselbe Zelle die waagerechte Kartenleiste
+            // ohne Sticky.
+            prop.className $"md:w-[268px] md:shrink-0 md:border-r {Tokens.Borders.subtle} md:pr-3 ledger-account-strip"
             prop.children [
                 Primitives.Responsive.mobileOnlyFlex [
                     Primitives.ScrollContainer.horizontal [

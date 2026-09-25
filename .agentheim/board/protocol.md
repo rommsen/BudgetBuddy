@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 15:28 -- Task verified and completed: ledger-qns4j - "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen"
+
+**Type:** Work / Task completion
+**Task:** ledger-qns4j - "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen"
+**Summary:** Konten-Spalte haftet beim Scrollen, PC-Statusspalte zeigt Status statt Herkunft bei 128px, belegt durch einen Browsertest gegen gemockte API
+**Duration:** 2h27m
+**Verification:** PASS (iteration 3)
+**Files changed:** 7
+**Tests added:** 23
+**ADRs written:** none
+
+---
+
+## 2026-09-25 14:37 -- Verification failed: ledger-qns4j - Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen
+
+**Type:** Work / Verification failure
+**Task:** ledger-qns4j - Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen
+**Iteration:** 2 of 3
+**Reasons:** AC6-Browsertest instabil (2 von 4 Läufen rot, Falsifizierung dadurch unbelegt), "Zu prüfen" plus "Markiert" läuft in der 128px-Spalte weiterhin über, gekürzte Kennzeichen ohne zugänglichen Namen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 14:07 -- Task verified and completed: design-system-thtpp - "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind"
 
 **Type:** Work / Task completion
