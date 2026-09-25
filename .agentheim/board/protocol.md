@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Refined: ledger-h6ptn - Kassenbuch-Kategorie voll qualifizieren
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** depends_on um ledger-nnn47 ergaenzt (beide fassen LedgerViewTests.fs und den categoryLabel-Doc-Kommentar an); Kriterium zum Doc-Kommentar erlaubt den Platzhalter wieder woertlich.
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Refined: ledger-nnn47 - Platzhalter-Zaehlung in LedgerViewTests auf Code eingrenzen
 
 **Type:** Modeling / Refine
