@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 10:52 -- Modeling / Promoted: ledger-qns4j - "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-09-25 10:52 -- Modeling / Promoted: ledger-xk9wq - "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
 
 **Type:** Modeling / Promote

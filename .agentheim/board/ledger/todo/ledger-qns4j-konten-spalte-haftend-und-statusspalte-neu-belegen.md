@@ -1,7 +1,7 @@
 ---
 id: ledger-qns4j
 title: "Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-09-13
