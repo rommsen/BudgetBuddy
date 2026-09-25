@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 11:04 -- Modeling / Captured: ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus ledger-tpbe7 geschnitten: vier Randfaelle, in denen das Kassenbuch-Ereignis beim Comdirect-Push nicht dem tatsaechlichen YNAB-Request entspricht (Payee-Override entfernt, Split-Memo ungekuerzt, Kategorie-Name fehlt oder veraltet), je mit Regressionstest
+
+---
+
 ## 2026-09-25 10:56 -- Modeling / Refined: design-system-thtpp - Sofort-Funde praezisiert
 
 **Type:** Modeling / Refine
