@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 13:45 -- Task verified and completed: ledger-xk9wq - "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
+
+**Type:** Work / Task completion
+**Task:** ledger-xk9wq - "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
+**Summary:** Kassenbuch-Kategorie-Filter findet Split-Zeilen-Kategorien über die abgeleitete Indextabelle ledger_entry_split_categories
+**Duration:** 41m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
+## 2026-09-25 13:39 -- Verification failed: ledger-qns4j - Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen
+
+**Type:** Work / Verification failure
+**Task:** ledger-qns4j - Konten-Spalte beim Scrollen halten, und die Statusspalte mit Status statt Herkunft belegen
+**Iteration:** 1 of 3
+**Reasons:** AC2, AC3, AC5, AC6 ohne gerenderten Beleg (neue Quelltext-Tests waren schon vor der Änderung grün), Flag-Badge kann die 128px-Zelle weiterhin sprengen, Ersatz von "nicht in YNAB verknüpft" durch DeletedInYnab nicht als Abweichung benannt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 13:03 -- Batch started: [ledger-qns4j, ledger-xk9wq, design-system-thtpp]
 
 **Type:** Work / Batch start

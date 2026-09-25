@@ -14,6 +14,8 @@ module LedgerPageTests
 // ("Spiegel laeuft"), und eine unreine, die den Aufruf absetzt.
 
 open System
+open System.IO
+open System.Text.RegularExpressions
 open Expecto
 open Shared.Domain
 open Ledger.Events
@@ -1007,6 +1009,18 @@ let private pageTestAccountS = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8
 let private pageTestAccountT = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001d")
 let private pageTestAccountU = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001e")
 let private pageTestAccountV = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-00000000001f")
+// Konten W.. (ledger-xk9wq, ADR 0038): Split-Zeilen-Kategorien im Kategorie-Filter,
+// eigenes Konto je Testfall, fortlaufend hinter V.
+let private pageTestAccountW = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000020")
+let private pageTestAccountX = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000021")
+let private pageTestAccountY = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000022")
+let private pageTestAccountZ = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000023")
+let private pageTestAccountAA = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000024")
+let private pageTestAccountAB = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000025")
+let private pageTestAccountAC = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000026")
+let private pageTestAccountAD = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000027")
+let private pageTestAccountAE = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000028")
+let private pageTestAccountAF = LedgerAccountId (Guid.Parse "0195bb00-0000-7000-8000-000000000029")
 
 // `D3` statt `D2`, ein Prefix-Nullen weniger (`000000000` statt `0000000000`): für
 // n=0..99 liefert das exakt dieselbe Guid wie zuvor (`n:D3` mit vier statt drei
@@ -1098,6 +1112,16 @@ let private seedAccounts () : Async<unit> =
         do! saveAccount { Id = pageTestAccountT; Name = "Konto T"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountU; Name = "Konto U"; Kind = BankAccount; Link = BbOwned; Closed = false }
         do! saveAccount { Id = pageTestAccountV; Name = "Konto V"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountW; Name = "Konto W"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountX; Name = "Konto X"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountY; Name = "Konto Y"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountZ; Name = "Konto Z"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAA; Name = "Konto AA"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAB; Name = "Konto AB"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAC; Name = "Konto AC"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAD; Name = "Konto AD"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAE; Name = "Konto AE"; Kind = BankAccount; Link = BbOwned; Closed = false }
+        do! saveAccount { Id = pageTestAccountAF; Name = "Konto AF"; Kind = BankAccount; Link = BbOwned; Closed = false }
     }
 
 /// Wie `seedEntry`, aber mit voller Kontrolle ueber Payee, Memo, Kategorie und Datum
@@ -1145,6 +1169,59 @@ let private seedDeletedEntryFull
     : Async<unit> =
     async {
         do! seedEntryFull accountId n amount date payee memo categoryRef
+        do! appendAndApply [
+            { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
+        ]
+    }
+
+/// Wie `seedEntryFull`, aber mit Splits statt einer einfachen Kategorie
+/// (ledger-xk9wq, ADR 0038): `category_id` der Buchung bleibt `NULL`, jede Kategorie
+/// steckt in einer Split-Zeile. Der Gesamtbetrag ergibt sich aus der Summe der
+/// Split-Zeilen (wie `mkSplits`, ADR 0006, es verlangt), auch wenn `apply` das für
+/// Beobachtungs-Ereignisse nicht selbst prüft: realistische Testdaten sollen trotzdem
+/// eine gültige Split-Summe tragen, statt sich auf einen ungeprüften Zufallswert zu
+/// verlassen.
+let private seedSplitEntry
+    (accountId: LedgerAccountId)
+    (n: int)
+    (date: DateTime)
+    (payee: string option)
+    (memo: string option)
+    (splits: TransactionSplit list)
+    : Async<unit> =
+    let total = splits |> List.sumBy (fun s -> s.Amount.Amount)
+    let payload : EntryObservedInYnabPayload = {
+        AccountId = accountId
+        YnabTransactionId = $"pagetest-{n}"
+        ImportId = None
+        Date = date
+        Amount = { Amount = total; Currency = "EUR" }
+        Payee = payee
+        Memo = memo
+        Category = None
+        Splits = splits
+        Cleared = Uncleared
+        TransferAccountId = None
+        TransferYnabTransactionId = None
+        Approved = true
+        FlagColor = None
+        FlagName = None
+    }
+    appendAndApply [
+        { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryObservedInYnab payload }
+    ]
+
+/// Wie `seedSplitEntry`, aber in YNAB gelöscht (analog `seedDeletedEntryFull`).
+let private seedDeletedSplitEntry
+    (accountId: LedgerAccountId)
+    (n: int)
+    (date: DateTime)
+    (payee: string option)
+    (memo: string option)
+    (splits: TransactionSplit list)
+    : Async<unit> =
+    async {
+        do! seedSplitEntry accountId n date payee memo splits
         do! appendAndApply [
             { EntryId = pageEntryId n; OccurredAt = date; Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
         ]
@@ -1905,6 +1982,327 @@ let ledgerPagingTests =
             Expect.equal unfiltered.NeedsReviewCount 3 "Drei ungeprüfte Buchungen, unabhängig vom Filter"
             Expect.equal amountFiltered.NeedsReviewCount 3 "Derselbe feste Zähler, auch mit aktivem Betragsfilter"
             Expect.equal payeeFiltered.NeedsReviewCount 3 "Derselbe feste Zähler, auch mit aktivem Payee-Filter"
+
+        // ============================================
+        // Split-Zeilen-Kategorien im Kategorie-Filter (ledger-xk9wq, ADR 0038)
+        // ============================================
+
+        testCase "AC1-AC3: eine Buchung, deren einzige Kategorie in einer Split-Zeile steckt, erscheint in Liste, Trefferzahl und Summe" <| fun () ->
+            seedSplitEntry
+                pageTestAccountW
+                200
+                (DateTime(2026, 8, 1))
+                (Some "SplitPayee")
+                None
+                [ { Target = ToCategory (catId 30, "Kategorie 30"); Amount = eur -30m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -20m; Memo = None } ]
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountW 201 -10m (DateTime(2026, 8, 2)) (Some "SimplePayeeX") None (Some (category 30 "Kategorie 30"))
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountW 202 -5m (DateTime(2026, 8, 3)) (Some "SimplePayeeY") None (Some (category 31 "Kategorie 31"))
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawW) = pageTestAccountW
+            let query = { baseQuery (Some rawW) with CategoryIds = [ catGuid 30 ] }
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 2
+                "AC2: die Split-Buchung (category_id = NULL, Kategorie in einer Split-Zeile) UND die einfache Buchung derselben Kategorie zählen, Kategorie 31 nicht"
+            Expect.equal
+                (page.Entries |> List.map (fun e -> e.Payee) |> List.sort)
+                [ Some "SimplePayeeX"; Some "SplitPayee" ]
+                "AC1: die Split-Buchung erscheint in der Liste, obwohl ihre category_id-Spalte NULL ist"
+            Expect.equal page.TotalAmount { Amount = -60m; Currency = "EUR" }
+                "AC3: Summe exakt in F# über die Split-Buchung (-50) und die einfache Buchung (-10)"
+
+        testCase "AC4: eine in YNAB gelöschte Split-Buchung mit Kategorie X wird bei Filter auf X in DeletedCount gezählt" <| fun () ->
+            seedDeletedSplitEntry
+                pageTestAccountX
+                203
+                (DateTime(2026, 8, 1))
+                (Some "GelöschtePayee")
+                None
+                [ { Target = ToCategory (catId 32, "Kategorie 32"); Amount = eur -8m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -2m; Memo = None } ]
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawX) = pageTestAccountX
+            let query = { baseQuery (Some rawX) with CategoryIds = [ catGuid 32 ] }
+            let hidden = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            let shown = Ledger.QueryHandlers.getLedgerEntriesPage { query with IncludeDeleted = true } |> Async.RunSynchronously
+
+            Expect.equal hidden.TotalCount 0 "ohne IncludeDeleted bleibt die gelöschte Split-Buchung außerhalb des Treffers"
+            Expect.equal hidden.DeletedCount 1 "DeletedCount zählt sie trotzdem, unabhängig von IncludeDeleted"
+            Expect.equal shown.TotalCount 1 "mit IncludeDeleted zählt sie im Treffer mit"
+
+        testCase "AC5: getLedgerPayeeSuggestions mit CategoryIds = [X] enthält den Payee der Split-Buchung" <| fun () ->
+            seedSplitEntry
+                pageTestAccountY
+                204
+                (DateTime(2026, 8, 1))
+                (Some "SplitSuggestPayee")
+                None
+                [ { Target = ToCategory (catId 33, "Kategorie 33"); Amount = eur -6m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -4m; Memo = None } ]
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawY) = pageTestAccountY
+            let suggestionsQuery = { baseSuggestionQuery (Some rawY) with CategoryIds = [ catGuid 33 ] }
+            let suggestions = Ledger.QueryHandlers.getLedgerPayeeSuggestions suggestionsQuery |> Async.RunSynchronously
+
+            Expect.isTrue
+                (suggestions |> List.exists (fun s -> s.Payee = "SplitSuggestPayee"))
+                "der Payee der Split-Buchung steht unter den Vorschlägen, obwohl ihre category_id-Spalte NULL ist"
+
+        testCase "AC6: NeedsReviewCount bleibt ungefiltert, auch wenn der Kategorie-Filter eine Split-Zeilen-Kategorie trifft" <| fun () ->
+            seedSplitEntry
+                pageTestAccountZ
+                205
+                (DateTime(2026, 8, 1))
+                (Some "SplitPayeeZ")
+                None
+                [ { Target = ToCategory (catId 34, "Kategorie 34"); Amount = eur -3m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -1m; Memo = None } ]
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountZ 206 -1m (DateTime(2026, 8, 2)) (Some "SimplePayeeZ") None (Some (category 35 "Kategorie 35"))
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawZ) = pageTestAccountZ
+            let unfiltered = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawZ)) |> Async.RunSynchronously
+            let filtered =
+                Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawZ) with CategoryIds = [ catGuid 34 ] }
+                |> Async.RunSynchronously
+
+            Expect.equal unfiltered.TotalCount 2 "beide Buchungen ohne Filter"
+            Expect.equal filtered.TotalCount 1 "der Kategorie-Filter grenzt auf die Split-Buchung ein"
+            Expect.equal unfiltered.NeedsReviewCount 2 "beide Buchungen sind ungeprüft"
+            Expect.equal filtered.NeedsReviewCount 2
+                "NeedsReviewCount bleibt der feste Kontozähler, unverändert vom Kategorie-Filter (ADR 0036 Punkt 6), obwohl TotalCount sich ändert"
+
+        testCase "AC7: wandert die Split-Kategorie von X nach Y, findet der Filter die Buchung nur noch unter Y; wird daraus eine einfache Buchung, findet sie keiner mehr" <| fun () ->
+            let firstSplits =
+                [ { Target = ToCategory (catId 36, "Kategorie 36"); Amount = eur -7m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -3m; Memo = None } ]
+            seedSplitEntry pageTestAccountAA 207 (DateTime(2026, 8, 1)) (Some "WandernderPayee") None firstSplits
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAA) = pageTestAccountAA
+            let byOld = Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAA) with CategoryIds = [ catGuid 36 ] } |> Async.RunSynchronously
+            Expect.equal byOld.TotalCount 1 "zuerst unter der ersten Kategorie zu finden"
+
+            let secondSplits =
+                [ { Target = ToCategory (catId 37, "Kategorie 37"); Amount = eur -7m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -3m; Memo = None } ]
+            appendAndApply [
+                { EntryId = pageEntryId 207
+                  OccurredAt = DateTime(2026, 8, 2)
+                  Actor = YnabMirror
+                  Body = EntryCategorizationChangeObservedInYnab { OldCategory = None; NewCategory = None; OldSplits = firstSplits; NewSplits = secondSplits } }
+            ]
+            |> Async.RunSynchronously
+
+            let byOldAfter = Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAA) with CategoryIds = [ catGuid 36 ] } |> Async.RunSynchronously
+            let byNew = Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAA) with CategoryIds = [ catGuid 37 ] } |> Async.RunSynchronously
+            Expect.equal byOldAfter.TotalCount 0 "keine veraltete Indexzeile unter der alten Kategorie"
+            Expect.equal byNew.TotalCount 1 "die Buchung steht jetzt unter der neuen Kategorie"
+
+            appendAndApply [
+                { EntryId = pageEntryId 207
+                  OccurredAt = DateTime(2026, 8, 3)
+                  Actor = YnabMirror
+                  Body =
+                    EntryCategorizationChangeObservedInYnab
+                        { OldCategory = None; NewCategory = Some (category 38 "Kategorie 38"); OldSplits = secondSplits; NewSplits = [] } }
+            ]
+            |> Async.RunSynchronously
+
+            let byNewAfter = Ledger.QueryHandlers.getLedgerEntriesPage { baseQuery (Some rawAA) with CategoryIds = [ catGuid 37 ] } |> Async.RunSynchronously
+            Expect.equal byNewAfter.TotalCount 0
+                "wird aus der Buchung wieder eine einfache Buchung ohne Splits, findet kein Kategorie-Filter sie mehr über die alte Split-Kategorie"
+
+        testCase "AC15: Kategorie-Filter auf eine Split-Zeilen-Kategorie kombiniert mit dem Betragsfilter findet dieselbe Split-Buchung" <| fun () ->
+            seedSplitEntry
+                pageTestAccountAB
+                208
+                (DateTime(2026, 8, 1))
+                (Some "SplitPlusBetrag")
+                None
+                [ { Target = ToCategory (catId 39, "Kategorie 39"); Amount = eur -30m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -12m; Memo = None } ]
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAB) = pageTestAccountAB
+            let query =
+                { baseQuery (Some rawAB) with
+                    CategoryIds = [ catGuid 39 ]
+                    AmountMin = Some -50m
+                    AmountMax = Some -40m }
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+
+            Expect.equal page.TotalCount 1 "der loadAllMatching-Zweig (Betragsfilter) ruft dieselbe buildFilterClause, findet die Split-Buchung also auch"
+            Expect.equal page.TotalAmount { Amount = -42m; Currency = "EUR" } "Summe des einzigen Treffers"
+
+        testCase "AC9: rebuildSplitCategoryIndex stellt den Index nach vollständigem Löschen aus dem Bestand wieder her, ein zweiter Aufruf liefert dasselbe" <| fun () ->
+            seedSplitEntry
+                pageTestAccountAC
+                209
+                (DateTime(2026, 8, 1))
+                (Some "BackfillPayee")
+                None
+                [ { Target = ToCategory (catId 40, "Kategorie 40"); Amount = eur -9m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -1m; Memo = None } ]
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAC) = pageTestAccountAC
+            let query = { baseQuery (Some rawAC) with CategoryIds = [ catGuid 40 ] }
+            let before = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            Expect.equal before.TotalCount 1 "der Schreibpfad (writeSplitCategoryIndex) hat den Index schon gepflegt"
+
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection(Persistence.activeConnectionString ())
+            conn.Open()
+            use clearCmd = new Microsoft.Data.Sqlite.SqliteCommand("DELETE FROM ledger_entry_split_categories", conn)
+            clearCmd.ExecuteNonQuery() |> ignore
+
+            let afterClear = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            Expect.equal afterClear.TotalCount 0 "ohne Index findet der Filter die Split-Buchung nicht mehr: belegt, dass das Löschen gegriffen hat"
+
+            let written1 = rebuildSplitCategoryIndex conn
+            let afterRebuild = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            Expect.equal afterRebuild.TotalCount 1 "der Neuaufbau stellt den Index allein aus ledger_entries wieder her, ohne das Ereignis-Log zu lesen"
+            Expect.isTrue (written1 >= 1) "mindestens die eine Split-Buchung dieses Tests wurde geschrieben"
+
+            let written2 = rebuildSplitCategoryIndex conn
+            Expect.equal written2 written1 "ein zweiter Aufruf liefert denselben Rückgabewert"
+            let afterSecond = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+            Expect.equal afterSecond.TotalCount 1 "und dieselbe Treffermenge"
+
+        testCase "AC10: der Inhalt von ledger_entry_split_categories stimmt mit splitCategoryIds auf replayAll() überein, keine Drift" <| fun () ->
+            seedSplitEntry
+                pageTestAccountAD
+                211
+                (DateTime(2026, 8, 1))
+                (Some "DriftPayeeSplit")
+                None
+                [ { Target = ToCategory (catId 41, "Kategorie 41"); Amount = eur -5m; Memo = None }
+                  { Target = Uncategorized; Amount = eur -5m; Memo = None } ]
+            |> Async.RunSynchronously
+            seedEntryFull pageTestAccountAD 212 -1m (DateTime(2026, 8, 2)) (Some "DriftPayeeSimple") None (Some (category 42 "Kategorie 42"))
+            |> Async.RunSynchronously
+
+            let allEntries = replayAll () |> Async.RunSynchronously
+            let expectedPairs =
+                allEntries
+                |> List.collect (fun e ->
+                    let (EntryId eid) = e.Id
+                    splitCategoryIds e |> List.map (fun catId -> catId, eid))
+                |> Set.ofList
+
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection(Persistence.activeConnectionString ())
+            conn.Open()
+            use readCmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT category_id, entry_id FROM ledger_entry_split_categories", conn)
+            use reader = readCmd.ExecuteReader()
+            let actualPairs =
+                [ while reader.Read() do
+                    yield Guid.Parse(reader.GetString 0), Guid.Parse(reader.GetString 1) ]
+                |> Set.ofList
+
+            Expect.equal actualPairs expectedPairs
+                "die Indextabelle enthält über den gesamten Bestand genau die Paare, die splitCategoryIds auf das replayAll()-Ergebnis liefert"
+
+        testCase "AC11: eine über appendAndApply geschriebene Buchung ohne Splits hat in der Spalte splits exakt den Text '[]'" <| fun () ->
+            seedEntry pageTestAccountAE 213 -1m |> Async.RunSynchronously
+
+            let (EntryId rawId) = pageEntryId 213
+            use conn = new Microsoft.Data.Sqlite.SqliteConnection(Persistence.activeConnectionString ())
+            conn.Open()
+            use cmd = new Microsoft.Data.Sqlite.SqliteCommand("SELECT splits FROM ledger_entries WHERE id = @id", conn)
+            cmd.Parameters.AddWithValue("@id", rawId.ToString()) |> ignore
+            let splitsText = cmd.ExecuteScalar() :?> string
+
+            Expect.equal splitsText "[]" "das Backfill-Prädikat 'WHERE splits <> [] ' in rebuildSplitCategoryIndex verlässt sich exakt auf diesen Text"
+
+        testCase "AC12: der Zugriffsplan eines Kategorie-Filters nutzt die Indextabelle, ohne Tabellen-Scan und ohne korrelierte Unterabfrage" <| fun () ->
+            let plan = explainEntryFilterPlan None { noFilter with CategoryIds = [ catGuid 30 ] }
+            let planText = String.concat " | " plan
+
+            Expect.isTrue
+                (plan |> List.exists (fun line -> line.Contains "ledger_entry_split_categories"))
+                $"ledger_entry_split_categories muss im Plan vorkommen, die Split-Prüfung findet also in der Abfrage statt (Plan: {planText})"
+            Expect.isFalse
+                (plan |> List.exists (fun line -> line.Contains "SCAN ledger_entry_split_categories"))
+                $"kein Tabellen-Scan der Indextabelle, sie wird per SEARCH bedient (Plan: {planText})"
+            Expect.isFalse
+                (plan |> List.exists (fun line -> line.Contains "CORRELATED"))
+                $"keine korrelierte Unterabfrage (Plan: {planText})"
+
+        testCase "AC13: Persistence.fs hat weiterhin genau fünf Aufrufe von loadAllMatching und fünf hasAmountFilter-Gabelungen" <| fun () ->
+            // Quelltext-Zusicherung nach dem Muster von FontFaceRegressionTests.fs und
+            // BackendPortGuardTests.fs: hält fest, dass diese Aufgabe keine sechste
+            // Gabelung der `hasAmountFilter`-Verzweigung einführt (ledger-r7dm2 Punkt 1
+            // bleibt Testschuld, wird hier nicht vergrößert).
+            let testDir = __SOURCE_DIRECTORY__
+            let repoRoot = Directory.GetParent(Directory.GetParent(testDir).FullName).FullName
+            let persistenceFsPath = Path.Combine(repoRoot, "src", "Server", "Ledger", "Persistence.fs")
+            let text = File.ReadAllText persistenceFsPath
+
+            let loadAllMatchingOccurrences = Regex.Matches(text, @"\bloadAllMatching\b").Count
+            // Minus 1 für die Definition selbst ("let private loadAllMatching ...").
+            Expect.equal (loadAllMatchingOccurrences - 1) 5 "fünf Aufrufe von loadAllMatching, ohne die Definition mitzuzählen"
+
+            let hasAmountFilterGuards = Regex.Matches(text, @"if hasAmountFilter filter then").Count
+            Expect.equal hasAmountFilterGuards 5 "fünf Vorkommen der hasAmountFilter-Gabelung"
+
+        testCase "AC14: 1000 Buchungen, drei mit der gesuchten Split-Kategorie, liefern TotalCount = 3 in angemessener Zeit" <| fun () ->
+            let hitCategory = catId 43
+            let hitIndices = set [ 100; 500; 900 ]
+
+            let makeEvent (i: int) : LedgerEvent =
+                let isHit = hitIndices.Contains i
+                let payload : EntryObservedInYnabPayload = {
+                    AccountId = pageTestAccountAF
+                    YnabTransactionId = $"perftest-{i}"
+                    ImportId = None
+                    Date = DateTime(2026, 1, 1).AddDays(float i)
+                    Amount = eur (decimal (-i - 1))
+                    Payee = Some $"Perf {i}"
+                    Memo = None
+                    Category = if isHit then None else Some (category 44 "Andere Kategorie")
+                    Splits =
+                        if isHit then
+                            [ { Target = ToCategory (hitCategory, "Kategorie 43"); Amount = eur -1m; Memo = None }
+                              { Target = Uncategorized; Amount = eur (decimal (-i - 1) + 1m); Memo = None } ]
+                        else
+                            []
+                    Cleared = Uncleared
+                    TransferAccountId = None
+                    TransferYnabTransactionId = None
+                    Approved = true
+                    FlagColor = None
+                    FlagName = None
+                }
+                { EntryId = EntryId (Guid.NewGuid())
+                  OccurredAt = DateTime(2026, 1, 1).AddDays(float i)
+                  Actor = YnabMirror
+                  Body = EntryObservedInYnab payload }
+
+            let sw = System.Diagnostics.Stopwatch.StartNew()
+
+            [ for i in 0 .. 999 -> makeEvent i ]
+            |> appendAndApply
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAF) = pageTestAccountAF
+            let query = { baseQuery (Some rawAF) with CategoryIds = [ catGuid 43 ] }
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
+
+            sw.Stop()
+
+            Expect.equal page.TotalCount 3 "genau die drei Buchungen mit der gesuchten Split-Kategorie, unter 1000 auf demselben Konto"
+            // "Etwa zwei Sekunden" (Task-Vorgabe): großzügige Grenze für eine
+            // CI-Maschine; eine Überschreitung soll die Anzahl in einer späteren
+            // Iteration senken, nicht den Test flackern lassen.
+            Expect.isLessThan sw.Elapsed.TotalSeconds 2.0
+                $"Seeding plus Abfrage über 1000 Buchungen blieb unter 2s (tatsächlich: {sw.Elapsed.TotalSeconds:F2}s)"
     ]
 
 [<Tests>]

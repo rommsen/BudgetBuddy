@@ -683,6 +683,108 @@ let ledgerDomainTests =
     ]
 
 // ============================================
+// splitCategoryIds: Ableitung der Split-Zeilen-Kategorien (ADR 0038, ledger-xk9wq)
+// ============================================
+
+[<Tests>]
+let splitCategoryIdsTests =
+    testList "Ledger Domain (splitCategoryIds)" [
+
+        testCase "AC8: zwei Split-Zeilen derselben Kategorie liefern genau einen Eintrag" <| fun () ->
+            let catA = YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000aa")
+            let entry = {
+                Id = newEntryId ()
+                AccountId = testAccountId
+                Date = DateTime(2026, 5, 1)
+                Amount = eur -10.00m
+                Payee = None
+                Memo = None
+                Category = None
+                Splits = [
+                    { Target = ToCategory (catA, "Kategorie A"); Amount = eur -6.00m; Memo = None }
+                    { Target = ToCategory (catA, "Kategorie A"); Amount = eur -4.00m; Memo = None }
+                ]
+                Cleared = Uncleared
+                TransferEntryId = None
+                DeletedInYnab = false
+                Approved = true
+                FlagColor = None
+                FlagName = None
+            }
+            let (YnabCategoryId rawA) = catA
+            Expect.equal (splitCategoryIds entry) [ rawA ] "Zwei Zeilen derselben Kategorie ergeben genau einen Eintrag, kein Duplikat"
+
+        testCase "AC8: eine Buchung, deren Zeilen ausschließlich ToTransfer/Uncategorized sind, liefert eine leere Liste" <| fun () ->
+            let entry = {
+                Id = newEntryId ()
+                AccountId = testAccountId
+                Date = DateTime(2026, 5, 1)
+                Amount = eur -10.00m
+                Payee = None
+                Memo = None
+                Category = None
+                Splits = [
+                    { Target = ToTransfer (YnabAccountId (Guid.Parse "0195c000-0000-7000-8000-0000000000cc"), "Bar")
+                      Amount = eur -6.00m
+                      Memo = None }
+                    { Target = Uncategorized; Amount = eur -4.00m; Memo = None }
+                ]
+                Cleared = Uncleared
+                TransferEntryId = None
+                DeletedInYnab = false
+                Approved = true
+                FlagColor = None
+                FlagName = None
+            }
+            Expect.equal (splitCategoryIds entry) [] "ToTransfer und Uncategorized sind keine Kategorie, der Kategorie-Filter findet eine solche Buchung nicht"
+
+        testCase "Eine Buchung ohne Splits liefert eine leere Liste" <| fun () ->
+            let entry = {
+                Id = newEntryId ()
+                AccountId = testAccountId
+                Date = DateTime(2026, 5, 1)
+                Amount = eur -10.00m
+                Payee = None
+                Memo = None
+                Category = Some (category "Lebensmittel")
+                Splits = []
+                Cleared = Uncleared
+                TransferEntryId = None
+                DeletedInYnab = false
+                Approved = true
+                FlagColor = None
+                FlagName = None
+            }
+            Expect.equal (splitCategoryIds entry) [] "Ohne Splits gibt es keine Split-Zeilen-Kategorie, unabhängig von der einfachen Kategorie"
+
+        testCase "Mehrere verschiedene Kategorien in Split-Zeilen liefern alle, je einmal" <| fun () ->
+            let catA = YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000aa")
+            let catB = YnabCategoryId (Guid.Parse "0195c000-0000-7000-8000-0000000000bb")
+            let entry = {
+                Id = newEntryId ()
+                AccountId = testAccountId
+                Date = DateTime(2026, 5, 1)
+                Amount = eur -10.00m
+                Payee = None
+                Memo = None
+                Category = None
+                Splits = [
+                    { Target = ToCategory (catA, "Kategorie A"); Amount = eur -6.00m; Memo = None }
+                    { Target = ToCategory (catB, "Kategorie B"); Amount = eur -4.00m; Memo = None }
+                ]
+                Cleared = Uncleared
+                TransferEntryId = None
+                DeletedInYnab = false
+                Approved = true
+                FlagColor = None
+                FlagName = None
+            }
+            let (YnabCategoryId rawA) = catA
+            let (YnabCategoryId rawB) = catB
+            Expect.equal (List.sort (splitCategoryIds entry)) (List.sort [ rawA; rawB ]) "Beide verschiedenen Kategorien kommen vor, je einmal"
+    ]
+
+// ============================================
 // Import-Push: Kassenbuch-Ereignisse aus Comdirect-Buchung und Review-Spur bauen
 // (ADR 0021, ledger-qvt84, reine Faltung)
 // ============================================

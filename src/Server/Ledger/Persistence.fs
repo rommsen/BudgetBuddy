@@ -171,6 +171,15 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             group_name       TEXT NOT NULL,
             updated_at       TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS ledger_entry_split_categories (
+            category_id TEXT NOT NULL,
+            entry_id TEXT NOT NULL,
+            PRIMARY KEY (category_id, entry_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ledger_entry_split_categories_entry
+            ON ledger_entry_split_categories(entry_id);
     """,
             conn
         )
@@ -178,12 +187,6 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
     cmd.ExecuteNonQuery() |> ignore
 
     migrateLedgerEntryColumns conn
-
-/// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an; der Aufruf folgt dem
-/// Muster von `Persistence.initializeDatabase`.
-let initializeLedgerSchema () =
-    let conn = Core.getConnection ()
-    createLedgerSchemaOn conn
 
 // ============================================
 // Zeilen-Typen
@@ -369,6 +372,31 @@ let private upsertEntrySql =
           flag_color = excluded.flag_color,
           flag_name = excluded.flag_name"""
 
+/// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
+/// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je
+/// Kategorie aus `Ledger.Domain.splitCategoryIds`. Immer beides, auch bei leerer
+/// Split-Liste, sonst bleibt eine Zeile stehen, nachdem eine aufgeteilte Buchung in
+/// YNAB wieder zu einer einfachen wurde. Läuft auf derselben Connection und in
+/// derselben Transaktion wie der `ledger_entries`-Upsert (ADR 0013, Punkt 5).
+let private writeSplitCategoryIndex (conn: SqliteConnection) (tx: SqliteTransaction) (entry: Entry) =
+    let (EntryId id) = entry.Id
+    let entryIdText = id.ToString()
+
+    conn.Execute(
+        "DELETE FROM ledger_entry_split_categories WHERE entry_id = @entry_id",
+        {| entry_id = entryIdText |},
+        tx
+    )
+    |> ignore
+
+    for categoryId in splitCategoryIds entry do
+        conn.Execute(
+            "INSERT INTO ledger_entry_split_categories (category_id, entry_id) VALUES (@category_id, @entry_id)",
+            {| category_id = categoryId.ToString(); entry_id = entryIdText |},
+            tx
+        )
+        |> ignore
+
 /// Haengt Ereignisse an das Log und schreibt den daraus abgeleiteten Zustand fort:
 /// beides auf **einer** Connection in **einer** Transaktion (ADR 0013, Punkt 5).
 /// Schlaegt irgendein Schritt fehl, steht danach weder ein Ereignis im Log noch eine
@@ -455,6 +483,7 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
                     // Replay benutzt. Wirft sie, rollt die Transaktion das Ereignis zurueck.
                     let newState = apply currentState event
                     conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore
+                    writeSplitCategoryIndex conn tx newState
 
                     states <- Map.add entryGuid (Some newState) states
                     sequences <- Map.add entryGuid nextSequence sequences
@@ -466,6 +495,49 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
                 tx.Rollback()
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
     }
+
+/// Baut die abgeleitete Indextabelle `ledger_entry_split_categories` vollständig aus
+/// `ledger_entries` neu auf (ADR 0038, Decision Punkt 6): leert die Tabelle und liest
+/// nur die aufgeteilten Buchungen (`WHERE splits <> '[]'`, der Encoder schreibt für
+/// eine Buchung ohne Splits exakt diesen Text, AC11), damit nur die wenigen
+/// aufgeteilten Buchungen zu Indexzeilen werden. Idempotent durch ihre Form: ein
+/// zweiter Aufruf erzeugt denselben Inhalt. Liest und schreibt das Ereignis-Log nicht.
+/// Nimmt die Connection als Parameter wie `migrateLedgerEntryColumns`, damit ein Test
+/// sie isoliert fahren kann; läuft am Ende von `initializeLedgerSchema`, direkt
+/// hinter `migrateLedgerEntryColumns`. Liefert die Zahl der geschriebenen
+/// Indexzeilen zurück (Frühindikator, siehe ADR 0038 Consequences).
+let rebuildSplitCategoryIndex (conn: SqliteConnection) : int =
+    if conn.State <> System.Data.ConnectionState.Open then
+        conn.Open()
+
+    conn.Execute("DELETE FROM ledger_entry_split_categories") |> ignore
+
+    let splitRows =
+        conn.Query<EntryRow>("SELECT * FROM ledger_entries WHERE splits <> '[]'") |> Seq.toList
+
+    let mutable written = 0
+
+    for row in splitRows do
+        let entry = rowToEntry row
+
+        for categoryId in splitCategoryIds entry do
+            conn.Execute(
+                "INSERT INTO ledger_entry_split_categories (category_id, entry_id) VALUES (@category_id, @entry_id)",
+                {| category_id = categoryId.ToString(); entry_id = row.id |}
+            )
+            |> ignore
+
+            written <- written + 1
+
+    written
+
+/// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an und baut anschließend
+/// die abgeleitete Split-Kategorie-Indextabelle neu auf (ADR 0038, Decision Punkt 6):
+/// der Aufruf folgt dem Muster von `Persistence.initializeDatabase`.
+let initializeLedgerSchema () =
+    let conn = Core.getConnection ()
+    createLedgerSchemaOn conn
+    rebuildSplitCategoryIndex conn |> ignore
 
 /// Verknuepft eine Fremd-Id mit einer Buchung (ADR 0015). Ein Wert ist je System
 /// eindeutig; ein zweiter Versuch auf dieselbe Fremd-Id schlaegt fehl.
@@ -634,13 +706,26 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
     match filter.CategoryIds with
     | [] -> ()
     | ids ->
-        // Nur die einfache Kategorie (`category_id`-Spalte), nicht die Split-Zeilen:
-        // die liegen als JSON-Text, und Queries dürfen keine SQLite-JSON-Funktionen
-        // benutzen (ADR 0013, Punkt 8). Eine Buchung, deren einzige Kategorie in
-        // einem Split steckt, findet der Kategorie-Filter also nicht — bewusst in
-        // Kauf genommen für den weit häufigeren Fall (ADR 0036).
-        clause.Append(" AND category_id IN @categoryIds") |> ignore
-        ps.Add("categoryIds", ids |> List.map (fun g -> g.ToString()))
+        // Die einfache Kategorie (`category_id`-Spalte) ODER eine Split-Zeilen-
+        // Kategorie über die abgeleitete Indextabelle `ledger_entry_split_categories`
+        // (ADR 0038): die Split-Zeilen selbst liegen als JSON-Text, und Queries
+        // dürfen keine SQLite-JSON-Funktionen benutzen (ADR 0013, Punkt 8): die
+        // Indextabelle trägt die Ableitung stattdessen als gewöhnliches SQL. Die
+        // äußere Klammer ist tragend: `countDeletedEntries` und
+        // `loadPayeeSuggestions` hängen hinter die gebaute Klausel weitere
+        // `AND`-Glieder an. Die Unterabfrage ist bewusst nicht korreliert (`id IN
+        // (SELECT ...)`, kein `EXISTS` mit Rückverweis auf `ledger_entries.id`):
+        // eine korrelierte Form muss je Zeile erneut ausgewertet werden und
+        // blockiert die OR-Optimierung. Dieselbe Id-Liste geht unter zwei
+        // Parameternamen hinein, statt sich darauf zu verlassen, dass Dapper einen
+        // doppelt vorkommenden Listen-Parameter im ganzen Kommandotext erweitert.
+        let idTexts = ids |> List.map (fun g -> g.ToString())
+        clause.Append(
+            " AND (category_id IN @categoryIds OR id IN (SELECT entry_id FROM ledger_entry_split_categories WHERE category_id IN @splitCategoryIds))"
+        )
+        |> ignore
+        ps.Add("categoryIds", idTexts)
+        ps.Add("splitCategoryIds", idTexts)
 
     // Datum liegt als ISO-8601-Roundtrip-Text (ADR 0017, Punkt 4: "`\"o\"` plus
     // `RoundtripKind`"). Roundtrip heißt: die Länge hängt vom `DateTimeKind` ab —
@@ -688,6 +773,22 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
     | None -> ()
 
     clause.ToString(), ps
+
+[<CLIMutable>]
+type private QueryPlanRow = { id: int64; parent: int64; notused: int64; detail: string }
+
+/// `EXPLAIN QUERY PLAN` der gebauten Filter-Abfrage, zeilenweise (AC12, ADR 0038
+/// Decision Punkt 8): beantwortet ausdrücklich "welchen Zugriffspfad nimmt diese
+/// Abfrage", nicht "wie lautet das SQL": der Rückgabewert ist deshalb der Plan
+/// (die `detail`-Spalte je Zeile), nicht die Klausel selbst, und `buildFilterClause`
+/// bleibt `private`. Kein Aufrufer im Produktivpfad, nur für die Prüfung.
+let explainEntryFilterPlan (accountId: LedgerAccountId option) (filter: EntryFilter) : string list =
+    use conn = Core.getConnection ()
+    let whereSql, ps = buildFilterClause accountId filter
+
+    conn.Query<QueryPlanRow>($"EXPLAIN QUERY PLAN SELECT * FROM ledger_entries WHERE {whereSql}", ps)
+    |> Seq.map (fun r -> r.detail)
+    |> Seq.toList
 
 /// Lädt ALLE Buchungen, die Konto und `EntryFilter` (ohne Betrag) treffen, neueste
 /// zuerst, ohne `LIMIT`. Nur der Weg für `AmountMin`/`AmountMax`: weil der Betrag

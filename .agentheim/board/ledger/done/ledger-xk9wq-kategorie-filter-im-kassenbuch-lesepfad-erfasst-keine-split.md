@@ -1,7 +1,7 @@
 ---
 id: ledger-xk9wq
 title: "Split-Zeilen-Kategorien über eine abgeleitete Indextabelle in den Kassenbuch-Kategorie-Filter holen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-19
@@ -198,3 +198,62 @@ Spalten, die interessante ist `detail`; notfalls über einen `[<CLIMutable>]`-Ze
 lesen statt über `Query<string>`. Der Betragsfilter-Zweig sitzt vollständig in
 `Persistence.fs` (`hasAmountFilter` 580, `amountMatches` 586, `loadAllMatching` 673,
 `safePage` 683, Gabelungen bei 700/723/741/791/814), nicht in `QueryHandlers.fs`.
+
+## Outcome
+
+Der Kategorie-Filter des Kassenbuchs (`Ledger.Persistence.buildFilterClause`) findet jetzt auch Buchungen, deren einzige Kategorie in einer Split-Zeile steckt, nicht mehr nur die einfache `category_id`-Spalte (ADR 0038, gebaut auf dem Server-Teil aus `ledger-vgfw3`).
+
+**Domäne** (`src/Server/Ledger/Domain.fs:120`): die reine Funktion `splitCategoryIds : Entry -> Guid list` liest `entry.Splits`, wählt die `ToCategory`-Ziele aus und entdoppelt (`List.distinct`); `ToTransfer`- und `Uncategorized`-Zeilen (ADR 0006, ADR 0019) erzeugen keinen Eintrag. Kein I/O.
+
+**Persistenz** (`src/Server/Ledger/Persistence.fs`):
+- Neue Tabelle `ledger_entry_split_categories (category_id, entry_id)` mit Primärschlüssel in dieser Reihenfolge (deckende Suche nach `category_id`) plus einem zweiten Index auf `entry_id` fürs `DELETE` des Schreibpfads.
+- Neuer privater Helfer `writeSplitCategoryIndex` (Zeile 381): `DELETE` aller Zeilen einer Buchung, dann `INSERT` je Kategorie aus `splitCategoryIds`, immer beides. Aufgerufen aus `appendAndApply` unmittelbar hinter dem `ledger_entries`-Upsert, auf derselben Connection und in derselben Transaktion (ADR 0013 Punkt 5).
+- `rebuildSplitCategoryIndex (conn) : int` (Zeile 509): leert die Tabelle und baut sie aus `ledger_entries` neu auf (Kandidaten über `WHERE splits <> '[]'`), liefert die Zahl der geschriebenen Zeilen. Läuft am Ende von `initializeLedgerSchema` (Zeile 537), direkt hinter `migrateLedgerEntryColumns`; liest und schreibt das Ereignis-Log nicht.
+- `buildFilterClause`, Kategorie-Zweig (Zeile ~709): `AND category_id IN @categoryIds` wurde zur geklammerten OR-Form `AND (category_id IN @categoryIds OR id IN (SELECT entry_id FROM ledger_entry_split_categories WHERE category_id IN @splitCategoryIds))` (Zeile 724), nicht korreliert, mit derselben Id-Liste unter zwei Parameternamen. Payee-/Memo-Zweige (`ledger-k3wqn`) unangetastet.
+- `explainEntryFilterPlan (accountId) (filter) : string list` (Zeile 785): gibt `EXPLAIN QUERY PLAN` der gebauten Filter-Abfrage zeilenweise zurück, nur für die Prüfung (AC12); `buildFilterClause` bleibt `private`.
+
+**Tests**: 16 neue Testfälle.
+- `src/Tests/LedgerTests.fs`: vier reine Domain-Tests für `splitCategoryIds` (Entdopplung, ausschließlich ToTransfer/Uncategorized → leere Liste, ohne Splits → leere Liste, mehrere verschiedene Kategorien).
+- `src/Tests/LedgerPageTests.fs`: zwölf Persistence-Tests in der bestehenden Gruppe "Kassenbuch-Seite: seitenweise Liste und Kontostaende (Persistence)", eigenes Konto je Testfall (W..AF, fortlaufend hinter dem bisherigen V). Neuer Seed-Helfer `seedSplitEntry`/`seedDeletedSplitEntry` (Splits, Gesamtbetrag aus der Split-Summe gebildet). Abgedeckt: AC1-AC3 (Liste/TotalCount/TotalAmount einer Split-Buchung), AC4 (DeletedCount), AC5 (Payee-Vorschläge), AC6 (NeedsReviewCount bleibt ungefiltert), AC7 (Kategorie wandert X→Y, dann Buchung wird wieder einfach: keine veraltete Indexzeile), AC15 (Kombination mit Betragsfilter), AC9 (Neuaufbau nach vollständigem Löschen, Idempotenz), AC10 (kein Drift gegen `splitCategoryIds` über `replayAll()`, über den gesamten Bestand geprüft via Rohzugriff auf `ledger_entry_split_categories`), AC11 (Backfill-Prädikat `splits = '[]'` festgenagelt), AC12 (Zugriffsplan: Indextabelle per SEARCH, kein SCAN, keine CORRELATED-Unterabfrage; Plan enthält tatsächlich `SEARCH ledger_entry_split_categories`, kein Fallback auf das Minimalkriterium nötig), AC13 (Quelltext-Zusicherung: weiterhin genau fünf `loadAllMatching`-Aufrufe und fünf `hasAmountFilter`-Gabelungen), AC14 (1000 Buchungen, drei mit der gesuchten Split-Kategorie, `TotalCount = 3`; Seeding plus Abfrage lief in allen Beobachtungen deutlich unter 200ms, weit unter der 2s-Grenze, keine Reduktion der Anzahl nötig). AC16: die acht bestehenden Filter-Tests aus `ledger-vgfw3` wurden nicht angefasst (Diff enthält für sie ausschließlich Kontext, keine Änderung) und sind weiterhin grün, weil die OR-Erweiterung der Klausel rückwärtskompatibel ist.
+
+**AC17 (Doku), Teilerfüllung**: Der README_DELTA-Block oben aktualisiert die "Such-Filter (Kassenbuch)"-Bullet unter "Ubiquitous language" wie gefordert (lokal gegen das echte Gate geprüft: `node scripts/readme-delta-check.mjs --bc ledger --delta <datei>` liefert Exit 0). Der zweite Teil von AC17 ("führt rebuildSplitCategoryIndex unter 'Migration bestehender Zustandstabellen' neben migrateLedgerEntryColumns") ließ sich über die mechanisierte README_DELTA-Grammatik NICHT abbilden: der betroffene Absatz im Abschnitt "## Ereignisse" ist Fließtext ohne "- **Begriff**"-Bullet-Form, und das Gate lehnt dort sowohl `replace` ("Anker ... trägt kein Bullet") als auch `append` ("Einfügepunkt liegt hinter Fließtext, nicht hinter einem Bullet") ab. Das ist genau der in `CLAUDE.md` vorgesehene Fall ("Ein rotes Gate heißt: den README-Block von Hand platzieren, nicht das Delta blind anwenden"). Für die Handplatzierung, wörtlich:
+
+Alt (im Abschnitt "## Ereignisse", Unterabschnitt "Migration bestehender Zustandstabellen"):
+```
+**Migration bestehender Zustandstabellen** (ADR 0032):
+`Ledger.Persistence.migrateLedgerEntryColumns` fügt `approved`, `flag_color` und
+`flag_name` einer vor diesen Spalten angelegten Tabelle nach; bestehende Zeilen bekommen
+`approved = 1` und kein Flag. Die Funktion nimmt die Connection als Parameter, damit sie
+sowohl aus `initializeLedgerSchema` als auch aus einem Test gegen eine isolierte
+Verbindung laufen kann; ein zweiter Aufruf bleibt folgenlos (SQLite kennt kein
+`ADD COLUMN IF NOT EXISTS`, die Migration fängt den Duplikat-Fehler ab).
+```
+
+Neu:
+```
+**Migration bestehender Zustandstabellen** (ADR 0032, ADR 0038):
+`Ledger.Persistence.migrateLedgerEntryColumns` fügt `approved`, `flag_color` und
+`flag_name` einer vor diesen Spalten angelegten Tabelle nach; bestehende Zeilen bekommen
+`approved = 1` und kein Flag. Die Funktion nimmt die Connection als Parameter, damit sie
+sowohl aus `initializeLedgerSchema` als auch aus einem Test gegen eine isolierte
+Verbindung laufen kann; ein zweiter Aufruf bleibt folgenlos (SQLite kennt kein
+`ADD COLUMN IF NOT EXISTS`, die Migration fängt den Duplikat-Fehler ab). Direkt danach
+läuft `Ledger.Persistence.rebuildSplitCategoryIndex`: sie leert die abgeleitete
+Indextabelle `ledger_entry_split_categories` und baut sie aus dem Bestand von
+`ledger_entries` neu auf (Kandidaten über `WHERE splits <> '[]'`), damit der
+Kategorie-Filter auch Split-Zeilen-Kategorien findet (ADR 0038). Nimmt ebenfalls die
+Connection als Parameter, ist idempotent durch ihre Form und liest wie schreibt das
+Ereignis-Log nicht.
+```
+
+**Tests**: `dotnet build` (Lösung) und `dotnet test` (aus dem Worktree-Root) beide grün, 1008 bestanden / 7 übersprungen (.env-gated) / 0 fehlgeschlagen.
+
+Schlüsseldateien:
+- `src/Server/Ledger/Domain.fs:120`: `splitCategoryIds`
+- `src/Server/Ledger/Persistence.fs:381,509,537,709-728,785`: `writeSplitCategoryIndex`, `rebuildSplitCategoryIndex`, `initializeLedgerSchema`, `buildFilterClause`-Kategorie-Zweig, `explainEntryFilterPlan`
+- `src/Tests/LedgerTests.fs`: `splitCategoryIdsTests` (vor `recordComdirectPushTests`)
+- `src/Tests/LedgerPageTests.fs`: neue Testgruppe "Split-Zeilen-Kategorien im Kategorie-Filter" am Ende der Persistence-Testliste, Seed-Helfer `seedSplitEntry`/`seedDeletedSplitEntry` vor `catGuid`
+
+Diary-Notiz: Was: Split-Zeilen-Kategorien fließen jetzt in den Kassenbuch-Kategorie-Filter ein (neue Indextabelle, in derselben Transaktion geführt, aus dem Bestand neu baubar). Dateien: `Domain.fs`, `Persistence.fs`, `LedgerPageTests.fs`, `LedgerTests.fs`. Warum: `ledger-vgfw3` hatte den Kategorie-Filter bewusst auf die einfache Kategorie beschränkt (ADR 0036 Punkt 2); Roman setzt diesen Filter in 70-80% der Fälle, eine Split-Buchung fiel bisher still durch. Tests: 16 neu, 1008/1008 gesamt grün (7 übersprungen, .env-gated).
+
+**Nachtrag Conductor (Integration):** Den Migrations-Absatz im Abschnitt "Ereignisse" habe ich wie oben vorgegeben von Hand in die ledger-README gesetzt. In der Testmeldung zu AC9 habe ich den als Gedankenstrich benutzten Bindestrich durch einen Doppelpunkt ersetzt.

@@ -110,6 +110,22 @@ type Entry = {
 let needsReview (entry: Entry) : bool =
     not entry.Approved || entry.Cleared = Uncleared
 
+/// Die verschiedenen Kategorien, die in den Split-Zeilen einer Buchung stecken
+/// (ADR 0038): wählt aus `entry.Splits` die `ToCategory`-Ziele aus und entdoppelt.
+/// `ToTransfer`- und `Uncategorized`-Zeilen (ADR 0006, ADR 0019) erzeugen keinen
+/// Eintrag, ein Übertrag oder eine unkategorisierte Zeile ist keine Kategorie, nach
+/// der ein Kategorie-Filter suchen könnte. Rein, ohne I/O: Grundlage sowohl für den
+/// Schreibpfad (`Ledger.Persistence.writeSplitCategoryIndex`) als auch für den
+/// Neuaufbau (`Ledger.Persistence.rebuildSplitCategoryIndex`).
+let splitCategoryIds (entry: Entry) : Guid list =
+    entry.Splits
+    |> List.choose (fun s ->
+        match s.Target with
+        | ToCategory (YnabCategoryId id, _) -> Some id
+        | ToTransfer _
+        | Uncategorized -> None)
+    |> List.distinct
+
 // ============================================
 // Faltung
 // ============================================
