@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 11
 - **Todo:** 7
-- **Doing:** 1
-- **Done:** 36
+- **Doing:** 0
+- **Done:** 37
 <!-- task-counts:end -->
 
 ### Todo
@@ -29,11 +29,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `doing/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-na3rq** — "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab" (bug) — `done/ledger-na3rq-push-klebecode-testbar-force-import-session-sperre.md`
 - **ledger-jkb0f** — "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request" (bug) — `done/ledger-jkb0f-kassenbuch-ereignis-beim-push-entspricht-ynab-request.md`
 - **ledger-mshd8** — "Client lädt die Sync-Session nach gescheitertem YNAB-Import nicht neu" (bug) — `done/ledger-mshd8-client-laedt-session-nach-import-fehler-nicht-neu.md`
 - **ledger-w6tbq** — "Force-Import: die Ableitung der alten ImportId gegen den normalen Push festnageln" (chore) — `done/ledger-w6tbq-force-import-die-ableitung-der-alten-importid-gegen-den-norm.md`
@@ -74,6 +74,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-fgw2q** — "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen" (bug) — `backlog/ledger-fgw2q-nicht-auswertbare-ynab-antwort-beim-comdirect-push-l-sst-die.md`
 - **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `backlog/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
 - **ledger-saqsk** — "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden" (feature) — `backlog/ledger-saqsk-chip-ohne-kategorie-in-der-filterleiste.md`
 - **ledger-h4nxz** — "Split-Zeilen-Überträge: transfer_transaction_id auf Subtransaction-Ebene fehlt im Beobachtungs-Contract" (decision) — `backlog/ledger-h4nxz-split-zeilen-bertr-ge-transfer-transaction-id-auf-subtransac.md`

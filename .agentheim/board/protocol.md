@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-09-25 13:03 -- Task verified and completed: ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
+
+**Type:** Work / Task completion
+**Task:** ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
+**Summary:** Outcome-Klassifikation des Import-Pushs als reine Funktion; Force-Import schließt die Session nicht mehr trotz gescheitertem Kassenbuch-Schreiben
+**Duration:** 1h31m
+**Verification:** PASS (iteration 3)
+**Files changed:** 5
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
+## 2026-09-25 12:53 -- Verification failed: ledger-na3rq - Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab
+
+**Type:** Work / Verification failure
+**Task:** ledger-na3rq - Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab
+**Iteration:** 2 of 3
+**Reasons:** Force-Import-Regressionstest wäre unter der alten Regel nicht rot (die gescheiterte Buchung steht auf NeedsAttention und blockierte schon vorher), übrige Punkte aus Iteration 1 behoben
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 12:49 -- Task verified and completed: ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
 
 **Type:** Work / Task completion

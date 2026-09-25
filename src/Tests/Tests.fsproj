@@ -50,6 +50,7 @@
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
+    <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />

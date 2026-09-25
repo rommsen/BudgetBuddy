@@ -1215,88 +1215,26 @@ let syncApi : SyncApi = {
                                 return
                                     Error (SyncError.YnabImportFailed (candidates.Length, ynabErrorToString ynabError))
                             | _ ->
-                                let importIdByTxId =
-                                    prepared.ToSend |> List.map (fun p -> p.TransactionId, p.ImportId) |> Map.ofList
-                                let duplicateImportIdSet =
-                                    match pushResult.SendResult with
-                                    | Some (Ok sent) -> sent.DuplicateImportIds |> Set.ofList
-                                    | _ -> Set.empty
-                                let futureDatedSet = prepared.FutureDatedTransactionIds |> Set.ofList
-                                let rejectedTransferTxIdSet = prepared.RejectedTransferTransactionIds |> Set.ofList
+                                // Outcome-Klassifikation (welche Buchung importiert,
+                                // Duplikat oder gescheitert ist, und ob die Session
+                                // abgeschlossen werden darf) liegt in der reinen, unter
+                                // `dotnet test` erreichbaren Funktion
+                                // `Server.PushOutcomeClassification.classifyPushOutcomes`
+                                // (ledger-na3rq), dieselbe wie in `forceImportDuplicates`.
+                                // `forceImport = false`, `otherSessionTransactions = []`:
+                                // `toImport` ist bereits "alles gerade Offene" der Session
+                                // (siehe Filter oben), die session-weite Force-Regel greift
+                                // hier nicht (siehe Doc-Kommentar an `classifyPushOutcomes`).
+                                let classification =
+                                    Server.PushOutcomeClassification.classifyPushOutcomes toImport prepared pushResult false []
 
-                                // Duplikate: nur was YNAB tatsächlich als Duplikat meldete,
-                                // über die von uns selbst gesetzte ImportId zugeordnet
-                                // (keine "BB:{txId}"-Rekonstruktion mehr nötig, siehe
-                                // Task-Notes zur Force-Import-ImportId).
-                                let duplicateTransactionIds =
-                                    pushResult.Outcomes
-                                    |> Map.toList
-                                    |> List.choose (fun (txId, outcome) ->
-                                        match outcome with
-                                        | Ledger.CommandHandlers.WrittenNotLinked _ ->
-                                            match Map.tryFind txId importIdByTxId with
-                                            | Some importId when duplicateImportIdSet.Contains importId -> Some txId
-                                            | _ -> None
-                                        | _ -> None)
+                                SyncSessionManager.updateTransactions classification.UpdatedTransactions
 
-                                // Ein gescheitertes Kassenbuch-Schreiben darf nie still
-                                // bleiben (Verifier-Fund, Iteration 3): die Buchung wurde
-                                // nicht gesendet, zählt also nicht als importiert, und die
-                                // Session darf nicht als abgeschlossen gelten, solange so
-                                // eine Buchung offen ist.
-                                let ledgerWriteFailureSummary =
-                                    Ledger.CommandHandlers.summarizeLedgerWriteFailures pushResult
-
-                                let updatedTransactions =
-                                    toImport
-                                    |> List.map (fun tx ->
-                                        let txId = tx.Transaction.Id
-                                        if futureDatedSet.Contains txId then
-                                            // Bug-Fix: zukunftsdatierte Buchungen wurden nie
-                                            // gesendet, bleiben also unverändert und nie
-                                            // "Imported".
-                                            tx
-                                        elif rejectedTransferTxIdSet.Contains txId then
-                                            // A transfer split line could not be resolved to a
-                                            // YNAB transfer payee (the transaction was not sent).
-                                            { tx with
-                                                YnabImportStatus =
-                                                    RejectedByYnab (UnknownRejection (Some "No YNAB transfer payee for the split transfer account")) }
-                                        else
-                                            match Map.tryFind txId pushResult.Outcomes with
-                                            | Some (Ledger.CommandHandlers.Linked _) ->
-                                                { tx with Status = Imported; YnabImportStatus = YnabImported }
-                                            | Some (Ledger.CommandHandlers.WrittenNotLinked _) ->
-                                                match Map.tryFind txId importIdByTxId with
-                                                | Some importId when duplicateImportIdSet.Contains importId ->
-                                                    { tx with YnabImportStatus = RejectedByYnab (DuplicateImportId importId) }
-                                                | _ ->
-                                                    // Nicht auswertbare Antwort (Bug-Fix): kein
-                                                    // pauschaler Erfolg, Zustand bleibt
-                                                    // unverändert; die Kassenbuch-Buchung
-                                                    // steht ohne ynab-Verknüpfung, erkennbar
-                                                    // "unbekannt".
-                                                    tx
-                                            | Some (Ledger.CommandHandlers.AlreadyImported _) ->
-                                                // ADR 0021 Punkt 3: schon eine mit YNAB
-                                                // verknüpfte Buchung für diese ImportId
-                                                // (z. B. ein früherer Push war erfolgreich,
-                                                // aber das Speichern der SyncTransaction
-                                                // danach scheiterte). Kein zweiter Versuch
-                                                // nötig, gilt als importiert.
-                                                { tx with Status = Imported; YnabImportStatus = YnabImported }
-                                            | Some (Ledger.CommandHandlers.LedgerWriteFailed _) ->
-                                                // Task-Notes Schritt 7b: das
-                                                // Kassenbuch-Schreiben ist gescheitert, die
-                                                // Buchung wurde nicht gesendet.
-                                                tx
-                                            | None -> tx)
-
-                                SyncSessionManager.updateTransactions updatedTransactions
-
-                                // Only complete session if all transactions were imported
-                                // (no duplicates left, no failed Kassenbuch-Schreiben)
-                                if duplicateTransactionIds.IsEmpty && ledgerWriteFailureSummary.IsNone then
+                                // Session darf nur abschließen, wenn dieser Versuch weder
+                                // ein Duplikat noch ein gescheitertes Kassenbuch-Schreiben
+                                // hinterlassen hat (`SessionMayComplete`, ein Feld der
+                                // Klassifikation, keine hier wiederholte Bedingung).
+                                if classification.SessionMayComplete then
                                     SyncSessionManager.completeSession()
 
                                 // Update session in database. Persisted regardless of a
@@ -1321,7 +1259,7 @@ let syncApi : SyncApi = {
                                             | _ -> false)
                                         |> List.length
 
-                                    match ledgerWriteFailureSummary with
+                                    match classification.LedgerWriteFailureSummary with
                                     | Some (failedCount, messages) ->
                                         // Sichtbar machen statt still schlucken (Verifier-Fund,
                                         // Iteration 3): die erfolgreich importierten Buchungen
@@ -1339,7 +1277,7 @@ let syncApi : SyncApi = {
                                         // Return ImportResult with created count and duplicate IDs
                                         return Ok {
                                             CreatedCount = createdCount
-                                            DuplicateTransactionIds = duplicateTransactionIds
+                                            DuplicateTransactionIds = classification.DuplicateTransactionIds
                                         }
                                 | None ->
                                     return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
@@ -1421,32 +1359,39 @@ let syncApi : SyncApi = {
                                 return
                                     Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorToString ynabError))
                             | _ ->
-                                // Importiert ist, wer tatsächlich (neu oder erneut)
-                                // verknüpft wurde, oder wer schon vorher verknüpft war
-                                // (`AlreadyImported`, wie beim normalen Import-Push).
-                                let updatedTransactions =
-                                    transactionsToForce
-                                    |> List.map (fun tx ->
-                                        match Map.tryFind tx.Transaction.Id pushResult.Outcomes with
-                                        | Some (Ledger.CommandHandlers.Linked _)
-                                        | Some (Ledger.CommandHandlers.AlreadyImported _) ->
-                                            { tx with Status = Imported; YnabImportStatus = YnabImported }
-                                        | _ -> tx)
+                                // Dieselbe Outcome-Klassifikation wie beim normalen
+                                // Import-Push (`Server.PushOutcomeClassification`,
+                                // ledger-na3rq). Bug-Fix: vorher prüfte dieser Zweig nur,
+                                // ob keine kategorisierte Buchung mehr offen ist
+                                // (`allCategorizedImported`), ohne ein gescheitertes
+                                // Kassenbuch-Schreiben dieses Versuchs zu berücksichtigen
+                                // (`LedgerWriteFailed`). Die Session konnte dadurch
+                                // fälschlich abgeschlossen werden, obwohl eine Buchung
+                                // offen blieb (ADR 0021).
+                                //
+                                // `forceImport = true`, `otherSessionTransactions` sind alle
+                                // Session-Buchungen außerhalb dieses Force-Batches: Roman
+                                // wählt `transactionIds` gezielt aus, deshalb muss sowohl
+                                // eine anderswo offen gebliebene Buchung als auch eine
+                                // Buchung dieses Batches, die trotz Force-Versuch offen
+                                // bleibt (zukunftsdatiert, nicht auswertbar), den Abschluss
+                                // blockieren, wie es `allCategorizedImported` vor der
+                                // Extraktion über die ganze Session tat.
+                                let otherSessionTransactions =
+                                    allTransactions
+                                    |> List.filter (fun tx -> not (List.contains tx.Transaction.Id transactionIds))
 
-                                SyncSessionManager.updateTransactions updatedTransactions
+                                let classification =
+                                    Server.PushOutcomeClassification.classifyPushOutcomes
+                                        transactionsToForce
+                                        prepared
+                                        pushResult
+                                        true
+                                        otherSessionTransactions
 
-                                // Check if all transactions are now imported
-                                let allUpdated = SyncSessionManager.getTransactions()
-                                let allCategorizedImported =
-                                    allUpdated
-                                    |> List.filter (fun tx ->
-                                        match tx.Status with
-                                        | AutoCategorized | ManualCategorized | NeedsAttention -> true
-                                        | Imported | Skipped | Pending -> false
-                                    )
-                                    |> List.isEmpty
+                                SyncSessionManager.updateTransactions classification.UpdatedTransactions
 
-                                if allCategorizedImported then
+                                if classification.SessionMayComplete then
                                     SyncSessionManager.completeSession()
 
                                 // Update session in database
