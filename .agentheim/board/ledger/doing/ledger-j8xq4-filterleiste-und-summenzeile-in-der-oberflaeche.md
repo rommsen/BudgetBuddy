@@ -100,6 +100,25 @@ er einem blinden Neuladen nach jeder Änderung widerspricht.
 - [ ] Screenshots in beiden Viewports neben den Screens 2.1 bis 2.14 des Übergabepakets
       zeigen keine sichtbare Abweichung in Chip-Zuständen, Picker und Summenzeile.
       [human-eye]
+- [ ] Die Filterleiste bleibt am Handy und am PC beim Scrollen der Liste sichtbar (sticky
+      unter der Navbar). Per Browsertest belegt, Messwerte in einem einzigen
+      `page.evaluate` gelesen.
+- [ ] Der sticky Tabellenkopf am PC klebt direkt unter der Filterleiste: nach dem Scrollen
+      gilt `thead.top >= leiste.bottom - 1` und `thead.top - leiste.bottom <= 2`. Belegt
+      per Browsertest in drei Zuständen: 1440x900 ohne Filter, 1024x900 mit zwei aktiven
+      Kategorien (Chips umbrochen), und 1024x900 **während eines laufenden Spiegel-Laufs**
+      (veralteter `getLastMirrorRun`, `mirrorYnabBudget` noch offen, Hinweis "Spiegel
+      läuft" sichtbar). Ein weiterer Test belegt, dass der Abstand stimmt, nachdem der
+      Spiegel-Lauf endet und der Hinweis wieder verschwindet.
+- [ ] Die Höhenmessung folgt dem Knoten, in den die Leiste tatsächlich rendert, über einen
+      Callback-Ref an `ChipBar.bar`: wechselt React den Knoten, trennt der Observer den
+      alten und beobachtet den neuen; beim Unmount wird er getrennt. Kein `useEffect` mit
+      leeren Abhängigkeiten, das den Knoten einmalig beim Mount festhält.
+- [ ] Außerhalb der Kassenbuch-Seite klebt `.table-sticky-thead` unverändert direkt unter
+      der Navbar (Versatz-Variable fällt auf `0px` zurück); der Vertrag des
+      `Sticky`-Felds in `src/Client/DesignSystem/Table.fs` stimmt mit dem Verhalten überein.
+- [ ] Jeder neue Browsertest läuft fünfmal hintereinander grün, und nach
+      `npm run test:scripts` zeigt `git status --short` nur beabsichtigte Änderungen.
 - [ ] `dotnet build` und `dotnet test` grün, `npm run build` sauber.
 
 ## Notes
@@ -152,6 +171,39 @@ Lesepfad und eine Produktentscheidung zu Überträgen ohne Kategorie.
   Mehrfachauswahl, Summenzeile), `src/Client/Components/Styleguide/View.fs` (die neuen
   Komponenten gehören als Karten in die `/styleguide`-Route, `design-system-t3vqr`),
   `src/Tests/LedgerViewTests.fs` und `src/Tests/YnabClientTests.fs`.
+
+## Stand und Wiederaufnahme (Refine 2026-09-26)
+
+Nach drei Verifikationsrunden eskaliert, danach mit Roman nachgeschärft. Der Task bleibt in
+`doing/`; der nächste `work`-Lauf nimmt ihn über die Recovery (Phase 1) im **bestehenden
+Worktree** `.worktrees/ledger-j8xq4` (Branch `aw/ledger-j8xq4`) wieder auf und baut auf dem
+dort committeten Stand aller drei Iterationen auf, statt neu anzufangen. Sicherung, falls
+der Worktree verloren geht: `.agentheim/salvage/ledger-j8xq4-escalated-iter3.patch`
+(Code) und `.bookkeeping.md` (README-Delta, ADR-Entwurf 0043, Outcome, Backlog-Item
+`design-system-bz0gn`).
+
+**Bereits verifiziert** (über die drei Runden, siehe Verifier-Notizen unten): alle
+Filter-Kriterien oben einschließlich Handy-BottomSheet (390x844), Click-Commit,
+Zeitraum-Schnellwahl, Summenzeile, Leerzustand, Deep-Link-Nachladen der Kategorien,
+`YnabCategory.Hidden`, die Sticky-Leiste und der Tabellenkopf-Abstand **im Normalzustand**
+(1440 und 1024 mit Filter jeweils 0px), die auf die Kassenbuch-Seite begrenzte
+Versatz-Variable. Diese Teile nicht umbauen.
+
+**Offen ist genau ein Punkt:** während eines laufenden Spiegel-Laufs misst der
+ResizeObserver in `FilterBarColumn` (`src/Client/Components/Ledger/View.fs`) den falschen
+Knoten. Ursache: der Observer wird einmal in einem `useEffect` mit `[||]` an den Knoten
+gebunden, den `barRef` beim Mount hat; die Kinder der Spalte sind eine Liste ohne Keys, an
+erster Stelle steht bedingt `if model.MirrorRunning then Loading.inlineWithText ...`. Wird
+`MirrorRunning` wahr, verwendet React den alten Leisten-`div` für den Hinweis weiter und legt
+für die Leiste einen neuen Knoten an. Folge: bis zu 42px Überdeckung des Tabellenkopfs bei
+1024x900 mit Filter.
+
+**Entscheidung (Roman, 2026-09-26):** Callback-Ref an `ChipBar.bar`, der beim Knotenwechsel
+den alten Observer trennt und den neuen Knoten beobachtet. Nicht gewählt: den Hinweis hinter
+die Leiste verschieben (ändert die sichtbare Reihenfolge) und stabile Keys allein (schützt
+nur, solange niemand die Keys vergisst). Stabile Keys dürfen zusätzlich gesetzt werden.
+Die Entscheidung gehört als Nachtrag in ADR-Entwurf 0043 (Abschnitt "Nachtrag"), der mit
+diesem Task integriert wird.
 
 ## Verifier note (iteration 1)
 

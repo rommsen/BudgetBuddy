@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-09-26 11:15 -- Modeling / Refined: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile, offener Rest nach Eskalation
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** doing (eskaliert, Wiederaufnahme im bestehenden Worktree über die work-Recovery)
+**Summary:** Offenen Rest nach drei Verifikationsrunden festgeschrieben: der sticky Tabellenkopf muss auch während eines laufenden Spiegel-Laufs direkt unter der Filterleiste kleben (neue Kriterien mit drei Browser-Zuständen plus Übergang nach Spiegel-Ende), die Höhenmessung folgt per Callback-Ref an ChipBar.bar dem echten Knoten (Entscheidung Roman), Sticky-Leiste, Table.fs-Vertrag und Testhygiene als Kriterien ergänzt; Abschnitt Stand und Wiederaufnahme nennt das bereits Verifizierte und die Sicherungen.
+
+---
+
 ## 2026-09-26 10:48 -- Work session ended
 
 **Type:** Work / Session end
