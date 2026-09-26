@@ -4,10 +4,10 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-## 2026-09-26 07:30 - Work-Lauf: vierzehn Aufgaben in vier Wellen (Push-Randfälle, Kassenbuch-Filter, Wächter, Tests)
+## 2026-09-26 10:48 - Work-Lauf: zwölf Aufgaben in vier Wellen (Push-Randfälle, Kassenbuch-Filter, Wächter, Tests)
 
 **What I did:**
-Ein `work`-Lauf über vier Wellen mit je drei parallelen Workern in eigenen Worktrees, 15 Aufgaben aus zwei Kontexten (ledger, design-system). 14 sind verifiziert und integriert, eine (`ledger-j8xq4`, Filterleiste) ist nach drei Verifikationsrunden an Roman eskaliert. Jeder Erfolg lief durch einen frischen Verifier; 7 Aufgaben bestanden im ersten Anlauf, 7 brauchten zwei oder drei Runden. Die Funde der Verifier waren durchweg echt: sessionweite Force-Import-Sperre verloren (na3rq), "Unknown"-Payee-Fallback vergessen (jkb0f), Regressionstests, die vor dem Fix nicht rot waren (na3rq, qns4j), Quelltext-Greps ohne Aussagekraft (qns4j), ein wackeliger Browsertest (qns4j), Screenshots, die jeder Testlauf ins Repo schrieb (h6ptn), und ein fest geratener Sticky-Versatz (j8xq4).
+Ein `work`-Lauf über vier Wellen mit je drei parallelen Workern in eigenen Worktrees, 12 Aufgaben aus zwei Kontexten (ledger, design-system). 11 sind verifiziert und integriert, eine (`ledger-j8xq4`, Filterleiste) ist nach drei Verifikationsrunden an Roman eskaliert. Jeder Erfolg lief durch einen frischen Verifier; 5 Aufgaben bestanden im ersten Anlauf, 6 brauchten zwei oder drei Runden. Die Funde der Verifier waren durchweg echt: sessionweite Force-Import-Sperre verloren (na3rq), "Unknown"-Payee-Fallback vergessen (jkb0f), Regressionstests, die vor dem Fix nicht rot waren (na3rq, qns4j), Quelltext-Greps ohne Aussagekraft (qns4j), ein wackeliger Browsertest (qns4j), Screenshots, die jeder Testlauf ins Repo schrieb (h6ptn), und ein fest geratener Sticky-Versatz (j8xq4).
 
 **Integriert (Commit, Iterationen):**
 - `ledger-mshd8` (afc26de, 1): SyncFlow lädt die Session nach gescheitertem YNAB-Import neu.

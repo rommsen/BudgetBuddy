@@ -5,6 +5,57 @@ Newest entries on top.
 
 ---
 
+## 2026-09-26 10:48 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 22h31m (2026-09-25 12:17 bis 2026-09-26 10:48, Wandzeit einschließlich langer Wartezeiten auf Worker und Verifier)
+**Completed:** 11 (first-try PASS: 5, re-dispatched: 6, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 1 (ledger-j8xq4, Worktree .worktrees/ledger-j8xq4 behalten, gesichert unter .agentheim/salvage/ledger-j8xq4-escalated-iter3.patch und .bookkeeping.md)
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-mshd8: 1, ledger-jkb0f: 2, ledger-na3rq: 3, ledger-xk9wq: 1, design-system-thtpp: 2, ledger-qns4j: 3, ledger-h4qtx: 1, design-system-w4n9r: 2, ledger-h6ptn: 2 (plus 1 Merge-Konflikt-Auflösung), ledger-f8q2x: 1, ledger-nnn47: 1, ledger-j8xq4: 3
+**Commits:** 17
+**Vision-conformance:** none, batch aligns with vision
+**Batch mix:** 64% product-facing / 36% harness / 0% bookkeeping (11 tasks)
+**Carry-over:** .agentheim/board/ledger/doing/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md: committed (reconcile ledger-j8xq4 escalation notes); .worktrees/ledger-j8xq4: kept (owner: ledger-j8xq4, escalated at iteration 3, salvaged: .agentheim/salvage/ledger-j8xq4-escalated-iter3.patch); diary/development.md: committed (work-run diary)
+
+---
+
+## 2026-09-26 10:46 -- Verification failed — escalating to user: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC
+
+**Type:** Work / Verification failure
+**Task:** ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC
+**Iteration:** 3 of 3
+**Reasons:** Höhenmessung der Filterleiste folgt während eines laufenden Spiegel-Laufs dem falschen DOM-Knoten (React verwendet den Leisten-Knoten für den Ladehinweis weiter), Tabellenkopf wird dann bis zu 42px verdeckt; im Normalzustand ohne Spalt
+**Iteration hint:** likely-fixable
+**Next:** escalated to user
+
+---
+
+## 2026-09-25 18:57 -- Verification failed: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC
+
+**Type:** Work / Verification failure
+**Task:** ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC
+**Iteration:** 2 of 3
+**Reasons:** Fester 44px-Versatz für den Tabellenkopf passt nicht zur echten Höhe der Filterleiste (6px Spalt bei 1440px, Kopf bei 1024px mit Filter verdeckt), Versatz global in der Design-System-Klasse .table-sticky-thead statt auf die Kassenbuch-Seite begrenzt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-09-25 18:22 -- Verification failed: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC
+
+**Type:** Work / Verification failure
+**Task:** ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC
+**Iteration:** 1 of 3
+**Reasons:** Kriterium 1 verlangt den Kategorie-Filter am Handy und am PC, der Handy-Pfad (BottomSheet) ist in keinem Test belegt; Sticky-Filterleiste aus What fehlt; Doc-Kommentare in ChipBar/FilterPopover widersprechen ADR-Entwurf 0043
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-09-25 16:38 -- Task verified and completed: ledger-nnn47 - "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf"
 
 **Type:** Work / Task completion
@@ -193,7 +244,7 @@ Newest entries on top.
 **Type:** Work / Task completion
 **Task:** ledger-na3rq - "Import-Push-Klebecode testbar machen; Force-Import schließt Session trotz gescheitertem Kassenbuch-Schreiben ab"
 **Summary:** Outcome-Klassifikation des Import-Pushs als reine Funktion; Force-Import schließt die Session nicht mehr trotz gescheitertem Kassenbuch-Schreiben
-**Duration:** 1h31m
+**Duration:** 43m (korrigiert, ursprünglich zu hoch geschätzt)
 **Verification:** PASS (iteration 3)
 **Files changed:** 5
 **Tests added:** 11
@@ -217,7 +268,7 @@ Newest entries on top.
 **Type:** Work / Task completion
 **Task:** ledger-jkb0f - "Kassenbuch-Ereignis beim Comdirect-Push entspricht nicht immer dem tatsächlichen YNAB-Request"
 **Summary:** Kassenbuch-Ereignis beim Comdirect-Push folgt dem tatsächlich gesendeten YNAB-Request
-**Duration:** 47m
+**Duration:** 33m (korrigiert, ursprünglich zu hoch geschätzt)
 **Verification:** PASS (iteration 2)
 **Files changed:** 10
 **Tests added:** 7
