@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-26 07:30 - Work-Lauf: vierzehn Aufgaben in vier Wellen (Push-Randfälle, Kassenbuch-Filter, Wächter, Tests)
+
+**What I did:**
+Ein `work`-Lauf über vier Wellen mit je drei parallelen Workern in eigenen Worktrees, 15 Aufgaben aus zwei Kontexten (ledger, design-system). 14 sind verifiziert und integriert, eine (`ledger-j8xq4`, Filterleiste) ist nach drei Verifikationsrunden an Roman eskaliert. Jeder Erfolg lief durch einen frischen Verifier; 7 Aufgaben bestanden im ersten Anlauf, 7 brauchten zwei oder drei Runden. Die Funde der Verifier waren durchweg echt: sessionweite Force-Import-Sperre verloren (na3rq), "Unknown"-Payee-Fallback vergessen (jkb0f), Regressionstests, die vor dem Fix nicht rot waren (na3rq, qns4j), Quelltext-Greps ohne Aussagekraft (qns4j), ein wackeliger Browsertest (qns4j), Screenshots, die jeder Testlauf ins Repo schrieb (h6ptn), und ein fest geratener Sticky-Versatz (j8xq4).
+
+**Integriert (Commit, Iterationen):**
+- `ledger-mshd8` (afc26de, 1): SyncFlow lädt die Session nach gescheitertem YNAB-Import neu.
+- `ledger-jkb0f` (2b92387, 2): Kassenbuch-Ereignis beim Comdirect-Push folgt dem gesendeten Request; neue reine Module `MemoFormatting`, `PayeeFormatting`; Kategorie-Namen-Resolver.
+- `ledger-na3rq` (682623e, 3): `PushOutcomeClassification.classifyPushOutcomes` für beide Push-Pfade; Force-Import schließt die Session nicht mehr trotz gescheitertem Kassenbuch-Schreiben.
+- `ledger-xk9wq` (bd0a1ab, 1): abgeleitete Indextabelle `ledger_entry_split_categories`, der Kategorie-Filter findet Split-Kategorien.
+- `design-system-thtpp` (ee9a2c7, 2): Tailwind-Klassen-Wächter (`scripts/tailwind-class-guard.mjs`, läuft in `dotnet test`), sechs tote Klassen behoben, ADR 0041.
+- `ledger-qns4j` (91a7a2e, 3): Konten-Spalte haftet beim Scrollen, Statusspalte zeigt Status statt Herkunft bei 128px; Browsertest gegen gemockte API.
+- `ledger-h4qtx` (5b969f0, 1): Payee-Vorschläge falten wie der Payee-Filter, ADR 0042.
+- `design-system-w4n9r` (3a635a4, 2): automatischer Test für den Design-System-Export; das Skript prüft sein Bundle selbst.
+- `ledger-h6ptn` (383d97b, 2): Kategorie in der PC-Tabelle voll qualifiziert; Merge-Konflikt mit h4qtx (doppeltes Testkonto AG) über die Konfliktleiter gelöst.
+- `ledger-f8q2x` (2834413, 1): `getLedgerPayeeSuggestions` im ledger-README dokumentiert.
+- `ledger-nnn47` (242fb91, 1): Platzhalter-Zählung in `LedgerViewTests` ohne Kommentarzeilen.
+
+**Eskaliert:**
+- `ledger-j8xq4` (Filterleiste und Summenzeile): Funktion, Handy-Beleg und Sticky-Leiste stehen, aber die ResizeObserver-Messung folgt während eines laufenden Spiegel-Laufs dem falschen DOM-Knoten. Worktree `.worktrees/ledger-j8xq4` bleibt, Diff und Buchführungsblöcke liegen unter `.agentheim/salvage/ledger-j8xq4-escalated-iter3.*`.
+
+**Neue Backlog-Items:** `ledger-fgw2q`, `ledger-fgt4k`, `ledger-b7qmx` (Entscheidung), `design-system-tg2wn`.
+
+**Files Added / Modified / Deleted:**
+Siehe die elf Task-Commits oben; jeder listet seine Dateien. Neue Dateien unter anderem `src/Server/MemoFormatting.fs`, `src/Server/PayeeFormatting.fs`, `src/Server/PushOutcomeClassification.fs`, `scripts/tailwind-class-guard.mjs`, `scripts/ledger-status-column.mjs`, `scripts/ledger-category-qualified.test.mjs`, `scripts/export-design-system.test.mjs`, ADRs 0041 und 0042.
+
+**Rationale:**
+Die drei Push-Bugs stammen aus der Zerlegung von `ledger-tpbe7`; die übrigen Aufgaben waren fertig verfeinert und bereit. Die Wellen wurden so geschnitten, dass parallele Worker möglichst disjunkte Dateien anfassen.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build` 0 Warnungen, 0 Fehler; `npm run build` sauber)
+- Tests: 1048 bestanden, 6 übersprungen (`.env`-gebunden), 0 fehlgeschlagen; `npm run test:scripts` grün; Klassen-Wächter ohne Fund
+- Issues: j8xq4 eskaliert (siehe oben). Ein Worker nutzte `git stash` (ohne Schaden); ein Worker nutzte eine Kopie der Entwicklungsdatenbank für eine Sichtprüfung, echte IDs wurden aus dem Backlog-Item entfernt.
+
+---
+
 ## 2026-09-19 20:14 - Work-Lauf: neun Aufgaben (Kassenbuch-Filter, Übertrag, Force-Import, Oberfläche, Werkzeuge)
 
 **What I did:**

@@ -152,3 +152,44 @@ Lesepfad und eine Produktentscheidung zu Überträgen ohne Kategorie.
   Mehrfachauswahl, Summenzeile), `src/Client/Components/Styleguide/View.fs` (die neuen
   Komponenten gehören als Karten in die `/styleguide`-Route, `design-system-t3vqr`),
   `src/Tests/LedgerViewTests.fs` und `src/Tests/YnabClientTests.fs`.
+
+## Verifier note (iteration 1)
+
+REASONS:
+- Check 1, criterion 1 ("Ein Kategorie-Filter über zwei Kategorien lässt sich am Handy und am PC setzen, und die Liste zeigt danach die Vereinigung beider") has no evidence for the phone half. The two-category union is covered device-independently by the reducer test "'Übernehmen' schreibt den Entwurf in den Filter, schließt das Popover und lädt ab Seite 0 neu" (LedgerPageTests.fs). The desktop half is covered by the Playwright test "Zwei Kategorien gewählt und übernommen zeigen die Vereinigung ..." (scripts/ledger-filter-bar.test.mjs), but that file only opens a 1440x900 context. On a phone, `filterChrome` (View.fs) takes the other branch and renders `BottomSheet.view` instead of `FilterPopover`. No test in the diff ever renders or drives that branch. The worker filed follow-up ledger-fw3mp for it, but the criterion names the phone explicitly, and the task's ## Why says this is what the task is measured by, so a deferred follow-up does not satisfy it now.
+- Stale doc comments contradict ADR 0043 and the code. src/Client/DesignSystem/ChipBar.fs `chipWithPopover` says "der Aufrufer rendert beide Varianten nebeneinander, je hinter `Primitives.Responsive.desktopOnly`/`mobileOnly`". The module header of src/Client/DesignSystem/FilterPopover.fs says the same. That is exactly the dual-render approach ADR 0043 rejects.
+- The "Sticky Filterleiste" from ## What is not implemented. `ChipBar.bar`'s class list has no `sticky`, and there is no sticky wrapper in Ledger/View.fs. The doc comment on `bar` ("Die Leiste selbst: sticky, ...") is therefore false (Styleguide 7.3).
+- Everything else checked out: full suite green (dotnet test 1099/0 failed, test:scripts 106/106, guard clean), browser test stable, clean tree afterwards, deep-link fix cannot loop and is tested, ADR 0043 reasoning and 768px breakpoint consistent.
+
+SUGGESTED_FIX: Add a second Playwright context at 390x844 to scripts/ledger-filter-bar.test.mjs. It should show that tapping the category chip opens `.bottom-sheet.active` and no popover, that picking two categories and tapping "Übernehmen (2)" shows their union in the mobile list and in the summary row, and that the active chip comes before "Zu prüfen" in the DOM. That absorbs ledger-fw3mp. Also make `ChipBar.bar` actually sticky, and fix the ChipBar and FilterPopover doc comments so they describe the render-time viewport choice from ADR 0043.
+
+ITERATION_HINT: likely-fixable
+
+## Verifier note (iteration 2)
+
+REASONS:
+- The three points from the iteration-1 note are handled on paper: phone tests at 390x844 (BottomSheet, no popover, union in mobile list and summary, active chip before "Zu prüfen"), doc comments match ADR 0043, suite green (dotnet test 1099/0 failed, test:scripts 109/109, filter-bar test stable), clean tree, no leftover process.
+- The sticky filter bar fix still collides with the sticky table head. Measured in a real browser (worktree build, repo fixtures, 40 rows, scrolled). The table head is shifted by a fixed `--ledger-filter-bar-height: 44px` (`:root` and `.table-sticky-thead thead { top: calc(64px + var(--ledger-filter-bar-height)) }`), but the bar's real height differs: at 1440x900 the bar is 38px high (top 64, bottom 102) and the head sticks at 108, leaving a 6px strip where scrolled rows show through; at 1024x900 with a category filter active the chips wrap (`md:flex-wrap`), the bar is 62px high (bottom 126) and covers 18px of the head (DATUM/PAYEE/KATEGORIE labels cut off); at 800x900 with a filter active the bar is 76px high and covers 32px. The 44px is a guess, not tied to the rendered height, and the summary's claim "ohne Kollision mit dem sticky Tabellenkopf" does not hold.
+- The fix leaks into the Design System: `.table-sticky-thead` is what `Table.view`'s `Sticky = true` emits (src/Client/DesignSystem/Table.fs:103). A ledger-specific offset now lives in `:root` with a non-zero global value, so any future sticky table on a page without a filter bar would stick 44px below the navbar. The documented contract of `Sticky` (Table.fs:49, 98-101) is now wrong.
+- Mobile is fine: at 390x844 the bar sticks at top 56, with or without a filter.
+
+SUGGESTED_FIX: Limit the offset to the ledger page: `.table-sticky-thead` reads a variable whose default is 0px, and only the ledger page sets it. Tie the value to the bar's real height, not a fixed 44px (e.g. a ResizeObserver/effect writing the measured height into the variable, or a layout where the head cannot overlap the bar). Add a browser test at about 1024x900 with a filter active asserting, after scrolling, `thead.getBoundingClientRect().top >= bar.getBoundingClientRect().bottom` with a gap of at most 1 to 2px; also check at 1440 that the gap is gone.
+
+ITERATION_HINT: likely-fixable
+
+## Verifier note (iteration 3)
+
+REASONS:
+- The iteration-2 points hold in the steady state (measured independently): at 1440x900 bar bottom 102 = thead top 102; at 1024x900 with two categories active 126 = 126; at 800x900 with a filter active 140 = 140; at 390x844 the bar sticks at 56. `.table-sticky-thead thead` reads `var(--ledger-filter-bar-height, 0px)`, the Table.fs `Sticky` contract holds again, the ResizeObserver is disconnected on unmount, no render loop.
+- New defect: the measurement follows the wrong element while a mirror run is active. `FilterBarColumn` (src/Client/Components/Ledger/View.fs, around lines 1250 to 1290) attaches `observeHeight` once, in a `useEffect` with `[||]` deps, to the DOM node `barRef` points to at mount. The column's children are a keyless, index-reconciled list whose first entry is the conditional `if model.MirrorRunning then Loading.inlineWithText ...`. When `MirrorRunning` turns true, React reuses the original bar `div` at index 0 for the loading hint and creates a new node for the bar at index 1. The observer keeps watching the old node (now the hint) and writes its height. Measured with a stale `getLastMirrorRun` (triggers the automatic mirror run from ADR 0014, a common case when opening the page) and a pending `mirrorYnabBudget`: at 1440x900 the variable reads 20px, thead sticks at 84, bar ends at 102 (18px overlap); at 1024x900 with a filter active thead at 84, bar ends at 126 (42px overlap), column labels completely hidden. The collision tests always mock a fresh mirror status, so they never cover this case.
+- Everything else passed: dotnet test 1099/0 failed, test:scripts 111/111, filter-bar test 12/12 repeatedly, clean tree, no leftover process, README_DELTA/ADR 0043/OUTCOME consistent with the code, no new dash punctuation.
+
+SUGGESTED_FIX: Make the observer follow the node the bar really renders into: e.g. a callback ref on `ChipBar.bar` that disconnects the old observer and observes the new node whenever React swaps it; or stable keys for the column children; or move the conditional mirror hint after the bar so the bar's DOM node never changes. Add a browser test at 1024x900 with a stale `getLastMirrorRun` and a pending `mirrorYnabBudget` asserting the same 0 to 2px gap while "Spiegel läuft" is visible.
+
+ITERATION_HINT: likely-fixable
+
+## Salvage note
+
+Nach drei Verifikationsrunden an Roman eskaliert (2026-09-26). Der Worktree `.worktrees/ledger-j8xq4` (Branch `aw/ledger-j8xq4`) bleibt mit dem vollständigen Stand aller drei Iterationen erhalten.
+- Code-Diff gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/ledger-j8xq4-escalated-iter3.patch`
+- Buchführungsblöcke (README_DELTA, ADR-Entwurf 0043, OUTCOME, Backlog-Item design-system-bz0gn) gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/ledger-j8xq4-escalated-iter3.bookkeeping.md`
