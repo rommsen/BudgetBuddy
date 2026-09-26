@@ -434,6 +434,12 @@ type YnabCategory = {
     /// Ready-to-Assign (`to_be_budgeted`) via `applyReadyToAssign` — its own
     /// `balance` is an internal accumulator, not a real per-category Available.
     Available: Money option
+    /// YNAB's own `hidden` flag (ledger-j8xq4): a category Roman hid in YNAB. The
+    /// Kassenbuch-Filterleiste keeps hidden categories collapsed under "Versteckt (n)"
+    /// so they are never accidentally picked. Missing in the JSON (older cached data,
+    /// or a decoder that never asked) decodes to `false`, the conformist-safe default,
+    /// matching `OnBudget`/`Closed` on `YnabAccount` above.
+    Hidden: bool
 }
 
 /// YNAB's internal category group; its categories' `balance` values are not normal

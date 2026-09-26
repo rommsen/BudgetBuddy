@@ -1484,7 +1484,7 @@ let ledgerPersistenceTests =
             let categoryId = YnabCategoryId (Guid.NewGuid())
             let (YnabCategoryId rawId) = categoryId
             let category : YnabCategory =
-                { Id = categoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+                { Id = categoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false }
 
             upsertCategories [ category ] |> Async.RunSynchronously
 
@@ -1495,7 +1495,7 @@ let ledgerPersistenceTests =
             let categoryId = YnabCategoryId (Guid.NewGuid())
             let (YnabCategoryId rawId) = categoryId
             let erste : YnabCategory =
-                { Id = categoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+                { Id = categoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false }
             let zweite : YnabCategory = { erste with GroupName = "Haushalt" }
 
             upsertCategories [ erste ] |> Async.RunSynchronously
@@ -1518,9 +1518,9 @@ let ledgerPersistenceTests =
             let verschwindetId = YnabCategoryId (Guid.NewGuid())
             let (YnabCategoryId rawVerschwindetId) = verschwindetId
             let bleibt : YnabCategory =
-                { Id = bleibtId; Name = "Miete"; GroupName = "Wohnen"; Available = None }
+                { Id = bleibtId; Name = "Miete"; GroupName = "Wohnen"; Available = None; Hidden = false }
             let verschwindet : YnabCategory =
-                { Id = verschwindetId; Name = "Alte Kategorie"; GroupName = "Früher"; Available = None }
+                { Id = verschwindetId; Name = "Alte Kategorie"; GroupName = "Früher"; Available = None; Hidden = false }
 
             upsertCategories [ bleibt; verschwindet ] |> Async.RunSynchronously
             // Zweiter Lauf liefert nur noch "bleibt": "verschwindet" ist in YNAB gelöscht.
@@ -1542,7 +1542,7 @@ let ledgerPersistenceTests =
             let categoryId = YnabCategoryId (Guid.NewGuid())
             let (YnabCategoryId rawId) = categoryId
             let category : YnabCategory =
-                { Id = categoryId; Name = "Freizeit"; GroupName = "Alltag"; Available = None }
+                { Id = categoryId; Name = "Freizeit"; GroupName = "Alltag"; Available = None; Hidden = false }
 
             upsertCategories [ category ] |> Async.RunSynchronously
 

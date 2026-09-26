@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-09-26 11:52 - Kassenbuch-Filterleiste nach Eskalation abgeschlossen (ledger-j8xq4)
+
+**What I did:**
+`ledger-j8xq4` im bestehenden Worktree wieder aufgenommen, nachdem Roman nach der Eskalation den offenen Rest entschieden hatte. Die Höhenmessung der sticky Filterleiste folgt jetzt über einen Callback-Ref an `ChipBar.bar` dem Knoten, in den die Leiste tatsächlich rendert. Vorher band ein `useEffect` mit leeren Abhängigkeiten den `ResizeObserver` einmalig an den Mount-Knoten; sobald während eines Spiegel-Laufs der Hinweis "Spiegel läuft" vor die Leiste rückte, maß er den Hinweis. Zwei neue Browsertests decken den Zustand während und nach einem Spiegel-Lauf ab. Mit dieser vierten Iteration ist die ganze Aufgabe integriert: Chips, Kategorienauswahl mit Mehrfachauswahl und Click-Commit, Zeitraum-Schnellwahl, Payee-Vorschläge, Popover am PC, BottomSheet am Handy, Summenzeile, `YnabCategory.Hidden`.
+
+**Files Added:**
+- `src/Client/DesignSystem/ChipBar.fs`, `FilterPopover.fs`, `Viewport.fs` - Filterleisten-Bausteine
+- `scripts/ledger-filter-bar.mjs`, `scripts/ledger-filter-bar.test.mjs` - Browsertests (14)
+- `.agentheim/knowledge/decisions/0043-filterleiste-chrome-per-viewport-check-statt-css-doppel-render.md` - ADR mit Nachtrag zum Callback-Ref
+
+**Files Modified:**
+- `src/Client/Components/Ledger/{Types,State,View}.fs`, `src/Client/State.fs`, `src/Client/styles.css` - Filterleiste, Summenzeile, gemessener Kopf-Versatz
+- `src/Shared/Domain.fs`, `src/Server/YnabClient.fs` - `YnabCategory.Hidden` aus YNABs `hidden`
+- `src/Tests/*` - Reduzierer-, View- und Decoder-Tests
+
+**Rationale:**
+Der Verifier der dritten Iteration fand bei veraltetem Spiegel-Status 18px (1440x900) bzw. 42px (1024x900 mit Filter) Überdeckung des Tabellenkopfs. Roman wählte den Callback-Ref, weil stabile Keys allein nur schützen, solange niemand sie vergisst, und das Verschieben des Hinweises die sichtbare Reihenfolge ändert.
+
+**Outcomes:**
+- Build: ✅ (`dotnet build`, `npm run build`)
+- Tests: `dotnet test` 1099 bestanden, 0 fehlgeschlagen; `npm run test:scripts` 113/113; Filterleisten-Test fünfmal hintereinander 14/14
+- Verifikation: PASS in Iteration 4, unabhängig im Browser nachgemessen (sechs Zustände, jeweils 0px Abstand)
+- Issues: Ein Lauf von `scripts/ledger-status-column.test.mjs` scheiterte einmal unter Last (Basiszeile 0px), sechs Folgeläufe grün. Nicht von diesem Diff verursacht.
+
+---
+
 ## 2026-09-26 10:48 - Work-Lauf: zwölf Aufgaben in vier Wellen (Push-Randfälle, Kassenbuch-Filter, Wächter, Tests)
 
 **What I did:**

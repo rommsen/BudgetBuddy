@@ -569,6 +569,32 @@ let reducerTests =
             Expect.equal second.NextPage 2 "Die naechste Seite waere Seite 2"
         }
 
+        // ============================================
+        // Summenzeile (ledger-j8xq4 AC): Summe über den GANZEN Treffer, auch wenn
+        // nur eine Seite davon geladen ist
+        // ============================================
+
+        test "TotalAmount übernimmt die vom Server gemeldete Summe über den GANZEN Treffer, nicht die Summe der geladenen Seite (AC, mehr Treffer als eine Seite)" {
+            // Die Fixture tut so, als gäbe es 250 Treffer mit einer Gesamtsumme von
+            // -5000 EUR, aber nur eine Seite (eine einzelne Buchung über -1 EUR) ist
+            // tatsächlich geladen: genau der Fall, den `entryPage.TotalAmount` lösen
+            // soll (`Ledger.Persistence`, ADR 0017: die Summe rechnet der Server über
+            // den gesamten Treffer, nie über den geladenen Ausschnitt).
+            let serverPage = { page [ entryView 1 -1m false ] 250 with TotalAmount = eur -5000m }
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok serverPage)) (freshModel ())
+            Expect.equal updated.TotalAmount (eur -5000m) "Die Summenzeile zeigt die Summe über alle 250 Treffer, nicht über die eine geladene Buchung"
+            Expect.equal updated.TotalCount 250 "Die Trefferzahl ist ebenfalls die des ganzen Treffers"
+        }
+
+        test "Ein Filterwechsel setzt TotalAmount vorübergehend auf Null zurück, bis die neue Seite antwortet" {
+            let withTotal, _, _ =
+                Components.Ledger.State.update
+                    (EntriesPageLoaded (0, Ok { page [ entryView 1 -1m false ] 250 with TotalAmount = eur -5000m }))
+                    (freshModel ())
+            let reset, _, _ = Components.Ledger.State.update (SelectFilter AllAccounts) withTotal
+            Expect.equal reset.TotalAmount.Amount 0m "Kein stehender alter Wert, während die neue Summe noch nicht da ist"
+        }
+
         test "Fehlgeschlagene erste Seite wird als Fehler gezeigt" {
             let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Error "kaputt")) (freshModel ())
             Expect.equal updated.Entries (Failure "kaputt") "Der Fehler bleibt sichtbar"
@@ -787,6 +813,258 @@ let reducerTests =
             let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some staleStatus))) running
             Expect.isTrue updated.MirrorRunning "der laufende Lauf bleibt unverändert stehen"
             Expect.isEmpty (dispatched cmd) "kein zweiter Auslöser während eines laufenden Spiegels"
+        }
+
+        // ============================================
+        // Filterleiste: Kategorie-Mehrfachauswahl, Click-Commit (ledger-j8xq4)
+        // ============================================
+
+        test "Ein Antippen im Picker ändert nur den Entwurf, nicht den Filter (Click-Commit, ADR 0005)" {
+            let catA = accountGuid 91
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover CategoryChip) (freshModel ())
+            let toggled, _, _ = Components.Ledger.State.update (ToggleCategoryDraft catA) opened
+            Expect.equal toggled.CategoryDraft (Set.ofList [ catA ]) "Der Entwurf trägt die Auswahl"
+            Expect.isTrue (Set.isEmpty toggled.Filters.CategoryIds) "Der committete Filter bleibt leer, bevor 'Übernehmen' gedrückt wird"
+        }
+
+        test "'Übernehmen' schreibt den Entwurf in den Filter, schließt das Popover und lädt ab Seite 0 neu" {
+            let catA = accountGuid 91
+            let catB = accountGuid 92
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover CategoryChip) (freshModel ())
+            let toggledA, _, _ = Components.Ledger.State.update (ToggleCategoryDraft catA) opened
+            let toggledB, _, _ = Components.Ledger.State.update (ToggleCategoryDraft catB) toggledA
+            let applied, cmd, _ = Components.Ledger.State.update ApplyCategoryFilter toggledB
+            Expect.equal applied.Filters.CategoryIds (Set.ofList [ catA; catB ]) "Beide Kategorien stehen jetzt im committeten Filter (Vereinigung)"
+            Expect.equal applied.OpenPopover None "Das Popover schließt sich"
+            Expect.equal applied.NextPage 0 "Ein Filterwechsel beginnt wieder bei Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Das Neuladen wird angestoßen"
+        }
+
+        test "Esc/Schließen verwirft den Entwurf, der vorherige Filterzustand bleibt unverändert" {
+            let catA = accountGuid 91
+            let withFilter = { (freshModel ()) with Filters = { noFilters with CategoryIds = Set.ofList [ catA ] } }
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover CategoryChip) withFilter
+            let toggled, _, _ = Components.Ledger.State.update (ToggleCategoryDraft (accountGuid 92)) opened
+            let closed, _, _ = Components.Ledger.State.update CloseFilterPopover toggled
+            Expect.equal closed.Filters withFilter.Filters "Der committete Filter ist unverändert, der verworfene Entwurf zählt nicht"
+            Expect.equal closed.OpenPopover None "Das Popover ist zu"
+        }
+
+        test "Ein neues Öffnen holt den Entwurf wieder aus dem committeten Filter (kein Rest vom letzten Mal)" {
+            let catA = accountGuid 91
+            let withFilter = { (freshModel ()) with Filters = { noFilters with CategoryIds = Set.ofList [ catA ] } }
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover CategoryChip) withFilter
+            Expect.equal opened.CategoryDraft (Set.ofList [ catA ]) "Der Entwurf startet mit dem committeten Stand"
+        }
+
+        test "'Zurücksetzen' leert den Entwurf, ohne den committeten Filter anzufassen" {
+            let catA = accountGuid 91
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover CategoryChip) (freshModel ())
+            let toggled, _, _ = Components.Ledger.State.update (ToggleCategoryDraft catA) opened
+            let reset, _, _ = Components.Ledger.State.update ResetCategoryDraft toggled
+            Expect.isTrue (Set.isEmpty reset.CategoryDraft) "Entwurf ist leer"
+        }
+
+        test "'×' am Kategorie-Chip entfernt genau diesen Filter" {
+            let catA = accountGuid 91
+            let withFilters =
+                { (freshModel ()) with
+                    Filters = { noFilters with CategoryIds = Set.ofList [ catA ]; Payee = Some "Café Lotte" } }
+            let updated, cmd, _ = Components.Ledger.State.update RemoveCategoryFilter withFilters
+            Expect.isTrue (Set.isEmpty updated.Filters.CategoryIds) "Kategorie ist weg"
+            Expect.equal updated.Filters.Payee (Some "Café Lotte") "Der Payee-Filter bleibt unberührt stehen"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+        }
+
+        test "Versteckte Kategorien lassen sich auf-/zuklappen, unabhängig vom Entwurf" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover CategoryChip) (freshModel ())
+            Expect.isFalse opened.HiddenCategoriesExpanded "Standardmäßig eingeklappt"
+            let expanded, _, _ = Components.Ledger.State.update ToggleHiddenCategoriesExpanded opened
+            Expect.isTrue expanded.HiddenCategoriesExpanded "Ein Antippen klappt auf"
+        }
+
+        // ============================================
+        // Filterleiste: Zeitraum-Schnellwahl schreibt Von/Bis mit (ledger-j8xq4)
+        // ============================================
+
+        test "Eine Schnellwahl trägt Von und Bis sichtbar in den Entwurf ein" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (SetDateQuick Last12Months) opened
+            Expect.equal updated.DateDraft.Quick (Some Last12Months) "Die Schnellwahl steht im Entwurf"
+            Expect.isTrue updated.DateDraft.From.IsSome "Von ist gesetzt"
+            Expect.isTrue updated.DateDraft.To.IsSome "Bis ist gesetzt"
+        }
+
+        test "Von/Bis von Hand setzen löscht die Schnellwahl-Markierung, ohne das andere Feld zu leeren" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let withQuick, _, _ = Components.Ledger.State.update (SetDateQuick ThisYear) opened
+            let handSet, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Some (DateTime(2026, 3, 1)))) withQuick
+            Expect.equal handSet.DateDraft.Quick None "Die Schnellwahl gilt nicht mehr als Quelle"
+            Expect.equal handSet.DateDraft.From (Some (DateTime(2026, 3, 1))) "Der neue Wert steht"
+            Expect.isTrue handSet.DateDraft.To.IsSome "Bis bleibt stehen, wie es die Schnellwahl gesetzt hatte"
+        }
+
+        test "'Übernehmen' beim Zeitraum committet den Entwurf und lädt ab Seite 0 neu" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let withQuick, _, _ = Components.Ledger.State.update (SetDateQuick ThisMonth) opened
+            let applied, cmd, _ = Components.Ledger.State.update ApplyDateFilter withQuick
+            Expect.equal applied.Filters.DateRange (Some withQuick.DateDraft) "Der Entwurf steht jetzt im Filter"
+            Expect.equal applied.OpenPopover None "Das Popover schließt sich"
+            Expect.equal applied.NextPage 0 "Wieder ab Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+        }
+
+        test "Esc beim Zeitraum-Popover lässt den vorherigen Filter unverändert" {
+            let withFilter =
+                { (freshModel ()) with
+                    Filters = { noFilters with DateRange = Some { Quick = Some ThisYear; From = Some DateTime.Today; To = Some DateTime.Today } } }
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) withFilter
+            let changed, _, _ = Components.Ledger.State.update (SetDateQuick Last12Months) opened
+            let closed, _, _ = Components.Ledger.State.update CloseFilterPopover changed
+            Expect.equal closed.Filters.DateRange withFilter.Filters.DateRange "Unverändert, der Entwurf zählt nicht"
+        }
+
+        test "'×' am Zeitraum-Chip entfernt genau den Zeitraum-Filter" {
+            let withFilters =
+                { (freshModel ()) with
+                    Filters =
+                        { noFilters with
+                            DateRange = Some { Quick = Some ThisYear; From = Some DateTime.Today; To = Some DateTime.Today }
+                            Memo = Some "Kuchen" } }
+            let updated, cmd, _ = Components.Ledger.State.update RemoveDateFilter withFilters
+            Expect.equal updated.Filters.DateRange None "Zeitraum ist weg"
+            Expect.equal updated.Filters.Memo (Some "Kuchen") "Memo bleibt unberührt"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+        }
+
+        // ============================================
+        // Filterleiste: Payee (Einzelauswahl, filtert sofort) (ledger-j8xq4)
+        // ============================================
+
+        test "Ein Klick auf einen Payee-Vorschlag filtert sofort, ohne 'Übernehmen'" {
+            let updated, cmd, _ = Components.Ledger.State.update (SelectPayeeFilter "Café Lotte") (freshModel ())
+            Expect.equal updated.Filters.Payee (Some "Café Lotte") "Der Payee-Filter steht sofort"
+            Expect.equal updated.OpenPopover None "Das Popover schließt sich"
+            Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+        }
+
+        test "'×' am Payee-Chip entfernt den Payee-Filter" {
+            let withFilter = { (freshModel ()) with Filters = { noFilters with Payee = Some "Café Lotte" } }
+            let updated, _, _ = Components.Ledger.State.update RemovePayeeFilter withFilter
+            Expect.equal updated.Filters.Payee None "Payee ist weg"
+        }
+
+        test "Geladene Payee-Vorschläge stehen im Modell" {
+            let suggestions = [ { Payee = "Café Lotte"; Count = 9 }; { Payee = "REWE Mitte"; Count = 78 } ]
+            let updated, _, _ = Components.Ledger.State.update (PayeeSuggestionsLoaded (Ok suggestions)) (freshModel ())
+            match updated.PayeeSuggestions with
+            | Success loaded -> Expect.equal loaded suggestions "Die Vorschläge stehen unverändert im Modell"
+            | other -> failtestf "Erwartet Success, war %A" other
+        }
+
+        // ============================================
+        // Filterleiste: Memo- und Betrags-Suchfeld mit Verzögerung (ledger-j8xq4)
+        // ============================================
+
+        test "Eine Memo-Eingabe erhöht die Version; ein verspätetes Commit einer älteren Version wird verworfen" {
+            let typing, _, _ = Components.Ledger.State.update (SetMemoDraft "Kuchen") (freshModel ())
+            Expect.equal typing.MemoDraft "Kuchen" "Der getippte Text steht im Entwurf"
+            Expect.equal typing.MemoVersion 1 "Erste Eingabe: Version 1"
+
+            // Ein Commit mit einer älteren Version (0) kommt zu spät und darf nichts tun.
+            let stale, _, _ = Components.Ledger.State.update (CommitMemoFilter ("Kuc", 0)) typing
+            Expect.equal stale.Filters.Memo None "Das verspätete Commit wird ignoriert"
+
+            let committed, cmd, _ = Components.Ledger.State.update (CommitMemoFilter ("Kuchen", 1)) typing
+            Expect.equal committed.Filters.Memo (Some "Kuchen") "Die aktuelle Version committet"
+            Expect.equal committed.NextPage 0 "Wieder ab Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+        }
+
+        test "Ein leeres Memo-Commit löscht den Filter statt eines leeren Strings" {
+            let withFilter = { (freshModel ()) with Filters = { noFilters with Memo = Some "Kuchen" }; MemoVersion = 1 }
+            let updated, _, _ = Components.Ledger.State.update (CommitMemoFilter ("   ", 1)) withFilter
+            Expect.equal updated.Filters.Memo None "Leer (nach Trim) heißt: kein Filter"
+        }
+
+        test "'×' am Memo-Chip entfernt den Memo-Filter und leert das Eingabefeld" {
+            let withFilter = { (freshModel ()) with Filters = { noFilters with Memo = Some "Kuchen" }; MemoDraft = "Kuchen" }
+            let updated, _, _ = Components.Ledger.State.update RemoveMemoFilter withFilter
+            Expect.equal updated.Filters.Memo None "Filter ist weg"
+            Expect.equal updated.MemoDraft "" "Eingabefeld ist auch leer"
+        }
+
+        test "Betrags-Commit mit aktueller Version setzt Von und Bis" {
+            let typing, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") (freshModel ())
+            Expect.equal typing.AmountVersion 1 "Erste Eingabe: Version 1"
+            let committed, cmd, _ = Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, 1)) typing
+            Expect.equal committed.Filters.AmountMin (Some 5m) "Von steht"
+            Expect.equal committed.Filters.AmountMax None "Bis bleibt offen"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+
+        }
+
+        test "Ein verspätetes Betrags-Commit einer älteren Version wird verworfen" {
+            let first, _, _ = Components.Ledger.State.update (SetAmountMinDraft "5") (freshModel ())
+            let second, _, _ = Components.Ledger.State.update (SetAmountMaxDraft "50") first
+            Expect.equal second.AmountVersion 2 "Zwei Eingaben, zweite Version"
+            let stale, _, _ = Components.Ledger.State.update (CommitAmountFilter (Some 5m, None, 1)) second
+            Expect.equal stale.Filters.AmountMin None "Das veraltete Commit (Version 1) wird ignoriert"
+        }
+
+        test "'×' am Betrags-Chip entfernt Von und Bis und leert beide Eingabefelder" {
+            let withFilter =
+                { (freshModel ()) with
+                    Filters = { noFilters with AmountMin = Some 5m; AmountMax = Some 50m }
+                    AmountMinDraft = "5"
+                    AmountMaxDraft = "50" }
+            let updated, _, _ = Components.Ledger.State.update RemoveAmountFilter withFilter
+            Expect.equal updated.Filters.AmountMin None "Von ist weg"
+            Expect.equal updated.Filters.AmountMax None "Bis ist weg"
+            Expect.equal updated.AmountMinDraft "" "Eingabefeld Von ist leer"
+            Expect.equal updated.AmountMaxDraft "" "Eingabefeld Bis ist leer"
+        }
+
+        // ============================================
+        // Filterleiste: "Alle Filter löschen" (ledger-j8xq4)
+        // ============================================
+
+        test "'Alle Filter löschen' setzt alle fünf Filter zurück, lässt 'Zu prüfen' und 'Gelöschte zeigen' unberührt" {
+            let withEverything =
+                { (freshModel ()) with
+                    Filters =
+                        { CategoryIds = Set.ofList [ accountGuid 91 ]
+                          DateRange = Some { Quick = Some ThisYear; From = Some DateTime.Today; To = Some DateTime.Today }
+                          Payee = Some "Café Lotte"
+                          Memo = Some "Kuchen"
+                          AmountMin = Some 5m
+                          AmountMax = Some 50m }
+                    OnlyNeedsReview = true
+                    IncludeDeleted = true }
+            let updated, cmd, _ = Components.Ledger.State.update ClearAllFilters withEverything
+            Expect.equal updated.Filters noFilters "Alle fünf Such-Filter sind weg"
+            Expect.isTrue updated.OnlyNeedsReview "'Zu prüfen' ist kein Such-Filter, bleibt stehen"
+            Expect.isTrue updated.IncludeDeleted "'Gelöschte zeigen' ist kein Such-Filter, bleibt stehen"
+            Expect.equal updated.NextPage 0 "Wieder ab Seite 0"
+            Expect.contains (dispatched cmd) LoadEntries "Neu laden"
+        }
+
+        // ============================================
+        // Filterleiste: geladene YNAB-Kategorien (ledger-j8xq4 AC5)
+        // ============================================
+
+        test "Geladene Kategorien stehen im Modell, inklusive Available und Hidden" {
+            let hidden : YnabCategory =
+                { Id = catId 9; Name = "Umzug 2023"; GroupName = "Alltag"; Available = None; Hidden = true }
+            let visible : YnabCategory =
+                { Id = catId 1; Name = "Lebensmittel"; GroupName = "Alltag"; Available = Some (eur -12.5m); Hidden = false }
+            let updated, _, _ = Components.Ledger.State.update (CategoriesLoaded (Ok [ hidden; visible ])) (freshModel ())
+            match updated.Categories with
+            | Success cats ->
+                Expect.isTrue (cats |> List.find (fun c -> c.Name = "Umzug 2023") |> fun c -> c.Hidden) "Versteckt bleibt versteckt"
+                Expect.isFalse (cats |> List.find (fun c -> c.Name = "Lebensmittel") |> fun c -> c.Hidden) "Sichtbare Kategorie bleibt sichtbar"
+            | other -> failtestf "Erwartet Success, war %A" other
         }
     ]
 
@@ -2497,7 +2775,7 @@ let categoryGroupLookupTests =
 
         testCase "getLedgerEntriesPage liefert den gespiegelten Gruppennamen für eine bekannte Kategorie" <| fun () ->
             let cat = category 90 "Lebensmittel"
-            upsertCategories [ { Id = cat.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None } ]
+            upsertCategories [ { Id = cat.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false } ]
             |> Async.RunSynchronously
             seedEntryFull pageTestAccountAK 500 -12m (DateTime(2026, 5, 1)) (Some "Rewe") None (Some cat)
             |> Async.RunSynchronously
@@ -2529,7 +2807,7 @@ let categoryGroupLookupTests =
             let cat = category 92 "Streaming"
             seedEntryFull pageTestAccountAK 502 -9m (DateTime(2026, 5, 3)) (Some "Netflix") None (Some cat)
             |> Async.RunSynchronously
-            let ynabCat : YnabCategory = { Id = cat.CategoryId; Name = "Streaming"; GroupName = "Freizeit"; Available = None }
+            let ynabCat : YnabCategory = { Id = cat.CategoryId; Name = "Streaming"; GroupName = "Freizeit"; Available = None; Hidden = false }
             upsertCategories [ ynabCat ] |> Async.RunSynchronously
 
             let (LedgerAccountId rawAK) = pageTestAccountAK
@@ -2541,7 +2819,7 @@ let categoryGroupLookupTests =
 
             // Ein neuer Kategorie-Lauf ohne "Streaming": die Zeile bleibt trotzdem stehen.
             let andereKategorie = category 93 "Andere Kategorie"
-            upsertCategories [ { Id = andereKategorie.CategoryId; Name = "Andere Kategorie"; GroupName = "Sonstiges"; Available = None } ]
+            upsertCategories [ { Id = andereKategorie.CategoryId; Name = "Andere Kategorie"; GroupName = "Sonstiges"; Available = None; Hidden = false } ]
             |> Async.RunSynchronously
 
             let nachher = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously

@@ -809,6 +809,136 @@ let private moduleStartupTests =
         }
     ]
 
+// ============================================
+// Filterleiste und Summenzeile: reine Bausteine (ledger-j8xq4)
+// ============================================
+// Neue testList am Dateiende (Konvention dieses Batches): kein Eingriff in
+// bestehende Listen, die ein paralleler Task (ledger-nnn47) in dieser Datei anfasst.
+
+let private chipOrderingTests =
+    testList "Chip-Reihenfolge (AC: aktive Chips wandern am Handy nach vorn)" [
+
+        test "Am PC bleibt die feste Reihenfolge, egal welche Chips aktiv sind" {
+            let activity = { NeedsReview = true; Category = true; Date = false; Payee = false; Memo = false; Amount = false }
+            Expect.equal (orderChipsForDisplay false activity) fixedChipOrder "PC ändert die Reihenfolge nie"
+        }
+
+        test "Ohne aktiven Filter bleibt auch am Handy die feste Reihenfolge" {
+            let activity = { NeedsReview = false; Category = false; Date = false; Payee = false; Memo = false; Amount = false }
+            Expect.equal (orderChipsForDisplay true activity) fixedChipOrder "Nichts zu ordnen, wenn nichts aktiv ist"
+        }
+
+        test "Am Handy wandert ein aktiver Kategorie-Filter vor das inaktive 'Zu prüfen' (Handoff Screen 2.4)" {
+            let activity = { NeedsReview = false; Category = true; Date = false; Payee = false; Memo = false; Amount = false }
+            Expect.equal
+                (orderChipsForDisplay true activity)
+                [ CategoryChip; NeedsReviewChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+                "Kategorie ist aktiv, das inaktive 'Zu prüfen' rutscht dahinter"
+        }
+
+        test "Zwei aktive Chips (inkl. 'Zu prüfen') behalten ihre bisherige Reihenfolge zueinander" {
+            let activity = { NeedsReview = true; Category = true; Date = false; Payee = false; Memo = false; Amount = false }
+            Expect.equal
+                (orderChipsForDisplay true activity)
+                [ NeedsReviewChip; CategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+                "Beide aktiv: die stabile Partition ändert ihre gegenseitige Reihenfolge nicht"
+        }
+
+        test "Mehrere aktive Chips behalten am Handy ihre bisherige Reihenfolge untereinander" {
+            // Handoff 2.8: "Café Lotte" x, "Kategorie: 2" x, dann "Alle Filter löschen":
+            // die aktiven Chips selbst bleiben in ihrer festen Reihenfolge zueinander,
+            // nur alle inaktiven rutschen gemeinsam dahinter.
+            let activity = { NeedsReview = false; Category = true; Date = false; Payee = true; Memo = false; Amount = false }
+            Expect.equal
+                (orderChipsForDisplay true activity)
+                [ CategoryChip; PayeeChip; NeedsReviewChip; DateChip; MemoChip; AmountChip ]
+                "Kategorie vor Payee (ihre feste Reihenfolge), beide vor den inaktiven"
+        }
+    ]
+
+let private quickDateRangeTests =
+    testList "Zeitraum-Schnellwahl: Von/Bis (Handoff 2.5: 'Die Schnellwahl füllt Von/Bis mit')" [
+
+        let today = DateTime(2026, 9, 25)
+
+        test "Dieser Monat: vom Monatsersten bis heute" {
+            Expect.equal (quickDateRange today ThisMonth) (DateTime(2026, 9, 1), DateTime(2026, 9, 25)) "1.9. bis 25.9."
+        }
+
+        test "Letzter Monat: ganzer Vormonat" {
+            Expect.equal (quickDateRange today LastMonth) (DateTime(2026, 8, 1), DateTime(2026, 8, 31)) "1.8. bis 31.8."
+        }
+
+        test "Letzter Monat über einen Jahreswechsel hinweg" {
+            let januar = DateTime(2026, 1, 15)
+            Expect.equal (quickDateRange januar LastMonth) (DateTime(2025, 12, 1), DateTime(2025, 12, 31)) "Dezember des Vorjahres"
+        }
+
+        test "Dieses Jahr: vom 1. Januar bis heute" {
+            Expect.equal (quickDateRange today ThisYear) (DateTime(2026, 1, 1), DateTime(2026, 9, 25)) "1.1. bis 25.9."
+        }
+
+        test "Letzte 12 Monate: heute minus 12 Monate bis heute" {
+            Expect.equal (quickDateRange today Last12Months) (DateTime(2025, 9, 25), DateTime(2026, 9, 25)) "Rollierendes Jahr"
+        }
+
+        test "dateQuickLabel liefert die Chip-Kurzform" {
+            Expect.equal (dateQuickLabel Last12Months) "12 Monate" "Handoff-Kurzform für den Chip"
+        }
+    ]
+
+let private amountFilterTextTests =
+    testList "Betrags-Suchfeld: parseAmountFilterText / formatAmountDraft" [
+
+        test "Leerer Text ist kein Filter" {
+            Expect.equal (parseAmountFilterText "") None "Leer heißt: kein Wert"
+            Expect.equal (parseAmountFilterText "   ") None "Nur Leerzeichen zählt auch als leer"
+        }
+
+        test "Punkt und Komma werden beide als Dezimaltrennzeichen gelesen" {
+            Expect.equal (parseAmountFilterText "12.50") (Some 12.50m) "Punkt (Invariant Culture)"
+            Expect.equal (parseAmountFilterText "12,50") (Some 12.50m) "Komma (Roman tippt deutsch)"
+        }
+
+        test "Ein negativer Betrag bleibt negativ" {
+            Expect.equal (parseAmountFilterText "-9,80") (Some -9.80m) "Vorzeichen bleibt erhalten"
+        }
+
+        test "Unlesbarer Text liefert None statt eine Ausnahme zu werfen" {
+            Expect.equal (parseAmountFilterText "abc") None "Kein Absturz bei falscher Eingabe"
+        }
+
+        test "formatAmountDraft schreibt mit Punkt (Invariant Culture), die Rückrichtung von parseAmountFilterText" {
+            Expect.equal (formatAmountDraft 12.5m) "12.5" "Punkt, kein Komma"
+        }
+    ]
+
+let private filtersTests =
+    testList "Filters: hasAnyFilter und die einzelnen Kriterien" [
+
+        test "noFilters hat keinen aktiven Filter" {
+            Expect.isFalse (hasAnyFilter noFilters) "Frisch: nichts aktiv"
+        }
+
+        test "Ein gesetzter Kategorie-Filter zählt als aktiv" {
+            let filters = { noFilters with CategoryIds = Set.ofList [ Guid.NewGuid() ] }
+            Expect.isTrue (hasCategoryFilter filters) "Kategorie ist gesetzt"
+            Expect.isTrue (hasAnyFilter filters) "Und zählt zu 'irgendein Filter aktiv'"
+        }
+
+        test "Ein gesetzter Zeitraum zählt als aktiv" {
+            let filters = { noFilters with DateRange = Some { Quick = Some ThisYear; From = Some DateTime.Today; To = Some DateTime.Today } }
+            Expect.isTrue (hasAnyFilter filters) "Zeitraum ist gesetzt"
+        }
+
+        test "Payee, Memo und Betrag zählen je einzeln als aktiv" {
+            Expect.isTrue (hasAnyFilter { noFilters with Payee = Some "Café Lotte" }) "Payee"
+            Expect.isTrue (hasAnyFilter { noFilters with Memo = Some "Kuchen" }) "Memo"
+            Expect.isTrue (hasAnyFilter { noFilters with AmountMin = Some 5m }) "Betrag von"
+            Expect.isTrue (hasAnyFilter { noFilters with AmountMax = Some 5m }) "Betrag bis"
+        }
+    ]
+
 [<Tests>]
 let ledgerViewTests =
     testList
@@ -829,4 +959,8 @@ let ledgerViewTests =
           deletedCountTextTests
           needsReviewChipLabelTests
           historyLinesForDisplayTests
-          moduleStartupTests ]
+          moduleStartupTests
+          chipOrderingTests
+          quickDateRangeTests
+          amountFilterTextTests
+          filtersTests ]

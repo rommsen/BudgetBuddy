@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-09-26 11:49 -- Task verified and completed: ledger-j8xq4 - "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
+
+**Type:** Work / Task completion
+**Task:** ledger-j8xq4 - "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
+**Summary:** Kassenbuch-Filterleiste mit Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC und Summenzeile
+**Duration:** 1h07m (Wiederaufnahme: Dispatch 11:17, Urteil 11:49)
+**Verification:** PASS (iteration 4)
+**Files changed:** 21
+**Tests added:** 69
+**ADRs written:** 0043
+
+---
+
 ## 2026-09-26 11:15 -- Modeling / Refined: ledger-j8xq4 - Kassenbuch-Filterleiste und Summenzeile, offener Rest nach Eskalation
 
 **Type:** Modeling / Refine

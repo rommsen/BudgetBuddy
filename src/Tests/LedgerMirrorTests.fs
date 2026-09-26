@@ -608,8 +608,8 @@ let mirrorRunTests =
         testCase "ein erfolgreicher Kategorie-Abruf spiegelt alle gelieferten Kategorien nach ledger_categories" <| fun () ->
             let budgetId = Run.budget "kategorie-abruf-erfolg"
             let categories : YnabCategory list = [
-                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
-                { Id = haushalt.CategoryId; Name = "Haushalt"; GroupName = "Zuhause"; Available = None }
+                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false }
+                { Id = haushalt.CategoryId; Name = "Haushalt"; GroupName = "Zuhause"; Available = None; Hidden = false }
             ]
             let fetchers =
                 { Run.fetchers 1L [] with
@@ -631,7 +631,7 @@ let mirrorRunTests =
             let budgetId = Run.budget "kategorie-abruf-zaehler"
             let obs = { observation "kategorie-abruf-zaehler-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
             let categories : YnabCategory list = [
-                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false }
             ]
             let fetchers =
                 { Run.fetchers 1L [ obs ] with
@@ -647,7 +647,7 @@ let mirrorRunTests =
             let budgetId = Run.budget "kategorie-abruf-error"
             let obs = { observation "kategorie-abruf-error-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
             let vorherigeKategorie : YnabCategory =
-                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None }
+                { Id = lebensmittel.CategoryId; Name = "Lebensmittel"; GroupName = "Alltag"; Available = None; Hidden = false }
             upsertCategories [ vorherigeKategorie ] |> Async.RunSynchronously
 
             let fetchers =
@@ -672,7 +672,7 @@ let mirrorRunTests =
             let budgetId = Run.budget "kategorie-abruf-ausnahme"
             let obs = { observation "kategorie-abruf-ausnahme-1" with AccountId = YnabAccountId (Guid.NewGuid()) }
             let vorherigeKategorie : YnabCategory =
-                { Id = haushalt.CategoryId; Name = "Haushalt"; GroupName = "Zuhause"; Available = None }
+                { Id = haushalt.CategoryId; Name = "Haushalt"; GroupName = "Zuhause"; Available = None; Hidden = false }
             upsertCategories [ vorherigeKategorie ] |> Async.RunSynchronously
 
             let fetchers =

@@ -1081,6 +1081,38 @@ nav a:focus-visible {
 .filters::-webkit-scrollbar { display: none; }
 
 /* ============================================================
+   Kassenbuch: Sticky Filterleiste (ledger-j8xq4)
+   ============================================================ */
+/* `ChipBar.bar` in der Kassenbuch-Filterleiste (`Components.Ledger.View`,
+   `filterChipBar`): haftet wie `.table-sticky-thead`/`.ledger-account-strip`
+   unter der fixen Navbar. Anders als bei der Tabelle gilt das auf beiden
+   Geräten (Styleguide 7.3, Aufgaben-`## What`: "auf beiden Geräten"), deshalb
+   zwei Werte statt eines einzigen `@media`-Blocks: 56px Handy-Kopfzeile
+   (`mobileHeader`, plus Safe-Area) und 64px PC-Navbar, genau wie `.filters`
+   oben.
+
+   `--ledger-filter-bar-height` (an `.table-sticky-thead thead` unten) trägt die
+   tatsächlich gerenderte Höhe der Leiste, gemessen per `ResizeObserver`
+   (`Components.Ledger.View.FilterBarColumn`), nicht eine geschätzte Konstante:
+   die Leiste kann bei aktivem Filter und schmalerer Breite zweizeilig
+   umbrechen (`md:flex-wrap`), eine feste Höhe passte dann nicht mehr zur
+   echten und der Tabellenkopf überlappte die Leiste oder ließ eine Lücke
+   darunter frei. */
+.ledger-filter-bar {
+  position: sticky;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+  z-index: 20;
+  background: rgba(8, 8, 26, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+@media (min-width: 768px) {
+  .ledger-filter-bar {
+    top: 64px;
+  }
+}
+
+/* ============================================================
    Design System: Table with sticky header below the fixed navbar
    ============================================================ */
 /* `Table.view` with `Sticky = true` (ledger-x0yga: Kassenbuch-PC-Tabelle). Same
@@ -1088,10 +1120,17 @@ nav a:focus-visible {
    header at the viewport's very top, which is covered by the fixed navbar
    (`Navigation`, 64px tall at md+, z-50) — the header's top pixels get cut off.
    Sticking at 64px instead keeps it flush below the navbar, fully visible. Only
-   relevant at md+, since tables in this app are desktop-only. */
+   relevant at md+, since tables in this app are desktop-only.
+
+   `+ var(--ledger-filter-bar-height, 0px)` (ledger-j8xq4): the fallback keeps
+   the documented `Sticky` contract on every page without a filter bar above
+   the table, the offset stays exactly `64px`. Only the Kassenbuch column
+   (`Components.Ledger.View.FilterBarColumn`) ever sets this variable, as an
+   inline style scoped to that column, to the filter bar's actually measured
+   height. */
 .table-sticky-thead thead {
   position: sticky;
-  top: 64px;
+  top: calc(64px + var(--ledger-filter-bar-height, 0px));
   z-index: 10;
 }
 

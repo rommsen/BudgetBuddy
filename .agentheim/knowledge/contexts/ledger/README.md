@@ -447,10 +447,33 @@ kein Schalter.
 - **Available-Betrag je Kategorie.** Der Picker soll je Kategorie den verfügbaren Betrag
   zeigen und beim Wechsel beide Seiten (alt hoch, neu runter), wie die YNAB-App. Der
   Spiegel führt heute keine Budget-Zahlen mit.
-- **Filter-Chips und Summenzeile über dem Treffer.** `getLedgerEntriesPage` liefert
-  Trefferzahl, Summe und die fünf Filterkriterien serverseitig bereits (`ledger-vgfw3`),
-  aber die Seite selbst zeigt weder Filter-Chips noch die Summenzeile an: das ist
-  `ledger-j8xq4`.
+- **Filter-Chips und Summenzeile über dem Treffer** *gelöst (`ledger-j8xq4`):* Sticky
+  Chip-Leiste (`Client.DesignSystem.ChipBar`, `.ledger-filter-bar` in `styles.css`, auf
+  beiden Geräten unter der fixen Navbar) über den fünf Such-Filtern plus dem
+  bestehenden Chip "Zu prüfen"; am Handy wandern aktive Chips nach vorn
+  (`Components.Ledger.Types.orderChipsForDisplay`), am PC bleibt die Reihenfolge fest.
+  Kategorie ist Mehrfachauswahl mit Click-Commit (Styleguide 7.1, ADR 0005): ein
+  Entwurf (`CategoryDraft`) wirkt erst auf "Übernehmen", `YnabCategory.Hidden` (aus
+  YNABs `hidden`-Feld) hält versteckte Kategorien eingeklappt. Zeitraum-Schnellwahl
+  trägt Von/Bis sichtbar ein (`quickDateRange`); Payee filtert per Vorschlag sofort;
+  Memo/Betrag sind Suchfelder mit Verzögerung. Am PC hängt die Auswahl als Popover
+  unter dem Chip (`Client.DesignSystem.FilterPopover`, Esc/Klick daneben schließen
+  ohne zu filtern), am Handy im bestehenden `BottomSheet`; welche Chrome gerendert
+  wird, entscheidet `Viewport.isDesktopViewport()` zur Renderzeit (ADR 0043), belegt
+  durch einen zweiten Playwright-Kontext im 390x844-Viewport. Die Summenzeile
+  (`Components.Ledger.View.summaryRow`) erscheint, sobald ein Filter aktiv ist, und
+  zeigt Trefferzahl/Summe über den ganzen Treffer (`model.TotalCount`/`model.TotalAmount`,
+  unverändert vom Server). Der sticky Tabellenkopf der PC-Tabelle (`Table.fs`,
+  `.table-sticky-thead thead`) bekommt seinen Versatz über `--ledger-filter-bar-height`,
+  eine CSS-Variable, die `Components.Ledger.View.FilterBarColumn` per `ResizeObserver`
+  auf die tatsächlich gerenderte Höhe der Filterleiste setzt, statt auf eine feste
+  Schätzung: so kollidieren beide sticky Elemente auch dann nicht, wenn die Leiste bei
+  aktivem Filter zweizeilig umbricht (`md:flex-wrap`) oder während eines laufenden
+  Spiegel-Laufs (ADR 0014) den Knoten wechselt, weil `ChipBar.bar` dafür einen
+  Callback-Ref statt eines Objekt-Refs annimmt: er trennt und beobachtet bei jedem
+  Knotenwechsel neu, nicht nur beim ersten Mount. Die Variable fällt außerhalb
+  dieser Spalte auf `0px` zurück, jede andere sticky Tabelle im Design-System bleibt
+  vom dokumentierten `Table.Sticky`-Vertrag unverändert erfasst.
 
 ## Open questions
 - **Historie-Technik** — *gelöst (ADR 0013, ledger-fsz0a):* append-only Ereignis-Log pro

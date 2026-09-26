@@ -1,7 +1,7 @@
 ---
 id: ledger-j8xq4
 title: "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-19
@@ -9,7 +9,7 @@ completed:
 depends_on: [ledger-vgfw3, design-system-001]
 blocks: [ledger-r1d2f]
 tags: [frontend, kassenbuch, scheibe]
-related_adrs: [0004, 0005]
+related_adrs: [0004, 0005, 0043]
 related_research: []
 prior_art: [ledger-b1xwe, ledger-x0yga]
 ---
@@ -245,3 +245,260 @@ ITERATION_HINT: likely-fixable
 Nach drei Verifikationsrunden an Roman eskaliert (2026-09-26). Der Worktree `.worktrees/ledger-j8xq4` (Branch `aw/ledger-j8xq4`) bleibt mit dem vollständigen Stand aller drei Iterationen erhalten.
 - Code-Diff gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/ledger-j8xq4-escalated-iter3.patch`
 - Buchführungsblöcke (README_DELTA, ADR-Entwurf 0043, OUTCOME, Backlog-Item design-system-bz0gn) gesichert: `/Users/romansachse/src/BudgetBuddy/.agentheim/salvage/ledger-j8xq4-escalated-iter3.bookkeeping.md`
+
+## Outcome
+
+Die Filterleiste über der Kassenbuch-Liste ist gebaut: eine sticky Chip-Leiste
+(Kategorie, Zeitraum, Payee, Memo, Betrag, plus der bestehende Chip "Zu prüfen") mit
+Popover am PC und BottomSheet am Handy für dieselben Inhalte, Click-Commit bei der
+Kategorien-Mehrfachauswahl (erst "Übernehmen" schreibt den Entwurf in den Filter),
+Zeitraum-Schnellwahl, die Von/Bis sichtbar einträgt, Payee-Einzelauswahl mit
+Vorschlägen aus dem aktuellen Treffer, Memo-/Betrags-Suchfelder mit Verzögerung, eine
+Summenzeile über der Liste (Trefferzahl und Summe über den ganzen Treffer, nicht die
+geladene Seite), "×" je Chip und "Alle Filter löschen" am Ende der Leiste, und einen
+Leerzustand ("Kein Treffer. Filter lockern oder alle Filter löschen.") mit eigener
+Handlung.
+
+**Backend/Shared:** `YnabCategory` (`src/Shared/Domain.fs`) trägt `Hidden: bool`,
+dekodiert aus YNABs `hidden`-Feld in beiden Kategorie-Decodern
+(`Server.YnabClient.Decoders.categoryDecoder`/`categoryInGroupDecoder`), fehlendes
+Feld dekodiert konformistisch zu `false`. Vier Decoder-Tests in `YnabClientTests.fs`.
+
+**Client-Zustand** (`src/Client/Components/Ledger/Types.fs`, `State.fs`): Typen
+`Filters`, `DateQuick`/`DateRangeFilter`, `ChipId`/`ChipActivity` und die reine
+Ordnungsfunktion `orderChipsForDisplay` (am Handy wandern aktive Chips nach vorn, am
+PC bleibt die Reihenfolge fest, belegt über den Reduzierer). `Model` trägt
+`Categories`, `Filters`, `OpenPopover`, Entwurfsfelder je Filtertyp und
+`TotalAmount`. `RunLoadEntriesPage` verdrahtet `model.Filters` in die
+Server-Abfrage.
+
+**Design System:** zwei Module, `Client.DesignSystem.ChipBar` (Chip als zwei echte
+Knöpfe in einem Rahmen, kein Knopf-im-Knopf) und `Client.DesignSystem.FilterPopover`
+(PC-Popover, Esc/Klick außerhalb schließen ohne zu filtern).
+
+**View** (`src/Client/Components/Ledger/View.fs`): Kategorienauswahl mit
+Mehrfachauswahl, Zeitraum-Popover, Payee-Vorschlagsliste, Memo-/Betrags-Suchfelder,
+`filterChipBar` und `summaryRow`. Der alte, separat gerenderte Chip "Zu prüfen" ist
+in dieselbe `ChipBar`-Optik überführt, seine Logik unverändert.
+
+**ADR 0043:** welche Chrome (Popover/BottomSheet) gerendert wird, entscheidet
+`Viewport.isDesktopViewport()` zur Renderzeit, nicht das sonst auf der Seite übliche
+CSS-Doppel-Render-Muster: ein `BottomSheet` portalt immer nach `document.body`, ein
+Doppel-Render hätte zwei echte Overlays für denselben Zustand erzeugt (im ersten
+Anlauf tatsächlich passiert, durch den Browsertest aufgedeckt).
+
+**Kritischer Nebenfund der ersten Iteration, mit Regressionstest behoben:** Lädt man
+die Kassenbuch-Seite per Deep-Link direkt, läuft `pageLoadCmd Ledger`s
+`LoadCategories` synchron im selben `Cmd.batch` wie
+`Components.Settings.Types.LoadSettings`, und findet `Settings.Settings` dabei
+strukturell IMMER noch nicht `Success`. Ohne Gegenmaßnahme blieb `Ledger.Categories`
+für immer `NotAsked`. Behoben in `src/Client/State.fs`s `SettingsMsg`-Zweig: sobald
+`SettingsLoaded (Ok settings)` mit konfiguriertem Budget eintrifft, wird
+`LedgerMsg LoadCategories` nachgeholt, wenn die Kassenbuch-Seite noch nichts hat.
+Fünf Tests in `src/Tests/LedgerCategoriesSyncTests.fs`.
+
+### Zweite Iteration: Handy-Beleg, stale Doc-Kommentare, erster Sticky-Versuch
+
+Der Verifier der ersten Iteration bemängelte: kein Handy-Beleg für
+Akzeptanzkriterium 1 (Kategorie-Filter über zwei Kategorien, "am Handy und am PC"),
+zwei stale Doc-Kommentare, die noch das verworfene CSS-Doppel-Render-Muster
+beschrieben, und eine Filterleiste, die trotz Aufgabentext ("Sticky Filterleiste ...
+auf beiden Geräten", Styleguide 7.3) tatsächlich nicht sticky war.
+
+`scripts/ledger-filter-bar.test.mjs` bekam einen zweiten Playwright-Kontext im
+390x844-Viewport (Kategorie-Chip öffnet `.bottom-sheet.active`, nie ein Popover;
+zwei übernommene Kategorien zeigen dieselbe Vereinigung wie am PC; der aktive Chip
+steht im DOM vor "Zu prüfen"), die beiden Doc-Kommentare wurden korrigiert, und die
+Filterleiste bekam `position: sticky`. Für den Versatz zwischen der jetzt sticky
+Leiste und dem bereits sticky Tabellenkopf setzte diese Iteration eine feste
+globale Schätzung (`:root { --ledger-filter-bar-height: 44px }`), die die
+grundlegende Kollision zwar entschärfte, aber nicht wirklich löste.
+
+### Dritte Iteration: der sticky Versatz misst die reale Leistenhöhe
+
+Ein frischer Verifier maß in einem echten Browser, dass die feste Schätzung falsch
+war: bei 1440px war die Leiste tatsächlich 38px hoch (nicht 44px), der Tabellenkopf
+ließ eine sichtbare Lücke von 6px; bei 1024px mit aktivem Kategorie-Filter brachen
+die Chips zweizeilig um (`md:flex-wrap`), die Leiste war 62px hoch, der
+Tabellenkopf überlappte sie um 18px (DATUM/PAYEE/KATEGORIE angeschnitten). Zusätzlich
+lag die Schätzung als globaler `:root`-Wert vor, außerhalb des dokumentierten
+`Table.Sticky`-Vertrags (`src/Client/DesignSystem/Table.fs`): jede künftige sticky
+Tabelle ohne eigene Filterleiste hätte denselben Versatz geerbt.
+
+**Fix:**
+1. `.table-sticky-thead thead`s `top` liest `var(--ledger-filter-bar-height, 0px)`
+   mit Fallback `0px`, statt eines global gesetzten `:root`-Werts. Jede sticky
+   Tabelle ohne eine Spalte, die diese Variable setzt, klebt unverändert direkt
+   `64px` unter der Navbar.
+2. `Components.Ledger.View.FilterBarColumn` (neue `[<ReactComponent>]`-Funktion,
+   ersetzt den bisherigen inline `Html.div` in `view`) misst die Filterleiste per
+   `ResizeObserver` (`observeHeight`, analog zu `observeIntersection` und
+   `Viewport.fs`s visualViewport-Bindung) und schreibt ihre tatsächliche
+   Rand-zu-Rand-Höhe (`getBoundingClientRect().height`, bewusst nicht
+   `entries[0].contentRect.height`: Letztere ist die Content-Box ohne das `py-1`-
+   Padding von `ChipBar.bar`, ein per Browsertest gefundener 8px-Fehler) als
+   Inline-Style `--ledger-filter-bar-height` auf die Kassenbuch-Spalte
+   (`flex-1 min-w-0`). `ChipBar.bar` bekam dafür einen neuen optionalen
+   Ref-Parameter, durchgereicht über `filterChipBar` (in der dritten Iteration noch
+   ein Objekt-Ref, siehe vierte Iteration unten).
+3. Neue Tests in `scripts/ledger-filter-bar.test.mjs`: bei 1440px ohne umbrechende
+   Chips und bei 1024px mit aktivem Zwei-Kategorien-Filter (Chips umbrechen)
+   scrollt jeweils ein eigener, kurzlebiger Kontext die Liste und liest Leiste und
+   Tabellenkopf in EINEM atomaren `page.evaluate`: `thead.top` muss mindestens
+   `bar.bottom - 1` sein (keine Überlappung) und die Lücke `thead.top - bar.bottom`
+   darf höchstens 2px betragen.
+4. `ADR 0043` bekam einen Nachtrag zu dieser Entscheidung samt zwei zusätzlichen
+   verworfenen Alternativen (feste globale Schätzung, ein gemeinsamer sticky
+   Container für Leiste und Tabellenkopf).
+
+### Vierte Iteration: die Höhenmessung folgt dem Knoten per Callback-Ref, auch während eines Spiegel-Laufs
+
+Nach der dritten Iteration an Roman eskaliert, dann mit ihm nachgeschärft: der
+Verifier der dritten Iteration fand, dass die Messung während eines laufenden Spiegel-Laufs den
+falschen Knoten traf. `FilterBarColumn`s Objekt-Ref (`React.useRef`) wurde in einem
+`useEffect` mit leeren Abhängigkeiten EINMALIG an den Knoten gebunden, den `barRef`
+beim allerersten Mount hatte. Die Kinder der Spalte sind eine keylose Liste, an
+deren erster Stelle bedingt der Hinweis "Spiegel läuft" steht
+(`Loading.inlineWithText`, ebenfalls ein `div`). Wird `model.MirrorRunning` NACH dem
+ersten Mount wahr (der übliche Fall: das Frische-Kriterium aus ADR 0014 stößt den
+automatischen Lauf erst nach dem ersten Render an), verwendet React den bisherigen
+Leisten-`div` an dieser Listenposition für den Hinweis weiter (beide Host-Typ "div")
+und legt für die Leiste, jetzt eine Position weiter hinten, einen neuen Knoten an.
+`barRef.current` zeigt danach zwar korrekt auf den neuen Knoten, der längst
+gelaufene `useEffect` bemerkt den Wechsel aber nie: gemessen wurde fortan der
+Hinweis, nicht die Leiste (18px Überlappung bei 1440x900, `theadTop=84` gegen
+`barBottom=102`; 42px bei 1024x900 mit aktivem Filter).
+
+**Romans Entscheidung:** ein Callback-Ref an `ChipBar.bar` (`bar`s `elementRef`-
+Parameter ist seither `Browser.Types.Element -> unit` statt eines
+`IRefValue`-Objekts), kein Objekt-Ref mit begleitendem `useEffect`. React ruft einen
+Callback-Ref bei jedem Knotenwechsel erneut auf, mit dem neuen Knoten oder mit
+`null` beim Unmount. `FilterBarColumn` (`src/Client/Components/Ledger/View.fs`)
+merkt sich die laufende Observer-Trennfunktion in einem `React.useRef`; der über
+`React.useCallback` memoisierte Callback trennt sie zuerst (falls vorhanden), dann
+beobachtet er den neuen Knoten (falls einer da ist, geprüft über `isNull (box
+element)`, dasselbe Muster wie `Viewport.fs`s `tryVisualViewport`). Nicht gewählt:
+den Hinweis hinter die Leiste zu verschieben (ändert die sichtbare Reihenfolge ohne
+fachlichen Grund) und stabile Keys allein (schützt nur, solange niemand künftig eine
+weitere bedingte Zeile ohne Key einfügt). Stabile Keys dürfen zusätzlich gesetzt
+werden, ersetzen den Callback-Ref aber nicht. Details und die vollständige
+Alternativenabwägung in `ADR 0043`s neuem Nachtrag.
+
+**Zwei neue Browsertests** in `scripts/ledger-filter-bar.test.mjs`, mit einer neuen
+Fixture-Hilfsfunktion `mockRunningMirror` (`scripts/ledger-filter-bar.mjs`): ein
+veralteter `getLastMirrorRun`-Stand (absichtlich um 300ms verzögert beantwortet,
+damit die Spalte nachweislich zuerst mit `MirrorRunning = false` fertig mountet,
+bevor der Status umschlägt) löst den automatischen Lauf aus (ADR 0014), ohne einen
+Klick auf "Jetzt spiegeln"; `mirrorYnabBudget` bleibt danach absichtlich unbeantwortet
+(die zurückgegebene `finishMirror()` erfüllt die Anfrage erst, wenn der Aufrufer sie
+ruft). Der erste Test misst Leiste und Tabellenkopf bei 1024x900, während der
+Hinweis "Spiegel läuft" sichtbar ist (`thead.top >= bar.bottom - 1` und
+`thead.top - bar.bottom <= 2`, beide Werte aus demselben `page.evaluate`). Der
+zweite Test lässt den Lauf über `finishMirror()` enden, wartet, bis der Hinweis aus
+dem DOM verschwindet, und prüft denselben Abstand danach erneut.
+
+**Falsifiziert:** `ChipBar.bar` und `FilterBarColumn` testweise auf den vorherigen
+Objekt-Ref-/`useEffect [||]`-Stand zurückgesetzt (Edit-Tool, kein Git), neu gebaut,
+Testlauf: genau der erste der beiden neuen Tests schlägt fehl
+(`theadTop=84, barBottom=102`, dieselbe 18px-Überlappung wie beim Verifier), der
+zweite bleibt grün, weil React den ursprünglichen Leisten-Knoten nach Ende des
+Laufs an derselben Listenposition wiederverwendet und die Messung dadurch zufällig
+wieder stimmt, unabhängig vom Fix. Danach die Mutation zurückgesetzt und neu
+gebaut. `node --test scripts/ledger-filter-bar.test.mjs` fünfmal hintereinander
+frisch gelaufen: 70/70 grün (14 Tests je Lauf), keine Flakiness.
+
+**Tests, alle vier Iterationen zusammen:** 69 neue (4 Decoder, 25 Reduzierer in
+`LedgerPageTests.fs`, 19 reine Bausteine in `LedgerViewTests.fs`, 2
+`isPageReady`-Fälle, 5 für den Settings-Nachhol-Fix, 14 Browsertests: 7 PC + 2
+Handy-Chrome/Reihenfolge + 1 Sticky-Scroll + 2 Kollisionstests (dritte Iteration) +
+2 Kollisionstests während/nach einem Spiegel-Lauf (vierte Iteration)). `dotnet
+build`/`dotnet test` (1099 grün, 7 übersprungen, 0 Fehler), `npm run build`,
+`npm run test:scripts` (113 grün, davon 14 in `ledger-filter-bar.test.mjs`) sind
+sauber; `git status --short` zeigt nach jedem Testlauf nur die vier durch die
+vierte Iteration tatsächlich geänderten Dateien
+(`scripts/ledger-filter-bar.mjs`, `scripts/ledger-filter-bar.test.mjs`,
+`src/Client/Components/Ledger/View.fs`, `src/Client/DesignSystem/ChipBar.fs`).
+
+**Bewusste Lücke, weiterhin als Backlog-Item erfasst** (siehe BACKLOG_ITEMS): die
+Aufnahme der neuen Komponenten (`ChipBar`, `FilterPopover`, Kategorienauswahl mit
+Mehrfachauswahl, Zeitraum-/Payee-/Betrags-Popover) als Karten in die
+`/styleguide`-Route, nach dem etablierten Muster aus `design-system-t3vqr` (jetzt
+`design-system-bz0gn`, design-system-BC). Die Pixel-Abnahme gegen die 16
+Mockup-Screens (Screens 2.1 bis 2.14, das einzige mit `[human-eye]` markierte
+Akzeptanzkriterium) bleibt bewusst Romans Augenarbeit, wie die Aufgabe selbst
+vorgibt.
+
+**Wichtige Dateien:**
+- `src/Shared/Domain.fs`: `YnabCategory.Hidden`.
+- `src/Server/YnabClient.fs`: `categoryHidden`, beide Decoder erweitert.
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`: die Filterleisten-Logik
+  (Typen, Reduzierer, Chip-Reihenfolge).
+- `src/Client/Components/Ledger/View.fs`: Filterleiste, Summenzeile, Popover-/
+  BottomSheet-Weiche, `FilterBarColumn` und `observeHeight` (dritte Iteration),
+  seit der vierten Iteration mit Callback-Ref (`barCallbackRef`,
+  `disconnectRef`) statt Objekt-Ref/`useEffect [||]`.
+- `src/Client/DesignSystem/ChipBar.fs`: `ledger-filter-bar`-Klasse auf `bar`,
+  `elementRef`-Parameter (dritte Iteration, seit der vierten Iteration ein
+  Callback-Ref `Browser.Types.Element -> unit` statt eines Objekt-Refs).
+- `src/Client/DesignSystem/FilterPopover.fs`: Modulkopf-Kommentar korrigiert
+  (zweite Iteration).
+- `src/Client/DesignSystem/Viewport.fs`: `isDesktopViewport`.
+- `src/Client/styles.css`: `.ledger-filter-bar`; `.table-sticky-thead thead`s
+  `top` liest `--ledger-filter-bar-height` mit Fallback `0px` statt eines
+  global gesetzten `:root`-Werts (dritte Iteration).
+- `src/Client/State.fs`: `LedgerMsg LoadCategories`-Abfangpunkt,
+  Settings-Nachhol-Logik, `isPageReady` um `Categories` erweitert.
+- `src/Tests/YnabClientTests.fs`, `LedgerPageTests.fs`, `LedgerViewTests.fs`,
+  `AppReadinessTests.fs`, `LedgerCategoriesSyncTests.fs`.
+- `scripts/ledger-filter-bar.mjs`: optionaler `resolveEntries`-Parameter (zweite
+  Iteration); `mockRunningMirror` (vierte Iteration).
+- `scripts/ledger-filter-bar.test.mjs`: zweiter Handy-Kontext (zweite
+  Iteration); zwei Kollisionstests bei 1440px und 1024px (dritte Iteration);
+  zwei Kollisionstests während/nach einem laufenden Spiegel-Lauf (vierte
+  Iteration).
+- `.agentheim/knowledge/decisions/0043-...md` (siehe ADRS-Block, mit Nachträgen
+  aus der dritten und vierten Iteration).
+
+## Diary
+
+**2026-09-25** (erste Iteration): Kassenbuch-Filterleiste und Summenzeile gebaut.
+Chips, Kategorien-Mehrfachauswahl mit Click-Commit, Zeitraum-Schnellwahl,
+Payee-Vorschläge, Memo-/Betrags-Suchfelder, Popover am PC/BottomSheet am Handy,
+Summenzeile. Beim Browsertesten zwei echte Funde gemacht: ein Doppel-Overlay-Bug
+(`BottomSheet` portalt immer nach `document.body`, ADR 0043) und ein
+Deep-Link-Wettlauf zwischen `Settings.LoadSettings` und `Ledger.LoadCategories`,
+beide mit Regressionstests behoben.
+
+**2026-09-25** (zweite Iteration, nach Verifier-Befund): Handy-Beleg für die
+Popover/BottomSheet-Weiche und die Chip-Reihenfolge per zweitem
+Playwright-Kontext (390x844) nachgerüstet, zwei stale Doc-Kommentare korrigiert,
+und die Filterleiste sticky gemacht, allerdings mit einer festen 44px-Schätzung
+für den Versatz zum Tabellenkopf.
+
+**2026-09-25** (dritte Iteration, nach frischem Verifier-Befund): die feste
+44px-Schätzung durch eine Messung ersetzt. `Components.Ledger.View.FilterBarColumn`
+misst die Filterleiste per `ResizeObserver` und schreibt ihre echte Höhe in eine
+CSS-Variable, die nur auf der Kassenbuch-Spalte gilt und außerhalb davon auf 0px
+zurückfällt, sodass der dokumentierte `Table.Sticky`-Vertrag für jede andere
+sticky Tabelle unverändert bleibt. Zwei neue Kollisionstests (1440px ohne
+Umbruch, 1024px mit umbrechenden Chips und aktivem Filter) einzeln falsifiziert
+(testweise wieder die feste Summe `64px + 44px` gesetzt): genau diese beiden
+Tests schlagen dann fehl, mit denselben Werten wie der Verifier maß, alle
+anderen bleiben grün. `node --test scripts/ledger-filter-bar.test.mjs` fünfmal
+hintereinander: 60/60 grün.
+
+**2026-09-26** (vierte Iteration, nach Eskalation und Nachschärfen mit Roman): den
+letzten offenen Punkt behoben, den der Verifier der dritten Iteration gefunden hatte:
+während eines laufenden Spiegel-Laufs maß der `ResizeObserver` den falschen Knoten,
+weil ihn ein `useEffect` mit leeren Abhängigkeiten einmalig an den Knoten vom
+allerersten Mount band, während React denselben Knoten später für den Spiegel-
+Lauf-Hinweis weiterverwendete und für die Leiste selbst einen neuen Knoten anlegte.
+Nach Romans Entscheidung ersetzt jetzt ein Callback-Ref an `ChipBar.bar` (statt
+eines Objekt-Refs) die Bindung: er trennt und beobachtet bei jedem Knotenwechsel
+neu, nicht nur beim Mount. Zwei neue Browsertests (während und nach einem
+laufenden, absichtlich künstlich verzögerten Spiegel-Lauf) belegen es; der erste
+per Falsifikation nachweislich rot ohne den Fix (18px Überlappung, wie vom
+Verifier gemeldet), grün mit ihm. `node --test scripts/ledger-filter-bar.test.mjs`
+fünfmal hintereinander: 70/70 grün. `dotnet test`: 1099 grün, 0 Fehler.
+`npm run test:scripts`: 113 grün. `git status --short` zeigt nur die vier
+tatsächlich geänderten Dateien.

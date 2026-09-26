@@ -377,6 +377,57 @@ let categoryDecoderTests =
                 Expect.equal category.Available None "Missing balance should decode Available to None"
             | Error err -> failtest $"Failed to decode category: {err}"
 
+        // --- Regression: YNAB `hidden` -> YnabCategory.Hidden (ledger-j8xq4 AC3) ---
+        // Drives the collapsed "Versteckt (n)" group in the Kassenbuch category
+        // picker; must come from the field itself, never a naming convention.
+        testCase "categoryDecoder: hidden true decodes to Hidden = true" <| fun () ->
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Umzug 2023",
+                "category_group_name": "Alltag",
+                "hidden": true
+            }
+            """
+            match Decode.fromString Decoders.categoryDecoder json with
+            | Ok category -> Expect.isTrue category.Hidden "hidden: true must decode to Hidden = true"
+            | Error err -> failtest $"Failed to decode category: {err}"
+
+        testCase "categoryDecoder: missing hidden field decodes to Hidden = false" <| fun () ->
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Groceries",
+                "category_group_name": "Essential Expenses"
+            }
+            """
+            match Decode.fromString Decoders.categoryDecoder json with
+            | Ok category -> Expect.isFalse category.Hidden "a missing hidden field must decode to Hidden = false, conformist-safe"
+            | Error err -> failtest $"Failed to decode category: {err}"
+
+        testCase "categoryInGroupDecoder: hidden true decodes to Hidden = true" <| fun () ->
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Umzug 2023",
+                "hidden": true
+            }
+            """
+            match Decode.fromString (Decoders.categoryInGroupDecoder "Alltag") json with
+            | Ok category -> Expect.isTrue category.Hidden "hidden: true must decode to Hidden = true in the nested-group path too"
+            | Error err -> failtest $"Failed to decode category in group: {err}"
+
+        testCase "categoryInGroupDecoder: missing hidden field decodes to Hidden = false" <| fun () ->
+            let json = """
+            {
+                "id": "c1b2a3d4-e5f6-7890-abcd-ef1234567890",
+                "name": "Groceries"
+            }
+            """
+            match Decode.fromString (Decoders.categoryInGroupDecoder "Essential Expenses") json with
+            | Ok category -> Expect.isFalse category.Hidden "a missing hidden field must decode to Hidden = false"
+            | Error err -> failtest $"Failed to decode category in group: {err}"
+
         testCase "categoryInGroupDecoder reads balance into Available" <| fun () ->
             // The /budgets/{id} path decodes nested categories via categoryInGroupDecoder;
             // it must read balance too (else the split/budget-detail load loses Available).
@@ -461,7 +512,7 @@ let readyToAssignTests =
         // month's to_be_budgeted; applyReadyToAssign must replace the Inflow row with
         // it and leave every normal category untouched.
         let mkCat name group avail : YnabCategory =
-            { Id = YnabCategoryId (Guid.NewGuid()); Name = name; GroupName = group; Available = avail }
+            { Id = YnabCategoryId (Guid.NewGuid()); Name = name; GroupName = group; Available = avail; Hidden = false }
 
         testCase "applyReadyToAssign overrides only the Inflow: Ready to Assign row" <| fun () ->
             let normal = mkCat "Groceries" "Essential Expenses" (Some { Amount = 173.10m; Currency = "EUR" })

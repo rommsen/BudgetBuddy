@@ -47,6 +47,11 @@ module Decoders =
         get.Optional.Field "balance" Decode.int64
         |> Option.map (fun milliunits -> { Amount = decimal milliunits / 1000m; Currency = "EUR" })
 
+    /// Reads YNAB's `hidden` flag (ledger-j8xq4 AC3): missing decodes to `false`,
+    /// the conformist-safe default (same pattern as `OnBudget`/`Closed` above).
+    let private categoryHidden (get: Decode.IGetters) : bool =
+        get.Optional.Field "hidden" Decode.bool |> Option.defaultValue false
+
     /// Decodes the month's real "Ready to Assign" (YNAB `to_be_budgeted`, milliunits)
     /// from GET /budgets/{id}/months/current as Money. This is the authoritative
     /// Ready-to-Assign, unlike the internal Inflow category's own `balance`.
@@ -61,6 +66,7 @@ module Decoders =
             Name = get.Required.Field "name" Decode.string
             GroupName = get.Required.Field "category_group_name" Decode.string
             Available = categoryAvailable get
+            Hidden = categoryHidden get
         })
 
     let payeeDecoder : Decoder<YnabPayee> =
@@ -79,6 +85,7 @@ module Decoders =
             Name = get.Required.Field "name" Decode.string
             GroupName = groupName
             Available = categoryAvailable get
+            Hidden = categoryHidden get
         })
 
     /// Decoder for category groups containing nested categories

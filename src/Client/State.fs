@@ -156,6 +156,10 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadAccounts)
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadBalances)
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
+            // Für die Kategorienauswahl der Filterleiste (ledger-j8xq4): derselbe
+            // Proxy-Aufruf wie `Rules`s `LoadCategories`, deshalb auch hier im
+            // Haupt-`State.fs` abgefangen, nicht hinter dem Ledger-Proxy.
+            Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
         ]
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
@@ -198,6 +202,7 @@ let isPageReady (model: Model) : bool =
         notLoading model.Ledger.Accounts
         && notLoading model.Ledger.Balances
         && notLoading model.Ledger.Entries
+        && notLoading model.Ledger.Categories
 
 // ============================================
 // Init
@@ -308,8 +313,26 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.Settings.Types.SettingsLoaded (Ok settings) ->
                 match settings.Ynab with
                 | Some ynab when ynab.DefaultBudgetId.IsSome ->
-                    // Could reload categories for SyncFlow and Rules if needed
-                    Cmd.none
+                    // Die Kassenbuch-Filterleiste (ledger-j8xq4) wartet mit ihrem
+                    // eigenen `LoadCategories` (ausgelöst über `pageLoadCmd Ledger`)
+                    // u. U. auf genau dieses Ereignis hier: bei einem Deep-Link
+                    // direkt auf `/ledger` (kein Navigations-Klick vorher, z. B. ein
+                    // frischer Seitenaufruf) läuft `pageLoadCmd`s `LoadCategories`
+                    // SYNCHRON im selben `Cmd.batch` wie `LoadSettings`, und findet
+                    // `Settings.Settings` dabei zwingend noch nicht `Success`: JS ist
+                    // single-threaded, `Cmd.OfAsync`s Fortsetzung (auch bei einer
+                    // sofort auflösenden gemockten Antwort) kommt frühestens im
+                    // nächsten Tick, die synchrone `LedgerMsg LoadCategories`-
+                    // Verzweigung sieht also immer den alten Stand. Dieser Zweig holt
+                    // das nach, sobald Settings tatsächlich da sind: nur wenn die
+                    // Kassenbuch-Seite noch nichts hat (`NotAsked`), damit ein
+                    // späteres erneutes Laden der Settings (z. B. nach einer Änderung
+                    // auf der Settings-Seite) keinen bereits erfolgreichen oder
+                    // fehlgeschlagenen Ladevorgang wiederholt.
+                    if model.CurrentPage = Ledger && model.Ledger.Categories = NotAsked then
+                        Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
+                    else
+                        Cmd.none
                 | _ -> Cmd.none
             | _ -> Cmd.none
 
@@ -367,6 +390,32 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // ============================================
     // Ledger Component (Kassenbuch)
     // ============================================
+    | LedgerMsg Components.Ledger.Types.LoadCategories ->
+        // Die Kategorienauswahl der Filterleiste (ledger-j8xq4) braucht das
+        // konfigurierte YNAB-Budget, derselbe Abfangpunkt wie `Rules`s
+        // `LoadCategories` oben, aus demselben Grund (kein Budget im
+        // Ledger-eigenen Modell). Anders als bei `Rules` (dort ein reines
+        // `YnabCategory list` ohne Ladezustand) trägt `Ledger.Categories` ein
+        // `RemoteData`, das `isPageReady` abfragt: der Ladezustand wird deshalb
+        // hier gesetzt, nicht erst über den (in der Praxis unerreichbaren) inneren
+        // `LoadCategories`-Zweig von `Components.Ledger.State.update`.
+        match model.Settings.Settings with
+        | Success settings ->
+            match settings.Ynab with
+            | Some ynab ->
+                match ynab.DefaultBudgetId with
+                | Some budgetId ->
+                    let cmd =
+                        Cmd.OfAsync.either
+                            Api.ynab.getCategories
+                            budgetId
+                            (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorToString)))
+                            (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Error ex.Message)))
+                    { model with Ledger = { model.Ledger with Categories = Loading } }, cmd
+                | None -> model, Cmd.none
+            | None -> model, Cmd.none
+        | _ -> model, Cmd.none
+
     | LedgerMsg ledgerMsg ->
         let ledgerModel', ledgerCmd, externalMsg = Components.Ledger.State.update ledgerMsg model.Ledger
 

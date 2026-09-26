@@ -26,6 +26,169 @@ type AccountFilter =
     | AllAccounts
     | OneAccount of Guid
 
+// ============================================
+// Filterleiste und Summenzeile (ledger-j8xq4)
+// ============================================
+// Die fünf Such-Filter aus `ledger-vgfw3` (ADR 0036) bekommen hier ihre Bedienung:
+// Chips, Kategorienauswahl mit Mehrfachauswahl (Click-Commit, ADR 0005/Styleguide
+// 7.1), Zeitraum-Schnellwahl, Payee-Vorschläge, Memo- und Betrags-Suchfelder.
+
+/// Die Schnellwahl der Zeitraum-Auswahl (Handoff Screen 2.5/2.12).
+type DateQuick =
+    | ThisMonth
+    | LastMonth
+    | ThisYear
+    | Last12Months
+
+/// Kurzform der Schnellwahl für den Chip ("12 Monate", Handoff-Tabelle
+/// "Chip-Beschriftung im Aktivzustand").
+let dateQuickLabel (quick: DateQuick) : string =
+    match quick with
+    | ThisMonth -> "Dieser Monat"
+    | LastMonth -> "Letzter Monat"
+    | ThisYear -> "Dieses Jahr"
+    | Last12Months -> "12 Monate"
+
+/// Reine Entscheidung: welchen Von/Bis-Bereich eine Schnellwahl einträgt (Handoff
+/// 2.5: "Die Schnellwahl füllt Von/Bis mit"). `today` kommt von außen, damit die
+/// Funktion ohne Systemzeit-Mocking testbar bleibt (wie `formatEntryDate`).
+let quickDateRange (today: DateTime) (quick: DateQuick) : DateTime * DateTime =
+    match quick with
+    | ThisMonth -> DateTime(today.Year, today.Month, 1), today.Date
+    | LastMonth ->
+        let firstOfThisMonth = DateTime(today.Year, today.Month, 1)
+        let lastOfLastMonth = firstOfThisMonth.AddDays(-1.0)
+        DateTime(lastOfLastMonth.Year, lastOfLastMonth.Month, 1), lastOfLastMonth
+    | ThisYear -> DateTime(today.Year, 1, 1), today.Date
+    | Last12Months -> today.Date.AddMonths(-12), today.Date
+
+/// Der Zeitraum-Filter im Entwurf wie im committeten Zustand: `Quick` ist gesetzt,
+/// solange eine Schnellwahl zuletzt gewählt wurde (für den Chip-Kurztext); Von/Bis
+/// von Hand geändert setzt `Quick` auf `None`, ohne Von/Bis zu löschen.
+type DateRangeFilter = {
+    Quick: DateQuick option
+    From: DateTime option
+    To: DateTime option
+}
+
+let emptyDateRange : DateRangeFilter = { Quick = None; From = None; To = None }
+
+/// Der committete Zustand aller fünf Such-Filter (ADR 0036). Mehrfachauswahl bei
+/// der Kategorie (Oder-Verknüpfung), sonst je Kriterium höchstens ein Wert.
+type Filters = {
+    CategoryIds: Guid Set
+    DateRange: DateRangeFilter option
+    Payee: string option
+    Memo: string option
+    AmountMin: decimal option
+    AmountMax: decimal option
+}
+
+let noFilters : Filters = {
+    CategoryIds = Set.empty
+    DateRange = None
+    Payee = None
+    Memo = None
+    AmountMin = None
+    AmountMax = None
+}
+
+/// Liest den Text eines Betrags-Suchfelds als `decimal option`: leer (nach
+/// `Trim()`) ist `None`, sonst ein geparster Wert, deutsches Komma wie Punkt
+/// gleichermaßen akzeptiert (Roman tippt üblicherweise Komma). Ein nicht lesbarer
+/// Text (z. B. "abc") liefert ebenfalls `None`, statt eine Ausnahme zu werfen:
+/// die Eingabe bleibt am Feld selbst sichtbar (`AmountMinDraft`/`AmountMaxDraft`),
+/// nur der Filter bleibt dann unverändert.
+let parseAmountFilterText (text: string) : decimal option =
+    let trimmed = text.Trim()
+    if trimmed = "" then
+        None
+    else
+        match
+            Decimal.TryParse(
+                trimmed.Replace(",", "."),
+                System.Globalization.NumberStyles.AllowDecimalPoint ||| System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture
+            )
+        with
+        | true, value -> Some value
+        | false, _ -> None
+
+/// Der Anzeigetext eines geparsten Betrags im Suchfeld, wenn ein Popover neu
+/// geöffnet wird (Rückrichtung von `parseAmountFilterText`). Immer mit Punkt
+/// (Invariant Culture): reiner Bearbeitungstext, keine Geld-Anzeige (die
+/// benutzt `Money.formatAmountText`).
+let formatAmountDraft (value: decimal) : string =
+    value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+
+let hasCategoryFilter (f: Filters) = not (Set.isEmpty f.CategoryIds)
+let hasDateFilter (f: Filters) = f.DateRange.IsSome
+let hasPayeeFilter (f: Filters) = f.Payee.IsSome
+let hasMemoFilter (f: Filters) = f.Memo.IsSome
+let hasAmountFilter (f: Filters) = f.AmountMin.IsSome || f.AmountMax.IsSome
+
+/// Ist mindestens einer der fünf Such-Filter aktiv? Steuert, ob die Summenzeile
+/// über der Liste steht (AC „Summenzeile erscheint genau dann..."). Der Chip
+/// "Zu prüfen (n)" und der Schalter "Gelöschte zeigen" zählen bewusst nicht mit:
+/// beide sind eigene, ältere Bedienelemente außerhalb dieser fünf Filter.
+let hasAnyFilter (f: Filters) : bool =
+    hasCategoryFilter f || hasDateFilter f || hasPayeeFilter f || hasMemoFilter f || hasAmountFilter f
+
+/// Die Chips der Filterleiste, in fester Reihenfolge (PC, Handoff Screen 2.9).
+/// `NeedsReviewChip` ist der bestehende Chip "Zu prüfen (n)" (ADR 0032): er zählt
+/// zur Chip-Reihenfolge dazu (Handoff: "„Zu prüfen (7)" rutscht dahinter"), aber
+/// nicht zu `hasAnyFilter`.
+type ChipId =
+    | NeedsReviewChip
+    | CategoryChip
+    | DateChip
+    | PayeeChip
+    | MemoChip
+    | AmountChip
+
+let fixedChipOrder : ChipId list =
+    [ NeedsReviewChip; CategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+
+/// Ob jeder Chip gerade aktiv ist: reiner Datensatz statt eines Funktionswerts,
+/// damit `orderChipsForDisplay` unit-testbar bleibt, ohne ein Model zu bauen.
+type ChipActivity = {
+    NeedsReview: bool
+    Category: bool
+    Date: bool
+    Payee: bool
+    Memo: bool
+    Amount: bool
+}
+
+let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
+    match chip with
+    | NeedsReviewChip -> activity.NeedsReview
+    | CategoryChip -> activity.Category
+    | DateChip -> activity.Date
+    | PayeeChip -> activity.Payee
+    | MemoChip -> activity.Memo
+    | AmountChip -> activity.Amount
+
+let chipActivityOf (onlyNeedsReview: bool) (filters: Filters) : ChipActivity = {
+    NeedsReview = onlyNeedsReview
+    Category = hasCategoryFilter filters
+    Date = hasDateFilter filters
+    Payee = hasPayeeFilter filters
+    Memo = hasMemoFilter filters
+    Amount = hasAmountFilter filters
+}
+
+/// Die Chip-Reihenfolge (AC „Am Handy wandern aktive Chips nach vorn"): am Handy
+/// aktive Chips zuerst (in ihrer bisherigen Reihenfolge), dann die inaktiven, auch
+/// in ihrer bisherigen Reihenfolge (stabile Partition). Am PC bleibt die feste
+/// Reihenfolge unabhängig vom Zustand, nur die Farbe wechselt (Handoff).
+let orderChipsForDisplay (isMobile: bool) (activity: ChipActivity) : ChipId list =
+    if not isMobile then
+        fixedChipOrder
+    else
+        let active, inactive = fixedChipOrder |> List.partition (isChipActive activity)
+        active @ inactive
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -49,6 +212,10 @@ type Model = {
     /// Die Gesamtzahl der Treffer des aktiven Filters, wie die zuletzt geladene Seite
     /// sie gemeldet hat.
     TotalCount: int
+
+    /// Die Summe über den gesamten Treffer (nicht die geladene Seite), wie die
+    /// zuletzt geladene Seite sie gemeldet hat (ledger-j8xq4, Summenzeile).
+    TotalAmount: Money
 
     /// Gibt es noch weitere Seiten zu laden? Reine Ableitung aus geladener Anzahl
     /// gegen `TotalCount`, nach jeder Seite neu gesetzt.
@@ -88,6 +255,56 @@ type Model = {
     /// Laeuft gerade ein Spiegel-Lauf? Die Liste bleibt waehrenddessen stehen:
     /// Roman wartet nie auf den Spiegel (ADR 0014).
     MirrorRunning: bool
+
+    // ============================================
+    // Filterleiste und Summenzeile (ledger-j8xq4)
+    // ============================================
+
+    /// Alle YNAB-Kategorien für die Kategorienauswahl. Geladen einmal über den
+    /// bestehenden `getCategories`-Weg (kein neuer Spiegel-Lauf, kein neuer
+    /// Endpunkt, AC „Available je Kategorie"): der Aufruf braucht das konfigurierte
+    /// YNAB-Budget, deshalb steckt er im Haupt-`State.fs` (wie `Rules`s
+    /// `LoadCategories`), nicht hinter dem Fable.Remoting-Proxy dieses Moduls.
+    Categories: RemoteData<YnabCategory list>
+
+    /// Der committete Zustand aller fünf Such-Filter.
+    Filters: Filters
+
+    /// Welcher Filter-Chip gerade sein Popover/Sheet offen hat, `None` sonst. Nur
+    /// einer zugleich (Handoff: "ein Muster für Kategorie, Zeitraum und Payee").
+    OpenPopover: ChipId option
+
+    /// Der Entwurf der Kategorien-Mehrfachauswahl, solange die Kategorienauswahl
+    /// offen ist (Click-Commit, ADR 0005/Styleguide 7.1): erst „Übernehmen"
+    /// schreibt ihn nach `Filters.CategoryIds`; „Esc"/Klick daneben/„Schließen"
+    /// verwirft ihn kommentarlos, `Filters` bleibt unverändert.
+    CategoryDraft: Guid Set
+    CategorySearch: string
+    HiddenCategoriesExpanded: bool
+
+    /// Der Entwurf des Zeitraum-Filters, solange die Zeitraum-Auswahl offen ist.
+    DateDraft: DateRangeFilter
+
+    /// Die Payee-Vorschläge des aktuellen Treffers (ohne den Payee-Filter selbst),
+    /// für die Payee-Auswahl. Payee ist Einzelauswahl: ein Klick filtert sofort,
+    /// kein Entwurf/Übernehmen nötig.
+    PayeeSuggestions: RemoteData<LedgerPayeeSuggestion list>
+    /// Der getippte Text, filtert `PayeeSuggestions` nur clientseitig (dieselbe
+    /// Vorschlagsliste, keine neue Abfrage je Tastendruck).
+    PayeeSearch: string
+
+    /// Der Entwurf des Memo-Suchfelds; ein neuer Tastendruck erhöht `MemoVersion`
+    /// und verwirft eine noch laufende, ältere Verzögerung (Debounce-Muster wie
+    /// `SyncFlow.State`s `PendingPayeeVersions`, hier ohne Map: es gibt nur ein
+    /// Memo-Feld je Seite, keins je Buchung).
+    MemoDraft: string
+    MemoVersion: int
+
+    /// Der Entwurf des Betrags-Suchfelds (Von/Bis), mit derselben
+    /// Debounce-Versionierung wie `MemoDraft`.
+    AmountMinDraft: string
+    AmountMaxDraft: string
+    AmountVersion: int
 }
 
 /// Die Nachrichten der Seite.
@@ -137,6 +354,58 @@ type Msg =
     | StartMirror
     | RunMirror
     | MirrorFinished of Result<MirrorRunSummary, string>
+
+    // ============================================
+    // Filterleiste und Summenzeile (ledger-j8xq4)
+    // ============================================
+
+    /// Die YNAB-Kategorien für die Kategorienauswahl laden (unrein: der Aufruf
+    /// braucht das konfigurierte Budget und steckt deshalb im Haupt-`State.fs`,
+    /// analog zu `Rules`s `LoadCategories`).
+    | LoadCategories
+    | CategoriesLoaded of Result<YnabCategory list, string>
+
+    /// Ein Filter-Chip öffnet sein Popover/Sheet; setzt den passenden Entwurf aus
+    /// dem committeten Zustand vor.
+    | OpenFilterPopover of ChipId
+    /// Esc, Klick daneben oder „Schließen": verwirft den Entwurf, `Filters` bleibt
+    /// unverändert.
+    | CloseFilterPopover
+
+    | SetCategorySearch of string
+    | ToggleCategoryDraft of Guid
+    | ToggleHiddenCategoriesExpanded
+    | ResetCategoryDraft
+    | ApplyCategoryFilter
+    | RemoveCategoryFilter
+
+    | SetDateQuick of DateQuick
+    | SetDateDraftFrom of DateTime option
+    | SetDateDraftTo of DateTime option
+    | ResetDateDraft
+    | ApplyDateFilter
+    | RemoveDateFilter
+
+    | SetPayeeSearch of string
+    | LoadPayeeSuggestions
+    | PayeeSuggestionsLoaded of Result<LedgerPayeeSuggestion list, string>
+    /// Einzelauswahl: filtert sofort (kein „Übernehmen").
+    | SelectPayeeFilter of string
+    | RemovePayeeFilter
+
+    | SetMemoDraft of string
+    | CommitMemoFilter of string * int
+    | RemoveMemoFilter
+
+    | SetAmountMinDraft of string
+    | SetAmountMaxDraft of string
+    | CommitAmountFilter of decimal option * decimal option * int
+    | RemoveAmountFilter
+
+    /// „Alle Filter löschen": setzt alle fünf Such-Filter zurück, lädt ab Seite 0
+    /// neu. Der Chip "Zu prüfen (n)" und der Schalter "Gelöschte zeigen" bleiben
+    /// unberührt, sie gehören nicht zu den fünf Filtern.
+    | ClearAllFilters
 
 /// Was die Seite nach oben meldet.
 type ExternalMsg =

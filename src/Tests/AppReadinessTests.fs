@@ -63,15 +63,27 @@ let appReadinessTests =
                             Entries = Loading } }
             Expect.isFalse (State.isPageReady model) "Entries lädt noch"
 
-        testCase "Ledger ist bereit, wenn Accounts, Balances und Entries geladen sind (Tabelle und Liste gefüllt)" <| fun () ->
+        testCase "Ledger ist NICHT bereit, solange Categories (Filterleiste, ledger-j8xq4) noch lädt" <| fun () ->
             let model =
                 { baseModel Ledger with
                     Ledger =
                         { (baseModel Ledger).Ledger with
                             Accounts = Success { Accounts = []; DefaultAccountId = None }
                             Balances = Success []
-                            Entries = Success [] } }
-            Expect.isTrue (State.isPageReady model) "Alle drei Datenstränge sind fertig"
+                            Entries = Success []
+                            Categories = Loading } }
+            Expect.isFalse (State.isPageReady model) "Categories lädt noch"
+
+        testCase "Ledger ist bereit, wenn Accounts, Balances, Entries und Categories geladen sind (Tabelle und Liste gefüllt)" <| fun () ->
+            let model =
+                { baseModel Ledger with
+                    Ledger =
+                        { (baseModel Ledger).Ledger with
+                            Accounts = Success { Accounts = []; DefaultAccountId = None }
+                            Balances = Success []
+                            Entries = Success []
+                            Categories = Success [] } }
+            Expect.isTrue (State.isPageReady model) "Alle vier Datenstränge sind fertig"
 
         testCase "Ledger ist bereit, auch wenn ein Datenstrang fehlgeschlagen ist (kein Skeleton mehr, aber kein Laden mehr)" <| fun () ->
             let model =
@@ -80,7 +92,8 @@ let appReadinessTests =
                         { (baseModel Ledger).Ledger with
                             Accounts = Failure "kaputt"
                             Balances = Success []
-                            Entries = Success [] } }
+                            Entries = Success []
+                            Categories = Success [] } }
             Expect.isTrue (State.isPageReady model) "Failure ist kein Ladezustand mehr"
 
         testCase "Rules ist NICHT bereit, solange Rules noch lädt" <| fun () ->

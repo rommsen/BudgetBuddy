@@ -815,6 +815,16 @@ let private entryList
             message
             (Some (fun () -> dispatch LoadEntries))
 
+    | Success [] when hasAnyFilter model.Filters ->
+        // AC "Leerzustand ohne Treffer": nennt eine nächste Handlung, statt nur
+        // Leere zu melden, anders als der Fall ohne jeden Filter (Zweig darunter),
+        // der auf den fehlenden Spiegel-Lauf hinweist.
+        Card.emptyState
+            (Icons.banknotes Icons.XL Icons.Default)
+            "Kein Treffer"
+            "Filter lockern oder alle Filter löschen."
+            (Some (Button.secondary "Alle Filter löschen" (fun () -> dispatch ClearAllFilters)))
+
     | Success [] ->
         Card.emptyState
             (Icons.banknotes Icons.XL Icons.Default)
@@ -840,24 +850,364 @@ let private entryList
                 ScrollSentinel (fun () -> dispatch LoadMoreEntries) (model.HasMoreEntries && not model.LoadingMore)
         ]
 
-/// Der Chip "Zu prüfen (n)" über der Liste (ADR 0032), in Konto- und Gesamtsicht
-/// immer sichtbar (anders als `deletedToggleRow`, die erst ab einem Treffer
-/// erscheint): das ist Romans häufigster Handy-Ablauf, kein Randfall. Aktiv gefärbt
-/// (Warning/pink, gefüllt), sonst neutral/soft. Antippen kippt `OnlyNeedsReview`
-/// (ADR 0020: der Proxy-Aufruf steckt hinter `RunLoadEntriesPage`, nicht hier).
-let private needsReviewChip (dispatch: Msg -> unit) (model: Model) =
-    Html.button [
-        prop.className "self-start"
-        prop.onClick (fun _ -> dispatch ToggleOnlyNeedsReview)
+// ============================================
+// Filterleiste und Summenzeile (ledger-j8xq4)
+// ============================================
+// Chips, Kategorienauswahl mit Mehrfachauswahl (Click-Commit, ADR 0005/Styleguide
+// 7.1), Zeitraum-Schnellwahl, Payee-Vorschläge, Memo-/Betrags-Suchfelder und die
+// Summenzeile über der Liste. Beide Geräte teilen sich denselben Popover-Inhalt
+// (`*PickerBody`); nur die Chrome darum unterscheidet sich (`filterChrome`):
+// BottomSheet am Handy, `FilterPopover` am PC. Welche Chrome gerendert wird,
+// entscheidet `Viewport.isDesktopViewport()` zur Renderzeit, NICHT der übliche
+// CSS-Doppel-Render-Trick (`Primitives.Responsive.mobileOnly`/`desktopOnly`): ein
+// `BottomSheet` portalt immer nach `document.body`, unabhängig von einem
+// versteckten Wrapper um die Aufrufstelle, ein doppelter Render würde also zwei
+// echte Overlays für denselben Zustand erzeugen.
+
+let private categoryGuidOf (id: YnabCategoryId) : Guid =
+    let (YnabCategoryId guid) = id
+    guid
+
+let private categoryMatchesSearch (search: string) (c: YnabCategory) : bool =
+    String.IsNullOrWhiteSpace search
+    || c.Name.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
+    || c.GroupName.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
+
+let private categoryRow (dispatch: Msg -> unit) (model: Model) (c: YnabCategory) =
+    let guid = categoryGuidOf c.Id
+    Html.div [
+        prop.key (string guid)
+        prop.className "flex items-center justify-between gap-3 py-2"
         prop.children [
-            Badge.view {
-                Badge.defaultProps with
-                    Text = needsReviewChipLabel model.NeedsReviewCount
-                    Variant = Badge.Warning
-                    Style = (if model.OnlyNeedsReview then Badge.Filled else Badge.Soft)
-            }
+            Input.checkbox (model.CategoryDraft.Contains guid) (fun _ -> dispatch (ToggleCategoryDraft guid)) c.Name
+            match c.Available with
+            | Some m -> Money.available m.Amount m.Currency
+            | None -> ()
         ]
     ]
+
+/// Die Kategorienauswahl mit Mehrfachauswahl (AC: Versteckte Kategorien eingeklappt
+/// am Ende, "Versteckt (n)"; Available je Kategorie rechtsbündig, wenn vorhanden;
+/// Click-Commit, erst "Übernehmen" schreibt den Entwurf in den Filter).
+let private categoryPickerBody (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) =
+    let visibleGroups =
+        categories
+        |> List.filter (fun c -> not c.Hidden && categoryMatchesSearch model.CategorySearch c)
+        |> List.groupBy (fun c -> c.GroupName)
+
+    let hidden = categories |> List.filter (fun c -> c.Hidden)
+
+    Html.div [
+        prop.className "flex flex-col gap-3"
+        prop.children [
+            Input.textSimple model.CategorySearch (fun text -> dispatch (SetCategorySearch text)) "Kategorie suchen…"
+
+            Html.div [
+                prop.className "flex flex-col gap-3 max-h-72 overflow-y-auto"
+                prop.children [
+                    for (groupName, items) in visibleGroups do
+                        Html.div [
+                            prop.key groupName
+                            prop.children [
+                                Html.div [
+                                    prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider pb-1"
+                                    prop.text groupName
+                                ]
+                                Html.div [
+                                    prop.className "flex flex-col"
+                                    prop.children (items |> List.map (categoryRow dispatch model))
+                                ]
+                            ]
+                        ]
+
+                    if not (List.isEmpty hidden) then
+                        Html.div [
+                            prop.children [
+                                Html.button [
+                                    prop.type' "button"
+                                    prop.className $"w-full flex items-center justify-between py-2 {Tokens.Colors.textSecondary} {Tokens.FontSizes.xs} font-semibold"
+                                    prop.onClick (fun _ -> dispatch ToggleHiddenCategoriesExpanded)
+                                    prop.children [
+                                        Html.span [ prop.text $"Versteckt ({List.length hidden})" ]
+                                        if model.HiddenCategoriesExpanded then Icons.chevronUp Icons.XS Icons.Default
+                                        else Icons.chevronDown Icons.XS Icons.Default
+                                    ]
+                                ]
+                                if model.HiddenCategoriesExpanded then
+                                    Html.div [
+                                        prop.className "flex flex-col"
+                                        prop.children (
+                                            hidden
+                                            |> List.filter (categoryMatchesSearch model.CategorySearch)
+                                            |> List.map (categoryRow dispatch model))
+                                    ]
+                            ]
+                        ]
+                ]
+            ]
+
+            Primitives.HStack.spaceBetween [
+                Button.ghost "Zurücksetzen" (fun () -> dispatch ResetCategoryDraft)
+                Button.primary $"Übernehmen ({Set.count model.CategoryDraft})" (fun () -> dispatch ApplyCategoryFilter)
+            ]
+        ]
+    ]
+
+let private dateQuickButton (dispatch: Msg -> unit) (model: Model) (quick: DateQuick) =
+    let isSelected = model.DateDraft.Quick = Some quick
+    Html.button [
+        prop.type' "button"
+        prop.className (
+            "rounded-full py-2 text-xs font-semibold border transition-colors "
+            + (if isSelected then $"bg-neon-teal/10 border-neon-teal {Tokens.Colors.neonTeal}"
+               else $"{Tokens.Backgrounds.dark} {Tokens.Borders.default'} {Tokens.Colors.textSecondary}"))
+        prop.onClick (fun _ -> dispatch (SetDateQuick quick))
+        prop.text (dateQuickLabel quick)
+    ]
+
+let private dateDraftInput (label: string) (value: DateTime option) (onChange: DateTime option -> unit) =
+    Input.groupSimple label (
+        Html.input [
+            prop.type' "date"
+            prop.className "w-full bg-surface-input border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary"
+            prop.value (value |> Option.map (fun d -> d.ToString("yyyy-MM-dd")) |> Option.defaultValue "")
+            prop.onChange (fun (text: string) ->
+                if String.IsNullOrWhiteSpace text then
+                    onChange None
+                else
+                    match DateTime.TryParse text with
+                    | true, d -> onChange (Some d)
+                    | false, _ -> onChange None)
+        ]
+    )
+
+/// Die Zeitraum-Auswahl (AC: Schnellwahl trägt Von/Bis sichtbar ein).
+let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
+    Html.div [
+        prop.className "flex flex-col gap-4"
+        prop.children [
+            Html.div [
+                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
+                prop.text "Schnellwahl"
+            ]
+            Html.div [
+                prop.className "grid grid-cols-2 gap-2"
+                prop.children [
+                    dateQuickButton dispatch model ThisMonth
+                    dateQuickButton dispatch model LastMonth
+                    dateQuickButton dispatch model ThisYear
+                    dateQuickButton dispatch model Last12Months
+                ]
+            ]
+            Html.div [
+                prop.className "grid grid-cols-2 gap-3"
+                prop.children [
+                    dateDraftInput "Von" model.DateDraft.From (fun v -> dispatch (SetDateDraftFrom v))
+                    dateDraftInput "Bis" model.DateDraft.To (fun v -> dispatch (SetDateDraftTo v))
+                ]
+            ]
+            Primitives.HStack.spaceBetween [
+                Button.ghost "Zurücksetzen" (fun () -> dispatch ResetDateDraft)
+                Button.primary "Übernehmen" (fun () -> dispatch ApplyDateFilter)
+            ]
+        ]
+    ]
+
+/// Die Payee-Auswahl (AC: Vorschläge kommen mit Anzahl aus dem aktuellen Treffer;
+/// Einzelauswahl, ein Klick filtert sofort, kein "Übernehmen").
+let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
+    let allSuggestions = model.PayeeSuggestions |> RemoteData.toOption |> Option.defaultValue []
+    let filtered =
+        allSuggestions
+        |> List.filter (fun s ->
+            String.IsNullOrWhiteSpace model.PayeeSearch
+            || s.Payee.ToLowerInvariant().Contains(model.PayeeSearch.Trim().ToLowerInvariant()))
+
+    Html.div [
+        prop.className "flex flex-col gap-3"
+        prop.children [
+            Input.textSimple model.PayeeSearch (fun text -> dispatch (SetPayeeSearch text)) "Payee suchen…"
+            Html.div [
+                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
+                prop.text $"Vorschläge aus den {model.TotalCount} Treffern"
+            ]
+            match model.PayeeSuggestions with
+            | Loading -> Loading.centered "Vorschläge werden geladen…"
+            | Failure message -> ErrorDisplay.inline' message
+            | NotAsked -> Html.none
+            | Success _ ->
+                Html.div [
+                    prop.className "flex flex-col max-h-64 overflow-y-auto"
+                    prop.children [
+                        for s in filtered do
+                            Html.button [
+                                prop.key s.Payee
+                                prop.type' "button"
+                                prop.className "flex items-center justify-between py-2.5 text-left"
+                                prop.onClick (fun _ -> dispatch (SelectPayeeFilter s.Payee))
+                                prop.children [
+                                    Html.span [ prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary}"; prop.text s.Payee ]
+                                    Html.span [
+                                        prop.className $"{Tokens.Fonts.mono} {Tokens.Colors.textMuted} {Tokens.FontSizes.xs} tabular-nums"
+                                        prop.text (string s.Count)
+                                    ]
+                                ]
+                            ]
+                    ]
+                ]
+            Html.p [
+                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
+                prop.text "Ein Tipp auf den Vorschlag filtert sofort: Payee ist immer nur einer."
+            ]
+        ]
+    ]
+
+/// Das Memo-Suchfeld (AC: Suchfeld mit kurzer Verzögerung beim Tippen).
+let private memoPickerBody (dispatch: Msg -> unit) (model: Model) =
+    Html.div [
+        prop.className "flex flex-col gap-3"
+        prop.children [ Input.textSimple model.MemoDraft (fun text -> dispatch (SetMemoDraft text)) "Memo durchsuchen…" ]
+    ]
+
+/// Das Betrags-Suchfeld, Von/Bis (AC: Suchfeld mit kurzer Verzögerung beim Tippen).
+let private amountPickerBody (dispatch: Msg -> unit) (model: Model) =
+    Html.div [
+        prop.className "grid grid-cols-2 gap-3"
+        prop.children [
+            Input.groupSimple "Von" (Input.textSimple model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
+            Input.groupSimple "Bis" (Input.textSimple model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
+        ]
+    ]
+
+let private chipTitle (chip: ChipId) : string =
+    match chip with
+    | NeedsReviewChip -> ""
+    | CategoryChip -> "Kategorie"
+    | DateChip -> "Zeitraum"
+    | PayeeChip -> "Payee"
+    | MemoChip -> "Memo"
+    | AmountChip -> "Betrag"
+
+let private popoverWidth (chip: ChipId) : string =
+    match chip with
+    | PayeeChip -> "w-[min(92vw,340px)]"
+    | _ -> "w-[min(92vw,320px)]"
+
+let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
+    match chip with
+    | NeedsReviewChip -> Html.none
+    | CategoryChip -> categoryPickerBody dispatch model categories
+    | DateChip -> datePickerBody dispatch model
+    | PayeeChip -> payeePickerBody dispatch model
+    | MemoChip -> memoPickerBody dispatch model
+    | AmountChip -> amountPickerBody dispatch model
+
+/// Die Chrome um einen Popover-Inhalt: BottomSheet am Handy, `FilterPopover` am
+/// PC. Siehe Modul-Kommentar oben, warum das zur Renderzeit entschieden wird,
+/// statt beide Varianten gleichzeitig (versteckt) zu montieren.
+let private filterChrome (dispatch: Msg -> unit) (chip: ChipId) (isOpen: bool) (body: ReactElement) : ReactElement =
+    if Viewport.isDesktopViewport () then
+        FilterPopover.view
+            { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); WidthClassName = popoverWidth chip }
+            [ body ]
+    else
+        BottomSheet.view
+            { IsOpen = isOpen; OnClose = (fun () -> dispatch CloseFilterPopover); Title = chipTitle chip; Subtitle = None; Footer = None }
+            [ body ]
+
+let private categoryChipLabel (filters: Filters) : string = $"Kategorie: {Set.count filters.CategoryIds}"
+
+let private dateChipLabel (filters: Filters) : string =
+    filters.DateRange
+    |> Option.bind (fun r -> r.Quick)
+    |> Option.map dateQuickLabel
+    |> Option.defaultValue "Zeitraum"
+
+let private chipLabel (model: Model) (chip: ChipId) : string =
+    match chip with
+    | NeedsReviewChip -> needsReviewChipLabel model.NeedsReviewCount
+    | CategoryChip -> if hasCategoryFilter model.Filters then categoryChipLabel model.Filters else "Kategorie"
+    | DateChip -> if hasDateFilter model.Filters then dateChipLabel model.Filters else "Zeitraum"
+    | PayeeChip -> model.Filters.Payee |> Option.defaultValue "Payee"
+    | MemoChip -> model.Filters.Memo |> Option.defaultValue "Memo"
+    | AmountChip -> "Betrag"
+
+let private isChipActive (model: Model) (chip: ChipId) : bool =
+    match chip with
+    | NeedsReviewChip -> model.OnlyNeedsReview
+    | CategoryChip -> hasCategoryFilter model.Filters
+    | DateChip -> hasDateFilter model.Filters
+    | PayeeChip -> hasPayeeFilter model.Filters
+    | MemoChip -> hasMemoFilter model.Filters
+    | AmountChip -> hasAmountFilter model.Filters
+
+let private removeChipMsg (chip: ChipId) : Msg option =
+    match chip with
+    | NeedsReviewChip -> None
+    | CategoryChip -> Some RemoveCategoryFilter
+    | DateChip -> Some RemoveDateFilter
+    | PayeeChip -> Some RemovePayeeFilter
+    | MemoChip -> Some RemoveMemoFilter
+    | AmountChip -> Some RemoveAmountFilter
+
+let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
+    match chip with
+    | NeedsReviewChip -> fun () -> dispatch ToggleOnlyNeedsReview
+    | other -> fun () -> dispatch (OpenFilterPopover other)
+
+/// Ein Chip samt seiner Chrome (Sheet/Popover), wenn er eine eigene Auswahl hat.
+let private filterChip (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
+    let chipElement =
+        ChipBar.chip {
+            Label = chipLabel model chip
+            IsActive = isChipActive model chip
+            OnClick = chipOnClick dispatch chip
+            OnRemove = removeChipMsg chip |> Option.map (fun msg -> fun () -> dispatch msg)
+        }
+    match chip with
+    | NeedsReviewChip -> chipElement
+    | _ ->
+        let isOpen = model.OpenPopover = Some chip
+        ChipBar.chipWithPopover chipElement (filterChrome dispatch chip isOpen (popoverBody dispatch model categories chip))
+
+/// Die Filterleiste selbst: Reihenfolge und "Alle Filter löschen" (AC: „Alle Filter
+/// löschen" sitzt am Ende, erscheint nur, wenn mindestens ein Filter aktiv ist).
+/// `elementRef` (dritte Iteration, seit der vierten Iteration ein
+/// Callback-Ref statt eines Objekt-Refs, siehe `ChipBar.bar`): an
+/// `ChipBar.bar` durchgereicht, damit `FilterBarColumn` unten die
+/// tatsächlich gerenderte Höhe messen kann.
+let private filterChipBar
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (categories: YnabCategory list)
+    (elementRef: (Browser.Types.Element -> unit) option)
+    : ReactElement =
+    let isDesktop = Viewport.isDesktopViewport ()
+    let activity = chipActivityOf model.OnlyNeedsReview model.Filters
+    let order = orderChipsForDisplay (not isDesktop) activity
+    ChipBar.bar
+        elementRef
+        ((order |> List.map (filterChip dispatch model categories))
+         @ (if hasAnyFilter model.Filters then [ ChipBar.clearAllButton (fun () -> dispatch ClearAllFilters) ] else []))
+
+/// Die Summenzeile über der Liste (AC: erscheint genau dann, wenn mindestens ein
+/// Filter aktiv ist; Trefferzahl und Summe über den ganzen Treffer, nicht die Seite
+/// (beide kommen unverändert vom Server, `model.TotalCount`/`model.TotalAmount`).
+let private summaryRow (model: Model) : ReactElement =
+    if not (hasAnyFilter model.Filters) then
+        Html.none
+    else
+        Card.standard [
+            Primitives.HStack.spaceBetween [
+                Html.span [
+                    prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textSecondary}"
+                    prop.text (
+                        let noun = if model.TotalCount = 1 then "Buchung" else "Buchungen"
+                        $"{model.TotalCount} {noun}")
+                ]
+                Money.transactionWithCurrency model.TotalAmount.Amount model.TotalAmount.Currency
+            ]
+        ]
 
 /// Zeile über der Liste, solange es gelöschte Buchungen im Filter gibt (AC2,
 /// ledger-p3n8k): Anzahl-Satz plus Schalter. Ohne gelöschte Buchungen im Filter
@@ -874,10 +1224,95 @@ let private deletedToggleRow (dispatch: Msg -> unit) (model: Model) =
             ]
         ]
 
+// Minimale ResizeObserver-Bindung (nicht Teil von Fable.Browser.Dom, analog zu
+// `observeIntersection` oben und `Viewport.fs`s visualViewport-Bindung): meldet die
+// aktuelle Rand-zu-Rand-Höhe des beobachteten Elements bei jeder Größenänderung.
+// Bewusst `getBoundingClientRect().height` statt `entries[0].contentRect.height`:
+// Letztere ist die Content-Box ohne Padding, hier `py-1` (8px) auf `ChipBar.bar`,
+// und genau diese Differenz reichte aus, um den Tabellenkopf wieder in die
+// Leiste hineinragen zu lassen (per Browsertest gefunden). `getBoundingClientRect()`
+// liefert dieselbe Rand-zu-Rand-Höhe, die auch der Tabellenkopf-Test unten misst.
+[<Emit(
+    "(function(el, cb) { var o = new ResizeObserver(function() { cb(el.getBoundingClientRect().height); }); o.observe(el); return function() { o.disconnect(); }; })($0, $1)"
+)>]
+let private observeHeight (element: Browser.Types.Element) (onResize: float -> unit) : (unit -> unit) =
+    jsNative
+
+/// Die Spalte mit Filterleiste, Summenzeile, Lösch-Umschalter und Liste (dritte
+/// Iteration, ledger-j8xq4, Verifier-Fund): der sticky Tabellenkopf
+/// (`.table-sticky-thead thead`, `styles.css`) braucht die tatsächlich gerenderte
+/// Höhe der sticky Filterleiste darüber, nicht eine geschätzte Konstante, sonst
+/// kollidieren beide, sobald die Leiste bei aktivem Filter zweizeilig umbricht
+/// (`md:flex-wrap`, `ChipBar.bar`) oder auf einer schmaleren Breite anders hoch
+/// ausfällt als angenommen. Ein `ResizeObserver` auf der Leiste selbst schreibt
+/// ihre Höhe als CSS-Variable `--ledger-filter-bar-height` auf diese Spalte;
+/// `styles.css` liest sie mit einem Fallback von `0px`, sodass jede sticky
+/// Tabelle ohne eine solche Spalte darüber (der dokumentierte Vertrag von
+/// `Table.fs`s `Sticky`-Feld) unverändert direkt unter der Navbar klebt.
+///
+/// Vierte Iteration, Verifier-Fund: die Kinder dieser Spalte sind eine
+/// keylose Liste, an deren erster Stelle bedingt der Spiegel-Lauf-Hinweis
+/// steht. Wird `model.MirrorRunning` wahr, NACHDEM diese Komponente schon
+/// gemountet war, verschiebt sich die Leiste von Kindposition 0 auf 1; React
+/// vergibt den DOM-Knoten an Position 0 an den (typgleichen) Hinweis-`div`
+/// weiter und legt für die Leiste an Position 1 einen neuen Knoten an. Ein
+/// Objekt-Ref (`React.useRef`) bekäme diesen neuen Knoten zwar korrekt
+/// zugewiesen, aber ein `useEffect` mit `[||]`-Abhängigkeiten, das den
+/// `ResizeObserver` beim allerersten Mount an den DAMALIGEN Knoten bindet,
+/// bemerkt den späteren Wechsel nie: er beobachtet danach den wiederverwendeten
+/// Knoten weiter, der jetzt der Hinweis ist, nicht die Leiste. Der
+/// Callback-Ref unten löst das, weil React ihn bei JEDEM Knotenwechsel neu
+/// aufruft (mit dem neuen Knoten, oder mit `null` beim Unmount): er trennt
+/// zuerst einen zuvor gemerkten Observer, dann beobachtet er den neuen
+/// Knoten, falls einer da ist.
+[<ReactComponent>]
+let private FilterBarColumn
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (categories: YnabCategory list)
+    (accounts: LedgerAccountView list)
+    (isAllAccounts: bool)
+    =
+    let barHeight, setBarHeight = React.useState 0.0
+    let disconnectRef = React.useRef<(unit -> unit) option> None
+
+    let barCallbackRef =
+        React.useCallback (
+            (fun (element: Browser.Types.Element) ->
+                match disconnectRef.current with
+                | Some disconnect ->
+                    disconnect ()
+                    disconnectRef.current <- None
+                | None -> ()
+
+                if not (isNull (box element)) then
+                    disconnectRef.current <- Some (observeHeight element setBarHeight)),
+            [||]
+        )
+
+    Html.div [
+        prop.className "flex-1 min-w-0"
+        prop.style [ style.custom ("--ledger-filter-bar-height", sprintf "%.0fpx" barHeight) ]
+        prop.children [
+            Primitives.Stack.md [
+                if model.MirrorRunning then
+                    // Der Lauf blockiert die Liste nicht: sie bleibt
+                    // stehen, der Hinweis steht daneben (ADR 0014).
+                    Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
+
+                filterChipBar dispatch model categories (Some barCallbackRef)
+                summaryRow model
+                deletedToggleRow dispatch model
+                entryList dispatch accounts isAllAccounts model
+            ]
+        ]
+    ]
+
 let view (model: Model) (dispatch: Msg -> unit) =
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
     let balances = model.Balances |> RemoteData.toOption |> Option.defaultValue []
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
+    let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 
     Primitives.Container.view [
         PageHeader.gradientWithActions
@@ -900,21 +1335,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 prop.children [
                     accountStrip dispatch accounts balances model.SelectedFilter
 
-                    Html.div [
-                        prop.className "flex-1 min-w-0"
-                        prop.children [
-                            Primitives.Stack.md [
-                                if model.MirrorRunning then
-                                    // Der Lauf blockiert die Liste nicht: sie bleibt
-                                    // stehen, der Hinweis steht daneben (ADR 0014).
-                                    Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
-
-                                needsReviewChip dispatch model
-                                deletedToggleRow dispatch model
-                                entryList dispatch accounts isAllAccounts model
-                            ]
-                        ]
-                    ]
+                    FilterBarColumn dispatch model categories accounts isAllAccounts
                 ]
             ]
 

@@ -25,6 +25,8 @@
     <Compile Include="DesignSystem/Navigation.fs" />
     <Compile Include="DesignSystem/PageHeader.fs" />
     <Compile Include="DesignSystem/Form.fs" />
+    <Compile Include="DesignSystem/ChipBar.fs" />
+    <Compile Include="DesignSystem/FilterPopover.fs" />
 
     <!-- Utilities -->
     <Compile Include="Debounce.fs" />

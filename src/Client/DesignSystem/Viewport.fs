@@ -126,6 +126,18 @@ let isFinePointer () =
     let mq: obj = window?matchMedia ("(pointer: fine)")
     unbox<bool> (mq?matches)
 
+/// True at "md" and above (768px), matching the breakpoint `Primitives.Responsive`
+/// uses for its `mobileOnly`/`desktopOnly` CSS pairs. Read once at render time,
+/// like `isFinePointer` above, not a live-updating hook: for call sites that need
+/// a single yes/no to pick between two entirely different components (e.g. a
+/// BottomSheet vs. a Popover chrome around the same filter body, ledger-j8xq4):
+/// a CSS-hidden dual render doesn't work there because a `BottomSheet` portals to
+/// `document.body` regardless of any hidden wrapper around the call site, so
+/// rendering both variants would mount two overlays for the same state.
+let isDesktopViewport () =
+    let mq: obj = window?matchMedia ("(min-width: 768px)")
+    unbox<bool> (mq?matches)
+
 /// Light haptic feedback where supported (Android Chrome). Silently ignored
 /// elsewhere — iOS Safari does not implement navigator.vibrate.
 let vibrate (ms: int) =
