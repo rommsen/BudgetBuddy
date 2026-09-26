@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-09-26 11:50 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 36m (11:16 bis 11:52)
+**Completed:** 1 (first-try PASS: 0, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-j8xq4: 4 (drei im Vorlauf, eine Wiederaufnahme nach Eskalation und Refine)
+**Commits:** 2
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-09-26 11:49 -- Task verified and completed: ledger-j8xq4 - "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC"
 
 **Type:** Work / Task completion
