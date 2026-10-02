@@ -1,7 +1,7 @@
 ---
 id: ledger-fgt4k
 title: "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-09-25

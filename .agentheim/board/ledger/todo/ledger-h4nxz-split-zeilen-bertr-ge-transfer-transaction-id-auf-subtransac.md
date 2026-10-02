@@ -1,7 +1,7 @@
 ---
 id: ledger-h4nxz
 title: "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-19

@@ -1,7 +1,7 @@
 ---
 id: design-system-an22r
 title: "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html"
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-09-11

@@ -1,7 +1,7 @@
 ---
 id: ledger-ggzdw
 title: "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-09-25

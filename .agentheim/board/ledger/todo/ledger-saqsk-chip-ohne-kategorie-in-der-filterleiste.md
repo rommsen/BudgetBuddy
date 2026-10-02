@@ -1,7 +1,7 @@
 ---
 id: ledger-saqsk
 title: "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-25
