@@ -32,14 +32,23 @@ unbemerkt, bis ein künftiger Aufrufer sie tatsächlich verwendet und denselben 
 Ausfall erlebt, den ADR 0031 und ADR 0041 schon zweimal beheben mussten.
 
 ## What
-- `Tokens.fs`s `TextGlows.orange`/`TextGlows.teal` auf dieselbe Arbitrary-Property-Syntax
-  umstellen wie `TextGlows.green` (ADR 0041), mit den rgba-Werten der passenden
-  `--shadow-glow-orange`/`--shadow-glow-teal`-Theme-Variablen aus `styles.css` (analog
-  zur Herleitung, die `design-system-thtpp` für `green` dokumentiert hat).
-- Prüfen, ob zwischenzeitlich ein Aufrufer hinzugekommen ist (`git grep -n
-  "TextGlows\.\(orange\|teal\)"`); falls ja, dessen Rendering vor/nach dem Fix visuell
-  vergleichen (analog dem `/styleguide`-Vorher/Nachher-Vergleich in
+- `Tokens.fs`s `TextGlows.orange`/`TextGlows.teal` (Zeilen 104-105, direkt neben `green`
+  in Zeile 103) auf dieselbe Arbitrary-Property-Syntax umstellen wie `TextGlows.green`
+  (ADR 0041). Geprüfte rgba-Werte aus `src/Client/styles.css` (Zeilen 34/35):
+  `--shadow-glow-orange: 0 0 20px rgba(255, 107, 44, 0.5)`,
+  `--shadow-glow-teal: 0 0 20px rgba(0, 212, 170, 0.5)`. Analog zu `green`s
+  `"[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"` also:
+  - `orange = "[text-shadow:0_0_10px_theme(colors.neon-orange),0_0_20px_rgba(255,107,44,0.5)]"`
+  - `teal = "[text-shadow:0_0_10px_theme(colors.neon-teal),0_0_20px_rgba(0,212,170,0.5)]"`
+- Geprüft: `git grep -n "TextGlows\.\(orange\|teal\)" -- src/` findet aktuell (2026-10-02)
+  keinen Aufrufer außerhalb von `Tokens.fs` selbst. Bei der Umsetzung erneut prüfen, ob
+  zwischenzeitlich einer hinzugekommen ist; falls ja, dessen Rendering vor/nach dem Fix
+  visuell vergleichen (analog dem `/styleguide`-Vorher/Nachher-Vergleich in
   `design-system-fq8dn`).
+- Geprüft: `npm run guard:classes` ruft `scripts/tailwind-class-guard.mjs` auf
+  (`package.json`, Zeile 14), `npm run test:scripts` (`node --test scripts/*.test.mjs`)
+  schließt `scripts/tailwind-class-guard.test.mjs` mit ein. Pfade/Skriptnamen im Task
+  stimmen, keine Korrektur nötig.
 - Falls dabei ein allgemeineres Muster auffällt (mehr `Tokens.fs`-Literale ohne
   Aufrufer, die dasselbe Risiko tragen): das gehört in eine eigene, breiter angelegte
   Aufgabe, nicht in diese.

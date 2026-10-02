@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-10-02 10:07 -- Modeling / Refined: Sammellauf ledger-fgt4k, ledger-fgw2q, ledger-ggzdw, ledger-saqsk, ledger-b7qmx, ledger-h4nxz, design-system-an22r, design-system-tg2wn, design-system-bz0gn
+
+**Type:** Modeling / Refine (Sammellauf, 9 Tasks)
+**BC:** ledger, design-system
+**Status after:** todo (8), backlog (ledger-b7qmx, wartet auf ledger-q1hw2)
+**Summary:** Neun Backlog-Tasks in einem Durchgang verfeinert, Produktfragen vorab mit Roman geklärt. ledger-fgt4k: echter Fehler, countDeletedEntries übergeht OnlyNeedsReview. ledger-fgw2q: nicht auswertbare Push-Antwort blockiert auch auf dem normalen Pfad den Abschluss. ledger-ggzdw: Spiegel vergleicht nur die Kategorie-Id, Liste löst den Blattnamen live auf. ledger-saqsk: Chip "ohne Kategorie" heißt "ohne Ziel", Überträge ausgenommen, Gelöschte folgen dem Schalter. ledger-b7qmx: Split-Zeilen-Kategorie im Detail voll qualifiziert, jetzt Implementierungs-Task. ledger-h4nxz: 197 Split-Zeilen-Überträge in der DB-Kopie gezählt, Verknüpfung über die Subtransaction-Id; Annahme zur transfer_transaction_id gegen die YNAB-API bestätigt. design-system-an22r: nur @dsCard-Attribute und thumbnail.html, @kind-Annotation entfällt. design-system-tg2wn und design-system-bz0gn nachgeschärft (bz0gn zieht die Kategorien-Mehrfachauswahl als DS-Komponente heraus).
+**Split into:** ledger-h6mer (Bestandsfälle auf der Live-Datenbank nachverknüpfen, aus ledger-h4nxz)
+**ADRs written:** 0044, 0045, 0046, 0048
+
+---
+
+## 2026-10-02 10:06 -- Modeling / Captured: ledger-h6mer - "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Einmaliger Vollabruf auf der Live-Datenbank nach dem Deploy von ledger-h4nxz, damit die 197 historischen Split-Zeilen-Überträge ihre Gegenbuchung bekommen. Abgespalten bei der Verfeinerung von ledger-h4nxz (ADR 0046 Punkt 7).
+
+---
+
 ## 2026-09-26 11:50 -- Work session ended
 
 **Type:** Work / Session end

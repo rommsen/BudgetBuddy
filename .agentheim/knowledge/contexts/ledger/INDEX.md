@@ -1,6 +1,10 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0048** — Chip "ohne Kategorie" fragt nach einem fehlenden Ziel, nicht nach einer fehlenden Kategorie; transfer_account_id wird roh in den Zustand projiziert — 2026-10-02 — `../../decisions/0048-ohne-kategorie-chip-ziel-statt-kategorie-transfer-projektion.md`
+- **0046** — Split-Zeilen-Überträge werden über YNABs Subtransaction-Id verknüpft, nicht über den Buchungskopf — 2026-10-02 — `../../decisions/0046-split-zeilen-uebertraege-ueber-subtransaction-id-verknuepfen.md`
+- **0045** — Split-Zeilen-Kategorie wird im Detail voll qualifiziert, über denselben Lookup wie die Kopf-Kategorie (ADR 0039 fortgeschrieben) — 2026-10-02 — `../../decisions/0045-split-zeilen-kategorie-qualifiziert-fortschreibung-0039.md`
+- **0044** — Kategorie-Umbenennung ist keine Umkategorisierung, Spiegel vergleicht die Id, die Liste löst den Blattnamen live auf — 2026-10-02 — `../../decisions/0044-kategorie-umbenennung-ist-keine-umkategorisierung.md`
 - **0043**: Die Filterleiste des Kassenbuchs wählt Popover (PC) oder BottomSheet (Handy) zur Renderzeit per `Viewport.isDesktopViewport()`, nicht per CSS-Doppel-Render; der Versatz des sticky Tabellenkopfs folgt der gemessenen Leistenhöhe über einen Callback-Ref an `ChipBar.bar` (2026-09-26), `../../decisions/0043-filterleiste-chrome-per-viewport-check-statt-css-doppel-render.md`
 - **0042**: Payee-Vorschläge über eine gemeinsame F#-Faltung (`groupFoldedPayeeCounts`, `Core.searchFold`) gruppieren statt über `GROUP BY bb_lower(payee)`, weil SQLite die angezeigte Schreibweise einer nicht gruppierten Spalte offenlässt; häufigste Schreibweise gewinnt, bei Gleichstand die ordinal kleinste (2026-09-25), `../../decisions/0042-payee-vorschlaege-faltung-in-fsharp-statt-group-by-bb-lower.md`
 - **0037** — Groß-/Kleinschreibung der Payee- und Memo-Filter über die anwendungsdefinierte SQL-Funktion `bb_lower` falten statt über `COLLATE NOCASE` (faltet nur ASCII, und `LIKE` ignoriert Kollationen); Lesepfad statt Normalform-Spalte, keine Diakritika-Entfernung — 2026-09-20 — `knowledge/decisions/0037-suchfilter-falten-ueber-anwendungsdefinierte-sql-funktion.md`
