@@ -103,7 +103,21 @@ module ReadModel =
     /// Kategorie-Id -> Gruppenname (ADR 0039, ledger-h6ptn): einmal je Abfrage
     /// geladen (`Ledger.Persistence.loadCategoryGroups`), hier nur nachgeschlagen.
     /// Die Funktion bleibt rein: kein I/O, die Zuordnung kommt als Parameter herein.
-    let toEntryView (categoryGroups: Map<Guid, string>) (origin: LedgerOrigin) (entry: Entry) : LedgerEntryView =
+    ///
+    /// `categoryNames` ist die Zuordnung Kategorie-Id -> heutiger Name (ADR 0044,
+    /// `Ledger.Persistence.loadCategoryNames`): Kopf und `ToCategory`-Split-Ziele werden
+    /// live aufgelöst, mit Rückfall auf den gespeicherten Namen bei fehlendem oder leerem
+    /// Treffer.
+    let toEntryView
+        (categoryNames: Map<Guid, string>)
+        (categoryGroups: Map<Guid, string>)
+        (origin: LedgerOrigin)
+        (entry: Entry)
+        : LedgerEntryView =
+        let liveName (YnabCategoryId categoryId) (stored: string) =
+            match categoryNames |> Map.tryFind categoryId with
+            | Some name when not (String.IsNullOrWhiteSpace name) -> name
+            | _ -> stored
         let (EntryId id) = entry.Id
         let (LedgerAccountId accountId) = entry.AccountId
         let categoryGroupName =
@@ -118,9 +132,15 @@ module ReadModel =
             Amount = entry.Amount
             Payee = entry.Payee
             Memo = entry.Memo
-            CategoryName = entry.Category |> Option.map (fun c -> c.CategoryName)
+            CategoryName = entry.Category |> Option.map (fun c -> liveName c.CategoryId c.CategoryName)
             CategoryGroupName = categoryGroupName
-            Splits = entry.Splits
+            Splits =
+                entry.Splits
+                |> List.map (fun s ->
+                    match s.Target with
+                    | ToCategory (categoryId, name) ->
+                        { s with Target = ToCategory (categoryId, liveName categoryId name) }
+                    | _ -> s)
             Origin = origin
             DeletedInYnab = entry.DeletedInYnab
             NeedsReview = needsReview entry
@@ -169,8 +189,14 @@ module ReadModel =
     let private describeCategorizationChange (p: EntryCategorizationChangeObservedInYnabPayload) =
         let categoryPart =
             match p.OldCategory, p.NewCategory with
-            | Some o, Some n when o.CategoryName <> n.CategoryName || o.CategoryId <> n.CategoryId ->
+            | Some o, Some n when o.CategoryId <> n.CategoryId ->
                 [ $"Kategorie in YNAB geändert: {o.CategoryName} → {n.CategoryName}" ]
+            // Gleiche Id, anderer Name, Splits unverändert: ein vor ADR 0044 erzeugtes
+            // Umbenennungs-Ereignis, ehrlich beschriftet statt als Umkategorisierung.
+            | Some o, Some n
+                when o.CategoryName <> n.CategoryName
+                     && categorizationIdentity None p.OldSplits = categorizationIdentity None p.NewSplits ->
+                [ $"Kategorie in YNAB umbenannt: {o.CategoryName} → {n.CategoryName}" ]
             | None, Some n -> [ $"Kategorie in YNAB gesetzt: {n.CategoryName}" ]
             | Some o, None -> [ $"Kategorie in YNAB entfernt: {o.CategoryName}" ]
             | _ -> []
@@ -180,7 +206,8 @@ module ReadModel =
             | [], [] -> []
             | [], newSplits -> [ $"In YNAB in {List.length newSplits} Split-Zeilen aufgeteilt" ]
             | _, [] -> [ "Split in YNAB aufgehoben" ]
-            | oldSplits, newSplits when oldSplits <> newSplits ->
+            | oldSplits, newSplits when
+                categorizationIdentity None oldSplits <> categorizationIdentity None newSplits ->
                 [ $"Splits in YNAB geändert: {List.length oldSplits} → {List.length newSplits} Zeilen" ]
             | _ -> []
 
@@ -311,6 +338,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
         let! entries = Ledger.Persistence.loadEntriesForAccount (LedgerAccountId accountId)
         let! origins = Ledger.Persistence.loadEntryOrigins ()
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
+        let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
         return
             entries
@@ -324,7 +352,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
                     |> Option.map ReadModel.originOf
                     |> Option.defaultValue MirroredFromYnab
 
-                ReadModel.toEntryView categoryGroups origin entry)
+                ReadModel.toEntryView categoryNames categoryGroups origin entry)
     }
 
 /// Baut das `Ledger.Persistence.EntryFilter` aus den Such-Feldern einer
@@ -378,6 +406,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! needsReviewCount = Ledger.Persistence.countNeedsReviewEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
+        let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
         let views =
             pageEntries
@@ -385,7 +414,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
                 let (EntryId id) = entry.Id
                 let origin =
                     origins |> Map.tryFind id |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
-                ReadModel.toEntryView categoryGroups origin entry)
+                ReadModel.toEntryView categoryNames categoryGroups origin entry)
 
         return {
             Entries = views

@@ -517,6 +517,19 @@ type ObservationContext = {
     ObservedAt: DateTime
 }
 
+let private splitTargetIdentity (target: SplitTarget) : SplitTarget =
+    match target with
+    | ToCategory (categoryId, _) -> ToCategory (categoryId, "")
+    | other -> other
+
+/// Die Kategorie-Identität einer Buchung für den Vergleich in `observe` (ADR 0044):
+/// Kopf nur über die `CategoryId`, `ToCategory`-Ziele ohne Namen. Eine reine
+/// Umbenennung in YNAB ist damit keine Umkategorisierung. `ToTransfer` und
+/// `Uncategorized` bleiben unverändert.
+let categorizationIdentity (category: CategoryRef option) (splits: TransactionSplit list) =
+    category |> Option.map (fun c -> c.CategoryId),
+    splits |> List.map (fun s -> { s with Target = splitTargetIdentity s.Target })
+
 /// Vergleicht einen YNAB-Snapshot mit dem Zustand der Buchung und sagt, welche
 /// Ereignisse daraus folgen. Rein, ohne I/O.
 ///
@@ -572,7 +585,8 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             || entry.AccountId <> ctx.AccountId
 
         let categorizationChanged =
-            entry.Category <> obs.Category || entry.Splits <> obs.Splits
+            categorizationIdentity entry.Category entry.Splits
+            <> categorizationIdentity obs.Category obs.Splits
 
         let clearedChanged = entry.Cleared <> obs.Cleared
 

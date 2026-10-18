@@ -115,6 +115,82 @@ let observeTests =
                 Expect.equal payload.NewCategory (Some haushalt) "neue Kategorie"
             | events -> failtestf "genau ein Kategorisierungs-Ereignis erwartet, waren %A" events
 
+        testCase "reine Kategorie-Umbenennung (gleiche Id, anderer Name) erzeugt kein Ereignis" <| fun () ->
+            // Verhindert den Bug aus ledger-ggzdw / ADR 0044: eine Umbenennung in YNAB
+            // erzeugte je gespiegelter Buchung ein falsches Umkategorisierungs-Ereignis.
+            let entryId = newEntryId ()
+            let obs = observation "ynab-umbenannt"
+            let state = stateFrom entryId obs
+            let umbenannt = { lebensmittel with CategoryName = "Essen" }
+
+            Expect.isEmpty
+                (observe (context entryId) (Some state) { obs with Category = Some umbenannt })
+                "die Kategorie-Identität ist die Id, der Name ist nur Beschriftung"
+
+        testCase "gespeicherter leerer Kategorie-Name und nicht leerer Snapshot-Name (gleiche Id) erzeugt kein Ereignis" <| fun () ->
+            // Schützt den Fall, dass YNAB beim ersten Sehen keinen Namen lieferte (ADR 0044).
+            let entryId = newEntryId ()
+            let obs = { observation "ynab-leerer-name" with Category = Some { lebensmittel with CategoryName = "" } }
+            let state = stateFrom entryId obs
+
+            Expect.isEmpty
+                (observe (context entryId) (Some state) { obs with Category = Some lebensmittel })
+                "ein nachgelieferter Name ist keine Änderung"
+
+        testCase "Split-Buchung: nur der Name eines ToCategory-Ziels ändert sich, kein Ereignis" <| fun () ->
+            // Verhindert denselben Umbenennungs-Bug für Split-Zeilen (ADR 0044).
+            let entryId = newEntryId ()
+            let splitsMit (name: string) =
+                [ { Target = ToCategory (lebensmittel.CategoryId, name); Amount = eur -10m; Memo = Some "a" }
+                  { Target = ToCategory (haushalt.CategoryId, "Haushalt"); Amount = eur -11.99m; Memo = None } ]
+            let obs = { observation "ynab-split-name" with Category = None; Splits = splitsMit "Lebensmittel" }
+            let state = stateFrom entryId obs
+
+            Expect.isEmpty
+                (observe (context entryId) (Some state) { obs with Splits = splitsMit "Essen" })
+                "gleiche categoryId, Betrag, Memo und Reihenfolge: nur der Name unterscheidet sich"
+
+        testCase "Split-Änderung (Betrag, Memo, Anzahl, Reihenfolge, ToTransfer-Kontoname) löst weiterhin ein Ereignis aus" <| fun () ->
+            // Schützt das Intakt-Verhalten: nur Kategorie-Namen sind namens-blind (ADR 0044).
+            let entryId = newEntryId ()
+            let zeile1 = { Target = ToCategory (lebensmittel.CategoryId, "Lebensmittel"); Amount = eur -10m; Memo = Some "a" }
+            let zeile2 = { Target = ToCategory (haushalt.CategoryId, "Haushalt"); Amount = eur -11.99m; Memo = None }
+            let transfer name = { Target = ToTransfer (ynabAccount, name); Amount = eur -11.99m; Memo = None }
+            let basis = { observation "ynab-split-intakt" with Category = None; Splits = [ zeile1; zeile2 ] }
+            let state = stateFrom entryId basis
+
+            let varianten =
+                [ "Betrag", [ { zeile1 with Amount = eur -9m }; zeile2 ]
+                  "Memo", [ { zeile1 with Memo = Some "b" }; zeile2 ]
+                  "Anzahl", [ zeile1 ]
+                  "Reihenfolge", [ zeile2; zeile1 ] ]
+            for name, splits in varianten do
+                match observe (context entryId) (Some state) { basis with Splits = splits } with
+                | [ { Body = EntryCategorizationChangeObservedInYnab _ } ] -> ()
+                | events -> failtestf "%s: genau ein Kategorisierungs-Ereignis erwartet, waren %A" name events
+
+            let stateTransfer = stateFrom entryId { basis with Splits = [ zeile1; transfer "Giro" ] }
+            match observe (context entryId) (Some stateTransfer) { basis with Splits = [ zeile1; transfer "Girokonto" ] } with
+            | [ { Body = EntryCategorizationChangeObservedInYnab _ } ] -> ()
+            | events -> failtestf "ToTransfer-Kontoname: genau ein Ereignis erwartet, waren %A" events
+
+        testCase "Split-Änderung bei gleichzeitig umbenannter Kopf-Kategorie: genau ein Ereignis mit vollen Namen" <| fun () ->
+            // Schützt: die Payload trägt weiterhin die echten Kopf-Namen, auch wenn nur Splits "wirklich" abweichen.
+            let entryId = newEntryId ()
+            let zeile1 = { Target = ToCategory (lebensmittel.CategoryId, "Lebensmittel"); Amount = eur -10m; Memo = None }
+            let zeile2 = { Target = ToCategory (haushalt.CategoryId, "Haushalt"); Amount = eur -11.99m; Memo = None }
+            let basis = { observation "ynab-split-und-kopf" with Splits = [ zeile1; zeile2 ] }
+            let state = stateFrom entryId basis
+            let umbenannt = { lebensmittel with CategoryName = "Essen" }
+
+            let neu = { basis with Category = Some umbenannt; Splits = [ { zeile1 with Amount = eur -9m }; zeile2 ] }
+            match observe (context entryId) (Some state) neu with
+            | [ { Body = EntryCategorizationChangeObservedInYnab payload } ] ->
+                Expect.equal payload.OldCategory (Some lebensmittel) "alter Kopf-Name bleibt in der Payload"
+                Expect.equal payload.NewCategory (Some umbenannt) "neuer Kopf-Name in der Payload"
+                Expect.equal payload.NewSplits neu.Splits "volle neue Splits"
+            | events -> failtestf "genau ein Ereignis erwartet, waren %A" events
+
         testCase "geaenderte Kopfdaten und Cleared ergeben zwei Ereignisse in fester Reihenfolge" <| fun () ->
             let entryId = newEntryId ()
             let obs = observation "ynab-mehrfach"

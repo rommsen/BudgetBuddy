@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 17:47 -- Task verified and completed: ledger-ggzdw - "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
+
+**Type:** Work / Task completion
+**Task:** ledger-ggzdw - "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
+**Summary:** Eine reine Kategorie-Umbenennung in YNAB erzeugt im Spiegel kein Umkategorisierungs-Ereignis mehr; die Kassenbuch-Liste löst Blattnamen live aus ledger_categories auf (ADR 0044).
+**Duration:** 21m
+**Verification:** PASS (iteration 3)
+**Files changed:** 4
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-10-18 17:45 -- Batch started: [design-system-an22r]
 
 **Type:** Work / Batch start

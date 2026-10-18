@@ -85,7 +85,7 @@ let private recorded (seq: int) (actor: Actor) (body: LedgerEventBody) : Recorde
 }
 
 let private entryView (n: int) (amount: decimal) (deleted: bool) : LedgerEntryView =
-    ReadModel.toEntryView Map.empty MirroredFromYnab { entry n amount with DeletedInYnab = deleted }
+    ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab { entry n amount with DeletedInYnab = deleted }
 
 // ============================================
 // Reine Abbildung: Ereignis -> Historien-Satz
@@ -164,6 +164,41 @@ let historyLanguageTests =
             Expect.isFalse
                 (text.Contains "EntryCategorizationChangeObservedInYnab")
                 "Ein Typname hat in der Historie nichts zu suchen"
+        }
+
+        test "Gleiche Id, anderer Name, Splits unverändert heißt 'umbenannt', nicht 'geändert'" {
+            // Schützt die ehrliche Beschriftung eines vor ADR 0044 erzeugten Umbenennungs-Ereignisses.
+            let alt = category 1 "Lebensmittel"
+            let body =
+                EntryCategorizationChangeObservedInYnab {
+                    OldCategory = Some alt
+                    NewCategory = Some { alt with CategoryName = "Essen" }
+                    OldSplits = []
+                    NewSplits = []
+                }
+            Expect.equal
+                (ReadModel.describe body)
+                "Kategorie in YNAB umbenannt: Lebensmittel → Essen"
+                "Eine Umbenennung ist keine Umkategorisierung"
+        }
+
+        test "Gleiche Kopf-Id, anderer Kopf-Name, geänderte Splits: der Satz nennt nur die Splits" {
+            // Verhindert den Bug aus ledger-ggzdw: mit dem alten Namensvergleich im Kopf stand
+            // hier zusätzlich "Kategorie in YNAB geändert: Lebensmittel → Essen", obwohl sich
+            // die Kopf-Identität (die Id) nicht geändert hat (ADR 0044).
+            let alt = category 1 "Lebensmittel"
+            let zeile betrag = { Target = ToCategory (alt.CategoryId, "Lebensmittel"); Amount = eur betrag; Memo = None }
+            let body =
+                EntryCategorizationChangeObservedInYnab {
+                    OldCategory = Some alt
+                    NewCategory = Some { alt with CategoryName = "Essen" }
+                    OldSplits = [ zeile -5m; zeile -5m ]
+                    NewSplits = [ zeile -4m; zeile -6m ]
+                }
+            Expect.equal
+                (ReadModel.describe body)
+                "Splits in YNAB geändert: 2 → 2 Zeilen"
+                "Kein Kopf-Teil, weil die Kategorie-Id gleich blieb"
         }
 
         test "Erstmals gesetzte Kategorie heisst 'gesetzt', nicht 'geändert'" {
@@ -351,7 +386,7 @@ let readModelTests =
     testList "Kassenbuch-Sichten" [
 
         test "Buchung wird mit Kategorie-Name und Herkunft zur Sicht" {
-            let view = ReadModel.toEntryView Map.empty MirroredFromYnab (entry 1 -42.5m)
+            let view = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab (entry 1 -42.5m)
             Expect.equal view.Id (entryGuid 1) "Die eigene Buchungs-Id bleibt"
             Expect.equal view.CategoryName (Some "Lebensmittel") "Der Name, nicht die Id"
             Expect.equal view.Origin MirroredFromYnab "Die Herkunft wird durchgereicht"
@@ -399,7 +434,7 @@ let readModelTests =
         }
 
         test "Geloeschte Buchung bleibt sichtbar und traegt das Kennzeichen" {
-            let view = ReadModel.toEntryView Map.empty MirroredFromYnab { entry 1 -42.5m with DeletedInYnab = true }
+            let view = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab { entry 1 -42.5m with DeletedInYnab = true }
             Expect.isTrue view.DeletedInYnab "Das Kennzeichen ueberlebt die Abbildung"
         }
 
@@ -2839,17 +2874,71 @@ let categoryGroupLookupTests =
             | Some view -> Expect.equal view.CategoryGroupName None "ohne Kategorie gibt es nichts nachzuschlagen"
             | None -> failtest "Buchung ohne Kategorie nicht gefunden"
 
+        testCase "toEntryView löst Kopf und ToCategory-Split-Ziele live aus categoryNames auf" <| fun () ->
+            // Schützt ADR 0044 Punkt 3: nach einer Umbenennung zeigt die Liste den heutigen
+            // Blattnamen, nicht den im Zustand veralteten.
+            let alt = category 1 "Lebensmittel"
+            let (YnabCategoryId altId) = alt.CategoryId
+            let andere = category 2 "Haushalt"
+            let (YnabCategoryId andereId) = andere.CategoryId
+            let zeile target = { Target = target; Amount = eur -5m; Memo = None }
+            let e =
+                { entry 1 -10m with
+                    Category = Some alt
+                    Splits =
+                        [ zeile (ToCategory (alt.CategoryId, "Lebensmittel"))
+                          zeile (ToCategory (andere.CategoryId, "Haushalt"))
+                          zeile Uncategorized ] }
+            let names = Map.ofList [ altId, "Essen"; andereId, "   " ]
+            let view = ReadModel.toEntryView names Map.empty MirroredFromYnab e
+
+            Expect.equal view.CategoryName (Some "Essen") "Kopf wird live aufgelöst"
+            Expect.equal
+                (view.Splits |> List.map (fun s -> s.Target))
+                [ ToCategory (alt.CategoryId, "Essen")
+                  ToCategory (andere.CategoryId, "Haushalt")
+                  Uncategorized ]
+                "Split-Ziel live; leerer Name fällt zurück; Uncategorized unverändert"
+
+        testCase "toEntryView fällt ohne Treffer auf den gespeicherten Namen zurück, ohne Kategorie bleibt None" <| fun () ->
+            let view = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab (entry 1 -10m)
+            Expect.equal view.CategoryName (Some "Lebensmittel") "Rückfall auf den gespeicherten Namen"
+            let ohne = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab { entry 1 -10m with Category = None }
+            Expect.equal ohne.CategoryName None "ohne Kategorie bleibt CategoryName None"
+
+        testCase "getLedgerEntriesPage und getLedgerEntriesForAccount lösen den Blattnamen live aus ledger_categories auf" <| fun () ->
+            // Schützt ADR 0044 Punkt 3 für beide Aufrufer.
+            let cat = category 94 "Alter Name"
+            seedEntryFull pageTestAccountAK 504 -7m (DateTime(2026, 5, 4)) (Some "Edeka") None (Some cat)
+            |> Async.RunSynchronously
+            upsertCategories [ { Id = cat.CategoryId; Name = "Neuer Name"; GroupName = "Alltag"; Available = None; Hidden = false } ]
+            |> Async.RunSynchronously
+
+            let (LedgerAccountId rawAK) = pageTestAccountAK
+            let page = Ledger.QueryHandlers.getLedgerEntriesPage (baseQuery (Some rawAK)) |> Async.RunSynchronously
+            Expect.isTrue
+                (page.Entries |> List.exists (fun e -> e.CategoryName = Some "Neuer Name"))
+                "getLedgerEntriesPage zeigt den heutigen Namen"
+            Expect.isFalse
+                (page.Entries |> List.exists (fun e -> e.CategoryName = Some "Alter Name"))
+                "der veraltete gespeicherte Name taucht nicht mehr auf"
+
+            let alle = Ledger.QueryHandlers.getLedgerEntriesForAccount rawAK |> Async.RunSynchronously
+            Expect.isTrue
+                (alle |> List.exists (fun e -> e.CategoryName = Some "Neuer Name"))
+                "getLedgerEntriesForAccount zeigt den heutigen Namen"
+
         testCase "toEntryView bleibt rein: dieselbe Zuordnung liefert bei gleicher Eingabe immer dasselbe Ergebnis" <| fun () ->
             // AC: die Zuordnung kommt als Parameter herein, keine I/O in toEntryView
             // selbst, durch die Signatur erzwungen (ein Map-Parameter, kein Zugriff
             // auf die Datenbank innerhalb der Funktion).
             let groups = Map.ofList [ (let (YnabCategoryId id) = (category 1 "x").CategoryId in id), "Alltag" ]
-            let view1 = ReadModel.toEntryView groups MirroredFromYnab (entry 1 -42.5m)
-            let view2 = ReadModel.toEntryView groups MirroredFromYnab (entry 1 -42.5m)
+            let view1 = ReadModel.toEntryView Map.empty groups MirroredFromYnab (entry 1 -42.5m)
+            let view2 = ReadModel.toEntryView Map.empty groups MirroredFromYnab (entry 1 -42.5m)
             Expect.equal view1 view2 "reine Funktion: gleiche Eingabe, gleiches Ergebnis"
             Expect.equal view1.CategoryGroupName (Some "Alltag") "die übergebene Zuordnung wird tatsächlich benutzt"
 
-            let leer = ReadModel.toEntryView Map.empty MirroredFromYnab (entry 1 -42.5m)
+            let leer = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab (entry 1 -42.5m)
             Expect.equal leer.CategoryGroupName None "eine leere Zuordnung ergibt keine Gruppe, keinen Fehler"
     ]
 

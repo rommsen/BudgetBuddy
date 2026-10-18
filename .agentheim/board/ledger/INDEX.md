@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 3
-- **Doing:** 1
-- **Done:** 45
+- **Doing:** 0
+- **Done:** 46
 <!-- task-counts:end -->
 
 ### Todo
@@ -25,11 +25,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `doing/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `done/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
 - **ledger-fgw2q** — "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen" (bug) — `done/ledger-fgw2q-nicht-auswertbare-ynab-antwort-beim-comdirect-push-l-sst-die.md`
 - **ledger-j8xq4** — "Kassenbuch-Filterleiste und Summenzeile: Chips, Kategorienauswahl mit Mehrfachauswahl, Popover am PC" (feature) — `done/ledger-j8xq4-filterleiste-und-summenzeile-in-der-oberflaeche.md`
 - **ledger-nnn47** — "Platzhalter-Zählung in LedgerViewTests auf Code eingrenzen (Kommentarzeilen ausnehmen), damit ein Doc-Kommentar den Platzhalter wieder nennen darf" (chore) — `done/ledger-nnn47-platzhalter-zaehlung-auf-die-ansichts-ruempfe-eingrenzen.md`

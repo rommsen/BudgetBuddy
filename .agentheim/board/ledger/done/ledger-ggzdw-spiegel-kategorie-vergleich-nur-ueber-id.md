@@ -1,7 +1,7 @@
 ---
 id: ledger-ggzdw
 title: "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-09-25
@@ -170,3 +170,36 @@ Worker darf es zusätzlich tun, muss aber nicht.
 Die Signaturänderung von `toEntryView` betrifft alle bestehenden Tests, die die Funktion
 direkt aufrufen (zusätzlicher Parameter): diese Tests müssen einmalig angepasst werden,
 das ist kein eigenes Akzeptanzkriterium, sondern Teil von "dotnet test grün".
+
+## Verifier note (iteration 1)
+
+**REASONS:**
+- Check 1 (acceptance criteria coverage): the criterion "eine echte Split-Änderung bei GLEICHZEITIG umbenannter Kopf-Kategorie löst genau ein Ereignis aus ...; die Payload trägt beide Kopf-Namen ..., der Historien-Satz erwähnt keine Kopf-Änderung, weil die Kopf-Identität gleich blieb" is only partly covered. The test "Split-Änderung bei gleichzeitig umbenannter Kopf-Kategorie: genau ein Ereignis mit vollen Namen" (src/Tests/LedgerMirrorTests.fs, about line 176) checks the event count and the payload. Nothing checks the history sentence. No `ReadModel.describe` test in src/Tests/LedgerPageTests.fs feeds an `EntryCategorizationChangeObservedInYnab` with the same head `CategoryId`, a different head name, and changed splits, then asserts the output has no "Kategorie in YNAB geändert/umbenannt" part, i.e. exactly "Splits in YNAB geändert: N → M Zeilen". The old guard (`o.CategoryName <> n.CategoryName || o.CategoryId <> n.CategoryId`) would have printed "Kategorie in YNAB geändert: Lebensmittel → Essen; Splits ..." here. The new code is probably correct, but no test proves it.
+- Stopped at check 1, suite not run. Side notes: Domain.fs change is pure; diff limited to src/; umlaut/dash grep only false positives.
+
+**SUGGESTED_FIX:** Add a `ReadModel.describe` test in src/Tests/LedgerPageTests.fs, with a bug-fix comment. Input: an `EntryCategorizationChangeObservedInYnab` with OldCategory=(Id X, "Lebensmittel"), NewCategory=(Id X, "Essen"), and different split amounts. Assert the sentence is exactly "Splits in YNAB geändert: 2 → 2 Zeilen" (no head part). Then run `dotnet build && dotnet test`.
+
+**ITERATION_HINT:** likely-fixable
+
+## Verifier note (iteration 2)
+
+**REASONS:**
+- Check 5 (BC README sync): the task adds a domain invariant and a read-model rule, but `readmeDelta` is empty. Invariant: per ADR 0044 Decision 1, `EntryCategorizationChangeObservedInYnab` fires only when the categorization identity changes (`Ledger.Domain.categorizationIdentity`); a pure rename in YNAB is not a recategorization. Read-model rule: `toEntryView` resolves the leaf name live from `ledger_categories` and falls back to the stored name.
+- Stale spot 1: ledger README.md:268 still defines the event as "Kategorie oder Splits geändert (alt/neu)", without saying the decision ignores names, that the payload still carries full names, or that `categorizationIdentity` exists.
+- Stale spot 2: README.md:172 ("Kategorie-Stammdaten") describes `ReadModel.toEntryView` as taking only the id-to-group map and lists only `upsertCategories` and `loadCategoryGroups`. After the diff `toEntryView` takes a second `categoryNames` map, both callers load `Ledger.Persistence.loadCategoryNames`, the lists show today's leaf name, and there is a new history sentence "Kategorie in YNAB umbenannt: A → B".
+- Checks 1 to 4 passed (iteration-1 gap closed, 1112 tests green, regression tests red against old code, Domain.fs pure, diff scoped to src/, writing style clean).
+
+**SUGGESTED_FIX:** Send a README_DELTA with no code change: (a) a `replace` on the `EntryCategorizationChangeObservedInYnab` bullet (README.md:268) saying the event fires only when the categorization identity changes (head by `CategoryId`, `ToCategory` targets without names, ADR 0044) while the payload keeps the full names; (b) a `replace` on the "Kategorie-Stammdaten" bullet (README.md:172) naming `loadCategoryNames`, the second `categoryNames` parameter of `toEntryView`, the live leaf name for head and `ToCategory` split targets with fallback to the stored name, and the "umbenannt" history sentence.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+`observe` entscheidet über `EntryCategorizationChangeObservedInYnab` jetzt über `Ledger.Domain.categorizationIdentity` (Kopf nur `CategoryId`, `ToCategory`-Ziele ohne Namen, `ToTransfer`/`Uncategorized` unverändert). Eine reine Kategorie-Umbenennung in YNAB erzeugt kein Ereignis mehr. Die Payload trägt bei echten Änderungen weiter die vollen Namen.
+
+`ReadModel.toEntryView` hat einen neuen ersten Parameter `categoryNames: Map<Guid, string>` und löst Kopf und `ToCategory`-Split-Ziele live aus `ledger_categories` auf (Rückfall auf gespeicherten Namen bei fehlendem oder leerem Treffer). `getLedgerEntriesPage` und `getLedgerEntriesForAccount` laden dafür `loadCategoryNames` und reichen es durch. `describeCategorizationChange` unterscheidet Kopf über die Id und Splits über die Identität; gleiche Id, anderer Name, Splits unverändert heißt "Kategorie in YNAB umbenannt: A → B". `describeRecategorized` bewusst unverändert (nicht Teil der ACs).
+
+Regressionstests: drei in `src/Tests/LedgerMirrorTests.fs` waren vor dem Fix rot (Kopf-Umbenennung, leerer gespeicherter Name, Split-Namensänderung), dazu Intakt-Tests (Split Betrag/Memo/Anzahl/Reihenfolge/ToTransfer-Kontoname, Split-Änderung bei gleichzeitig umbenanntem Kopf). In `src/Tests/LedgerPageTests.fs`: Umbenannt-Satz, Historien-Satz bei gleicher Kopf-Id, anderem Kopf-Namen und geänderten Splits (genau "Splits in YNAB geändert: 2 → 2 Zeilen", mit dem alten Namens-Guard rot geprüft), toEntryView live/Rückfall/None, beide Aufrufer gegen die Datenbank. Bestehende toEntryView-Aufrufe in Tests auf die neue Signatur angepasst.
+
+README-Delta: zwei `replace`-Ops (Kategorie-Stammdaten im Abschnitt "Ubiquitous language", `EntryCategorizationChangeObservedInYnab` im Abschnitt "Ereignisse"). Das Gate akzeptiert die erste. Die zweite lehnt es ab (Prüfung 6: der Abschnitt "Ereignisse" hat keine Bullets mit fettem Kopf, per replace nicht erreichbar); die Op bleibt wie gewünscht stehen, der Conductor platziert den Bullet-Text von Hand.
+
+Dateien: `src/Server/Ledger/Domain.fs`, `src/Server/Ledger/QueryHandlers.fs`, `src/Tests/LedgerMirrorTests.fs`, `src/Tests/LedgerPageTests.fs`.
