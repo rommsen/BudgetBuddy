@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 22:16 -- Task verified and completed: design-system-bz0gn - "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen"
+
+**Type:** Work / Task completion
+**Task:** design-system-bz0gn - "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen"
+**Summary:** Kategorienauswahl mit Mehrfachauswahl als Client.DesignSystem.CategoryMultiSelect herausgezogen (Kassenbuch ruft sie über einen Props-Record auf) und drei neue Styleguide-Karten (ChipBar, FilterPopover, Kategorienauswahl Mehrfachauswahl) samt Export-Registrierung ergänzt.
+**Duration:** 22m
+**Verification:** PASS (iteration 2)
+**Files changed:** 6
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
+## 2026-10-18 22:13 -- Verification failed: design-system-bz0gn - Filterleisten-Komponenten im Styleguide
+
+**Type:** Work / Verification failure
+**Task:** design-system-bz0gn - Filterleisten-Komponenten im Styleguide
+**Iteration:** 1 of 3
+**Reasons:** README-Liste DS-Komponente ohne CategoryMultiSelect/ChipBar/FilterPopover, zerschnittener Doc-Kommentar in Styleguide/View.fs
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-18 21:53 -- Batch started: [design-system-bz0gn]
 
 **Type:** Work / Batch start

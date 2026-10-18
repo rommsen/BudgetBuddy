@@ -672,6 +672,17 @@ let private BottomSheetDemo () =
             ]
     ]
 
+/// Gemeinsames Beispiel-Fixture für die Kategorien-Demos (Einzelauswahl-Picker und
+/// Mehrfachauswahl): fünf erfundene, plausible Kategorien in zwei Gruppen
+/// (Id, Gruppe, Name, Available).
+let private demoCategoryData : (string * string * string * decimal) list = [
+    "lebensmittel", "Lebenshaltung", "Lebensmittel", 128.40m
+    "freizeit", "Lebenshaltung", "Freizeit", -32.10m
+    "sonstiges", "Lebenshaltung", "Sonstiges", 0m
+    "miete", "Fixkosten", "Miete", 850.00m
+    "versicherung", "Fixkosten", "Versicherung", -15.50m
+]
+
 /// Kategorienauswahl-Demo (design-system-y6gkd): `BottomSheet.categoryPicker` mit
 /// erfundenen Beispieldaten. Zeigt in einem offenen Sheet beide Zustände, die Roman
 /// im Kassenbuch nutzt (Ablauf 4 "Kategorie ändern", ledger-xbrht): oben die Chips
@@ -683,13 +694,10 @@ let private CategoryPickerDemo () =
     let isOpen, setOpen = React.useState false
     let chosen, setChosen = React.useState ""
 
-    let categories : BottomSheet.CategoryPickerOption list = [
-        { Id = "lebensmittel"; Label = "Lebenshaltung: Lebensmittel"; Available = Some { Amount = 128.40m; Currency = "EUR" } }
-        { Id = "freizeit"; Label = "Lebenshaltung: Freizeit"; Available = Some { Amount = -32.10m; Currency = "EUR" } }
-        { Id = "sonstiges"; Label = "Lebenshaltung: Sonstiges"; Available = Some { Amount = 0m; Currency = "EUR" } }
-        { Id = "miete"; Label = "Fixkosten: Miete"; Available = Some { Amount = 850.00m; Currency = "EUR" } }
-        { Id = "versicherung"; Label = "Fixkosten: Versicherung"; Available = Some { Amount = -15.50m; Currency = "EUR" } }
-    ]
+    let categories : BottomSheet.CategoryPickerOption list =
+        demoCategoryData
+        |> List.map (fun (id, group, name, amount) ->
+            { Id = id; Label = $"{group}: {name}"; Available = Some { Amount = amount; Currency = "EUR" } })
 
     section "19. Kategorienauswahl (Kategorie ändern)" [
         note "Kategorie ändern im Kassenbuch (Ablauf 4, ledger-xbrht): Vorschläge und Zuletzt \
@@ -806,6 +814,123 @@ let private voiceSection =
     ]
 
 // ============================================
+// Filterleiste (ledger-j8xq4, design-system-bz0gn)
+// ============================================
+
+/// ChipBar: aktive und inaktive Chips, mit und ohne "×", "Alle Filter löschen".
+let private chipBarSection =
+    section "23. ChipBar" [
+        note "Filterleiste des Kassenbuchs: jeder Chip ist ein Rahmen mit zwei Knöpfen \
+              (Auswahl öffnen, Filter entfernen mit ×). Aktive Chips in Teal, inaktive \
+              gedämpft. \"Alle Filter löschen\" steht am Ende und erscheint nur bei aktivem \
+              Filter. ADR 0043, styleguide.md §7.3."
+        Html.div [
+            prop.custom ("data-ds-card", "components-chipbar")
+            prop.custom ("data-ds-card-name", "ChipBar")
+            prop.custom ("data-ds-card-subtitle", "Filter-Chips mit Entfernen-Knopf und Alle Filter löschen")
+            prop.custom ("data-ds-group", "Components")
+            prop.children [
+                ChipBar.bar None [
+                    ChipBar.chip { Label = "Konto: Girokonto"; IsActive = true; OnClick = ignore; OnRemove = Some ignore }
+                    ChipBar.chip { Label = "Kategorie (2)"; IsActive = true; OnClick = ignore; OnRemove = Some ignore }
+                    ChipBar.chip { Label = "Zeitraum"; IsActive = false; OnClick = ignore; OnRemove = Some ignore }
+                    ChipBar.chip { Label = "Zu prüfen"; IsActive = true; OnClick = ignore; OnRemove = None }
+                    ChipBar.chip { Label = "Ohne Kategorie"; IsActive = false; OnClick = ignore; OnRemove = None }
+                    ChipBar.clearAllButton ignore
+                ]
+            ]
+        ]
+    ]
+
+/// FilterPopover: ein Chip mit offenem Popover, Platzhalter-Inhalt.
+[<ReactComponent>]
+let private FilterPopoverDemo () =
+    let isOpen, setOpen = React.useState true
+
+    section "24. FilterPopover" [
+        note "PC-Popover unter seinem Chip (am Handy hängt stattdessen ein BottomSheet, ADR 0043). \
+              Klick außerhalb und Esc schließen es im Kassenbuch, ohne zu filtern. In dieser Demo \
+              bleibt es offen (sonst würde der Export es beim Einsammeln der anderen Karten \
+              schließen), der Chip schaltet es um."
+        Html.div [
+            prop.custom ("data-ds-card", "components-filterpopover")
+            prop.custom ("data-ds-card-name", "FilterPopover")
+            prop.custom ("data-ds-card-subtitle", "Popover unter einem Filter-Chip, schließt per Esc oder Klick außerhalb")
+            prop.custom ("data-ds-group", "Components")
+            // Das Popover ist absolut positioniert und zählt nicht zur Höhe des Wrappers.
+            prop.className "min-h-[14rem]"
+            prop.children [
+                ChipBar.bar None [
+                    ChipBar.chipWithPopover
+                        (ChipBar.chip {
+                            Label = "Zeitraum"
+                            IsActive = isOpen
+                            OnClick = fun () -> setOpen (not isOpen)
+                            OnRemove = None })
+                        (FilterPopover.view
+                            { IsOpen = isOpen; OnClose = ignore; WidthClassName = "w-[min(92vw,320px)]" }
+                            [
+                                Html.p [
+                                    prop.className "text-sm text-text-secondary"
+                                    prop.text "Platzhalter-Inhalt des Popovers."
+                                ]
+                            ])
+                ]
+            ]
+        ]
+    ]
+
+/// Kategorienauswahl mit Mehrfachauswahl, Zustand lokal.
+[<ReactComponent>]
+let private CategoryMultiSelectDemo () =
+    let selected, setSelected = React.useState (Set.ofList [ Guid.Parse "00000000-0000-0000-0000-000000001001" ])
+    let search, setSearch = React.useState ""
+    let hiddenExpanded, setHiddenExpanded = React.useState false
+
+    let guidOf (i: int) = Guid.Parse ("00000000-0000-0000-0000-" + (string (1000 + i)).PadLeft(12, '0'))
+
+    let categories : YnabCategory list =
+        (demoCategoryData
+         |> List.mapi (fun i (_, group, name, amount) ->
+             { Id = YnabCategoryId (guidOf (i + 1))
+               Name = name
+               GroupName = group
+               Available = Some { Amount = amount; Currency = "EUR" }
+               Hidden = false }))
+        @ [ { Id = YnabCategoryId (guidOf 99)
+              Name = "Altes Sparziel"
+              GroupName = "Fixkosten"
+              Available = None
+              Hidden = true } ]
+
+    section "25. Kategorienauswahl mit Mehrfachauswahl" [
+        note "Inhalt des Kategorie-Filters im Kassenbuch: Suchfeld, Gruppenliste mit Checkbox und \
+              Available rechts, versteckte Kategorien eingeklappt unter \"Versteckt (n)\". \
+              Click-Commit: erst \"Übernehmen\" schreibt den Entwurf in den Filter. Nicht zu \
+              verwechseln mit der Einzelauswahl in Sektion 19. ADR 0005, styleguide.md §7.1."
+        Html.div [
+            prop.custom ("data-ds-card", "components-categorymultiselect")
+            prop.custom ("data-ds-card-name", "Kategorienauswahl (Mehrfachauswahl)")
+            prop.custom ("data-ds-card-subtitle", "Kategorien-Filter mit Suche, Checkboxen, Available und eingeklappten versteckten Kategorien")
+            prop.custom ("data-ds-group", "Components")
+            prop.className "max-w-sm"
+            prop.children [
+                CategoryMultiSelect.view {
+                    Categories = categories
+                    Selected = selected
+                    Search = search
+                    HiddenExpanded = hiddenExpanded
+                    OnToggle = fun g -> setSelected (if Set.contains g selected then Set.remove g selected else Set.add g selected)
+                    OnSearchChange = setSearch
+                    OnToggleHiddenExpanded = fun () -> setHiddenExpanded (not hiddenExpanded)
+                    OnReset = fun () -> setSelected Set.empty
+                    OnApply = ignore
+                }
+            ]
+        ]
+    ]
+
+// ============================================
 // Seite
 // ============================================
 
@@ -848,6 +973,9 @@ let view () =
                         SwipeDemo()
                         navigationSection
                         voiceSection
+                        chipBarSection
+                        FilterPopoverDemo()
+                        CategoryMultiSelectDemo()
                     ]
                     |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))
                 )

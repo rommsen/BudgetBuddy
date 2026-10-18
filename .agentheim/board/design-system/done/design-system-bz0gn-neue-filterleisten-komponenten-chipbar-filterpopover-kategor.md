@@ -1,7 +1,7 @@
 ---
 id: design-system-bz0gn
 title: "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen"
-status: doing
+status: done
 type: chore
 context: design-system
 created: 2026-09-25
@@ -121,3 +121,25 @@ der Conductor serialisiert den Dateikonflikt. Reihenfolge-Hinweis: landet `an22r
 bekommen die drei hier neuen Karten direkt `data-ds-card-name`/`data-ds-card-subtitle`
 statt nur `group`; landet dieser Task zuerst, trägt `an22r` die beiden Attribute
 nachträglich auch an diesen drei neuen Karten nach.
+## Verifier note (iteration 1)
+
+**REASONS:**
+- Check 5 (BC README sync): the diff adds `Client.DesignSystem.CategoryMultiSelect`. The design-system README's **DS-Komponente** bullet in `## Ubiquitous language` is an explicit, counted list ("eine der 20 Feliz-Komponenten ... (Button, Card, ..., Swipe, Viewport)"). No op adds CategoryMultiSelect; ChipBar and FilterPopover are also missing (left over from ledger-j8xq4) and belong in the same update.
+- Code defect, src/Client/Components/Styleguide/View.fs around lines 675-690: `demoCategoryData` was inserted in the middle of the `///` doc comment of `CategoryPickerDemo`; both doc comments are now garbled.
+- Everything else passed: extraction matches the old code line for line, scripts 118/118 serial incl. ledger-filter-bar, guard:classes, dotnet build/test (1147), npm run build, real export with full markers for the three new cards, delta gate exit 0, workarounds confined to the demo, TESTS_ADDED 0 acceptable.
+
+**SUGGESTED_FIX:** Add a README_DELTA `replace` on the **DS-Komponente** bullet adding CategoryMultiSelect (and ChipBar, FilterPopover) with the corrected count. Move `demoCategoryData` above the whole `CategoryPickerDemo` doc comment.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Die Kategorienauswahl mit Mehrfachauswahl liegt jetzt als `Client.DesignSystem.CategoryMultiSelect` (`src/Client/DesignSystem/CategoryMultiSelect.fs`, in `Client.fsproj` nach `FilterPopover.fs`) mit dem Props-Record aus der Aufgabe und ohne Abhängigkeit von `Components.Ledger.Types`. `categoryPickerBody` in `src/Client/Components/Ledger/View.fs` ist ein dünner Wrapper, der den Record aus `model`/`dispatch` baut; die privaten Helfer (`categoryGuidOf`, `categoryMatchesSearch`, `categoryRow`) sind in die DS-Datei gewandert. Verhalten unverändert.
+
+`/styleguide` hat drei neue Sektionen mit Karten-Attributen (`data-ds-card`, `-name`, `-subtitle`, `data-ds-group`): "23. ChipBar" (`components-chipbar`: aktive/inaktive Chips, mit und ohne ×, "Alle Filter löschen"), "24. FilterPopover" (`components-filterpopover`: Chip mit offenem Popover, Platzhalter-Inhalt) und "25. Kategorienauswahl mit Mehrfachauswahl" (`components-categorymultiselect`, Name "Kategorienauswahl (Mehrfachauswahl)", mit einer versteckten Kategorie für "Versteckt (1)"). Die fünf Beispielkategorien sind als `demoCategoryData` geteilt mit Sektion 19. Die drei IDs stehen in `COMPONENT_CARDS` und im Regressionsanker (19 Einträge).
+
+In Iteration 2: `demoCategoryData` steht jetzt oberhalb des vollständigen Doc-Kommentars von `CategoryPickerDemo`; die README-Delta ergänzt zusätzlich die Zählung und Liste der DS-Komponenten (23, mit ChipBar, FilterPopover, CategoryMultiSelect).
+
+Zwei Befunde: Der FilterPopover der Demo schließt nicht per Klick außerhalb (`OnClose = ignore`), weil der Export beim Klick auf andere Trigger sonst das Popover schließt und die Karte leer bliebe; das steht in der Sektionsnotiz. Der Wrapper der Popover-Karte hat `min-h-[14rem]`, weil das absolut positionierte Popover sonst nicht in die gemessene Höhe zählt (gemessen 880x288). Beim Export brach ein erster Lauf ab, weil Fable `{i:D12}` nicht formatiert und `Guid.Parse` die Seite zum Absturz brachte; die Demo-Guids werden jetzt mit `PadLeft` gebaut.
+
+Geprüft: `dotnet build` (0 Fehler), `dotnet test` (1147 grün, 7 übersprungen), `npm run guard:classes`, `npm run build`, `node --test --test-concurrency=1 scripts/*.test.mjs` (118 grün), echter `npm run export:design-system` nach `DS_EXPORT_OUT_DIR` im Scratchpad (26 Karten, die drei neuen mit @dsCard-Marker inkl. name/subtitle/viewport). `[human-eye]` (optischer Abgleich mit der Kassenbuch-Filterleiste) bleibt offen.

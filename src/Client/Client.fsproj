@@ -27,6 +27,7 @@
     <Compile Include="DesignSystem/Form.fs" />
     <Compile Include="DesignSystem/ChipBar.fs" />
     <Compile Include="DesignSystem/FilterPopover.fs" />
+    <Compile Include="DesignSystem/CategoryMultiSelect.fs" />
 
     <!-- Utilities -->
     <Compile Include="Debounce.fs" />

@@ -29,9 +29,10 @@ First-class BC für Frontend-Infrastruktur (analog `infrastructure` für Backend
   (`neon-green/teal/orange/purple/pink/red`) mit Glow-Shadows, Mono-Font für Zahlen/Daten.
 - **Farbsemantik** — feste Bedeutungen: Orange = primär/CTA, Teal = sekundär/aktiv,
   Green = Erfolg/positiv, Red = Fehler/Gefahr, Purple/Pink = Akzent/Kategorie.
-- **DS-Komponente** — eine der 20 Feliz-Komponenten unter `src/Client/DesignSystem/`
+- **DS-Komponente** — eine der 23 Feliz-Komponenten unter `src/Client/DesignSystem/`
   (Button, Card, Badge, Input, Modal, Toast, Stats, Money, Table, Loading, ErrorDisplay,
-  Icons, Navigation, PageHeader, Primitives, Tokens, Form, BottomSheet, Swipe, Viewport).
+  Icons, Navigation, PageHeader, Primitives, Tokens, Form, BottomSheet, Swipe, Viewport,
+  ChipBar, FilterPopover, CategoryMultiSelect).
   Inline-Feliz für etwas, das eine DS-Komponente abdeckt, gilt als **Drift**.
 - **Muster (Pattern)** — projektweite Interaktions-Konvention oberhalb einzelner
   Komponenten: **visual-viewport-Sheet + Click-Commit** (ADR 0005, mobile-keyboard-fest),
@@ -40,7 +41,7 @@ First-class BC für Frontend-Infrastruktur (analog `infrastructure` für Backend
   Mobile oben über der Bottom-Nav; *exiting*-markieren → nach Exit-Animation entfernen).
 - **Drift** — Abweichung des realen View-Codes vom Styleguide: hartkodierte Farben statt
   Tokens, inline-Feliz statt DS-Komponente, abweichende Muster.
-- **Eager ausgewertete Top-Level-Werte** — ein parameterloses `let` auf Modulebene, das sofort eine Feliz-Komponente rendert statt eine Funktion zu sein, gilt als **Drift**: unter `dotnet test` (echtes .NET, kein Fable/Feliz-Laufzeitkontext) lässt sich ein `(string, obj)`-Tupel nicht auf `Feliz.IReactProperty`/`Feliz.ISvgAttribute` casten, und der erste Feldzugriff löst .NETs Modul-Startup-Code aus, der ALLE Top-Level-Werte initialisiert. Betrifft auch Werte in verschachtelten Modulen (`module Spacer =`, `module Divider =`), die ein an Spalte 0 verankerter Grep nicht findet. Für alle 20 DS-Komponenten unter `src/Client/DesignSystem/` mechanisch durchgesetzt, nicht nur dokumentiert: `src/Tests/DesignSystemStartupTests.fs` erzwingt per Reflection jeden `<StartupCode$Client>.$Client.DesignSystem.*`-Typinitialisierer plus den einen Sonderfall `<StartupCode$Client>.$ErrorDisplay` (ErrorDisplay.fs nutzt ein inneres `module ErrorDisplay =` statt `module Client.DesignSystem.ErrorDisplay` und trägt deshalb nicht den sonst üblichen Namenspräfix) und scheitert mit dem betroffenen Modulnamen, sobald ein neuer eager Wert dazukommt (design-system-bq4tz).
+- **Eager ausgewertete Top-Level-Werte** — ein parameterloses `let` auf Modulebene, das sofort eine Feliz-Komponente rendert statt eine Funktion zu sein, gilt als **Drift**: unter `dotnet test` (echtes .NET, kein Fable/Feliz-Laufzeitkontext) lässt sich ein `(string, obj)`-Tupel nicht auf `Feliz.IReactProperty`/`Feliz.ISvgAttribute` casten, und der erste Feldzugriff löst .NETs Modul-Startup-Code aus, der ALLE Top-Level-Werte initialisiert. Betrifft auch Werte in verschachtelten Modulen (`module Spacer =`, `module Divider =`), die ein an Spalte 0 verankerter Grep nicht findet. Für alle 23 DS-Komponenten unter `src/Client/DesignSystem/` mechanisch durchgesetzt, nicht nur dokumentiert: `src/Tests/DesignSystemStartupTests.fs` erzwingt per Reflection jeden `<StartupCode$Client>.$Client.DesignSystem.*`-Typinitialisierer plus den einen Sonderfall `<StartupCode$Client>.$ErrorDisplay` (ErrorDisplay.fs nutzt ein inneres `module ErrorDisplay =` statt `module Client.DesignSystem.ErrorDisplay` und trägt deshalb nicht den sonst üblichen Namenspräfix) und scheitert mit dem betroffenen Modulnamen, sobald ein neuer eager Wert dazukommt (design-system-bq4tz).
 - **Tailwind-Klassen-Wächter**: `scripts/tailwind-class-guard.mjs`, mechanisiert als Teil von `dotnet test` (`TailwindClassGuardTests.fs`) und `npm run guard:classes`/`npm run test:scripts`. Prüft jeden `prop.className`-Klassen-Token unter `src/Client/**/*.fs` gegen den echten Tailwind-4-Compiler (`@tailwindcss/node`) und gegen jeden in `styles.css` selbst definierten Selektor. Ein Token, das keins von beidem ist, muss mit Begründung in `scripts/tailwind-class-guard-exceptions.json` stehen oder lässt den Lauf scheitern, mechanisierte Durchsetzung des in ADR 0031 gefundenen Musters.
 
 ## The styleguide gate
@@ -118,7 +119,8 @@ Komponenten, **nur in diese Richtung** (Repo → Claude Design, nie zurück).
   das Format, über das Claude Design die Karten im Design-System-Bereich baut. Gruppen
   im Bundle: "Colors" (Neon-Palette, Flächen), "Type" (Font-Proben), "Components"
   (Card, Money, Badge, Table, Navigation, Button, Stats, Icons, PageHeader,
-  Primitives, Swipe, BottomSheet, Kategorienauswahl, Modal), "Feedback" (Loading,
+  Primitives, Swipe, ChipBar, FilterPopover, BottomSheet, Kategorienauswahl,
+  Kategorienauswahl (Mehrfachauswahl), Modal), "Feedback" (Loading,
   ErrorDisplay, Toast), "Forms" (Input, Form), "Brand" (App-Icon). Vollständige Liste
   und Ausnahmen: `design-system-y6gkd`, ADR 0027.
 - **`colors_and_type.css`**: der `@theme`-Block aus `src/Client/styles.css` plus die

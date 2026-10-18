@@ -151,7 +151,7 @@ test("expectedBundleFiles: mit weniger Karten schrumpft nur die preview-Liste, d
 // live aus COMPONENT_CARDS ab (AC1, keine zweite Kopie im Skript) und würde
 // eine im Skript entfernte Karte deshalb NICHT von sich aus bemerken (Liste
 // und Erwartung schrumpfen zusammen). Dieser Test pinnt deshalb die heute
-// bekannten 16 Karten-IDs fest, unabhängig von COMPONENT_CARDS selbst
+// bekannten 19 Karten-IDs fest, unabhängig von COMPONENT_CARDS selbst
 // gelesen: fehlt eine, schlägt er an, ohne dass ein Browser laufen muss.
 const KNOWN_COMPONENT_CARD_IDS = [
   "components-card",
@@ -165,6 +165,9 @@ const KNOWN_COMPONENT_CARD_IDS = [
   "components-pageheader",
   "components-primitives",
   "components-swipe",
+  "components-chipbar",
+  "components-filterpopover",
+  "components-categorymultiselect",
   "components-loading",
   "components-errordisplay",
   "components-input",
@@ -172,7 +175,7 @@ const KNOWN_COMPONENT_CARD_IDS = [
   "components-toast",
 ];
 
-test("COMPONENT_CARDS: exakt die heute bekannten 16 Komponenten-Karten (Regressionsanker, s. Kommentar oben)", () => {
+test("COMPONENT_CARDS: exakt die heute bekannten 19 Komponenten-Karten (Regressionsanker, s. Kommentar oben)", () => {
   assert.deepEqual(
     [...COMPONENT_CARDS.map((c) => c.id)].sort(),
     [...KNOWN_COMPONENT_CARD_IDS].sort(),
