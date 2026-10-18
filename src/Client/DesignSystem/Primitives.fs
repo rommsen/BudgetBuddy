@@ -9,10 +9,22 @@ open Client.DesignSystem.Tokens
 
 /// Responsive container with max-width constraints
 module Container =
+    let viewClass = "w-full px-4 md:px-6 mx-auto max-w-7xl"
+
+    /// Ohne Breitenbegrenzung, mit denselben Seitenrändern (Listen-Seiten, ADR 0049)
+    let fullClass = "w-full px-4 md:px-6"
+
     /// Full-width container with responsive padding
     let view (children: ReactElement list) =
         Html.div [
-            prop.className "w-full px-4 md:px-6 mx-auto max-w-7xl"
+            prop.className viewClass
+            prop.children children
+        ]
+
+    /// Container ohne Breitenbegrenzung: die Liste füllt die verfügbare Breite
+    let full (children: ReactElement list) =
+        Html.div [
+            prop.className fullClass
             prop.children children
         ]
 

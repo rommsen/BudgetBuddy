@@ -4,7 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-## 2026-10-18 23:30 - Ruhige Listen: ADR 0049, Styleguide, zwei Backlog-Aufgaben
+## 2026-10-18 23:01 - DS-Bausteine für ruhige Listen (design-system-q7rkm)
+
+**What I did:**
+Work-Lauf mit einer Aufgabe (ein Worker, ein Verifier, PASS in Iteration 1). Die Bausteine aus ADR 0049 stehen im Design-System, der Kassenbuch-View ist noch unverändert (folgt mit `ledger-n4vte`).
+
+**Files Added:**
+- `src/Tests/RuhigeListenTests.fs` - 22 Tests über reine Klassenfunktionen, Regressionstest zur Ausrichtung, Quelltext-Zusicherung gegen `$"text-{`
+- `docs/ux/design-system/screenshots/{pc-1440x900,handy-390x844}-styleguide.png` - Gate-Screenshots von `/styleguide`
+
+**Files Modified:**
+- `src/Client/DesignSystem/Tokens.fs` - `ListRoles` mit Typografie-Rollen, Statuskante, Zeilen- und Kopfhöhe
+- `src/Client/DesignSystem/Money.fs` - `listAmount`/`listAmountClass` (neutral, Eingang Teal), `accountBalanceClass` (neutral, negativ Red) für `accountBalance` und `accountListRow`
+- `src/Client/DesignSystem/Table.fs` - wörtliche Ausrichtungsklassen (Fehlerbehebung), `CellRole`, `roleCell`, `amountCell`, `calmHeaderCell`, `calmRow`, `RowProps.StatusEdge`
+- `src/Client/DesignSystem/Primitives.fs` - `Container.full` ohne Breitenbegrenzung
+- `src/Client/DesignSystem/PageHeader.fs` - schlanke Variante `calm`
+- `src/Client/Components/Styleguide/View.fs` - Abschnitt "8a. Ruhige Listen"
+- `src/Tests/Tests.fsproj`, `scripts/tailwind-class-guard-exceptions.json` - neue Testdatei, Begründungstext angepasst
+- `.agentheim/knowledge/contexts/design-system/README.md` - Eintrag "Ruhige Listen (ADR 0049)" in der Ubiquitous Language
+
+**Rationale:**
+Farbe in wiederkehrenden Zeilen ist ein Signal (ADR 0049). Außerdem war `Align = right` in `Table.cell` wirkungslos: `$"text-{a}"` stand nie wörtlich im Quelltext, Tailwind erzeugte `text-right` nicht. Daher stand der Betrag im Kassenbuch linksbündig.
+
+**Outcomes:**
+- Build: ✅ (eine bestehende Warnung FS0025 in `Ledger/State.fs:333`, nicht aus diesem Diff)
+- Tests: 1169 bestanden, 7 übersprungen
+- Issues: keine
+
+---
+
+## 2026-10-18 22:35 - Ruhige Listen: ADR 0049, Styleguide, zwei Backlog-Aufgaben
 
 **What I did:**
 Das Kassenbuch mit "Import prüfen" und dem Claude-Design-Mockup 1.9 verglichen. Ursache für den lauten Eindruck: Die Typografie aus dem Handoff (Payee 14px/600, Rest 13px gedämpft) wurde nie umgesetzt, `Table.td` liefert 16px grau, dazu Gradient-Titel und `max-w-7xl`. Farben (violette Kategorie, rote und grüne Beträge) folgten dem Styleguide. Roman hat in einem Sichttest mit drei Fassungen (Artefakt "Kassenbuch Sichttest") die ruhige Tabelle gewählt. Die Regel steht jetzt in ADR 0049 und im Styleguide.

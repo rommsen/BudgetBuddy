@@ -13,6 +13,8 @@ open Feliz
 type TitleStyle =
     | Standard
     | Gradient
+    /// Schlank für Listen-Seiten (ADR 0049): 20px, 600, ohne Verlauf
+    | Calm
 
 /// Header configuration
 type Props = {
@@ -29,17 +31,34 @@ let defaultProps = {
     TitleStyle = Standard
 }
 
+/// Titelklassen je Stil
+let titleClass (style: TitleStyle) : string =
+    match style with
+    | Standard ->
+        "text-2xl md:text-4xl font-bold font-display text-text-primary"
+    | Gradient ->
+        "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-neon-teal to-neon-green bg-clip-text text-transparent"
+    | Calm ->
+        "text-xl font-semibold font-display text-text-primary"
+
+/// Untertitelklassen je Stil
+let subtitleClass (style: TitleStyle) : string =
+    match style with
+    | Calm -> "text-text-muted mt-0.5 text-xs"
+    | _ -> "text-text-muted mt-1 text-sm md:text-base"
+
+/// Containerklassen je Stil: Calm hält Titel und Aktionen immer in einer Zeile
+let containerClass (style: TitleStyle) : string =
+    match style with
+    | Calm -> "flex flex-row justify-between items-center gap-3 animate-fade-in"
+    | _ -> "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 animate-fade-in"
+
 /// Full page header with configurable props
 let view (props: Props) =
-    let titleClass =
-        match props.TitleStyle with
-        | Standard ->
-            "text-2xl md:text-4xl font-bold font-display text-text-primary"
-        | Gradient ->
-            "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-neon-teal to-neon-green bg-clip-text text-transparent"
+    let titleClass = titleClass props.TitleStyle
 
     Html.div [
-        prop.className "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 animate-fade-in"
+        prop.className (containerClass props.TitleStyle)
         prop.children [
             Html.div [
                 prop.children [
@@ -50,7 +69,7 @@ let view (props: Props) =
                     match props.Subtitle with
                     | Some subtitle ->
                         Html.p [
-                            prop.className "text-text-muted mt-1 text-sm md:text-base"
+                            prop.className (subtitleClass props.TitleStyle)
                             prop.text subtitle
                         ]
                     | None -> Html.none
@@ -87,3 +106,7 @@ let withActions (title: string) (subtitle: string option) (actions: ReactElement
 /// Full header with gradient title and actions
 let gradientWithActions (title: string) (subtitle: string option) (actions: ReactElement list) =
     view { defaultProps with Title = title; Subtitle = subtitle; Actions = actions; TitleStyle = Gradient }
+
+/// Schlanker Kopf für Listen-Seiten: Titel, gedämpfter Untertitel, Aktionen rechts
+let calm (title: string) (subtitle: string option) (actions: ReactElement list) =
+    view { defaultProps with Title = title; Subtitle = subtitle; Actions = actions; TitleStyle = Calm }

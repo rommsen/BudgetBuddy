@@ -163,13 +163,25 @@ let private sortIcon direction =
     | Descending ->
         Icons.chevronDown XS IconColor.NeonTeal
 
+/// Ausrichtung als wörtliche Klasse. Tailwind erzeugt nur Klassen, die als ganze
+/// Zeichenkette im Quelltext stehen; eine zusammengesetzte Klasse fiel beim Scan durch.
+let private alignToClass (fallback: string) (align: string option) =
+    match align with
+    | Some "left" -> "text-left"
+    | Some "right" -> "text-right"
+    | Some "center" -> "text-center"
+    | _ -> fallback
+
+/// Ausrichtungsklasse der Kopfzelle (Vorgabe links)
+let headerAlignClass (align: string option) = alignToClass "text-left" align
+
+/// Ausrichtungsklasse der Datenzelle (Vorgabe: keine)
+let cellAlignClass (align: string option) = alignToClass "" align
+
 /// Create a header cell (th)
 let headerCell (props: HeaderCellProps) =
     let widthStyle = props.Width |> Option.map (fun w -> prop.style [ style.width (length.px (int w)) ])
-    let alignClass =
-        props.Align
-        |> Option.map (fun a -> $"text-{a}")
-        |> Option.defaultValue "text-left"
+    let alignClass = headerAlignClass props.Align
     let extraClass = props.ClassName |> Option.defaultValue ""
 
     Html.th [
@@ -243,6 +255,8 @@ let tbody (rows: ReactElement list) =
 type RowProps = {
     IsSelected: bool
     IsHighlighted: bool
+    /// 3px-Kante in Pink links ("zu prüfen", ADR 0049), ohne Zellinhalte zu verschieben
+    StatusEdge: bool
     OnClick: (unit -> unit) option
     ClassName: string option
 }
@@ -250,19 +264,24 @@ type RowProps = {
 let defaultRowProps = {
     IsSelected = false
     IsHighlighted = false
+    StatusEdge = false
     OnClick = None
     ClassName = None
 }
 
-/// Create a table row
-let row (props: RowProps) (cells: ReactElement list) =
+/// Klassen einer Tabellenzeile
+let rowClass (props: RowProps) : string =
     let selectedClass = if props.IsSelected then "bg-neon-teal/10 border-l-2 border-l-neon-teal" else ""
     let highlightClass = if props.IsHighlighted then "bg-neon-orange/5" else ""
     let clickableClass = if props.OnClick.IsSome then "cursor-pointer" else ""
+    let edgeClass = if props.StatusEdge then ListRoles.statusEdge else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
+    $"transition-colors {selectedClass} {highlightClass} {edgeClass} {clickableClass} {extraClass}"
 
+/// Create a table row
+let row (props: RowProps) (cells: ReactElement list) =
     Html.tr [
-        prop.className $"transition-colors {selectedClass} {highlightClass} {clickableClass} {extraClass}"
+        prop.className (rowClass props)
         match props.OnClick with
         | Some handler -> prop.onClick (fun _ -> handler())
         | None -> ()
@@ -307,10 +326,7 @@ let defaultCellProps = {
 
 /// Create a table cell (td)
 let cell (props: CellProps) (children: ReactElement list) =
-    let alignClass =
-        props.Align
-        |> Option.map (fun a -> $"text-{a}")
-        |> Option.defaultValue ""
+    let alignClass = cellAlignClass props.Align
     let monoClass = if props.IsMono then "font-mono tabular-nums" else ""
     let truncateClass = if props.IsTruncate then "truncate" else ""
     let maxWidthStyle =
@@ -324,6 +340,66 @@ let cell (props: CellProps) (children: ReactElement list) =
         // absent `.table`/`.table-sm` DaisyUI classes.
         prop.className $"text-text-secondary px-[var(--table-cell-px,0.75rem)] py-[var(--table-cell-py,0.5rem)] {alignClass} {monoClass} {truncateClass} {extraClass}"
         prop.children children
+    ]
+
+// ============================================
+// Zellrollen der ruhigen Tabelle (ADR 0049)
+// ============================================
+
+/// Rolle einer Zelle in einer ruhigen Tabelle
+type CellRole =
+    | Payee
+    | DateCell
+    | Secondary
+    | Muted
+
+/// Klassen einer Zellrolle (Größe, Gewicht, Farbe, Schriftfamilie)
+let cellRoleClass (role: CellRole) : string =
+    match role with
+    | Payee -> ListRoles.primary
+    | DateCell -> ListRoles.date
+    | Secondary -> ListRoles.secondary
+    | Muted -> ListRoles.muted
+
+/// Zelle mit einer Rolle
+/// (eigenes `td` ohne die Grundfarbe von `cell`: zwei `text-*`-Farben an einem
+/// Element entscheidet sonst die CSS-Reihenfolge, und Payee bliebe gedämpft)
+let roleCell (role: CellRole) (children: ReactElement list) =
+    let roleClass = cellRoleClass role
+    Html.td [
+        prop.className $"px-[var(--table-cell-px,0.75rem)] py-[var(--table-cell-py,0.5rem)] {roleClass}"
+        prop.children children
+    ]
+
+/// Klassen der Betragszelle: rechtsbündig, Money-Listenvariante
+let amountCellClass (amount: decimal) : string =
+    $"text-right {Money.listAmountClass amount}"
+
+/// Betragszelle: rechtsbündig, nutzt `Money.listAmount`
+let amountCell (amount: decimal) (currency: string) =
+    cell { defaultCellProps with Align = Some "right" } [ Money.listAmount amount currency ]
+
+/// Klassen der Kopfzelle im Spaltenkopf-Stil (Höhe 42px)
+let calmHeaderClass (align: string option) : string =
+    $"{ListRoles.columnHeader} bg-surface-elevated px-[var(--table-cell-px,0.75rem)] {headerAlignClass align}"
+
+/// Kopfzelle der ruhigen Tabelle
+let calmHeaderCell (text: string) (align: string option) =
+    let alignClass = headerAlignClass align
+    Html.th [
+        prop.className $"{ListRoles.columnHeader} bg-surface-elevated px-[var(--table-cell-px,0.75rem)] {alignClass}"
+        prop.text text
+    ]
+
+/// Zeilenklassen der ruhigen Tabelle (44px, optional Statuskante)
+let calmRowClass (statusEdge: bool) : string =
+    rowClass { defaultRowProps with StatusEdge = statusEdge; ClassName = Some ListRoles.rowHeight }
+
+/// Zeile der ruhigen Tabelle
+let calmRow (statusEdge: bool) (cells: ReactElement list) =
+    Html.tr [
+        prop.className (calmRowClass statusEdge)
+        prop.children cells
     ]
 
 /// Simple table cell with text

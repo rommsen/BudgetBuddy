@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 29
+- **Doing:** 0
+- **Done:** 30
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-q7rkm** — DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader) (feature) — `doing/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-q7rkm** — DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader) (feature) — `done/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md`
 - **design-system-bz0gn** — "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen" (chore) — `done/design-system-bz0gn-neue-filterleisten-komponenten-chipbar-filterpopover-kategor.md`
 - **design-system-an22r** — "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html" (feature) — `done/design-system-an22r-export-uebernimmt-claude-design-manifest-ergaenzungen.md`
 - **design-system-tg2wn** — "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen" (chore) — `done/design-system-tg2wn-textglows-orange-textglows-teal-in-tokens-fs-sind-wie-vormal.md`

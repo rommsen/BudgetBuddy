@@ -131,6 +131,30 @@ module FontSizes =
     let micro = "text-[10px]"            // Micro labels: stat captions, status chips, mono glyphs (below the xs scale by design)
     let microPlus = "text-[11px]"        // Slightly larger micro labels (e.g. desktop-only meta strings)
 
+/// Typografie-Rollen für ruhige Listen (ADR 0049, Styleguide §2 "Ruhige Listen").
+/// Arbiträre Größen (`text-[15px]`, `text-[10px]`) stehen nur hier, nicht in Views.
+module ListRoles =
+    /// Payee und Betrag: 15px am Handy, 14px ab md
+    let primarySize = "text-[15px] md:text-sm"
+    let primary = "text-[15px] md:text-sm font-medium text-text-primary"
+    /// Kategorie: 12px, gedämpft
+    let secondary = "text-xs text-text-secondary"
+    /// Memo: 12px, noch stärker gedämpft
+    let muted = "text-xs text-text-muted"
+    /// Datum: Mono 12px
+    let date = "font-mono text-xs font-normal text-text-muted"
+    /// Datumsgruppen-Kopf: Mono 600 10px, gesperrt
+    let groupHeader = "font-mono text-[10px] font-semibold tracking-[0.16em] uppercase text-text-muted"
+    /// Spaltenkopf: Mono 600 10px, gesperrt, Höhe 42px
+    let columnHeader = "font-mono text-[10px] font-semibold tracking-[0.12em] uppercase text-text-muted h-[42px]"
+    /// Zeilenhöhe der ruhigen Tabelle (44px)
+    let rowHeight = "h-11"
+    /// Zweizeilige Handy-Zeile: Innenabstand 11px/16px
+    let mobileRowPadding = "px-4 py-[11px]"
+    /// Statuskante "zu prüfen": 3px in Pink links, als inset-Schatten, damit die
+    /// Zellinhalte nicht verrutschen. Gilt für Tabellenzeile und Handy-Zeile.
+    let statusEdge = "shadow-[inset_3px_0_0_0_var(--color-neon-pink)]"
+
 /// Font weight tokens
 module FontWeights =
     let regular = "font-normal"   // 400

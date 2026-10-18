@@ -60,6 +60,7 @@
     <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
     <Compile Include="TextGlowTokenTests.fs" />
+    <Compile Include="RuhigeListenTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

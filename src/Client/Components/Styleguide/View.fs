@@ -380,6 +380,124 @@ let private tableSection =
         ]
     ]
 
+let private calmListSection =
+    let keyed (els: ReactElement list) =
+        els |> List.mapi (fun i el -> React.keyedFragment (i, [ el ]))
+    // Gruppenkopf: Datum links, Tagessumme rechts (ADR 0049, Punkt 8)
+    let groupRow (title: string) (sum: string) =
+        Html.tr [
+            prop.children [
+                Html.td [
+                    prop.colSpan 6
+                    prop.className "px-3 pt-4 pb-1"
+                    prop.children [
+                        Html.div [
+                            prop.className "flex items-center justify-between"
+                            prop.children [
+                                Html.span [ prop.className Tokens.ListRoles.groupHeader; prop.text title ]
+                                Html.span [ prop.className Tokens.ListRoles.date; prop.text sum ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    let statusWord (text: string) =
+        Html.td [
+            prop.className $"px-3 text-right {Tokens.FontSizes.microPlus} {Tokens.Colors.neonPink}"
+            prop.text text
+        ]
+    let noCategory =
+        Table.tdContent [ Html.span [ prop.className $"text-xs {Tokens.Colors.neonOrange}"; prop.text "Keine Kategorie" ] ]
+    let emptyCell = Table.tdContent []
+    let dataRow (edge: bool) (date: string) (payee: string) (category: ReactElement) (memo: string) (amount: decimal) (status: string) =
+        Table.calmRow edge (keyed [
+            Table.roleCell Table.DateCell [ Html.text date ]
+            Table.roleCell Table.Payee [ Html.text payee ]
+            category
+            Table.roleCell Table.Muted [ Html.text memo ]
+            Table.amountCell amount "EUR"
+            if status = "" then emptyCell else statusWord status
+        ])
+    let cat (text: string) = Table.roleCell Table.Secondary [ Html.text text ]
+    // Zweizeilige Handy-Zeile: Kante links über dieselbe Klasse wie die Tabellenzeile
+    let mobileRow (edge: bool) (payee: string) (amount: decimal) (second: ReactElement) =
+        Html.div [
+            prop.className (
+                $"{Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle "
+                + if edge then Tokens.ListRoles.statusEdge else ""
+            )
+            prop.children [
+                Html.div [
+                    prop.className "flex items-baseline justify-between gap-3"
+                    prop.children [
+                        Html.span [ prop.className Tokens.ListRoles.primary; prop.text payee ]
+                        Money.listAmount amount "EUR"
+                    ]
+                ]
+                Html.div [ prop.className "mt-0.5"; prop.children [ second ] ]
+            ]
+        ]
+    section "8a. Ruhige Listen" [
+        note "Farbe ist ein Signal: Payee hell, Rest gedämpft, Kante in Pink nur bei zu prüfen, Teal nur bei Eingang, Orange nur bei Keine Kategorie. ADR 0049, styleguide.md §2."
+        Html.div [
+            prop.custom ("data-ds-card", "components-ruhige-listen")
+            prop.custom ("data-ds-card-name", "Ruhige Listen")
+            prop.custom ("data-ds-card-subtitle", "Tabelle, Handy-Zeile, Listenbetrag und schlanker Seitenkopf")
+            prop.custom ("data-ds-group", "Components")
+            prop.className "space-y-6"
+            prop.children [
+                PageHeader.calm "Kassenbuch" (Some "Gespiegelt heute 22:24") [
+                    Button.secondary "Sync" ignore
+                ]
+                Table.view { Table.defaultTableProps with Variant = Table.Hover } [
+                    Table.thead (keyed [
+                        Table.calmHeaderCell "Datum" None
+                        Table.calmHeaderCell "Payee" None
+                        Table.calmHeaderCell "Kategorie" None
+                        Table.calmHeaderCell "Memo" None
+                        Table.calmHeaderCell "Betrag" (Some "right")
+                        Table.calmHeaderCell "Status" (Some "right")
+                    ])
+                    Table.tbody (keyed [
+                        groupRow "HEUTE" "-54,52 €"
+                        dataRow true "Heute" "REWE Mitte" (cat "Alltag: Essen/Einkaufen") "Wocheneinkauf" -48.12m "zu prüfen"
+                        dataRow false "Heute" "Bäckerei Krause" (cat "Alltag: Essen/Einkaufen") "" -6.40m ""
+                        groupRow "GESTERN" "+3.774,00 €"
+                        dataRow false "Gestern" "Arbeitgeber GmbH" (cat "Ready to Assign") "Gehalt Oktober" 3412.80m ""
+                        dataRow true "Gestern" "Amazon Marketplace" noCategory "" -37.45m "zu prüfen"
+                    ])
+                ]
+                Html.div [
+                    prop.className "max-w-sm rounded-xl border border-border-subtle bg-surface-card overflow-hidden"
+                    prop.children (keyed [
+                        mobileRow true "REWE Mitte" -48.12m (
+                            Html.div [
+                                prop.className "flex gap-2"
+                                prop.children [
+                                    Html.span [ prop.className Tokens.ListRoles.secondary; prop.text "Alltag: Essen/Einkaufen" ]
+                                    Html.span [ prop.className Tokens.ListRoles.muted; prop.text "Wocheneinkauf" ]
+                                ]
+                            ])
+                        mobileRow false "Arbeitgeber GmbH" 3412.80m (
+                            Html.span [ prop.className Tokens.ListRoles.secondary; prop.text "Ready to Assign" ])
+                        mobileRow true "Amazon Marketplace" -37.45m (
+                            Html.span [ prop.className $"text-xs {Tokens.Colors.neonOrange}"; prop.text "Keine Kategorie" ])
+                    ])
+                ]
+                Html.div [
+                    prop.className "flex flex-col gap-1"
+                    prop.children [
+                        Money.listAmount -48.12m "EUR"
+                        Money.listAmount 0m "EUR"
+                        Money.listAmount 4000m "EUR"
+                        caption "Money.listAmount: negativ und null neutral, Eingang Teal"
+                    ]
+                ]
+            ]
+        ]
+    ]
+
 let private loadingSection =
     section "9. Loading" [
         note "Skeletons statt Spinner, wo die Zielform bekannt ist — kein Layout-Sprung. Generischer Spinner/neonPulse nur bei unbekannter Form. styleguide.md §6."
@@ -959,6 +1077,7 @@ let view () =
                         moneySection
                         statsSection
                         tableSection
+                        calmListSection
                         loadingSection
                         errorSection
                         iconsSection

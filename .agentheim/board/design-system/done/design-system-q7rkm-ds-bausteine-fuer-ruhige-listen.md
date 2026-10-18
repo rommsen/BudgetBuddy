@@ -1,7 +1,7 @@
 ---
 id: design-system-q7rkm
 title: DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader)
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-10-18
@@ -116,3 +116,19 @@ absichtlich.
   "Transfer : Tagesgeld ING" steht dort als "Keine Kategorie". Nach ADR 0048 ist ein
   Übertrag kein offener Fall. Für den Styleguide-Abschnitt eine echte Buchung ohne
   Kategorie als Beispiel nehmen.
+
+## Outcome
+
+Umgesetzt nach ADR 0049 und Styleguide §2 "Ruhige Listen".
+
+- `Tokens.ListRoles` (Tokens.fs): primär (15px Handy, 14px PC, 500), sekundär, gedämpft, Datum, Gruppenkopf, Spaltenkopf (42px), Zeilenhöhe 44px, Handy-Zeilenabstand und `statusEdge` (`shadow-[inset_3px_0_0_0_var(--color-neon-pink)]`). Arbiträre Werte nur dort.
+- `Money.listAmountClass`/`listAmount`: Mono 500, `tabular-nums`, kein Glow, negativ und null `text-primary`, positiv Teal, Zero ohne Plus. `Money.accountBalanceClass`: aktiv `text-primary`, inaktiv `text-secondary`, negativ Red; `accountBalance` und `accountListRow` nutzen sie.
+- `Table`: `cellAlignClass`/`headerAlignClass` mit wörtlichen Klassen (Fehlerbehebung, `$"text-{a}"` ist weg), `CellRole` (Payee, DateCell, Secondary, Muted) mit `cellRoleClass`/`roleCell`, `amountCell`, `calmHeaderCell`, `calmRow`, `rowClass` und `RowProps.StatusEdge`. `roleCell` baut ein eigenes `td` ohne die Grundfarbe von `cell`, weil zwei `text-*`-Farben am selben Element die CSS-Reihenfolge entscheiden lässt (im Screenshot war Payee zuerst gedämpft).
+- `Primitives.Container.full` (ohne `max-w-*`), `PageHeader.Calm`/`PageHeader.calm` mit `titleClass`/`subtitleClass`/`containerClass`; Gradient und Standard sind byte-gleich geblieben (Test).
+- `/styleguide`: Abschnitt "8a. Ruhige Listen" mit Seitenkopf, Tabelle (Datumsgruppen, zwei Zeilen "zu prüfen", Eingang, "Keine Kategorie" bei einer Amazon-Buchung statt Übertrag), zweizeiliger Handy-Zeile und Listenbetrag. Screenshots: `docs/ux/design-system/screenshots/` (PC 1440 und Handy 390). Ich habe den Abschnitt am PC neben dem Zielbild angesehen: Payee hell, Rest gedämpft, Farbe nur bei Eingang, kleinem Status-Wort, Kante und "Keine Kategorie". Das `[human-eye]`-Kriterium bleibt offen.
+- Wächter: `scripts/tailwind-class-guard-exceptions.json`, Begründung des Eintrags `{alignClass}` an die neue Herleitung angepasst (nur Text).
+- Tests: `src/Tests/RuhigeListenTests.fs` (22 Tests: Klassenfunktionen, Ausrichtungsregression mit Kommentar zum Tailwind-Scan, Quelltext-Zusicherung kein `$"text-{`, Statuskante, Container, PageHeader). Kein bestehender Ledger-Test musste geändert werden. Das Kassenbuch (`Components/Ledger/`) blieb unangetastet.
+- Hinweis zur Reihenfolge: Die Tests wurden gegen die geplanten Signaturen geschrieben und liefen erst nach der Implementierung grün (Rot war ein Kompilierfehler wegen fehlender Funktionen).
+- `dotnet build` 0 Warnungen für diesen Stand (die zuvor gesehene FS0025 in Ledger/State.fs war nicht Teil dieses Laufs und tauchte im letzten Build nicht mehr auf), `dotnet test` 1169 grün, 7 übersprungen, `npm run build` und `npm run guard:classes` grün.
+
+Diary-Absatz: Ruhige Listen (ADR 0049) als DS-Bausteine umgesetzt. Geändert: Tokens.fs, Money.fs, Table.fs, Primitives.fs, PageHeader.fs, Styleguide/View.fs, Tests.fsproj, tailwind-class-guard-exceptions.json. Neu: RuhigeListenTests.fs, Screenshots unter docs/ux/design-system/screenshots/. Begründung: Farbe in wiederkehrenden Zeilen ist ein Signal, und die Ausrichtung in Table.cell war durch eine interpolierte Tailwind-Klasse wirkungslos. Ergebnis: Build 0 Warnungen, 1169 Tests grün.

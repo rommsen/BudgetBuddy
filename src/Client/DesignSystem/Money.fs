@@ -324,6 +324,23 @@ let netChange income expenses currency =
     ]
 
 // ============================================
+// Ruhige Listen (ADR 0049)
+// ============================================
+
+/// Klassen eines Betrags in einer Listenzeile: Mono 500, `tabular-nums`, kein Glow.
+/// Negativ und null neutral in `text-primary`, nur ein Eingang ist Teal.
+let listAmountClass (amount: decimal) : string =
+    let color = if amount > 0m then Colors.neonTeal else Colors.textPrimary
+    $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {color}"
+
+/// Betrag für Listenzeilen und Tabellenzellen (ADR 0049).
+let listAmount (amount: decimal) (currency: string) =
+    Html.span [
+        prop.className (listAmountClass amount)
+        prop.text (formatAmountText (amount > 0m) true amount currency)
+    ]
+
+// ============================================
 // Transaction Amount Display
 // ============================================
 
@@ -362,20 +379,25 @@ let transactionDeleted (amount: decimal) (currency: string) =
 // Account Balances (Kontostände-Leiste, ledger-b1xwe / ledger-x0yga)
 // ============================================
 
-/// Format an account balance: same colour semantics as a transaction (green/red),
-/// but without the leading `+` on positive balances — the Kontostände-Leiste never
-/// showed one, and the mockup (`1.9-pc-ausgangszustand-zeile-markiert.png`) doesn't
-/// either. Used both by the mobile card strip and the PC list row below, so the
-/// balance keeps its colour and digit font wherever it appears (ledger-x0yga).
+/// Farbklasse eines Kontostands (ADR 0049): neutral, aktiv `text-primary`, inaktiv
+/// `text-secondary`; nur ein negativer Stand ist Red.
+let accountBalanceClass (isActive: bool) (amount: decimal) : string =
+    let color =
+        if amount < 0m then Colors.neonRed
+        elif isActive then Colors.textPrimary
+        else Colors.textSecondary
+    $"font-mono font-semibold tabular-nums whitespace-nowrap text-sm md:text-base {color}"
+
+let private accountBalanceFor (isActive: bool) (amount: decimal) (currency: string) =
+    Html.span [
+        prop.className (accountBalanceClass isActive amount)
+        prop.text (formatAmountText false true amount currency)
+    ]
+
+/// Kontostand ohne führendes `+`, ruhig (ADR 0049): neutral, nur negativ Red. Für die
+/// Handy-Karte (dort ist die Karte selbst aktiv oder nicht, der Betrag bleibt `text-primary`).
 let accountBalance (amount: decimal) (currency: string) =
-    view {
-        defaultProps with
-            Amount = amount
-            Currency = currency
-            Size = Small
-            ShowSign = false
-            Glow = NoGlow
-    }
+    accountBalanceFor true amount currency
 
 /// Compact list row for the PC Kontostände-Liste (ledger-x0yga): account name on the
 /// left, colour-coded balance on the right, no card chrome. Replaces the tall
@@ -411,6 +433,6 @@ let accountListRow (label: string) (amount: decimal) (currency: string) (isActiv
                 )
                 prop.text label
             ]
-            accountBalance amount currency
+            accountBalanceFor isActive amount currency
         ]
     ]

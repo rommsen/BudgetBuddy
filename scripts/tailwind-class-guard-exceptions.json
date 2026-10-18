@@ -30,7 +30,7 @@
   },
   {
     "token": "{alignClass}",
-    "reason": "Table.fs' headerCell/cell leiten die Ausrichtungsklasse aus `props.Align: string option` per `Option.map (fun a -> $\"text-{a}\")` her: eine Pipeline über einen vom Aufrufer frei wählbaren String, keine endliche Menge literaler Zweige.",
+    "reason": "Table.fs' headerCell/cell leiten die Ausrichtungsklasse aus `props.Align: string option` über `headerAlignClass`/`cellAlignClass` her (je ein Match auf wörtliche Klassen, design-system-q7rkm). Der Wächter folgt dem Funktionsaufruf nicht; die möglichen Werte stehen als Literale in Table.fs.",
     "locations": ["src/Client/DesignSystem/Table.fs"]
   }
 ]
