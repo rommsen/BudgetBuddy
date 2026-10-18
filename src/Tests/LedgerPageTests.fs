@@ -66,6 +66,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     Splits = []
     Cleared = Uncleared
     TransferEntryId = None
+    SplitTransferCounterparts = Map.empty
     DeletedInYnab = false
     Approved = true
     FlagColor = None

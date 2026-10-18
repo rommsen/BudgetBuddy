@@ -277,6 +277,13 @@ module ReadModel =
     let private describeTransferCounterpart (_: EntryTransferCounterpartObservedInYnabPayload) =
         "Als Übertrag mit einer anderen Buchung verbunden"
 
+    /// Der Betrag der Split-Zeile steht im Satz, weil zwei Übertrags-Zeilen derselben
+    /// Buchung sich sonst in der Historie nicht unterscheiden lassen (ADR 0046).
+    let private describeSplitTransferCounterpart
+        (p: EntrySplitTransferCounterpartObservedInYnabPayload)
+        =
+        $"Split-Zeile über {formatMoney p.SplitAmount} als Übertrag mit einer anderen Buchung verbunden"
+
     /// Ein Ereignis als Satz in der Sprache des Kassenbuchs (ADR 0013). Die Payloads
     /// tragen die alten und neuen **Namen**, deshalb braucht dieser Satz kein
     /// Nachschlagen.
@@ -290,6 +297,7 @@ module ReadModel =
         | EntryApprovalChangeObservedInYnab p -> describeApprovalChange p
         | EntryFlagChangeObservedInYnab p -> describeFlagChange p
         | EntryTransferCounterpartObservedInYnab p -> describeTransferCounterpart p
+        | EntrySplitTransferCounterpartObservedInYnab p -> describeSplitTransferCounterpart p
         | EntryDeletionObservedInYnab -> "In YNAB gelöscht"
         | EntryImportedFromComdirect p -> describeImportedFromComdirect p
         | EntryCategorizedByRule p -> describeCategorizedByRule p

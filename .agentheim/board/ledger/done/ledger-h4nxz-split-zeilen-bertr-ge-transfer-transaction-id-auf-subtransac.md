@@ -1,7 +1,7 @@
 ---
 id: ledger-h4nxz
 title: "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-19
@@ -211,3 +211,12 @@ Conductor aus dem Scratchpad-Entwurf `draft-split-transfer-backfill.md` anzulege
 Bewegung" bleibt v2-Arbeit (ADR 0015). Für Split-Zeilen-Überträge heißt das zusätzlich: eine
 Seite ist eine Split-Zeile, spiegelbildlich sind Zeilen-Betrag und Betrag der Gegenbuchung,
 nicht zwei ganze Buchungsbeträge. Für die v2-Modellierung festzuhalten, nicht jetzt zu bauen.
+## Outcome
+
+ADR 0046 ist umgesetzt. `Server.YnabObservations` liest pro Split-Zeile die Subtransaction-`id` und `transfer_transaction_id` und projiziert die rohe Liste einmal auf `TransactionSplit list` (unverändert) und auf das neue `ObservedSplitTransfer list` (`YnabObservation.SplitTransfers`, gelöschte Zeilen raus). `subtransactionsDecoder` liefert dafür jetzt ein Paar. Neues Ereignis `EntrySplitTransferCounterpartObservedInYnab` (Schema-Version 1, Codec, Actor `YnabMirror`), `Entry.SplitTransferCounterparts: Map<string, EntryId>` mit den `apply`-Regeln aus dem Task (letztes Ereignis gewinnt je Schlüssel, andere Schlüssel bleiben, ein anderer Schlüssel mit derselben Gegenbuchung wird entfernt, Selbstverknüpfung und fehlende Erstbeobachtung werfen). `runMirror` sammelt Beobachtungen mit Übertrags-Zeilen und ruft nach der Schleife (vor `saveServerKnowledge`) `linkSplitTransferCounterparts` auf: ein `appendAndApply` je Beobachtung, Ereignis auf der Split-Buchung nur wenn die Map den Schlüssel noch nicht auf die Gegenbuchung zeigen hat, auf der Gegenbuchung das bestehende `EntryTransferCounterpartObservedInYnab` nur wenn deren `TransferEntryId` noch nicht passt; kein Treffer und Selbstbezug sind kein Fehler; Zähler unberührt. Persistenz: Spalte `split_transfer_counterparts TEXT` (CREATE und `migrateColumn`), JSON-Liste, NULL liest sich als leere Map; Replay reproduziert sie. `describe`: "Split-Zeile über {Betrag} als Übertrag mit einer anderen Buchung verbunden".
+
+Tests (15 neu): Decoder (inkl. gelöschte Übertrags-Zeile, Vorlage mit Id `f585c0f4-...`), `observe` ohne Ereignis bei unveränderter Split-Buchung, fünf `apply`-Fälle, Codec-Roundtrip und Typnamen-Katalog, Spiegel-Läufe (Split vor Gegenbuchung im selben Batch, zwei Zeilen zum selben Zielkonto, Idempotenz, fehlende Gegenbuchung, Zeile ohne Fremd-Id), Replay gegen Zustandstabellen (direkt und nach Spiegel-Lauf), `describe`. Der describe-Test steht in `LedgerMirrorTests.fs` statt in `LedgerPageTests.fs` (Koordination mit ledger-fgt4k, dort nur die Entry-Literale um das neue Feld ergänzt). `dotnet test`: 1132 grün, 7 übersprungen (Integrationstests ohne .env).
+
+Hinweis zum README_DELTA: das Gate lehnt den `append` in "Ereignisse" ab (Einfügepunkt liegt hinter Fließtext, Prüfung 3), und der Absatz "Split-Übertrags-Verknüpfung (Zeitpunkt)" ist ein Absatz, kein Bullet. Beide Ops (Bullet-Eintrag in Ereignisse; Absatz nach dem Absatz "Übertrags-Verknüpfung") bitte von Hand platzieren. Die beiden Bullets in "Ubiquitous language" sind gate-konform.
+
+Schlüsseldateien: `/Users/romansachse/src/BudgetBuddy/.worktrees/ledger-h4nxz/src/Server/YnabObservations.fs`, `.../src/Server/Ledger/{Events,Domain,CommandHandlers,Persistence,QueryHandlers}.fs`, `.../src/Tests/{LedgerMirrorTests,LedgerTests}.fs`.

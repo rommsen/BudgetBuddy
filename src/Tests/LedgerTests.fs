@@ -55,6 +55,19 @@ let private observedPayload (ynabTxId: string) (importId: string option) : Entry
     FlagName = None
 }
 
+let private splitLinkEvent (entryId: EntryId) (subtransactionId: string) (counterpartId: EntryId) : LedgerEvent = {
+    EntryId = entryId
+    OccurredAt = DateTime(2026, 2, 5, 7, 0, 0, DateTimeKind.Utc)
+    Actor = YnabMirror
+    Body =
+        EntrySplitTransferCounterpartObservedInYnab {
+            YnabSubtransactionId = subtransactionId
+            CounterpartEntryId = counterpartId
+            CounterpartYnabTransactionId = $"ynab-gegen-{subtransactionId}"
+            SplitAmount = { Amount = -100.00m; Currency = "EUR" }
+        }
+}
+
 let private observedEvent (entryId: EntryId) (payload: EntryObservedInYnabPayload) : LedgerEvent = {
     EntryId = entryId
     OccurredAt = DateTime(2026, 1, 16, 8, 30, 0, DateTimeKind.Utc)
@@ -420,6 +433,105 @@ let ledgerDomainTests =
                 before
                 "alle uebrigen Felder bleiben unveraendert (Record-Gleichheit prueft jedes Feld)"
 
+        // ledger-h4nxz (ADR 0046): Split-Zeilen-Übertrag, Verknüpfung je Subtransaction-Id.
+        testCase "EntrySplitTransferCounterpartObservedInYnab fügt einen Schlüssel ein, alle übrigen Felder unverändert" <| fun () ->
+            let entryId = newEntryId ()
+            let counterpartId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-h4n-1" None))
+            let linked = apply (Some before) (splitLinkEvent entryId "sub-h4n-a" counterpartId)
+
+            Expect.equal
+                linked.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-a", counterpartId ])
+                "die Gegenbuchung steht unter der Subtransaction-Id"
+            Expect.equal
+                { linked with SplitTransferCounterparts = before.SplitTransferCounterparts }
+                before
+                "alle übrigen Felder bleiben unverändert, auch TransferEntryId"
+
+        testCase "EntrySplitTransferCounterpartObservedInYnab überschreibt denselben Schlüssel, ohne zu werfen" <| fun () ->
+            let entryId = newEntryId ()
+            let first = newEntryId ()
+            let second = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-h4n-2" None))
+            let state =
+                apply (Some before) (splitLinkEvent entryId "sub-h4n-a" first)
+                |> Some
+                |> fun s -> apply s (splitLinkEvent entryId "sub-h4n-a" second)
+
+            Expect.equal
+                state.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-a", second ])
+                "das letzte Ereignis gewinnt je Schlüssel"
+
+        testCase "EntrySplitTransferCounterpartObservedInYnab lässt eine zweite Split-Zeile derselben Buchung unberührt" <| fun () ->
+            let entryId = newEntryId ()
+            let first = newEntryId ()
+            let second = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-h4n-3" None))
+            let state =
+                apply (Some before) (splitLinkEvent entryId "sub-h4n-a" first)
+                |> Some
+                |> fun s -> apply s (splitLinkEvent entryId "sub-h4n-b" second)
+
+            Expect.equal
+                state.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-a", first; "sub-h4n-b", second ])
+                "beide Zeilen sind verknüpft (0..n)"
+
+        testCase "EntrySplitTransferCounterpartObservedInYnab entfernt den alten Schlüssel bei bereits verknüpfter Gegenbuchung" <| fun () ->
+            // YNAB legt die Split-Zeile neu an (neue Subtransaction-Id), dieselbe Gegenbuchung.
+            let entryId = newEntryId ()
+            let counterpartId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-h4n-4" None))
+            let state =
+                apply (Some before) (splitLinkEvent entryId "sub-h4n-alt" counterpartId)
+                |> Some
+                |> fun s -> apply s (splitLinkEvent entryId "sub-h4n-neu" counterpartId)
+
+            Expect.equal
+                state.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-neu", counterpartId ])
+                "eine Gegenbuchung gehört zu höchstens einer Split-Zeile"
+
+        testCase "EntrySplitTransferCounterpartObservedInYnab wirft bei Selbstverknüpfung und ohne Erstbeobachtung" <| fun () ->
+            let entryId = newEntryId ()
+            let before = apply None (observedEvent entryId (observedPayload "ynab-h4n-5" None))
+            Expect.throws
+                (fun () -> apply (Some before) (splitLinkEvent entryId "sub-h4n-a" entryId) |> ignore)
+                "eine Buchung darf sich nicht selbst als Gegenseite einer Split-Zeile verknüpfen"
+
+            let unknownId = newEntryId ()
+            Expect.throws
+                (fun () -> apply None (splitLinkEvent unknownId "sub-h4n-a" (newEntryId ())) |> ignore)
+                "ohne vorangehende Erstbeobachtung ist das Log kaputt"
+
+        testCase "Replay reproduziert SplitTransferCounterparts wie die Zustandstabellen (ADR 0013)" <| fun () ->
+            let entryA = newEntryId ()
+            let entryB = newEntryId ()
+            let entryC = newEntryId ()
+            appendAndApply [
+                observedEvent entryA (observedPayload $"ynab-{entryIdText entryA}" None)
+                observedEvent entryB (observedPayload $"ynab-{entryIdText entryB}" None)
+                observedEvent entryC (observedPayload $"ynab-{entryIdText entryC}" None)
+                splitLinkEvent entryA "sub-h4n-r1" entryB
+                splitLinkEvent entryA "sub-h4n-r2" entryC
+            ]
+            |> Async.RunSynchronously
+
+            let byId (entries: Entry list) =
+                entries |> List.sortBy (fun e -> entryIdText e.Id)
+
+            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
+            let fromLog = replayAll () |> Async.RunSynchronously |> byId
+            Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen überein"
+
+            let stateA = fromTables |> List.find (fun e -> e.Id = entryA)
+            Expect.equal
+                stateA.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-r1", entryB; "sub-h4n-r2", entryC ])
+                "beide Verknüpfungen stehen im Zustand"
+
         testCase "EntryTransferCounterpartObservedInYnab wirft bei Selbstverknuepfung und ohne vorangehende Erstbeobachtung" <| fun () ->
             // AC3.
             let entryId = newEntryId ()
@@ -518,6 +630,11 @@ let ledgerDomainTests =
                 flagChange
                 EntryTransferCounterpartObservedInYnab
                     { CounterpartEntryId = newEntryId (); CounterpartYnabTransactionId = "ynab-7-transfer-gegen" }
+                EntrySplitTransferCounterpartObservedInYnab
+                    { YnabSubtransactionId = "sub-h4n-7"
+                      CounterpartEntryId = newEntryId ()
+                      CounterpartYnabTransactionId = "ynab-7-split-gegen"
+                      SplitAmount = { Amount = -100.00m; Currency = "EUR" } }
                 EntryDeletionObservedInYnab
                 EntryImportedFromComdirect (importedFromComdirectPayload "import-7" "comdirect-7")
                 categorizedByRule
@@ -535,6 +652,7 @@ let ledgerDomainTests =
                   "EntryApprovalChangeObservedInYnab"
                   "EntryFlagChangeObservedInYnab"
                   "EntryTransferCounterpartObservedInYnab"
+                  "EntrySplitTransferCounterpartObservedInYnab"
                   "EntryDeletionObservedInYnab"
                   "EntryImportedFromComdirect"
                   "EntryCategorizedByRule"
@@ -573,6 +691,12 @@ let ledgerDomainTests =
                     { OldFlagColor = Some "purple"; OldFlagName = Some "Lena"; NewFlagColor = None; NewFlagName = None }
                 EntryTransferCounterpartObservedInYnab
                     { CounterpartEntryId = newEntryId (); CounterpartYnabTransactionId = "ynab-8-transfer-gegen" }
+                // ledger-h4nxz (ADR 0046): Codec-Roundtrip in Schema-Version 1.
+                EntrySplitTransferCounterpartObservedInYnab
+                    { YnabSubtransactionId = "sub-h4n-8"
+                      CounterpartEntryId = newEntryId ()
+                      CounterpartYnabTransactionId = "ynab-8-split-gegen"
+                      SplitAmount = { Amount = -100.00m; Currency = "EUR" } }
                 EntryDeletionObservedInYnab
                 EntryImportedFromComdirect (importedFromComdirectPayload "import-8b" "comdirect-8b")
                 categorizedByRule
@@ -747,6 +871,7 @@ let splitCategoryIdsTests =
                 ]
                 Cleared = Uncleared
                 TransferEntryId = None
+                SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
                 FlagColor = None
@@ -772,6 +897,7 @@ let splitCategoryIdsTests =
                 ]
                 Cleared = Uncleared
                 TransferEntryId = None
+                SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
                 FlagColor = None
@@ -791,6 +917,7 @@ let splitCategoryIdsTests =
                 Splits = []
                 Cleared = Uncleared
                 TransferEntryId = None
+                SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
                 FlagColor = None
@@ -815,6 +942,7 @@ let splitCategoryIdsTests =
                 ]
                 Cleared = Uncleared
                 TransferEntryId = None
+                SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
                 FlagColor = None

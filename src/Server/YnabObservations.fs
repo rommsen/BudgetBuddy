@@ -24,6 +24,17 @@ open Ledger.Events
 // Contract
 // ============================================
 
+/// Eine Übertrags-Split-Zeile, wie YNAB sie meldet (ADR 0046). Bewusst getrennt von
+/// `TransactionSplit`: die Fremd-Id gehört nicht in den Snapshot-Vergleich der Splits.
+type ObservedSplitTransfer = {
+    /// YNABs Id der Split-Zeile (Subtransaction-`id`), die Adresse der Zeile.
+    YnabSubtransactionId: string
+    TransferAccountId: YnabAccountId
+    /// Die YNAB-Transaction-Id der Gegenbuchung (`transfer_transaction_id` der Zeile).
+    TransferYnabTransactionId: string option
+    Amount: Money
+}
+
 /// Eine gesehene YNAB-Buchung, vollstaendig, ohne Wertung (ADR 0014).
 type YnabObservation = {
     /// Die von YNAB vergebene Transaction-Id. Der erste Matching-Schluessel (ADR 0015).
@@ -41,6 +52,9 @@ type YnabObservation = {
     Category: CategoryRef option
     /// Die Split-Zeilen (YNABs `subtransactions`), geloeschte Zeilen ausgelassen.
     Splits: TransactionSplit list
+    /// Die Übertrags-Zeilen der Splits mit Subtransaction-Id und Fremd-Id (ADR 0046),
+    /// gelöschte Zeilen ausgelassen. Nicht Teil des Splits-Vergleichs in `observe`.
+    SplitTransfers: ObservedSplitTransfer list
     Cleared: ClearedState
     /// Gegenkonto eines Uebertrags (`transfer_account_id`).
     TransferAccountId: YnabAccountId option
@@ -126,6 +140,8 @@ module Decoders =
 
     /// Eine Split-Zeile, wie YNAB sie liefert, noch ohne Kassenbuch-Form.
     type private RawSubtransaction = {
+        Id: string
+        TransferTransactionId: string option
         Deleted: bool
         Amount: Money
         Memo: string option
@@ -137,6 +153,8 @@ module Decoders =
 
     let private rawSubtransactionDecoder : Decoder<RawSubtransaction> =
         Decode.object (fun get -> {
+            Id = get.Required.Field "id" Decode.string
+            TransferTransactionId = get.Optional.Field "transfer_transaction_id" Decode.string
             Deleted = get.Optional.Field "deleted" Decode.bool |> Option.defaultValue false
             Amount = get.Required.Field "amount" Decode.int64 |> milliunitsToMoney
             Memo = get.Optional.Field "memo" Decode.string
@@ -150,12 +168,27 @@ module Decoders =
     /// Kategorie-Zeile: eine Transfer-Subtransaction traegt nie eine Kategorie. Eine
     /// Zeile ohne beides ist eine **unkategorisierte Split-Zeile** und kommt als solche
     /// an — sie zaehlt beim Betrag voll mit und bricht keinen Lauf ab.
-    let subtransactionsDecoder : Decoder<TransactionSplit list> =
+    /// Die rohe Liste wird einmal dekodiert und zweimal projiziert: auf die Splits
+    /// (unverändert) und auf die Übertrags-Zeilen mit Subtransaction-Id (ADR 0046).
+    let subtransactionsDecoder : Decoder<TransactionSplit list * ObservedSplitTransfer list> =
         Decode.list rawSubtransactionDecoder
-        |> Decode.map (fun raws ->
-            raws
-            |> List.filter (fun r -> not r.Deleted)
-            |> List.map (fun raw ->
+        |> Decode.map (fun allRaws ->
+            let raws = allRaws |> List.filter (fun r -> not r.Deleted)
+
+            let splitTransfers =
+                raws
+                |> List.choose (fun raw ->
+                    raw.TransferAccountId
+                    |> Option.map (fun accountId -> {
+                        YnabSubtransactionId = raw.Id
+                        TransferAccountId = YnabAccountId accountId
+                        TransferYnabTransactionId = raw.TransferTransactionId
+                        Amount = raw.Amount
+                    }))
+
+            let splits =
+                raws
+                |> List.map (fun raw ->
                 let target =
                     match raw.TransferAccountId, raw.CategoryId with
                     | Some accountId, _ ->
@@ -166,16 +199,18 @@ module Decoders =
                             raw.CategoryName |> Option.defaultValue "")
                     | None, None -> Uncategorized
 
-                { Target = target; Amount = raw.Amount; Memo = raw.Memo }))
+                { Target = target; Amount = raw.Amount; Memo = raw.Memo })
+
+            splits, splitTransfers)
 
     let observationDecoder : Decoder<YnabObservation> =
         Decode.object (fun get ->
             let categoryId = get.Optional.Field "category_id" Decode.guid
             let categoryName = get.Optional.Field "category_name" Decode.string
 
-            let splits =
+            let splits, splitTransfers =
                 get.Optional.Field "subtransactions" subtransactionsDecoder
-                |> Option.defaultValue []
+                |> Option.defaultValue ([], [])
 
             {
                 YnabTransactionId = get.Required.Field "id" Decode.string
@@ -194,6 +229,7 @@ module Decoders =
                         }
                     | None -> None
                 Splits = splits
+                SplitTransfers = splitTransfers
                 Cleared = get.Required.Field "cleared" clearedDecoder
                 TransferAccountId =
                     get.Optional.Field "transfer_account_id" Decode.guid |> Option.map YnabAccountId

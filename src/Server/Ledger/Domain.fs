@@ -92,6 +92,9 @@ type Entry = {
     /// leer: der Spiegel sieht nur YNABs `transfer_transaction_id`, das Aufloesen zur
     /// eigenen Buchungs-Id ist Arbeit eines spaeteren Slices.
     TransferEntryId: EntryId option
+    /// Gegenbuchungen der Übertrags-Split-Zeilen, Schlüssel ist YNABs Subtransaction-Id
+    /// (ADR 0046). Kardinalität 0..n, unabhängig von `TransferEntryId`.
+    SplitTransferCounterparts: Map<string, EntryId>
     /// In YNAB geloescht gesehen. Die Buchung bleibt im Kassenbuch stehen.
     DeletedInYnab: bool
     /// YNABs `approved` (ADR 0032): die eine Hälfte des Prüfvermerks neben
@@ -193,6 +196,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Splits = p.Splits
             Cleared = p.Cleared
             TransferEntryId = None
+            SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved
             FlagColor = p.FlagColor
@@ -244,6 +248,22 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             invalidOp $"Uebertrags-Verknuepfung fuer Buchung {id} zeigt auf sich selbst"
         { e with TransferEntryId = Some p.CounterpartEntryId }
 
+    | EntrySplitTransferCounterpartObservedInYnab p ->
+        // ADR 0046: wie der Übertrag auf Buchungsebene, aber je Schlüssel einer Map.
+        // Letztes Ereignis gewinnt je Schlüssel. Eine Gegenbuchung gehört zu höchstens
+        // einer Split-Zeile derselben Buchung: ein anderer Schlüssel mit derselben
+        // Gegenbuchung (YNAB hat die Zeile neu angelegt) wird beim Einfügen entfernt.
+        let e = requireExisting ()
+        if p.CounterpartEntryId = event.EntryId then
+            let (EntryId id) = event.EntryId
+            invalidOp $"Split-Übertrags-Verknüpfung für Buchung {id} zeigt auf sich selbst"
+        let others =
+            e.SplitTransferCounterparts
+            |> Map.filter (fun _ counterpart -> counterpart <> p.CounterpartEntryId)
+        { e with
+            SplitTransferCounterparts =
+                others |> Map.add p.YnabSubtransactionId p.CounterpartEntryId }
+
     | EntryDeletionObservedInYnab ->
         let e = requireExisting ()
         { e with DeletedInYnab = true }
@@ -262,6 +282,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Splits = []
             Cleared = p.Cleared
             TransferEntryId = None
+            SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved
             FlagColor = None
@@ -299,6 +320,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Splits = []
             Cleared = p.Cleared
             TransferEntryId = None
+            SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved
             FlagColor = None

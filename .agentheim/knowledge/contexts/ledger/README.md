@@ -170,6 +170,17 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   übernimmt statt neu zu entscheiden.
 - **Such-Filter (Kassenbuch)**: die fünf Kriterien Kategorie (Mehrfachauswahl), Zeitraum (von/bis, randtag-einschließend), Payee (exakt, ohne Groß-/Kleinschreibung, auch für Umlaute gefaltet), Betrag (von/bis) und Memo (Teiltext, ohne Groß-/Kleinschreibung, auch für Umlaute gefaltet) auf `LedgerEntryPageQuery`/`LedgerPayeeSuggestionQuery`. Gelten als Und-Verknüpfung über alle vier Zählwege (`loadEntriesPage`, `countEntries`, `loadAmountsForQuery`, `countDeletedEntries`) und `loadPayeeSuggestions` hinweg, gebündelt in `Ledger.Persistence.EntryFilter`/`buildFilterClause`. Payee und Memo vergleichen über die anwendungsdefinierte SQL-Funktion `bb_lower` (ADR 0037), nicht über eine SQLite-Kollation: `müller` findet `MÜLLER GMBH` ebenso wie `Müller GmbH`. Die Faltung bildet nur Groß-/Kleinschreibung ab, keine Diakritika-Entfernung: `mueller` findet `Müller` nicht, `STRASSE` findet `Straße` nicht. `countNeedsReviewEntries` (Chip "Zu prüfen") bleibt bewusst außen vor: fester Kontozähler, keine Trefferzahl der laufenden Suche. Der Kategorie-Filter trifft die einfache Kategorie und Split-Zeilen-Kategorien (ADR 0038): eine Buchung, deren einzige Kategorie in einem Split steckt, findet er jetzt auch, über eine abgeleitete Indextabelle (`ledger_entry_split_categories`), die in derselben Transaktion wie Log und Zustand geführt wird. Zeitraum vergleicht nur den Datumsanteil (erste 10 Zeichen des gespeicherten ISO-8601-Textes), Kind-unabhängig (ADR 0036). `loadPayeeSuggestions` gruppiert seit ledger-h4qtx über dieselbe Faltung (`Core.searchFold`) statt über die literale Schreibweise: `Rewe` und `REWE` erscheinen als ein Vorschlag mit der Summe beider Anzahlen, angezeigt wird die häufigste vorkommende Schreibweise, bei Gleichstand die lexikografisch kleinste nach Ordinalvergleich.
 - **Kategorie-Stammdaten** (`ledger_categories`) — gespiegelte Kategorie-Id, Name und Gruppenname, nach dem Muster der Konten. Am Ende jedes Spiegel-Laufs, bestes Bemühen: weder ein fehlgeschlagener Abruf noch eine Ausnahme lässt den Lauf scheitern (ADR 0039). Auch ein fehlgeschlagenes Schreiben lässt den Lauf `Ok`, sichtbar nur auf stdout. Voller Abruf je Lauf, nur Upsert, nie Löschen: eine in YNAB gelöschte Kategorie behält ihre letzte Beschriftung. Code: `Ledger.Persistence.upsertCategories`, `Ledger.Persistence.loadCategoryGroups`. Der Lesepfad qualifiziert die Gruppe an die Buchung (`ledger-h6ptn`, ADR 0039): `Ledger.QueryHandlers.ReadModel.toEntryView` nimmt die Zuordnung Kategorie-Id -> Gruppenname als Parameter (einmal je Abfrage geladen, kein I/O in der Funktion selbst) und füllt `LedgerEntryView.CategoryGroupName`; fehlt die Zuordnung (Kategorie nie gespiegelt), bleibt das Feld `None`, nie ein erfundener Gruppenname. Die PC-Tabelle zeigt `categoryLabelQualified` ("Gruppe: Name"), die Handy-Zeile bleibt bei `categoryLabel` (nur der Blattname); die Historie schlägt nichts nach und bleibt beim Blattnamen. Alte Buchungen zeigen die heutige Gruppe, nicht die von damals: eine Umbenennung ist Korrektur der Einordnung, kein neuer Sachverhalt. Der Blattname wird seit ADR 0044 ebenfalls live aufgelöst: `Ledger.Persistence.loadCategoryNames` liefert die Zuordnung Kategorie-Id -> heutiger Name, `ReadModel.toEntryView` nimmt sie als neuen ersten Parameter `categoryNames` und setzt damit `CategoryName` (Kopf) und jedes `ToCategory`-Split-Ziel, mit Rückfall auf den gespeicherten Namen bei fehlendem oder leerem Treffer. Für ältere Ereignisse mit gleicher Kategorie-Id und anderem Namen lautet der Historien-Satz "Kategorie in YNAB umbenannt: A → B".
+- **Split-Zeilen-Übertrag**: ein Übertrag, den YNAB als Zeile innerhalb einer
+  Split-Buchung führt (im Kassenbuch `SplitTarget.ToTransfer`), nicht als zwei vollständige
+  Buchungen. Eine Buchung kann null bis n solcher Zeilen tragen. Die Zeile wird über YNABs
+  Subtransaction-Id adressiert, nicht über ihre Position. Nur die Split-Seite trägt die
+  Fremd-Id der Gegenbuchung (`transfer_transaction_id` der Zeile), die Gegenbuchung selbst
+  trägt keine Rückreferenz (ADR 0046).
+- **Split-Übertrags-Verknüpfung**: die aufgelöste Beziehung einer Split-Zeile zur
+  Kassenbuch-Buchung ihrer Gegenseite: `Entry.SplitTransferCounterparts`, eine `Map` von
+  Subtransaction-Id auf Buchungs-Id. Unabhängig von `Entry.TransferEntryId` (Übertrag auf
+  Buchungsebene); beide schließen sich nach YNABs Regel aus, das Kassenbuch erzwingt es
+  nicht (ADR 0046).
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -286,6 +297,17 @@ MatchedByOrderId`).
   wechselseitig, der Umschlag trägt aber genau eine Buchungs-Id: deshalb **zwei**
   Ereignisse, eins je Seite, mit demselben Zeitpunkt und in einem
   `appendAndApply`-Aufruf, also einer Transaktion.
+- `EntrySplitTransferCounterpartObservedInYnab`: die Gegenbuchung einer
+  Übertrags-Split-Zeile ist gefunden (ADR 0046). Liegt auf der Buchung mit der Split-Zeile.
+  Payload: YNABs Subtransaction-Id der Zeile, Buchungs-Id der Gegenbuchung, die
+  YNAB-Transaction-Id, über die aufgelöst wurde, und der Betrag der Zeile (für den
+  Historien-Satz, weil zwei Übertrags-Zeilen zum selben Konto sich sonst nicht
+  unterscheiden). Schema-Version 1, Actor `YnabMirror`. Setzt einen Eintrag in
+  `Entry.SplitTransferCounterparts` (letztes Ereignis gewinnt je Schlüssel; eine
+  Gegenbuchung gehört zu höchstens einer Zeile derselben Buchung, ein anderer Schlüssel mit
+  derselben Gegenbuchung wird entfernt; Selbstverknüpfung wirft). Die Gegenbuchung bekommt
+  das bestehende `EntryTransferCounterpartObservedInYnab`. Wie dieses entsteht es nicht aus
+  der Änderungserkennung, sondern in einem Nachlauf des Spiegel-Laufs.
 
 Mehrere Gruppen in einer Beobachtung ergeben mehrere Ereignisse (Details, Kategorisierung,
 Cleared). Unveränderte Daten ergeben kein Ereignis.
@@ -346,6 +368,8 @@ schreibt eine Warnzeile über `printfn` und läuft weiter; der `invalidOp` daneb
 seitdem nur noch einen Programmierfehler im Erzeuger ab, keinen Datenfehler mehr. Das
 Aufheben eines Übertrags in YNAB ist heute nicht modelliert: die Verknüpfung bleibt dann
 stehen, bis die zusammengefasste Übertrags-Sicht in v2 kommt.
+
+**Split-Übertrags-Verknüpfung (Zeitpunkt):** Anders als `linkTransferCounterpart` läuft `linkSplitTransferCounterparts` in einem Nachlauf nach der Beobachtungs-Schleife von `runMirror` (vor `saveServerKnowledge`). Nur die Split-Seite trägt die Fremd-Id; läge die Gegenbuchung im selben Batch hinter der Split-Buchung, fände ein Aufruf innerhalb der Schleife sie nicht, und kein künftiges Delta brächte beide erneut vorbei. Kardinalität 0..n je Buchung. Gelöschte Split-Zeilen behalten ihre Verknüpfung (wie der Übertrag auf Buchungsebene). Die Zähler des Laufs bleiben unberührt (ADR 0046).
 
 **Konten** haben in v1 keine Historie (reiner Zustand: Id, Name, Art, Verknüpfung,
 geschlossen). **Kontostand** ist eine Query über die nicht gelöschten Buchungen.

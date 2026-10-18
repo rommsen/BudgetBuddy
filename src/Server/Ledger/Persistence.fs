@@ -93,6 +93,8 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN approved INTEGER NOT NULL DEFAULT 1"
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_color TEXT"
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_name TEXT"
+    // ADR 0046: JSON-Liste der Übertrags-Split-Verknüpfungen, NULL liest sich als leer.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN split_transfer_counterparts TEXT"
 
 /// Legt die Kassenbuch-Tabellen an, auf der übergebenen Connection. Bestehende
 /// Tabellen bleiben unangetastet (`CREATE TABLE IF NOT EXISTS`); der Aufruf ist
@@ -149,7 +151,8 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             deleted_in_ynab INTEGER NOT NULL DEFAULT 0,
             approved INTEGER NOT NULL DEFAULT 1,
             flag_color TEXT,
-            flag_name TEXT
+            flag_name TEXT,
+            split_transfer_counterparts TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -222,6 +225,7 @@ type private EntryRow = {
     approved: int64
     flag_color: string
     flag_name: string
+    split_transfer_counterparts: string
 }
 
 [<CLIMutable>]
@@ -268,6 +272,32 @@ let private rowToRecordedEvent (row: EventRow) : RecordedLedgerEvent =
         }
     }
 
+/// Die Split-Übertrags-Verknüpfungen (ADR 0046) als JSON-Liste von
+/// `{ ynabSubtransactionId, counterpartEntryId }`.
+let private encodeSplitTransferCounterparts (counterparts: Map<string, EntryId>) : string =
+    counterparts
+    |> Map.toList
+    |> List.map (fun (subId, EntryId counterpart) ->
+        Thoth.Json.Net.Encode.object [
+            "ynabSubtransactionId", Thoth.Json.Net.Encode.string subId
+            "counterpartEntryId", Thoth.Json.Net.Encode.guid counterpart
+        ])
+    |> Thoth.Json.Net.Encode.list
+    |> Thoth.Json.Net.Encode.toString 0
+
+let private decodeSplitTransferCounterparts (text: string) : Map<string, EntryId> =
+    if String.IsNullOrWhiteSpace text then
+        Map.empty
+    else
+        let decoder =
+            Thoth.Json.Net.Decode.list (
+                Thoth.Json.Net.Decode.object (fun get ->
+                    get.Required.Field "ynabSubtransactionId" Thoth.Json.Net.Decode.string,
+                    EntryId (get.Required.Field "counterpartEntryId" Thoth.Json.Net.Decode.guid)))
+        match Thoth.Json.Net.Decode.fromString decoder text with
+        | Ok pairs -> Map.ofList pairs
+        | Error e -> failwith $"Split-Übertrags-Verknüpfungen nicht lesbar: {e}"
+
 let private rowToEntry (row: EntryRow) : Entry =
     let category =
         match toOption row.category_id, toOption row.category_name with
@@ -291,6 +321,7 @@ let private rowToEntry (row: EntryRow) : Entry =
         Splits = splits
         Cleared = clearedFromText row.cleared
         TransferEntryId = toOption row.transfer_entry_id |> Option.map (Guid.Parse >> EntryId)
+        SplitTransferCounterparts = decodeSplitTransferCounterparts row.split_transfer_counterparts
         DeletedInYnab = row.deleted_in_ynab = 1L
         Approved = row.approved = 1L
         FlagColor = toOption row.flag_color
@@ -345,16 +376,20 @@ let private entryParams (entry: Entry) =
         approved = (if entry.Approved then 1 else 0)
         flag_color = orNull entry.FlagColor
         flag_name = orNull entry.FlagName
+        split_transfer_counterparts =
+            if Map.isEmpty entry.SplitTransferCounterparts then null
+            else encodeSplitTransferCounterparts entry.SplitTransferCounterparts
     |}
 
 let private upsertEntrySql =
     """INSERT INTO ledger_entries
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
-          splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name)
+          splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
+          split_transfer_counterparts)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
-          @flag_color, @flag_name)
+          @flag_color, @flag_name, @split_transfer_counterparts)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -370,7 +405,8 @@ let private upsertEntrySql =
           deleted_in_ynab = excluded.deleted_in_ynab,
           approved = excluded.approved,
           flag_color = excluded.flag_color,
-          flag_name = excluded.flag_name"""
+          flag_name = excluded.flag_name,
+          split_transfer_counterparts = excluded.split_transfer_counterparts"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je

@@ -49,6 +49,7 @@ let private observation (ynabTxId: string) : YnabObservation = {
     Cleared = Uncleared
     TransferAccountId = None
     TransferYnabTransactionId = None
+    SplitTransfers = []
     Deleted = false
     Approved = true
     FlagColor = None
@@ -1503,4 +1504,245 @@ let runMirrorInBackgroundTests =
 
             // Kein Wurf ist hier schon die Aussage des Tests.
             runMirrorInBackground succeedingRun |> Async.RunSynchronously
+    ]
+
+
+// ============================================
+// ledger-h4nxz (ADR 0046): Übertrags-Split-Zeilen
+// ============================================
+
+[<Tests>]
+let splitTransferDecoderTests =
+    testList "Ledger Spiegel (Split-Übertrag, Decoder)" [
+
+        testCase "Subtransaction-Id und transfer_transaction_id werden gelesen, gelöschte Übertrags-Zeilen fallen weg" <| fun () ->
+            // Regression: eine gelöschte Transfer-Subtransaction darf nicht in
+            // `SplitTransfers` auftauchen (ADR 0046, Punkt 1).
+            let json = """
+            {
+              "data": {
+                "transactions": [
+                  {
+                    "id": "tx-h4n-split",
+                    "date": "2026-02-03",
+                    "amount": -192090,
+                    "cleared": "cleared",
+                    "approved": true,
+                    "account_id": "0195d000-0000-7000-8000-0000000000a1",
+                    "deleted": false,
+                    "subtransactions": [
+                      { "id": "sub-h4n-kat", "amount": -92090, "memo": null,
+                        "category_id": "0195d000-0000-7000-8000-0000000000c1",
+                        "category_name": "Lebensmittel", "transfer_account_id": null,
+                        "transfer_transaction_id": null, "deleted": false },
+                      { "id": "f585c0f4-c211-4217-adb6-6be0f6b619f9", "amount": -100000,
+                        "memo": null, "category_id": null,
+                        "transfer_account_id": "0195d000-0000-7000-8000-0000000000a3",
+                        "transfer_transaction_id": "8466b531-94a6-4a52-a14d-655113cef732",
+                        "deleted": false },
+                      { "id": "sub-h4n-weg", "amount": -50000, "memo": null,
+                        "category_id": null,
+                        "transfer_account_id": "0195d000-0000-7000-8000-0000000000a3",
+                        "transfer_transaction_id": "tx-h4n-geloescht", "deleted": true },
+                      { "id": "sub-h4n-ohne", "amount": -25000, "memo": null,
+                        "category_id": null,
+                        "transfer_account_id": "0195d000-0000-7000-8000-0000000000a2",
+                        "deleted": false }
+                    ]
+                  }
+                ],
+                "server_knowledge": 1
+              }
+            }
+            """
+
+            match Decode.fromString Decoders.observationBatchDecoder json with
+            | Error err -> failtest $"Delta nicht dekodierbar: {err}"
+            | Ok batch ->
+                let obs = batch.Observations |> List.exactlyOne
+                Expect.equal
+                    obs.SplitTransfers
+                    [
+                        { YnabSubtransactionId = "f585c0f4-c211-4217-adb6-6be0f6b619f9"
+                          TransferAccountId = YnabAccountId (Guid.Parse "0195d000-0000-7000-8000-0000000000a3")
+                          TransferYnabTransactionId = Some "8466b531-94a6-4a52-a14d-655113cef732"
+                          Amount = eur -100.00m }
+                        { YnabSubtransactionId = "sub-h4n-ohne"
+                          TransferAccountId = YnabAccountId (Guid.Parse "0195d000-0000-7000-8000-0000000000a2")
+                          TransferYnabTransactionId = None
+                          Amount = eur -25.00m }
+                    ]
+                    "nur nicht gelöschte Übertrags-Zeilen, mit Subtransaction-Id und Fremd-Id"
+                Expect.equal obs.Splits.Length 3 "die Splits selbst bleiben unverändert (ohne die gelöschte Zeile)"
+
+        testCase "observe: unverändert erneut beobachtete Split-Buchung mit Übertrags-Zeile liefert kein Ereignis" <| fun () ->
+            let entryId = newEntryId ()
+            let bar = YnabAccountId (Guid.NewGuid())
+            let obs =
+                { observation "ynab-h4n-obs" with
+                    Category = None
+                    Splits = [
+                        { Target = ToTransfer (bar, "Bar"); Amount = eur -100.00m; Memo = None }
+                        { Target = ToCategory (lebensmittel.CategoryId, "Lebensmittel")
+                          Amount = eur 78.01m
+                          Memo = None }
+                    ]
+                    SplitTransfers = [
+                        { YnabSubtransactionId = "sub-h4n-x"
+                          TransferAccountId = bar
+                          TransferYnabTransactionId = Some "ynab-h4n-gegen"
+                          Amount = eur -100.00m }
+                    ] }
+            let state = stateFrom entryId obs
+
+            Expect.isEmpty
+                (observe (context entryId) (Some state) obs)
+                "das neue Feld SplitTransfers darf den Splits-Vergleich nicht verändern"
+    ]
+
+[<Tests>]
+let splitTransferRunTests =
+    let testCase name body =
+        testCase name (fun () ->
+            initializeLedgerSchema ()
+            global.Persistence.initializeDatabase ()
+            body ())
+
+    let kontoGiro = YnabAccountId (Guid.Parse "4a4a4a4a-0000-4000-8000-0000000000a1")
+    let kontoBar = YnabAccountId (Guid.Parse "4a4a4a4a-0000-4000-8000-0000000000a2")
+
+    let splitObs (suffix: string) (splitTransfers: ObservedSplitTransfer list) =
+        { observation $"split-{suffix}" with
+            AccountId = kontoGiro
+            Amount = eur -192.09m
+            Category = None
+            Splits =
+                splitTransfers
+                |> List.map (fun st ->
+                    { Target = ToTransfer (st.TransferAccountId, "Bar"); Amount = st.Amount; Memo = None })
+            SplitTransfers = splitTransfers }
+
+    let barObs (suffix: string) =
+        { observation $"bar-{suffix}" with
+            AccountId = kontoBar
+            Amount = eur 100.00m
+            Category = None
+            TransferAccountId = Some kontoGiro }
+
+    let splitTransfer (subId: string) (counterpartYnabId: string option) (amount: decimal) = {
+        YnabSubtransactionId = subId
+        TransferAccountId = kontoBar
+        TransferYnabTransactionId = counterpartYnabId
+        Amount = eur amount
+    }
+
+    let entryOf (ynabId: string) =
+        findEntryByLink YnabSystem ynabId |> Async.RunSynchronously |> Option.get
+
+    testSequenced
+    <| testList "Ledger Spiegel-Lauf (Split-Übertrag, Nachlauf)" [
+
+        testCase "Split-Buchung vor ihrer Gegenbuchung im selben Batch: am Ende sind beide Seiten verknüpft" <| fun () ->
+            // Belegt den Nachlauf: innerhalb der Schleife fände der Lookup die dahinter
+            // liegende Gegenbuchung noch nicht.
+            let budgetId = Run.budget "h4n-nachlauf"
+            let split = splitObs "h4n-1" [ splitTransfer "sub-h4n-1" (Some "bar-h4n-1") -100.00m ]
+            let bar = barObs "h4n-1"
+
+            let summary = Run.run 4 budgetId (Run.fetchers 1L [ split; bar ]) |> Run.expectOk
+            Expect.equal summary.NewEntries 2 "zwei Buchungen"
+            Expect.equal summary.ChangedEntries 0 "die Verknüpfung zählt nicht als Änderung"
+
+            let splitId = entryOf "split-h4n-1"
+            let barId = entryOf "bar-h4n-1"
+            let splitEntry = loadEntry splitId |> Async.RunSynchronously |> Option.get
+            let barEntry = loadEntry barId |> Async.RunSynchronously |> Option.get
+
+            Expect.equal
+                splitEntry.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-1", barId ])
+                "die Split-Seite zeigt unter der Subtransaction-Id auf die Gegenbuchung"
+            Expect.equal barEntry.TransferEntryId (Some splitId) "die Gegenbuchung zeigt auf die Split-Buchung"
+
+        testCase "zwei Übertrags-Zeilen derselben Buchung zum selben Zielkonto ergeben zwei getrennte Einträge" <| fun () ->
+            let budgetId = Run.budget "h4n-zwei-zeilen"
+            let split =
+                splitObs "h4n-2" [
+                    splitTransfer "sub-h4n-2a" (Some "bar-h4n-2a") -100.00m
+                    splitTransfer "sub-h4n-2b" (Some "bar-h4n-2b") -100.00m
+                ]
+
+            Run.run 4 budgetId (Run.fetchers 1L [ barObs "h4n-2a"; split; barObs "h4n-2b" ])
+            |> Run.expectOk
+            |> ignore
+
+            let splitEntry = loadEntry (entryOf "split-h4n-2") |> Async.RunSynchronously |> Option.get
+            Expect.equal
+                splitEntry.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-2a", entryOf "bar-h4n-2a"; "sub-h4n-2b", entryOf "bar-h4n-2b" ])
+                "zwei Schlüssel, zwei verschiedene Gegenbuchungen"
+
+        testCase "ein zweiter, identischer Lauf erzeugt keine weiteren Verknüpfungs-Ereignisse" <| fun () ->
+            let budgetId = Run.budget "h4n-idempotent"
+            let observations =
+                [ splitObs "h4n-3" [ splitTransfer "sub-h4n-3" (Some "bar-h4n-3") -100.00m ]
+                  barObs "h4n-3" ]
+
+            Run.run 4 budgetId (Run.fetchers 1L observations) |> Run.expectOk |> ignore
+            let splitId = entryOf "split-h4n-3"
+            let barId = entryOf "bar-h4n-3"
+            let countEvents id = loadEventsForEntry id |> Async.RunSynchronously |> List.length
+            let before = countEvents splitId, countEvents barId
+
+            let second = Run.run 5 budgetId (Run.fetchers 2L observations) |> Run.expectOk
+            Expect.equal (second.NewEntries, second.ChangedEntries) (0, 0) "nichts Neues"
+            Expect.equal (countEvents splitId, countEvents barId) before "keine weiteren Ereignisse auf beiden Seiten"
+
+        testCase "fehlt die Gegenbuchung im Kassenbuch, entsteht kein Verknüpfungs-Ereignis und kein Fehler" <| fun () ->
+            let budgetId = Run.budget "h4n-ohne-gegen"
+            let split = splitObs "h4n-4" [ splitTransfer "sub-h4n-4" (Some "bar-h4n-4-unbekannt") -100.00m ]
+
+            Run.run 4 budgetId (Run.fetchers 1L [ split ]) |> Run.expectOk |> ignore
+
+            let splitEntry = loadEntry (entryOf "split-h4n-4") |> Async.RunSynchronously |> Option.get
+            Expect.isEmpty (Map.toList splitEntry.SplitTransferCounterparts) "keine Verknüpfung"
+            Expect.equal
+                (loadEventsForEntry (entryOf "split-h4n-4") |> Async.RunSynchronously |> List.length)
+                1
+                "nur die Erstbeobachtung steht im Log"
+
+        testCase "eine Übertrags-Zeile ohne transfer_transaction_id bleibt unverknüpft" <| fun () ->
+            let budgetId = Run.budget "h4n-ohne-fremd-id"
+            let split = splitObs "h4n-5" [ splitTransfer "sub-h4n-5" None -100.00m ]
+
+            Run.run 4 budgetId (Run.fetchers 1L [ split ]) |> Run.expectOk |> ignore
+
+            let splitEntry = loadEntry (entryOf "split-h4n-5") |> Async.RunSynchronously |> Option.get
+            Expect.isEmpty (Map.toList splitEntry.SplitTransferCounterparts) "ohne Fremd-Id nichts aufzulösen"
+
+        testCase "Replay reproduziert die Verknüpfung eines Spiegel-Laufs (ADR 0013)" <| fun () ->
+            let budgetId = Run.budget "h4n-replay"
+            let split = splitObs "h4n-6" [ splitTransfer "sub-h4n-6" (Some "bar-h4n-6") -100.00m ]
+
+            Run.run 4 budgetId (Run.fetchers 1L [ split; barObs "h4n-6" ]) |> Run.expectOk |> ignore
+
+            let byId (entries: Entry list) = entries |> List.sortBy (fun e -> e.Id)
+            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
+            let fromLog = replayAll () |> Async.RunSynchronously |> byId
+            Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen überein"
+
+        test "describe liefert einen lesbaren Satz mit Betrag, keinen Typnamen" {
+            let text =
+                Ledger.QueryHandlers.ReadModel.describe (
+                    EntrySplitTransferCounterpartObservedInYnab {
+                        YnabSubtransactionId = "sub-h4n-d"
+                        CounterpartEntryId = newEntryId ()
+                        CounterpartYnabTransactionId = "ynab-h4n-d"
+                        SplitAmount = eur -100.00m
+                    })
+            Expect.stringContains text "Split-Zeile über" "Satz in der Sprache des Kassenbuchs"
+            Expect.stringContains text "als Übertrag mit einer anderen Buchung verbunden" "Wortlaut"
+            Expect.stringContains text "100" "der Betrag der Zeile steht im Satz"
+            Expect.isFalse (text.Contains "EntrySplitTransferCounterpartObservedInYnab") "kein Typname"
+        }
     ]

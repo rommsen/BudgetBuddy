@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 18:11 -- Task verified and completed: ledger-h4nxz - "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
+
+**Type:** Work / Task completion
+**Task:** ledger-h4nxz - "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
+**Summary:** Übertrags-Split-Zeilen werden jetzt über YNABs Subtransaction-Id mit ihrer Gegenbuchung verknüpft (neues Ereignis, Map auf dem Entry, Nachlauf im Spiegel-Lauf, Persistenz mit Replay, Historien-Satz).
+**Duration:** 26m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-10-18 18:04 -- Batch started: [ledger-saqsk]
 
 **Type:** Work / Batch start

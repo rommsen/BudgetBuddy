@@ -300,6 +300,80 @@ let private linkTransferCounterpart
                     do! Ledger.Persistence.appendAndApply events
     }
 
+/// Verknüpft die Gegenbuchungen der Übertrags-Split-Zeilen einer Buchung (ADR 0046,
+/// `EntrySplitTransferCounterpartObservedInYnab`, ledger-h4nxz). Läuft in einem Nachlauf
+/// nach der Beobachtungs-Schleife, weil nur die Split-Seite die Fremd-Id trägt: liegt die
+/// Gegenbuchung im selben Batch hinter der Split-Buchung, fände ein Aufruf innerhalb der
+/// Schleife sie nicht, und kein künftiges Delta brächte beide erneut vorbei.
+///
+/// Je Zeile mit `transfer_transaction_id`: kein `findEntryByLink`-Treffer ist der
+/// Normalfall (kein Ereignis, kein Fehler), ein Selbstbezug wird still übersprungen.
+/// Ein Ereignis auf der Split-Buchung nur, wenn ihre Map den Schlüssel noch nicht auf
+/// diese Gegenbuchung zeigen hat, eines auf der Gegenbuchung (bestehendes
+/// `EntryTransferCounterpartObservedInYnab`) nur, wenn deren `TransferEntryId` noch nicht
+/// auf die Split-Buchung zeigt. Alle Ereignisse einer Beobachtung gehen in einen
+/// `appendAndApply`-Aufruf. Die Zähler des Laufs bleiben unberührt.
+let private linkSplitTransferCounterparts
+    (now: DateTime)
+    (entryId: EntryId)
+    (obs: YnabObservation)
+    : Async<unit> =
+    async {
+        if not obs.Deleted then
+            let events = ResizeArray<LedgerEvent>()
+
+            for split in obs.SplitTransfers do
+                match split.TransferYnabTransactionId with
+                | None -> ()
+                | Some counterpartYnabTxId ->
+                    match! Ledger.Persistence.findEntryByLink YnabSystem counterpartYnabTxId with
+                    | None -> ()
+                    | Some counterpartId when counterpartId = entryId ->
+                        let (EntryId id) = entryId
+                        printfn
+                            "Split-Übertrags-Verknüpfung übersprungen: Buchung %O zeigt auf sich selbst (YNAB-Transaktion %s)"
+                            id
+                            obs.YnabTransactionId
+                    | Some counterpartId ->
+                        let! thisEntry = Ledger.Persistence.loadEntry entryId
+                        let! counterpartEntry = Ledger.Persistence.loadEntry counterpartId
+
+                        match thisEntry with
+                        | Some e when
+                            Map.tryFind split.YnabSubtransactionId e.SplitTransferCounterparts
+                            <> Some counterpartId ->
+                            events.Add {
+                                EntryId = entryId
+                                OccurredAt = now
+                                Actor = YnabMirror
+                                Body =
+                                    EntrySplitTransferCounterpartObservedInYnab {
+                                        YnabSubtransactionId = split.YnabSubtransactionId
+                                        CounterpartEntryId = counterpartId
+                                        CounterpartYnabTransactionId = counterpartYnabTxId
+                                        SplitAmount = split.Amount
+                                    }
+                            }
+                        | _ -> ()
+
+                        match counterpartEntry with
+                        | Some e when e.TransferEntryId <> Some entryId ->
+                            events.Add {
+                                EntryId = counterpartId
+                                OccurredAt = now
+                                Actor = YnabMirror
+                                Body =
+                                    EntryTransferCounterpartObservedInYnab {
+                                        CounterpartEntryId = entryId
+                                        CounterpartYnabTransactionId = obs.YnabTransactionId
+                                    }
+                            }
+                        | _ -> ()
+
+            if events.Count > 0 then
+                do! Ledger.Persistence.appendAndApply (List.ofSeq events)
+    }
+
 /// Ein Spiegel-Lauf: Beobachtungen holen, Konten nachziehen, je Beobachtung die Buchung
 /// suchen, den Snapshot gegen den Zustand vergleichen und nur bei Unterschied Ereignisse
 /// schreiben. Am Ende steht das `server_knowledge` des Laufs in den Settings und der
@@ -342,6 +416,8 @@ let runMirror
                     let mutable changedEntries = 0
                     let mutable deletedEntries = 0
                     let mutable failure = None
+                    // Beobachtungen mit Übertrags-Split-Zeilen, für den Nachlauf (ADR 0046).
+                    let splitTransferObservations = ResizeArray<EntryId * YnabObservation>()
 
                     for obs in batch.Observations do
                         if failure.IsNone then
@@ -374,6 +450,9 @@ let runMirror
                                 // die Verknuepfung ist BBs eigener Nachtrag.
                                 do! linkTransferCounterpart now entryId obs
 
+                                if not (List.isEmpty obs.SplitTransfers) then
+                                    splitTransferObservations.Add((entryId, obs))
+
                                 if events |> List.exists (fun e ->
                                         match e.Body with
                                         | EntryObservedInYnab _ -> true
@@ -396,6 +475,11 @@ let runMirror
                     match failure with
                     | Some message -> return! finish (Error message)
                     | None ->
+                        // Nachlauf (ADR 0046): jetzt sind alle Buchungen des Batches
+                        // geschrieben, die Gegenbuchung ist auffindbar, egal wo sie liegt.
+                        for (entryId, obs) in splitTransferObservations do
+                            do! linkSplitTransferCounterparts now entryId obs
+
                         // Erst wenn alle Beobachtungen verarbeitet sind, ruecken wir das
                         // Gedaechtnis vor: ein abgebrochener Lauf holt beim naechsten Mal
                         // dasselbe Delta erneut, was dank Idempotenz folgenlos ist.
