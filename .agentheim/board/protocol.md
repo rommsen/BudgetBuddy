@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 22:45 -- Modeling / Promoted: design-system-q7rkm - DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader)
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-18 22:45 -- Modeling / Refined: design-system-q7rkm, ledger-n4vte - Ruhige Listen (DS-Bausteine und Kassenbuch)
 
 **Type:** Modeling / Refine

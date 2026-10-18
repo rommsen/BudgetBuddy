@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 29
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-q7rkm** — DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader) (feature) — `todo/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -59,7 +60,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-q7rkm** — DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen, Container ohne Breitenbegrenzung, schlanker PageHeader) (feature) — `backlog/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md`
 <!-- backlog-list:end -->
 
 
