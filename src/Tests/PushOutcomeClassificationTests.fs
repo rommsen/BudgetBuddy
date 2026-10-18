@@ -112,12 +112,11 @@ let classifyPushOutcomesTests =
             Expect.equal updated.Status AutoCategorized "der Kategorisierungs-Status einer Duplikat-Buchung bleibt unverändert"
             Expect.isFalse result.SessionMayComplete "ein Duplikat darf den Abschluss blockieren"
 
-        testCase "WrittenNotLinked ohne gemeldete Duplikat-ImportId (nicht auswertbare Antwort) bleibt unverändert und blockiert den Abschluss nicht" <| fun () ->
-            // Bestehendes Verhalten, unverändert durch diesen Task: eine nicht
-            // auswertbare Antwort gilt weder als Duplikat noch als gescheitertes
-            // Kassenbuch-Schreiben, blockiert den Abschluss also nicht, auf dem normalen
-            // Import-Push (`forceImport = false`). Der Force-Import-Pfad hat die
-            // gegenteilige Regel, siehe die beiden Force-Tests weiter unten.
+        testCase "WrittenNotLinked ohne gemeldete Duplikat-ImportId (nicht auswertbare Antwort) bleibt unverändert und blockiert den Abschluss jetzt auch auf dem normalen Import-Push" <| fun () ->
+            // Regressionstest (ledger-fgw2q): vorher blieb SessionMayComplete auf dem
+            // normalen Import-Push (`forceImport = false`) wahr, obwohl keine Buchung
+            // bestätigt mit YNAB verknüpft wurde und Roman nichts von der nicht
+            // auswertbaren Antwort erfuhr.
             let tx = Fixtures.makeTx "tx-unparseable" AutoCategorized
             let prepared = Fixtures.prepare false [ tx ]
             let entryId = newEntryId ()
@@ -129,9 +128,63 @@ let classifyPushOutcomesTests =
             let result = classifyPushOutcomes [ tx ] prepared pushResult false []
 
             Expect.isEmpty result.DuplicateTransactionIds "keine Duplikat-Meldung ohne gemeldete Duplikat-ImportId"
+            Expect.equal result.UnresolvedWrittenNotLinkedTransactionIds [ tx.Transaction.Id ] "die Buchung gilt als nicht auswertbar"
             let updated = result.UpdatedTransactions |> List.exactlyOne
             Expect.equal updated.YnabImportStatus NotAttempted "der Zustand bleibt unverändert, kein pauschaler Erfolg"
-            Expect.isTrue result.SessionMayComplete "eine nicht auswertbare Antwort blockiert den Abschluss auf dem normalen Import-Push nicht (bestehendes Verhalten)"
+            Expect.isFalse result.SessionMayComplete "eine nicht auswertbare Antwort blockiert den Abschluss auch auf dem normalen Import-Push"
+
+        testCase "eine nicht auswertbare Antwort blockiert den Abschluss auch auf dem Force-Pfad über das neue Feld" <| fun () ->
+            // Die Buchung ist hier als Pending dem Force-Offen-Test entzogen, sodass nur
+            // die neue Bedingung den Abschluss blockieren kann.
+            let tx = Fixtures.makeTx "tx-unparseable-force" Pending
+            let prepared = Fixtures.prepare false [ tx ]
+            let pushResult = {
+                Outcomes = Map.ofList [ tx.Transaction.Id, WrittenNotLinked (newEntryId ()) ]
+                SendResult = Some (Ok { emptyCreateResult with ResponseUnparseable = true })
+            }
+
+            let result = classifyPushOutcomes [ tx ] prepared pushResult true []
+
+            Expect.equal result.UnresolvedWrittenNotLinkedTransactionIds [ tx.Transaction.Id ] "die Buchung gilt als nicht auswertbar"
+            Expect.isFalse result.SessionMayComplete "die neue Bedingung gilt auf beiden Pfaden"
+
+        testCase "ein echtes Duplikat ist nicht unresolved" <| fun () ->
+            let tx = Fixtures.makeTx "tx-dup2" AutoCategorized
+            let prepared = Fixtures.prepare false [ tx ]
+            let importId = Fixtures.importIdFor prepared tx.Transaction.Id
+            let pushResult = {
+                Outcomes = Map.ofList [ tx.Transaction.Id, WrittenNotLinked (newEntryId ()) ]
+                SendResult = Some (Ok { emptyCreateResult with DuplicateImportIds = [ importId ] })
+            }
+            let result = classifyPushOutcomes [ tx ] prepared pushResult false []
+            Expect.isEmpty result.UnresolvedWrittenNotLinkedTransactionIds "ein gemeldetes Duplikat ist keine nicht auswertbare Antwort"
+
+        testCase "pushFailureError liefert für eine nicht auswertbare Antwort YnabImportFailed mit eigenem Text" <| fun () ->
+            // Der Fable.Remoting-Proxy macht `importToYnab` unter dotnet test unerreichbar,
+            // deshalb ist die Fehlerabbildung eine pure Funktion.
+            let tx = Fixtures.makeTx "tx-unparseable-err" AutoCategorized
+            let prepared = Fixtures.prepare false [ tx ]
+            let pushResult = {
+                Outcomes = Map.ofList [ tx.Transaction.Id, WrittenNotLinked (newEntryId ()) ]
+                SendResult = Some (Ok { emptyCreateResult with ResponseUnparseable = true })
+            }
+            let result = classifyPushOutcomes [ tx ] prepared pushResult false []
+
+            match pushFailureError result with
+            | Some (SyncError.YnabImportFailed (n, msg)) ->
+                Expect.equal n 1 "eine Buchung betroffen"
+                Expect.stringContains msg "nicht auswertbar" "eigener, unterscheidbarer Text"
+            | other -> failtestf "erwartet YnabImportFailed, bekam %A" other
+
+        testCase "pushFailureError ist None, wenn nichts fehlschlug" <| fun () ->
+            let tx = Fixtures.makeTx "tx-ok" AutoCategorized
+            let prepared = Fixtures.prepare false [ tx ]
+            let pushResult = {
+                Outcomes = Map.ofList [ tx.Transaction.Id, AlreadyImported (newEntryId ()) ]
+                SendResult = None
+            }
+            let result = classifyPushOutcomes [ tx ] prepared pushResult false []
+            Expect.isNone (pushFailureError result) "kein Fehler"
 
         testCase "LedgerWriteFailed blockiert den Abschluss auch ohne Duplikate" <| fun () ->
             // Regressionstest (Akzeptanzkriterium): ein Ergebnis mit mindestens einem

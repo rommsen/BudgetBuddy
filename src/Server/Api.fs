@@ -1259,20 +1259,12 @@ let syncApi : SyncApi = {
                                             | _ -> false)
                                         |> List.length
 
-                                    match classification.LedgerWriteFailureSummary with
-                                    | Some (failedCount, messages) ->
-                                        // Sichtbar machen statt still schlucken (Verifier-Fund,
-                                        // Iteration 3): die erfolgreich importierten Buchungen
-                                        // sind oben schon gespeichert, aber der Aufruf meldet
-                                        // trotzdem einen Fehler, damit Roman einen erneuten
-                                        // Versuch für die gescheiterten Buchungen auslösen kann.
-                                        return
-                                            Error (
-                                                SyncError.YnabImportFailed (
-                                                    failedCount,
-                                                    $"Kassenbuch-Schreiben fehlgeschlagen für {failedCount} Buchung(en): {messages}"
-                                                )
-                                            )
+                                    // Kassenbuch-Scheitern und nicht auswertbare YNAB-Antwort
+                                    // sichtbar machen statt still schlucken (Verifier-Fund,
+                                    // Iteration 3; ledger-fgw2q): die erfolgreich importierten
+                                    // Buchungen sind oben schon gespeichert.
+                                    match Server.PushOutcomeClassification.pushFailureError classification with
+                                    | Some err -> return Error err
                                     | None ->
                                         // Return ImportResult with created count and duplicate IDs
                                         return Ok {

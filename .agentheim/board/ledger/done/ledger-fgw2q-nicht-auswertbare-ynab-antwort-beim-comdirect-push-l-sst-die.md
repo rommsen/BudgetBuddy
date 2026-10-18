@@ -1,7 +1,7 @@
 ---
 id: ledger-fgw2q
 title: "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-09-25
@@ -153,3 +153,6 @@ Verwandt, aber NICHT Teil dieses Tasks: `forceImportDuplicates` meldet generell 
 sichtbaren Fehler zurück, wenn der Abschluss blockiert bleibt (auch nicht bei
 `LedgerWriteFailureSummary`). Das betrifft diesen Fall nur am Rand und ist eine
 vorbestehende Lücke, kein neuer Fund dieses Tasks.
+## Outcome
+
+`PushOutcomeClassification` trägt das neue Feld `UnresolvedWrittenNotLinkedTransactionIds`. `SessionMayComplete` hat eine vierte Bedingung (ohne forceImport-Unterscheidung). Die Fehlerabbildung für `importToYnab` liegt als pure Funktion `pushFailureError` in `src/Server/PushOutcomeClassification.fs`, weil der Fable.Remoting-Proxy `importToYnab` unter `dotnet test` unerreichbar macht. Kassenbuch-Scheitern behält Vorrang, die nicht auswertbare Antwort hat einen eigenen Text. `Api.fs` ruft `pushFailureError` auf. Der Client ist unverändert. Der bestehende Test wurde umgeschrieben (jetzt `isFalse`, neues Feld geprüft). Neu: Force-Pfad-Test, Duplikat-ist-nicht-unresolved, zwei Tests für `pushFailureError`. dotnet test: 1106 grün, 7 übersprungen.

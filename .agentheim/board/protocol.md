@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 17:41 -- Task verified and completed: ledger-fgw2q - "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen"
+
+**Type:** Work / Task completion
+**Task:** ledger-fgw2q - "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen"
+**Summary:** Eine nicht auswertbare YNAB-Antwort (WrittenNotLinked ohne gemeldete Duplikat-ImportId) blockiert jetzt auf beiden Push-Pfaden den Sessionabschluss, und importToYnab meldet dafür einen eigenen sichtbaren YnabImportFailed-Fehler.
+**Duration:** 8m10s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
+## 2026-10-18 17:35 -- Verification failed: ledger-ggzdw - Spiegel-Kategorie-Vergleich nur über Id
+
+**Type:** Work / Verification failure
+**Task:** ledger-ggzdw - Spiegel-Kategorie-Vergleich nur über Id
+**Iteration:** 1 of 3
+**Reasons:** Historien-Satz bei Split-Änderung mit gleichzeitig umbenanntem Kopf nicht durch einen describe-Test abgedeckt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-18 17:28 -- Batch started: [ledger-fgw2q, design-system-tg2wn, ledger-ggzdw]
 
 **Type:** Work / Batch start

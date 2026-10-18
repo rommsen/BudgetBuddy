@@ -19,6 +19,9 @@ type PushOutcomeClassification = {
     UpdatedTransactions: SyncTransaction list
     DuplicateTransactionIds: TransactionId list
     LedgerWriteFailureSummary: (int * string) option
+    /// Buchungen mit `WrittenNotLinked` ohne gemeldete Duplikat-ImportId (YNAB-Antwort
+    /// nicht auswertbar, ledger-fgw2q). Blockiert den Abschluss auf beiden Pfaden.
+    UnresolvedWrittenNotLinkedTransactionIds: TransactionId list
     SessionMayComplete: bool
 }
 
@@ -93,6 +96,19 @@ let classifyPushOutcomes
                 | _ -> None
             | _ -> None)
 
+    // Nicht auswertbare Antwort: der jeweils andere Zweig der Duplikat-Berechnung.
+    let unresolvedWrittenNotLinkedTransactionIds =
+        pushResult.Outcomes
+        |> Map.toList
+        |> List.choose (fun (txId, outcome) ->
+            match outcome with
+            | Ledger.CommandHandlers.WrittenNotLinked _ ->
+                match Map.tryFind txId importIdByTxId with
+                | Some importId when duplicateImportIdSet.Contains importId -> None
+                | Some _ -> Some txId
+                | None -> None
+            | _ -> None)
+
     // Ein gescheitertes Kassenbuch-Schreiben darf nie still bleiben: die Buchung wurde
     // nicht gesendet, zählt also nicht als importiert, und die Session darf nicht als
     // abgeschlossen gelten, solange so eine Buchung offen ist.
@@ -151,8 +167,23 @@ let classifyPushOutcomes
         UpdatedTransactions = updatedTransactions
         DuplicateTransactionIds = duplicateTransactionIds
         LedgerWriteFailureSummary = ledgerWriteFailureSummary
+        UnresolvedWrittenNotLinkedTransactionIds = unresolvedWrittenNotLinkedTransactionIds
         SessionMayComplete =
             duplicateTransactionIds.IsEmpty
             && ledgerWriteFailureSummary.IsNone
+            && unresolvedWrittenNotLinkedTransactionIds.IsEmpty
             && not sessionWideOpenTransactionBlocksForceImport
     }
+
+/// Sichtbarer Fehler für Roman, wenn ein Push-Versuch trotz geschriebener Buchungen nicht
+/// sauber abschließt. Ein gescheitertes Kassenbuch-Schreiben hat Vorrang (schwerwiegender),
+/// danach die nicht auswertbare YNAB-Antwort (ledger-fgw2q). Pure, damit `importToYnab`
+/// unter `dotnet test` (Fable.Remoting-Proxy) nicht erreicht werden muss.
+let pushFailureError (classification: PushOutcomeClassification) : SyncError option =
+    match classification.LedgerWriteFailureSummary with
+    | Some (failedCount, messages) ->
+        Some (SyncError.YnabImportFailed (failedCount, $"Kassenbuch-Schreiben fehlgeschlagen für {failedCount} Buchung(en): {messages}"))
+    | None when not classification.UnresolvedWrittenNotLinkedTransactionIds.IsEmpty ->
+        let n = classification.UnresolvedWrittenNotLinkedTransactionIds.Length
+        Some (SyncError.YnabImportFailed (n, $"YNAB-Antwort für {n} Buchung(en) war nicht auswertbar, sie bleiben ohne Verknüpfung stehen und werden beim nächsten Spiegel-Lauf automatisch nachgezogen."))
+    | None -> None
