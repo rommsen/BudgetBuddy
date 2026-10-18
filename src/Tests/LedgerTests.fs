@@ -871,6 +871,7 @@ let splitCategoryIdsTests =
                 ]
                 Cleared = Uncleared
                 TransferEntryId = None
+                TransferAccountId = None
                 SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
@@ -897,6 +898,7 @@ let splitCategoryIdsTests =
                 ]
                 Cleared = Uncleared
                 TransferEntryId = None
+                TransferAccountId = None
                 SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
@@ -917,6 +919,7 @@ let splitCategoryIdsTests =
                 Splits = []
                 Cleared = Uncleared
                 TransferEntryId = None
+                TransferAccountId = None
                 SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true
@@ -942,6 +945,7 @@ let splitCategoryIdsTests =
                 ]
                 Cleared = Uncleared
                 TransferEntryId = None
+                TransferAccountId = None
                 SplitTransferCounterparts = Map.empty
                 DeletedInYnab = false
                 Approved = true

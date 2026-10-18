@@ -151,6 +151,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 PageSize = pageSize
                 IncludeDeleted = model.IncludeDeleted
                 OnlyNeedsReview = model.OnlyNeedsReview
+                WithoutCategory = model.Filters.WithoutCategory
                 CategoryIds = model.Filters.CategoryIds |> Set.toList
                 DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
                 DateTo = model.Filters.DateRange |> Option.bind (fun d -> d.To)
@@ -216,6 +217,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         // `ToggleIncludeDeleted`/ADR 0020): der Proxy-Aufruf steckt erst hinter
         // `RunLoadEntriesPage`, nicht in diesem Zweig.
         { (resetEntries model) with OnlyNeedsReview = not model.OnlyNeedsReview }, Cmd.ofMsg LoadEntries, NoOp
+
+    | ToggleWithoutCategory ->
+        // Wie `ToggleOnlyNeedsReview`: reine Zustandsänderung plus `LoadEntries` (ADR 0020).
+        let filters = { model.Filters with WithoutCategory = not model.Filters.WithoutCategory }
+        { (resetEntries model) with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
 
     // ============================================
     // Historie einer Buchung
@@ -414,6 +420,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 AccountId = accountId
                 IncludeDeleted = model.IncludeDeleted
                 OnlyNeedsReview = model.OnlyNeedsReview
+                WithoutCategory = model.Filters.WithoutCategory
                 CategoryIds = model.Filters.CategoryIds |> Set.toList
                 DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
                 DateTo = model.Filters.DateRange |> Option.bind (fun d -> d.To)
@@ -490,4 +497,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         resetEntries { model with Filters = filters; AmountMinDraft = ""; AmountMaxDraft = "" }, Cmd.ofMsg LoadEntries, NoOp
 
     | ClearAllFilters ->
-        resetEntries { model with Filters = noFilters }, Cmd.ofMsg LoadEntries, NoOp
+        // Der Chip "Ohne Kategorie" bleibt stehen (wie "Zu prüfen"): er gehört nicht zu
+        // den fünf Such-Filtern (ADR 0048).
+        resetEntries { model with Filters = { noFilters with WithoutCategory = model.Filters.WithoutCategory } },
+        Cmd.ofMsg LoadEntries,
+        NoOp

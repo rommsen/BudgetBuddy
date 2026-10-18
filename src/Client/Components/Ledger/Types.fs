@@ -82,6 +82,9 @@ type Filters = {
     Memo: string option
     AmountMin: decimal option
     AmountMax: decimal option
+    /// Chip "Ohne Kategorie" (ADR 0048): reiner Toggle wie `OnlyNeedsReview`. Zählt
+    /// nicht zu `hasAnyFilter` und bleibt von `ClearAllFilters` unberührt.
+    WithoutCategory: bool
 }
 
 let noFilters : Filters = {
@@ -91,6 +94,7 @@ let noFilters : Filters = {
     Memo = None
     AmountMin = None
     AmountMax = None
+    WithoutCategory = false
 }
 
 /// Liest den Text eines Betrags-Suchfelds als `decimal option`: leer (nach
@@ -141,19 +145,21 @@ let hasAnyFilter (f: Filters) : bool =
 type ChipId =
     | NeedsReviewChip
     | CategoryChip
+    | WithoutCategoryChip
     | DateChip
     | PayeeChip
     | MemoChip
     | AmountChip
 
 let fixedChipOrder : ChipId list =
-    [ NeedsReviewChip; CategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+    [ NeedsReviewChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
 
 /// Ob jeder Chip gerade aktiv ist: reiner Datensatz statt eines Funktionswerts,
 /// damit `orderChipsForDisplay` unit-testbar bleibt, ohne ein Model zu bauen.
 type ChipActivity = {
     NeedsReview: bool
     Category: bool
+    WithoutCategory: bool
     Date: bool
     Payee: bool
     Memo: bool
@@ -164,6 +170,7 @@ let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
     match chip with
     | NeedsReviewChip -> activity.NeedsReview
     | CategoryChip -> activity.Category
+    | WithoutCategoryChip -> activity.WithoutCategory
     | DateChip -> activity.Date
     | PayeeChip -> activity.Payee
     | MemoChip -> activity.Memo
@@ -172,6 +179,7 @@ let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
 let chipActivityOf (onlyNeedsReview: bool) (filters: Filters) : ChipActivity = {
     NeedsReview = onlyNeedsReview
     Category = hasCategoryFilter filters
+    WithoutCategory = filters.WithoutCategory
     Date = hasDateFilter filters
     Payee = hasPayeeFilter filters
     Memo = hasMemoFilter filters
@@ -340,6 +348,9 @@ type Msg =
     /// `ToggleIncludeDeleted` (ADR 0020): der Proxy-Aufruf steckt hinter
     /// `RunLoadEntriesPage`, nicht in diesem Zweig.
     | ToggleOnlyNeedsReview
+    /// Der Chip "Ohne Kategorie" wurde angetippt (ADR 0048): kippt
+    /// `Filters.WithoutCategory` und lädt ab Seite 0 neu, wie `ToggleOnlyNeedsReview`.
+    | ToggleWithoutCategory
 
     // Historie einer Buchung
     | OpenHistory of LedgerEntryView

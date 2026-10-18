@@ -937,6 +937,9 @@ type LedgerEntryPageQuery = {
     PageSize: int
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    /// Chip "Ohne Kategorie" (ADR 0048): nur Buchungen ohne Ziel (weder Kategorie noch
+    /// Übertrag). Mit nicht leeren `CategoryIds` gilt die Vereinigung beider Mengen.
+    WithoutCategory: bool
     CategoryIds: Guid list
     DateFrom: DateTime option
     DateTo: DateTime option
@@ -982,6 +985,9 @@ type LedgerPayeeSuggestionQuery = {
     AccountId: Guid option
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    /// Chip "Ohne Kategorie" (ADR 0048): nur Buchungen ohne Ziel (weder Kategorie noch
+    /// Übertrag). Mit nicht leeren `CategoryIds` gilt die Vereinigung beider Mengen.
+    WithoutCategory: bool
     CategoryIds: Guid list
     DateFrom: DateTime option
     DateTo: DateTime option

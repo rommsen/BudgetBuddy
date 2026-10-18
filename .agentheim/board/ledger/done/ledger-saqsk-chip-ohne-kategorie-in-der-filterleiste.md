@@ -1,7 +1,7 @@
 ---
 id: ledger-saqsk
 title: "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-25
@@ -151,3 +151,45 @@ Split-Buchung mit einer **teilweisen** Lücke (eine Zeile hat ein Ziel, eine and
 `Uncategorized`) ist bewusst kein Treffer dieses Chips (ADR 0048, "Nicht behandelt"). Ein
 eigener Chip dafür wäre ein neues, separat zu entscheidendes Backlog-Item, kein Teil dieser
 Aufgabe.
+
+## Merge-conflict note (iteration 1)
+
+Sibling: ledger-h4nxz (Split-Zeilen-Überträge über Subtransaction-Id, bereits auf main integriert).
+New base SHA: 3250658c40cf6127083e2d5de6aa385bed9a707c
+Resolution allow-list: src/Server/Ledger/Domain.fs, src/Server/Ledger/Persistence.fs, src/Tests/LedgerPageTests.fs, src/Tests/LedgerTests.fs
+Salvage: /Users/romansachse/src/BudgetBuddy/.agentheim/salvage/ledger-saqsk-merge-conflict.patch
+
+```
+3250658 feature(ledger): Übertrags-Split-Zeilen werden jetzt über YNABs Subtransaction-Id mit ihrer Gegenbuchung verknüpft (neues Ereignis, Map auf dem Entry, Nachlauf im Spiegel-Lauf, Persistenz mit Replay, Historien-Satz). [ledger-h4nxz]
+
+ src/Server/Ledger/Domain.fs      |  22 +++++++
+ src/Server/Ledger/Persistence.fs |  44 ++++++++++++--
+ src/Tests/LedgerPageTests.fs     |   1 +
+ src/Tests/LedgerTests.fs         | 128 +++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 191 insertions(+), 4 deletions(-)
+```
+
+## Verifier note (iteration 1)
+
+**REASONS:**
+- Residual conflict markers: none. Criteria coverage: every machine-checkable criterion maps to a named test in src/Tests/LedgerWithoutCategoryTests.fs (14 tests).
+- Check 2 fails: the committed merge commit f097e99 does not compile. The `expected : Entry` literal in LedgerWithoutCategoryTests.fs:135 lacks `SplitTransferCounterparts` (added by ledger-h4nxz). The worker's fix (`SplitTransferCounterparts = Map.empty`) existed only uncommitted in the worktree. Cause: the conductor staged only the four conflicted files when committing the merge resolution, not the worker's full FILE_LIST. Not a worker defect.
+- Sibling ledger-h4nxz intact in the diff.
+
+**SUGGESTED_FIX:** Commit the pending change in LedgerWithoutCategoryTests.fs so HEAD builds, then re-run the suite against the committed state.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Chip "Ohne Kategorie" nach ADR 0048 umgesetzt.
+
+Server: `Entry.TransferAccountId` (roh aus `EntryObservedInYnab`), `splitTransferAccountIds` in `src/Server/Ledger/Domain.fs`. In `Persistence.fs`: Spalte `ledger_entries.transfer_account_id` (CREATE TABLE und `ALTER TABLE`), einmaliger Backfill aus dem Log (`backfillTransferAccountId`, nur wenn das ALTER neu griff, übersprungen ohne Ereignis-Log-Tabelle), Tabelle `ledger_entry_split_transfers`, `writeSplitIndexes` und `rebuildSplitIndexes` (umbenannt aus `...CategoryIndex`, Rückgabe zählt beide Tabellen), `EntryFilter.WithoutCategory` und die Klausel in `buildFilterClause` (OR in gemeinsamer Klammer mit `CategoryIds`). `WithoutCategory` an `LedgerEntryPageQuery`/`LedgerPayeeSuggestionQuery` (`src/Shared/Domain.fs`) und in `QueryHandlers.fs` durchgereicht.
+
+Client: `WithoutCategoryChip` hinter `CategoryChip`, `Filters.WithoutCategory`, `ChipActivity.WithoutCategory`, `ToggleWithoutCategory`; kein Teil von `hasAnyFilter`, `ClearAllFilters` behält den Wert. Chip ohne Zähler und ohne Popover (wie `NeedsReviewChip`, der Zähler dort kommt aus `NeedsReviewCount`).
+
+Hinweise: `NeedsReviewCount` ignoriert bewusst alle Such-Filter (ADR 0032), also auch den neuen Chip; der Test belegt das. Die Summenzeile erscheint beim Chip allein nicht (`hasAnyFilter` bleibt unverändert, wie beim Chip "Zu prüfen"). Tests in `src/Tests/LedgerWithoutCategoryTests.fs` (neue Datei, eigene Fixture-Ids 5a5a5a5a-*), bestehende Fixtures um die neuen Felder ergänzt, `rebuildSplitCategoryIndex` in `LedgerPageTests.fs` umbenannt. `dotnet test`: 1132 grün, 7 übersprungen (.env). `npm run guard:classes` grün. `npm run test:scripts`: die Browser-Tests (u. a. ledger-status-column) konnten hier nicht laufen (`data-app-ready` nie erreicht, kein Dev-Setup); `scripts/ledger-filter-bar.mjs` wurde nicht ausgeführt, kein Erfolg behauptet.
+
+Merge-Auflösung (ledger-h4nxz): `Entry` trägt beide Felder (`TransferAccountId` und `SplitTransferCounterparts`), `migrateLedgerEntryColumns`, CREATE TABLE, `EntryRow`, `entryParams` und der Upsert führen beide Spalten (`transfer_account_id`, `split_transfer_counterparts`), alle Entry-Literale in den Tests setzen beide Felder; h4nxz' Änderungen sind unverändert erhalten. Nach dem Merge: `dotnet test` 1147 grün, 7 übersprungen; neue Tests dieses Tasks: 14.
+
+README: Der Absatz "Migration bestehender Zustandstabellen" im ledger-README ist kein Bullet und per Delta nicht erreichbar; er nennt noch `rebuildSplitCategoryIndex` und sollte von Hand um die neue Spalte, die Tabelle `ledger_entry_split_transfers`, den Backfill und den neuen Namen `rebuildSplitIndexes` ergänzt werden. Der Glossar-Bullet im Delta enthält die Fakten.

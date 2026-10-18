@@ -73,6 +73,54 @@ let private accountKindFromText =
 // Schema
 // ============================================
 
+/// Einmaliger Backfill von `ledger_entries.transfer_account_id` (ADR 0048, Punkt 5):
+/// liest jedes `EntryObservedInYnab`-Ereignis über den bestehenden Decoder und trägt
+/// das rohe `TransferAccountId` in die Zustandszeile ein. Es ändert sich nach der
+/// Entstehung nie, ein Entstehungs-Ereignis je Buchung reicht als Quelle.
+let private backfillTransferAccountId (conn: SqliteConnection) =
+    let hasEventLog =
+        use cmd =
+            new SqliteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'ledger_entry_events'", conn)
+
+        Convert.ToInt64(cmd.ExecuteScalar()) > 0L
+
+    // Ohne Ereignis-Log (nur in isolierten Teil-Schemata denkbar) gibt es nichts nachzutragen.
+    let readPairs () =
+        use cmd =
+            new SqliteCommand(
+                "SELECT entry_id, schema_version, payload FROM ledger_entry_events WHERE event_type = 'EntryObservedInYnab'",
+                conn
+            )
+
+        use reader = cmd.ExecuteReader()
+
+        [ while reader.Read() do
+              let entryId = reader.GetString 0
+              let version = int (reader.GetInt64 1)
+              let payload = reader.GetString 2
+
+              match decodePayload "EntryObservedInYnab" version payload with
+              | Ok (EntryObservedInYnab p) ->
+                  match p.TransferAccountId with
+                  | Some (YnabAccountId a) -> yield entryId, a.ToString()
+                  | None -> ()
+              | Ok _ -> ()
+              | Error e -> failwith $"Ereignis {entryId} nicht lesbar beim Backfill: {e}" ]
+
+    let pairs = if hasEventLog then readPairs () else []
+
+    use tx = conn.BeginTransaction()
+
+    for entryId, accountId in pairs do
+        conn.Execute(
+            "UPDATE ledger_entries SET transfer_account_id = @accountId WHERE id = @entryId",
+            {| accountId = accountId; entryId = entryId |},
+            tx
+        )
+        |> ignore
+
+    tx.Commit()
+
 /// Migration: `approved`/`flag_color`/`flag_name` (ADR 0032) für Zustandstabellen,
 /// die vor diesen Spalten angelegt wurden. Das `CREATE TABLE IF NOT EXISTS` in
 /// `initializeLedgerSchema` deckt frische Datenbanken bereits ab; SQLite kennt kein
@@ -83,18 +131,27 @@ let private accountKindFromText =
 /// damit Tests sie gegen eine eigene, isolierte Verbindung ausführen können, statt
 /// eine Kopie der SQL-Anweisungen zu wiederholen.
 let migrateLedgerEntryColumns (conn: SqliteConnection) =
-    let migrateColumn (sql: string) =
+    // Liefert `true`, wenn das ALTER TABLE tatsächlich gegriffen hat (Spalte neu),
+    // `false`, wenn sie schon da war.
+    let migrateColumn (sql: string) : bool =
         try
             use migrateCmd = new SqliteCommand(sql, conn)
             migrateCmd.ExecuteNonQuery() |> ignore
+            true
         with :? SqliteException as ex when ex.Message.Contains("duplicate column name") ->
-            ()
+            false
 
-    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN approved INTEGER NOT NULL DEFAULT 1"
-    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_color TEXT"
-    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_name TEXT"
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN approved INTEGER NOT NULL DEFAULT 1" |> ignore
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_color TEXT" |> ignore
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_name TEXT" |> ignore
+
+    // `transfer_account_id` (ADR 0048): ein NULL-Default wäre für jeden Bestands-Übertrag
+    // die falsche Seite, deshalb einmaliger Backfill aus dem Log, nur wenn die Spalte
+    // gerade neu angelegt wurde. Das Log wird nur gelesen, nie umgeschrieben (ADR 0013).
+    if migrateColumn "ALTER TABLE ledger_entries ADD COLUMN transfer_account_id TEXT" then
+        backfillTransferAccountId conn
     // ADR 0046: JSON-Liste der Übertrags-Split-Verknüpfungen, NULL liest sich als leer.
-    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN split_transfer_counterparts TEXT"
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN split_transfer_counterparts TEXT" |> ignore
 
 /// Legt die Kassenbuch-Tabellen an, auf der übergebenen Connection. Bestehende
 /// Tabellen bleiben unangetastet (`CREATE TABLE IF NOT EXISTS`); der Aufruf ist
@@ -152,6 +209,7 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             approved INTEGER NOT NULL DEFAULT 1,
             flag_color TEXT,
             flag_name TEXT,
+            transfer_account_id TEXT,
             split_transfer_counterparts TEXT
         );
 
@@ -183,6 +241,15 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entry_split_categories_entry
             ON ledger_entry_split_categories(entry_id);
+
+        CREATE TABLE IF NOT EXISTS ledger_entry_split_transfers (
+            entry_id TEXT NOT NULL,
+            transfer_account_id TEXT NOT NULL,
+            PRIMARY KEY (entry_id, transfer_account_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ledger_entry_split_transfers_entry
+            ON ledger_entry_split_transfers(entry_id);
     """,
             conn
         )
@@ -225,6 +292,7 @@ type private EntryRow = {
     approved: int64
     flag_color: string
     flag_name: string
+    transfer_account_id: string
     split_transfer_counterparts: string
 }
 
@@ -326,6 +394,7 @@ let private rowToEntry (row: EntryRow) : Entry =
         Approved = row.approved = 1L
         FlagColor = toOption row.flag_color
         FlagName = toOption row.flag_name
+        TransferAccountId = toOption row.transfer_account_id |> Option.map (Guid.Parse >> YnabAccountId)
     }
 
 let private rowToAccount (row: AccountRow) : LedgerAccount =
@@ -376,6 +445,10 @@ let private entryParams (entry: Entry) =
         approved = (if entry.Approved then 1 else 0)
         flag_color = orNull entry.FlagColor
         flag_name = orNull entry.FlagName
+        transfer_account_id =
+            match entry.TransferAccountId with
+            | Some (YnabAccountId a) -> box (a.ToString())
+            | None -> null
         split_transfer_counterparts =
             if Map.isEmpty entry.SplitTransferCounterparts then null
             else encodeSplitTransferCounterparts entry.SplitTransferCounterparts
@@ -385,11 +458,11 @@ let private upsertEntrySql =
     """INSERT INTO ledger_entries
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
-          split_transfer_counterparts)
+          transfer_account_id, split_transfer_counterparts)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
-          @flag_color, @flag_name, @split_transfer_counterparts)
+          @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -406,6 +479,7 @@ let private upsertEntrySql =
           approved = excluded.approved,
           flag_color = excluded.flag_color,
           flag_name = excluded.flag_name,
+          transfer_account_id = excluded.transfer_account_id,
           split_transfer_counterparts = excluded.split_transfer_counterparts"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
@@ -414,7 +488,9 @@ let private upsertEntrySql =
 /// Split-Liste, sonst bleibt eine Zeile stehen, nachdem eine aufgeteilte Buchung in
 /// YNAB wieder zu einer einfachen wurde. Läuft auf derselben Connection und in
 /// derselben Transaktion wie der `ledger_entries`-Upsert (ADR 0013, Punkt 5).
-let private writeSplitCategoryIndex (conn: SqliteConnection) (tx: SqliteTransaction) (entry: Entry) =
+/// Führt zusätzlich `ledger_entry_split_transfers` nach (ADR 0048, Punkt 3): dieselbe
+/// Form, Konto-Ids aus `Ledger.Domain.splitTransferAccountIds`.
+let private writeSplitIndexes (conn: SqliteConnection) (tx: SqliteTransaction) (entry: Entry) =
     let (EntryId id) = entry.Id
     let entryIdText = id.ToString()
 
@@ -429,6 +505,21 @@ let private writeSplitCategoryIndex (conn: SqliteConnection) (tx: SqliteTransact
         conn.Execute(
             "INSERT INTO ledger_entry_split_categories (category_id, entry_id) VALUES (@category_id, @entry_id)",
             {| category_id = categoryId.ToString(); entry_id = entryIdText |},
+            tx
+        )
+        |> ignore
+
+    conn.Execute(
+        "DELETE FROM ledger_entry_split_transfers WHERE entry_id = @entry_id",
+        {| entry_id = entryIdText |},
+        tx
+    )
+    |> ignore
+
+    for accountId in splitTransferAccountIds entry do
+        conn.Execute(
+            "INSERT INTO ledger_entry_split_transfers (entry_id, transfer_account_id) VALUES (@entry_id, @transfer_account_id)",
+            {| entry_id = entryIdText; transfer_account_id = accountId.ToString() |},
             tx
         )
         |> ignore
@@ -519,7 +610,7 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
                     // Replay benutzt. Wirft sie, rollt die Transaktion das Ereignis zurueck.
                     let newState = apply currentState event
                     conn.Execute(upsertEntrySql, entryParams newState, tx) |> ignore
-                    writeSplitCategoryIndex conn tx newState
+                    writeSplitIndexes conn tx newState
 
                     states <- Map.add entryGuid (Some newState) states
                     sequences <- Map.add entryGuid nextSequence sequences
@@ -532,7 +623,8 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
     }
 
-/// Baut die abgeleitete Indextabelle `ledger_entry_split_categories` vollständig aus
+/// Baut die abgeleiteten Indextabellen `ledger_entry_split_categories` und
+/// `ledger_entry_split_transfers` (ADR 0048) vollständig aus
 /// `ledger_entries` neu auf (ADR 0038, Decision Punkt 6): leert die Tabelle und liest
 /// nur die aufgeteilten Buchungen (`WHERE splits <> '[]'`, der Encoder schreibt für
 /// eine Buchung ohne Splits exakt diesen Text, AC11), damit nur die wenigen
@@ -542,11 +634,12 @@ let appendAndApply (events: LedgerEvent list) : Async<unit> =
 /// sie isoliert fahren kann; läuft am Ende von `initializeLedgerSchema`, direkt
 /// hinter `migrateLedgerEntryColumns`. Liefert die Zahl der geschriebenen
 /// Indexzeilen zurück (Frühindikator, siehe ADR 0038 Consequences).
-let rebuildSplitCategoryIndex (conn: SqliteConnection) : int =
+let rebuildSplitIndexes (conn: SqliteConnection) : int =
     if conn.State <> System.Data.ConnectionState.Open then
         conn.Open()
 
     conn.Execute("DELETE FROM ledger_entry_split_categories") |> ignore
+    conn.Execute("DELETE FROM ledger_entry_split_transfers") |> ignore
 
     let splitRows =
         conn.Query<EntryRow>("SELECT * FROM ledger_entries WHERE splits <> '[]'") |> Seq.toList
@@ -565,6 +658,15 @@ let rebuildSplitCategoryIndex (conn: SqliteConnection) : int =
 
             written <- written + 1
 
+        for accountId in splitTransferAccountIds entry do
+            conn.Execute(
+                "INSERT INTO ledger_entry_split_transfers (entry_id, transfer_account_id) VALUES (@entry_id, @transfer_account_id)",
+                {| entry_id = row.id; transfer_account_id = accountId.ToString() |}
+            )
+            |> ignore
+
+            written <- written + 1
+
     written
 
 /// Legt die Kassenbuch-Tabellen auf der Standard-Verbindung an und baut anschließend
@@ -573,7 +675,7 @@ let rebuildSplitCategoryIndex (conn: SqliteConnection) : int =
 let initializeLedgerSchema () =
     let conn = Core.getConnection ()
     createLedgerSchemaOn conn
-    rebuildSplitCategoryIndex conn |> ignore
+    rebuildSplitIndexes conn |> ignore
 
 /// Verknuepft eine Fremd-Id mit einer Buchung (ADR 0015). Ein Wert ist je System
 /// eindeutig; ein zweiter Versuch auf dieselbe Fremd-Id schlaegt fehl.
@@ -685,6 +787,8 @@ let private needsReviewSqlClause = "(approved = 0 OR cleared = 'Uncleared')"
 type EntryFilter = {
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    /// Chip "Ohne Kategorie" (ADR 0048): Buchungen ohne Ziel (weder Kategorie noch Übertrag).
+    WithoutCategory: bool
     CategoryIds: Guid list
     DateFrom: DateTime option
     DateTo: DateTime option
@@ -700,6 +804,7 @@ type EntryFilter = {
 let noFilter = {
     IncludeDeleted = false
     OnlyNeedsReview = false
+    WithoutCategory = false
     CategoryIds = []
     DateFrom = None
     DateTo = None
@@ -739,8 +844,14 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
     if filter.OnlyNeedsReview then
         clause.Append($" AND {needsReviewSqlClause}") |> ignore
 
+    // Chip "Ohne Kategorie" (ADR 0048): kein Ziel, weder Kategorie noch Übertrag.
+    let withoutCategoryClause =
+        "(category_id IS NULL AND transfer_account_id IS NULL AND transfer_entry_id IS NULL"
+        + " AND id NOT IN (SELECT entry_id FROM ledger_entry_split_categories)"
+        + " AND id NOT IN (SELECT entry_id FROM ledger_entry_split_transfers))"
+
     match filter.CategoryIds with
-    | [] -> ()
+    | [] -> if filter.WithoutCategory then clause.Append(" AND ").Append(withoutCategoryClause) |> ignore
     | ids ->
         // Die einfache Kategorie (`category_id`-Spalte) ODER eine Split-Zeilen-
         // Kategorie über die abgeleitete Indextabelle `ledger_entry_split_categories`
@@ -756,10 +867,15 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
         // Parameternamen hinein, statt sich darauf zu verlassen, dass Dapper einen
         // doppelt vorkommenden Listen-Parameter im ganzen Kommandotext erweitert.
         let idTexts = ids |> List.map (fun g -> g.ToString())
-        clause.Append(
-            " AND (category_id IN @categoryIds OR id IN (SELECT entry_id FROM ledger_entry_split_categories WHERE category_id IN @splitCategoryIds))"
-        )
-        |> ignore
+        // Mit dem Chip "Ohne Kategorie" per OR in gemeinsamer Klammer (ADR 0048).
+        let categoryClause =
+            "category_id IN @categoryIds OR id IN (SELECT entry_id FROM ledger_entry_split_categories WHERE category_id IN @splitCategoryIds)"
+
+        if filter.WithoutCategory then
+            clause.Append(" AND (").Append(categoryClause).Append(" OR ").Append(withoutCategoryClause).Append(")")
+            |> ignore
+        else
+            clause.Append(" AND (").Append(categoryClause).Append(")") |> ignore
         ps.Add("categoryIds", idTexts)
         ps.Add("splitCategoryIds", idTexts)
 

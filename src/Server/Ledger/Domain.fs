@@ -92,6 +92,11 @@ type Entry = {
     /// leer: der Spiegel sieht nur YNABs `transfer_transaction_id`, das Aufloesen zur
     /// eigenen Buchungs-Id ist Arbeit eines spaeteren Slices.
     TransferEntryId: EntryId option
+    /// YNABs `transfer_account_id`, roh aus `EntryObservedInYnab` (ADR 0048): gesetzt,
+    /// sobald YNAB die Buchung als Übertrag liefert, auch wenn die Gegenbuchung nicht
+    /// aufgelöst ist (`TransferEntryId` bleibt dann `None`). Grundlage des Chips
+    /// "Ohne Kategorie" im Lesepfad.
+    TransferAccountId: YnabAccountId option
     /// Gegenbuchungen der Übertrags-Split-Zeilen, Schlüssel ist YNABs Subtransaction-Id
     /// (ADR 0046). Kardinalität 0..n, unabhängig von `TransferEntryId`.
     SplitTransferCounterparts: Map<string, EntryId>
@@ -126,6 +131,18 @@ let splitCategoryIds (entry: Entry) : Guid list =
         match s.Target with
         | ToCategory (YnabCategoryId id, _) -> Some id
         | ToTransfer _
+        | Uncategorized -> None)
+    |> List.distinct
+
+/// Die verschiedenen Konten, auf die die `ToTransfer`-Zeilen einer Buchung zeigen
+/// (ADR 0048): Schwesterfunktion zu `splitCategoryIds`, entdoppelt. Grundlage der
+/// abgeleiteten Indextabelle `ledger_entry_split_transfers`.
+let splitTransferAccountIds (entry: Entry) : Guid list =
+    entry.Splits
+    |> List.choose (fun s ->
+        match s.Target with
+        | ToTransfer (YnabAccountId id, _) -> Some id
+        | ToCategory _
         | Uncategorized -> None)
     |> List.distinct
 
@@ -196,6 +213,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Splits = p.Splits
             Cleared = p.Cleared
             TransferEntryId = None
+            TransferAccountId = p.TransferAccountId
             SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved
@@ -282,6 +300,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Splits = []
             Cleared = p.Cleared
             TransferEntryId = None
+            TransferAccountId = None
             SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved
@@ -320,6 +339,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Splits = []
             Cleared = p.Cleared
             TransferEntryId = None
+            TransferAccountId = None
             SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved

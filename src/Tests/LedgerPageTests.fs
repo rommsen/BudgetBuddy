@@ -66,6 +66,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     Splits = []
     Cleared = Uncleared
     TransferEntryId = None
+    TransferAccountId = None
     SplitTransferCounterparts = Map.empty
     DeletedInYnab = false
     Approved = true
@@ -1075,7 +1076,8 @@ let reducerTests =
                           Payee = Some "Café Lotte"
                           Memo = Some "Kuchen"
                           AmountMin = Some 5m
-                          AmountMax = Some 50m }
+                          AmountMax = Some 50m
+                          WithoutCategory = false }
                     OnlyNeedsReview = true
                     IncludeDeleted = true }
             let updated, cmd, _ = Components.Ledger.State.update ClearAllFilters withEverything
@@ -1629,6 +1631,7 @@ let private baseQuery (accountId: Guid option) : LedgerEntryPageQuery = {
     PageSize = 100
     IncludeDeleted = false
     OnlyNeedsReview = false
+    WithoutCategory = false
     CategoryIds = []
     DateFrom = None
     DateTo = None
@@ -1644,6 +1647,7 @@ let private baseSuggestionQuery (accountId: Guid option) : LedgerPayeeSuggestion
     AccountId = accountId
     IncludeDeleted = false
     OnlyNeedsReview = false
+    WithoutCategory = false
     CategoryIds = []
     DateFrom = None
     DateTo = None
@@ -2549,7 +2553,7 @@ let ledgerPagingTests =
             Expect.equal page.TotalCount 1 "der loadAllMatching-Zweig (Betragsfilter) ruft dieselbe buildFilterClause, findet die Split-Buchung also auch"
             Expect.equal page.TotalAmount { Amount = -42m; Currency = "EUR" } "Summe des einzigen Treffers"
 
-        testCase "AC9: rebuildSplitCategoryIndex stellt den Index nach vollständigem Löschen aus dem Bestand wieder her, ein zweiter Aufruf liefert dasselbe" <| fun () ->
+        testCase "AC9: rebuildSplitIndexes stellt den Index nach vollständigem Löschen aus dem Bestand wieder her, ein zweiter Aufruf liefert dasselbe" <| fun () ->
             seedSplitEntry
                 pageTestAccountAC
                 209
@@ -2573,12 +2577,12 @@ let ledgerPagingTests =
             let afterClear = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
             Expect.equal afterClear.TotalCount 0 "ohne Index findet der Filter die Split-Buchung nicht mehr: belegt, dass das Löschen gegriffen hat"
 
-            let written1 = rebuildSplitCategoryIndex conn
+            let written1 = rebuildSplitIndexes conn
             let afterRebuild = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
             Expect.equal afterRebuild.TotalCount 1 "der Neuaufbau stellt den Index allein aus ledger_entries wieder her, ohne das Ereignis-Log zu lesen"
             Expect.isTrue (written1 >= 1) "mindestens die eine Split-Buchung dieses Tests wurde geschrieben"
 
-            let written2 = rebuildSplitCategoryIndex conn
+            let written2 = rebuildSplitIndexes conn
             Expect.equal written2 written1 "ein zweiter Aufruf liefert denselben Rückgabewert"
             let afterSecond = Ledger.QueryHandlers.getLedgerEntriesPage query |> Async.RunSynchronously
             Expect.equal afterSecond.TotalCount 1 "und dieselbe Treffermenge"
@@ -2626,7 +2630,7 @@ let ledgerPagingTests =
             cmd.Parameters.AddWithValue("@id", rawId.ToString()) |> ignore
             let splitsText = cmd.ExecuteScalar() :?> string
 
-            Expect.equal splitsText "[]" "das Backfill-Prädikat 'WHERE splits <> [] ' in rebuildSplitCategoryIndex verlässt sich exakt auf diesen Text"
+            Expect.equal splitsText "[]" "das Backfill-Prädikat 'WHERE splits <> [] ' in rebuildSplitIndexes verlässt sich exakt auf diesen Text"
 
         testCase "AC12: der Zugriffsplan eines Kategorie-Filters nutzt die Indextabelle, ohne Tabellen-Scan und ohne korrelierte Unterabfrage" <| fun () ->
             let plan = explainEntryFilterPlan None { noFilter with CategoryIds = [ catGuid 30 ] }

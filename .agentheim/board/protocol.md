@@ -5,12 +5,47 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 18:25 -- Task verified and completed: ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
+
+**Type:** Work / Task completion
+**Task:** ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
+**Summary:** Der Chip "Ohne Kategorie" filtert im Kassenbuch Buchungen ohne Ziel (weder Kategorie noch Übertrag), über alle Zählwege und Payee-Vorschläge, per Oder mit der Kategorienauswahl; Übertrags-Konto wird roh projiziert und für Bestand per Backfill nachgetragen.
+**Duration:** PLACEHOLDER
+**Verification:** PASS (iteration 2)
+**Files changed:** 12
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
+## 2026-10-18 18:21 -- Verification failed: ledger-saqsk - Chip ohne Kategorie in der Filterleiste
+
+**Type:** Work / Verification failure
+**Task:** ledger-saqsk - Chip ohne Kategorie in der Filterleiste
+**Iteration:** 1 of 3
+**Reasons:** Merge-Commit kompilierte nicht: der Conductor hatte nur die vier Konfliktdateien gestaged, die Anpassung in LedgerWithoutCategoryTests.fs fehlte (Conductor-Fehler, kein Worker-Fehler)
+**Iteration hint:** likely-fixable
+**Next:** re-verify nach Nach-Checkpoint, ohne Worker-Re-Dispatch
+
+---
+
+## 2026-10-18 18:17 -- Verification failed: design-system-an22r - Export übernimmt Claude-Design-Manifest-Ergänzungen
+
+**Type:** Work / Verification failure
+**Task:** design-system-an22r - Export übernimmt Claude-Design-Manifest-Ergänzungen
+**Iteration:** 1 of 3
+**Reasons:** viewport-Höhe der vier Portal-/Toast-Karten misst den leeren Wrapper (880x64), weil der Inhalt position: fixed ist
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-18 18:11 -- Task verified and completed: ledger-h4nxz - "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
 
 **Type:** Work / Task completion
 **Task:** ledger-h4nxz - "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
 **Summary:** Übertrags-Split-Zeilen werden jetzt über YNABs Subtransaction-Id mit ihrer Gegenbuchung verknüpft (neues Ereignis, Map auf dem Entry, Nachlauf im Spiegel-Lauf, Persistenz mit Replay, Historien-Satz).
-**Duration:** 26m
+**Duration:** 24m
 **Verification:** PASS (iteration 1)
 **Files changed:** 9
 **Tests added:** 15

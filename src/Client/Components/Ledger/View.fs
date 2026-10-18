@@ -1083,6 +1083,7 @@ let private chipTitle (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> ""
     | CategoryChip -> "Kategorie"
+    | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> "Zeitraum"
     | PayeeChip -> "Payee"
     | MemoChip -> "Memo"
@@ -1095,7 +1096,8 @@ let private popoverWidth (chip: ChipId) : string =
 
 let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
     match chip with
-    | NeedsReviewChip -> Html.none
+    | NeedsReviewChip
+    | WithoutCategoryChip -> Html.none
     | CategoryChip -> categoryPickerBody dispatch model categories
     | DateChip -> datePickerBody dispatch model
     | PayeeChip -> payeePickerBody dispatch model
@@ -1127,6 +1129,7 @@ let private chipLabel (model: Model) (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> needsReviewChipLabel model.NeedsReviewCount
     | CategoryChip -> if hasCategoryFilter model.Filters then categoryChipLabel model.Filters else "Kategorie"
+    | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> if hasDateFilter model.Filters then dateChipLabel model.Filters else "Zeitraum"
     | PayeeChip -> model.Filters.Payee |> Option.defaultValue "Payee"
     | MemoChip -> model.Filters.Memo |> Option.defaultValue "Memo"
@@ -1136,6 +1139,7 @@ let private isChipActive (model: Model) (chip: ChipId) : bool =
     match chip with
     | NeedsReviewChip -> model.OnlyNeedsReview
     | CategoryChip -> hasCategoryFilter model.Filters
+    | WithoutCategoryChip -> model.Filters.WithoutCategory
     | DateChip -> hasDateFilter model.Filters
     | PayeeChip -> hasPayeeFilter model.Filters
     | MemoChip -> hasMemoFilter model.Filters
@@ -1145,6 +1149,7 @@ let private removeChipMsg (chip: ChipId) : Msg option =
     match chip with
     | NeedsReviewChip -> None
     | CategoryChip -> Some RemoveCategoryFilter
+    | WithoutCategoryChip -> None
     | DateChip -> Some RemoveDateFilter
     | PayeeChip -> Some RemovePayeeFilter
     | MemoChip -> Some RemoveMemoFilter
@@ -1153,6 +1158,7 @@ let private removeChipMsg (chip: ChipId) : Msg option =
 let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
     match chip with
     | NeedsReviewChip -> fun () -> dispatch ToggleOnlyNeedsReview
+    | WithoutCategoryChip -> fun () -> dispatch ToggleWithoutCategory
     | other -> fun () -> dispatch (OpenFilterPopover other)
 
 /// Ein Chip samt seiner Chrome (Sheet/Popover), wenn er eine eigene Auswahl hat.
@@ -1165,7 +1171,8 @@ let private filterChip (dispatch: Msg -> unit) (model: Model) (categories: YnabC
             OnRemove = removeChipMsg chip |> Option.map (fun msg -> fun () -> dispatch msg)
         }
     match chip with
-    | NeedsReviewChip -> chipElement
+    | NeedsReviewChip
+    | WithoutCategoryChip -> chipElement
     | _ ->
         let isOpen = model.OpenPopover = Some chip
         ChipBar.chipWithPopover chipElement (filterChrome dispatch chip isOpen (popoverBody dispatch model categories chip))

@@ -370,6 +370,7 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
 let private toEntryFilter (query: LedgerEntryPageQuery) : Ledger.Persistence.EntryFilter = {
     IncludeDeleted = query.IncludeDeleted
     OnlyNeedsReview = query.OnlyNeedsReview
+    WithoutCategory = query.WithoutCategory
     CategoryIds = query.CategoryIds
     DateFrom = query.DateFrom
     DateTo = query.DateTo
@@ -442,6 +443,7 @@ let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<Ledger
         let filter : Ledger.Persistence.EntryFilter = {
             IncludeDeleted = query.IncludeDeleted
             OnlyNeedsReview = query.OnlyNeedsReview
+            WithoutCategory = query.WithoutCategory
             CategoryIds = query.CategoryIds
             DateFrom = query.DateFrom
             DateTo = query.DateTo
