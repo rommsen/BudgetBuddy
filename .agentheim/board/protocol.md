@@ -5,12 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 21:53 -- Batch started: [design-system-bz0gn]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-bz0gn - "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen"
+**Parallel:** no (wave 3b, 1 worker, the last ready task; started after design-system-an22r was integrated because both touch Styleguide/View.fs and scripts/export-design-system.mjs)
+
+---
+
 ## 2026-10-18 21:53 -- Task verified and completed: design-system-an22r - "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html"
 
 **Type:** Work / Task completion
 **Task:** design-system-an22r - "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html"
 **Summary:** Der Export schreibt jetzt in Zeile 1 jeder preview/*.html einen @dsCard-Marker mit group, name, subtitle und gemessenem viewport und erzeugt eine thumbnail.html an der Bundle-Wurzel.
-**Duration:** DUR_TBD
+**Duration:** 4h08m Wanduhr (17:45 bis 21:53, davon rund 3 h Ruhezustand des Rechners während der letzten Verifikation)
 **Verification:** PASS (iteration 3)
 **Files changed:** 3
 **Tests added:** 5

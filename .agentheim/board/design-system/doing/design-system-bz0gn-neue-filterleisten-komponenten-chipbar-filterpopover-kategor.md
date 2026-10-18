@@ -1,7 +1,7 @@
 ---
 id: design-system-bz0gn
 title: "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-25
