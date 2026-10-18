@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 18:04 -- Batch started: [ledger-saqsk]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
+**Parallel:** yes (wave 3a, 1 worker alongside ledger-h4nxz still running and design-system-an22r in verification; saqsk shares Ledger/Domain.fs and Persistence.fs with h4nxz, merge-ordered h4nxz first, test ids pre-assigned. design-system-bz0gn waits for an22r: shared Styleguide/View.fs and export script)
+
+---
+
 ## 2026-10-18 18:04 -- Task verified and completed: ledger-fgt4k - "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind"
 
 **Type:** Work / Task completion
