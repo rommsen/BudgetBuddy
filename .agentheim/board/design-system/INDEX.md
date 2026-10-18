@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 29
@@ -59,6 +59,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-q7rkm** — DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen, Container ohne Breitenbegrenzung, schlanker PageHeader) (feature) — `backlog/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md`
 <!-- backlog-list:end -->
 
 

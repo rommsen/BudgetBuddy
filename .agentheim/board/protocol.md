@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 22:40 -- Capture / Captured: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Kassenbuch PC und Handy auf ruhige Listen nach ADR 0049 umstellen, Gate gegen Sichttest Fassung B
+
+---
+
+## 2026-10-18 22:40 -- Capture / Captured: design-system-q7rkm - DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen, Container ohne Breitenbegrenzung, schlanker PageHeader)
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** DS-Bausteine für ruhige Listen nach ADR 0049: Money neutral, Table-Zellrollen, Container ohne Breitenbegrenzung, schlanker PageHeader
+
+---
+
 ## 2026-10-18 22:22 -- Work session ended
 
 **Type:** Work / Session end
