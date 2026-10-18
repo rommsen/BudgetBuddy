@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 17:43 -- Task verified and completed: design-system-tg2wn - "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen"
+
+**Type:** Work / Task completion
+**Task:** design-system-tg2wn - "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen"
+**Summary:** TextGlows.orange und TextGlows.teal nutzen jetzt wie green die Arbitrary-Property [text-shadow:...] mit den rgba-Werten der Theme-Variablen; ein Test sichert alle drei Tokens gegen Rückfall auf Literale ab.
+**Duration:** 13m10s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-10-18 17:41 -- Task verified and completed: ledger-fgw2q - "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen"
 
 **Type:** Work / Task completion

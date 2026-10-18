@@ -58,6 +58,7 @@
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
+    <Compile Include="TextGlowTokenTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

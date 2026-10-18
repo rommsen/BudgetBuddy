@@ -1,7 +1,7 @@
 ---
 id: design-system-tg2wn
 title: "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen"
-status: doing
+status: done
 type: chore
 context: design-system
 created: 2026-09-25
@@ -60,3 +60,6 @@ Ausfall erlebt, den ADR 0031 und ADR 0041 schon zweimal beheben mussten.
 - [ ] `npm run guard:classes`/`dotnet test`/`npm run build` bleiben grün.
 - [ ] Falls ein Aufrufer gefunden wurde: visuelle Gleichheit vor/nach dem Fix belegt
       (Screenshot-Vergleich oder Code-Äquivalenz-Argument, analog `design-system-fq8dn`).
+## Outcome
+
+`TextGlows.orange` und `TextGlows.teal` in `src/Client/DesignSystem/Tokens.fs` sind auf die Arbitrary-Property-Syntax umgestellt (ADR 0041), mit den rgba-Werten aus `--shadow-glow-orange` und `--shadow-glow-teal`. `git grep` zeigt weiterhin keinen Aufrufer außerhalb von Tokens.fs, daher reicht das Code-Äquivalenz-Argument: vorher griff keine Regel (Literal ohne Definition), nachher greift der text-shadow wie bei green. Neuer Test `src/Tests/TextGlowTokenTests.fs` prüft green, orange und teal auf Arbitrary-Property, Themefarbe und rgba-Wert. `dotnet test` (1103 grün, 7 übersprungen), `npm run guard:classes` und `npm run build` grün.

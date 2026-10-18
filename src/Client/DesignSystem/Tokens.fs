@@ -98,11 +98,11 @@ module Glows =
 /// Text glow effects (text-shadow)
 module TextGlows =
     // design-system-thtpp: "text-glow-green" war keine echte Tailwind-Utility
-    // (nicht in styles.css definiert): Arbitrary-Property-Syntax wie in
+    // (nicht in styles.css definiert), ebenso orange/teal (design-system-tg2wn): Arbitrary-Property-Syntax wie in
     // Money.fs' getGlowClass, dieselben rgba-Werte wie --shadow-glow-green.
     let green = "[text-shadow:0_0_10px_theme(colors.neon-green),0_0_20px_rgba(0,255,136,0.5)]"
-    let orange = "text-glow-orange"
-    let teal = "text-glow-teal"
+    let orange = "[text-shadow:0_0_10px_theme(colors.neon-orange),0_0_20px_rgba(255,107,44,0.5)]"
+    let teal = "[text-shadow:0_0_10px_theme(colors.neon-teal),0_0_20px_rgba(0,212,170,0.5)]"
 
 // ============================================
 // Typography Tokens

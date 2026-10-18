@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 2
-- **Doing:** 1
-- **Done:** 26
+- **Doing:** 0
+- **Done:** 27
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-tg2wn** — "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen" (chore) — `doing/design-system-tg2wn-textglows-orange-textglows-teal-in-tokens-fs-sind-wie-vormal.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **design-system-tg2wn** — "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen" (chore) — `done/design-system-tg2wn-textglows-orange-textglows-teal-in-tokens-fs-sind-wie-vormal.md`
 - **design-system-w4n9r** — "Automatischer Test für den Design-System-Export: läuft in ein temporäres Verzeichnis und prüft das vollständige Bundle samt @dsCard-Markern" (chore) — `done/design-system-w4n9r-e2e-test-fuer-styleguide-export.md`
 - **design-system-thtpp** — "Wächter, der Klassennamen findet, die weder Tailwind-Utility noch in styles.css definiert sind" (feature) — `done/design-system-thtpp-waechter-gegen-undefinierte-klassen.md`
 - **design-system-j9xnd** — "Stats.fs: die Akzentstreifen-Entscheidung als reine Funktion herausziehen und testen" (chore) — `done/design-system-j9xnd-stats-fs-die-akzentstreifen-entscheidung-als-reine-funktion.md`
