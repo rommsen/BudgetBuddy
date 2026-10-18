@@ -151,9 +151,17 @@ module ListRoles =
     let rowHeight = "h-11"
     /// Zweizeilige Handy-Zeile: Innenabstand 11px/16px
     let mobileRowPadding = "px-4 py-[11px]"
+    /// Zeile 1 der zweizeiligen Handy-Zeile: Payee links, Betrag rechts, feste Höhe
+    let mobileLine1 = "flex items-center justify-between gap-3 h-5"
+    /// Zeile 2: Kategorie, Memo, Kennzeichen; gleiche feste Höhe und gleicher Abstand
+    /// zu Zeile 1 in jeder Zeile, auch mit Kennzeichen
+    let mobileLine2 = "flex items-center gap-2 h-5 mt-0.5 min-w-0"
     /// Statuskante "zu prüfen": 3px in Pink links, als inset-Schatten, damit die
     /// Zellinhalte nicht verrutschen. Gilt für Tabellenzeile und Handy-Zeile.
     let statusEdge = "shadow-[inset_3px_0_0_0_var(--color-neon-pink)]"
+    /// Waagerechter Zellabstand der Tabelle (liest die Variable von `Table.view`), für
+    /// Zeilen, die keine `Table.cell` sind, etwa der Datumsgruppen-Kopf
+    let cellPaddingX = "px-[var(--table-cell-px,0.75rem)]"
 
 /// Font weight tokens
 module FontWeights =

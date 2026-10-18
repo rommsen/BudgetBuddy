@@ -279,6 +279,15 @@ let pageContent (children: ReactElement list) =
         prop.children children
     ]
 
+/// Wie `pageContent`, aber ohne die `container`-Breitenbegrenzung und ohne seitlichen
+/// Innenabstand: für Listen-Seiten, die die verfügbare Breite füllen (ADR 0049
+/// Punkt 9). Die Seite setzt ihre Ränder selbst (`Primitives.Container.full`).
+let pageContentFull (children: ReactElement list) =
+    Html.main [
+        prop.className "pt-16 pb-20 md:pt-20 md:pb-8 animate-fade-in"
+        prop.children children
+    ]
+
 /// Main app wrapper with dark gradient background
 let appWrapper (children: ReactElement list) =
     Html.div [

@@ -383,25 +383,9 @@ let private tableSection =
 let private calmListSection =
     let keyed (els: ReactElement list) =
         els |> List.mapi (fun i el -> React.keyedFragment (i, [ el ]))
-    // Gruppenkopf: Datum links, Tagessumme rechts (ADR 0049, Punkt 8)
-    let groupRow (title: string) (sum: string) =
-        Html.tr [
-            prop.children [
-                Html.td [
-                    prop.colSpan 6
-                    prop.className "px-3 pt-4 pb-1"
-                    prop.children [
-                        Html.div [
-                            prop.className "flex items-center justify-between"
-                            prop.children [
-                                Html.span [ prop.className Tokens.ListRoles.groupHeader; prop.text title ]
-                                Html.span [ prop.className Tokens.ListRoles.date; prop.text sum ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
+    // Gruppenkopf: Datum links, Tagessumme bündig unter den Beträgen (ADR 0049, Punkt 8).
+    // Vier Spalten (Datum, Payee, Kategorie, Memo) liegen vor dem Betrag.
+    let groupRow (title: string) (sum: string) = Table.calmGroupRow title 4 title sum
     let statusWord (text: string) =
         Html.td [
             prop.className $"px-3 text-right {Tokens.FontSizes.microPlus} {Tokens.Colors.neonPink}"
@@ -429,13 +413,13 @@ let private calmListSection =
             )
             prop.children [
                 Html.div [
-                    prop.className "flex items-baseline justify-between gap-3"
+                    prop.className Tokens.ListRoles.mobileLine1
                     prop.children [
                         Html.span [ prop.className Tokens.ListRoles.primary; prop.text payee ]
                         Money.listAmount amount "EUR"
                     ]
                 ]
-                Html.div [ prop.className "mt-0.5"; prop.children [ second ] ]
+                Html.div [ prop.className Tokens.ListRoles.mobileLine2; prop.children [ second ] ]
             ]
         ]
     section "8a. Ruhige Listen" [

@@ -45,6 +45,12 @@ let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
 
 let view (model: Model) (dispatch: Msg -> unit) =
     let hideBottomNav = false
+    // Das Kassenbuch füllt die Breite (ADR 0049 Punkt 9, ledger-n4vte): sein Rahmen
+    // trägt keine `container`-Begrenzung (max. 1280px), die Seite setzt ihre Ränder selbst.
+    let pageShell =
+        match model.CurrentPage with
+        | Ledger -> Navigation.pageContentFull
+        | _ -> Navigation.pageContent
 
     React.router [
         router.onUrlChanged (UrlChanged >> dispatch)
@@ -71,7 +77,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     hideBottomNav
 
                 // Main content with padding for fixed navbar
-                Navigation.pageContent [
+                pageShell [
                     // Each page has enter animation using key for re-triggering on page change
                     Html.div [
                         prop.key (model.CurrentPage.ToString())

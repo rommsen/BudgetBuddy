@@ -85,6 +85,22 @@ let groupByDate (entries: LedgerEntryView list) : (DateTime * LedgerEntryView li
     |> List.rev
     |> List.map (fun (date, items) -> date, List.rev items)
 
+/// Die Tagessumme einer Datumsgruppe (ADR 0049, Punkt 8; `ledger-n4vte`): die Summe
+/// der *sichtbaren* Zeilen dieser Gruppe. Eine in YNAB gelöschte Buchung zählt nur
+/// mit, wenn sie eingeblendet ist (`includeDeleted`, Entscheidung `ledger-d4kx8`):
+/// dieselbe Regel wie die Summenzeile über der Liste. Rein, damit PC-Tabelle und
+/// Handy-Liste dieselbe Zahl zeigen und sie ohne DOM testbar ist.
+let daySum (includeDeleted: bool) (group: LedgerEntryView list) : Money =
+    group
+    |> List.filter (fun e -> includeDeleted || not e.DeletedInYnab)
+    |> List.map (fun e -> e.Amount)
+    |> sumMoney "EUR"
+
+/// Der Text der Tagessumme im Gruppenkopf: Eingang mit `+`, Ausgabe mit `-`
+/// (Zielbild "+3.774,00 €", "-54,52 €").
+let daySumText (sum: Money) : string =
+    Money.formatAmountText (sum.Amount > 0m) true sum.Amount sum.Currency
+
 /// Der Satz über dem Schalter "gelöschte Buchungen zeigen" (ledger-p3n8k AC2,
 /// erweitert um Entscheidung Roman 2026-09-18 / `ledger-d4kx8`, Variante 2).
 ///
@@ -169,18 +185,15 @@ let private deletedBadge () =
             Size = Badge.Small
     }
 
-/// Das Status-Kennzeichen "Zu prüfen" der PC-Statusspalte (ADR 0032, Entscheidung
-/// Roman 2026-09-19, `ledger-qns4j`): dieselbe Quelle wie der Punkt am linken
-/// Zeilenrand der Handy-Zeile (`entry.NeedsReview`), am PC aber als Badge mit Text
-/// statt als Punkt: "Ungeprüft-Kennzeichen ist Pink (Punkt am Handy, Badge am PC)"
-/// aus dem Ablauf-1-Handoff.
+/// Das Status-Kennzeichen "zu prüfen" der PC-Statusspalte (ADR 0032, ADR 0049 Punkt
+/// 7): ein kleines Wort in Pink statt eines Badges. Die eigentliche Markierung ist
+/// die Statuskante am Zeilenrand (`Table.RowProps.StatusEdge`); das Wort ist der
+/// Zusatz, der sie benennt. Quelle bleibt `entry.NeedsReview`.
 let private needsReviewStatusBadge () =
-    Badge.view {
-        Badge.defaultProps with
-            Text = "Zu prüfen"
-            Variant = Badge.Warning
-            Size = Badge.Small
-    }
+    Html.span [
+        prop.className $"{Tokens.FontSizes.microPlus} {Tokens.Colors.neonPink} whitespace-nowrap"
+        prop.text "zu prüfen"
+    ]
 
 /// Trägt die volle Bedeutung eines gekürzten oder reinen Symbol-Kennzeichens der
 /// PC-Statusspalte nach (`flagStatusBadge`, `deletedStatusIcon`), als Hover-Hinweis
@@ -263,13 +276,14 @@ let private flagStatusBadge (flag: LedgerFlag) : ReactElement =
                     Size = Badge.Small
             })
 
-/// Der Betrag einer Zeile: gedämpft und durchgestrichen, wenn die Buchung in YNAB
-/// gelöscht ist (AC3, ledger-p3n8k), sonst die gewohnte rot/grüne Betragsfarbe.
+/// Der Betrag einer Zeile über die Listenvariante (ADR 0049): neutral, Eingang Teal,
+/// ohne Glow. Gedämpft und durchgestrichen, wenn die Buchung in YNAB gelöscht ist
+/// (AC3, ledger-p3n8k).
 let private entryMoney (entry: LedgerEntryView) =
     if entry.DeletedInYnab then
         Money.transactionDeleted entry.Amount.Amount entry.Amount.Currency
     else
-        Money.transactionWithCurrency entry.Amount.Amount entry.Amount.Currency
+        Money.listAmount entry.Amount.Amount entry.Amount.Currency
 
 /// Das Konto-Kuerzel einer Zeile in der Gesamtsicht (AC4).
 let private accountBadge (abbreviation: string) =
@@ -296,7 +310,14 @@ let categoryLabel (entry: LedgerEntryView) : string =
     match entry.CategoryName with
     | Some name -> name
     | None when not (List.isEmpty entry.Splits) -> $"{List.length entry.Splits} Split-Zeilen"
+    | None when entry.IsTransfer -> "Übertrag"
     | None -> "ohne Kategorie"
+
+/// Ob eine Buchung wirklich "ohne Kategorie" ist, also ein offener Fall (ADR 0048):
+/// weder Kategorie noch Split noch Übertrag. Nur dann färbt die Liste die Kategorie
+/// Orange (ADR 0049 Punkt 4); ein Übertrag trägt ein Ziel und bleibt neutral.
+let isWithoutCategory (entry: LedgerEntryView) : bool =
+    entry.CategoryName.IsNone && List.isEmpty entry.Splits && not entry.IsTransfer
 
 /// Die Kategorie-Beschriftung voll qualifiziert ("Gruppe: Name", Handoff 1.9 Zeile
 /// 260), für die PC-Tabelle (ADR 0039, ledger-h6ptn). `CategoryGroupName` kommt
@@ -320,151 +341,128 @@ let categoryLabelQualified (entry: LedgerEntryView) : string =
 let payeeLabel (entry: LedgerEntryView) : string =
     entry.Payee |> Option.defaultValue "ohne Payee"
 
-/// Die Kategorie-Farbrolle (AC1, ledger-w9skm, Handoff 1.1/1.9: `#a855f7` an
-/// beiden Stellen). Über den Token `Tokens.Colors.neonPurple`, kein Hex-Literal
-/// im View-Code; als eigener Wert ausgelagert und geteilt zwischen Handy-Zeile
-/// und PC-Tabelle, damit beide dieselbe Farbe verwenden und der Regressionstest
-/// prueft, dass hier tatsaechlich der Token steht statt eines Literals.
-let categoryColorClassName : string = Tokens.Colors.neonPurple
+/// Die Klassen der Kategorie in einer Listenzeile (ADR 0049 Punkt 4): die
+/// sekundäre Rolle (12px, `text-secondary`), nicht mehr violett. Nur "ohne
+/// Kategorie" bleibt Orange, weil es ein offener Fall ist. Geteilt zwischen
+/// Handy-Zeile und PC-Tabelle.
+let categoryClassName (entry: LedgerEntryView) : string =
+    if isWithoutCategory entry then
+        $"{Tokens.FontSizes.xs} {Tokens.Colors.neonOrange}"
+    else
+        Tokens.ListRoles.secondary
 
 /// Klassen der Handy-Listenzeile (AC3, ledger-w9skm): flache Zeile mit einer
-/// Unterkante als Trenner statt einer Karte mit Rahmen und Eckenradius (Handoff
-/// 1.1: `padding:13px 16px`, Unterkante `1px solid #1c1c38`). Als eigener Wert
-/// ausgelagert, weil `dotnet test` (kein Fable/React-Laufzeitkontext) das
-/// gerenderte `Html.button` selbst nicht pruefen kann; der Klassen-String ist
-/// aber reiner Text und wird von `entryRow` unveraendert als `prop.className`
-/// gesetzt — der Regressionstest in `LedgerViewTests` prueft also exakt das,
-/// was am DOM-Knoten landet: kein `rounded-*`, kein umlaufender `border` mehr
-/// (das war die Karte aus dem Befund), stattdessen `border-b`.
+/// Unterkante als Trenner statt einer Karte mit Rahmen und Eckenradius. Der
+/// Innenabstand kommt aus der Listenrolle (`mobileRowPadding`, ADR 0049). Als
+/// eigener Wert ausgelagert, weil `dotnet test` (kein Fable/React-Laufzeitkontext)
+/// das gerenderte `Html.button` selbst nicht prüfen kann; der Klassen-String ist
+/// aber reiner Text und wird von `entryRow` unverändert als `prop.className` gesetzt.
 let entryRowClassName : string =
-    "w-full text-left px-4 py-3 transition-colors touch-manipulation " +
+    $"w-full text-left {Tokens.ListRoles.mobileRowPadding} transition-colors touch-manipulation " +
     // `hover:bg-surface-hover` steht bewusst als Literal: Tailwind scannt den
     // Quelltext nach ganzen Klassennamen, eine zusammengesetzte Variante
-    // (`hover:` + Token) fiele beim Scan durch und wuerde nie erzeugt.
+    // (`hover:` + Token) fiele beim Scan durch und würde nie erzeugt.
     $"{Tokens.Backgrounds.dark} hover:bg-surface-hover " +
     $"border-b {Tokens.Borders.subtle}"
 
-/// Eine Zeile der Buchungsliste am Handy. `accountAbbreviationOf` ist nur in der
-/// Gesamtsicht gesetzt (AC4): das Konto steht dann als Kuerzel-Badge in der Zeile,
-/// in der Konto-Sicht fehlt es ganz.
+/// Dieselbe Zeile mit der Statuskante für "zu prüfen" (ADR 0049 Punkt 7): die Kante
+/// ist ein inset-Schatten, die Zellinhalte verrutschen nicht.
+let entryRowReviewClassName : string =
+    $"{entryRowClassName} {Tokens.ListRoles.statusEdge}"
+
+/// Ein Kennzeichen in Zeile 2 der Handy-Zeile, das nicht schrumpfen darf.
+let private keepWidth (child: ReactElement) =
+    Html.span [ prop.className "shrink-0"; prop.children [ child ] ]
+
+/// Eine Zeile der Buchungsliste am Handy, zweizeilig (ADR 0049 Punkt 6): Zeile 1
+/// Payee und Betrag, Zeile 2 Kategorie und Memo mit den Kennzeichen. Beide Zeilen
+/// haben eine feste Höhe (`h-5`), damit der Abstand zwischen ihnen in jeder Zeile
+/// gleich ist, auch wenn Zeile 2 ein Kennzeichen trägt. `accountAbbreviationOf` ist
+/// nur in der Gesamtsicht gesetzt (AC4): das Konto steht dann als Kürzel-Badge in
+/// Zeile 2. Die Herkunft steht nicht mehr in der Zeile, nur noch in der Historie.
 let private entryRow
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
     (entry: LedgerEntryView)
     =
+    let rowClass = if entry.NeedsReview then entryRowReviewClassName else entryRowClassName
+
     Html.button [
         prop.key (string entry.Id)
-        prop.className entryRowClassName
+        prop.className rowClass
         prop.onClick (fun _ -> dispatch (OpenHistory entry))
         prop.children [
             Html.div [
-                // Der Punkt am linken Zeilenrand für ungeprüfte Buchungen (ADR 0032):
-                // eine schmale, immer vorhandene Spalte, damit geprüfte und
-                // ungeprüfte Zeilen nicht gegeneinander verrutschen.
-                prop.className "flex items-start gap-2"
+                prop.className Tokens.ListRoles.mobileLine1
                 prop.children [
-                    Html.div [
-                        prop.className "w-2 pt-1.5 shrink-0"
-                        prop.children [ if entry.NeedsReview then Badge.dot Badge.Warning ]
+                    Html.span [
+                        prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"
+                        prop.text (payeeLabel entry)
                     ]
-                    Html.div [
-                        prop.className "min-w-0 flex-1"
-                        prop.children [
-                            Primitives.HStack.spaceBetween [
-                                Html.div [
-                                    prop.className "min-w-0 flex-1"
-                                    prop.children [
-                                        Html.div [
-                                            prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary} truncate"
-                                            prop.text (payeeLabel entry)
-                                        ]
-                                        // Zeile 2 (AC2, ledger-w9skm): Kategorie in der
-                                        // Kategorie-Farbrolle (AC1) zusammen mit dem Memo,
-                                        // nicht mehr mit dem Datum verschmolzen — das Datum
-                                        // steht seither nur noch im `dateGroupHeader` der
-                                        // Gruppe.
-                                        Html.div [
-                                            prop.className "flex items-center gap-2 mt-0.5 min-w-0"
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className $"{Tokens.FontSizes.xs} {categoryColorClassName} shrink-0"
-                                                    prop.text (categoryLabel entry)
-                                                ]
-                                                match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
-                                                | Some memo ->
-                                                    Html.span [
-                                                        prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} truncate min-w-0"
-                                                        prop.text memo
-                                                    ]
-                                                | None -> ()
-                                            ]
-                                        ]
-                                        Html.div [
-                                            prop.className "flex flex-wrap items-center gap-1.5 mt-1.5"
-                                            prop.children [
-                                                match accountAbbreviationOf with
-                                                | Some abbreviationOf -> accountBadge (abbreviationOf entry.AccountId)
-                                                | None -> ()
-                                                originBadge entry.Origin
-                                                flagBadge entry.Flag
-                                                if entry.DeletedInYnab then deletedBadge ()
-                                            ]
-                                        ]
-                                    ]
-                                ]
-                                Html.div [
-                                    prop.className "shrink-0 pl-3"
-                                    prop.children [ entryMoney entry ]
-                                ]
-                            ]
+                    Html.span [ prop.className "shrink-0"; prop.children [ entryMoney entry ] ]
+                ]
+            ]
+            Html.div [
+                prop.className Tokens.ListRoles.mobileLine2
+                prop.children [
+                    match accountAbbreviationOf with
+                    | Some abbreviationOf -> keepWidth (accountBadge (abbreviationOf entry.AccountId))
+                    | None -> ()
+                    Html.span [
+                        prop.className $"{categoryClassName entry} truncate shrink-0 max-w-3/5"
+                        prop.text (categoryLabel entry)
+                    ]
+                    match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
+                    | Some memo ->
+                        Html.span [
+                            prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"
+                            prop.text memo
                         ]
-                    ]
+                    | None -> ()
+                    if entry.Flag <> NoFlag then keepWidth (flagBadge entry.Flag)
+                    if entry.DeletedInYnab then keepWidth (deletedBadge ())
                 ]
             ]
         ]
     ]
 
-/// Der Gruppenkopf eines Datums in der Handy-Liste (AC6).
-let private dateGroupHeader (date: DateTime) =
+/// Der Gruppenkopf eines Datums in der Handy-Liste (AC6): Datum links, Tagessumme
+/// rechts (ADR 0049 Punkt 8), bündig mit den Beträgen der Zeilen darunter.
+let private dateGroupHeader (date: DateTime) (sum: Money) =
     Html.div [
-        prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider px-3 pt-3 pb-1"
-        prop.text (formatDate date)
+        prop.key ("group-" + date.ToString("yyyy-MM-dd"))
+        prop.className "flex items-center justify-between px-4 pt-4 pb-1.5"
+        prop.children [
+            Html.span [ prop.className Tokens.ListRoles.groupHeader; prop.text (formatDate date) ]
+            Html.span [ prop.className Tokens.ListRoles.date; prop.text (daySumText sum) ]
+        ]
     ]
 
-/// Eine Zeile der Buchungsliste am PC, als Tabellenzeile mit denselben Feldern.
-/// Eine Zelle, die auf eine Zeile gekuerzt wird (Payee, Kategorie, Memo): die
-/// Tabelle hat feste Spaltenbreiten (`FixedLayout`), ohne Kuerzung wuerde langer
-/// Text sonst umbrechen und die Zeile hoeher machen als jede andere (AC4/AC5).
-let private tdTruncated (text: string) =
-    Table.cell { Table.defaultCellProps with IsTruncate = true } [ Html.text text ]
+/// Eine Zelle der PC-Tabelle, deren Text auf eine Zeile gekürzt wird (Payee,
+/// Kategorie, Memo): die Tabelle hat feste Spaltenbreiten (`FixedLayout`), ohne
+/// Kürzung würde langer Text umbrechen und die Zeile höher machen als jede andere.
+let private truncatedRoleCell (role: Table.CellRole) (child: ReactElement) =
+    Table.roleCell role [ Html.div [ prop.className "truncate"; prop.children [ child ] ] ]
 
-/// Die Kategorie-Zelle der PC-Tabelle (AC1, ledger-w9skm): derselbe gekuerzte
-/// `Table.cell` wie `tdTruncated`, aber der Text steckt in einem eigenen `span`
-/// mit der Kategorie-Farbrolle statt in `Table.cell`s Standard-Textfarbe. Ein
-/// `span` mit eigener `color`-Klasse gewinnt gegenueber der vererbten Farbe der
-/// `<td>`, unabhaengig von der Reihenfolge im kompilierten CSS (anders als eine
-/// zusaetzliche Klasse auf der Zelle selbst, siehe ADR 0031).
-let private tdTruncatedCategory (text: string) =
-    Table.cell { Table.defaultCellProps with IsTruncate = true } [
-        Html.span [ prop.className categoryColorClassName; prop.text text ]
-    ]
+/// Die Kategorie-Zelle der PC-Tabelle (ADR 0049 Punkt 4): sekundäre Rolle, nur "ohne
+/// Kategorie" in Orange. Der `span` mit eigener Farbklasse gewinnt gegenüber der
+/// Zellfarbe, unabhängig von der Reihenfolge im kompilierten CSS (ADR 0031).
+let private categoryCell (entry: LedgerEntryView) =
+    truncatedRoleCell
+        Table.Secondary
+        (Html.span [ prop.className (categoryClassName entry); prop.text (categoryLabelQualified entry) ])
 
 /// Breite der Status-Spalte in der PC-Tabelle: der Handoff-Wert aus Screen 1.9
-/// (Entscheidung Roman 2026-09-19, `ledger-qns4j`). Die vorherige Verbreiterung auf
-/// 208px (ledger-x0yga, Verifier-Befund 2) war ausdrücklich ein Pflaster gegen
-/// zwei umbrechende Kennzeichen; die Lösung liegt jetzt bei den Kennzeichen selbst
-/// (kurze Beschriftung bzw. Symbol statt Text, siehe `needsReviewStatusBadge` und
-/// `deletedStatusIcon`), nicht mehr bei der Spaltenbreite. Die 80px Differenz
-/// gehen automatisch an Payee und Memo zurück: beide sind `Table.th` ohne eigene
-/// `Width`, teilen sich also den frei gewordenen Platz als `1fr`-Spalten.
+/// (Entscheidung Roman 2026-09-19, `ledger-qns4j`).
 let private statusColumnWidth = "128"
 
-/// Der Betrag als eigene Zelle ueber die Money-Komponente statt als reiner Text:
-/// nur so tragen PC-Tabellen-Betraege dieselbe Farbsemantik (rot/gruen) und
-/// Ziffernschrift wie die Handy-Liste (AC1/AC2, ledger-x0yga); gedämpft und
-/// durchgestrichen für eine in YNAB gelöschte Buchung (AC3, ledger-p3n8k).
+/// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
+/// ADR 0049); gedämpft und durchgestrichen für eine in YNAB gelöschte Buchung.
 let private tdMoney (entry: LedgerEntryView) =
-    Table.cell { Table.defaultCellProps with Align = Some "right" } [ entryMoney entry ]
+    if entry.DeletedInYnab then
+        Table.cell { Table.defaultCellProps with Align = Some "right" } [ entryMoney entry ]
+    else
+        Table.amountCell entry.Amount.Amount entry.Amount.Currency
 
 let private entryTableRow
     (dispatch: Msg -> unit)
@@ -472,31 +470,29 @@ let private entryTableRow
     (accountAbbreviationOf: Guid -> string)
     (entry: LedgerEntryView)
     =
-    // Der Punkt am linken Zeilenrand (ADR 0032) wird an der PC-Tabellenzeile als
-    // schmaler linker Rahmen nachgebildet: dasselbe Muster wie `Table.row`s eigenes
-    // `IsSelected` (`border-l-2 border-l-neon-teal`), nur für "zu prüfen" statt
-    // "ausgewählt". `Table.trClickable` deckt keinen eigenen `ClassName` ab, deshalb
-    // direkt `Table.row` mit `OnClick`.
+    // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), nicht mehr
+    // ein Rahmen links. `Table.trClickable` kennt weder Kante noch Zeilenhöhe,
+    // deshalb direkt `Table.row` mit denselben Klassen wie `Table.calmRow`.
     Table.row
         { Table.defaultRowProps with
             OnClick = Some (fun () -> dispatch (OpenHistory entry))
-            ClassName = Some (if entry.NeedsReview then "border-l-2 border-l-neon-pink" else "") }
+            StatusEdge = entry.NeedsReview
+            ClassName = Some Tokens.ListRoles.rowHeight }
         [
-            Table.td (formatDate entry.Date)
-            if showAccountColumn then Table.td (accountAbbreviationOf entry.AccountId)
-            tdTruncated (payeeLabel entry)
-            tdTruncatedCategory (categoryLabelQualified entry)
-            tdTruncated (entry.Memo |> Option.defaultValue "")
+            Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
+            if showAccountColumn then Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
+            truncatedRoleCell Table.Payee (Html.text (payeeLabel entry))
+            categoryCell entry
+            truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
             tdMoney entry
-            Table.tdContent [
+            Table.cell { Table.defaultCellProps with Align = Some "right" } [
                 Html.div [
                     // `flex-nowrap`, nicht `flex-wrap`: die Kennzeichen sollen die
                     // Spalte in die Breite gehen lassen, nicht die Zeile in die Höhe
                     // (AC5, ledger-qns4j, siehe `statusColumnWidth`). Kein
-                    // `originBadge` mehr (AC3): die Herkunft steht nur noch in der
-                    // Historie (`historyLine`) und, sobald gebaut, im Detail
-                    // (`ledger-q1hw2`): die Statusspalte trägt nur noch Status.
-                    prop.className "flex flex-nowrap items-center gap-1"
+                    // `originBadge` (AC3): die Herkunft steht nur noch in der
+                    // Historie (`historyLine`): die Statusspalte trägt nur Status.
+                    prop.className "flex flex-nowrap items-center justify-end gap-1"
                     prop.children [
                         if entry.NeedsReview then needsReviewStatusBadge ()
                         flagStatusBadge entry.Flag
@@ -505,6 +501,15 @@ let private entryTableRow
                 ]
             ]
         ]
+
+/// Gruppenkopf eines Datums in der PC-Tabelle: Datum links über den ersten Spalten,
+/// Tagessumme in der Betragsspalte (`Table.calmGroupRow`, ADR 0049 Punkt 8).
+let private dateGroupRow (columnsBeforeAmount: int) (date: DateTime) (sum: Money) =
+    Table.calmGroupRow
+        ("group-" + date.ToString("yyyy-MM-dd"))
+        columnsBeforeAmount
+        (formatDate date)
+        (daySumText sum)
 
 /// Eine Karte der Handy-Kontostaende-Leiste (AC6): waagerecht scrollbare
 /// `Stats`-Kachel, Betrag ueber `Money.accountBalance` (Farbsemantik + Ziffernschrift
@@ -592,17 +597,27 @@ let private accountStrip
             ]
         ]
 
-/// Der Status des letzten Spiegel-Laufs als Unterzeile der Seite. Ein Fehler steht
-/// hier genauso sichtbar wie ein Erfolg (ADR 0014).
+/// Der Untertitel der Seite nach einem Spiegel-Lauf, kurz (`ledger-n4vte`):
+/// "Gespiegelt heute 22:24". Ein gescheiterter Lauf steht genauso sichtbar da wie
+/// ein Erfolg (ADR 0014). Reine Funktion mit explizitem `today`, damit sie ohne
+/// Systemzeit testbar ist.
+let mirrorRunSubtitle (today: DateTime) (run: MirrorRunStatus) : string =
+    let local = run.RanAt.ToLocalTime()
+    let day =
+        match (local.Date - today.Date).Days with
+        | 0 -> "heute"
+        | -1 -> "gestern"
+        | _ -> local.ToString("dd.MM.", germanCulture ())
+    let time = local.ToString("HH:mm", germanCulture ())
+
+    match run.Outcome with
+    | MirrorRunSucceeded _ -> $"Gespiegelt {day} {time}"
+    | MirrorRunFailed message -> $"Spiegeln gescheitert {day} {time}: {message}"
+
+/// Der Status des letzten Spiegel-Laufs als Unterzeile der Seite.
 let private lastRunSubtitle (status: RemoteData<MirrorRunStatus option>) : string option =
     match status with
-    | Success (Some run) ->
-        let outcome =
-            match run.Outcome with
-            | MirrorRunSucceeded summary ->
-                $"{summary.NewEntries} neu, {summary.ChangedEntries} geändert, {summary.DeletedEntries} gelöscht"
-            | MirrorRunFailed message -> $"gescheitert: {message}"
-        Some $"Letzter Spiegel: {formatDateTime run.RanAt} — {outcome}"
+    | Success (Some run) -> Some (mirrorRunSubtitle DateTime.Today run)
     | Success None -> Some "Noch kein Spiegel-Lauf."
     | Failure message -> Some $"Lauf-Status nicht lesbar: {message}"
     | Loading | NotAsked -> None
@@ -717,6 +732,7 @@ let private ScrollSentinel (onReachEnd: unit -> unit) (active: bool) =
 let private entryListMobile
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
+    (includeDeleted: bool)
     (entries: LedgerEntryView list)
     =
     Primitives.Responsive.mobileOnly [
@@ -724,40 +740,40 @@ let private entryListMobile
             prop.children (
                 groupByDate entries
                 |> List.collect (fun (date, group) ->
-                    dateGroupHeader date :: (group |> List.map (entryRow dispatch accountAbbreviationOf)))
+                    dateGroupHeader date (daySum includeDeleted group)
+                    :: (group |> List.map (entryRow dispatch accountAbbreviationOf)))
             )
         ]
     ]
+
+/// Eine Spalte der `colgroup`: `None` heißt "Rest" (Memo).
+let private col (width: IStyleAttribute option) =
+    Html.col [ match width with Some w -> prop.style [ w ] | None -> () ]
 
 let private entryListDesktop
     (dispatch: Msg -> unit)
     (showAccountColumn: bool)
     (accountAbbreviationOf: Guid -> string)
+    (includeDeleted: bool)
     (entries: LedgerEntryView list)
     =
+    // Spalten vor dem Betrag: Datum, [Konto], Payee, Kategorie, Memo.
+    let columnsBeforeAmount = if showAccountColumn then 5 else 4
+
     Primitives.Responsive.desktopOnly [
         Table.view
             // `FixedLayout`: feste Spaltenanteile statt Content-getriebener Breite
-            // (AC5) — ohne sie zwingt ein langer Payee/Kategorie-Text den Betrag aus
-            // dem sichtbaren Bereich, wie im Ausgangszustand. Spaltenraster nach dem
-            // Claude-Design-Handoff (`docs/ux/kassenbuch/handoff-ablauf-1-...md`,
-            // Screen 1.9): `96px 1fr 200px 1fr 132px 128px` fuer Datum, Payee,
-            // Kategorie, Memo, Betrag, Status (das Kaestchen `44px` davor gehoert zu
-            // `ledger-r1d2f`, nicht zu dieser Aufgabe). Payee und Memo bleiben ohne
-            // Breitenvorgabe und teilen sich den Rest zu gleichen Teilen (`1fr` je
-            // Spalte), wie im Handoff. Die Status-Spalte weicht vom Handoff-Wert
-            // (128px) ab — siehe `statusColumnWidth`.
+            // (AC5), sonst zwingt ein langer Payee/Kategorie-Text den Betrag aus dem
+            // sichtbaren Bereich. Die Anteile stehen in einer `colgroup`: Payee ca.
+            // 30 %, Kategorie ca. 26 %, Memo bekommt den Rest. So werden Inhalte wie
+            // "Transfer : Tagesgeld ING" oder "Alltag: Essen/Einkaufen" nicht mehr
+            // gekürzt, solange die Memo-Spalte leer ist (`ledger-n4vte`).
             // `Responsive = false`: `Sticky` and the wrapper's `overflow-x-auto`
             // don't mix (see `TableProps.Responsive` doc) — without this the sticky
             // header positions itself against the wrapper instead of the page and
             // ends up floating mid-list. `ClassName` reapplies the wrapper's own
             // decorative classes directly on the `<table>` so it keeps its border.
-            // `Variant = Hover`: pins today's look. `defaultTableProps.Variant` is
-            // `ZebraHover`, but `Zebra` used to be the DaisyUI class `table-zebra`,
-            // inert without DaisyUI (design-system-fq8dn, ADR 0031) — this list's
-            // reference screenshots (`docs/ux/kassenbuch/screenshots/`) show no
-            // stripe. Now that `Zebra` actually renders, the implicit default would
-            // add one here; explicit `Hover` keeps only what was already visible.
+            // `Variant = Hover`: kein Zebra-Streifen (design-system-fq8dn, ADR 0031).
             { Table.defaultTableProps with
                 Variant = Table.Hover
                 Sticky = true
@@ -765,21 +781,34 @@ let private entryListDesktop
                 Responsive = false
                 ClassName = Some "rounded-xl border border-border-subtle bg-surface-card" }
             [
+                Html.colgroup [
+                    col (Some (style.width (length.px 96)))
+                    if showAccountColumn then col (Some (style.width (length.px 72)))
+                    col (Some (style.width (length.percent 30)))
+                    col (Some (style.width (length.percent 26)))
+                    col None
+                    col (Some (style.width (length.px 132)))
+                    col (Some (style.width (length.px (int statusColumnWidth))))
+                ]
                 Table.thead [
-                    Table.thWidth "Datum" "96"
-                    if showAccountColumn then Table.thWidth "Konto" "72"
-                    Table.th "Payee"
-                    Table.thWidth "Kategorie" "200"
-                    Table.th "Memo"
-                    Table.headerCell
-                        { Table.defaultHeaderCell with
-                            Text = "Betrag"
-                            Align = Some "right"
-                            Width = Some "132" }
-                    Table.thWidth "Status" statusColumnWidth
+                    Table.calmHeaderCell "Datum" None
+                    if showAccountColumn then Table.calmHeaderCell "Konto" None
+                    Table.calmHeaderCell "Payee" None
+                    Table.calmHeaderCell "Kategorie" None
+                    Table.calmHeaderCell "Memo" None
+                    Table.calmHeaderCell "Betrag" (Some "right")
+                    Table.calmHeaderCell "Status" (Some "right")
                 ]
                 Table.tbody (
-                    entries |> List.map (entryTableRow dispatch showAccountColumn accountAbbreviationOf)
+                    groupByDate entries
+                    |> List.collect (fun (date, group) ->
+                        dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
+                        :: (group
+                            |> List.map (fun entry ->
+                                React.keyedFragment (
+                                    string entry.Id,
+                                    [ entryTableRow dispatch showAccountColumn accountAbbreviationOf entry ]
+                                ))))
                 )
             ]
     ]
@@ -834,8 +863,8 @@ let private entryList
 
     | Success entries ->
         Html.div [
-            entryListMobile dispatch (if isAllAccounts then Some abbreviationOf else None) entries
-            entryListDesktop dispatch isAllAccounts abbreviationOf entries
+            entryListMobile dispatch (if isAllAccounts then Some abbreviationOf else None) model.IncludeDeleted entries
+            entryListDesktop dispatch isAllAccounts abbreviationOf model.IncludeDeleted entries
 
             if model.LoadingMore then
                 Html.div [
@@ -1247,15 +1276,31 @@ let view (model: Model) (dispatch: Msg -> unit) =
     let isAllAccounts = model.SelectedFilter = Some AllAccounts
     let categories = model.Categories |> RemoteData.toOption |> Option.defaultValue []
 
-    Primitives.Container.view [
-        PageHeader.gradientWithActions
+    // Ruhige Liste (ADR 0049 Punkt 9): schlanker Seitenkopf, Liste füllt die Breite.
+    // "Jetzt spiegeln" bleibt erreichbar, aber ohne den großen orangen Knopf: am
+    // Handy als Symbol-Knopf in der Kopfzeile, am PC als sekundärer Knopf.
+    Primitives.Container.full [
+        PageHeader.calm
             "Kassenbuch"
             (lastRunSubtitle model.LastMirrorRun)
             [
-                Button.primaryLoading
-                    (if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln")
-                    model.MirrorRunning
-                    (fun () -> dispatch StartMirror)
+                Button.view {
+                    Button.defaultProps with
+                        Icon = Some (Icons.sync Icons.SM Icons.Default)
+                        Variant = Button.Secondary
+                        IsLoading = model.MirrorRunning
+                        Title = Some "Jetzt spiegeln"
+                        ClassName = Some "md:hidden"
+                        OnClick = (fun () -> dispatch StartMirror)
+                }
+                Button.view {
+                    Button.defaultProps with
+                        Text = if model.MirrorRunning then "Spiegel läuft…" else "Jetzt spiegeln"
+                        Variant = Button.Secondary
+                        IsLoading = model.MirrorRunning
+                        ClassName = Some "hidden md:inline-flex"
+                        OnClick = (fun () -> dispatch StartMirror)
+                }
             ]
 
         match model.Accounts with

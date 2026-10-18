@@ -861,6 +861,10 @@ type LedgerEntryView = {
     NeedsReview: bool
     /// Das gedeutete Flag der Buchung (ADR 0032).
     Flag: LedgerFlag
+    /// Die Buchung ist ein Übertrag (rohes `transfer_account_id` oder aufgelöste
+    /// Gegenbuchung, ADR 0048). Ein Übertrag trägt ein Ziel und ist darum nicht
+    /// "ohne Kategorie".
+    IsTransfer: bool
 }
 
 /// Eine Zeile der Historie einer Buchung: wann, von wem, und was passiert ist —

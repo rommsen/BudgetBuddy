@@ -145,6 +145,7 @@ module ReadModel =
             DeletedInYnab = entry.DeletedInYnab
             NeedsReview = needsReview entry
             Flag = flagOf entry.FlagColor entry.FlagName
+            IsTransfer = entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome
         }
 
     // --- Die Sprache der Historie ---

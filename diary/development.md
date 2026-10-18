@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-18 23:51 - Kassenbuch auf ruhige Listen umgestellt (ledger-n4vte)
+
+**What I did:**
+Zweite Aufgabe des Work-Laufs, PASS in Iteration 3. Das Kassenbuch folgt Fassung B (ADR 0049) am PC und am Handy; auf Romans Wunsch sind die beiden Abweichungen im Styleguide-Abschnitt 8a gleich mit behoben.
+
+**Files Added:**
+- `docs/ux/kassenbuch/screenshots/{pc-1440x900,handy-390x844}-ruhige-listen.png` - Gate-Screenshots
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - `PageHeader.calm`, `Container.full`, Zellrollen, Statuskante, Tagessumme (`daySum`, `daySumText`), zweizeilige Handy-Zeile ohne `originBadge`, Kategorie über `categoryClassName`
+- `src/Client/View.fs`, `src/Client/DesignSystem/Navigation.fs` - `pageContentFull` ohne `container`-Begrenzung, nur für das Kassenbuch
+- `src/Client/DesignSystem/Table.fs`, `Tokens.fs` - `calmGroupRow` (Tagessumme unter der Betragsspalte), `ListRoles.cellPaddingX/mobileLine1/mobileLine2`
+- `src/Client/Components/Styleguide/View.fs` - Abschnitt 8a nutzt dieselben Bausteine; Screenshots neu
+- `src/Shared/Domain.fs`, `src/Server/Ledger/QueryHandlers.fs` - `LedgerEntryView.IsTransfer`; ein Übertrag zeigt "Übertrag" statt "ohne Kategorie" (ADR 0048)
+- `src/Tests/LedgerViewTests.fs`, `src/Tests/LedgerPageTests.fs` - Tests auf den neuen Stand, `daySumTests`, `isTransferTests`
+- `scripts/ledger-status-column{,.test}.mjs`, `scripts/ledger-filter-bar{,.test}.mjs` - Fixtures mit `IsTransfer`, Wächter auf "zu prüfen" und neue Spaltenaufteilung; Sticky-Messung scrollt jetzt direkt statt per einzelnem animierten Mausrad
+
+**Rationale:**
+Roman hat Fassung B gewählt. Verifier-Funde: Iteration 1 sechs rote Browser-Wächter (`npm run test:scripts` lief beim Worker nicht mit), Iteration 2 fehlender Test für die Server-Regel `IsTransfer` (per Mutation gezeigt). Die geänderte Sticky-Messung hat der Verifier gegen den Stand vor dem Diff nachgemessen: ein einzelnes synthetisches Mausrad bricht in beiden Ständen vorzeitig ab, keine DOM-Änderung während des Scrollens, Lücke im Haft-Zustand 0.
+
+**Outcomes:**
+- Build: ✅ (nur das bekannte FS0025 in `Ledger/State.fs:333`)
+- Tests: 1197 bestanden, 7 übersprungen; `npm run test:scripts` 118/118
+- Issues: keine offenen
+
+---
+
 ## 2026-10-18 23:01 - DS-Bausteine für ruhige Listen (design-system-q7rkm)
 
 **What I did:**

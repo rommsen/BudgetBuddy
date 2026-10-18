@@ -3000,6 +3000,29 @@ let categoryGroupLookupTests =
             Expect.equal leer.CategoryGroupName None "eine leere Zuordnung ergibt keine Gruppe, keinen Fehler"
     ]
 
+/// `IsTransfer` der Kassenbuch-Zeile (ledger-n4vte, ADR 0048): ein Übertrag trägt ein
+/// Ziel und ist nicht "ohne Kategorie". Erkannt am rohen `TransferAccountId` oder an
+/// der aufgelösten Gegenbuchung `TransferEntryId`, jede Seite reicht allein.
+let private isTransferTests =
+    let view (e: Entry) = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab e
+    testList "toEntryView: IsTransfer" [
+
+        test "Nur TransferAccountId gesetzt ist ein Übertrag" {
+            let e = { entry 1 -10m with Category = None; TransferAccountId = Some (ynabAccount 2) }
+            Expect.isTrue (view e).IsTransfer "Das rohe Übertragskonto reicht"
+        }
+
+        test "Nur TransferEntryId gesetzt ist ein Übertrag" {
+            let e = { entry 1 -10m with Category = None; TransferEntryId = Some (EntryId (entryGuid 2)) }
+            Expect.isTrue (view e).IsTransfer "Die aufgelöste Gegenbuchung reicht"
+        }
+
+        test "Weder TransferAccountId noch TransferEntryId ist kein Übertrag" {
+            let e = { entry 1 -10m with Category = None }
+            Expect.isFalse (view e).IsTransfer "Eine einfache Buchung ohne Ziel ist kein Übertrag"
+        }
+    ]
+
 [<Tests>]
 let ledgerPageTests =
     testList
@@ -3010,4 +3033,5 @@ let ledgerPageTests =
           reducerTests
           erstlaufTests
           freshnessTests
-          visibilityTests ]
+          visibilityTests
+          isTransferTests ]

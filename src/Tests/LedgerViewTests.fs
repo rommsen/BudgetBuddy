@@ -33,6 +33,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     DeletedInYnab = false
     NeedsReview = false
     Flag = NoFlag
+    IsTransfer = false
 }
 
 let private splitLine (amount: decimal) : TransactionSplit = {
@@ -231,18 +232,40 @@ let private categoryLabelQualifiedTests =
         }
     ]
 
-/// Regression fuer ledger-w9skm: die Kategorie war vorher in der normalen
-/// Textfarbe gesetzt (kein eigener Token), obwohl der Handoff durchgehend
-/// `#a855f7` vorschreibt (Screens 1.1 und 1.9). Dieser Test prueft, dass die
-/// Handy-Zeile und die PC-Tabelle denselben Farb-Token verwenden und dass
-/// dieser Token tatsaechlich auf die Kategorie-Farbrolle zeigt, nicht auf ein
-/// Hex-Literal im View-Code.
+/// ADR 0049 Punkt 4 (`ledger-n4vte`): die Kategorie steht in der sekundären Rolle,
+/// nicht mehr violett (vorher `categoryColorClassName`, `ledger-w9skm`). Nur "ohne
+/// Kategorie" bleibt Orange; ein Übertrag (ADR 0048) trägt ein Ziel und bleibt
+/// neutral. Handy-Zeile und PC-Tabelle teilen `categoryClassName`.
 let private categoryColorTests =
-    testList "categoryColorClassName (ledger-w9skm)" [
+    testList "categoryClassName (ledger-n4vte, ADR 0049)" [
 
-        test "Zeigt auf die Kategorie-Farbrolle des Tokens-Layers, kein Hex-Literal" {
-            Expect.equal categoryColorClassName Client.DesignSystem.Tokens.Colors.neonPurple
-                "Derselbe Token wie in styles.css fuer #a855f7 (--color-neon-purple)"
+        test "Eine Buchung mit Kategorie nutzt die sekundäre Rolle, nicht Violett" {
+            let entry = { entryView (accountId 1) (DateTime(2026, 3, 10)) "Rewe" with CategoryName = Some "Essen" }
+            Expect.equal (categoryClassName entry) Client.DesignSystem.Tokens.ListRoles.secondary
+                "Kategorie in text-secondary, 12px"
+            Expect.isFalse ((categoryClassName entry).Contains Client.DesignSystem.Tokens.Colors.neonPurple)
+                "Kein Violett mehr in der Liste"
+        }
+
+        test "Ohne Kategorie bleibt Orange" {
+            let entry = entryView (accountId 1) (DateTime(2026, 3, 10)) "Amazon"
+            Expect.isTrue (isWithoutCategory entry) "Weder Kategorie noch Split noch Übertrag"
+            Expect.stringContains (categoryClassName entry) Client.DesignSystem.Tokens.Colors.neonOrange
+                "Ein offener Fall bleibt Orange"
+        }
+
+        test "Ein Übertrag ist nicht 'ohne Kategorie' (ADR 0048), in Label und Farbe" {
+            let entry = { entryView (accountId 1) (DateTime(2026, 3, 10)) "Transfer : Tagesgeld ING" with IsTransfer = true }
+            Expect.isFalse (isWithoutCategory entry) "Ein Übertrag trägt ein Ziel"
+            Expect.notEqual (categoryLabel entry) "ohne Kategorie" "Handy-Label"
+            Expect.notEqual (categoryLabelQualified entry) "ohne Kategorie" "PC-Label"
+            Expect.equal (categoryClassName entry) Client.DesignSystem.Tokens.ListRoles.secondary
+                "Neutral statt Orange"
+        }
+
+        test "Eine Split-Buchung ist nicht 'ohne Kategorie'" {
+            let entry = { entryView (accountId 1) (DateTime(2026, 3, 10)) "Rewe" with Splits = [ splitLine -5m; splitLine -5m ] }
+            Expect.isFalse (isWithoutCategory entry) "Die Split-Zeilen sind das Ziel"
         }
     ]
 
@@ -331,25 +354,21 @@ let private sliceFunctionBody (source: string) (functionHeader: string) : string
     else
         source.Substring(startIdx, nextLetIdx - startIdx)
 
-/// Regression für ledger-n3pqw, Lücke 8: nichts band `text-neon-purple` an
-/// `--color-neon-purple: #a855f7`. Benennt jemand die CSS-Variable um, erzeugt
-/// Tailwind die Utility nicht mehr, die Kategorie-Farbe fällt still aus der
-/// Ausgabe, und `categoryColorTests` oben bliebe grün (der vergleicht nur mit
-/// seiner eigenen Definition).
+/// Regression für ledger-n3pqw, Lücke 8, fortgeführt für `ledger-n4vte`: nichts band
+/// die Orange-Rolle von "ohne Kategorie" an `--color-neon-orange`. Benennt jemand die
+/// CSS-Variable um, erzeugt Tailwind die Utility nicht mehr, und der offene Fall
+/// fiele still in die Grundfarbe zurück.
 let private categoryColorCssBindingTests =
-    testList "Kategorie-Farbe an --color-neon-purple gebunden (ledger-n3pqw)" [
+    testList "Farbrolle 'ohne Kategorie' an --color-neon-orange gebunden (ledger-n4vte)" [
 
-        test "styles.css deklariert die CSS-Variable, auf die der Token zeigt, mit dem Wert aus dem Entwurf" {
+        test "styles.css deklariert die CSS-Variable, auf die der Token zeigt" {
             let css = readStylesCss ()
-            let variableName = cssVariableNameFromColorToken Client.DesignSystem.Tokens.Colors.neonPurple
+            let variableName = cssVariableNameFromColorToken Client.DesignSystem.Tokens.Colors.neonOrange
 
-            let m =
-                Regex.Match(css, Regex.Escape(variableName) + @"\s*:\s*([^;]+);")
+            let m = Regex.Match(css, Regex.Escape(variableName) + @"\s*:\s*([^;]+);")
 
             Expect.isTrue m.Success
-                $"styles.css muss eine @theme-Deklaration für {variableName} enthalten, sonst fällt die Tailwind-Utility für die Kategorie-Farbe still aus."
-            Expect.equal (m.Groups.[1].Value.Trim()) "#a855f7"
-                "Die Kategorie-Farbrolle muss #a855f7 bleiben (Handoff 1.1 und 1.9); eine stille Änderung der Palette fällt hierüber auf."
+                $"styles.css muss eine @theme-Deklaration für {variableName} enthalten, sonst fällt die Tailwind-Utility für 'ohne Kategorie' still aus."
         }
     ]
 
@@ -430,45 +449,49 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "entryRow muss categoryLabel entry aufrufen (Blattname)."
             Expect.isFalse (entryRowBody.Contains "categoryLabelQualified")
                 "entryRow zeigt bewusst nur den Blattnamen, keine Qualifizierung."
-            Expect.stringContains entryTableRowBody "categoryLabelQualified entry"
-                "entryTableRow muss categoryLabelQualified entry aufrufen (volle Qualifizierung)."
+            Expect.stringContains (sliceFunctionBody view "let private categoryCell") "categoryLabelQualified entry"
+                "Die Kategoriezelle der PC-Tabelle muss categoryLabelQualified entry aufrufen (volle Qualifizierung)."
         }
 
         /// Regression für ledger-qns4j, AC3: die Statusspalte der PC-Tabelle trug
         /// bisher `originBadge` (Herkunft) statt Status, genau der gemeldete
         /// Befund ("Die Statusspalte trägt Herkunft, nicht Status"). Die Handy-Zeile
-        /// zeigt die Herkunft weiterhin inline (unverändert), nur die PC-Tabelle
-        /// verliert sie aus der Statusspalte; sie bleibt über die Historie
-        /// erreichbar (`historyLine` ruft `originBadge` weiterhin auf).
+        /// zeigte die Herkunft weiterhin inline; seit `ledger-n4vte` (ADR 0049) tut
+        /// sie das nicht mehr. Die Herkunft bleibt über die Historie erreichbar
+        /// (`historyLine` ruft `originBadge` weiterhin auf).
         ///
         /// Das hier ist ein Quelltext-Wächter (schnell, ohne Browser); die von AC3
         /// verlangte Zusicherung "über die gerenderte Zeile, nicht nur durch das
         /// Lesen des Diffs" liefert `scripts/ledger-status-column.test.mjs`: dort
         /// prüft eine echte, im Browser gerenderte Tabellenzeile, dass kein
         /// Herkunfts-Text (z. B. "YNAB-Spiegel") in der Statusspalte auftaucht.
-        test "entryRow ruft weiterhin originBadge auf, entryTableRow nicht mehr" {
+        test "Weder entryRow noch entryTableRow rufen originBadge auf, die Historie schon" {
             let view = readLedgerView ()
             let entryRowBody = sliceFunctionBody view "let private entryRow"
             let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
 
-            Expect.stringContains entryRowBody "originBadge entry.Origin"
-                "Die Handy-Zeile zeigt die Herkunft weiterhin inline, das ändert diese Aufgabe nicht."
+            Expect.isFalse (entryRowBody.Contains "originBadge")
+                "Die Handy-Zeile rendert die Herkunft nicht mehr inline (ledger-n4vte): sie steht in der Historie."
+            Expect.stringContains (sliceFunctionBody view "let private historyLine") "originBadge line.Origin"
+                "Die Herkunft bleibt in der Historie sichtbar."
             Expect.isFalse (entryTableRowBody.Contains "originBadge entry.Origin")
                 "Die PC-Statusspalte darf keinen originBadge mehr rendern (AC3, ledger-qns4j): Status statt Herkunft."
         }
 
-        test "Beide Ansichten speisen die Kategorie-Farbrolle aus demselben Wert (categoryColorClassName)" {
+        test "Beide Ansichten speisen die Kategorie-Rolle aus demselben Wert (categoryClassName)" {
             let view = readLedgerView ()
             let entryRowBody = sliceFunctionBody view "let private entryRow"
-            let tdTruncatedCategoryBody = sliceFunctionBody view "let private tdTruncatedCategory"
+            let categoryCellBody = sliceFunctionBody view "let private categoryCell"
             let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
 
-            Expect.stringContains entryRowBody "categoryColorClassName"
-                "Die Handy-Zeile muss die Kategorie-Farbrolle über categoryColorClassName einfärben."
-            Expect.stringContains tdTruncatedCategoryBody "categoryColorClassName"
-                "Die PC-Tabellenzelle muss dieselbe Kategorie-Farbrolle über categoryColorClassName einfärben."
-            Expect.stringContains entryTableRowBody "tdTruncatedCategory (categoryLabelQualified entry)"
-                "Die PC-Tabelle muss ihre Kategoriezelle über tdTruncatedCategory rendern, sonst verliert sie die Farbe (fällt zurück auf tdTruncated)."
+            Expect.stringContains entryRowBody "categoryClassName entry"
+                "Die Handy-Zeile muss die Kategorie-Rolle über categoryClassName setzen."
+            Expect.stringContains categoryCellBody "categoryClassName entry"
+                "Die PC-Tabellenzelle muss dieselbe Rolle über categoryClassName setzen."
+            Expect.stringContains entryTableRowBody "categoryCell entry"
+                "Die PC-Tabelle muss ihre Kategoriezelle über categoryCell rendern, sonst verliert sie die Rolle."
+            Expect.isFalse (view.Contains "categoryColorClassName")
+                "Das violette categoryColorClassName ist weg (ADR 0049)."
         }
     ]
 
@@ -489,35 +512,32 @@ let private statusColumnTests =
                 "Screen 1.9 sieht 128px vor; die 208px waren ein Pflaster von ledger-x0yga."
         }
 
-        /// Quelltext-Wächter (schnell, ohne Browser). Beweist für sich allein noch
-        /// nicht, dass die 80px tatsächlich bei Payee/Memo landen. Payee/Memo
-        /// waren schon vor dieser Aufgabe ohne `Table.thWidth` (sie hatten die
-        /// 1fr-Aufteilung bereits seit `ledger-x0yga`). Die tatsächliche
-        /// Spaltenraster-Messung ("Belegt am Spaltenraster, nicht nur am
-        /// geänderten Literal") liefert `scripts/ledger-status-column.test.mjs`:
-        /// eine echte, `table-layout: fixed` gerenderte Tabelle, an der die
-        /// gerenderten Breiten von Datum/Kategorie/Betrag/Status UND die Summe aus
-        /// Payee+Memo gemessen werden.
-        test "Payee und Memo bleiben ohne eigene Spaltenbreite (AC6, Quelltext-Wächter)" {
+        /// Spaltenanteile (`ledger-n4vte`): Payee ca. 30 %, Kategorie ca. 26 %, Memo
+        /// bekommt den Rest. Sie stehen in einer `colgroup`; die Kopfzellen der
+        /// ruhigen Tabelle (`Table.calmHeaderCell`) tragen keine Breite. Quelltext-
+        /// Wächter; die tatsächliche Breite misst `scripts/ledger-status-column.test.mjs`.
+        test "Payee 30 %, Kategorie 26 %, Memo ohne Breite in der colgroup (Quelltext-Wächter)" {
             let view = readLedgerView ()
             let desktopBody = sliceFunctionBody view "let private entryListDesktop"
-            Expect.stringContains desktopBody "Table.th \"Payee\""
-                "Payee darf keine eigene Table.thWidth tragen, sonst blieben die freigewordenen 80px ungenutzt."
-            Expect.stringContains desktopBody "Table.th \"Memo\""
-                "Memo darf keine eigene Table.thWidth tragen, aus demselben Grund."
-            Expect.isFalse (desktopBody.Contains "Table.thWidth \"Payee\"")
-                "Payee mit fester Breite würde die 1fr-Aufteilung mit Memo verhindern."
-            Expect.isFalse (desktopBody.Contains "Table.thWidth \"Memo\"")
-                "Memo mit fester Breite würde die 1fr-Aufteilung mit Payee verhindern."
+            Expect.stringContains desktopBody "length.percent 30"
+                "Payee bekommt ca. 30 %, damit 'Transfer : Tagesgeld ING' nicht gekürzt wird."
+            Expect.stringContains desktopBody "length.percent 26"
+                "Kategorie bekommt ca. 26 %, damit 'Alltag: Essen/Einkaufen' nicht gekürzt wird."
+            Expect.stringContains desktopBody "col None"
+                "Memo bekommt den Rest, ohne eigene Breite."
+            Expect.stringContains desktopBody "Table.calmHeaderCell \"Payee\""
+                "Spaltenkopf der ruhigen Tabelle."
         }
 
-        test "needsReviewStatusBadge zeigt den Text 'Zu prüfen' als Warning-Badge (ADR 0032, AC4)" {
+        test "needsReviewStatusBadge zeigt das kleine Wort 'zu prüfen' in Pink, kein Badge mehr (ADR 0049 Punkt 7)" {
             let view = readLedgerView ()
             let badgeBody = sliceFunctionBody view "let private needsReviewStatusBadge"
-            Expect.stringContains badgeBody "Text = \"Zu prüfen\""
-                "Der Wortlaut aus dem Handoff und der Chip-Beschriftung (needsReviewChipLabel)."
-            Expect.stringContains badgeBody "Variant = Badge.Warning"
-                "Dieselbe Farbsemantik wie der Chip und der Punkt am Handy (Pink/Warning)."
+            Expect.stringContains badgeBody "prop.text \"zu prüfen\""
+                "Ein kleines Wort in der Statusspalte statt des Badges."
+            Expect.stringContains badgeBody "Tokens.Colors.neonPink"
+                "Dieselbe Pink-Rolle wie die Statuskante."
+            Expect.isFalse (badgeBody.Contains "Badge.view {")
+                "Kein Badge mehr."
         }
 
         test "entryTableRow rendert needsReviewStatusBadge nur bei entry.NeedsReview, kein neuer Zustand (AC4)" {
@@ -695,6 +715,188 @@ let private entryRowClassNameTests =
             Expect.stringContains entryRowClassName "border-b" "Unterkante als Trenner"
             Expect.stringContains entryRowClassName Client.DesignSystem.Tokens.Borders.subtle
                 "Dieselbe gedaempfte Trennfarbe wie sonst im Design-System"
+        }
+    ]
+
+// ============================================
+// Ruhige Listen (ledger-n4vte, ADR 0049)
+// ============================================
+
+let private daySumTests =
+    testList "daySum und daySumText (ledger-n4vte, ADR 0049 Punkt 8)" [
+
+        let day = DateTime(2026, 10, 18)
+        let withAmount (amount: decimal) = { entryView (accountId 1) day "X" with Amount = eur amount }
+        let deleted (amount: decimal) = { withAmount amount with DeletedInYnab = true }
+
+        test "Die Tagessumme ist die Summe der Zeilen der Gruppe" {
+            let group = [ withAmount -48.12m; withAmount -6.40m ]
+            Expect.equal (daySum false group) (eur -54.52m) "Zwei Ausgaben"
+        }
+
+        test "Eingang und Ausgabe saldieren sich" {
+            let group = [ withAmount 3412.80m; withAmount -37.45m ]
+            Expect.equal (daySum false group) (eur 3375.35m) "Gehalt minus Amazon"
+        }
+
+        test "Eine ausgeblendete gelöschte Buchung zählt nicht mit (ledger-d4kx8)" {
+            let group = [ withAmount -10m; deleted -500m ]
+            Expect.equal (daySum false group) (eur -10m) "Gelöschte sind nicht sichtbar, also nicht in der Summe"
+        }
+
+        test "Eine eingeblendete gelöschte Buchung zählt mit (ledger-d4kx8)" {
+            let group = [ withAmount -10m; deleted -500m ]
+            Expect.equal (daySum true group) (eur -510m) "Eingeblendet zählt sie wie in der Summenzeile"
+        }
+
+        test "Eine leere Gruppe ergibt null in Euro" {
+            Expect.equal (daySum false []) (eur 0m) "Nichts zu summieren"
+        }
+
+        test "Der Text trägt für einen Eingang ein Plus, für eine Ausgabe ein Minus und die Währung" {
+            let positive = daySumText (eur 3774m)
+            let negative = daySumText (eur -54.52m)
+            Expect.isTrue (positive.StartsWith "+") "Eingang mit +"
+            Expect.isTrue (negative.StartsWith "-") "Ausgabe mit -"
+            Expect.stringContains positive "€" "Währung"
+        }
+    ]
+
+let private mirrorRunSubtitleTests =
+    testList "mirrorRunSubtitle (ledger-n4vte)" [
+
+        let today = DateTime(2026, 10, 18, 9, 0, 0, DateTimeKind.Local)
+        let ranAt (date: DateTime) = DateTime(date.Year, date.Month, date.Day, 22, 24, 0, DateTimeKind.Local)
+        let ok =
+            MirrorRunSucceeded { NewEntries = 1; ChangedEntries = 0; DeletedEntries = 0; ServerKnowledge = 1L }
+
+        test "Ein Lauf von heute heißt 'Gespiegelt heute 22:24'" {
+            Expect.equal (mirrorRunSubtitle today { RanAt = ranAt today; Outcome = ok }) "Gespiegelt heute 22:24" "Heute"
+        }
+
+        test "Ein Lauf von gestern nennt 'gestern'" {
+            Expect.equal
+                (mirrorRunSubtitle today { RanAt = ranAt (today.AddDays -1.0); Outcome = ok })
+                "Gespiegelt gestern 22:24"
+                "Gestern"
+        }
+
+        test "Ein älterer Lauf nennt das Datum ohne Jahr" {
+            Expect.equal
+                (mirrorRunSubtitle today { RanAt = ranAt (DateTime(2026, 10, 3)); Outcome = ok })
+                "Gespiegelt 03.10. 22:24"
+                "Datum"
+        }
+
+        test "Ein gescheiterter Lauf steht genauso sichtbar da (ADR 0014)" {
+            let text = mirrorRunSubtitle today { RanAt = ranAt today; Outcome = MirrorRunFailed "Token abgelaufen" }
+            Expect.stringContains text "gescheitert" "Fehler benannt"
+            Expect.stringContains text "Token abgelaufen" "Grund genannt"
+        }
+    ]
+
+/// Quelltext-Zusicherungen zur Umstellung (`ledger-n4vte`). `dotnet test` kann die
+/// Seite nicht rendern (kein Fable/React-Kontext, siehe Modulkopf); der Quelltext ist
+/// das Prüfobjekt, wie bei den Wächtern oben. Das gerenderte Ergebnis belegen die
+/// Screenshots unter `docs/ux/kassenbuch/screenshots/`.
+let private calmListSourceTests =
+    testList "Kassenbuch als ruhige Liste (ledger-n4vte, ADR 0049)" [
+
+        test "Die Seite nutzt weder PageHeader.gradientWithActions noch Container.view mit Breitenbegrenzung" {
+            let view = readLedgerView () |> withoutCommentLines
+            let body = sliceFunctionBody view "let view (model: Model)"
+            Expect.isFalse (view.Contains "gradientWithActions") "Kein Gradient-Titel"
+            Expect.isFalse (body.Contains "Container.view") "Keine Breitenbegrenzung"
+            Expect.stringContains body "Primitives.Container.full" "Container ohne Breitenbegrenzung"
+            Expect.stringContains body "PageHeader.calm" "Schlanker Seitenkopf"
+        }
+
+        test "Jetzt spiegeln bleibt erreichbar, am Handy als Symbol-Knopf mit Titel" {
+            let view = readLedgerView ()
+            let body = sliceFunctionBody view "let view (model: Model)"
+            Expect.stringContains body "Title = Some \"Jetzt spiegeln\"" "Symbol-Knopf trägt den Namen als Titel"
+            Expect.stringContains body "StartMirror" "Löst weiterhin den Lauf aus"
+            Expect.isFalse (body.Contains "primaryLoading") "Nicht mehr der große orange Knopf"
+        }
+
+        test "Beträge laufen über die Listenvariante, gelöschte bleiben bei transactionDeleted" {
+            let view = readLedgerView ()
+            let body = sliceFunctionBody view "let private entryMoney"
+            Expect.stringContains body "Money.listAmount" "Listenvariante"
+            Expect.stringContains body "Money.transactionDeleted" "Gelöschte bleiben gedämpft und durchgestrichen"
+            Expect.isFalse ((sliceFunctionBody view "let private entryRow").Contains "Money.transactionWithCurrency")
+                "Die rot/grüne Variante ist aus den Zeilen raus"
+            Expect.isFalse ((sliceFunctionBody view "let private tdMoney").Contains "Money.transactionWithCurrency")
+                "Die rot/grüne Variante ist aus der Tabelle raus"
+        }
+
+        test "Der PC-Betrag läuft über Table.amountCell, rechtsbündig mit dem Spaltenkopf" {
+            let view = readLedgerView ()
+            Expect.stringContains (sliceFunctionBody view "let private tdMoney") "Table.amountCell" "Betragsrolle"
+            Expect.stringContains (sliceFunctionBody view "let private entryListDesktop")
+                "Table.calmHeaderCell \"Betrag\" (Some \"right\")" "Kopf rechtsbündig"
+        }
+
+        test "Zu prüfen ist in beiden Viewports die Statuskante, kein Punkt und kein Rahmen mehr" {
+            let view = readLedgerView () |> withoutCommentLines
+            let rowBody = sliceFunctionBody view "let private entryRow"
+            let tableRowBody = sliceFunctionBody view "let private entryTableRow"
+            Expect.stringContains tableRowBody "StatusEdge = entry.NeedsReview" "PC: Statuskante"
+            Expect.stringContains rowBody "entryRowReviewClassName" "Handy: Statuskante"
+            Expect.stringContains view "$\"{entryRowClassName} {Tokens.ListRoles.statusEdge}\"" "Dieselbe Kante wie die Tabelle"
+            Expect.isFalse (view.Contains "Badge.dot") "Der Punkt ist weg"
+            Expect.isFalse (view.Contains "border-l-neon-pink") "Der Rahmen links ist weg"
+        }
+
+        test "Konto-Kürzel, Flag und Gelöscht-Kennzeichen stehen in Zeile 2 der Handy-Zeile" {
+            let view = readLedgerView ()
+            let rowBody = sliceFunctionBody view "let private entryRow"
+            let secondLine = rowBody.Substring(rowBody.IndexOf "Tokens.ListRoles.mobileLine2")
+            Expect.stringContains secondLine "accountBadge" "Konto-Kürzel"
+            Expect.stringContains secondLine "flagBadge entry.Flag" "Flag"
+            Expect.stringContains secondLine "deletedBadge ()" "Gelöscht-Kennzeichen"
+            Expect.stringContains rowBody "Tokens.ListRoles.mobileLine1" "Zeile 1"
+        }
+
+        test "Beide Zeilen der Handy-Zeile haben dieselbe feste Höhe und gleichen Abstand in jeder Zeile" {
+            let l1 = Client.DesignSystem.Tokens.ListRoles.mobileLine1
+            let l2 = Client.DesignSystem.Tokens.ListRoles.mobileLine2
+            Expect.stringContains l1 "h-5" "Zeile 1 fest 20px"
+            Expect.stringContains l2 "h-5" "Zeile 2 fest 20px, auch mit Badge"
+            Expect.stringContains l2 "mt-0.5" "Abstand zwischen den Zeilen"
+        }
+
+        test "Beide Viewports zeigen die Tagessumme im Gruppenkopf" {
+            let view = readLedgerView ()
+            Expect.stringContains (sliceFunctionBody view "let private dateGroupHeader") "daySumText sum" "Handy"
+            Expect.stringContains (sliceFunctionBody view "let private dateGroupRow") "daySumText sum" "PC"
+            Expect.stringContains (sliceFunctionBody view "let private entryListMobile") "daySum includeDeleted group" "Handy summiert"
+            Expect.stringContains (sliceFunctionBody view "let private entryListDesktop") "daySum includeDeleted group" "PC summiert"
+        }
+
+        test "Die PC-Tagessumme steht in der Betragsspalte, nicht unter der Statusspalte" {
+            let view = readLedgerView ()
+            let body = sliceFunctionBody view "let private dateGroupRow"
+            Expect.stringContains body "Table.calmGroupRow" "Gemeinsamer Gruppenkopf des Design-Systems"
+            Expect.stringContains body "columnsBeforeAmount" "Datum über allen Spalten vor dem Betrag"
+        }
+
+        test "Kontostände laufen über die ruhigen Money-Bausteine" {
+            let view = readLedgerView ()
+            Expect.stringContains (sliceFunctionBody view "let private accountCardView") "Money.accountBalance" "Handy-Karte"
+            Expect.stringContains (sliceFunctionBody view "let private accountListRowView") "Money.accountListRow" "PC-Liste"
+        }
+
+        test "Negativer Kontostand ist Red, positiver neutral" {
+            Expect.stringContains (Client.DesignSystem.Money.accountBalanceClass false -173.28m) Client.DesignSystem.Tokens.Colors.neonRed "negativ"
+            Expect.isFalse
+                ((Client.DesignSystem.Money.accountBalanceClass false 5040.62m).Contains Client.DesignSystem.Tokens.Colors.neonRed)
+                "positiv nicht Red"
+        }
+
+        test "Ein positiver Listenbetrag ist Teal, ein negativer text-primary" {
+            Expect.stringContains (Client.DesignSystem.Money.listAmountClass 4000m) Client.DesignSystem.Tokens.Colors.neonTeal "Eingang"
+            Expect.stringContains (Client.DesignSystem.Money.listAmountClass -48.12m) Client.DesignSystem.Tokens.Colors.textPrimary "Ausgabe"
         }
     ]
 
@@ -955,6 +1157,9 @@ let ledgerViewTests =
           statusColumnTests
           accountStripStickyTests
           entryRowClassNameTests
+          daySumTests
+          mirrorRunSubtitleTests
+          calmListSourceTests
           accountCardsTests
           deletedCountTextTests
           needsReviewChipLabelTests

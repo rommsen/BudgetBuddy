@@ -69,6 +69,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     DeletedInYnab: false,
     NeedsReview: false,
     Flag: "NoFlag",
+    IsTransfer: false,
     ...overrides,
   };
 }

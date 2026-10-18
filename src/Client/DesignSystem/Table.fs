@@ -402,6 +402,26 @@ let calmRow (statusEdge: bool) (cells: ReactElement list) =
         prop.children cells
     ]
 
+/// Gruppenkopf-Zeile der ruhigen Tabelle (ADR 0049 Punkt 8): Datum über den ersten
+/// `labelSpan` Spalten, Tagessumme in der Betragsspalte (bündig unter den Beträgen),
+/// danach die leere Statusspalte. `labelSpan` ist die Zahl der Spalten vor dem Betrag.
+let calmGroupRow (key: string) (labelSpan: int) (title: string) (sum: string) =
+    Html.tr [
+        prop.key key
+        prop.children [
+            Html.td [
+                prop.colSpan labelSpan
+                prop.className $"{ListRoles.cellPaddingX} pt-4 pb-1 {ListRoles.groupHeader}"
+                prop.text title
+            ]
+            Html.td [
+                prop.className $"{ListRoles.cellPaddingX} pt-4 pb-1 text-right {ListRoles.date}"
+                prop.text sum
+            ]
+            Html.td []
+        ]
+    ]
+
 /// Simple table cell with text
 let td (text: string) =
     cell defaultCellProps [ Html.text text ]

@@ -259,11 +259,11 @@ test("Die PC-Tabelle zeigt an keiner Stelle den Herkunfts-Text 'YNAB-Spiegel' (A
   );
 });
 
-test("Nur Buchungen mit NeedsReview zeigen 'Zu prüfen' in ihrer Zeile (AC4)", async () => {
+test("Nur Buchungen mit NeedsReview zeigen das Wort 'zu prüfen' in ihrer Zeile (AC4, ADR 0049: kleines Wort statt Badge)", async () => {
   const withoutReview = await tableRowByPayee(SIX_CASE_PAYEES.baseline);
   const withReview = await tableRowByPayee(SIX_CASE_PAYEES.needsReview);
-  assert.ok(!(await withoutReview.innerText()).includes("Zu prüfen"), "Eine geprüfte Buchung darf kein Kennzeichen tragen");
-  assert.ok((await withReview.innerText()).includes("Zu prüfen"), "Eine ungeprüfte Buchung muss 'Zu prüfen' tragen");
+  assert.ok(!(await withoutReview.innerText()).includes("zu prüfen"), "Eine geprüfte Buchung darf kein Kennzeichen tragen");
+  assert.ok((await withReview.innerText()).includes("zu prüfen"), "Eine ungeprüfte Buchung muss 'zu prüfen' tragen");
 });
 
 // ============================================
@@ -276,7 +276,7 @@ test("NeedsReview + Flag 'Rückfrage Lena' stehen nebeneinander, ohne die Zeile 
 
   const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewAskLena);
   const rowText = await row.innerText();
-  assert.ok(rowText.includes("Zu prüfen"), "Muss das Zu-prüfen-Kennzeichen zeigen");
+  assert.ok(rowText.includes("zu prüfen"), "Muss das Wort 'zu prüfen' zeigen");
   assert.ok(rowText.includes("Lena?"), "Muss den GEKÜRZTEN Flag-Wortlaut zeigen, nicht 'Rückfrage Lena'");
   assert.ok(!rowText.includes("Rückfrage Lena"), "Der volle Wortlaut darf in der PC-Statusspalte nicht mehr stehen (Überlauf-Risiko)");
 
@@ -318,11 +318,11 @@ test("NeedsReview + 'in YNAB gelöscht' stehen nebeneinander, ohne die Zeile zu 
 
   const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewDeleted);
   const rowText = await row.innerText();
-  assert.ok(rowText.includes("Zu prüfen"), "Muss das Zu-prüfen-Kennzeichen zeigen");
+  assert.ok(rowText.includes("zu prüfen"), "Muss das Wort 'zu prüfen' zeigen");
 
   const statusCell = row.locator("td").last();
   const badgeCount = await statusCell.locator(".rounded-full").count();
-  assert.equal(badgeCount, 2, "Zwei Kennzeichen (Zu prüfen + Ausnahme-Symbol) müssen beide gerendert sein");
+  assert.equal(badgeCount, 1, "Das Ausnahme-Symbol ist das einzige Badge; 'zu prüfen' ist ein Wort (ADR 0049)");
 
   const rowHeight = await row.evaluate((el) => el.getBoundingClientRect().height);
   assert.ok(
@@ -362,12 +362,12 @@ test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne hö
 
   const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewMarked);
   const rowText = await row.innerText();
-  assert.ok(rowText.includes("Zu prüfen"), "Muss das Zu-prüfen-Kennzeichen zeigen");
+  assert.ok(rowText.includes("zu prüfen"), "Muss das Wort 'zu prüfen' zeigen");
   assert.ok(!rowText.includes("Markiert"), "Der volle Text 'Markiert' darf in der PC-Statusspalte nicht mehr stehen (Überlauf-Risiko)");
 
   const statusCell = row.locator("td").last();
   const badgeCount = await statusCell.locator(".rounded-full").count();
-  assert.equal(badgeCount, 2, "Zwei Kennzeichen (Zu prüfen + Markiert-Symbol) müssen beide gerendert sein");
+  assert.equal(badgeCount, 1, "Das Markiert-Symbol ist das einzige Badge; 'zu prüfen' ist ein Wort (ADR 0049)");
 
   const rowHeight = await row.evaluate((el) => el.getBoundingClientRect().height);
   assert.ok(
@@ -404,7 +404,7 @@ test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne hö
 // AC6: Spaltenraster, Status auf 128px, die 80px gehen an Payee/Memo
 // ============================================
 
-test("Die Statusspalte ist am Spaltenraster tatsächlich 128px breit, nicht 208px (AC6)", async () => {
+test("Spaltenraster: Status 128px, Payee ca. 30 %, Kategorie ca. 26 %, Memo Rest (AC6, ledger-n4vte)", async () => {
   // Iteration 3 (Verifier-Befund Iteration 2): dieselbe Wartebedingung wie in
   // `before()` UNMITTELBAR vor dieser Messung nochmal, nicht nur einmal am
   // Anfang der Datei. AC6 ist der neunte und letzte Test, nach dem Seiten- und
@@ -446,19 +446,28 @@ test("Die Statusspalte ist am Spaltenraster tatsächlich 128px breit, nicht 208p
 
   const [datumWidth, payeeWidth, kategorieWidth, memoWidth, betragWidth, statusWidth] = widths;
 
+  // Spaltenraster der ruhigen Tabelle (ledger-n4vte): feste Breiten für Datum, Betrag
+  // und Status, Payee ca. 30 % und Kategorie ca. 26 % der Tabellenbreite, Memo
+  // bekommt den Rest.
   assert.ok(Math.abs(datumWidth - 96) <= 2, `Datum sollte ~96px sein, war ${datumWidth}`);
-  assert.ok(Math.abs(kategorieWidth - 200) <= 2, `Kategorie sollte ~200px sein, war ${kategorieWidth}`);
   assert.ok(Math.abs(betragWidth - 132) <= 2, `Betrag sollte ~132px sein, war ${betragWidth}`);
   assert.ok(Math.abs(statusWidth - 128) <= 2, `Status sollte ~128px sein (Handoff-Wert), nicht mehr 208px (Pflaster aus ledger-x0yga), war ${statusWidth}`);
-
-  // Der eigentliche Beleg für "die 80px gehen an Payee und Memo zurück": die Summe
-  // aus Payee+Memo muss genau den Rest der Tabellenbreite auffüllen, den die vier
-  // fest breiten Spalten übrig lassen, es bleibt kein ungenutzter Platz, und wäre
-  // Status wieder 208px, stünden Payee/Memo genau 80px weniger zur Verfügung.
-  const fixedWidthSum = datumWidth + kategorieWidth + betragWidth + statusWidth;
-  const expectedFlexWidth = tableWidth - fixedWidthSum;
   assert.ok(
-    Math.abs(payeeWidth + memoWidth - expectedFlexWidth) <= 4,
-    `Payee+Memo (${payeeWidth + memoWidth}) sollten den Rest der Tabellenbreite (${expectedFlexWidth}) füllen`
+    Math.abs(payeeWidth / tableWidth - 0.3) <= 0.01,
+    `Payee sollte ~30 % der Tabelle sein, war ${((payeeWidth / tableWidth) * 100).toFixed(1)} %`
   );
+  assert.ok(
+    Math.abs(kategorieWidth / tableWidth - 0.26) <= 0.01,
+    `Kategorie sollte ~26 % der Tabelle sein, war ${((kategorieWidth / tableWidth) * 100).toFixed(1)} %`
+  );
+
+  // Memo füllt genau den Rest, den die übrigen Spalten übrig lassen, und ist auf
+  // dem 1440er Viewport breit genug, um einen kurzen Text zu zeigen (vorher blieben
+  // durch den Rahmen mit Breitenbegrenzung nur ca. 45px).
+  const expectedMemo = tableWidth - (datumWidth + payeeWidth + kategorieWidth + betragWidth + statusWidth);
+  assert.ok(
+    Math.abs(memoWidth - expectedMemo) <= 4,
+    `Memo (${memoWidth}) sollte den Rest der Tabellenbreite (${expectedMemo}) füllen`
+  );
+  assert.ok(memoWidth >= 120, `Memo sollte mindestens 120px breit sein, war ${memoWidth}`);
 });

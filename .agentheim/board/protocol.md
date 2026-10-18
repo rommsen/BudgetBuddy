@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 23:50 -- Task verified and completed: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+
+**Type:** Work / Task completion
+**Task:** ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+**Summary:** Kassenbuch auf ruhige Listen umgestellt (PC-Tabelle und Handy-Liste), Styleguide 8a angeglichen
+**Duration:** 49m09s
+**Verification:** PASS (iteration 3)
+**Files changed:** 18
+**Tests added:** 29
+**ADRs written:** none
+
+---
+
+## 2026-10-18 23:41 -- Verification failed: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+
+**Type:** Work / Verification failure
+**Task:** ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+**Iteration:** 2 of 3
+**Reasons:** Server-Regel IsTransfer in QueryHandlers.toEntryView ohne Test (Kriterium ADR 0048 nur clientseitig abgesichert); Filterleisten-Teständerung als legitim bestätigt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-10-18 23:20 -- Verification failed: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+
+**Type:** Work / Verification failure
+**Task:** ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+**Iteration:** 1 of 3
+**Reasons:** npm run test:scripts 6 rot (4x Zu-prüfen-Wortlaut und Badge-Zählung, 1x altes 200px-Spaltenraster, 1x Filterleisten-Abstand 45,5px bei 1024px als Regression), bestehende Tests nicht alle grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-18 23:01 -- Batch started: [ledger-n4vte]
 
 **Type:** Work / Batch start

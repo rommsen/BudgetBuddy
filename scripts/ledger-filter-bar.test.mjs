@@ -394,8 +394,13 @@ test("Die Filterleiste bleibt beim Scrollen unter der PC-Navbar sichtbar (sticky
 /// im Sticky-Test oben).
 async function scrollListIntoStickyState(targetPage) {
   targetPage.setDefaultTimeout(15000);
-  await targetPage.mouse.move(900, 500);
-  await targetPage.mouse.wheel(0, 1200);
+  // Sofortiger Sprung statt Mausrad (ledger-n4vte): `html { scroll-behavior: smooth }`
+  // lässt das Mausrad animiert scrollen, und die Animation brach je nach Lauf nach
+  // 123 bis 543px ab (Messung per scrollY-Verlauf), bevor der Tabellenkopf seine
+  // Haft-Position erreichte. Geprüft wird die Lage von Leiste und Kopf im
+  // Haft-Zustand, nicht die Scroll-Mechanik.
+  await targetPage.locator("tbody tr").nth(30).waitFor();
+  await targetPage.evaluate(() => window.scrollTo({ top: 1200, behavior: "instant" }));
   await targetPage.waitForTimeout(200);
 }
 
