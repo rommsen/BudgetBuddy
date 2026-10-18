@@ -16,7 +16,7 @@ Newest entries on top.
 **Lost-result re-dispatches:** 0
 **Lost-result escalations:** 0
 **Dispatches:** fgw2q: 1, tg2wn: 1, ggzdw: 3, fgt4k: 1, h4nxz: 1, saqsk: 2 (1 Resolve-Dispatch nach Merge-Konflikt mit h4nxz, FAIL iteration 1 war ein Conductor-Staging-Fehler ohne Worker-Re-Dispatch), an22r: 3, bz0gn: 2
-**Commits:** 21
+**Commits:** 16 (inkl. dieser Korrektur)
 **Vision-conformance:** none — batch aligns with vision
 **Batch mix:** 75% product-facing / 25% harness / 0% bookkeeping (8 tasks)
 **Carry-over:** left behind (user WIP, 1 file: .serena/project.yml); 14 stranded RESULT sidecars removed; no worktrees left
