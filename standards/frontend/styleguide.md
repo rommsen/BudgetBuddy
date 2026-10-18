@@ -59,7 +59,7 @@ sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows
 | **Teal** | sekundär / aktiv / Navigation / interaktiv / Info | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
 | **Green** | Erfolg / positiv / Wachstum | `Colors.neonGreen`, `Glows.green`, `Presets.moneyPositive` |
 | **Red** | Fehler / Gefahr / negativ | `Colors.neonRed`, `Presets.moneyNegative`, `Borders.red` |
-| **Purple** | Akzent / Kategorie / "special/premium" | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |
+| **Purple** | Akzent / "special/premium"; Kategorie nur außerhalb von Listen (ADR 0049) | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |
 | **Pink** | Akzent / "attention needed" | `Colors.neonPink`, `Backgrounds.pinkSubtle` |
 
 Die Token-Kommentare in `Tokens.fs` sind die kanonische Begründung (z. B. *"Primary:
@@ -68,14 +68,39 @@ Interactive"*).
 
 **Praktische Konsequenzen:**
 
-- Geld: positiv ist immer Green mit Green-Glow (`Presets.moneyPositive`), negativ immer
-  Red (`Presets.moneyNegative`). `Money.view` setzt das automatisch anhand des
-  Vorzeichens — nicht manuell überschreiben.
+- Geld als **Einzelbetrag mit Gewicht** (Hero-Saldo, Kennzahl, Detail-Kopf): positiv
+  Green mit Green-Glow (`Presets.moneyPositive`), negativ Red (`Presets.moneyNegative`).
+  `Money.view` setzt das automatisch anhand des Vorzeichens. Nicht manuell überschreiben.
+- Geld **in Listen und Tabellen**: neutral, siehe „Ruhige Listen“ unten (ADR 0049).
 - Primäre Aktion eines Screens: Orange (`Button.primary` / `Button.hero`). Pro
   Screen-Kontext höchstens eine primäre Aktion.
 - Sekundär/Abbrechen/Navigation: Teal (`Button.secondary`, aktiver Nav-Tab).
 - Löschen/Zerstörendes: Red (`Button.danger`, `Modal.confirmDanger`).
 - Text-Tonwerte über `Colors.textPrimary/Secondary/Muted` — nicht über Neon-Farben.
+
+### Ruhige Listen (ADR 0049)
+
+Gilt für Listen und Tabellen mit wiederkehrenden Zeilen (Kassenbuch, Import, Regeln).
+Vorbild ist die Ansicht „Import prüfen“. In jeder Zeile ist Farbe ein Signal, keine
+Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zustand.
+
+| Element | PC | Handy |
+|---------|----|-------|
+| Payee | Inter 500 14px `text-primary` | Inter 500 15px `text-primary` |
+| Betrag | Mono 500 14px `tabular-nums` `text-primary`, rechtsbündig; positiv Teal | Mono 500 15px, sonst gleich |
+| Datum | Mono 400 12px `text-muted` | nur im Gruppenkopf |
+| Kategorie | 12px `text-secondary`; „Keine Kategorie“ Orange | gleich |
+| Memo | 12px `text-muted`, eine Zeile | gleich |
+| Zu prüfen | 3px-Kante Pink links, dazu kleines Wort „zu prüfen“ 11px Pink | 3px-Kante Pink links |
+| Datumskopf | Mono 600 10px, `letter-spacing:.16em`, `text-muted`, Tagessumme rechts | gleich |
+| Spaltenkopf | Mono 600 10px, `letter-spacing:.12em`, `text-muted`, Höhe 42px | entfällt |
+| Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
+| Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
+
+- Kein Glow in Listen, keine violetten Kategorien, keine roten Ausgaben.
+- Herkunfts- oder Spiegel-Badges gehören in Detail und Historie, nicht in die Zeile.
+- Listen-Seiten bekommen einen schlanken Kopf ohne Gradient-Titel und füllen die Breite.
+- Rückmeldungen auf Aktionen (Wisch-Geste, Toast) dürfen leuchten.
 
 > **Harte Regel (siehe `.claude/rules/design-tokens.md`):** keine Standard-Tailwind-Farben
 > (`red-*`, `green-*`, `blue-*`, `gray-*`, …), keine hartkodierten Hex-Werte

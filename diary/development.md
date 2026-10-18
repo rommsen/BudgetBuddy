@@ -4,6 +4,29 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-18 23:30 - Ruhige Listen: ADR 0049, Styleguide, zwei Backlog-Aufgaben
+
+**What I did:**
+Das Kassenbuch mit "Import prüfen" und dem Claude-Design-Mockup 1.9 verglichen. Ursache für den lauten Eindruck: Die Typografie aus dem Handoff (Payee 14px/600, Rest 13px gedämpft) wurde nie umgesetzt, `Table.td` liefert 16px grau, dazu Gradient-Titel und `max-w-7xl`. Farben (violette Kategorie, rote und grüne Beträge) folgten dem Styleguide. Roman hat in einem Sichttest mit drei Fassungen (Artefakt "Kassenbuch Sichttest") die ruhige Tabelle gewählt. Die Regel steht jetzt in ADR 0049 und im Styleguide.
+
+**Files Added:**
+- `.agentheim/knowledge/decisions/0049-ruhige-listen-farbe-als-signal.md` - Farbe ist in Listen ein Signal; Beträge, Kategorien und Kontostände neutral
+- `.agentheim/board/design-system/backlog/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md` - Money-Listenvariante, Table-Zellrollen, Container, PageHeader
+- `.agentheim/board/ledger/backlog/ledger-n4vte-kassenbuch-auf-ruhige-listen-umstellen.md` - Kassenbuch PC und Handy umstellen
+
+**Files Modified:**
+- `standards/frontend/styleguide.md` - §2: Geld-Regel auf Einzelbeträge beschränkt, Purple-Zeile angepasst, neuer Abschnitt "Ruhige Listen" mit Werte-Tabelle PC und Handy
+
+**Rationale:**
+Eine Änderung nur im Code würde beim nächsten Handoff aus Claude Design wieder überschrieben. Deshalb steht die Entscheidung am Anfang der Kette (Styleguide), die Umsetzung folgt über die Aufgaben.
+
+**Outcomes:**
+- Build: nicht betroffen (nur Doku und Aufgaben)
+- Tests: nicht betroffen
+- Offen: Nachtrag für die CLAUDE.md des Claude-Design-Projekts
+
+---
+
 ## 2026-10-18 22:20 - Work-Lauf: acht Aufgaben (Spiegel, Push, Kassenbuch-Filter, Split-Überträge, Styleguide-Export)
 
 **What I did:**
