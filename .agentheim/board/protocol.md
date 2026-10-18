@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 18:04 -- Task verified and completed: ledger-fgt4k - "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind"
+
+**Type:** Work / Task completion
+**Task:** ledger-fgt4k - "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind"
+**Summary:** DeletedCount zählt bei aktivem OnlyNeedsReview nur noch gelöschte Buchungen, die der aktive Filter auch zeigen würde. Der Override OnlyNeedsReview = false in countDeletedEntries ist entfernt.
+**Duration:** 19m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-10-18 17:47 -- Batch started: [ledger-fgt4k, ledger-h4nxz]
 
 **Type:** Work / Batch start

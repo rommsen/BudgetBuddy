@@ -1,7 +1,7 @@
 ---
 id: ledger-fgt4k
 title: "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-09-25
@@ -144,3 +144,8 @@ Historischer Hinweis für den Worker: der `OnlyNeedsReview = false`-Override kam
 wurde) in den Code, ohne dass eine Akzeptanzkriterium oder ADR 0036 ihn verlangt.
 Es ist also keine absichtliche Altlast, die zu respektieren wäre, sondern die
 eigentliche Fehlerquelle.
+## Outcome
+
+`Ledger.Persistence.countDeletedEntries` erzwingt nur noch `IncludeDeleted = true` und übernimmt `OnlyNeedsReview` aus dem Filter. Damit passt `DeletedCount` wieder zu `Entries` und zu ADR 0036 Decision 1. Der Doc-Kommentar nennt nur noch `IncludeDeleted` als Unabhängigkeit. Das README beschreibt das Verhalten bereits korrekt, kein Delta nötig.
+
+Regressionstest in `src/Tests/LedgerPageTests.fs` ("DeletedCount zählt bei OnlyNeedsReview nur gelöschte Buchungen, die der Filter zeigen würde"), mit eigenem Konto und Hilfsfunktion `seedEntryFgt` (Guids f6f6f6f6-). Vor dem Fix rot (DeletedCount 1 statt 0), danach grün. Gesamtlauf: 1118 bestanden, 0 Fehler.

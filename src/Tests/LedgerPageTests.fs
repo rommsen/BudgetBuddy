@@ -1439,6 +1439,42 @@ let private seedReviewedEntry (accountId: LedgerAccountId) (n: int) (amount: dec
         { EntryId = pageEntryId n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
     ]
 
+// ledger-fgt4k: eigenes Konto und eigene Buchungs-Ids (Präfix f6f6f6f6), damit
+// parallele Änderungen an dieser Datei nicht kollidieren.
+let private pageTestAccountFgt = LedgerAccountId (Guid.Parse "f6f6f6f6-0000-7000-8000-000000000001")
+let private pageEntryIdFgt (n: int) = EntryId (Guid.Parse $"f6f6f6f6-0000-7000-8000-0000000001{n:D2}")
+
+/// Legt eine Buchung für `pageTestAccountFgt` an. `reviewed = true` heißt
+/// `Cleared = Cleared` (NeedsReview falsch), sonst `Uncleared`. `deleted = true`
+/// folgt danach mit `EntryDeletionObservedInYnab`.
+let private seedEntryFgt (n: int) (amount: decimal) (reviewed: bool) (deleted: bool) : Async<unit> =
+    async {
+        let payload : EntryObservedInYnabPayload = {
+            AccountId = pageTestAccountFgt
+            YnabTransactionId = $"pagetest-fgt-{n}"
+            ImportId = None
+            Date = DateTime(2026, 4, 1).AddDays(float n)
+            Amount = { Amount = amount; Currency = "EUR" }
+            Payee = Some $"Payee Fgt {n}"
+            Memo = None
+            Category = None
+            Splits = []
+            Cleared = (if reviewed then Cleared else Uncleared)
+            TransferAccountId = None
+            TransferYnabTransactionId = None
+            Approved = true
+            FlagColor = None
+            FlagName = None
+        }
+        do! appendAndApply [
+            { EntryId = pageEntryIdFgt n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryObservedInYnab payload }
+        ]
+        if deleted then
+            do! appendAndApply [
+                { EntryId = pageEntryIdFgt n; OccurredAt = DateTime(2026, 4, 1); Actor = YnabMirror; Body = EntryDeletionObservedInYnab }
+            ]
+    }
+
 let private seedAccounts () : Async<unit> =
     async {
         do! saveAccount { Id = pageTestAccountA; Name = "Konto A"; Kind = BankAccount; Link = BbOwned; Closed = false }
@@ -1815,6 +1851,23 @@ let ledgerPagingTests =
 
             Expect.equal off.NeedsReviewCount 1 "Eine zu prüfende Buchung, obwohl der Filter aus ist"
             Expect.equal on.NeedsReviewCount 1 "Dieselbe Zahl, auch wenn der Filter an ist"
+
+        testCase "DeletedCount zählt bei OnlyNeedsReview nur gelöschte Buchungen, die der Filter zeigen würde" <| fun () ->
+            // ledger-fgt4k: countDeletedEntries erzwang OnlyNeedsReview = false. Eine
+            // gelöschte, bereits geprüfte Buchung zählte so in DeletedCount mit, obwohl
+            // sie bei OnlyNeedsReview = true nie unter Entries erscheinen kann.
+            seedEntryFgt 1 -10m false false |> Async.RunSynchronously
+            seedEntryFgt 2 -3000m true true |> Async.RunSynchronously
+
+            let (LedgerAccountId rawFgt) = pageTestAccountFgt
+            let page =
+                Ledger.QueryHandlers.getLedgerEntriesPage
+                    { baseQuery (Some rawFgt) with OnlyNeedsReview = true; IncludeDeleted = true }
+                |> Async.RunSynchronously
+
+            Expect.equal page.DeletedCount 0 "Die gelöschte Buchung ist geprüft und gehört nicht in den aktiven Filter"
+            Expect.isFalse (page.Entries |> List.exists (fun e -> e.DeletedInYnab)) "Entries zeigt keine gelöschte Buchung"
+            Expect.equal (List.length page.Entries) 1 "Nur die ungeprüfte Buchung steht auf der Seite"
 
         // ============================================
         // Reihenfolge der Historie (ledger-h9tq2, Entscheidung Roman 2026-09-18)

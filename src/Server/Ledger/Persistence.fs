@@ -860,13 +860,14 @@ let countEntries (accountId: LedgerAccountId option) (filter: EntryFilter) : Asy
     }
 
 /// Die Zahl der in YNAB gelöschten Buchungen eines Kontos oder aller Konten
-/// (unabhängig von `filter.IncludeDeleted`/`filter.OnlyNeedsReview`, ledger-p3n8k
+/// (unabhängig von `filter.IncludeDeleted`, ledger-p3n8k
 /// AC2): die Seite soll "N gelöschte Buchungen ausgeblendet" auch zeigen können,
 /// während sie ausgeblendet sind. Die fünf Such-Filter (ledger-vgfw3) gelten
-/// trotzdem mit, sonst passt die Zahl nicht mehr zum aktiven Filter (AC).
+/// trotzdem mit, ebenso `OnlyNeedsReview` (ledger-fgt4k): sonst passt die Zahl nicht
+/// mehr zum aktiven Filter (AC).
 let countDeletedEntries (accountId: LedgerAccountId option) (filter: EntryFilter) : Async<int> =
     async {
-        let deletedFilter = { filter with IncludeDeleted = true; OnlyNeedsReview = false }
+        let deletedFilter = { filter with IncludeDeleted = true }
         if hasAmountFilter filter then
             let! all = loadAllMatching accountId deletedFilter
             return
