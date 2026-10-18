@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 17:45 -- Batch started: [design-system-an22r]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-an22r - "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html"
+**Parallel:** yes (wave 2a, 1 worker started early while ledger-ggzdw is in its last iteration; an22r has no file overlap with it. fgt4k and h4nxz wait for ggzdw (shared LedgerPageTests.fs, Ledger/*); bz0gn and saqsk follow in wave 3)
+
+---
+
+## 2026-10-18 17:45 -- Verification failed: ledger-ggzdw - Spiegel-Kategorie-Vergleich nur über Id
+
+**Type:** Work / Verification failure
+**Task:** ledger-ggzdw - Spiegel-Kategorie-Vergleich nur über Id
+**Iteration:** 2 of 3
+**Reasons:** README_DELTA fehlt: Ereignis-Bullet und Kategorie-Stammdaten-Bullet der Ledger-README veralten mit dem Diff
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-18 17:43 -- Task verified and completed: design-system-tg2wn - "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen"
 
 **Type:** Work / Task completion
