@@ -11,8 +11,8 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 9
-- **Todo:** 5
-- **Doing:** 0
+- **Todo:** 3
+- **Doing:** 2
 - **Done:** 44
 <!-- task-counts:end -->
 
@@ -20,13 +20,13 @@ research touching this BC, and concept synthesis pages.
 <!-- todo-list:start -->
 - **ledger-h4nxz** — "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen" (feature) — `todo/ledger-h4nxz-split-zeilen-bertr-ge-transfer-transaction-id-auf-subtransac.md`
 - **ledger-saqsk** — "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden" (feature) — `todo/ledger-saqsk-chip-ohne-kategorie-in-der-filterleiste.md`
-- **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `todo/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
-- **ledger-fgw2q** — "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen" (bug) — `todo/ledger-fgw2q-nicht-auswertbare-ynab-antwort-beim-comdirect-push-l-sst-die.md`
 - **ledger-fgt4k** — "DeletedCount widerspricht den zurückgegebenen Buchungen, wenn OnlyNeedsReview und IncludeDeleted zusammen aktiv sind" (bug) — `todo/ledger-fgt4k-deletedcount-widerspricht-den-zur-ckgegebenen-buchungen-wenn.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-ggzdw** — "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id" (bug) — `doing/ledger-ggzdw-spiegel-kategorie-vergleich-nur-ueber-id.md`
+- **ledger-fgw2q** — "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen" (bug) — `doing/ledger-fgw2q-nicht-auswertbare-ynab-antwort-beim-comdirect-push-l-sst-die.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

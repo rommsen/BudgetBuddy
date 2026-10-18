@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 17:28 -- Batch started: [ledger-fgw2q, design-system-tg2wn, ledger-ggzdw]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-fgw2q - "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen", design-system-tg2wn - "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen", ledger-ggzdw - "Spiegel wertet eine Kategorie-Umbenennung in YNAB als Umkategorisierung jeder Buchung: observe vergleicht CategoryRef samt Name statt nur die Id"
+**Parallel:** yes (3 workers; 5 more ready tasks held to later waves by MAX_PARALLEL 3: fgt4k, h4nxz, an22r, bz0gn, saqsk. Wave 1 picks the three with no file overlap among each other; ggzdw and h4nxz share Ledger Domain/Events/QueryHandlers, so h4nxz follows ggzdw)
+
+---
+
 ## 2026-10-02 10:07 -- Modeling / Promoted: ledger-h4nxz - "Split-Zeilen-Überträge: Gegenbuchung über YNABs Subtransaction-Id verknüpfen"
 
 **Type:** Modeling / Promote

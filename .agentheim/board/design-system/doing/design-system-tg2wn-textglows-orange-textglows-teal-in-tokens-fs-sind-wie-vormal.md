@@ -1,7 +1,7 @@
 ---
 id: design-system-tg2wn
 title: "TextGlows.orange/TextGlows.teal in Tokens.fs sind wie vormals TextGlows.green keine echten Tailwind-Klassen"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-09-25

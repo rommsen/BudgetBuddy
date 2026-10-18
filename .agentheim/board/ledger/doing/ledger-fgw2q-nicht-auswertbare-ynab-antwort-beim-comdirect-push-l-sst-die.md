@@ -1,7 +1,7 @@
 ---
 id: ledger-fgw2q
 title: "Nicht auswertbare YNAB-Antwort beim Comdirect-Push lässt die Session ohne Verknüpfung abschließen"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-09-25
