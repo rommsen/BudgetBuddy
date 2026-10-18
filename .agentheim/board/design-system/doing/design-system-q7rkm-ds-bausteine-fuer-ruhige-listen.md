@@ -1,7 +1,7 @@
 ---
 id: design-system-q7rkm
 title: DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader)
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-10-18

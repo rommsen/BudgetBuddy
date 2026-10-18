@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 22:47 -- Batch started: [design-system-q7rkm]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-q7rkm - DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader)
+**Parallel:** no (1 worker — einzige bereite Aufgabe; ledger-n4vte hängt an ihr und liegt im Backlog)
+
+---
+
 ## 2026-10-18 22:45 -- Modeling / Promoted: design-system-q7rkm - DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader)
 
 **Type:** Modeling / Promote
