@@ -71,37 +71,37 @@ const ASSETS_DIR = path.join(OUT_DIR, "assets");
 // (aus Tokens generiert, s. writeTokenAndBrandPreviews) und Voice (reiner Text,
 // steht in README/SKILL statt in einer Karte)).
 export const COMPONENT_CARDS = [
-  { id: "components-card", title: "Card", group: "Components" },
-  { id: "components-money", title: "Money", group: "Components" },
-  { id: "components-badge", title: "Badge", group: "Components" },
-  { id: "components-table", title: "Table", group: "Components" },
-  { id: "components-navigation", title: "Navigation", group: "Components" },
-  { id: "components-button", title: "Button", group: "Components" },
-  { id: "components-stats", title: "Stats", group: "Components" },
-  { id: "components-icons", title: "Icons", group: "Components" },
-  { id: "components-pageheader", title: "PageHeader", group: "Components" },
-  { id: "components-primitives", title: "Primitives", group: "Components" },
-  { id: "components-swipe", title: "Swipe", group: "Components" },
-  { id: "components-loading", title: "Loading", group: "Feedback" },
-  { id: "components-errordisplay", title: "ErrorDisplay", group: "Feedback" },
-  { id: "components-input", title: "Input", group: "Forms" },
-  { id: "components-form", title: "Form", group: "Forms" },
+  { id: "components-card", group: "Components" },
+  { id: "components-money", group: "Components" },
+  { id: "components-badge", group: "Components" },
+  { id: "components-table", group: "Components" },
+  { id: "components-navigation", group: "Components" },
+  { id: "components-button", group: "Components" },
+  { id: "components-stats", group: "Components" },
+  { id: "components-icons", group: "Components" },
+  { id: "components-pageheader", group: "Components" },
+  { id: "components-primitives", group: "Components" },
+  { id: "components-swipe", group: "Components" },
+  { id: "components-loading", group: "Feedback" },
+  { id: "components-errordisplay", group: "Feedback" },
+  { id: "components-input", group: "Forms" },
+  { id: "components-form", group: "Forms" },
   // Toast rendert (anders als BottomSheet/Modal) nicht per Portal, braucht aber
   // einen Klick, bevor ein Toast sichtbar ist ("Erfolg" per `data-ds-card-trigger`,
   // vor dieser Schleife ausgelöst, s. extractPreviews); danach wird die Karte wie
   // jede andere hier per `[data-ds-card="…"]` erfasst.
-  { id: "components-toast", title: "Toast", group: "Feedback" },
+  { id: "components-toast", group: "Feedback" },
 ];
 // BottomSheet, Kategorienauswahl und Modal portalen nach document.body
 // (BottomSheet.fs/Modal.fs: renderToBody) und brauchen daher eine eigene Behandlung
 // (Trigger klicken, geöffnetes Markup separat einsammeln, danach wieder schließen,
 // damit der nächste Trigger nicht das falsche offene Overlay erfasst).
-const BOTTOMSHEET_CARD = { id: "components-bottomsheet", title: "BottomSheet", group: "Components" };
-const CATEGORY_PICKER_CARD = { id: "components-categorypicker", title: "Kategorienauswahl", group: "Components" };
-const MODAL_CARD = { id: "components-modal", title: "Modal", group: "Components" };
+const BOTTOMSHEET_CARD = { id: "components-bottomsheet", group: "Components" };
+const CATEGORY_PICKER_CARD = { id: "components-categorypicker", group: "Components" };
+const MODAL_CARD = { id: "components-modal", group: "Components" };
 
 /// Reine, exportierte Soll-Liste des Bundles relativ zur Bundle-Wurzel
-/// (design-system-w4n9r): die fünf festen Dateien plus genau ein
+/// (design-system-w4n9r): die sechs festen Dateien (inkl. `thumbnail.html`) plus genau ein
 /// `preview/<id>.html` je übergebener Karte. Der Vollauf-Test bezieht seine
 /// Erwartung aus dieser Funktion (mit `COMPONENT_CARDS`), statt die Liste ein
 /// zweites Mal von Hand zu pflegen; ändert sich `COMPONENT_CARDS`, wandert der
@@ -116,6 +116,7 @@ export function expectedBundleFiles(cards) {
     "README.md",
     "SKILL.md",
     "fonts/LICENSE.md",
+    "thumbnail.html",
   ];
   const previews = cards.map((card) => `preview/${card.id}.html`);
   return [...fixed, ...previews];
@@ -409,14 +410,42 @@ async function copyAssets() {
   log("assets/ kopiert (icon-master.svg, favicon.svg).");
 }
 
-async function writePreview(id, group, title, innerHtml) {
-  const doc = `<!-- @dsCard group="${group}" -->
+/// Formatiert die erste Zeile jeder `preview/*.html`: den `@dsCard`-Marker mit
+/// `group`, `name`, `subtitle` und (optional) `viewport` (design-system-an22r).
+/// Die einzige Stelle, die das Marker-Format kennt: writePreview schreibt ihn ohne
+/// `viewport`, measureAndPatchViewports ersetzt ihn später mit gemessenem Wert.
+/// Doppelte Anführungszeichen und spitze Klammern werden maskiert, damit weder das
+/// Attribut noch der HTML-Kommentar vorzeitig endet.
+export function buildDsCardMarker({ id, group, name, subtitle, viewport }) {
+  for (const [field, value] of [["name", name], ["subtitle", subtitle]]) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new Error(
+        `Karte "${id ?? "?"}": data-ds-card-${field} fehlt oder ist leer ` +
+          `(in View.fs am data-ds-card/data-ds-card-trigger-Element setzen).`
+      );
+    }
+  }
+  const esc = (v) => String(v).replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const vp = viewport ? ` viewport="${esc(viewport)}"` : "";
+  return `<!-- @dsCard group="${esc(group)}" name="${esc(name)}" subtitle="${esc(subtitle)}"${vp} -->`;
+}
+
+/// Breite der Vorschau-Viewports in den `@dsCard`-Markern; die Höhe wird je Karte gemessen.
+const PREVIEW_VIEWPORT_WIDTH = 880;
+
+/// Marker-Daten je geschriebener Karte (id -> group/name/subtitle), damit der
+/// Viewport-Nachtrag den Marker über buildDsCardMarker neu aufbauen kann.
+const writtenCards = new Map();
+
+async function writePreview(id, group, name, subtitle, innerHtml) {
+  writtenCards.set(id, { group, name, subtitle });
+  const doc = `${buildDsCardMarker({ id, group, name, subtitle })}
 <!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BudgetBuddy Design System: ${title}</title>
+<title>BudgetBuddy Design System: ${name}</title>
 <link rel="stylesheet" href="../colors_and_type.css">
 <link rel="stylesheet" href="../styles.css">
 </head>
@@ -431,6 +460,47 @@ ${innerHtml}
   log(`preview/${id}.html geschrieben.`);
 }
 
+/// Misst je geschriebener Karte die Inhaltshöhe bei 880 px Breite und trägt sie als
+/// `viewport="880x<Höhe>"` in Zeile 1 nach (design-system-an22r).
+async function measureAndPatchViewports() {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: PREVIEW_VIEWPORT_WIDTH, height: 1200 } });
+    for (const [id, meta] of writtenCards) {
+      const file = path.join(PREVIEW_DIR, `${id}.html`);
+      await page.setViewportSize({ width: PREVIEW_VIEWPORT_WIDTH, height: 1200 });
+      await page.goto(`file://${file}`);
+      await page.evaluate(() => document.fonts.ready);
+      // Fixed-Positionierte Inhalte (BottomSheet, Kategorienauswahl, Modal, Toast)
+      // belegen im Dokumentfluss nichts, der Wrapper misst dort nur sein Padding.
+      // Deshalb zusätzlich die Vereinigung der Rechtecke aller Nachfahren, die nicht
+      // die ganze Viewport-Höhe füllen (Backdrop/Overlay ausgenommen), plus das
+      // Wrapper-Padding von 2 x 32 px.
+      const height = await page.evaluate(() => {
+        const wrap = document.querySelector(".max-w-3xl");
+        let h = wrap.getBoundingClientRect().height;
+        let top = Infinity;
+        let bottom = -Infinity;
+        for (const el of wrap.querySelectorAll("*")) {
+          const r = el.getBoundingClientRect();
+          if (r.height <= 0 || r.height >= window.innerHeight) continue;
+          top = Math.min(top, r.top);
+          bottom = Math.max(bottom, r.bottom);
+        }
+        if (bottom > top) h = Math.max(h, bottom - top + 64);
+        return Math.ceil(h);
+      });
+      const marker = buildDsCardMarker({ id, ...meta, viewport: `${PREVIEW_VIEWPORT_WIDTH}x${height}` });
+      const html = await readFile(file, "utf8");
+      const nl = html.indexOf("\n");
+      await writeFile(file, marker + html.slice(nl), "utf8");
+    }
+    log(`Viewport-Höhen gemessen und nachgetragen (${writtenCards.size} Karten).`);
+  } finally {
+    await browser.close();
+  }
+}
+
 /// Öffnet ein per Portal (createPortal nach document.body) gerendertes Sheet/Modal
 /// über den stabilen `data-ds-card-trigger`-Selektor, wartet auf `activeSelector`,
 /// sammelt die per `matchSelectors` gefundenen Elemente in einen synthetischen
@@ -439,6 +509,10 @@ ${innerHtml}
 /// dieser Karte erfasst (BottomSheet/Kategorienauswahl teilen sich die Klassen
 /// `.overlay`/`.bottom-sheet`; Modal hat eine eigene Fixed-Wrapper-Klasse).
 async function extractPortalCard(page, card, activeSelector, matchSelectors, closeSelector) {
+  // name/subtitle stehen am Trigger (View.fs), der Inhalt entsteht erst zur Laufzeit.
+  const trigger = page.locator(`[data-ds-card-trigger="${card.id}"]`);
+  const name = await trigger.getAttribute("data-ds-card-name");
+  const subtitle = await trigger.getAttribute("data-ds-card-subtitle");
   await page.click(`[data-ds-card-trigger="${card.id}"]`);
   await page.waitForSelector(activeSelector);
   const html = await page.evaluate(
@@ -454,7 +528,7 @@ async function extractPortalCard(page, card, activeSelector, matchSelectors, clo
     },
     { cardId: card.id, group: card.group, selectors: matchSelectors }
   );
-  await writePreview(card.id, card.group, card.title, html);
+  await writePreview(card.id, card.group, name, subtitle, html);
   await page.click(closeSelector);
   await page.waitForFunction(
     (sel) => !document.querySelector(sel),
@@ -480,10 +554,14 @@ async function extractPreviews(baseUrl) {
     await page.waitForSelector('[data-ds-card="components-toast"] button[aria-label="Dismiss"]');
 
     for (const card of COMPONENT_CARDS) {
-      const html = await page
+      const { html, name, subtitle } = await page
         .locator(`[data-ds-card="${card.id}"]`)
-        .evaluate((el) => el.outerHTML);
-      await writePreview(card.id, card.group, card.title, html);
+        .evaluate((el) => ({
+          html: el.outerHTML,
+          name: el.getAttribute("data-ds-card-name"),
+          subtitle: el.getAttribute("data-ds-card-subtitle"),
+        }));
+      await writePreview(card.id, card.group, name, subtitle, html);
     }
 
     // BottomSheet, Kategorienauswahl: teilen sich `.overlay`/`.bottom-sheet`, daher
@@ -623,15 +701,34 @@ function buildBrandIconHtml() {
 }
 
 async function writeTokenAndBrandPreviews(tokens) {
-  await writePreview("color-neon", "Colors", "Neon-Palette", buildColorNeonHtml(tokens));
+  await writePreview(
+    "color-neon",
+    "Colors",
+    "Neon-Palette",
+    "Die vier Neon-Akzentfarben mit Hex-Wert",
+    buildColorNeonHtml(tokens)
+  );
   await writePreview(
     "color-surfaces",
     "Colors",
     "Flächen, Ränder, Text",
+    "App-, Karten- und Eingabe-Flächen, Rahmen und Textfarben",
     buildColorSurfacesHtml(tokens)
   );
-  await writePreview("type-fonts", "Type", "Schriften", buildTypeFontsHtml(tokens));
-  await writePreview("brand-icon", "Brand", "App-Icon", buildBrandIconHtml());
+  await writePreview(
+    "type-fonts",
+    "Type",
+    "Schriften",
+    "Inter, Space Grotesk und JetBrains Mono mit Proben",
+    buildTypeFontsHtml(tokens)
+  );
+  await writePreview(
+    "brand-icon",
+    "Brand",
+    "App-Icon",
+    "Das B im Sync-Ring mit Signatur-Gradient",
+    buildBrandIconHtml()
+  );
 }
 
 /// Headless-Check: laden die drei Marken-Fonts in den Vorschauen tatsächlich?
@@ -779,10 +876,49 @@ Lies zuerst README.md in diesem Projekt.
   Projekt ist eine abgeleitete Kopie, nur lesend.
 `;
 
-async function writeDocs() {
+/// `thumbnail.html` an der Bundle-Wurzel (design-system-an22r): Wortmarke in
+/// Space Grotesk auf App-Schwarz, rechts ein Streifen aus den vier Neon-Farben.
+/// Farben kommen aus denselben Tokens wie colors_and_type.css.
+export function buildThumbnailHtml(tokens) {
+  const bg = tokens.backgroundVars.find((v) => v.name === "bg-app").value;
+  const order = ["green", "teal", "orange", "purple"];
+  const blocks = order
+    .map((n) => {
+      const c = tokens.neonColors.find((x) => x.name === n);
+      if (!c) throw new Error(`Neon-Farbe "${n}" fehlt in den Tokens (thumbnail.html).`);
+      return `    <div class="block" style="background: ${c.hex}"></div>`;
+    })
+    .join("\n");
+  return `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>BudgetBuddy Design System</title>
+<style>
+${FONT_FACE_CSS}
+:root { --bg-app: ${bg}; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg-app); display: flex; align-items: center; justify-content: space-between; padding: 0 64px; box-sizing: border-box; }
+.wordmark { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 72px; color: #fff; letter-spacing: -0.02em; }
+.stripe { display: flex; gap: 12px; }
+.block { width: 48px; height: 120px; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <span class="wordmark">BudgetBuddy</span>
+  <div class="stripe">
+${blocks}
+  </div>
+</body>
+</html>
+`;
+}
+
+async function writeDocs(tokens) {
   await writeFile(path.join(OUT_DIR, "README.md"), README_MD, "utf8");
   await writeFile(path.join(OUT_DIR, "SKILL.md"), SKILL_MD, "utf8");
-  log("README.md und SKILL.md geschrieben.");
+  await writeFile(path.join(OUT_DIR, "thumbnail.html"), buildThumbnailHtml(tokens), "utf8");
+  log("README.md, SKILL.md und thumbnail.html geschrieben.");
 }
 
 async function main() {
@@ -792,7 +928,7 @@ async function main() {
   await mkdir(ASSETS_DIR, { recursive: true });
 
   const tokens = await buildColorsAndTypeCss();
-  await writeDocs();
+  await writeDocs(tokens);
   await copyAssets();
   await copyFontFiles();
   await writeTokenAndBrandPreviews(tokens);
@@ -813,6 +949,7 @@ async function main() {
     if (buildDir) await rm(buildDir, { recursive: true, force: true });
   }
 
+  await measureAndPatchViewports();
   await verifyFontsLoaded();
 
   // AC1: das Skript benutzt seine eigene Soll-Liste (expectedBundleFiles) auch

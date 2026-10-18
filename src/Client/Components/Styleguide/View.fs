@@ -182,6 +182,8 @@ let private buttonSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-button.html.
         Html.div [
             prop.custom ("data-ds-card", "components-button")
+            prop.custom ("data-ds-card-name", "Button")
+            prop.custom ("data-ds-card-subtitle", "Primär, Sekundär, Ghost, Danger, Icon-, Loading- und Hero-Varianten")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
@@ -220,6 +222,8 @@ let private cardSection =
         // 1:1 nach dist/design-system/preview/components-card.html.
         Html.div [
             prop.custom ("data-ds-card", "components-card")
+            prop.custom ("data-ds-card-name", "Card")
+            prop.custom ("data-ds-card-subtitle", "Standard-, Glas-, Glow-, Akzent- und Leerzustand-Karten")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
@@ -256,6 +260,8 @@ let private badgeSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-badge.html.
         Html.div [
             prop.custom ("data-ds-card", "components-badge")
+            prop.custom ("data-ds-card-name", "Badge")
+            prop.custom ("data-ds-card-subtitle", "Semantische Status-Badges und Zähler")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-3"
             prop.children [
@@ -282,6 +288,8 @@ let private moneySection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-money.html.
         Html.div [
             prop.custom ("data-ds-card", "components-money")
+            prop.custom ("data-ds-card-name", "Money")
+            prop.custom ("data-ds-card-subtitle", "Beträge klein bis groß, positiv, negativ und null")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-3"
             prop.children [
@@ -319,6 +327,8 @@ let private statsSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-stats.html.
         Html.div [
             prop.custom ("data-ds-card", "components-stats")
+            prop.custom ("data-ds-card-name", "Stats")
+            prop.custom ("data-ds-card-subtitle", "Kennzahlen-Kacheln mit Icon, Trend und Raster")
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 Stats.grid [
@@ -350,6 +360,8 @@ let private tableSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-table.html.
         Html.div [
             prop.custom ("data-ds-card", "components-table")
+            prop.custom ("data-ds-card-name", "Table")
+            prop.custom ("data-ds-card-subtitle", "Tabelle mit Kopfzeile und Datenzeilen")
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 Table.simple [
@@ -374,6 +386,8 @@ let private loadingSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-loading.html.
         Html.div [
             prop.custom ("data-ds-card", "components-loading")
+            prop.custom ("data-ds-card-name", "Loading")
+            prop.custom ("data-ds-card-subtitle", "Spinner, Neon-Puls und Skeleton-Platzhalter")
             prop.custom ("data-ds-group", "Feedback")
             prop.className "space-y-3"
             prop.children [
@@ -394,6 +408,8 @@ let private errorSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-errordisplay.html.
         Html.div [
             prop.custom ("data-ds-card", "components-errordisplay")
+            prop.custom ("data-ds-card-name", "ErrorDisplay")
+            prop.custom ("data-ds-card-subtitle", "Inline-Fehler, Fehlerkarten und Warnung")
             prop.custom ("data-ds-group", "Feedback")
             prop.className "space-y-3"
             prop.children [
@@ -410,6 +426,8 @@ let private iconsSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-icons.html.
         Html.div [
             prop.custom ("data-ds-card", "components-icons")
+            prop.custom ("data-ds-card-name", "Icons")
+            prop.custom ("data-ds-card-subtitle", "Icon-Satz in allen Größen und Farben")
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 row [
@@ -437,6 +455,8 @@ let private pageHeaderSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-pageheader.html.
         Html.div [
             prop.custom ("data-ds-card", "components-pageheader")
+            prop.custom ("data-ds-card-name", "PageHeader")
+            prop.custom ("data-ds-card-subtitle", "Seitenkopf mit Untertitel, Verlauf und Aktionen")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
@@ -452,6 +472,8 @@ let private primitivesSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-primitives.html.
         Html.div [
             prop.custom ("data-ds-card", "components-primitives")
+            prop.custom ("data-ds-card-name", "Primitives")
+            prop.custom ("data-ds-card-subtitle", "Layout-Bausteine: Container, Stack und Raster")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [
@@ -494,6 +516,8 @@ let private InputDemo () =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-input.html.
         Html.div [
             prop.custom ("data-ds-card", "components-input")
+            prop.custom ("data-ds-card-name", "Input")
+            prop.custom ("data-ds-card-subtitle", "Textfelder, Auswahl, Schalter und Feldgruppen")
             prop.custom ("data-ds-group", "Forms")
             prop.className "space-y-3"
             prop.children [
@@ -518,6 +542,8 @@ let private FormDemo () =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-form.html.
         Html.div [
             prop.custom ("data-ds-card", "components-form")
+            prop.custom ("data-ds-card-name", "Form")
+            prop.custom ("data-ds-card-subtitle", "Formular mit Pflichtfeld-Gating des Speichern-Buttons")
             prop.custom ("data-ds-group", "Forms")
             prop.className "space-y-3"
             prop.children [
@@ -540,6 +566,8 @@ let private ModalDemo () =
         // Modal also nicht mit erfassen.
         Html.span [
             prop.custom ("data-ds-card-trigger", "components-modal")
+            prop.custom ("data-ds-card-name", "Modal")
+            prop.custom ("data-ds-card-subtitle", "Zentrierter Desktop-Dialog mit Abbrechen und OK")
             prop.children [ Button.secondary "Modal öffnen" (fun () -> setOpen true) ]
         ]
         Modal.simple isOpen "Verbindung testen" (fun () -> setOpen false) [
@@ -589,6 +617,8 @@ let private ToastDemo () =
         ]
         Html.div [
             prop.custom ("data-ds-card", "components-toast")
+            prop.custom ("data-ds-card-name", "Toast")
+            prop.custom ("data-ds-card-subtitle", "Flüchtige Rückmeldung als Erfolg, Fehler oder Info")
             prop.custom ("data-ds-group", "Feedback")
             prop.children [ Toast.renderList toasts dismiss ]
         ]
@@ -609,6 +639,8 @@ let private BottomSheetDemo () =
             // würde das Sheet also nicht mit erfassen.
             Html.span [
                 prop.custom ("data-ds-card-trigger", "components-bottomsheet")
+                prop.custom ("data-ds-card-name", "BottomSheet")
+                prop.custom ("data-ds-card-subtitle", "Mobiles Auswahl-Sheet für die Kontowahl")
                 prop.children [ Button.secondary "Konto wählen" (fun () -> setOpen true) ]
             ]
             if chosen <> "" then Badge.info chosen
@@ -671,6 +703,8 @@ let private CategoryPickerDemo () =
             // umschließendes data-ds-card würde den Picker also nicht mit erfassen.
             Html.span [
                 prop.custom ("data-ds-card-trigger", "components-categorypicker")
+                prop.custom ("data-ds-card-name", "Kategorienauswahl")
+                prop.custom ("data-ds-card-subtitle", "Sheet mit Chips für Vorschläge und Zuletzt verwendet sowie Gruppenliste mit Available")
                 prop.children [ Button.secondary "Kategorie wählen" (fun () -> setOpen true) ]
             ]
             if chosen <> "" then Badge.info chosen
@@ -699,6 +733,8 @@ let private SwipeDemo () =
         // Touch-Geste, die enthüllte Aktion bleibt eine visuelle Doku-Lücke.
         Html.div [
             prop.custom ("data-ds-card", "components-swipe")
+            prop.custom ("data-ds-card-name", "Swipe")
+            prop.custom ("data-ds-card-subtitle", "Wischbare Listenzeile für mobile Ansichten")
             prop.custom ("data-ds-group", "Components")
             prop.children [
                 Swipe.SwipeableRow {
@@ -741,6 +777,8 @@ let private navigationSection =
         // data-ds-card (s. cardSection) ist der Export-Marker für components-navigation.html.
         Html.div [
             prop.custom ("data-ds-card", "components-navigation")
+            prop.custom ("data-ds-card-name", "Navigation")
+            prop.custom ("data-ds-card-subtitle", "Hauptnavigation der App")
             prop.custom ("data-ds-group", "Components")
             prop.className "space-y-4"
             prop.children [

@@ -216,6 +216,7 @@ sechs. Beides erledigt.
   `preview/*.html` beginnt in Zeile 1 mit dem `@dsCard`-Marker, headless
   Screenshot-Stichprobe der neuen Karten (Kategorienauswahl, Modal, Toast, Button)
   bestätigt korrektes Rendering. Details und Testzahlen: Diary der Task-Datei.
+- **Karten-Marker und Thumbnail (design-system-an22r).** Zeile 1 jeder `preview/*.html` ist `<!-- @dsCard group="…" name="…" subtitle="…" viewport="880x<Höhe>" -->`, formatiert von `buildDsCardMarker`. `name`/`subtitle` stehen als `data-ds-card-name`/`data-ds-card-subtitle` direkt am `data-ds-card`-Element (Portal-Karten: am `data-ds-card-trigger`) in `View.fs`; die vier Token-/Brand-Karten bekommen sie als Literale am `writePreview`-Aufruf. Die Höhe misst `measureAndPatchViewports` je Karte bei 880 px Breite (bei fixed-positioniertem Inhalt über die Vereinigung der Nachfahren-Rechtecke). An der Bundle-Wurzel liegt `thumbnail.html` (Wortmarke auf `--bg-app`, Streifen Grün/Teal/Orange/Violett). Der Self-Check von Claude Design läuft nicht nach einem DesignSync-Upload, sondern erst nach einer Anfrage im Projekt-Chat (z. B. "Bitte den Karten-Index aus den @dsCard-Markern in preview/ neu aufbauen"). Die `@kind`-Annotation und das Ersetzen von Custom Properties in Selektoren sind bewusst nicht umgesetzt. Der Export bricht ab, wenn eine Karte kein `data-ds-card-name` oder `data-ds-card-subtitle` trägt (Fehlermeldung nennt die Karten-Id).
 
 ## Mockups gehören ins Repo, und Frontend-Arbeit hat ein visuelles Gate (2026-09-12)
 

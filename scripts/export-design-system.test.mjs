@@ -21,6 +21,8 @@ import {
   resolveOutDir,
   expectedBundleFiles,
   findMissingBundleFiles,
+  buildDsCardMarker,
+  buildThumbnailHtml,
   COMPONENT_CARDS,
 } from "./export-design-system.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -55,7 +57,7 @@ test("resolveOutDir: ein relativer DS_EXPORT_OUT_DIR ist ein sprechender Fehler,
   );
 });
 
-test("expectedBundleFiles: enthält die fünf festen Dateien plus genau einen preview-Eintrag je Karte", () => {
+test("expectedBundleFiles: enthält die sechs festen Dateien plus genau einen preview-Eintrag je Karte", () => {
   const files = expectedBundleFiles(COMPONENT_CARDS);
   const fixed = [
     "colors_and_type.css",
@@ -63,6 +65,7 @@ test("expectedBundleFiles: enthält die fünf festen Dateien plus genau einen pr
     "README.md",
     "SKILL.md",
     "fonts/LICENSE.md",
+    "thumbnail.html",
   ];
   for (const f of fixed) {
     assert.ok(files.includes(f), `${f} fehlt in expectedBundleFiles`);
@@ -82,10 +85,64 @@ test("expectedBundleFiles: enthält die fünf festen Dateien plus genau einen pr
   assert.equal(files.length, fixed.length + COMPONENT_CARDS.length);
 });
 
+test("buildDsCardMarker: Attribute in fester Reihenfolge, ohne viewport", () => {
+  assert.equal(
+    buildDsCardMarker({ group: "Components", name: "Button", subtitle: "Alle Varianten" }),
+    '<!-- @dsCard group="Components" name="Button" subtitle="Alle Varianten" -->'
+  );
+});
+
+test("buildDsCardMarker: mit viewport kommt er als letztes Attribut", () => {
+  assert.equal(
+    buildDsCardMarker({ group: "Forms", name: "Input", subtitle: "Felder", viewport: "880x280" }),
+    '<!-- @dsCard group="Forms" name="Input" subtitle="Felder" viewport="880x280" -->'
+  );
+});
+
+test("buildDsCardMarker: Anführungszeichen und spitze Klammern beenden weder Attribut noch Kommentar", () => {
+  const line = buildDsCardMarker({ group: "G", name: 'a"b', subtitle: "x --> y" });
+  assert.ok(line.startsWith("<!-- ") && line.endsWith(" -->"));
+  assert.equal(line.indexOf("-->"), line.length - 3, "--> darf nur am Ende stehen");
+  assert.ok(!line.includes('a"b'));
+});
+
+test("buildDsCardMarker: fehlender oder leerer name/subtitle wird mit der Karten-Id abgelehnt", () => {
+  // Verhindert, dass ein vergessenes data-ds-card-name als Text "null" im Marker landet.
+  for (const bad of [null, undefined, "", "   "]) {
+    assert.throws(
+      () => buildDsCardMarker({ id: "components-x", group: "G", name: bad, subtitle: "ok" }),
+      /components-x.*name/
+    );
+    assert.throws(
+      () => buildDsCardMarker({ id: "components-x", group: "G", name: "ok", subtitle: bad }),
+      /components-x.*subtitle/
+    );
+  }
+});
+
+test("buildThumbnailHtml: Wortmarke in Space Grotesk auf bg-app und Streifen Grün/Teal/Orange/Violett", () => {
+  const html = buildThumbnailHtml({
+    neonColors: [
+      { name: "purple", hex: "#a001" },
+      { name: "green", hex: "#a002" },
+      { name: "orange", hex: "#a003" },
+      { name: "teal", hex: "#a004" },
+    ],
+    backgroundVars: [{ name: "bg-app", value: "#010203" }],
+  });
+  assert.ok(html.includes("BudgetBuddy"));
+  assert.ok(html.includes("Space Grotesk"));
+  assert.ok(html.includes("fonts/space-grotesk-latin-wght-normal.woff2"));
+  assert.ok(html.includes("#010203"));
+  const order = ["#a002", "#a004", "#a003", "#a001"].map((h) => html.indexOf(`background: ${h}`));
+  assert.ok(order.every((i) => i >= 0), "alle vier Farben müssen vorkommen");
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "Reihenfolge Grün, Teal, Orange, Violett");
+});
+
 test("expectedBundleFiles: mit weniger Karten schrumpft nur die preview-Liste, die festen Dateien bleiben", () => {
   const subset = COMPONENT_CARDS.slice(0, 3);
   const files = expectedBundleFiles(subset);
-  assert.equal(files.length, 5 + subset.length);
+  assert.equal(files.length, 6 + subset.length);
   assert.ok(!files.includes(`preview/${COMPONENT_CARDS[COMPONENT_CARDS.length - 1].id}.html`));
 });
 
@@ -244,15 +301,35 @@ test(
         assert.ok(info.size > 0, `${rel} ist leer`);
       }
 
+      // Jede preview/*.html (auch Token-/Brand- und Portal-Karten) trägt den
+      // vollständigen Marker mit gemessenem viewport (design-system-an22r).
+      const previewFiles = (await readdir(path.join(exportOutDir, "preview"))).filter((f) =>
+        f.endsWith(".html")
+      );
       for (const card of COMPONENT_CARDS) {
-        const html = await readFile(
-          path.join(exportOutDir, "preview", `${card.id}.html`),
-          "utf8"
+        assert.ok(previewFiles.includes(`${card.id}.html`), `${card.id}.html fehlt`);
+      }
+      assert.ok(previewFiles.length >= COMPONENT_CARDS.length + 4);
+      for (const file of previewFiles) {
+        const html = await readFile(path.join(exportOutDir, "preview", file), "utf8");
+        const line1 = html.split("\n")[0];
+        assert.match(
+          line1,
+          /^<!-- @dsCard group="[^"]+" name="(?!null")[^"]+" subtitle="(?!null")[^"]+" viewport="880x\d+" -->$/,
+          `preview/${file}: Zeile 1 entspricht nicht dem @dsCard-Format`
         );
-        assert.ok(
-          html.startsWith("<!-- @dsCard"),
-          `preview/${card.id}.html beginnt nicht mit <!-- @dsCard`
-        );
+      }
+      // Karten mit fixed-positioniertem Inhalt: der leere Wrapper misst nur 64 px,
+      // die gemessene Höhe muss den echten Inhalt abdecken (design-system-an22r).
+      for (const id of [
+        "components-bottomsheet",
+        "components-categorypicker",
+        "components-modal",
+        "components-toast",
+      ]) {
+        const html = await readFile(path.join(exportOutDir, "preview", `${id}.html`), "utf8");
+        const h = Number(html.split("\n")[0].match(/viewport="880x(\d+)"/)[1]);
+        assert.ok(h >= 100, `${id}: gemessene Höhe ${h} deckt den fixed-Inhalt nicht ab`);
       }
 
       const fontsDir = path.join(exportOutDir, "fonts");

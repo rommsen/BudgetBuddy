@@ -5,12 +5,36 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 21:53 -- Task verified and completed: design-system-an22r - "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html"
+
+**Type:** Work / Task completion
+**Task:** design-system-an22r - "Export erzeugt selbst, was Claude Design beim Self-Check nachgezogen hat: @dsCard-Marker mit name/subtitle/viewport und thumbnail.html"
+**Summary:** Der Export schreibt jetzt in Zeile 1 jeder preview/*.html einen @dsCard-Marker mit group, name, subtitle und gemessenem viewport und erzeugt eine thumbnail.html an der Bundle-Wurzel.
+**Duration:** DUR_TBD
+**Verification:** PASS (iteration 3)
+**Files changed:** 3
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
+## 2026-10-18 18:32 -- Verification failed: design-system-an22r - Export übernimmt Claude-Design-Manifest-Ergänzungen
+
+**Type:** Work / Verification failure
+**Task:** design-system-an22r - Export übernimmt Claude-Design-Manifest-Ergänzungen
+**Iteration:** 2 of 3
+**Reasons:** Regel name/subtitle-Attribute je Karte nicht erzwungen: fehlendes Attribut wird als "null" exportiert, Tests bleiben grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-18 18:25 -- Task verified and completed: ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
 
 **Type:** Work / Task completion
 **Task:** ledger-saqsk - "Chip \"ohne Kategorie\" in der Kassenbuch-Filterleiste: Buchungen ohne Kategorie und Splits ohne eine einzige Kategorie finden"
 **Summary:** Der Chip "Ohne Kategorie" filtert im Kassenbuch Buchungen ohne Ziel (weder Kategorie noch Übertrag), über alle Zählwege und Payee-Vorschläge, per Oder mit der Kategorienauswahl; Übertrags-Konto wird roh projiziert und für Bestand per Backfill nachgetragen.
-**Duration:** PLACEHOLDER
+**Duration:** 21m (inkl. Merge-Konflikt-Auflösung mit ledger-h4nxz)
 **Verification:** PASS (iteration 2)
 **Files changed:** 12
 **Tests added:** 14
