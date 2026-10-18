@@ -4,6 +4,42 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-18 22:20 - Work-Lauf: acht Aufgaben (Spiegel, Push, Kassenbuch-Filter, Split-Überträge, Styleguide-Export)
+
+**What I did:**
+Alle acht Aufgaben aus `todo/` in drei Wellen über eigene Worktrees umgesetzt, jede vor der Integration von einem Verifier geprüft.
+- `ledger-fgw2q`: Eine nicht auswertbare YNAB-Antwort beim Push blockiert jetzt auf beiden Pfaden den Sessionabschluss (`UnresolvedWrittenNotLinkedTransactionIds`, pure `pushFailureError`).
+- `design-system-tg2wn`: `TextGlows.orange`/`teal` sind echte Arbitrary-Property-Klassen wie `green`.
+- `ledger-ggzdw` (ADR 0044): Der Spiegel vergleicht die Kategorie nur über die Id (`categorizationIdentity`). Eine Umbenennung in YNAB ist keine Umkategorisierung mehr. `toEntryView` löst Blattnamen live aus `ledger_categories` auf.
+- `ledger-fgt4k`: `DeletedCount` berücksichtigt `OnlyNeedsReview`.
+- `ledger-h4nxz` (ADR 0046): Split-Zeilen-Überträge werden über YNABs Subtransaction-Id mit ihrer Gegenbuchung verknüpft (neues Ereignis `EntrySplitTransferCounterpartObservedInYnab`, Spalte `split_transfer_counterparts`, Nachlauf in `runMirror`).
+- `ledger-saqsk` (ADR 0048): Chip "Ohne Kategorie" in der Filterleiste. Ein Übertrag zählt als Ziel. Dafür `transfer_account_id` roh projiziert (mit einmaligem Backfill), Indextabelle `ledger_entry_split_transfers`.
+- `design-system-an22r`: Der Export schreibt `@dsCard`-Marker mit name/subtitle/gemessenem viewport und eine `thumbnail.html`. Fehlt name oder subtitle an einer Karte, bricht der Export ab.
+- `design-system-bz0gn`: `CategoryMultiSelect` ist als DS-Komponente herausgelöst, ChipBar, FilterPopover und Mehrfachauswahl sind als Styleguide-Karten im Export.
+
+**Files Added:**
+- `src/Tests/TextGlowTokenTests.fs`, `src/Tests/LedgerWithoutCategoryTests.fs` - neue Testdateien
+- `src/Client/DesignSystem/CategoryMultiSelect.fs` - DS-Komponente
+
+**Files Modified:**
+- `src/Server/PushOutcomeClassification.fs`, `src/Server/Api.fs` - Push-Abschluss
+- `src/Server/Ledger/{Domain,Events,CommandHandlers,Persistence,QueryHandlers}.fs`, `src/Server/YnabObservations.fs`, `src/Shared/Domain.fs` - Spiegel, Split-Überträge, Filter
+- `src/Client/Components/Ledger/{Types,State,View}.fs`, `src/Client/Components/Styleguide/View.fs`, `src/Client/DesignSystem/Tokens.fs`, `src/Client/Client.fsproj` - Chip, Styleguide, Tokens
+- `scripts/export-design-system.mjs`, `scripts/export-design-system.test.mjs` - Export-Marker und Thumbnail
+- `src/Tests/*` - Regressions- und Verhaltenstests
+- `.agentheim/knowledge/contexts/{ledger,design-system}/README.md` - Glossar, Ereigniskatalog, Migration
+
+**Rationale:**
+Die acht Aufgaben waren verfeinert und bereit (Sammel-Modeling vom 2026-10-02 und Folgeläufe).
+
+**Outcomes:**
+- Build: ✅, aber 1 neue Warnung (FS0025 in `Components/Ledger/State.fs:333`, als `ledger-vqxvc` im Backlog)
+- Tests: 1148 grün, 6 übersprungen auf main; in einem von drei Läufen 1 Fehler durch einen reihenfolgeabhängigen Replay-Test aus `ledger-h4nxz` (als `ledger-zmbf1` im Backlog). `npm run build` und `npm run guard:classes` grün.
+- Verifikation: 4 im ersten Versuch bestanden, 4 brauchten Nachbesserungen (ggzdw und an22r je 3 Iterationen, saqsk und bz0gn je 2). Ein Merge-Konflikt (saqsk gegen h4nxz) im Worktree aufgelöst. Der erste FAIL bei saqsk war ein Conductor-Fehler (zu wenig gestaged), kein Worker-Fehler.
+- Issues: Die parallel laufenden Browsertests in `scripts/` haben eine lastabhängige Flake ("Route '/ledger' lädt nicht"), die schon auf der Basis auftritt. Seriell (`node --test --test-concurrency=1 scripts/*.test.mjs`) grün. Offen für Romans Auge: Thumbnail-Optik (an22r) und Abgleich der neuen Styleguide-Karten mit der Kassenbuch-Filterleiste (bz0gn).
+
+---
+
 ## 2026-09-26 11:52 - Kassenbuch-Filterleiste nach Eskalation abgeschlossen (ledger-j8xq4)
 
 **What I did:**
