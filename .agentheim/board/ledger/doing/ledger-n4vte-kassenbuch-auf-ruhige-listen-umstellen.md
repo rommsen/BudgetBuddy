@@ -1,7 +1,7 @@
 ---
 id: ledger-n4vte
 title: Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-18

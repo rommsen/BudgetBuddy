@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 23:01 -- Batch started: [ledger-n4vte]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+**Parallel:** no (1 worker — einzige bereite Aufgabe nach Integration von design-system-q7rkm)
+
+---
+
 ## 2026-10-18 23:01 -- Modeling / Promoted: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
 
 **Type:** Modeling / Promote
