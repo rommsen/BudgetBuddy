@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-18
 supersedes: []
 superseded_by: []
-related_tasks: []
+related_tasks: [design-system-q7rkm, ledger-n4vte]
 related_adrs: [0031, 0032]
 related_research: []
 ---

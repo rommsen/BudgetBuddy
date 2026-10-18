@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 22:45 -- Modeling / Refined: design-system-q7rkm, ledger-n4vte - Ruhige Listen (DS-Bausteine und Kassenbuch)
+
+**Type:** Modeling / Refine
+**BC:** design-system, ledger
+**Status after:** todo
+**Summary:** Beide Aufgaben aus ADR 0049 mit Zielbildern im Repo (docs/ux/kassenbuch/mockups/ruhige-listen-b-*.png) und prüfbaren Kriterien verfeinert. Dabei gefunden: Table.cell/headerCell bauen die Ausrichtung dynamisch als text-{a}, Tailwind erzeugt text-right nie, daher der linksbündige Betrag; Fix und Regressionstest in design-system-q7rkm.
+**ADRs written:** keine (ADR 0049 mit related_tasks verknüpft)
+
+---
+
 ## 2026-10-18 22:40 -- Capture / Captured: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
 
 **Type:** Capture
