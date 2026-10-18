@@ -1,7 +1,7 @@
 ---
 id: ledger-n4vte
 title: Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-18
@@ -101,6 +101,15 @@ zeigt die Herkunft weiterhin inline" in `src/Tests/LedgerViewTests.fs`.
   Kategorie" (Fehler in den Beispieldaten des Sichttests). Maßgeblich ist ADR 0048.
 - Die Datumsspalte am PC zeigt im Zielbild zusätzlich zum Gruppenkopf das Datum je Zeile.
   Das darf bleiben (hilft beim Scannen mit Tastatur), ist aber kein Muss.
+- Bausteine aus `design-system-q7rkm` (Stand 2026-10-18): `Tokens.ListRoles`,
+  `Money.listAmount`/`accountBalanceClass`, `Table.roleCell`/`amountCell`/`calmHeaderCell`/
+  `calmRow` mit `Table.CellRole` und `RowProps.StatusEdge`, `Primitives.Container.full`,
+  `PageHeader.calm`. Vorbild für die Verwendung: Abschnitt "8a. Ruhige Listen" in
+  `src/Client/Components/Styleguide/View.fs`.
+- Zwei Abweichungen im Styleguide-Beispiel, die das Kassenbuch nicht übernehmen soll: die
+  Tagessumme im Gruppenkopf steht dort unter der Status-Spalte statt bündig unter den
+  Beträgen (Zielbild: unter der Betragsspalte), und in der zweizeiligen Handy-Zeile ist die
+  erste Zeile niedriger als die übrigen (Abstände zwischen Zeile 1 und 2 uneinheitlich).
 - `ledger-b7qmx` (Split-Zeilen voll qualifizieren) liegt im Backlog und berührt dieselbe
   Kategorie-Zelle. Keine Abhängigkeit, aber bei gleichzeitiger Arbeit Merge-Konflikt in
   `tdTruncatedCategory` möglich.

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-18 23:01 -- Modeling / Promoted: ledger-n4vte - Kassenbuch auf ruhige Listen umstellen (PC-Tabelle und Handy-Liste)
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-18 23:00 -- Task verified and completed: design-system-q7rkm - DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader)
 
 **Type:** Work / Task completion
