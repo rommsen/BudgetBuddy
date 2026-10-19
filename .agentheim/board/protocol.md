@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 08:01 -- Capture / Captured: ledger-eng59 - OpenFilterPopover deckt den Chip "Ohne Kategorie" nicht ab (Warnung FS0025)
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** FS0025 in Ledger/State.fs:333: OpenFilterPopover deckt WithoutCategoryChip nicht ab
+
+---
+
 ## 2026-10-18 23:53 -- Work session ended
 
 **Type:** Work / Session end
