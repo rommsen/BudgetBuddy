@@ -1,6 +1,6 @@
 ---
 id: ledger-nhwrt
-title: "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste"
+title: "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
 status: backlog
 type: feature
 context: ledger
@@ -11,7 +11,7 @@ blocks: []
 tags: [frontend, backend, kassenbuch, schreibend]
 related_adrs: [0028, 0032, 0050]
 related_research: []
-prior_art: []
+prior_art: [ledger-r777c]
 ---
 
 ## Why
@@ -20,51 +20,82 @@ etwa nach dem Filtern auf eine Kategorie. `ledger-r1d2f` liefert die Auswahl-Lei
 Summe, `ledger-r777c` den schreibenden Weg für eine Buchung.
 
 ## What
-1. **Aktion "Geprüft"** in der Auswahl-Leiste setzt `Reviewed` für jede Buchung der
-   Auswahl. "Ungeprüft" ist hier nicht Teil des Umfangs.
-2. **Ein Befehl je Buchung, gebündelt in einem Server-Aufruf** (`setReviewMarkBatch`):
-   der Server geht die Buchungen nacheinander durch und ruft für jede den Weg aus
-   `ledger-r777c` (Ereignis, dann PATCH). Ein Ereignis je Buchung, keine Sammel-
-   Ereignisse. Der Aufruf fährt die PATCHes nacheinander, nicht parallel (YNAB-Rate-Limit).
-3. **Teilweises Scheitern:** der Lauf bricht nicht ab. Jede Buchung hat ihr eigenes
-   Ergebnis (`Changed`, `NoChange`, `Failed` mit Grund). Gescheiterte Rückschreibungen
-   tragen den Zustand "Prüfvermerk nicht in YNAB" je Buchung (ADR 0050). Bei HTTP 429
-   stoppt der Lauf, die übrigen Buchungen bleiben unberührt (kein Ereignis) und werden
-   als "nicht verarbeitet" gemeldet.
-4. **Rückmeldung:** eine Meldung "n geprüft, m ohne Änderung, k nicht in YNAB" mit
-   Hinweis, welche Zeilen betroffen sind. Die Auswahl wird danach aufgehoben, mit aktivem
-   Chip "Zu prüfen" verlassen die Zeilen die Liste und der Zähler sinkt.
-5. **Ein Sammel-Rückgängig gibt es nicht** in dieser Task.
+Bild und Text: Handoff Ablauf 1, Screens 1.11 und 1.12
+(`docs/ux/kassenbuch/handoff-ablauf-1-durchsehen-und-pruefen.md`) und Handoff Ablauf 3
+(Auswahl-Leiste).
+
+1. **Aktion "Geprüft"** in der Auswahl-Leiste, als einzige primäre Aktion (Orange), setzt
+   `Reviewed` für jede Buchung der Auswahl. "Ungeprüft" ist nicht Teil des Umfangs. Die
+   Handy-Leiste bekommt dafür die Reihe aus Screen 3.2 zurück ("Geprüft" in Reihe 2).
+2. **Auswahl an den Server:** der Stapel-Befehl nimmt die Auswahl aus `ledger-r1d2f`
+   entgegen, entweder als Ids (`Picked`) oder als Treffer-Anfrage plus Ausnahmen
+   (`AllExcept`: dieselbe Filter-Beschreibung wie `getLedgerEntriesPage`, plus die
+   abgewählten Ids). Der Server löst die Menge selbst auf, weil der Client die Ids nicht
+   geladener Buchungen nicht kennt.
+3. **Ereignisse je Buchung:** der Server prüft jede Buchung wie in `ledger-r777c` (Ziel
+   gleich Ist → `NoChange`, kein Ereignis; in YNAB gelöscht oder nicht verknüpft →
+   `Failed` ohne Ereignis) und schreibt für jede geänderte Buchung ein eigenes
+   `EntryReviewMarkChangedInBb`. Keine Sammel-Ereignisse.
+4. **Ein Sammel-PATCH an YNAB** (Entscheidung Roman 2026-10-19): alle geänderten Buchungen
+   gehen in einer Anfrage an `PATCH /budgets/{id}/transactions`, mit denselben Feldern je
+   Buchung wie der Einzelweg (`approved`; `cleared` nur, wenn nicht Reconciled, ADR 0050).
+   Scheitert die Anfrage (Netz, 4xx, 429), tragen **alle** Buchungen dieser Anfrage
+   `EntryReviewMarkWriteBackFailed` mit demselben Grund. Der Weg "Erneut senden" aus
+   `ledger-r777c` bleibt je Buchung.
+5. **Rückmeldung:** ein Toast "n Buchungen geprüft · Rückgängig" (Screen 1.12). Gab es
+   `NoChange` oder Fehlschläge, nennt der Toast sie mit ("2 ohne Änderung, 3 nicht in
+   YNAB"); gescheiterte Zeilen tragen den Hinweis aus `ledger-r777c`. Die Auswahl wird
+   danach aufgehoben, mit aktivem Chip "Zu prüfen" verlassen die gesetzten Zeilen die Liste
+   und der Zähler sinkt.
+6. **Ein Rückgängig für den ganzen Stapel** (Entscheidung Roman 2026-10-19, Handoff 1.12:
+   "eine Rücknahme, nicht drei"): stellt für jede geänderte Buchung ihren Vorzustand wieder
+   her (Logik von `restoreReviewMark`, ADR 0050 Punkt 1 und 10), wieder mit einem
+   Ereignis je Buchung und einem Sammel-PATCH. `NoChange`-Buchungen werden nicht angefasst.
+   Die Zeilen kehren in die Liste zurück, der Zähler steigt.
+7. Der Aktions-Slot im Toast entsteht in `ledger-th36h` oder hier, je nachdem, was zuerst
+   umgesetzt wird (DS-Komponente plus Galerie-Beispiel in `/styleguide`).
 
 ## Acceptance criteria
-- [ ] `setReviewMarkBatch` mit drei zu prüfenden Buchungen schreibt drei
-      `EntryReviewMarkChangedInBb` (je ein Ereignis je Buchung) und ruft den PATCH
-      dreimal nacheinander auf (DB-Test mit Zähler und Reihenfolge im Push).
-- [ ] Eine bereits geprüfte Buchung in der Auswahl ergibt `NoChange`, kein Ereignis, kein
-      PATCH.
-- [ ] Scheitert der PATCH der zweiten von drei Buchungen (Netzfehler), sind die erste und
-      die dritte verarbeitet, die zweite trägt `EntryReviewMarkWriteBackFailed` mit
-      Grund, das Gesamtergebnis nennt je Buchung das Ergebnis.
-- [ ] Bei HTTP 429 auf der zweiten Buchung stoppt der Lauf: die dritte bekommt kein
-      Ereignis und erscheint als "nicht verarbeitet".
-- [ ] Eine Buchung, die in YNAB gelöscht ist, ergibt `Failed` ohne Ereignis, der Lauf
-      läuft weiter.
-- [ ] Reconciled-Buchungen in der Auswahl bekommen nur `approved` gesetzt, `cleared`
-      bleibt (je ein Test über den Stapel-Weg).
-- [ ] Reducer-Test: Aktion "Geprüft" löst den Stapel-Aufruf mit den Ids der Auswahl aus,
-      bei Erfolg wird die Auswahl aufgehoben, die Zeilen verlassen die Liste (Chip aktiv)
-      und der Zähler sinkt um die Zahl der gesetzten Buchungen.
-- [ ] Reducer-Test: bei teilweisem Scheitern bleibt die Meldung mit den Zahlen stehen und
-      die gescheiterten Zeilen tragen den Hinweis.
-- [ ] Ansichts-Test: die Auswahl-Leiste zeigt die Aktion "Geprüft", bei leerer Auswahl ist
-      sie nicht sichtbar oder deaktiviert.
-- [ ] `dotnet build` und `dotnet test` grün.
+- [ ] Stapel mit drei zu prüfenden Buchungen (`Picked`): drei `EntryReviewMarkChangedInBb`,
+      genau ein PATCH an YNAB mit drei Buchungen (DB-Test mit Zähler auf dem HTTP-Stub).
+- [ ] Stapel mit `AllExcept`: der Server löst Filter plus Ausnahmen auf und setzt genau die
+      Buchungen des Treffers ohne die Ausnahmen, auch wenn sie im Client nie geladen waren
+      (DB-Test mit mehr Buchungen als eine Seite).
+- [ ] Eine bereits geprüfte Buchung ergibt `NoChange`: kein Ereignis, nicht im PATCH.
+- [ ] Eine in YNAB gelöschte Buchung ergibt `Failed` ohne Ereignis und steht nicht im
+      PATCH; die übrigen werden verarbeitet.
+- [ ] Reconciled-Buchungen stehen im PATCH nur mit `approved`, ohne `cleared`.
+- [ ] Scheitert der Sammel-PATCH (Netzfehler und HTTP 429, je ein Test), trägt jede Buchung
+      des PATCH `EntryReviewMarkWriteBackFailed` mit dem Grund; die Ereignisse
+      `EntryReviewMarkChangedInBb` bleiben stehen.
+- [ ] Ein Stapel ohne geänderte Buchung schickt keinen PATCH.
+- [ ] Sammel-Rückgängig stellt für jede geänderte Buchung genau ihren Vorzustand her (auch
+      `approved = true`, `Uncleared`), sendet nie eine Reconciled-Angabe, fasst
+      `NoChange`-Buchungen nicht an und schickt einen PATCH.
+- [ ] Reducer-Test: "Geprüft" löst den Stapel-Aufruf mit der Auswahl aus (`Picked` und
+      `AllExcept`, je ein Test); bei Erfolg ist die Auswahl aufgehoben, die Zeilen
+      verlassen die Liste (Chip aktiv) und der Zähler sinkt um die Zahl der gesetzten
+      Buchungen.
+- [ ] Reducer-Test: der Toast nennt "n Buchungen geprüft" und bei Bedarf die Zahlen ohne
+      Änderung und nicht in YNAB; gescheiterte Zeilen tragen den Hinweis.
+- [ ] Reducer-Test: Rückgängig aus dem Toast löst den Sammel-Rückgängig-Aufruf mit den
+      Vorzuständen aus der Antwort aus; die Zeilen kehren zurück und der Zähler stimmt.
+- [ ] Ansichts-Test: die Auswahl-Leiste zeigt "Geprüft" als primäre Aktion auf Handy und PC.
+- [ ] `dotnet build`, `dotnet test`, `npm run build`, `npm run guard:classes` grün.
 
 ## Notes
 Abgespalten am 2026-10-19 beim Verfeinern von `ledger-r777c` (Entscheidung von Roman).
-Entwurf Stapel-Befehl: ein Aufruf mit mehreren Ids hält die Netzwerk-Rundreisen klein, die
-Ereignisse bleiben je Buchung (Historie und Replay unverändert zu `ledger-r777c`).
-Alternative, den Einzelbefehl je Buchung vom Client aus mehrfach zu rufen, wäre auch
-möglich und braucht keinen Sammel-Endpunkt. Beide Wege teilen die Server-Funktion aus
-`ledger-r777c`. Der Worker darf bei der Umsetzung begründet den einfacheren wählen, solange
-die Acceptance criteria erfüllt bleiben.
+
+Verfeinert am 2026-10-19. Entscheidungen Roman: ein Sammel-PATCH statt einzelner
+Anfragen (YNAB erlaubt rund 200 Anfragen pro Stunde je Token, ein Stapel über "Alle" kann
+Dutzende Buchungen treffen); Sammel-Rückgängig gehört in diese Task (Handoff 1.12). Damit
+entfallen die frühere Reihenfolge-Regel ("nacheinander, nicht parallel") und der Zustand
+"nicht verarbeitet" bei 429.
+
+Für den Worker zu prüfen: ob die YNAB-API für `PATCH /transactions` eine Obergrenze je
+Anfrage nennt (dann in Blöcken senden) und wie die Antwort aussieht, wenn einzelne
+Buchungen abgelehnt werden. Nennt die Antwort einzelne Buchungen, sollen nur diese als
+gescheitert gelten. Die Einzelanfrage in `YnabClient.sendReviewMark` ist ein PUT auf eine
+Buchung; der Sammelweg ist ein neuer Aufruf daneben, der Einzelweg bleibt.
+
+Die Seitenversatz-Frage beim Nachladen nach dem Entfernen von Zeilen löst `ledger-be1yh`.

@@ -23,4 +23,6 @@ Beim Messen des Datumsfelds (design-system-m7z9q) zeigte sich: `.input-field` in
 ## Acceptance criteria
 - [ ] Playwright misst bei 390x844 in einem `Input.Small`-Feld (Kategorie-Suche) 16px und bei 1440x900 14px.
 - [ ] `Input.usesInlineFontSize Small` bleibt falsch.
+- [ ] Medium und Large messen bei 390x844 und 1440x900 dieselbe Schriftgröße wie vor dem Fix (Playwright, je ein Feld).
+- [ ] `DateField.textSizeClass` ist entfernt, das Datumsfeld misst bei 390x844 weiterhin 16px und bei 1440x900 14px.
 - [ ] `npm run guard:classes`, `npm run build`, `npm run test:scripts`, `dotnet build`, `dotnet test` grün.

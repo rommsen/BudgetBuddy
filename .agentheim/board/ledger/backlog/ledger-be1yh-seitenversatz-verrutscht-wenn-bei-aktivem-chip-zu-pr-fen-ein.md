@@ -28,9 +28,19 @@ wird. Betrifft nur den Fall mit aktivem Chip und mehr als einer geladenen Seite.
 
 ## Acceptance criteria
 - [ ] Reducer-Test: zwei geladene Seiten, aktiver Chip, eine Zeile der ersten Seite wird geprüft,
-      die nächste Nachladeanfrage wird so gestellt, dass keine Buchung fehlt.
+      die nächste Nachladeanfrage wird so gestellt, dass keine Buchung fehlt. Der Test
+      scheitert vor dem Fix und trägt einen Kommentar, welchen Fehler er verhindert
+      (Bug-Fix-Protokoll in CLAUDE.md).
+- [ ] Ohne aktiven Chip und ohne lokal entfernte Zeilen bleibt die Nachladeanfrage wie bisher
+      (Regressionstest).
 - [ ] `dotnet build` und `dotnet test` grün.
 
 ## Notes
 Entdeckt beim Umsetzen von `ledger-r777c`. In der Praxis selten: braucht mehr als 100 zu prüfende
 Buchungen in einem Filter.
+
+Befund bei der Verfeinerung (2026-10-19): die Liste lädt über eine Seitennummer
+(`NextPage = page + 1`, `src/Client/Components/Ledger/State.fs`), `applyReviewMarkResult`
+entfernt die Zeile lokal und senkt `TotalCount`. Dieselbe Verschiebung tritt später auch
+bei `ledger-th36h` (Wisch) und `ledger-nhwrt` (Stapel) auf; der Fix sollte an der
+Nachladeanfrage ansetzen, nicht an einer einzelnen Aktion.

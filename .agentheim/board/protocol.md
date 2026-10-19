@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:35 -- Modeling / Refined: ledger-be1yh, design-system-btwhg, ledger-th36h, ledger-r1d2f, ledger-nhwrt, ledger-b7qmx
+
+**Type:** Modeling / Refine
+**BC:** ledger, design-system
+**Status after:** todo (alle sechs)
+**Summary:** ledger-r1d2f bekommt Verhalten und Acceptance criteria: Auswahl als Picked/AllExcept, Summe im Client gerechnet, keine schreibenden Aktionen in der Leiste, Kopfzeilen-Kästchen erweitert auf alle, Wechsel leert die Auswahl. ledger-nhwrt umgestellt auf Sammel-PATCH an YNAB, Server löst AllExcept auf, ein Toast mit Sammel-Rückgängig (Handoff 1.12). ledger-th36h: Toast-Text und Lage aus Handoff 1.3. ledger-be1yh und design-system-btwhg: Regressions- und Messkriterien ergänzt. ledger-b7qmx unverändert bereit (Abhängigkeit ledger-q1hw2 im Backlog).
+**ADRs written:** keine
+
+---
+
 ## 2026-10-19 17:00 -- Work session ended
 
 **Type:** Work / Session end
