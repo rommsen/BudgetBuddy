@@ -1,7 +1,7 @@
 ---
 id: ledger-vqxvc
 title: "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-18

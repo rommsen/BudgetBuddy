@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:05 -- Batch started: [ledger-vqxvc, ledger-d218j, ledger-zmbf1]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-vqxvc - "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab", ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten, ledger-zmbf1 - "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
+**Parallel:** yes (3 workers; 6 ready, ledger-r777c, design-system-m7z9q and ynab-sync-e4gm3 held to wave 2 so r777c builds on the small Ledger fixes in State.fs, Shared/Domain.fs and LedgerTests.fs)
+
+---
+
 ## 2026-10-19 14:05 -- Modeling / Promoted: ledger-r777c - "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile"
 
 **Type:** Modeling / Promote

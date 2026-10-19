@@ -1,7 +1,7 @@
 ---
 id: ledger-d218j
 title: Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-19
