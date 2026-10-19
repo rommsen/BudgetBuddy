@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:35 -- Modeling / Promoted: ledger-be1yh - "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 18:35 -- Modeling / Refined: ledger-be1yh, design-system-btwhg, ledger-th36h, ledger-r1d2f, ledger-nhwrt, ledger-b7qmx
 
 **Type:** Modeling / Refine
