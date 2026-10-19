@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 12:55 -- Batch started: [ledger-m23nz, categorization-wnxd6, ynab-sync-aj5tv]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-m23nz - Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen, categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten), ynab-sync-aj5tv - Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
+**Parallel:** yes (3 workers; Merge-Reihenfolge m23nz, wnxd6, aj5tv: wnxd6 und aj5tv ändern beide die pageShell-Weiche in src/Client/View.fs)
+
+---
+
 ## 2026-10-19 12:51 -- Modeling / Promoted: categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
 
 **Type:** Modeling / Promote

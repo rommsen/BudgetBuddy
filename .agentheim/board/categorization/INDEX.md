@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **categorization-wnxd6** — Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten) (feature) — `todo/categorization-wnxd6-regeln-seite-als-ruhige-liste.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **categorization-wnxd6** — Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten) (feature) — `doing/categorization-wnxd6-regeln-seite-als-ruhige-liste.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

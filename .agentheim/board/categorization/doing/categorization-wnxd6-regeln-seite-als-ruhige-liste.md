@@ -1,7 +1,7 @@
 ---
 id: categorization-wnxd6
 title: Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
-status: todo
+status: doing
 type: feature
 context: categorization
 created: 2026-10-19

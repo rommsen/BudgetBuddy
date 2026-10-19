@@ -1,7 +1,7 @@
 ---
 id: ynab-sync-aj5tv
 title: Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
-status: todo
+status: doing
 type: feature
 context: ynab-sync
 created: 2026-10-19

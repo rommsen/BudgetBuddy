@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ynab-sync-aj5tv** — Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate (feature) — `todo/ynab-sync-aj5tv-import-pruefen-ruhige-liste-und-deutsche-formate.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ynab-sync-aj5tv** — Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate (feature) — `doing/ynab-sync-aj5tv-import-pruefen-ruhige-liste-und-deutsche-formate.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
