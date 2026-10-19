@@ -1,7 +1,7 @@
 ---
 id: ledger-rynk5
 title: "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-19

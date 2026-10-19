@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 2
 - **Done:** 58
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
 - **ledger-nhwrt** — "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig" (feature) — `todo/ledger-nhwrt-geprueft-fuer-die-ganze-auswahl.md`
-- **ledger-rjb8w** — "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)" (feature) — `todo/ledger-rjb8w-taste-g-und-tastaturfokus-in-der-liste.md`
-- **ledger-rynk5** — "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell" (feature) — `todo/ledger-rynk5-push-fehlschlag-als-ereignis.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-rjb8w** — "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)" (feature) — `doing/ledger-rjb8w-taste-g-und-tastaturfokus-in-der-liste.md`
+- **ledger-rynk5** — "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell" (feature) — `doing/ledger-rynk5-push-fehlschlag-als-ereignis.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

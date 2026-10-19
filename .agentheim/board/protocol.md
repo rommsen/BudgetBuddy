@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 21:08 -- Batch started: [ledger-rynk5, ledger-rjb8w]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-rynk5 - "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell", ledger-rjb8w - "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
+**Parallel:** yes (2 workers; ledger-nhwrt held to wave 2: touches the same Ledger State/View/Types as rjb8w and the LedgerEntryView fixtures rynk5 extends, so it starts on the integrated state)
+
+---
+
 ## 2026-10-19 20:49 -- Modeling / Promoted: ledger-nhwrt - "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
 
 **Type:** Modeling / Promote
