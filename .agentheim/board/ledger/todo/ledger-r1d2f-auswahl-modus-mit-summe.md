@@ -1,7 +1,7 @@
 ---
 id: ledger-r1d2f
 title: "Auswahl-Modus mit Summe der Auswahl (Handy und PC)"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-12

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:35 -- Modeling / Promoted: ledger-r1d2f - "Auswahl-Modus mit Summe der Auswahl (Handy und PC)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 18:35 -- Modeling / Promoted: ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
 
 **Type:** Modeling / Promote
