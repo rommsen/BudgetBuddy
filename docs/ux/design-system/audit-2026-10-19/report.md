@@ -76,6 +76,6 @@ Grundlage: ADR 0049, `standards/frontend/styleguide.md` §2 „Ruhige Listen“,
 - `ledger-d218j`: interne YNAB-Kategorien (K6)
 
 ## Screenshots
-`shots/` in diesem Ordner, Namen `pc-1440x900-<name>.png` und `handy-390x844-<name>.png`:
+In diesem Ordner, Namen `pc-1440x900-<name>.png` und `handy-390x844-<name>.png`:
 ledger, ledger-allaccounts, ledger-filter-{Kategorie,Zeitraum,Payee,Memo,Betrag}, ledger-filtered, ledger-history, start, import-pruefen, import-pruefen-aufgeklappt, import-kategorie-picker, import-split-sheet (nur Handy), rules, rules-modal, rules-modal-category, settings, quickadd, quickadd-category, quickadd-payee, styleguide.
 Nur aus dem Quelltext beurteilt: Aufteilen-Sheet am PC, Regel-Sheet aus Import prüfen, TAN- und Fertig-Ansicht, Popover „Ohne Kategorie“.

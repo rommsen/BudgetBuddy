@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 11
@@ -41,6 +41,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-sync-e4gm3** — Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt (feature) — `backlog/ynab-sync-e4gm3-duplikat-details-deutsch-und-nur-bei-verdacht.md`
 - **ynab-sync-aj5tv** — Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate (feature) — `backlog/ynab-sync-aj5tv-import-pruefen-ruhige-liste-und-deutsche-formate.md`
 <!-- backlog-list:end -->
 

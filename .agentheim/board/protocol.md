@@ -5,6 +5,35 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 12:51 -- Modeling / Refined: ledger-m23nz, ynab-sync-aj5tv, categorization-wnxd6 - Ruhige Listen nach der Bestandsaufnahme
+
+**Type:** Modeling / Refine
+**BC:** ledger, ynab-sync, categorization
+**Status after:** todo
+**Summary:** Akzeptanzkriterien gegen den Code nach zahv9 geschrieben, Verweise auf docs/ux/design-system/audit-2026-10-19/ umgestellt (alle Audit-Bilder ins Repo übernommen). Entscheidungen Roman: Kategorie-Popover 460px, Datumsfeld als deutsches Textfeld mit Kalender-Knopf, Importieren als Button.primary, Duplikat-Details bei Verdacht sichtbar sonst hinter Details, Regel löschen nur im Dialog. Übernommene Empfehlungen: Summenzeile beim Laden als Skeleton, Datum in Import prüfen nur im Gruppenkopf, Import volle Breite mit Karten-Zeilen, aktiv/inaktiv nur im Dialog, Zeilenklick öffnet den Regel-Dialog.
+**Split into:** design-system-m7z9q (aus ledger-m23nz), ynab-sync-e4gm3 (aus ynab-sync-aj5tv)
+**ADRs written:** none
+
+---
+
+## 2026-10-19 12:51 -- Modeling / Captured: ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
+
+**Type:** Modeling / Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Abgetrennt aus ynab-sync-aj5tv: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter Details; YNAB-Ergebnis getrennt; Überspringen neutral (S6).
+
+---
+
+## 2026-10-19 12:51 -- Modeling / Captured: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Abgetrennt aus ledger-m23nz: deutsches Datumsfeld TT.MM.JJJJ mit Kalender-Knopf als DS-Baustein, eingesetzt im Zeitraum-Filter (K7, Entscheidung Roman).
+
+---
+
 ## 2026-10-19 10:16 -- Work session ended
 
 **Type:** Work / Session end
