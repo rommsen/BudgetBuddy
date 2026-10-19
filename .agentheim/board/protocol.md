@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:11 -- Capture / Captured: design-system-zahv9 - Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Aus der Bestandsaufnahme gegen ADR 0049 vom 2026-10-19
+
+---
+
 ## 2026-10-19 09:11 -- Modeling / Captured: design-system-qz7b6 - Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe
 
 **Type:** Modeling / Capture
