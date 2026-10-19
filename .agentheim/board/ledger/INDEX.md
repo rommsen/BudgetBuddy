@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
-- **Todo:** 0
+- **Backlog:** 13
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 50
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-m23nz** — Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen (feature) — `todo/ledger-m23nz-kassenbuch-filterleiste-und-summenzeile-ruhig.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -36,7 +37,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-m23nz** — Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen (feature) — `backlog/ledger-m23nz-kassenbuch-filterleiste-und-summenzeile-ruhig.md`
 - **ledger-d218j** — Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten (feature) — `backlog/ledger-d218j-interne-ynab-kategorien-in-der-kategorieauswahl-ausblenden.md`
 - **ledger-eng59** — OpenFilterPopover deckt den Chip "Ohne Kategorie" nicht ab (Warnung FS0025) (bug) — `backlog/ledger-eng59-openfilterpopover-deckt-ohne-kategorie-chip-nicht-ab.md`
 - **ledger-vqxvc** — "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab" (bug) — `backlog/ledger-vqxvc-build-warnung-fs0025-openfilterpopover-deckt-den-neuen-chip.md`

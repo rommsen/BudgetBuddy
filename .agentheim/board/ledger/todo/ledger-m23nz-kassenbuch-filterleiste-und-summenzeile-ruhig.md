@@ -1,7 +1,7 @@
 ---
 id: ledger-m23nz
 title: Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-19

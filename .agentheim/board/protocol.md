@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 12:51 -- Modeling / Promoted: categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
+
+**Type:** Modeling / Promote
+**BC:** categorization
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 12:51 -- Modeling / Promoted: ynab-sync-aj5tv - Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
+
+**Type:** Modeling / Promote
+**BC:** ynab-sync
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 12:51 -- Modeling / Promoted: ledger-m23nz - Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 12:51 -- Modeling / Refined: ledger-m23nz, ynab-sync-aj5tv, categorization-wnxd6 - Ruhige Listen nach der Bestandsaufnahme
 
 **Type:** Modeling / Refine
