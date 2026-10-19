@@ -121,6 +121,25 @@ let private backfillTransferAccountId (conn: SqliteConnection) =
 
     tx.Commit()
 
+/// Einmaliger Backfill von `ledger_entries.linked_to_ynab` (ledger-rynk5): jede Buchung
+/// mit einer `ynab`-Verknüpfung in der Fremd-Id-Tabelle (ADR 0015) gilt als verknüpft.
+/// Ohne diese Tabelle (isolierte Teil-Schemata) gibt es nichts nachzutragen.
+let private backfillLinkedToYnab (conn: SqliteConnection) =
+    let hasLinks =
+        use cmd =
+            new SqliteCommand("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'ledger_entry_links'", conn)
+
+        Convert.ToInt64(cmd.ExecuteScalar()) > 0L
+
+    if hasLinks then
+        use cmd =
+            new SqliteCommand(
+                "UPDATE ledger_entries SET linked_to_ynab = 1 WHERE id IN (SELECT entry_id FROM ledger_entry_links WHERE system = 'ynab')",
+                conn
+            )
+
+        cmd.ExecuteNonQuery() |> ignore
+
 /// Migration: `approved`/`flag_color`/`flag_name` (ADR 0032) für Zustandstabellen,
 /// die vor diesen Spalten angelegt wurden. Das `CREATE TABLE IF NOT EXISTS` in
 /// `initializeLedgerSchema` deckt frische Datenbanken bereits ab; SQLite kennt kein
@@ -155,6 +174,13 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     // ADR 0050: Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks,
     // NULL heißt kein offener Fehlschlag.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN review_mark_write_back_failure TEXT" |> ignore
+    // ledger-rynk5: offener Push-Fehlschlag (Grund, Zeitpunkt) und Spiegelung der
+    // YNAB-Verknüpfung im Zustand. Beim Anlegen von `linked_to_ynab` trägt ein einmaliger
+    // Backfill aus der Fremd-Id-Tabelle die bestehenden Verknüpfungen nach.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN push_failure_reason TEXT" |> ignore
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN push_failure_at TEXT" |> ignore
+    if migrateColumn "ALTER TABLE ledger_entries ADD COLUMN linked_to_ynab INTEGER NOT NULL DEFAULT 0" then
+        backfillLinkedToYnab conn
 
 /// Legt die Kassenbuch-Tabellen an, auf der übergebenen Connection. Bestehende
 /// Tabellen bleiben unangetastet (`CREATE TABLE IF NOT EXISTS`); der Aufruf ist
@@ -214,7 +240,10 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             flag_name TEXT,
             transfer_account_id TEXT,
             split_transfer_counterparts TEXT,
-            review_mark_write_back_failure TEXT
+            review_mark_write_back_failure TEXT,
+            push_failure_reason TEXT,
+            push_failure_at TEXT,
+            linked_to_ynab INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -299,6 +328,9 @@ type private EntryRow = {
     transfer_account_id: string
     split_transfer_counterparts: string
     review_mark_write_back_failure: string
+    push_failure_reason: string
+    push_failure_at: string
+    linked_to_ynab: int64
 }
 
 [<CLIMutable>]
@@ -400,6 +432,11 @@ let private rowToEntry (row: EntryRow) : Entry =
         FlagColor = toOption row.flag_color
         FlagName = toOption row.flag_name
         ReviewMarkWriteBackFailure = toOption row.review_mark_write_back_failure
+        LinkedToYnab = row.linked_to_ynab = 1L
+        PushToYnabFailure =
+            toOption row.push_failure_reason
+            |> Option.map (fun reason ->
+                { Reason = reason; FailedAt = dateFromText row.push_failure_at })
         TransferAccountId = toOption row.transfer_account_id |> Option.map (Guid.Parse >> YnabAccountId)
     }
 
@@ -452,6 +489,9 @@ let private entryParams (entry: Entry) =
         flag_color = orNull entry.FlagColor
         flag_name = orNull entry.FlagName
         review_mark_write_back_failure = orNull entry.ReviewMarkWriteBackFailure
+        push_failure_reason = orNull (entry.PushToYnabFailure |> Option.map (fun f -> f.Reason))
+        push_failure_at = orNull (entry.PushToYnabFailure |> Option.map (fun f -> dateToText f.FailedAt))
+        linked_to_ynab = (if entry.LinkedToYnab then 1 else 0)
         transfer_account_id =
             match entry.TransferAccountId with
             | Some (YnabAccountId a) -> box (a.ToString())
@@ -465,12 +505,13 @@ let private upsertEntrySql =
     """INSERT INTO ledger_entries
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
-          transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure)
+          transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
+          push_failure_reason, push_failure_at, linked_to_ynab)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure)
+          @review_mark_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -489,7 +530,10 @@ let private upsertEntrySql =
           flag_name = excluded.flag_name,
           transfer_account_id = excluded.transfer_account_id,
           split_transfer_counterparts = excluded.split_transfer_counterparts,
-          review_mark_write_back_failure = excluded.review_mark_write_back_failure"""
+          review_mark_write_back_failure = excluded.review_mark_write_back_failure,
+          push_failure_reason = excluded.push_failure_reason,
+          push_failure_at = excluded.push_failure_at,
+          linked_to_ynab = excluded.linked_to_ynab"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je

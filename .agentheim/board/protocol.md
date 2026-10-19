@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 21:42 -- Task verified and completed: ledger-rynk5 - "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell"
+
+**Type:** Work / Task completion
+**Task:** ledger-rynk5 - "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell"
+**Summary:** Ein gescheiterter Push nach YNAB steht jetzt als Ereignis EntryPushToYnabFailed mit Grund und Zeit im Log, der Buchungszustand und das Lesemodell tragen LinkedToYnab und PushToYnabFailure, die Historie nennt den Grund.
+**Duration:** 33m58s
+**Verification:** PASS (iteration 2)
+**Files changed:** 18
+**Tests added:** 21
+**ADRs written:** none
+
+---
+
+## 2026-10-19 21:34 -- Verification failed: ledger-rynk5 - Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit
+
+**Type:** Work / Verification failure
+**Task:** ledger-rynk5 - Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit
+**Iteration:** 1 of 3
+**Reasons:** README ohne UL-Eintrag für Push-Fehlschlag und LinkedToYnab, EntryPushToYnabFailed fehlt im verbindlichen Ereignis-Katalog, Absatz Verknüpfung widerspricht dem Code, Key commands unvollständig
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-19 21:29 -- Task verified and completed: ledger-rjb8w - "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
 
 **Type:** Work / Task completion

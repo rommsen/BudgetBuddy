@@ -93,3 +93,7 @@ dass die Buchung ihre BB-Herkunft verliert.
   unmöglich, Push ist ein externer HTTP-Call.
 - **Bare Fremd-Id-Verknüpfung ohne eigenes Ereignis für die YNAB-Id**: abgelehnt, weil
   Replay (ADR 0013 Punkt 6) diesen Zustand dann nicht mehr aus dem Log herleiten könnte.
+
+## Nachtrag (2026-10-19, ledger-rynk5)
+
+Scheitert der Push, hält das Ereignis `EntryPushToYnabFailed` Grund und Zeit fest; `EntryLinkedToYnab` löst es auf (Punkt 2 bleibt: kein Rollback).

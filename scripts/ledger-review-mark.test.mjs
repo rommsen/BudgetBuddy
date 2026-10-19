@@ -45,6 +45,8 @@ function buildEntries(accountId) {
       Payee: PAYEES.failed,
       NeedsReview: false,
       ReviewMarkWriteBackFailure: FAILURE_REASON,
+      LinkedToYnab: false,
+      PushToYnabFailure: null,
     }),
     // In YNAB gelöscht: der Server lehnt jeden Prüfvermerk ab, also keine Schaltfläche.
     buildEntryFixture(accountId, 4, { Payee: PAYEES.deleted, NeedsReview: false, DeletedInYnab: true }),

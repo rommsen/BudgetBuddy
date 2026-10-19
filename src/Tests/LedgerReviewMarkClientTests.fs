@@ -29,6 +29,8 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     Flag = NoFlag
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
+    LinkedToYnab = false
+    PushToYnabFailure = None
 }
 
 let private modelWith (onlyNeedsReview: bool) (entries: LedgerEntryView list) : Model =

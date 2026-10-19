@@ -113,6 +113,14 @@ type Entry = {
     /// Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks nach YNAB
     /// (ADR 0050, Punkt 7): "Prüfvermerk nicht in YNAB". `None`, wenn nichts offen ist.
     ReviewMarkWriteBackFailure: string option
+    /// Die Buchung trägt eine YNAB-Verknüpfung: von Anfang an bei `EntryObservedInYnab`,
+    /// sonst ab `EntryLinkedToYnab` (ADR 0021). Die Verknüpfung selbst liegt in der
+    /// Fremd-Id-Tabelle (ADR 0015), das Feld ist ihre Spiegelung im Zustand.
+    LinkedToYnab: bool
+    /// Der offene Fehlschlag des Push nach YNAB (ADR 0021, Nachtrag ledger-rynk5):
+    /// Grund und Zeitpunkt des letzten `EntryPushToYnabFailed`. `EntryLinkedToYnab`
+    /// löst ihn auf, ein zweiter Fehlschlag ersetzt ihn.
+    PushToYnabFailure: LedgerPushFailure option
 }
 
 /// Ist eine Buchung "zu prüfen"? Wahr, wenn sie in YNAB nicht genehmigt ist oder ihr
@@ -251,6 +259,8 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagColor = p.FlagColor
             FlagName = p.FlagName
             ReviewMarkWriteBackFailure = None
+            LinkedToYnab = true
+            PushToYnabFailure = None
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -341,6 +351,8 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagColor = None
             FlagName = None
             ReviewMarkWriteBackFailure = None
+            LinkedToYnab = false
+            PushToYnabFailure = None
         }
 
     | EntryCategorizedByRule p ->
@@ -381,13 +393,23 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagColor = None
             FlagName = None
             ReviewMarkWriteBackFailure = None
+            LinkedToYnab = false
+            PushToYnabFailure = None
         }
 
     | EntryLinkedToYnab _ ->
         // Die YNAB-Verknuepfung lebt in der Fremd-Id-Tabelle (ADR 0015), nicht als Feld
         // auf `Entry`; `linksFrom` stiftet die Verknuepfung. `apply` selbst verlangt nur,
         // dass die Buchung schon entstanden ist.
-        requireExisting ()
+        // Die Verknüpfung löst einen offenen Push-Fehlschlag auf, gleich ob sie aus der
+        // Push-Antwort oder vom Spiegel über die ImportId kommt (ADR 0021, Nachtrag).
+        let e = requireExisting ()
+        { e with LinkedToYnab = true; PushToYnabFailure = None }
+
+    | EntryPushToYnabFailed p ->
+        // Ein zweiter Fehlschlag ersetzt den ersten.
+        let e = requireExisting ()
+        { e with PushToYnabFailure = Some { Reason = p.Reason; FailedAt = event.OccurredAt } }
 
     | EntryReviewMarkChangedInBb p ->
         // Eine neue Geste setzt einen offenen Fehlschlag zurück (ADR 0050, Punkt 8).

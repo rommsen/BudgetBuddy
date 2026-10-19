@@ -399,14 +399,17 @@ let ledgerDomainTests =
                 (fun () -> apply (Some before) (eventOn entryId UserInBb oneLine) |> ignore)
                 "mkSplits: ein Split von nur einer Zeile ist keiner"
 
-        testCase "EntryLinkedToYnab veraendert die Buchung nicht, verlangt aber eine bestehende" <| fun () ->
+        testCase "EntryLinkedToYnab setzt nur LinkedToYnab, verlangt aber eine bestehende" <| fun () ->
             let entryId = newEntryId ()
             let before =
                 apply None (eventOn entryId ComdirectImport (EntryImportedFromComdirect (importedFromComdirectPayload "import-15" "comdirect-15")))
             let after =
                 apply (Some before) (eventOn entryId ComdirectImport (EntryLinkedToYnab { YnabTransactionId = "ynab-15" }))
 
-            Expect.equal after before "EntryLinkedToYnab wirkt nur auf die Fremd-Id-Tabelle, nicht auf den Entry-Zustand"
+            Expect.equal
+                after
+                { before with LinkedToYnab = true }
+                "EntryLinkedToYnab setzt nur LinkedToYnab (die Verknüpfung selbst liegt in der Fremd-Id-Tabelle)"
 
             let entryId2 = newEntryId ()
             Expect.throws
@@ -852,6 +855,8 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                LinkedToYnab = false
+                PushToYnabFailure = None
             }
             let (YnabCategoryId rawA) = catA
             Expect.equal (splitCategoryIds entry) [ rawA ] "Zwei Zeilen derselben Kategorie ergeben genau einen Eintrag, kein Duplikat"
@@ -880,6 +885,8 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                LinkedToYnab = false
+                PushToYnabFailure = None
             }
             Expect.equal (splitCategoryIds entry) [] "ToTransfer und Uncategorized sind keine Kategorie, der Kategorie-Filter findet eine solche Buchung nicht"
 
@@ -902,6 +909,8 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                LinkedToYnab = false
+                PushToYnabFailure = None
             }
             Expect.equal (splitCategoryIds entry) [] "Ohne Splits gibt es keine Split-Zeilen-Kategorie, unabhängig von der einfachen Kategorie"
 
@@ -929,6 +938,8 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                LinkedToYnab = false
+                PushToYnabFailure = None
             }
             let (YnabCategoryId rawA) = catA
             let (YnabCategoryId rawB) = catB
@@ -1845,8 +1856,8 @@ let ledgerQuickAddCommandTests =
             let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
             Expect.equal
                 (recorded |> List.map (fun r -> r.EventType))
-                [ "CashExpenseAdded" ]
-                "keine Verknuepfung nach gescheitertem Push"
+                [ "CashExpenseAdded"; "EntryPushToYnabFailed" ]
+                "Fehlschlag statt Verknuepfung nach gescheitertem Push"
             Expect.isNone
                 (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
                 "keine YNAB-Verknuepfung nach gescheitertem Push"
@@ -2076,8 +2087,8 @@ let ledgerImportPushCommandTests =
                 let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
                 Expect.equal
                     (recorded |> List.map (fun r -> r.EventType))
-                    [ "EntryImportedFromComdirect" ]
-                    "nur die Entstehung, kein Rollback (ADR 0021 Punkt 2)"
+                    [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed" ]
+                    "Entstehung und Fehlschlag, kein Rollback (ADR 0021 Punkt 2)"
                 Expect.isNone
                     (linksForEntry entryId |> Async.RunSynchronously |> List.tryFind (fun l -> l.System = YnabSystem))
                     "keine YNAB-Verknüpfung nach einem Push-Fehler"
@@ -2151,8 +2162,8 @@ let ledgerImportPushCommandTests =
                 let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
                 Expect.equal
                     (recorded |> List.map (fun r -> r.EventType))
-                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
-                    "genau eine Entstehung, dann die Verknüpfung des zweiten Versuchs"
+                    [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed"; "EntryLinkedToYnab" ]
+                    "genau eine Entstehung, der Fehlschlag des ersten, die Verknüpfung des zweiten Versuchs"
             | other -> failtest $"zweiter Versuch sollte Linked liefern, war {other}"
             Expect.isSome secondResult.SendResult "der zweite Versuch sendet tatsächlich an YNAB"
 
@@ -2445,7 +2456,7 @@ let ledgerImportPushCommandTests =
                 let recorded = loadEventsForEntry entryId |> Async.RunSynchronously
                 Expect.equal
                     (recorded |> List.map (fun r -> r.EventType))
-                    [ "EntryImportedFromComdirect"; "EntryLinkedToYnab" ]
+                    [ "EntryImportedFromComdirect"; "EntryPushToYnabFailed"; "EntryLinkedToYnab" ]
                     "genau eine Entstehung (vom ersten Versuch), keine zweite \"Comdirect-Import\"-Buchung"
             | other -> failtest $"erwartete Linked, war {other}"
 

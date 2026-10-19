@@ -250,6 +250,11 @@ type EntryReviewMarkChangedInBbPayload = {
 /// möglich (ADR 0050, Punkt 7). `Reason` ist der Grund für die Zeile.
 type EntryReviewMarkWriteBackFailedPayload = { Reason: string }
 
+/// Der Push einer Buchung nach YNAB ist gescheitert (ADR 0021, Punkt 2, Nachtrag
+/// ledger-rynk5). `Reason` ist ein kurzer, lesbarer Satz mit der Fehlerart; der
+/// Zeitpunkt ist der Ereignis-Zeitstempel. Die Buchung bleibt stehen, kein Rollback.
+type EntryPushToYnabFailedPayload = { Reason: string }
+
 /// Der fachliche Inhalt eines Ereignisses.
 type LedgerEventBody =
     | EntryObservedInYnab of EntryObservedInYnabPayload
@@ -279,6 +284,9 @@ type LedgerEventBody =
     /// Der offene Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`) oder
     /// YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0050, Punkt 8).
     | EntryReviewMarkWrittenBackToYnab
+    /// Push der Buchung nach YNAB gescheitert, Grund im Payload. Aufgelöst durch
+    /// `EntryLinkedToYnab` (ADR 0021, Nachtrag ledger-rynk5).
+    | EntryPushToYnabFailed of EntryPushToYnabFailedPayload
 
 // ============================================
 // Entscheidungs-Familie: noch reservierter Name
@@ -334,6 +342,7 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryReviewMarkChangedInBb _ -> "EntryReviewMarkChangedInBb"
     | EntryReviewMarkWriteBackFailed _ -> "EntryReviewMarkWriteBackFailed"
     | EntryReviewMarkWrittenBackToYnab -> "EntryReviewMarkWrittenBackToYnab"
+    | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
 /// Payload-Form eines Typs, kommt eine neue Version dazu; alte gespeicherte Ereignisse
@@ -359,6 +368,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryReviewMarkChangedInBb _ -> 1
     | EntryReviewMarkWriteBackFailed _ -> 1
     | EntryReviewMarkWrittenBackToYnab -> 1
+    | EntryPushToYnabFailed _ -> 1
 
 // ============================================
 // JSON-Codecs
@@ -813,6 +823,12 @@ module Codec =
     let decodeReviewMarkWriteBackFailed : Decoder<EntryReviewMarkWriteBackFailedPayload> =
         Decode.object (fun get -> { Reason = get.Required.Field "reason" Decode.string })
 
+    let encodePushToYnabFailed (p: EntryPushToYnabFailedPayload) =
+        Encode.object [ "reason", Encode.string p.Reason ]
+
+    let decodePushToYnabFailed : Decoder<EntryPushToYnabFailedPayload> =
+        Decode.object (fun get -> { Reason = get.Required.Field "reason" Decode.string })
+
 /// Serialisiert die Payload eines Ereignisses als JSON-Text.
 let encodePayload (body: LedgerEventBody) : string =
     let json =
@@ -834,6 +850,7 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryReviewMarkChangedInBb p -> Codec.encodeReviewMarkChanged p
         | EntryReviewMarkWriteBackFailed p -> Codec.encodeReviewMarkWriteBackFailed p
         | EntryReviewMarkWrittenBackToYnab -> Encode.object []
+        | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
     Encode.toString 0 json
 
 /// Liest eine gespeicherte Payload zurueck. Typname und Schema-Version zusammen
@@ -880,6 +897,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeReviewMarkWriteBackFailed payload
         |> Result.map EntryReviewMarkWriteBackFailed
     | "EntryReviewMarkWrittenBackToYnab", 1 -> Ok EntryReviewMarkWrittenBackToYnab
+    | "EntryPushToYnabFailed", 1 ->
+        Decode.fromString Codec.decodePushToYnabFailed payload |> Result.map EntryPushToYnabFailed
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"
 
 // ============================================

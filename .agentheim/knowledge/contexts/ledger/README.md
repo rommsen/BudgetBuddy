@@ -187,6 +187,8 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
 - **Wisch geprüft**: Handy-Geste im Kassenbuch (ledger-th36h): Wisch nach rechts auf einer zu prüfenden Karte setzt `setReviewMark Reviewed`; der Toast "<Payee> geprüft" bietet "Rückgängig" (`restoreReviewMark` mit dem Vorzustand aus der Antwort). Wisch nach links bleibt unbelegt, auf einer geprüften Karte gibt es keine Geste.
 - **Auswahl**: eine Menge über den Treffer des Kassenbuchs, im Client als `Picked` (gewählte geladene Zeilen), `AllExcept` (ganzer Treffer außer den abgewählten geladenen Zeilen) oder `NoSelection` gehalten (ledger-r1d2f). Anzahl und Summe rechnet der Client aus `TotalCount` und `TotalAmount` des Treffers (`selectionTotals`), in YNAB gelöschte Buchungen zählen nicht zur Summe. Konto-, Filter- oder Chipwechsel leert die Auswahl, eine Zeile, die die Liste verlässt, fällt aus ihr. Der Auswahl-Modus am Handy (langes Drücken) und die Kästchen am PC schalten sie; die Auswahl-Leiste zeigt keine schreibenden Aktionen.
 - **Fokuszeile (keyboardCursor)**: die Zeile der Kassenbuch-Liste, auf der die Tastatur am PC steht (`FocusedRow`). Pfeil auf/ab und J/K bewegen sie, am Listenrand bleibt sie stehen. G setzt auf ihr den Prüfvermerk `Reviewed` und springt auf die nächste Zeile, Umschalt+G setzt `Unreviewed`. Fällt ihre Zeile aus der Liste, rückt der Fokus nach (am Ende auf die neue letzte Zeile, nach einem Neuladen auf die erste). Im Auswahl-Modus ist G aus, Eingabefelder und offene Popover fangen die Tasten ab. Enter und Esc sind für das Seitenpanel frei (ledger-q1hw2).
+- **Push-Fehlschlag**: der offene Fehlschlag, eine Buchung nach YNAB zu senden (`Entry.PushToYnabFailure`, `LedgerPushFailure` mit Grund und Zeitpunkt, `LedgerEntryView.PushToYnabFailure`, ledger-rynk5, ADR 0021 Punkt 2). Entsteht durch `EntryPushToYnabFailed` im Comdirect-Import-Push und in Quick Add (Netz, Timeout, YNAB-Fehler, Duplikat, nicht auswertbare Antwort), aufgelöst durch `EntryLinkedToYnab`, gleich ob aus der Push-Antwort oder vom Spiegel. Ein zweiter Fehlschlag ersetzt den ersten. Kein Rollback: die Buchung bleibt unverknüpft stehen.
+- **LinkedToYnab**: die Buchung trägt eine YNAB-Verknüpfung (`Entry.LinkedToYnab`, `LedgerEntryView.LinkedToYnab`). Vom Spiegel gesehene Buchungen sind es von Anfang an, BB-geführte ab `EntryLinkedToYnab`. Spiegelt die Fremd-Id-Tabelle (ADR 0015) im Zustand, Spalte `linked_to_ynab` mit Backfill beim Anlegen.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -206,6 +208,7 @@ Historie-Technik in der Decision-Task des Architekten.
 - *ÜbertragZusammengeführt* — zwei Buchungen als eine Bewegung erkannt (v2).
 - *KontoBewertet* — Bewertungs-Buchung für ein Wertpapierkonto erzeugt.
 - *EntryReviewMarkChangedInBb* / *EntryReviewMarkWriteBackFailed* / *EntryReviewMarkWrittenBackToYnab*: Prüfvermerk in BB gesetzt, entfernt oder wiederhergestellt (ein Typ mit Alt und Neu für `approved` und `cleared`, Actor `UserInBb`, Version 1), Zurückschreiben nach YNAB gescheitert (Payload `Reason`), offener Fehlschlag beendet (ohne Payload, Actor `UserInBb` oder `YnabMirror`). ADR 0050.
+- *EntryPushToYnabFailed*: Push einer Buchung nach YNAB gescheitert (Payload `Reason`, Schema-Version 1, Actor `ComdirectImport` bzw. `QuickAdd`; der Zeitpunkt ist der Ereignis-Zeitstempel). Setzt `Entry.PushToYnabFailure`, aufgelöst durch `EntryLinkedToYnab` (ledger-rynk5).
 
 ## Key commands
 - *SpiegelÜbernehmen* — Ergebnis eines Spiegel-Laufs aus `ynab-sync` einarbeiten.
@@ -213,8 +216,9 @@ Historie-Technik in der Decision-Task des Architekten.
   Quick Add: `Ledger.CommandHandlers.addCashExpense` schreibt zuerst `CashExpenseAdded`
   (Actor `QuickAdd`), ruft danach den Push auf (`YnabClient.createManualTransaction`,
   liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts) und verknüpft bei
-  Erfolg mit `EntryLinkedToYnab` (ADR 0021, ADR 0015). Scheitert der Push, bleibt die
-  Buchung ohne Verknüpfung stehen, kein Rollback. Ohne ein gespiegeltes Kassenbuch-Konto
+  Erfolg mit `EntryLinkedToYnab` (ADR 0021, ADR 0015). Scheitert der Push, bleibt die Buchung ohne Verknüpfung stehen, kein Rollback;
+  der Fehlschlag steht danach als `EntryPushToYnabFailed` (Grund, Actor `QuickAdd`) im
+  Log und in `Entry.PushToYnabFailure`. Ohne ein gespiegeltes Kassenbuch-Konto
   für das konfigurierte Quick-Add-Konto (Spiegel nie gelaufen) lehnt `Server.Api` mit
   einer Fehlermeldung ab, statt ein zweites "Bar"-Konto zu erfinden (ADR 0016).
   Comdirect-Import-Push (`Server.Api.importToYnab`, ledger-qvt84): `YnabClient` trennt
@@ -240,9 +244,10 @@ Historie-Technik in der Decision-Task des Architekten.
   Netzwerkfehler die Session abschließen, ohne dass die Buchung je YNAB erreicht. Gesendet
   wird nur, was geschrieben wurde; nach Erfolg verknüpft `EntryLinkedToYnab`. Ohne ein
   gespiegeltes Kassenbuch-Konto für das Import-Konto lehnt `Server.Api` mit einer
-  Fehlermeldung ab (Entscheidung konsistent mit Quick Add). Push-Fehler, YNAB-Duplikat-
-  Ablehnung oder eine nicht auswertbare Antwort lassen die Kassenbuch-Buchung unverändert
-  und unverknüpft stehen, kein Rollback. Scheitert das Kassenbuch-Schreiben selbst (z. B.
+  Fehlermeldung ab (Entscheidung konsistent mit Quick Add). Push-Fehler, YNAB-Duplikat-Ablehnung oder eine nicht auswertbare Antwort lassen
+  die Kassenbuch-Buchung unverknüpft stehen, kein Rollback; jede geschriebene oder
+  wiedergefundene, nicht verknüpfte Buchung des Versuchs bekommt ein
+  `EntryPushToYnabFailed` (Grund, Actor `ComdirectImport`), `AlreadyImported` keins. Scheitert das Kassenbuch-Schreiben selbst (z. B.
   eine Invariante von `apply`), bleibt das nicht still: `importToYnab` schließt die Session
   nicht ab und meldet den Fehler (`Ledger.CommandHandlers.summarizeLedgerWriteFailures`).
 - *BuchungÄndern* (v2) — Kategorie / Split / Memo in BB ändern, Push folgt.
@@ -342,6 +347,12 @@ fallen nicht in "Zu prüfen".
   anderen Urheber.
 - `CashExpenseAdded`: Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`), darf
   sofort eine Kategorie tragen.
+- `EntryPushToYnabFailed`: der Push der Buchung nach YNAB ist gescheitert (ADR 0021 Punkt
+  2, ledger-rynk5). Payload: `Reason`, ein kurzer lesbarer Satz mit der Fehlerart (bei
+  Limit und Zugang mit HTTP-Status). Schema-Version 1, Actor `ComdirectImport` bzw.
+  `QuickAdd`. Setzt `Entry.PushToYnabFailure` (Grund und Ereignis-Zeitstempel, ein zweiter
+  Fehlschlag ersetzt den ersten); `EntryLinkedToYnab` löst ihn auf, auch mit Actor
+  `YnabMirror`. Historien-Satz: "Push nach YNAB gescheitert: <Grund>".
 - `ValuationRecorded`: weiterhin reserviert, ohne Payload (Bewertung des
   Wertpapierkontos).
 
@@ -353,10 +364,10 @@ einen Verstoß laut ab.
 
 **Verknüpfung:** `EntryLinkedToYnab` (Payload: YNAB-Transaction-Id). Die YNAB-Id ist
 bekannt geworden, aus der Push-Antwort (Actor `ComdirectImport` bzw. `QuickAdd`) oder vom
-Spiegel über die ImportId (Actor `YnabMirror`, ADR 0021). Ändert `Entry` selbst nicht, nur
-die Fremd-Id-Verknüpfung (ADR 0015); ob ein Aufruf auf eine bereits verknüpfte Buchung ein
-Fehler oder still idempotent ist, entscheidet der Aufrufer (`appendAndApply`-Fassade), nicht
-`apply`.
+Spiegel über die ImportId (Actor `YnabMirror`, ADR 0021). Setzt `Entry.LinkedToYnab` und löst einen offenen `Entry.PushToYnabFailure` auf; die
+Verknüpfung selbst liegt in der Fremd-Id-Tabelle (ADR 0015). Ob ein Aufruf auf eine
+bereits verknüpfte Buchung ein Fehler oder still idempotent ist, entscheidet der Aufrufer
+(`appendAndApply`-Fassade), nicht `apply`.
 
 **Übertrags-Verknüpfung:** Die Buchung-zu-Buchung-Verknüpfung aus ADR 0015 entsteht
 nicht beim Entstehungs-Ereignis. `EntryObservedInYnab` trägt nur YNABs Fremd-Ids

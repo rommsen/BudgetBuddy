@@ -577,13 +577,33 @@ type CashExpenseInput = {
     Category: CategoryRef option
 }
 
+/// Der Grund für `EntryPushToYnabFailed` (ledger-rynk5): ein kurzer, lesbarer Satz mit
+/// der Fehlerart, bei Limit und Zugang mit dem HTTP-Status.
+let describePushFailure (error: YnabError) : string =
+    match error with
+    | YnabError.Unauthorized _ -> "YNAB hat den Zugang abgelehnt (HTTP 401)"
+    | YnabError.BudgetNotFound _ -> "Das Budget wurde in YNAB nicht gefunden (HTTP 404)"
+    | YnabError.AccountNotFound _ -> "Das Konto wurde in YNAB nicht gefunden (HTTP 404)"
+    | YnabError.CategoryNotFound _ -> "Die Kategorie wurde in YNAB nicht gefunden (HTTP 404)"
+    | YnabError.RateLimitExceeded seconds -> $"YNAB bremst gerade (HTTP 429, erneut in {seconds} Sekunden)"
+    | YnabError.NetworkError msg -> $"Netzwerkfehler: {msg}"
+    | YnabError.InvalidResponse msg -> $"YNAB hat die Buchung abgelehnt: {msg}"
+
+/// Der Grund, wenn YNAB den Versand beantwortet hat, die Buchung aber nicht in der
+/// Antwort angelegt war: nicht auswertbare Antwort, Duplikat oder sonst nicht angelegt.
+let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateResult) : string =
+    if result.ResponseUnparseable then "Die Antwort von YNAB war nicht auswertbar"
+    elif result.DuplicateImportIds |> List.contains importId then "YNAB hat die Buchung als Duplikat abgelehnt"
+    else "YNAB hat die Buchung nicht angelegt"
+
 /// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `QuickAdd`), ruft
 /// danach `push` auf und verknüpft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
 /// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts, die einzige Stelle,
 /// an der eine Quick-Add-Buchung ohne ImportId verknüpft werden kann (ADR 0004, ADR
 /// 0015). Scheitert der Push, bleibt die Kassenbuch-Buchung unverändert stehen, kein
 /// Rollback (ADR 0021, Punkt 2); der Fehler wird durchgereicht, die Buchung bleibt ohne
-/// YNAB-Verknüpfung bis zu einem erneuten Push oder dem nächsten Spiegel-Lauf.
+/// YNAB-Verknüpfung bis zu einem erneuten Push oder dem nächsten Spiegel-Lauf. Der
+/// Fehlschlag steht danach als `EntryPushToYnabFailed` mit Grund im Log (ledger-rynk5).
 ///
 /// Nach erfolgreichem Push stößt `triggerMirror` den Spiegel an (ADR 0014 Punkt 2):
 /// erst wenn `EntryLinkedToYnab` geschrieben ist, nie davor (Task-Nachtrag, ADR 0021),
@@ -634,6 +654,15 @@ let addCashExpense
             triggerMirror ()
             return Ok entryId
         | Error err ->
+            do!
+                Ledger.Persistence.appendAndApply [
+                    {
+                        EntryId = entryId
+                        OccurredAt = now
+                        Actor = QuickAdd
+                        Body = EntryPushToYnabFailed { Reason = describePushFailure err }
+                    }
+                ]
             return Error err
     }
 
@@ -844,6 +873,28 @@ let pushComdirectImports
                                     OccurredAt = now
                                     Actor = ComdirectImport
                                     Body = EntryLinkedToYnab { YnabTransactionId = ynabId }
+                                }
+                            ]
+                        return txId, outcome
+                    | WrittenNotLinked entryId ->
+                        // Gescheiterter Versand: Grund und Zeit im Log festhalten, die Buchung
+                        // bleibt unverknüpft stehen (ADR 0021 Punkt 2, ledger-rynk5).
+                        let reason =
+                            match sendResult with
+                            | Error err -> describePushFailure err
+                            | Ok result ->
+                                let importId =
+                                    Map.tryFind txId preparedByTxId
+                                    |> Option.map (fun p -> p.ImportId)
+                                    |> Option.defaultValue ""
+                                describeNotCreatedReason importId result
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                {
+                                    EntryId = entryId
+                                    OccurredAt = now
+                                    Actor = ComdirectImport
+                                    Body = EntryPushToYnabFailed { Reason = reason }
                                 }
                             ]
                         return txId, outcome

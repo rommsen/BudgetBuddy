@@ -845,6 +845,12 @@ type LedgerAccountsView = {
     DefaultAccountId: Guid option
 }
 
+/// Ein gescheiterter Push nach YNAB: lesbarer Grund und Zeitpunkt (UTC) des Ereignisses.
+type LedgerPushFailure = {
+    Reason: string
+    FailedAt: DateTime
+}
+
 /// Eine Buchung, wie die Kassenbuch-Seite sie zeigt.
 type LedgerEntryView = {
     Id: Guid
@@ -883,6 +889,13 @@ type LedgerEntryView = {
     /// diesem Grund und "Erneut senden". `None`, wenn nichts offen ist. Ändert die
     /// Zählung von "Zu prüfen" nicht.
     ReviewMarkWriteBackFailure: string option
+    /// Die Buchung trägt eine YNAB-Verknüpfung: vom Spiegel gesehene Buchungen immer,
+    /// BB-geführte (Comdirect-Import, Quick Add) nach `EntryLinkedToYnab` (ADR 0021).
+    LinkedToYnab: bool
+    /// Der offene Fehlschlag des Push nach YNAB mit Grund und Zeitpunkt (ADR 0021,
+    /// Punkt 2, Nachtrag ledger-rynk5). `None`, wenn nichts offen ist; die Verknüpfung
+    /// mit YNAB löst ihn auf.
+    PushToYnabFailure: LedgerPushFailure option
 }
 
 // ============================================

@@ -46,6 +46,8 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     Flag: "NoFlag",
     IsTransfer: false,
     ReviewMarkWriteBackFailure: null,
+    LinkedToYnab: false,
+    PushToYnabFailure: null,
     ...overrides,
   };
 }

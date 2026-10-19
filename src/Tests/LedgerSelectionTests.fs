@@ -29,6 +29,8 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     Flag = NoFlag
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
+    LinkedToYnab = false
+    PushToYnabFailure = None
 }
 
 /// Zeile n mit dem Betrag -10 * n.

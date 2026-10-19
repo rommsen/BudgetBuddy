@@ -4,6 +4,29 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 22:00 - Push-Fehlschlag als Ereignis
+
+**What I did:**
+EntryPushToYnabFailed eingeführt, im Push-Weg (Comdirect, Quick Add) geschrieben, in Entry, Persistenz, Lesemodell und Historie abgebildet. Iteration 2: README_DELTA und README-Handstellen nachgeliefert, Migrationstest für den zweiten Lauf.
+
+**Files Added:**
+- `src/Tests/LedgerPushFailureTests.fs` - Tests für Codec, apply, Replay, Lesemodell, Historie, Befehle, Migration (auch zweiter Lauf)
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - LedgerPushFailure, zwei Felder an LedgerEntryView
+- `src/Server/Ledger/Events.fs`, `Domain.fs`, `Persistence.fs`, `CommandHandlers.fs`, `QueryHandlers.fs` - Ereignis, Zustand, Spalten samt Backfill, Gründe, Historie
+- `src/Tests/*.fs`, `Tests.fsproj`, `scripts/*.mjs` - Fixtures ergänzt, drei Ereigniserwartungen angepasst
+
+**Rationale:**
+Das Buchungs-Detail (ledger-q1hw2) soll Grund und Zeitpunkt eines gescheiterten Push zeigen.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1495 grün, test:scripts 137/137 (Iteration 1)
+- Issues: keine
+
+---
+
 ## 2026-10-19 22:10 - Taste G und Tastaturfokus in der Kassenbuch-Liste (ledger-rjb8w)
 
 **What I did:**
