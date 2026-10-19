@@ -57,15 +57,14 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
             prop.text "Abbrechen"
             prop.onClick (fun _ -> dispatch CloseInlineRuleForm)
         ]
-        Html.button [
-            prop.className "btn-import"
-            prop.disabled (formState.IsSaving || System.String.IsNullOrWhiteSpace formState.Pattern)
-            prop.onClick (fun _ -> dispatch SaveInlineRule)
-            prop.children [
-                Html.span [ prop.text (if formState.IsSaving then "Speichern\u2026" else "Regel erstellen") ]
-                Html.span [ prop.className "btn-import-icon"; prop.text "\u2192" ]
-            ]
-        ]
+        Button.view {
+            Button.defaultProps with
+                Text = (if formState.IsSaving then "Speichern\u2026" else "Regel erstellen")
+                Variant = Button.Primary
+                IsDisabled = (formState.IsSaving || System.String.IsNullOrWhiteSpace formState.Pattern)
+                ClassName = Some "flex-1"
+                OnClick = fun () -> dispatch SaveInlineRule
+        }
     ]
 
     BottomSheet.view

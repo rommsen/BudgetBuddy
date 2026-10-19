@@ -16,6 +16,18 @@ open Components.SyncFlow.Types
 open Shared.Domain
 open Client.DesignSystem
 
+/// Betrag im Aufteilen-Kopf und in der Restzeile (ADR 0049): neutral, Mono, 500.
+/// `warn` färbt nur den Text rot (Speichern ist wegen eines Rests gesperrt).
+let splitAmountClass (warn: bool) : string =
+    let color = if warn then "text-neon-red" else "text-text-primary"
+    $"font-mono font-medium tabular-nums whitespace-nowrap {color}"
+
+let private splitAmount (warn: bool) (amount: decimal) (currency: string) =
+    Html.span [
+        prop.className (splitAmountClass warn)
+        prop.text (Money.formatAmountText false true amount currency)
+    ]
+
 /// Human label for a draft line's target (or a prompt to choose one).
 let private targetLabel (line: SplitDraftLine) : string =
     match line.Target with
@@ -173,7 +185,7 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
                             prop.className "split-total"
                             prop.children [
                                 Html.span [ prop.className "split-total-label"; prop.text "Gesamt" ]
-                                Money.simple state.Total.Amount state.Currency
+                                splitAmount false state.Total.Amount state.Currency
                             ]
                         ]
 
@@ -196,13 +208,13 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
                         // Live remainder preview: the still-unallocated magnitude
                         // (0 = balanced). Tap a line's "Rest" button to fill it.
                         Html.div [
-                            prop.className (if balanced then "split-remainder balanced" else "split-remainder")
+                            prop.className "split-remainder"
                             prop.children [
                                 Html.span [
                                     prop.className "split-remainder-label"
                                     prop.text (if balanced then "Stimmt" else "Rest")
                                 ]
-                                Money.simple remainder state.Currency
+                                splitAmount (not balanced && not saveEnabled) remainder state.Currency
                             ]
                         ]
                 ]

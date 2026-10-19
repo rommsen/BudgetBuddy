@@ -81,7 +81,7 @@ Interactive"*).
 ### Ruhige Listen (ADR 0049)
 
 Gilt für Listen und Tabellen mit wiederkehrenden Zeilen (Kassenbuch, Import, Regeln).
-Vorbild ist die Ansicht „Import prüfen“. In jeder Zeile ist Farbe ein Signal, keine
+Vorbilder sind das Kassenbuch und der Abschnitt 8a in `/styleguide`. In jeder Zeile ist Farbe ein Signal, keine
 Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zustand.
 
 | Element | PC | Handy |

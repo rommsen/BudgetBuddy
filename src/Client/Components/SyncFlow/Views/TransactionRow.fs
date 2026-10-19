@@ -12,9 +12,6 @@ open Components.SyncFlow.Views.ViewHelpers
 // Helper Functions
 // ============================================
 
-let formatDateCompact (date: System.DateTime) =
-    date.ToString("dd.MM")
-
 let categoryText (categoryId: YnabCategoryId option) (categoryOptions: (string * string) list) =
     match categoryId with
     | Some (YnabCategoryId id) ->
@@ -40,9 +37,11 @@ let getRowStateClasses (tx: SyncTransaction) =
             | None, Imported -> "tx-row status-ready"
             | _ -> "tx-row status-attention"
 
+/// Kategorie-Chip (ADR 0049): leise und neutral, nur "ohne Kategorie" ist ein offener
+/// Fall und bleibt Orange. Die Zeile meldet ihren Zustand über die Statuskante.
 let getCategoryBadgeClass (tx: SyncTransaction) =
     if tx.Status = Skipped then
-        "tx-category badge-ready"
+        "tx-category badge-neutral"
     else
         match tx.DuplicateStatus with
         | ConfirmedDuplicate (_, _) | PossibleDuplicate (_, _) -> "tx-category badge-duplicate"
@@ -51,10 +50,10 @@ let getCategoryBadgeClass (tx: SyncTransaction) =
             // category), so it gets the ready badge — not the orange "attention"
             // badge that an uncategorized transaction shows (ynab-004).
             match tx.Splits with
-            | Some splits when not (List.isEmpty splits) -> "tx-category badge-ready"
+            | Some splits when not (List.isEmpty splits) -> "tx-category badge-neutral"
             | _ ->
                 match tx.CategoryId with
-                | Some _ -> "tx-category badge-ready"
+                | Some _ -> "tx-category badge-neutral"
                 | None -> "tx-category badge-attention"
 
 /// The label shown in a transaction's category chip. A split transaction (Splits
@@ -72,24 +71,6 @@ let categoryChipLabel (categoryOptions: (string * string) list) (tx: SyncTransac
             match tx.CategoryId with
             | Some _ -> categoryText tx.CategoryId categoryOptions
             | None -> "Kategorie…"
-
-let private formatAmountForRow (amount: decimal) (currency: string) =
-    let absAmount = abs amount
-    let formattedAmount = System.Math.Round(float absAmount, 2).ToString("0.00")
-    let signPrefix = if amount < 0m then "\u2212" else "+"
-    let currSymbol =
-        match currency with
-        | "EUR" -> "\u20AC"
-        | "USD" -> "$"
-        | "GBP" -> "\u00A3"
-        | c -> c
-    let amountClass =
-        if amount >= 0m then "tx-amount positive"
-        else "tx-amount"
-    Html.span [
-        prop.className amountClass
-        prop.text $"{signPrefix}{formattedAmount} {currSymbol}"
-    ]
 
 // ============================================
 // Expanded Content
@@ -232,7 +213,6 @@ let transactionRow (props: TransactionRowProps) =
         | Some p -> p
         | None -> originalPayee
     let displayPayeeTitleCase = titleCasePayee displayPayee
-    let dateStr = formatDateCompact tx.Transaction.BookingDate
     let isExpanded = expandedIds.Contains tx.Transaction.Id
     let hasExpandableContent = not (System.String.IsNullOrWhiteSpace tx.Transaction.Memo)
 
@@ -282,7 +262,12 @@ let transactionRow (props: TransactionRowProps) =
                                 prop.className "tx-payee"
                                 prop.text (if displayPayeeTitleCase = "" then "\u2014" else displayPayeeTitleCase)
                             ]
-                            formatAmountForRow tx.Transaction.Amount.Amount tx.Transaction.Amount.Currency
+                            Html.span [
+                                prop.className "tx-amount"
+                                prop.children [
+                                    Money.listAmount tx.Transaction.Amount.Amount tx.Transaction.Amount.Currency
+                                ]
+                            ]
                         ]
                     ]
 
@@ -329,11 +314,6 @@ let transactionRow (props: TransactionRowProps) =
                                     prop.children [ Icons.externalLink Icons.XS Icons.Default ]
                                 ]
                             | None -> ()
-
-                            Html.span [
-                                prop.className "tx-date"
-                                prop.text dateStr
-                            ]
 
                             Html.span [
                                 prop.className "tx-chevron"

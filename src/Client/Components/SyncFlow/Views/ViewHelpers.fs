@@ -3,6 +3,7 @@ module Components.SyncFlow.Views.ViewHelpers
 open System
 open Shared.Domain
 open Components.SyncFlow.Types
+open Client.DesignSystem
 
 /// Counts for the bottom action bar
 type ImportCounts = {
@@ -95,3 +96,18 @@ let calculateProgressSegments (counts: ImportCounts) : ProgressSegments =
 let sumDailyMilliunits (transactions: SyncTransaction list) : int64 =
     transactions
     |> List.sumBy (fun tx -> int64 (tx.Transaction.Amount.Amount * 1000m))
+
+/// Datumskopf einer Gruppe: "Heute", "Gestern", sonst rein numerisch "10.10.2026"
+/// (ADR 0049, wie im Kassenbuch; bewusst ohne Monatsnamen). Die Uhrzeit zählt nicht.
+let formatGroupDate (today: DateTime) (d: DateTime) : string =
+    let day = d.Date
+    let t = today.Date
+    if day = t then "Heute"
+    elif day = t.AddDays(-1.0) then "Gestern"
+    else
+        let two (n: int) = if n < 10 then "0" + string n else string n
+        two day.Day + "." + two day.Month + "." + string day.Year
+
+/// Tagessumme im Gruppenkopf: deutsche Zahl, Vorzeichen nur bei positiven Summen mit "+".
+let formatGroupTotal (total: decimal) : string =
+    Money.formatAmountText (total > 0m) true total "EUR"

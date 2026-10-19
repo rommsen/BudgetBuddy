@@ -101,15 +101,14 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     prop.className "top-action-bar-count"
                                     prop.text (sprintf "%d/%d importieren" counts.ToImport counts.Total)
                                 ]
-                                Html.button [
-                                    prop.className (if counts.NeedCategory = 0 then "btn-import-sm ready" else "btn-import-sm")
-                                    prop.disabled (counts.ToImport = 0)
-                                    prop.onClick (fun _ -> dispatch ImportToYnab)
-                                    prop.children [
-                                        Html.span [ prop.text "Importieren" ]
-                                        Html.span [ prop.className "btn-import-icon"; prop.text "\u2191" ]
-                                    ]
-                                ]
+                                Button.view {
+                                    Button.defaultProps with
+                                        Text = "Importieren"
+                                        Variant = Button.Primary
+                                        Size = Button.Small
+                                        IsDisabled = (counts.ToImport = 0)
+                                        OnClick = fun () -> dispatch ImportToYnab
+                                }
                             ]
                         ]
                         Html.div [
@@ -216,13 +215,12 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                             prop.className "date-header"
                                             prop.children [
                                                 Html.span [
-                                                    prop.text (date.ToString("dd. MMMM yyyy", System.Globalization.CultureInfo("de-DE")))
+                                                    prop.text (ViewHelpers.formatGroupDate System.DateTime.Now date)
                                                 ]
                                                 Html.span [
                                                     prop.className "date-total"
                                                     let total = ViewHelpers.sumDailyMilliunits txGroup
-                                                    let totalDecimal = decimal total / 1000m
-                                                    prop.text (sprintf "%s \u20AC" (totalDecimal.ToString("N2", System.Globalization.CultureInfo("de-DE"))))
+                                                    prop.text (ViewHelpers.formatGroupTotal (decimal total / 1000m))
                                                 ]
                                             ]
                                         ]
@@ -294,15 +292,13 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                     prop.text "Abbrechen"
                                     prop.onClick (fun _ -> dispatch CancelSync)
                                 ]
-                                Html.button [
-                                    prop.className (if counts.NeedCategory = 0 then "btn-import ready" else "btn-import")
-                                    prop.disabled (counts.ToImport = 0)
-                                    prop.onClick (fun _ -> dispatch ImportToYnab)
-                                    prop.children [
-                                        Html.span [ prop.text "Importieren" ]
-                                        Html.span [ prop.className "btn-import-icon"; prop.text "\u2191" ]
-                                    ]
-                                ]
+                                Button.view {
+                                    Button.defaultProps with
+                                        Text = "Importieren"
+                                        Variant = Button.Primary
+                                        IsDisabled = (counts.ToImport = 0)
+                                        OnClick = fun () -> dispatch ImportToYnab
+                                }
                             ]
                         ]
                     ]

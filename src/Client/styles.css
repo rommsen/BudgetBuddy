@@ -1210,19 +1210,24 @@ nav a:focus-visible {
   justify-content: space-between;
   align-items: center;
   padding: 10px 20px;
-  font-size: 12px;
+  /* ListRoles.groupHeader (ADR 0049): Mono 10px, gesperrt, gedämpft */
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-weight: 600;
-  color: var(--sf-text-secondary);
+  color: var(--sf-text-muted);
   background: rgba(8, 8, 26, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.16em;
 }
+/* ListRoles.date: Mono 12px, normal, gedämpft */
 .date-total {
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--sf-text-muted);
 }
 
@@ -1303,21 +1308,19 @@ nav a:focus-visible {
   gap: 12px;
 }
 .tx-payee {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
+  color: var(--sf-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
+/* Betrag: Schrift und Farbe kommen aus Money.listAmount (ADR 0049) */
 .tx-amount {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
 }
-.tx-amount.positive { color: var(--color-neon-teal); }
 
 /* Line 2: category badge + date + toggle */
 .tx-line2 {
@@ -1342,9 +1345,12 @@ nav a:focus-visible {
 }
 .tx-category:active { transform: scale(0.95); }
 
-.badge-ready {
-  background: var(--sf-neon-teal-dim);
-  color: var(--color-neon-teal);
+/* Leiser Chip ohne Fläche (ADR 0049): Kategorie in text-secondary */
+.badge-neutral {
+  background: transparent;
+  color: var(--sf-text-secondary);
+  font-size: 12px;
+  padding-left: 0;
 }
 .badge-attention {
   background: var(--sf-neon-orange-dim);
@@ -1363,11 +1369,6 @@ nav a:focus-visible {
   color: var(--sf-text-muted);
   padding: 2px;
   flex-shrink: 0;
-}
-.tx-date {
-  font-size: 11px;
-  color: var(--sf-text-muted);
-  flex: 1;
 }
 
 /* ============================================================
@@ -1414,9 +1415,11 @@ nav a:focus-visible {
   transition: opacity var(--sf-duration-fast) var(--sf-ease-out-cubic),
               transform var(--sf-duration-fast) var(--sf-ease-out-quint);
 }
+/* Neutral (ADR 0049): den Zustand meldet die Statuskante, nicht die Checkbox */
 .tx-toggle input:checked + .toggle-track {
-  background: var(--color-neon-teal);
-  border-color: var(--color-neon-teal);
+  background: var(--sf-text-secondary);
+  border-color: var(--sf-text-secondary);
+  color: var(--sf-bg-card);
 }
 .tx-toggle input:checked + .toggle-track .toggle-check {
   transform: scale(1);
@@ -1442,7 +1445,7 @@ nav a:focus-visible {
   text-decoration: line-through;
   text-decoration-color: var(--sf-text-muted);
 }
-.tx-row.status-skipped .tx-amount {
+.tx-row.status-skipped .tx-amount span {
   color: var(--sf-text-muted);
 }
 .tx-row.status-skipped .tx-category {
@@ -1574,41 +1577,6 @@ nav a:focus-visible {
   cursor: pointer;
 }
 .btn-cancel:active { transform: scale(0.97); background: var(--sf-bg-hover); }
-
-.btn-import {
-  flex: 1;
-  padding: 12px 20px;
-  border-radius: var(--sf-radius-md);
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 600;
-  color: #08081a;
-  background: linear-gradient(135deg, var(--color-neon-teal), var(--color-neon-green));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: all var(--sf-duration-fast) ease;
-  box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25);
-  cursor: pointer;
-  border: none;
-}
-.btn-import:active { transform: scale(0.97); }
-.btn-import.ready {
-  background-size: 200% 100%;
-  animation: sfGlowPulse 3s ease-in-out infinite;
-}
-
-@keyframes importReady {
-  0%, 100% { box-shadow: 0 4px 20px rgba(0, 212, 170, 0.25); }
-  50% { box-shadow: 0 4px 30px rgba(0, 212, 170, 0.45); }
-}
-
-.btn-import-icon {
-  font-size: 16px;
-  transition: transform var(--sf-duration-base) var(--sf-ease-out-cubic);
-}
-.btn-import:active .btn-import-icon { transform: translateY(-1px); }
 
 /* ============================================================
    SF 13. BOTTOM SHEET (Category Picker)
@@ -1941,11 +1909,6 @@ nav a:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes sfGlowPulse {
-  0%, 100% { box-shadow: 0 4px 25px rgba(0, 212, 170, 0.25); }
-  50%      { box-shadow: 0 6px 40px rgba(0, 212, 170, 0.45); }
-}
-
 @keyframes sfProgressShimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -1987,15 +1950,11 @@ nav a:focus-visible {
 .rule-row:nth-child(10) { animation-delay: 300ms; }
 
 /* --- Button press feedback --- */
-.btn-import,
-.btn-import-sm,
 .btn-cancel,
 .filter-btn {
   will-change: transform;
 }
 
-.btn-import:active,
-.btn-import-sm:active,
 .btn-cancel:active,
 .filter-btn:active {
   transform: scale(0.97);
@@ -2016,6 +1975,9 @@ nav a:focus-visible {
 /* Date header top offset for desktop (taller nav + sticky filters) */
 @media (min-width: 768px) {
   .date-header { top: 116px; }
+}
+@media (min-width: 768px) {
+  .tx-payee { font-size: 14px; }
 }
 
 /* ============================================================
@@ -2386,28 +2348,6 @@ nav a:focus-visible {
   color: var(--sf-text-secondary);
 }
 
-.btn-import-sm {
-  padding: 7px 14px;
-  border-radius: var(--sf-radius-md);
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
-  color: #08081a;
-  background: linear-gradient(135deg, var(--color-neon-teal), var(--color-neon-green));
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  cursor: pointer;
-  transition: all 150ms ease;
-  box-shadow: 0 2px 12px rgba(0, 212, 170, 0.2);
-}
-.btn-import-sm:active { transform: scale(0.97); }
-.btn-import-sm.ready {
-  background-size: 200% 100%;
-  animation: sfGlowPulse 3s ease-in-out infinite;
-}
-
 .top-action-bar-bulk {
   display: flex;
   align-items: center;
@@ -2751,13 +2691,9 @@ nav a:focus-visible {
   margin-top: 16px;
   padding: 12px 14px;
   border-radius: var(--sf-radius-md);
-  background: rgba(255, 59, 92, 0.10);
-  border: 1px solid rgba(255, 59, 92, 0.28);
-}
-.split-remainder.balanced {
-  /* neon-green (#00ff88) at low alpha — the success/balanced semantic */
-  background: rgba(0, 255, 136, 0.10);
-  border-color: rgba(0, 255, 136, 0.30);
+  /* Neutraler Rahmen (ADR 0049): nur die Beschriftung wechselt "Rest"/"Stimmt" */
+  background: transparent;
+  border: 1px solid var(--sf-border);
 }
 .split-remainder-label {
   font-size: 11px;

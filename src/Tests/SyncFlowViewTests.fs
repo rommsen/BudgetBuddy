@@ -6,6 +6,7 @@ open Shared.Domain
 open Components.SyncFlow.Types
 open Components.SyncFlow.Views.TransactionRow
 open Components.SyncFlow.Views.TransactionList
+open Components.SyncFlow.Views
 
 // ============================================
 // Test Helpers
@@ -65,28 +66,6 @@ let private mkSimpleTx id date amount payee status categoryId =
 [<Tests>]
 let existingFunctionTests =
     testList "SyncFlow View - Regression" [
-
-        testList "formatDateCompact" [
-            testCase "formats date as dd.MM" <| fun () ->
-                let date = DateTime(2025, 3, 15)
-                let result = formatDateCompact date
-                Expect.equal result "15.03" "Should format as day.month"
-
-            testCase "pads single-digit day and month with leading zero" <| fun () ->
-                let date = DateTime(2025, 1, 5)
-                let result = formatDateCompact date
-                Expect.equal result "05.01" "Should pad single digits"
-
-            testCase "formats December 31st correctly" <| fun () ->
-                let date = DateTime(2025, 12, 31)
-                let result = formatDateCompact date
-                Expect.equal result "31.12" "Should handle end of year"
-
-            testCase "formats January 1st correctly" <| fun () ->
-                let date = DateTime(2026, 1, 1)
-                let result = formatDateCompact date
-                Expect.equal result "01.01" "Should handle start of year"
-        ]
 
         testList "categoryText" [
             testCase "returns category name when id matches" <| fun () ->
@@ -177,45 +156,44 @@ let existingFunctionTests =
         ]
 
         testList "getCategoryBadgeClass" [
-            testCase "Skipped transaction returns badge-ready" <| fun () ->
-                let tx = mkTransaction "tx1" DateTime.Now -10.0m (Some "Shop") "" Skipped None
-                            (NotDuplicate defaultDuplicateDetails)
-                let result = getCategoryBadgeClass tx
-                Expect.equal result "tx-category badge-ready" "Skipped should return badge-ready"
+            // ADR 0049: nur "ohne Kategorie" ist ein offener Fall und bleibt Orange.
+            // Alle anderen Chips sind neutral, ohne Teal-Fläche (ynab-sync-aj5tv).
+            let neutral (cls: string) =
+                Expect.equal cls "tx-category badge-neutral" "neutraler Chip"
+                Expect.isFalse (cls.Contains "badge-ready") "kein badge-ready"
+                Expect.isFalse (cls.Contains "teal") "keine Teal-Klasse"
+                Expect.isFalse (cls.Contains "badge-attention") "kein Orange"
 
-            testCase "ConfirmedDuplicate non-skipped returns badge-duplicate" <| fun () ->
-                let tx = mkTransaction "tx2" DateTime.Now -10.0m (Some "Shop") "" Pending None
-                            (ConfirmedDuplicate ("ref", defaultDuplicateDetails))
-                let result = getCategoryBadgeClass tx
-                Expect.equal result "tx-category badge-duplicate" "ConfirmedDuplicate should return badge-duplicate"
-
-            testCase "PossibleDuplicate non-skipped returns badge-duplicate" <| fun () ->
-                let tx = mkTransaction "tx3" DateTime.Now -10.0m (Some "Shop") "" Pending None
-                            (PossibleDuplicate ("fuzzy", defaultDuplicateDetails))
-                let result = getCategoryBadgeClass tx
-                Expect.equal result "tx-category badge-duplicate" "PossibleDuplicate should return badge-duplicate"
-
-            testCase "NotDuplicate with CategoryId returns badge-ready" <| fun () ->
+            testCase "Kategorie gesetzt: neutral" <| fun () ->
                 let catId = Some (YnabCategoryId (Guid.NewGuid()))
                 let tx = mkTransaction "tx4" DateTime.Now -10.0m (Some "Shop") "" Pending catId
                             (NotDuplicate defaultDuplicateDetails)
-                let result = getCategoryBadgeClass tx
-                Expect.equal result "tx-category badge-ready" "NotDuplicate with category should return badge-ready"
+                neutral (getCategoryBadgeClass tx)
 
-            testCase "NotDuplicate without CategoryId returns badge-attention" <| fun () ->
-                let tx = mkTransaction "tx5" DateTime.Now -10.0m (Some "Shop") "" Pending None
-                            (NotDuplicate defaultDuplicateDetails)
-                let result = getCategoryBadgeClass tx
-                Expect.equal result "tx-category badge-attention" "NotDuplicate without category should return badge-attention"
-
-            testCase "split transaction (no single category) returns badge-ready, not attention" <| fun () ->
-                // Regression (ynab-004): a saved split has CategoryId=None but is a
-                // completed state — it must NOT show the orange uncategorized badge.
+            testCase "aufgeteilt: neutral, nicht Orange (ynab-004)" <| fun () ->
+                // Regression (ynab-004): ein gespeicherter Split hat CategoryId=None,
+                // ist aber erledigt und darf nicht das orange "ohne Kategorie" zeigen.
                 let splits =
                     [ { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Essen"); Amount = { Amount = -21.15m; Currency = "EUR" }; Memo = None }
                       { Target = ToTransfer (YnabAccountId (Guid.NewGuid()), "Bargeld"); Amount = { Amount = -200.00m; Currency = "EUR" }; Memo = None } ]
                 let tx = { mkTransaction "tx6" DateTime.Now -221.15m (Some "REWE") "" ManualCategorized None (NotDuplicate defaultDuplicateDetails) with Splits = Some splits }
-                Expect.equal (getCategoryBadgeClass tx) "tx-category badge-ready" "A split is a ready state, not attention"
+                neutral (getCategoryBadgeClass tx)
+
+            testCase "übersprungen: neutral" <| fun () ->
+                let tx = mkTransaction "tx1" DateTime.Now -10.0m (Some "Shop") "" Skipped None
+                            (NotDuplicate defaultDuplicateDetails)
+                neutral (getCategoryBadgeClass tx)
+
+            testCase "Duplikat (bestätigt und möglich): badge-duplicate" <| fun () ->
+                let confirmed = mkTransaction "tx2" DateTime.Now -10.0m (Some "Shop") "" Pending None (ConfirmedDuplicate ("ref", defaultDuplicateDetails))
+                let possible = mkTransaction "tx3" DateTime.Now -10.0m (Some "Shop") "" Pending None (PossibleDuplicate ("fuzzy", defaultDuplicateDetails))
+                Expect.equal (getCategoryBadgeClass confirmed) "tx-category badge-duplicate" "bestätigt"
+                Expect.equal (getCategoryBadgeClass possible) "tx-category badge-duplicate" "möglich"
+
+            testCase "ohne Kategorie: als einziger Fall badge-attention" <| fun () ->
+                let tx = mkTransaction "tx5" DateTime.Now -10.0m (Some "Shop") "" Pending None
+                            (NotDuplicate defaultDuplicateDetails)
+                Expect.equal (getCategoryBadgeClass tx) "tx-category badge-attention" "offener Fall bleibt Orange"
         ]
 
         testList "categoryChipLabel" [
@@ -503,5 +481,118 @@ let newFunctionTests =
                 let result = sumDailyMilliunits txs
                 // 100000 + -30500 + -20250 = 49250 milliunits
                 Expect.equal result 49250L "Should correctly sum mixed positive and negative amounts"
+        ]
+    ]
+
+// ============================================
+// Import prüfen, ruhige Liste (ynab-sync-aj5tv, ADR 0049)
+// ============================================
+
+module private Quelltext =
+    let root =
+        IO.Directory.GetParent(IO.Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
+    let read (parts: string list) =
+        IO.File.ReadAllText(IO.Path.Combine(root :: parts |> List.toArray))
+    let client (parts: string list) = read ("src" :: "Client" :: parts)
+    let views (file: string) = client [ "Components"; "SyncFlow"; "Views"; file ]
+    let css () = client [ "styles.css" ]
+
+    /// Der Textblock einer CSS-Regel ab dem Selektor bis zur schließenden Klammer.
+    let cssRule (selector: string) =
+        let css = css ()
+        let i = css.IndexOf(selector + " {")
+        if i < 0 then "" else css.Substring(i, css.IndexOf('}', i) - i)
+
+[<Tests>]
+let ruhigeListeTests =
+    testList "Import prüfen, ruhige Liste (ADR 0049)" [
+
+        testList "formatGroupDate" [
+            let today = DateTime(2026, 10, 19, 15, 30, 0)
+            testCase "gleicher Tag: Heute" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupDate today (DateTime(2026, 10, 19))) "Heute" "Heute"
+            testCase "Datum mit Uhrzeit zählt als dieser Tag" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupDate today (DateTime(2026, 10, 19, 23, 59, 0))) "Heute" "Uhrzeit egal"
+                Expect.equal (ViewHelpers.formatGroupDate (DateTime(2026, 10, 19, 0, 1, 0)) (DateTime(2026, 10, 18, 23, 59, 0))) "Gestern" "Vortag spät"
+            testCase "Vortag: Gestern" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupDate today (DateTime(2026, 10, 18))) "Gestern" "Gestern"
+            testCase "älter: TT.MM.JJJJ" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupDate today (DateTime(2026, 10, 10))) "10.10.2026" "numerisch"
+                Expect.equal (ViewHelpers.formatGroupDate today (DateTime(2026, 3, 5))) "05.03.2026" "mit führender Null"
+            testCase "Jahreswechsel: der 01.01. ist am 02.01. Gestern" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupDate (DateTime(2027, 1, 2)) (DateTime(2027, 1, 1))) "Gestern" "Gestern über den Jahreswechsel"
+                Expect.equal (ViewHelpers.formatGroupDate (DateTime(2027, 1, 1)) (DateTime(2026, 12, 31))) "Gestern" "31.12. am 01.01."
+            testCase "kein Monatsname in der Ausgabe" <| fun () ->
+                let monate = [ "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"; "Juli"; "August"; "September"; "Oktober"; "November"; "Dezember" ]
+                for m in 1 .. 12 do
+                    let out = ViewHelpers.formatGroupDate today (DateTime(2025, m, 15))
+                    for name in monate do
+                        Expect.isFalse (out.ToUpperInvariant().Contains(name.ToUpperInvariant())) out
+        ]
+
+        testList "formatGroupTotal" [
+            testCase "Ausgabe: -116,00 €" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupTotal -116.00m) "-116,00 €" "negativ"
+            testCase "Eingang: +3.113,30 €" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupTotal 3113.30m) "+3.113,30 €" "positiv mit Tausenderpunkt"
+            testCase "null ohne Plus" <| fun () ->
+                Expect.equal (ViewHelpers.formatGroupTotal 0m) "0,00 €" "null"
+        ]
+
+        testList "Quelltext-Zusicherungen" [
+            testCase "TransactionList: keine N2/MMMM, keine alten Knopfklassen" <| fun () ->
+                let src = Quelltext.views "TransactionList.fs"
+                Expect.isFalse (src.Contains "\"N2\"") "kein N2"
+                Expect.isFalse (src.Contains "MMMM") "kein MMMM"
+                Expect.isFalse (src.Contains "btn-import") "kein btn-import"
+            testCase "TransactionRow: Betrag über Money.listAmount, keine Altlasten" <| fun () ->
+                let src = Quelltext.views "TransactionRow.fs"
+                Expect.isTrue (src.Contains "Money.listAmount") "listAmount"
+                Expect.isFalse (src.Contains "formatAmountForRow") "formatAmountForRow weg"
+                Expect.isFalse (src.Contains "ToString(\"0.00\")") "kein 0.00"
+                Expect.isFalse (src.Contains "tx-date") "kein tx-date"
+                Expect.isFalse (src.Contains "formatDateCompact") "kein formatDateCompact"
+            testCase "badge-ready kommt weder in styles.css noch im F#-Code vor" <| fun () ->
+                Expect.isFalse ((Quelltext.css ()).Contains "badge-ready") "styles.css"
+                for f in [ "TransactionRow.fs"; "TransactionList.fs"; "SplitSheet.fs"; "InlineRuleForm.fs"; "StatusViews.fs" ] do
+                    Expect.isFalse ((Quelltext.views f).Contains "badge-ready") f
+            testCase "styles.css: Checkbox, Rest-Zeile, tx-date, Glow-Knöpfe" <| fun () ->
+                let css = Quelltext.css ()
+                Expect.isFalse ((Quelltext.cssRule ".tx-toggle input:checked + .toggle-track").Contains "neon-teal") "Checkbox neutral"
+                for sel in [ ".split-remainder"; ".split-remainder.balanced" ] do
+                    let rule = Quelltext.cssRule sel
+                    Expect.isFalse (rule.Contains "rgba(255, 59, 92") (sel + " ohne Rot")
+                    Expect.isFalse (rule.Contains "rgba(0, 255, 136") (sel + " ohne Grün")
+                Expect.isFalse (css.Contains ".tx-date") "tx-date raus"
+                Expect.isFalse (css.Contains ".btn-import") "btn-import raus"
+                Expect.isFalse (css.Contains "sfGlowPulse") "keine Glow-Animation"
+            testCase "View.fs: Import-Seite nutzt pageContentFull" <| fun () ->
+                let src = Quelltext.client [ "View.fs" ]
+                let a = src.IndexOf "let pageShell"
+                let shell = src.Substring(a, 300)
+                Expect.isTrue (shell.Contains "SyncFlow -> Navigation.pageContentFull") shell
+            testCase "Beide Importieren-Knöpfe sind Button.Primary" <| fun () ->
+                let src = Quelltext.views "TransactionList.fs"
+                let count = src.Split("Text = \"Importieren\"").Length - 1
+                Expect.equal count 2 "zwei Knöpfe"
+                Expect.equal (src.Split("Variant = Button.Primary").Length - 1) 2 "beide Primary"
+            testCase "SplitSheet ruft für Gesamt und Rest kein Money.simple" <| fun () ->
+                Expect.isFalse ((Quelltext.views "SplitSheet.fs").Contains "Money.simple") "kein Money.simple"
+            testCase "Styleguide §2 nennt Import prüfen nicht mehr als Vorbild" <| fun () ->
+                let sg = Quelltext.read [ "standards"; "frontend"; "styleguide.md" ]
+                Expect.isFalse (sg.Contains "Vorbild ist die Ansicht") "Satz ersetzt"
+        ]
+
+        testList "splitAmountClass" [
+            testCase "neutral: Mono, 500, tabular-nums, ohne Farbglow und fett" <| fun () ->
+                let cls = SplitSheet.splitAmountClass false
+                for needle in [ "font-mono"; "font-medium"; "tabular-nums"; "text-text-primary" ] do
+                    Expect.isTrue (cls.Contains needle) (needle + " in " + cls)
+                for verboten in [ "neon-green"; "neon-red"; "font-bold"; "font-semibold"; "glow"; "shadow" ] do
+                    Expect.isFalse (cls.Contains verboten) (verboten + " in " + cls)
+            testCase "Warnung färbt nur den Text rot" <| fun () ->
+                let cls = SplitSheet.splitAmountClass true
+                Expect.isTrue (cls.Contains "text-neon-red") cls
+                Expect.isFalse (cls.Contains "glow") cls
         ]
     ]

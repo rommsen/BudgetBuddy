@@ -35,7 +35,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
             | Success txs -> txs.Length
             | _ -> 0
 
-        React.fragment [
+        Html.div [
+          prop.className "px-4 md:px-6"
+          prop.children [
             // Review header as normal flowing content
             Html.div [
                 prop.className "sf-review-header"
@@ -70,11 +72,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
             // Split-Review sheet (ynab-002)
             splitSheet model dispatch
+          ]
         ]
     else
         // Standard layout for all non-reviewing states
         Html.div [
-            prop.className "space-y-6"
+            // Ohne Listen-Breite: die Zustände ohne Liste behalten die Container-Begrenzung
+            prop.className "container mx-auto px-4 space-y-6"
             prop.children [
                 // Show appropriate content based on session status
                 match model.CurrentSession with

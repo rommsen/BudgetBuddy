@@ -4,6 +4,37 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 14:10 - Import prüfen an ADR 0049 angeglichen (ynab-sync-aj5tv)
+
+**What I did:**
+Import prüfen (SyncFlow) ruhiger gemacht: deutsche Gruppenköpfe und Tagessummen, Betrag über Money.listAmount, neutrale Kategorie-Chips und Checkbox, Datum nur im Gruppenkopf, volle Breite am PC, Importieren als Button.Primary, neutrale Beträge im Aufteilen-Sheet, Styleguide-Satz ersetzt.
+
+**Files Added:**
+- `docs/ux/ynab-sync/import-pruefen-ruhig/*.png` - fünf Nachher-Bilder (PC und Handy)
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Views/ViewHelpers.fs` - formatGroupDate, formatGroupTotal
+- `src/Client/Components/SyncFlow/Views/TransactionList.fs` - Gruppenkopf, zwei Button.Primary
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - Money.listAmount, badge-neutral, ohne Datum
+- `src/Client/Components/SyncFlow/Views/SplitSheet.fs` - splitAmountClass, neutrale Rest-Zeile
+- `src/Client/Components/SyncFlow/Views/InlineRuleForm.fs` - Speichern-Knopf als Button.Primary
+- `src/Client/Components/SyncFlow/View.fs` - eigene Ränder (px-4 md:px-6)
+- `src/Client/View.fs` - pageShell: SyncFlow nutzt pageContentFull
+- `src/Client/styles.css` - badge-ready, tx-date, btn-import*, Glow-Animation, rote und grüne Rest-Fläche entfernt; Gruppenkopf, Payee, Checkbox neutral
+- `src/Tests/SyncFlowViewTests.fs` - neue und angepasste Tests
+- `standards/frontend/styleguide.md` - §2 Vorbild-Satz
+
+**Rationale:**
+Roman hat am 2026-10-19 entschieden, dass Import prüfen nach der Bestandsaufnahme gegen ADR 0049 ruhiger wird. Farbe bleibt in der Zeile der Statuskante und "ohne Kategorie" vorbehalten.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 1241 grün, 7 übersprungen; test:scripts 120/120; npm run build und guard:classes grün
+- Messung: .tx-list 1392px bei 1440px (vorher max 1280px), 358px bei 390px; Textprüfung ohne Monatsname und ohne Punkt-Dezimal
+- Issues: keine
+
+---
+
 ## 2026-10-19 13:30 - Regeln-Seite als ruhige Liste (categorization-wnxd6)
 
 **What I did:**

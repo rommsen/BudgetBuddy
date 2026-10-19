@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:20 -- Task verified and completed: ynab-sync-aj5tv - Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
+
+**Type:** Work / Task completion
+**Task:** ynab-sync-aj5tv - Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
+**Summary:** Import prüfen ruhig: deutsche Datums- und Betragsformate, nur die Statuskante farbig, Datum nur im Gruppenkopf, volle Breite, Importieren als Button.primary, neutrales Aufteilen-Sheet
+**Duration:** 24m
+**Verification:** PASS (iteration 1, nach Merge-Konflikt in View.fs erneut PASS)
+**Files changed:** 15
+**Tests added:** 24
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 13:13 -- Task verified and completed: categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
 
 **Type:** Work / Task completion

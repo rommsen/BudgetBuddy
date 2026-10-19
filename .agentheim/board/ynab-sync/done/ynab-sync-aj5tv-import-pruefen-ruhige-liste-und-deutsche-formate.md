@@ -1,7 +1,7 @@
 ---
 id: ynab-sync-aj5tv
 title: Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
-status: doing
+status: done
 type: feature
 context: ynab-sync
 created: 2026-10-19
@@ -87,3 +87,27 @@ ungefähr, per Symbol suchen.
 - **Konflikt mit `categorization-wnxd6`:** beide ändern dieselbe Weiche in `src/Client/View.fs` ~49-52. Nacheinander integrieren; der zweite Worker ergänzt die Weiche.
 - **Nicht in dieser Aufgabe:** Duplikat-Details und englischer Debug-Block (`ynab-sync-e4gm3`), Umbau auf `Table.calmRow`, interne YNAB-Kategorien (`ledger-d218j`), Picker-Optik (zahv9), Pink als Statusfarbe, TAN- und Fertig-Ansicht.
 - Größe M.
+
+## Merge-conflict note (iteration 1)
+
+- Sibling: categorization-wnxd6 (Regeln-Seite als ruhige Liste), integriert als fd8c469.
+- Neue Basis: fd8c469 (feature/kassenbuch).
+- Allow-list: src/Client/View.fs (pageShell-Weiche; die Regeln-Seite bekommt dort ebenfalls pageContentFull).
+- Salvage: /Users/romansachse/src/BudgetBuddy/.agentheim/salvage/ynab-sync-aj5tv-merge-conflict.patch
+
+## Outcome
+
+Import prüfen ist an ADR 0049 angeglichen. Die Zeilen bleiben `div.tx-row` mit eigenem CSS.
+
+- Formate: `ViewHelpers.formatGroupDate today d` ("Heute", "Gestern", sonst TT.MM.JJJJ, ohne Monatsnamen) und `ViewHelpers.formatGroupTotal` (über `Money.formatAmountText`, "+3.113,30 €") ersetzen `MMMM` und `N2` im Gruppenkopf (`TransactionList.fs`). `formatAmountForRow` ist weg, der Betrag ist `Money.listAmount` (Eingang Teal mit "+", Ausgabe neutral) in einem `.tx-amount`-Wrapper.
+- Nur die Kante farbig: `getCategoryBadgeClass` liefert `badge-neutral` (text-secondary, 12px, ohne Fläche) für Kategorie, aufgeteilt, übersprungen; Duplikat bleibt `badge-duplicate`, "ohne Kategorie" bleibt als einziger Fall `badge-attention`. `.badge-ready` ist entfernt. Die gefüllte Teal-Checkbox ist neutral (text-secondary). Payee ist `text-primary`, 15px am Handy, 14px ab md.
+- Datum nur im Gruppenkopf: `tx-date`, `.tx-date` und `formatDateCompact` sind gelöscht. `.date-header` folgt `ListRoles.groupHeader` (Mono 10px, 0.16em), `.date-total` der Rolle `ListRoles.date` (Mono 12px).
+- Volle Breite: `View.fs` wählt für `SyncFlow` `Navigation.pageContentFull` (eine Zeile in der pageShell-Weiche plus Kommentar). `SyncFlow/View.fs` setzt die Ränder selbst: Review-Ansicht in `px-4 md:px-6`, die Zustände ohne Liste (Start, TAN, Laden) behalten `container mx-auto px-4`.
+- Importieren: beide Knöpfe (oben Small, unten Medium) sind `Button.view` mit `Variant = Button.Primary`. Auch der Speichern-Knopf des Regel-Sheets (`InlineRuleForm.fs`) nutzte `btn-import` und ist jetzt `Button.Primary` mit `flex-1`. `.btn-import*`, `.ready`-Varianten, `importReady` und `sfGlowPulse` sind aus `styles.css` entfernt. Hinweis: `Button.Primary` trägt im DS ein statisches Orange-Leuchten; ich habe es nicht per Klasse überstimmt (Tailwind-Reihenfolge), nur die Pulsanimation ist weg.
+- Aufteilen-Sheet: `SplitSheet.splitAmountClass warn` (font-mono, font-medium, tabular-nums, text-text-primary; mit `warn` nur text-neon-red) und `splitAmount` ersetzen `Money.simple` für Gesamt und Rest. `warn` gilt, wenn Rest ungleich 0 und Speichern gesperrt ist. `.split-remainder` hat neutralen Rahmen, `.balanced` ist entfernt (nur "Rest"/"Stimmt" wechselt).
+- Styleguide §2: "Vorbild ist die Ansicht Import prüfen" ersetzt durch Verweis auf Kassenbuch und Abschnitt 8a in /styleguide.
+- Tests (`src/Tests/SyncFlowViewTests.fs`, keine neue Datei): `formatGroupDate` (Heute, Uhrzeit, Gestern, älter, Jahreswechsel, kein Monatsname), `formatGroupTotal`, fünf `getCategoryBadgeClass`-Fälle (die vier `formatDateCompact`-Tests und die alten `badge-ready`-Tests sind ersetzt), `splitAmountClass` und Quelltext-Wächter (kein N2/MMMM/btn-import, Money.listAmount, kein tx-date/formatDateCompact/badge-ready, Checkbox und Rest-Zeile in styles.css, pageContentFull, zwei Button.Primary, kein Money.simple im SplitSheet, Styleguide-Satz). Die Wächter habe ich nicht einzeln durch Zurückdrehen rot geprüft; die alten Symbole sind im Code gelöscht, die Tests prüfen deren Abwesenheit.
+- Läufe aus dem Worktree: `dotnet build` 0 Warnungen (die FS0025 in Ledger/State.fs taucht hier nicht mehr auf), `dotnet test` 1241 grün, 7 übersprungen (ein früherer Lauf hatte einmal einen roten, nicht reproduzierbaren Ledger-Persistenztest in LedgerTests.fs:520, der Folgelauf und der Abschlusslauf waren grün), `npm run build` grün, `npm run guard:classes` grün, `npm run test:scripts` 120 von 120 grün.
+- Bilder: `docs/ux/ynab-sync/import-pruefen-ruhig/` (PC 1440x900 und Handy 390x844: Liste, aufgeklappt, Handy Aufteilen-Sheet), mit 8 erfundenen Buchungen und gemockten Routen. Ich habe PC-Liste, Handy-Liste und Aufteilen-Sheet angesehen. Das Mock-Skript liegt im Scratchpad (`scratchpad/ynab-sync-aj5tv/shots.mjs`), nicht im Repo. Wire-Form: Fable.Remoting verpackt Ein-Fall-Unions als `{"TransactionId": "..."}`, Ergebnisse als `{"Ok": ...}`.
+- Messungen (gemockter Lauf): `.tx-list` bei 1440 Breite 1392px (vorher durch container auf 1280px begrenzt), am Handy 358px. Gruppenköpfe: "HEUTE | +2.997,68 €", "GESTERN | -66,90 €", "16.10.2026 | -1.329,50 €", "10.10.2026 | -23,40 €". Playwright-Textprüfung der Liste: kein Monatsname in Großbuchstaben, kein Betrag mit Punkt als Dezimaltrenner, in beiden Viewports. Alle acht Beträge deutsch ("-48,12 €", "+3.113,30 €", "-1.234,50 €"). Kein horizontaler Überlauf.
+- Offen: Kriterium [human-eye] (Zeilen so ruhig wie im Kassenbuch) braucht Romans Blick. Orange konkurriert auf der Seite: "Kategorie…" (offen), Importieren und die orange Kante stehen im selben Bild; im Screenshot wirkt das tragbar, die Entscheidung bleibt bei Roman. Nicht angefasst: Duplikat-Details (ynab-sync-e4gm3), Umbau auf Table.calmRow, Swipe, Picker.
