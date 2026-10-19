@@ -260,9 +260,15 @@ let private dateFieldTests =
                 Expect.isFalse (Input.usesInlineFontSize Input.Small) "Small ohne Inline-Größe"
                 Expect.isTrue (contains "Size = Input.Small" (readDs "DateField.fs")) "Input.Small"
             }
-            test "Schrift 16px am Handy, 14px am PC, per important gegen .input-field" {
-                Expect.equal DateField.textSizeClass "text-base! md:text-sm!" "Klassen"
-                Expect.isTrue (contains "textSizeClass" (readDs "DateField.fs")) "im Feld verwendet"
+            test "Schrift kommt allein aus Input.Small, kein lokaler Sonderweg (btwhg)" {
+                // Bug: `.input-field` setzte ohne Layer font-size 14px und stach `text-base`.
+                let src = readDs "DateField.fs"
+                Expect.isFalse (contains "textSizeClass" src) "textSizeClass entfernt"
+                Expect.isFalse (contains "text-base!" src) "kein important"
+                let css = readRepo [ "src"; "Client"; "styles.css" ]
+                let start = css.IndexOf ".input-field {"
+                let block = css.Substring(start, css.IndexOf("}", start) - start)
+                Expect.isFalse (contains "font-size:" block) ".input-field setzt keine font-size"
             }
             test "Kalender-Knopf nutzt showPicker mit focus/click als Rückfall" {
                 let src = readDs "DateField.fs"

@@ -269,6 +269,44 @@ test("Die Datumsfelder haben am Handy 16px, am PC 14px Schrift (iOS-Zoom, m7z9q)
   await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
 });
 
+test("Input.Small misst am Handy 16px und am PC 14px, Medium und Large bleiben bei 16px (btwhg)", async () => {
+  // Misst die Kaskade von `.input-field` gegen die Klassen aus `Input.sizeToClass`:
+  // `.input-field` stand ohne Layer in styles.css und überstimmte `text-base` von Small.
+  // Medium und Large tragen zusätzlich das Inline-fontSize 16 (`Input.usesInlineFontSize`).
+  const measure = (p) =>
+    p.evaluate(() => {
+      const make = (classes, inline) => {
+        const el = document.createElement("input");
+        el.className = "input-field " + classes;
+        if (inline) el.style.fontSize = "16px";
+        document.body.appendChild(el);
+        const size = getComputedStyle(el).fontSize;
+        el.remove();
+        return size;
+      };
+      return {
+        small: make("text-base md:text-sm px-3 py-2 min-h-[36px]", false),
+        medium: make("text-base px-4 py-3 min-h-[48px] md:min-h-[44px]", true),
+        large: make("text-lg px-4 py-3.5 min-h-[52px]", true),
+      };
+    });
+  assert.deepEqual(await measure(page), { small: "14px", medium: "16px", large: "16px" }, "PC 1440x900");
+  assert.deepEqual(await measure(mobilePage), { small: "16px", medium: "16px", large: "16px" }, "Handy 390x844");
+
+  // Ein echtes Input.Small-Feld: die Kategorie-Suche im Popover am PC.
+  await categoryChip().click();
+  const search = popover().getByPlaceholder("Kategorie suchen…");
+  assert.equal(await search.evaluate((e) => getComputedStyle(e).fontSize), "14px", "Kategorie-Suche PC: 14px");
+  await page.keyboard.press("Escape");
+
+  // Dasselbe echte Feld am Handy (BottomSheet): 16px gegen den iOS-Zoom (ADR 0005).
+  await mobileCategoryChip().click();
+  const mobileSearch = mobileSheet().getByPlaceholder("Kategorie suchen…");
+  await mobileSearch.waitFor();
+  assert.equal(await mobileSearch.evaluate((e) => getComputedStyle(e).fontSize), "16px", "Kategorie-Suche Handy: 16px");
+  await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
+});
+
 test("Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Textfeld bedienbar (m7z9q)", async () => {
   const errors = [];
   const onConsole = (m) => { if (m.type() === "error") errors.push(m.text()); };

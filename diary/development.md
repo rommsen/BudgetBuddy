@@ -4,6 +4,27 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 19:35 - Input.Small zeigt am Handy 16px (Iteration 2)
+
+**What I did:**
+`font-size: 14px` aus `.input-field` entfernt, `DateField.textSizeClass` gestrichen, Tests ergänzt. Iteration 2: Wächter misst zusätzlich das echte Kategorie-Suchfeld im Handy-BottomSheet.
+
+**Files Modified:**
+- `src/Client/styles.css` - keine font-size mehr in `.input-field`
+- `src/Client/DesignSystem/DateField.fs` - `textSizeClass` entfernt
+- `src/Tests/AuswahlTests.fs` - Test auf neuen Zustand umgestellt
+- `scripts/ledger-filter-bar.test.mjs` - Messung Small/Medium/Large bei 390x844 und 1440x900, echte Kategorie-Suche am PC und am Handy
+
+**Rationale:**
+Das unlayerte `.input-field` stach die Utility-Klassen von Input.Small; am Handy zoomte iOS beim Fokus.
+
+**Outcomes:**
+- Messung vor dem Fix: Small 14px (PC) / 14px (Handy, falsch); Medium 16/16; Large 16/16.
+- Messung nach dem Fix: Small 14px (PC) / 16px (Handy); Medium 16/16; Large 16/16; Datumsfeld 14/16; echte Kategorie-Suche 14px (PC) / 16px (Handy).
+- Build: ok, Tests: 1391 bestanden, test:scripts 135/135.
+
+---
+
 ## 2026-10-19 19:30 - Wisch nach rechts markiert geprüft, Toast mit Rückgängig (ledger-th36h)
 
 **What I did:**

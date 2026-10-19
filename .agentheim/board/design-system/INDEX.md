@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 33
+- **Doing:** 0
+- **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `doing/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `done/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 - **design-system-m7z9q** — Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs (feature) — `done/design-system-m7z9q-deutsches-datumsfeld-mit-kalender.md`
 - **design-system-zahv9** — Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch (feature) — `done/design-system-zahv9-ruhige-bausteine-fuer-auswahlen.md`
 - **design-system-qz7b6** — Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe (bug) — `done/design-system-qz7b6-button-view-uebergeht-hidden-doppelter-spiegel-knopf-am-handy.md`

@@ -692,7 +692,8 @@ nav a:focus-visible {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 14px;
+  /* Keine font-size hier: ein Wert ohne Layer überstimmt die Tailwind-Größen aus
+     Input.sizeToClass (Small: text-base md:text-sm). Jede Größe trägt ihre eigene. */
   font-family: var(--font-sans);
   transition: border-color var(--duration-fast) ease,
               box-shadow var(--duration-fast) ease;

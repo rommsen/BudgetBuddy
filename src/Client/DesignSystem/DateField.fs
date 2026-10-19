@@ -22,12 +22,6 @@ type DateEntry =
     | ValidDate of DateTime
     | InvalidDate of string
 
-/// Schriftgröße des Textfelds: 16px unterhalb `md` (iOS-Zoom-Schutz), 14px ab `md`.
-/// Das `!` (Tailwind important) ist nötig, weil `.input-field` in `styles.css` ohne
-/// Layer `font-size: 14px` setzt und die Utility-Klassen von `Input.Small` sonst am Handy
-/// unterliegen.
-let textSizeClass = "text-base! md:text-sm!"
-
 /// Hinweis unter einem Feld mit ungültiger Eingabe
 let invalidHint = "Datum als TT.MM.JJJJ"
 
@@ -166,7 +160,7 @@ let view (props: DateFieldProps) =
                                             Placeholder = "TT.MM.JJJJ"
                                             Size = Input.Small
                                             State = state
-                                            ClassName = Some $"w-full {textSizeClass}" }
+                                            ClassName = Some "w-full" }
                         ]
                     ]
                     Html.button [

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 19:07 -- Task verified and completed: design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
+
+**Type:** Work / Task completion
+**Task:** design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
+**Summary:** Input.Small misst am Handy jetzt 16px und am PC 14px, weil `.input-field` keine eigene font-size mehr setzt. Der lokale Sonderweg `DateField.textSizeClass` ist entfernt; der Wächter misst das echte Kategorie-Suchfeld am Handy und am PC.
+**Duration:** 28m51s
+**Verification:** PASS (iteration 2)
+**Files changed:** 4
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 18:59 -- Batch started: [ledger-r1d2f]
 
 **Type:** Work / Batch start
