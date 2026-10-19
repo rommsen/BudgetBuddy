@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:13 -- Task verified and completed: categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
+
+**Type:** Work / Task completion
+**Task:** categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
+**Summary:** Regeln-Seite als ruhige Liste: ruhiger Kopf, volle Breite, Tabelle am PC, zweizeilige Liste am Handy, Löschen nur im Dialog, deutsche Texte
+**Duration:** 16m
+**Verification:** PASS (iteration 1)
+**Files changed:** 11
+**Tests added:** 18
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 12:55 -- Batch started: [ledger-m23nz, categorization-wnxd6, ynab-sync-aj5tv]
 
 **Type:** Work / Batch start

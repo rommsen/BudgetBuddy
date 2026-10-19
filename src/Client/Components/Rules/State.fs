@@ -29,6 +29,15 @@ let init () : Model * Cmd<Msg> =
     ]
     model, cmd
 
+/// Schließt den Dialog "Neue Regel" bzw. "Regel bearbeiten" und leert das Formular
+let closeRuleDialog (model: Model) : Model =
+    { model with
+        EditingRule = None
+        IsNewRule = false
+        Form = RuleFormState.empty
+        ConfirmingDeleteRuleId = None
+    }
+
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadRules ->
@@ -71,11 +80,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | _ -> model, Cmd.none, NoOp
 
     | CloseRuleModal ->
-        { model with
-            EditingRule = None
-            IsNewRule = false
-            Form = RuleFormState.empty
-        }, Cmd.none, NoOp
+        closeRuleDialog model, Cmd.none, NoOp
 
     | ConfirmDeleteRule ruleId ->
         // Show confirm button and start 3 second timeout
@@ -107,8 +112,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model.Rules with
         | Success rules ->
             let newRules = rules |> List.filter (fun r -> r.Id <> deletedRuleId)
-            { model with Rules = Success newRules }, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
-        | _ -> model, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
+            { closeRuleDialog model with Rules = Success newRules }, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
+        | _ -> closeRuleDialog model, Cmd.none, ShowToast ("Rule deleted", ToastSuccess)
 
     | RuleDeleted (Error err) ->
         model, Cmd.none, ShowToast (rulesErrorToString err, ToastError)

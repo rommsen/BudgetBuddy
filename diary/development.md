@@ -4,6 +4,31 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 13:30 - Regeln-Seite als ruhige Liste (categorization-wnxd6)
+
+**What I did:**
+Regeln-Seite nach ADR 0049 umgebaut: ruhiger Kopf mit Untertitel, volle Breite, Tabelle (PC) und zweizeilige Liste (Handy), Zeile öffnet den Dialog, Aktiv-Schalter und Löschen nur im Dialog, deutsche Texte.
+
+**Files Added:**
+- `src/Tests/RulesListTests.fs` - 18 Tests (Quelltext-Zusicherungen, Werttests, Regression Pflichtfeldhinweis, State)
+- `docs/ux/categorization/regeln-ruhige-liste/` - 6 Nachher-Bilder
+
+**Files Modified:**
+- `src/Client/Components/Rules/View.fs` - neue Liste, Kopf, Dialogfuß, reine Hilfsfunktionen
+- `src/Client/Components/Rules/State.fs` - `closeRuleDialog`, Dialog schließt nach erfolgreichem Löschen
+- `src/Client/View.fs` - `Rules` bekommt `Navigation.pageContentFull`
+- `src/Tests/Tests.fsproj` - RulesListTests.fs registriert
+
+**Rationale:**
+ADR 0049 und Audit 2026-10-19 (R1 bis R4). Am Handy war die Kopfzeile mit drei Knöpfen zu breit (494px bei 390px), daher Neu laden im Menü.
+
+**Outcomes:**
+- Build: ok, nur alte FS0025 in Ledger/State.fs
+- Tests: 1245 grün, 7 übersprungen; test:scripts 120/120; guard:classes und npm run build grün
+- Issues: Löschaufruf (`DeleteRule`) unter .NET nicht testbar; Handy-Sichtprüfung offen
+
+---
+
 ## 2026-10-19 09:35 - Bestandsaufnahme ADR 0049, Bug doppelter Spiegel-Knopf (design-system-qz7b6)
 
 **What I did:**

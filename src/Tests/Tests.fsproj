@@ -62,6 +62,7 @@
     <Compile Include="TextGlowTokenTests.fs" />
     <Compile Include="RuhigeListenTests.fs" />
     <Compile Include="AuswahlTests.fs" />
+    <Compile Include="RulesListTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 
