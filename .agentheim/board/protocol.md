@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:38 -- Modeling / Refined: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** todo
+**Summary:** Schnittstelle korrigiert (Entwurf ist DateTime option, kein ISO-String); eigener Textzustand, der der Schnellwahl folgt. Entscheidung Roman: bei ungültiger Eingabe ist Übernehmen gesperrt (Fehlerzustand im Ledger-Entwurf, deaktivierter applyButton im DS). Kriterien für classifyDateText, update-Tests und Playwright ergänzt.
+
+---
+
+## 2026-10-19 13:38 -- Modeling / Refined: ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Offene Frage geklärt: NotDuplicate trägt nie Treffer, duplicateDetailsMode hängt nur am Status. Neu im Scope (Entscheidung Roman): Hinweis-Zeile bei PossibleDuplicate deutsch im Client aus den Fuzzy-Feldern statt Server-reason; "New" wird "Neu". Kriterien und Zeilenangaben angepasst.
+
+---
+
 ## 2026-10-19 13:26 -- Work session ended
 
 **Type:** Work / Session end
