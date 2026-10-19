@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:11 -- Batch started: [design-system-qz7b6]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-qz7b6 - Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe
+**Parallel:** scoped — builder named design-system-qz7b6; keine anderen bereiten Aufgaben
+
+---
+
 ## 2026-10-19 09:11 -- Capture / Captured: ynab-sync-aj5tv - Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
 
 **Type:** Capture

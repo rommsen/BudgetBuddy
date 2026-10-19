@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 30
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-qz7b6** — Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe (bug) — `todo/design-system-qz7b6-button-view-uebergeht-hidden-doppelter-spiegel-knopf-am-handy.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-qz7b6** — Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe (bug) — `doing/design-system-qz7b6-button-view-uebergeht-hidden-doppelter-spiegel-knopf-am-handy.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

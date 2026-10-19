@@ -1,7 +1,7 @@
 ---
 id: design-system-qz7b6
 title: Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe
-status: todo
+status: doing
 type: bug
 context: design-system
 created: 2026-10-19
