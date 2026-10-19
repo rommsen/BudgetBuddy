@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:11 -- Capture / Captured: categorization-wnxd6 - Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten)
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Aus der Bestandsaufnahme gegen ADR 0049 vom 2026-10-19
+
+---
+
 ## 2026-10-19 09:11 -- Capture / Captured: ledger-m23nz - Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen
 
 **Type:** Capture
