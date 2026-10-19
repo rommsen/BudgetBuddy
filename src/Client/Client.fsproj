@@ -28,6 +28,7 @@
     <Compile Include="DesignSystem/PageHeader.fs" />
     <Compile Include="DesignSystem/Form.fs" />
     <Compile Include="DesignSystem/ChipBar.fs" />
+    <Compile Include="DesignSystem/MultiSelect.fs" />
     <Compile Include="DesignSystem/FilterPopover.fs" />
     <Compile Include="DesignSystem/CategoryMultiSelect.fs" />
 

@@ -2726,3 +2726,14 @@ nav a:focus-visible {
   color: var(--sf-text-muted);
 }
 
+/* Auswahl mit Summe (ledger-r1d2f): Schatten der Auswahl-Leiste nach oben, damit sie sich
+   von der Liste abhebt, und der Schutz gegen Textmarkierung und das System-Menü, das beim
+   langen Drücken auf eine Zeile sonst aufgeht. */
+.selection-bar {
+  box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.45);
+}
+.row-longpress {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

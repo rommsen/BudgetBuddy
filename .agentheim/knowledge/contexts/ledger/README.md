@@ -185,6 +185,7 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
 - **Prüfvermerk nicht in YNAB**: der offene Fehlschlag beim Zurückschreiben eines in BB gesetzten Prüfvermerks (`Entry.ReviewMarkWriteBackFailure`, ADR 0050): der PUT an YNAB scheiterte oder die Buchung ist noch nicht mit YNAB verknüpft. Der Prüfvermerk bleibt in BB gesetzt und `NeedsReview` zählt nach dem BB-Stand weiter. Die Zeile trägt den Hinweis mit dem Grund und der Schaltfläche *Erneut senden* (`retryReviewMarkWriteBack`). Der Zustand endet mit `EntryReviewMarkWrittenBackToYnab` (Erneut senden hatte Erfolg, oder der Spiegel sieht YNAB auf dem BB-Stand), durch ein Beobachtungs-Ereignis von YNAB (`EntryApprovalChangeObservedInYnab`/`EntryClearedStateChangeObservedInYnab`, der YNAB-Stand gilt) oder durch eine neue Geste auf der Buchung.
 - **Lokal entfernte Zeilen (LocallyRemoved)**: Zahl der Zeilen, die der Client aus den schon geladenen Seiten genommen hat (z. B. geprüft bei aktivem Chip Zu prüfen). Die Seitenanfrage trägt sie mit, der Server beginnt die Seite bei Page * PageSize - LocallyRemoved, damit keine Buchung an der Seitengrenze fehlt.
 - **Wisch geprüft**: Handy-Geste im Kassenbuch (ledger-th36h): Wisch nach rechts auf einer zu prüfenden Karte setzt `setReviewMark Reviewed`; der Toast "<Payee> geprüft" bietet "Rückgängig" (`restoreReviewMark` mit dem Vorzustand aus der Antwort). Wisch nach links bleibt unbelegt, auf einer geprüften Karte gibt es keine Geste.
+- **Auswahl**: eine Menge über den Treffer des Kassenbuchs, im Client als `Picked` (gewählte geladene Zeilen), `AllExcept` (ganzer Treffer außer den abgewählten geladenen Zeilen) oder `NoSelection` gehalten (ledger-r1d2f). Anzahl und Summe rechnet der Client aus `TotalCount` und `TotalAmount` des Treffers (`selectionTotals`), in YNAB gelöschte Buchungen zählen nicht zur Summe. Konto-, Filter- oder Chipwechsel leert die Auswahl, eine Zeile, die die Liste verlässt, fällt aus ihr. Der Auswahl-Modus am Handy (langes Drücken) und die Kästchen am PC schalten sie; die Auswahl-Leiste zeigt keine schreibenden Aktionen.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -414,7 +415,8 @@ Geräte; in YNAB nutzt Roman den Filter am Handy heute nie, weil er dort zu umst
 
 **Einstieg und Navigation.** Das Kassenbuch öffnet im zuletzt gewählten Konto. Konto ist
 fachlich ein **Filter**, nicht ein eigener Modus: der Wechsel zwischen Gesamtsicht und
-Konto lässt alle anderen Filter und eine laufende Auswahl stehen. Oben die Kontostände
+Konto lässt alle anderen Filter stehen, eine laufende Auswahl leert er, weil sie sich auf einen
+Treffer bezieht. Oben die Kontostände
 (Handy: waagerecht scrollbare Leiste; PC: linke Spalte, "Alle Konten" zuoberst), darunter
 die sticky Filterleiste, darunter die Liste. Erster Chip ist immer "Zu prüfen (n)".
 

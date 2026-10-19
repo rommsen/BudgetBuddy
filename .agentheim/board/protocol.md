@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 19:25 -- Task verified and completed: ledger-r1d2f - "Auswahl-Modus mit Summe der Auswahl (Handy und PC)"
+
+**Type:** Work / Task completion
+**Task:** ledger-r1d2f - "Auswahl-Modus mit Summe der Auswahl (Handy und PC)"
+**Summary:** Das Kassenbuch hat einen Auswahl-Modus mit Summe: am Handy per langem Drücken, Tippen und "Alle" mit zweireihiger Leiste statt der Tab-Bar, am PC per Kästchen-Spalte, Kopfzeilen-Kästchen und Shift-Spanne mit Anker. Die Auswahl ist eine Menge über den ganzen Treffer (Picked oder AllExcept), Anzahl und Summe rechnet der Client, die Leiste zeigt keine schreibenden Aktionen.
+**Duration:** 25m26s
+**Verification:** PASS (iteration 2)
+**Files changed:** 13
+**Tests added:** 37
+**ADRs written:** none
+
+---
+
+## 2026-10-19 19:23 -- Verification failed: ledger-r1d2f - Auswahl-Modus mit Summe der Auswahl (Handy und PC)
+
+**Type:** Work / Verification failure
+**Task:** ledger-r1d2f - Auswahl-Modus mit Summe der Auswahl (Handy und PC)
+**Iteration:** 1 of 3
+**Reasons:** BC-README widerspricht dem neuen Verhalten (Absatz Einstieg und Navigation: Wechsel lässt eine laufende Auswahl stehen), das Delta deckt nur den neuen Begriff ab
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-19 19:07 -- Task verified and completed: design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
 
 **Type:** Work / Task completion

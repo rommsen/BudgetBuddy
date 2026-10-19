@@ -4,6 +4,37 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 20:10 - Auswahl-Modus mit Summe im Kassenbuch (ledger-r1d2f)
+
+**What I did:**
+Auswahl als Menge über den Treffer (Picked, AllExcept, NoSelection) mit Summe aus TotalCount und TotalAmount. Handy: langes Drücken, Tippen, "Alle", zweireihige Leiste statt Tab-Bar. PC: Kästchen-Spalte, Kopfzeilen-Kästchen, Shift-Spanne mit Anker, einreihige Leiste. Summenzeile wechselt auf "Auswahl: n von N Buchungen".
+
+**Files Added:**
+- `src/Client/DesignSystem/MultiSelect.fs` - Kästchen, Summenzeile im Auswahl-Zustand, Leisten für Handy und PC
+- `src/Tests/LedgerSelectionTests.fs` - 35 Tests (Rechnen, Reducer, Ansicht)
+- `scripts/ledger-selection.test.mjs` - Playwright-Wächter Handy und PC
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - Selection, Modellfelder, Nachrichten, reine Auswahl-Funktionen
+- `src/Client/Components/Ledger/State.fs` - Reducer-Zweige, resetEntries leert die Auswahl, Zeile verlässt die Liste
+- `src/Client/Components/Ledger/View.fs` - Kästchen-Spalte, Handy-Zeile im Modus, LongPressRow, Summenzeile, Leiste, Spaltenraster
+- `src/Client/View.fs` - Leiste außerhalb der animierten Hülle, Tab-Bar weicht im Modus
+- `src/Client/DesignSystem/Table.fs` - calmHeaderContentCell
+- `src/Client/Client.fsproj`, `src/Tests/Tests.fsproj` - neue Dateien
+- `src/Client/styles.css` - .selection-bar, .row-longpress
+- `src/Tests/LedgerViewTests.fs`, `scripts/ledger-status-column.test.mjs` - Spaltenraster 8/7 Spalten, 28/24 Prozent
+
+**Rationale:**
+Roman liest die Summe einer Teilmenge bisher nur in YNAB-Web ab; am Handy geht es gar nicht. Die Summe braucht keinen Server, weil abwählbar nur geladene Zeilen sind.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: dotnet 1448 bestanden (7 übersprungen), test:scripts 136 Tests grün, guard:classes grün
+- Messungen: Kästchen PC 17px; Leiste Handy bei 390x844 oben bei y=753, letzte Zeile endet darüber
+- Issues: fixe Leiste lag zuerst in der Seitenhülle (Transform), danach in den Haupt-View verlegt
+
+---
+
 ## 2026-10-19 19:35 - Input.Small zeigt am Handy 16px (Iteration 2)
 
 **What I did:**

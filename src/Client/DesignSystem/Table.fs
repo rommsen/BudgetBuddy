@@ -391,6 +391,14 @@ let calmHeaderCell (text: string) (align: string option) =
         prop.text text
     ]
 
+/// Kopfzelle der ruhigen Tabelle mit eigenem Inhalt, etwa das Kopfzeilen-Kästchen einer
+/// Auswahlspalte (ledger-r1d2f). Links bündig, rechts ohne Innenabstand.
+let calmHeaderContentCell (children: ReactElement list) =
+    Html.th [
+        prop.className $"{ListRoles.columnHeader} bg-surface-elevated pl-5 pr-0 text-left"
+        prop.children children
+    ]
+
 /// Zeilenklassen der ruhigen Tabelle (44px, optional Statuskante)
 let calmRowClass (statusEdge: bool) : string =
     rowClass { defaultRowProps with StatusEdge = statusEdge; ClassName = Some ListRoles.rowHeight }

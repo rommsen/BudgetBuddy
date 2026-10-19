@@ -370,6 +370,13 @@ let entryRowClassName : string =
 let entryRowReviewClassName : string =
     $"{entryRowClassName} {Tokens.ListRoles.statusEdge}"
 
+/// Die Handy-Zeile im Auswahl-Modus, wenn sie gewählt ist (ledger-r1d2f): derselbe Zuschnitt,
+/// aber mit blassem Teal als Grund statt der Kartenfarbe. Der Karten-Grund liegt im Rahmen
+/// der Zeile, das Teal darüber bleibt durchscheinend.
+let entryRowSelectedClassName : string =
+    $"w-full text-left {Tokens.ListRoles.mobileRowPadding} transition-colors touch-manipulation " +
+    $"bg-neon-teal/[0.07] border-b {Tokens.Borders.subtle}"
+
 /// Ein Kennzeichen in Zeile 2 der Handy-Zeile, das nicht schrumpfen darf.
 let private keepWidth (child: ReactElement) =
     Html.span [ prop.className "shrink-0"; prop.children [ child ] ]
@@ -453,17 +460,30 @@ let private reviewMarkHintView
 /// nur in der Gesamtsicht gesetzt (AC4): das Konto steht dann als Kürzel-Badge in
 /// Zeile 2. Die Herkunft steht nicht mehr in der Zeile, nur noch in der Historie.
 let private entryRow
-    (dispatch: Msg -> unit)
+    (onClick: unit -> unit)
+    (selected: bool option)
     (accountAbbreviationOf: (Guid -> string) option)
     (entry: LedgerEntryView)
     =
-    let rowClass = if entry.NeedsReview then entryRowReviewClassName else entryRowClassName
+    // `selected`: `None` im Normalbetrieb, `Some` im Auswahl-Modus (die Zeile schaltet dann
+    // die Auswahl, ledger-r1d2f). Eine gewählte Zeile tauscht den Grund gegen blasses Teal.
+    let rowClass =
+        match selected, entry.NeedsReview with
+        | Some true, true -> $"{entryRowSelectedClassName} {Tokens.ListRoles.statusEdge}"
+        | Some true, false -> entryRowSelectedClassName
+        | _, true -> entryRowReviewClassName
+        | _, false -> entryRowClassName
 
     Html.button [
         // `min-w-0 flex-1`: die Zeile teilt sich den Platz mit der Schaltfläche daneben
         // (`entryRowWithReviewMark`) und darf dafür schrumpfen.
         prop.className $"{rowClass} min-w-0 flex-1"
-        prop.onClick (fun _ -> dispatch (OpenHistory entry))
+        prop.onClick (fun _ -> onClick ())
+        match selected with
+        | Some isOn ->
+            prop.role "checkbox"
+            prop.custom ("aria-checked", (if isOn then "true" else "false"))
+        | None -> ()
         prop.children [
             Html.div [
                 prop.className Tokens.ListRoles.mobileLine1
@@ -503,6 +523,7 @@ let private entryRowWithReviewMark
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
     (rowState: ReviewMarkRowState option)
+    (selected: bool option)
     (entry: LedgerEntryView)
     =
     // Außen ein Container: die Zeile ist ein `button` (öffnet die Historie), die
@@ -512,11 +533,33 @@ let private entryRowWithReviewMark
         prop.key (string entry.Id)
         prop.children [
             Html.div [
-                prop.className "flex items-stretch"
+                prop.className $"flex items-stretch {Tokens.Backgrounds.dark}"
                 prop.children [
-                    entryRow dispatch accountAbbreviationOf entry
+                    // Im Auswahl-Modus steht links das Kästchen und die Zeile schaltet die
+                    // Auswahl statt die Historie zu öffnen (ledger-r1d2f).
+                    match selected with
+                    | Some isOn ->
+                        Html.div [
+                            prop.className (
+                                "shrink-0 flex items-center pl-4 pr-3 border-b " +
+                                $"{Tokens.Borders.subtle} " +
+                                (if isOn then "bg-neon-teal/[0.07]" else Tokens.Backgrounds.dark)
+                            )
+                            prop.children [ MultiSelect.box (if isOn then MultiSelect.Checked else MultiSelect.Unchecked) true ]
+                        ]
+                    | None -> ()
+                    entryRow
+                        (fun () ->
+                            match selected with
+                            | Some _ -> dispatch (ToggleRowSelected entry.Id)
+                            | None -> dispatch (OpenHistory entry))
+                        selected
+                        accountAbbreviationOf
+                        entry
                     // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
-                    if not entry.DeletedInYnab then
+                    // Im Auswahl-Modus entfällt die Schaltfläche: die Leiste und die Zeilen
+                    // schreiben nichts (ledger-r1d2f).
+                    if not entry.DeletedInYnab && selected.IsNone then
                         Html.div [
                             prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
                             prop.children [ reviewMarkButton dispatch rowState entry ]
@@ -571,11 +614,48 @@ let private tdMoney (entry: LedgerEntryView) =
     else
         Table.amountCell entry.Amount.Amount entry.Amount.Currency
 
+/// Klassen einer PC-Zeile mit Auswahl: gewählt trägt blasses Teal als Grund, der Anker der
+/// Spanne zusätzlich die Teal-Kante links. Die Kante teilt sich den Schatten mit der
+/// Statuskante "zu prüfen": der Anker gewinnt (er ist die Zeile, auf die der Blick
+/// gerade zielt).
+let selectableRowClassName (selected: bool) (isAnchor: bool) : string =
+    [ Tokens.ListRoles.rowHeight
+      if selected then "bg-neon-teal/[0.07]"
+      if isAnchor then "shadow-[inset_2px_0_0_0_var(--color-neon-teal)]" ]
+    |> String.concat " "
+
+/// Die Kästchen-Zelle einer PC-Zeile: ein Klick schaltet die Auswahl (mit Shift die
+/// Spanne), er öffnet nicht die Historie.
+let private selectBoxCell (dispatch: Msg -> unit) (selected: bool) (entry: LedgerEntryView) : ReactElement =
+    Html.td [
+        prop.className "pl-5 pr-0 py-0"
+        prop.children [
+            MultiSelect.boxButton
+                (if selected then MultiSelect.Checked else MultiSelect.Unchecked)
+                $"{payeeLabel entry} auswählen"
+                (fun shift -> dispatch (ClickRowCheckbox (entry.Id, shift)))
+        ]
+    ]
+
+/// Die Kopfzelle der Kästchen-Spalte: das Kopfzeilen-Kästchen über den ganzen Treffer.
+let private selectHeaderCell (dispatch: Msg -> unit) (state: HeaderCheckState) : ReactElement =
+    Table.calmHeaderContentCell [
+        MultiSelect.boxButton
+            (match state with
+             | HeaderEmpty -> MultiSelect.Unchecked
+             | HeaderPartial -> MultiSelect.Partial
+             | HeaderChecked -> MultiSelect.Checked)
+            "Alle Buchungen des Treffers auswählen"
+            (fun _ -> dispatch ToggleHeaderCheckbox)
+    ]
+
 let private entryTableRow
     (dispatch: Msg -> unit)
     (showAccountColumn: bool)
     (accountAbbreviationOf: Guid -> string)
     (rowState: ReviewMarkRowState option)
+    (selected: bool)
+    (isAnchor: bool)
     (entry: LedgerEntryView)
     =
     // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), nicht mehr
@@ -585,8 +665,9 @@ let private entryTableRow
         { Table.defaultRowProps with
             OnClick = Some (fun () -> dispatch (OpenHistory entry))
             StatusEdge = entry.NeedsReview
-            ClassName = Some Tokens.ListRoles.rowHeight }
+            ClassName = Some (selectableRowClassName selected isAnchor) }
         [
+            selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
             if showAccountColumn then Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
             truncatedRoleCell Table.Payee (Html.text (payeeLabel entry))
@@ -871,7 +952,7 @@ let private swipeableEntryRow
     (rowState: ReviewMarkRowState option)
     (entry: LedgerEntryView)
     =
-    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState entry
+    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None entry
     if swipeAppliesTo entry then
         Html.div [
             prop.key (string entry.Id)
@@ -888,11 +969,101 @@ let private swipeableEntryRow
     else
         row
 
+/// Wie lange ein Finger auf einer Zeile liegen muss, bis der Auswahl-Modus beginnt.
+[<Literal>]
+let private LongPressMs = 500
+
+/// Wie weit sich der Finger bewegen darf, bevor das Drücken als Wischen oder Scrollen gilt.
+[<Literal>]
+let private LongPressSlopPx = 10.0
+
+/// Die Hülle um eine Handy-Zeile, die langes Drücken erkennt (ledger-r1d2f). Nur Touch.
+/// Bewegt sich der Finger über die Toleranz, ist es ein Wisch oder Scrollen und der
+/// Zeitgeber fällt. Nach einem ausgelösten langen Drücken schluckt die Hülle den Klick, der
+/// beim Loslassen folgen kann (sonst würde die eben gewählte Zeile gleich wieder abgewählt).
+/// Die Hülle bleibt im Auswahl-Modus stehen (nur `enabled` fällt), damit dieser Klick
+/// dieselbe Hülle trifft, die das Drücken erkannt hat.
+[<ReactComponent>]
+let private LongPressRow (enabled: bool) (onLongPress: unit -> unit) (child: ReactElement) =
+    let timer = React.useRef<float option> None
+    let startX = React.useRef 0.0
+    let startY = React.useRef 0.0
+    let fired = React.useRef false
+
+    let cancel () =
+        match timer.current with
+        | Some handle ->
+            Browser.Dom.window.clearTimeout handle
+            timer.current <- None
+        | None -> ()
+
+    React.useEffectOnce (fun () -> { new IDisposable with member _.Dispose() = cancel () })
+
+    Html.div [
+        prop.className "row-longpress"
+        prop.onPointerDown (fun e ->
+            fired.current <- false
+            cancel ()
+            if enabled && e.pointerType = "touch" then
+                startX.current <- e.clientX
+                startY.current <- e.clientY
+                timer.current <-
+                    Some (
+                        Browser.Dom.window.setTimeout (
+                            (fun () ->
+                                timer.current <- None
+                                fired.current <- true
+                                Viewport.vibrate 10
+                                onLongPress ()),
+                            LongPressMs
+                        )
+                    ))
+        prop.onPointerMove (fun e ->
+            if timer.current.IsSome then
+                if abs (e.clientX - startX.current) > LongPressSlopPx || abs (e.clientY - startY.current) > LongPressSlopPx then
+                    cancel ())
+        prop.onPointerUp (fun _ -> cancel ())
+        prop.onPointerCancel (fun _ -> cancel ())
+        prop.onContextMenu (fun e -> e.preventDefault ())
+        prop.custom (
+            "onClickCapture",
+            fun (e: Browser.Types.MouseEvent) ->
+                if fired.current then
+                    fired.current <- false
+                    e.stopPropagation ()
+                    e.preventDefault ()
+        )
+        prop.children [ child ]
+    ]
+
+/// Eine Zeile der Handy-Liste: im Normalbetrieb mit Wisch-Geste, im Auswahl-Modus mit
+/// Kästchen und ohne Wisch (ein Wisch wäre dort überraschend, ledger-r1d2f). In beiden Fällen
+/// unter derselben Hülle für das lange Drücken.
+let private mobileEntryRow
+    (dispatch: Msg -> unit)
+    (accountAbbreviationOf: (Guid -> string) option)
+    (selectionMode: bool)
+    (selection: Selection)
+    (rowState: ReviewMarkRowState option)
+    (entry: LedgerEntryView)
+    =
+    let inner =
+        if selectionMode then
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) entry
+        else
+            swipeableEntryRow dispatch accountAbbreviationOf rowState entry
+    React.keyedFragment (
+        string entry.Id,
+        [ LongPressRow (not selectionMode) (fun () -> dispatch (StartSelectionMode entry.Id)) inner ]
+    )
+
 let private entryListMobile
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
+    (selectionMode: bool)
+    (selection: Selection)
     (entries: LedgerEntryView list)
     =
     Primitives.Responsive.mobileOnly [
@@ -903,7 +1074,13 @@ let private entryListMobile
                     dateGroupHeader date (daySum includeDeleted group)
                     :: (group
                         |> List.map (fun entry ->
-                            swipeableEntryRow dispatch accountAbbreviationOf (reviewRows |> Map.tryFind entry.Id) entry)))
+                            mobileEntryRow
+                                dispatch
+                                accountAbbreviationOf
+                                selectionMode
+                                selection
+                                (reviewRows |> Map.tryFind entry.Id)
+                                entry)))
             )
         ]
     ]
@@ -914,15 +1091,20 @@ type ColumnWidth =
     | Percent of int
     | Rest
 
-/// Spaltenbreiten der PC-Tabelle in Reihenfolge Datum, [Konto], Payee, Kategorie, Memo,
-/// Betrag, Status (K13). In "Alle Konten" nimmt die Kontospalte Platz weg; Payee und
-/// Kategorie geben deshalb Prozent ab, damit Memo nicht auf wenige Pixel schrumpft.
+/// Breite der Kästchen-Spalte der PC-Tabelle (Handoff Ablauf 3: 44px).
+let selectColumnWidth = 44
+
+/// Spaltenbreiten der PC-Tabelle in Reihenfolge Kästchen, Datum, [Konto], Payee, Kategorie,
+/// Memo, Betrag, Status (K13). In "Alle Konten" nimmt die Kontospalte Platz weg; Payee und
+/// Kategorie geben deshalb Prozent ab, damit Memo nicht auf wenige Pixel schrumpft. Die
+/// Kästchen-Spalte (ledger-r1d2f) kostet 44px, die Payee und Kategorie ebenfalls abgeben.
 /// Die Anteile wirken nur mit `FixedLayout = true`.
 let tableColumnWidths (showAccountColumn: bool) : ColumnWidth list =
-    [ FixedPx 96
+    [ FixedPx selectColumnWidth
+      FixedPx 96
       if showAccountColumn then FixedPx 72
-      Percent (if showAccountColumn then 22 else 30)
-      Percent (if showAccountColumn then 22 else 26)
+      Percent (if showAccountColumn then 20 else 28)
+      Percent (if showAccountColumn then 20 else 24)
       Rest
       FixedPx 132
       FixedPx (int statusColumnWidth) ]
@@ -954,10 +1136,13 @@ let private entryListDesktop
     (accountAbbreviationOf: Guid -> string)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
+    (headerState: HeaderCheckState)
+    (selection: Selection)
+    (anchor: Guid option)
     (entries: LedgerEntryView list)
     =
-    // Spalten vor dem Betrag: Datum, [Konto], Payee, Kategorie, Memo.
-    let columnsBeforeAmount = if showAccountColumn then 5 else 4
+    // Spalten vor dem Betrag: Kästchen, Datum, [Konto], Payee, Kategorie, Memo.
+    let columnsBeforeAmount = if showAccountColumn then 6 else 5
 
     Primitives.Responsive.desktopOnly [
         Table.view
@@ -982,6 +1167,7 @@ let private entryListDesktop
             [
                 Html.colgroup [ for width in tableColumnWidths showAccountColumn -> col width ]
                 Table.thead [
+                    selectHeaderCell dispatch headerState
                     Table.calmHeaderCell "Datum" None
                     if showAccountColumn then Table.calmHeaderCell "Konto" None
                     Table.calmHeaderCell "Payee" None
@@ -999,7 +1185,14 @@ let private entryListDesktop
                                 let rowState = reviewRows |> Map.tryFind entry.Id
                                 React.keyedFragment (
                                     string entry.Id,
-                                    [ entryTableRow dispatch showAccountColumn accountAbbreviationOf rowState entry
+                                    [ entryTableRow
+                                          dispatch
+                                          showAccountColumn
+                                          accountAbbreviationOf
+                                          rowState
+                                          (isSelected selection entry.Id)
+                                          (anchor = Some entry.Id)
+                                          entry
                                       match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
                                       | Some hintRow -> hintRow
                                       | None -> () ]
@@ -1063,8 +1256,19 @@ let private entryList
                 (if isAllAccounts then Some abbreviationOf else None)
                 model.IncludeDeleted
                 model.ReviewMarkRows
+                model.SelectionMode
+                model.Selection
                 entries
-            entryListDesktop dispatch isAllAccounts abbreviationOf model.IncludeDeleted model.ReviewMarkRows entries
+            entryListDesktop
+                dispatch
+                isAllAccounts
+                abbreviationOf
+                model.IncludeDeleted
+                model.ReviewMarkRows
+                (headerCheckState model)
+                model.Selection
+                model.SelectionAnchor
+                entries
 
             if model.LoadingMore then
                 Html.div [
@@ -1434,6 +1638,49 @@ let private summaryRow (model: Model) : ReactElement =
             ]
         ]
 
+/// Die Summenzeile im Auswahl-Zustand (ledger-r1d2f): "Auswahl: n von N Buchungen" mit der
+/// Summe der Auswahl und der Teal-Kante. Sie ersetzt den Treffer-Zustand, solange die Auswahl
+/// nicht leer ist, und steht auch ohne aktiven Filter da. Anzahl und Summe liefert nur
+/// `selectionTotals`.
+let private selectionSummaryRow (model: Model) : ReactElement =
+    let totals = selectionTotals model
+    MultiSelect.summaryRow (selectionSummaryText totals.Count model.TotalCount) totals.Amount
+
+/// Summenzeile über der Liste: die Auswahl, wenn eine läuft, sonst der Treffer.
+let private summaryOrSelectionRow (model: Model) : ReactElement =
+    if hasSelection model then selectionSummaryRow model else summaryRow model
+
+/// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), ohne schreibende Aktionen. Am Handy
+/// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
+/// Auswahl nicht leer ist (eine Reihe, ohne "Alle"). Sie ist `fixed` und steht deshalb
+/// außerhalb der Seitenhülle mit der Eintrittsanimation (`animate-page-enter` setzt einen
+/// Transform, in dem `fixed` an der Hülle statt am Fenster haftet): der Haupt-`View.fs`
+/// rendert sie neben den Toasts.
+let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    let totals = selectionTotals model
+    let countText = selectionBarCountText totals.Count
+    React.fragment [
+        if model.SelectionMode then
+            MultiSelect.barMobile
+                countText
+                totals.Amount
+                selectionAllLabel
+                (isAllSelected model.Selection)
+                (fun () -> dispatch ToggleSelectAll)
+                selectionClearLabel
+                (fun () -> dispatch ClearSelection)
+        if totals.Count > 0 then
+            MultiSelect.barDesktop countText totals.Amount selectionClearLabel (fun () -> dispatch ClearSelection)
+    ]
+
+/// Je ein Abstandshalter in Höhe der Leiste unter der Liste, damit die letzte Zeile
+/// erreichbar bleibt: sie ist nie dauerhaft verdeckt.
+let private selectionBarSpacers (model: Model) : ReactElement =
+    React.fragment [
+        if model.SelectionMode then Html.div [ prop.className "md:hidden h-40"; prop.ariaHidden true ]
+        if hasSelection model then Html.div [ prop.className "hidden md:block h-20"; prop.ariaHidden true ]
+    ]
+
 /// Zeile über der Liste, solange es gelöschte Buchungen im Filter gibt (AC2,
 /// ledger-p3n8k): Anzahl-Satz plus Schalter. Ohne gelöschte Buchungen im Filter
 /// steht hier nichts (ein Schalter ohne Wirkung wäre nur Rauschen).
@@ -1526,9 +1773,10 @@ let private FilterBarColumn
                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
 
                 filterChipBar dispatch model categories (Some barCallbackRef)
-                summaryRow model
+                summaryOrSelectionRow model
                 deletedToggleRow dispatch model
                 entryList dispatch accounts isAllAccounts model
+                selectionBarSpacers model
             ]
         ]
     ]

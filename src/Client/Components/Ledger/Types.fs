@@ -274,6 +274,19 @@ let reviewMarkHintFor (rowState: ReviewMarkRowState option) (entry: LedgerEntryV
         Some { Title = reviewMarkHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, None -> None
 
+// ============================================
+// Auswahl mit Summe (ledger-r1d2f)
+// ============================================
+
+/// Die Auswahl ist eine Menge über den Treffer, keine Liste geladener Ids: `AllExcept`
+/// meint den ganzen Treffer außer den genannten Zeilen, auch die noch nicht geladenen.
+/// `Picked` kennt nur geladene Zeilen (man kann nur antippen, was man sieht). Abwählen
+/// kann man ebenfalls nur geladene Zeilen, deshalb sind auch die Ausnahmen geladen.
+type Selection =
+    | NoSelection
+    | Picked of Set<Guid>
+    | AllExcept of Set<Guid>
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -408,12 +421,134 @@ type Model = {
     /// samt ihrem Platz in der Liste (ledger-th36h). "Rückgängig" setzt sie dorthin
     /// zurück. `resetEntries` leert die Karte, eine neu geladene Liste kennt sie nicht mehr.
     SwipedAway: Map<Guid, LedgerEntryView * int>
+
+    /// Die laufende Auswahl (ledger-r1d2f). Konto-, Filter- oder Chipwechsel leert sie,
+    /// denn sie bezieht sich auf einen Treffer.
+    Selection: Selection
+
+    /// Der Anker der Shift-Klick-Spanne am PC: die zuletzt einfach angeklickte Zeile.
+    SelectionAnchor: Guid option
+
+    /// Ist der Auswahl-Modus am Handy an (Kästchen sichtbar, Leiste statt Tab-Bar)?
+    /// Er beginnt mit langem Drücken und endet nur mit "Auswahl aufheben": auch mit
+    /// leerer Auswahl bleibt er an.
+    SelectionMode: bool
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
 /// gesperrt, und `ApplyDateFilter` ändert den Filter nicht.
 let dateDraftHasError (model: Model) : bool =
     model.DateDraftFromInvalid || model.DateDraftToInvalid
+
+
+// ============================================
+// Rechnen mit der Auswahl (ledger-r1d2f), rein
+// ============================================
+
+/// Gilt die Zeile als gewählt? Unter `AllExcept` auch eine eben nachgeladene.
+let isSelected (selection: Selection) (id: Guid) : bool =
+    match selection with
+    | NoSelection -> false
+    | Picked ids -> ids.Contains id
+    | AllExcept excluded -> not (excluded.Contains id)
+
+/// Anzahl und Summe der Auswahl.
+type SelectionTotals = {
+    Count: int
+    Amount: Money
+}
+
+/// Anzahl und Summe der Auswahl, ohne neuen Server-Aufruf. `Picked`: die gewählten
+/// geladenen Zeilen. `AllExcept`: `TotalCount` und `TotalAmount` des Treffers minus die
+/// Ausnahmen. In YNAB gelöschte Buchungen zählen in keinem Fall zur Summe, dieselbe
+/// Regel wie bei `TotalAmount` (siehe `applyReviewMarkResult`). Summenzeile und Leiste
+/// lesen nur diese Funktion.
+let selectionTotals (model: Model) : SelectionTotals =
+    let entries = model.Entries |> RemoteData.withDefault []
+    let currency = model.TotalAmount.Currency
+    let sumOf (rows: LedgerEntryView list) =
+        rows |> List.filter (fun e -> not e.DeletedInYnab) |> List.sumBy (fun e -> e.Amount.Amount)
+    match model.Selection with
+    | NoSelection -> { Count = 0; Amount = { Amount = 0m; Currency = currency } }
+    | Picked ids ->
+        let rows = entries |> List.filter (fun e -> ids.Contains e.Id)
+        { Count = List.length rows; Amount = { Amount = sumOf rows; Currency = currency } }
+    | AllExcept excluded ->
+        let rows = entries |> List.filter (fun e -> excluded.Contains e.Id)
+        { Count = max 0 (model.TotalCount - List.length rows)
+          Amount = { model.TotalAmount with Amount = model.TotalAmount.Amount - sumOf rows } }
+
+/// Läuft eine nicht leere Auswahl? Nur dann zeigt die Summenzeile die Auswahl, und am PC
+/// erscheint die Leiste.
+let hasSelection (model: Model) : bool = (selectionTotals model).Count > 0
+
+/// Zustand des Kopfzeilen-Kästchens am PC, abgeleitet aus der Anzahl der Auswahl gegen
+/// `TotalCount`: leer, Teal-Strich (Teilauswahl) oder Haken (ganzer Treffer).
+type HeaderCheckState =
+    | HeaderEmpty
+    | HeaderPartial
+    | HeaderChecked
+
+let headerCheckState (model: Model) : HeaderCheckState =
+    let count = (selectionTotals model).Count
+    if count <= 0 then HeaderEmpty
+    elif model.TotalCount > 0 && count >= model.TotalCount then HeaderChecked
+    else HeaderPartial
+
+/// Der Auswahl-Text der Summenzeile: "Auswahl: 12 von 34 Buchungen".
+let selectionSummaryText (count: int) (totalCount: int) : string =
+    let noun = if totalCount = 1 then "Buchung" else "Buchungen"
+    $"Auswahl: {Client.DesignSystem.Money.formatCount count} von {Client.DesignSystem.Money.formatCount totalCount} {noun}"
+
+/// "12 ausgewählt" in der Auswahl-Leiste.
+let selectionBarCountText (count: int) : string =
+    $"{Client.DesignSystem.Money.formatCount count} ausgewählt"
+
+let selectionClearLabel = "Auswahl aufheben"
+let selectionAllLabel = "Alle"
+
+/// Ist "Alle" in der Handy-Leiste aktiv? Nur beim ganzen Treffer ohne Ausnahme.
+let isAllSelected (selection: Selection) : bool =
+    match selection with
+    | AllExcept excluded -> Set.isEmpty excluded
+    | _ -> false
+
+/// Wählt eine Zeile aus bzw. ab. Eine leere `Picked`-Menge wird zu `NoSelection`.
+let toggleSelected (id: Guid) (selection: Selection) : Selection =
+    match selection with
+    | NoSelection -> Picked (Set.singleton id)
+    | Picked ids ->
+        let ids' = if ids.Contains id then Set.remove id ids else Set.add id ids
+        if Set.isEmpty ids' then NoSelection else Picked ids'
+    | AllExcept excluded ->
+        AllExcept (if excluded.Contains id then Set.remove id excluded else Set.add id excluded)
+
+/// Wählt die Zeilen der Spanne dazu; unter `AllExcept` nimmt es sie aus den Ausnahmen.
+let addToSelection (ids: Guid list) (selection: Selection) : Selection =
+    match selection with
+    | NoSelection -> Picked (Set.ofList ids)
+    | Picked current -> Picked (Set.union current (Set.ofList ids))
+    | AllExcept excluded -> AllExcept (Set.difference excluded (Set.ofList ids))
+
+/// Die geladenen Zeilen zwischen zwei Ids, beide eingeschlossen, in Listenreihenfolge.
+/// Kennt die Liste eine der beiden nicht mehr, ist die Spanne leer.
+let rangeBetween (entries: LedgerEntryView list) (fromId: Guid) (toId: Guid) : Guid list =
+    match entries |> List.tryFindIndex (fun e -> e.Id = fromId), entries |> List.tryFindIndex (fun e -> e.Id = toId) with
+    | Some a, Some b ->
+        let lo, hi = min a b, max a b
+        entries |> List.skip lo |> List.take (hi - lo + 1) |> List.map (fun e -> e.Id)
+    | _ -> []
+
+/// Eine Zeile verlässt die Liste (Prüfvermerk bei aktivem Chip): sie fällt aus `Picked`
+/// bzw. aus den Ausnahmen. `TotalCount` und `TotalAmount` führt der Aufrufer nach, so
+/// bleiben Anzahl und Summe der Auswahl stimmig.
+let removeFromSelection (id: Guid) (selection: Selection) : Selection =
+    match selection with
+    | NoSelection -> NoSelection
+    | Picked ids ->
+        let ids' = Set.remove id ids
+        if Set.isEmpty ids' then NoSelection else Picked ids'
+    | AllExcept excluded -> AllExcept (Set.remove id excluded)
 
 /// Die Nachrichten der Seite.
 ///
@@ -547,6 +682,24 @@ type Msg =
     | StartUndoReviewMark of Guid * ReviewMarkState
     | RunUndoReviewMark of Guid * ReviewMarkState
     | ReviewMarkRestored of Guid * ReviewMarkState * Result<ReviewMarkOutcome, string>
+
+    // ============================================
+    // Auswahl mit Summe (ledger-r1d2f)
+    // ============================================
+
+    /// Langes Drücken auf eine Zeile (Handy): startet den Modus mit genau dieser Zeile.
+    | StartSelectionMode of Guid
+    /// Tipp auf Zeile oder Kästchen im Modus (Handy): wählt aus bzw. ab.
+    | ToggleRowSelected of Guid
+    /// Klick auf das Kästchen einer Zeile (PC). Mit Shift wählt er die Spanne zwischen
+    /// Anker und Zeile, ohne Shift wählt er die Zeile aus bzw. ab und setzt den Anker.
+    | ClickRowCheckbox of Guid * shift: bool
+    /// "Alle" in der Handy-Leiste: der ganze Treffer, nochmal leert die Auswahl.
+    | ToggleSelectAll
+    /// Kopfzeilen-Kästchen (PC): leer oder Strich wählt den ganzen Treffer, Haken leert.
+    | ToggleHeaderCheckbox
+    /// "Auswahl aufheben": leert die Auswahl und beendet den Modus.
+    | ClearSelection
 
 /// Was die Seite nach oben meldet.
 type ExternalMsg =

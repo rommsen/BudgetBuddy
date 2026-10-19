@@ -514,21 +514,21 @@ let private statusColumnTests =
                 "Screen 1.9 sieht 128px vor; die 208px waren ein Pflaster von ledger-x0yga."
         }
 
-        /// Spaltenanteile (`ledger-n4vte`): Payee ca. 30 %, Kategorie ca. 26 %, Memo
-        /// bekommt den Rest. Sie stehen in einer `colgroup`; die Kopfzellen der
+        /// Spaltenanteile (`ledger-n4vte`, mit der Kästchen-Spalte aus `ledger-r1d2f` auf
+        /// 28 und 24 %): Payee ca. 28 %, Kategorie ca. 24 %, Memo bekommt den Rest. Sie stehen in einer `colgroup`; die Kopfzellen der
         /// ruhigen Tabelle (`Table.calmHeaderCell`) tragen keine Breite. Quelltext-
         /// Wächter; die tatsächliche Breite misst `scripts/ledger-status-column.test.mjs`.
-        test "Payee 30 %, Kategorie 26 %, Memo ohne Breite in der colgroup (Quelltext-Wächter)" {
+        test "Payee 28 %, Kategorie 24 %, Memo ohne Breite in der colgroup (Quelltext-Wächter)" {
             let view = readLedgerView ()
             let desktopBody = sliceFunctionBody view "let private entryListDesktop"
             // Seit ledger-m23nz kommen die Breiten aus `tableColumnWidths`.
             Expect.stringContains desktopBody "tableColumnWidths showAccountColumn"
                 "Die colgroup baut auf tableColumnWidths."
             let widths = tableColumnWidths false
-            Expect.contains widths (Percent 30)
-                "Payee bekommt ca. 30 %, damit 'Transfer : Tagesgeld ING' nicht gekürzt wird."
-            Expect.contains widths (Percent 26)
-                "Kategorie bekommt ca. 26 %, damit 'Alltag: Essen/Einkaufen' nicht gekürzt wird."
+            Expect.contains widths (Percent 28)
+                "Payee bekommt ca. 28 %, damit 'Transfer : Tagesgeld ING' nicht gekürzt wird."
+            Expect.contains widths (Percent 24)
+                "Kategorie bekommt ca. 24 %, damit 'Alltag: Essen/Einkaufen' nicht gekürzt wird."
             Expect.contains widths Rest
                 "Memo bekommt den Rest, ohne eigene Breite."
             Expect.stringContains desktopBody "Table.calmHeaderCell \"Payee\""
@@ -1285,7 +1285,7 @@ let private filterBarRuhigTests =
                 let percent = widths |> List.sumBy (function Percent p -> p | _ -> 0)
                 Expect.isLessThan percent 100 $"Summe der Prozentwerte (Konto={showAccount})"
                 Expect.equal (widths |> List.filter ((=) Rest) |> List.length) 1 "genau eine Restspalte"
-                Expect.equal (List.length widths) (if showAccount then 7 else 6) "Spaltenzahl"
+                Expect.equal (List.length widths) (if showAccount then 8 else 7) "Spaltenzahl (mit Kästchen-Spalte)"
                 let memoPx = memoWidthAt referenceTableWidth showAccount
                 if showAccount then
                     Expect.isGreaterThanOrEqual (memoPx / referenceTableWidth) memoMinShare $"Memo-Anteil in Alle Konten: {memoPx}"

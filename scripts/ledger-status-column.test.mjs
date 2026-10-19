@@ -404,7 +404,7 @@ test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne hö
 // AC6: Spaltenraster, Status auf 128px, die 80px gehen an Payee/Memo
 // ============================================
 
-test("Spaltenraster: Status 128px, Payee ca. 30 %, Kategorie ca. 26 %, Memo Rest (AC6, ledger-n4vte)", async () => {
+test("Spaltenraster: Kästchen 44px, Status 128px, Payee ca. 28 %, Kategorie ca. 24 %, Memo Rest (AC6, ledger-n4vte, ledger-r1d2f)", async () => {
   // Iteration 3 (Verifier-Befund Iteration 2): dieselbe Wartebedingung wie in
   // `before()` UNMITTELBAR vor dieser Messung nochmal, nicht nur einmal am
   // Anfang der Datei. AC6 ist der neunte und letzte Test, nach dem Seiten- und
@@ -441,30 +441,32 @@ test("Spaltenraster: Status 128px, Payee ca. 30 %, Kategorie ca. 26 %, Memo Rest
     };
   });
 
-  // Reihenfolge für ein einzelnes Konto (kein Konto-Spalte): Datum, Payee, Kategorie, Memo, Betrag, Status.
-  assert.deepEqual(headers, ["Datum", "Payee", "Kategorie", "Memo", "Betrag", "Status"]);
+  // Reihenfolge für ein einzelnes Konto (keine Konto-Spalte): Kästchen (Kopf ohne Text, ledger-r1d2f),
+  // Datum, Payee, Kategorie, Memo, Betrag, Status.
+  assert.deepEqual(headers, ["", "Datum", "Payee", "Kategorie", "Memo", "Betrag", "Status"]);
 
-  const [datumWidth, payeeWidth, kategorieWidth, memoWidth, betragWidth, statusWidth] = widths;
+  const [boxWidth, datumWidth, payeeWidth, kategorieWidth, memoWidth, betragWidth, statusWidth] = widths;
 
   // Spaltenraster der ruhigen Tabelle (ledger-n4vte): feste Breiten für Datum, Betrag
-  // und Status, Payee ca. 30 % und Kategorie ca. 26 % der Tabellenbreite, Memo
-  // bekommt den Rest.
+  // und Status, Payee ca. 28 % und Kategorie ca. 24 % der Tabellenbreite (mit der
+  // Kästchen-Spalte von 44px, ledger-r1d2f), Memo bekommt den Rest.
+  assert.ok(Math.abs(boxWidth - 44) <= 2, `Kästchen-Spalte sollte ~44px sein, war ${boxWidth}`);
   assert.ok(Math.abs(datumWidth - 96) <= 2, `Datum sollte ~96px sein, war ${datumWidth}`);
   assert.ok(Math.abs(betragWidth - 132) <= 2, `Betrag sollte ~132px sein, war ${betragWidth}`);
   assert.ok(Math.abs(statusWidth - 128) <= 2, `Status sollte ~128px sein (Handoff-Wert), nicht mehr 208px (Pflaster aus ledger-x0yga), war ${statusWidth}`);
   assert.ok(
-    Math.abs(payeeWidth / tableWidth - 0.3) <= 0.01,
-    `Payee sollte ~30 % der Tabelle sein, war ${((payeeWidth / tableWidth) * 100).toFixed(1)} %`
+    Math.abs(payeeWidth / tableWidth - 0.28) <= 0.01,
+    `Payee sollte ~28 % der Tabelle sein, war ${((payeeWidth / tableWidth) * 100).toFixed(1)} %`
   );
   assert.ok(
-    Math.abs(kategorieWidth / tableWidth - 0.26) <= 0.01,
-    `Kategorie sollte ~26 % der Tabelle sein, war ${((kategorieWidth / tableWidth) * 100).toFixed(1)} %`
+    Math.abs(kategorieWidth / tableWidth - 0.24) <= 0.01,
+    `Kategorie sollte ~24 % der Tabelle sein, war ${((kategorieWidth / tableWidth) * 100).toFixed(1)} %`
   );
 
   // Memo füllt genau den Rest, den die übrigen Spalten übrig lassen, und ist auf
   // dem 1440er Viewport breit genug, um einen kurzen Text zu zeigen (vorher blieben
   // durch den Rahmen mit Breitenbegrenzung nur ca. 45px).
-  const expectedMemo = tableWidth - (datumWidth + payeeWidth + kategorieWidth + betragWidth + statusWidth);
+  const expectedMemo = tableWidth - (boxWidth + datumWidth + payeeWidth + kategorieWidth + betragWidth + statusWidth);
   assert.ok(
     Math.abs(memoWidth - expectedMemo) <= 4,
     `Memo (${memoWidth}) sollte den Rest der Tabellenbreite (${expectedMemo}) füllen`

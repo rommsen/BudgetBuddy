@@ -56,11 +56,16 @@ let init () : Model * Cmd<Msg> =
         AmountVersion = 0
         ReviewMarkRows = Map.empty
         SwipedAway = Map.empty
+        Selection = NoSelection
+        SelectionAnchor = None
+        SelectionMode = false
     }
     model, Cmd.none
 
 /// Der Zustand einer frisch angestossenen Buchungsliste: Seite 0, nichts geladen.
-/// Von `LoadEntries` und `SelectFilter` geteilt — beide starten die Liste neu.
+/// Von `LoadEntries` und `SelectFilter` geteilt: beide starten die Liste neu. Eine neue
+/// Liste ist ein neuer Treffer: die Auswahl bezog sich auf den alten und endet mit ihm
+/// (Konto-, Filter- und Chipwechsel laufen alle hierdurch, ledger-r1d2f).
 let private resetEntries (model: Model) : Model = {
     model with
         Entries = Loading
@@ -71,6 +76,9 @@ let private resetEntries (model: Model) : Model = {
         HasMoreEntries = false
         LoadingMore = false
         SwipedAway = Map.empty
+        Selection = NoSelection
+        SelectionAnchor = None
+        SelectionMode = false
 }
 
 /// Die Seitenanfrage an den Server. Rein, damit der Versatz testbar ist. Die fünf
@@ -139,6 +147,9 @@ let private applyReviewMarkResult
                 TotalCount = totalCount
                 TotalAmount = totalAmount
                 LocallyRemoved = (if leavesList then cleared.LocallyRemoved + 1 else cleared.LocallyRemoved)
+                // Eine Zeile, die die Liste verlässt, verlässt auch die Auswahl (ledger-r1d2f).
+                Selection = (if leavesList then removeFromSelection entryId cleared.Selection else cleared.Selection)
+                SelectionAnchor = (if leavesList && cleared.SelectionAnchor = Some entryId then None else cleared.SelectionAnchor)
                 HasMoreEntries = List.length remaining < totalCount }
     | _ -> cleared
 
@@ -784,3 +795,49 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
         Cmd.none,
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    // ============================================
+    // Auswahl mit Summe (ledger-r1d2f)
+    // ============================================
+
+    | StartSelectionMode entryId ->
+        { model with
+            SelectionMode = true
+            Selection = Picked (Set.singleton entryId)
+            SelectionAnchor = None },
+        Cmd.none,
+        NoOp
+
+    | ToggleRowSelected entryId ->
+        // Abwählen der letzten Zeile beendet den Modus nicht: nur "Auswahl aufheben" tut das.
+        { model with Selection = toggleSelected entryId model.Selection }, Cmd.none, NoOp
+
+    | ClickRowCheckbox (entryId, shift) ->
+        let entries = model.Entries |> RemoteData.withDefault []
+        let span =
+            match shift, model.SelectionAnchor with
+            | true, Some anchor -> rangeBetween entries anchor entryId
+            | _ -> []
+        if List.isEmpty span then
+            // Einfacher Klick (oder Shift ohne brauchbaren Anker): wählt aus bzw. ab, setzt den Anker.
+            { model with
+                Selection = toggleSelected entryId model.Selection
+                SelectionAnchor = Some entryId },
+            Cmd.none,
+            NoOp
+        else
+            { model with Selection = addToSelection span model.Selection }, Cmd.none, NoOp
+
+    | ToggleSelectAll ->
+        let selection = if isAllSelected model.Selection then NoSelection else AllExcept Set.empty
+        { model with Selection = selection; SelectionAnchor = None }, Cmd.none, NoOp
+
+    | ToggleHeaderCheckbox ->
+        let selection =
+            match headerCheckState model with
+            | HeaderChecked -> NoSelection
+            | HeaderEmpty | HeaderPartial -> AllExcept Set.empty
+        { model with Selection = selection; SelectionAnchor = None }, Cmd.none, NoOp
+
+    | ClearSelection ->
+        { model with Selection = NoSelection; SelectionAnchor = None; SelectionMode = false }, Cmd.none, NoOp
