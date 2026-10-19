@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:16 -- Batch started: [ledger-r777c, design-system-m7z9q, ynab-sync-e4gm3]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-r777c - "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile", design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs, ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
+**Parallel:** yes (3 workers, all remaining ready tasks; r777c and m7z9q share Ledger State/Types/View, regions and test files assigned in the worker prompts)
+
+---
+
 ## 2026-10-19 16:16 -- Task verified and completed: ledger-zmbf1 - "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
 
 **Type:** Work / Task completion

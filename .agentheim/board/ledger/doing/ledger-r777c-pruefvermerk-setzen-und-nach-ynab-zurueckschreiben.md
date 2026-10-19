@@ -1,7 +1,7 @@
 ---
 id: ledger-r777c
 title: "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-12

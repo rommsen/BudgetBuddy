@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ynab-sync-e4gm3** — Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt (feature) — `todo/ynab-sync-e4gm3-duplikat-details-deutsch-und-nur-bei-verdacht.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ynab-sync-e4gm3** — Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt (feature) — `doing/ynab-sync-e4gm3-duplikat-details-deutsch-und-nur-bei-verdacht.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
