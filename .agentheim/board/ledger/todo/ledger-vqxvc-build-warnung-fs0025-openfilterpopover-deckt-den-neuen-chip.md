@@ -1,7 +1,7 @@
 ---
 id: ledger-vqxvc
 title: "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-10-18
@@ -37,3 +37,7 @@ denselben Fehler prüfen.
 ## Notes
 
 Gefunden beim Abschluss-Build auf main am 2026-10-18 22:2x. Der Verifier von `ledger-saqsk` hat die Warnung nicht gemeldet.
+
+Aus dem dismissten Duplikat `ledger-eng59` übernommen: der Chip löst heute
+`ToggleWithoutCategory` aus (`src/Client/Components/Ledger/View.fs` um Zeile 1116) und
+öffnet kein Popover, der fehlende Fall wird also im Normalbetrieb nicht erreicht.

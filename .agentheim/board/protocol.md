@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:45 -- Modeling / Promoted: ledger-vqxvc - "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 13:45 -- Modeling / Dismissed: ledger-eng59
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ledger-eng59 - OpenFilterPopover deckt den Chip "Ohne Kategorie" nicht ab (Warnung FS0025) (ledger)
+
+---
+
 ## 2026-10-19 13:38 -- Modeling / Promoted: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
 
 **Type:** Modeling / Promote
