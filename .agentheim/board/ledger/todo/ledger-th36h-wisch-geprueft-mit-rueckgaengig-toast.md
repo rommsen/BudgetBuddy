@@ -1,7 +1,7 @@
 ---
 id: ledger-th36h
 title: "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-19

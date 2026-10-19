@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:35 -- Modeling / Promoted: ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 18:35 -- Modeling / Promoted: design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
 
 **Type:** Modeling / Promote
