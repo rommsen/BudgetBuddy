@@ -5,6 +5,25 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:59 -- Batch started: [ledger-r1d2f]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-r1d2f - "Auswahl-Modus mit Summe der Auswahl (Handy und PC)"
+**Parallel:** wave 2 (1 worker, alongside the design-system-btwhg re-dispatch): ledger-r1d2f builds on the integrated ledger-be1yh paging offset and ledger-th36h swipe/undo
+
+---
+
+## 2026-10-19 18:59 -- Verification failed: design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
+
+**Type:** Work / Verification failure
+**Task:** design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
+**Iteration:** 1 of 3
+**Reasons:** Handy-Messung nutzt ein synthetisches Feld statt der echten Kategorie-Suche im BottomSheet, Kernsymptom bei 390x844 damit nicht abgesichert
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-19 18:59 -- Task verified and completed: ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
 
 **Type:** Work / Task completion
