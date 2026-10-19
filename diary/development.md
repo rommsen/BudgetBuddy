@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 17:00 - Import prüfen: Duplikat-Details deutsch, nur bei Verdacht sichtbar (ynab-sync-e4gm3, Iteration 1 und 2)
+
+**What I did:**
+Duplikat-Block der aufgeklappten Zeile in Duplikat-Prüfung und YNAB-Ergebnis getrennt, deutsch, bei Verdacht sofort sichtbar, sonst hinter "Details". Hinweis-Zeile aus den Fuzzy-Feldern. "Überspringen" neutral. Iteration 2: Sichtbarkeit des YNAB-Ergebnisses über showYnabResult, zusätzliche Verdachts-Bilder.
+
+**Files Added:**
+- `scripts/import-pruefen-duplikat-details.test.mjs` - Playwright-Wächter am gemockten Lauf
+- `docs/ux/ynab-sync/import-pruefen-ruhig/pc-1440x900-import-pruefen-duplikat-details.png`
+- `docs/ux/ynab-sync/import-pruefen-ruhig/handy-390x844-import-pruefen-duplikat-details.png`
+- `docs/ux/ynab-sync/import-pruefen-ruhig/pc-1440x900-import-pruefen-duplikat-verdacht.png`
+- `docs/ux/ynab-sync/import-pruefen-ruhig/handy-390x844-import-pruefen-duplikat-verdacht.png`
+
+**Files Modified:**
+- `src/Client/Components/SyncFlow/Views/TransactionRow.fs` - Funktionen, Komponente, deutsche Literale, Hinweis-Zeile, Überspringen ohne danger
+- `src/Tests/SyncFlowViewTests.fs` - 18 neue Tests
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Befund S6: englischer Debug-Block in jeder aufgeklappten Zeile. Verifier: die getestete Funktion muss die Sichtbarkeit tatsächlich steuern, das Handy-Bild muss beide Zeilenarten zeigen.
+
+**Outcomes:**
+- Build: ok (0 Warnungen)
+- Tests: 1298 bestanden, 7 übersprungen; test:scripts 122/122
+- Playwright (gemockt, PC und Handy): Verdachtszeile zeigt aufgeklappt "Duplikat-Prüfung" und "Gefunden: Rewe am 07.10.2026 über 12,34 €" ohne Klick und ohne "Details"-Knopf; die unauffällige Zeile zeigt "Details", die Prüfung erst nach Klick.
+- Issues: keine
+
+---
+
 ## 2026-10-19 16:20 - Flaky Replay-Test in sequenzierte Persistence-Liste verschoben
 
 **What I did:**

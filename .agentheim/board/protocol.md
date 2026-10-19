@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:31 -- Task verified and completed: ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
+
+**Type:** Work / Task completion
+**Task:** ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
+**Summary:** Duplikat-Prüfung in Import prüfen deutsch, bei Verdacht sofort sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt, dessen Sichtbarkeit jetzt über die getestete Funktion showYnabResult läuft. Handy- und PC-Bilder zeigen beide Zeilenarten.
+**Duration:** 14m37s
+**Verification:** PASS (iteration 2)
+**Files changed:** 7
+**Tests added:** 18
+**ADRs written:** none
+
+---
+
+## 2026-10-19 16:25 -- Verification failed: ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter Details; YNAB-Ergebnis getrennt
+
+**Type:** Work / Verification failure
+**Task:** ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter Details; YNAB-Ergebnis getrennt
+**Iteration:** 1 of 3
+**Reasons:** showYnabResult ungenutzt (Ansicht entscheidet selbst), Handy-Bild zeigt die Verdachtszeile nicht vollständig
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-19 16:16 -- Batch started: [ledger-r777c, design-system-m7z9q, ynab-sync-e4gm3]
 
 **Type:** Work / Batch start

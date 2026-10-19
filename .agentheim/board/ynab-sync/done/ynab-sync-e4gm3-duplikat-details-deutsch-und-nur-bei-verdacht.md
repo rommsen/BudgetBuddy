@@ -1,7 +1,7 @@
 ---
 id: ynab-sync-e4gm3
 title: Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
-status: doing
+status: done
 type: feature
 context: ynab-sync
 created: 2026-10-19
@@ -74,3 +74,21 @@ Entscheidung Roman (2026-10-19): Details bei Verdacht sofort sichtbar, sonst üb
 - **Risiko:** die Meldung "YNAB lehnt ab, BudgetBuddy hat es nicht erkannt" darf beim Ausblenden nicht verschwinden; deshalb die Trennung.
 - **Nicht in dieser Aufgabe:** Änderungen an der Duplikat-Erkennung selbst (Server, `Shared/Domain.fs`), neue Aktionen.
 - Größe S bis M.
+
+## Verifier note (iteration 1)
+
+**REASONS:**
+- Kriterium "Eine reine Funktion entscheidet, ob das YNAB-Ergebnis angezeigt wird" nicht erfüllt: `showYnabResult` (TransactionRow.fs:105) wird nirgends aufgerufen; `ynabResultView` entscheidet selbst per `match tx.YnabImportStatus with NotAttempted -> Html.none`. Die drei Tests sichern damit die Ansicht nicht ab.
+- Handy-Bild nur teilweise: es zeigt die unauffällige Zeile mit offenem "Details", von der Verdachtszeile nur Titel, Chip und Memo (am Bottom-Nav abgeschnitten), ohne Hinweis-Zeile und ohne sofort sichtbare Duplikat-Prüfung. PC-Bild ist in Ordnung.
+
+**SUGGESTED_FIX:** `ynabResultView` nimmt die Sichtbarkeit aus `showYnabResult` (z. B. `if not (showYnabResult tx.YnabImportStatus) then Html.none else ...`). Handy-Bild neu aufnehmen, sodass auch Hinweis-Zeile und Duplikat-Prüfung der Verdachtszeile sichtbar sind (scrollen, zweites Bild oder Verdachtszeile zuerst).
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+`duplicateDebugInfo` in `src/Client/Components/SyncFlow/Views/TransactionRow.fs` ist zerlegt. Reine Funktionen: `duplicateDetailsMode` (Shown bei ConfirmedDuplicate/PossibleDuplicate, BehindLink bei NotDuplicate), `fuzzyMatchText` ("Gefunden: Rewe am 07.10.2026 über 12,34 €", Ersatztext "unbekannter Empfänger", None ohne Fuzzy-Felder, Betrag über `Money.formatAmountText`), `showYnabResult`. `DuplicateDetailsBlock` (React-Komponente, useState) zeigt die Prüfung bei Verdacht sofort, sonst hinter dem Link "Details". `ynabResultView` zeigt das YNAB-Ergebnis getrennt; ab Iteration 2 entscheidet `showYnabResult tx.YnabImportStatus` die Sichtbarkeit (Quelltext-Zusicherung sichert das). Die Hinweis-Zeile bei PossibleDuplicate nutzt `fuzzyMatchText` bzw. "Ähnliche Buchung in YNAB", der Server-`reason` wird nicht mehr angezeigt. "New" ist "Neu", "Überspringen" ein normaler `action-chip`. Server und Shared unverändert. `.action-chip.danger` in styles.css blieb stehen (ungenutzt).
+
+Iteration 2: (1) showYnabResult wird jetzt vom View aufgerufen, plus Quelltext-Test. (2) Zweites Bild je Viewport mit der Verdachtszeile (Hinweis-Zeile und sofort sichtbare Duplikat-Prüfung): `{pc-1440x900,handy-390x844}-import-pruefen-duplikat-verdacht.png`; die `-duplikat-details.png`-Bilder zeigen die unauffällige Zeile mit geöffnetem "Details". Playwright-Wächter `scripts/import-pruefen-duplikat-details.test.mjs` schreibt beide Bilder mit SHOTS_DIR. Alle Bilder liegen unter `docs/ux/ynab-sync/import-pruefen-ruhig/`.
+
+Tests: 18 neue Expecto-Tests in `src/Tests/SyncFlowViewTests.fs`. Läufe: dotnet build 0 Warnungen, 0 Fehler; dotnet test 1298 bestanden, 7 übersprungen, 0 Fehler; npm run build ok; guard:classes ok; test:scripts 122 von 122 grün. Selbstcheck ohne Treffer (nur Dateinamen mit "pruef").

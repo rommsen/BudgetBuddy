@@ -596,3 +596,75 @@ let ruhigeListeTests =
                 Expect.isFalse (cls.Contains "glow") cls
         ]
     ]
+
+// ============================================
+// Import prüfen, Duplikat-Details (ynab-sync-e4gm3)
+// ============================================
+
+let private detailsMitFuzzy (payee: string option) =
+    { defaultDuplicateDetails with
+        FuzzyMatchDate = Some (DateTime(2026, 10, 7))
+        FuzzyMatchAmount = Some -12.34m
+        FuzzyMatchPayee = payee }
+
+[<Tests>]
+let duplikatDetailsTests =
+    testList "Import prüfen, Duplikat-Details (ynab-sync-e4gm3)" [
+
+        testList "duplicateDetailsMode" [
+            testCase "ConfirmedDuplicate zeigt die Details sofort" <| fun () ->
+                Expect.equal (duplicateDetailsMode (ConfirmedDuplicate ("ref", defaultDuplicateDetails))) Shown "Shown"
+            testCase "PossibleDuplicate zeigt die Details sofort" <| fun () ->
+                Expect.equal (duplicateDetailsMode (PossibleDuplicate ("x", defaultDuplicateDetails))) Shown "Shown"
+            testCase "NotDuplicate versteckt die Details hinter dem Link" <| fun () ->
+                Expect.equal (duplicateDetailsMode (NotDuplicate defaultDuplicateDetails)) BehindLink "BehindLink"
+        ]
+
+        testList "fuzzyMatchText" [
+            testCase "Payee, Datum dd.MM.yyyy und deutscher Betrag" <| fun () ->
+                Expect.equal
+                    (fuzzyMatchText (detailsMitFuzzy (Some "Rewe")))
+                    (Some "Gefunden: Rewe am 07.10.2026 über 12,34 €")
+                    "Text"
+            testCase "ohne Payee steht ein Ersatztext statt Fragezeichen" <| fun () ->
+                let text = fuzzyMatchText (detailsMitFuzzy None) |> Option.defaultValue ""
+                Expect.isFalse (text.Contains "?") text
+                Expect.stringContains text "unbekannter Empfänger" text
+            testCase "ohne Fuzzy-Felder None" <| fun () ->
+                Expect.isNone (fuzzyMatchText defaultDuplicateDetails) "None"
+        ]
+
+        testList "showYnabResult" [
+            testCase "RejectedByYnab bei NotDuplicate wird angezeigt" <| fun () ->
+                Expect.isTrue (showYnabResult (RejectedByYnab (UnknownRejection None))) "angezeigt"
+            testCase "YnabImported wird angezeigt" <| fun () ->
+                Expect.isTrue (showYnabResult YnabImported) "angezeigt"
+            testCase "ohne Importergebnis nicht" <| fun () ->
+                Expect.isFalse (showYnabResult NotAttempted) "nicht angezeigt"
+        ]
+
+        testList "Quelltext-Zusicherungen" [
+            let src () = Quelltext.views "TransactionRow.fs"
+            testCase "keine englischen Literale mehr" <| fun () ->
+                for l in [ "BudgetBuddy Duplicate Detection"; "Reference:"; "Import ID:"; "Found in YNAB"
+                           "Not in YNAB"; "Exists in YNAB"; "Fuzzy match"; "Successfully imported"
+                           "YNAB rejected"; "missed this"; "\"New\"" ] do
+                    Expect.isFalse ((src ()).Contains l) l
+            testCase "deutsche Entsprechungen sind da" <| fun () ->
+                for l in [ "Duplikat-Prüfung"; "Referenz"; "Import-ID"; "In YNAB gefunden"; "Nicht in YNAB"
+                           "\"Neu\""; "YNAB: erfolgreich importiert"; "YNAB hat abgelehnt"
+                           "BudgetBuddy hat das nicht erkannt"; "Details"; "Ähnliche Buchung in YNAB" ] do
+                    Expect.isTrue ((src ()).Contains l) l
+            testCase "der Server-Text reason wird nicht mehr angezeigt" <| fun () ->
+                Expect.isFalse ((src ()).Contains "prop.text reason") "kein prop.text reason"
+                Expect.isFalse ((src ()).Contains "PossibleDuplicate (reason, _)") "reason nicht gebunden"
+            testCase "Fuzzy-Text über Money.formatAmountText, kein sprintf und kein ISO-Datum" <| fun () ->
+                Expect.isTrue ((src ()).Contains "Money.formatAmountText") "formatAmountText"
+                Expect.isFalse ((src ()).Contains "%.2f") "kein %.2f"
+                Expect.isFalse ((src ()).Contains "yyyy-MM-dd") "kein yyyy-MM-dd"
+            testCase "ynabResultView entscheidet die Sichtbarkeit über showYnabResult" <| fun () ->
+                Expect.isTrue ((src ()).Contains "showYnabResult tx.YnabImportStatus") "showYnabResult wird aufgerufen"
+            testCase "kein action-chip danger" <| fun () ->
+                Expect.isFalse ((src ()).Contains "action-chip danger") "danger weg"
+        ]
+    ]

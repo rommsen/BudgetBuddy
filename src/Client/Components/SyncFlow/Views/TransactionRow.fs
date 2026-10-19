@@ -5,6 +5,7 @@ open Components.SyncFlow.Types
 open Types
 open Shared.Domain
 open Client.DesignSystem
+open Client.DesignSystem.Tokens
 open Components.SyncFlow.Views.InlineRuleForm
 open Components.SyncFlow.Views.ViewHelpers
 
@@ -76,108 +77,116 @@ let categoryChipLabel (categoryOptions: (string * string) list) (tx: SyncTransac
 // Expanded Content
 // ============================================
 
-let private duplicateDebugInfo (tx: SyncTransaction) =
-    let details = getDuplicateDetails tx.DuplicateStatus
+/// Sichtbarkeit der Duplikat-Prüfung in der aufgeklappten Zeile. Der Status allein
+/// reicht: jeder Referenz- oder Import-ID-Treffer ist ein ConfirmedDuplicate, jeder
+/// Fuzzy-Treffer ein PossibleDuplicate, NotDuplicate trägt nie einen Treffer.
+type DuplicateDetailsMode =
+    | Shown
+    | BehindLink
 
-    Html.div [
-        prop.className "mt-3 px-3 py-2.5 rounded-lg bg-surface-elevated/50 text-xs font-mono space-y-2 border border-border-subtle"
-        prop.children [
-            // Section header: BudgetBuddy Detection
-            Html.div [
-                prop.className "flex items-center gap-2 text-neon-teal/80 font-medium pb-1 border-b border-border-subtle"
-                prop.children [
-                    Icons.search Icons.XS Icons.NeonTeal
-                    Html.span [ prop.text "BudgetBuddy Duplicate Detection" ]
-                ]
+let duplicateDetailsMode (status: DuplicateStatus) : DuplicateDetailsMode =
+    match status with
+    | ConfirmedDuplicate _ | PossibleDuplicate _ -> Shown
+    | NotDuplicate _ -> BehindLink
+
+/// Text des Fuzzy-Treffers: "Gefunden: Rewe am 07.10.2026 über 12,34 €".
+/// Ohne Datum oder Betrag gibt es keinen Fuzzy-Treffer (None).
+let fuzzyMatchText (details: DuplicateDetectionDetails) : string option =
+    match details.FuzzyMatchDate, details.FuzzyMatchAmount with
+    | Some date, Some amount ->
+        let payee = details.FuzzyMatchPayee |> Option.defaultValue "unbekannter Empfänger"
+        let amountText = Money.formatAmountText false true (abs amount) "EUR"
+        let dateText = date.ToString "dd.MM.yyyy"
+        Some $"Gefunden: {payee} am {dateText} über {amountText}"
+    | _ -> None
+
+/// Das Ergebnis des YNAB-Imports wird angezeigt, sobald ein Import versucht wurde,
+/// unabhängig vom Duplikat-Verdacht.
+let showYnabResult (status: YnabImportStatus) : bool =
+    match status with
+    | NotAttempted -> false
+    | YnabImported | RejectedByYnab _ -> true
+
+let private ynabResultView (tx: SyncTransaction) =
+    if not (showYnabResult tx.YnabImportStatus) then Html.none else
+    match tx.YnabImportStatus with
+    | NotAttempted -> Html.none
+    | YnabImported ->
+        Html.div [
+            prop.className $"mt-2 flex items-center gap-2 {ListRoles.secondary}"
+            prop.children [
+                Icons.checkCircle Icons.XS Icons.Default
+                Html.span [ prop.text "YNAB: erfolgreich importiert" ]
             ]
+        ]
+    | RejectedByYnab reason ->
+        let rejectionText =
+            match reason with
+            | DuplicateImportId id -> $"YNAB hat abgelehnt: doppelte Import-ID ({id})"
+            | UnknownRejection msg ->
+                let grund = msg |> Option.defaultValue "unbekannter Grund"
+                $"YNAB hat abgelehnt: {grund}"
+        Html.div [
+            prop.className $"mt-2 flex items-center gap-2 flex-wrap {ListRoles.secondary}"
+            prop.children [
+                Icons.xCircle Icons.XS Icons.Error
+                Html.span [ prop.text rejectionText ]
+                match tx.DuplicateStatus with
+                | NotDuplicate _ -> Html.span [ prop.text "(BudgetBuddy hat das nicht erkannt)" ]
+                | _ -> Html.none
+            ]
+        ]
 
-            // Reference info
+let private foundBadge (text: string) =
+    Html.span [ prop.className ListRoles.secondary; prop.text text ]
+
+let private duplicateCheckView (details: DuplicateDetectionDetails) =
+    Html.div [
+        prop.className $"mt-3 space-y-1 {ListRoles.muted}"
+        prop.children [
+            Html.div [ prop.className ListRoles.secondary; prop.text "Duplikat-Prüfung" ]
             Html.div [
                 prop.className "flex items-center gap-2 flex-wrap"
                 prop.children [
-                    Html.span [ prop.className "text-text-muted/70"; prop.text "Reference:" ]
-                    Html.code [ prop.className "text-text-primary bg-surface-input/50 px-1 rounded"; prop.text details.TransactionReference ]
-                    if details.ReferenceFoundInYnab then
-                        Html.span [
-                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-neon-green/20 text-neon-green border border-neon-green/30"
-                            prop.text "Found in YNAB"
-                        ]
-                    else
-                        Html.span [
-                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-surface-hover text-text-muted/70 border border-border-default"
-                            prop.text "Not in YNAB"
-                        ]
+                    Html.span [ prop.text "Referenz" ]
+                    Html.code [ prop.className "font-mono"; prop.text details.TransactionReference ]
+                    foundBadge (if details.ReferenceFoundInYnab then "In YNAB gefunden" else "Nicht in YNAB")
                 ]
             ]
-
-            // Import ID info
             Html.div [
                 prop.className "flex items-center gap-2"
                 prop.children [
-                    Html.span [ prop.className "text-text-muted/70"; prop.text "Import ID:" ]
-                    if details.ImportIdFoundInYnab then
-                        Html.span [
-                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-neon-green/20 text-neon-green border border-neon-green/30"
-                            prop.text "Exists in YNAB"
-                        ]
-                    else
-                        Html.span [
-                            prop.className $"px-1.5 py-0.5 rounded {Tokens.FontSizes.micro} bg-surface-hover text-text-muted/70 border border-border-default"
-                            prop.text "New"
-                        ]
+                    Html.span [ prop.text "Import-ID" ]
+                    foundBadge (if details.ImportIdFoundInYnab then "In YNAB gefunden" else "Neu")
                 ]
             ]
-
-            // Fuzzy match info (if applicable)
-            match details.FuzzyMatchDate, details.FuzzyMatchAmount, details.FuzzyMatchPayee with
-            | Some date, Some amount, payee ->
-                let dateStr = date.ToString("yyyy-MM-dd")
-                let payeeStr = payee |> Option.defaultValue "?"
-                let amountStr = sprintf "%.2f" amount
-                Html.div [
-                    prop.className "flex items-center gap-2 text-neon-orange/90 pt-1 border-t border-border-subtle"
-                    prop.children [
-                        Icons.warning Icons.XS Icons.NeonOrange
-                        Html.span [
-                            prop.text $"Fuzzy match: {payeeStr} on {dateStr} for {amountStr}"
-                        ]
-                    ]
-                ]
-            | _ -> Html.none
-
-            // YNAB Import Status (if attempted)
-            match tx.YnabImportStatus with
-            | NotAttempted -> Html.none
-            | YnabImported ->
-                Html.div [
-                    prop.className "flex items-center gap-2 text-neon-green pt-2 mt-1 border-t border-border-default"
-                    prop.children [
-                        Icons.checkCircle Icons.XS Icons.NeonGreen
-                        Html.span [ prop.text "YNAB: Successfully imported" ]
-                    ]
-                ]
-            | RejectedByYnab reason ->
-                let reasonText =
-                    match reason with
-                    | DuplicateImportId id -> sprintf "YNAB rejected: duplicate import_id (%s)" id
-                    | UnknownRejection msg -> sprintf "YNAB rejected: %s" (msg |> Option.defaultValue "unknown reason")
-                Html.div [
-                    prop.className "flex items-center gap-2 text-neon-red pt-2 mt-1 border-t border-border-default flex-wrap"
-                    prop.children [
-                        Icons.xCircle Icons.XS Icons.Error
-                        Html.span [ prop.text reasonText ]
-                        // Explain discrepancy if BudgetBuddy didn't detect it
-                        match tx.DuplicateStatus with
-                        | NotDuplicate _ ->
-                            Html.span [
-                                prop.className "text-neon-orange font-medium"
-                                prop.text "(BudgetBuddy missed this!)"
-                            ]
-                        | _ -> Html.none
-                    ]
-                ]
+            match fuzzyMatchText details with
+            | Some text -> Html.div [ prop.className ListRoles.secondary; prop.text text ]
+            | None -> Html.none
         ]
     ]
+
+/// Bei Verdacht sofort sichtbar, sonst hinter dem gedämpften Link "Details".
+[<ReactComponent>]
+let private DuplicateDetailsBlock (status: DuplicateStatus) =
+    let isOpen, setIsOpen = React.useState false
+    let details = getDuplicateDetails status
+    match duplicateDetailsMode status with
+    | Shown -> duplicateCheckView details
+    | BehindLink ->
+        Html.div [
+            prop.className "mt-2"
+            prop.children [
+                Html.button [
+                    prop.className $"{ListRoles.muted} underline"
+                    prop.onClick (fun e ->
+                        e.stopPropagation()
+                        setIsOpen (not isOpen))
+                    prop.text "Details"
+                ]
+                if isOpen then duplicateCheckView details
+            ]
+        ]
 
 // ============================================
 // Main Transaction Row Component
@@ -390,19 +399,24 @@ let transactionRow (props: TransactionRowProps) =
                                                         Html.span [ prop.className "memo-text"; prop.text $"Bereits in YNAB vorhanden ({reference})" ]
                                                     ]
                                                 ]
-                                            | PossibleDuplicate (reason, _) ->
+                                            | PossibleDuplicate (_, details) ->
                                                 Html.div [
                                                     prop.className "tx-memo"
                                                     prop.children [
                                                         Html.span [ prop.className "memo-label"; prop.text "Hinweis" ]
-                                                        Html.span [ prop.className "memo-text"; prop.text reason ]
+                                                        Html.span [
+                                                            prop.className "memo-text"
+                                                            prop.text (fuzzyMatchText details |> Option.defaultValue "Ähnliche Buchung in YNAB")
+                                                        ]
                                                     ]
                                                 ]
                                             | NotDuplicate _ -> ()
 
-                                            // Debug info (collapsible, less prominent)
+                                            // Duplikat-Prüfung (bei Verdacht sichtbar, sonst hinter "Details")
+                                            // und YNAB-Ergebnis (immer, wenn ein Import versucht wurde)
                                             if isExpanded then
-                                                duplicateDebugInfo tx
+                                                DuplicateDetailsBlock tx.DuplicateStatus
+                                                ynabResultView tx
 
                                             // Action chips row
                                             Html.div [
@@ -475,7 +489,7 @@ let transactionRow (props: TransactionRowProps) =
 
                                                     if tx.Status <> Skipped then
                                                         Html.button [
-                                                            prop.className "action-chip danger"
+                                                            prop.className "action-chip"
                                                             prop.onClick (fun e ->
                                                                 e.stopPropagation()
                                                                 dispatch (SkipTransaction tx.Transaction.Id))
