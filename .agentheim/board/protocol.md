@@ -5,6 +5,31 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:55 -- Modeling / Promoted: ledger-zmbf1 - "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 13:55 -- Modeling / Promoted: ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 13:55 -- Modeling / Refined: ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Erkennung über die Gruppe Internal Master Category (Ready to Assign bleibt), Filter als reine Shared-Funktion im API-Endpunkt getCategories für alle drei Auswahlen; server-interne Aufrufe bleiben ungefiltert. Akzeptanzkriterien ergänzt.
+
+---
+
 ## 2026-10-19 13:45 -- Modeling / Promoted: ledger-vqxvc - "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
 
 **Type:** Modeling / Promote

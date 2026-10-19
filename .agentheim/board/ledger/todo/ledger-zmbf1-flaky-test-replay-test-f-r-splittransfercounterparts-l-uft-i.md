@@ -1,7 +1,7 @@
 ---
 id: ledger-zmbf1
 title: "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-10-18
