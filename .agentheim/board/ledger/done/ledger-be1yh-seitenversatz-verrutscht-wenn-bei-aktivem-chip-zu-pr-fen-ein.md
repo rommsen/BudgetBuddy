@@ -1,7 +1,7 @@
 ---
 id: ledger-be1yh
 title: "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-10-19
@@ -44,3 +44,11 @@ Befund bei der Verfeinerung (2026-10-19): die Liste lädt über eine Seitennumme
 entfernt die Zeile lokal und senkt `TotalCount`. Dieselbe Verschiebung tritt später auch
 bei `ledger-th36h` (Wisch) und `ledger-nhwrt` (Stapel) auf; der Fix sollte an der
 Nachladeanfrage ansetzen, nicht an einer einzelnen Aktion.
+
+## Outcome
+
+Der Seitenversatz beim Nachladen stimmt jetzt auch, wenn Zeilen lokal aus der geladenen Liste verschwunden sind. `LedgerEntryPageQuery` hat ein neues Feld `LocallyRemoved` (Default 0 = bisheriges Verhalten). Der Server beginnt die Seite bei `max 0 (Page * PageSize - LocallyRemoved)`; `Persistence.loadEntriesPage` nimmt dafür einen Versatz statt eines Seitenindex. Im Client zählt das neue Modellfeld `LocallyRemoved` (direkt nach `NextPage`) jede Zeile hoch, die `applyReviewMarkResult` aus der Liste nimmt, und `resetEntries` setzt es zurück. Die Anfrage entsteht in der neuen reinen Funktion `State.buildPageQuery`. Spätere Aktionen, die Zeilen lokal entfernen (Wisch in th36h, Stapel in nhwrt), müssen nur `LocallyRemoved` erhöhen.
+
+Schlüsseldateien: src/Client/Components/Ledger/State.fs, src/Client/Components/Ledger/Types.fs, src/Shared/Domain.fs, src/Server/Ledger/QueryHandlers.fs, src/Server/Ledger/Persistence.fs, src/Tests/LedgerPagingTests.fs (neu, 6 Tests: 5 Client, 1 Server).
+
+Zahlen: `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 1391 bestanden, 0 Fehler, 7 übersprungen (YNAB-Integration); `npm run build` grün; `npm run guard:classes` grün; `npm run test:scripts` 134/134 (ein erster Lauf scheiterte am Warten auf data-app-ready, der Wiederholungslauf war grün).

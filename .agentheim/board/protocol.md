@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:49 -- Task verified and completed: ledger-be1yh - "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
+
+**Type:** Work / Task completion
+**Task:** ledger-be1yh - "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
+**Summary:** Die Nachladeanfrage des Kassenbuchs gleicht den Versatz jetzt um die lokal aus den geladenen Seiten entfernten Zeilen aus, sodass bei aktivem Chip Zu prüfen keine Buchung an der Seitengrenze mehr fehlt. Der Fix sitzt an der Anfrage, nicht an einer einzelnen Aktion.
+**Duration:** 11m14s
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 18:38 -- Batch started: [ledger-be1yh, design-system-btwhg, ledger-th36h]
 
 **Type:** Work / Batch start

@@ -57,6 +57,7 @@
     <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
     <Compile Include="LedgerViewTests.fs" />
+    <Compile Include="LedgerPagingTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="StatsAccentTests.fs" />

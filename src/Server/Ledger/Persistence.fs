@@ -970,8 +970,7 @@ let private loadAllMatching (accountId: LedgerAccountId option) (filter: EntryFi
         return rows |> Seq.map rowToEntry |> Seq.toList
     }
 
-let private safePage (pageIndex: int) (pageSize: int) (xs: Entry list) : Entry list =
-    let offset = pageIndex * pageSize
+let private safePage (offset: int) (pageSize: int) (xs: Entry list) : Entry list =
     if offset >= List.length xs then [] else xs |> List.skip offset |> List.truncate pageSize
 
 /// Eine Seite der Buchungen eines Kontos oder — `accountId = None` — aller Konten,
@@ -982,17 +981,16 @@ let private safePage (pageIndex: int) (pageSize: int) (xs: Entry list) : Entry l
 /// (ledger-vgfw3) wirken zusätzlich, alle als Und-Verknüpfung.
 let loadEntriesPage
     (accountId: LedgerAccountId option)
-    (pageIndex: int)
+    (offset: int)
     (pageSize: int)
     (filter: EntryFilter)
     : Async<Entry list> =
     async {
         if hasAmountFilter filter then
             let! all = loadAllMatching accountId filter
-            return all |> List.filter (fun e -> amountMatches filter e.Amount.Amount) |> safePage pageIndex pageSize
+            return all |> List.filter (fun e -> amountMatches filter e.Amount.Amount) |> safePage offset pageSize
         else
             use conn = Core.getConnection ()
-            let offset = pageIndex * pageSize
             let whereSql, ps = buildFilterClause accountId filter
             ps.Add("limit", pageSize)
             ps.Add("offset", offset)

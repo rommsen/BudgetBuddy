@@ -1006,6 +1006,11 @@ type LedgerEntryPageQuery = {
     AccountId: Guid option
     Page: int
     PageSize: int
+    /// Zahl der Zeilen, die der Client aus den schon geladenen Seiten lokal entfernt hat
+    /// (z. B. geprüft bei aktivem Chip "Zu prüfen"). Der Server zählt den Versatz auf der
+    /// gefilterten Menge neu, deshalb beginnt die Seite bei `Page * PageSize - LocallyRemoved`
+    /// (nie unter 0). 0 heißt: Versatz wie bisher `Page * PageSize` (ledger-be1yh).
+    LocallyRemoved: int
     IncludeDeleted: bool
     OnlyNeedsReview: bool
     /// Chip "Ohne Kategorie" (ADR 0048): nur Buchungen ohne Ziel (weder Kategorie noch

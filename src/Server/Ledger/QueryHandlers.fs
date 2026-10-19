@@ -418,9 +418,11 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let accountId = query.AccountId |> Option.map LedgerAccountId
         let pageSize = max 1 query.PageSize
         let pageIndex = max 0 query.Page
+        // Lokal entfernte Zeilen verschieben den Versatz nach vorn (ledger-be1yh).
+        let offset = max 0 (pageIndex * pageSize - max 0 query.LocallyRemoved)
         let filter = toEntryFilter query
 
-        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId pageIndex pageSize filter
+        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId offset pageSize filter
         let! totalCount = Ledger.Persistence.countEntries accountId filter
         let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId filter
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter

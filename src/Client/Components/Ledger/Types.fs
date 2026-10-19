@@ -271,6 +271,11 @@ type Model = {
     /// Der Seitenzeiger der naechsten zu ladenden Seite (0-basiert).
     NextPage: int
 
+    /// Zahl der Zeilen, die lokal aus den geladenen Seiten entfernt wurden, seit die Liste
+    /// zuletzt neu angestoßen wurde (ledger-be1yh). Geht als `LocallyRemoved` in die
+    /// Nachladeanfrage, damit der Server keine Buchung an der Seitengrenze überspringt.
+    LocallyRemoved: int
+
     /// Die Gesamtzahl der Treffer des aktiven Filters, wie die zuletzt geladene Seite
     /// sie gemeldet hat.
     TotalCount: int

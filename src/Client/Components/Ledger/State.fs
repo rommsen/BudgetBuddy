@@ -25,6 +25,7 @@ let init () : Model * Cmd<Msg> =
         SelectedFilter = None
         Entries = NotAsked
         NextPage = 0
+        LocallyRemoved = 0
         TotalCount = 0
         TotalAmount = { Amount = 0m; Currency = "EUR" }
         HasMoreEntries = false
@@ -63,10 +64,33 @@ let private resetEntries (model: Model) : Model = {
     model with
         Entries = Loading
         NextPage = 0
+        LocallyRemoved = 0
         TotalCount = 0
         TotalAmount = { model.TotalAmount with Amount = 0m }
         HasMoreEntries = false
         LoadingMore = false
+}
+
+/// Die Seitenanfrage an den Server. Rein, damit der Versatz testbar ist. Die fünf
+/// Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3) sind Server-seitig
+/// da (ADR 0036). `LocallyRemoved` stammt aus dem Modell: jede Aktion, die Zeilen lokal
+/// aus der Liste nimmt, zählt dort hoch, und die Anfrage gleicht den Versatz damit aus
+/// (ledger-be1yh), sonst fehlt die Buchung an der Seitengrenze.
+let buildPageQuery (model: Model) (accountId: Guid option) (page: int) : LedgerEntryPageQuery = {
+    AccountId = accountId
+    Page = page
+    PageSize = pageSize
+    LocallyRemoved = model.LocallyRemoved
+    IncludeDeleted = model.IncludeDeleted
+    OnlyNeedsReview = model.OnlyNeedsReview
+    WithoutCategory = model.Filters.WithoutCategory
+    CategoryIds = model.Filters.CategoryIds |> Set.toList
+    DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
+    DateTo = model.Filters.DateRange |> Option.bind (fun d -> d.To)
+    Payee = model.Filters.Payee
+    Memo = model.Filters.Memo
+    AmountMin = model.Filters.AmountMin
+    AmountMax = model.Filters.AmountMax
 }
 
 /// Trägt das Ergebnis eines Prüfvermerk-Befehls in die geladene Liste ein (ledger-r777c):
@@ -112,6 +136,7 @@ let private applyReviewMarkResult
                 NeedsReviewCount = max 0 (cleared.NeedsReviewCount + countDelta)
                 TotalCount = totalCount
                 TotalAmount = totalAmount
+                LocallyRemoved = (if leavesList then cleared.LocallyRemoved + 1 else cleared.LocallyRemoved)
                 HasMoreEntries = List.length remaining < totalCount }
     | _ -> cleared
 
@@ -193,24 +218,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | None -> model, Cmd.none, NoOp
         | Some filter ->
             let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
-            // Die fuenf Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3)
-            // sind Server-seitig da (ADR 0036); die Chipleiste, die sie setzt
-            // (`model.Filters`), ist ledger-j8xq4.
-            let query : LedgerEntryPageQuery = {
-                AccountId = accountId
-                Page = page
-                PageSize = pageSize
-                IncludeDeleted = model.IncludeDeleted
-                OnlyNeedsReview = model.OnlyNeedsReview
-                WithoutCategory = model.Filters.WithoutCategory
-                CategoryIds = model.Filters.CategoryIds |> Set.toList
-                DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
-                DateTo = model.Filters.DateRange |> Option.bind (fun d -> d.To)
-                Payee = model.Filters.Payee
-                Memo = model.Filters.Memo
-                AmountMin = model.Filters.AmountMin
-                AmountMax = model.Filters.AmountMax
-            }
+            let query = buildPageQuery model accountId page
             let cmd =
                 Cmd.OfAsync.either
                     Api.ledger.getLedgerEntriesPage

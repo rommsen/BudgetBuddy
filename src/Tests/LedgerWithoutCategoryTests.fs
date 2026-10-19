@@ -73,6 +73,7 @@ let private baseQuery (acc: LedgerAccountId) : LedgerEntryPageQuery =
         AccountId = Some raw
         Page = 0
         PageSize = 100
+        LocallyRemoved = 0
         IncludeDeleted = false
         OnlyNeedsReview = false
         WithoutCategory = false

@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 19:10 - Seitenversatz beim Nachladen mit lokal entfernten Zeilen (ledger-be1yh)
+
+**What I did:**
+Nachladeanfrage des Kassenbuchs um `LocallyRemoved` erweitert. Der Server verschiebt den Seitenbeginn um diese Zahl nach vorn, der Client zählt sie beim Entfernen einer geprüften Zeile bei aktivem Chip Zu prüfen hoch.
+
+**Files Added:**
+- `src/Tests/LedgerPagingTests.fs` - 5 Client-Tests (Anfragebau, Reducer-Zähler, Reset) und 1 Server-Test (Versatz)
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - Feld `LocallyRemoved` in `LedgerEntryPageQuery`
+- `src/Server/Ledger/QueryHandlers.fs` - Versatz aus Page, PageSize, LocallyRemoved
+- `src/Server/Ledger/Persistence.fs` - `loadEntriesPage`/`safePage` nehmen einen Versatz
+- `src/Client/Components/Ledger/Types.fs`, `State.fs` - Modellfeld, `buildPageQuery`, Zählen in `applyReviewMarkResult`, Reset
+- `src/Tests/LedgerPageTests.fs`, `LedgerWithoutCategoryTests.fs` - Query-Literale um das Feld ergänzt
+- `src/Tests/Tests.fsproj` - neue Testdatei
+
+**Rationale:**
+Der Server zählt den Versatz auf der gefilterten Menge neu. Nach dem lokalen Entfernen einer Zeile übersprang die nächste Seite eine Buchung.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1391 bestanden, 0 Fehler
+- Issues: keine
+
+---
+
 ## 2026-10-19 17:30 - Handy: keine Prüfvermerk-Schaltfläche an in YNAB gelöschten Buchungen
 
 **What I did:**
