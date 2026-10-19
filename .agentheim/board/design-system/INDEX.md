@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 33
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `todo/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -56,7 +57,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `backlog/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 <!-- backlog-list:end -->
 
 

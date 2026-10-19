@@ -1,7 +1,7 @@
 ---
 id: design-system-btwhg
 title: Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
-status: backlog
+status: todo
 type: bug
 context: design-system
 created: 2026-10-19

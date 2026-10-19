@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:35 -- Modeling / Promoted: design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base)
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 18:35 -- Modeling / Promoted: ledger-be1yh - "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
 
 **Type:** Modeling / Promote
