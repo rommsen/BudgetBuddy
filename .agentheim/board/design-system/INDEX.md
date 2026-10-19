@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 33
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `todo/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `doing/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

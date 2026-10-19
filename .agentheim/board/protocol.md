@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:38 -- Batch started: [ledger-be1yh, design-system-btwhg, ledger-th36h]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-be1yh - "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt", design-system-btwhg - Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base), ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
+**Parallel:** yes (3 workers; 4 ready, ledger-r1d2f held to wave 2: it shares Components/Ledger/State.fs with be1yh and th36h and builds on the paging fix and the leave-list path)
+
+---
+
 ## 2026-10-19 18:35 -- Modeling / Promoted: ledger-r1d2f - "Auswahl-Modus mit Summe der Auswahl (Handy und PC)"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: ledger-be1yh
 title: "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-19
