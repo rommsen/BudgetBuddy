@@ -464,6 +464,19 @@ let applyReadyToAssign (toBeBudgeted: Money option) (categories: YnabCategory li
             { c with Available = toBeBudgeted }
         else c)
 
+/// Blendet die YNAB-Interna aus der Kategorieauswahl aus: eine Kategorie der Gruppe
+/// "Internal Master Category" bleibt nur, wenn sie "Inflow: Ready to Assign" ist.
+/// Erkennung über die Gruppe, nicht über den Namen allein. Reihenfolge unverändert.
+let withoutInternalCategories (categories: YnabCategory list) : YnabCategory list =
+    categories
+    |> List.filter (fun c ->
+        c.GroupName <> internalMasterGroupName || c.Name = readyToAssignCategoryName)
+
+/// Nachbearbeitung der Kategorien für die Auswahlen (Endpunkt `getCategories`):
+/// Ready to Assign bekommt den echten Monatswert, danach fallen die YNAB-Interna weg.
+let categoriesForPicker (toBeBudgeted: Money option) (categories: YnabCategory list) : YnabCategory list =
+    categories |> applyReadyToAssign toBeBudgeted |> withoutInternalCategories
+
 /// YNAB payee for transaction assignment.
 /// Purpose: Used in payee dropdown for transaction editing.
 type YnabPayee = {

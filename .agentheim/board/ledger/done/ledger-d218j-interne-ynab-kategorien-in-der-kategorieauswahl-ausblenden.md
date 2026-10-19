@@ -1,7 +1,7 @@
 ---
 id: ledger-d218j
 title: Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-19
@@ -69,3 +69,9 @@ gegen ADR 0049.
 Verfeinert am 2026-10-19 (Suggestor-Modus, Roman hat "mach so viele sinnvoll sind"
 gesagt): Ort und Erkennung sind Vorschläge aus der Codelage. Falls die Regeln- oder
 Import-Auswahl die Kategorien doch zeigen soll, den Filter in den Ledger-Client verlegen.
+
+## Outcome
+
+Neue reine Funktionen in src/Shared/Domain.fs: `withoutInternalCategories` (Gruppe Internal Master Category bleibt nur für Ready to Assign, Reihenfolge unverändert) und `categoriesForPicker` (applyReadyToAssign, dann der Filter). Der Endpunkt getCategories in src/Server/Api.fs ruft `categoriesForPicker` auf; die server-internen YnabClient.getCategories-Aufrufe sind unverändert. Tests in src/Tests/YnabClientTests.fs: Filter-Fall, Gruppen-Erkennung (Uncategorized in fremder Gruppe bleibt), categoriesForPicker (Monatswert plus Filter). Das [human-eye]-Kriterium bleibt offen.
+
+Läufe: dotnet build 0 Fehler, 1 Warnung (alte FS0025 in Ledger/State.fs, von ledger-vqxvc behoben); dotnet test 1282 grün, 7 übersprungen (ein erster Lauf hatte 1 flaky Fehler, der Wiederholungslauf 0); npm run build ok; guard:classes ok; test:scripts 120/120 (ein erster Lauf scheiterte an data-app-ready, Wiederholung grün).

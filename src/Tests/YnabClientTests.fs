@@ -537,6 +537,27 @@ let readyToAssignTests =
             let result = applyReadyToAssign (Some { Amount = -6.27m; Currency = "EUR" }) [ lookalike ]
             Expect.equal (List.head result).Available (Some { Amount = 5m; Currency = "EUR" }) "Only the Internal Master Category Inflow row is overridden"
 
+        testCase "withoutInternalCategories behält nur Ready to Assign aus der internen Gruppe" <| fun () ->
+            let rta = mkCat "Inflow: Ready to Assign" "Internal Master Category" None
+            let unc = mkCat "Uncategorized" "Internal Master Category" None
+            let def = mkCat "Deferred Income SubCategory" "Internal Master Category" None
+            let normal = mkCat "Groceries" "Essential Expenses" None
+            let result = withoutInternalCategories [ unc; rta; def; normal ]
+            Expect.equal (result |> List.map (fun c -> c.Name)) [ "Inflow: Ready to Assign"; "Groceries" ] "Nur Ready to Assign und die normale Kategorie bleiben, Reihenfolge unverändert"
+
+        testCase "withoutInternalCategories erkennt über die Gruppe, nicht über den Namen allein" <| fun () ->
+            let other = mkCat "Uncategorized" "Some Other Group" None
+            let result = withoutInternalCategories [ other ]
+            Expect.equal result [ other ] "Eine Kategorie Uncategorized außerhalb der internen Gruppe bleibt erhalten"
+
+        testCase "categoriesForPicker setzt den Monatswert und blendet Interna aus" <| fun () ->
+            let rta = mkCat "Inflow: Ready to Assign" "Internal Master Category" (Some { Amount = 787955.35m; Currency = "EUR" })
+            let unc = mkCat "Uncategorized" "Internal Master Category" None
+            let realRta = Some { Amount = -6.27m; Currency = "EUR" }
+            let result = categoriesForPicker realRta [ unc; rta ]
+            Expect.equal (result |> List.map (fun c -> c.Name)) [ "Inflow: Ready to Assign" ] "Uncategorized fällt weg"
+            Expect.equal (List.head result).Available realRta "Ready to Assign trägt den überschriebenen Monatswert"
+
         testCase "monthToBeBudgetedDecoder reads to_be_budgeted milliunits as Money" <| fun () ->
             let json = """{ "data": { "month": { "to_be_budgeted": -6270 } } }"""
             match Decode.fromString Decoders.monthToBeBudgetedDecoder json with

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:15 -- Task verified and completed: ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
+
+**Type:** Work / Task completion
+**Task:** ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
+**Summary:** Der Endpunkt getCategories blendet Kategorien der Gruppe Internal Master Category aus, außer Inflow: Ready to Assign (mit überschriebenem Monatswert). Erkennung über die Gruppe, server-interne Aufrufe bleiben ungefiltert.
+**Duration:** 9m06s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 16:05 -- Batch started: [ledger-vqxvc, ledger-d218j, ledger-zmbf1]
 
 **Type:** Work / Batch start

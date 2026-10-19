@@ -4,6 +4,26 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 16:30 - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden
+
+**What I did:**
+withoutInternalCategories und categoriesForPicker in Shared/Domain.fs ergänzt, getCategories-Endpunkt nutzt categoriesForPicker.
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - zwei reine Funktionen
+- `src/Server/Api.fs` - getCategories ruft categoriesForPicker
+- `src/Tests/YnabClientTests.fs` - 3 neue Tests
+
+**Rationale:**
+Deferred Income SubCategory und Uncategorized verwirren in den Auswahlen; Ready to Assign bleibt wählbar.
+
+**Outcomes:**
+- Build: ok (1 alte Warnung)
+- Tests: 1282 grün
+- Issues: keine
+
+---
+
 ## 2026-10-19 13:40 - Kassenbuch: Filterleiste und Summenzeile ruhig (ADR 0049)
 
 **What I did:**

@@ -330,7 +330,7 @@ let ynabApi : YnabApi = {
                 // The internal "Inflow: Ready to Assign" category's own balance is a
                 // garbage accumulator; override it with the month's real to_be_budgeted.
                 let! toBeBudgeted = YnabClient.getReadyToAssign token budgetId
-                return Ok (applyReadyToAssign toBeBudgeted categories)
+                return Ok (categoriesForPicker toBeBudgeted categories)
     }
 
     getPayees = fun budgetId -> async {
