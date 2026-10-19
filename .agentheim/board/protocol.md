@@ -5,6 +5,52 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 14:05 -- Modeling / Promoted: ledger-r777c - "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 14:05 -- Modeling / Refined: ledger-r777c - Prüfvermerk in BB setzen und nach YNAB zurückschreiben
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Roman: Rückgängig stellt den Vorzustand her, Ungeprüft setzt beide Felder zurück, Reconciled bleibt immer unberührt. Ein Ereignis EntryReviewMarkChangedInBb (alt/neu), Ereignis vor PATCH, Fehlschlag als eigener Zustand Prüfvermerk nicht in YNAB mit Erneut senden. Kern bleibt r777c.
+**Split into:** ledger-th36h, ledger-rjb8w, ledger-nhwrt
+**ADRs written:** 0050
+
+---
+
+## 2026-10-19 14:05 -- Modeling / Captured: ledger-nhwrt - "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgespalten aus ledger-r777c: Geprüft für die ganze Auswahl, wartet auf ledger-r1d2f.
+
+---
+
+## 2026-10-19 14:05 -- Modeling / Captured: ledger-rjb8w - "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgespalten aus ledger-r777c: Taste G und Tastaturfokus in der Kassenbuch-Liste am PC.
+
+---
+
+## 2026-10-19 14:05 -- Modeling / Captured: ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgespalten aus ledger-r777c: Wisch nach rechts am Handy und Toast mit Rückgängig (Design-System-Toast bekommt eine Aktion).
+
+---
+
 ## 2026-10-19 13:55 -- Modeling / Promoted: ledger-zmbf1 - "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
 
 **Type:** Modeling / Promote

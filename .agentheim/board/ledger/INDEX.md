@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 3
+- **Backlog:** 11
+- **Todo:** 4
 - **Doing:** 0
 - **Done:** 51
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-r777c** — "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile" (feature) — `todo/ledger-r777c-pruefvermerk-setzen-und-nach-ynab-zurueckschreiben.md`
 - **ledger-zmbf1** — "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung" (bug) — `todo/ledger-zmbf1-flaky-test-replay-test-f-r-splittransfercounterparts-l-uft-i.md`
 - **ledger-d218j** — Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten (feature) — `todo/ledger-d218j-interne-ynab-kategorien-in-der-kategorieauswahl-ausblenden.md`
 - **ledger-vqxvc** — "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab" (bug) — `todo/ledger-vqxvc-build-warnung-fs0025-openfilterpopover-deckt-den-neuen-chip.md`
@@ -40,10 +41,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-nhwrt** — "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste" (feature) — `backlog/ledger-nhwrt-geprueft-fuer-die-ganze-auswahl.md`
+- **ledger-rjb8w** — "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)" (feature) — `backlog/ledger-rjb8w-taste-g-und-tastaturfokus-in-der-liste.md`
+- **ledger-th36h** — "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)" (feature) — `backlog/ledger-th36h-wisch-geprueft-mit-rueckgaengig-toast.md`
 - **ledger-h6mer** — "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen" (chore) — `backlog/ledger-h6mer-split-zeilen-uebertraege-bestand-live-nachverknuepfen.md`
 - **ledger-b7qmx** — "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)" (feature) — `backlog/ledger-b7qmx-split-zeilen-kategorie-in-der-pc-tabelle-voll-qualifizieren.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`
-- **ledger-r777c** — Prüfvermerk in BB setzen und nach YNAB zurückschreiben (die eine schreibende Fähigkeit vor v2) (feature) — `backlog/ledger-r777c-pruefvermerk-setzen-und-nach-ynab-zurueckschreiben.md`
 - **ledger-r1d2f** — Auswahl-Modus mit Summe der Auswahl (Handy und PC) (feature) — `backlog/ledger-r1d2f-auswahl-modus-mit-summe.md`
 - **ledger-q1hw2** — Buchungs-Detail: Herkunft, Historie und "noch nicht in YNAB" (Sheet am Handy, Seitenpanel am PC) (feature) — `backlog/ledger-q1hw2-detail-herkunft-historie-noch-nicht-in-ynab.md`
 - **ledger-kwwxz** — Available-Betrag je Kategorie spiegeln und in der Kategorienauswahl zeigen (feature) — `backlog/ledger-kwwxz-available-betrag-je-kategorie-spiegeln.md`
