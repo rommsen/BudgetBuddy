@@ -1,7 +1,7 @@
 ---
 id: design-system-m7z9q
 title: Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-10-19

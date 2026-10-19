@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 32
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-m7z9q** — Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs (feature) — `todo/design-system-m7z9q-deutsches-datumsfeld-mit-kalender.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -55,7 +56,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **design-system-m7z9q** — Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs (feature) — `backlog/design-system-m7z9q-deutsches-datumsfeld-mit-kalender.md`
 <!-- backlog-list:end -->
 
 

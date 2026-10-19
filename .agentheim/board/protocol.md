@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:38 -- Modeling / Promoted: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 13:38 -- Modeling / Promoted: ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
+
+**Type:** Modeling / Promote
+**BC:** ynab-sync
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 13:38 -- Modeling / Refined: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
 
 **Type:** Modeling / Refine

@@ -1,7 +1,7 @@
 ---
 id: ynab-sync-e4gm3
 title: Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
-status: backlog
+status: todo
 type: feature
 context: ynab-sync
 created: 2026-10-19
