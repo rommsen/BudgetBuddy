@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:11 -- Modeling / Captured: design-system-qz7b6 - Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** todo
+**Summary:** Aus der Bestandsaufnahme gegen ADR 0049 vom 2026-10-19
+
+---
+
 ## 2026-10-19 08:06 -- Capture / Captured: ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
 
 **Type:** Capture
