@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:56 -- Task verified and completed: ledger-r777c - "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile"
+
+**Type:** Work / Task completion
+**Task:** ledger-r777c - "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile"
+**Summary:** Roman kann eine Buchung im Kassenbuch mit einer Schaltfläche an der Zeile als Geprüft oder Ungeprüft markieren. Der Prüfvermerk wird zuerst als Ereignis in BB geschrieben und dann an YNAB zurückgeschrieben. Scheitert das, zeigt die Zeile "Prüfvermerk nicht in YNAB" mit Grund und "Erneut senden".
+**Duration:** 39m33s
+**Verification:** PASS (iteration 1)
+**Files changed:** 22
+**Tests added:** 58
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 16:33 -- Task verified and completed: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
 
 **Type:** Work / Task completion

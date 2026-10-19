@@ -878,6 +878,60 @@ type LedgerEntryView = {
     /// Gegenbuchung, ADR 0048). Ein Übertrag trägt ein Ziel und ist darum nicht
     /// "ohne Kategorie".
     IsTransfer: bool
+    /// Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks nach YNAB
+    /// (ADR 0050, Punkt 11): die Zeile zeigt dann "Prüfvermerk nicht in YNAB" mit
+    /// diesem Grund und "Erneut senden". `None`, wenn nichts offen ist. Ändert die
+    /// Zählung von "Zu prüfen" nicht.
+    ReviewMarkWriteBackFailure: string option
+}
+
+// ============================================
+// Prüfvermerk setzen und zurückschreiben (ADR 0050, ledger-r777c)
+// ============================================
+
+/// Das Ziel einer Geste auf dem Prüfvermerk: `Reviewed` setzt `approved = true`
+/// (und `cleared` von offen auf bestätigt), `Unreviewed` das Gegenteil. `Reconciled`
+/// bleibt in beiden Fällen unberührt (ADR 0050, Punkt 2).
+type ReviewMarkTarget =
+    | Reviewed
+    | Unreviewed
+
+/// Der Cleared-Status im Prüfvermerk. Eigene Fallnamen, damit sie in Server-Dateien,
+/// die `Ledger.Events.ClearedState` öffnen, nicht mit dessen Fällen kollidieren.
+type ReviewClearedState =
+    | ReviewUncleared
+    | ReviewCleared
+    | ReviewReconciled
+
+/// Der Prüfvermerk einer Buchung: `approved` und `cleared` (ADR 0032). Der Client
+/// bekommt den Vorzustand in der Antwort und schickt ihn für "Rückgängig" zurück
+/// (ADR 0050, Punkt 10).
+type ReviewMarkState = {
+    IsApproved: bool
+    ClearedState: ReviewClearedState
+}
+
+/// Hat der Befehl den Prüfvermerk geändert? `ReviewMarkUnchanged`: Ziel gleich Ist,
+/// weder Ereignis noch YNAB-Aufruf (ADR 0050, Punkt 4).
+type ReviewMarkChange =
+    | ReviewMarkChanged
+    | ReviewMarkUnchanged
+
+/// Was mit dem Zurückschreiben nach YNAB passiert ist.
+type ReviewMarkWriteBack =
+    /// Nichts zu senden (Ziel gleich Ist, oder kein offener Fehlschlag beim erneuten Senden).
+    | ReviewMarkNotSent
+    /// YNAB hat den Prüfvermerk angenommen.
+    | ReviewMarkSent
+    /// Der Weg nach YNAB ist gescheitert oder nicht möglich; der Prüfvermerk bleibt in BB.
+    | ReviewMarkSendFailed of reason: string
+
+/// Antwort von `setReviewMark` und `restoreReviewMark` (ADR 0050, Punkt 10).
+type ReviewMarkOutcome = {
+    /// Der Prüfvermerk vor der Geste, Grundlage für "Rückgängig".
+    Previous: ReviewMarkState
+    Change: ReviewMarkChange
+    WriteBack: ReviewMarkWriteBack
 }
 
 /// Eine Zeile der Historie einer Buchung: wann, von wem, und was passiert ist —

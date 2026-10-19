@@ -146,6 +146,7 @@ module ReadModel =
             NeedsReview = needsReview entry
             Flag = flagOf entry.FlagColor entry.FlagName
             IsTransfer = entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome
+            ReviewMarkWriteBackFailure = entry.ReviewMarkWriteBackFailure
         }
 
     // --- Die Sprache der Historie ---
@@ -268,6 +269,13 @@ module ReadModel =
             | None -> ""
         $"Quick Add erfasst: {payeeOr p.Payee}, {formatMoney p.Amount}{category}"
 
+    /// Der Satz folgt aus Alt und Neu, nicht aus der Absicht der Geste (ADR 0050, Punkt 3).
+    let private describeReviewMarkChanged (p: EntryReviewMarkChangedInBbPayload) =
+        match p.OldApproved, p.NewApproved with
+        | false, true -> "In BB als geprüft markiert"
+        | true, false -> "In BB: Prüfvermerk entfernt"
+        | _ -> $"In BB: Status geändert: {clearedLabel p.OldCleared} → {clearedLabel p.NewCleared}"
+
     let private describeLinkedToYnab (p: EntryLinkedToYnabPayload) =
         $"Mit YNAB verknüpft: {p.YnabTransactionId}"
 
@@ -305,6 +313,9 @@ module ReadModel =
         | EntryRecategorized p -> describeRecategorized p
         | CashExpenseAdded p -> describeCashExpenseAdded p
         | EntryLinkedToYnab p -> describeLinkedToYnab p
+        | EntryReviewMarkChangedInBb p -> describeReviewMarkChanged p
+        | EntryReviewMarkWriteBackFailed p -> $"Prüfvermerk nicht in YNAB: {p.Reason}"
+        | EntryReviewMarkWrittenBackToYnab -> "Prüfvermerk in YNAB angekommen"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
     let toHistoryLine (recorded: RecordedLedgerEvent) : LedgerHistoryLine = {

@@ -149,6 +149,7 @@ let domainTests =
                 Approved = p.Approved
                 FlagColor = p.FlagColor
                 FlagName = p.FlagName
+                ReviewMarkWriteBackFailure = None
             }
             Expect.equal e expected "Feld für Feld"
 

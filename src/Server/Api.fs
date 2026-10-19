@@ -1422,6 +1422,25 @@ let syncApi : SyncApi = {
 // Ledger API (Kassenbuch)
 // ============================================
 
+/// Der Push des Prüfvermerks mit Token und Standard-Budget aus den Settings. Fehlt eines
+/// von beiden, liefert der Push einen Fehler statt zu werfen: der Befehl hat das Ereignis
+/// dann schon geschrieben und meldet den Fehlschlag als Zustand (ADR 0050, Punkt 7).
+let private reviewMarkPush () : Async<Ledger.CommandHandlers.ReviewMarkPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun ynabTransactionId approved cleared ->
+                YnabClient.updateReviewMark token (YnabBudgetId budgetId) ynabTransactionId approved cleared
+        | None, _ ->
+            return fun _ _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ _ _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 let ledgerApi : LedgerApi = {
     // Der manuelle Ausloeser "Jetzt spiegeln" (ADR 0014, Punkt 3). Frische-Kriterium
     // und Lauf nach Push sind Folge-Arbeit.
@@ -1442,6 +1461,27 @@ let ledgerApi : LedgerApi = {
     getLedgerAccountBalances = fun () -> Ledger.QueryHandlers.getLedgerAccountBalances ()
 
     getEntryHistory = fun entryId -> Ledger.QueryHandlers.getEntryHistory entryId
+
+    // Prüfvermerk setzen und nach YNAB zurückschreiben (ledger-r777c, ADR 0050).
+    // Kassenbuch zuerst, dann der Push; der Push braucht Token und Budget aus den
+    // Settings, fehlen sie, scheitert er mit Grund und der Befehl meldet den Fehlschlag.
+    setReviewMark = fun entryId target -> async {
+        let! push = reviewMarkPush ()
+        return!
+            Ledger.CommandHandlers.setReviewMark DateTime.UtcNow push (Ledger.Events.EntryId entryId) target
+    }
+
+    restoreReviewMark = fun entryId previous -> async {
+        let! push = reviewMarkPush ()
+        return!
+            Ledger.CommandHandlers.restoreReviewMark DateTime.UtcNow push (Ledger.Events.EntryId entryId) previous
+    }
+
+    retryReviewMarkWriteBack = fun entryId -> async {
+        let! push = reviewMarkPush ()
+        return!
+            Ledger.CommandHandlers.retryReviewMarkWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
 }
 
 // ============================================

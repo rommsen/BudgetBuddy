@@ -110,6 +110,9 @@ type Entry = {
     /// Markiert, kein Flag) ist Sache des Lesepfads (`Ledger.QueryHandlers.ReadModel`).
     FlagColor: string option
     FlagName: string option
+    /// Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks nach YNAB
+    /// (ADR 0050, Punkt 7): "Prüfvermerk nicht in YNAB". `None`, wenn nichts offen ist.
+    ReviewMarkWriteBackFailure: string option
 }
 
 /// Ist eine Buchung "zu prüfen"? Wahr, wenn sie in YNAB nicht genehmigt ist oder ihr
@@ -117,6 +120,34 @@ type Entry = {
 /// geprüft, wenn beides erledigt ist; `Reconciled` zählt wie `Cleared` als geprüft.
 let needsReview (entry: Entry) : bool =
     not entry.Approved || entry.Cleared = Uncleared
+
+// ============================================
+// Prüfvermerk setzen (ADR 0050)
+// ============================================
+
+/// Der Prüfvermerk einer Buchung als Paar `approved`/`cleared`.
+let reviewMarkOf (entry: Entry) : bool * ClearedState = entry.Approved, entry.Cleared
+
+/// Der Übergang für "Geprüft"/"Ungeprüft" (ADR 0050, Punkt 1 und 2). `Reviewed`:
+/// `approved = true`, `cleared` von offen auf bestätigt, sonst unverändert.
+/// `Unreviewed`: `approved = false`, `cleared` von bestätigt auf offen, sonst
+/// unverändert. `Reconciled` bleibt in jedem Fall unberührt. Rein, ohne I/O.
+let reviewMarkTarget (target: ReviewMarkTarget) (entry: Entry) : bool * ClearedState =
+    match target with
+    | Reviewed ->
+        true, (if entry.Cleared = Uncleared then Cleared else entry.Cleared)
+    | Unreviewed ->
+        false, (if entry.Cleared = Cleared then Uncleared else entry.Cleared)
+
+/// Der Übergang für "Rückgängig": `approved` und `cleared` des Vorzustands. Schreibt
+/// nie von oder nach `Reconciled`: ist der Ist-Stand oder der Vorzustand Reconciled,
+/// bleibt `cleared` wie es ist (ADR 0050, Punkt 2 und 10).
+let reviewMarkRestoreTarget (previous: bool * ClearedState) (entry: Entry) : bool * ClearedState =
+    let previousApproved, previousCleared = previous
+    let cleared =
+        if entry.Cleared = Reconciled || previousCleared = Reconciled then entry.Cleared
+        else previousCleared
+    previousApproved, cleared
 
 /// Die verschiedenen Kategorien, die in den Split-Zeilen einer Buchung stecken
 /// (ADR 0038): wählt aus `entry.Splits` die `ToCategory`-Ziele aus und entdoppelt.
@@ -219,6 +250,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Approved = p.Approved
             FlagColor = p.FlagColor
             FlagName = p.FlagName
+            ReviewMarkWriteBackFailure = None
         }
 
     | EntryDetailsChangeObservedInYnab p ->
@@ -236,11 +268,13 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
 
     | EntryClearedStateChangeObservedInYnab p ->
         let e = requireExisting ()
-        { e with Cleared = p.NewCleared }
+        // Der Stand von YNAB gilt, ein offener Fehlschlag beim Zurückschreiben ist damit
+        // aufgelöst (ADR 0050, Punkt 8).
+        { e with Cleared = p.NewCleared; ReviewMarkWriteBackFailure = None }
 
     | EntryApprovalChangeObservedInYnab p ->
         let e = requireExisting ()
-        { e with Approved = p.NewApproved }
+        { e with Approved = p.NewApproved; ReviewMarkWriteBackFailure = None }
 
     | EntryFlagChangeObservedInYnab p ->
         let e = requireExisting ()
@@ -306,6 +340,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Approved = p.Approved
             FlagColor = None
             FlagName = None
+            ReviewMarkWriteBackFailure = None
         }
 
     | EntryCategorizedByRule p ->
@@ -345,6 +380,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Approved = p.Approved
             FlagColor = None
             FlagName = None
+            ReviewMarkWriteBackFailure = None
         }
 
     | EntryLinkedToYnab _ ->
@@ -352,6 +388,22 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
         // auf `Entry`; `linksFrom` stiftet die Verknuepfung. `apply` selbst verlangt nur,
         // dass die Buchung schon entstanden ist.
         requireExisting ()
+
+    | EntryReviewMarkChangedInBb p ->
+        // Eine neue Geste setzt einen offenen Fehlschlag zurück (ADR 0050, Punkt 8).
+        let e = requireExisting ()
+        { e with
+            Approved = p.NewApproved
+            Cleared = p.NewCleared
+            ReviewMarkWriteBackFailure = None }
+
+    | EntryReviewMarkWriteBackFailed p ->
+        let e = requireExisting ()
+        { e with ReviewMarkWriteBackFailure = Some p.Reason }
+
+    | EntryReviewMarkWrittenBackToYnab ->
+        let e = requireExisting ()
+        { e with ReviewMarkWriteBackFailure = None }
 
 /// Die Fremd-Ids, die ein Ereignis mitbringt. Rein: der Store schreibt sie beim
 /// Anhaengen mit, ohne selbst zu wissen, welches Ereignis welche Verknuepfung stiftet.
@@ -683,4 +735,10 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
                         NewFlagColor = obs.FlagColor
                         NewFlagName = obs.FlagName
                     })
+
+            // ADR 0050, Punkt 8: YNAB zeigt den BB-Stand (kein Beobachtungs-Ereignis
+            // für Approval/Cleared), der offene Fehlschlag endet. Zeigt YNAB einen
+            // anderen Stand, löst schon das Beobachtungs-Ereignis ihn in `apply` auf.
+            if entry.ReviewMarkWriteBackFailure.IsSome && not clearedChanged && not approvalChanged then
+                event EntryReviewMarkWrittenBackToYnab
         ]

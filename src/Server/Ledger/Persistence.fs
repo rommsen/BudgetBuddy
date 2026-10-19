@@ -152,6 +152,9 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
         backfillTransferAccountId conn
     // ADR 0046: JSON-Liste der Übertrags-Split-Verknüpfungen, NULL liest sich als leer.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN split_transfer_counterparts TEXT" |> ignore
+    // ADR 0050: Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks,
+    // NULL heißt kein offener Fehlschlag.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN review_mark_write_back_failure TEXT" |> ignore
 
 /// Legt die Kassenbuch-Tabellen an, auf der übergebenen Connection. Bestehende
 /// Tabellen bleiben unangetastet (`CREATE TABLE IF NOT EXISTS`); der Aufruf ist
@@ -210,7 +213,8 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             flag_color TEXT,
             flag_name TEXT,
             transfer_account_id TEXT,
-            split_transfer_counterparts TEXT
+            split_transfer_counterparts TEXT,
+            review_mark_write_back_failure TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_ledger_entries_account ON ledger_entries(account_id);
@@ -294,6 +298,7 @@ type private EntryRow = {
     flag_name: string
     transfer_account_id: string
     split_transfer_counterparts: string
+    review_mark_write_back_failure: string
 }
 
 [<CLIMutable>]
@@ -394,6 +399,7 @@ let private rowToEntry (row: EntryRow) : Entry =
         Approved = row.approved = 1L
         FlagColor = toOption row.flag_color
         FlagName = toOption row.flag_name
+        ReviewMarkWriteBackFailure = toOption row.review_mark_write_back_failure
         TransferAccountId = toOption row.transfer_account_id |> Option.map (Guid.Parse >> YnabAccountId)
     }
 
@@ -445,6 +451,7 @@ let private entryParams (entry: Entry) =
         approved = (if entry.Approved then 1 else 0)
         flag_color = orNull entry.FlagColor
         flag_name = orNull entry.FlagName
+        review_mark_write_back_failure = orNull entry.ReviewMarkWriteBackFailure
         transfer_account_id =
             match entry.TransferAccountId with
             | Some (YnabAccountId a) -> box (a.ToString())
@@ -458,11 +465,12 @@ let private upsertEntrySql =
     """INSERT INTO ledger_entries
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
-          transfer_account_id, split_transfer_counterparts)
+          transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
-          @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts)
+          @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
+          @review_mark_write_back_failure)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -480,7 +488,8 @@ let private upsertEntrySql =
           flag_color = excluded.flag_color,
           flag_name = excluded.flag_name,
           transfer_account_id = excluded.transfer_account_id,
-          split_transfer_counterparts = excluded.split_transfer_counterparts"""
+          split_transfer_counterparts = excluded.split_transfer_counterparts,
+          review_mark_write_back_failure = excluded.review_mark_write_back_failure"""
 
 /// Führt die abgeleitete Indextabelle `ledger_entry_split_categories` einer Buchung
 /// nach (ADR 0038): erst `DELETE` aller Zeilen dieser Buchung, dann `INSERT` je

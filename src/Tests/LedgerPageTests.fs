@@ -72,6 +72,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     Approved = true
     FlagColor = None
     FlagName = None
+    ReviewMarkWriteBackFailure = None
 }
 
 let private recorded (seq: int) (actor: Actor) (body: LedgerEventBody) : RecordedLedgerEvent = {

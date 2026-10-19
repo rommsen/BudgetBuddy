@@ -197,6 +197,60 @@ let orderChipsForDisplay (isMobile: bool) (activity: ChipActivity) : ChipId list
         let active, inactive = fixedChipOrder |> List.partition (isChipActive activity)
         active @ inactive
 
+// ============================================
+// Prüfvermerk an der Zeile (ledger-r777c, ADR 0050)
+// ============================================
+
+/// Der Zustand der Schaltfläche einer Zeile, solange ein Aufruf läuft oder der
+/// Befehl selbst scheiterte. Ein offener Fehlschlag beim Zurückschreiben nach YNAB
+/// gehört nicht hierher: er steht an der Buchung (`ReviewMarkWriteBackFailure`).
+type ReviewMarkRowState =
+    /// Der Befehl (Setzen oder Erneut senden) ist unterwegs.
+    | ReviewMarkSending
+    /// Der Befehl selbst scheiterte (unbekannte oder in YNAB gelöschte Buchung, Netz
+    /// zum eigenen Server). Der Vermerk blieb unverändert.
+    | ReviewMarkCommandFailed of message: string
+
+/// Die Aktion der Schaltfläche einer Zeile: "Geprüft" für eine zu prüfende Buchung,
+/// "Ungeprüft" für eine geprüfte. Rein, damit die Beschriftung ohne React testbar ist.
+type ReviewMarkAction = {
+    Label: string
+    Target: ReviewMarkTarget
+}
+
+let reviewMarkActionFor (entry: LedgerEntryView) : ReviewMarkAction =
+    if entry.NeedsReview then { Label = "Geprüft"; Target = Reviewed }
+    else { Label = "Ungeprüft"; Target = Unreviewed }
+
+/// Der Hinweis "Prüfvermerk nicht in YNAB" an einer Zeile (ADR 0050, Punkt 11).
+type ReviewMarkHint = {
+    Title: string
+    /// Der Grund, wie der Server ihn lieferte, oder die Meldung des gescheiterten Befehls.
+    Reason: string
+    /// Die Beschriftung der Schaltfläche; `None`, wenn kein Erneut senden möglich ist
+    /// (der Befehl selbst scheiterte, es gibt nichts Offenes zu senden).
+    RetryLabel: string option
+}
+
+let reviewMarkHintTitle = "Prüfvermerk nicht in YNAB"
+
+/// Welchen Hinweis trägt die Zeile? Ein Befehlsfehler (`ReviewMarkCommandFailed`) hat
+/// Vorrang, danach der offene Fehlschlag an der Buchung. Während `ReviewMarkSending`
+/// bleibt der bisherige Hinweis stehen.
+let reviewMarkHintFor (rowState: ReviewMarkRowState option) (entry: LedgerEntryView) : ReviewMarkHint option =
+    match rowState, entry.ReviewMarkWriteBackFailure with
+    | Some (ReviewMarkCommandFailed message), failure ->
+        // Scheiterte "Erneut senden" selbst, bleibt der offene Fehlschlag und mit ihm
+        // die Schaltfläche stehen.
+        Some {
+            Title = "Prüfvermerk nicht gesetzt"
+            Reason = message
+            RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
+        }
+    | _, Some reason ->
+        Some { Title = reviewMarkHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    | _, None -> None
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -317,6 +371,10 @@ type Model = {
     AmountMinDraft: string
     AmountMaxDraft: string
     AmountVersion: int
+
+    /// Der Zustand der Prüfvermerk-Schaltfläche je Buchung (ledger-r777c): läuft ein
+    /// Aufruf oder scheiterte der Befehl. Zeilen ohne Eintrag sind im Ruhezustand.
+    ReviewMarkRows: Map<Guid, ReviewMarkRowState>
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -426,6 +484,21 @@ type Msg =
     /// neu. Der Chip "Zu prüfen (n)" und der Schalter "Gelöschte zeigen" bleiben
     /// unberührt, sie gehören nicht zu den fünf Filtern.
     | ClearAllFilters
+
+    // ============================================
+    // Prüfvermerk setzen und zurückschreiben (ledger-r777c, ADR 0050)
+    // ============================================
+    // Dieselbe Teilung wie bei den Filtern (ADR 0020): `Start...` ist rein und setzt
+    // den Zeilenzustand, `Run...` ruft den Proxy auf.
+
+    /// Klick auf "Geprüft" oder "Ungeprüft": Zeile auf "sendet", dann `RunSetReviewMark`.
+    | StartSetReviewMark of Guid * ReviewMarkTarget
+    | RunSetReviewMark of Guid * ReviewMarkTarget
+    | ReviewMarkSet of Guid * ReviewMarkTarget * Result<ReviewMarkOutcome, string>
+    /// Klick auf "Erneut senden" am Hinweis "Prüfvermerk nicht in YNAB".
+    | StartRetryReviewMark of Guid
+    | RunRetryReviewMark of Guid
+    | ReviewMarkRetried of Guid * Result<ReviewMarkWriteBack, string>
 
 /// Was die Seite nach oben meldet.
 type ExternalMsg =

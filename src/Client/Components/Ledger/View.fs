@@ -374,6 +374,78 @@ let entryRowReviewClassName : string =
 let private keepWidth (child: ReactElement) =
     Html.span [ prop.className "shrink-0"; prop.children [ child ] ]
 
+/// Die Schaltfläche "Geprüft" / "Ungeprüft" einer Zeile (ledger-r777c, ADR 0050): ein
+/// Symbol (Haken für "Geprüft", Pfeil zurück für "Ungeprüft") mit der Beschriftung als
+/// nur vorgelesenem Text, damit die Statusspalte der PC-Tabelle (128px) nicht
+/// überläuft. Am Handy 44px Trefferfläche, am PC 28px. Der Klick öffnet nicht die
+/// Historie der Zeile (`stopPropagation`). Ein laufender Aufruf sperrt die Schaltfläche.
+let private reviewMarkButton
+    (dispatch: Msg -> unit)
+    (rowState: ReviewMarkRowState option)
+    (entry: LedgerEntryView)
+    : ReactElement =
+    let action = reviewMarkActionFor entry
+    let sending = (rowState = Some ReviewMarkSending)
+    let icon =
+        match action.Target with
+        | Reviewed -> Icons.check Icons.SM Icons.NeonTeal
+        | Unreviewed -> Icons.undo Icons.SM Icons.Default
+
+    Html.button [
+        prop.type'.button
+        prop.disabled sending
+        prop.className (
+            "inline-flex shrink-0 items-center justify-center rounded-lg h-11 w-11 md:h-7 md:w-7 " +
+            "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
+            "transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+        )
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            dispatch (StartSetReviewMark (entry.Id, action.Target)))
+        prop.children [
+            icon
+            Html.span [ prop.className "sr-only"; prop.text action.Label ]
+        ]
+    ]
+
+/// Der Hinweis "Prüfvermerk nicht in YNAB" mit Grund und "Erneut senden" (ADR 0050,
+/// Punkt 11). Ein Wort in Orange und der Grund gedämpft: er fällt auf, ohne die ruhige
+/// Liste (ADR 0049) zu stören. Die Schaltfläche sendet den aktuellen Stand erneut.
+let private reviewMarkHintView
+    (dispatch: Msg -> unit)
+    (rowState: ReviewMarkRowState option)
+    (entryId: Guid)
+    (hint: ReviewMarkHint)
+    : ReactElement =
+    let sending = (rowState = Some ReviewMarkSending)
+
+    Html.div [
+        prop.role "status"
+        prop.className "flex items-center gap-2 min-w-0"
+        prop.children [
+            Html.span [
+                prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.neonOrange} font-medium shrink-0"
+                prop.text hint.Title
+            ]
+            Html.span [
+                prop.className $"{Tokens.ListRoles.muted} truncate min-w-0"
+                prop.text hint.Reason
+            ]
+            match hint.RetryLabel with
+            | Some label ->
+                Button.view {
+                    Button.defaultProps with
+                        Text = label
+                        Variant = Button.Ghost
+                        Size = Button.Small
+                        IsLoading = sending
+                        ClassName = Some "shrink-0"
+                        OnClick = fun () -> dispatch (StartRetryReviewMark entryId)
+                }
+            | None -> ()
+        ]
+    ]
+
 /// Eine Zeile der Buchungsliste am Handy, zweizeilig (ADR 0049 Punkt 6): Zeile 1
 /// Payee und Betrag, Zeile 2 Kategorie und Memo mit den Kennzeichen. Beide Zeilen
 /// haben eine feste Höhe (`h-5`), damit der Abstand zwischen ihnen in jeder Zeile
@@ -388,8 +460,9 @@ let private entryRow
     let rowClass = if entry.NeedsReview then entryRowReviewClassName else entryRowClassName
 
     Html.button [
-        prop.key (string entry.Id)
-        prop.className rowClass
+        // `min-w-0 flex-1`: die Zeile teilt sich den Platz mit der Schaltfläche daneben
+        // (`entryRowWithReviewMark`) und darf dafür schrumpfen.
+        prop.className $"{rowClass} min-w-0 flex-1"
         prop.onClick (fun _ -> dispatch (OpenHistory entry))
         prop.children [
             Html.div [
@@ -423,6 +496,38 @@ let private entryRow
                     if entry.DeletedInYnab then keepWidth (deletedBadge ())
                 ]
             ]
+        ]
+    ]
+
+let private entryRowWithReviewMark
+    (dispatch: Msg -> unit)
+    (accountAbbreviationOf: (Guid -> string) option)
+    (rowState: ReviewMarkRowState option)
+    (entry: LedgerEntryView)
+    =
+    // Außen ein Container: die Zeile ist ein `button` (öffnet die Historie), die
+    // Schaltfläche "Geprüft"/"Ungeprüft" liegt daneben und nicht darin (ein Button im
+    // Button ist ungültig). Der Hinweis "Prüfvermerk nicht in YNAB" steht darunter.
+    Html.div [
+        prop.key (string entry.Id)
+        prop.children [
+            Html.div [
+                prop.className "flex items-stretch"
+                prop.children [
+                    entryRow dispatch accountAbbreviationOf entry
+                    Html.div [
+                        prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
+                        prop.children [ reviewMarkButton dispatch rowState entry ]
+                    ]
+                ]
+            ]
+            match reviewMarkHintFor rowState entry with
+            | Some hint ->
+                Html.div [
+                    prop.className $"px-4 py-1.5 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
+                    prop.children [ reviewMarkHintView dispatch rowState entry.Id hint ]
+                ]
+            | None -> ()
         ]
     ]
 
@@ -468,6 +573,7 @@ let private entryTableRow
     (dispatch: Msg -> unit)
     (showAccountColumn: bool)
     (accountAbbreviationOf: Guid -> string)
+    (rowState: ReviewMarkRowState option)
     (entry: LedgerEntryView)
     =
     // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), nicht mehr
@@ -497,10 +603,34 @@ let private entryTableRow
                         if entry.NeedsReview then needsReviewStatusBadge ()
                         flagStatusBadge entry.Flag
                         if entry.DeletedInYnab then deletedStatusIcon ()
+                        // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk mehr an
+                        // (der Server lehnt sie ab), also bekommt sie keine Schaltfläche.
+                        if not entry.DeletedInYnab then reviewMarkButton dispatch rowState entry
                     ]
                 ]
             ]
         ]
+
+/// Die Zeile unter einer Buchung mit dem Hinweis "Prüfvermerk nicht in YNAB" (PC): eine
+/// Zeile über die ganze Tabellenbreite, nur wenn ein Hinweis ansteht.
+let private entryHintRow
+    (dispatch: Msg -> unit)
+    (columnCount: int)
+    (rowState: ReviewMarkRowState option)
+    (entry: LedgerEntryView)
+    : ReactElement option =
+    reviewMarkHintFor rowState entry
+    |> Option.map (fun hint ->
+        Html.tr [
+            prop.key ("hint-" + string entry.Id)
+            prop.children [
+                Html.td [
+                    prop.colSpan columnCount
+                    prop.className $"{Tokens.ListRoles.cellPaddingX} pb-2 pt-0"
+                    prop.children [ reviewMarkHintView dispatch rowState entry.Id hint ]
+                ]
+            ]
+        ])
 
 /// Gruppenkopf eines Datums in der PC-Tabelle: Datum links über den ersten Spalten,
 /// Tagessumme in der Betragsspalte (`Table.calmGroupRow`, ADR 0049 Punkt 8).
@@ -733,6 +863,7 @@ let private entryListMobile
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
     (includeDeleted: bool)
+    (reviewRows: Map<Guid, ReviewMarkRowState>)
     (entries: LedgerEntryView list)
     =
     Primitives.Responsive.mobileOnly [
@@ -741,7 +872,9 @@ let private entryListMobile
                 groupByDate entries
                 |> List.collect (fun (date, group) ->
                     dateGroupHeader date (daySum includeDeleted group)
-                    :: (group |> List.map (entryRow dispatch accountAbbreviationOf)))
+                    :: (group
+                        |> List.map (fun entry ->
+                            entryRowWithReviewMark dispatch accountAbbreviationOf (reviewRows |> Map.tryFind entry.Id) entry)))
             )
         ]
     ]
@@ -791,6 +924,7 @@ let private entryListDesktop
     (showAccountColumn: bool)
     (accountAbbreviationOf: Guid -> string)
     (includeDeleted: bool)
+    (reviewRows: Map<Guid, ReviewMarkRowState>)
     (entries: LedgerEntryView list)
     =
     // Spalten vor dem Betrag: Datum, [Konto], Payee, Kategorie, Memo.
@@ -833,9 +967,13 @@ let private entryListDesktop
                         dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
                         :: (group
                             |> List.map (fun entry ->
+                                let rowState = reviewRows |> Map.tryFind entry.Id
                                 React.keyedFragment (
                                     string entry.Id,
-                                    [ entryTableRow dispatch showAccountColumn accountAbbreviationOf entry ]
+                                    [ entryTableRow dispatch showAccountColumn accountAbbreviationOf rowState entry
+                                      match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
+                                      | Some hintRow -> hintRow
+                                      | None -> () ]
                                 ))))
                 )
             ]
@@ -891,8 +1029,13 @@ let private entryList
 
     | Success entries ->
         Html.div [
-            entryListMobile dispatch (if isAllAccounts then Some abbreviationOf else None) model.IncludeDeleted entries
-            entryListDesktop dispatch isAllAccounts abbreviationOf model.IncludeDeleted entries
+            entryListMobile
+                dispatch
+                (if isAllAccounts then Some abbreviationOf else None)
+                model.IncludeDeleted
+                model.ReviewMarkRows
+                entries
+            entryListDesktop dispatch isAllAccounts abbreviationOf model.IncludeDeleted model.ReviewMarkRows entries
 
             if model.LoadingMore then
                 Html.div [

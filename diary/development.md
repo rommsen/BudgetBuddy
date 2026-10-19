@@ -4,6 +4,39 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 16:45 - Prüfvermerk in BB setzen und nach YNAB zurückschreiben (ledger-r777c)
+
+**What I did:**
+Prüfvermerk als Schreibweg umgesetzt: drei Ereignisse, Befehle setReviewMark/restoreReviewMark/retryReviewMarkWriteBack, YNAB-Aufruf (PUT, nur approved und cleared) gegen Fake-Handler getestet, Lesemodell-Feld ReviewMarkWriteBackFailure, Schaltfläche Geprüft/Ungeprüft an der Zeile und Hinweis "Prüfvermerk nicht in YNAB" mit "Erneut senden".
+
+**Files Added:**
+- `src/Tests/LedgerReviewMarkTests.fs` - Domäne, Befehle (In-Memory-SQLite), Fake-HTTP für YNAB
+- `src/Tests/LedgerReviewMarkClientTests.fs` - Reducer und Ansichts-Bausteine
+- `scripts/ledger-review-mark.test.mjs` - Playwright-Wächter für PC und Handy mit gemockter API
+
+**Files Modified:**
+- `src/Server/Ledger/Events.fs`, `Domain.fs`, `Persistence.fs`, `CommandHandlers.fs`, `QueryHandlers.fs` - Ereignisse, Zustand, Spalte, Befehle, Historien-Sätze
+- `src/Server/YnabClient.fs` - `buildReviewMarkBody`, `sendReviewMark`, `updateReviewMark`
+- `src/Server/Api.fs`, `src/Shared/Api.fs`, `src/Shared/Domain.fs` - drei Endpunkte, Shared-Typen, `LedgerEntryView.ReviewMarkWriteBackFailure`
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs` - Zeilenzustand, Reducer, Schaltfläche und Hinweis
+- `src/Tests/LedgerTests.fs`, `LedgerPageTests.fs`, `LedgerViewTests.fs`, `LedgerWithoutCategoryTests.fs`, `Tests.fsproj` - neues Feld in Record-Literalen, neue Dateien eingebunden
+- `scripts/ledger-filter-bar.mjs`, `scripts/ledger-status-column.mjs` - Mock-Fixtures um das neue Feld
+
+**Rationale:**
+Der Prüfvermerk ist die einzige schreibende Fähigkeit vor v2 (ADR 0028). ADR 0050 legt Ereignis vor Push, Fehlschlag als Zustand und Reconciled unberührt fest. Die YNAB-OpenAPI kennt für eine einzelne Buchung PUT statt PATCH, deshalb PUT.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1332/1332 bestanden (7 übersprungen), npm run test:scripts 126/126
+- Screenshots: pc-1440x900-review-mark.png, handy-390x844-review-mark.png (docs/ux/kassenbuch/pruefvermerk/)
+- Issues: Seitenversatz nach dem Entfernen einer Zeile bei aktivem Chip (ledger-be1yh)
+
+---
+
+Hinweis des Verifiers (nicht blockierend): Am Handy rendert `entryRowWithReviewMark` die Schaltfläche auch für in YNAB gelöschte Buchungen (bei "Gelöschte zeigen"); am PC fehlt sie korrekt. Ein Klick liefert dort die Ablehnung des Servers.
+
+---
+
 ## 2026-10-19 16:35 - Deutsches Datumsfeld mit Kalender-Knopf (design-system-m7z9q)
 
 **What I did:**

@@ -323,4 +323,22 @@ type LedgerApi = {
     /// renders each event as a speaking sentence (ADR 0013).
     /// Returns: empty when the id is unknown.
     getEntryHistory: Guid -> Async<LedgerHistoryLine list>
+
+    // ============================================
+    // Prüfvermerk (ledger-r777c, ADR 0050)
+    // ============================================
+
+    /// Sets the review mark (Geprüft / Ungeprüft) of one booking in BB, then writes it
+    /// back to YNAB. The ledger event comes first, the YNAB call second; a failed
+    /// write-back leaves the mark set in BB and is reported in the outcome.
+    /// Returns: the previous state (for undo), whether anything changed, and the
+    /// write-back result; Error when the booking is unknown or deleted in YNAB.
+    setReviewMark: Guid -> ReviewMarkTarget -> Async<Result<ReviewMarkOutcome, string>>
+
+    /// Restores a previous review mark state (undo). Never writes from or to Reconciled.
+    restoreReviewMark: Guid -> ReviewMarkState -> Async<Result<ReviewMarkOutcome, string>>
+
+    /// Sends the booking's current review mark to YNAB again ("Erneut senden"). Does
+    /// nothing (ReviewMarkNotSent) without an open write-back failure.
+    retryReviewMarkWriteBack: Guid -> Async<Result<ReviewMarkWriteBack, string>>
 }

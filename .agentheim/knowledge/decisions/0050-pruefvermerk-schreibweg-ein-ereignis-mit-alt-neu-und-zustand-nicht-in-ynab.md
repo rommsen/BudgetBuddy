@@ -133,3 +133,12 @@ Würde Abstimmungs-Arbeit in YNAB entwerten. Von Roman abgelehnt.
 
 **Automatisches Wiederholen.** Braucht Hintergrund-Zustand und Rate-Limit-Logik, die
 dieses Feld nicht rechtfertigt. Für später möglich, ohne dieses Format zu ändern.
+
+## Nachtrag 2026-10-19 (Umsetzung ledger-r777c)
+
+Wo diese ADR "PATCH" schreibt, ist das Update der beiden Felder einer einzelnen Buchung
+gemeint. Die YNAB-OpenAPI kennt dafür `PUT /budgets/{budget_id}/transactions/{transaction_id}`
+(`updateTransaction`, Body `{"transaction": {...}}`, alle Felder optional); PATCH gibt es dort
+nur für die Sammel-Route ohne Transaction-Id. `YnabClient.updateReviewMark` sendet deshalb
+einen PUT mit `approved` und, nur bei Änderung, `cleared` (nie `reconciled`). Alle übrigen
+Festlegungen gelten unverändert.

@@ -851,6 +851,7 @@ let splitCategoryIdsTests =
                 Approved = true
                 FlagColor = None
                 FlagName = None
+                ReviewMarkWriteBackFailure = None
             }
             let (YnabCategoryId rawA) = catA
             Expect.equal (splitCategoryIds entry) [ rawA ] "Zwei Zeilen derselben Kategorie ergeben genau einen Eintrag, kein Duplikat"
@@ -878,6 +879,7 @@ let splitCategoryIdsTests =
                 Approved = true
                 FlagColor = None
                 FlagName = None
+                ReviewMarkWriteBackFailure = None
             }
             Expect.equal (splitCategoryIds entry) [] "ToTransfer und Uncategorized sind keine Kategorie, der Kategorie-Filter findet eine solche Buchung nicht"
 
@@ -899,6 +901,7 @@ let splitCategoryIdsTests =
                 Approved = true
                 FlagColor = None
                 FlagName = None
+                ReviewMarkWriteBackFailure = None
             }
             Expect.equal (splitCategoryIds entry) [] "Ohne Splits gibt es keine Split-Zeilen-Kategorie, unabhängig von der einfachen Kategorie"
 
@@ -925,6 +928,7 @@ let splitCategoryIdsTests =
                 Approved = true
                 FlagColor = None
                 FlagName = None
+                ReviewMarkWriteBackFailure = None
             }
             let (YnabCategoryId rawA) = catA
             let (YnabCategoryId rawB) = catB

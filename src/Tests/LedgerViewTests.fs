@@ -35,6 +35,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     NeedsReview = false
     Flag = NoFlag
     IsTransfer = false
+    ReviewMarkWriteBackFailure = None
 }
 
 let private splitLine (amount: decimal) : TransactionSplit = {

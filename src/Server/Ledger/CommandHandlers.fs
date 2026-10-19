@@ -937,3 +937,206 @@ let runMirrorInBackground (run: unit -> Async<Result<MirrorRunSummary, string>>)
 /// ein Seitenaufruf kurz danach) denselben Lauf teilt statt einen zweiten anzustoßen.
 let triggerMirrorInBackground () : unit =
     Async.Start (runMirrorInBackground mirrorYnabBudget)
+
+// ============================================
+// Prüfvermerk setzen und nach YNAB zurückschreiben (ADR 0050, ledger-r777c)
+// ============================================
+
+/// Der Push des Prüfvermerks, injiziert wie `push` bei `addCashExpense`: bekommt die
+/// YNAB-Transaction-Id, `approved` und `cleared` (nur wenn geändert, nie `reconciled`).
+/// Der Aufrufer (`Server.Api`) bindet Token und Budget ein
+/// (`Ynab.updateReviewMark`).
+type ReviewMarkPush = string -> bool -> Ynab.ReviewMarkCleared option -> Async<YnabResult<unit>>
+
+let private toReviewClearedState (c: ClearedState) : ReviewClearedState =
+    match c with
+    | Uncleared -> ReviewUncleared
+    | Cleared -> ReviewCleared
+    | Reconciled -> ReviewReconciled
+
+let private fromReviewClearedState (c: ReviewClearedState) : ClearedState =
+    match c with
+    | ReviewUncleared -> Uncleared
+    | ReviewCleared -> Cleared
+    | ReviewReconciled -> Reconciled
+
+let private toReviewMarkState (approved: bool, cleared: ClearedState) : ReviewMarkState =
+    { IsApproved = approved; ClearedState = toReviewClearedState cleared }
+
+/// Der Grund-Text für den Hinweis "Prüfvermerk nicht in YNAB".
+let describeReviewMarkPushError (error: YnabError) : string =
+    match error with
+    | YnabError.Unauthorized msg -> $"YNAB hat den Zugang abgelehnt: {msg}"
+    | YnabError.BudgetNotFound _ -> "Das Budget wurde in YNAB nicht gefunden"
+    | YnabError.AccountNotFound _ -> "Das Konto wurde in YNAB nicht gefunden"
+    | YnabError.CategoryNotFound _ -> "Die Kategorie wurde in YNAB nicht gefunden"
+    | YnabError.RateLimitExceeded seconds -> $"YNAB bremst gerade (Limit erreicht), bitte in {seconds} Sekunden erneut senden"
+    | YnabError.NetworkError msg -> $"Keine Verbindung zu YNAB: {msg}"
+    | YnabError.InvalidResponse msg -> $"YNAB hat die Änderung abgelehnt: {msg}"
+
+/// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0050, Punkt 12).
+let reviewMarkNotLinkedReason = "noch nicht in YNAB verknüpft"
+
+/// Der `cleared`-Wert für den Push: nur, wenn er sich ändert, und nie `reconciled`
+/// (ADR 0050, Punkt 6).
+let private clearedForPush (oldCleared: ClearedState) (newCleared: ClearedState) : Ynab.ReviewMarkCleared option =
+    if oldCleared = newCleared then None
+    else
+        match newCleared with
+        | Cleared -> Some Ynab.SendCleared
+        | Uncleared -> Some Ynab.SendUncleared
+        | Reconciled -> None
+
+let private tryYnabTransactionId (entryId: EntryId) : Async<string option> =
+    async {
+        let! links = Ledger.Persistence.linksForEntry entryId
+        return links |> List.tryPick (fun l -> if l.System = YnabSystem then Some l.Value else None)
+    }
+
+let private reviewMarkEvent (entryId: EntryId) (now: DateTime) (actor: Actor) (body: LedgerEventBody) : LedgerEvent =
+    { EntryId = entryId; OccurredAt = now; Actor = actor; Body = body }
+
+/// Schickt den Prüfvermerk und schreibt bei einem Fehlschlag das Ereignis. Liefert das
+/// Ergebnis des Zurückschreibens. Bei Erfolg schreibt diese Funktion kein Ereignis
+/// (ADR 0050, Punkt 5), das tut nur das erneute Senden (`retryReviewMarkWriteBack`).
+let private sendReviewMark
+    (now: DateTime)
+    (push: ReviewMarkPush)
+    (entryId: EntryId)
+    (approved: bool)
+    (cleared: Ynab.ReviewMarkCleared option)
+    : Async<ReviewMarkWriteBack> =
+    async {
+        let fail (reason: string) =
+            async {
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = reason })
+                    ]
+                return ReviewMarkSendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail reviewMarkNotLinkedReason
+        | Some ynabTransactionId ->
+            match! push ynabTransactionId approved cleared with
+            | Ok () -> return ReviewMarkSent
+            | Error err -> return! fail (describeReviewMarkPushError err)
+    }
+
+/// Gemeinsamer Ablauf für `setReviewMark` und `restoreReviewMark`: lädt die Buchung,
+/// lehnt gelöschte ab, bestimmt den Zielzustand (`resolveTarget`), schreibt bei einer
+/// Änderung zuerst `EntryReviewMarkChangedInBb` und ruft danach den Push (ADR 0050,
+/// Punkt 3 bis 5, 12). Ziel gleich Ist: kein Ereignis, kein Push, `ReviewMarkUnchanged`.
+let private changeReviewMark
+    (now: DateTime)
+    (push: ReviewMarkPush)
+    (entryId: EntryId)
+    (resolveTarget: Entry -> bool * ClearedState)
+    : Async<Result<ReviewMarkOutcome, string>> =
+    async {
+        match! Ledger.Persistence.loadEntry entryId with
+        | None -> return Error "Buchung nicht gefunden"
+        | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+        | Some entry ->
+            let previous = reviewMarkOf entry
+            let newApproved, newCleared = resolveTarget entry
+            let oldApproved, oldCleared = previous
+
+            if newApproved = oldApproved && newCleared = oldCleared then
+                return
+                    Ok {
+                        Previous = toReviewMarkState previous
+                        Change = ReviewMarkUnchanged
+                        WriteBack = ReviewMarkNotSent
+                    }
+            else
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryReviewMarkChangedInBb {
+                                OldApproved = oldApproved
+                                NewApproved = newApproved
+                                OldCleared = oldCleared
+                                NewCleared = newCleared
+                            }
+                        )
+                    ]
+
+                let! writeBack = sendReviewMark now push entryId newApproved (clearedForPush oldCleared newCleared)
+
+                return
+                    Ok {
+                        Previous = toReviewMarkState previous
+                        Change = ReviewMarkChanged
+                        WriteBack = writeBack
+                    }
+    }
+
+/// "Geprüft" / "Ungeprüft" (ADR 0050). Kassenbuch zuerst, dann der Push; kein Rollback.
+let setReviewMark
+    (now: DateTime)
+    (push: ReviewMarkPush)
+    (entryId: EntryId)
+    (target: ReviewMarkTarget)
+    : Async<Result<ReviewMarkOutcome, string>> =
+    changeReviewMark now push entryId (reviewMarkTarget target)
+
+/// "Rückgängig": stellt `approved` und `cleared` des Vorzustands her. Fasst `Reconciled`
+/// nie an (ADR 0050, Punkt 2 und 10).
+let restoreReviewMark
+    (now: DateTime)
+    (push: ReviewMarkPush)
+    (entryId: EntryId)
+    (previous: ReviewMarkState)
+    : Async<Result<ReviewMarkOutcome, string>> =
+    let previousState = previous.IsApproved, fromReviewClearedState previous.ClearedState
+    changeReviewMark now push entryId (reviewMarkRestoreTarget previousState)
+
+/// "Erneut senden" am Hinweis "Prüfvermerk nicht in YNAB" (ADR 0050, Punkt 9): sendet
+/// den aktuellen Stand. Erfolg schreibt `EntryReviewMarkWrittenBackToYnab` (Actor
+/// `UserInBb`), ein erneuter Fehlschlag ersetzt den Grund. Ohne offenen Fehlschlag tut
+/// der Befehl nichts.
+let retryReviewMarkWriteBack
+    (now: DateTime)
+    (push: ReviewMarkPush)
+    (entryId: EntryId)
+    : Async<Result<ReviewMarkWriteBack, string>> =
+    async {
+        match! Ledger.Persistence.loadEntry entryId with
+        | None -> return Error "Buchung nicht gefunden"
+        | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+        | Some entry when entry.ReviewMarkWriteBackFailure.IsNone -> return Ok ReviewMarkNotSent
+        | Some entry ->
+            // Der Ist-Stand geht hinaus; `cleared` nur, wenn er nicht Reconciled ist.
+            let cleared =
+                match entry.Cleared with
+                | Cleared -> Some Ynab.SendCleared
+                | Uncleared -> Some Ynab.SendUncleared
+                | Reconciled -> None
+
+            match! tryYnabTransactionId entryId with
+            | None ->
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryReviewMarkWriteBackFailed { Reason = reviewMarkNotLinkedReason }
+                        )
+                    ]
+                return Ok (ReviewMarkSendFailed reviewMarkNotLinkedReason)
+            | Some ynabTransactionId ->
+                match! push ynabTransactionId entry.Approved cleared with
+                | Ok () ->
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryReviewMarkWrittenBackToYnab
+                        ]
+                    return Ok ReviewMarkSent
+                | Error err ->
+                    let reason = describeReviewMarkPushError err
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = reason })
+                        ]
+                    return Ok (ReviewMarkSendFailed reason)
+    }

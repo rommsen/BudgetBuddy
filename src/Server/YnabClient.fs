@@ -937,6 +937,84 @@ let createManualTransaction
             return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
     }
 
+// ============================================
+// Prüfvermerk zurückschreiben (ADR 0050)
+// ============================================
+
+/// Der `cleared`-Wert, den das Zurückschreiben des Prüfvermerks senden darf. Bewusst
+/// ohne `reconciled`: BB fasst Reconciled nie an (ADR 0050, Punkt 2 und 6).
+type ReviewMarkCleared =
+    | SendCleared
+    | SendUncleared
+
+/// Baut den Request-Body für das Zurückschreiben des Prüfvermerks: nur `approved`,
+/// `cleared` nur wenn geändert (`None` lässt das Feld weg). Kein anderes Feld
+/// (ADR 0028, Punkt 1; ADR 0050, Punkt 6). Non-private, damit der JSON-Vertrag direkt
+/// testbar ist.
+let buildReviewMarkBody (approved: bool) (cleared: ReviewMarkCleared option) : string =
+    Encode.object [
+        "transaction", Encode.object [
+            "approved", Encode.bool approved
+            match cleared with
+            | Some SendCleared -> "cleared", Encode.string "cleared"
+            | Some SendUncleared -> "cleared", Encode.string "uncleared"
+            | None -> ()
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Sendet den Prüfvermerk mit dem übergebenen `HttpClient` (injizierbar, damit ein
+/// Test gegen einen Fake-Handler läuft, nie gegen YNAB). Einzelne Buchung ändern ist
+/// laut YNAB-OpenAPI `PUT .../transactions/{transaction_id}` (`updateTransaction`,
+/// alle Felder des Bodys optional); der Pfad bleibt bei `/budgets/`, wie in den
+/// übrigen Aufrufen dieser Datei. Fehlerzuordnung wie `createManualTransaction`.
+let sendReviewMark
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (approved: bool)
+    (cleared: ReviewMarkCleared option)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let requestBody = buildReviewMarkBody approved cleared
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Prüfvermerk" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 200 -> return Ok ()
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Transaction not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update review mark: {ex.Message}")
+    }
+
+/// Schreibt den Prüfvermerk einer Buchung nach YNAB zurück (ADR 0050). Eigener Name und
+/// eigene Signatur, die nur `approved` und `cleared` kennt, keine allgemeine
+/// Update-Funktion (ADR 0028, Punkt 1).
+let updateReviewMark
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (approved: bool)
+    (cleared: ReviewMarkCleared option)
+    : Async<YnabResult<unit>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendReviewMark httpClient budgetId ynabTransactionId approved cleared
+    }
+
 /// Validates a YNAB token by attempting to fetch budgets
 let validateToken (token: string) : Async<YnabResult<unit>> =
     async {

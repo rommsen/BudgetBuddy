@@ -53,6 +53,7 @@ let init () : Model * Cmd<Msg> =
         AmountMinDraft = ""
         AmountMaxDraft = ""
         AmountVersion = 0
+        ReviewMarkRows = Map.empty
     }
     model, Cmd.none
 
@@ -67,6 +68,52 @@ let private resetEntries (model: Model) : Model = {
         HasMoreEntries = false
         LoadingMore = false
 }
+
+/// Trägt das Ergebnis eines Prüfvermerk-Befehls in die geladene Liste ein (ledger-r777c):
+/// setzt `NeedsReview` (wenn `needsReview` gesetzt ist) und den offenen Fehlschlag der
+/// Zeile, passt den Zähler "Zu prüfen (n)" an und nimmt die Zeile aus der Liste, wenn der
+/// Chip "Zu prüfen" aktiv ist und sie nicht mehr zu prüfen ist. Der Zeilenzustand
+/// (Laden/Fehler) wird dabei zurückgesetzt. Rein, ohne Proxy.
+let private applyReviewMarkResult
+    (entryId: Guid)
+    (needsReview: bool option)
+    (failureOf: LedgerEntryView -> string option)
+    (model: Model)
+    : Model =
+    let cleared = { model with ReviewMarkRows = model.ReviewMarkRows |> Map.remove entryId }
+
+    match cleared.Entries with
+    | Success entries ->
+        match entries |> List.tryFind (fun e -> e.Id = entryId) with
+        | None -> cleared
+        | Some entry ->
+            let newNeedsReview = needsReview |> Option.defaultValue entry.NeedsReview
+            let updated = { entry with NeedsReview = newNeedsReview; ReviewMarkWriteBackFailure = failureOf entry }
+            let countDelta =
+                match entry.NeedsReview, newNeedsReview with
+                | true, false -> -1
+                | false, true -> 1
+                | _ -> 0
+            // Eine Zeile mit offenem Fehlschlag bleibt stehen, auch wenn sie nicht mehr zu
+            // prüfen ist: sie trägt den Hinweis "Prüfvermerk nicht in YNAB". Der Zähler
+            // folgt trotzdem dem BB-Stand (ADR 0050, Punkt 11).
+            let leavesList = cleared.OnlyNeedsReview && not newNeedsReview && updated.ReviewMarkWriteBackFailure.IsNone
+            let remaining =
+                if leavesList then entries |> List.filter (fun e -> e.Id <> entryId)
+                else entries |> List.map (fun e -> if e.Id = entryId then updated else e)
+            let totalCount = if leavesList then max 0 (cleared.TotalCount - 1) else cleared.TotalCount
+            let totalAmount =
+                if leavesList && not entry.DeletedInYnab then
+                    { cleared.TotalAmount with Amount = cleared.TotalAmount.Amount - entry.Amount.Amount }
+                else
+                    cleared.TotalAmount
+            { cleared with
+                Entries = Success remaining
+                NeedsReviewCount = max 0 (cleared.NeedsReviewCount + countDelta)
+                TotalCount = totalCount
+                TotalAmount = totalAmount
+                HasMoreEntries = List.length remaining < totalCount }
+    | _ -> cleared
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -531,4 +578,66 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         // den fünf Such-Filtern (ADR 0048).
         resetEntries { model with Filters = { noFilters with WithoutCategory = model.Filters.WithoutCategory } },
         Cmd.ofMsg LoadEntries,
+        NoOp
+
+    // ============================================
+    // Prüfvermerk setzen und zurückschreiben (ledger-r777c, ADR 0050)
+    // ============================================
+
+    | StartSetReviewMark (entryId, target) ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+        Cmd.ofMsg (RunSetReviewMark (entryId, target)),
+        NoOp
+
+    | RunSetReviewMark (entryId, target) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setReviewMark entryId)
+                target
+                (fun result -> ReviewMarkSet (entryId, target, result))
+                (fun ex -> ReviewMarkSet (entryId, target, Error ex.Message))
+        model, cmd, NoOp
+
+    | ReviewMarkSet (entryId, target, Ok outcome) ->
+        // Nach "Geprüft" ist nichts mehr zu prüfen (approved, cleared mindestens bestätigt),
+        // nach "Ungeprüft" ist die Buchung wieder zu prüfen (approved = false). Ziel gleich
+        // Ist ändert daran nichts. Der Fehlschlag kommt aus der Antwort; ohne Änderung und
+        // ohne Versand bleibt ein offener Fehlschlag stehen.
+        let needsReview = Some (target = Unreviewed)
+        let failureOf (entry: LedgerEntryView) =
+            match outcome.WriteBack with
+            | ReviewMarkSendFailed reason -> Some reason
+            | ReviewMarkSent -> None
+            | ReviewMarkNotSent -> if outcome.Change = ReviewMarkUnchanged then entry.ReviewMarkWriteBackFailure else None
+        applyReviewMarkResult entryId needsReview failureOf model, Cmd.none, NoOp
+
+    | ReviewMarkSet (entryId, _, Error message) ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
+        Cmd.none,
+        NoOp
+
+    | StartRetryReviewMark entryId ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+        Cmd.ofMsg (RunRetryReviewMark entryId),
+        NoOp
+
+    | RunRetryReviewMark entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryReviewMarkWriteBack
+                entryId
+                (fun result -> ReviewMarkRetried (entryId, result))
+                (fun ex -> ReviewMarkRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | ReviewMarkRetried (entryId, Ok writeBack) ->
+        let failureOf (_: LedgerEntryView) =
+            match writeBack with
+            | ReviewMarkSendFailed reason -> Some reason
+            | ReviewMarkSent | ReviewMarkNotSent -> None
+        applyReviewMarkResult entryId None failureOf model, Cmd.none, NoOp
+
+    | ReviewMarkRetried (entryId, Error message) ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
+        Cmd.none,
         NoOp

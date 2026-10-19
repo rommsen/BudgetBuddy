@@ -51,6 +51,8 @@
     <Compile Include="TailwindClassGuardTests.fs" />
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
+    <Compile Include="LedgerReviewMarkTests.fs" />
+    <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
     <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
