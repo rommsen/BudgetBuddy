@@ -1,7 +1,7 @@
 ---
 id: ledger-rjb8w
 title: "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-19

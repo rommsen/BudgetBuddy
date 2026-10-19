@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 1
+- **Backlog:** 7
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 58
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-nhwrt** — "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig" (feature) — `todo/ledger-nhwrt-geprueft-fuer-die-ganze-auswahl.md`
+- **ledger-rjb8w** — "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)" (feature) — `todo/ledger-rjb8w-taste-g-und-tastaturfokus-in-der-liste.md`
 - **ledger-rynk5** — "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell" (feature) — `todo/ledger-rynk5-push-fehlschlag-als-ereignis.md`
 <!-- todo-list:end -->
 
@@ -45,8 +47,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-nhwrt** — "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste" (feature) — `backlog/ledger-nhwrt-geprueft-fuer-die-ganze-auswahl.md`
-- **ledger-rjb8w** — "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)" (feature) — `backlog/ledger-rjb8w-taste-g-und-tastaturfokus-in-der-liste.md`
 - **ledger-h6mer** — "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen" (chore) — `backlog/ledger-h6mer-split-zeilen-uebertraege-bestand-live-nachverknuepfen.md`
 - **ledger-b7qmx** — "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)" (feature) — `backlog/ledger-b7qmx-split-zeilen-kategorie-in-der-pc-tabelle-voll-qualifizieren.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`

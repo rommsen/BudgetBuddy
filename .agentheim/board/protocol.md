@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 20:49 -- Modeling / Promoted: ledger-nhwrt - "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-19 20:49 -- Modeling / Promoted: ledger-rjb8w - "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 20:49 -- Modeling / Refined: ledger-q1hw2, ledger-rjb8w, ledger-nhwrt, ledger-b7qmx, ledger-kwwxz
 
 **Type:** Modeling / Refine

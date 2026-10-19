@@ -1,7 +1,7 @@
 ---
 id: ledger-nhwrt
 title: "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-19
