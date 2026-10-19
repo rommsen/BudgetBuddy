@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:45 -- Modeling / Promoted: design-system-zahv9 - Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-19 09:45 -- Modeling / Refined: design-system-zahv9 - Ruhige Bausteine für Auswahlen
 
 **Type:** Modeling / Refine
