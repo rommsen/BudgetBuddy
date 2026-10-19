@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:34 -- Task verified and completed: design-system-qz7b6 - Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe
+
+**Type:** Work / Task completion
+**Task:** design-system-qz7b6 - Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe
+**Summary:** Button.view lässt hidden aus ClassName wirken, im Kassenbuch nur ein Spiegel-Knopf je Viewport
+**Duration:** 27m40s
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 09:11 -- Batch started: [design-system-qz7b6]
 
 **Type:** Work / Batch start

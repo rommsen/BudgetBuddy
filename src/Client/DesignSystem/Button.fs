@@ -75,16 +75,28 @@ let private variantToClass = function
     | Danger ->
         "bg-neon-red/10 border border-neon-red/20 text-neon-red hover:bg-neon-red/20 active:scale-[0.98]"
 
+/// Setzt der Aufrufer in `ClassName` eine eigene Anzeige-Klasse ohne Breakpoint (z. B. `hidden` in `hidden md:inline-flex`)?
+/// Dann entfällt das feste `inline-flex`: Tailwind 4 ordnet Utilities im erzeugten CSS,
+/// nicht nach der Reihenfolge im class-Attribut, und `inline-flex` würde `hidden`
+/// sonst überstimmen.
+let callerSetsDisplay (extraClass: string) =
+    extraClass.Split([| ' ' |], System.StringSplitOptions.RemoveEmptyEntries)
+    |> Array.exists (fun c ->
+        match c with
+        | "hidden" | "block" | "inline-block" | "inline" | "flex" | "inline-flex" | "grid" | "inline-grid" -> true
+        | _ -> false)
+
 /// Create a button with the specified props
 let view (props: ButtonProps) =
     let sizeClass = sizeToClass props.Size
     let variantClass = variantToClass props.Variant
     let widthClass = if props.FullWidth then "w-full md:w-auto" else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
+    let displayClass = if callerSetsDisplay extraClass then "" else "inline-flex"
     let disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:shadow-none disabled:hover:translate-y-0"
 
     Html.button [
-        prop.className $"inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {widthClass} {disabledClass} {extraClass}"
+        prop.className $"{displayClass} items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {widthClass} {disabledClass} {extraClass}"
         prop.disabled (props.IsLoading || props.IsDisabled)
         prop.onClick (fun _ -> props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value

@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 09:35 - Bestandsaufnahme ADR 0049, Bug doppelter Spiegel-Knopf (design-system-qz7b6)
+
+**What I did:**
+Romans Screenshot des Kategorie-Popovers ("sieht auch noch sehr plump aus") war Anlass für eine Bestandsaufnahme aller Listen und Auswahlen gegen ADR 0049 (Agent, 43 Screenshots, Bericht in der Session-Ablage). Daraus erfasst: `design-system-zahv9` (ruhige Auswahl-Bausteine), `ledger-m23nz` (Filterleiste, Summenzeile), `categorization-wnxd6` (Regeln-Seite), `ynab-sync-aj5tv` (Import prüfen ruhiger und deutsche Formate, Entscheidung Roman), `ledger-d218j` (interne YNAB-Kategorien ausblenden, Ready to Assign behalten), `ledger-eng59` (FS0025). Gefundener Bug aus `ledger-n4vte` direkt behoben: am Handy erschienen beide Spiegel-Knöpfe.
+
+**Files Added:**
+- `scripts/ledger-mirror-buttons.test.mjs` - Browser-Regressionstest, je Viewport genau ein Spiegel-Knopf
+- `docs/ux/kassenbuch/design-projekt-nachtrag-2026-10-19.md` - Nachtrag Ruhige Listen für das Claude-Design-Projekt
+
+**Files Modified:**
+- `src/Client/DesignSystem/Button.fs` - `callerSetsDisplay`: bringt der Aufrufer eine Anzeige-Klasse ohne Breakpoint mit, entfällt das feste `inline-flex`
+- `src/Tests/RuhigeListenTests.fs` - drei Tests für `callerSetsDisplay`
+- `docs/ux/kassenbuch/screenshots/{handy-390x844,pc-1440x900}-ruhige-listen.png` - nur sichtbarer Bereich
+
+**Rationale:**
+Tailwind 4 ordnet Utilities im erzeugten CSS; `inline-flex` aus `Button.view` gewann gegen `hidden` vom Aufrufer. Worker und zwei Verifier von `ledger-n4vte` hatten es übersehen, weil kein Test die Sichtbarkeit prüfte und der Handy-Screenshot eine Ganzseitenaufnahme war.
+
+**Outcomes:**
+- Build: ✅ (nur das bekannte FS0025)
+- Tests: 1200 bestanden, 7 übersprungen; `npm run test:scripts` 120/120
+- Issues: keine
+
+---
+
 ## 2026-10-18 23:51 - Kassenbuch auf ruhige Listen umgestellt (ledger-n4vte)
 
 **What I did:**

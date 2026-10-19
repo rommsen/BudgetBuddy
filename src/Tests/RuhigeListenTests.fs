@@ -165,6 +165,21 @@ let private tests =
                     "text-2xl md:text-4xl font-bold font-display text-text-primary" "Standard"
             }
         ]
+        testList "Button.callerSetsDisplay (design-system-qz7b6)" [
+            test "ohne eigene Anzeige-Klasse bleibt inline-flex (Aufrufer setzt keine)" {
+                Expect.isFalse (Button.callerSetsDisplay "") "leer"
+                Expect.isFalse (Button.callerSetsDisplay "md:hidden") "nur Breakpoint-Klasse"
+                Expect.isFalse (Button.callerSetsDisplay "mt-2 w-full") "ohne Anzeige"
+            }
+            test "hidden ohne Breakpoint verdrängt das konkurrierende inline-flex" {
+                // Ursache des Handy-Fehlers: inline-flex gewann im erzeugten CSS gegen hidden.
+                Expect.isTrue (Button.callerSetsDisplay "hidden md:inline-flex") "hidden md:inline-flex"
+            }
+            test "andere Anzeige-Klassen ohne Breakpoint verdrängen inline-flex ebenfalls" {
+                Expect.isTrue (Button.callerSetsDisplay "block") "block"
+                Expect.isTrue (Button.callerSetsDisplay "flex md:hidden") "flex"
+            }
+        ]
     ]
 
 [<Tests>]
