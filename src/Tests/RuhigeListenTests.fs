@@ -158,6 +158,10 @@ let private tests =
                 let box = PageHeader.containerClass PageHeader.Calm
                 Expect.isFalse (box.Contains "flex-col") box
             }
+            test "PageHeader Calm: Fußabstand mb-4 zur Liste (ledger-m23nz)" {
+                Expect.isTrue ((PageHeader.containerClass PageHeader.Calm).Contains "mb-4") "mb-4"
+                Expect.isFalse ((PageHeader.containerClass PageHeader.Standard).Contains "mb-4") "Standard unverändert"
+            }
             test "PageHeader Gradient und Standard bleiben unverändert" {
                 Expect.equal (PageHeader.titleClass PageHeader.Gradient)
                     "text-2xl md:text-4xl font-bold font-display bg-gradient-to-br from-neon-teal to-neon-green bg-clip-text text-transparent" "Gradient"

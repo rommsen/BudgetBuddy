@@ -12,6 +12,7 @@ open System.Runtime.CompilerServices
 open System.Text.RegularExpressions
 open Expecto
 open Shared.Domain
+open Types
 open Components.Ledger.Types
 open Components.Ledger.View
 
@@ -519,11 +520,15 @@ let private statusColumnTests =
         test "Payee 30 %, Kategorie 26 %, Memo ohne Breite in der colgroup (Quelltext-Wächter)" {
             let view = readLedgerView ()
             let desktopBody = sliceFunctionBody view "let private entryListDesktop"
-            Expect.stringContains desktopBody "length.percent 30"
+            // Seit ledger-m23nz kommen die Breiten aus `tableColumnWidths`.
+            Expect.stringContains desktopBody "tableColumnWidths showAccountColumn"
+                "Die colgroup baut auf tableColumnWidths."
+            let widths = tableColumnWidths false
+            Expect.contains widths (Percent 30)
                 "Payee bekommt ca. 30 %, damit 'Transfer : Tagesgeld ING' nicht gekürzt wird."
-            Expect.stringContains desktopBody "length.percent 26"
+            Expect.contains widths (Percent 26)
                 "Kategorie bekommt ca. 26 %, damit 'Alltag: Essen/Einkaufen' nicht gekürzt wird."
-            Expect.stringContains desktopBody "col None"
+            Expect.contains widths Rest
                 "Memo bekommt den Rest, ohne eigene Breite."
             Expect.stringContains desktopBody "Table.calmHeaderCell \"Payee\""
                 "Spaltenkopf der ruhigen Tabelle."
@@ -1141,6 +1146,154 @@ let private filtersTests =
         }
     ]
 
+// ---------------------------------------------------------------------------
+// Filterleiste und Summenzeile nach ADR 0049 (ledger-m23nz)
+// ---------------------------------------------------------------------------
+
+let private filterBarModel () : Model = fst (Components.Ledger.State.init ())
+
+let private filteredModel (entries: RemoteData<LedgerEntryView list>) : Model =
+    let m = filterBarModel ()
+    { m with Filters = { m.Filters with CategoryIds = Set.ofList [ Guid.NewGuid() ] }; Entries = entries }
+
+let private mustContain (source: string) (literal: string) =
+    Expect.isTrue (source.Contains literal) $"Ledger/View.fs sollte \"{literal}\" enthalten"
+
+let private mustNotContain (source: string) (literal: string) =
+    Expect.isFalse (source.Contains literal) $"Ledger/View.fs sollte \"{literal}\" nicht enthalten"
+
+/// Der Quelltext eines Top-Level-Bindings: von `let [private] name` bis zum nächsten
+/// Top-Level-`let`, `type` oder Kommentarblock in Spalte 0.
+let private bindingBody (source: string) (name: string) : string =
+    let m = Regex.Match(source, $@"(?m)^let (private )?{name}\b")
+    Expect.isTrue m.Success $"Binding {name} nicht gefunden"
+    let rest = source.Substring m.Index
+    let next = Regex.Match(rest.Substring 1, @"(?m)^(let |type |///|//|\[<)")
+    if next.Success then rest.Substring(0, next.Index + 1) else rest
+
+let private filterBarRuhigTests =
+    testList "Filterleiste und Summenzeile (ledger-m23nz)" [
+
+        test "popoverWidth: Kategorie 460px, Payee 340px, sonst 320px" {
+            Expect.equal (popoverWidth CategoryChip) "w-[min(92vw,460px)]" "Kategorie"
+            Expect.equal (popoverWidth PayeeChip) "w-[min(92vw,340px)]" "Payee"
+            for chip in [ DateChip; MemoChip; AmountChip ] do
+                Expect.equal (popoverWidth chip) "w-[min(92vw,320px)]" $"{chip}"
+        }
+
+        test "Das Styleguide-Demo des FilterPopover nutzt die Breite der Seite" {
+            let demo = File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "Components", "Styleguide", "View.fs"))
+            Expect.isTrue (demo.Contains "FilterPopover.categoryWidthClass") "Demo nimmt die DS-Breite"
+            Expect.isFalse (demo.Contains "WidthClassName = \"w-[min(92vw,320px)]\"") "kein eigener Wert mehr"
+        }
+
+        test "payeeSuggestionsHeading nutzt Tausenderpunkt" {
+            Expect.equal (payeeSuggestionsHeading 12116) "Vorschläge aus den 12.116 Treffern" "12.116"
+            Expect.equal (payeeSuggestionsHeading 7) "Vorschläge aus den 7 Treffern" "7"
+        }
+
+        test "Ledger/View.fs formatiert Zahlen nicht mit string" {
+            let src = readLedgerView ()
+            mustNotContain src "string model.TotalCount"
+            mustNotContain src "string s.Count"
+            mustContain src "Money.formatCount s.Count"
+        }
+
+        test "Payee-Zeile: Name gekürzt über PickerParts, Zahl in einem shrink-0-Bereich" {
+            let body = bindingBody (readLedgerView ()) "payeePickerBody"
+            mustContain body "PickerParts.name s.Payee"
+            mustContain body "shrink-0"
+            Expect.isTrue (Client.DesignSystem.PickerParts.nameClass.Contains "truncate") "nameClass trägt truncate"
+        }
+
+        test "memoPickerBody und amountPickerBody nutzen Input.Small, kein Input.textSimple" {
+            let src = readLedgerView ()
+            for name in [ "memoPickerBody"; "amountPickerBody"; "amountField" ] do
+                let body = bindingBody src name
+                mustNotContain body "Input.textSimple"
+            mustContain (bindingBody src "memoPickerBody") "Input.Small"
+            let amount = bindingBody src "amountField"
+            mustContain amount "Input.Small"
+            mustContain amount "\"€\""
+        }
+
+        test "Von und Bis tragen die 12px-Rolle ListRoles.muted" {
+            let src = readLedgerView ()
+            mustContain (bindingBody src "fieldLabel") "Tokens.ListRoles.muted"
+            mustContain (bindingBody src "amountPickerBody") "fieldLabel \"Von\""
+            mustContain (bindingBody src "datePickerBody") "dateDraftInput \"Von\""
+        }
+
+        test "datePickerBody: Übernehmen ohne Button.primary, mit PickerParts.applyButtonClass" {
+            let body = bindingBody (readLedgerView ()) "datePickerBody"
+            mustNotContain body "Button.primary"
+            mustContain body "PickerParts.applyButton "
+        }
+
+        test "Datumsfelder in Input.Small-Maßen" {
+            mustContain (bindingBody (readLedgerView ()) "dateDraftInput") "text-base md:text-sm px-3 py-2 min-h-[36px]"
+            Expect.equal (Client.DesignSystem.Input.sizeToClass Client.DesignSystem.Input.Small) "text-base md:text-sm px-3 py-2 min-h-[36px]" "gleiche Maße wie Input.Small"
+        }
+
+        test "summaryState: ohne Filter Hidden, auch während des Ladens" {
+            let m = { filterBarModel () with Entries = Loading }
+            Expect.equal (summaryState m) SummaryState.Hidden "ohne Filter"
+        }
+
+        test "summaryState: gefiltert und Loading ist Loading" {
+            Expect.equal (summaryState (filteredModel Loading)) SummaryState.Loading "Laden"
+        }
+
+        test "summaryState: gefiltert und Success ist Ready, auch bei 0 Treffern" {
+            Expect.equal (summaryState (filteredModel (Success []))) SummaryState.Ready "0 Treffer"
+        }
+
+        test "summaryState: gefiltert und Failure zeigt keine Zeile" {
+            Expect.equal (summaryState (filteredModel (Failure "x"))) SummaryState.Hidden "Fehler"
+        }
+
+        test "summaryCountText: 0, 1 und 12116" {
+            Expect.equal (summaryCountText 0) "0 Buchungen" "0"
+            Expect.equal (summaryCountText 1) "1 Buchung" "1"
+            Expect.equal (summaryCountText 12116) "12.116 Buchungen" "12.116"
+        }
+
+        test "summaryRow: ohne Karte, Betrag über Money.listAmount, Skeleton beim Laden" {
+            let body = bindingBody (readLedgerView ()) "summaryRow"
+            mustNotContain body "Card.standard"
+            mustNotContain body "Money.transactionWithCurrency"
+            mustContain body "Money.listAmount"
+            mustContain body "Loading.line"
+            mustContain body "summaryState model"
+        }
+
+        test "Summenzeile: Summe 0 und negative Summe ohne Rot und Grün" {
+            for amount in [ 0m; -125.40m; 300m ] do
+                let cls = Client.DesignSystem.Money.listAmountClass amount
+                Expect.isFalse (cls.Contains "neon-red") $"{amount}: {cls}"
+                Expect.isFalse (cls.Contains "neon-green") $"{amount}: {cls}"
+        }
+
+        test "tableColumnWidths: Memo bekommt mindestens 16 Prozent, Prozentwerte unter 100" {
+            for showAccount in [ true; false ] do
+                let widths = tableColumnWidths showAccount
+                let percent = widths |> List.sumBy (function Percent p -> p | _ -> 0)
+                Expect.isLessThan percent 100 $"Summe der Prozentwerte (Konto={showAccount})"
+                Expect.equal (widths |> List.filter ((=) Rest) |> List.length) 1 "genau eine Restspalte"
+                Expect.equal (List.length widths) (if showAccount then 7 else 6) "Spaltenzahl"
+                let memoPx = memoWidthAt referenceTableWidth showAccount
+                if showAccount then
+                    Expect.isGreaterThanOrEqual (memoPx / referenceTableWidth) memoMinShare $"Memo-Anteil in Alle Konten: {memoPx}"
+                Expect.isGreaterThanOrEqual memoPx 120.0 $"Memo mindestens 120px (Konto={showAccount}): {memoPx}"
+        }
+
+        test "historyLine: ListRoles.primary statt FontSizes.body" {
+            let body = bindingBody (readLedgerView ()) "historyLine"
+            mustContain body "Tokens.ListRoles.primary"
+            mustNotContain body "Tokens.FontSizes.body"
+        }
+    ]
+
 [<Tests>]
 let ledgerViewTests =
     testList
@@ -1168,4 +1321,5 @@ let ledgerViewTests =
           chipOrderingTests
           quickDateRangeTests
           amountFilterTextTests
-          filtersTests ]
+          filtersTests
+          filterBarRuhigTests ]

@@ -47,5 +47,16 @@ let private formatTests =
         }
     ]
 
+let private formatCountTests =
+    testList "formatCount (ledger-m23nz)" [
+        test "0, 999, 1000, 12116 und 1234567 mit Tausenderpunkt" {
+            Expect.equal (formatCount 0) "0" "0"
+            Expect.equal (formatCount 999) "999" "999"
+            Expect.equal (formatCount 1000) "1.000" "1.000"
+            Expect.equal (formatCount 12116) "12.116" "12.116"
+            Expect.equal (formatCount 1234567) "1.234.567" "1.234.567"
+        }
+    ]
+
 [<Tests>]
-let moneyFormatTests = testList "Money: Formatierung (ledger-x0yga)" [ formatTests ]
+let moneyFormatTests = testList "Money: Formatierung (ledger-x0yga)" [ formatTests; formatCountTests ]

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 13:23 -- Task verified and completed: ledger-m23nz - Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen
+
+**Type:** Work / Task completion
+**Task:** ledger-m23nz - Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen
+**Summary:** Kassenbuch-Filterleiste und Summenzeile ruhig: Popover-Breiten, Payee-Liste mit Tausenderpunkt, kompakte Felder, Summenzeile ohne Karte mit Skeleton, Abstand unter dem Kopf, breitere Memo-Spalte
+**Duration:** 27m
+**Verification:** PASS (iteration 1)
+**Files changed:** 23
+**Tests added:** 21
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 13:20 -- Task verified and completed: ynab-sync-aj5tv - Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate
 
 **Type:** Work / Task completion

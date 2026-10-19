@@ -1004,7 +1004,7 @@ let private FilterPopoverDemo () =
                             OnClick = fun () -> setOpen (not isOpen)
                             OnRemove = None })
                         (FilterPopover.view
-                            { IsOpen = isOpen; OnClose = ignore; WidthClassName = "w-[min(92vw,320px)]" }
+                            { IsOpen = isOpen; OnClose = ignore; WidthClassName = FilterPopover.categoryWidthClass }
                             [
                                 Html.p [
                                     prop.className "text-sm text-text-secondary"

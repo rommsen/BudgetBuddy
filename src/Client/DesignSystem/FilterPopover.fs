@@ -27,6 +27,12 @@ type FilterPopoverProps = {
     WidthClassName: string
 }
 
+/// Breiten der Filter-Popover. Kategorie 460px (Handoff), Payee 340px, sonst 320px.
+/// Seite und Styleguide-Demo benutzen dieselben Werte.
+let categoryWidthClass = "w-[min(92vw,460px)]"
+let payeeWidthClass = "w-[min(92vw,340px)]"
+let defaultWidthClass = "w-[min(92vw,320px)]"
+
 [<ReactComponent>]
 let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactElement list) =
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None

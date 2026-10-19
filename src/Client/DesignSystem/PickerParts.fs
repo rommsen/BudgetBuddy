@@ -82,14 +82,18 @@ let searchField (value: string) (onChange: string -> unit) (placeholder: string)
                     Placeholder = placeholder
                     Size = Input.Small }
 
+/// Übernehmen-Knopf mit freier Beschriftung (Zahl nur bei Auswahl, siehe `applyLabel`)
+let applyButton (selectedCount: int) (onApply: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.className applyButtonClass
+        prop.onClick (fun _ -> onApply ())
+        prop.text (applyLabel selectedCount)
+    ]
+
 /// Footer des Popovers: Zurücksetzen (Ghost) links, Übernehmen rechts
 let footer (selectedCount: int) (onReset: unit -> unit) (onApply: unit -> unit) : ReactElement =
     Primitives.HStack.spaceBetween [
         Button.ghost "Zurücksetzen" onReset
-        Html.button [
-            prop.type' "button"
-            prop.className applyButtonClass
-            prop.onClick (fun _ -> onApply ())
-            prop.text (applyLabel selectedCount)
-        ]
+        applyButton selectedCount onApply
     ]

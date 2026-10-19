@@ -1,7 +1,7 @@
 ---
 id: ledger-m23nz
 title: Kassenbuch-Filterleiste und Summenzeile nach ADR 0049 nachziehen
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-19
@@ -79,3 +79,20 @@ Bausteine aus zahv9: `PickerParts`, `Input.Small`, `Money.listAmount`, `Tokens.L
 - `Money.groupThousands` zu öffnen ändert keine Ausgabe; die bestehenden `MoneyFormatTests` sichern das.
 - `PageHeader` Calm `mb-4` berührt auch `categorization-wnxd6`. Wer zuerst integriert, ist egal; der zweite sieht den Abstand schon.
 - Größe M, eine Worker-Iteration. Alles liegt in `Ledger/View.fs` plus drei kleine DS-Stellen; ein Schnitt würde nur Konflikte erzeugen.
+
+## Outcome
+
+Filterleiste und Summenzeile des Kassenbuchs folgen ADR 0049.
+
+- `Money.formatCount` (öffentlich, rein, Tausenderpunkt). Payee-Überschrift (`payeeSuggestionsHeading`) und Zahl je Zeile nutzen sie.
+- Popover-Breiten: neue DS-Werte `FilterPopover.categoryWidthClass` (460px), `payeeWidthClass` (340px), `defaultWidthClass` (320px). `Ledger/View.fs` `popoverWidth` ist jetzt öffentlich und nutzt sie, das Styleguide-Demo nutzt `categoryWidthClass`.
+- Payee-Zeile: Name über `PickerParts.name` (truncate), Zahl in einem `shrink-0`-Bereich. Suchfelder von Payee und Memo über `Input.Small`; Betragsfelder (`amountField`) mit sichtbarem "€" im Feld. Von/Bis in `ListRoles.muted` über `fieldLabel`.
+- Zeitraum: Datumsfelder in den Maßen von `Input.Small`; "Übernehmen" über neuen `PickerParts.applyButton` (nutzt `applyButtonClass`, `footer` ruft ihn ebenfalls). Abweichung vom Wortlaut des Kriteriums: der Quelltext enthält `PickerParts.applyButton` statt `PickerParts.applyButtonClass`, weil der Tailwind-Wächter Klassenwerte aus fremden Modulen nicht auflösen kann. Aus demselben Grund stehen die Klassen der Payee-Zeile und des Datumsfelds als Literale (gleiche Werte wie `rowClass` und `Input.sizeToClass Small`, per Test gesichert).
+- Summenzeile: `SummaryState` (RequireQualifiedAccess: Hidden, Loading, Ready), `summaryState`, `summaryCountText`. Ohne Karte, schlanke Zeile mit `ListRoles.secondary` links und `Money.listAmount` rechts; beim Laden zwei `Loading.line`-Skeletons. Entscheidung: Failure oder kein Filter zeigt keine Zeile, NotAsked mit Filter zeigt das Skeleton.
+- `PageHeader.containerClass Calm` mit `mb-4`.
+- `tableColumnWidths` (`FixedPx | Percent | Rest`), `memoWidthAt`, `memoMinShare`, `referenceTableWidth`. In Alle Konten Payee 22 %, Kategorie 22 % (vorher 26/24, dabei war die Memo-Spalte 128px); ohne Kontospalte unverändert 30/26. Der Quelltext-Wächter in `LedgerViewTests` ("Payee 30 %, Kategorie 26 %...") prüft jetzt `tableColumnWidths false`.
+- `historyLine` nutzt `ListRoles.primary`.
+- Tests: 21 neue (`LedgerViewTests.fs` 19, `MoneyFormatTests.fs` 1, `RuhigeListenTests.fs` 1), keine neue Testdatei.
+- Gemessen (Playwright, echtes Backend gegen Kopie der Entwicklungs-DB, 1440x900): Tabelle 1100px breit; in Alle Konten Spalten Datum 96, Konto 72, Payee 242, Kategorie 242, Memo 187, Betrag 132, Status 128 (Memo 187px, 17 %). Kategorie-Popover 460px breit, 260 sichtbare Zeilen, alle 20px hoch (kein Umbruch). Summenzeile bei Betrag-Filter: "1.431 Buchungen" links, Summe rechts (positive Summe in Teal, wie ADR 0049 Punkt 2).
+- Bilder unter `docs/ux/kassenbuch/filterleiste-ruhig/` (PC und Handy: allaccounts, filtered, filter-kategorie, -zeitraum, -payee, -memo, -betrag). Das Kriterium [human-eye] bleibt offen; ich habe PC-gefiltert, -betrag und -payee angesehen.
+- Läufe aus dem Worktree: `dotnet build` 0 neue Warnungen (nur das alte FS0025), `dotnet test` 1247 grün (7 übersprungen), `npm run build` grün, `npm run guard:classes` grün, `npm run test:scripts` 120 von 120 grün (ein früherer Lauf parallel zu den Geschwister-Workern hatte wegen Ladetimeouts rote Wächter, der Wiederholungslauf war grün).

@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 13:40 - Kassenbuch: Filterleiste und Summenzeile ruhig (ADR 0049)
+
+**What I did:**
+Popover-Breiten, Payee-Liste, kompakte Felder, Zeitraum-Layout, schlanke Summenzeile mit Skeleton, Fußabstand des ruhigen Seitenkopfs, Memo-Spalte in Alle Konten und Historienzeile nachgezogen.
+
+**Files Added:**
+- `docs/ux/kassenbuch/filterleiste-ruhig/*.png` - Nachher-Bilder PC und Handy
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - popoverWidth, payeePickerBody, memo/amount/date-Felder, summaryState/summaryCountText/summaryRow, tableColumnWidths, historyLine
+- `src/Client/DesignSystem/Money.fs` - formatCount
+- `src/Client/DesignSystem/FilterPopover.fs` - Breitenwerte
+- `src/Client/DesignSystem/PickerParts.fs` - applyButton
+- `src/Client/DesignSystem/PageHeader.fs` - mb-4 bei Calm
+- `src/Client/Components/Styleguide/View.fs` - Demo nutzt categoryWidthClass
+- `src/Tests/LedgerViewTests.fs`, `MoneyFormatTests.fs`, `RuhigeListenTests.fs` - 21 neue Tests, ein Wächter angepasst
+
+**Rationale:**
+Audit 2026-10-19 (K5, K7, K8, K10, K12 bis K14): Filter und Summenzeile wirkten neben der ruhigen Tabelle laut und schwer.
+
+**Outcomes:**
+- Build: ok (nur altes FS0025)
+- Tests: 1247 grün, 7 übersprungen; test:scripts 120/120
+- Issues: Memo in Alle Konten war 128px (Messung), jetzt 187px
+
+---
+
 ## 2026-10-19 14:10 - Import prüfen an ADR 0049 angeglichen (ynab-sync-aj5tv)
 
 **What I did:**

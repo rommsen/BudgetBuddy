@@ -97,6 +97,11 @@ let private groupThousands (digits: string) : string =
 
 /// Currency code to display symbol. Only EUR is in use today; anything else falls
 /// back to the code itself rather than guessing a symbol.
+/// Anzahl mit Tausenderpunkt ("12.116"). Reine Funktion; bewusst kein
+/// `ToString("N0")`, weil Fable die Kultur ignoriert.
+let formatCount (n: int) : string =
+    if n < 0 then "-" + groupThousands (string (-(int64 n))) else groupThousands (string n)
+
 let private currencySymbol =
     function
     | "EUR" -> "€"

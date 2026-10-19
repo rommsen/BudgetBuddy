@@ -50,7 +50,7 @@ let subtitleClass (style: TitleStyle) : string =
 /// Containerklassen je Stil: Calm hält Titel und Aktionen immer in einer Zeile
 let containerClass (style: TitleStyle) : string =
     match style with
-    | Calm -> "flex flex-row justify-between items-center gap-3 animate-fade-in"
+    | Calm -> "flex flex-row justify-between items-center gap-3 mb-4 animate-fade-in"
     | _ -> "flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 animate-fade-in"
 
 /// Full page header with configurable props

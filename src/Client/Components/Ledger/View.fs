@@ -646,7 +646,7 @@ let private historyLine (line: LedgerHistoryLine) =
                 originBadge line.Origin
             ]
             Html.p [
-                prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary} mt-1"
+                prop.className $"{Tokens.ListRoles.primary} mt-1"
                 prop.text line.Description
             ]
         ]
@@ -746,9 +746,45 @@ let private entryListMobile
         ]
     ]
 
-/// Eine Spalte der `colgroup`: `None` heißt "Rest" (Memo).
-let private col (width: IStyleAttribute option) =
-    Html.col [ match width with Some w -> prop.style [ w ] | None -> () ]
+/// Breite einer Tabellenspalte: feste Pixel, Anteil der Tabelle oder "Rest" (Memo).
+type ColumnWidth =
+    | FixedPx of int
+    | Percent of int
+    | Rest
+
+/// Spaltenbreiten der PC-Tabelle in Reihenfolge Datum, [Konto], Payee, Kategorie, Memo,
+/// Betrag, Status (K13). In "Alle Konten" nimmt die Kontospalte Platz weg; Payee und
+/// Kategorie geben deshalb Prozent ab, damit Memo nicht auf wenige Pixel schrumpft.
+/// Die Anteile wirken nur mit `FixedLayout = true`.
+let tableColumnWidths (showAccountColumn: bool) : ColumnWidth list =
+    [ FixedPx 96
+      if showAccountColumn then FixedPx 72
+      Percent (if showAccountColumn then 22 else 30)
+      Percent (if showAccountColumn then 22 else 26)
+      Rest
+      FixedPx 132
+      FixedPx (int statusColumnWidth) ]
+
+/// Mindestanteil der Memo-Spalte an der Tabellenbreite in "Alle Konten"
+let memoMinShare = 0.16
+
+/// Tabellenbreite bei 1440px Fensterbreite (gemessen: Seitenleiste mit Konten daneben)
+let referenceTableWidth = 1090.0
+
+/// Breite der Memo-Spalte in Pixeln bei gegebener Tabellenbreite
+let memoWidthAt (tableWidth: float) (showAccountColumn: bool) : float =
+    let widths = tableColumnWidths showAccountColumn
+    let fixedPx = widths |> List.sumBy (function FixedPx px -> float px | _ -> 0.0)
+    let percent = widths |> List.sumBy (function Percent p -> float p | _ -> 0.0)
+    tableWidth - fixedPx - tableWidth * percent / 100.0
+
+let private col (width: ColumnWidth) =
+    Html.col [
+        match width with
+        | FixedPx px -> prop.style [ style.width (length.px px) ]
+        | Percent p -> prop.style [ style.width (length.percent p) ]
+        | Rest -> ()
+    ]
 
 let private entryListDesktop
     (dispatch: Msg -> unit)
@@ -781,15 +817,7 @@ let private entryListDesktop
                 Responsive = false
                 ClassName = Some "rounded-xl border border-border-subtle bg-surface-card" }
             [
-                Html.colgroup [
-                    col (Some (style.width (length.px 96)))
-                    if showAccountColumn then col (Some (style.width (length.px 72)))
-                    col (Some (style.width (length.percent 30)))
-                    col (Some (style.width (length.percent 26)))
-                    col None
-                    col (Some (style.width (length.px 132)))
-                    col (Some (style.width (length.px (int statusColumnWidth))))
-                ]
+                Html.colgroup [ for width in tableColumnWidths showAccountColumn -> col width ]
                 Table.thead [
                     Table.calmHeaderCell "Datum" None
                     if showAccountColumn then Table.calmHeaderCell "Konto" None
@@ -920,11 +948,21 @@ let private dateQuickButton (dispatch: Msg -> unit) (model: Model) (quick: DateQ
         prop.text (dateQuickLabel quick)
     ]
 
+/// Feldbeschriftung der Filter-Popover: 12px gedämpft (`ListRoles.muted`)
+let private fieldLabel (label: string) (child: ReactElement) : ReactElement =
+    Html.div [
+        prop.className "space-y-1.5"
+        prop.children [
+            Html.label [ prop.className Tokens.ListRoles.muted; prop.text label ]
+            child
+        ]
+    ]
+
 let private dateDraftInput (label: string) (value: DateTime option) (onChange: DateTime option -> unit) =
-    Input.groupSimple label (
+    fieldLabel label (
         Html.input [
             prop.type' "date"
-            prop.className "w-full bg-surface-input border border-border-default rounded-lg px-3 py-2 text-sm text-text-primary"
+            prop.className "input-field w-full text-base md:text-sm px-3 py-2 min-h-[36px]"
             prop.value (value |> Option.map (fun d -> d.ToString("yyyy-MM-dd")) |> Option.defaultValue "")
             prop.onChange (fun (text: string) ->
                 if String.IsNullOrWhiteSpace text then
@@ -963,10 +1001,14 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
             ]
             Primitives.HStack.spaceBetween [
                 Button.ghost "Zurücksetzen" (fun () -> dispatch ResetDateDraft)
-                Button.primary "Übernehmen" (fun () -> dispatch ApplyDateFilter)
+                PickerParts.applyButton 0 (fun () -> dispatch ApplyDateFilter)
             ]
         ]
     ]
+
+/// Überschrift der Payee-Vorschläge, die Zahl mit Tausenderpunkt
+let payeeSuggestionsHeading (totalCount: int) : string =
+    $"Vorschläge aus den {Money.formatCount totalCount} Treffern"
 
 /// Die Payee-Auswahl (AC: Vorschläge kommen mit Anzahl aus dem aktuellen Treffer;
 /// Einzelauswahl, ein Klick filtert sofort, kein "Übernehmen").
@@ -981,10 +1023,10 @@ let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
     Html.div [
         prop.className "flex flex-col gap-3"
         prop.children [
-            Input.textSimple model.PayeeSearch (fun text -> dispatch (SetPayeeSearch text)) "Payee suchen…"
+            PickerParts.searchField model.PayeeSearch (fun text -> dispatch (SetPayeeSearch text)) "Payee suchen…"
             Html.div [
                 prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider"
-                prop.text $"Vorschläge aus den {model.TotalCount} Treffern"
+                prop.text (payeeSuggestionsHeading model.TotalCount)
             ]
             match model.PayeeSuggestions with
             | Loading -> Loading.centered "Vorschläge werden geladen…"
@@ -998,13 +1040,13 @@ let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
                             Html.button [
                                 prop.key s.Payee
                                 prop.type' "button"
-                                prop.className "flex items-center justify-between py-2.5 text-left"
+                                prop.className "flex items-center justify-between gap-3 min-w-0 py-2.5 text-left"
                                 prop.onClick (fun _ -> dispatch (SelectPayeeFilter s.Payee))
                                 prop.children [
-                                    Html.span [ prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textPrimary}"; prop.text s.Payee ]
+                                    PickerParts.name s.Payee
                                     Html.span [
-                                        prop.className $"{Tokens.Fonts.mono} {Tokens.Colors.textMuted} {Tokens.FontSizes.xs} tabular-nums"
-                                        prop.text (string s.Count)
+                                        prop.className $"{Tokens.Fonts.mono} {Tokens.Colors.textMuted} {Tokens.FontSizes.xs} tabular-nums shrink-0"
+                                        prop.text (Money.formatCount s.Count)
                                     ]
                                 ]
                             ]
@@ -1021,7 +1063,31 @@ let private payeePickerBody (dispatch: Msg -> unit) (model: Model) =
 let private memoPickerBody (dispatch: Msg -> unit) (model: Model) =
     Html.div [
         prop.className "flex flex-col gap-3"
-        prop.children [ Input.textSimple model.MemoDraft (fun text -> dispatch (SetMemoDraft text)) "Memo durchsuchen…" ]
+        prop.children [
+            Input.text { Input.textInputDefaults with
+                            Value = model.MemoDraft
+                            OnChange = (fun text -> dispatch (SetMemoDraft text))
+                            Placeholder = "Memo durchsuchen…"
+                            Size = Input.Small }
+        ]
+    ]
+
+/// Betragsfeld mit sichtbarem Euro-Hinweis rechts im Feld
+let private amountField (value: string) (onChange: string -> unit) (placeholder: string) : ReactElement =
+    Html.div [
+        prop.className "relative"
+        prop.children [
+            Input.text { Input.textInputDefaults with
+                            Value = value
+                            OnChange = onChange
+                            Placeholder = placeholder
+                            Size = Input.Small
+                            ClassName = Some "pr-8" }
+            Html.span [
+                prop.className $"absolute inset-y-0 right-3 flex items-center pointer-events-none {Tokens.ListRoles.muted}"
+                prop.text "€"
+            ]
+        ]
     ]
 
 /// Das Betrags-Suchfeld, Von/Bis (AC: Suchfeld mit kurzer Verzögerung beim Tippen).
@@ -1029,8 +1095,8 @@ let private amountPickerBody (dispatch: Msg -> unit) (model: Model) =
     Html.div [
         prop.className "grid grid-cols-2 gap-3"
         prop.children [
-            Input.groupSimple "Von" (Input.textSimple model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
-            Input.groupSimple "Bis" (Input.textSimple model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
+            fieldLabel "Von" (amountField model.AmountMinDraft (fun text -> dispatch (SetAmountMinDraft text)) "z. B. 5")
+            fieldLabel "Bis" (amountField model.AmountMaxDraft (fun text -> dispatch (SetAmountMaxDraft text)) "z. B. 50")
         ]
     ]
 
@@ -1044,10 +1110,12 @@ let private chipTitle (chip: ChipId) : string =
     | MemoChip -> "Memo"
     | AmountChip -> "Betrag"
 
-let private popoverWidth (chip: ChipId) : string =
+/// Breite des PC-Popovers: Kategorie 460px, Payee 340px, sonst 320px (K5).
+let popoverWidth (chip: ChipId) : string =
     match chip with
-    | PayeeChip -> "w-[min(92vw,340px)]"
-    | _ -> "w-[min(92vw,320px)]"
+    | CategoryChip -> FilterPopover.categoryWidthClass
+    | PayeeChip -> FilterPopover.payeeWidthClass
+    | _ -> FilterPopover.defaultWidthClass
 
 let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
     match chip with
@@ -1152,22 +1220,51 @@ let private filterChipBar
         ((order |> List.map (filterChip dispatch model categories))
          @ (if hasAnyFilter model.Filters then [ ChipBar.clearAllButton (fun () -> dispatch ClearAllFilters) ] else []))
 
+/// Zustand der Summenzeile: ohne Filter nichts, beim Laden ein Platzhalter, danach
+/// Trefferzahl und Summe (auch bei 0 Treffern). Ein Ladefehler zeigt keine Zeile, weil
+/// Zahl und Summe dann nicht zum Filter passen.
+[<RequireQualifiedAccess>]
+type SummaryState =
+    | Hidden
+    | Loading
+    | Ready
+
+let summaryState (model: Model) : SummaryState =
+    if not (hasAnyFilter model.Filters) then
+        SummaryState.Hidden
+    else
+        match model.Entries with
+        | Success _ -> SummaryState.Ready
+        | Loading
+        | NotAsked -> SummaryState.Loading
+        | Failure _ -> SummaryState.Hidden
+
+/// "0 Buchungen", "1 Buchung", "12.116 Buchungen"
+let summaryCountText (count: int) : string =
+    let noun = if count = 1 then "Buchung" else "Buchungen"
+    $"{Money.formatCount count} {noun}"
+
 /// Die Summenzeile über der Liste (AC: erscheint genau dann, wenn mindestens ein
 /// Filter aktiv ist; Trefferzahl und Summe über den ganzen Treffer, nicht die Seite
 /// (beide kommen unverändert vom Server, `model.TotalCount`/`model.TotalAmount`).
+/// Ohne Karte, eine schlanke Zeile; beim Laden bleibt sie als Skeleton stehen.
 let private summaryRow (model: Model) : ReactElement =
-    if not (hasAnyFilter model.Filters) then
-        Html.none
-    else
-        Card.standard [
-            Primitives.HStack.spaceBetween [
-                Html.span [
-                    prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textSecondary}"
-                    prop.text (
-                        let noun = if model.TotalCount = 1 then "Buchung" else "Buchungen"
-                        $"{model.TotalCount} {noun}")
-                ]
-                Money.transactionWithCurrency model.TotalAmount.Amount model.TotalAmount.Currency
+    match summaryState model with
+    | SummaryState.Hidden -> Html.none
+    | state ->
+        Html.div [
+            prop.className $"flex items-center justify-between gap-3 px-1 h-6"
+            prop.children [
+                match state with
+                | SummaryState.Loading ->
+                    Html.div [ prop.className "w-28"; prop.children [ Loading.line "100" ] ]
+                    Html.div [ prop.className "w-20"; prop.children [ Loading.line "100" ] ]
+                | _ ->
+                    Html.span [
+                        prop.className Tokens.ListRoles.secondary
+                        prop.text (summaryCountText model.TotalCount)
+                    ]
+                    Money.listAmount model.TotalAmount.Amount model.TotalAmount.Currency
             ]
         ]
 
