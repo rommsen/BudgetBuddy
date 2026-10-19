@@ -138,9 +138,26 @@ test("Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async 
     assert.match(barText, /1 ausgewählt/, "Reihe 1: Anzahl");
     assert.ok(barText.includes("-10,00"), `Reihe 1: Summe der Zeile, war: ${barText}`);
     assert.ok(barText.includes("Alle") && barText.includes("Auswahl aufheben"), "Reihe 2: Alle und Auswahl aufheben");
-    for (const word of ["Geprüft", "Kategorie ändern", "Flag"]) {
-      assert.ok(!barText.includes(word), `keine schreibende Aktion '${word}' in der Leiste`);
+    // Geprüft ist die einzige schreibende Aktion (ledger-nhwrt), primär (Orange), in Reihe 2 neben Alle und Auswahl aufheben.
+    for (const word of ["Kategorie ändern", "Flag", "Ungeprüft"]) {
+      assert.ok(!barText.includes(word), `keine weitere schreibende Aktion '${word}' in der Leiste`);
     }
+    const reviewedButton = bar.getByRole("button", { name: "Geprüft", exact: true });
+    assert.equal(await reviewedButton.count(), 1, "Geprüft steht in der Leiste");
+    assert.ok(
+      (await reviewedButton.getAttribute("class")).includes("from-neon-orange"),
+      "Geprüft ist die primäre Aktion (Orange)"
+    );
+    const centers = [];
+    for (const name of ["Alle", "Geprüft", "Auswahl aufheben"]) {
+      const box = await bar.getByRole("button", { name, exact: true }).boundingBox();
+      centers.push({ name, x: box.x, mid: box.y + box.height / 2 });
+    }
+    assert.ok(
+      centers.every((c) => Math.abs(c.mid - centers[0].mid) <= 3),
+      `Alle, Geprüft und Auswahl aufheben stehen in einer Reihe: ${JSON.stringify(centers)}`
+    );
+    assert.ok(centers[0].x < centers[1].x && centers[1].x < centers[2].x, "Reihenfolge: Alle, Geprüft, Auswahl aufheben");
     assert.equal(await page.locator("nav.fixed").filter({ visible: true }).count(), 0, "die Tab-Bar ist weg");
     assert.ok(
       (await page.getByText("Auswahl: 1 von 34 Buchungen").filter({ visible: true }).count()) === 1,
@@ -209,9 +226,21 @@ test("PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Kästchen und L
     assert.match(text, /1 ausgewählt/);
     assert.ok(text.includes("Auswahl aufheben"), "Ausstieg");
     assert.ok(!text.includes("Alle"), "kein Alle in der PC-Leiste");
-    for (const word of ["Geprüft", "Kategorie ändern", "Flag"]) {
-      assert.ok(!text.includes(word), `keine schreibende Aktion '${word}'`);
+    for (const word of ["Kategorie ändern", "Flag", "Ungeprüft"]) {
+      assert.ok(!text.includes(word), `keine weitere schreibende Aktion '${word}'`);
     }
+    // Geprüft (ledger-nhwrt): die einzige primäre Aktion, rechts in der einreihigen Leiste.
+    const reviewedButton = bar.getByRole("button", { name: "Geprüft", exact: true });
+    assert.equal(await reviewedButton.count(), 1, "Geprüft steht in der PC-Leiste");
+    assert.ok(
+      (await reviewedButton.getAttribute("class")).includes("from-neon-orange"),
+      "Geprüft ist die primäre Aktion (Orange)"
+    );
+    const reviewedBox = await reviewedButton.boundingBox();
+    const clearBox = await bar.getByRole("button", { name: "Auswahl aufheben", exact: true }).boundingBox();
+    const barBox = await bar.boundingBox();
+    assert.ok(reviewedBox.x > barBox.x + barBox.width / 2, "Geprüft sitzt rechts in der Leiste");
+    assert.ok(Math.abs(reviewedBox.y + reviewedBox.height / 2 - (clearBox.y + clearBox.height / 2)) <= 3, "eine Reihe");
     assert.equal(await header.getAttribute("aria-checked"), "mixed", "Teilauswahl: Strich");
 
     await box(5).click({ modifiers: ["Shift"] });

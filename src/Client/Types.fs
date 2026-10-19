@@ -183,6 +183,9 @@ type ToastActionKind =
     /// "Rückgängig" nach einer Wisch-Geste auf dem Prüfvermerk (ledger-th36h, ADR 0050
     /// Punkt 10): der Vorzustand kommt aus der Antwort des Befehls.
     | UndoReviewMark of entryId: Guid * previous: Shared.Domain.ReviewMarkState
+    /// "Rückgängig" nach "Geprüft" für eine ganze Auswahl (ledger-nhwrt): ein Klick stellt
+    /// den Vorzustand jeder geänderten Buchung wieder her.
+    | UndoReviewMarkBatch of items: Shared.Domain.ReviewMarkRestoreItem list
 
 /// Die optionale Aktion eines Toasts: Beschriftung und was der Klick auslöst.
 type ToastAction = {

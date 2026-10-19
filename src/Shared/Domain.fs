@@ -1085,6 +1085,43 @@ type LedgerPayeeSuggestionQuery = {
     AmountMax: decimal option
 }
 
+// ============================================
+// Prüfvermerk für eine ganze Auswahl (ledger-nhwrt)
+// ============================================
+
+/// Die Auswahl, auf die der Stapel-Befehl wirkt. `BatchPicked`: die Ids der gewählten
+/// Zeilen. `BatchAllExcept`: der ganze Treffer einer Seitenanfrage (dieselbe Filter-
+/// Beschreibung wie `getLedgerEntriesPage`, Seite und Versatz zählen nicht) ohne die
+/// abgewählten Ids. Der Server löst die Menge selbst auf, weil der Client die Ids nicht
+/// geladener Buchungen nicht kennt.
+type ReviewMarkBatchSelection =
+    | BatchPicked of Guid list
+    | BatchAllExcept of query: LedgerEntryPageQuery * excluded: Guid list
+
+/// Eine Buchung, deren Prüfvermerk der Stapel geändert hat: ihr Vorzustand (für das
+/// gemeinsame "Rückgängig") und das Ergebnis des Sammel-PATCH für sie.
+type ReviewMarkBatchChange = {
+    EntryId: Guid
+    Previous: ReviewMarkState
+    WriteBack: ReviewMarkWriteBack
+}
+
+/// Antwort der Stapel-Befehle. `Changed`: je geänderter Buchung ein Eintrag.
+/// `UnchangedCount`: Ziel gleich Ist (`NoChange`, kein Ereignis, nicht im PATCH).
+/// `FailedCount`: in YNAB gelöscht, nicht mit YNAB verknüpft oder unbekannt (kein
+/// Ereignis, nicht im PATCH).
+type ReviewMarkBatchOutcome = {
+    Changed: ReviewMarkBatchChange list
+    UnchangedCount: int
+    FailedCount: int
+}
+
+/// Eine Buchung mit dem Prüfvermerk, auf den "Rückgängig" sie zurückstellen soll.
+type ReviewMarkRestoreItem = {
+    EntryId: Guid
+    Previous: ReviewMarkState
+}
+
 /// Der Rohwert einer Buchung, wie ihn die Kontostaende-Abfrage braucht: Konto, Betrag
 /// und ob sie in YNAB geloescht ist. Bewusst kein `LedgerEntryView`: die
 /// Kontostaende-Leiste laedt nicht die volle Buchungsliste, sie braucht nur so viel,

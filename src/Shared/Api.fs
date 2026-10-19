@@ -341,4 +341,19 @@ type LedgerApi = {
     /// Sends the booking's current review mark to YNAB again ("Erneut senden"). Does
     /// nothing (ReviewMarkNotSent) without an open write-back failure.
     retryReviewMarkWriteBack: Guid -> Async<Result<ReviewMarkWriteBack, string>>
+
+    // ============================================
+    // Prüfvermerk für eine Auswahl (ledger-nhwrt)
+    // ============================================
+
+    /// Sets "Geprüft" for a whole selection: the server resolves the selection (ids, or a
+    /// hit query minus exclusions), writes one ledger event per changed booking and sends
+    /// ONE bulk PATCH to YNAB for all of them. Returns the changed bookings with their
+    /// previous state (for the shared undo), the number of unchanged ones and the number
+    /// that could not be written (deleted in YNAB, not linked).
+    setReviewMarkBatch: ReviewMarkBatchSelection -> Async<Result<ReviewMarkBatchOutcome, string>>
+
+    /// One undo for a whole batch: restores each booking's previous state (one event per
+    /// booking, one bulk PATCH). Never writes from or to Reconciled.
+    restoreReviewMarkBatch: ReviewMarkRestoreItem list -> Async<Result<ReviewMarkBatchOutcome, string>>
 }

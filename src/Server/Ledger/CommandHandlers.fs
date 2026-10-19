@@ -1191,3 +1191,161 @@ let retryReviewMarkWriteBack
                         ]
                     return Ok (ReviewMarkSendFailed reason)
     }
+
+// ============================================
+// Prüfvermerk für eine ganze Auswahl, ein Sammel-PATCH (ledger-nhwrt)
+// ============================================
+
+/// Der Sammel-Push des Prüfvermerks, injiziert wie `ReviewMarkPush`: bekommt je geänderter
+/// Buchung YNAB-Id, `approved` und `cleared` (nur wenn geändert, nie `reconciled`) und
+/// liefert die Ids, die YNAB nicht als gespeichert nennt. Ein `Error` trifft den ganzen
+/// Stapel (`Ynab.updateReviewMarkBatch`).
+type ReviewMarkBatchPush = Ynab.ReviewMarkBatchItem list -> Async<YnabResult<string list>>
+
+/// Der Grund für eine Buchung, die YNAB in der Antwort des Sammel-PATCH nicht nennt.
+let reviewMarkNotSavedReason = "YNAB hat die Buchung im Sammelaufruf nicht gespeichert"
+
+/// Löst die Auswahl des Clients in Buchungs-Ids auf. `BatchPicked`: genau diese Ids.
+/// `BatchAllExcept`: der Treffer der Seitenanfrage (alle Seiten, derselbe Filter wie
+/// `getLedgerEntriesPage`) ohne die Ausnahmen, auch die Buchungen, die der Client nie
+/// geladen hat.
+let resolveReviewMarkBatchSelection (selection: ReviewMarkBatchSelection) : Async<EntryId list> =
+    async {
+        match selection with
+        | BatchPicked ids -> return ids |> List.distinct |> List.map EntryId
+        | BatchAllExcept (query, excluded) ->
+            let accountId = query.AccountId |> Option.map LedgerAccountId
+            let filter = Ledger.Persistence.entryFilterOfPageQuery query
+            let! entries = Ledger.Persistence.loadEntriesPage accountId 0 Int32.MaxValue filter
+            let excludedSet = Set.ofList excluded
+            return
+                entries
+                |> List.map (fun e -> e.Id)
+                |> List.filter (fun (EntryId id) -> not (excludedSet.Contains id))
+    }
+
+type private BatchCandidate = {
+    EntryId: EntryId
+    Previous: bool * ClearedState
+    Target: bool * ClearedState
+    YnabTransactionId: string
+}
+
+/// Gemeinsamer Ablauf für `setReviewMarkBatch` und `restoreReviewMarkBatch`: prüft jede
+/// Buchung wie `changeReviewMark` (gelöscht oder nicht verknüpft: gescheitert, ohne
+/// Ereignis; Ziel gleich Ist: unverändert, ohne Ereignis), schreibt für jede geänderte
+/// Buchung ein eigenes `EntryReviewMarkChangedInBb` und sendet danach EINEN Sammel-PATCH.
+/// Scheitert er, trägt jede Buchung des PATCH `EntryReviewMarkWriteBackFailed` mit
+/// demselben Grund; nennt die Antwort einzelne nicht gespeicherte Buchungen, gelten nur
+/// diese als gescheitert. Ohne geänderte Buchung geht kein PATCH hinaus.
+let private changeReviewMarkBatch
+    (now: DateTime)
+    (push: ReviewMarkBatchPush)
+    (targets: (EntryId * (Entry -> bool * ClearedState)) list)
+    : Async<Result<ReviewMarkBatchOutcome, string>> =
+    async {
+        let candidates = ResizeArray<BatchCandidate>()
+        let mutable unchanged = 0
+        let mutable failed = 0
+
+        for entryId, resolveTarget in targets do
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> failed <- failed + 1
+            | Some entry when entry.DeletedInYnab -> failed <- failed + 1
+            | Some entry ->
+                let previous = reviewMarkOf entry
+                let target = resolveTarget entry
+                if target = previous then
+                    unchanged <- unchanged + 1
+                else
+                    match! tryYnabTransactionId entryId with
+                    | None -> failed <- failed + 1
+                    | Some ynabId ->
+                        candidates.Add {
+                            EntryId = entryId
+                            Previous = previous
+                            Target = target
+                            YnabTransactionId = ynabId
+                        }
+
+        let changed = candidates |> Seq.toList
+
+        if List.isEmpty changed then
+            return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed }
+        else
+            do!
+                Ledger.Persistence.appendAndApply [
+                    for c in changed ->
+                        reviewMarkEvent c.EntryId now UserInBb (
+                            EntryReviewMarkChangedInBb {
+                                OldApproved = fst c.Previous
+                                NewApproved = fst c.Target
+                                OldCleared = snd c.Previous
+                                NewCleared = snd c.Target
+                            }
+                        )
+                ]
+
+            let items : Ynab.ReviewMarkBatchItem list =
+                [ for c in changed ->
+                    { YnabTransactionId = c.YnabTransactionId
+                      Approved = fst c.Target
+                      Cleared = clearedForPush (snd c.Previous) (snd c.Target) } ]
+
+            let! pushed = push items
+
+            let reasonOf (c: BatchCandidate) : string option =
+                match pushed with
+                | Ok notSaved when notSaved |> List.contains c.YnabTransactionId -> Some reviewMarkNotSavedReason
+                | Ok _ -> None
+                | Error err -> Some (describeReviewMarkPushError err)
+
+            let writeBacks = changed |> List.map (fun c -> c, reasonOf c)
+
+            do!
+                Ledger.Persistence.appendAndApply [
+                    for c, reason in writeBacks do
+                        match reason with
+                        | Some r -> reviewMarkEvent c.EntryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = r })
+                        | None -> ()
+                ]
+
+            let (outcomes: ReviewMarkBatchChange list) =
+                [ for c, reason in writeBacks ->
+                    let (EntryId id) = c.EntryId
+                    { EntryId = id
+                      Previous = toReviewMarkState c.Previous
+                      WriteBack =
+                        (match reason with
+                         | Some r -> ReviewMarkSendFailed r
+                         | None -> ReviewMarkSent) } ]
+
+            return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed }
+    }
+
+/// "Geprüft" für die ganze Auswahl (ledger-nhwrt): löst die Auswahl auf dem Server auf
+/// und setzt `Reviewed` je Buchung, mit einem Sammel-PATCH.
+let setReviewMarkBatch
+    (now: DateTime)
+    (push: ReviewMarkBatchPush)
+    (selection: ReviewMarkBatchSelection)
+    : Async<Result<ReviewMarkBatchOutcome, string>> =
+    async {
+        let! ids = resolveReviewMarkBatchSelection selection
+        return! changeReviewMarkBatch now push [ for id in ids -> id, reviewMarkTarget Reviewed ]
+    }
+
+/// Ein "Rückgängig" für den ganzen Stapel: stellt für jede genannte Buchung den Vorzustand
+/// wieder her (Logik von `restoreReviewMark`, `Reconciled` bleibt unberührt), je ein
+/// Ereignis und ein Sammel-PATCH. Buchungen, die schon im Vorzustand stehen, bleiben
+/// unangetastet.
+let restoreReviewMarkBatch
+    (now: DateTime)
+    (push: ReviewMarkBatchPush)
+    (items: ReviewMarkRestoreItem list)
+    : Async<Result<ReviewMarkBatchOutcome, string>> =
+    changeReviewMarkBatch now push [
+        for item in items ->
+            let previousState = item.Previous.IsApproved, fromReviewClearedState item.Previous.ClearedState
+            EntryId item.EntryId, reviewMarkRestoreTarget previousState
+    ]

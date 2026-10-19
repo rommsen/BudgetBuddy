@@ -1723,7 +1723,8 @@ let keyboardHintVisible (model: Model) : bool =
     | Success (_ :: _) -> not (hasSelection model)
     | _ -> false
 
-/// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), ohne schreibende Aktionen. Am Handy
+/// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
+/// "Geprüft" (ledger-nhwrt). Am Handy
 /// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
 /// Auswahl nicht leer ist (eine Reihe, ohne "Alle"). Sie ist `fixed` und steht deshalb
 /// außerhalb der Seitenhülle mit der Eintrittsanimation (`animate-page-enter` setzt einen
@@ -1740,10 +1741,20 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 selectionAllLabel
                 (isAllSelected model.Selection)
                 (fun () -> dispatch ToggleSelectAll)
+                selectionReviewedLabel
+                model.ReviewMarkBatchRunning
+                (fun () -> dispatch StartReviewMarkBatch)
                 selectionClearLabel
                 (fun () -> dispatch ClearSelection)
         if totals.Count > 0 then
-            MultiSelect.barDesktop countText totals.Amount selectionClearLabel (fun () -> dispatch ClearSelection)
+            MultiSelect.barDesktop
+                countText
+                totals.Amount
+                selectionReviewedLabel
+                model.ReviewMarkBatchRunning
+                (fun () -> dispatch StartReviewMarkBatch)
+                selectionClearLabel
+                (fun () -> dispatch ClearSelection)
         elif keyboardHintVisible model then
             keyboardHint ()
     ]

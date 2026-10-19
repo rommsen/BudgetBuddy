@@ -4,6 +4,38 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 22:20 - "Geprüft" für die ganze Auswahl (ledger-nhwrt)
+
+**What I did:**
+Die Aktion "Geprüft" in der Auswahl-Leiste gebaut. Der Server löst die Auswahl (Ids oder Treffer plus Ausnahmen) selbst auf, schreibt je geänderter Buchung ein `EntryReviewMarkChangedInBb` und sendet einen Sammel-PATCH an YNAB (`PATCH /budgets/{id}/transactions`). Toast mit einem Rückgängig für den ganzen Stapel, der die Liste neu lädt. YNAB-OpenAPI gelesen: keine Obergrenze je Anfrage, die Antwort nennt nur `transaction_ids` der gespeicherten Buchungen.
+
+**Files Added:**
+- `src/Tests/LedgerReviewMarkBatchTests.fs` - DB-Tests der Stapel-Befehle und Fake-Handler-Tests des PATCH
+- `src/Tests/LedgerReviewMarkBatchClientTests.fs` - Reducer-, Toast- und Leistentests
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - Stapel-Typen und zwei neue API-Methoden
+- `src/Server/YnabClient.fs` - Sammel-PATCH (`sendReviewMarkBatch`, `updateReviewMarkBatch`)
+- `src/Server/Ledger/Persistence.fs`, `src/Server/Ledger/QueryHandlers.fs` - gemeinsamer Filter `entryFilterOfPageQuery`
+- `src/Server/Ledger/CommandHandlers.fs`, `src/Server/Api.fs` - `setReviewMarkBatch`, `restoreReviewMarkBatch`
+- `src/Client/Types.fs`, `src/Client/State.fs` - Toast-Aktion `UndoReviewMarkBatch`
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs` - Nachrichten, Reducer, Toast-Sätze, Leiste
+- `src/Client/DesignSystem/MultiSelect.fs` - primäre Aktion "Geprüft" in beiden Leisten
+- `src/Tests/LedgerSelectionTests.fs`, `src/Tests/Tests.fsproj`, `scripts/ledger-selection.test.mjs` - Wächter angepasst, neue Testdateien eingetragen
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Roman will nach dem Filtern einen Stapel unauffälliger Buchungen in einem Zug prüfen. Ein Sammel-PATCH spart YNAB-Anfragen (rund 200 je Stunde und Token), das gemeinsame Rückgängig entspricht Handoff 1.12.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1530 bestanden, 7 übersprungen, 0 Fehler (dotnet test); 137/137 (test:scripts)
+- Issues: Beim Handy-Screenshot brach "Auswahl aufheben" in zwei Zeilen um, "Geprüft" behält jetzt seine Textbreite (`shrink-0`), der Rest der Reihe gehört "Auswahl aufheben".
+
+---
+
 ## 2026-10-19 22:00 - Push-Fehlschlag als Ereignis
 
 **What I did:**

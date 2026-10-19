@@ -382,18 +382,8 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
 /// `LedgerEntryPageQuery` (ledger-vgfw3, ADR 0036) — die gemeinsame Grundlage fuer
 /// `getLedgerEntriesPage` und `getLedgerPayeeSuggestions`, damit beide nie
 /// auseinanderlaufen koennen.
-let private toEntryFilter (query: LedgerEntryPageQuery) : Ledger.Persistence.EntryFilter = {
-    IncludeDeleted = query.IncludeDeleted
-    OnlyNeedsReview = query.OnlyNeedsReview
-    WithoutCategory = query.WithoutCategory
-    CategoryIds = query.CategoryIds
-    DateFrom = query.DateFrom
-    DateTo = query.DateTo
-    Payee = query.Payee
-    Memo = query.Memo
-    AmountMin = query.AmountMin
-    AmountMax = query.AmountMax
-}
+let private toEntryFilter (query: LedgerEntryPageQuery) : Ledger.Persistence.EntryFilter =
+    Ledger.Persistence.entryFilterOfPageQuery query
 
 /// Eine Seite der Buchungsliste (ledger-b1xwe): ein Konto (`query.AccountId`) oder,
 /// wenn `None`, die Gesamtsicht ueber alle Konten. Die Summe deckt den gesamten

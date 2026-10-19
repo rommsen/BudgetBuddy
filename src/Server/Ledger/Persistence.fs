@@ -867,6 +867,22 @@ let noFilter = {
     AmountMax = None
 }
 
+/// Der Filter einer Seitenanfrage (ohne Seite und Versatz): die gemeinsame Grundlage für
+/// `getLedgerEntriesPage`, `getLedgerPayeeSuggestions` und die Auflösung einer Auswahl
+/// `AllExcept` im Stapel-Befehl (ledger-nhwrt), damit alle drei denselben Treffer meinen.
+let entryFilterOfPageQuery (query: LedgerEntryPageQuery) : EntryFilter = {
+    IncludeDeleted = query.IncludeDeleted
+    OnlyNeedsReview = query.OnlyNeedsReview
+    WithoutCategory = query.WithoutCategory
+    CategoryIds = query.CategoryIds
+    DateFrom = query.DateFrom
+    DateTo = query.DateTo
+    Payee = query.Payee
+    Memo = query.Memo
+    AmountMin = query.AmountMin
+    AmountMax = query.AmountMax
+}
+
 let private hasAmountFilter (filter: EntryFilter) = filter.AmountMin.IsSome || filter.AmountMax.IsSome
 
 /// Prüft `AmountMin`/`AmountMax` gegen einen geladenen Betrag, in `decimal`, nie

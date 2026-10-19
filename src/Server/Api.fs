@@ -1441,6 +1441,23 @@ let private reviewMarkPush () : Async<Ledger.CommandHandlers.ReviewMarkPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Sammel-Push des Prüfvermerks (ledger-nhwrt), mit denselben Fehlerfällen wie
+/// `reviewMarkPush`.
+let private reviewMarkBatchPush () : Async<Ledger.CommandHandlers.ReviewMarkBatchPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun items -> YnabClient.updateReviewMarkBatch token (YnabBudgetId budgetId) items
+        | None, _ ->
+            return fun _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 let ledgerApi : LedgerApi = {
     // Der manuelle Ausloeser "Jetzt spiegeln" (ADR 0014, Punkt 3). Frische-Kriterium
     // und Lauf nach Push sind Folge-Arbeit.
@@ -1481,6 +1498,18 @@ let ledgerApi : LedgerApi = {
         let! push = reviewMarkPush ()
         return!
             Ledger.CommandHandlers.retryReviewMarkWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
+
+    // "Geprüft" für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-nhwrt):
+    // ein Ereignis je Buchung, ein Sammel-PATCH an YNAB.
+    setReviewMarkBatch = fun selection -> async {
+        let! push = reviewMarkBatchPush ()
+        return! Ledger.CommandHandlers.setReviewMarkBatch DateTime.UtcNow push selection
+    }
+
+    restoreReviewMarkBatch = fun items -> async {
+        let! push = reviewMarkBatchPush ()
+        return! Ledger.CommandHandlers.restoreReviewMarkBatch DateTime.UtcNow push items
     }
 }
 

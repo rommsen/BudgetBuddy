@@ -60,6 +60,7 @@ let init () : Model * Cmd<Msg> =
         SelectionAnchor = None
         SelectionMode = false
         FocusedRow = None
+        ReviewMarkBatchRunning = false
     }
     model, Cmd.none
 
@@ -215,6 +216,86 @@ let private applyUndoReviewMark
     : Model =
     let reinserted = reinsertSwipedAway entryId model
     applyReviewMarkResult entryId (Some (needsReviewOf previous)) (writeBackFailureOf outcome) reinserted
+
+/// Die Auswahl als Stapel-Auftrag an den Server (ledger-nhwrt). `Picked`: die Ids der
+/// gewählten Zeilen. `AllExcept`: der ganze Treffer als Seitenanfrage (derselbe Filter wie
+/// die Liste, Seite 0, ohne lokalen Versatz) plus die abgewählten Ids; der Server löst ihn
+/// auf, weil der Client die Ids nicht geladener Buchungen nicht kennt. `None` ohne Auswahl.
+let reviewMarkBatchSelection (model: Model) : ReviewMarkBatchSelection option =
+    let accountId =
+        match model.SelectedFilter with
+        | Some (OneAccount id) -> Some id
+        | _ -> None
+    match model.Selection with
+    | NoSelection -> None
+    | Picked ids when Set.isEmpty ids -> None
+    | Picked ids -> Some (BatchPicked (Set.toList ids))
+    | AllExcept excluded ->
+        let query = { buildPageQuery model accountId 0 with LocallyRemoved = 0 }
+        Some (BatchAllExcept (query, Set.toList excluded))
+
+/// Trägt das Ergebnis von "Geprüft" für die Auswahl in die geladene Liste ein: die Auswahl
+/// endet (samt Auswahl-Modus), jede geänderte geladene Zeile ist nicht mehr zu prüfen und
+/// trägt ihren Fehlschlag, der Zähler "Zu prüfen" sinkt um die Zahl der geänderten
+/// Buchungen. Bei aktivem Chip verlassen die Zeilen ohne Fehlschlag die Liste
+/// (`LocallyRemoved` steigt um ihre Zahl, Treffer und Summe sinken). Das zweite Ergebnis
+/// sagt, ob die Liste neu zu laden ist: bei aktivem Chip waren geänderte Buchungen nie
+/// geladen (`AllExcept`), der Versatz der nächsten Seite stimmt dann nur nach dem Neuladen.
+/// Rein, ohne Proxy.
+let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model) : Model * bool =
+    let changedCount = List.length outcome.Changed
+    let ended = {
+        model with
+            Selection = NoSelection
+            SelectionAnchor = None
+            SelectionMode = false
+            ReviewMarkBatchRunning = false
+            NeedsReviewCount = max 0 (model.NeedsReviewCount - changedCount)
+    }
+    match ended.Entries with
+    | Success entries ->
+        let changeById = outcome.Changed |> List.map (fun c -> c.EntryId, c) |> Map.ofList
+        let failureOf (c: ReviewMarkBatchChange) =
+            match c.WriteBack with
+            | ReviewMarkSendFailed reason -> Some reason
+            | _ -> None
+        let updated =
+            entries
+            |> List.map (fun e ->
+                match changeById |> Map.tryFind e.Id with
+                | Some c -> { e with NeedsReview = false; ReviewMarkWriteBackFailure = failureOf c }
+                | None -> e)
+        let loadedChanged = entries |> List.filter (fun e -> changeById |> Map.containsKey e.Id) |> List.length
+        let unloadedChanged = changedCount - loadedChanged
+        let leaving =
+            if ended.OnlyNeedsReview then
+                updated |> List.filter (fun e -> changeById |> Map.containsKey e.Id && e.ReviewMarkWriteBackFailure.IsNone)
+            else
+                []
+        let leavingIds = leaving |> List.map (fun e -> e.Id) |> Set.ofList
+        let remaining = updated |> List.filter (fun e -> not (leavingIds.Contains e.Id))
+        let leavingAmount = leaving |> List.filter (fun e -> not e.DeletedInYnab) |> List.sumBy (fun e -> e.Amount.Amount)
+        let focus =
+            leaving
+            |> List.fold (fun (state: Guid option * LedgerEntryView list) e ->
+                let focus', list = state
+                focusAfterRemoval list e.Id focus', list |> List.filter (fun x -> x.Id <> e.Id))
+                (ended.FocusedRow, entries)
+            |> fst
+        let totalCount =
+            if ended.OnlyNeedsReview then max 0 (ended.TotalCount - List.length leaving - unloadedChanged)
+            else ended.TotalCount
+        let model' = {
+            ended with
+                Entries = Success remaining
+                TotalCount = totalCount
+                TotalAmount = { ended.TotalAmount with Amount = ended.TotalAmount.Amount - leavingAmount }
+                LocallyRemoved = ended.LocallyRemoved + List.length leaving
+                FocusedRow = focus
+                HasMoreEntries = List.length remaining < totalCount
+        }
+        model', (ended.OnlyNeedsReview && unloadedChanged > 0)
+    | _ -> ended, false
 
 /// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover oder die Historie
 /// gehören der Tastatur.
@@ -860,6 +941,74 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | ClearSelection ->
         { model with Selection = NoSelection; SelectionAnchor = None; SelectionMode = false }, Cmd.none, NoOp
+
+    // ============================================
+    // "Geprüft" für die ganze Auswahl (ledger-nhwrt)
+    // ============================================
+
+    | StartReviewMarkBatch ->
+        // Nur mit Auswahl und ohne laufenden Aufruf; der Proxy-Aufruf steckt hinter `Run...`.
+        match reviewMarkBatchSelection model with
+        | Some selection when not model.ReviewMarkBatchRunning ->
+            { model with ReviewMarkBatchRunning = true }, Cmd.ofMsg (RunReviewMarkBatch selection), NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunReviewMarkBatch selection ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.setReviewMarkBatch
+                selection
+                ReviewMarkBatchDone
+                (fun ex -> ReviewMarkBatchDone (Error ex.Message))
+        model, cmd, NoOp
+
+    | ReviewMarkBatchDone (Ok outcome) ->
+        let model', reload = applyReviewMarkBatch outcome model
+        let toastType = reviewBatchToastType outcome
+        let text = reviewBatchToastText outcome
+        let external =
+            if List.isEmpty outcome.Changed then
+                ShowToast (text, toastType)
+            else
+                let items =
+                    outcome.Changed |> List.map (fun c -> { EntryId = c.EntryId; Previous = c.Previous })
+                ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoReviewMarkBatch items })
+        model', (if reload then Cmd.ofMsg LoadEntries else Cmd.none), external
+
+    | ReviewMarkBatchDone (Error message) ->
+        { model with ReviewMarkBatchRunning = false },
+        Cmd.none,
+        ShowToast ($"Prüfvermerk nicht gesetzt: {message}", ToastError)
+
+    | StartUndoReviewMarkBatch items -> model, Cmd.ofMsg (RunUndoReviewMarkBatch items), NoOp
+
+    | RunUndoReviewMarkBatch items ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.restoreReviewMarkBatch
+                items
+                ReviewMarkBatchRestored
+                (fun ex -> ReviewMarkBatchRestored (Error ex.Message))
+        model, cmd, NoOp
+
+    | ReviewMarkBatchRestored (Ok outcome) ->
+        // Viele der Buchungen waren unter `AllExcept` nie geladen: die Liste lädt neu, statt
+        // Zeilen einzeln zurückzustecken. Das setzt auch Seitenversatz und Zähler auf den
+        // Stand des Servers.
+        let sendFailed =
+            outcome.Changed
+            |> List.tryPick (fun c ->
+                match c.WriteBack with
+                | ReviewMarkSendFailed reason -> Some reason
+                | _ -> None)
+        let external =
+            match sendFailed with
+            | Some reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
+            | None -> NoOp
+        resetEntries model, Cmd.ofMsg LoadEntries, external
+
+    | ReviewMarkBatchRestored (Error message) ->
+        model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     // ============================================
     // Tastaturfokus und Taste G (ledger-rjb8w, PC)

@@ -439,6 +439,10 @@ type Model = {
     /// Neuladen der Liste; fällt die Zeile danach aus der Liste, springt der Fokus auf die
     /// erste Zeile.
     FocusedRow: Guid option
+
+    /// Läuft gerade ein Stapel-Aufruf "Geprüft" für die Auswahl (ledger-nhwrt)? Dann ist die
+    /// Aktion in der Leiste gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus.
+    ReviewMarkBatchRunning: bool
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -512,6 +516,44 @@ let selectionBarCountText (count: int) : string =
 
 let selectionClearLabel = "Auswahl aufheben"
 let selectionAllLabel = "Alle"
+
+/// Die primäre Aktion der Auswahl-Leiste (ledger-nhwrt): setzt "Geprüft" für die Auswahl.
+let selectionReviewedLabel = "Geprüft"
+
+/// Der Satz des Toasts nach "Geprüft" für die Auswahl (Handoff 1.12): "n Buchungen geprüft",
+/// bei Bedarf mit den Zahlen ohne Änderung, nicht in YNAB und nicht an YNAB gesendet.
+let reviewBatchToastText (outcome: Shared.Domain.ReviewMarkBatchOutcome) : string =
+    let changed = List.length outcome.Changed
+    let sendFailed =
+        outcome.Changed
+        |> List.filter (fun c ->
+            match c.WriteBack with
+            | Shared.Domain.ReviewMarkSendFailed _ -> true
+            | _ -> false)
+        |> List.length
+    let head =
+        match changed with
+        | 0 -> "Keine Buchung geprüft"
+        | 1 -> "1 Buchung geprüft"
+        | n -> $"{Client.DesignSystem.Money.formatCount n} Buchungen geprüft"
+    let notes =
+        [ if outcome.UnchangedCount > 0 then $"{outcome.UnchangedCount} ohne Änderung"
+          if outcome.FailedCount > 0 then $"{outcome.FailedCount} nicht in YNAB"
+          if sendFailed > 0 then $"{sendFailed} nicht an YNAB gesendet" ]
+    if List.isEmpty notes then head else head + " (" + String.concat ", " notes + ")"
+
+/// Die Art des Toasts nach "Geprüft" für die Auswahl: Warnung, sobald etwas nicht
+/// geklappt hat (nicht in YNAB, nicht gesendet), Info ohne Änderung, sonst Erfolg.
+let reviewBatchToastType (outcome: Shared.Domain.ReviewMarkBatchOutcome) : ToastType =
+    let anySendFailed =
+        outcome.Changed
+        |> List.exists (fun c ->
+            match c.WriteBack with
+            | Shared.Domain.ReviewMarkSendFailed _ -> true
+            | _ -> false)
+    if anySendFailed || outcome.FailedCount > 0 then ToastWarning
+    elif List.isEmpty outcome.Changed then ToastInfo
+    else ToastSuccess
 
 /// Ist "Alle" in der Handy-Leiste aktiv? Nur beim ganzen Treffer ohne Ausnahme.
 let isAllSelected (selection: Selection) : bool =
@@ -758,6 +800,20 @@ type Msg =
     | ToggleHeaderCheckbox
     /// "Auswahl aufheben": leert die Auswahl und beendet den Modus.
     | ClearSelection
+
+    // ============================================
+    // "Geprüft" für die ganze Auswahl (ledger-nhwrt)
+    // ============================================
+
+    /// "Geprüft" in der Auswahl-Leiste: sperrt die Aktion und stößt den Stapel-Aufruf an.
+    | StartReviewMarkBatch
+    /// Der Stapel-Aufruf mit der Auswahl (Ids oder Treffer-Anfrage plus Ausnahmen).
+    | RunReviewMarkBatch of ReviewMarkBatchSelection
+    | ReviewMarkBatchDone of Result<ReviewMarkBatchOutcome, string>
+    /// Klick auf "Rückgängig" im Toast: stellt die Vorzustände des Stapels wieder her.
+    | StartUndoReviewMarkBatch of ReviewMarkRestoreItem list
+    | RunUndoReviewMarkBatch of ReviewMarkRestoreItem list
+    | ReviewMarkBatchRestored of Result<ReviewMarkBatchOutcome, string>
 
     // ============================================
     // Tastaturfokus und Taste G (ledger-rjb8w, PC)

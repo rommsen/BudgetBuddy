@@ -121,6 +121,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
     match kind with
     | UndoReviewMark (entryId, previous) ->
         LedgerMsg (Components.Ledger.Types.StartUndoReviewMark (entryId, previous))
+    | UndoReviewMarkBatch items ->
+        LedgerMsg (Components.Ledger.Types.StartUndoReviewMarkBatch items)
 
 let private addToastWithAction
     (message: string)

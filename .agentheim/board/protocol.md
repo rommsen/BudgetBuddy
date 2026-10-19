@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 22:16 -- Task verified and completed: ledger-nhwrt - "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
+
+**Type:** Work / Task completion
+**Task:** ledger-nhwrt - "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
+**Summary:** Die Auswahl-Leiste hat jetzt die primäre Aktion "Geprüft": der Server löst die Auswahl (Ids oder Treffer plus Ausnahmen) auf, schreibt je geänderter Buchung ein EntryReviewMarkChangedInBb und sendet einen Sammel-PATCH an YNAB. Ein Toast nennt das Ergebnis und bietet ein Rückgängig für den ganzen Stapel, die Liste lädt danach neu.
+**Duration:** 34m06s
+**Verification:** PASS (iteration 1)
+**Files changed:** 18
+**Tests added:** 35
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 21:42 -- Batch started: [ledger-nhwrt]
 
 **Type:** Work / Batch start

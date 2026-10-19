@@ -52,6 +52,7 @@
     <Compile Include="LedgerTests.fs" />
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerReviewMarkTests.fs" />
+    <Compile Include="LedgerReviewMarkBatchTests.fs" />
     <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="LedgerPushFailureTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
@@ -61,6 +62,7 @@
     <Compile Include="LedgerPagingTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
+    <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
     <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="StatsAccentTests.fs" />

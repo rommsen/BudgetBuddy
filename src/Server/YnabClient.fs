@@ -1015,6 +1015,94 @@ let updateReviewMark
         return! sendReviewMark httpClient budgetId ynabTransactionId approved cleared
     }
 
+/// Eine Buchung im Sammel-PATCH des Prüfvermerks: dieselben Felder wie der Einzelweg
+/// (`approved`, `cleared` nur wenn geändert, nie `reconciled`), dazu die YNAB-Id.
+type ReviewMarkBatchItem = {
+    YnabTransactionId: string
+    Approved: bool
+    Cleared: ReviewMarkCleared option
+}
+
+/// Baut den Body des Sammel-PATCH: `{"transactions":[{"id", "approved", "cleared"?}]}`
+/// (YNAB-OpenAPI `updateTransactions`, `PatchTransactionsWrapper`). Non-private, damit
+/// der JSON-Vertrag direkt testbar ist.
+let buildReviewMarkBatchBody (items: ReviewMarkBatchItem list) : string =
+    Encode.object [
+        "transactions", Encode.list [
+            for item in items ->
+                Encode.object [
+                    "id", Encode.string item.YnabTransactionId
+                    "approved", Encode.bool item.Approved
+                    match item.Cleared with
+                    | Some SendCleared -> "cleared", Encode.string "cleared"
+                    | Some SendUncleared -> "cleared", Encode.string "uncleared"
+                    | None -> ()
+                ]
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Liest aus der Antwort des Sammel-PATCH die Ids, die YNAB als gespeichert nennt
+/// (`data.transaction_ids`). `None`, wenn die Antwort sie nicht nennt.
+let savedTransactionIdsDecoder : Decoder<string list> =
+    Decode.at [ "data"; "transaction_ids" ] (Decode.list Decode.string)
+
+/// Sendet den Prüfvermerk mehrerer Buchungen in EINER Anfrage:
+/// `PATCH .../transactions` (YNAB-OpenAPI `updateTransactions`). Die OpenAPI nennt keine
+/// Obergrenze je Anfrage, deshalb geht der ganze Stapel in einem Aufruf. Die Antwort
+/// nennt nur die gespeicherten Buchungen (`transaction_ids`), keine abgelehnten: Ok
+/// liefert die Ids aus `items`, die YNAB nicht als gespeichert nennt (leer, wenn alle
+/// genannt sind oder die Antwort die Liste nicht trägt). Fehlerzuordnung wie
+/// `sendReviewMark`; ein Fehler trifft den ganzen Stapel.
+let sendReviewMarkBatch
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (items: ReviewMarkBatchItem list)
+    : Async<YnabResult<string list>> =
+    async {
+        try
+            let requestBody = buildReviewMarkBatchBody items
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            use request =
+                new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Patch, $"{baseUrl}/budgets/{budgetId}/transactions")
+            request.Content <- content
+            let! httpResponse = httpClient.SendAsync(request) |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PATCH /budgets/%s/transactions - Prüfvermerk für %d Buchungen" budgetId (List.length items)
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 200 ->
+                match Decode.fromString savedTransactionIdsDecoder bodyText with
+                | Ok saved ->
+                    let savedSet = Set.ofList saved
+                    return Ok (items |> List.map (fun i -> i.YnabTransactionId) |> List.filter (savedSet.Contains >> not))
+                | Error _ -> return Ok []
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Transaction not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update review marks: {ex.Message}")
+    }
+
+/// Schreibt den Prüfvermerk mehrerer Buchungen in einem Sammel-PATCH nach YNAB zurück
+/// (ledger-nhwrt). Eigener Name neben `updateReviewMark`, auf `approved` und `cleared`
+/// zugeschnitten (ADR 0028, Punkt 1).
+let updateReviewMarkBatch
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (items: ReviewMarkBatchItem list)
+    : Async<YnabResult<string list>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendReviewMarkBatch httpClient budgetId items
+    }
+
 /// Validates a YNAB token by attempting to fetch budgets
 let validateToken (token: string) : Async<YnabResult<unit>> =
     async {

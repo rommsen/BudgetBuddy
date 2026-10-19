@@ -298,7 +298,7 @@ let viewTests =
             Expect.equal selectionAllLabel "Alle" "Alle"
             Expect.equal selectionClearLabel "Auswahl aufheben" "Ausstieg"
 
-        testCase "Handy-Leiste hat Alle, PC-Leiste nicht; keine schreibende Aktion in beiden (Quelltext)" <| fun () ->
+        testCase "Handy-Leiste hat Alle, PC-Leiste nicht; als schreibende Aktion nur Geprüft (Quelltext)" <| fun () ->
             let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
             let slice (header: string) =
                 let start = ds.IndexOf header
@@ -312,12 +312,13 @@ let viewTests =
             Expect.stringContains mobile "allLabel" "Alle in der Handy-Leiste"
             Expect.isFalse (desktop.Contains "allLabel") "kein Alle in der PC-Leiste"
             for bar in [ mobile; desktop ] do
-                for word in [ "Geprüft"; "Kategorie ändern"; "Flag" ] do
+                for word in [ "Kategorie ändern"; "Flag"; "Ungeprüft" ] do
                     Expect.isFalse (bar.Contains word) $"'{word}' gehört nicht in die Leiste"
+                Expect.stringContains bar "reviewedButton" "Geprüft ist die primäre Aktion der Leiste"
             let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
             let from = view.IndexOf "let selectionBars"
             let barView = view.Substring(from, view.IndexOf("let private selectionBarSpacers") - from)
-            for word in [ "\"Geprüft\""; "\"Kategorie ändern\""; "\"Flag\"" ] do
+            for word in [ "\"Kategorie ändern\""; "\"Flag\""; "\"Ungeprüft\"" ] do
                 Expect.isFalse (barView.Contains word) $"{word} wird in der Leiste nicht gesetzt"
 
         testCase "Die Tab-Bar weicht der Handy-Leiste im Auswahl-Modus (Quelltext)" <| fun () ->

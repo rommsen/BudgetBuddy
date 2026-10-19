@@ -130,14 +130,31 @@ let private countAndSum (countText: string) (amount: Shared.Domain.Money) : Reac
           prop.text (amountText amount)
       ] ]
 
+/// Die einzige primäre Aktion der Leiste (Orange): setzt "Geprüft" für die Auswahl.
+/// Während der Aufruf läuft, zeigt sie den Spinner und ist gesperrt. `className` setzt
+/// die Breite (am Handy behält sie ihre Textbreite, "Auswahl aufheben" füllt den Rest der Reihe).
+let private reviewedButton (label: string) (busy: bool) (onClick: unit -> unit) (className: string) : ReactElement =
+    Button.view {
+        Button.defaultProps with
+            Text = label
+            OnClick = onClick
+            Variant = Button.Primary
+            IsLoading = busy
+            ClassName = Some className
+    }
+
 /// Die Auswahl-Leiste am Handy: ersetzt die Tab-Bar. Reihe 1 "n ausgewählt" und Summe,
-/// Reihe 2 "Alle" (Teal, wenn der ganze Treffer gewählt ist) und "Auswahl aufheben".
+/// Reihe 2 "Alle" (Teal, wenn der ganze Treffer gewählt ist), "Geprüft" (primär) und
+/// "Auswahl aufheben".
 let barMobile
     (countText: string)
     (amount: Shared.Domain.Money)
     (allLabel: string)
     (allActive: bool)
     (onAll: unit -> unit)
+    (reviewedLabel: string)
+    (reviewedBusy: bool)
+    (onReviewed: unit -> unit)
     (clearLabel: string)
     (onClear: unit -> unit)
     : ReactElement =
@@ -155,6 +172,7 @@ let barMobile
                 prop.className "flex items-center gap-2"
                 prop.children [
                     ChipBar.chip { Label = allLabel; IsActive = allActive; OnClick = onAll; OnRemove = None }
+                    reviewedButton reviewedLabel reviewedBusy onReviewed "shrink-0"
                     clearButton clearLabel onClear true
                 ]
             ]
@@ -162,10 +180,13 @@ let barMobile
     ]
 
 /// Die Auswahl-Leiste am PC: eine Reihe, ersetzt den Tastatur-Hinweis. Kein "Alle", das
-/// Kopfzeilen-Kästchen erledigt es.
+/// Kopfzeilen-Kästchen erledigt es. Rechts "Geprüft" (primär) vor "Auswahl aufheben".
 let barDesktop
     (countText: string)
     (amount: Shared.Domain.Money)
+    (reviewedLabel: string)
+    (reviewedBusy: bool)
+    (onReviewed: unit -> unit)
     (clearLabel: string)
     (onClear: unit -> unit)
     : ReactElement =
@@ -177,8 +198,11 @@ let barDesktop
         prop.children [
             yield! countAndSum countText amount
             Html.div [
-                prop.className "ml-auto"
-                prop.children [ clearButton clearLabel onClear false ]
+                prop.className "ml-auto flex items-center gap-2"
+                prop.children [
+                    clearButton clearLabel onClear false
+                    reviewedButton reviewedLabel reviewedBusy onReviewed ""
+                ]
             ]
         ]
     ]
