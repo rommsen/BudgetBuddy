@@ -25,6 +25,21 @@ type ToastPosition =
     | BottomLeft
     | BottomCenter
 
+/// Die optionale Aktion eines Toasts, z. B. "Rückgängig" (ledger-th36h). Der Toast
+/// zeigt nur die Beschriftung; was der Klick tut, entscheidet `OnAction` des Aufrufers.
+type ToastActionView = {
+    Label: string
+}
+
+/// Ein Toast für `renderItems`: wie die Tupel von `renderList`, plus optionale Aktion.
+type ToastItem = {
+    Id: Guid
+    Message: string
+    Variant: ToastVariant
+    Exiting: bool
+    Action: ToastActionView option
+}
+
 /// Toast properties
 type ToastProps = {
     Id: Guid
@@ -38,6 +53,10 @@ type ToastProps = {
     /// is actually removed from the list (design-system-004).
     Exiting: bool
     OnDismiss: Guid -> unit
+    /// Optionale Schaltfläche neben dem Schließen-Knopf. `None`: der Toast ist wie zuvor.
+    Action: ToastActionView option
+    /// Klick auf die Aktion. Der Aufrufer schließt den Toast und führt die Aktion aus.
+    OnAction: Guid -> unit
 }
 
 // ============================================
@@ -129,6 +148,20 @@ let toast (props: ToastProps) =
                 ]
             ]
 
+            // Aktion (z. B. "Rückgängig"), Teal wie in Handoff 1.3
+            match props.Action with
+            | Some action ->
+                Html.button [
+                    prop.className (
+                        "flex-shrink-0 px-2 py-1 rounded-md text-sm font-semibold transition-colors " +
+                        "text-neon-teal hover:bg-surface-hover"
+                    )
+                    prop.custom ("data-toast-action", "true")
+                    prop.onClick (fun _ -> props.OnAction props.Id)
+                    prop.text action.Label
+                ]
+            | None -> ()
+
             // Close button
             Html.button [
                 prop.className (
@@ -153,6 +186,8 @@ let toastSimple (id: Guid) (message: string) (variant: ToastVariant) (onDismiss:
         DismissAfterMs = 5000
         Exiting = false
         OnDismiss = onDismiss
+        Action = None
+        OnAction = ignore
     }
 
 /// Toast with title
@@ -166,6 +201,8 @@ let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastV
         DismissAfterMs = 5000
         Exiting = false
         OnDismiss = onDismiss
+        Action = None
+        OnAction = ignore
     }
 
 // ============================================
@@ -223,6 +260,45 @@ let info' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
 // Toast List Component (for use in View.fs)
 // ============================================
 
+/// Toasts mit Aktion sitzen am Handy über der Tab-Bar (Handoff Ablauf 1, Screen 1.3),
+/// damit sie weder die Karte noch die Navigation verdecken. Ab `md:` gilt der übliche
+/// Anker. Die Klasse `toast-above-nav` steht in `styles.css`.
+let private actionContainer (children: ReactElement list) =
+    Html.div [
+        prop.className (
+            "fixed z-50 flex flex-col gap-2 pointer-events-none toast-above-nav " +
+            "inset-x-4 md:inset-x-auto md:w-full md:max-w-sm md:right-4"
+        )
+        prop.children children
+    ]
+
+/// Toast-Liste mit optionalen Aktionen. Toasts ohne Aktion bleiben im bisherigen
+/// Container, Toasts mit Aktion stehen in einem eigenen über der Tab-Bar.
+let renderItems
+    (items: ToastItem list)
+    (onDismiss: Guid -> unit)
+    (onAction: Guid -> unit) =
+
+    let render (item: ToastItem) =
+        toast {
+            Id = item.Id
+            Message = item.Message
+            Variant = item.Variant
+            Title = None
+            AutoDismiss = true
+            DismissAfterMs = 5000
+            Exiting = item.Exiting
+            OnDismiss = onDismiss
+            Action = item.Action
+            OnAction = onAction
+        }
+    let plain, withAction = items |> List.partition (fun i -> i.Action.IsNone)
+
+    Html.div [
+        containerDefault (plain |> List.map render)
+        actionContainer (withAction |> List.map render)
+    ]
+
 /// Render a list of toasts from tuples of (Id, Message, Variant, Exiting).
 /// The `Exiting` flag selects the exit animation for toasts in their fade-out
 /// phase of the two-phase removal (design-system-004). `onDismiss` is called when
@@ -243,5 +319,7 @@ let renderList
                 DismissAfterMs = 5000
                 Exiting = exiting
                 OnDismiss = onDismiss
+                Action = None
+                OnAction = ignore
             }
     ]

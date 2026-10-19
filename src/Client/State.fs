@@ -49,6 +49,8 @@ type Msg =
 
     // Toast (two-phase removal: StartDismissToast marks exiting → ToastExited removes)
     | ShowToast of string * ToastType
+    | ShowToastWithAction of string * ToastType * ToastAction  // Toast mit Schaltfläche (ledger-th36h)
+    | ToastActionClicked of Guid  // Klick auf die Aktion: Toast schließen, Aktion ausführen
     | StartDismissToast of Guid  // phase 1: mark exiting + schedule removal (auto or manual)
     | ToastExited of Guid        // phase 2: final removal after the exit animation
 
@@ -113,12 +115,27 @@ let private freshQuickAddForm () : QuickAddFormState =
         Error = None
     }
 
-let private addToast (message: string) (toastType: ToastType) (model: Model) : Model * Cmd<Msg> =
-    let toast = { Id = Guid.NewGuid(); Message = message; Type = toastType; Exiting = false }
+/// Übersetzt die Beschreibung einer Toast-Aktion in die Nachricht des Bausteins, der
+/// sie ausführt. Rein, damit "Rückgängig" ohne Proxy testbar ist.
+let toastActionMsg (kind: ToastActionKind) : Msg =
+    match kind with
+    | UndoReviewMark (entryId, previous) ->
+        LedgerMsg (Components.Ledger.Types.StartUndoReviewMark (entryId, previous))
+
+let private addToastWithAction
+    (message: string)
+    (toastType: ToastType)
+    (action: ToastAction option)
+    (model: Model)
+    : Model * Cmd<Msg> =
+    let toast = { Id = Guid.NewGuid(); Message = message; Type = toastType; Exiting = false; Action = action }
     // Auto-dismiss runs through the same StartDismissToast path as a manual close,
     // so both get the soft exit animation.
     let dismissCmd = delayed autoDismissAfterMs (StartDismissToast toast.Id)
     { model with Toasts = toast :: model.Toasts }, dismissCmd
+
+let private addToast (message: string) (toastType: ToastType) (model: Model) : Model * Cmd<Msg> =
+    addToastWithAction message toastType None model
 
 // ============================================
 // Seiten-Ladekommandos
@@ -281,6 +298,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | ShowToast (message, toastType) ->
         addToast message toastType model
 
+    | ShowToastWithAction (message, toastType, action) ->
+        addToastWithAction message toastType (Some action) model
+
+    | ToastActionClicked id ->
+        // Der Klick schließt den Toast (derselbe zweistufige Abgang wie "Schließen") und
+        // führt die Aktion aus. Ein schon abgehender oder entfernter Toast löst nichts
+        // mehr aus: ein zweiter Klick darf nicht zweimal rückgängig machen.
+        match model.Toasts |> List.tryFind (fun t -> t.Id = id && not t.Exiting) with
+        | Some { Action = Some action } ->
+            { model with Toasts = Toast.markExiting id model.Toasts },
+            Cmd.batch [ delayed Toast.exitDurationMs (ToastExited id); Cmd.ofMsg (toastActionMsg action.Kind) ]
+        | _ -> model, Cmd.none
+
     | StartDismissToast id ->
         // Double-fire guard: if the toast is already exiting (or already gone),
         // do nothing — no second removal timer is scheduled. Otherwise mark it
@@ -423,6 +453,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match externalMsg with
             | Components.Ledger.Types.NoOp -> Cmd.none
             | Components.Ledger.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+            | Components.Ledger.Types.ShowToastWithAction (message, toastType, action) ->
+                Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
 
         { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd ]
 

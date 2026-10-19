@@ -746,8 +746,29 @@ let private ToastDemo () =
             if tid = id then (tid, m, v, true) else (tid, m, v, ex)))
         Fable.Core.JS.setTimeout (fun () -> remove id) Types.Toast.exitDurationMs |> ignore
 
+    // Toast mit Aktion (ledger-th36h): (Id, Exiting). Klick auf "Rückgängig" schließt ihn.
+    let undoToasts, setUndoToasts = React.useState ([]: (Guid * bool) list)
+    let undoRef = React.useRef undoToasts
+    undoRef.current <- undoToasts
+    let fireUndo () =
+        setUndoToasts (undoRef.current @ [ (Guid.NewGuid(), false) ])
+    let dismissUndo (id: Guid) =
+        setUndoToasts (undoRef.current |> List.map (fun (tid, ex) -> if tid = id then (tid, true) else (tid, ex)))
+        Fable.Core.JS.setTimeout
+            (fun () -> setUndoToasts (undoRef.current |> List.filter (fun (tid, _) -> tid <> id)))
+            Types.Toast.exitDurationMs
+        |> ignore
+    let undoItems : Toast.ToastItem list =
+        undoToasts
+        |> List.map (fun (id, exiting) ->
+            { Id = id
+              Message = "REWE Mitte geprüft"
+              Variant = Toast.Success
+              Exiting = exiting
+              Action = Some { Label = "Rückgängig" } })
+
     section "17. Toast" [
-        note "Flüchtiges Feedback nach Aktion, mit sanftem Abgang (Exit-Animation). Blockierende Fehler → ErrorDisplay/Modal. styleguide.md §5/§6."
+        note "Flüchtiges Feedback nach Aktion, mit sanftem Abgang (Exit-Animation). Blockierende Fehler → ErrorDisplay/Modal. Optional mit Aktion (z. B. Rückgängig), dann über der Tab-Bar. styleguide.md §5/§6."
         row [
             // data-ds-card-trigger: Export-Skript klickt hier, damit ein Toast sichtbar
             // ist, bevor components-toast.html geschrieben wird. Toast.renderList ist
@@ -759,13 +780,17 @@ let private ToastDemo () =
             ]
             Button.secondary "Fehler" (fire Toast.Error "Speichern fehlgeschlagen.")
             Button.secondary "Info" (fire Toast.Info "3 neue Transaktionen.")
+            Button.secondary "Mit Rückgängig" fireUndo
         ]
         Html.div [
             prop.custom ("data-ds-card", "components-toast")
             prop.custom ("data-ds-card-name", "Toast")
             prop.custom ("data-ds-card-subtitle", "Flüchtige Rückmeldung als Erfolg, Fehler oder Info")
             prop.custom ("data-ds-group", "Feedback")
-            prop.children [ Toast.renderList toasts dismiss ]
+            prop.children [
+                Toast.renderList toasts dismiss
+                Toast.renderItems undoItems dismissUndo dismissUndo
+            ]
         ]
     ]
 

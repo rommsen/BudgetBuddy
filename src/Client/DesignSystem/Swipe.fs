@@ -12,6 +12,12 @@ open Feliz
 open Fable.Core.JsInterop
 open Browser.Types
 
+/// In welche Richtung eine Zeile gewischt werden darf. Die andere Richtung bleibt
+/// unbelegt und löst nichts aus (Handoff Ablauf 1, Screen 1.2: Wisch nach links frei).
+type SwipeDirection =
+    | SwipeLeft
+    | SwipeRight
+
 type SwipeableRowProps = {
     /// Label revealed behind the row while swiping (e.g. "Überspringen")
     ActionLabel: string
@@ -31,8 +37,33 @@ let private CommitFraction = 0.35
 [<Literal>]
 let private CommitVelocity = 0.5 // px/ms
 
+/// Reine Entscheidung, ob ein Wisch auslöst: nur in der erlaubten Richtung, und nur
+/// bei mehr als 35 % der Zeilenbreite oder einem schnellen Wisch. `dx` ist die
+/// vorzeichenbehaftete Strecke (rechts positiv), `velocity` Pixel je Millisekunde.
+let commitsSwipe (direction: SwipeDirection) (dx: float) (width: float) (velocity: float) : bool =
+    let inDirection =
+        match direction with
+        | SwipeLeft -> dx < 0.0
+        | SwipeRight -> dx > 0.0
+    inDirection && (abs dx > width * CommitFraction || velocity > CommitVelocity)
+
+/// Wisch mit Gummiband: nur in der erlaubten Richtung, ab der halben Breite zäh.
+/// Rückgabe vorzeichenbehaftet (links negativ, rechts positiv).
+let rubberbandOffset (direction: SwipeDirection) (dx: float) (width: float) : float =
+    let along =
+        match direction with
+        | SwipeLeft -> -dx
+        | SwipeRight -> dx
+    if along <= 0.0 then 0.0
+    else
+        let limit = width * 0.5
+        let eased = if along <= limit then along else limit + (along - limit) * 0.25
+        match direction with
+        | SwipeLeft -> -eased
+        | SwipeRight -> eased
+
 [<ReactComponent>]
-let SwipeableRow (props: SwipeableRowProps) =
+let private SwipeRowCore (direction: SwipeDirection, props: SwipeableRowProps) =
     let contentRef = React.useRef<HTMLElement option> None
     let actionRef = React.useRef<HTMLElement option> None
     let startX = React.useRef 0.0
@@ -62,14 +93,6 @@ let SwipeableRow (props: SwipeableRowProps) =
         claimed.current <- false
         setContentTransform true 0.0
         setActionOpacity 0.0
-
-    // Left-only with rubberband resistance once past half the row width
-    let rubberband (dx: float) (width: float) =
-        if dx >= 0.0 then 0.0
-        else
-            let limit = width * 0.5
-            if -dx <= limit then dx
-            else -(limit + (-dx - limit) * 0.25)
 
     let rowWidth () =
         contentRef.current
@@ -112,16 +135,16 @@ let SwipeableRow (props: SwipeableRowProps) =
 
                 if claimed.current then
                     let width = rowWidth ()
-                    let offset = rubberband dx width
+                    let offset = rubberbandOffset direction dx width
                     setContentTransform false offset
-                    setActionOpacity (min 1.0 (-offset / 72.0)))
+                    setActionOpacity (min 1.0 (abs offset / 72.0)))
         prop.onPointerUp (fun e ->
             if claimed.current then
                 let dx = e.clientX - startX.current
                 let dt = max 1.0 (e.timeStamp - startTime.current)
                 let velocity = abs dx / dt
                 let width = rowWidth ()
-                let commit = dx < 0.0 && (abs dx > width * CommitFraction || velocity > CommitVelocity)
+                let commit = commitsSwipe direction dx width velocity
 
                 if commit then
                     Viewport.vibrate 10
@@ -135,7 +158,7 @@ let SwipeableRow (props: SwipeableRowProps) =
             else active.current <- false)
         prop.children [
             Html.div [
-                prop.className ("tx-swipe-action " + props.ActionClass)
+                prop.className ("tx-swipe-action " + props.ActionClass + (if direction = SwipeRight then " from-left" else ""))
                 prop.ref actionRef
                 prop.ariaHidden true
                 prop.text props.ActionLabel
@@ -147,3 +170,9 @@ let SwipeableRow (props: SwipeableRowProps) =
             ]
         ]
     ]
+
+/// Wisch nach links (SyncFlow: Überspringen). Wisch nach rechts löst nichts aus.
+let SwipeableRow (props: SwipeableRowProps) = SwipeRowCore (SwipeLeft, props)
+
+/// Wisch nach rechts (Kassenbuch: Geprüft). Wisch nach links löst nichts aus.
+let SwipeableRowRight (props: SwipeableRowProps) = SwipeRowCore (SwipeRight, props)

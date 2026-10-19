@@ -39,6 +39,14 @@ let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
     | ToastWarning -> Toast.Warning
     | ToastInfo -> Toast.Info
 
+/// Types.Toast als Eintrag der DS-Toast-Liste (inklusive der optionalen Aktion).
+let private toToastItem (t: Types.Toast) : Toast.ToastItem =
+    { Id = t.Id
+      Message = t.Message
+      Variant = toToastVariant t.Type
+      Exiting = t.Exiting
+      Action = t.Action |> Option.map (fun a -> { Label = a.Label }) }
+
 // ============================================
 // Main View
 // ============================================
@@ -119,9 +127,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
 
                 // Toast notifications using new Toast component
-                Toast.renderList
-                    (model.Toasts |> List.map (fun t -> (t.Id, t.Message, toToastVariant t.Type, t.Exiting)))
+                Toast.renderItems
+                    (model.Toasts |> List.map toToastItem)
                     (fun id -> dispatch (StartDismissToast id))
+                    (fun id -> dispatch (ToastActionClicked id))
             ]
         ]
     ]

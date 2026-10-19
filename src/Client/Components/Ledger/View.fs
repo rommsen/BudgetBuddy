@@ -861,6 +861,33 @@ let private ScrollSentinel (onReachEnd: unit -> unit) (active: bool) =
 // Seite
 // ============================================
 
+/// Die Karte der Handy-Liste mit der Wisch-Geste (ledger-th36h): Wisch nach rechts
+/// markiert eine zu prüfende Buchung als geprüft, Wisch nach links bleibt unbelegt
+/// (Handoff Ablauf 1, Screen 1.2). Eine schon geprüfte oder in YNAB gelöschte Zeile
+/// bekommt keine Geste. Die Schaltfläche an der Zeile bleibt der barrierefreie Weg.
+let private swipeableEntryRow
+    (dispatch: Msg -> unit)
+    (accountAbbreviationOf: (Guid -> string) option)
+    (rowState: ReviewMarkRowState option)
+    (entry: LedgerEntryView)
+    =
+    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState entry
+    if swipeAppliesTo entry then
+        Html.div [
+            prop.key (string entry.Id)
+            prop.children [
+                Swipe.SwipeableRowRight {
+                    ActionLabel = swipeActionLabel
+                    ActionClass = "reviewed"
+                    OnCommit = (fun () -> dispatch (StartSwipeReviewed entry.Id))
+                    // Deckender Grund, damit die Aktionsfläche erst beim Wischen sichtbar wird.
+                    Children = Html.div [ prop.className Tokens.Backgrounds.dark; prop.children [ row ] ]
+                }
+            ]
+        ]
+    else
+        row
+
 let private entryListMobile
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
@@ -876,7 +903,7 @@ let private entryListMobile
                     dateGroupHeader date (daySum includeDeleted group)
                     :: (group
                         |> List.map (fun entry ->
-                            entryRowWithReviewMark dispatch accountAbbreviationOf (reviewRows |> Map.tryFind entry.Id) entry)))
+                            swipeableEntryRow dispatch accountAbbreviationOf (reviewRows |> Map.tryFind entry.Id) entry)))
             )
         ]
     ]

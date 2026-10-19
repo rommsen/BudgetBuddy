@@ -19,10 +19,17 @@ open Types
 // ============================================
 
 let private mkToast (id: Guid) : Toast =
-    { Id = id; Message = "msg"; Type = ToastSuccess; Exiting = false }
+    { Id = id; Message = "msg"; Type = ToastSuccess; Exiting = false; Action = None }
 
 let private idA = Guid.Parse "00000000-0000-0000-0000-000000000001"
 let private idB = Guid.Parse "00000000-0000-0000-0000-000000000002"
+
+module private Quelltext =
+    let root =
+        let rec find (dir: string) =
+            if System.IO.Directory.Exists(System.IO.Path.Combine(dir, "src", "Client")) then dir
+            else find (System.IO.Directory.GetParent(dir).FullName)
+        find System.AppContext.BaseDirectory
 
 [<Tests>]
 let toastLifecycleTests =
@@ -77,4 +84,56 @@ let toastLifecycleTests =
 
         testCase "exitDurationMs is positive" <| fun () ->
             Expect.isGreaterThan Toast.exitDurationMs 0 "Exit duration must be a real positive delay"
+    
+
+        testCase "Ein Toast ohne Aktion verhält sich wie bisher (Aktion fehlt, Lebenszyklus gleich)" <| fun () ->
+            let t = mkToast idA
+            Expect.isNone t.Action "ohne Aktion"
+            let result = Toast.markExiting idA [ t ] |> Toast.remove idA
+            Expect.isEmpty result "Abgang und Entfernen wie zuvor"
+
+        testCase "Ein Toast kann eine Aktion mit Beschriftung und Beschreibung der Nachricht tragen" <| fun () ->
+            let previous : Shared.Domain.ReviewMarkState =
+                { IsApproved = true; ClearedState = Shared.Domain.ReviewUncleared }
+            let t = { mkToast idA with Action = Some { Label = "Rückgängig"; Kind = UndoReviewMark (idB, previous) } }
+            Expect.equal (t.Action |> Option.map (fun a -> a.Label)) (Some "Rückgängig") "Beschriftung"
+            Expect.equal (t.Action |> Option.map (fun a -> a.Kind)) (Some (UndoReviewMark (idB, previous))) "Nachricht"
+
+        testCase "Die Wurzel übersetzt die Aktion in die Rückgängig-Nachricht mit genau diesem Vorzustand" <| fun () ->
+            let previous : Shared.Domain.ReviewMarkState =
+                { IsApproved = true; ClearedState = Shared.Domain.ReviewReconciled }
+            match State.toastActionMsg (UndoReviewMark (idB, previous)) with
+            | State.LedgerMsg (Components.Ledger.Types.StartUndoReviewMark (id, p)) ->
+                Expect.equal id idB "Buchung"
+                Expect.equal p previous "Vorzustand unverändert, auch Reconciled"
+            | other -> failtestf "unerwartete Nachricht: %A" other
+
+        testCase "Klick auf die Aktion schließt den Toast und löst die Aktion genau einmal aus" <| fun () ->
+            let previous : Shared.Domain.ReviewMarkState =
+                { IsApproved = false; ClearedState = Shared.Domain.ReviewUncleared }
+            let toast = { mkToast idA with Action = Some { Label = "Rückgängig"; Kind = UndoReviewMark (idB, previous) } }
+            let ledger, _ = Components.Ledger.State.init ()
+            let settings, _ = Components.Settings.State.init ()
+            let syncFlow, _ = Components.SyncFlow.State.init ()
+            let rules, _ = Components.Rules.State.init ()
+            let model : State.Model =
+                { CurrentPage = Ledger; Toasts = [ toast ]; Settings = settings; SyncFlow = syncFlow
+                  Rules = rules; Ledger = ledger; QuickAdd = None; QuickAddTemplates = NotAsked }
+            let after, cmd = State.update (State.ToastActionClicked idA) model
+            Expect.isTrue (Toast.isExiting idA after.Toasts) "Toast geht ab"
+            Expect.isNonEmpty cmd "Aktion und Entfernen sind geplant"
+            let again, cmd2 = State.update (State.ToastActionClicked idA) after
+            Expect.equal again after "zweiter Klick ändert nichts"
+            Expect.isEmpty cmd2 "zweiter Klick löst nichts mehr aus"
+
+        testCase "Toast.fs rendert die Aktion als Schaltfläche, die OnAction auslöst" <| fun () ->
+            let source = System.IO.File.ReadAllText(System.IO.Path.Combine(Quelltext.root, "src", "Client", "DesignSystem", "Toast.fs"))
+            Expect.stringContains source "match props.Action with" "Aktion wird gerendert"
+            Expect.stringContains source "props.OnAction props.Id" "Klick löst OnAction aus"
+            Expect.stringContains source "toast-above-nav" "Toasts mit Aktion sitzen über der Tab-Bar"
+
+        testCase "Die Galerie /styleguide zeigt den Toast mit Aktion" <| fun () ->
+            let source = System.IO.File.ReadAllText(System.IO.Path.Combine(Quelltext.root, "src", "Client", "Components", "Styleguide", "View.fs"))
+            Expect.stringContains source "Toast.renderItems undoItems" "Galerie rendert die Toast-Liste mit Aktion"
+            Expect.stringContains source "Label = \"Rückgängig\"" "Beispiel trägt Rückgängig"
     ]

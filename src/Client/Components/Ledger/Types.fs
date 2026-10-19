@@ -232,6 +232,29 @@ type ReviewMarkHint = {
     RetryLabel: string option
 }
 
+/// Ist die Buchung mit diesem Prüfvermerk noch zu prüfen? Dieselbe Regel wie am Server
+/// (`Ledger.Domain.needsReview`): nicht bestätigt oder noch offen (`Uncleared`).
+let needsReviewOf (state: ReviewMarkState) : bool =
+    not state.IsApproved || state.ClearedState = ReviewUncleared
+
+/// Der Text des Toasts nach der Wisch-Geste: "<Payee> geprüft". Ohne Payee steht die
+/// Anzeige der Liste ("ohne Payee") da.
+let swipeReviewedToastText (payee: string option) : string =
+    let name = payee |> Option.defaultValue "ohne Payee"
+    $"{name} geprüft"
+
+/// Die Beschriftung der Aktionsfläche hinter der Zeile beim Wischen nach rechts.
+let swipeActionLabel = "Geprüft"
+
+/// Die Beschriftung der Toast-Aktion.
+let undoToastLabel = "Rückgängig"
+
+/// Wirkt der Wisch auf diese Zeile? Nur eine zu prüfende, nicht in YNAB gelöschte Zeile
+/// nimmt den Prüfvermerk an; auf einer geprüften Zeile bleibt es bei `NoChange`, ohne
+/// Aufruf und ohne Toast.
+let swipeAppliesTo (entry: LedgerEntryView) : bool =
+    entry.NeedsReview && not entry.DeletedInYnab
+
 let reviewMarkHintTitle = "Prüfvermerk nicht in YNAB"
 
 /// Welchen Hinweis trägt die Zeile? Ein Befehlsfehler (`ReviewMarkCommandFailed`) hat
@@ -380,6 +403,11 @@ type Model = {
     /// Der Zustand der Prüfvermerk-Schaltfläche je Buchung (ledger-r777c): läuft ein
     /// Aufruf oder scheiterte der Befehl. Zeilen ohne Eintrag sind im Ruhezustand.
     ReviewMarkRows: Map<Guid, ReviewMarkRowState>
+
+    /// Buchungen, die eine Wisch-Geste aus der Liste genommen hat (Chip "Zu prüfen"),
+    /// samt ihrem Platz in der Liste (ledger-th36h). "Rückgängig" setzt sie dorthin
+    /// zurück. `resetEntries` leert die Karte, eine neu geladene Liste kennt sie nicht mehr.
+    SwipedAway: Map<Guid, LedgerEntryView * int>
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -505,10 +533,27 @@ type Msg =
     | RunRetryReviewMark of Guid
     | ReviewMarkRetried of Guid * Result<ReviewMarkWriteBack, string>
 
+    // ============================================
+    // Wisch nach rechts: geprüft, mit Rückgängig (ledger-th36h)
+    // ============================================
+
+    /// Wisch nach rechts an einer Karte (Handy). Wirkt nur auf eine zu prüfende Zeile.
+    | StartSwipeReviewed of Guid
+    | RunSwipeReviewed of Guid
+    /// Antwort auf die Geste; der Payee-Name ist festgehalten, bevor die Zeile die Liste
+    /// verlässt (Text des Toasts).
+    | SwipeReviewedDone of Guid * string * Result<ReviewMarkOutcome, string>
+    /// Klick auf "Rückgängig" im Toast: stellt den Vorzustand aus der Antwort wieder her.
+    | StartUndoReviewMark of Guid * ReviewMarkState
+    | RunUndoReviewMark of Guid * ReviewMarkState
+    | ReviewMarkRestored of Guid * ReviewMarkState * Result<ReviewMarkOutcome, string>
+
 /// Was die Seite nach oben meldet.
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
+    /// Ein Toast mit Schaltfläche (ledger-th36h: "Rückgängig").
+    | ShowToastWithAction of string * ToastType * ToastAction
 
 /// Die Zusammenfassung eines Spiegel-Laufs als Satz.
 let mirrorSummaryText (summary: MirrorRunSummary) : string =

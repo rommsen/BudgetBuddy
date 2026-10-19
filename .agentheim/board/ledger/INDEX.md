@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 56
+- **Doing:** 0
+- **Done:** 57
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-th36h** — "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)" (feature) — `doing/ledger-th36h-wisch-geprueft-mit-rueckgaengig-toast.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-th36h** — "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)" (feature) — `done/ledger-th36h-wisch-geprueft-mit-rueckgaengig-toast.md`
 - **ledger-be1yh** — "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt" (bug) — `done/ledger-be1yh-seitenversatz-verrutscht-wenn-bei-aktivem-chip-zu-pr-fen-ein.md`
 - **ledger-r777c** — "Prüfvermerk in BB setzen und nach YNAB zurückschreiben: Befehl, YNAB-PATCH, Zustand \"Prüfvermerk nicht in YNAB\" und eine Schaltfläche Geprüft/Ungeprüft an der Zeile" (feature) — `done/ledger-r777c-pruefvermerk-setzen-und-nach-ynab-zurueckschreiben.md`
 - **ledger-zmbf1** — "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung" (bug) — `done/ledger-zmbf1-flaky-test-replay-test-f-r-splittransfercounterparts-l-uft-i.md`

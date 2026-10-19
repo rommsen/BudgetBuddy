@@ -55,6 +55,7 @@ let init () : Model * Cmd<Msg> =
         AmountMaxDraft = ""
         AmountVersion = 0
         ReviewMarkRows = Map.empty
+        SwipedAway = Map.empty
     }
     model, Cmd.none
 
@@ -69,6 +70,7 @@ let private resetEntries (model: Model) : Model = {
         TotalAmount = { model.TotalAmount with Amount = 0m }
         HasMoreEntries = false
         LoadingMore = false
+        SwipedAway = Map.empty
 }
 
 /// Die Seitenanfrage an den Server. Rein, damit der Versatz testbar ist. Die fünf
@@ -139,6 +141,66 @@ let private applyReviewMarkResult
                 LocallyRemoved = (if leavesList then cleared.LocallyRemoved + 1 else cleared.LocallyRemoved)
                 HasMoreEntries = List.length remaining < totalCount }
     | _ -> cleared
+
+/// Der offene Fehlschlag der Zeile nach einem Prüfvermerk-Befehl: der Grund aus der
+/// Antwort, `None` nach erfolgreichem Versand; ohne Änderung und ohne Versand bleibt ein
+/// bisheriger Fehlschlag stehen.
+let private writeBackFailureOf (outcome: ReviewMarkOutcome) (entry: LedgerEntryView) : string option =
+    match outcome.WriteBack with
+    | ReviewMarkSendFailed reason -> Some reason
+    | ReviewMarkSent -> None
+    | ReviewMarkNotSent -> if outcome.Change = ReviewMarkUnchanged then entry.ReviewMarkWriteBackFailure else None
+
+/// Ergebnis der Wisch-Geste (ledger-th36h): trägt den Prüfvermerk wie die Schaltfläche
+/// ein und merkt sich eine Zeile, die dadurch die Liste verlässt, samt Platz, damit
+/// "Rückgängig" sie zurückholen kann. Rein, ohne Proxy.
+let private applySwipeReviewed (entryId: Guid) (outcome: ReviewMarkOutcome) (model: Model) : Model =
+    let before =
+        match model.Entries with
+        | Success entries ->
+            entries |> List.tryFindIndex (fun e -> e.Id = entryId) |> Option.map (fun i -> i, List.item i entries)
+        | _ -> None
+    let applied = applyReviewMarkResult entryId (Some false) (writeBackFailureOf outcome) model
+    match before, applied.Entries with
+    | Some (index, entry), Success remaining when not (remaining |> List.exists (fun e -> e.Id = entryId)) ->
+        { applied with SwipedAway = applied.SwipedAway |> Map.add entryId (entry, index) }
+    | _ -> applied
+
+/// Setzt eine von der Geste entfernte Zeile an ihren Platz zurück und rechnet Anzahl,
+/// Summe und Zähler "Zu prüfen" nach. Ohne gemerkte Zeile (die Liste wurde neu geladen)
+/// bleibt das Modell, wie es ist. Rein.
+let private reinsertSwipedAway (entryId: Guid) (model: Model) : Model =
+    match model.SwipedAway |> Map.tryFind entryId, model.Entries with
+    | Some (entry, index), Success entries when not (entries |> List.exists (fun e -> e.Id = entryId)) ->
+        let at = min index (List.length entries)
+        let before, after = List.splitAt at entries
+        let restored = before @ [ entry ] @ after
+        let totalCount = model.TotalCount + 1
+        // Die Zeile ist wieder in der Liste: der Seitenversatz darf sie nicht mehr
+        // abziehen, sonst lädt die nächste Seite diese Buchung doppelt (ledger-be1yh).
+        { model with
+            LocallyRemoved = max 0 (model.LocallyRemoved - 1)
+            Entries = Success restored
+            SwipedAway = model.SwipedAway |> Map.remove entryId
+            TotalCount = totalCount
+            TotalAmount =
+                if entry.DeletedInYnab then model.TotalAmount
+                else { model.TotalAmount with Amount = model.TotalAmount.Amount + entry.Amount.Amount }
+            NeedsReviewCount = model.NeedsReviewCount + (if entry.NeedsReview then 1 else 0)
+            HasMoreEntries = List.length restored < totalCount }
+    | _ -> model
+
+/// Ergebnis von "Rückgängig": holt die Zeile zurück, falls die Geste sie aus der Liste
+/// nahm, und setzt dann den Vorzustand ein, den der Client mitgeschickt hat. Der Zähler
+/// "Zu prüfen" folgt dem BB-Stand. Rein.
+let private applyUndoReviewMark
+    (entryId: Guid)
+    (previous: ReviewMarkState)
+    (outcome: ReviewMarkOutcome)
+    (model: Model)
+    : Model =
+    let reinserted = reinsertSwipedAway entryId model
+    applyReviewMarkResult entryId (Some (needsReviewOf previous)) (writeBackFailureOf outcome) reinserted
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -612,12 +674,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         // Ist ändert daran nichts. Der Fehlschlag kommt aus der Antwort; ohne Änderung und
         // ohne Versand bleibt ein offener Fehlschlag stehen.
         let needsReview = Some (target = Unreviewed)
-        let failureOf (entry: LedgerEntryView) =
-            match outcome.WriteBack with
-            | ReviewMarkSendFailed reason -> Some reason
-            | ReviewMarkSent -> None
-            | ReviewMarkNotSent -> if outcome.Change = ReviewMarkUnchanged then entry.ReviewMarkWriteBackFailure else None
-        applyReviewMarkResult entryId needsReview failureOf model, Cmd.none, NoOp
+        applyReviewMarkResult entryId needsReview (writeBackFailureOf outcome) model, Cmd.none, NoOp
 
     | ReviewMarkSet (entryId, _, Error message) ->
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
@@ -649,3 +706,81 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
         Cmd.none,
         NoOp
+
+    // ============================================
+    // Wisch nach rechts: geprüft, mit Rückgängig (ledger-th36h)
+    // ============================================
+
+    | StartSwipeReviewed entryId ->
+        // Nur eine zu prüfende Zeile, die nicht schon sendet. Eine geprüfte Zeile bleibt
+        // bei `NoChange`: kein Aufruf, kein Toast.
+        let entry =
+            match model.Entries with
+            | Success entries -> entries |> List.tryFind (fun e -> e.Id = entryId)
+            | _ -> None
+        match entry with
+        | Some e when swipeAppliesTo e && (model.ReviewMarkRows |> Map.tryFind entryId) <> Some ReviewMarkSending ->
+            { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+            Cmd.ofMsg (RunSwipeReviewed entryId),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSwipeReviewed entryId ->
+        let payee =
+            match model.Entries with
+            | Success entries -> entries |> List.tryFind (fun e -> e.Id = entryId) |> Option.bind (fun e -> e.Payee)
+            | _ -> None
+        let text = swipeReviewedToastText payee
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setReviewMark entryId)
+                Reviewed
+                (fun result -> SwipeReviewedDone (entryId, text, result))
+                (fun ex -> SwipeReviewedDone (entryId, text, Error ex.Message))
+        model, cmd, NoOp
+
+    | SwipeReviewedDone (entryId, text, Ok outcome) ->
+        let model' = applySwipeReviewed entryId outcome model
+        let external =
+            match outcome.WriteBack with
+            | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
+            | _ when outcome.Change = ReviewMarkUnchanged -> NoOp
+            | _ ->
+                ShowToastWithAction (
+                    text,
+                    ToastSuccess,
+                    { Label = undoToastLabel; Kind = UndoReviewMark (entryId, outcome.Previous) }
+                )
+        model', Cmd.none, external
+
+    | SwipeReviewedDone (entryId, _, Error message) ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Prüfvermerk nicht gesetzt: {message}", ToastError)
+
+    | StartUndoReviewMark (entryId, previous) ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId ReviewMarkSending },
+        Cmd.ofMsg (RunUndoReviewMark (entryId, previous)),
+        NoOp
+
+    | RunUndoReviewMark (entryId, previous) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.restoreReviewMark entryId)
+                previous
+                (fun result -> ReviewMarkRestored (entryId, previous, result))
+                (fun ex -> ReviewMarkRestored (entryId, previous, Error ex.Message))
+        model, cmd, NoOp
+
+    | ReviewMarkRestored (entryId, previous, Ok outcome) ->
+        let model' = applyUndoReviewMark entryId previous outcome model
+        let external =
+            match outcome.WriteBack with
+            | ReviewMarkSendFailed reason -> ShowToast ($"{reviewMarkHintTitle}: {reason}", ToastError)
+            | _ -> NoOp
+        model', Cmd.none, external
+
+    | ReviewMarkRestored (entryId, _, Error message) ->
+        { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)

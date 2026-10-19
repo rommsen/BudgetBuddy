@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 19:30 - Wisch nach rechts markiert geprüft, Toast mit Rückgängig (ledger-th36h)
+
+**What I did:**
+Wisch-Geste nach rechts im Handy-Kassenbuch, Toast mit Aktions-Slot im Design System, Rückgängig über `restoreReviewMark`, Galerie-Beispiel.
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `src/Client/Types.fs` - `ToastAction`, `ToastActionKind`, Feld `Action` am Toast
+- `src/Client/State.fs` - `ShowToastWithAction`, `ToastActionClicked`, `toastActionMsg`
+- `src/Client/View.fs` - `Toast.renderItems` statt `renderList`
+- `src/Client/DesignSystem/Toast.fs` - Aktions-Schaltfläche, `renderItems`, Container über der Tab-Bar
+- `src/Client/DesignSystem/Swipe.fs` - Richtung, `SwipeableRowRight`, reine Entscheidungsfunktionen
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs` - Msgs, Reducer, Karte mit Geste
+- `src/Client/Components/Styleguide/View.fs` - Beispiel "Mit Rückgängig"
+- `src/Client/styles.css` - `toast-above-nav`, `.from-left`, `.reviewed`, `touch-action`
+- `src/Tests/LedgerReviewMarkClientTests.fs`, `ToastLifecycleTests.fs` - 22 neue Tests
+
+**Rationale:**
+Der Wisch ist die schnellste Geste für den Durchsehen-Ablauf, Rückgängig fängt Fehlwürfe ab.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1413 grün, 7 übersprungen; test:scripts 134/134
+- Issues: einmaliger Timeout im ersten test:scripts-Lauf, Wiederholung grün
+
+---
+
 ## 2026-10-19 19:10 - Seitenversatz beim Nachladen mit lokal entfernten Zeilen (ledger-be1yh)
 
 **What I did:**

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 18:59 -- Task verified and completed: ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
+
+**Type:** Work / Task completion
+**Task:** ledger-th36h - "Wisch nach rechts markiert eine Buchung als geprüft, Toast mit Rückgängig (Handy)"
+**Summary:** Am Handy markiert ein Wisch nach rechts eine zu prüfende Karte im Kassenbuch als geprüft, ein Toast "<Payee> geprüft" mit "Rückgängig" stellt den Vorzustand aus der Antwort wieder her. Das Design System hat dafür einen Aktions-Slot im Toast, eine Wisch-Richtung für SwipeableRow und ein Galerie-Beispiel.
+**Duration:** 24m40s
+**Verification:** PASS (iteration 1)
+**Files changed:** 12
+**Tests added:** 22
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 18:49 -- Task verified and completed: ledger-be1yh - "Seitenversatz verrutscht, wenn bei aktivem Chip Zu prüfen eine Zeile die Liste verlässt"
 
 **Type:** Work / Task completion

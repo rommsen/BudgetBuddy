@@ -176,7 +176,23 @@ type ToastType =
     | ToastInfo
     | ToastWarning
 
+/// Was ein Klick auf die Aktion eines Toasts auslöst. Eine Beschreibung statt einer
+/// Funktion, damit der Toast vergleichbar und testbar bleibt; die Wurzel (`State.fs`)
+/// übersetzt sie in die Nachricht des Bausteins.
+type ToastActionKind =
+    /// "Rückgängig" nach einer Wisch-Geste auf dem Prüfvermerk (ledger-th36h, ADR 0050
+    /// Punkt 10): der Vorzustand kommt aus der Antwort des Befehls.
+    | UndoReviewMark of entryId: Guid * previous: Shared.Domain.ReviewMarkState
+
+/// Die optionale Aktion eines Toasts: Beschriftung und was der Klick auslöst.
+type ToastAction = {
+    Label: string
+    Kind: ToastActionKind
+}
+
 /// Toast notification.
+/// `Action`: optionale Schaltfläche am Toast (ledger-th36h); ohne Aktion verhält sich
+/// der Toast wie bisher.
 /// `Exiting` drives the two-phase removal: a toast is first marked exiting (which
 /// triggers the CSS exit animation in the view), then removed from the list after
 /// the exit duration has elapsed. This is what gives toasts a soft fade-out instead
@@ -186,6 +202,7 @@ type Toast = {
     Message: string
     Type: ToastType
     Exiting: bool
+    Action: ToastAction option
 }
 
 /// Toast lifecycle helpers — pure, so the exiting→removed transition is unit-testable
