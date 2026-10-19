@@ -46,14 +46,21 @@ Bild und Text: Handoff Ablauf 1, Screens 1.11 und 1.12
    `NoChange` oder Fehlschläge, nennt der Toast sie mit ("2 ohne Änderung, 3 nicht in
    YNAB"); gescheiterte Zeilen tragen den Hinweis aus `ledger-r777c`. Die Auswahl wird
    danach aufgehoben, mit aktivem Chip "Zu prüfen" verlassen die gesetzten Zeilen die Liste
-   und der Zähler sinkt.
+   und der Zähler sinkt. `LocallyRemoved` (`ledger-be1yh`) steigt um die Zahl der Zeilen,
+   die die geladene Liste verlassen.
 6. **Ein Rückgängig für den ganzen Stapel** (Entscheidung Roman 2026-10-19, Handoff 1.12:
    "eine Rücknahme, nicht drei"): stellt für jede geänderte Buchung ihren Vorzustand wieder
    her (Logik von `restoreReviewMark`, ADR 0050 Punkt 1 und 10), wieder mit einem
    Ereignis je Buchung und einem Sammel-PATCH. `NoChange`-Buchungen werden nicht angefasst.
-   Die Zeilen kehren in die Liste zurück, der Zähler steigt.
-7. Der Aktions-Slot im Toast entsteht in `ledger-th36h` oder hier, je nachdem, was zuerst
-   umgesetzt wird (DS-Komponente plus Galerie-Beispiel in `/styleguide`).
+   Danach lädt der Client die Liste neu (`resetEntries`), statt Zeilen einzeln
+   zurückzustecken: unter `AllExcept` waren viele der Buchungen nie geladen, und das
+   Neuladen setzt Seitenversatz und Zähler auf den Stand des Servers.
+7. **Toast-Aktion:** der Slot steht seit `ledger-th36h` (`Types.Toast.Action`,
+   `ToastActionKind`). Diese Task ergänzt einen Fall `UndoReviewMarkBatch` mit den
+   Vorzuständen je Buchung aus der Antwort; die Wurzel übersetzt ihn wie
+   `UndoReviewMark`.
+8. **Leiste:** am Handy steht "Geprüft" in Reihe 2 neben "Alle" und "Auswahl aufheben",
+   am PC in der einreihigen Leiste rechts (`MultiSelect.barMobile`/`barDesktop`).
 
 ## Acceptance criteria
 - [ ] Stapel mit drei zu prüfenden Buchungen (`Picked`): drei `EntryReviewMarkChangedInBb`,
@@ -79,7 +86,9 @@ Bild und Text: Handoff Ablauf 1, Screens 1.11 und 1.12
 - [ ] Reducer-Test: der Toast nennt "n Buchungen geprüft" und bei Bedarf die Zahlen ohne
       Änderung und nicht in YNAB; gescheiterte Zeilen tragen den Hinweis.
 - [ ] Reducer-Test: Rückgängig aus dem Toast löst den Sammel-Rückgängig-Aufruf mit den
-      Vorzuständen aus der Antwort aus; die Zeilen kehren zurück und der Zähler stimmt.
+      Vorzuständen aus der Antwort aus; nach Erfolg lädt die Liste neu.
+- [ ] Reducer-Test: nach "Geprüft" mit aktivem Chip steigt `LocallyRemoved` um die Zahl
+      der Zeilen, die die geladene Liste verlassen.
 - [ ] Ansichts-Test: die Auswahl-Leiste zeigt "Geprüft" als primäre Aktion auf Handy und PC.
 - [ ] `dotnet build`, `dotnet test`, `npm run build`, `npm run guard:classes` grün.
 
@@ -99,3 +108,9 @@ gescheitert gelten. Die Einzelanfrage in `YnabClient.sendReviewMark` ist ein PUT
 Buchung; der Sammelweg ist ein neuer Aufruf daneben, der Einzelweg bleibt.
 
 Die Seitenversatz-Frage beim Nachladen nach dem Entfernen von Zeilen löst `ledger-be1yh`.
+
+Nachgezogen am 2026-10-19 nach `ledger-th36h` und `ledger-r1d2f`: Toast-Slot ist da
+(Punkt 7), Platz in der Leiste benannt (Punkt 8), Rückgängig lädt neu statt einzeln
+einzufügen (Punkt 6). Laut YNAB-OpenAPI ist PATCH die Sammel-Route
+`PATCH /budgets/{id}/transactions` mit `{"transactions": [...]}` und je Eintrag `id`;
+der Einzelweg ist PUT (ADR 0050 Nachtrag).

@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 20:49 -- Modeling / Refined: ledger-q1hw2, ledger-rjb8w, ledger-nhwrt, ledger-b7qmx, ledger-kwwxz
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** q1hw2, rjb8w, nhwrt, b7qmx: todo; kwwxz: backlog (geparkt bis v2)
+**Summary:** q1hw2 hat Kriterien nach Handoff Ablauf 7: gleiche Felder auf Handy und PC, wirkender Geprüft-Schalter und Erneut senden für den Prüfvermerk, PC-Panel folgt der Fokuszeile aus rjb8w. rjb8w: G im Auswahl-Modus aus. nhwrt: Toast-Slot aus th36h, Platz in der Leiste, Rückgängig lädt neu. kwwxz geparkt bis Kategorie ändern in BB (v2).
+**Split into:** ledger-rynk5 (Push-Fehlschlag als Ereignis)
+**ADRs written:** none
+
+---
+
+## 2026-10-19 20:49 -- Modeling / Captured: ledger-rynk5 - "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Abgespalten aus ledger-q1hw2: ein gescheiterter Push nach YNAB wird als Ereignis EntryPushToYnabFailed mit Grund und Zeit festgehalten, das Lesemodell bekommt LinkedToYnab und PushToYnabFailure.
+
+---
+
 ## 2026-10-19 19:29 -- Work session ended
 
 **Type:** Work / Session end

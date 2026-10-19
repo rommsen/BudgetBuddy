@@ -44,3 +44,8 @@ Punkt 3 (Hinweis beim Wechsel) setzt voraus, dass die Kategorie in BB geändert 
 kann, und hängt damit an der v2-Entscheidung. Punkt 1 und 2 sind rein lesend und können
 vorher kommen, sobald die Kategorienauswahl im Kassenbuch gebraucht wird (also mit
 `ledger-vgfw3`).
+
+**Geparkt bis v2 (Roman, 2026-10-19).** In v1 gibt es im Kassenbuch nur die
+Kategorienauswahl der Filterleiste; dort hilft der Available-Betrag nicht beim Zuordnen.
+Sinnvoll wird die Task mit "Kategorie ändern in BB" (v2). Dann alle drei Punkte zusammen
+verfeinern, einschließlich der Frage, wie der Spiegel die Budget-Zahlen frisch hält.

@@ -7,7 +7,7 @@ context: ledger
 created: 2026-10-19
 completed:
 depends_on: [ledger-r777c, design-system-001]
-blocks: []
+blocks: [ledger-q1hw2]
 tags: [frontend, kassenbuch, pc, tastatur]
 related_adrs: [0028, 0032, 0049, 0050]
 related_research: []
@@ -32,6 +32,13 @@ den Prüfvermerk braucht das eine Fokuszeile und die Taste G. Heute gibt es in
    unterscheidet sich davon (zum Beispiel ein heller Rahmen oder Hintergrund in
    `text-muted`-Tönen).
 4. **Hinweis:** ein kleiner Tastaturhinweis ("G geprüft") in der Listenleiste.
+5. **Auswahl-Modus** (`ledger-r1d2f`): solange eine Auswahl läuft, ist G aus, damit
+   nicht unklar ist, ob G die Fokuszeile oder die Auswahl meint. Die Pfeiltasten bewegen
+   den Fokus weiter. Die Sammel-Aktion kommt in `ledger-nhwrt` über die Leiste, nicht
+   über G.
+6. **Fokus als gemeinsamer Baustein:** die Fokuszeile ist der `keyboardCursor` aus
+   Handoff Ablauf 7; `ledger-q1hw2` lässt das Seitenpanel ihr folgen und belegt `Enter`
+   und `Esc`. Diese Task belegt `Enter` und `Esc` nicht.
 
 ## Acceptance criteria
 - [ ] Reducer-Test: Pfeil ab und auf bewegen den Fokus um eine Zeile, am Listenende und
@@ -50,6 +57,8 @@ den Prüfvermerk braucht das eine Fokuszeile und die Taste G. Heute gibt es in
       `aria-selected`), nicht fokussierte Zeilen nicht.
 - [ ] Tastenbelegung kollidiert nicht mit bestehenden Kürzeln der Anwendung (Test oder
       Durchsicht der bestehenden Tastatur-Handler, Ergebnis in den Notes der Umsetzung).
+- [ ] Reducer-Test: bei laufender Auswahl löst G nichts aus, die Pfeiltasten bewegen den
+      Fokus weiter.
 - [ ] `dotnet build` und `dotnet test` grün.
 - [ ] Der Fokus ist neben der Pink-Kante gut erkennbar und die Liste bleibt ruhig
       (ADR 0049). [human-eye]
@@ -58,3 +67,6 @@ den Prüfvermerk braucht das eine Fokuszeile und die Taste G. Heute gibt es in
 Abgespalten am 2026-10-19 beim Verfeinern von `ledger-r777c` (Entscheidung von Roman).
 Die Mehrfachauswahl (`ledger-r1d2f`, `ledger-nhwrt`) hat eigene Tastaturwünsche und ist
 hier nicht Teil des Umfangs.
+
+Verfeinert am 2026-10-19 beim Verfeinern von `ledger-q1hw2`: G ist im Auswahl-Modus aus,
+die Fokuszeile ist die Grundlage für das PC-Seitenpanel (`ledger-q1hw2` hängt daran).
