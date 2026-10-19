@@ -1,7 +1,7 @@
 ---
 id: design-system-zahv9
 title: Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-10-19
