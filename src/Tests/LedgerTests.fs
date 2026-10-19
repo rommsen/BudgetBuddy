@@ -506,32 +506,6 @@ let ledgerDomainTests =
                 (fun () -> apply None (splitLinkEvent unknownId "sub-h4n-a" (newEntryId ())) |> ignore)
                 "ohne vorangehende Erstbeobachtung ist das Log kaputt"
 
-        testCase "Replay reproduziert SplitTransferCounterparts wie die Zustandstabellen (ADR 0013)" <| fun () ->
-            let entryA = newEntryId ()
-            let entryB = newEntryId ()
-            let entryC = newEntryId ()
-            appendAndApply [
-                observedEvent entryA (observedPayload $"ynab-{entryIdText entryA}" None)
-                observedEvent entryB (observedPayload $"ynab-{entryIdText entryB}" None)
-                observedEvent entryC (observedPayload $"ynab-{entryIdText entryC}" None)
-                splitLinkEvent entryA "sub-h4n-r1" entryB
-                splitLinkEvent entryA "sub-h4n-r2" entryC
-            ]
-            |> Async.RunSynchronously
-
-            let byId (entries: Entry list) =
-                entries |> List.sortBy (fun e -> entryIdText e.Id)
-
-            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
-            let fromLog = replayAll () |> Async.RunSynchronously |> byId
-            Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen überein"
-
-            let stateA = fromTables |> List.find (fun e -> e.Id = entryA)
-            Expect.equal
-                stateA.SplitTransferCounterparts
-                (Map.ofList [ "sub-h4n-r1", entryB; "sub-h4n-r2", entryC ])
-                "beide Verknüpfungen stehen im Zustand"
-
         testCase "EntryTransferCounterpartObservedInYnab wirft bei Selbstverknuepfung und ohne vorangehende Erstbeobachtung" <| fun () ->
             // AC3.
             let entryId = newEntryId ()
@@ -1766,6 +1740,32 @@ let ledgerPersistenceTests =
             // Ein zweiter Migrationsversuch (z. B. ein weiterer Prozessstart) bleibt
             // folgenlos statt zu werfen.
             Ledger.Persistence.migrateLedgerEntryColumns conn
+
+        testCase "Replay reproduziert SplitTransferCounterparts wie die Zustandstabellen (ADR 0013)" <| fun () ->
+            let entryA = newEntryId ()
+            let entryB = newEntryId ()
+            let entryC = newEntryId ()
+            appendAndApply [
+                observedEvent entryA (observedPayload $"ynab-{entryIdText entryA}" None)
+                observedEvent entryB (observedPayload $"ynab-{entryIdText entryB}" None)
+                observedEvent entryC (observedPayload $"ynab-{entryIdText entryC}" None)
+                splitLinkEvent entryA "sub-h4n-r1" entryB
+                splitLinkEvent entryA "sub-h4n-r2" entryC
+            ]
+            |> Async.RunSynchronously
+
+            let byId (entries: Entry list) =
+                entries |> List.sortBy (fun e -> entryIdText e.Id)
+
+            let fromTables = loadAllEntries () |> Async.RunSynchronously |> byId
+            let fromLog = replayAll () |> Async.RunSynchronously |> byId
+            Expect.equal fromLog fromTables "Replay und Zustandstabellen stimmen überein"
+
+            let stateA = fromTables |> List.find (fun e -> e.Id = entryA)
+            Expect.equal
+                stateA.SplitTransferCounterparts
+                (Map.ofList [ "sub-h4n-r1", entryB; "sub-h4n-r2", entryC ])
+                "beide Verknüpfungen stehen im Zustand"
     ]
 
 // ============================================

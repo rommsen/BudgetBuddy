@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:16 -- Task verified and completed: ledger-zmbf1 - "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
+
+**Type:** Work / Task completion
+**Task:** ledger-zmbf1 - "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung"
+**Summary:** Der Replay-Test für SplitTransferCounterparts läuft jetzt in der sequenzierten Persistence-Liste mit Schema-Init statt in der reinen Domain-Liste. Fünf Läufe in Folge grün.
+**Duration:** 10m27s
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 16:16 -- Task verified and completed: ledger-vqxvc - "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
 
 **Type:** Work / Task completion

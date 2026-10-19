@@ -4,6 +4,24 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 16:20 - Flaky Replay-Test in sequenzierte Persistence-Liste verschoben
+
+**What I did:**
+Test "Replay reproduziert SplitTransferCounterparts wie die Zustandstabellen (ADR 0013)" von `ledgerDomainTests` nach `ledgerPersistenceTests` verschoben, Inhalt unverändert. Übrige Tests vom 2026-10-18 auf DB-Zugriff in nicht sequenzierten Listen geprüft, nichts Weiteres gefunden.
+
+**Files Modified:**
+- `src/Tests/LedgerTests.fs` - Test in die sequenzierte Liste mit Schema-Init verschoben
+
+**Rationale:**
+Die reine Domain-Liste läuft parallel und ohne Schema-Initialisierung, der Test brauchte aber die In-Memory-DB (ADR 0030) und schlug flaky fehl.
+
+**Outcomes:**
+- Build: ✅ (nur alte FS0025-Warnung)
+- Tests: 1279 bestanden, 7 übersprungen, 5 Läufe in Folge ohne Fehler
+- Issues: keine
+
+---
+
 ## 2026-10-19 16:30 - Build-Warnung FS0025 bei OpenFilterPopover behoben
 
 **What I did:**
