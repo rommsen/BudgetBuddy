@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
-- **Todo:** 0
+- **Backlog:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **categorization-wnxd6** — Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten) (feature) — `todo/categorization-wnxd6-regeln-seite-als-ruhige-liste.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -34,7 +35,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **categorization-wnxd6** — Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten) (feature) — `backlog/categorization-wnxd6-regeln-seite-als-ruhige-liste.md`
 <!-- backlog-list:end -->
 
 
