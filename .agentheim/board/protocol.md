@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 09:45 -- Modeling / Refined: design-system-zahv9 - Ruhige Bausteine für Auswahlen
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** todo
+**Summary:** Neun Punkte mit prüfbaren Kriterien: Money.available ruhig an Ort und Stelle, gemeinsames Picker-Modul für Popover und Sheet, Input.Small 16/14px ohne Inline-fontSize, Footer ohne Glow, searchableSelect gruppiert und deutsch, Form deutsch, Styleguide §7.1 präzisiert. Bericht und Aufnahmen nach docs/ux/design-system/audit-2026-10-19/ übernommen. Roman: eine Aufgabe, keine Teilung.
+
+---
+
 ## 2026-10-19 09:35 -- Work session ended
 
 **Type:** Work / Session end
