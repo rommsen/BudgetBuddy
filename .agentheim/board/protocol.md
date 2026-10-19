@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 08:06 -- Capture / Captured: ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Interne YNAB-Kategorien (Deferred Income, Uncategorized) aus der Kategorieauswahl ausblenden, Ready to Assign behalten (Entscheidung Roman)
+
+---
+
 ## 2026-10-19 08:01 -- Capture / Captured: ledger-eng59 - OpenFilterPopover deckt den Chip "Ohne Kategorie" nicht ab (Warnung FS0025)
 
 **Type:** Capture

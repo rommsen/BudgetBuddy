@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 12
+- **Backlog:** 13
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 50
@@ -36,6 +36,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-d218j** — Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten (feature) — `backlog/ledger-d218j-interne-ynab-kategorien-in-der-kategorieauswahl-ausblenden.md`
 - **ledger-eng59** — OpenFilterPopover deckt den Chip "Ohne Kategorie" nicht ab (Warnung FS0025) (bug) — `backlog/ledger-eng59-openfilterpopover-deckt-ohne-kategorie-chip-nicht-ab.md`
 - **ledger-vqxvc** — "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab" (bug) — `backlog/ledger-vqxvc-build-warnung-fs0025-openfilterpopover-deckt-den-neuen-chip.md`
 - **ledger-zmbf1** — "Flaky Test: Replay-Test für SplitTransferCounterparts läuft in der reinen Domain-Liste ohne Schema-Initialisierung" (bug) — `backlog/ledger-zmbf1-flaky-test-replay-test-f-r-splittransfercounterparts-l-uft-i.md`
