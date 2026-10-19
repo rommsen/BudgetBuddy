@@ -17,6 +17,7 @@
     <Compile Include="DesignSystem/Input.fs" />
     <Compile Include="DesignSystem/Stats.fs" />
     <Compile Include="DesignSystem/Money.fs" />
+    <Compile Include="DesignSystem/PickerParts.fs" />
     <Compile Include="DesignSystem/Table.fs" />
     <Compile Include="DesignSystem/Loading.fs" />
     <Compile Include="DesignSystem/Toast.fs" />

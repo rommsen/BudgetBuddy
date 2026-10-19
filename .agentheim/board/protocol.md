@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 10:16 -- Task verified and completed: design-system-zahv9 - Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch
+
+**Type:** Work / Task completion
+**Task:** design-system-zahv9 - Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch
+**Summary:** Ruhige Auswahlen: gemeinsame PickerParts für Popover und Sheet, Money.available neutral, kompaktes Suchfeld, searchableSelect gegliedert und deutsch
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 18
+**Tests added:** 27
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 09:55 -- Batch started: [design-system-zahv9]
 
 **Type:** Work / Batch start

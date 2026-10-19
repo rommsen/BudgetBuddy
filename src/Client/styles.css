@@ -1764,16 +1764,26 @@ nav a:focus-visible {
 }
 .sheet-search input {
   width: 100%;
-  padding: 10px 14px;
+  min-height: 36px;
+  padding: 8px 12px;
   border-radius: var(--sf-radius-md);
   background: var(--sf-bg-card);
   border: 1px solid var(--sf-border);
-  font-size: 16px; /* < 16px triggers iOS auto-zoom on focus */
+  font-size: 16px; /* < 16px triggers iOS auto-zoom on focus; ab md reicht 14px */
   color: var(--sf-text-primary);
   transition: border-color var(--sf-duration-fast) ease;
 }
+@media (min-width: 768px) {
+  .sheet-search input { font-size: 14px; }
+}
 .sheet-search input::placeholder { color: var(--sf-text-muted); }
-.sheet-search input:focus { border-color: var(--color-neon-teal); }
+/* Ein Fokusrand: der Rand wird teal, der globale focus-visible-Ring entfällt */
+.sheet-search input:focus,
+.sheet-search input:focus-visible {
+  border-color: var(--color-neon-teal);
+  outline: none;
+  box-shadow: none;
+}
 
 .category-group { margin-bottom: 12px; }
 .category-parent {

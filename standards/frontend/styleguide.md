@@ -97,6 +97,24 @@ Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zusta
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
 | Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
 
+#### Auswahl (Picker, `searchableSelect`)
+
+Auswahllisten sind wiederkehrende Zeilen und folgen derselben Ruhe (design-system-zahv9).
+Gemeinsame Bausteine in `DesignSystem/PickerParts.fs`, benutzt von `CategoryMultiSelect`
+(Popover) und `BottomSheet.categoryPicker` (Sheet).
+
+| Element | Regel |
+|---------|-------|
+| Zeile | einzeilig, Name `ListRoles.primary` (15px Handy, 14px PC, 500) mit `truncate`, Betrag rechts in fester Breite |
+| Gruppenkopf | `ListRoles.groupHeader`; „Alle Kategorien“ steht im Sheet nur über „Vorgeschlagen“ oder „Zuletzt verwendet“, nicht bei Suche |
+| Verfügbar-Betrag | `Money.available`: Mono 500, `tabular-nums`, kein Glow; positiv `text-primary`, 0 `text-muted`, negativ Red |
+| Suchfeld | `Input.Small`: 16px unterhalb `md`, 14px ab `md`, 36px hoch, ein Fokusrand |
+| Footer | „Zurücksetzen“ Ghost, „Übernehmen“ kompakt ohne Glow, einzeilig; Zahl nur bei Auswahl („Übernehmen (3)“) |
+
+`searchableSelect` gliedert Optionen der Form „Gruppe: Name“ nach Gruppen (Kopf wie oben,
+Zeile nur mit dem Namen); die Suche findet Gruppe und Name. Texte deutsch („Suchen…“,
+„Keine Treffer“).
+
 - Kein Glow in Listen, keine violetten Kategorien, keine roten Ausgaben.
 - Herkunfts- oder Spiegel-Badges gehören in Detail und Historie, nicht in die Zeile.
 - Listen-Seiten bekommen einen schlanken Kopf ohne Gradient-Titel und füllen die Breite.
@@ -258,8 +276,9 @@ Das zentrale Mobile-Muster für **alle** Bottom Sheets / Overlays. Quelle:
    der nachgelagerte synthetische Click nicht auf das Element hinter dem geschlossenen
    Sheet durchschlägt (der "Ghost-Click").
 3. **Flankierend verbindlich:** gezählter Body-Scroll-Lock (iOS-fest via
-   `position: fixed`); Suchfelder ≥ 16px und **oberhalb** der Liste gepinnt (kein
-   iOS-Auto-Zoom, bleibt beim Scrollen sichtbar); `touch-action: manipulation` auf
+   `position: fixed`); Suchfelder ≥ 16px unterhalb `md` (ab `md` sind 14px erlaubt, der
+   iOS-Zoom betrifft nur Touch-Geräte) und **oberhalb** der Liste gepinnt (bleibt beim
+   Scrollen sichtbar); `touch-action: manipulation` auf
    Tappables; expliziter Close-Button; `autoFocus` **nur bei feinem Pointer**
    (`Viewport.isFinePointer()`).
 4. **Stacking nur über Layer-Klasse** (`.layer-2`, z-index 70/80), maximal eine Ebene

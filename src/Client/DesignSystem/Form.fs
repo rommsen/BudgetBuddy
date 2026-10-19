@@ -14,6 +14,11 @@ let getMissingFields (fields: (string * string) list) =
     |> List.filter (fun (_, value) -> not (isRequiredValid value))
     |> List.map fst
 
+/// Hinweistext unter dem Absenden-Knopf, wenn Pflichtfelder fehlen
+let missingFieldsText (missingFields: string list) : string =
+    let fields = String.concat ", " missingFields
+    $"Bitte ausfüllen: {fields}"
+
 /// Submit button with validation message below
 /// Shows orange warning when required fields are missing
 let submitButton (text: string) (onClick: unit -> unit) (isLoading: bool) (requiredFields: (string * string) list) =
@@ -41,8 +46,7 @@ let submitButton (text: string) (onClick: unit -> unit) (isLoading: bool) (requi
                     prop.children [
                         Icons.warning SM NeonOrange
                         Html.span [
-                            let fields = String.concat ", " missingFields
-                            prop.text $"Please fill in: {fields}"
+                            prop.text (missingFieldsText missingFields)
                         ]
                     ]
                 ]
@@ -73,8 +77,7 @@ let submitButtonWithIcon (text: string) (icon: ReactElement) (onClick: unit -> u
                     prop.children [
                         Icons.warning SM NeonOrange
                         Html.span [
-                            let fields = String.concat ", " missingFields
-                            prop.text $"Please fill in: {fields}"
+                            prop.text (missingFieldsText missingFields)
                         ]
                     ]
                 ]
@@ -104,8 +107,7 @@ let submitButtonSecondary (text: string) (onClick: unit -> unit) (isLoading: boo
                     prop.children [
                         Icons.warning SM NeonOrange
                         Html.span [
-                            let fields = String.concat ", " missingFields
-                            prop.text $"Please fill in: {fields}"
+                            prop.text (missingFieldsText missingFields)
                         ]
                     ]
                 ]

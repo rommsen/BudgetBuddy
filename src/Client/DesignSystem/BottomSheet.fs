@@ -58,10 +58,7 @@ type private CategoryPickerInternalProps = {
 
 /// Renders a section title label (e.g. "Vorgeschlagen", "Zuletzt verwendet")
 let sectionTitle (title: string) : ReactElement =
-    Html.div [
-        prop.className "sheet-section-title"
-        prop.text title
-    ]
+    PickerParts.groupHeader title
 
 /// Renders a chip button used in suggestion / recent sections.
 /// Selection commits on the real `click` — committing on pointerdown lets the
@@ -311,7 +308,6 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                         // on touch it would summon the keyboard
                                         // before the user even sees the suggestions.
                                         prop.autoFocus (Viewport.isFinePointer())
-                                        prop.className "text-base"
                                     ]
                                 ]
                             ]
@@ -359,43 +355,39 @@ let private CategoryPickerInternal (input: CategoryPickerInternalProps) =
                                             ]
                                         ]
 
-                                    // All categories (grouped)
+                                    // All categories (grouped). Der Kopf "Alle Kategorien" steht nur,
+                                    // wenn darüber Vorgeschlagen oder Zuletzt verwendet erscheint.
+                                    let isSearching = not (System.String.IsNullOrWhiteSpace searchText)
                                     Html.div [
                                         prop.className "sheet-section"
                                         prop.children [
-                                            sectionTitle "Alle Kategorien"
+                                            if PickerParts.showAllCategoriesHeader
+                                                (not input.SuggestedCategories.IsEmpty)
+                                                (not input.RecentCategories.IsEmpty)
+                                                isSearching then
+                                                sectionTitle "Alle Kategorien"
 
                                             for (groupName, items) in groupedCategories do
                                                 Html.div [
                                                     prop.className "category-group"
                                                     prop.children [
                                                         if groupName <> "" then
-                                                            Html.div [
-                                                                prop.className "category-parent"
-                                                                prop.text groupName
-                                                            ]
+                                                            PickerParts.groupHeader groupName
                                                         for c in items do
-                                                            Html.div [
-                                                                prop.className "category-item flex items-center justify-between gap-3"
-                                                                // Keep focus (and keyboard) on the search
-                                                                // input — prevents a blur-induced layout
-                                                                // shift between tap and click.
-                                                                prop.onMouseDown (fun e -> e.preventDefault())
-                                                                prop.onClick (fun e ->
-                                                                    e.stopPropagation()
-                                                                    selectAndClose c.Id)
-                                                                prop.children [
-                                                                    Html.span [
-                                                                        prop.className "truncate"
-                                                                        prop.text (displayName c.Label)
-                                                                    ]
-                                                                    // Right-aligned, colour-coded current
-                                                                    // Available (YNAB balance) when provided.
-                                                                    match c.Available with
-                                                                    | Some m -> Money.available m.Amount m.Currency
-                                                                    | None -> ()
+                                                            PickerParts.row
+                                                                "category-item"
+                                                                [
+                                                                    prop.key c.Id
+                                                                    // Keep focus (and keyboard) on the search
+                                                                    // input, prevents a blur-induced layout
+                                                                    // shift between tap and click.
+                                                                    prop.onMouseDown (fun e -> e.preventDefault())
+                                                                    prop.onClick (fun e ->
+                                                                        e.stopPropagation()
+                                                                        selectAndClose c.Id)
                                                                 ]
-                                                            ]
+                                                                (PickerParts.name (displayName c.Label))
+                                                                (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
                                                     ]
                                                 ]
                                         ]

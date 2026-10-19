@@ -26,8 +26,13 @@ type InputState =
 let private baseInputClass =
     "input-field"
 
-let private sizeToClass = function
-    | Small -> "text-sm px-3 py-2 min-h-[36px]"
+/// Schriftgröße kompakter Suchfelder: 16px unterhalb `md` (iOS-Zoom), 14px ab `md`
+/// (Styleguide §7.1).
+let searchFieldTextClass = "text-base md:text-sm"
+
+/// Klassen je Größe. Öffentlich, damit die Tests sie prüfen können.
+let sizeToClass = function
+    | Small -> $"{searchFieldTextClass} px-3 py-2 min-h-[36px]"
     | Medium -> "text-base px-4 py-3 min-h-[48px] md:min-h-[44px]"
     | Large -> "text-lg px-4 py-3.5 min-h-[52px]"
 
@@ -62,6 +67,14 @@ let textInputDefaults = {
     ClassName = None
 }
 
+/// Setzt `text` das Inline-`fontSize 16` (iOS-Zoom-Schutz)? Nur Medium und Large. Small
+/// trägt `text-base md:text-sm` über Klassen; ein Inline-Style würde die Tailwind-Größe
+/// ab `md` überstimmen.
+let usesInlineFontSize (size: InputSize) : bool =
+    match size with
+    | Small -> false
+    | Medium | Large -> true
+
 /// Text input field
 let text (props: TextInputProps) =
     let sizeClass = sizeToClass props.Size
@@ -76,8 +89,9 @@ let text (props: TextInputProps) =
         prop.onChange props.OnChange
         prop.placeholder props.Placeholder
         prop.disabled props.Disabled
-        // Prevent iOS zoom on focus
-        prop.style [ style.fontSize 16 ]
+        // Prevent iOS zoom on focus (Small regelt das über `text-base md:text-sm`)
+        if usesInlineFontSize props.Size then
+            prop.style [ style.fontSize 16 ]
     ]
 
 /// Simple text input
@@ -226,13 +240,17 @@ let selectWithPlaceholder value onChange placeholder (options: (string * string)
 // Checkbox
 // ============================================
 
-/// Checkbox input
-let checkbox (isChecked: bool) (onChange: bool -> unit) (label: string) =
+/// Klassen des Beschriftungstexts einer Listenzeilen-Checkbox: Größe und Gewicht von
+/// `ListRoles.primary`, einzeilig gekürzt. Nur eine Farbklasse (die aus `primary`).
+let checkboxListLabelClass : string =
+    $"{ListRoles.primary} truncate min-w-0"
+
+let private checkboxWith (listRow: bool) (isChecked: bool) (onChange: bool -> unit) (label: string) =
     Html.label [
-        prop.className "flex items-center gap-3 cursor-pointer group"
+        prop.className (if listRow then "flex items-center gap-3 cursor-pointer min-w-0" else "flex items-center gap-3 cursor-pointer group")
         prop.children [
             Html.label [
-                prop.className "proto-toggle"
+                prop.className "proto-toggle shrink-0"
                 prop.onClick (fun e -> e.stopPropagation())
                 prop.children [
                     Html.input [
@@ -265,11 +283,19 @@ let checkbox (isChecked: bool) (onChange: bool -> unit) (label: string) =
                 ]
             ]
             Html.span [
-                prop.className "text-text-primary group-hover:text-text-secondary transition-colors"
+                prop.className (if listRow then checkboxListLabelClass else "text-text-primary group-hover:text-text-secondary transition-colors")
                 prop.text label
             ]
         ]
     ]
+
+/// Checkbox input
+let checkbox (isChecked: bool) (onChange: bool -> unit) (label: string) =
+    checkboxWith false isChecked onChange label
+
+/// Checkbox für Listenzeilen (Auswahlen): Beschriftung in `ListRoles.primary`, einzeilig gekürzt.
+let checkboxListRow (isChecked: bool) (onChange: bool -> unit) (label: string) =
+    checkboxWith true isChecked onChange label
 
 /// Checkbox without label
 let checkboxSimple (isChecked: bool) (onChange: bool -> unit) =
@@ -500,6 +526,45 @@ let searchableSelectDefaults = {
 }
 
 /// Searchable select dropdown with filter functionality and keyboard navigation
+/// Platzhalter der Suche im searchableSelect
+let searchPlaceholderText = "Suchen…"
+/// Text bei leerer Trefferliste im searchableSelect
+let noMatchesText = "Keine Treffer"
+
+/// Filtert Optionen `(value, "Gruppe: Name")` ohne Beachtung der Schreibweise. Die Suche
+/// trifft das ganze Label, findet also Gruppe und Name.
+let filterOptionsBySearch (search: string) (options: (string * string) list) : (string * string) list =
+    if System.String.IsNullOrWhiteSpace search then
+        options
+    else
+        let searchLower = search.Trim().ToLowerInvariant()
+        options |> List.filter (fun (_, label) -> label.ToLowerInvariant().Contains searchLower)
+
+/// Gliedert Optionen `(value, "Gruppe: Name")` in Gruppen. Der Gruppenname steht ohne
+/// Präfix im Ergebnis, die Optionen tragen nur den Namen. Labels ohne ": " landen in
+/// einer Gruppe mit leerem Namen (ohne Kopf). Die Gruppen folgen der Reihenfolge ihres
+/// ersten Auftretens.
+let groupOptions (options: (string * string) list) : (string * (string * string) list) list =
+    let split (label: string) =
+        match label.IndexOf ": " with
+        | -1 -> "", label
+        | idx -> label.Substring(0, idx).Trim(), label.Substring(idx + 2).Trim()
+    options
+    |> List.map (fun (value, label) ->
+        let group, name = split label
+        group, (value, name))
+    |> List.groupBy fst
+    |> List.map (fun (group, items) -> group, items |> List.map snd)
+
+/// Zeilenklassen einer Option im searchableSelect: 15px am Handy, 14px am PC (wie die
+/// Picker-Zeile), nur eine Farbklasse je Zustand.
+let searchableOptionClass (isHighlighted: bool) (isSelected: bool) : string =
+    let color =
+        if isHighlighted then "bg-neon-teal/20 text-neon-teal"
+        elif isSelected then "bg-neon-teal/10 text-neon-teal"
+        else "text-text-primary hover:bg-neon-teal/10 hover:text-neon-teal"
+    $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} font-medium transition-colors {color}"
+
 [<ReactComponent>]
 let SearchableSelect (props: SearchableSelectProps) =
     let isOpen, setIsOpen = React.useState false
@@ -509,6 +574,7 @@ let SearchableSelect (props: SearchableSelectProps) =
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
     let inputRef = React.useRef<Browser.Types.HTMLInputElement option> None
     let listRef = React.useRef<Browser.Types.HTMLElement option> None
+    let dropdownRef = React.useRef<Browser.Types.HTMLElement option> None
 
     // Find current label for display
     let currentLabel =
@@ -517,15 +583,10 @@ let SearchableSelect (props: SearchableSelectProps) =
         |> Option.map snd
         |> Option.defaultValue ""
 
-    // Filter options based on search (case-insensitive contains)
-    let filteredOptions =
-        if System.String.IsNullOrWhiteSpace searchText then
-            props.Options
-        else
-            let searchLower = searchText.ToLowerInvariant()
-            props.Options
-            |> List.filter (fun (_, label) ->
-                label.ToLowerInvariant().Contains searchLower)
+    // Filter (Gruppe oder Name), dann nach Gruppen gliedern. Die Tastaturnavigation
+    // läuft über die gegliederte Reihenfolge, damit Index und Anzeige übereinstimmen.
+    let groupedOptions = groupOptions (filterOptionsBySearch searchText props.Options)
+    let filteredOptions = groupedOptions |> List.collect snd
 
     // Total items: 1 (placeholder/clear) + filtered options
     let totalItems = 1 + filteredOptions.Length
@@ -641,6 +702,23 @@ let SearchableSelect (props: SearchableSelectProps) =
         setIsKeyboardNav false
         setHighlightedIndex index
 
+    // Option mit laufender Nummer (0 ist die Leer-Option), in Anzeigereihenfolge
+    let indexedGroups =
+        groupedOptions
+        |> List.mapFold
+            (fun n (g, items) -> (g, items |> List.mapi (fun i it -> n + i + 1, it)), n + items.Length)
+            0
+        |> fst
+
+    // Beim Öffnen die Liste ins Sichtfeld holen: in einem Dialog mit scrollendem Körper
+    // reicht der Platz unter dem Feld sonst nicht bis zur letzten Option.
+    React.useEffect (fun () ->
+        if isOpen then
+            match dropdownRef.current with
+            | Some el -> el.scrollIntoView(false)
+            | None -> ()
+    , [| isOpen :> obj |])
+
     let sizeClass = sizeToClass props.Size
     let disabledClass = if props.Disabled then "opacity-50 cursor-not-allowed" else ""
 
@@ -693,6 +771,7 @@ let SearchableSelect (props: SearchableSelectProps) =
             if isOpen then
                 Html.div [
                     prop.className "absolute z-50 w-full mt-1 bg-surface-input border border-border-default rounded-lg shadow-xl overflow-hidden"
+                    prop.ref dropdownRef
                     prop.children [
                         // Search input
                         Html.div [
@@ -701,29 +780,28 @@ let SearchableSelect (props: SearchableSelectProps) =
                                 Html.input [
                                     prop.ref inputRef
                                     prop.type' "text"
-                                    prop.className "w-full bg-surface-card text-text-primary border border-border-default rounded-md px-3 py-2 text-sm focus:border-neon-teal focus:outline-none placeholder:text-text-muted/70"
-                                    prop.placeholder "Type to search..."
+                                    prop.className $"w-full bg-surface-card text-text-primary border border-border-default rounded-md px-3 py-2 min-h-[36px] focus:border-neon-teal focus:outline-none focus-visible:outline-none placeholder:text-text-muted/70 {searchFieldTextClass}"
+                                    prop.placeholder searchPlaceholderText
                                     prop.value searchText
                                     prop.autoFocus true
                                     prop.onChange setSearchText
                                     prop.onKeyDown handleKeyDown
-                                    prop.style [ style.fontSize 16 ]
                                 ]
                             ]
                         ]
 
                         // Options list
                         Html.div [
-                            prop.className "max-h-80 overflow-y-auto"
+                            prop.className "max-h-64 overflow-y-auto"
                             prop.ref listRef
                             prop.children [
                                 // Empty option (clear selection) - index 0
                                 let clearHighlighted = highlightedIndex = 0
                                 let clearClass =
                                     if clearHighlighted then
-                                        "w-full text-left px-4 py-3 text-base italic bg-neon-teal/20 text-neon-teal"
+                                        $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} italic bg-neon-teal/20 text-neon-teal"
                                     else
-                                        "w-full text-left px-4 py-3 text-base text-text-muted/70 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
+                                        $"w-full text-left px-4 py-2.5 {ListRoles.primarySize} text-text-muted/70 hover:bg-neon-teal/10 hover:text-neon-teal transition-colors italic"
                                 Html.button [
                                     prop.type' "button"
                                     prop.className clearClass
@@ -736,33 +814,33 @@ let SearchableSelect (props: SearchableSelectProps) =
                                 if filteredOptions.IsEmpty then
                                     Html.div [
                                         prop.className "px-3 py-4 text-sm text-text-muted/70 text-center"
-                                        prop.text "No matches found"
+                                        prop.text noMatchesText
                                     ]
                                 else
-                                    for i, (value, label) in filteredOptions |> List.indexed do
-                                        let optionIndex = i + 1  // +1 because 0 is the clear option
-                                        let isSelected = value = props.Value
-                                        let isHighlighted = highlightedIndex = optionIndex
-                                        let optionClass =
-                                            if isHighlighted then
-                                                "w-full text-left px-4 py-3 text-base transition-colors bg-neon-teal/20 text-neon-teal"
-                                            elif isSelected then
-                                                "w-full text-left px-4 py-3 text-base transition-colors bg-neon-teal/10 text-neon-teal"
-                                            else
-                                                "w-full text-left px-4 py-3 text-base transition-colors text-text-primary hover:bg-neon-teal/10 hover:text-neon-teal"
-                                        Html.button [
-                                            prop.type' "button"
-                                            prop.className optionClass
-                                            prop.custom ("data-option-index", string optionIndex)
-                                            prop.onClick (fun _ -> selectOption optionIndex)
-                                            prop.onMouseEnter (fun _ -> setHighlightFromMouse optionIndex)
-                                            prop.children [
-                                                Html.span [
-                                                    prop.className "truncate block"
-                                                    prop.text label
+                                    for (groupName, items) in indexedGroups do
+                                        if groupName <> "" then
+                                            Html.div [
+                                                prop.key $"group-{groupName}"
+                                                prop.className $"px-4 pt-3 pb-1 {ListRoles.groupHeader}"
+                                                prop.text groupName
+                                            ]
+                                        for (idx, (value, name)) in items do
+                                            let isSelected = value = props.Value
+                                            let isHighlighted = highlightedIndex = idx
+                                            Html.button [
+                                                prop.key $"opt-{value}"
+                                                prop.type' "button"
+                                                prop.className (searchableOptionClass isHighlighted isSelected)
+                                                prop.custom ("data-option-index", string idx)
+                                                prop.onClick (fun _ -> selectOption idx)
+                                                prop.onMouseEnter (fun _ -> setHighlightFromMouse idx)
+                                                prop.children [
+                                                    Html.span [
+                                                        prop.className "truncate block"
+                                                        prop.text name
+                                                    ]
                                                 ]
                                             ]
-                                        ]
                             ]
                         ]
                     ]

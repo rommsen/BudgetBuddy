@@ -1,7 +1,7 @@
 ---
 id: design-system-zahv9
 title: Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-10-19
@@ -142,3 +142,21 @@ interne YNAB-Kategorien oben (K6, `ledger-d218j`), Seitenumbau der Regeln
   Wenn die Lösung `Modal.fs` berührt, nur additiv, damit andere Dialoge gleich bleiben.
 - Prüfen, ob `Rules/View.fs:312` die Optionen bereits als "Gruppe: Name" baut; die
   Gruppierung soll im DS liegen, nicht in der Seite.
+
+## Outcome
+
+Die Auswahlen folgen jetzt ADR 0049. Neu ist `src/Client/DesignSystem/PickerParts.fs` (Zeile, Gruppenkopf, Suchfeld, Footer, reine Klassenfunktionen und Texte); `CategoryMultiSelect` und `BottomSheet.categoryPicker` rufen beide `PickerParts.row` und `PickerParts.groupHeader` auf, `Money.available` wird nur noch von PickerParts benutzt. Die ADR-0005-Mechanik im Sheet (onMouseDown preventDefault, Click-Commit, swallowNextClick, Scroll-Lock, autoFocus nur bei feinem Pointer) ist unverändert.
+
+- `Money.availableClass`/`available`: Mono 500, `tabular-nums`, `ListRoles.primarySize`, positiv text-primary, 0 text-muted, negativ Red, kein Glow.
+- `Input.checkboxListRow` (Label in `ListRoles.primary`, `truncate`); `Input.Small` ist `text-base md:text-sm`, 36px; `Input.usesInlineFontSize` schaltet das Inline-`fontSize 16` für Small ab.
+- `.sheet-search input` in `styles.css`: 16px, ab 768px 14px, 36px hoch, ein Fokusrand (Outline und Ring entfernt).
+- Sheet: "Alle Kategorien" nur über Vorgeschlagen oder Zuletzt verwendet und nicht bei Suche (`PickerParts.showAllCategoriesHeader`). `BottomSheet.sectionTitle` nutzt jetzt ebenfalls den Gruppenkopf (wirkt auch auf "Konten").
+- Footer: `PickerParts.applyLabel` ("Übernehmen" bzw. "Übernehmen (3)"), kompakter Knopf ohne Glow, `whitespace-nowrap`.
+- `searchableSelect`: `Input.groupOptions` und `Input.filterOptionsBySearch` (rein), Gruppenköpfe, Optionen 15/14px, "Suchen…", "Keine Treffer", Suchfeld kompakt. Gruppierung liegt im DS, `Rules/View.fs` baut weiter "Gruppe: Name" und blieb unverändert. Dropdown-Abschnitt im Modal: Ursache war der scrollende Modal-Körper (`overflow-y-auto`), der die absolut positionierte Liste abschneidet. Lösung nur in `Input.fs`: Liste `max-h-64` und beim Öffnen `scrollIntoView(false)` auf das Dropdown; `Modal.fs` blieb unberührt.
+- `Form.missingFieldsText`: "Bitte ausfüllen: …" an allen drei Stellen. Die Feldnamen (Rule Name, Pattern, Category) kommen aus der Rules-Seite und sind noch englisch (nicht Teil dieser Aufgabe).
+- Styleguide: §7.1 Punkt 3 nennt "≥ 16px unterhalb `md`"; §2 hat den Abschnitt "Auswahl (Picker, searchableSelect)"; `/styleguide` 8a zeigt eine Karte "Auswahl" (data-ds-card `components-auswahl`), die searchableSelect-Demo nutzt "Gruppe: Name"-Optionen.
+- Tests: `src/Tests/AuswahlTests.fs` (27 Tests: reine Klassenfunktionen, Quelltext-Zusicherungen, Regressionstest zum Inline-fontSize mit Kommentar). `dotnet build`, `dotnet test` (1227 grün, 7 übersprungen), `npm run build`, `npm run guard:classes`, `npm run test:scripts` sind grün.
+- Regel-Dialog bei 1440 x 900: Playwright gegen die echte Rules-Seite (Dev-DB-Kopie, Backend). Die Dev-DB liefert offline keine YNAB-Kategorien, deshalb habe ich im Prüfskript die `getCategories`-Antwort mit 43 Test-Kategorien plus "Allerletzte Kategorie" abgefangen. Nach Scrollen ans Listenende liegt die letzte Option bei y=696 bis 736 und der Footer des Dialogs beginnt bei y=762, sie ist also sichtbar. Bilder: `pc-1440x900-rules-modal-category-geoeffnet.png`, `pc-1440x900-rules-modal-category-listenende.png`. Das Prüfskript liegt nicht im Repo.
+- Screenshots `/styleguide` in beiden Viewports sowie die Karte "Auswahl" einzeln (`*-styleguide-auswahl.png`) unter `docs/ux/design-system/screenshots/`. Das Kriterium [human-eye] (Kassenbuch-Filter und Quick-Add-Sheet gegen die Audit-Bilder) braucht noch einen Blick von Roman; ich habe nur die Styleguide-Karte und den Regel-Dialog angesehen.
+
+Diary-Absatz: 2026-10-19, design-system-zahv9. Ruhige Auswahlen: neues Modul PickerParts (Zeile, Gruppenkopf, Suchfeld, Footer) für CategoryMultiSelect und BottomSheet.categoryPicker; Money.available neutral; Input.Small text-base md:text-sm ohne Inline-fontSize; searchableSelect nach Gruppen gegliedert und deutsch, Dropdown im Modal per scrollIntoView erreichbar; Form "Bitte ausfüllen"; Styleguide §2/§7.1 und /styleguide 8a ergänzt. Tests: AuswahlTests.fs (27), Gesamtlauf 1227 grün. Build, guard:classes, npm run build, test:scripts grün.

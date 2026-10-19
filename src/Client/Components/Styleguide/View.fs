@@ -478,6 +478,33 @@ let private calmListSection =
                         caption "Money.listAmount: negativ und null neutral, Eingang Teal"
                     ]
                 ]
+                Html.div [
+                    prop.custom ("data-ds-card", "components-auswahl")
+                    prop.custom ("data-ds-card-name", "Auswahl")
+                    prop.custom ("data-ds-card-subtitle", "Picker-Zeile, Gruppenkopf, Verfügbar-Betrag, Suchfeld und Footer")
+                    prop.custom ("data-ds-group", "Components")
+                    prop.className "max-w-sm space-y-3"
+                    prop.children [
+                        PickerParts.searchField "" ignore "Kategorie suchen…"
+                        Html.div [
+                            prop.children [
+                                PickerParts.groupHeader "Alltag"
+                                PickerParts.row "py-2" [ prop.key "r1" ]
+                                    (Input.checkboxListRow true ignore "Essen/Einkaufen")
+                                    (Some (212.40m, "EUR"))
+                                PickerParts.row "py-2" [ prop.key "r2" ]
+                                    (Input.checkboxListRow false ignore "Eine sehr lange Kategorie, die gekürzt werden muss")
+                                    (Some (0m, "EUR"))
+                                PickerParts.groupHeader "Fixkosten"
+                                PickerParts.row "py-2" [ prop.key "r3" ]
+                                    (Input.checkboxListRow false ignore "Miete")
+                                    (Some (-35.00m, "EUR"))
+                            ]
+                        ]
+                        PickerParts.footer 1 ignore ignore
+                        caption "Picker-Bausteine: Name 14/15px 500, Betrag neutral (Rot nur negativ), Übernehmen ohne Glow"
+                    ]
+                ]
             ]
         ]
     ]
@@ -613,6 +640,13 @@ let private InputDemo () =
         "income", "Einkommen"
     ]
 
+    let groupedOptions = [
+        "groceries", "Alltag: Lebensmittel"
+        "rent", "Fixkosten: Miete"
+        "subscriptions", "Fixkosten: Abos"
+        "income", "Einkommen"
+    ]
+
     section "14. Input" [
         note "Alle Formularelemente. Mobiles Kategorie-/Konto-Auswählen → BottomSheet (keyboard-fest). styleguide.md §5/§7.2."
         // data-ds-card (s. cardSection) ist der Export-Marker für components-input.html.
@@ -627,7 +661,7 @@ let private InputDemo () =
                     Input.groupSimple "Text" (Input.textSimple textValue setTextValue "REWE, Netflix …")
                     Input.groupSimple "Select" (Input.selectWithPlaceholder selectValue setSelectValue "Kategorie wählen…" categoryOptions)
                 ]
-                Input.groupSimple "Searchable Select" (Input.searchableSelect searchValue setSearchValue "Kategorie suchen…" categoryOptions)
+                Input.groupSimple "Searchable Select" (Input.searchableSelect searchValue setSearchValue "Kategorie suchen…" groupedOptions)
                 Input.toggle toggleValue setToggleValue (Some "Auto-Kategorisierung aktiv")
                 Input.checkbox checkValue setCheckValue "Bestätigt"
             ]

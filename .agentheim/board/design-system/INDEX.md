@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 31
+- **Doing:** 0
+- **Done:** 32
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-zahv9** — Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch (feature) — `doing/design-system-zahv9-ruhige-bausteine-fuer-auswahlen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-zahv9** — Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch (feature) — `done/design-system-zahv9-ruhige-bausteine-fuer-auswahlen.md`
 - **design-system-qz7b6** — Button.view übergeht hidden aus ClassName, im Kassenbuch erscheinen am Handy beide Spiegel-Knöpfe (bug) — `done/design-system-qz7b6-button-view-uebergeht-hidden-doppelter-spiegel-knopf-am-handy.md`
 - **design-system-q7rkm** — DS-Bausteine für ruhige Listen (Money neutral, Table-Zellrollen und Statuskante, Container ohne Breitenbegrenzung, schlanker PageHeader) (feature) — `done/design-system-q7rkm-ds-bausteine-fuer-ruhige-listen.md`
 - **design-system-bz0gn** — "Neue Filterleisten-Komponenten (ChipBar, FilterPopover, Kategorienauswahl mit Mehrfachauswahl) in die /styleguide-Route aufnehmen" (chore) — `done/design-system-bz0gn-neue-filterleisten-komponenten-chipbar-filterpopover-kategor.md`

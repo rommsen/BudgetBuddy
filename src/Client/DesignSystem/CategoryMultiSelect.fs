@@ -32,16 +32,11 @@ let private categoryMatchesSearch (search: string) (c: YnabCategory) : bool =
 
 let private categoryRow (props: CategoryMultiSelectProps) (c: YnabCategory) =
     let guid = categoryGuidOf c.Id
-    Html.div [
-        prop.key (string guid)
-        prop.className "flex items-center justify-between gap-3 py-2"
-        prop.children [
-            Input.checkbox (props.Selected.Contains guid) (fun _ -> props.OnToggle guid) c.Name
-            match c.Available with
-            | Some m -> Money.available m.Amount m.Currency
-            | None -> ()
-        ]
-    ]
+    PickerParts.row
+        "py-2"
+        [ prop.key (string guid) ]
+        (Input.checkboxListRow (props.Selected.Contains guid) (fun _ -> props.OnToggle guid) c.Name)
+        (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
 
 let view (props: CategoryMultiSelectProps) : ReactElement =
     let visibleGroups =
@@ -54,7 +49,7 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
     Html.div [
         prop.className "flex flex-col gap-3"
         prop.children [
-            Input.textSimple props.Search props.OnSearchChange "Kategorie suchen…"
+            PickerParts.searchField props.Search props.OnSearchChange "Kategorie suchen…"
 
             Html.div [
                 prop.className "flex flex-col gap-3 max-h-72 overflow-y-auto"
@@ -63,10 +58,7 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                         Html.div [
                             prop.key groupName
                             prop.children [
-                                Html.div [
-                                    prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono} uppercase tracking-wider pb-1"
-                                    prop.text groupName
-                                ]
+                                PickerParts.groupHeader groupName
                                 Html.div [
                                     prop.className "flex flex-col"
                                     prop.children (items |> List.map (categoryRow props))
@@ -100,9 +92,6 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                 ]
             ]
 
-            Primitives.HStack.spaceBetween [
-                Button.ghost "Zurücksetzen" (fun () -> props.OnReset ())
-                Button.primary $"Übernehmen ({Set.count props.Selected})" (fun () -> props.OnApply ())
-            ]
+            PickerParts.footer (Set.count props.Selected) props.OnReset props.OnApply
         ]
     ]
