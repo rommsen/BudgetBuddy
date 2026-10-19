@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 21:42 -- Batch started: [ledger-nhwrt]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-nhwrt - "Aktion \"Geprüft\" für die ganze Auswahl in der Auswahl-Leiste, ein Sammel-PATCH an YNAB, ein Toast mit Rückgängig"
+**Parallel:** no (1 worker; wave 2 on the integrated state of rynk5 and rjb8w, no other ready task)
+
+---
+
 ## 2026-10-19 21:42 -- Task verified and completed: ledger-rynk5 - "Gescheiterter Push nach YNAB als Ereignis mit Grund und Zeit, YNAB-Verknüpfung und Push-Fehlschlag im Lesemodell"
 
 **Type:** Work / Task completion
