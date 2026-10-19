@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:16 -- Task verified and completed: ledger-vqxvc - "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
+
+**Type:** Work / Task completion
+**Task:** ledger-vqxvc - "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
+**Summary:** OpenFilterPopover behandelt jetzt den Chip Ohne Kategorie (Umschalter ohne Popover, Modell unverändert), die Warnung FS0025 ist weg und ein Reducer-Test deckt den Pfad ab.
+**Duration:** 10m11s
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 16:15 -- Task verified and completed: ledger-d218j - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden, Ready to Assign behalten
 
 **Type:** Work / Task completion

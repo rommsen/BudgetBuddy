@@ -920,6 +920,16 @@ let reducerTests =
             Expect.isTrue expanded.HiddenCategoriesExpanded "Ein Antippen klappt auf"
         }
 
+        test "OpenFilterPopover mit dem Chip Ohne Kategorie wirft nicht und startet keinen Ladevorgang" {
+            // Verhindert die Regression: Der Match über ChipId deckte WithoutCategoryChip nicht ab
+            // (FS0025), die Nachricht hätte zur Laufzeit eine MatchFailureException ausgelöst.
+            let before = freshModel ()
+            let opened, cmd, _ = Components.Ledger.State.update (OpenFilterPopover WithoutCategoryChip) before
+            Expect.equal opened.OpenPopover (Some WithoutCategoryChip) "Der Chip gilt als geöffnet"
+            Expect.equal opened.Filters before.Filters "Der Filterzustand bleibt unverändert"
+            Expect.isEmpty cmd "Kein Cmd (kein Api-Aufruf)"
+        }
+
         // ============================================
         // Filterleiste: Zeitraum-Schnellwahl schreibt Von/Bis mit (ledger-j8xq4)
         // ============================================

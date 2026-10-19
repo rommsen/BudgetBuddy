@@ -4,6 +4,25 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 16:30 - Build-Warnung FS0025 bei OpenFilterPopover behoben
+
+**What I did:**
+Match in `OpenFilterPopover` um `WithoutCategoryChip` ergänzt, Regressionstest hinzugefügt.
+
+**Files Modified:**
+- `src/Client/Components/Ledger/State.fs` - neuer Match-Zweig
+- `src/Tests/LedgerPageTests.fs` - Regressionstest
+
+**Rationale:**
+Der unvollständige Match hätte zur Laufzeit eine MatchFailureException geworfen.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 1280 bestanden, 0 Fehler
+- Issues: keine
+
+---
+
 ## 2026-10-19 16:30 - Interne YNAB-Kategorien in der Kategorieauswahl ausblenden
 
 **What I did:**

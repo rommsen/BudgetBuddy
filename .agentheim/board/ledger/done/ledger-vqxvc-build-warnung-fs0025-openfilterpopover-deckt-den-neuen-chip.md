@@ -1,7 +1,7 @@
 ---
 id: ledger-vqxvc
 title: "Build-Warnung FS0025: OpenFilterPopover deckt den neuen Chip WithoutCategoryChip nicht ab"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-10-18
@@ -41,3 +41,9 @@ Gefunden beim Abschluss-Build auf main am 2026-10-18 22:2x. Der Verifier von `le
 Aus dem dismissten Duplikat `ledger-eng59` übernommen: der Chip löst heute
 `ToggleWithoutCategory` aus (`src/Client/Components/Ledger/View.fs` um Zeile 1116) und
 öffnet kein Popover, der fehlende Fall wird also im Normalbetrieb nicht erreicht.
+
+## Outcome
+
+In `src/Client/Components/Ledger/State.fs` deckt der Match in `OpenFilterPopover` jetzt `WithoutCategoryChip -> model` ab (Umschalter ohne Popover, ADR 0048). Weitere Matches über ChipId im Client (View.fs) waren bereits vollständig. Regressionstest in `src/Tests/LedgerPageTests.fs`: OpenFilterPopover WithoutCategoryChip wirft nicht, setzt OpenPopover, lässt Filters unverändert und liefert kein Cmd.
+
+Läufe: `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 1280 bestanden, 7 übersprungen, 0 Fehler; `npm run build` ok; `npm run guard:classes` ok; `npm run test:scripts` 120/120 (ein erster Lauf hatte einen einmaligen Seiten-Timeout, der Wiederholungslauf war grün).

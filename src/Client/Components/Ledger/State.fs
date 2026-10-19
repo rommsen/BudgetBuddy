@@ -347,6 +347,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     AmountMinDraft = model.Filters.AmountMin |> Option.map formatAmountDraft |> Option.defaultValue ""
                     AmountMaxDraft = model.Filters.AmountMax |> Option.map formatAmountDraft |> Option.defaultValue "" }
             | NeedsReviewChip -> model
+            // Ein Umschalter ohne Popover (ADR 0048): es gibt keinen Entwurf zu setzen.
+            | WithoutCategoryChip -> model
         let cmd = if chip = PayeeChip then Cmd.ofMsg LoadPayeeSuggestions else Cmd.none
         { model' with OpenPopover = Some chip }, cmd, NoOp
 
