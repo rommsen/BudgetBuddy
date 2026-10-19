@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 16:35 - Deutsches Datumsfeld mit Kalender-Knopf (design-system-m7z9q)
+
+**What I did:**
+DS-Baustein `DateField` gebaut und im Zeitraum-Filter des Kassenbuchs eingesetzt. Ungültige Eingabe sperrt Übernehmen (`PickerParts.applyButtonWhen`), der Ledger-Entwurf merkt sich den Fehler je Grenze.
+
+**Files Added:**
+- `src/Client/DesignSystem/DateField.fs` - reine Datumsfunktionen und React-Baustein
+- `docs/ux/kassenbuch/filterleiste-ruhig/pc-1440x900-ledger-filter-Zeitraum-datumsfeld.png`, `handy-390x844-ledger-filter-Zeitraum-datumsfeld.png`, `pc-1440x900-styleguide-auswahl-datumsfeld.png` - Nachher-Bilder
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - DateField.fs nach Input.fs
+- `src/Client/DesignSystem/Icons.fs` - `Icons.calendar`
+- `src/Client/DesignSystem/PickerParts.fs` - gesperrter Übernehmen-Knopf
+- `src/Client/Components/Ledger/{Types,State,View}.fs` - Fehlerfelder, `DateEntry` in den Msgs, `DateField.view` statt nativem Feld
+- `src/Client/Components/Styleguide/View.fs` - Datumsfeld in der Karte Auswahl
+- `standards/frontend/styleguide.md` - Absatz Datumsfeld
+- `src/Tests/{AuswahlTests,LedgerPageTests,LedgerViewTests}.fs`, `scripts/ledger-filter-bar.test.mjs` - Tests
+
+**Rationale:**
+Das native Datumsfeld zeigt das Format der Browsersprache (Befund K7). Das Textfeld ist immer deutsch, der native Kalender bleibt über den Knopf erreichbar.
+
+**Outcomes:**
+- Build: 0 Warnungen. Tests: 1321 bestanden, 7 übersprungen, 0 Fehler. test:scripts 124/124. guard:classes und npm run build grün.
+- Messung bei 1440x900: Schriftgröße im Datumsfeld 14px, Popoverbreite 320px, Höhe 382px mit Fehlerhinweis. Bei 390x844: 16px.
+- Befund: `.input-field` (`styles.css` 678) setzt unlayered `font-size: 14px` und schlägt `text-base` aus `Input.Small` am Handy. Im Datumsfeld per `text-base! md:text-sm!` umgangen.
+- Der Chip des Zeitraum-Filters zeigt bei Handeingabe nur "Zeitraum" (`dateChipLabel` kennt nur Schnellwahlen); der Playwright-Test prüft deshalb den Request und den Entwurf.
+
+---
+
 ## 2026-10-19 17:00 - Import prüfen: Duplikat-Details deutsch, nur bei Verdacht sichtbar (ynab-sync-e4gm3, Iteration 1 und 2)
 
 **What I did:**

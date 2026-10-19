@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 16:33 -- Task verified and completed: design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
+
+**Type:** Work / Task completion
+**Task:** design-system-m7z9q - Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
+**Summary:** Neuer DS-Baustein DateField (deutsches Textfeld TT.MM.JJJJ mit Kalender-Knopf) ersetzt das native Datumsfeld im Zeitraum-Filter des Kassenbuchs; ungültige Eingabe zeigt den Hinweis und sperrt Übernehmen (neuer gesperrter Zustand in PickerParts).
+**Duration:** 16m34s
+**Verification:** PASS (iteration 1)
+**Files changed:** 16
+**Tests added:** 44
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 16:31 -- Task verified and completed: ynab-sync-e4gm3 - Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt
 
 **Type:** Work / Task completion

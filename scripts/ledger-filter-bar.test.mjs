@@ -93,6 +93,18 @@ after(async () => {
   await stopServer(frontend, frontendPort);
 });
 
+// Wartet, bis ein Textfeld den erwarteten Wert zeigt (React rendert nach dem Klick nach).
+async function waitForValue(locator, expected) {
+  const deadline = Date.now() + 5000;
+  let last;
+  while (Date.now() < deadline) {
+    last = await locator.inputValue();
+    if (last === expected) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.equal(last, expected, "Wert im Feld");
+}
+
 const categoryChip = () => page.getByRole("button", { name: /^Kategorie/ }).first();
 // `.shadow-2xl`: die einzige Klasse aus `FilterPopover.view`, die auf der
 // Kassenbuch-Seite sonst nirgends vorkommt (Modal.fs teilt sie sich, aber kein
@@ -168,23 +180,113 @@ test("Click-Commit: Antippen wirkt erst auf 'Übernehmen', der Filter bleibt bis
   assert.equal(await categoryChip().innerText(), "Kategorie", "Escape hat nichts committet");
 });
 
-test("Die Zeitraum-Schnellwahl trägt Von und Bis sichtbar in die Eingabefelder ein (AC)", async () => {
+test("Die Zeitraum-Schnellwahl trägt Von und Bis deutsch in die Datumsfelder ein (AC)", async () => {
   const dateChip = page.getByRole("button", { name: /^Zeitraum/ }).first();
   await dateChip.click();
   await popover().getByRole("button", { name: "12 Monate" }).waitFor();
 
-  const dateInputs = popover().locator('input[type="date"]');
+  const dateInputs = popover().getByPlaceholder("TT.MM.JJJJ");
   assert.equal(await dateInputs.nth(0).inputValue(), "", "Von ist zu Beginn leer");
   assert.equal(await dateInputs.nth(1).inputValue(), "", "Bis ist zu Beginn leer");
 
-  await popover().getByRole("button", { name: "12 Monate" }).click();
+  await popover().getByRole("button", { name: "Dieser Monat" }).click();
 
-  const von = await dateInputs.nth(0).inputValue();
-  const bis = await dateInputs.nth(1).inputValue();
-  assert.notEqual(von, "", "Von wird von der Schnellwahl sichtbar eingetragen");
-  assert.notEqual(bis, "", "Bis wird von der Schnellwahl sichtbar eingetragen");
-  assert.ok(new Date(von) < new Date(bis), `Von (${von}) muss vor Bis (${bis}) liegen`);
+  // "Dieser Monat" läuft vom Monatsanfang bis heute (`quickDateRange`). Das Feld zieht
+  // den Text nach dem Render nach, deshalb warten statt sofort lesen.
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const expectedVon = `01.${pad(now.getMonth() + 1)}.${now.getFullYear()}`;
+  const expectedBis = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`;
+  await waitForValue(dateInputs.nth(0), expectedVon);
+  await waitForValue(dateInputs.nth(1), expectedBis);
 
+  await page.keyboard.press("Escape");
+});
+
+test("Ungültiges Datum sperrt Übernehmen und zeigt den Hinweis; Zurücksetzen hebt es auf (m7z9q)", async () => {
+  await page.getByRole("button", { name: /^Zeitraum/ }).first().click();
+  const dateInputs = popover().getByPlaceholder("TT.MM.JJJJ");
+  await dateInputs.nth(0).fill("31.02.2026");
+
+  assert.ok(await popover().getByText("Datum als TT.MM.JJJJ").isVisible(), "Der Hinweis steht da");
+  assert.ok(await popover().getByRole("button", { name: "Übernehmen" }).isDisabled(), "Übernehmen ist gesperrt");
+  assert.equal(await dateInputs.nth(0).inputValue(), "31.02.2026", "Der Text bleibt beim Tippen stehen");
+
+  await popover().getByRole("button", { name: "Zurücksetzen" }).click();
+  assert.equal(await popover().getByText("Datum als TT.MM.JJJJ").count(), 0, "Der Hinweis ist weg");
+  await waitForValue(dateInputs.nth(0), "");
+  assert.ok(await popover().getByRole("button", { name: "Übernehmen" }).isEnabled(), "Übernehmen ist frei");
+
+  await page.keyboard.press("Escape");
+});
+
+test("Von und Bis eintippen und Übernehmen filtert die Liste auf den Zeitraum (m7z9q, PC)", async () => {
+  // Die zuletzt registrierte Route gewinnt; `fallback()` reicht an den Mock der Filterleiste weiter.
+  const queries = [];
+  const spy = (route) => {
+    queries.push(route.request().postDataJSON()[0]);
+    route.fallback();
+  };
+  await page.route("**/api/LedgerApi/getLedgerEntriesPage", spy);
+  try {
+    await page.getByRole("button", { name: /^Zeitraum/ }).first().click();
+    const dateInputs = popover().getByPlaceholder("TT.MM.JJJJ");
+    await dateInputs.nth(0).fill("01.10.2026");
+    await dateInputs.nth(1).fill("15.10.2026");
+    await popover().getByRole("button", { name: "Übernehmen" }).click();
+    await popover().waitFor({ state: "detached" });
+
+    const deadline = Date.now() + 5000;
+    while (!queries.some((q) => q.DateFrom) && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const filtered = queries.find((q) => q.DateFrom);
+    assert.ok(filtered, "Die Liste wird mit Zeitraum nachgeladen");
+    assert.match(filtered.DateFrom, /^2026-10-01/, `Von: ${filtered.DateFrom}`);
+    assert.match(filtered.DateTo, /^2026-10-15/, `Bis: ${filtered.DateTo}`);
+
+    // Wieder geöffnet zeigt der Entwurf den übernommenen Zeitraum deutsch.
+    await page.getByRole("button", { name: /^Zeitraum/ }).first().click();
+    await waitForValue(popover().getByPlaceholder("TT.MM.JJJJ").nth(0), "01.10.2026");
+    await waitForValue(popover().getByPlaceholder("TT.MM.JJJJ").nth(1), "15.10.2026");
+    await page.keyboard.press("Escape");
+  } finally {
+    await page.unroute("**/api/LedgerApi/getLedgerEntriesPage", spy);
+  }
+});
+
+test("Die Datumsfelder haben am Handy 16px, am PC 14px Schrift (iOS-Zoom, m7z9q)", async () => {
+  const size = (loc) => loc.evaluate((e) => getComputedStyle(e).fontSize);
+
+  await page.getByRole("button", { name: /^Zeitraum/ }).first().click();
+  assert.equal(await size(popover().getByPlaceholder("TT.MM.JJJJ").first()), "14px", "PC: 14px");
+  await page.keyboard.press("Escape");
+
+  await mobilePage.getByRole("button", { name: /^Zeitraum/ }).first().click();
+  const field = mobileSheet().getByPlaceholder("TT.MM.JJJJ").first();
+  await field.waitFor();
+  assert.equal(await size(field), "16px", "Handy: 16px");
+  await mobilePage.locator(".overlay.active").click({ position: { x: 5, y: 5 } });
+});
+
+test("Der Kalender-Knopf wirft keinen Konsolenfehler und lässt das Textfeld bedienbar (m7z9q)", async () => {
+  const errors = [];
+  const onConsole = (m) => { if (m.type() === "error") errors.push(m.text()); };
+  const onPageError = (e) => errors.push(String(e));
+  page.on("console", onConsole);
+  page.on("pageerror", onPageError);
+
+  await page.getByRole("button", { name: /^Zeitraum/ }).first().click();
+  await popover().getByRole("button", { name: "Von: Kalender öffnen" }).click();
+  await page.keyboard.press("Escape");
+  const von = popover().getByPlaceholder("TT.MM.JJJJ").nth(0);
+  await von.fill("03.04.2026");
+  assert.equal(await von.inputValue(), "03.04.2026", "Das Textfeld bleibt bedienbar");
+
+  page.off("console", onConsole);
+  page.off("pageerror", onPageError);
+  const relevant = errors.filter((e) => !/not mocked in this test|Failed to load resource/.test(e));
+  assert.deepEqual(relevant, [], "Kein Konsolenfehler");
   await page.keyboard.press("Escape");
 });
 

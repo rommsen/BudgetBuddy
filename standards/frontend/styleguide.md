@@ -115,6 +115,11 @@ Gemeinsame Bausteine in `DesignSystem/PickerParts.fs`, benutzt von `CategoryMult
 Zeile nur mit dem Namen); die Suche findet Gruppe und Name. Texte deutsch („Suchen…“,
 „Keine Treffer“).
 
+Datumsfeld (`DesignSystem/DateField.fs`, design-system-m7z9q): Textfeld „TT.MM.JJJJ“ in
+`Input.Small`-Maßen, immer deutsch, daneben ein Kalender-Knopf für den nativen Kalender.
+Ungültige Eingabe zeigt den Fehlerzustand mit dem Hinweis „Datum als TT.MM.JJJJ“ und sperrt
+„Übernehmen“ (`PickerParts.applyButtonWhen`).
+
 - Kein Glow in Listen, keine violetten Kategorien, keine roten Ausgaben.
 - Herkunfts- oder Spiegel-Badges gehören in Detail und Historie, nicht in die Zeile.
 - Listen-Seiten bekommen einen schlanken Kopf ohne Gradient-Titel und füllen die Breite.

@@ -945,10 +945,58 @@ let reducerTests =
         test "Von/Bis von Hand setzen löscht die Schnellwahl-Markierung, ohne das andere Feld zu leeren" {
             let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
             let withQuick, _, _ = Components.Ledger.State.update (SetDateQuick ThisYear) opened
-            let handSet, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Some (DateTime(2026, 3, 1)))) withQuick
+            let handSet, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Client.DesignSystem.DateField.ValidDate (DateTime(2026, 3, 1)))) withQuick
             Expect.equal handSet.DateDraft.Quick None "Die Schnellwahl gilt nicht mehr als Quelle"
             Expect.equal handSet.DateDraft.From (Some (DateTime(2026, 3, 1))) "Der neue Wert steht"
             Expect.isTrue handSet.DateDraft.To.IsSome "Bis bleibt stehen, wie es die Schnellwahl gesetzt hatte"
+        }
+
+        // design-system-m7z9q: ungültige Eingabe sperrt Übernehmen
+        test "InvalidDate in Von setzt den Fehlerzustand und lässt den Wert stehen" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Client.DesignSystem.DateField.InvalidDate "31.02.2026")) opened
+            Expect.isTrue updated.DateDraftFromInvalid "Von ist ungültig"
+            Expect.isFalse updated.DateDraftToInvalid "Bis ist es nicht"
+            Expect.isTrue (dateDraftHasError updated) "Der Entwurf hat einen Fehler"
+        }
+
+        test "InvalidDate in Bis setzt den Fehlerzustand; ein gültiger Wert hebt ihn wieder auf" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let bad, _, _ = Components.Ledger.State.update (SetDateDraftTo (Client.DesignSystem.DateField.InvalidDate "07.1")) opened
+            Expect.isTrue bad.DateDraftToInvalid "Bis ist ungültig"
+            let good, _, _ = Components.Ledger.State.update (SetDateDraftTo (Client.DesignSystem.DateField.ValidDate (DateTime(2026, 10, 7)))) bad
+            Expect.isFalse good.DateDraftToInvalid "Fehler aufgehoben"
+            Expect.equal good.DateDraft.To (Some (DateTime(2026, 10, 7))) "Der Wert steht"
+            let cleared, _, _ = Components.Ledger.State.update (SetDateDraftTo (Client.DesignSystem.DateField.InvalidDate "x")) good
+            let empty, _, _ = Components.Ledger.State.update (SetDateDraftTo Client.DesignSystem.DateField.EmptyDate) cleared
+            Expect.isFalse empty.DateDraftToInvalid "Leeren hebt den Fehler auf"
+            Expect.equal empty.DateDraft.To None "Bis ist leer"
+        }
+
+        test "ApplyDateFilter ändert den Filter nicht, solange eine Grenze ungültig ist" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let bad, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Client.DesignSystem.DateField.InvalidDate "31.02.2026")) opened
+            let applied, cmd, _ = Components.Ledger.State.update ApplyDateFilter bad
+            Expect.equal applied.Filters.DateRange None "Filter unverändert"
+            Expect.equal applied.OpenPopover (Some DateChip) "Das Popover bleibt offen"
+            Expect.isEmpty (dispatched cmd) "Kein Nachladen"
+        }
+
+        test "SetDateQuick und ResetDateDraft heben den Fehlerzustand auf" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let bad, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Client.DesignSystem.DateField.InvalidDate "x")) opened
+            let bad2, _, _ = Components.Ledger.State.update (SetDateDraftTo (Client.DesignSystem.DateField.InvalidDate "y")) bad
+            let quick, _, _ = Components.Ledger.State.update (SetDateQuick ThisMonth) bad2
+            Expect.isFalse (dateDraftHasError quick) "Schnellwahl hebt beide auf"
+            let reset, _, _ = Components.Ledger.State.update ResetDateDraft bad2
+            Expect.isFalse (dateDraftHasError reset) "Zurücksetzen hebt beide auf"
+        }
+
+        test "Das Öffnen des Zeitraum-Popovers startet ohne Fehlerzustand" {
+            let opened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) (freshModel ())
+            let bad, _, _ = Components.Ledger.State.update (SetDateDraftFrom (Client.DesignSystem.DateField.InvalidDate "x")) opened
+            let reopened, _, _ = Components.Ledger.State.update (OpenFilterPopover DateChip) bad
+            Expect.isFalse (dateDraftHasError reopened) "Neu geöffnet, ohne Fehler"
         }
 
         test "'Übernehmen' beim Zeitraum committet den Entwurf und lädt ab Seite 0 neu" {

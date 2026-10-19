@@ -37,6 +37,15 @@ let applyLabel (selectedCount: int) : string =
 let applyButtonClass =
     "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 min-h-[36px] text-sm font-semibold text-white bg-neon-orange transition-colors hover:brightness-110 active:scale-[0.98]"
 
+/// Übernehmen gesperrt (zum Beispiel bei ungültigem Datum): gedämpft, ohne Hover und
+/// ohne Druckeffekt
+let applyButtonDisabledClass =
+    "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 min-h-[36px] text-sm font-semibold text-white bg-neon-orange opacity-50 cursor-not-allowed"
+
+/// Klasse des Übernehmen-Knopfs je Zustand
+let applyButtonClassFor (disabled: bool) : string =
+    if disabled then applyButtonDisabledClass else applyButtonClass
+
 // ============================================
 // Bausteine
 // ============================================
@@ -88,6 +97,16 @@ let applyButton (selectedCount: int) (onApply: unit -> unit) : ReactElement =
         prop.type' "button"
         prop.className applyButtonClass
         prop.onClick (fun _ -> onApply ())
+        prop.text (applyLabel selectedCount)
+    ]
+
+/// Übernehmen mit Sperre: bei `disabled` ist der Knopf deaktiviert und tut nichts
+let applyButtonWhen (disabled: bool) (selectedCount: int) (onApply: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.className (applyButtonClassFor disabled)
+        prop.disabled disabled
+        prop.onClick (fun _ -> if not disabled then onApply ())
         prop.text (applyLabel selectedCount)
     ]
 

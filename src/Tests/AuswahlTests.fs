@@ -171,5 +171,133 @@ let private tests =
         ]
     ]
 
+// design-system-m7z9q: deutsches Datumsfeld
+let private dt (y: int) (m: int) (d: int) = System.DateTime(y, m, d)
+
+let private dateFieldTests =
+    testList "Deutsches Datumsfeld (m7z9q)" [
+        testList "parseGermanDate" [
+            for input, expected in
+                [ "07.10.2026", Some (dt 2026 10 7)
+                  "7.10.2026", Some (dt 2026 10 7)
+                  " 7.10.2026 ", Some (dt 2026 10 7)
+                  "29.02.2028", Some (dt 2028 2 29)
+                  "31.02.2026", None
+                  "29.02.2026", None
+                  "31.04.2026", None
+                  "2026-10-07", None
+                  "07.10.26", None
+                  "07.13.2026", None
+                  "00.10.2026", None
+                  "07.10.2026.1", None
+                  "a.b.cccc", None
+                  "" , None ] do
+                test $"'{input}'" {
+                    Expect.equal (DateField.parseGermanDate input) expected input
+                }
+        ]
+        testList "formatGermanDate" [
+            test "führende Nullen" {
+                Expect.equal (DateField.formatGermanDate (dt 2026 10 7)) "07.10.2026" "Format"
+                Expect.equal (DateField.formatGermanDate (dt 2026 1 1)) "01.01.2026" "Format"
+            }
+            test "Rundlauf: Monatsanfang, Monatsende, Schalttag, Jahreswechsel" {
+                for d in [ dt 2026 10 1; dt 2026 10 31; dt 2028 2 29; dt 2026 12 31; dt 2027 1 1 ] do
+                    Expect.equal (d |> DateField.formatGermanDate |> DateField.parseGermanDate) (Some d) (string d)
+            }
+        ]
+        testList "Brücke zum nativen Feld" [
+            test "germanToIso" {
+                Expect.equal (DateField.germanToIso "07.10.2026") (Some "2026-10-07") "gültig"
+                Expect.equal (DateField.germanToIso "31.02.2026") None "ungültig"
+                Expect.equal (DateField.germanToIso "") None "leer"
+            }
+            test "isoToGerman" {
+                Expect.equal (DateField.isoToGerman "2026-10-07") "07.10.2026" "gültig"
+                Expect.equal (DateField.isoToGerman "kein Datum") "kein Datum" "ungültig bleibt"
+                Expect.equal (DateField.isoToGerman "2026-02-31") "2026-02-31" "unmöglich bleibt"
+                Expect.equal (DateField.isoToGerman "") "" "leer bleibt"
+            }
+        ]
+        testList "classifyDateText" [
+            test "leer und Leerzeichen" {
+                Expect.equal (DateField.classifyDateText "") DateField.EmptyDate "leer"
+                Expect.equal (DateField.classifyDateText "   ") DateField.EmptyDate "Leerzeichen"
+            }
+            test "gültig und ungültig" {
+                Expect.equal (DateField.classifyDateText "7.10.2026") (DateField.ValidDate (dt 2026 10 7)) "gültig"
+                Expect.equal (DateField.classifyDateText "31.02.2026") (DateField.InvalidDate "31.02.2026") "ungültig"
+            }
+        ]
+        testList "syncedText (Eingangswert zieht den Text nach)" [
+            test "Schnellwahl von außen überschreibt den Text" {
+                Expect.equal (DateField.syncedText (Some (dt 2026 10 1)) false "") "01.10.2026" "gefüllt"
+                Expect.equal (DateField.syncedText (Some (dt 2026 10 1)) false "5.5.2025") "01.10.2026" "ersetzt"
+            }
+            test "eigene Schreibweise 7.10.2026 bleibt stehen" {
+                Expect.equal (DateField.syncedText (Some (dt 2026 10 7)) false "7.10.2026") "7.10.2026" "bleibt"
+            }
+            test "Tippschritte bei Fehler bleiben, auch mit altem Eingangswert" {
+                Expect.equal (DateField.syncedText (Some (dt 2026 10 1)) true "07.1") "07.1" "bleibt"
+                Expect.equal (DateField.syncedText None true "07.1") "07.1" "bleibt"
+            }
+            test "Zurücksetzen leert Text, auch einen ungültigen ohne Fehlermeldung" {
+                Expect.equal (DateField.syncedText None false "07.10.2026") "" "gültiger Text"
+                Expect.equal (DateField.syncedText None false "31.02.2026") "" "ungültiger Text"
+                Expect.equal (DateField.syncedText None false "") "" "leer"
+            }
+        ]
+        testList "Quelltext" [
+            test "kein DateTime.TryParse, DateTime.Parse oder CultureInfo im Feld" {
+                let src = readDs "DateField.fs"
+                for forbidden in [ "TryParse"; "DateTime.Parse"; "CultureInfo" ] do
+                    // Kommentare dürfen die Wörter nennen, Code nicht
+                    let code = src.Split('\n') |> Array.filter (fun l -> not (l.TrimStart().StartsWith "///"))
+                    Expect.isFalse (code |> Array.exists (fun l -> l.Contains forbidden)) forbidden
+            }
+            test "kein Inline-fontSize; Small bleibt klassenbasiert" {
+                Expect.isFalse (contains "fontSize" (readDs "DateField.fs")) "fontSize"
+                Expect.isFalse (Input.usesInlineFontSize Input.Small) "Small ohne Inline-Größe"
+                Expect.isTrue (contains "Size = Input.Small" (readDs "DateField.fs")) "Input.Small"
+            }
+            test "Schrift 16px am Handy, 14px am PC, per important gegen .input-field" {
+                Expect.equal DateField.textSizeClass "text-base! md:text-sm!" "Klassen"
+                Expect.isTrue (contains "textSizeClass" (readDs "DateField.fs")) "im Feld verwendet"
+            }
+            test "Kalender-Knopf nutzt showPicker mit focus/click als Rückfall" {
+                let src = readDs "DateField.fs"
+                Expect.isTrue (contains "showPicker" src) "showPicker"
+                Expect.isTrue (contains "el.focus ()" src) "focus"
+                Expect.isTrue (contains "el.click ()" src) "click"
+            }
+            test "Der Hinweis ist deutsch" {
+                Expect.equal DateField.invalidHint "Datum als TT.MM.JJJJ" "Hinweis"
+            }
+            test "Styleguide nennt das Datumsfeld, die Karte zeigt es" {
+                Expect.isTrue (contains "Datumsfeld" (readRepo [ "standards"; "frontend"; "styleguide.md" ])) "styleguide.md"
+                Expect.isTrue (contains "DateField.view" (readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ])) "Styleguide-Karte"
+            }
+        ]
+        testList "Übernehmen gesperrt (PickerParts)" [
+            test "gesperrter Zustand ist gedämpft ohne Hover und Druckeffekt" {
+                let off = PickerParts.applyButtonClassFor true
+                Expect.isTrue (has "opacity-50" off) off
+                Expect.isTrue (has "cursor-not-allowed" off) off
+                Expect.isFalse (off.Contains "hover:") off
+                Expect.isFalse (off.Contains "active:") off
+            }
+            test "freigegeben ist es der normale Knopf" {
+                Expect.equal (PickerParts.applyButtonClassFor false) PickerParts.applyButtonClass "normal"
+            }
+            test "applyButtonWhen setzt disabled" {
+                let src = readDs "PickerParts.fs"
+                Expect.isTrue (contains "prop.disabled disabled" src) "disabled"
+            }
+        ]
+    ]
+
 [<Tests>]
 let auswahlTests = tests
+
+[<Tests>]
+let datumsfeldTests = dateFieldTests

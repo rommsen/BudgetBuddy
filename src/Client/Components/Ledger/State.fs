@@ -13,6 +13,8 @@ open Components.Ledger.Types
 open Types
 open Client
 
+module DateField = Client.DesignSystem.DateField
+
 /// Ein frisches, leeres Kassenbuch. Geladen wird beim Betreten der Seite
 /// (`UrlChanged` im Haupt-State), nicht beim Start der App: das Kassenbuch soll
 /// keine Abfrage ausloesen, solange niemand hineinschaut.
@@ -42,6 +44,8 @@ let init () : Model * Cmd<Msg> =
         CategorySearch = ""
         HiddenCategoriesExpanded = false
         DateDraft = emptyDateRange
+        DateDraftFromInvalid = false
+        DateDraftToInvalid = false
         PayeeSuggestions = NotAsked
         PayeeSearch = ""
         MemoDraft = ""
@@ -337,7 +341,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     CategorySearch = ""
                     HiddenCategoriesExpanded = false }
             | DateChip ->
-                { model with DateDraft = model.Filters.DateRange |> Option.defaultValue emptyDateRange }
+                { model with
+                    DateDraft = model.Filters.DateRange |> Option.defaultValue emptyDateRange
+                    DateDraftFromInvalid = false
+                    DateDraftToInvalid = false }
             | PayeeChip ->
                 { model with PayeeSearch = "" }
             | MemoChip ->
@@ -386,16 +393,37 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | SetDateQuick quick ->
         let from_, to_ = quickDateRange DateTime.Today quick
-        { model with DateDraft = { Quick = Some quick; From = Some from_; To = Some to_ } }, Cmd.none, NoOp
+        { model with
+            DateDraft = { Quick = Some quick; From = Some from_; To = Some to_ }
+            DateDraftFromInvalid = false
+            DateDraftToInvalid = false }, Cmd.none, NoOp
 
-    | SetDateDraftFrom from_ ->
-        { model with DateDraft = { model.DateDraft with Quick = None; From = from_ } }, Cmd.none, NoOp
+    | SetDateDraftFrom entry ->
+        let draft = { model.DateDraft with Quick = None }
+        match entry with
+        | DateField.ValidDate d ->
+            { model with DateDraft = { draft with From = Some d }; DateDraftFromInvalid = false }, Cmd.none, NoOp
+        | DateField.EmptyDate ->
+            { model with DateDraft = { draft with From = None }; DateDraftFromInvalid = false }, Cmd.none, NoOp
+        | DateField.InvalidDate _ ->
+            { model with DateDraft = draft; DateDraftFromInvalid = true }, Cmd.none, NoOp
 
-    | SetDateDraftTo to_ ->
-        { model with DateDraft = { model.DateDraft with Quick = None; To = to_ } }, Cmd.none, NoOp
+    | SetDateDraftTo entry ->
+        let draft = { model.DateDraft with Quick = None }
+        match entry with
+        | DateField.ValidDate d ->
+            { model with DateDraft = { draft with To = Some d }; DateDraftToInvalid = false }, Cmd.none, NoOp
+        | DateField.EmptyDate ->
+            { model with DateDraft = { draft with To = None }; DateDraftToInvalid = false }, Cmd.none, NoOp
+        | DateField.InvalidDate _ ->
+            { model with DateDraft = draft; DateDraftToInvalid = true }, Cmd.none, NoOp
 
     | ResetDateDraft ->
-        { model with DateDraft = emptyDateRange }, Cmd.none, NoOp
+        { model with DateDraft = emptyDateRange; DateDraftFromInvalid = false; DateDraftToInvalid = false }, Cmd.none, NoOp
+
+    | ApplyDateFilter when dateDraftHasError model ->
+        // Ungültige Eingabe in Von oder Bis: der Filter bleibt, wie er ist.
+        model, Cmd.none, NoOp
 
     | ApplyDateFilter ->
         let range =

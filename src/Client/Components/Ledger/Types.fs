@@ -292,6 +292,10 @@ type Model = {
 
     /// Der Entwurf des Zeitraum-Filters, solange die Zeitraum-Auswahl offen ist.
     DateDraft: DateRangeFilter
+    /// Ist die Eingabe in Von/Bis ungültig (z. B. "31.02.2026")? Solange eine Grenze
+    /// ungültig ist, bleibt "Übernehmen" gesperrt.
+    DateDraftFromInvalid: bool
+    DateDraftToInvalid: bool
 
     /// Die Payee-Vorschläge des aktuellen Treffers (ohne den Payee-Filter selbst),
     /// für die Payee-Auswahl. Payee ist Einzelauswahl: ein Klick filtert sofort,
@@ -314,6 +318,11 @@ type Model = {
     AmountMaxDraft: string
     AmountVersion: int
 }
+
+/// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
+/// gesperrt, und `ApplyDateFilter` ändert den Filter nicht.
+let dateDraftHasError (model: Model) : bool =
+    model.DateDraftFromInvalid || model.DateDraftToInvalid
 
 /// Die Nachrichten der Seite.
 ///
@@ -391,8 +400,8 @@ type Msg =
     | RemoveCategoryFilter
 
     | SetDateQuick of DateQuick
-    | SetDateDraftFrom of DateTime option
-    | SetDateDraftTo of DateTime option
+    | SetDateDraftFrom of Client.DesignSystem.DateField.DateEntry
+    | SetDateDraftTo of Client.DesignSystem.DateField.DateEntry
     | ResetDateDraft
     | ApplyDateFilter
     | RemoveDateFilter

@@ -1,7 +1,7 @@
 ---
 id: design-system-m7z9q
 title: Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs
-status: doing
+status: done
 type: feature
 context: design-system
 created: 2026-10-19
@@ -83,3 +83,17 @@ Abgetrennt aus `ledger-m23nz`, das das kompakte Layout des Zeitraum-Filters lief
 - **Refine 2026-10-19:** Zeilenangaben am Stand nach `ledger-m23nz` geprüft (`dateDraftInput` ~961, Aufrufe ~998/999, `applyButton` ~1004). Das Kriterium "kein Inline-`fontSize`" und das 16-px-Kriterium am Handy schließen sich nicht aus: die Schrift kommt über Klassen (`text-base md:text-sm`), nicht über `style.fontSize`.
 - **Fable:** `parseGermanDate` per Hand zerlegen (Split auf '.', Ziffernprüfung, `DateTime.DaysInMonth`), damit .NET und Fable gleich rechnen; kein `CultureInfo` (siehe `.claude/rules/build-verification.md`).
 - Größe S bis M.
+
+## Outcome
+
+Deutsches Datumsfeld im Design-System und Einsatz im Zeitraum-Filter des Kassenbuchs.
+
+- `src/Client/DesignSystem/DateField.fs` (neu, in `Client.fsproj` nach `Input.fs`): reine Funktionen `parseGermanDate` (per Hand zerlegt, 31.02., "2026-10-07", "07.10.26", "" werden abgelehnt), `formatGermanDate`, `isoToGerman`, `germanToIso`, `classifyDateText`, `syncedText` (Eingangswert zieht den Text nach, eigene Tippschritte bleiben stehen) und der React-Baustein `DateField.view` mit eigenem Textzustand, Kalender-Knopf (`showPicker()`, Rückfall `focus()`/`click()`), Fehlerzustand und Hinweis "Datum als TT.MM.JJJJ". `Icons.calendar` neu.
+- `PickerParts.applyButtonWhen`, `applyButtonClassFor`, `applyButtonDisabledClass`: gesperrter Übernehmen-Knopf (gedämpft, `disabled`, ohne Hover/Druck).
+- Ledger: Model-Felder `DateDraftFromInvalid`/`DateDraftToInvalid` direkt hinter `DateDraft`, `dateDraftHasError`, `SetDateDraftFrom/To` tragen jetzt `DateEntry`. `ApplyDateFilter` ändert bei Fehler nichts; `SetDateQuick`, `ResetDateDraft` und das Öffnen des Popovers heben den Fehler auf. `dateDraftInput` nutzt `DateField.view`, am PC stehen Von und Bis untereinander (`md:grid-cols-1`, in 320px Popoverbreite wurde "01.10.2026" sonst abgeschnitten).
+- Styleguide: `/styleguide` Karte "Auswahl" zeigt leer, gefüllt, Fehler; `standards/frontend/styleguide.md` hat einen Absatz zum Datumsfeld.
+- Befund: `.input-field` in `src/Client/styles.css` setzt `font-size: 14px` ohne Layer und schlägt damit `text-base` aus `Input.Small` am Handy (gemessen 14px statt 16px). Das Datumsfeld umgeht das lokal mit `text-base! md:text-sm!` (`DateField.textSizeClass`, gemessen 16px Handy, 14px PC). `Input.Small` selbst ist nicht angefasst, Folgeaufgabe unten gemeldet.
+- Tests: 33 Expecto-Tests in `AuswahlTests.fs` (Parse, Format, Rundlauf, ISO-Brücke, classify, syncedText, Quelltext-Zusicherungen, gesperrter Knopf), 6 Reducer-Tests in `LedgerPageTests.fs`, 2 angepasste Quelltext-Tests in `LedgerViewTests.fs`. Playwright in `scripts/ledger-filter-bar.test.mjs`: Schnellwahl "Dieser Monat" zeigt deutsche Daten, "31.02.2026" sperrt Übernehmen und zeigt den Hinweis, Zurücksetzen hebt auf, Eingabe 01.10.2026 bis 15.10.2026 und Übernehmen sendet DateFrom 2026-10-01 und DateTo 2026-10-15 an `getLedgerEntriesPage` (Chip bleibt bei Handeingabe "Zeitraum", der Chip-Text kommt nur von Schnellwahlen; der Entwurf zeigt den Zeitraum beim Wiederöffnen deutsch), Schriftgröße 16px/14px, Kalender-Knopf ohne Konsolenfehler.
+- Läufe: `dotnet build` 0 Warnungen; `dotnet test` 1321 bestanden, 7 übersprungen (Integration, .env), 0 Fehler; `npm run build` grün; `npm run guard:classes` grün; `npm run test:scripts` 124 von 124 bestanden.
+- Bilder: `docs/ux/kassenbuch/filterleiste-ruhig/{pc-1440x900,handy-390x844}-ledger-filter-Zeitraum-datumsfeld.png` (PC mit Fehlerfall und gesperrtem Übernehmen, Handy mit Schnellwahl) und `pc-1440x900-styleguide-auswahl-datumsfeld.png`.
+- Offen: das Kriterium "iOS Safari öffnet die Datums-Walze" [human-eye] braucht einen Blick von Roman.

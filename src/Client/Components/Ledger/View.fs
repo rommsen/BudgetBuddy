@@ -958,20 +958,14 @@ let private fieldLabel (label: string) (child: ReactElement) : ReactElement =
         ]
     ]
 
-let private dateDraftInput (label: string) (value: DateTime option) (onChange: DateTime option -> unit) =
+let private dateDraftInput
+    (label: string)
+    (value: DateTime option)
+    (invalid: bool)
+    (onChange: DateField.DateEntry -> unit)
+    =
     fieldLabel label (
-        Html.input [
-            prop.type' "date"
-            prop.className "input-field w-full text-base md:text-sm px-3 py-2 min-h-[36px]"
-            prop.value (value |> Option.map (fun d -> d.ToString("yyyy-MM-dd")) |> Option.defaultValue "")
-            prop.onChange (fun (text: string) ->
-                if String.IsNullOrWhiteSpace text then
-                    onChange None
-                else
-                    match DateTime.TryParse text with
-                    | true, d -> onChange (Some d)
-                    | false, _ -> onChange None)
-        ]
+        DateField.view { Value = value; OnChange = onChange; Invalid = invalid; Label = label }
     )
 
 /// Die Zeitraum-Auswahl (AC: Schnellwahl trägt Von/Bis sichtbar ein).
@@ -993,15 +987,15 @@ let private datePickerBody (dispatch: Msg -> unit) (model: Model) =
                 ]
             ]
             Html.div [
-                prop.className "grid grid-cols-2 gap-3"
+                prop.className "grid grid-cols-2 gap-3 md:grid-cols-1"
                 prop.children [
-                    dateDraftInput "Von" model.DateDraft.From (fun v -> dispatch (SetDateDraftFrom v))
-                    dateDraftInput "Bis" model.DateDraft.To (fun v -> dispatch (SetDateDraftTo v))
+                    dateDraftInput "Von" model.DateDraft.From model.DateDraftFromInvalid (fun v -> dispatch (SetDateDraftFrom v))
+                    dateDraftInput "Bis" model.DateDraft.To model.DateDraftToInvalid (fun v -> dispatch (SetDateDraftTo v))
                 ]
             ]
             Primitives.HStack.spaceBetween [
                 Button.ghost "Zurücksetzen" (fun () -> dispatch ResetDateDraft)
-                PickerParts.applyButton 0 (fun () -> dispatch ApplyDateFilter)
+                PickerParts.applyButtonWhen (dateDraftHasError model) 0 (fun () -> dispatch ApplyDateFilter)
             ]
         ]
     ]

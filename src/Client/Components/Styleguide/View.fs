@@ -502,6 +502,15 @@ let private calmListSection =
                             ]
                         ]
                         PickerParts.footer 1 ignore ignore
+                        Html.div [
+                            prop.className "space-y-2"
+                            prop.children [
+                                DateField.view { Value = None; OnChange = ignore; Invalid = false; Label = "Leer" }
+                                DateField.view { Value = Some (System.DateTime(2026, 10, 7)); OnChange = ignore; Invalid = false; Label = "Gefüllt" }
+                                DateField.view { Value = None; OnChange = ignore; Invalid = true; Label = "Fehler" }
+                                caption "Datumsfeld: leer, gefüllt, Fehler (Hinweis, Übernehmen gesperrt)"
+                            ]
+                        ]
                         caption "Picker-Bausteine: Name 14/15px 500, Betrag neutral (Rot nur negativ), Übernehmen ohne Glow"
                     ]
                 ]

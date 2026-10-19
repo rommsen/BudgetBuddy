@@ -1227,11 +1227,15 @@ let private filterBarRuhigTests =
         test "datePickerBody: Übernehmen ohne Button.primary, mit PickerParts.applyButtonClass" {
             let body = bindingBody (readLedgerView ()) "datePickerBody"
             mustNotContain body "Button.primary"
-            mustContain body "PickerParts.applyButton "
+            mustContain body "PickerParts.applyButtonWhen (dateDraftHasError model)"
         }
 
-        test "Datumsfelder in Input.Small-Maßen" {
-            mustContain (bindingBody (readLedgerView ()) "dateDraftInput") "text-base md:text-sm px-3 py-2 min-h-[36px]"
+        test "Datumsfelder in Input.Small-Maßen (über den DS-Baustein DateField)" {
+            let src = readLedgerView ()
+            mustContain (bindingBody src "dateDraftInput") "DateField.view"
+            mustNotContain (bindingBody src "dateDraftInput") "prop.type'"
+            mustNotContain src "prop.type' \"date\""
+            mustNotContain (bindingBody src "dateDraftInput") "DateTime.TryParse"
             Expect.equal (Client.DesignSystem.Input.sizeToClass Client.DesignSystem.Input.Small) "text-base md:text-sm px-3 py-2 min-h-[36px]" "gleiche Maße wie Input.Small"
         }
 
