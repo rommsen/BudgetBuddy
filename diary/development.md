@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 22:10 - Taste G und Tastaturfokus in der Kassenbuch-Liste (ledger-rjb8w)
+
+**What I did:**
+Fokuszeile für die Kassenbuch-Liste am PC: Pfeil auf/ab und J/K bewegen, G setzt "Geprüft" und springt weiter, Umschalt+G setzt "Ungeprüft". Die Tasten ruhen in Eingabefeldern, im Auswahl-Modus (G) und bei offenem Popover. Fußzeile mit Tastaturhinweis.
+
+**Files Added:**
+- `src/Tests/LedgerKeyboardTests.fs` - 27 Tests zu Fokus, G, Tastenbelegung und Darstellung
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - `FocusedRow`, Msg `MoveFocus`/`ReviewKeyPressed`, reine Fokusfunktionen, `keyCommandFor`
+- `src/Client/Components/Ledger/State.fs` - Reducer für Fokus und G, Fokus-Nachrücken in `applyReviewMarkResult`, Abgleich in `EntriesPageLoaded`
+- `src/Client/Components/Ledger/View.fs` - `KeyboardNavigation`, Tastaturhinweis, Fokus an die PC-Zeile
+- `src/Client/DesignSystem/Table.fs` - `RowProps.IsFocused`, `focusedRowClass`, `aria-selected`
+- `src/Tests/LedgerSelectionTests.fs` - `entryOf` öffentlich
+- `src/Tests/Tests.fsproj` - neue Testdatei
+
+**Rationale:**
+Der Prüfvermerk soll am PC ohne Maus gehen. Die Fokuszeile ist die Grundlage für das Seitenpanel (ledger-q1hw2).
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 1475 erfolgreich, 0 Fehler, 7 übersprungen; Wächter 137/137
+- Issues: Ein erster Wächter-Lauf lief in ein Ladetimeout (parallel zu `dotnet test`), der Einzellauf war grün. Eine erste Fassung hatte den Hinweis als Modulwert, das ließ die View-Tests unter .NET scheitern; er ist jetzt eine Funktion.
+
+---
+
 ## 2026-10-19 20:10 - Auswahl-Modus mit Summe im Kassenbuch (ledger-r1d2f)
 
 **What I did:**

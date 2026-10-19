@@ -59,6 +59,7 @@ let init () : Model * Cmd<Msg> =
         Selection = NoSelection
         SelectionAnchor = None
         SelectionMode = false
+        FocusedRow = None
     }
     model, Cmd.none
 
@@ -150,6 +151,8 @@ let private applyReviewMarkResult
                 // Eine Zeile, die die Liste verlässt, verlässt auch die Auswahl (ledger-r1d2f).
                 Selection = (if leavesList then removeFromSelection entryId cleared.Selection else cleared.Selection)
                 SelectionAnchor = (if leavesList && cleared.SelectionAnchor = Some entryId then None else cleared.SelectionAnchor)
+                // Liegt der Fokus auf der Zeile, die geht, rückt er auf die nach (ledger-rjb8w).
+                FocusedRow = (if leavesList then focusAfterRemoval entries entryId cleared.FocusedRow else cleared.FocusedRow)
                 HasMoreEntries = List.length remaining < totalCount }
     | _ -> cleared
 
@@ -213,7 +216,20 @@ let private applyUndoReviewMark
     let reinserted = reinsertSwipedAway entryId model
     applyReviewMarkResult entryId (Some (needsReviewOf previous)) (writeBackFailureOf outcome) reinserted
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+/// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover oder die Historie
+/// gehören der Tastatur.
+let private keyboardBlocked (model: Model) : bool =
+    model.OpenPopover.IsSome || model.HistoryFor.IsSome
+
+/// Nimmt die Zeile den Prüfvermerk per Taste nicht an? In der Auswahl, ohne Schaltfläche
+/// (in YNAB gelöscht) und während ein Aufruf läuft.
+let private reviewKeyBlocked (model: Model) (entry: LedgerEntryView) : bool =
+    model.SelectionMode
+    || hasSelection model
+    || entry.DeletedInYnab
+    || (model.ReviewMarkRows |> Map.tryFind entry.Id) = Some ReviewMarkSending
+
+let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
 
     // ============================================
@@ -308,6 +324,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 (model.Entries |> RemoteData.withDefault []) @ entryPage.Entries
         { model with
             Entries = Success entries
+            // Der Fokus überlebt das Nachladen; fällt seine Zeile aus der Liste, springt er
+            // auf die erste (ledger-rjb8w).
+            FocusedRow = reconcileFocus entries model.FocusedRow
             NextPage = page + 1
             TotalCount = entryPage.TotalCount
             TotalAmount = entryPage.TotalAmount
@@ -841,3 +860,27 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | ClearSelection ->
         { model with Selection = NoSelection; SelectionAnchor = None; SelectionMode = false }, Cmd.none, NoOp
+
+    // ============================================
+    // Tastaturfokus und Taste G (ledger-rjb8w, PC)
+    // ============================================
+
+    | MoveFocus delta ->
+        if keyboardBlocked model then
+            model, Cmd.none, NoOp
+        else
+            let entries = model.Entries |> RemoteData.withDefault []
+            { model with FocusedRow = movedFocus entries model.FocusedRow delta }, Cmd.none, NoOp
+
+    | ReviewKeyPressed target ->
+        let entries = model.Entries |> RemoteData.withDefault []
+        let focused =
+            model.FocusedRow
+            |> Option.bind (fun id -> entries |> List.tryFind (fun e -> e.Id = id))
+        match focused with
+        // Im Auswahl-Modus ist G aus: unklar, ob es die Fokuszeile oder die Auswahl meint.
+        | Some entry when not (keyboardBlocked model) && not (reviewKeyBlocked model entry) ->
+            // Derselbe Weg wie der Klick auf die Schaltfläche (Fehlschlag-Hinweis inbegriffen);
+            // der Fokus springt sofort auf die nächste Zeile.
+            update (StartSetReviewMark (entry.Id, target)) { model with FocusedRow = Some (nextFocusAfter entries entry.Id) }
+        | _ -> model, Cmd.none, NoOp

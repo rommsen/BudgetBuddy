@@ -433,6 +433,12 @@ type Model = {
     /// Er beginnt mit langem Drücken und endet nur mit "Auswahl aufheben": auch mit
     /// leerer Auswahl bleibt er an.
     SelectionMode: bool
+
+    /// Die Fokuszeile der Tastaturnavigation am PC (ledger-rjb8w, `keyboardCursor` aus
+    /// Handoff Ablauf 7). `None`, bis die erste Taste sie setzt. Sie überlebt das
+    /// Neuladen der Liste; fällt die Zeile danach aus der Liste, springt der Fokus auf die
+    /// erste Zeile.
+    FocusedRow: Guid option
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -549,6 +555,58 @@ let removeFromSelection (id: Guid) (selection: Selection) : Selection =
         let ids' = Set.remove id ids
         if Set.isEmpty ids' then NoSelection else Picked ids'
     | AllExcept excluded -> AllExcept (Set.remove id excluded)
+
+// ============================================
+// Tastaturfokus (ledger-rjb8w), rein
+// ============================================
+
+/// Der Index der Zeile hinter dem Fokus; ohne Fokus oder mit einem Fokus außerhalb der
+/// Liste die erste. `None` nur bei leerer Liste.
+let private clampedFocusIndex (entries: LedgerEntryView list) (focus: Guid option) (delta: int) : int option =
+    match entries with
+    | [] -> None
+    | _ ->
+        match focus |> Option.bind (fun id -> entries |> List.tryFindIndex (fun e -> e.Id = id)) with
+        | Some index -> Some (max 0 (min (List.length entries - 1) (index + delta)))
+        | None -> Some 0
+
+/// Wohin der Fokus nach einer Pfeiltaste wandert. Am Listenende und am Listenanfang
+/// bleibt er stehen.
+let movedFocus (entries: LedgerEntryView list) (focus: Guid option) (delta: int) : Guid option =
+    clampedFocusIndex entries focus delta |> Option.map (fun i -> (List.item i entries).Id)
+
+/// Der Fokus nach dem Nachladen: liegt er noch in der Liste, bleibt er; sonst springt er auf
+/// die erste Zeile. Ohne Fokus bleibt es dabei (die Liste zeigt ihn erst nach der ersten Taste).
+let reconcileFocus (entries: LedgerEntryView list) (focus: Guid option) : Guid option =
+    match focus with
+    | None -> None
+    | Some id when entries |> List.exists (fun e -> e.Id = id) -> focus
+    | Some _ -> entries |> List.tryHead |> Option.map (fun e -> e.Id)
+
+/// Der Fokus, nachdem die Zeile `removedId` die Liste verlassen hat: die Zeile, die an ihre
+/// Stelle nachrückt, am Listenende die neue letzte. Liegt der Fokus woanders, bleibt er.
+let focusAfterRemoval (before: LedgerEntryView list) (removedId: Guid) (focus: Guid option) : Guid option =
+    if focus <> Some removedId then
+        focus
+    else
+        let after = before |> List.filter (fun e -> e.Id <> removedId)
+        match before |> List.tryFindIndex (fun e -> e.Id = removedId) with
+        | Some index when not (List.isEmpty after) -> Some (List.item (min index (List.length after - 1)) after).Id
+        | _ -> None
+
+/// Die Zeile nach `id` (das Ziel des Sprungs nach G); am Listenende die Zeile selbst.
+let nextFocusAfter (entries: LedgerEntryView list) (id: Guid) : Guid =
+    match entries |> List.tryFindIndex (fun e -> e.Id = id) with
+    | Some index when index + 1 < List.length entries -> (List.item (index + 1) entries).Id
+    | _ -> id
+
+/// Fängt ein Eingabeelement die Taste ab? In Suchfeldern, Filtern und Auswahllisten tippt
+/// G einen Buchstaben, die Pfeiltasten gehören dem Feld.
+let isTypingTarget (tagName: string) (isContentEditable: bool) : bool =
+    isContentEditable
+    || (match (if isNull tagName then "" else tagName).ToUpperInvariant() with
+        | "INPUT" | "TEXTAREA" | "SELECT" -> true
+        | _ -> false)
 
 /// Die Nachrichten der Seite.
 ///
@@ -700,6 +758,35 @@ type Msg =
     | ToggleHeaderCheckbox
     /// "Auswahl aufheben": leert die Auswahl und beendet den Modus.
     | ClearSelection
+
+    // ============================================
+    // Tastaturfokus und Taste G (ledger-rjb8w, PC)
+    // ============================================
+
+    /// Pfeil auf/ab oder K/J: bewegt die Fokuszeile um `delta` Zeilen (+1 ab, -1 auf).
+    | MoveFocus of delta: int
+    /// Taste G (Geprüft) oder Umschalt+G (Ungeprüft) auf der Fokuszeile.
+    | ReviewKeyPressed of ReviewMarkTarget
+
+/// Die Tastenbelegung der Kassenbuch-Liste (PC): Pfeil ab/auf und J/K bewegen den Fokus,
+/// G setzt "Geprüft", Umschalt+G "Ungeprüft". Enter und Esc sind frei (ledger-q1hw2). Ein
+/// Tastenereignis aus einem Eingabefeld oder mit Strg, Meta oder Alt löst nichts aus.
+let keyCommandFor
+    (tagName: string)
+    (isContentEditable: bool)
+    (ctrlOrMeta: bool)
+    (alt: bool)
+    (key: string)
+    : Msg option =
+    if isTypingTarget tagName isContentEditable || ctrlOrMeta || alt then
+        None
+    else
+        match key with
+        | "ArrowDown" | "j" | "J" -> Some (MoveFocus 1)
+        | "ArrowUp" | "k" | "K" -> Some (MoveFocus -1)
+        | "g" -> Some (ReviewKeyPressed Reviewed)
+        | "G" -> Some (ReviewKeyPressed Unreviewed)
+        | _ -> None
 
 /// Was die Seite nach oben meldet.
 type ExternalMsg =

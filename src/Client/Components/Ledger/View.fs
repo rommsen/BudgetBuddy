@@ -656,6 +656,7 @@ let private entryTableRow
     (rowState: ReviewMarkRowState option)
     (selected: bool)
     (isAnchor: bool)
+    (isFocused: bool)
     (entry: LedgerEntryView)
     =
     // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), nicht mehr
@@ -665,6 +666,7 @@ let private entryTableRow
         { Table.defaultRowProps with
             OnClick = Some (fun () -> dispatch (OpenHistory entry))
             StatusEdge = entry.NeedsReview
+            IsFocused = isFocused
             ClassName = Some (selectableRowClassName selected isAnchor) }
         [
             selectBoxCell dispatch selected entry
@@ -939,6 +941,67 @@ let private ScrollSentinel (onReachEnd: unit -> unit) (active: bool) =
     Html.div [ prop.ref elementRef; prop.className "h-1" ]
 
 // ============================================
+// Tastatur (ledger-rjb8w)
+// ============================================
+
+[<Emit("(function(el) { el.scrollIntoView({ block: 'nearest' }); })($0)")>]
+let private scrollIntoViewNearest (element: Browser.Types.Element) : unit = jsNative
+
+/// Die Tastenbelegung am Dokument (PC): übersetzt Tastenereignisse über `keyCommandFor` in
+/// Nachrichten. Ein Ereignis aus einem Eingabefeld oder mit Strg/Meta/Alt bleibt unberührt,
+/// ebenso eines, das schon jemand behandelt hat. Folgt der Fokus einer anderen Zeile, rollt
+/// die Liste sie ins Bild. Enter und Esc sind nicht belegt (ledger-q1hw2).
+[<ReactComponent>]
+let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit) =
+    let dispatchRef = React.useRef dispatch
+    dispatchRef.current <- dispatch
+
+    React.useEffect (
+        (fun () ->
+            let handler (e: Browser.Types.Event) =
+                let ke = e :?> Browser.Types.KeyboardEvent
+                let target = ke.target :?> Browser.Types.HTMLElement
+                let tagName = if isNull (box target) then "" else target.tagName
+                let editable = not (isNull (box target)) && target.isContentEditable
+                if not ke.defaultPrevented then
+                    match keyCommandFor tagName editable (ke.ctrlKey || ke.metaKey) ke.altKey ke.key with
+                    | Some msg ->
+                        ke.preventDefault ()
+                        dispatchRef.current msg
+                    | None -> ()
+
+            Browser.Dom.document.addEventListener ("keydown", handler)
+            { new IDisposable with
+                member _.Dispose() = Browser.Dom.document.removeEventListener ("keydown", handler) }),
+        [||]
+    )
+
+    React.useEffect (
+        (fun () ->
+            match focusedRow with
+            | Some _ ->
+                let element = Browser.Dom.document.querySelector "[data-keyboard-focus='true']"
+                if not (isNull element) then scrollIntoViewNearest element
+            | None -> ()),
+        [| box focusedRow |]
+    )
+
+    Html.none
+
+/// Der Tastaturhinweis am PC (Handoff Ablauf 1, 1.9): eine Fußzeile, solange keine
+/// Auswahl läuft. Tasten in Mono, der Rest gedämpft.
+let keyboardHintText = "↑ ↓ bewegen · G geprüft · Umschalt+G ungeprüft"
+
+let private keyboardHint () : ReactElement =
+    Html.div [
+        prop.className (
+            $"hidden md:flex fixed bottom-0 left-0 right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
+            $"border-t {Tokens.Borders.subtle} px-5 py-3 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
+        )
+        prop.children [ Html.span [ prop.className Tokens.Fonts.mono; prop.text keyboardHintText ] ]
+    ]
+
+// ============================================
 // Seite
 // ============================================
 
@@ -1139,6 +1202,7 @@ let private entryListDesktop
     (headerState: HeaderCheckState)
     (selection: Selection)
     (anchor: Guid option)
+    (focusedRow: Guid option)
     (entries: LedgerEntryView list)
     =
     // Spalten vor dem Betrag: Kästchen, Datum, [Konto], Payee, Kategorie, Memo.
@@ -1192,6 +1256,7 @@ let private entryListDesktop
                                           rowState
                                           (isSelected selection entry.Id)
                                           (anchor = Some entry.Id)
+                                          (focusedRow = Some entry.Id)
                                           entry
                                       match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
                                       | Some hintRow -> hintRow
@@ -1268,6 +1333,7 @@ let private entryList
                 (headerCheckState model)
                 model.Selection
                 model.SelectionAnchor
+                model.FocusedRow
                 entries
 
             if model.LoadingMore then
@@ -1650,6 +1716,13 @@ let private selectionSummaryRow (model: Model) : ReactElement =
 let private summaryOrSelectionRow (model: Model) : ReactElement =
     if hasSelection model then selectionSummaryRow model else summaryRow model
 
+/// Steht der Tastaturhinweis da? Nur mit geladenen Zeilen und ohne Auswahl, an deren Stelle
+/// die Leiste tritt.
+let keyboardHintVisible (model: Model) : bool =
+    match model.Entries with
+    | Success (_ :: _) -> not (hasSelection model)
+    | _ -> false
+
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), ohne schreibende Aktionen. Am Handy
 /// erscheint sie im Auswahl-Modus und ersetzt die Tab-Bar (zwei Reihen), am PC, solange die
 /// Auswahl nicht leer ist (eine Reihe, ohne "Alle"). Sie ist `fixed` und steht deshalb
@@ -1671,6 +1744,8 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 (fun () -> dispatch ClearSelection)
         if totals.Count > 0 then
             MultiSelect.barDesktop countText totals.Amount selectionClearLabel (fun () -> dispatch ClearSelection)
+        elif keyboardHintVisible model then
+            keyboardHint ()
     ]
 
 /// Je ein Abstandshalter in Höhe der Leiste unter der Liste, damit die letzte Zeile
@@ -1679,6 +1754,7 @@ let private selectionBarSpacers (model: Model) : ReactElement =
     React.fragment [
         if model.SelectionMode then Html.div [ prop.className "md:hidden h-40"; prop.ariaHidden true ]
         if hasSelection model then Html.div [ prop.className "hidden md:block h-20"; prop.ariaHidden true ]
+        elif keyboardHintVisible model then Html.div [ prop.className "hidden md:block h-12"; prop.ariaHidden true ]
     ]
 
 /// Zeile über der Liste, solange es gelöschte Buchungen im Filter gibt (AC2,
@@ -1827,6 +1903,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     FilterBarColumn dispatch model categories accounts isAllAccounts
                 ]
             ]
+
+        KeyboardNavigation model.FocusedRow dispatch
 
         historySheet model dispatch
     ]

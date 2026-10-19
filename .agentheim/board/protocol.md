@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-19 21:29 -- Task verified and completed: ledger-rjb8w - "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
+
+**Type:** Work / Task completion
+**Task:** ledger-rjb8w - "Taste G und Tastaturfokus in der Kassenbuch-Liste (PC)"
+**Summary:** Die Kassenbuch-Liste hat am PC eine Fokuszeile, die Pfeil auf/ab sowie J/K bewegen. G setzt auf ihr "Geprüft" und springt zur nächsten Zeile, Umschalt+G setzt "Ungeprüft". Eingabefelder, Auswahl und offene Popover sperren die Tasten, ein Hinweis in der Fußzeile nennt G.
+**Duration:** 20m30s
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 27
+**ADRs written:** none
+
+---
+
 ## 2026-10-19 21:08 -- Batch started: [ledger-rynk5, ledger-rjb8w]
 
 **Type:** Work / Batch start

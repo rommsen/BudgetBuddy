@@ -60,6 +60,7 @@
     <Compile Include="LedgerPagingTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
+    <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />

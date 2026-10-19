@@ -257,6 +257,9 @@ type RowProps = {
     IsHighlighted: bool
     /// 3px-Kante in Pink links ("zu prüfen", ADR 0049), ohne Zellinhalte zu verschieben
     StatusEdge: bool
+    /// Fokuszeile der Tastaturnavigation (`keyboardCursor`, ledger-rjb8w): ruhiger Grund
+    /// `surface-hover` ohne Leuchtfarbe, dazu `aria-selected` und eine Marke zum Scrollen.
+    IsFocused: bool
     OnClick: (unit -> unit) option
     ClassName: string option
 }
@@ -265,9 +268,14 @@ let defaultRowProps = {
     IsSelected = false
     IsHighlighted = false
     StatusEdge = false
+    IsFocused = false
     OnClick = None
     ClassName = None
 }
+
+/// Die Klassen der Fokuszeile: der Grund `surface-hover` (#1e1e3c), der Rand zum
+/// Scrollen unter dem sticky Kopf. Kein Ring, keine Leuchtfarbe (ADR 0049).
+let focusedRowClass = "bg-surface-hover scroll-mt-40 scroll-mb-16"
 
 /// Klassen einer Tabellenzeile
 let rowClass (props: RowProps) : string =
@@ -275,13 +283,17 @@ let rowClass (props: RowProps) : string =
     let highlightClass = if props.IsHighlighted then "bg-neon-orange/5" else ""
     let clickableClass = if props.OnClick.IsSome then "cursor-pointer" else ""
     let edgeClass = if props.StatusEdge then ListRoles.statusEdge else ""
+    let focusClass = if props.IsFocused then focusedRowClass else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
-    $"transition-colors {selectedClass} {highlightClass} {edgeClass} {clickableClass} {extraClass}"
+    $"transition-colors {selectedClass} {highlightClass} {edgeClass} {focusClass} {clickableClass} {extraClass}"
 
 /// Create a table row
 let row (props: RowProps) (cells: ReactElement list) =
     Html.tr [
         prop.className (rowClass props)
+        if props.IsFocused then
+            prop.custom ("aria-selected", "true")
+            prop.custom ("data-keyboard-focus", "true")
         match props.OnClick with
         | Some handler -> prop.onClick (fun _ -> handler())
         | None -> ()

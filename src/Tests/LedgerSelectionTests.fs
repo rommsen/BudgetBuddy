@@ -13,7 +13,7 @@ open Components.Ledger.Types
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
-let private entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : LedgerEntryView = {
+let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : LedgerEntryView = {
     Id = Guid.Parse $"0195f900-0000-7000-8000-{n:D12}"
     AccountId = Guid.Parse "0195e900-0000-7000-8000-000000000001"
     Date = DateTime(2026, 10, 1)
