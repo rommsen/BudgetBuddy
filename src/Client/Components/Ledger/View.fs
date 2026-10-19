@@ -515,10 +515,12 @@ let private entryRowWithReviewMark
                 prop.className "flex items-stretch"
                 prop.children [
                     entryRow dispatch accountAbbreviationOf entry
-                    Html.div [
-                        prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
-                        prop.children [ reviewMarkButton dispatch rowState entry ]
-                    ]
+                    // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
+                    if not entry.DeletedInYnab then
+                        Html.div [
+                            prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
+                            prop.children [ reviewMarkButton dispatch rowState entry ]
+                        ]
                 ]
             ]
             match reviewMarkHintFor rowState entry with

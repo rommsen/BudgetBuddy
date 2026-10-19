@@ -4,6 +4,25 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-19 17:30 - Handy: keine Prüfvermerk-Schaltfläche an in YNAB gelöschten Buchungen
+
+**What I did:**
+Am Handy bekam eine in YNAB gelöschte Buchung bei aktivem „Gelöschte zeigen“ die Schaltfläche Geprüft/Ungeprüft, ein Klick endete in der Ablehnung des Servers. Die Handy-Zeile prüft jetzt `entry.DeletedInYnab` wie die PC-Zeile schon vorher und lässt den Schaltflächen-Container ganz weg.
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - `entryRowWithReviewMark`: Container mit `reviewMarkButton` nur, wenn die Buchung nicht in YNAB gelöscht ist.
+- `scripts/ledger-review-mark.test.mjs` - vierte Fixture-Zeile (gelöscht) und Regressionstest für PC und Handy: Zeile sichtbar, keine Schaltfläche. Vor dem Fix rot am Handy, grün am PC.
+
+**Rationale:**
+Verifier-Befund aus ledger-r777c.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen), `npm run build` ✅
+- Tests: dotnet test 1386 bestanden, 6 übersprungen; test:scripts 134/134
+- Issues: keine
+
+---
+
 ## 2026-10-19 16:45 - Prüfvermerk in BB setzen und nach YNAB zurückschreiben (ledger-r777c)
 
 **What I did:**

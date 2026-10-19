@@ -29,6 +29,7 @@ const PAYEES = {
   toReview: "Prüfvermerk offen",
   reviewed: "Prüfvermerk erledigt",
   failed: "Prüfvermerk Fehlschlag",
+  deleted: "Prüfvermerk gelöscht",
 };
 const FAILURE_REASON = "Keine Verbindung zu YNAB: Timeout";
 
@@ -45,12 +46,14 @@ function buildEntries(accountId) {
       NeedsReview: false,
       ReviewMarkWriteBackFailure: FAILURE_REASON,
     }),
+    // In YNAB gelöscht: der Server lehnt jeden Prüfvermerk ab, also keine Schaltfläche.
+    buildEntryFixture(accountId, 4, { Payee: PAYEES.deleted, NeedsReview: false, DeletedInYnab: true }),
   ];
   return {
     Entries: entries,
     TotalCount: entries.length,
     TotalAmount: { Amount: entries.reduce((s, e) => s + e.Amount.Amount, 0), Currency: "EUR" },
-    DeletedCount: 0,
+    DeletedCount: entries.filter((e) => e.DeletedInYnab).length,
     NeedsReviewCount: entries.filter((e) => e.NeedsReview).length,
   };
 }
@@ -208,6 +211,23 @@ for (const [label, viewport, isDesktop] of [
       const call = calls.find((c) => c.endpoint === "retryReviewMarkWriteBack");
       assert.ok(call, "retryReviewMarkWriteBack wurde aufgerufen");
       assert.deepEqual(JSON.parse(call.body), [entries.Entries[2].Id], "Eintrags-Id");
+    } finally {
+      await context.close();
+    }
+  });
+
+  test(`${label}: in YNAB gelöschte Zeile hat keine Prüfvermerk-Schaltfläche`, async () => {
+    // Verhindert die Rückkehr des Fehlers, bei dem am Handy auch gelöschte Buchungen
+    // die Schaltfläche bekamen und ein Klick in der Ablehnung des Servers endete.
+    const { page, context } = await openLedger(viewport);
+    try {
+      const deleted = rowOf(page, isDesktop, PAYEES.deleted);
+      assert.equal(await deleted.count(), 1, "die gelöschte Zeile ist sichtbar");
+      assert.equal(
+        await deleted.getByRole("button", { name: /^(Geprüft|Ungeprüft)$/ }).count(),
+        0,
+        "keine Schaltfläche Geprüft oder Ungeprüft"
+      );
     } finally {
       await context.close();
     }
