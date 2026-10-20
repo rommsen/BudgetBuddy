@@ -7,6 +7,10 @@
     <!-- Erzwingt USE_MEMORY_DB=true fuer `dotnet test` (VSTest ruft nie den
          Einstiegspunkt in Main.fs auf, siehe dort und test.runsettings). -->
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
+    <!-- Die Tests laufen ohne Kulturdaten, wie der Server im Alpine-Container
+         (aspnet:9.0-alpine, kein ICU). Sonst bleibt ein Zugriff auf "de-DE"
+         lokal grün und wirft erst in Produktion (Historie 500, 2026-10-20). -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>

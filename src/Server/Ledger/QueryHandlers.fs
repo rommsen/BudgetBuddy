@@ -29,14 +29,21 @@ module Core = global.Persistence
 
 module ReadModel =
 
-    /// Zahlen im Kassenbuch werden deutsch geschrieben. Feste Kultur statt der des
-    /// Servers, damit ein Historien-Satz auf jeder Maschine gleich lautet.
-    let private de = CultureInfo.GetCultureInfo "de-DE"
+    /// Zahlen im Kassenbuch werden deutsch geschrieben (Tausenderpunkt,
+    /// Dezimalkomma). Das Format ist hier selbst gebaut, ohne Kulturdaten: der
+    /// Server läuft im Alpine-Container ohne ICU, dort gibt es "de-DE" nicht und
+    /// `CultureInfo.GetCultureInfo "de-DE"` wirft (Historie lieferte HTTP 500,
+    /// 2026-10-20). So lautet ein Historien-Satz auf jeder Maschine gleich.
+    let private germanNumbers =
+        let n = NumberFormatInfo.InvariantInfo.Clone() :?> NumberFormatInfo
+        n.NumberDecimalSeparator <- ","
+        n.NumberGroupSeparator <- "."
+        NumberFormatInfo.ReadOnly n
 
     let private formatMoney (m: Money) =
-        $"""{m.Amount.ToString("N2", de)} {m.Currency}"""
+        $"""{m.Amount.ToString("N2", germanNumbers)} {m.Currency}"""
 
-    let private formatDate (d: DateTime) = d.ToString("dd.MM.yyyy", de)
+    let private formatDate (d: DateTime) = d.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
 
     /// Die Herkunft hinter einem Actor (ADR 0013, Punkt 3).
     let originOf (actor: Actor) : LedgerOrigin =

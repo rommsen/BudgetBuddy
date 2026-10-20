@@ -21,17 +21,17 @@ open Client.DesignSystem
 // Formatierung
 // ============================================
 
-/// `CultureInfo("de-DE")` funktioniert bei Datumsformaten (anders als bei
-/// Geldbetraegen, siehe `Money.formatAmountText`) auch in der nach JavaScript
-/// uebersetzten Fassung, weil `DateTime.ToString` mit festem Format-String keine
-/// kulturabhaengige Zifferngruppierung braucht. Bewusst *keine* gemeinsame
-/// Modul-Konstante: ein Top-Level-`let`-Wert wuerde beim ersten Zugriff das gesamte
+/// Die Datumsformate hier sind feste numerische Format-Strings ("dd.MM.yyyy",
+/// "HH:mm"): Punkt und Doppelpunkt kommen aus dem Format, nicht aus der Kultur.
+/// Deshalb genügt die invariante Kultur, im Browser (Fable) wie unter `dotnet test`,
+/// das wie der Server-Container ohne Kulturdaten läuft (`InvariantGlobalization` in
+/// Tests.fsproj, dort gibt es "de-DE" nicht). Bewusst *keine* gemeinsame
+/// Modul-Konstante: ein Top-Level-`let`-Wert würde beim ersten Zugriff das gesamte
 /// Modul initialisieren (F# "startup code"), inklusive der `Badge.view`-Werte weiter
-/// unten in dieser Datei — unter `dotnet test` (kein Fable/Feliz-Laufzeitkontext)
-/// reisst das eine bereits bestehende `Client.DesignSystem.Badge`-Feliz-Prop in eine
-/// `InvalidCastException`. Jede Funktion baut ihre eigene `CultureInfo`-Instanz, das
-/// haelt `formatEntryDate` unit-testbar ohne diese Kaskade auszuloesen.
-let private germanCulture () = System.Globalization.CultureInfo("de-DE")
+/// unten in dieser Datei; unter `dotnet test` (kein Fable/Feliz-Laufzeitkontext)
+/// reißt das eine bestehende `Client.DesignSystem.Badge`-Feliz-Prop in eine
+/// `InvalidCastException`. Der Name bleibt, weil das Ergebnis deutsch geschrieben ist.
+let private germanCulture () = System.Globalization.CultureInfo.InvariantCulture
 
 /// Volles Datum, fuer die Historie/das Detail (AC3: "das volle Datum bleibt im
 /// Detail sichtbar").

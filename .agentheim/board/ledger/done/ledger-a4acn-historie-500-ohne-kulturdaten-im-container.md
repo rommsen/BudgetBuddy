@@ -1,7 +1,7 @@
 ---
 id: ledger-a4acn
 title: "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt"
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-10-20
@@ -58,3 +58,17 @@ Hotfix auf `main`, am 2026-10-20 vom Conductor direkt umgesetzt (Produktion betr
 danach auf Romans Wunsch über agentheim nachgetragen: Task erfasst, Fix vom Verifier mit
 frischem Blick geprüft, per complete integriert. Kein Worker-Lauf; die Änderung lag schon
 im Hauptbaum (Patch im Scratchpad gesichert).
+
+## Outcome
+
+Hotfix auf `main`, vom Conductor direkt umgesetzt, danach über agentheim nachgetragen (Verifier PASS, Iteration 1).
+
+**Ursache:** `Ledger.QueryHandlers.ReadModel.de = CultureInfo.GetCultureInfo "de-DE"`. Die Runtime `aspnet:9.0-alpine` läuft ohne ICU im Invariant-Globalization-Modus, dort gibt es "de-DE" nicht. Der Modul-Initialisierer warf beim ersten Zugriff (`formatMoney`), `getEntryHistory` lieferte bei jeder Buchung HTTP 500. Lokal (macOS mit ICU) blieben alle Tests grün.
+
+**Fix:**
+- `src/Server/Ledger/QueryHandlers.fs`: `germanNumbers` (aus `NumberFormatInfo.InvariantInfo` geklont, Dezimalkomma, Tausenderpunkt, schreibgeschützt) für `formatMoney`; `formatDate` mit `InvariantCulture` und festem Format. Ausgabe byte-gleich zu vorher (Negativmuster "-n", Gruppengröße 3).
+- `src/Tests/Tests.fsproj`: `InvariantGlobalization=true`, die Suite läuft wie der Container. Vor dem Fix damit 13 rote Tests (vom Verifier an einer Kopie von HEAD nachgestellt), danach grün.
+- `src/Client/Components/Ledger/View.fs`: `germanCulture ()` liefert `InvariantCulture` (nur feste numerische Datumsformate), damit die Client-Tests unter der invarianten Suite laufen; im Browser gleiche Ausgabe.
+- `src/Tests/LedgerPageTests.fs`: Wächtertest "Die Tests laufen ohne Kulturdaten, wie der Server im Container" (wirft für "de-DE", Kommentar nennt den Fehler) und "Beträge stehen mit Tausenderpunkt und Dezimalkomma, ohne Kulturdaten" ("-1.234,56 EUR").
+
+**Läufe:** `dotnet build` 0 Warnungen, `dotnet test` 1533 bestanden (6 übersprungen, 0 Fehler), `npm run build` ok, `npm run guard:classes` ok, `npm run test:scripts` 137/137. Das Kriterium "Historie lädt in Produktion" prüft der Conductor nach dem Deploy.

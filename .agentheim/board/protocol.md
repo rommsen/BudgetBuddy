@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:17 -- Task verified and completed: ledger-a4acn - "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt"
+
+**Type:** Work / Task completion
+**Task:** ledger-a4acn - "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt"
+**Summary:** Historie lädt im Container wieder: ReadModel formatiert ohne Kulturdaten, die Testsuite läuft wie der Container ohne ICU (InvariantGlobalization)
+**Duration:** verification only (hotfix by conductor)
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-10-20 08:11 -- Batch started: [ledger-a4acn]
 
 **Type:** Work / Batch start

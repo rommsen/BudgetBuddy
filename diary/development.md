@@ -4,6 +4,27 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 08:20 - Hotfix: Historie lieferte in Produktion HTTP 500 (ledger-a4acn)
+
+**What I did:**
+`ReadModel` in `Ledger.QueryHandlers` formatiert Beträge und Daten ohne Kulturdaten; die Testsuite läuft jetzt wie der Alpine-Container ohne ICU (`InvariantGlobalization`).
+
+**Files Modified:**
+- `src/Server/Ledger/QueryHandlers.fs` - eigenes `NumberFormatInfo` statt `CultureInfo.GetCultureInfo "de-DE"`, Datum mit `InvariantCulture`
+- `src/Client/Components/Ledger/View.fs` - `germanCulture ()` liefert `InvariantCulture` (feste Datumsformate)
+- `src/Tests/Tests.fsproj` - `InvariantGlobalization=true`
+- `src/Tests/LedgerPageTests.fs` - Wächtertest für den Invariant-Modus, Betragstest mit Tausenderpunkt
+
+**Rationale:**
+Nach dem Deploy vom 2026-10-19 warf der Modul-Initialisierer von `QueryHandlers` im Container (kein "de-DE" ohne ICU), die Historie lieferte bei jeder Buchung HTTP 500. Lokal mit ICU waren alle Tests grün; die invariante Suite macht diese Fehlerklasse künftig lokal sichtbar.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1533 bestanden, 6 übersprungen (vor dem Fix 13 rot unter der invarianten Suite); test:scripts 137/137
+- Issues: keine
+
+---
+
 ## 2026-10-19 22:20 - "Geprüft" für die ganze Auswahl (ledger-nhwrt)
 
 **What I did:**

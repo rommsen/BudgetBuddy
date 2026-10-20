@@ -99,6 +99,42 @@ let private entryView (n: int) (amount: decimal) (deleted: bool) : LedgerEntryVi
 let historyLanguageTests =
     testList "Historie spricht die Sprache des Kassenbuchs" [
 
+        test "Die Tests laufen ohne Kulturdaten, wie der Server im Container" {
+            // Verhindert die Rückkehr des Fehlers vom 2026-10-20: ReadModel lud
+            // CultureInfo "de-DE", das im Alpine-Container (kein ICU) nicht existiert.
+            // Der Modul-Initialisierer warf, getEntryHistory lieferte bei jeder
+            // Buchung HTTP 500. Lokal mit ICU blieben alle Tests grün. Fällt dieser
+            // Test, fehlt InvariantGlobalization in Tests.fsproj.
+            Expect.throws
+                (fun () -> System.Globalization.CultureInfo.GetCultureInfo "de-DE" |> ignore)
+                "Ohne Kulturdaten gibt es de-DE nicht, wie im Container"
+        }
+
+        test "Beträge stehen mit Tausenderpunkt und Dezimalkomma, ohne Kulturdaten" {
+            let body =
+                EntryObservedInYnab {
+                    AccountId = LedgerAccountId (accountGuid 1)
+                    YnabTransactionId = "txn-1"
+                    ImportId = None
+                    Date = DateTime(2026, 3, 4)
+                    Amount = eur -1234.56m
+                    Payee = Some "Möbelhaus"
+                    Memo = None
+                    Category = None
+                    Splits = []
+                    Cleared = Uncleared
+                    TransferAccountId = None
+                    TransferYnabTransactionId = None
+                    Approved = true
+                    FlagColor = None
+                    FlagName = None
+                }
+            Expect.stringContains
+                (ReadModel.describe body)
+                "-1.234,56 EUR"
+                "Deutsche Schreibweise des Betrags bleibt erhalten"
+        }
+
         test "Erstbeobachtung nennt Payee, Betrag und Kategorie" {
             let body =
                 EntryObservedInYnab {
