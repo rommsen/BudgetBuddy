@@ -7,7 +7,7 @@ context: ledger
 created: 2026-10-20
 completed:
 depends_on: [design-system-001, ledger-qh9qx, ledger-r72re]
-blocks: [ledger-skpcx]
+blocks: [ledger-skpcx, ledger-q1hw2]
 tags: [frontend, kassenbuch, sortierung, tabelle]
 related_adrs: [0036, 0037, 0049, 0051]
 related_research: []

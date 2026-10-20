@@ -5,6 +5,43 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 20:12 -- Modeling / Refined: ledger-q1hw2 - Buchungs-Detail nach ADR 0053
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (wartet auf ledger-bn913)
+**Summary:** Nach der Konzeptrunde mit Roman (ADR 0053) neu verfeinert: Klick auf die Zeile markiert sie und öffnet das Detail, Zellen ohne eigene Klickziele, Filter-Knöpfe an den Feldern im Detail, Rückbau von Zellmenü und altem Historie-Sheet, Platz für den v2-Pfeil an der Kategorie. Läuft nach ledger-bn913. Neu erfasst: ledger-w4vte (Auswahl), ledger-m6zpd (Kompaktliste nach Eingabegerät), ledger-k2rbn (Kategorie ändern, v2).
+**ADRs written:** 0053
+
+---
+
+## 2026-10-20 20:12 -- Modeling / Captured: ledger-k2rbn - "Kategorie ändern in BB (v2): ein Kategorie-Picker mit zwei Einstiegen, dem Pfeil an der Kategorie im Detail für eine Buchung und \"Kategorie setzen\" in der Auswahl-Leiste für viele; BB schreibt die Änderung nach YNAB nach dem Muster des Prüfvermerks"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** v2: Kategorie ändern mit einem Picker, Einstiege im Detail und in der Auswahl-Leiste, Schreibweg nach ADR 0050.
+
+---
+
+## 2026-10-20 20:12 -- Modeling / Captured: ledger-m6zpd - "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Stück 3 nach ADR 0053: Kompaktliste mit Maus bekommt Kästchen, Hover-Schaltfläche, sichtbare Markierung und alle Tasten.
+
+---
+
+## 2026-10-20 20:12 -- Modeling / Captured: ledger-w4vte - "Auswahl nach ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, dann Detail, dann Auswahl; während einer Auswahl ruhen Prüf-Schaltfläche, G und Wisch auf PC und Handy"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Stück 2 nach ADR 0053: Leertaste, Auswahl schließt Detail, Esc-Kette, einheitliche Sperren, Handy-Kästchen, Fußzeilen-Hinweis.
+
+---
+
 ## 2026-10-20 20:09 -- Modeling / Promoted: ledger-bn913 - "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
 
 **Type:** Modeling / Promote
