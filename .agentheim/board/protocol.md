@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 20:09 -- Modeling / Promoted: ledger-bn913 - "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-20 10:07 -- Work session ended
 
 **Type:** Work / Session end
