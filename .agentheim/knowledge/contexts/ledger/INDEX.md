@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0053** — Bedienung der Kassenbuch-Zeile: Panel für eine Buchung, Leiste für viele, Zellen ohne eigene Klickziele, Gesten nach Eingabegerät — 2026-10-20 — `../../decisions/0053-bedienung-der-kassenbuch-zeile-panel-fuer-eine-leiste-fuer-viele.md`
 - **0052** — Grenze zwischen PC-Tabelle und kompakter Liste folgt der gemessenen Tabellenbreite, die Filter-Chrome bleibt beim Viewport (bewusste Abweichung von ADR 0043) — 2026-10-20 — `../../decisions/0052-grenze-tabelle-liste-folgt-der-gemessenen-tabellenbreite.md`
 - **0051** — Kassenbuch-Sortierung gehört zur Seitenanfrage und nicht zum EntryFilter, Betrag und Kategorie sortieren in F# — 2026-10-20 — `../../decisions/0051-kassenbuch-sortierung-teil-der-seitenanfrage-nicht-des-filters.md`
 - **0048** — Chip "ohne Kategorie" fragt nach einem fehlenden Ziel, nicht nach einer fehlenden Kategorie; transfer_account_id wird roh in den Zustand projiziert — 2026-10-02 — `../../decisions/0048-ohne-kategorie-chip-ziel-statt-kategorie-transfer-projektion.md`
