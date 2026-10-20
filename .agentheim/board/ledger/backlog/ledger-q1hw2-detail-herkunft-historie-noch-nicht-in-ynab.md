@@ -158,3 +158,18 @@ Panel-Zeile, weil sie die Fokuszeile ist.
 
 Nicht Teil: Abweichung (Pink, v2), Kategorie- und Split-Bearbeitung (v2), "Erneut senden"
 für den Push, "Wiederherstellen" gelöschter Buchungen.
+
+Befund nach dem Deploy vom 2026-10-20 (Roman am PC und am Handy), vor dem nächsten
+Verfeinern klären:
+- Die Aktionen "Nach <Payee> filtern" und "Nach <Kategorie> filtern" stehen auch am PC
+  oben in der Historie. `historySheet` ist am PC und am Handy dasselbe Sheet, und
+  `ledger-rfq5p` hat den Block ohne Geräteunterscheidung eingebaut. Am PC ist dieselbe
+  Aktion dadurch zweimal erreichbar, einmal über das Zellmenü und einmal über die
+  Historie.
+- Das Zellmenü am PC ist schwer lesbar: `FilterPopover`-Hülle mit 240 px und `p-4`, die
+  Beschriftung wird auf eine Zeile gekürzt ("Nach STUDENTENWERK..."), das Menü deckt die
+  Zeile darunter ab. Ein Menü mit einem einzigen Eintrag wirkt wie ein Umweg.
+- Roman will die Bedienung der Zeile als Ganzes denken (Zeilenklick, Zellklick,
+  Kästchen, Prüf-Schaltfläche, Tasten, Detail, später "Kategorie ändern"), bevor einzeln
+  nachgebessert wird. Bestandsaufnahme: `docs/ux/kassenbuch/bedienkonzept-zeile-bestandsaufnahme.md`.
+  Diese Aufgabe wird nach der Konzeptrunde neu verfeinert.
