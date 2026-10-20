@@ -381,6 +381,28 @@ let entryRowSelectedClassName : string =
 let private keepWidth (child: ReactElement) =
     Html.span [ prop.className "shrink-0"; prop.children [ child ] ]
 
+/// Der Tooltip (`title`) der Prüf-Schaltfläche: nennt die Aktion (ledger-mhe2s).
+let reviewMarkTooltip (target: ReviewMarkTarget) : string =
+    match target with
+    | Reviewed -> "Als geprüft markieren"
+    | Unreviewed -> "Als ungeprüft markieren"
+
+/// Die Klassen der Prüf-Schaltfläche (ledger-mhe2s). Immer neutral (`text-text-secondary`,
+/// bei Hover `text-text-primary`), nie Teal: Grün ist ein Signal (ADR 0049), und der Haken
+/// neben "zu prüfen" las sich wie "erledigt". Mit `hoverOnly` (PC-Zeile) ist sie ohne
+/// Zeilen-Hover, Fokus in der Zeile oder eigenen Tastaturfokus unsichtbar, behält aber
+/// ihre Breite (`opacity-0`, kein `hidden`). `rowFocused` ist die Zeile des Tastaturcursors
+/// (ledger-rjb8w). Am Handy (`hoverOnly = false`) bleibt sie sichtbar.
+let reviewMarkButtonClassName (hoverOnly: bool) (rowFocused: bool) : string =
+    let visibility =
+        if not hoverOnly then ""
+        elif rowFocused then "opacity-100"
+        else "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+    "inline-flex shrink-0 items-center justify-center rounded-lg h-11 w-11 md:h-7 md:w-7 " +
+    "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
+    "transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed " +
+    visibility
+
 /// Die Schaltfläche "Geprüft" / "Ungeprüft" einer Zeile (ledger-r777c, ADR 0050): ein
 /// Symbol (Haken für "Geprüft", Pfeil zurück für "Ungeprüft") mit der Beschriftung als
 /// nur vorgelesenem Text, damit die Statusspalte der PC-Tabelle (128px) nicht
@@ -388,6 +410,8 @@ let private keepWidth (child: ReactElement) =
 /// Historie der Zeile (`stopPropagation`). Ein laufender Aufruf sperrt die Schaltfläche.
 let private reviewMarkButton
     (dispatch: Msg -> unit)
+    (hoverOnly: bool)
+    (rowFocused: bool)
     (rowState: ReviewMarkRowState option)
     (entry: LedgerEntryView)
     : ReactElement =
@@ -395,17 +419,14 @@ let private reviewMarkButton
     let sending = (rowState = Some ReviewMarkSending)
     let icon =
         match action.Target with
-        | Reviewed -> Icons.check Icons.SM Icons.NeonTeal
+        | Reviewed -> Icons.check Icons.SM Icons.Default
         | Unreviewed -> Icons.undo Icons.SM Icons.Default
 
     Html.button [
         prop.type'.button
         prop.disabled sending
-        prop.className (
-            "inline-flex shrink-0 items-center justify-center rounded-lg h-11 w-11 md:h-7 md:w-7 " +
-            "text-text-secondary hover:text-text-primary hover:bg-surface-hover " +
-            "transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
-        )
+        prop.title (reviewMarkTooltip action.Target)
+        prop.className (reviewMarkButtonClassName hoverOnly rowFocused)
         prop.onClick (fun e ->
             e.stopPropagation ()
             dispatch (StartSetReviewMark (entry.Id, action.Target)))
@@ -562,7 +583,7 @@ let private entryRowWithReviewMark
                     if not entry.DeletedInYnab && selected.IsNone then
                         Html.div [
                             prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
-                            prop.children [ reviewMarkButton dispatch rowState entry ]
+                            prop.children [ reviewMarkButton dispatch false false rowState entry ]
                         ]
                 ]
             ]
@@ -703,7 +724,7 @@ let private entryTableRow
             OnClick = Some (fun () -> dispatch (OpenHistory entry))
             StatusEdge = entry.NeedsReview
             IsFocused = isFocused
-            ClassName = Some (selectableRowClassName selected isAnchor) }
+            ClassName = Some ("group " + selectableRowClassName selected isAnchor) }
         [
             selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
@@ -733,7 +754,7 @@ let private entryTableRow
                         if entry.DeletedInYnab then deletedStatusIcon ()
                         // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk mehr an
                         // (der Server lehnt sie ab), also bekommt sie keine Schaltfläche.
-                        if not entry.DeletedInYnab then reviewMarkButton dispatch rowState entry
+                        if not entry.DeletedInYnab then reviewMarkButton dispatch true isFocused rowState entry
                     ]
                 ]
             ]

@@ -4,6 +4,31 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 10:05 - Prüf-Schaltfläche der PC-Zeile nur bei Hover oder Fokus, neutral grau (ledger-mhe2s)
+
+**What I did:**
+Die Prüf-Schaltfläche in der Statusspalte der PC-Tabelle ist ohne Hover und Fokus unsichtbar (Breite bleibt), bei Zeilen-Hover, Zeilenfokus und eigenem Fokus sichtbar. Haken und Pfeil sind neutral grau, die Schaltfläche trägt einen Tooltip. Am Handy bleibt sie sichtbar.
+
+**Files Added:**
+- `src/Tests/LedgerReviewButtonVisibilityTests.fs` - 8 Tests zu Klassen, Farbe, Tooltip und Verdrahtung
+- `scripts/ledger-review-button-visibility.test.mjs` - Playwright-Wächter am echten Element
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - `reviewMarkButtonClassName`, `reviewMarkTooltip`, `group` an der PC-Zeile, neutrale Icons
+- `src/Tests/Tests.fsproj` - neue Testdatei eingetragen, Merge-Konflikt mit main aufgelöst
+- `scripts/ledger-status-column.test.mjs` - Markiert-Symbol-Suche schließt `button` aus
+
+**Rationale:**
+Der grüne Haken neben "zu prüfen" las sich wie "erledigt" (ADR 0049: Grün ist ein Signal).
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: dotnet 1540 bestanden, test:scripts 139 von 139
+- Messung (1440px, echtes Element): ohne Hover opacity 0, Breite 28px; bei Zeilen-Hover opacity 1; Fokus auf der Schaltfläche opacity 1
+- Issues: Wächter braucht offene `mirrorYnabBudget`-Anfrage, sonst Neuaufbau der Liste
+
+---
+
 ## 2026-10-20 10:15 - Kassenbuch-Sortierung im Lesepfad (ledger-r72re)
 
 **What I did:**

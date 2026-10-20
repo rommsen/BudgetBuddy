@@ -387,7 +387,7 @@ test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne hö
     `Die Statuszelle darf nicht waagerecht überlaufen (scrollWidth=${scrollWidth}, clientWidth=${clientWidth}, der von Iteration 2 gemeldete Befund war 131 > 128)`
   );
 
-  const markedIcon = statusCell.locator("[title], [aria-label]").last();
+  const markedIcon = statusCell.locator("[title]:not(button), [aria-label]:not(button)").last();
   assert.equal(
     await markedIcon.getAttribute("title"),
     "Markiert",

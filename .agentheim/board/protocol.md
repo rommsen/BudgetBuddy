@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 09:54 -- Task verified and completed: ledger-mhe2s - "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\""
+
+**Type:** Work / Task completion
+**Task:** ledger-mhe2s - "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\""
+**Summary:** Die Prüf-Schaltfläche der PC-Zeile ist ohne Hover und Fokus unsichtbar (Breite bleibt), bei Zeilen-Hover, Zeilenfokus und eigenem Fokus sichtbar, in Haken und Pfeil neutral grau und trägt einen Tooltip mit der Aktion. Am Handy bleibt sie sichtbar (44px), ebenfalls neutral.
+**Duration:** 1h11m
+**Verification:** PASS (iteration 1, nach Merge-Auflösung erneut geprüft)
+**Files changed:** 5
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-10-20 09:23 -- Batch started: [ledger-rfq5p]
 
 **Type:** Work / Batch start
