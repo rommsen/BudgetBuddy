@@ -516,25 +516,19 @@ let private statusColumnTests =
                 "Screen 1.9 sieht 128px vor; die 208px waren ein Pflaster von ledger-x0yga."
         }
 
-        /// Spaltenanteile (`ledger-n4vte`, mit der Kästchen-Spalte aus `ledger-r1d2f` auf
-        /// 28 und 24 %): Payee ca. 28 %, Kategorie ca. 24 %, Memo bekommt den Rest. Sie stehen in einer `colgroup`; die Kopfzellen der
+        /// Die colgroup baut seit ledger-qh9qx auf den sichtbaren Spalten aus
+        /// `visibleColumns` (Mindestbreiten statt Prozentanteile); die Kopfzellen der
         /// ruhigen Tabelle (`Table.calmHeaderCell`) tragen keine Breite. Quelltext-
         /// Wächter; die tatsächliche Breite misst `scripts/ledger-status-column.test.mjs`.
-        test "Payee 28 %, Kategorie 24 %, Memo ohne Breite in der colgroup (Quelltext-Wächter)" {
+        test "colgroup und Köpfe richten sich nach den sichtbaren Spalten (Quelltext-Wächter)" {
             let view = readLedgerView ()
             let desktopBody = sliceFunctionBody view "let private entryListDesktop"
-            // Seit ledger-m23nz kommen die Breiten aus `tableColumnWidths`.
-            Expect.stringContains desktopBody "tableColumnWidths showAccountColumn"
-                "Die colgroup baut auf tableColumnWidths."
-            let widths = tableColumnWidths false
-            Expect.contains widths (Percent 28)
-                "Payee bekommt ca. 28 %, damit 'Transfer : Tagesgeld ING' nicht gekürzt wird."
-            Expect.contains widths (Percent 24)
-                "Kategorie bekommt ca. 24 %, damit 'Alltag: Essen/Einkaufen' nicht gekürzt wird."
-            Expect.contains widths Rest
-                "Memo bekommt den Rest, ohne eigene Breite."
+            Expect.stringContains desktopBody "for (_, width) in columns -> col width"
+                "Die colgroup baut auf den Breiten aus visibleColumns."
             Expect.stringContains desktopBody "Table.calmHeaderCell \"Payee\""
                 "Spaltenkopf der ruhigen Tabelle."
+            Expect.stringContains desktopBody "if List.contains MemoColumn visible then Table.calmHeaderCell \"Memo\""
+                "Der Memo-Kopf fällt mit der Memo-Spalte weg."
         }
 
         test "needsReviewStatusBadge zeigt das kleine Wort 'zu prüfen' in Pink, kein Badge mehr (ADR 0049 Punkt 7)" {
@@ -1279,19 +1273,6 @@ let private filterBarRuhigTests =
                 let cls = Client.DesignSystem.Money.listAmountClass amount
                 Expect.isFalse (cls.Contains "neon-red") $"{amount}: {cls}"
                 Expect.isFalse (cls.Contains "neon-green") $"{amount}: {cls}"
-        }
-
-        test "tableColumnWidths: Memo bekommt mindestens 16 Prozent, Prozentwerte unter 100" {
-            for showAccount in [ true; false ] do
-                let widths = tableColumnWidths showAccount
-                let percent = widths |> List.sumBy (function Percent p -> p | _ -> 0)
-                Expect.isLessThan percent 100 $"Summe der Prozentwerte (Konto={showAccount})"
-                Expect.equal (widths |> List.filter ((=) Rest) |> List.length) 1 "genau eine Restspalte"
-                Expect.equal (List.length widths) (if showAccount then 8 else 7) "Spaltenzahl (mit Kästchen-Spalte)"
-                let memoPx = memoWidthAt referenceTableWidth showAccount
-                if showAccount then
-                    Expect.isGreaterThanOrEqual (memoPx / referenceTableWidth) memoMinShare $"Memo-Anteil in Alle Konten: {memoPx}"
-                Expect.isGreaterThanOrEqual memoPx 120.0 $"Memo mindestens 120px (Konto={showAccount}): {memoPx}"
         }
 
         test "historyLine: ListRoles.primary statt FontSizes.body" {

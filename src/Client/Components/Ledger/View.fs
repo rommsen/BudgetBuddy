@@ -602,10 +602,6 @@ let private categoryCell (entry: LedgerEntryView) =
         Table.Secondary
         (Html.span [ prop.className (categoryClassName entry); prop.text (categoryLabelQualified entry) ])
 
-/// Breite der Status-Spalte in der PC-Tabelle: der Handoff-Wert aus Screen 1.9
-/// (Entscheidung Roman 2026-09-19, `ledger-qns4j`).
-let private statusColumnWidth = "128"
-
 /// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
 /// ADR 0049); gedämpft und durchgestrichen für eine in YNAB gelöschte Buchung.
 let private tdMoney (entry: LedgerEntryView) =
@@ -649,9 +645,49 @@ let private selectHeaderCell (dispatch: Msg -> unit) (state: HeaderCheckState) :
             (fun _ -> dispatch ToggleHeaderCheckbox)
     ]
 
+/// Breite einer Tabellenspalte: feste Pixel oder "Rest" (die letzte flexible Spalte).
+type ColumnWidth =
+    | FixedPx of int
+    | Rest
+
+/// Die Spalten der PC-Tabelle in ihrer Reihenfolge (K13).
+type LedgerColumn =
+    | SelectColumn
+    | DateColumn
+    | AccountColumn
+    | PayeeColumn
+    | CategoryColumn
+    | MemoColumn
+    | AmountColumn
+    | StatusColumn
+
+/// Was die PC-Ansicht bei einer Tabellenbreite zeigt: die Tabelle mit den sichtbaren
+/// Spalten samt Breiten, oder die kompakte Liste (dieselbe wie am Handy).
+type TableLayout =
+    | CompactList
+    | Columns of (LedgerColumn * ColumnWidth) list
+
+/// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
+/// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
+/// als eigenes Element neben dem Payee-Text (ledger-qh9qx).
+let private payeeCell (accountAbbreviation: string option) (payee: string) =
+    Table.roleCell
+        Table.Payee
+        [ Html.div [
+              prop.className "truncate"
+              prop.children [
+                  match accountAbbreviation with
+                  | Some abbreviation ->
+                      Html.span [ prop.className $"{Tokens.ListRoles.muted} mr-1.5"; prop.text abbreviation ]
+                  | None -> ()
+                  Html.span [ prop.text payee ]
+              ]
+          ] ]
+
 let private entryTableRow
     (dispatch: Msg -> unit)
-    (showAccountColumn: bool)
+    (columns: LedgerColumn list)
+    (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
     (rowState: ReviewMarkRowState option)
     (selected: bool)
@@ -671,10 +707,17 @@ let private entryTableRow
         [
             selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
-            if showAccountColumn then Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
-            truncatedRoleCell Table.Payee (Html.text (payeeLabel entry))
+            if List.contains AccountColumn columns then
+                Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
+            payeeCell
+                (if isAllAccounts && not (List.contains AccountColumn columns) then
+                     Some (accountAbbreviationOf entry.AccountId)
+                 else
+                     None)
+                (payeeLabel entry)
             categoryCell entry
-            truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
+            if List.contains MemoColumn columns then
+                truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
             tdMoney entry
             Table.cell { Table.defaultCellProps with Align = Some "right" } [
                 Html.div [
@@ -1127,9 +1170,15 @@ let private entryListMobile
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (selectionMode: bool)
     (selection: Selection)
+    (alwaysVisible: bool)
     (entries: LedgerEntryView list)
     =
-    Primitives.Responsive.mobileOnly [
+    // `alwaysVisible`: die kompakte Liste ersetzt die Tabelle auch ab `md`, wenn die
+    // Tabellenbreite für die Mindestspalten nicht reicht (`visibleColumns`).
+    let wrap (children: ReactElement list) =
+        if alwaysVisible then Html.div children else Primitives.Responsive.mobileOnly children
+
+    wrap [
         Html.div [
             prop.children (
                 groupByDate entries
@@ -1148,54 +1197,102 @@ let private entryListMobile
         ]
     ]
 
-/// Breite einer Tabellenspalte: feste Pixel, Anteil der Tabelle oder "Rest" (Memo).
-type ColumnWidth =
-    | FixedPx of int
-    | Percent of int
-    | Rest
-
 /// Breite der Kästchen-Spalte der PC-Tabelle (Handoff Ablauf 3: 44px).
 let selectColumnWidth = 44
 
-/// Spaltenbreiten der PC-Tabelle in Reihenfolge Kästchen, Datum, [Konto], Payee, Kategorie,
-/// Memo, Betrag, Status (K13). In "Alle Konten" nimmt die Kontospalte Platz weg; Payee und
-/// Kategorie geben deshalb Prozent ab, damit Memo nicht auf wenige Pixel schrumpft. Die
-/// Kästchen-Spalte (ledger-r1d2f) kostet 44px, die Payee und Kategorie ebenfalls abgeben.
-/// Die Anteile wirken nur mit `FixedLayout = true`.
-let tableColumnWidths (showAccountColumn: bool) : ColumnWidth list =
-    [ FixedPx selectColumnWidth
-      FixedPx 96
-      if showAccountColumn then FixedPx 72
-      Percent (if showAccountColumn then 20 else 28)
-      Percent (if showAccountColumn then 20 else 24)
-      Rest
-      FixedPx 132
-      FixedPx (int statusColumnWidth) ]
+/// Breite der Status-Spalte in der PC-Tabelle: der Handoff-Wert aus Screen 1.9
+/// (Entscheidung Roman 2026-09-19, `ledger-qns4j`).
+let private statusColumnWidth = "128"
 
-/// Mindestanteil der Memo-Spalte an der Tabellenbreite in "Alle Konten"
-let memoMinShare = 0.16
+let private dateColumnWidth = 96
+let private accountColumnWidth = 72
+let private amountColumnWidth = 132
 
-/// Tabellenbreite bei 1440px Fensterbreite (gemessen: Seitenleiste mit Konten daneben)
-let referenceTableWidth = 1090.0
+/// Mindestbreiten der flexiblen Spalten (Richtwerte aus ledger-qh9qx). Keine sichtbare
+/// Spalte wird schmaler; reicht die Breite nicht, fällt erst Memo, dann Konto weg.
+let payeeMinWidth = 140
+let categoryMinWidth = 120
+let memoMinWidth = 120
 
-/// Breite der Memo-Spalte in Pixeln bei gegebener Tabellenbreite
-let memoWidthAt (tableWidth: float) (showAccountColumn: bool) : float =
-    let widths = tableColumnWidths showAccountColumn
-    let fixedPx = widths |> List.sumBy (function FixedPx px -> float px | _ -> 0.0)
-    let percent = widths |> List.sumBy (function Percent p -> float p | _ -> 0.0)
-    tableWidth - fixedPx - tableWidth * percent / 100.0
+/// Mindestbreite einer Spalte in Pixeln.
+let minColumnWidth (column: LedgerColumn) : int =
+    match column with
+    | SelectColumn -> selectColumnWidth
+    | DateColumn -> dateColumnWidth
+    | AccountColumn -> accountColumnWidth
+    | PayeeColumn -> payeeMinWidth
+    | CategoryColumn -> categoryMinWidth
+    | MemoColumn -> memoMinWidth
+    | AmountColumn -> amountColumnWidth
+    | StatusColumn -> int statusColumnWidth
+
+/// Die Spaltenstufen von breit nach schmal (ADR 0049 bleibt Maßstab: ruhig statt eng):
+/// alle Spalten, ohne Memo, ohne Memo und Konto. Das Konto fällt nur in der Gesamtsicht
+/// weg, in einem Konto gibt es die Spalte ohnehin nicht.
+let private columnStages (showAccountColumn: bool) : LedgerColumn list list =
+    let withAccount (cols: LedgerColumn list) =
+        if showAccountColumn then
+            [ SelectColumn; DateColumn; AccountColumn ] @ cols
+        else
+            [ SelectColumn; DateColumn ] @ cols
+
+    let tail = [ AmountColumn; StatusColumn ]
+
+    [ withAccount ([ PayeeColumn; CategoryColumn; MemoColumn ] @ tail)
+      withAccount ([ PayeeColumn; CategoryColumn ] @ tail)
+      if showAccountColumn then
+          [ SelectColumn; DateColumn; PayeeColumn; CategoryColumn ] @ tail ]
+
+let private minTotal (columns: LedgerColumn list) : int =
+    columns |> List.sumBy minColumnWidth
+
+/// Reine Entscheidung: welche Spalten bei welcher Breite sichtbar sind. `tableWidth` ist
+/// die gemessene Breite des Tabellencontainers in Pixeln, `showAccountColumn` die
+/// Gesamtsicht. Die erste Stufe, deren Mindestbreiten (inklusive) in `tableWidth` passen,
+/// gewinnt; passt keine, gilt `CompactList`. Den Überschuss über die Mindestbreiten
+/// teilen Payee (40 %) und Kategorie (30 %) bevor Memo (oder, ohne Memo, die Kategorie)
+/// den Rest nimmt.
+let visibleColumns (tableWidth: float) (showAccountColumn: bool) : TableLayout =
+    let stage =
+        columnStages showAccountColumn
+        |> List.tryFind (fun columns -> float (minTotal columns) <= tableWidth)
+
+    match stage with
+    | None -> CompactList
+    | Some columns ->
+        let extra = tableWidth - float (minTotal columns)
+        let hasMemo = List.contains MemoColumn columns
+
+        let width (column: LedgerColumn) =
+            match column with
+            | PayeeColumn -> FixedPx (payeeMinWidth + int (floor (extra * 0.4)))
+            | CategoryColumn when hasMemo -> FixedPx (categoryMinWidth + int (floor (extra * 0.3)))
+            | CategoryColumn
+            | MemoColumn -> Rest
+            | other -> FixedPx (minColumnWidth other)
+
+        Columns [ for column in columns -> column, width column ]
+
+/// Breite einer Spalte in Pixeln bei gegebener Tabellenbreite: `Rest` ist, was nach den
+/// festen Spalten übrig bleibt.
+let columnPixelWidth (tableWidth: float) (columns: (LedgerColumn * ColumnWidth) list) (column: LedgerColumn) : float option =
+    let fixedPx = columns |> List.sumBy (fun (_, w) -> match w with FixedPx px -> float px | Rest -> 0.0)
+
+    columns
+    |> List.tryFind (fun (c, _) -> c = column)
+    |> Option.map (fun (_, w) -> match w with FixedPx px -> float px | Rest -> tableWidth - fixedPx)
 
 let private col (width: ColumnWidth) =
     Html.col [
         match width with
         | FixedPx px -> prop.style [ style.width (length.px px) ]
-        | Percent p -> prop.style [ style.width (length.percent p) ]
         | Rest -> ()
     ]
 
 let private entryListDesktop
     (dispatch: Msg -> unit)
-    (showAccountColumn: bool)
+    (columns: (LedgerColumn * ColumnWidth) list)
+    (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
@@ -1205,8 +1302,9 @@ let private entryListDesktop
     (focusedRow: Guid option)
     (entries: LedgerEntryView list)
     =
-    // Spalten vor dem Betrag: Kästchen, Datum, [Konto], Payee, Kategorie, Memo.
-    let columnsBeforeAmount = if showAccountColumn then 6 else 5
+    // Spalten vor dem Betrag: alle sichtbaren außer Betrag und Status.
+    let visible = columns |> List.map fst
+    let columnsBeforeAmount = List.length visible - 2
 
     Primitives.Responsive.desktopOnly [
         Table.view
@@ -1229,14 +1327,14 @@ let private entryListDesktop
                 Responsive = false
                 ClassName = Some "rounded-xl border border-border-subtle bg-surface-card" }
             [
-                Html.colgroup [ for width in tableColumnWidths showAccountColumn -> col width ]
+                Html.colgroup [ for (_, width) in columns -> col width ]
                 Table.thead [
                     selectHeaderCell dispatch headerState
                     Table.calmHeaderCell "Datum" None
-                    if showAccountColumn then Table.calmHeaderCell "Konto" None
+                    if List.contains AccountColumn visible then Table.calmHeaderCell "Konto" None
                     Table.calmHeaderCell "Payee" None
                     Table.calmHeaderCell "Kategorie" None
-                    Table.calmHeaderCell "Memo" None
+                    if List.contains MemoColumn visible then Table.calmHeaderCell "Memo" None
                     Table.calmHeaderCell "Betrag" (Some "right")
                     Table.calmHeaderCell "Status" (Some "right")
                 ]
@@ -1251,7 +1349,8 @@ let private entryListDesktop
                                     string entry.Id,
                                     [ entryTableRow
                                           dispatch
-                                          showAccountColumn
+                                          visible
+                                          isAllAccounts
                                           accountAbbreviationOf
                                           rowState
                                           (isSelected selection entry.Id)
@@ -1270,6 +1369,7 @@ let private entryList
     (dispatch: Msg -> unit)
     (accounts: LedgerAccountView list)
     (isAllAccounts: bool)
+    (tableWidth: float)
     (model: Model)
     =
     let abbreviationOf =
@@ -1315,6 +1415,8 @@ let private entryList
             (Some (Button.secondary "Jetzt spiegeln" (fun () -> dispatch StartMirror)))
 
     | Success entries ->
+        let layout = visibleColumns tableWidth isAllAccounts
+
         Html.div [
             entryListMobile
                 dispatch
@@ -1323,18 +1425,23 @@ let private entryList
                 model.ReviewMarkRows
                 model.SelectionMode
                 model.Selection
+                (layout = CompactList)
                 entries
-            entryListDesktop
-                dispatch
-                isAllAccounts
-                abbreviationOf
-                model.IncludeDeleted
-                model.ReviewMarkRows
-                (headerCheckState model)
-                model.Selection
-                model.SelectionAnchor
-                model.FocusedRow
-                entries
+            match layout with
+            | CompactList -> ()
+            | Columns columns ->
+                entryListDesktop
+                    dispatch
+                    columns
+                    isAllAccounts
+                    abbreviationOf
+                    model.IncludeDeleted
+                    model.ReviewMarkRows
+                    (headerCheckState model)
+                    model.Selection
+                    model.SelectionAnchor
+                    model.FocusedRow
+                    entries
 
             if model.LoadingMore then
                 Html.div [
@@ -1797,6 +1904,17 @@ let private deletedToggleRow (dispatch: Msg -> unit) (model: Model) =
 let private observeHeight (element: Browser.Types.Element) (onResize: float -> unit) : (unit -> unit) =
     jsNative
 
+// Wie `observeHeight`, nur für die Breite: die Tabellenbreite entscheidet, welche
+// Spalten sichtbar sind (`visibleColumns`, ledger-qh9qx).
+[<Emit(
+    "(function(el, cb) { var o = new ResizeObserver(function() { cb(el.getBoundingClientRect().width); }); o.observe(el); return function() { o.disconnect(); }; })($0, $1)"
+)>]
+let private observeWidth (element: Browser.Types.Element) (onResize: float -> unit) : (unit -> unit) =
+    jsNative
+
+/// Breite, die gilt, bevor der erste Messwert da ist (Tabellenbreite bei 1440px).
+let private assumedTableWidth = 1090.0
+
 /// Die Spalte mit Filterleiste, Summenzeile, Lösch-Umschalter und Liste (dritte
 /// Iteration, ledger-j8xq4, Verifier-Fund): der sticky Tabellenkopf
 /// (`.table-sticky-thead thead`, `styles.css`) braucht die tatsächlich gerenderte
@@ -1833,7 +1951,25 @@ let private FilterBarColumn
     (isAllAccounts: bool)
     =
     let barHeight, setBarHeight = React.useState 0.0
+    // 0 = noch nicht gemessen, dann gilt `assumedTableWidth`.
+    let measuredWidth, setMeasuredWidth = React.useState 0.0
+    let tableWidth = if measuredWidth > 0.0 then measuredWidth else assumedTableWidth
     let disconnectRef = React.useRef<(unit -> unit) option> None
+    let widthDisconnectRef = React.useRef<(unit -> unit) option> None
+
+    let columnCallbackRef =
+        React.useCallback (
+            (fun (element: Browser.Types.Element) ->
+                match widthDisconnectRef.current with
+                | Some disconnect ->
+                    disconnect ()
+                    widthDisconnectRef.current <- None
+                | None -> ()
+
+                if not (isNull (box element)) then
+                    widthDisconnectRef.current <- Some (observeWidth element setMeasuredWidth)),
+            [||]
+        )
 
     let barCallbackRef =
         React.useCallback (
@@ -1851,6 +1987,7 @@ let private FilterBarColumn
 
     Html.div [
         prop.className "flex-1 min-w-0"
+        prop.ref columnCallbackRef
         prop.style [ style.custom ("--ledger-filter-bar-height", sprintf "%.0fpx" barHeight) ]
         prop.children [
             Primitives.Stack.md [
@@ -1862,7 +1999,7 @@ let private FilterBarColumn
                 filterChipBar dispatch model categories (Some barCallbackRef)
                 summaryOrSelectionRow model
                 deletedToggleRow dispatch model
-                entryList dispatch accounts isAllAccounts model
+                entryList dispatch accounts isAllAccounts tableWidth model
                 selectionBarSpacers model
             ]
         ]

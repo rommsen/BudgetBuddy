@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 10:00 - PC-Tabelle des Kassenbuchs blendet Spalten stufenweise aus (ledger-qh9qx)
+
+**What I did:**
+`visibleColumns` bestimmt aus gemessener Tabellenbreite und Gesamtsicht/Konto die sichtbaren Spalten (alle, ohne Memo, ohne Memo und Konto, kompakte Liste). `FilterBarColumn` misst die Breite per ResizeObserver. Ohne Konto-Spalte steht das Kürzel klein vor dem Payee.
+
+**Files Added:**
+- `src/Tests/LedgerVisibleColumnsTests.fs` - 9 Expecto-Tests für Stufen, Grenzwerte, Mindestbreiten
+- `scripts/ledger-table-columns.test.mjs` - Browser-Wächter: kein überlappender Kopf bei 800, 1024, 1280, 1440 px, Kürzel in der Payee-Zelle
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - Spaltenfunktion statt Prozentbreiten, Breitenmessung, Payee-Zelle mit Kürzel, kompakte Liste ab Stufe 4
+- `src/Tests/LedgerViewTests.fs` - Prozent-/Memo-Anteil-Tests ersetzt
+- `src/Tests/Tests.fsproj` - neue Testdatei
+- `scripts/ledger-status-column.test.mjs` - AC6 auf Mindestbreiten statt 28 %/24 %
+
+**Rationale:**
+In halb breiten Fenstern schrumpften Payee, Kategorie und Memo auf null. Spalten fallen jetzt weg, bevor eine unter ihre Mindestbreite rutscht.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1541/1541 (dotnet), 140/140 (test:scripts)
+- Issues: keine
+- Iteration 2: nur Doku (ADR 0052, README-Absatz "Liste." von Hand), kein Code geändert
+
+---
+
 ## 2026-10-20 08:20 - Hotfix: Historie lieferte in Produktion HTTP 500 (ledger-a4acn)
 
 **What I did:**

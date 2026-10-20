@@ -436,7 +436,11 @@ die sticky Filterleiste, darunter die Liste. Erster Chip ist immer "Zu prüfen (
 
 **Liste.** Am Handy Datum als Gruppenkopf, je Zeile Payee, Kategorie, Betrag, darunter
 klein Memo und nur die abweichenden Kennzeichen. Am PC eine Tabelle mit Sticky-Kopf
-(Auswahl, Datum, Konto in der Gesamtsicht, Payee, Kategorie, Memo, Betrag, Status). In der
+(Auswahl, Datum, Konto in der Gesamtsicht, Payee, Kategorie, Memo, Betrag, Status). Bei zu
+wenig Breite fällt zuerst Memo weg, dann in der Gesamtsicht Konto (das Kürzel steht dann
+klein vor dem Payee), darunter kommt die kompakte Liste. Das entscheidet `visibleColumns`
+aus der gemessenen Tabellenbreite (ADR 0052); die Filter-Chrome bleibt bei
+`isDesktopViewport()`. In der
 Gesamtsicht trägt jede Zeile ihr Konto.
 
 **Prüfen ist eine Geste.** Wisch nach rechts am Handy, Taste G oder die Auswahl-Leiste am

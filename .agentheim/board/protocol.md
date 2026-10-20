@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 09:20 -- Task verified and completed: ledger-qh9qx - "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander"
+
+**Type:** Work / Task completion
+**Task:** ledger-qh9qx - "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander"
+**Summary:** Die PC-Tabelle des Kassenbuchs blendet in schmalen Fenstern stufenweise Spalten aus (erst Memo, dann Konto, dann kompakte Liste), statt Payee, Kategorie und Memo zusammenzudrücken. Eine reine Funktion `visibleColumns` entscheidet aus gemessener Tabellenbreite und Gesamtsicht/Konto; ein ResizeObserver liefert die Breite.
+**Duration:** 37m30s
+**Verification:** PASS (iteration 2)
+**Files changed:** 6
+**Tests added:** 11
+**ADRs written:** 0052-grenze-tabelle-liste-folgt-der-gemessenen-tabellenbreite.md
+
+---
+
+## 2026-10-20 09:17 -- Verification failed: ledger-qh9qx - PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern
+
+**Type:** Work / Verification failure
+**Task:** ledger-qh9qx - PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern
+**Iteration:** 1 of 3
+**Reasons:** README-Absatz "Liste." nicht nachgezogen (README_DELTA leer), Grenze Tabelle/Liste nach gemessener Breite ohne ADR (Spannung zu ADR 0043)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-20 08:42 -- Batch started: [ledger-r72re, ledger-mhe2s, ledger-qh9qx]
 
 **Type:** Work / Batch start
