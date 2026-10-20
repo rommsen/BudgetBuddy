@@ -1,7 +1,7 @@
 ---
 id: ledger-skpcx
 title: "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20

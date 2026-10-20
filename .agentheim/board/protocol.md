@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 21:40 -- Batch started: [ledger-q1hw2, ledger-skpcx]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-q1hw2 - "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen", ledger-skpcx - "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
+**Parallel:** scoped — builder named ledger-q1hw2 and ledger-skpcx to run in parallel (2 workers); merge order: skpcx first if both pass together (smaller), Tests.fsproj and View.fs may overlap
+
+---
+
 ## 2026-10-20 21:40 -- Modeling / Promoted: ledger-skpcx - "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
 
 **Type:** Modeling / Promote
