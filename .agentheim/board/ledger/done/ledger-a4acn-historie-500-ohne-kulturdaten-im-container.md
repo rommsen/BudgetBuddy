@@ -72,3 +72,5 @@ Hotfix auf `main`, vom Conductor direkt umgesetzt, danach über agentheim nachge
 - `src/Tests/LedgerPageTests.fs`: Wächtertest "Die Tests laufen ohne Kulturdaten, wie der Server im Container" (wirft für "de-DE", Kommentar nennt den Fehler) und "Beträge stehen mit Tausenderpunkt und Dezimalkomma, ohne Kulturdaten" ("-1.234,56 EUR").
 
 **Läufe:** `dotnet build` 0 Warnungen, `dotnet test` 1533 bestanden (6 übersprungen, 0 Fehler), `npm run build` ok, `npm run guard:classes` ok, `npm run test:scripts` 137/137. Das Kriterium "Historie lädt in Produktion" prüft der Conductor nach dem Deploy.
+
+**Nachweis Produktion (2026-10-20, nach Deploy von `3cb1e52`, Image `45c2972`):** `getEntryHistory` liefert für echte Buchungen HTTP 200, z. B. "Erstmals in YNAB gesehen: Joerg Meyer, -4.760,00 EUR". Der Deploy-Hook brach wieder an `sudo` ab, der Stack wurde von Hand mit `docker compose up -d` gestartet (healthy).
