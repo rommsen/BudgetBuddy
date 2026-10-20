@@ -57,7 +57,7 @@ docker build -t "$IMAGE" .
 # Sync compose.yaml if it exists in the repo
 if [ -f "$BUILD_DIR/compose.yaml" ]; then
     echo "==> Syncing compose.yaml to stack dir..."
-    sudo cp "$BUILD_DIR/compose.yaml" "$STACK_DIR/compose.yaml"
+    cp "$BUILD_DIR/compose.yaml" "$STACK_DIR/compose.yaml"
 elif [ -f "$STACK_DIR/compose.yaml" ]; then
     echo "==> Using existing compose.yaml in stack dir"
 else
