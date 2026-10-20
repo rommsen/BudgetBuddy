@@ -78,7 +78,12 @@ let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactEl
             // Klick auf ein Element, das die Seite dahinter neu rendert, soll das
             // Popover nicht vorzeitig schliessen).
             prop.onClick (fun e -> e.stopPropagation ())
-            prop.onKeyDown (fun e -> if e.key = "Escape" then props.OnClose ())
+            // Esc im Popover bleibt im Popover: das Dokument hört Esc für das Detail der
+            // Kassenbuch-Seite (ledger-q1hw2) und soll es nicht zugleich schließen.
+            prop.onKeyDown (fun e ->
+                if e.key = "Escape" then
+                    e.stopPropagation ()
+                    props.OnClose ())
             prop.children children
         ]
 

@@ -151,14 +151,6 @@ type ChipId =
     | MemoChip
     | AmountChip
 
-/// Welche Zelle einer Zeile ihr kleines Menü "Nach X filtern" geöffnet hat (ledger-rfq5p).
-type CellMenuKind =
-    | PayeeCell
-    | CategoryCell
-
-/// Das offene Zellmenü: die Buchung und die Zelle. Es gibt höchstens eines zugleich.
-type CellMenuTarget = { EntryId: Guid; Kind: CellMenuKind }
-
 let fixedChipOrder : ChipId list =
     [ NeedsReviewChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
 
@@ -295,6 +287,13 @@ type Selection =
     | Picked of Set<Guid>
     | AllExcept of Set<Guid>
 
+/// Die Form des Buchungs-Details (ADR 0053 Punkt 1): ein Seitenpanel rechts neben der
+/// Liste, oder ein BottomSheet über ihr (Handy, PC-Kompaktliste, und wo die Restbreite für
+/// keine Tabellenstufe neben dem Panel reicht).
+type DetailForm =
+    | DetailPanel
+    | DetailSheet
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -364,8 +363,15 @@ type Model = {
     /// Skeleton steht am Ende (AC5).
     LoadingMore: bool
 
-    /// Die Buchung, deren Historie gerade im Sheet steht.
-    HistoryFor: LedgerEntryView option
+    /// Die Buchung, deren Detail gerade offen steht (Panel am PC, Sheet am Handy und in der
+    /// Kompaktliste, ledger-q1hw2, ADR 0053). Eine Momentaufnahme: die Ansicht liest den
+    /// aktuellen Stand aus der Liste, wenn die Buchung dort steht (`detailEntryOf`).
+    DetailFor: LedgerEntryView option
+
+    /// In welcher Form das Detail aufgeht. Die Ansicht misst die Tabellenbreite und meldet
+    /// die Form mit `DetailFormChanged`; sie hängt nur von der Breite ohne Panel ab und
+    /// kippt deshalb nicht hin und her, wenn das Panel selbst Platz nimmt.
+    DetailForm: DetailForm
 
     /// Die Historie der offenen Buchung.
     History: RemoteData<LedgerHistoryLine list>
@@ -394,10 +400,6 @@ type Model = {
     /// Welcher Filter-Chip gerade sein Popover/Sheet offen hat, `None` sonst. Nur
     /// einer zugleich (Handoff: "ein Muster für Kategorie, Zeitraum und Payee").
     OpenPopover: ChipId option
-
-    /// Das offene Zellmenü "Nach Payee/Kategorie filtern" einer Zeile (ledger-rfq5p).
-    /// Höchstens eines zugleich, und nie zusammen mit einem Chip-Popover.
-    CellMenu: CellMenuTarget option
 
     /// Der Entwurf der Kategorien-Mehrfachauswahl, solange die Kategorienauswahl
     /// offen ist (Click-Commit, ADR 0005/Styleguide 7.1): erst „Übernehmen"
@@ -471,6 +473,22 @@ type Model = {
 /// gesperrt, und `ApplyDateFilter` ändert den Filter nicht.
 let dateDraftHasError (model: Model) : bool =
     model.DateDraftFromInvalid || model.DateDraftToInvalid
+
+/// Steht das Detail als Seitenpanel offen? Nur dann folgt es der Markierung und bleiben die
+/// Listentasten an (ledger-q1hw2); ein offenes Sheet verdeckt die Liste und sperrt sie.
+let detailPanelOpen (model: Model) : bool =
+    model.DetailFor.IsSome && model.DetailForm = DetailPanel
+
+/// Der aktuelle Stand der Buchung im Detail: die Zeile aus der geladenen Liste, wenn sie
+/// dort steht (Prüfvermerk und Fehlschlag sind dort aktuell), sonst die Momentaufnahme vom
+/// Öffnen. Nach einem Sortierwechsel kann die Buchung auf den geladenen Seiten fehlen; das
+/// Detail zeigt sie dann weiter.
+let detailEntryOf (model: Model) : LedgerEntryView option =
+    model.DetailFor
+    |> Option.map (fun snapshot ->
+        match model.Entries with
+        | Success entries -> entries |> List.tryFind (fun e -> e.Id = snapshot.Id) |> Option.defaultValue snapshot
+        | _ -> snapshot)
 
 
 // ============================================
@@ -672,6 +690,13 @@ let isTypingTarget (tagName: string) (isContentEditable: bool) : bool =
         | "INPUT" | "TEXTAREA" | "SELECT" -> true
         | _ -> false)
 
+/// Aktiviert Enter dieses Element selbst (Knopf, Link, Aufklappzeile)? Dann gehört die Taste
+/// ihm und öffnet kein Detail.
+let isActivatable (tagName: string) : bool =
+    match (if isNull tagName then "" else tagName).ToUpperInvariant() with
+    | "BUTTON" | "A" | "SUMMARY" -> true
+    | _ -> false
+
 /// Die Nachrichten der Seite.
 ///
 /// Jeder Ausloeser, der den Fable.Remoting-Proxy anfasst, ist absichtlich in zwei
@@ -717,11 +742,16 @@ type Msg =
     /// `Filters.WithoutCategory` und lädt ab Seite 0 neu, wie `ToggleOnlyNeedsReview`.
     | ToggleWithoutCategory
 
-    // Historie einer Buchung
-    | OpenHistory of LedgerEntryView
-    | CloseHistory
+    // Detail einer Buchung (ledger-q1hw2, ADR 0053)
+    /// Klick auf eine Zeile oder Tipp am Handy: markiert die Zeile (`FocusedRow`), öffnet das
+    /// Detail für genau sie und lädt ihre Historie. Im Auswahl-Modus am Handy öffnet nichts.
+    | OpenDetail of LedgerEntryView
+    | CloseDetail
+    /// Die Ansicht meldet, in welcher Form das Detail bei der gemessenen Breite aufgeht.
+    | DetailFormChanged of DetailForm
     | LoadHistory of Guid
-    | HistoryLoaded of Result<LedgerHistoryLine list, string>
+    /// Die Historie der Buchung `Guid`; kommt sie nach einem Wechsel der Buchung an, gilt sie nicht mehr.
+    | HistoryLoaded of Guid * Result<LedgerHistoryLine list, string>
 
     // Spiegel
     | LoadMirrorStatus
@@ -748,15 +778,11 @@ type Msg =
     /// unverändert.
     | CloseFilterPopover
 
-    /// Klick auf die Payee- oder Kategorie-Zelle einer Zeile (ledger-rfq5p): öffnet das
-    /// kleine Menü an der Zelle und schließt einen offenen Chip-Popover.
-    | OpenCellMenu of Guid * CellMenuKind
-    /// Esc oder Klick daneben: schließt das Zellmenü, `Filters` bleibt unverändert.
-    | CloseCellMenu
-    /// "Nach <Payee> filtern": setzt `Filters.Payee` wie `SelectPayeeFilter`.
+    /// Filter-Knopf am Payee im Detail (ADR 0053): setzt `Filters.Payee` wie
+    /// `SelectPayeeFilter`; das Detail bleibt offen.
     | FilterByRowPayee of string
-    /// "Nach <Kategorie> filtern": die Kategorienauswahl besteht danach aus genau dieser
-    /// Kategorie, "Ohne Kategorie" ist aus.
+    /// Filter-Knopf an der Kategorie im Detail: die Kategorienauswahl besteht danach aus
+    /// genau dieser Kategorie, "Ohne Kategorie" ist aus; das Detail bleibt offen.
     | FilterByRowCategory of Guid
 
     | SetCategorySearch of string
@@ -864,10 +890,17 @@ type Msg =
     | MoveFocus of delta: int
     /// Taste G (Geprüft) oder Umschalt+G (Ungeprüft) auf der Fokuszeile.
     | ReviewKeyPressed of ReviewMarkTarget
+    /// Enter auf der markierten Zeile (ledger-q1hw2): öffnet das Detail.
+    | OpenFocusedDetail
+    /// Esc (ledger-q1hw2): schließt das Detail, solange kein Popover offen ist. Die volle
+    /// Kette Popover, Detail, Auswahl kommt mit ledger-w4vte.
+    | EscapePressed
 
 /// Die Tastenbelegung der Kassenbuch-Liste (PC): Pfeil ab/auf und J/K bewegen den Fokus,
-/// G setzt "Geprüft", Umschalt+G "Ungeprüft". Enter und Esc sind frei (ledger-q1hw2). Ein
-/// Tastenereignis aus einem Eingabefeld oder mit Strg, Meta oder Alt löst nichts aus.
+/// G setzt "Geprüft", Umschalt+G "Ungeprüft", Enter öffnet das Detail der markierten Zeile
+/// und Esc schließt es (ledger-q1hw2). Ein Tastenereignis aus einem Eingabefeld oder mit
+/// Strg, Meta oder Alt löst nichts aus. Enter auf einem Knopf oder Link bleibt dessen
+/// eigene Aktivierung: sonst löste ein fokussierter Filter-Knopf zweimal aus (ADR 0053).
 let keyCommandFor
     (tagName: string)
     (isContentEditable: bool)
@@ -883,6 +916,8 @@ let keyCommandFor
         | "ArrowUp" | "k" | "K" -> Some (MoveFocus -1)
         | "g" -> Some (ReviewKeyPressed Reviewed)
         | "G" -> Some (ReviewKeyPressed Unreviewed)
+        | "Enter" when not (isActivatable tagName) -> Some OpenFocusedDetail
+        | "Escape" -> Some EscapePressed
         | _ -> None
 
 /// Was die Seite nach oben meldet.

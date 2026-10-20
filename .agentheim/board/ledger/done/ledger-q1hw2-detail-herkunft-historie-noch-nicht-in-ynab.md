@@ -1,7 +1,7 @@
 ---
 id: ledger-q1hw2
 title: "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-12
@@ -219,3 +219,23 @@ Diese Aufgabe ändert an der Auswahl nichts.
 
 Nicht Teil: Abweichung (Pink, v2), Kategorie- und Split-Bearbeitung (v2, `ledger-k2rbn`),
 "Erneut senden" für den Push, "Wiederherstellen" gelöschter Buchungen.
+
+## Verifier note (iteration 1)
+
+**REASONS:** Check 5 (BC README sync): README_DELTA hat nur ein `append` (Buchungs-Detail). Zwei bestehende Bullets werden durch den Diff falsch: "**Zellmenü (Nach X filtern)**" (README Zeile 194, beschreibt `Model.CellMenu`, `OpenCellMenu`/`CloseCellMenu`, den Zell-Button, die Aktionen oben in `historySheet`; alles zurückgebaut) und "**Fokuszeile (keyboardCursor)**" (Zeile 189, endet mit "Enter und Esc sind für das Seitenpanel frei (ledger-q1hw2)"; Enter und Esc sind jetzt belegt, ein offenes Panel sperrt die Listentasten nicht mehr, ein offenes Sheet schon). Alle übrigen Prüfungen grün (Build 0 Warnungen, dotnet test 1665/0, Wächter seriell 157/157, keine Konfliktmarker, Abweichungen akzeptabel).
+
+**SUGGESTED_FIX:** `replace`-Ops ins README_DELTA: den Zellmenü-Bullet (Anker auf dem fetten Kopf) neu schreiben (Rückbau, was bleibt: FilterByRowPayee/FilterByRowCategory als Filter-Knöpfe des Details, die das Detail offen lassen; payeeMenuLabel/categoryMenuLabel als Bedingung; CategoryId) oder in den Buchungs-Detail-Bullet falten; den Schlusssatz des Fokuszeile-Bullets für Enter/Esc, Panel folgt der Fokuszeile und Panel-gegen-Sheet-Sperre anpassen. Vorher mit `npm run check:readme-delta -- --bc ledger --delta <datei>` prüfen. Optional: Test, der die Ausgabe von `QueryHandlers.describe` für die drei Fehlschlag-/Lösch-Ereignisse in `historyDotFor` füttert.
+
+**ITERATION_HINT:** likely-fixable
+
+## Outcome
+
+Stück 1 von ADR 0053 ist gebaut. Zeilenklick (jede Zelle) markiert (`FocusedRow`) und öffnet das Detail (`OpenDetail`); `Enter` öffnet, `Esc` schließt (Popover hat Vorrang, die volle Kette bleibt `ledger-w4vte`). Offenes Panel: `↑ ↓ J K` und `G` wirken weiter, das Panel folgt der Markierung und lädt die Historie neu (`HistoryLoaded` trägt die Buchungs-Id, veraltete Antworten werden verworfen); offenes Sheet sperrt die Listentasten. Die Form (`DetailPanel`/`DetailSheet`) entscheidet `detailFormFor` aus der Tabellenbreite OHNE Panel; die Spalte reserviert das Panel als Innenabstand (`md:pr-[420px]`). Neben dem Panel gilt `visibleColumnsWithPanel` (Breite minus 420, Memo immer weg). Grenzwert: 1080 px Tabellenbreite für das Panel.
+
+Neu: `src/Client/DesignSystem/Detail.fs` plus `Icons.filter`, je mit Beispiel in /styleguide (Abschnitt 25). Hinweisleiste mit Rangfolge als reine Funktionen (`detailNoticeFor` usw.), "Erneut senden" nur bei Prüfvermerk. Filter-Knöpfe lassen das Detail offen. Rückbau: Zellmenü, `Model.CellMenu`, `historySheet`, `OpenHistory`/`CloseHistory`, `row-filter-actions`, `ledger-cell-menu.test.mjs` (ersetzt durch `scripts/ledger-detail.test.mjs`), `LedgerCellMenuTests.fs` (zu `LedgerFilterButtonTests.fs`).
+
+Iteration 2: README_DELTA um zwei `replace`-Ops ergänzt (Zellmenü-Bullet als Rückbau mit dem, was bleibt; Fokuszeile-Schlusssatz für Enter/Esc, Panel folgt, Sheet sperrt), lokal mit `npm run check:readme-delta` geprüft (Exit 0). Die rote Punktfarbe prüft nur noch die echten Satzanfänge ("In YNAB gelöscht", "Prüfvermerk nicht in YNAB", "Push nach YNAB gescheitert") statt `Contains "gescheitert"`; ein neuer Test füttert `QueryHandlers.ReadModel.describe` für Löschung, Push-Fehlschlag und Rückschrieb-Fehlschlag in `historyDotFor` (rot) plus einen gewöhnlichen Satz (nicht rot).
+
+Abweichungen: Herkunft nennt `originLabel` ("Roman in BB"); "Erneut senden" ist Button.Secondary; Memo-Platzhalter "Kein Memo"; FilterPopover stoppt Esc-Weitergabe; das Sheet rendert Inhalt nur offen.
+
+Läufe: `dotnet build` 0 Warnungen/0 Fehler; `dotnet test` 1666 bestanden, 0 Fehler, 7 übersprungen; `npm run build` ok; `npm run guard:classes` ok; `ledger-detail.test.mjs` und `ledger-sort-chip.test.mjs` seriell 13 von 13 bestanden (volle Serie lief in Iteration 1 grün).

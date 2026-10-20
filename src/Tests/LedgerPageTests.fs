@@ -812,18 +812,18 @@ let reducerTests =
             | other -> failtestf "Erwartet Fehler-Toast, war %A" other
         }
 
-        test "Historie oeffnet sich fuer die angetippte Buchung" {
+        test "Detail öffnet sich für die angetippte Buchung" {
             let view = entryView 1 -42.5m false
-            let updated, _, _ = Components.Ledger.State.update (OpenHistory view) (freshModel ())
-            Expect.equal (updated.HistoryFor |> Option.map (fun e -> e.Id)) (Some (entryGuid 1)) "Die richtige Buchung"
+            let updated, _, _ = Components.Ledger.State.update (OpenDetail view) (freshModel ())
+            Expect.equal (updated.DetailFor |> Option.map (fun e -> e.Id)) (Some (entryGuid 1)) "Die richtige Buchung"
             Expect.equal updated.History Loading "Die Historie wird geholt"
         }
 
-        test "Historie schliesst sich wieder" {
+        test "Detail schließt sich wieder" {
             let view = entryView 1 -42.5m false
-            let opened, _, _ = Components.Ledger.State.update (OpenHistory view) (freshModel ())
-            let closed, _, _ = Components.Ledger.State.update CloseHistory opened
-            Expect.equal closed.HistoryFor None "Kein Sheet mehr offen"
+            let opened, _, _ = Components.Ledger.State.update (OpenDetail view) (freshModel ())
+            let closed, _, _ = Components.Ledger.State.update CloseDetail opened
+            Expect.equal closed.DetailFor None "Kein Detail mehr offen"
         }
 
         test "Geladene Historie steht in gespeicherter Reihenfolge" {
@@ -831,7 +831,8 @@ let reducerTests =
                 [ recorded 1 Actor.YnabMirror EntryDeletionObservedInYnab
                   recorded 2 Actor.YnabMirror EntryDeletionObservedInYnab ]
                 |> List.map ReadModel.toHistoryLine
-            let updated, _, _ = Components.Ledger.State.update (HistoryLoaded (Ok lines)) (freshModel ())
+            let opened, _, _ = Components.Ledger.State.update (OpenDetail (entryView 1 -42.5m false)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (HistoryLoaded (entryGuid 1, Ok lines)) opened
             match updated.History with
             | Success loaded -> Expect.equal (loaded |> List.map (fun l -> l.Sequence)) [ 1; 2 ] "Reihenfolge bleibt"
             | other -> failtestf "Erwartet Success, war %A" other

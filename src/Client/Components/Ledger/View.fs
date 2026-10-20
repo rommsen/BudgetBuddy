@@ -172,26 +172,6 @@ let buildAccountCards (accounts: LedgerAccountView list) (balances: LedgerAccoun
 // Bausteine
 // ============================================
 
-/// Die Herkunft einer Buchung als Badge. Der Spiegel ist die haeufigste Herkunft und
-/// bleibt deshalb ruhig (Info); die uebrigen Herkuenfte sind selten und duerfen
-/// auffallen.
-let private originBadge (origin: LedgerOrigin) =
-    let variant =
-        match origin with
-        | MirroredFromYnab -> Badge.Info
-        | ImportedFromComdirect -> Badge.Neutral
-        | DecidedByRule -> Badge.Purple
-        | DecidedInBb -> Badge.Success
-        | AddedViaQuickAdd -> Badge.Orange
-        | MatchedByOrderId -> Badge.Warning
-
-    Badge.view {
-        Badge.defaultProps with
-            Text = originLabel origin
-            Variant = variant
-            Size = Badge.Small
-    }
-
 /// Kennzeichen einer in YNAB geloeschten Buchung. Sie bleibt stehen, zaehlt aber
 /// nicht mehr zum Kontostand (ADR 0013).
 let private deletedBadge () =
@@ -585,7 +565,7 @@ let private entryRowWithReviewMark
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    // Außen ein Container: die Zeile ist ein `button` (öffnet die Historie), die
+    // Außen ein Container: die Zeile ist ein `button` (öffnet das Detail), die
     // Schaltfläche "Geprüft"/"Ungeprüft" liegt daneben und nicht darin (ein Button im
     // Button ist ungültig). Der Hinweis "Prüfvermerk nicht in YNAB" steht darunter.
     Html.div [
@@ -595,7 +575,7 @@ let private entryRowWithReviewMark
                 prop.className $"flex items-stretch {Tokens.Backgrounds.dark}"
                 prop.children [
                     // Im Auswahl-Modus steht links das Kästchen und die Zeile schaltet die
-                    // Auswahl statt die Historie zu öffnen (ledger-r1d2f).
+                    // Auswahl statt das Detail zu öffnen (ledger-r1d2f).
                     match selected with
                     | Some isOn ->
                         Html.div [
@@ -611,7 +591,7 @@ let private entryRowWithReviewMark
                         (fun () ->
                             match selected with
                             | Some _ -> dispatch (ToggleRowSelected entry.Id)
-                            | None -> dispatch (OpenHistory entry))
+                            | None -> dispatch (OpenDetail entry))
                         selected
                         accountAbbreviationOf
                         flatDate
@@ -656,67 +636,13 @@ let private truncatedRoleCell (role: Table.CellRole) (child: ReactElement) =
 
 /// Die Kategorie-Zelle der PC-Tabelle (ADR 0049 Punkt 4): sekundäre Rolle, nur "ohne
 /// Kategorie" in Orange. Der `span` mit eigener Farbklasse gewinnt gegenüber der
-/// Zellfarbe, unabhängig von der Reihenfolge im kompilierten CSS (ADR 0031).
-/// Auslöser und Menü einer Zelle (ledger-rfq5p): der Zelltext als `button`, dessen Klick
-/// das Menü öffnet und nicht die Historie, und das `FilterPopover` mit dem Eintrag als
-/// Geschwister des gekürzten Divs (ein Popover im `truncate`-Div würde abgeschnitten).
-/// Hover: Zeiger und leichte Aufhellung, keine Unterstreichung in der Ruhe (ADR 0049).
-let private cellMenuTrigger
-    (dispatch: Msg -> unit)
-    (entry: LedgerEntryView)
-    (kind: CellMenuKind)
-    (isOpen: bool)
-    (textClassName: string)
-    (text: string)
-    =
-    Html.button [
-        prop.type'.button
-        prop.custom ("aria-haspopup", "menu")
-        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
-        prop.className (textClassName + " block max-w-full truncate text-left cursor-pointer hover:brightness-125")
-        prop.text text
-        prop.onClick (fun e ->
-            e.stopPropagation ()
-            dispatch (OpenCellMenu (entry.Id, kind)))
-    ]
-
-let private cellMenuPopover
-    (dispatch: Msg -> unit)
-    (isOpen: bool)
-    (label: string)
-    (onChoose: Msg)
-    =
-    FilterPopover.view
-        { IsOpen = isOpen
-          OnClose = fun () -> dispatch CloseCellMenu
-          WidthClassName = FilterPopover.menuWidthClass }
-        [ FilterPopover.menuItemAutoFocus label (fun () -> dispatch onChoose) ]
-
-let private categoryCell
-    (dispatch: Msg -> unit)
-    (cellMenu: CellMenuTarget option)
-    (entry: LedgerEntryView)
-    =
-    let label = categoryLabelQualified entry
-    match categoryMenuLabel entry, entry.CategoryId with
-    | Some menuLabel, Some categoryId ->
-        let isOpen = cellMenu = Some { EntryId = entry.Id; Kind = CategoryCell }
-        Table.roleCell
-            Table.Secondary
-            [ Html.div [
-                  prop.className "relative"
-                  prop.children [
-                      Html.div [
-                          prop.className "truncate"
-                          prop.children [ cellMenuTrigger dispatch entry CategoryCell isOpen (categoryClassName entry) label ]
-                      ]
-                      cellMenuPopover dispatch isOpen menuLabel (FilterByRowCategory categoryId)
-                  ]
-              ] ]
-    | _ ->
-        truncatedRoleCell
-            Table.Secondary
-            (Html.span [ prop.className (categoryClassName entry); prop.text label ])
+/// Zellfarbe, unabhängig von der Reihenfolge im kompilierten CSS (ADR 0031). Reiner Text:
+/// die Zellen sind keine eigenen Klickziele, ein Klick ist ein Zeilenklick (ADR 0053
+/// Punkt 3); das Filtern liegt als Knopf im Detail.
+let private categoryCell (entry: LedgerEntryView) =
+    truncatedRoleCell
+        Table.Secondary
+        (Html.span [ prop.className (categoryClassName entry); prop.text (categoryLabelQualified entry) ])
 
 /// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
 /// ADR 0049); gedämpft und durchgestrichen für eine in YNAB gelöschte Buchung.
@@ -785,53 +711,26 @@ type TableLayout =
 
 /// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
 /// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
-/// als eigenes Element neben dem Payee-Text (ledger-qh9qx).
-/// Hat die Buchung einen Payee zum Filtern, öffnet ein Klick auf den Payee-Text das
-/// Zellmenü (ledger-rfq5p); das Kürzel gehört nicht zum Auslöser.
-let private payeeCell
-    (dispatch: Msg -> unit)
-    (cellMenu: CellMenuTarget option)
-    (accountAbbreviation: string option)
-    (entry: LedgerEntryView)
-    =
+/// als eigenes Element neben dem Payee-Text (ledger-qh9qx). Reiner Text, kein eigenes
+/// Klickziel (ADR 0053 Punkt 3).
+let private payeeCell (accountAbbreviation: string option) (entry: LedgerEntryView) =
     let abbreviation =
         match accountAbbreviation with
         | Some abbreviation ->
             Html.span [ prop.className $"{Tokens.ListRoles.muted} mr-1.5 shrink-0"; prop.text abbreviation ]
         | None -> Html.none
-    match payeeMenuLabel entry, entry.Payee with
-    | Some menuLabel, Some payee ->
-        let isOpen = cellMenu = Some { EntryId = entry.Id; Kind = PayeeCell }
-        Table.roleCell
-            Table.Payee
-            [ Html.div [
-                  prop.className "relative"
-                  prop.children [
-                      Html.div [
-                          prop.className "flex items-center min-w-0"
-                          prop.children [
-                              abbreviation
-                              cellMenuTrigger dispatch entry PayeeCell isOpen "" (payeeLabel entry)
-                          ]
-                      ]
-                      cellMenuPopover dispatch isOpen menuLabel (FilterByRowPayee payee)
-                  ]
-              ] ]
-    | _ ->
-        let payee = payeeLabel entry
-        Table.roleCell
-            Table.Payee
-            [ Html.div [
-                  prop.className "truncate"
-                  prop.children [ abbreviation; Html.span [ prop.text payee ] ]
-              ] ]
+    Table.roleCell
+        Table.Payee
+        [ Html.div [
+              prop.className "truncate"
+              prop.children [ abbreviation; Html.span [ prop.text (payeeLabel entry) ] ]
+          ] ]
 
 let private entryTableRow
     (dispatch: Msg -> unit)
     (columns: LedgerColumn list)
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
-    (cellMenu: CellMenuTarget option)
     (rowState: ReviewMarkRowState option)
     (selected: bool)
     (isAnchor: bool)
@@ -843,7 +742,7 @@ let private entryTableRow
     // deshalb direkt `Table.row` mit denselben Klassen wie `Table.calmRow`.
     Table.row
         { Table.defaultRowProps with
-            OnClick = Some (fun () -> dispatch (OpenHistory entry))
+            OnClick = Some (fun () -> dispatch (OpenDetail entry))
             StatusEdge = entry.NeedsReview
             IsFocused = isFocused
             ClassName = Some ("group " + selectableRowClassName selected isAnchor) }
@@ -853,14 +752,12 @@ let private entryTableRow
             if List.contains AccountColumn columns then
                 Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
             payeeCell
-                dispatch
-                cellMenu
                 (if isAllAccounts && not (List.contains AccountColumn columns) then
                      Some (accountAbbreviationOf entry.AccountId)
                  else
                      None)
                 entry
-            categoryCell dispatch cellMenu entry
+            categoryCell entry
             if List.contains MemoColumn columns then
                 truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
             tdMoney entry
@@ -869,8 +766,8 @@ let private entryTableRow
                     // `flex-nowrap`, nicht `flex-wrap`: die Kennzeichen sollen die
                     // Spalte in die Breite gehen lassen, nicht die Zeile in die Höhe
                     // (AC5, ledger-qns4j, siehe `statusColumnWidth`). Kein
-                    // `originBadge` (AC3): die Herkunft steht nur noch in der
-                    // Historie (`historyLine`): die Statusspalte trägt nur Status.
+                    // `originBadge` (AC3): die Herkunft steht nur noch im Detail
+                    // (`detailContent`): die Statusspalte trägt nur Status.
                     prop.className "flex flex-nowrap items-center justify-end gap-1"
                     prop.children [
                         if entry.NeedsReview then needsReviewStatusBadge ()
@@ -1026,8 +923,11 @@ let private lastRunSubtitle (status: RemoteData<MirrorRunStatus option>) : strin
     | Loading | NotAsked -> None
 
 // ============================================
-// Historie (BottomSheet nach ADR 0005)
+// Detail einer Buchung (ledger-q1hw2, ADR 0053)
 // ============================================
+// Ein Detail je Buchung: Seitenpanel rechts am PC, BottomSheet (ADR 0005) am Handy, in der
+// Kompaktliste und wo neben dem Panel keine Tabellenstufe mehr passt. Der Inhalt ist für
+// beide Formen derselbe (`detailContent`); die Bausteine stehen in `Client.DesignSystem.Detail`.
 
 /// Die Anzeige-Reihenfolge der Historie (ledger-h9tq2, Entscheidung Roman
 /// 2026-09-18): die neueste Zeile steht oben. `getEntryHistory` liefert aufsteigend
@@ -1036,83 +936,270 @@ let private lastRunSubtitle (status: RemoteData<MirrorRunStatus option>) : strin
 /// aus dem Ereignis-Log und zählt dadurch in der Liste von oben nach unten abwärts.
 let historyLinesForDisplay (lines: LedgerHistoryLine list) : LedgerHistoryLine list = List.rev lines
 
-let private historyLine (line: LedgerHistoryLine) =
-    Html.div [
-        prop.key (string line.Sequence)
-        prop.className $"py-3 border-b {Tokens.Borders.subtle} last:border-b-0"
-        prop.children [
-            Primitives.HStack.spaceBetween [
-                Html.span [
-                    prop.className $"{Tokens.FontSizes.xs} {Tokens.Colors.textMuted} {Tokens.Fonts.mono}"
-                    prop.text (formatDateTime line.OccurredAt)
-                ]
-                originBadge line.Origin
-            ]
-            Html.p [
-                prop.className $"{Tokens.ListRoles.primary} mt-1"
-                prop.text line.Description
-            ]
-        ]
-    ]
+/// Ist die Zeile ein Fehlschlag oder die Löschung? Dann ist der Punkt rot, gleich welcher
+/// Urheber sie schrieb. Der Satz kommt aus `QueryHandlers.describe`; die Anfänge dort sind
+/// die einzige Quelle.
+let isFailureOrDeletionLine (line: LedgerHistoryLine) : bool =
+    let text = line.Description
+    text.StartsWith("In YNAB gelöscht", StringComparison.Ordinal)
+    || text.StartsWith("Prüfvermerk nicht in YNAB", StringComparison.Ordinal)
+    || text.StartsWith("Push nach YNAB gescheitert", StringComparison.Ordinal)
 
-let private historySheet (model: Model) (dispatch: Msg -> unit) =
-    let title =
-        model.HistoryFor
-        |> Option.bind (fun e -> e.Payee)
-        |> Option.defaultValue "Buchung"
+/// Die Punktfarbe einer Zeile der Zeitleiste, nach Urheber (Handoff Ablauf 7): Teal Import,
+/// Violett Regel, Grau YNAB-Spiegel, Grün eigene Prüfung in BB, Rot Fehlschläge und Löschung.
+let historyDotFor (line: LedgerHistoryLine) : Detail.DotColor =
+    if isFailureOrDeletionLine line then
+        Detail.DotRed
+    else
+        match line.Origin with
+        | ImportedFromComdirect -> Detail.DotTeal
+        | DecidedByRule
+        | MatchedByOrderId -> Detail.DotPurple
+        | MirroredFromYnab -> Detail.DotGrey
+        | DecidedInBb -> Detail.DotGreen
+        | AddedViaQuickAdd -> Detail.DotOrange
 
-    let subtitle =
-        // Volles Datum im Detail (AC3), nicht die relative Form der Liste.
-        model.HistoryFor
-        |> Option.map (fun e -> $"{formatDateFull e.Date} · Historie")
+/// Die Zeitleiste aus den Zeilen der Historie, neueste oben.
+let historyTimelineItems (lines: LedgerHistoryLine list) : Detail.TimelineItem list =
+    lines
+    |> historyLinesForDisplay
+    |> List.map (fun line ->
+        { Key = string line.Sequence
+          Dot = historyDotFor line
+          Text = line.Description
+          Stamp = $"{formatDateTime line.OccurredAt} · {originLabel line.Origin}" })
 
+/// Die Beschriftung des Filter-Knopfs am Payee (ADR 0053): der volle Name, keine Kürzung.
+/// `None` unter denselben Bedingungen wie `payeeMenuLabel`: kein Payee zum Filtern.
+let payeeFilterLabel (entry: LedgerEntryView) : string option =
+    payeeMenuLabel entry
+    |> Option.bind (fun _ -> entry.Payee)
+    |> Option.map (fun payee -> $"Nur Buchungen von {payee.Trim()} zeigen")
+
+/// Die Beschriftung des Filter-Knopfs an der Kategorie: `None` bei Split und bei einer
+/// Buchung ohne Kategorie (`categoryMenuLabel`, auch Übertrag ohne Kategorie).
+let categoryFilterLabel (entry: LedgerEntryView) : string option =
+    categoryMenuLabel entry
+    |> Option.map (fun _ -> $"Nur Buchungen in {categoryLabelQualified entry} zeigen")
+
+/// Die Hinweisleiste des Details, höchstens eine, in dieser Rangfolge: in YNAB gelöscht,
+/// noch nicht in YNAB, Prüfvermerk nicht in YNAB.
+type DetailNotice =
+    /// Rot, ohne Aktion. Der Satz trägt den Löschzeitpunkt aus der Historie, wenn sie da ist.
+    | DeletedNotice of reason: string
+    /// Orange, ohne Aktion: der Push nach YNAB steht aus oder scheiterte.
+    | NotInYnabNotice of reason: string
+    /// Orange, mit "Erneut senden", wenn etwas zu senden ist.
+    | ReviewMarkNotice of ReviewMarkHint
+
+/// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
+/// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
+let deletedNoticeReason (history: RemoteData<LedgerHistoryLine list>) : string =
+    let deletedAt =
+        match history with
+        | Success lines ->
+            lines
+            |> List.filter (fun l -> l.Description.StartsWith("In YNAB gelöscht", StringComparison.Ordinal))
+            |> List.tryLast
+            |> Option.map (fun l -> l.OccurredAt)
+        | _ -> None
+    match deletedAt with
+    | Some at -> $"Gelöscht in YNAB am {formatDateTime at}. Zählt nicht zum Kontostand."
+    | None -> "Gelöscht in YNAB. Zählt nicht zum Kontostand."
+
+/// Der Satz der orangen Leiste "Noch nicht in YNAB": mit gescheitertem Push Zeitpunkt und
+/// Grund, sonst, dass noch nichts gesendet wurde.
+let notInYnabNoticeReason (failure: LedgerPushFailure option) : string =
+    match failure with
+    | Some f ->
+        let reason = f.Reason.Trim().TrimEnd('.')
+        $"Push gescheitert am {formatDateTime f.FailedAt}: {reason}. BB versucht es beim nächsten Lauf erneut."
+    | None -> "Noch nicht an YNAB gesendet."
+
+let detailNoticeFor
+    (rowState: ReviewMarkRowState option)
+    (history: RemoteData<LedgerHistoryLine list>)
+    (entry: LedgerEntryView)
+    : DetailNotice option =
+    if entry.DeletedInYnab then
+        Some (DeletedNotice (deletedNoticeReason history))
+    elif not entry.LinkedToYnab then
+        Some (NotInYnabNotice (notInYnabNoticeReason entry.PushToYnabFailure))
+    else
+        reviewMarkHintFor rowState entry |> Option.map ReviewMarkNotice
+
+/// Die Nachricht der Aktion in der Hinweisleiste: nur die Prüfvermerk-Leiste hat eine
+/// ("Erneut senden", `retryReviewMarkWriteBack` aus ledger-r777c); gelöscht und "Noch nicht
+/// in YNAB" haben keine Aktion.
+let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
+    match notice with
+    | ReviewMarkNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryReviewMark entryId)
+    | _ -> None
+
+/// Die Nachricht des Geprüft-Schalters: an setzt `Reviewed`, aus `Unreviewed`, über denselben
+/// Weg wie die Schaltfläche an der Zeile (`StartSetReviewMark`).
+let reviewedSwitchMsg (entryId: Guid) (on: bool) : Msg =
+    StartSetReviewMark (entryId, (if on then Reviewed else Unreviewed))
+
+let private noticeView
+    (dispatch: Msg -> unit)
+    (rowState: ReviewMarkRowState option)
+    (entry: LedgerEntryView)
+    (notice: DetailNotice)
+    : ReactElement =
+    match notice with
+    | DeletedNotice reason ->
+        Detail.notice { Tone = Detail.NoticeRed; Badge = "In YNAB gelöscht"; Reason = reason; Action = None }
+    | NotInYnabNotice reason ->
+        Detail.notice { Tone = Detail.NoticeOrange; Badge = "Noch nicht in YNAB"; Reason = reason; Action = None }
+    | ReviewMarkNotice hint ->
+        Detail.notice
+            { Tone = Detail.NoticeOrange
+              Badge = hint.Title
+              Reason = hint.Reason
+              Action =
+                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg ->
+                    Some
+                        { Label = label
+                          Busy = (rowState = Some ReviewMarkSending)
+                          OnClick = fun () -> dispatch msg }
+                | _ -> None }
+
+/// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
+let splitTargetLabel (split: TransactionSplit) : string =
+    match split.Target with
+    | ToCategory (_, name) -> name
+    | ToTransfer (_, accountName) -> $"Übertrag: {accountName}"
+    | Uncategorized -> "kein Ziel"
+
+/// Die Zeilen der Split-Feldzeile: Ziel und Betrag.
+let splitLineTexts (entry: LedgerEntryView) : (string * string) list =
+    entry.Splits
+    |> List.map (fun split ->
+        splitTargetLabel split, Money.formatAmountText false true split.Amount.Amount split.Amount.Currency)
+
+let private accountNameOf (model: Model) (entry: LedgerEntryView) : string =
+    match model.Accounts with
+    | Success view ->
+        view.Accounts
+        |> List.tryFind (fun a -> a.Id = entry.AccountId)
+        |> Option.map (fun a -> a.Name)
+        |> Option.defaultValue "Konto"
+    | _ -> "Konto"
+
+/// Die Zeile unter "Konto · Datum" im Kopf: voller Datumsstil statt der relativen Form der Liste.
+let detailSubtitle (accountName: string) (entry: LedgerEntryView) : string =
+    $"{accountName} · {formatDateFull entry.Date}"
+
+let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (history: RemoteData<LedgerHistoryLine list>) =
+    match history with
+    | NotAsked -> Html.none
+    | Loading -> Loading.centered "Historie wird geladen…"
+    | Failure message ->
+        ErrorDisplay.cardCompact
+            $"Historie konnte nicht geladen werden: {message}"
+            (Some (fun () -> dispatch (LoadHistory entry.Id)))
+    | Success [] -> Detail.timelineEmpty "Noch keine Einträge"
+    | Success lines -> Detail.timeline (historyTimelineItems lines)
+
+/// Der Kopf des Details: Betrag, Payee mit Filter-Knopf, "Konto · Datum", Schließen.
+let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
+    Detail.head
+        (Detail.amount entry.Amount.Amount entry.Amount.Currency entry.DeletedInYnab)
+        (payeeLabel entry)
+        (detailSubtitle (accountNameOf model entry) entry)
+        (match payeeFilterLabel entry, entry.Payee with
+         | Some label, Some payee -> Some (Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee)))
+         | _ -> None)
+        onClose
+
+/// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
+let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
+    let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
+    let muted = entry.DeletedInYnab
+    let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
+
+    [ match detailNoticeFor rowState model.History entry with
+      | Some notice -> noticeView dispatch rowState entry notice
+      | None -> ()
+
+      // Kategorie: lesend, am PC voll qualifiziert (ADR 0039). Rechts bleibt Platz für den
+      // Pfeil des Kategorie-Pickers ab v2 (ledger-k2rbn); jetzt nur der Filter-Knopf.
+      Detail.fieldRow
+          "detail-category"
+          "Kategorie"
+          (Detail.valueText
+              (if muted then Tokens.Colors.textMuted
+               elif isWithoutCategory entry then Tokens.Colors.neonOrange
+               else Tokens.Colors.textPrimary)
+              (categoryLabelQualified entry))
+          (match categoryFilterLabel entry, entry.CategoryId with
+           | Some label, Some categoryId ->
+               Some (Detail.filterButton label (fun () -> dispatch (FilterByRowCategory categoryId)))
+           | _ -> None)
+
+      Detail.fieldRow
+          "detail-split"
+          "Split"
+          (match splitLineTexts entry with
+           | [] -> Detail.valueText Tokens.Colors.textMuted "Kein Split"
+           | lines -> Detail.splitLines lines)
+          None
+
+      Detail.fieldRow
+          "detail-memo"
+          "Memo"
+          (match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
+           | Some memo -> Detail.valueText textColor memo
+           | None -> Detail.valueText Tokens.Colors.textMuted "Kein Memo")
+          None
+
+      // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an: kein Schalter.
+      if not entry.DeletedInYnab then
+          Detail.reviewedSwitch
+              "Geprüft"
+              (not entry.NeedsReview)
+              (rowState = Some ReviewMarkSending)
+              (fun on -> dispatch (reviewedSwitchMsg entry.Id on))
+
+      Detail.originRow (
+          Badge.view {
+              Badge.defaultProps with
+                  Text = originLabel entry.Origin
+                  Variant = Badge.Info
+                  Size = Badge.Small
+          }
+      )
+
+      Detail.sectionLabel "HISTORIE"
+      historyView dispatch entry model.History ]
+
+/// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`).
+let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
+    Detail.panel
+        $"Detail {payeeLabel entry}"
+        [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
+          Detail.scrollBody (detailContent dispatch model entry) ]
+
+/// Das Detail als BottomSheet (Handy, Kompaktliste, zu schmales Fenster für das Panel).
+/// Das Sheet bringt Titel und Schließen-Knopf mit; der Kopf mit Betrag und Payee steht
+/// im Inhalt.
+let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
+    let entry = detailEntryOf model
     BottomSheet.view
-        {
-            IsOpen = model.HistoryFor.IsSome
-            OnClose = fun () -> dispatch CloseHistory
-            Title = title
-            Subtitle = subtitle
-            Footer = None
-        }
-        [
-            // Die beiden Filter-Aktionen der Zeile stehen vor der Historie (ledger-rfq5p);
-            // ohne Eintrag entfällt der Block ganz.
-            match model.HistoryFor with
-            | Some entry ->
-                let actions =
-                    [ match payeeMenuLabel entry, entry.Payee with
-                      | Some label, Some payee ->
-                          FilterPopover.menuItem label (fun () -> dispatch (FilterByRowPayee payee))
-                      | _ -> ()
-                      match categoryMenuLabel entry, entry.CategoryId with
-                      | Some label, Some categoryId ->
-                          FilterPopover.menuItem label (fun () -> dispatch (FilterByRowCategory categoryId))
-                      | _ -> () ]
-                if not (List.isEmpty actions) then
-                    Html.div [
-                        prop.custom ("role", "menu")
-                        prop.custom ("data-testid", "row-filter-actions")
-                        prop.className $"pb-3 mb-3 border-b {Tokens.Borders.subtle}"
-                        prop.children actions
-                    ]
-            | None -> ()
-            match model.History with
-            | NotAsked -> Html.none
-            | Loading -> Loading.centered "Historie wird geladen…"
-            | Failure message ->
-                ErrorDisplay.cardCompact
-                    $"Historie konnte nicht geladen werden: {message}"
-                    (model.HistoryFor |> Option.map (fun e -> fun () -> dispatch (LoadHistory e.Id)))
-            | Success [] ->
-                Html.p [
-                    prop.className $"{Tokens.FontSizes.body} {Tokens.Colors.textMuted} py-6 text-center"
-                    prop.text "Für diese Buchung ist noch nichts festgehalten."
-                ]
-            | Success lines ->
-                Html.div [
-                    prop.children (lines |> historyLinesForDisplay |> List.map historyLine)
-                ]
-        ]
+        { IsOpen = open' && entry.IsSome
+          OnClose = fun () -> dispatch CloseDetail
+          Title = "Buchung"
+          Subtitle = None
+          Footer = None }
+        // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
+        // sonst als verstecktes Doppel neben dem Panel stehen.
+        [ match entry with
+          | Some entry when open' ->
+              detailHead dispatch model entry None
+              yield! detailContent dispatch model entry
+          | _ -> () ]
 
 // ============================================
 // Nachladen beim Scrollen (AC5)
@@ -1199,15 +1286,22 @@ let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit)
 
 /// Der Tastaturhinweis am PC (Handoff Ablauf 1, 1.9): eine Fußzeile, solange keine
 /// Auswahl läuft. Tasten in Mono, der Rest gedämpft.
-let keyboardHintText = "↑ ↓ bewegen · G geprüft · Umschalt+G ungeprüft"
+let keyboardHintText = "↑ ↓ bewegen · G geprüft · Umschalt+G ungeprüft · Enter Detail öffnen"
 
-let private keyboardHint () : ReactElement =
+/// Der Hinweis bei offenem Panel (ledger-q1hw2): die Tasten, die dann wirken.
+let keyboardHintPanelText = "↑ ↓ bewegen · G geprüft · Esc Panel schließen"
+
+/// Der Hinweis zum Zustand: bei offenem Seitenpanel der Panel-Text, sonst der Grundtext.
+let keyboardHintTextFor (model: Model) : string =
+    if detailPanelOpen model then keyboardHintPanelText else keyboardHintText
+
+let private keyboardHint (text: string) : ReactElement =
     Html.div [
         prop.className (
             $"hidden md:flex fixed bottom-0 left-0 right-0 z-30 items-center gap-2 {Tokens.Backgrounds.surface} " +
             $"border-t {Tokens.Borders.subtle} px-5 py-3 {Tokens.FontSizes.xs} {Tokens.Colors.textMuted}"
         )
-        prop.children [ Html.span [ prop.className Tokens.Fonts.mono; prop.text keyboardHintText ] ]
+        prop.children [ Html.span [ prop.className Tokens.Fonts.mono; prop.text text ] ]
     ]
 
 // ============================================
@@ -1403,7 +1497,7 @@ let minColumnWidth (column: LedgerColumn) : int =
 /// Die Spaltenstufen von breit nach schmal (ADR 0049 bleibt Maßstab: ruhig statt eng):
 /// alle Spalten, ohne Memo, ohne Memo und Konto. Das Konto fällt nur in der Gesamtsicht
 /// weg, in einem Konto gibt es die Spalte ohnehin nicht.
-let private columnStages (showAccountColumn: bool) : LedgerColumn list list =
+let private columnStages (allowMemo: bool) (showAccountColumn: bool) : LedgerColumn list list =
     let withAccount (cols: LedgerColumn list) =
         if showAccountColumn then
             [ SelectColumn; DateColumn; AccountColumn ] @ cols
@@ -1412,7 +1506,7 @@ let private columnStages (showAccountColumn: bool) : LedgerColumn list list =
 
     let tail = [ AmountColumn; StatusColumn ]
 
-    [ withAccount ([ PayeeColumn; CategoryColumn; MemoColumn ] @ tail)
+    [ if allowMemo then withAccount ([ PayeeColumn; CategoryColumn; MemoColumn ] @ tail)
       withAccount ([ PayeeColumn; CategoryColumn ] @ tail)
       if showAccountColumn then
           [ SelectColumn; DateColumn; PayeeColumn; CategoryColumn ] @ tail ]
@@ -1426,9 +1520,9 @@ let private minTotal (columns: LedgerColumn list) : int =
 /// gewinnt; passt keine, gilt `CompactList`. Den Überschuss über die Mindestbreiten
 /// teilen Payee (40 %) und Kategorie (30 %) bevor Memo (oder, ohne Memo, die Kategorie)
 /// den Rest nimmt.
-let visibleColumns (tableWidth: float) (showAccountColumn: bool) : TableLayout =
+let private visibleColumnsWith (allowMemo: bool) (tableWidth: float) (showAccountColumn: bool) : TableLayout =
     let stage =
-        columnStages showAccountColumn
+        columnStages allowMemo showAccountColumn
         |> List.tryFind (fun columns -> float (minTotal columns) <= tableWidth)
 
     match stage with
@@ -1446,6 +1540,27 @@ let visibleColumns (tableWidth: float) (showAccountColumn: bool) : TableLayout =
             | other -> FixedPx (minColumnWidth other)
 
         Columns [ for column in columns -> column, width column ]
+
+let visibleColumns (tableWidth: float) (showAccountColumn: bool) : TableLayout =
+    visibleColumnsWith true tableWidth showAccountColumn
+
+/// Die Breite, die das Seitenpanel der Tabelle nimmt (ledger-q1hw2).
+let detailPanelWidth : float = float Detail.panelWidthPx
+
+/// Die Spalten neben einem offenen Seitenpanel: die Tabellenbreite ohne Panel abzüglich
+/// seiner 420 Pixel, und Memo fällt immer weg. Die übrigen Stufen entscheidet dieselbe
+/// Regel wie sonst, so dass in schmalen Fenstern auch die Konto-Spalte weicht.
+let visibleColumnsWithPanel (tableWidth: float) (showAccountColumn: bool) : TableLayout =
+    visibleColumnsWith false (tableWidth - detailPanelWidth) showAccountColumn
+
+/// Die Form des Details bei der Tabellenbreite OHNE Panel (ADR 0053): ein Panel nur, wenn
+/// die Liste schon als Tabelle steht und neben dem Panel noch eine Tabellenstufe passt;
+/// sonst ein Sheet. Weil die Breite ohne Panel gemessen wird, kippt die Form nicht, wenn
+/// das Panel selbst Platz nimmt.
+let detailFormFor (tableWidth: float) (showAccountColumn: bool) : DetailForm =
+    match visibleColumns tableWidth showAccountColumn, visibleColumnsWithPanel tableWidth showAccountColumn with
+    | Columns _, Columns _ -> DetailPanel
+    | _ -> DetailSheet
 
 /// Breite einer Spalte in Pixeln bei gegebener Tabellenbreite: `Rest` ist, was nach den
 /// festen Spalten übrig bleibt.
@@ -1468,7 +1583,6 @@ let private entryListDesktop
     (columns: (LedgerColumn * ColumnWidth) list)
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
-    (cellMenu: CellMenuTarget option)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (headerState: HeaderCheckState)
@@ -1494,7 +1608,6 @@ let private entryListDesktop
                   visible
                   isAllAccounts
                   accountAbbreviationOf
-                  cellMenu
                   rowState
                   (isSelected selection entry.Id)
                   (anchor = Some entry.Id)
@@ -1554,6 +1667,7 @@ let private entryList
     (accounts: LedgerAccountView list)
     (isAllAccounts: bool)
     (tableWidth: float)
+    (panelOpen: bool)
     (model: Model)
     =
     let abbreviationOf =
@@ -1599,7 +1713,11 @@ let private entryList
             (Some (Button.secondary "Jetzt spiegeln" (fun () -> dispatch StartMirror)))
 
     | Success entries ->
-        let layout = visibleColumns tableWidth isAllAccounts
+        // Bei offenem Panel gilt die Breite abzüglich Panel und ohne Memo; `tableWidth` ist die
+        // Breite ohne Panel (die Spalte reserviert den Platz als Innenabstand).
+        let layout =
+            if panelOpen then visibleColumnsWithPanel tableWidth isAllAccounts
+            else visibleColumns tableWidth isAllAccounts
         let sort = Components.Ledger.State.effectiveSort model
 
         Html.div [
@@ -1621,7 +1739,6 @@ let private entryList
                     columns
                     isAllAccounts
                     abbreviationOf
-                    model.CellMenu
                     model.IncludeDeleted
                     model.ReviewMarkRows
                     (headerCheckState model)
@@ -2087,7 +2204,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 selectionClearLabel
                 (fun () -> dispatch ClearSelection)
         elif keyboardHintVisible model then
-            keyboardHint ()
+            keyboardHint (keyboardHintTextFor model)
     ]
 
 /// Je ein Abstandshalter in Höhe der Leiste unter der Liste, damit die letzte Zeile
@@ -2178,6 +2295,14 @@ let private FilterBarColumn
     // 0 = noch nicht gemessen, dann gilt `assumedTableWidth`.
     let measuredWidth, setMeasuredWidth = React.useState 0.0
     let tableWidth = if measuredWidth > 0.0 then measuredWidth else assumedTableWidth
+    // Die Form des Details hängt nur von der Breite OHNE Panel ab (`detailFormFor`): das
+    // Panel reserviert seinen Platz als Innenabstand, die gemessene Außenbreite bleibt gleich.
+    let detailForm = detailFormFor tableWidth isAllAccounts
+    let panelOpen = model.DetailFor.IsSome && detailForm = DetailPanel
+    React.useEffect (
+        (fun () -> if model.DetailForm <> detailForm then dispatch (DetailFormChanged detailForm)),
+        [| box detailForm; box model.DetailForm |]
+    )
     let disconnectRef = React.useRef<(unit -> unit) option> None
     let widthDisconnectRef = React.useRef<(unit -> unit) option> None
 
@@ -2210,10 +2335,20 @@ let private FilterBarColumn
         )
 
     Html.div [
-        prop.className "flex-1 min-w-0"
+        prop.className "flex-1 min-w-0 relative"
         prop.ref columnCallbackRef
         prop.style [ style.custom ("--ledger-filter-bar-height", sprintf "%.0fpx" barHeight) ]
         prop.children [
+            // Das Sheet portalt nach `document.body`; es steht hier, weil die Form hier bekannt ist.
+            detailSheetView dispatch model (model.DetailFor.IsSome && detailForm = DetailSheet)
+            match detailEntryOf model with
+            | Some entry when panelOpen -> detailPanelView dispatch model entry
+            | _ -> ()
+            Html.div [
+                // Neben dem Panel macht die Spalte Platz; die Mindesthöhe hält das haftende
+                // Panel auch bei kurzer Liste im Bild.
+                prop.className (if panelOpen then "md:pr-[420px] md:min-h-[calc(100vh-7rem)]" else "")
+                prop.children [
             Primitives.Stack.md [
                 if model.MirrorRunning then
                     // Der Lauf blockiert die Liste nicht: sie bleibt
@@ -2223,8 +2358,10 @@ let private FilterBarColumn
                 filterChipBar dispatch model categories (visibleColumns tableWidth isAllAccounts = CompactList) isAllAccounts (Some barCallbackRef)
                 summaryOrSelectionRow model
                 deletedToggleRow dispatch model
-                entryList dispatch accounts isAllAccounts tableWidth model
+                entryList dispatch accounts isAllAccounts tableWidth panelOpen model
                 selectionBarSpacers model
+            ]
+                ]
             ]
         ]
     ]
@@ -2277,6 +2414,4 @@ let view (model: Model) (dispatch: Msg -> unit) =
             ]
 
         KeyboardNavigation model.FocusedRow dispatch
-
-        historySheet model dispatch
     ]

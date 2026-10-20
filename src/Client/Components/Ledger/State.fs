@@ -36,14 +36,14 @@ let init () : Model * Cmd<Msg> =
         Sort = LedgerSort.defaultSort
         SortSheetOpen = false
         NeedsReviewCount = 0
-        HistoryFor = None
+        DetailFor = None
+        DetailForm = DetailSheet
         History = NotAsked
         LastMirrorRun = NotAsked
         MirrorRunning = false
         Categories = NotAsked
         Filters = noFilters
         OpenPopover = None
-        CellMenu = None
         CategoryDraft = Set.empty
         CategorySearch = ""
         HiddenCategoriesExpanded = false
@@ -186,6 +186,12 @@ let private applyReviewMarkResult
         | Some entry ->
             let newNeedsReview = needsReview |> Option.defaultValue entry.NeedsReview
             let updated = { entry with NeedsReview = newNeedsReview; ReviewMarkWriteBackFailure = failureOf entry }
+            // Das offene Detail zeigt dieselbe Buchung: eine Zeile, die die Liste verlässt
+            // (Chip "Zu prüfen"), liest es sonst nur noch aus der Momentaufnahme.
+            let cleared =
+                match cleared.DetailFor with
+                | Some detail when detail.Id = entryId -> { cleared with DetailFor = Some updated }
+                | _ -> cleared
             let countDelta =
                 match entry.NeedsReview, newNeedsReview with
                 | true, false -> -1
@@ -358,10 +364,31 @@ let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model
         model', (ended.OnlyNeedsReview && unloadedChanged > 0)
     | _ -> ended, false
 
-/// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover oder die Historie
-/// gehören der Tastatur.
+/// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover und ein offenes Sheet
+/// gehören der Tastatur; ein offenes Seitenpanel nicht, es folgt der Markierung
+/// (ledger-q1hw2, ADR 0053 Punkt 5).
 let private keyboardBlocked (model: Model) : bool =
-    model.OpenPopover.IsSome || model.CellMenu.IsSome || model.HistoryFor.IsSome
+    model.OpenPopover.IsSome || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
+
+/// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
+/// stößt ihren Abruf an. Wechselt ein offenes Panel auf eine andere Buchung, läuft derselbe
+/// Weg.
+let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
+    { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading },
+    Cmd.ofMsg (LoadHistory entry.Id)
+
+/// Folgt ein offenes Panel der Markierung? Zeigt es eine andere Buchung als die markierte
+/// Zeile, wechselt es auf diese und lädt deren Historie. Gleicher Stand, Sheet oder keine
+/// Markierung ändern nichts.
+let private followFocusWithPanel (model: Model, cmd: Cmd<Msg>, external: ExternalMsg) : Model * Cmd<Msg> * ExternalMsg =
+    match model.DetailFor, model.FocusedRow, model.Entries with
+    | Some detail, Some focusId, Success entries when model.DetailForm = DetailPanel && detail.Id <> focusId ->
+        match entries |> List.tryFind (fun e -> e.Id = focusId) with
+        | Some entry ->
+            let model', loadCmd = showDetail entry model
+            model', Cmd.batch [ cmd; loadCmd ], external
+        | None -> model, cmd, external
+    | _ -> model, cmd, external
 
 /// Nimmt die Zeile den Prüfvermerk per Taste nicht an? In der Auswahl, ohne Schaltfläche
 /// (in YNAB gelöscht) und während ein Aufruf läuft.
@@ -428,13 +455,13 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     // Konto-Filter
     // ============================================
     | SelectFilter filter ->
-        // Ein Filterwechsel schliesst ein offenes Historie-Sheet: es gehoerte zu
+        // Ein Kontowechsel schliesst ein offenes Detail: es gehoerte zu
         // einer Buchung, die gleich nicht mehr in der Liste steht. Die
         // Scroll-Position wird bewusst NICHT gemerkt (Task-Notes) — alle anderen
         // Zustaende (Kontostaende, Lauf-Status) bleiben unangetastet stehen.
         { (resetEntries model) with
             SelectedFilter = Some filter
-            HistoryFor = None
+            DetailFor = None
             History = NotAsked },
         Cmd.ofMsg LoadEntries,
         NoOp
@@ -479,8 +506,14 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with
             Entries = Success entries
             // Der Fokus überlebt das Nachladen; fällt seine Zeile aus der Liste, springt er
-            // auf die erste (ledger-rjb8w).
-            FocusedRow = reconcileFocus entries model.FocusedRow
+            // auf die erste (ledger-rjb8w). Mit offenem Detail ist die Markierung dessen
+            // Buchung, oder keine, wenn sie auf den geladenen Seiten fehlt (nach einem
+            // Sortierwechsel, ledger-q1hw2).
+            FocusedRow =
+                (match model.DetailFor with
+                 | Some detail ->
+                     if entries |> List.exists (fun e -> e.Id = detail.Id) then Some detail.Id else None
+                 | None -> reconcileFocus entries model.FocusedRow)
             NextPage = page + 1
             TotalCount = entryPage.TotalCount
             TotalAmount = entryPage.TotalAmount
@@ -531,28 +564,38 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     // ============================================
     // Historie einer Buchung
     // ============================================
-    | OpenHistory entry ->
-        { model with HistoryFor = Some entry; History = Loading },
-        Cmd.ofMsg (LoadHistory entry.Id),
-        NoOp
+    | OpenDetail entry ->
+        // Im Auswahl-Modus am Handy wählt der Tipp aus (ADR 0053 Punkt 7), er öffnet nichts.
+        if model.SelectionMode then
+            model, Cmd.none, NoOp
+        else
+            let model', cmd = showDetail entry model
+            model', cmd, NoOp
 
-    | CloseHistory ->
-        { model with HistoryFor = None; History = NotAsked }, Cmd.none, NoOp
+    | CloseDetail ->
+        { model with DetailFor = None; History = NotAsked }, Cmd.none, NoOp
+
+    | DetailFormChanged form ->
+        { model with DetailForm = form }, Cmd.none, NoOp
 
     | LoadHistory entryId ->
         let cmd =
             Cmd.OfAsync.either
                 Api.ledger.getEntryHistory
                 entryId
-                (Ok >> HistoryLoaded)
-                (fun ex -> HistoryLoaded (Error ex.Message))
+                (fun lines -> HistoryLoaded (entryId, Ok lines))
+                (fun ex -> HistoryLoaded (entryId, Error ex.Message))
         { model with History = Loading }, cmd, NoOp
 
-    | HistoryLoaded (Ok lines) ->
+    | HistoryLoaded (entryId, Ok lines) when model.DetailFor |> Option.exists (fun e -> e.Id = entryId) ->
         { model with History = Success lines }, Cmd.none, NoOp
 
-    | HistoryLoaded (Error message) ->
+    | HistoryLoaded (entryId, Error message) when model.DetailFor |> Option.exists (fun e -> e.Id = entryId) ->
         { model with History = Failure message }, Cmd.none, NoOp
+
+    // Die Historie einer Buchung, die nicht mehr im Detail steht (schnelles Weiterspringen,
+    // geschlossenes Detail): verwerfen.
+    | HistoryLoaded _ -> model, Cmd.none, NoOp
 
     // ============================================
     // Spiegel
@@ -658,35 +701,27 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             // Ein Umschalter ohne Popover (ADR 0048): es gibt keinen Entwurf zu setzen.
             | WithoutCategoryChip -> model
         let cmd = if chip = PayeeChip then Cmd.ofMsg LoadPayeeSuggestions else Cmd.none
-        { model' with OpenPopover = Some chip; CellMenu = None }, cmd, NoOp
+        { model' with OpenPopover = Some chip }, cmd, NoOp
 
     | CloseFilterPopover ->
         // Esc, Klick daneben oder "Schließen": der Entwurf wird verworfen, `Filters`
         // bleibt unangetastet (AC "der vorherige Filterzustand bleibt unverändert").
         { model with OpenPopover = None }, Cmd.none, NoOp
 
-    // -------- Zellmenü "Nach X filtern" (ledger-rfq5p) --------
+    // -------- Filter-Knöpfe im Detail (ADR 0053, löst das Zellmenü aus ledger-rfq5p ab) --------
 
-    | OpenCellMenu (entryId, kind) ->
-        { model with CellMenu = Some { EntryId = entryId; Kind = kind }; OpenPopover = None }, Cmd.none, NoOp
-
-    | CloseCellMenu ->
-        { model with CellMenu = None }, Cmd.none, NoOp
-
+    // Beide lassen das Detail offen und mit derselben Buchung stehen: Filtern ändert die
+    // Liste, nicht die Buchung.
     | FilterByRowPayee payee ->
         let filters = { model.Filters with Payee = Some payee }
-        resetEntries { model with Filters = filters; CellMenu = None; HistoryFor = None; History = NotAsked },
-        Cmd.ofMsg LoadEntries,
-        NoOp
+        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
 
     | FilterByRowCategory categoryId ->
         // "Ohne Kategorie" verbindet sich mit einer Kategorienauswahl per Oder (ADR 0048)
         // und würde Buchungen ohne Ziel einschließen, die Roman nicht gewählt hat.
         let filters =
             { model.Filters with CategoryIds = Set.singleton categoryId; WithoutCategory = false }
-        resetEntries { model with Filters = filters; CellMenu = None; HistoryFor = None; History = NotAsked },
-        Cmd.ofMsg LoadEntries,
-        NoOp
+        resetEntries { model with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
 
     // -------- Kategorie (Mehrfachauswahl, Click-Commit) --------
 
@@ -1115,7 +1150,9 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model, Cmd.none, NoOp
         else
             let entries = model.Entries |> RemoteData.withDefault []
-            { model with FocusedRow = movedFocus entries model.FocusedRow delta }, Cmd.none, NoOp
+            // Ein offenes Panel folgt der Markierung und lädt die Historie der neuen Buchung.
+            followFocusWithPanel (
+                { model with FocusedRow = movedFocus entries model.FocusedRow delta }, Cmd.none, NoOp)
 
     | ReviewKeyPressed target ->
         let entries = model.Entries |> RemoteData.withDefault []
@@ -1128,4 +1165,23 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             // Derselbe Weg wie der Klick auf die Schaltfläche (Fehlschlag-Hinweis inbegriffen);
             // der Fokus springt sofort auf die nächste Zeile.
             update (StartSetReviewMark (entry.Id, target)) { model with FocusedRow = Some (nextFocusAfter entries entry.Id) }
+            |> followFocusWithPanel
         | _ -> model, Cmd.none, NoOp
+
+    | OpenFocusedDetail ->
+        let entries = model.Entries |> RemoteData.withDefault []
+        let focused =
+            model.FocusedRow
+            |> Option.bind (fun id -> entries |> List.tryFind (fun e -> e.Id = id))
+        match focused with
+        | Some entry when not (keyboardBlocked model) && not model.SelectionMode ->
+            let model', cmd = showDetail entry model
+            model', cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | EscapePressed ->
+        // Ein offenes Popover schließt sich selbst; das Detail bleibt dann stehen.
+        if model.OpenPopover.IsSome || model.DetailFor.IsNone then
+            model, Cmd.none, NoOp
+        else
+            { model with DetailFor = None; History = NotAsked }, Cmd.none, NoOp

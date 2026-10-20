@@ -1068,8 +1068,8 @@ let private FilterPopoverDemo () =
         ]
     ]
 
-/// FilterPopover als kleines Aktionsmenü: `menuItem` im Popover, wie das Zellmenü
-/// "Nach X filtern" im Kassenbuch (ledger-rfq5p).
+/// FilterPopover als kleines Aktionsmenü: `menuItem` im Popover (kommt aus dem Zellmenü
+/// "Nach X filtern", ledger-rfq5p; das Kassenbuch nutzt es seit ADR 0053 nicht mehr).
 [<ReactComponent>]
 let private FilterPopoverMenuDemo () =
     let isOpen, setOpen = React.useState true
@@ -1098,6 +1098,105 @@ let private FilterPopoverMenuDemo () =
                             FilterPopover.menuItem "Nach REWE Mitte filtern" ignore
                             FilterPopover.menuItem "Nach Alltag: Lebensmittel mit einem sehr langen Namen filtern" ignore
                         ]
+                ]
+            ]
+        ]
+    ]
+
+/// Buchungs-Detail (ledger-q1hw2, ADR 0053): die Bausteine des Panels und des Sheets im
+/// Kassenbuch. Der Geprüft-Schalter hat lokalen Zustand.
+[<ReactComponent>]
+let private DetailDemo () =
+    let reviewed, setReviewed = React.useState false
+
+    let card (id: string) (name: string) (subtitle: string) (children: ReactElement list) =
+        Html.div [
+            prop.custom ("data-ds-card", id)
+            prop.custom ("data-ds-card-name", name)
+            prop.custom ("data-ds-card-subtitle", subtitle)
+            prop.custom ("data-ds-group", "Components")
+            prop.className "mb-6 overflow-hidden rounded-xl border border-border-subtle"
+            prop.children children
+        ]
+
+    section "25. Buchungs-Detail" [
+        note "Das Detail einer Buchung: Seitenpanel (420 px) am PC, BottomSheet am Handy und in der \
+              Kompaktliste. Hinweisleiste mit Grund und genau einer Aktion, Felder, Geprüft-Schalter, \
+              Herkunft und Zeitleiste der Historie. Farbe nur für den Hinweis und den Punkt der \
+              Zeitleiste (ADR 0049, ADR 0053)."
+
+        card "components-detail-notice" "Detail: Hinweisleiste" "Rot ohne Aktion, Orange ohne Aktion, Orange mit Aktion" [
+            Detail.notice
+                { Tone = Detail.NoticeRed
+                  Badge = "In YNAB gelöscht"
+                  Reason = "Gelöscht in YNAB am 11.09.2026 08:20. Zählt nicht zum Kontostand."
+                  Action = None }
+            Detail.notice
+                { Tone = Detail.NoticeOrange
+                  Badge = "Noch nicht in YNAB"
+                  Reason = "Push gescheitert am 10.09.2026 18:02: Netzwerkfehler. BB versucht es beim nächsten Lauf erneut."
+                  Action = None }
+            Detail.notice
+                { Tone = Detail.NoticeOrange
+                  Badge = "Prüfvermerk nicht in YNAB"
+                  Reason = "YNAB hat den Prüfvermerk nicht angenommen (Fehler 500)."
+                  Action = Some { Label = "Erneut senden"; Busy = false; OnClick = ignore } }
+        ]
+
+        card "components-detail-fields" "Detail: Felder, Filter-Knopf, Schalter, Herkunft" "Feldzeile mit Filter-Knopf, Split, Geprüft-Schalter, Herkunft" [
+            Detail.fieldRow
+                "styleguide-detail-category"
+                "Kategorie"
+                (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
+                (Some (Detail.filterButton "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore))
+            Detail.fieldRow
+                "styleguide-detail-split"
+                "Split"
+                (Detail.splitLines [ "Lebensmittel", "-30,50 €"; "Übertrag: Tagesgeld", "-20,00 €" ])
+                None
+            Detail.fieldRow
+                "styleguide-detail-memo"
+                "Memo"
+                (Detail.valueText Tokens.Colors.textMuted "Kein Memo")
+                None
+            Detail.reviewedSwitch "Geprüft" reviewed false setReviewed
+            Detail.originRow (
+                Badge.view { Badge.defaultProps with Text = "Comdirect-Import"; Variant = Badge.Info; Size = Badge.Small }
+            )
+        ]
+
+        card "components-detail-timeline" "Detail: Zeitleiste" "Punktfarbe nach Urheber, neueste Zeile oben" [
+            Detail.sectionLabel "HISTORIE"
+            Detail.timeline
+                [ { Key = "4"; Dot = Detail.DotRed; Text = "In YNAB gelöscht"; Stamp = "11.09.2026 08:20 · YNAB-Spiegel" }
+                  { Key = "3"; Dot = Detail.DotGreen; Text = "In BB als geprüft markiert"; Stamp = "10.09.2026 18:10 · In BB entschieden" }
+                  { Key = "2"; Dot = Detail.DotPurple; Text = "Regel: Kategorie Lebensmittel gesetzt"; Stamp = "10.09.2026 17:55 · Regel" }
+                  { Key = "1"; Dot = Detail.DotTeal; Text = "Comdirect-Import: Buchung erfasst"; Stamp = "10.09.2026 17:55 · Comdirect-Import" }
+                  { Key = "0"; Dot = Detail.DotGrey; Text = "Kategorie in YNAB geändert"; Stamp = "10.09.2026 17:50 · YNAB-Spiegel" } ]
+        ]
+
+        card "components-detail-panel" "Detail: Seitenpanel" "Kopf mit Betrag, Payee und Filter-Knopf, darunter der scrollende Inhalt (ab md sichtbar)" [
+            Html.div [
+                prop.className "relative h-[28rem] overflow-hidden"
+                prop.children [
+                    Detail.panel
+                        "Detail REWE Mitte"
+                        [ Detail.head
+                              (Detail.amount -48.12m "EUR" false)
+                              "REWE Mitte"
+                              "Girokonto Comdirect · 10.09.2026"
+                              (Some (Detail.filterButton "Nur Buchungen von REWE Mitte zeigen" ignore))
+                              (Some ignore)
+                          Detail.scrollBody [
+                              Detail.fieldRow
+                                  "styleguide-detail-panel-memo"
+                                  "Memo"
+                                  (Detail.valueText Tokens.Colors.textPrimary "Wocheneinkauf")
+                                  None
+                              Detail.originRow (
+                                  Badge.view { Badge.defaultProps with Text = "Regel"; Variant = Badge.Info; Size = Badge.Small }
+                              )
+                          ] ]
                 ]
             ]
         ]
@@ -1200,6 +1299,7 @@ let view () =
                         chipBarSection
                         FilterPopoverDemo()
                         FilterPopoverMenuDemo()
+                        DetailDemo()
                         CategoryMultiSelectDemo()
                     ]
                     |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))

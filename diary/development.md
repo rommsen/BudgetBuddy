@@ -4,6 +4,25 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 23:10 - Detail: README nachgezogen, Punktfarbe gegen echte Sätze (ledger-q1hw2, Iteration 2)
+
+**What I did:**
+README_DELTA um zwei replace-Ops erweitert, `isFailureOrDeletionLine` auf feste Satzanfänge verengt, Test gegen `ReadModel.describe` ergänzt.
+
+**Files Modified:**
+- `src/Client/Components/Ledger/View.fs` - Präfix "Push nach YNAB gescheitert" statt Contains
+- `src/Tests/LedgerDetailTests.fs` - Test mit den echten Server-Sätzen
+
+**Rationale:**
+Verifier-Befund: zwei README-Bullets waren durch den Rückbau veraltet; die Text-Kopplung der Punktfarbe sollte gepinnt sein.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1666 bestanden, 0 Fehler; Wächter detail und sort-chip 13/13
+- Issues: keine
+
+---
+
 ## 2026-10-20 22:30 - Sortier-Chip und Sortier-Sheet am Handy (ledger-skpcx)
 
 **What I did:**

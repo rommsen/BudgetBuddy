@@ -30,6 +30,7 @@
     <Compile Include="DesignSystem/ChipBar.fs" />
     <Compile Include="DesignSystem/MultiSelect.fs" />
     <Compile Include="DesignSystem/FilterPopover.fs" />
+    <Compile Include="DesignSystem/Detail.fs" />
     <Compile Include="DesignSystem/CategoryMultiSelect.fs" />
 
     <!-- Utilities -->

@@ -202,9 +202,19 @@ let keyBindingTests =
             Expect.isNone (keyCommandFor "BODY" false true false "g") "Strg oder Meta"
             Expect.isNone (keyCommandFor "BODY" false false true "g") "Alt"
 
-        testCase "Enter, Esc und Leertaste bleiben frei (ledger-q1hw2)" <| fun () ->
-            for k in [ "Enter"; "Escape"; " "; "a" ] do
+        testCase "Enter öffnet das Detail, Esc schließt es, Leertaste bleibt frei (ledger-q1hw2)" <| fun () ->
+            Expect.equal (keyCommandFor "BODY" false false false "Enter") (Some OpenFocusedDetail) "Enter"
+            Expect.equal (keyCommandFor "BODY" false false false "Escape") (Some EscapePressed) "Esc"
+            for k in [ " "; "a" ] do
                 Expect.isNone (keyCommandFor "BODY" false false false k) k
+
+        testCase "Enter auf einem Knopf oder Link löst kein Detail aus, damit er nicht doppelt wirkt" <| fun () ->
+            for tag in [ "BUTTON"; "button"; "A"; "SUMMARY" ] do
+                Expect.isNone (keyCommandFor tag false false false "Enter") $"Enter auf {tag}"
+            // Esc bleibt auf einem Knopf wirksam: der Fokus nach einem Mausklick liegt oft dort.
+            Expect.equal (keyCommandFor "BUTTON" false false false "Escape") (Some EscapePressed) "Esc auf Knopf"
+            for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
+                Expect.isNone (keyCommandFor tag false false false "Escape") $"Esc im Feld {tag}"
 
         testCase "nur die Kassenbuch-Ansicht hört auf Tasten am Dokument, kein anderes Kürzel kollidiert" <| fun () ->
             let clientDir = Path.Combine(repoRoot, "src", "Client")

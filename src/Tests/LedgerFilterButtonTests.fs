@@ -1,8 +1,9 @@
-module LedgerCellMenuTests
+module LedgerFilterButtonTests
 
-// ledger-rfq5p: Zellmenü "Nach X filtern" an der Payee- und Kategorie-Zelle einer Zeile.
-// Reine Beschriftungsfunktionen, die Id der Kategorie im Lesepfad und die Reduzierer-Pfade.
-// Eigene Fixture-Ids (Präfix 0195c1f0).
+// ledger-q1hw2 (ADR 0053): die Filter-Knöpfe am Payee und an der Kategorie im Detail lösen
+// das Zellmenü aus ledger-rfq5p ab. Die Beschriftungen und der Lesepfad stammen aus
+// ledger-rfq5p; neu sind die Beschriftung der Knöpfe, der Rückbau des Zellmenüs und die
+// Reduzierer-Pfade, die das Detail offen lassen. Eigene Fixture-Ids (Präfix 0195c1f0).
 
 open System
 open Expecto
@@ -12,6 +13,7 @@ open Ledger.Domain
 open Ledger.QueryHandlers
 open Components.Ledger.Types
 open Components.Ledger.View
+open Types
 
 let private eur (amount: decimal) : Money = { Amount = amount; Currency = "EUR" }
 
@@ -85,8 +87,39 @@ let private repoRoot =
 let private source (relative: string) = IO.File.ReadAllText(IO.Path.Combine(repoRoot, relative))
 
 [<Tests>]
-let cellMenuTests =
-    testList "Zellmenü Nach X filtern (ledger-rfq5p)" [
+let filterButtonTests =
+    testList "Filter-Knöpfe im Detail (ledger-q1hw2, ADR 0053)" [
+
+        testList "Beschriftung der Knöpfe" [
+            test "Der Payee-Knopf trägt den vollen Namen" {
+                Expect.equal
+                    (payeeFilterLabel (view (Some "Stadtwerke Musterstadt GmbH") None))
+                    (Some "Nur Buchungen von Stadtwerke Musterstadt GmbH zeigen")
+                    "voller Name, keine Kürzung"
+            }
+            test "Der Payee-Knopf fehlt ohne Payee, bei leerem Text und bei Leerzeichen" {
+                for payee in [ None; Some ""; Some "   " ] do
+                    Expect.isNone (payeeFilterLabel (view payee None)) $"kein Knopf für {payee}"
+            }
+            test "Der Kategorie-Knopf trägt die voll qualifizierte Kategorie" {
+                let entry = view (Some "REWE") (Some categoryGuid)
+                Expect.equal (categoryFilterLabel entry) (Some "Nur Buchungen in Alltag: Lebensmittel zeigen") "voller Name"
+            }
+            test "Der Kategorie-Knopf fehlt bei Split, ohne Kategorie und beim Übertrag ohne Kategorie" {
+                Expect.isNone (categoryFilterLabel (view (Some "REWE") None)) "ohne Kategorie"
+                Expect.isNone
+                    (categoryFilterLabel { view (Some "REWE") (Some categoryGuid) with Splits = [ split ] })
+                    "Split"
+                Expect.isNone
+                    (categoryFilterLabel { view (Some "Umbuchung") None with IsTransfer = true })
+                    "Übertrag ohne Kategorie"
+            }
+            test "Auch eine in YNAB gelöschte Buchung bekommt beide Knöpfe (Filtern ändert die Buchung nicht)" {
+                let entry = { view (Some "REWE") (Some categoryGuid) with DeletedInYnab = true }
+                Expect.isSome (payeeFilterLabel entry) "Payee"
+                Expect.isSome (categoryFilterLabel entry) "Kategorie"
+            }
+        ]
 
         testList "Beschriftung der Einträge" [
             test "payeeMenuLabel nennt den Payee" {
@@ -146,10 +179,10 @@ let cellMenuTests =
                     SelectedFilter = Some (OneAccount (Guid.Parse "0195c1f0-0000-7000-8000-000000000200"))
                     NextPage = 3
                     Selection = Picked (Set.ofList [ Guid.NewGuid() ])
-                    CellMenu = Some { EntryId = Guid.NewGuid(); Kind = PayeeCell }
-                    HistoryFor = Some (view (Some "REWE") None) }
+                    DetailFor = Some (view (Some "REWE") None)
+                    History = Success [] }
 
-            test "FilterByRowPayee setzt nur den Payee, schließt Menü und Historie und lädt neu" {
+            test "FilterByRowPayee setzt nur den Payee, lässt das Detail offen und lädt neu" {
                 let updated, cmd, _ = update (FilterByRowPayee "REWE") filtered
                 Expect.equal updated.Filters.Payee (Some "REWE") "Payee gesetzt"
                 Expect.equal updated.Filters.CategoryIds filtered.Filters.CategoryIds "Kategorien bleiben"
@@ -159,8 +192,8 @@ let cellMenuTests =
                 Expect.isTrue updated.Filters.WithoutCategory "Ohne Kategorie bleibt"
                 Expect.isTrue updated.OnlyNeedsReview "Zu prüfen bleibt"
                 Expect.equal updated.SelectedFilter filtered.SelectedFilter "Konto bleibt"
-                Expect.isNone updated.CellMenu "Menü zu"
-                Expect.isNone updated.HistoryFor "Historie zu"
+                Expect.equal updated.DetailFor filtered.DetailFor "Detail bleibt offen, dieselbe Buchung"
+                Expect.equal updated.History filtered.History "Historie bleibt stehen"
                 Expect.contains (dispatched cmd) LoadEntries "lädt neu"
             }
 
@@ -174,8 +207,8 @@ let cellMenuTests =
                 Expect.equal updated.Filters.Payee (Some "Alt") "Payee bleibt"
                 Expect.isTrue updated.OnlyNeedsReview "Zu prüfen bleibt"
                 Expect.equal updated.SelectedFilter filtered.SelectedFilter "Konto bleibt"
-                Expect.isNone updated.CellMenu "Menü zu"
-                Expect.isNone updated.HistoryFor "Historie zu"
+                Expect.equal updated.DetailFor filtered.DetailFor "Detail bleibt offen, dieselbe Buchung"
+                Expect.equal updated.History filtered.History "Historie bleibt stehen"
                 Expect.contains (dispatched cmd) LoadEntries "lädt neu"
             }
 
@@ -199,55 +232,55 @@ let cellMenuTests =
                 Expect.equal query.CategoryIds [ categoryGuid ] "Anfrage mit einer Kategorie"
                 Expect.isFalse query.WithoutCategory "ohne Ohne-Kategorie"
             }
-
-            test "CloseCellMenu schließt das Menü und ändert Filter und Payee nicht" {
-                let updated, cmd, _ = update CloseCellMenu filtered
-                Expect.isNone updated.CellMenu "Menü zu"
-                Expect.equal updated.Filters filtered.Filters "Filter unverändert"
-                Expect.equal updated.Filters.Payee (Some "Alt") "Payee unverändert"
-                Expect.isEmpty (dispatched cmd) "kein Neuladen"
-            }
-
-            test "OpenCellMenu schließt einen offenen Chip-Popover" {
-                let model = { filtered with CellMenu = None; OpenPopover = Some PayeeChip }
-                let id = Guid.NewGuid()
-                let updated, _, _ = update (OpenCellMenu (id, CategoryCell)) model
-                Expect.equal updated.CellMenu (Some { EntryId = id; Kind = CategoryCell }) "Menü offen"
-                Expect.isNone updated.OpenPopover "Popover zu"
-            }
-
-            test "OpenFilterPopover schließt das Zellmenü" {
-                let updated, _, _ = update (OpenFilterPopover CategoryChip) filtered
-                Expect.isNone updated.CellMenu "Zellmenü zu"
-                Expect.equal updated.OpenPopover (Some CategoryChip) "Popover offen"
-            }
         ]
 
         testList "Oberfläche (Quelltext)" [
-            test "Der Auslöser stoppt die Weitergabe, damit die Zeile nicht die Historie öffnet" {
-                let text = source "src/Client/Components/Ledger/View.fs"
-                let start = text.IndexOf "let private cellMenuTrigger"
-                Expect.isGreaterThan start 0 "cellMenuTrigger vorhanden"
+            test "Das Zellmenü ist zurückgebaut" {
+                let view = source "src/Client/Components/Ledger/View.fs"
+                let types = source "src/Client/Components/Ledger/Types.fs"
+                let state = source "src/Client/Components/Ledger/State.fs"
+                for name in [ "CellMenu"; "OpenCellMenu"; "CloseCellMenu"; "cellMenuPopover"; "cellMenuTrigger"; "CellMenuTarget"; "CellMenuKind" ] do
+                    Expect.isFalse (view.Contains name) $"{name} nicht mehr in View.fs"
+                    Expect.isFalse (types.Contains name) $"{name} nicht mehr in Types.fs"
+                    Expect.isFalse (state.Contains name) $"{name} nicht mehr in State.fs"
+            }
+            test "Das alte Historie-Sheet und sein Filter-Block sind zurückgebaut" {
+                let view = source "src/Client/Components/Ledger/View.fs"
+                Expect.isFalse (view.Contains "historySheet") "historySheet weg"
+                Expect.isFalse (view.Contains "row-filter-actions") "Filter-Block weg"
+                Expect.isFalse (view.Contains "OpenHistory") "OpenHistory weg"
+            }
+            test "Payee- und Kategorie-Zelle der PC-Zeile sind reiner Text ohne eigenen Auslöser" {
+                let view = source "src/Client/Components/Ledger/View.fs"
+                let slice (from: string) (until: string) =
+                    let start = view.IndexOf from
+                    let stop = view.IndexOf(until, start)
+                    Expect.isGreaterThan start 0 $"{from} vorhanden"
+                    Expect.isGreaterThan stop start $"{until} danach"
+                    view.Substring(start, stop - start)
+                let cells =
+                    [ slice "let private categoryCell" "/// Der Betrag als eigene Zelle"
+                      slice "let private payeeCell" "let private entryTableRow" ]
+                for cell in cells do
+                    Expect.isFalse (cell.Contains "Html.button") "kein Button in der Zelle"
+                    Expect.isFalse (cell.Contains "onClick") "kein eigener Klick in der Zelle"
+                    Expect.isFalse (cell.Contains "dispatch") "die Zelle sendet nichts"
+            }
+            test "Die Zeile öffnet das Detail, nicht mehr die Historie" {
+                let view = source "src/Client/Components/Ledger/View.fs"
+                let start = view.IndexOf "let private entryTableRow"
+                Expect.stringContains (view.Substring(start, 1200)) "dispatch (OpenDetail entry)" "Zeilenklick"
+            }
+            test "Der Filter-Knopf stoppt die Weitergabe und trägt Name und Tooltip" {
+                let text = source "src/Client/DesignSystem/Detail.fs"
+                let start = text.IndexOf "let filterButton"
+                Expect.isGreaterThan start 0 "filterButton vorhanden"
                 let body = text.Substring(start, 900)
-                Expect.stringContains body "e.stopPropagation ()" "stopPropagation im Klick"
-                Expect.stringContains body "aria-haspopup" "Menü angekündigt"
-                Expect.stringContains body "aria-expanded" "Zustand angekündigt"
+                Expect.stringContains body "prop.title label" "Tooltip"
+                Expect.stringContains body "prop.ariaLabel label" "zugänglicher Name"
+                Expect.stringContains body "e.stopPropagation ()" "stopPropagation"
             }
-            test "Der erste Menüeintrag nimmt den Fokus, damit Esc im Popover greift" {
-                let text = source "src/Client/DesignSystem/FilterPopover.fs"
-                Expect.stringContains text "prop.autoFocus true" "autoFocus"
-                Expect.stringContains text "prop.role \"menuitem\"" "role menuitem"
-                Expect.stringContains text "menuWidthClass = \"w-[min(92vw,240px)]\"" "Menübreite"
-            }
-            test "Der Handy-Block der Aktionen steht im historySheet vor der Historie" {
-                let text = source "src/Client/Components/Ledger/View.fs"
-                let sheet = text.IndexOf "let private historySheet"
-                let actions = text.IndexOf("row-filter-actions", sheet)
-                let history = text.IndexOf("| NotAsked -> Html.none", sheet)
-                Expect.isGreaterThan actions sheet "Aktionsblock im Sheet"
-                Expect.isLessThan actions history "Aktionen vor der Historie"
-            }
-            test "Der Styleguide zeigt eine Karte mit menuItem im Popover" {
+            test "FilterPopover.menuItem bleibt im Design-System, mit seiner Styleguide-Karte" {
                 let text = source "src/Client/Components/Styleguide/View.fs"
                 Expect.stringContains text "FilterPopover.menuItem" "menuItem in der Karte"
                 Expect.stringContains text "components-filterpopover-menuitem" "eigene Karte"

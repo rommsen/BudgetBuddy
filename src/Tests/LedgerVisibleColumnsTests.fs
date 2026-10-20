@@ -110,7 +110,7 @@ let visibleColumnsTests =
             let view = File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "Components", "Ledger", "View.fs"))
             Expect.stringContains view "if isAllAccounts && not (List.contains AccountColumn columns)"
                 "Das Kürzel erscheint in der Gesamtsicht, wenn die Konto-Spalte fehlt."
-            Expect.stringContains view "Html.span [ prop.text payee ]"
+            Expect.stringContains view "Html.span [ prop.text (payeeLabel entry) ]"
                 "Payee-Text und Kürzel sind getrennte Elemente."
         }
     ]

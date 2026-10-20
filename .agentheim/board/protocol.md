@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 22:32 -- Task verified and completed: ledger-q1hw2 - "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen"
+
+**Type:** Work / Task completion
+**Task:** ledger-q1hw2 - "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen"
+**Summary:** Ein Klick auf eine Kassenbuch-Zeile markiert sie und öffnet das Buchungs-Detail (Panel rechts am PC, Sheet am Handy, in der Kompaktliste und bei zu schmalem Fenster) mit Hinweisleiste, Feldern, Geprüft-Schalter, Herkunft, Zeitleiste und Filter-Knöpfen; Zellmenü und altes Historie-Sheet sind zurückgebaut, die BC-README ist nachgezogen.
+**Duration:** 0h48m
+**Verification:** PASS (iteration 2)
+**Files changed:** 18
+**Tests added:** 57
+**ADRs written:** none
+
+---
+
+## 2026-10-20 22:25 -- Verification failed: ledger-q1hw2 - Buchungs-Detail nach ADR 0053
+
+**Type:** Work / Verification failure
+**Task:** ledger-q1hw2 - Buchungs-Detail nach ADR 0053
+**Iteration:** 1 of 3
+**Reasons:** README_DELTA lässt die Bullets Zellmenü und Fokuszeile veraltet stehen (Check 5); Code, Tests und Wächter grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-20 22:05 -- Task verified and completed: ledger-skpcx - "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
 
 **Type:** Work / Task completion

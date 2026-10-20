@@ -464,23 +464,23 @@ let private sharedHelpersAndNoColorLiteralsTests =
         /// bisher `originBadge` (Herkunft) statt Status, genau der gemeldete
         /// Befund ("Die Statusspalte trägt Herkunft, nicht Status"). Die Handy-Zeile
         /// zeigte die Herkunft weiterhin inline; seit `ledger-n4vte` (ADR 0049) tut
-        /// sie das nicht mehr. Die Herkunft bleibt über die Historie erreichbar
-        /// (`historyLine` ruft `originBadge` weiterhin auf).
+        /// sie das nicht mehr. Die Herkunft steht seit ledger-q1hw2 als eigene Zeile im
+        /// Detail (`detailContent`, `originLabel entry.Origin`).
         ///
         /// Das hier ist ein Quelltext-Wächter (schnell, ohne Browser); die von AC3
         /// verlangte Zusicherung "über die gerenderte Zeile, nicht nur durch das
         /// Lesen des Diffs" liefert `scripts/ledger-status-column.test.mjs`: dort
         /// prüft eine echte, im Browser gerenderte Tabellenzeile, dass kein
         /// Herkunfts-Text (z. B. "YNAB-Spiegel") in der Statusspalte auftaucht.
-        test "Weder entryRow noch entryTableRow rufen originBadge auf, die Historie schon" {
+        test "Weder entryRow noch entryTableRow rufen originBadge auf, das Detail zeigt die Herkunft" {
             let view = readLedgerView ()
             let entryRowBody = sliceFunctionBody view "let private entryRow"
             let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
 
             Expect.isFalse (entryRowBody.Contains "originBadge")
                 "Die Handy-Zeile rendert die Herkunft nicht mehr inline (ledger-n4vte): sie steht in der Historie."
-            Expect.stringContains (sliceFunctionBody view "let private historyLine") "originBadge line.Origin"
-                "Die Herkunft bleibt in der Historie sichtbar."
+            Expect.stringContains (sliceFunctionBody view "let private detailContent") "originLabel entry.Origin"
+                "Die Herkunft bleibt im Detail sichtbar."
             Expect.isFalse (entryTableRowBody.Contains "originBadge entry.Origin")
                 "Die PC-Statusspalte darf keinen originBadge mehr rendern (AC3, ledger-qns4j): Status statt Herkunft."
         }
@@ -495,7 +495,7 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "Die Handy-Zeile muss die Kategorie-Rolle über categoryClassName setzen."
             Expect.stringContains categoryCellBody "categoryClassName entry"
                 "Die PC-Tabellenzelle muss dieselbe Rolle über categoryClassName setzen."
-            Expect.stringContains entryTableRowBody "categoryCell dispatch cellMenu entry"
+            Expect.stringContains entryTableRowBody "categoryCell entry"
                 "Die PC-Tabelle muss ihre Kategoriezelle über categoryCell rendern, sonst verliert sie die Rolle."
             Expect.isFalse (view.Contains "categoryColorClassName")
                 "Das violette categoryColorClassName ist weg (ADR 0049)."
@@ -1278,10 +1278,11 @@ let private filterBarRuhigTests =
                 Expect.isFalse (cls.Contains "neon-green") $"{amount}: {cls}"
         }
 
-        test "historyLine: ListRoles.primary statt FontSizes.body" {
-            let body = bindingBody (readLedgerView ()) "historyLine"
-            mustContain body "Tokens.ListRoles.primary"
-            mustNotContain body "Tokens.FontSizes.body"
+        test "Detail-Zeitleiste: kein FontSizes.body, die Schrift folgt den Listenrollen (ADR 0049)" {
+            let detail =
+                File.ReadAllText(
+                    Path.Combine(Path.GetDirectoryName ledgerViewPath, "..", "..", "DesignSystem", "Detail.fs"))
+            mustNotContain detail "FontSizes.body"
         }
     ]
 
