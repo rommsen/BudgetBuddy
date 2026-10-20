@@ -84,6 +84,7 @@ let private baseQuery (acc: LedgerAccountId) : LedgerEntryPageQuery =
         Memo = None
         AmountMin = None
         AmountMax = None
+        Sort = LedgerSort.defaultSort
     }
 
 let private withoutCategoryIds (acc: LedgerAccountId) (query: LedgerEntryPageQuery) : Set<Guid> =

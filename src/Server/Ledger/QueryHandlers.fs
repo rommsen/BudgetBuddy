@@ -121,17 +121,13 @@ module ReadModel =
         (origin: LedgerOrigin)
         (entry: Entry)
         : LedgerEntryView =
-        let liveName (YnabCategoryId categoryId) (stored: string) =
-            match categoryNames |> Map.tryFind categoryId with
-            | Some name when not (String.IsNullOrWhiteSpace name) -> name
-            | _ -> stored
+        let liveName categoryId (stored: string) =
+            Ledger.Persistence.liveCategoryName categoryNames categoryId stored
         let (EntryId id) = entry.Id
         let (LedgerAccountId accountId) = entry.AccountId
         let categoryGroupName =
             entry.Category
-            |> Option.bind (fun c ->
-                let (YnabCategoryId categoryId) = c.CategoryId
-                categoryGroups |> Map.tryFind categoryId)
+            |> Option.bind (fun c -> Ledger.Persistence.categoryGroupOf categoryGroups c.CategoryId)
         {
             Id = id
             AccountId = accountId
@@ -413,6 +409,10 @@ let private toEntryFilter (query: LedgerEntryPageQuery) : Ledger.Persistence.Ent
 /// zeigt die Summenzeile eine Summe, die nicht zur Trefferzahl gehört. Bewusst NICHT
 /// auf `NeedsReviewCount`: der Chip "Zu prüfen (n)" ist ein fester Zähler über das
 /// Konto, keine Trefferzahl der laufenden Suche.
+///
+/// `query.Sort` (ADR 0051) bestimmt nur die Reihenfolge der Seite (`loadEntriesPage`). Die
+/// Sortierung ist kein Filter und geht in keinen Zählweg ein: Trefferzahl, Summe,
+/// `DeletedCount` und `NeedsReviewCount` sind für jede Sortierung gleich.
 let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> =
     async {
         let accountId = query.AccountId |> Option.map LedgerAccountId
@@ -422,7 +422,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let offset = max 0 (pageIndex * pageSize - max 0 query.LocallyRemoved)
         let filter = toEntryFilter query
 
-        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId offset pageSize filter
+        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId offset pageSize filter query.Sort
         let! totalCount = Ledger.Persistence.countEntries accountId filter
         let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId filter
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter

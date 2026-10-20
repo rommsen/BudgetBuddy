@@ -1011,6 +1011,76 @@ let explainEntryFilterPlan (accountId: LedgerAccountId option) (filter: EntryFil
     |> Seq.map (fun r -> r.detail)
     |> Seq.toList
 
+/// Die Zuordnung Kategorie-Id auf Gruppenname für den Lesepfad (`ledger-h6ptn`). Eine
+/// leere Tabelle liefert eine leere Map, nie einen Fehler: nach einem frischen Deploy
+/// ohne gelaufenen Spiegel-Lauf ist die Tabelle leer, das ist der vorgesehene Zustand.
+let loadCategoryGroups () : Async<Map<Guid, string>> =
+    async {
+        use conn = Core.getConnection ()
+
+        let! rows =
+            conn.QueryAsync<CategoryRow>("SELECT * FROM ledger_categories") |> Async.AwaitTask
+
+        return
+            rows
+            |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.group_name)
+            |> Map.ofSeq
+    }
+
+/// Die Zuordnung Kategorie-Id auf eigenen Namen (ledger-jkb0f), dieselbe Tabelle wie
+/// `loadCategoryGroups`, nur die Spalte `name` statt `group_name`. Speist den
+/// Kategorie-Namen-Resolver für `Ledger.Domain.recordComdirectPush`: ein Review-Schritt
+/// kann einen fehlenden oder veralteten `CategoryName` tragen (gescheiterter
+/// `getCategories`-Aufruf zum Zeitpunkt der Kategorisierung, oder ein seither in YNAB
+/// umbenannter Regel-Cache-Name), der Spiegel hält hier den frischeren Stand. Leere
+/// Tabelle liefert eine leere Map, nie einen Fehler, wie `loadCategoryGroups`.
+let loadCategoryNames () : Async<Map<Guid, string>> =
+    async {
+        use conn = Core.getConnection ()
+
+        let! rows =
+            conn.QueryAsync<CategoryRow>("SELECT * FROM ledger_categories") |> Async.AwaitTask
+
+        return
+            rows
+            |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.name)
+            |> Map.ofSeq
+    }
+
+/// Der heutige Name einer Kategorie (ADR 0044): der Name aus `ledger_categories`, bei
+/// fehlendem oder leerem Treffer der gespeicherte. Eine Stelle für `ReadModel.toEntryView`
+/// und den Sortierschlüssel der Kategorie-Sortierung (ADR 0051), damit die Sortierung zeigt,
+/// was die Zelle zeigt.
+let liveCategoryName (categoryNames: Map<Guid, string>) (YnabCategoryId categoryId) (stored: string) : string =
+    match categoryNames |> Map.tryFind categoryId with
+    | Some name when not (String.IsNullOrWhiteSpace name) -> name
+    | _ -> stored
+
+/// Der Gruppenname einer Kategorie (ADR 0039) aus der Zuordnung Kategorie-Id -> Gruppe,
+/// roh (die Sicht trimmt, ein leerer Gruppenname heißt keine Gruppe).
+let categoryGroupOf (categoryGroups: Map<Guid, string>) (YnabCategoryId categoryId) : string option =
+    categoryGroups |> Map.tryFind categoryId
+
+/// Der voll qualifizierte Kategorie-Name `Gruppe: Name` (ohne Gruppe nur der Name), wie
+/// ihn die PC-Tabelle zeigt (`categoryLabelQualified`). Sortierschlüssel von Rang 0 (ADR 0051).
+let qualifiedCategoryName
+    (categoryNames: Map<Guid, string>)
+    (categoryGroups: Map<Guid, string>)
+    (category: CategoryRef)
+    : string =
+    let name = liveCategoryName categoryNames category.CategoryId category.CategoryName
+    match categoryGroupOf categoryGroups category.CategoryId with
+    | Some group when not (String.IsNullOrWhiteSpace group) -> $"{group.Trim()}: {name}"
+    | _ -> name
+
+/// Kontoname je Konto-Id für den Sortierschlüssel "Konto" im F#-Pfad (ADR 0051).
+let private loadAccountNames () : Async<Map<string, string>> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows = conn.QueryAsync<AccountRow>("SELECT * FROM ledger_accounts") |> Async.AwaitTask
+        return rows |> Seq.map (fun r -> r.id, r.name) |> Map.ofSeq
+    }
+
 /// Lädt ALLE Buchungen, die Konto und `EntryFilter` (ohne Betrag) treffen, neueste
 /// zuerst, ohne `LIMIT`. Nur der Weg für `AmountMin`/`AmountMax`: weil der Betrag
 /// nicht in SQL geprüft werden kann (`EntryFilter`), braucht der Nachfilter in F#
@@ -1033,22 +1103,135 @@ let private loadAllMatching (accountId: LedgerAccountId option) (filter: EntryFi
 let private safePage (offset: int) (pageSize: int) (xs: Entry list) : Entry list =
     if offset >= List.length xs then [] else xs |> List.skip offset |> List.truncate pageSize
 
+let private directionSql (direction: LedgerSortDirection) : string =
+    match direction with
+    | SortAsc -> "ASC"
+    | SortDesc -> "DESC"
+
+/// Ob die Sortierung zwingend in F# läuft (ADR 0051 Punkt 4): Betrag und Kategorie, weil
+/// der Betrag Text ist (ADR 0017) und der Kategorie-Name erst im Lesepfad entsteht.
+let private sortsInMemory (sort: LedgerSort) : bool =
+    match sort.Field with
+    | SortByAmount
+    | SortByCategory -> true
+    | SortByDate
+    | SortByPayee
+    | SortByAccount -> false
+
+/// Das `ORDER BY` der SQL-Felder (ADR 0051 Punkt 5 und 6). Der Richtungstext kommt aus
+/// der geschlossenen Union, nie aus Eingabetext.
+let private orderBySql (sort: LedgerSort) : string =
+    let dir = directionSql sort.Direction
+    match sort.Field with
+    | SortByDate -> $"date {dir}, id {dir}"
+    | SortByPayee ->
+        // Leere Payees (NULL, '' und nur Leerzeichen) bekommen den Schlüssel NULL, damit unter
+        // ihnen allein der Tiebreaker entscheidet und nicht der rohe Text ('' vor '  ').
+        $"(payee IS NULL OR trim(payee) = '') ASC, CASE WHEN trim(payee) = '' THEN NULL ELSE bb_lower(payee) END {dir}, date DESC, id DESC"
+    | SortByAccount ->
+        $"bb_lower((SELECT name FROM ledger_accounts a WHERE a.id = ledger_entries.account_id)) {dir}, date DESC, id DESC"
+    | SortByAmount
+    | SortByCategory -> "date DESC, id DESC"
+
+/// Rang einer Buchung für die Kategorie-Sortierung (ADR 0051 Punkt 5), in der Rangfolge
+/// von `categoryLabel`: eigene Kategorie (0), Split (1), Übertrag (2), ohne Kategorie (3).
+let private categoryRank (entry: Entry) : int =
+    if entry.Category.IsSome then 0
+    elif not (List.isEmpty entry.Splits) then 1
+    elif entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome then 2
+    else 3
+
+/// Sortiert die Treffermenge in F# (ADR 0051 Punkt 4): Betrag und Kategorie, und jedes
+/// Feld, wenn ein Betragsfilter den F#-Pfad erzwingt. Die Schlüssel entsprechen denen
+/// des SQL-Pfads (gefalteter Text, ordinal), der Gleichstand entscheidet nach Punkt 6.
+/// Schlüssel werden einmal je Buchung gebildet.
+let private sortEntriesInMemory
+    (sort: LedgerSort)
+    (categoryNames: Map<Guid, string>)
+    (categoryGroups: Map<Guid, string>)
+    (accountNames: Map<string, string>)
+    (entries: Entry list)
+    : Entry list =
+    let sign =
+        match sort.Direction with
+        | SortAsc -> 1
+        | SortDesc -> -1
+    // (Entry, Rang, Textschlüssel, Betrag, Datumstext, Id-Text). Rang 0 ist "hat einen
+    // Textschlüssel"; höhere Ränge stehen in beiden Richtungen hinter allen Rang 0.
+    let keyed =
+        entries
+        |> List.map (fun e ->
+            let (EntryId id) = e.Id
+            let (LedgerAccountId accountGuid) = e.AccountId
+            let rank, text =
+                match sort.Field with
+                | SortByCategory ->
+                    (match e.Category with
+                     | Some c -> 0, Core.searchFold (qualifiedCategoryName categoryNames categoryGroups c)
+                     | None -> categoryRank e, "")
+                | SortByPayee ->
+                    (match e.Payee with
+                     | Some p when not (String.IsNullOrWhiteSpace p) -> 0, Core.searchFold p
+                     | _ -> 1, "")
+                | SortByAccount ->
+                    0, Core.searchFold (accountNames |> Map.tryFind (accountGuid.ToString()) |> Option.defaultValue "")
+                | SortByAmount
+                | SortByDate -> 0, ""
+            struct (e, rank, text, e.Amount.Amount, dateToText e.Date, id.ToString()))
+        |> List.toArray
+    let tiebreak (struct (_, _, _, _, d1: string, i1: string)) (struct (_, _, _, _, d2: string, i2: string)) =
+        let c = String.CompareOrdinal(d2, d1)
+        if c <> 0 then c else String.CompareOrdinal(i2, i1)
+    let compare' (struct (_, r1, t1, a1, d1, i1) as x) (struct (_, r2, t2, a2, d2, i2) as y) =
+        match sort.Field with
+        | SortByDate ->
+            let c = sign * String.CompareOrdinal(d1, d2)
+            if c <> 0 then c else sign * String.CompareOrdinal(i1, i2)
+        | SortByAmount ->
+            let c = sign * compare a1 a2
+            if c <> 0 then c else tiebreak x y
+        | SortByPayee
+        | SortByAccount
+        | SortByCategory ->
+            if r1 <> r2 then compare r1 r2
+            else
+                let c = if r1 = 0 then sign * String.CompareOrdinal(t1, t2) else 0
+                if c <> 0 then c else tiebreak x y
+    keyed |> Array.toList |> List.sortWith compare' |> List.map (fun (struct (e, _, _, _, _, _)) -> e)
+
 /// Eine Seite der Buchungen eines Kontos oder — `accountId = None` — aller Konten,
-/// neueste zuerst. Liest ausschliesslich die Zustandstabelle (ADR 0013).
+/// in der Reihenfolge von `sort` (ADR 0051; `LedgerSort.defaultSort` = neueste zuerst).
+/// Liest ausschliesslich die Zustandstabelle (ADR 0013).
 /// `filter.IncludeDeleted = false` (Standard, ledger-p3n8k) lässt in YNAB gelöschte
 /// Buchungen aus der Seite weg, sonst zählen sie mit. `filter.OnlyNeedsReview = true`
 /// (ADR 0032) lässt nur ungeprüfte Buchungen stehen. Die fünf Such-Filter
-/// (ledger-vgfw3) wirken zusätzlich, alle als Und-Verknüpfung.
+/// (ledger-vgfw3) wirken zusätzlich, alle als Und-Verknüpfung. Datum, Payee und Konto
+/// sortieren in SQL, Betrag und Kategorie sowie jeder Betragsfilter in F#.
 let loadEntriesPage
     (accountId: LedgerAccountId option)
     (offset: int)
     (pageSize: int)
     (filter: EntryFilter)
+    (sort: LedgerSort)
     : Async<Entry list> =
     async {
-        if hasAmountFilter filter then
+        if hasAmountFilter filter || sortsInMemory sort then
             let! all = loadAllMatching accountId filter
-            return all |> List.filter (fun e -> amountMatches filter e.Amount.Amount) |> safePage offset pageSize
+            let matching =
+                if hasAmountFilter filter then
+                    all |> List.filter (fun e -> amountMatches filter e.Amount.Amount)
+                else
+                    all
+            // Nur die Nachschlage-Tabellen laden, die das Feld braucht.
+            let! categoryNames =
+                if sort.Field = SortByCategory then loadCategoryNames () else async { return Map.empty }
+            let! categoryGroups =
+                if sort.Field = SortByCategory then loadCategoryGroups () else async { return Map.empty }
+            let! accountNames =
+                if sort.Field = SortByAccount then loadAccountNames () else async { return Map.empty }
+            return
+                sortEntriesInMemory sort categoryNames categoryGroups accountNames matching
+                |> safePage offset pageSize
         else
             use conn = Core.getConnection ()
             let whereSql, ps = buildFilterClause accountId filter
@@ -1056,7 +1239,7 @@ let loadEntriesPage
             ps.Add("offset", offset)
             let! rows =
                 conn.QueryAsync<EntryRow>(
-                    $"SELECT * FROM ledger_entries WHERE {whereSql} ORDER BY date DESC, id DESC LIMIT @limit OFFSET @offset",
+                    $"SELECT * FROM ledger_entries WHERE {whereSql} ORDER BY {orderBySql sort} LIMIT @limit OFFSET @offset",
                     ps
                 )
                 |> Async.AwaitTask
@@ -1404,40 +1587,4 @@ let upsertCategories (categories: YnabCategory list) : Async<unit> =
                     |})
 
             do! conn.ExecuteAsync(upsertCategorySql, parameters) |> Async.AwaitTask |> Async.Ignore
-    }
-
-/// Die Zuordnung Kategorie-Id auf Gruppenname für den Lesepfad (`ledger-h6ptn`). Eine
-/// leere Tabelle liefert eine leere Map, nie einen Fehler: nach einem frischen Deploy
-/// ohne gelaufenen Spiegel-Lauf ist die Tabelle leer, das ist der vorgesehene Zustand.
-let loadCategoryGroups () : Async<Map<Guid, string>> =
-    async {
-        use conn = Core.getConnection ()
-
-        let! rows =
-            conn.QueryAsync<CategoryRow>("SELECT * FROM ledger_categories") |> Async.AwaitTask
-
-        return
-            rows
-            |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.group_name)
-            |> Map.ofSeq
-    }
-
-/// Die Zuordnung Kategorie-Id auf eigenen Namen (ledger-jkb0f), dieselbe Tabelle wie
-/// `loadCategoryGroups`, nur die Spalte `name` statt `group_name`. Speist den
-/// Kategorie-Namen-Resolver für `Ledger.Domain.recordComdirectPush`: ein Review-Schritt
-/// kann einen fehlenden oder veralteten `CategoryName` tragen (gescheiterter
-/// `getCategories`-Aufruf zum Zeitpunkt der Kategorisierung, oder ein seither in YNAB
-/// umbenannter Regel-Cache-Name), der Spiegel hält hier den frischeren Stand. Leere
-/// Tabelle liefert eine leere Map, nie einen Fehler, wie `loadCategoryGroups`.
-let loadCategoryNames () : Async<Map<Guid, string>> =
-    async {
-        use conn = Core.getConnection ()
-
-        let! rows =
-            conn.QueryAsync<CategoryRow>("SELECT * FROM ledger_categories") |> Async.AwaitTask
-
-        return
-            rows
-            |> Seq.map (fun r -> Guid.Parse r.ynab_category_id, r.name)
-            |> Map.ofSeq
     }

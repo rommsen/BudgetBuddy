@@ -114,6 +114,7 @@ let private pageQueryOn (account: LedgerAccountId) : LedgerEntryPageQuery =
         Memo = None
         AmountMin = None
         AmountMax = None
+        Sort = LedgerSort.defaultSort
     }
 
 [<Tests>]

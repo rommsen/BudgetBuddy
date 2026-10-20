@@ -994,6 +994,32 @@ let sumMoney (fallbackCurrency: string) (amounts: Money list) : Money =
         amounts |> List.tryHead |> Option.map (fun m -> m.Currency) |> Option.defaultValue fallbackCurrency
     { Amount = amounts |> List.sumBy (fun m -> m.Amount); Currency = currency }
 
+/// Das Feld, nach dem eine Seite des Kassenbuchs sortiert wird (ADR 0051). Geschlossene
+/// Union: Fable.Remoting lehnt einen unbekannten Fall beim Deserialisieren ab.
+type LedgerSortField =
+    | SortByDate
+    | SortByAmount
+    | SortByPayee
+    | SortByCategory
+    | SortByAccount
+
+/// Die Richtung der Sortierung. Die Namen sind mit Absicht von `Table.SortDirection`
+/// (Design-System) verschieden, damit ein `open` beider Module nichts verdeckt.
+type LedgerSortDirection =
+    | SortAsc
+    | SortDesc
+
+/// Sortierfeld und Richtung einer Seitenanfrage (ADR 0051). Kein Teil des Filters:
+/// sie wirkt nur auf die Reihenfolge der Seite, nie auf Trefferzahl, Summe oder Zähler.
+type LedgerSort = {
+    Field: LedgerSortField
+    Direction: LedgerSortDirection
+}
+
+module LedgerSort =
+    /// Datum, absteigend: die bisherige feste Reihenfolge des Kassenbuchs.
+    let defaultSort : LedgerSort = { Field = SortByDate; Direction = SortDesc }
+
 /// Parameter einer Seiten-Abfrage der Buchungsliste: ein Konto (optional — `None`
 /// heisst alle Konten, die Gesamtsicht), ein 0-basierter Seitenzeiger und die
 /// Seitengröße. `IncludeDeleted` (ledger-p3n8k): in YNAB gelöschte Buchungen
@@ -1036,6 +1062,8 @@ type LedgerEntryPageQuery = {
     Memo: string option
     AmountMin: decimal option
     AmountMax: decimal option
+    /// Reihenfolge der Seite (ADR 0051). Wirkt nur auf `loadEntriesPage`, nicht auf Zählwege.
+    Sort: LedgerSort
 }
 
 /// Eine Seite der Buchungsliste: die Buchungen dieser Seite, die Gesamtzahl der

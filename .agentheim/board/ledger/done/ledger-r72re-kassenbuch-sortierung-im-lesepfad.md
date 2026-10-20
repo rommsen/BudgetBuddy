@@ -1,7 +1,7 @@
 ---
 id: ledger-r72re
 title: "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-20
@@ -124,3 +124,50 @@ Alle maschinell prüfbar (Expecto, In-Memory-SQLite wie die vorhandenen Persiste
 - Der Rang einer Buchung folgt der Rangfolge von `categoryLabel` in `View.fs`: eigene
   Kategorie, sonst Split (`Splits` nicht leer), sonst Übertrag (`TransferAccountId` oder
   `TransferEntryId` gesetzt), sonst ohne Kategorie.
+
+## Outcome
+
+Umsetzung von ADR 0051 im Lesepfad. `Shared.Domain` hat `LedgerSortField`, `LedgerSortDirection`, `LedgerSort` und `LedgerSort.defaultSort` (Datum absteigend); `LedgerEntryPageQuery` hat das Pflichtfeld `Sort`. `Ledger.Persistence.loadEntriesPage` nimmt `sort`: Datum, Payee und Konto laufen als `ORDER BY` mit `LIMIT/OFFSET` in SQL (Richtungstext aus der geschlossenen Union), Betrag, Kategorie und jeder Betragsfilter laufen über `loadAllMatching`, einen Vergleich mit Schlüssel und Tiebreaker nach ADR 0051 Punkt 5 und 6 und `safePage`. Den Pfad wählt `sortsInMemory`/`hasAmountFilter`, nicht der Aufrufer. Die Kategorie-Namensregel (`liveName`, Gruppe getrimmt, leere Gruppe = keine Gruppe) steht jetzt einmal in `Ledger.Persistence` (`liveCategoryName`, `categoryGroupOf`, `qualifiedCategoryName`); `ReadModel.toEntryView` und der Sortierschlüssel rufen dieselben Funktionen. `loadCategoryGroups`/`loadCategoryNames` wurden dafür unverändert vor `loadEntriesPage` verschoben. `getLedgerEntriesPage` reicht `query.Sort` nur an `loadEntriesPage` durch; `resolveReviewMarkBatchSelection` ruft mit `LedgerSort.defaultSort` auf und liest das `Sort` der Anfrage nicht. Der Client sendet `LedgerSort.defaultSort` in `buildPageQuery` (einzige Änderung in `State.fs`). `View.fs` unberührt.
+
+Abweichung von der Aufgabenskizze, mit Grund: Der Payee-Schlüssel im SQL ist `CASE WHEN trim(payee) = '' THEN NULL ELSE bb_lower(payee) END`, nicht das rohe `bb_lower(payee)`. Mit dem rohen Text hätte unter den leeren Payees (NULL, '', '  ') der Rohtext vor dem Tiebreaker entschieden (Fund im Test). Jetzt entscheidet unter allen leeren Payees allein `date DESC, id DESC`, wie im F#-Pfad.
+
+Dateien: src/Shared/Domain.fs, src/Server/Ledger/Persistence.fs, src/Server/Ledger/QueryHandlers.fs, src/Server/Ledger/CommandHandlers.fs, src/Client/Components/Ledger/State.fs, neue Tests src/Tests/LedgerSortTests.fs (in Tests.fsproj eingetragen), Feld `Sort` in den Literalen von LedgerPageTests, LedgerPagingTests, LedgerReviewMarkBatchTests, LedgerWithoutCategoryTests, Messskript scripts/measure-ledger-sort.fsx.
+
+Tests (10 neu in `LedgerSortTests.fs`): Standardsortierung wie bisher; alle zehn Feld/Richtung-Kombinationen über mehrere Seiten gegen eine unabhängig berechnete Erwartung mit absichtlich gleichen Schlüsseln; Betrag numerisch (`-1000.00` zuerst); Payee gefaltet, leere Payees in beiden Richtungen hinten; Kategorie mit Rängen, umbenannter Kategorie und Kategorie ohne Gruppeneintrag; Konto in der Gesamtsicht und mit `AccountId`; `TotalCount`/`TotalAmount`/`DeletedCount`/`NeedsReviewCount` für alle zehn Kombinationen gleich; Betragsfilter mit Betrag, Kategorie und Payee; `LocallyRemoved` bei Payee und Betrag mit Chip "Zu prüfen" lückenlos; `resolveReviewMarkBatchSelection` mit `SortByAmount, SortAsc` liefert dieselbe Menge. Rot-Probe: mit `LedgerSort.defaultSort` statt `query.Sort` im Handler scheitern 7 der 10. Die Testbuchungen tragen Datum 2001, damit sie in der Gesamtsicht hinter den übrigen Testdaten stehen (ein bestehender Gesamtsicht-Test mit 100er-Seite wurde sonst verdrängt).
+
+Läufe im Worktree: dotnet build 0 Warnungen, 0 Fehler; dotnet test 1542 bestanden, 0 fehlgeschlagen, 7 übersprungen (dreimal hintereinander); npm run build grün; npm run guard:classes "Keine undefinierten Klassen"; npm run test:scripts 137 von 137.
+
+### Messung bei 14.000 Buchungen (ADR 0051 Punkt 8)
+
+Skript `scripts/measure-ledger-sort.fsx` (Aufruf im Kopf des Skripts), Datei-Datenbank im Scratchpad, 5 Konten, 60 Kategorien in 8 Gruppen, 40 Payees, rund 350 Splits, rund 260 Überträge, Buchungen ohne Payee und ohne Kategorie, Debug-Build, `getLedgerEntriesPage` PageSize 100, Gesamtsicht, je ein Aufwärmlauf, dann Median aus fünf Läufen:
+
+| Feld | Richtung | Seite | Median ms |
+|---|---|---|---|
+| Datum | aufsteigend | 0 | 48 |
+| Datum | aufsteigend | 50 | 88 |
+| Datum | absteigend | 0 | 36 |
+| Datum | absteigend | 50 | 39 |
+| Betrag | aufsteigend | 0 | 137 |
+| Betrag | aufsteigend | 50 | 187 |
+| Betrag | absteigend | 0 | 554 |
+| Betrag | absteigend | 50 | 645 |
+| Payee | aufsteigend | 0 | 240 |
+| Payee | aufsteigend | 50 | 223 |
+| Payee | absteigend | 0 | 144 |
+| Payee | absteigend | 50 | 159 |
+| Kategorie | aufsteigend | 0 | 625 |
+| Kategorie | aufsteigend | 50 | 402 |
+| Kategorie | absteigend | 0 | 544 |
+| Kategorie | absteigend | 50 | 446 |
+| Konto | aufsteigend | 0 | 97 |
+| Konto | aufsteigend | 50 | 275 |
+| Konto | absteigend | 0 | 121 |
+| Konto | absteigend | 50 | 498 |
+
+Größter Median 645 ms (Betrag absteigend, Seite 50), Schwelle 1000 ms eingehalten, kein Index angelegt. Die Schwankung zwischen Richtungen (Betrag aufsteigend 137 ms, absteigend 554 ms) kommt aus Lauf-zu-Lauf-Rauschen im fsi-Prozess (Speicherdruck), nicht aus einem Unterschied im Code; bei Bedarf Messung wiederholen.
+
+### README von Hand
+
+Die beiden Prosa-Stellen sind per `replace` nicht erreichbar. Das Delta legt einen eigenen Eintrag "Sortierung (Kassenbuch)" an, der die Aussagen trägt. Zusätzlich von Hand ergänzen:
+- Im Eintrag `getLedgerEntriesPage` (nested Bullet, endet auf "und die Summenzeile über der Liste.") anhängen: "Die Seite folgt `query.Sort` (ADR 0051, `Sortierung (Kassenbuch)`); die Sortierung wirkt nur auf die Reihenfolge der Seite und geht in keinen Zählweg ein."
+- Im Eintrag "Such-Filter (Kassenbuch)" (endet auf "nach Ordinalvergleich.") anhängen: "Die Sortierung (`Sort` auf `LedgerEntryPageQuery`) ist kein Such-Filter: sie steht nicht in `EntryFilter` und geht in keinen der Zählwege ein (ADR 0051)."

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 09:23 -- Task verified and completed: ledger-r72re - "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
+
+**Type:** Work / Task completion
+**Task:** ledger-r72re - "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
+**Summary:** LedgerEntryPageQuery trägt jetzt Sort (Feld und Richtung), loadEntriesPage sortiert Datum, Payee und Konto in SQL sowie Betrag, Kategorie und jeden Betragsfilter-Fall in F#; Zählwege und die Auswahlauflösung bleiben sortierungsfrei. Messung bei 14.000 Buchungen: größter Median 645 ms, kein Index nötig.
+**Duration:** 40m17s
+**Verification:** PASS (iteration 1)
+**Files changed:** 12
+**Tests added:** 10
+**ADRs written:** none
+
+---
+
 ## 2026-10-20 09:20 -- Task verified and completed: ledger-qh9qx - "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander"
 
 **Type:** Work / Task completion

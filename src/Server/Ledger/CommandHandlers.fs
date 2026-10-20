@@ -1216,7 +1216,9 @@ let resolveReviewMarkBatchSelection (selection: ReviewMarkBatchSelection) : Asyn
         | BatchAllExcept (query, excluded) ->
             let accountId = query.AccountId |> Option.map LedgerAccountId
             let filter = Ledger.Persistence.entryFilterOfPageQuery query
-            let! entries = Ledger.Persistence.loadEntriesPage accountId 0 Int32.MaxValue filter
+            // Das `Sort` der Anfrage wird nicht gelesen (ADR 0051 Punkt 3): die aufgelöste Menge
+            // hat keine Reihenfolge, und der teure F#-Pfad bleibt aus dem Stapel-Befehl heraus.
+            let! entries = Ledger.Persistence.loadEntriesPage accountId 0 Int32.MaxValue filter LedgerSort.defaultSort
             let excludedSet = Set.ofList excluded
             return
                 entries

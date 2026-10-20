@@ -103,6 +103,7 @@ let buildPageQuery (model: Model) (accountId: Guid option) (page: int) : LedgerE
     Memo = model.Filters.Memo
     AmountMin = model.Filters.AmountMin
     AmountMax = model.Filters.AmountMax
+    Sort = LedgerSort.defaultSort
 }
 
 /// Trägt das Ergebnis eines Prüfvermerk-Befehls in die geladene Liste ein (ledger-r777c):

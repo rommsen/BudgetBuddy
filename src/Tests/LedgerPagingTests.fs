@@ -152,6 +152,7 @@ let private query (page: int) (removed: int) : LedgerEntryPageQuery = {
     Memo = None
     AmountMin = None
     AmountMax = None
+    Sort = LedgerSort.defaultSort
 }
 
 let private idsOf (q: LedgerEntryPageQuery) =

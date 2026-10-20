@@ -1737,6 +1737,7 @@ let private baseQuery (accountId: Guid option) : LedgerEntryPageQuery = {
     Memo = None
     AmountMin = None
     AmountMax = None
+    Sort = LedgerSort.defaultSort
 }
 
 /// Wie `baseQuery`, aber für `getLedgerPayeeSuggestions`: keine Seiten-Parameter,

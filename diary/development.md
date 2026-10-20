@@ -4,6 +4,34 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 10:15 - Kassenbuch-Sortierung im Lesepfad (ledger-r72re)
+
+**What I did:**
+`LedgerEntryPageQuery` um `Sort: LedgerSort` erweitert. `loadEntriesPage` sortiert Datum, Payee und Konto in SQL, Betrag und Kategorie (und jeden Betragsfilter-Fall) in F#. Kategorie-Namensregel an einer Stelle in `Ledger.Persistence`, von `toEntryView` und vom Sortierschlüssel genutzt. Auswahlauflösung für "Geprüft" ignoriert das `Sort`. Messskript für 14.000 Buchungen.
+
+**Files Added:**
+- `src/Tests/LedgerSortTests.fs` - 10 Tests zur Sortierung (Reihenfolge, Zählwege, Betragsfilter, LocallyRemoved, Auswahlauflösung)
+- `scripts/measure-ledger-sort.fsx` - Messung bei 14.000 Buchungen gegen eine Datei-Datenbank
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `LedgerSortField`, `LedgerSortDirection`, `LedgerSort`, `LedgerSort.defaultSort`, Feld `Sort`
+- `src/Server/Ledger/Persistence.fs` - `loadEntriesPage` mit `sort`, SQL-`ORDER BY`, F#-Vergleich, geteilte Kategorie-Namensregel, `loadCategoryGroups`/`loadCategoryNames` nach oben verschoben
+- `src/Server/Ledger/QueryHandlers.fs` - `Sort` durchgereicht, `toEntryView` nutzt die geteilte Namensregel
+- `src/Server/Ledger/CommandHandlers.fs` - `resolveReviewMarkBatchSelection` mit `LedgerSort.defaultSort`
+- `src/Client/Components/Ledger/State.fs` - `Sort = LedgerSort.defaultSort` in `buildPageQuery`
+- `src/Tests/Tests.fsproj`, `LedgerPageTests.fs`, `LedgerPagingTests.fs`, `LedgerReviewMarkBatchTests.fs`, `LedgerWithoutCategoryTests.fs` - neue Datei eingetragen, Feld `Sort` in den Literalen
+
+**Rationale:**
+Teil 1 von 3 der Sortierung (ADR 0051). Server und Vertrag zuerst, damit Spaltenköpfe (ledger-bn913) und Handy-Auswahl (ledger-skpcx) darauf aufsetzen können. Nach außen ändert sich nichts, der Client sendet weiter `defaultSort`.
+
+**Outcomes:**
+- Build: 0 Warnungen, 0 Fehler
+- Tests: 1542 bestanden, 7 übersprungen, 0 fehlgeschlagen (dotnet test); test:scripts 137/137
+- Messung: größter Median 645 ms bei Schwelle 1000 ms (Tabelle im Outcome), kein Index
+- Issues: Payee-Schlüssel im SQL mit CASE, damit leere Payees allein nach dem Tiebreaker ordnen; Testbuchungen mit Datum 2001, um bestehende Gesamtsicht-Tests nicht zu verdrängen. Messung läuft als Skript, weil die Test-Assembly per Modul-Initialisierer auf In-Memory festgelegt ist.
+
+---
+
 ## 2026-10-20 10:00 - PC-Tabelle des Kassenbuchs blendet Spalten stufenweise aus (ledger-qh9qx)
 
 **What I did:**

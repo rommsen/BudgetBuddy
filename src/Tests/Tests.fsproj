@@ -65,6 +65,7 @@
     <Compile Include="LedgerViewTests.fs" />
     <Compile Include="LedgerVisibleColumnsTests.fs" />
     <Compile Include="LedgerPagingTests.fs" />
+    <Compile Include="LedgerSortTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
