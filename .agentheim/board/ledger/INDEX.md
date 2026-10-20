@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 11
-- **Todo:** 0
+- **Backlog:** 9
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 67
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-skpcx** — "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen" (feature) — `todo/ledger-skpcx-sortier-chip-und-bottomsheet-am-handy.md`
+- **ledger-q1hw2** — "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen" (feature) — `todo/ledger-q1hw2-detail-herkunft-historie-noch-nicht-in-ynab.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -56,11 +58,9 @@ research touching this BC, and concept synthesis pages.
 - **ledger-k2rbn** — "Kategorie ändern in BB (v2): ein Kategorie-Picker mit zwei Einstiegen, dem Pfeil an der Kategorie im Detail für eine Buchung und \"Kategorie setzen\" in der Auswahl-Leiste für viele; BB schreibt die Änderung nach YNAB nach dem Muster des Prüfvermerks" (feature) — `backlog/ledger-k2rbn-kategorie-aendern-ein-picker-zwei-einstiege.md`
 - **ledger-m6zpd** — "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute" (feature) — `backlog/ledger-m6zpd-kompaktliste-nach-eingabegeraet.md`
 - **ledger-w4vte** — "Auswahl nach ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, dann Detail, dann Auswahl; während einer Auswahl ruhen Prüf-Schaltfläche, G und Wisch auf PC und Handy" (feature) — `backlog/ledger-w4vte-auswahl-nach-adr-0053.md`
-- **ledger-skpcx** — "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen" (feature) — `backlog/ledger-skpcx-sortier-chip-und-bottomsheet-am-handy.md`
 - **ledger-h6mer** — "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen" (chore) — `backlog/ledger-h6mer-split-zeilen-uebertraege-bestand-live-nachverknuepfen.md`
 - **ledger-b7qmx** — "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)" (feature) — `backlog/ledger-b7qmx-split-zeilen-kategorie-in-der-pc-tabelle-voll-qualifizieren.md`
 - **ledger-nb4tv** — Geldmarkt-ETF als Konto anlegen und den monatlichen Abgleich klären (offenes v1-Kriterium) (decision) — `backlog/ledger-nb4tv-etf-konto-in-ynab-anlegen-und-abgleich-klaeren.md`
-- **ledger-q1hw2** — Buchungs-Detail: Herkunft, Historie und "noch nicht in YNAB" (Sheet am Handy, Seitenpanel am PC) (feature) — `backlog/ledger-q1hw2-detail-herkunft-historie-noch-nicht-in-ynab.md`
 - **ledger-kwwxz** — Available-Betrag je Kategorie spiegeln und in der Kategorienauswahl zeigen (feature) — `backlog/ledger-kwwxz-available-betrag-je-kategorie-spiegeln.md`
 - **ledger-xfjcp** — Buchung an Lena zuweisen statt nur ein Flag setzen; später Sicht "Für mich" und Benachrichtigung (feature) — `backlog/ledger-xfjcp-lena-zuweisen-statt-flag.md`
 - **ledger-c7j8e** — Kursquelle für Geldmarkt-ETF per ISIN (Research-Spike) (spike) — `backlog/ledger-c7j8e-kursquelle-etf-isin-research-spike.md`

@@ -1,7 +1,7 @@
 ---
 id: ledger-q1hw2
 title: "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-12
