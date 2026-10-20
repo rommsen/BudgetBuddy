@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 09:23 -- Batch started: [ledger-rfq5p]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-rfq5p - "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
+**Parallel:** no (1 worker; wave 2 on the integrated state of qh9qx and r72re; ledger-mhe2s still in verification)
+
+---
+
 ## 2026-10-20 09:23 -- Task verified and completed: ledger-r72re - "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
 
 **Type:** Work / Task completion

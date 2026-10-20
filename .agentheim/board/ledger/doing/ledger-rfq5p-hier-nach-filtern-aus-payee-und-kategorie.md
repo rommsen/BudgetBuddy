@@ -1,7 +1,7 @@
 ---
 id: ledger-rfq5p
 title: "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20
