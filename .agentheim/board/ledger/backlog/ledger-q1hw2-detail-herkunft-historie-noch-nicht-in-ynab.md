@@ -116,6 +116,12 @@ offenem Panel nutzt die Fokus-Darstellung aus `ledger-rjb8w`.
 Geschnitten in `ledger-s8m3w` am 2026-09-12. Brief: `docs/ux/kassenbuch/briefs.md`,
 Ablauf 7.
 
+Sortierung (ADR 0051, Punkt 7): Ändert ein Schreibweg aus dem Detail den Schlüssel der
+aktiven Sortierung (etwa Kategorie ändern bei Kategorie-Sortierung), stimmt der
+Seitenversatz `LocallyRemoved` nicht mehr; an der Seitengrenze können Buchungen fehlen
+oder doppelt erscheinen. Beim Verfeinern festlegen, wie das Detail damit umgeht
+(z. B. die geladenen Seiten neu laden).
+
 Verfeinert am 2026-10-19. Entscheidungen Roman: Handy und PC zeigen dieselben Felder (die
 PC-Fassung gilt); der Geprüft-Schalter wirkt und "Erneut senden" für den Prüfvermerk
 wirkt; der Grund eines gescheiterten Pushs wird als Ereignis festgehalten

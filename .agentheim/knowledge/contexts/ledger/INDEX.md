@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0051** — Kassenbuch-Sortierung gehört zur Seitenanfrage und nicht zum EntryFilter, Betrag und Kategorie sortieren in F# — 2026-10-20 — `../../decisions/0051-kassenbuch-sortierung-teil-der-seitenanfrage-nicht-des-filters.md`
 - **0048** — Chip "ohne Kategorie" fragt nach einem fehlenden Ziel, nicht nach einer fehlenden Kategorie; transfer_account_id wird roh in den Zustand projiziert — 2026-10-02 — `../../decisions/0048-ohne-kategorie-chip-ziel-statt-kategorie-transfer-projektion.md`
 - **0046** — Split-Zeilen-Überträge werden über YNABs Subtransaction-Id verknüpft, nicht über den Buchungskopf — 2026-10-02 — `../../decisions/0046-split-zeilen-uebertraege-ueber-subtransaction-id-verknuepfen.md`
 - **0045** — Split-Zeilen-Kategorie wird im Detail voll qualifiziert, über denselben Lookup wie die Kopf-Kategorie (ADR 0039 fortgeschrieben) — 2026-10-02 — `../../decisions/0045-split-zeilen-kategorie-qualifiziert-fortschreibung-0039.md`

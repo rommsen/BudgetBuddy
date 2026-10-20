@@ -5,6 +5,43 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:38 -- Modeling / Refined: ledger-bn913 - Kassenbuch sortieren (und ledger-rfq5p)
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (bn913, skpcx, warten auf Abhängigkeiten), todo (r72re, rfq5p)
+**Summary:** bn913 von todo zurück nach backlog und über den Orchestrator verfeinert: Sortierung als Teil der Seitenanfrage, Betrag und Kategorie in F#, feste Ränge für Split/Übertrag/ohne Kategorie, leere Werte am Ende, kein Index ohne Messung. rfq5p: FilterPopover als Hülle mit menuItem, historySheet als Handy-Ort, neues Feld CategoryId in LedgerEntryView, Kategorie-Aktion schaltet Ohne Kategorie aus. Hinweis zum Seitenversatz in ledger-q1hw2 ergänzt.
+**Split into:** ledger-r72re (Server), ledger-bn913 (PC und Client-Zustand), ledger-skpcx (Handy)
+**ADRs written:** 0051
+
+---
+
+## 2026-10-20 08:37 -- Modeling / Promoted: ledger-r72re - "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-20 08:37 -- Modeling / Captured: ledger-skpcx - "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Handy-Teil der Sortierung aus ledger-bn913: Sortier-Chip am Ende der Filterleiste mit BottomSheet.
+
+---
+
+## 2026-10-20 08:37 -- Modeling / Captured: ledger-r72re - "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Server-Teil der Sortierung aus ledger-bn913: Sortierfeld und Richtung in LedgerEntryPageQuery, Betrag und Kategorie in F#, Payee und Konto in SQL, Messung bei 14.000 Buchungen.
+
+---
+
 ## 2026-10-20 08:25 -- Modeling / Captured: ledger-bn913 - "Kassenbuch sortieren: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
 
 **Type:** Modeling / Capture
