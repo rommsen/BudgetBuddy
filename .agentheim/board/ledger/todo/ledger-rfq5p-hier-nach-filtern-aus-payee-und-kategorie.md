@@ -7,7 +7,7 @@ context: ledger
 created: 2026-10-20
 completed:
 depends_on: [design-system-001]
-blocks: []
+blocks: [ledger-q1hw2]
 tags: [frontend, kassenbuch, filter, payee, kategorie]
 related_adrs: [0036, 0037, 0038, 0043, 0048, 0049]
 related_research: []

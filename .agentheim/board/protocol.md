@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:39 -- Modeling / Refined: ledger-q1hw2 - Buchungs-Detail: Herkunft, Historie und "noch nicht in YNAB"
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** An die Captures vom 2026-10-20 angeschlossen: hängt jetzt an ledger-rfq5p (Payee-/Kategorie-Zelle öffnen das Filter-Menü, das Handy-Detail übernimmt die beiden Filter-Aktionen) und an ledger-qh9qx (Spaltenwahl bei offenem Panel über visibleColumns mit Breite minus 420 px, sonst Sheet statt Panel). Drei Kriterien ergänzt, kein Schnitt.
+
+---
+
 ## 2026-10-20 08:38 -- Modeling / Refined: ledger-bn913 - Kassenbuch sortieren (und ledger-rfq5p)
 
 **Type:** Modeling / Refine

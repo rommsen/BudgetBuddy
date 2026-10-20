@@ -6,7 +6,7 @@ type: feature
 context: ledger
 created: 2026-09-12
 completed:
-depends_on: [ledger-b1xwe, design-system-001, ledger-rynk5, ledger-rjb8w]
+depends_on: [ledger-b1xwe, design-system-001, ledger-rynk5, ledger-rjb8w, ledger-rfq5p, ledger-qh9qx]
 blocks: [ledger-b7qmx]
 tags: [frontend, kassenbuch, scheibe]
 related_adrs: [0013, 0021, 0045, 0049, 0050]
@@ -31,11 +31,21 @@ damit die Liste sichtbar bleibt. Das bisherige Historie-Sheet (`OpenHistory`/
 1. **Öffnen und Schließen.**
    - Handy: Tipp auf eine Zeile öffnet das Sheet (außerhalb des Auswahl-Modus aus
      `ledger-r1d2f`; dort wählt ein Tipp weiterhin aus). Schließen über den Knopf oder den
-     Griff.
+     Griff. Das Sheet übernimmt die beiden Aktionen "Nach <Payee> filtern" und "Nach
+     <Kategorie> filtern" aus `ledger-rfq5p`, die dort im alten Historie-Sheet sitzen, mit
+     derselben Wirkung und denselben Ausnahmen (kein Payee, keine Kategorie, Split).
    - PC: Klick auf eine Zeile oder `Enter` auf der Fokuszeile (`ledger-rjb8w`) öffnet das
-     Panel. `↑`/`↓` bewegen die Fokuszeile, das offene Panel folgt. `Esc` schließt. `G`
-     wirkt wie in `ledger-rjb8w` auf die Fokuszeile und damit auf die Buchung im Panel.
-   - Bei offenem Panel fällt die Memo-Spalte weg; der Tastaturhinweis lautet
+     Panel. Ausgenommen sind Payee- und Kategorie-Zelle: sie öffnen weiter das Menü aus
+     `ledger-rfq5p`, nicht das Panel. `↑`/`↓` bewegen die Fokuszeile, das offene Panel
+     folgt. `Esc` schließt. `G` wirkt wie in `ledger-rjb8w` auf die Fokuszeile und damit
+     auf die Buchung im Panel.
+   - Bei offenem Panel fällt die Memo-Spalte immer weg. Die übrigen Spalten entscheidet
+     `visibleColumns` aus `ledger-qh9qx` mit der Tabellenbreite abzüglich 420 px, so dass
+     in schmalen Fenstern auch die Konto-Spalte wegfallen kann (Kontokürzel in der
+     Payee-Zelle). Reicht die Restbreite für keine Tabellenstufe, öffnet das Detail als
+     Sheet wie am Handy statt als Panel. Die Form wird beim Öffnen aus der Breite ohne
+     Panel bestimmt, damit Panel und Handy-Liste nicht hin und her kippen.
+   - Der Tastaturhinweis bei offenem Panel lautet
      "↑ ↓ bewegen · G geprüft · Esc Panel schließen".
 2. **Kopf:** Betrag, Payee, "Konto · Datum", Schließen-Knopf.
 3. **Hinweisleiste** direkt unter dem Kopf, höchstens eine, in dieser Rangfolge:
@@ -84,6 +94,15 @@ offenem Panel nutzt die Fokus-Darstellung aus `ledger-rjb8w`.
 - [ ] Reducer-Test (PC): bei offenem Panel bewegt `↓` die Fokuszeile und das Panel zeigt
       die neue Buchung mit neu geladener Historie; `Esc` schließt; `Enter` auf der
       Fokuszeile öffnet.
+- [ ] Reducer-Test (PC): Klick auf Payee- oder Kategorie-Zelle öffnet das Menü aus
+      `ledger-rfq5p` und kein Panel; ein Klick sonst auf die Zeile öffnet das Panel.
+- [ ] Reducer-Test (Handy): "Nach <Payee> filtern" und "Nach <Kategorie> filtern" im
+      Detail setzen denselben Filterzustand wie die Menü-Einträge aus `ledger-rfq5p`;
+      Split, Buchung ohne Payee und ohne Kategorie bieten den jeweiligen Eintrag nicht an.
+- [ ] Expecto-Test der Spaltenwahl: bei offenem Panel ist Memo in keiner Breite sichtbar,
+      die übrigen Spalten folgen `visibleColumns` mit Breite minus 420 px; reicht die
+      Restbreite für keine Tabellenstufe, ist die Detail-Form Sheet statt Panel
+      (Grenzwerte getestet).
 - [ ] Ansichts-Test: Rangfolge der Hinweisleiste: gelöscht schlägt "Noch nicht in YNAB",
       das schlägt "Prüfvermerk nicht in YNAB"; eine verknüpfte, nicht gelöschte Buchung
       ohne Fehlschlag hat keine Leiste.
@@ -128,6 +147,14 @@ wirkt; der Grund eines gescheiterten Pushs wird als Ereignis festgehalten
 (`ledger-rynk5`, eigene Task, Vorbedingung). Die Fokuszeile und `G` kommen aus
 `ledger-rjb8w`, deshalb hängt das PC-Panel daran. Die Historie-Reihenfolge ist in
 `ledger-h9tq2` entschieden (neueste oben).
+
+Nachgezogen am 2026-10-20 nach den Captures vom selben Tag. Entscheidungen Roman: q1hw2
+läuft nach `ledger-rfq5p` (Filter-Menü an Payee/Kategorie) und nach `ledger-qh9qx`
+(`visibleColumns`); das Panel nutzt deren Spaltenwahl statt einer eigenen Regel. Kein
+weiterer Schnitt. Die Regel "Sheet statt Panel, wenn die Restbreite für keine
+Tabellenstufe reicht" ist ein Vorschlag aus der Verfeinerung, Roman beim Bau zeigen.
+`ledger-mhe2s` (Prüf-Schaltfläche bei Hover/Fokus) wirkt ohne Zutun auch auf die
+Panel-Zeile, weil sie die Fokuszeile ist.
 
 Nicht Teil: Abweichung (Pink, v2), Kategorie- und Split-Bearbeitung (v2), "Erneut senden"
 für den Push, "Wiederherstellen" gelöschter Buchungen.
