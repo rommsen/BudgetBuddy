@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:11 -- Batch started: [ledger-a4acn]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-a4acn - "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt"
+**Parallel:** no (Hotfix, Fix liegt bereits im Hauptbaum, kein Worker; nur Verifier)
+
+---
+
 ## 2026-10-20 08:11 -- Modeling / Captured: infrastructure-bnbdc - "Installierte PWA übernimmt einen neuen Deploy von selbst: beim Zurückholen nach einem neuen Service Worker fragen und nach dem Wechsel einmal neu laden"
 
 **Type:** Modeling / Capture

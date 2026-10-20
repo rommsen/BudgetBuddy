@@ -1,7 +1,7 @@
 ---
 id: ledger-a4acn
 title: "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-20
