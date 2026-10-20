@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 22:34 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 2h18m
+**Completed:** 3 (first-try PASS: 2, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** bn913: 1, skpcx: 1, q1hw2: 2
+**Commits:** 7
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (3 tasks)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-10-20 22:32 -- Task verified and completed: ledger-q1hw2 - "Buchungs-Detail nach ADR 0053: ein Klick auf die Zeile markiert sie und öffnet das Detail (Panel rechts am PC, Sheet am Handy und in der Kompaktliste) mit Herkunft, Historie, Hinweisleiste, Geprüft-Schalter und Filter-Knöpfen; Zellmenü und altes Historie-Sheet entfallen"
 
 **Type:** Work / Task completion
