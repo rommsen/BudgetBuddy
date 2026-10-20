@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 8
@@ -38,6 +38,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-bnbdc** — "Installierte PWA übernimmt einen neuen Deploy von selbst: beim Zurückholen nach einem neuen Service Worker fragen und nach dem Wechsel einmal neu laden" (feature) — `backlog/infrastructure-bnbdc-pwa-uebernimmt-neuen-stand-ohne-cache-loeschen.md`
 <!-- backlog-list:end -->
 
 

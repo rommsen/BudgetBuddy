@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 61
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-a4acn** — "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt" (bug) — `todo/ledger-a4acn-historie-500-ohne-kulturdaten-im-container.md`
 <!-- todo-list:end -->
 
 ### Doing

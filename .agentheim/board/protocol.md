@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:11 -- Modeling / Captured: infrastructure-bnbdc - "Installierte PWA übernimmt einen neuen Deploy von selbst: beim Zurückholen nach einem neuen Service Worker fragen und nach dem Wechsel einmal neu laden"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Installierte PWA soll einen neuen Deploy selbst übernehmen (update beim Zurückholen, einmal neu laden bei controllerchange).
+
+---
+
+## 2026-10-20 08:11 -- Modeling / Captured: ledger-a4acn - "Historie liefert in Produktion bei jeder Buchung HTTP 500: ReadModel lädt CultureInfo de-DE, das es im Alpine-Container ohne ICU nicht gibt"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Hotfix: ReadModel formatiert ohne Kulturdaten, die Testsuite läuft wie der Container ohne ICU.
+
+---
+
 ## 2026-10-19 22:20 -- Work session ended
 
 **Type:** Work / Session end
