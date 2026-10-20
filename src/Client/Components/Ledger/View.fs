@@ -1931,6 +1931,39 @@ let private filterChip (dispatch: Msg -> unit) (model: Model) (categories: YnabC
         let isOpen = model.OpenPopover = Some chip
         ChipBar.chipWithPopover chipElement (filterChrome dispatch chip isOpen (popoverBody dispatch model categories chip))
 
+/// Der Sortier-Chip am Ende der Filterleiste samt Sheet (ledger-skpcx). Er steht nur,
+/// wenn die Liste als Handy-Liste gerendert wird (`visibleColumns` liefert `CompactList`);
+/// dann ist er die einzige Chrome dieser Art (ADR 0043). Aktiv gefärbt, wenn die wirksame
+/// Sortierung von der Standardsortierung abweicht. Ohne "×", kein Teil von `hasAnyFilter`.
+let private sortChip (dispatch: Msg -> unit) (model: Model) (isAllAccounts: bool) : ReactElement =
+    let sort = Components.Ledger.State.effectiveSort model
+    let chipElement =
+        ChipBar.chip {
+            Label = Components.Ledger.State.sortChipLabel sort
+            IsActive = sort <> LedgerSort.defaultSort
+            OnClick = (fun () -> dispatch OpenSortSheet)
+            OnRemove = None
+        }
+    let options = Components.Ledger.State.sortOptions isAllAccounts
+    let sheet =
+        BottomSheet.view
+            { IsOpen = model.SortSheetOpen
+              OnClose = (fun () -> dispatch CloseSortSheet)
+              Title = "Sortieren"
+              Subtitle = None
+              Footer = None }
+            [ for (field, group) in options |> List.groupBy (fun ((s: LedgerSort), _) -> s.Field) do
+                  React.keyedFragment (
+                      Components.Ledger.State.sortFieldName field,
+                      [ BottomSheet.sectionTitle (Components.Ledger.State.sortFieldName field)
+                        for (optionSort, label) in group do
+                            React.keyedFragment (
+                                label,
+                                [ BottomSheet.optionRow label (optionSort = sort) (fun () -> dispatch (SetSortExactly optionSort)) ]
+                            ) ]
+                  ) ]
+    ChipBar.chipWithPopover chipElement sheet
+
 /// Die Filterleiste selbst: Reihenfolge und "Alle Filter löschen" (AC: „Alle Filter
 /// löschen" sitzt am Ende, erscheint nur, wenn mindestens ein Filter aktiv ist).
 /// `elementRef` (dritte Iteration, seit der vierten Iteration ein
@@ -1941,6 +1974,8 @@ let private filterChipBar
     (dispatch: Msg -> unit)
     (model: Model)
     (categories: YnabCategory list)
+    (showSortChip: bool)
+    (isAllAccounts: bool)
     (elementRef: (Browser.Types.Element -> unit) option)
     : ReactElement =
     let isDesktop = Viewport.isDesktopViewport ()
@@ -1949,6 +1984,7 @@ let private filterChipBar
     ChipBar.bar
         elementRef
         ((order |> List.map (filterChip dispatch model categories))
+         @ (if showSortChip then [ sortChip dispatch model isAllAccounts ] else [])
          @ (if hasAnyFilter model.Filters then [ ChipBar.clearAllButton (fun () -> dispatch ClearAllFilters) ] else []))
 
 /// Zustand der Summenzeile: ohne Filter nichts, beim Laden ein Platzhalter, danach
@@ -2184,7 +2220,7 @@ let private FilterBarColumn
                     // stehen, der Hinweis steht daneben (ADR 0014).
                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
 
-                filterChipBar dispatch model categories (Some barCallbackRef)
+                filterChipBar dispatch model categories (visibleColumns tableWidth isAllAccounts = CompactList) isAllAccounts (Some barCallbackRef)
                 summaryOrSelectionRow model
                 deletedToggleRow dispatch model
                 entryList dispatch accounts isAllAccounts tableWidth model

@@ -823,6 +823,16 @@ let private BottomSheetDemo () =
             ]
             if chosen <> "" then Badge.info chosen
         ]
+        // Options-Zeile (ledger-skpcx): gewählt mit Haken, ungewählt ohne. Sortier-Sheet im Kassenbuch.
+        Html.div [
+            prop.custom ("data-ds-card-name", "BottomSheet.optionRow")
+            prop.className "max-w-sm"
+            prop.children [
+                BottomSheet.sectionTitle "Options-Zeile (Sortieren)"
+                BottomSheet.optionRow "Neueste zuerst" true ignore
+                BottomSheet.optionRow "Älteste zuerst" false ignore
+            ]
+        ]
         BottomSheet.view
             {
                 IsOpen = isOpen

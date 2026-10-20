@@ -1,7 +1,7 @@
 ---
 id: ledger-skpcx
 title: "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-20
@@ -95,3 +95,15 @@ Zum Hinschauen:
   die Wahl.
 - Der Chip zeigt keinen Zähler und löst keinen Popover aus (`OpenFilterPopover` kennt nur
   Filter-Chips); er braucht eine eigene Klick-Nachricht.
+
+## Outcome
+
+Sortier-Chip und Sortier-Sheet am Handy sind umgesetzt (Teil 3 von 3 der Sortierung nach ADR 0051).
+
+- `State.fs`: reine Funktionen `sortOptions showAccount` (zehn bzw. acht Zeilen in fester Reihenfolge), `sortChipLabel`, `sortFieldName`; Reducer-Fälle `SetSortExactly` (über `resetEntries` und `LoadEntries`, schließt das Sheet), `OpenSortSheet`, `CloseSortSheet`.
+- `Types.fs`: `Model.SortSheetOpen`, drei neue Nachrichten.
+- `View.fs`: nur die Filterleiste und ein neues Sortier-Sheet. `sortChip` hängt in `filterChipBar` und erscheint genau dann, wenn `visibleColumns tableWidth isAllAccounts = CompactList`; aktiv gefärbt bei `effectiveSort <> defaultSort`, ohne "×", vor "Alle Filter löschen". Zeilen-, Detail- und Historie-Code unberührt (paralleler Worker ledger-q1hw2).
+- `DesignSystem/BottomSheet.fs`: neues `BottomSheet.optionRow label isSelected onClick` (44px, Haken bei gewählt, `aria-pressed`). `/styleguide` Abschnitt 18 zeigt gewählt und ungewählt.
+- Tests: `src/Tests/LedgerSortSheetTests.fs` (11 Tests: Optionen, Chip-Text, Filter-Unabhängigkeit, SetSortExactly, Open/Close, Quelltext-Zusicherungen zu Chip-Bedingung und optionRow/Styleguide), `scripts/ledger-sort-chip.test.mjs` (3 Playwright-Tests: Handy 390x844 mit Chip am Ende, Sheet mit zehn Optionen, "Größte Ausgabe zuerst" sendet SortByAmount/SortAsc, Sheet zu, Chip "Betrag ↑", keine Tabelle, Datum in Zeile 2; einzelnes Konto zeigt acht Optionen; PC 1440px ohne Chip).
+- Läufe: `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 1608 bestanden, 0 Fehler, 7 übersprungen (Integrationstests); `npm run build` grün; `npm run guard:classes` grün; Playwright-Wächter seriell (`node --test --test-concurrency=1 scripts/*.test.mjs`): 156 Tests, 155 bestanden. Der eine Fehlschlag war das bekannte Lastflattern in `ledger-cell-menu.test.mjs` ("Der Kategorie-Eintrag setzt genau diese Kategorie..."); allein erneut gelaufen: 9 von 9 grün.
+- Offen: das Kriterium "wirkt ruhig" [human-eye] wurde nicht per Screenshot beurteilt.

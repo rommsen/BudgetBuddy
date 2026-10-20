@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 22:05 -- Task verified and completed: ledger-skpcx - "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
+
+**Type:** Work / Task completion
+**Task:** ledger-skpcx - "Kassenbuch sortieren am Handy: Sortier-Chip am Ende der Filterleiste öffnet ein BottomSheet mit allen Sortierungen"
+**Summary:** Am Handy steht am Ende der Filterleiste ein Sortier-Chip (nur bei der Kompaktliste), der ein BottomSheet "Sortieren" mit zehn bzw. acht Optionszeilen öffnet; ein Tipp setzt Feld und Richtung zugleich über denselben Lade-Weg wie die PC-Köpfe.
+**Duration:** 22m05s
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
 ## 2026-10-20 21:40 -- Batch started: [ledger-q1hw2, ledger-skpcx]
 
 **Type:** Work / Batch start

@@ -80,6 +80,31 @@ let chipButton (text: string) (isSuggested: bool) (onClick: unit -> unit) : Reac
         prop.text text
     ]
 
+/// Options-Zeile für Sortier- und Auswahl-Sheets (ledger-skpcx, ADR 0049): Beschriftung
+/// links, ein Haken rechts bei der gewählten Option, 44px Trefferfläche. Der Tipp
+/// committet auf dem echten `click`, nicht auf `pointerdown` (siehe `chipButton`).
+let optionRow (label: string) (isSelected: bool) (onClick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type' "button"
+        prop.className "w-full text-left category-item min-h-[44px] flex items-center justify-between gap-3 min-w-0"
+        prop.custom ("aria-pressed", isSelected)
+        prop.onClick (fun e ->
+            e.stopPropagation()
+            onClick ()
+        )
+        prop.children [
+            Html.span [
+                prop.className (
+                    if isSelected then "text-sm font-semibold text-neon-teal truncate min-w-0"
+                    else "text-sm truncate min-w-0"
+                )
+                prop.text label
+            ]
+            if isSelected then
+                Client.DesignSystem.Icons.check Client.DesignSystem.Icons.SM Client.DesignSystem.Icons.NeonTeal
+        ]
+    ]
+
 let private closeIcon () : ReactElement =
     Svg.svg [
         svg.width 14

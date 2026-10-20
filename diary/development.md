@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 22:30 - Sortier-Chip und Sortier-Sheet am Handy (ledger-skpcx)
+
+**What I did:**
+Sortier-Chip am Ende der Filterleiste (nur bei der Kompaktliste) mit BottomSheet "Sortieren"; neue Zeile `BottomSheet.optionRow`; Nachrichten `SetSortExactly`, `OpenSortSheet`, `CloseSortSheet` und reine Funktionen `sortOptions`, `sortChipLabel`.
+
+**Files Added:**
+- `src/Tests/LedgerSortSheetTests.fs` - Expecto-Tests zu Optionen, Chip-Text, Reducer und Quelltext-Zusicherungen
+- `scripts/ledger-sort-chip.test.mjs` - Playwright-Wächter (Handy 390x844 und PC 1440px)
+
+**Files Modified:**
+- `src/Client/Components/Ledger/State.fs` - reine Funktionen, drei Reducer-Fälle, `SortSheetOpen` in `init`
+- `src/Client/Components/Ledger/Types.fs` - `Model.SortSheetOpen`, drei Nachrichten
+- `src/Client/Components/Ledger/View.fs` - `sortChip`, zusätzliche Parameter an `filterChipBar`
+- `src/Client/DesignSystem/BottomSheet.fs` - `optionRow`
+- `src/Client/Components/Styleguide/View.fs` - Beispiel der Options-Zeile in Abschnitt 18
+- `src/Tests/Tests.fsproj` - neue Testdatei nach `LedgerSortClientTests.fs`
+
+**Rationale:**
+Die Handy-Liste hat keine Spaltenköpfe; dieselbe Sortierung (ledger-bn913) braucht dort einen eigenen Zugang. Eine Zeile je Kombination hält es bei einer Anfrage pro Änderung.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 1608 bestanden, 0 Fehler; Playwright seriell 155 von 156 (ein bekanntes Lastflattern, allein 9 von 9 grün)
+- Issues: Erster Build scheiterte an einer interpolierten Klasse im `optionRow` (Klassen-Wächter), jetzt als Literal.
+
+---
+
 ## 2026-10-20 21:30 - Kassenbuch sortieren über die Spaltenköpfe (ledger-bn913)
 
 **What I did:**

@@ -69,6 +69,7 @@
     <Compile Include="LedgerPagingTests.fs" />
     <Compile Include="LedgerSortTests.fs" />
     <Compile Include="LedgerSortClientTests.fs" />
+    <Compile Include="LedgerSortSheetTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />

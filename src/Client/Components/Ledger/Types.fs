@@ -347,6 +347,10 @@ type Model = {
     /// `effectiveSort`, nicht dieses Feld unmittelbar.
     Sort: LedgerSort
 
+    /// Ist das Sortier-Sheet am Handy offen (ledger-skpcx)? Es hat keinen Popover-Platz in
+    /// `OpenPopover`, weil dieses nur Filter-Chips kennt.
+    SortSheetOpen: bool
+
     /// Zeigt die Liste nur zu prüfende Buchungen (ADR 0032)? Standardmäßig `false`.
     /// Geht in die nächste `getLedgerEntriesPage`-Abfrage ein, wie `IncludeDeleted`.
     OnlyNeedsReview: bool
@@ -688,6 +692,11 @@ type Msg =
     /// Klick auf einen sortierbaren Spaltenkopf (ledger-bn913): dasselbe Feld dreht die
     /// Richtung, ein anderes setzt Feld und Startrichtung. Lädt ab Seite 0 neu.
     | SetSort of LedgerSortField
+    /// Tipp auf eine Zeile im Sortier-Sheet am Handy (ledger-skpcx): setzt Feld und
+    /// Richtung genau so, ohne Umschalten, schließt das Sheet und lädt ab Seite 0 neu.
+    | SetSortExactly of LedgerSort
+    | OpenSortSheet
+    | CloseSortSheet
 
     // Buchungen, seitenweise
     | LoadEntries

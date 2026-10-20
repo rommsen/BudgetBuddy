@@ -34,6 +34,7 @@ let init () : Model * Cmd<Msg> =
         DeletedCount = 0
         OnlyNeedsReview = false
         Sort = LedgerSort.defaultSort
+        SortSheetOpen = false
         NeedsReviewCount = 0
         HistoryFor = None
         History = NotAsked
@@ -103,6 +104,36 @@ let nextSort (current: LedgerSort) (field: LedgerSortField) : LedgerSort =
         { current with Direction = (match current.Direction with SortAsc -> SortDesc | SortDesc -> SortAsc) }
     else
         { Field = field; Direction = sortStartDirection field }
+
+/// Die Zeilen des Sortier-Sheets am Handy (ledger-skpcx): je Feld zwei Richtungen in fester
+/// Reihenfolge, Konto nur in der Gesamtsicht.
+let sortOptions (showAccount: bool) : (LedgerSort * string) list =
+    let option field direction label = { Field = field; Direction = direction }, label
+    [ option SortByDate SortDesc "Neueste zuerst"
+      option SortByDate SortAsc "Älteste zuerst"
+      option SortByAmount SortAsc "Größte Ausgabe zuerst"
+      option SortByAmount SortDesc "Größte Einnahme zuerst"
+      option SortByPayee SortAsc "A bis Z"
+      option SortByPayee SortDesc "Z bis A"
+      option SortByCategory SortAsc "A bis Z"
+      option SortByCategory SortDesc "Z bis A"
+      if showAccount then
+          option SortByAccount SortAsc "A bis Z"
+          option SortByAccount SortDesc "Z bis A" ]
+
+/// Der Gruppenkopf einer Sortierung im Sheet.
+let sortFieldName (field: LedgerSortField) : string =
+    match field with
+    | SortByDate -> "Datum"
+    | SortByAmount -> "Betrag"
+    | SortByPayee -> "Payee"
+    | SortByCategory -> "Kategorie"
+    | SortByAccount -> "Konto"
+
+/// Der Text des Sortier-Chips: Feldname und Pfeil ("Datum ↓" absteigend, "Betrag ↑" aufsteigend).
+let sortChipLabel (sort: LedgerSort) : string =
+    let arrow = match sort.Direction with SortAsc -> "↑" | SortDesc -> "↓"
+    $"{sortFieldName sort.Field} {arrow}"
 
 /// Die wirksame Sortierung (ADR 0051 Punkt 9): die Spalte "Konto" gibt es nur in der
 /// Gesamtsicht. Ist `SortByAccount` gewählt und ein einzelnes Konto aktiv, gilt
@@ -411,6 +442,14 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | SetSort field ->
         // Wie ein Filterwechsel: Seite 0, Auswahl leer, Filter und Konto bleiben stehen.
         { (resetEntries model) with Sort = nextSort (effectiveSort model) field }, Cmd.ofMsg LoadEntries, NoOp
+
+    | SetSortExactly sort ->
+        // Wie SetSort, nur mit der gewählten Kombination; das Sheet schließt.
+        { (resetEntries model) with Sort = sort; SortSheetOpen = false }, Cmd.ofMsg LoadEntries, NoOp
+
+    | OpenSortSheet -> { model with SortSheetOpen = true }, Cmd.none, NoOp
+
+    | CloseSortSheet -> { model with SortSheetOpen = false }, Cmd.none, NoOp
 
     // ============================================
     // Buchungen, seitenweise
