@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 20:15 -- Batch started: [ledger-bn913]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-bn913 - "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
+**Parallel:** scoped — builder named ledger-bn913; no other ready tasks in todo
+
+---
+
 ## 2026-10-20 20:12 -- Modeling / Refined: ledger-q1hw2 - Buchungs-Detail nach ADR 0053
 
 **Type:** Modeling / Refine

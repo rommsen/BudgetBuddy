@@ -1,7 +1,7 @@
 ---
 id: ledger-bn913
 title: "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20
