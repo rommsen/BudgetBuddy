@@ -11,13 +11,17 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 0
+- **Todo:** 4
 - **Doing:** 0
 - **Done:** 62
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-bn913** — "Kassenbuch sortieren: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg" (feature) — `todo/ledger-bn913-sortieren-ueber-die-spaltenkoepfe.md`
+- **ledger-rfq5p** — "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt" (feature) — `todo/ledger-rfq5p-hier-nach-filtern-aus-payee-und-kategorie.md`
+- **ledger-mhe2s** — "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\"" (feature) — `todo/ledger-mhe2s-pruef-schaltflaeche-erst-bei-hover.md`
+- **ledger-qh9qx** — "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander" (bug) — `todo/ledger-qh9qx-pc-tabelle-in-schmalen-fenstern.md`
 <!-- todo-list:end -->
 
 ### Doing

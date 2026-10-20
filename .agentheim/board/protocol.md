@@ -5,6 +5,42 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:25 -- Modeling / Captured: ledger-bn913 - "Kassenbuch sortieren: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Serverseitige Sortierung nach Datum, Betrag, Payee, Kategorie, Konto über Spaltenköpfe (PC) und Sortier-Auswahl (Handy); außer bei Datum ohne Tagesköpfe.
+
+---
+
+## 2026-10-20 08:25 -- Modeling / Captured: ledger-rfq5p - "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Klick auf Payee oder Kategorie einer Zeile öffnet ein Mini-Menü "Nach X filtern", das den bestehenden Such-Filter setzt; am Handy im Zeilen-Sheet.
+
+---
+
+## 2026-10-20 08:25 -- Modeling / Captured: ledger-mhe2s - "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\""
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Prüf-Schaltfläche am PC nur bei Hover/Fokus sichtbar und neutral grau, damit der Haken neben "zu prüfen" nicht wie erledigt wirkt.
+
+---
+
+## 2026-10-20 08:25 -- Modeling / Captured: ledger-qh9qx - "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** PC-Tabelle blendet in schmalen Fenstern Spalten stufenweise aus (Memo, dann Konto) statt Payee/Kategorie/Memo auf null zu drücken.
+
+---
+
 ## 2026-10-20 08:21 -- Work session ended
 
 **Type:** Work / Session end
