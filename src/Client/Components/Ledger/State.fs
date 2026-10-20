@@ -41,6 +41,7 @@ let init () : Model * Cmd<Msg> =
         Categories = NotAsked
         Filters = noFilters
         OpenPopover = None
+        CellMenu = None
         CategoryDraft = Set.empty
         CategorySearch = ""
         HiddenCategoriesExpanded = false
@@ -301,7 +302,7 @@ let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model
 /// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover oder die Historie
 /// gehören der Tastatur.
 let private keyboardBlocked (model: Model) : bool =
-    model.OpenPopover.IsSome || model.HistoryFor.IsSome
+    model.OpenPopover.IsSome || model.CellMenu.IsSome || model.HistoryFor.IsSome
 
 /// Nimmt die Zeile den Prüfvermerk per Taste nicht an? In der Auswahl, ohne Schaltfläche
 /// (in YNAB gelöscht) und während ein Aufruf läuft.
@@ -586,12 +587,35 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             // Ein Umschalter ohne Popover (ADR 0048): es gibt keinen Entwurf zu setzen.
             | WithoutCategoryChip -> model
         let cmd = if chip = PayeeChip then Cmd.ofMsg LoadPayeeSuggestions else Cmd.none
-        { model' with OpenPopover = Some chip }, cmd, NoOp
+        { model' with OpenPopover = Some chip; CellMenu = None }, cmd, NoOp
 
     | CloseFilterPopover ->
         // Esc, Klick daneben oder "Schließen": der Entwurf wird verworfen, `Filters`
         // bleibt unangetastet (AC "der vorherige Filterzustand bleibt unverändert").
         { model with OpenPopover = None }, Cmd.none, NoOp
+
+    // -------- Zellmenü "Nach X filtern" (ledger-rfq5p) --------
+
+    | OpenCellMenu (entryId, kind) ->
+        { model with CellMenu = Some { EntryId = entryId; Kind = kind }; OpenPopover = None }, Cmd.none, NoOp
+
+    | CloseCellMenu ->
+        { model with CellMenu = None }, Cmd.none, NoOp
+
+    | FilterByRowPayee payee ->
+        let filters = { model.Filters with Payee = Some payee }
+        resetEntries { model with Filters = filters; CellMenu = None; HistoryFor = None; History = NotAsked },
+        Cmd.ofMsg LoadEntries,
+        NoOp
+
+    | FilterByRowCategory categoryId ->
+        // "Ohne Kategorie" verbindet sich mit einer Kategorienauswahl per Oder (ADR 0048)
+        // und würde Buchungen ohne Ziel einschließen, die Roman nicht gewählt hat.
+        let filters =
+            { model.Filters with CategoryIds = Set.singleton categoryId; WithoutCategory = false }
+        resetEntries { model with Filters = filters; CellMenu = None; HistoryFor = None; History = NotAsked },
+        Cmd.ofMsg LoadEntries,
+        NoOp
 
     // -------- Kategorie (Mehrfachauswahl, Click-Commit) --------
 

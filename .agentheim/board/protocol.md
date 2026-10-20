@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 10:01 -- Task verified and completed: ledger-rfq5p - "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
+
+**Type:** Work / Task completion
+**Task:** ledger-rfq5p - "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
+**Summary:** Ein Klick auf die Payee- oder Kategorie-Zelle einer Kassenbuch-Zeile öffnet am PC ein kleines Menü "Nach X filtern", das den bestehenden Such-Filter setzt; am Handy stehen dieselben Aktionen oben im Zeilen-Sheet. Dafür trägt LedgerEntryView jetzt CategoryId, und FilterPopover hat menuItem und menuWidthClass.
+**Duration:** 38m39s
+**Verification:** PASS (iteration 1)
+**Files changed:** 15
+**Tests added:** 29
+**ADRs written:** none
+
+---
+
 ## 2026-10-20 09:54 -- Task verified and completed: ledger-mhe2s - "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\""
 
 **Type:** Work / Task completion

@@ -21,6 +21,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     Payee = Some $"Payee {n}"
     Memo = None
     CategoryName = None
+    CategoryId = None
     CategoryGroupName = None
     Splits = []
     Origin = MirroredFromYnab

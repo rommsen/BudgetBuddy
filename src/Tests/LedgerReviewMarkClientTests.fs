@@ -21,6 +21,7 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     Payee = Some $"Payee {n}"
     Memo = None
     CategoryName = None
+    CategoryId = None
     CategoryGroupName = None
     Splits = []
     Origin = MirroredFromYnab

@@ -341,6 +341,22 @@ let categoryLabelQualified (entry: LedgerEntryView) : string =
 let payeeLabel (entry: LedgerEntryView) : string =
     entry.Payee |> Option.defaultValue "ohne Payee"
 
+/// Die Beschriftung des Menüeintrags "Nach <Payee> filtern" (ledger-rfq5p). `None`, wenn
+/// es nichts zu filtern gibt: Buchung ohne Payee (leer oder nur Leerzeichen).
+let payeeMenuLabel (entry: LedgerEntryView) : string option =
+    entry.Payee
+    |> Option.filter (String.IsNullOrWhiteSpace >> not)
+    |> Option.map (fun payee -> $"Nach {payee.Trim()} filtern")
+
+/// Die Beschriftung des Menüeintrags "Nach <Kategorie> filtern" (ledger-rfq5p). `Some`
+/// nur bei gesetzter `CategoryId` und leerer Split-Liste: ein Split zeigt keine einzelne
+/// Kategorie (auch ein ausgeblendeter Split mit einer Kategorie, ADR 0038), ein Übertrag
+/// ohne Kategorie hat nichts zu filtern. Der Text gleicht der PC-Zelle.
+let categoryMenuLabel (entry: LedgerEntryView) : string option =
+    match entry.CategoryId, entry.Splits with
+    | Some _, [] -> Some $"Nach {categoryLabelQualified entry} filtern"
+    | _ -> None
+
 /// Die Klassen der Kategorie in einer Listenzeile (ADR 0049 Punkt 4): die
 /// sekundäre Rolle (12px, `text-secondary`), nicht mehr violett. Nur "ohne
 /// Kategorie" bleibt Orange, weil es ein offener Fall ist. Geteilt zwischen
@@ -618,10 +634,66 @@ let private truncatedRoleCell (role: Table.CellRole) (child: ReactElement) =
 /// Die Kategorie-Zelle der PC-Tabelle (ADR 0049 Punkt 4): sekundäre Rolle, nur "ohne
 /// Kategorie" in Orange. Der `span` mit eigener Farbklasse gewinnt gegenüber der
 /// Zellfarbe, unabhängig von der Reihenfolge im kompilierten CSS (ADR 0031).
-let private categoryCell (entry: LedgerEntryView) =
-    truncatedRoleCell
-        Table.Secondary
-        (Html.span [ prop.className (categoryClassName entry); prop.text (categoryLabelQualified entry) ])
+/// Auslöser und Menü einer Zelle (ledger-rfq5p): der Zelltext als `button`, dessen Klick
+/// das Menü öffnet und nicht die Historie, und das `FilterPopover` mit dem Eintrag als
+/// Geschwister des gekürzten Divs (ein Popover im `truncate`-Div würde abgeschnitten).
+/// Hover: Zeiger und leichte Aufhellung, keine Unterstreichung in der Ruhe (ADR 0049).
+let private cellMenuTrigger
+    (dispatch: Msg -> unit)
+    (entry: LedgerEntryView)
+    (kind: CellMenuKind)
+    (isOpen: bool)
+    (textClassName: string)
+    (text: string)
+    =
+    Html.button [
+        prop.type'.button
+        prop.custom ("aria-haspopup", "menu")
+        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+        prop.className (textClassName + " block max-w-full truncate text-left cursor-pointer hover:brightness-125")
+        prop.text text
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            dispatch (OpenCellMenu (entry.Id, kind)))
+    ]
+
+let private cellMenuPopover
+    (dispatch: Msg -> unit)
+    (isOpen: bool)
+    (label: string)
+    (onChoose: Msg)
+    =
+    FilterPopover.view
+        { IsOpen = isOpen
+          OnClose = fun () -> dispatch CloseCellMenu
+          WidthClassName = FilterPopover.menuWidthClass }
+        [ FilterPopover.menuItemAutoFocus label (fun () -> dispatch onChoose) ]
+
+let private categoryCell
+    (dispatch: Msg -> unit)
+    (cellMenu: CellMenuTarget option)
+    (entry: LedgerEntryView)
+    =
+    let label = categoryLabelQualified entry
+    match categoryMenuLabel entry, entry.CategoryId with
+    | Some menuLabel, Some categoryId ->
+        let isOpen = cellMenu = Some { EntryId = entry.Id; Kind = CategoryCell }
+        Table.roleCell
+            Table.Secondary
+            [ Html.div [
+                  prop.className "relative"
+                  prop.children [
+                      Html.div [
+                          prop.className "truncate"
+                          prop.children [ cellMenuTrigger dispatch entry CategoryCell isOpen (categoryClassName entry) label ]
+                      ]
+                      cellMenuPopover dispatch isOpen menuLabel (FilterByRowCategory categoryId)
+                  ]
+              ] ]
+    | _ ->
+        truncatedRoleCell
+            Table.Secondary
+            (Html.span [ prop.className (categoryClassName entry); prop.text label ])
 
 /// Der Betrag als eigene Zelle: rechtsbündig über `Table.amountCell` (Listenvariante,
 /// ADR 0049); gedämpft und durchgestrichen für eine in YNAB gelöschte Buchung.
@@ -691,25 +763,52 @@ type TableLayout =
 /// Die Payee-Zelle der PC-Tabelle. Ist die Konto-Spalte ausgeblendet (schmales Fenster
 /// in der Gesamtsicht), steht das Kontokürzel klein vor dem Payee in derselben Zelle,
 /// als eigenes Element neben dem Payee-Text (ledger-qh9qx).
-let private payeeCell (accountAbbreviation: string option) (payee: string) =
-    Table.roleCell
-        Table.Payee
-        [ Html.div [
-              prop.className "truncate"
-              prop.children [
-                  match accountAbbreviation with
-                  | Some abbreviation ->
-                      Html.span [ prop.className $"{Tokens.ListRoles.muted} mr-1.5"; prop.text abbreviation ]
-                  | None -> ()
-                  Html.span [ prop.text payee ]
-              ]
-          ] ]
+/// Hat die Buchung einen Payee zum Filtern, öffnet ein Klick auf den Payee-Text das
+/// Zellmenü (ledger-rfq5p); das Kürzel gehört nicht zum Auslöser.
+let private payeeCell
+    (dispatch: Msg -> unit)
+    (cellMenu: CellMenuTarget option)
+    (accountAbbreviation: string option)
+    (entry: LedgerEntryView)
+    =
+    let abbreviation =
+        match accountAbbreviation with
+        | Some abbreviation ->
+            Html.span [ prop.className $"{Tokens.ListRoles.muted} mr-1.5 shrink-0"; prop.text abbreviation ]
+        | None -> Html.none
+    match payeeMenuLabel entry, entry.Payee with
+    | Some menuLabel, Some payee ->
+        let isOpen = cellMenu = Some { EntryId = entry.Id; Kind = PayeeCell }
+        Table.roleCell
+            Table.Payee
+            [ Html.div [
+                  prop.className "relative"
+                  prop.children [
+                      Html.div [
+                          prop.className "flex items-center min-w-0"
+                          prop.children [
+                              abbreviation
+                              cellMenuTrigger dispatch entry PayeeCell isOpen "" (payeeLabel entry)
+                          ]
+                      ]
+                      cellMenuPopover dispatch isOpen menuLabel (FilterByRowPayee payee)
+                  ]
+              ] ]
+    | _ ->
+        let payee = payeeLabel entry
+        Table.roleCell
+            Table.Payee
+            [ Html.div [
+                  prop.className "truncate"
+                  prop.children [ abbreviation; Html.span [ prop.text payee ] ]
+              ] ]
 
 let private entryTableRow
     (dispatch: Msg -> unit)
     (columns: LedgerColumn list)
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
+    (cellMenu: CellMenuTarget option)
     (rowState: ReviewMarkRowState option)
     (selected: bool)
     (isAnchor: bool)
@@ -731,12 +830,14 @@ let private entryTableRow
             if List.contains AccountColumn columns then
                 Table.roleCell Table.Muted [ Html.text (accountAbbreviationOf entry.AccountId) ]
             payeeCell
+                dispatch
+                cellMenu
                 (if isAllAccounts && not (List.contains AccountColumn columns) then
                      Some (accountAbbreviationOf entry.AccountId)
                  else
                      None)
-                (payeeLabel entry)
-            categoryCell entry
+                entry
+            categoryCell dispatch cellMenu entry
             if List.contains MemoColumn columns then
                 truncatedRoleCell Table.Muted (Html.text (entry.Memo |> Option.defaultValue ""))
             tdMoney entry
@@ -951,6 +1052,27 @@ let private historySheet (model: Model) (dispatch: Msg -> unit) =
             Footer = None
         }
         [
+            // Die beiden Filter-Aktionen der Zeile stehen vor der Historie (ledger-rfq5p);
+            // ohne Eintrag entfällt der Block ganz.
+            match model.HistoryFor with
+            | Some entry ->
+                let actions =
+                    [ match payeeMenuLabel entry, entry.Payee with
+                      | Some label, Some payee ->
+                          FilterPopover.menuItem label (fun () -> dispatch (FilterByRowPayee payee))
+                      | _ -> ()
+                      match categoryMenuLabel entry, entry.CategoryId with
+                      | Some label, Some categoryId ->
+                          FilterPopover.menuItem label (fun () -> dispatch (FilterByRowCategory categoryId))
+                      | _ -> () ]
+                if not (List.isEmpty actions) then
+                    Html.div [
+                        prop.custom ("role", "menu")
+                        prop.custom ("data-testid", "row-filter-actions")
+                        prop.className $"pb-3 mb-3 border-b {Tokens.Borders.subtle}"
+                        prop.children actions
+                    ]
+            | None -> ()
             match model.History with
             | NotAsked -> Html.none
             | Loading -> Loading.centered "Historie wird geladen…"
@@ -1315,6 +1437,7 @@ let private entryListDesktop
     (columns: (LedgerColumn * ColumnWidth) list)
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
+    (cellMenu: CellMenuTarget option)
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (headerState: HeaderCheckState)
@@ -1373,6 +1496,7 @@ let private entryListDesktop
                                           visible
                                           isAllAccounts
                                           accountAbbreviationOf
+                                          cellMenu
                                           rowState
                                           (isSelected selection entry.Id)
                                           (anchor = Some entry.Id)
@@ -1456,6 +1580,7 @@ let private entryList
                     columns
                     isAllAccounts
                     abbreviationOf
+                    model.CellMenu
                     model.IncludeDeleted
                     model.ReviewMarkRows
                     (headerCheckState model)

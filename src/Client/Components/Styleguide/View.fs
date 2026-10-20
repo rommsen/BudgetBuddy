@@ -1050,6 +1050,41 @@ let private FilterPopoverDemo () =
         ]
     ]
 
+/// FilterPopover als kleines Aktionsmenü: `menuItem` im Popover, wie das Zellmenü
+/// "Nach X filtern" im Kassenbuch (ledger-rfq5p).
+[<ReactComponent>]
+let private FilterPopoverMenuDemo () =
+    let isOpen, setOpen = React.useState true
+
+    Html.div [
+        prop.custom ("data-ds-card", "components-filterpopover-menuitem")
+        prop.custom ("data-ds-card-name", "FilterPopover menuItem")
+        prop.custom ("data-ds-card-subtitle", "Kleines Aktionsmenü: eine volle Zeile je Eintrag, role=menuitem, auf eine Zeile gekürzt")
+        prop.custom ("data-ds-group", "Components")
+        prop.className "min-h-[10rem]"
+        prop.children [
+            Html.div [
+                prop.className "relative inline-block"
+                prop.children [
+                    Html.button [
+                        prop.type'.button
+                        prop.className "text-left text-text-primary hover:brightness-125 cursor-pointer"
+                        prop.custom ("aria-haspopup", "menu")
+                        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+                        prop.text "REWE Mitte"
+                        prop.onClick (fun _ -> setOpen (not isOpen))
+                    ]
+                    FilterPopover.view
+                        { IsOpen = isOpen; OnClose = ignore; WidthClassName = FilterPopover.menuWidthClass }
+                        [
+                            FilterPopover.menuItem "Nach REWE Mitte filtern" ignore
+                            FilterPopover.menuItem "Nach Alltag: Lebensmittel mit einem sehr langen Namen filtern" ignore
+                        ]
+                ]
+            ]
+        ]
+    ]
+
 /// Kategorienauswahl mit Mehrfachauswahl, Zustand lokal.
 [<ReactComponent>]
 let private CategoryMultiSelectDemo () =
@@ -1146,6 +1181,7 @@ let view () =
                         voiceSection
                         chipBarSection
                         FilterPopoverDemo()
+                        FilterPopoverMenuDemo()
                         CategoryMultiSelectDemo()
                     ]
                     |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))

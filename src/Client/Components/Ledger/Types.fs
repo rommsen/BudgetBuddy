@@ -151,6 +151,14 @@ type ChipId =
     | MemoChip
     | AmountChip
 
+/// Welche Zelle einer Zeile ihr kleines Menü "Nach X filtern" geöffnet hat (ledger-rfq5p).
+type CellMenuKind =
+    | PayeeCell
+    | CategoryCell
+
+/// Das offene Zellmenü: die Buchung und die Zelle. Es gibt höchstens eines zugleich.
+type CellMenuTarget = { EntryId: Guid; Kind: CellMenuKind }
+
 let fixedChipOrder : ChipId list =
     [ NeedsReviewChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
 
@@ -376,6 +384,10 @@ type Model = {
     /// Welcher Filter-Chip gerade sein Popover/Sheet offen hat, `None` sonst. Nur
     /// einer zugleich (Handoff: "ein Muster für Kategorie, Zeitraum und Payee").
     OpenPopover: ChipId option
+
+    /// Das offene Zellmenü "Nach Payee/Kategorie filtern" einer Zeile (ledger-rfq5p).
+    /// Höchstens eines zugleich, und nie zusammen mit einem Chip-Popover.
+    CellMenu: CellMenuTarget option
 
     /// Der Entwurf der Kategorien-Mehrfachauswahl, solange die Kategorienauswahl
     /// offen ist (Click-Commit, ADR 0005/Styleguide 7.1): erst „Übernehmen"
@@ -717,6 +729,17 @@ type Msg =
     /// Esc, Klick daneben oder „Schließen": verwirft den Entwurf, `Filters` bleibt
     /// unverändert.
     | CloseFilterPopover
+
+    /// Klick auf die Payee- oder Kategorie-Zelle einer Zeile (ledger-rfq5p): öffnet das
+    /// kleine Menü an der Zelle und schließt einen offenen Chip-Popover.
+    | OpenCellMenu of Guid * CellMenuKind
+    /// Esc oder Klick daneben: schließt das Zellmenü, `Filters` bleibt unverändert.
+    | CloseCellMenu
+    /// "Nach <Payee> filtern": setzt `Filters.Payee` wie `SelectPayeeFilter`.
+    | FilterByRowPayee of string
+    /// "Nach <Kategorie> filtern": die Kategorienauswahl besteht danach aus genau dieser
+    /// Kategorie, "Ohne Kategorie" ist aus.
+    | FilterByRowCategory of Guid
 
     | SetCategorySearch of string
     | ToggleCategoryDraft of Guid

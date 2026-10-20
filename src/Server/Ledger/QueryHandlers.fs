@@ -136,6 +136,7 @@ module ReadModel =
             Payee = entry.Payee
             Memo = entry.Memo
             CategoryName = entry.Category |> Option.map (fun c -> liveName c.CategoryId c.CategoryName)
+            CategoryId = entry.Category |> Option.map (fun c -> let (YnabCategoryId id) = c.CategoryId in id)
             CategoryGroupName = categoryGroupName
             Splits =
                 entry.Splits

@@ -28,6 +28,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     Payee = Some payee
     Memo = None
     CategoryName = None
+    CategoryId = None
     CategoryGroupName = None
     Splits = []
     Origin = MirroredFromYnab
@@ -442,8 +443,10 @@ let private sharedHelpersAndNoColorLiteralsTests =
 
             Expect.stringContains entryRowBody "payeeLabel entry"
                 "entryRow muss payeeLabel entry aufrufen, sonst weicht die Handy-Zeile von der PC-Tabelle ab."
-            Expect.stringContains entryTableRowBody "payeeLabel entry"
-                "entryTableRow muss payeeLabel entry aufrufen, sonst weicht die PC-Tabelle von der Handy-Zeile ab."
+            Expect.stringContains entryTableRowBody "payeeCell"
+                "entryTableRow muss die Payee-Zelle rendern."
+            Expect.stringContains (sliceFunctionBody view "let private payeeCell") "payeeLabel entry"
+                "payeeCell muss payeeLabel entry aufrufen, sonst weicht die PC-Tabelle von der Handy-Zeile ab."
 
             // Seit ledger-h6ptn (ADR 0039) unterscheiden sich die beiden Ansichten
             // bewusst: die Handy-Zeile bleibt beim Blattnamen, die PC-Tabelle
@@ -492,7 +495,7 @@ let private sharedHelpersAndNoColorLiteralsTests =
                 "Die Handy-Zeile muss die Kategorie-Rolle über categoryClassName setzen."
             Expect.stringContains categoryCellBody "categoryClassName entry"
                 "Die PC-Tabellenzelle muss dieselbe Rolle über categoryClassName setzen."
-            Expect.stringContains entryTableRowBody "categoryCell entry"
+            Expect.stringContains entryTableRowBody "categoryCell dispatch cellMenu entry"
                 "Die PC-Tabelle muss ihre Kategoriezelle über categoryCell rendern, sonst verliert sie die Rolle."
             Expect.isFalse (view.Contains "categoryColorClassName")
                 "Das violette categoryColorClassName ist weg (ADR 0049)."

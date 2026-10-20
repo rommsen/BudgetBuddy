@@ -32,6 +32,9 @@ type FilterPopoverProps = {
 let categoryWidthClass = "w-[min(92vw,460px)]"
 let payeeWidthClass = "w-[min(92vw,340px)]"
 let defaultWidthClass = "w-[min(92vw,320px)]"
+/// Breite eines kleinen Aktionsmenüs (`menuItem`), z. B. "Nach REWE filtern" an einer
+/// Tabellenzelle (ledger-rfq5p).
+let menuWidthClass = "w-[min(92vw,240px)]"
 
 [<ReactComponent>]
 let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactElement list) =
@@ -83,3 +86,31 @@ let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactEl
 /// ihn in einen `position:relative`-Wrapper stellen (siehe `ChipBar.chipWithPopover`).
 let view (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
     FilterPopoverInternal props children
+
+let private menuItemWith (autoFocus: bool) (label: string) (onClick: unit -> unit) : ReactElement =
+    Html.button [
+        prop.type'.button
+        prop.role "menuitem"
+        prop.title label
+        if autoFocus then prop.autoFocus true
+        prop.className (
+            "block w-full text-left truncate rounded-lg px-3 py-2 text-text-primary "
+            + Client.DesignSystem.Tokens.ListRoles.primarySize
+            + " hover:bg-surface-hover focus:bg-surface-hover focus:outline-none"
+        )
+        prop.text label
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            onClick ())
+    ]
+
+/// Eine volle Zeile eines kleinen Aktionsmenüs im Popover (`role="menuitem"`),
+/// Beschriftung auf eine Zeile gekürzt, `title` trägt den vollen Text. Auch im
+/// Handy-Sheet verwendbar (ledger-rfq5p).
+let menuItem (label: string) (onClick: unit -> unit) : ReactElement =
+    menuItemWith false label onClick
+
+/// Wie `menuItem`, aber mit Fokus beim Öffnen. `FilterPopover` schließt auf Esc nur,
+/// wenn der Fokus im Popover liegt: der erste Eintrag eines Menüs nimmt ihn.
+let menuItemAutoFocus (label: string) (onClick: unit -> unit) : ReactElement =
+    menuItemWith true label onClick

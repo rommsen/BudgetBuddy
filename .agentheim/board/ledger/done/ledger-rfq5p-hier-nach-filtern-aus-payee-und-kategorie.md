@@ -1,7 +1,7 @@
 ---
 id: ledger-rfq5p
 title: "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-20
@@ -143,3 +143,21 @@ Zum Hinschauen:
   achten. Eine Reihenfolge ist nicht nötig.
 - Nach `ledger-qh9qx` kann die Payee-Zelle ein Konto-Kürzel tragen. Der Auslöser umfasst nur
   den Payee-Text, nicht das Kürzel.
+
+## Outcome
+
+Die Payee- und die Kategorie-Zelle der PC-Tabelle sind Auslöser eines kleinen Menüs "Nach X filtern". Der Klick stoppt die Weitergabe (die Historie öffnet nicht), ein Klick sonst auf der Zeile öffnet sie wie bisher. Der Eintrag setzt den bestehenden Such-Filter: `FilterByRowPayee` wie `SelectPayeeFilter`, `FilterByRowCategory` mit `CategoryIds = {id}` und `WithoutCategory = false`, alle anderen Filter bleiben. Beide schließen Zellmenü und Historie, setzen die Seite auf 0, leeren die Auswahl und laden über `LoadEntries`. Am Handy trägt `historySheet` oberhalb der Historie einen Block (`data-testid="row-filter-actions"`) mit denselben Aktionen, nur für die, die es gibt; er schließt das Sheet und filtert.
+
+Bausteine:
+- `FilterPopover.menuWidthClass`, `menuItem` (role=menuitem, auf eine Zeile gekürzt, `title` mit vollem Text) und `menuItemAutoFocus` (erster Eintrag nimmt den Fokus, damit Esc im Popover greift) in `src/Client/DesignSystem/FilterPopover.fs`. Neue Karte "FilterPopover menuItem" im Abschnitt 24 der `/styleguide`-Route.
+- Typen `CellMenuKind`, `CellMenuTarget`, Feld `Model.CellMenu`, Nachrichten `OpenCellMenu`, `CloseCellMenu`, `FilterByRowPayee`, `FilterByRowCategory` (Types.fs, State.fs). `OpenCellMenu` schließt einen Chip-Popover, `OpenFilterPopover` das Zellmenü; offene Zellmenüs blockieren die Listentasten (`keyboardBlocked`).
+- Reine Funktionen `payeeMenuLabel` und `categoryMenuLabel` in `Components/Ledger/View.fs` (`None` bei leerem Payee, ohne Kategorie, Split, Übertrag ohne Kategorie). Die Zellen `payeeCell` und `categoryCell` hängen das Popover als Geschwister des gekürzten Divs an einen `relative`-Wrapper; das Kontokürzel liegt vor dem Auslöser und gehört nicht dazu.
+- `LedgerEntryView.CategoryId: Guid option` (Shared/Domain.fs), gefüllt in `ReadModel.toEntryView` aus `entry.Category`.
+
+Bestehende Quelltext-Wächter angepasst (die Zellen haben neue Signaturen): `LedgerViewTests.fs` prüft jetzt `payeeCell` (mit `payeeLabel entry`) und `categoryCell dispatch cellMenu entry` im Rumpf von `entryTableRow`. Die Literale von `LedgerEntryView` in vier Testdateien bekamen `CategoryId = None`.
+
+Prüfung: `dotnet build` 0 Warnungen, 0 Fehler. `dotnet test` 1571 bestanden, 0 Fehler, 7 übersprungen (Basis ohne meine 20 neuen Tests: 1551). `npm run build` grün. `npm run guard:classes` grün. `npm run test:scripts` 149 von 149 grün (inklusive der neuen 9 Playwright-Prüfungen in `scripts/ledger-cell-menu.test.mjs`). `npm run check:readme-delta -- --bc ledger` akzeptiert das Delta.
+
+Browser (echter Fable-Client gegen gemockte Antworten, `scripts/ledger-cell-menu.test.mjs`): PC 1440x900: Klick auf die Payee-Zelle öffnet das Menü, die Historie bleibt zu, `aria-expanded` ist wahr, der Fokus liegt im ersten Eintrag; der Hit-Test an der Mitte des Eintrags trifft den Eintrag selbst, das Menü wird also in der gekürzten Zelle nicht abgeschnitten; Esc und Klick daneben schließen ohne neue Abfrage; eine Zelle ohne Payee ist kein Auslöser und öffnet die Historie; der Payee-Eintrag sendet `Payee` mit Seite 0, der Kategorie-Eintrag `CategoryIds = [id]` und `WithoutCategory = false` bei stehendem Payee. 390x844 mit Tipp: das Sheet zeigt die zwei Aktionen vor der Historie, die Payee-Aktion schließt das Sheet und filtert; eine Zeile ohne Payee und Kategorie hat keinen Block. `/styleguide` zeigt die Karte mit zwei `menuitem`. Screenshots (Hover-Eindruck für das "Zum Hinschauen"-Kriterium bleibt Augenarbeit): /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/19d01155-bd5c-44c4-83fc-f181eb456932/scratchpad/ledger-rfq5p/pc-payee-menu.png, pc-category-menu.png, mobile-sheet.png, styleguide-card.png.
+
+Hinweise: Das Menü liegt im Popover-Rahmen mit `p-4` (Hülle unverändert), es deckt beim Öffnen die Zeile darunter ab. Ein Klick auf den bereits offenen Auslöser schließt per Mousedown außerhalb und öffnet per Klick sofort neu. Die Änderungen an `reviewMarkButton` und der `entryRow`-ClassName (Sibling ledger-mhe2s) blieben unberührt; neue Tests liegen in eigenen Dateien, `LedgerCellMenuTests.fs` steht in `Tests.fsproj` neben `LedgerVisibleColumnsTests.fs`.

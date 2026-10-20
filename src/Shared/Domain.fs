@@ -862,6 +862,10 @@ type LedgerEntryView = {
     /// Der Kategorie-Name aus der letzten Beobachtung. `None`, wenn die Buchung
     /// keine Kategorie traegt (auch bei Splits).
     CategoryName: string option
+    /// Die Id der Kategorie der Buchung (ledger-rfq5p), damit die Zeile nach genau dieser
+    /// Kategorie filtern kann. `None`, wenn die Buchung keine Kategorie trägt (auch bei
+    /// Splits). Reines Read-Model-Feld, kein Ereignis, kein Schema.
+    CategoryId: Guid option
     /// Die Kategoriegruppe, im Lesepfad nachgeschlagen (ADR 0039, ledger-h6ptn): die
     /// Gruppe ist Stammdatum der Kategorie, nicht Zustand der Buchung, und steht
     /// deshalb NICHT im Ereignis-Log. `None`, wenn die Buchung keine Kategorie

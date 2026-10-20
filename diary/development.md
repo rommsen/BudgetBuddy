@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 09:55 - "Nach X filtern" an Payee- und Kategorie-Zelle (ledger-rfq5p)
+
+**What I did:**
+Zellmenü für die Payee- und Kategorie-Zelle der PC-Tabelle (FilterPopover mit menuItem), dieselben Aktionen im Handy-Sheet `historySheet`, Reduzierer-Nachrichten `OpenCellMenu`, `CloseCellMenu`, `FilterByRowPayee`, `FilterByRowCategory`, neues Feld `LedgerEntryView.CategoryId`, Styleguide-Karte, Playwright-Wächter.
+
+**Files Added:**
+- `src/Tests/LedgerCellMenuTests.fs` - 20 Tests (Beschriftungen, Lesepfad, Reduzierer, Quelltext-Zusicherungen)
+- `scripts/ledger-cell-menu.test.mjs` - 9 Browser-Prüfungen (PC und 390x844, Styleguide)
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `LedgerEntryView.CategoryId`
+- `src/Server/Ledger/QueryHandlers.fs` - `toEntryView` füllt `CategoryId`
+- `src/Client/DesignSystem/FilterPopover.fs` - `menuWidthClass`, `menuItem`, `menuItemAutoFocus`
+- `src/Client/Components/Ledger/Types.fs` - `CellMenuKind`, `CellMenuTarget`, `Model.CellMenu`, vier Nachrichten
+- `src/Client/Components/Ledger/State.fs` - Init, Reduzierer, `keyboardBlocked`, `OpenFilterPopover` schließt das Zellmenü
+- `src/Client/Components/Ledger/View.fs` - `payeeMenuLabel`, `categoryMenuLabel`, Auslöser, `payeeCell`, `categoryCell`, Aktionsblock in `historySheet`, `CellMenu` durch `entryListDesktop` und `entryTableRow`
+- `src/Client/Components/Styleguide/View.fs` - Karte "FilterPopover menuItem"
+- `src/Tests/Tests.fsproj` - neue Testdatei
+- `src/Tests/LedgerViewTests.fs`, `LedgerPagingTests.fs`, `LedgerReviewMarkClientTests.fs`, `LedgerSelectionTests.fs` - `CategoryId = None` in den Literalen, zwei Quelltext-Wächter auf die neuen Zellsignaturen angepasst
+
+**Rationale:**
+Roman wollte eine Abkürzung zum Filtern aus dem Wert, der in der Liste steht. Das Menü setzt den bestehenden Filterweg, damit Chips, Zählung und Summe unverändert aus der Serverabfrage kommen. Die Kategorie-Id fehlte im Lesepfad, ein Nachschlagen über den Namen wäre über Gruppen hinweg nicht eindeutig.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1571 bestanden, 0 Fehler (7 übersprungen); test:scripts 149/149; guard:classes grün
+- Issues: keine
+
+---
+
 ## 2026-10-20 10:05 - Prüf-Schaltfläche der PC-Zeile nur bei Hover oder Fokus, neutral grau (ledger-mhe2s)
 
 **What I did:**
