@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 08:42 -- Batch started: [ledger-r72re, ledger-mhe2s, ledger-qh9qx]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-r72re - "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto", ledger-mhe2s - "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\"", ledger-qh9qx - "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander"
+**Parallel:** yes (3 workers; ledger-rfq5p held to wave 2: it touches the same table cells as qh9qx and the same LedgerEntryView/test literals as r72re, and per its notes builds on the qh9qx payee cell)
+
+---
+
 ## 2026-10-20 08:39 -- Modeling / Refined: ledger-q1hw2 - Buchungs-Detail: Herkunft, Historie und "noch nicht in YNAB"
 
 **Type:** Modeling / Refine

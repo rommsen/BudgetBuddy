@@ -1,7 +1,7 @@
 ---
 id: ledger-r72re
 title: "Kassenbuch-Sortierung im Lesepfad: LedgerEntryPageQuery bekommt Sortierfeld und Richtung, der Server sortiert nach Datum, Betrag, Payee, Kategorie und Konto"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20

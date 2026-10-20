@@ -1,7 +1,7 @@
 ---
 id: ledger-qh9qx
 title: "PC-Tabelle des Kassenbuchs bricht in schmalen Fenstern: Payee, Kategorie und Memo schrumpfen auf null, die Spaltenköpfe liegen übereinander"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-20

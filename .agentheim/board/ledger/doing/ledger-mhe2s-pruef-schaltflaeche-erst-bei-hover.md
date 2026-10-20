@@ -1,7 +1,7 @@
 ---
 id: ledger-mhe2s
 title: "Prüf-Schaltfläche der PC-Zeile erst bei Hover oder Fokus und neutral grau: der grüne Haken neben \"zu prüfen\" liest sich wie \"erledigt\""
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20
