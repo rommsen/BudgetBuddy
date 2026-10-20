@@ -423,7 +423,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let offset = max 0 (pageIndex * pageSize - max 0 query.LocallyRemoved)
         let filter = toEntryFilter query
 
-        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId offset pageSize filter query.Sort
+        let! pageEntries = Ledger.Persistence.loadEntriesPage accountId offset pageSize filter (LedgerSort.orDefault query.Sort)
         let! totalCount = Ledger.Persistence.countEntries accountId filter
         let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId filter
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter

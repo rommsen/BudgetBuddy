@@ -194,6 +194,16 @@ let sortTests =
             Expect.equal (idsOnPage (baseQuery 1 LedgerSort.defaultSort)) expected "wie bisher"
             Expect.equal LedgerSort.defaultSort (sortOf SortByDate SortDesc) "Standard ist Datum absteigend"
 
+        testCase "Anfrage ohne Sort (alter Client aus dem PWA-Cache) liefert die Standardsortierung statt 500" <| fun () ->
+            // Verhindert die Regression vom 2026-10-20: Nach dem Deploy von ledger-r72re schickte
+            // das noch gecachte alte Client-Bundle LedgerEntryPageQuery ohne das Feld Sort.
+            // Fable.Remoting setzt ein fehlendes Record-Feld auf null, sortsInMemory warf eine
+            // NullReferenceException und die Buchungsliste zeigte "Internal server error (500)".
+            seed 12 mixedSpecs
+            let expected = expectedOrder 12 SortByDate SortDesc mixedSpecs
+            let legacy = baseQuery 12 (Unchecked.defaultof<LedgerSort>)
+            Expect.equal (idsOnPage legacy) expected "fehlendes Sort wirkt wie Datum absteigend"
+
         testCase "Jedes Feld und jede Richtung ordnet über mehrere Seiten wie erwartet, ohne Doppelte" <| fun () ->
             seed 2 mixedSpecs
             seed 2 [] // Schema idempotent

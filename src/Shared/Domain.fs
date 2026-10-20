@@ -1024,6 +1024,11 @@ module LedgerSort =
     /// Datum, absteigend: die bisherige feste Reihenfolge des Kassenbuchs.
     let defaultSort : LedgerSort = { Field = SortByDate; Direction = SortDesc }
 
+    /// Ein Client, der älter als ADR 0051 ist (etwa aus dem PWA-Cache), schickt kein `Sort`;
+    /// Fable.Remoting setzt das fehlende Record-Feld dann auf null. Das gilt als Standard.
+    let orDefault (sort: LedgerSort) : LedgerSort =
+        if isNull (box sort) then defaultSort else sort
+
 /// Parameter einer Seiten-Abfrage der Buchungsliste: ein Konto (optional — `None`
 /// heisst alle Konten, die Gesamtsicht), ein 0-basierter Seitenzeiger und die
 /// Seitengröße. `IncludeDeleted` (ledger-p3n8k): in YNAB gelöschte Buchungen

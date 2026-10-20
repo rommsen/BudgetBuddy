@@ -4,6 +4,26 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 19:30 - Hotfix: Buchungsliste lädt mit altem Client wieder (500 bei getLedgerEntriesPage)
+
+**What I did:**
+Nach dem Deploy von ledger-r72re zeigte die Buchungsliste "Internal server error (500)". Das noch gecachte alte Client-Bundle schickte `LedgerEntryPageQuery` ohne das neue Feld `Sort`, Fable.Remoting setzte es auf null, und `sortsInMemory` warf eine NullReferenceException. Der Server behandelt ein fehlendes `Sort` jetzt als Standardsortierung (Datum absteigend).
+
+**Files Modified:**
+- `src/Shared/Domain.fs` - `LedgerSort.orDefault`: null wird zu `defaultSort`
+- `src/Server/Ledger/QueryHandlers.fs` - `getLedgerEntriesPage` reicht `LedgerSort.orDefault query.Sort` an `loadEntriesPage`
+- `src/Tests/LedgerSortTests.fs` - Regressionstest: Anfrage mit `Sort = null` liefert die Standardreihenfolge (vor dem Fix rot mit derselben Exception wie in Produktion)
+
+**Rationale:**
+Ein neues Pflichtfeld in einem Remoting-Record bricht jeden Client, der noch den alten Stand im Cache hat. Die Handy-PWA hält den alten Stand oft länger.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen), `npm run build` ✅
+- Tests: 1581/1581 passed (6 übersprungen)
+- Issues: keine
+
+---
+
 ## 2026-10-20 09:55 - "Nach X filtern" an Payee- und Kategorie-Zelle (ledger-rfq5p)
 
 **What I did:**
