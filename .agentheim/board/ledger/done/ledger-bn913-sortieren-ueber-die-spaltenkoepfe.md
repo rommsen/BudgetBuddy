@@ -1,7 +1,7 @@
 ---
 id: ledger-bn913
 title: "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-20
@@ -126,3 +126,28 @@ Zum Hinschauen:
   ADR 0051 Punkt 7.
 - `ledger-rfq5p` ändert dieselben Zellen (Payee, Kategorie) in `View.fs`; bei gleichzeitiger
   Arbeit auf Merge-Konflikte in `entryTableRow` achten.
+
+## Outcome
+
+Klick auf einen sortierbaren Spaltenkopf der PC-Tabelle sortiert das Kassenbuch serverseitig (ADR 0051). Der Sortierzustand lebt im Client-Modell, die Anfrage trägt die wirksame Sortierung.
+
+**Umgesetzt**
+- `Types.fs`: `Model.Sort: LedgerSort`, Nachricht `SetSort of LedgerSortField`.
+- `State.fs`: reine Funktionen `sortStartDirection`, `nextSort`, `effectiveSort`; `init` setzt `LedgerSort.defaultSort`; `buildPageQuery` sendet `effectiveSort model`; `SetSort` läuft über `resetEntries` plus `LoadEntries` (Seite 0, `LocallyRemoved = 0`, Auswahl leer, Filter und Konto unverändert). Die Richtung wird gegen die wirksame Sortierung gedreht, damit ein Klick auf das sichtbare Datum bei einer verdeckten Konto-Wahl wirklich dreht.
+- `Table.fs`: `Table.ariaSortValue` (`ascending`, `descending`, `none`) und `Table.calmSortableHeaderCell text align direction onSort` (`th` mit `aria-sort`, `button` darin, Pfeil nur am aktiven Kopf).
+- `View.fs`: `usesDayGroups`, `mobileRowDateText`, `headerSortDirection`; PC-Köpfe Datum, Konto (nur wenn sichtbar), Payee, Kategorie, Betrag über `sortHeader`, Kästchen, Memo und Status unverändert; Tagesgruppen in PC-Tabelle und Handy-Liste nur bei Datumssortierung, sonst flach; flache Handy-Zeile zeigt das Datum vorn in Zeile 2. `entryTableRow` und die Zellen sind nicht angefasst (ledger-q1hw2 baut sie danach um); `entryRow` bekam nur den Parameter `flatDate`.
+- `Styleguide/View.fs`: Abschnitt "Ruhige Listen" zeigt die sortierbare Kopfzelle in den Zuständen aufsteigend, absteigend, ohne.
+- `LedgerSort.orDefault` (Hotfix) bleibt unberührt.
+
+**Tests (19 neu)**
+- `src/Tests/LedgerSortClientTests.fs` (17 Expecto-Tests): Startwert, `buildPageQuery` inkl. `OneAccount`-Fall, `sortStartDirection`, `SetSort` (anderes Feld, aktives Feld, Datum-Klick bei verdeckter Konto-Wahl) mit allen Zuständen und `LoadEntries`, Konto-/Filterwechsel und "Alle Filter löschen" lassen `Sort` stehen, `usesDayGroups`, `groupByDate` bei aufsteigender Liste mit Tagessumme, `mobileRowDateText`, `headerSortDirection`, `ariaSortValue`, Quelltext-Zusicherung (Memo und Status nicht über `sortHeader`), Styleguide-Zusicherung.
+- `scripts/ledger-sort-headers.test.mjs` (2 Playwright-Wächter am echten Client mit gemockter API, der Mock sortiert nach der gesendeten Sortierung): Klick auf Betrag, aufsteigend ohne Tageskopf, `aria-sort`, zweiter Klick kehrt um, Datum bringt die Tagesköpfe zurück; Tastatur (Fokus auf den Kopf, Enter), Status ohne Button und ohne `aria-sort`.
+- Angepasst: zwei Quelltext-Wächter in `LedgerViewTests.fs` (Payee- und Betrag-Kopf heißen jetzt `sortHeader ...`), gleiche Absicht.
+
+**Läufe (aus dem Worktree)**: `dotnet build` 0 Warnungen, 0 Fehler. `dotnet test` 1597 bestanden, 0 fehlgeschlagen, 7 übersprungen (vorher schon übersprungen). `npm run build` grün. `npm run guard:classes` grün ("Keine undefinierten Klassen gefunden"). `npm run test:scripts`: im Gesamtlauf mit der Standardparallelität hängt die Suite auf dieser Maschine (viele gleichzeitige Vite-/Fable-Server); seriell (`--test-concurrency=1`) liefen 153 Tests, 151 grün. Die zwei Rotausfälle: ein Wartefehler in meinem Wächter (behoben, danach grün) und `ledger-cell-menu.test.mjs` "Der Kategorie-Eintrag setzt..." (wartet mit `waitForFunction(() => true)` nicht auf die Anfrage, Lastflattern; die Datei läuft allein 9 von 9 grün). Dateien einzeln grün: `ledger-sort-headers.test.mjs` (2/2), `ledger-cell-menu.test.mjs` (9/9), `ledger-table-columns.test.mjs` (3/3).
+
+**Hinweis für Wächter mit gemockter API**: ohne Antwort auf `mirrorYnabBudget` startet die Seite den Spiegel-Lauf in einer Schleife und die Tabelle baut sich ständig neu auf (Seitenhöhe wechselt zwischen 4128 und 4168 px, Klicks scheitern an "not stable"). Der neue Wächter lässt die Anfrage offen, wie `ledger-review-button-visibility.test.mjs`. `ledger-table-columns.test.mjs` hat dasselbe Problem (sein erster Test braucht dadurch rund 50 s) und wurde nicht angefasst.
+
+**Nicht gesehen**: das Kriterium "[human-eye] Pfeile fügen sich in die ruhige Tabelle" ist offen, kein Screenshot angefertigt.
+
+**Seiteneffekt im Lauf**: beim Aufräumen hängender Testprozesse habe ich mit `pkill -f vite` gearbeitet; ein Vite-Dev-Server der Hauptsitzung könnte dabei beendet worden sein (`npm run dev` im Hauptbaum prüfen).

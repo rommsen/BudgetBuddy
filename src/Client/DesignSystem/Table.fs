@@ -403,6 +403,42 @@ let calmHeaderCell (text: string) (align: string option) =
         prop.text text
     ]
 
+/// Der Wert von `aria-sort` je Sortierrichtung (WAI-ARIA: `ascending`, `descending`, `none`).
+let ariaSortValue (direction: SortDirection) : string =
+    match direction with
+    | Ascending -> "ascending"
+    | Descending -> "descending"
+    | Unsorted -> "none"
+
+/// Sortierbare Kopfzelle der ruhigen Tabelle (ledger-bn913): ein `th` mit `aria-sort` und
+/// einem `button` darin (Enter und Leertaste lösen aus, der Fokus folgt der Tab-Reihenfolge).
+/// Der Pfeil steht nur am aktiven Kopf (`Ascending` oder `Descending`); ein Kopf ohne
+/// Sortierung (`Unsorted`) zeigt keinen.
+let calmSortableHeaderCell (text: string) (align: string option) (direction: SortDirection) (onSort: unit -> unit) =
+    let alignClass = headerAlignClass align
+    Html.th [
+        prop.className $"{ListRoles.columnHeader} bg-surface-elevated px-[var(--table-cell-px,0.75rem)] {alignClass}"
+        prop.custom ("aria-sort", ariaSortValue direction)
+        prop.children [
+            Html.button [
+                prop.type' "button"
+                prop.className (
+                    "inline-flex items-center gap-1 uppercase cursor-pointer select-none "
+                    + "hover:text-text-secondary transition-colors focus-visible:outline focus-visible:outline-1 "
+                    + "focus-visible:outline-neon-teal rounded-sm "
+                    + (if direction = Unsorted then "" else "text-text-secondary")
+                )
+                prop.onClick (fun _ -> onSort ())
+                prop.children [
+                    Html.span [ prop.text text ]
+                    match direction with
+                    | Unsorted -> ()
+                    | Ascending | Descending -> sortIcon direction
+                ]
+            ]
+        ]
+    ]
+
 /// Kopfzelle der ruhigen Tabelle mit eigenem Inhalt, etwa das Kopfzeilen-Kästchen einer
 /// Auswahlspalte (ledger-r1d2f). Links bündig, rechts ohne Innenabstand.
 let calmHeaderContentCell (children: ReactElement list) =

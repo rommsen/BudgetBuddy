@@ -33,6 +33,7 @@ let init () : Model * Cmd<Msg> =
         IncludeDeleted = false
         DeletedCount = 0
         OnlyNeedsReview = false
+        Sort = LedgerSort.defaultSort
         NeedsReviewCount = 0
         HistoryFor = None
         History = NotAsked
@@ -84,6 +85,33 @@ let private resetEntries (model: Model) : Model = {
         SelectionMode = false
 }
 
+/// Die Startrichtung beim Wechsel auf ein anderes Sortierfeld (ADR 0051 Punkt 9): Datum
+/// absteigend (neueste zuerst), Betrag aufsteigend (kleinster Wert zuerst, also die größte
+/// Ausgabe oben), Payee, Kategorie und Konto aufsteigend.
+let sortStartDirection (field: LedgerSortField) : LedgerSortDirection =
+    match field with
+    | SortByDate -> SortDesc
+    | SortByAmount
+    | SortByPayee
+    | SortByCategory
+    | SortByAccount -> SortAsc
+
+/// Die Sortierung nach einem Klick auf den Kopf `field`: das aktive Feld dreht die
+/// Richtung, ein anderes beginnt mit seiner Startrichtung.
+let nextSort (current: LedgerSort) (field: LedgerSortField) : LedgerSort =
+    if current.Field = field then
+        { current with Direction = (match current.Direction with SortAsc -> SortDesc | SortDesc -> SortAsc) }
+    else
+        { Field = field; Direction = sortStartDirection field }
+
+/// Die wirksame Sortierung (ADR 0051 Punkt 9): die Spalte "Konto" gibt es nur in der
+/// Gesamtsicht. Ist `SortByAccount` gewählt und ein einzelnes Konto aktiv, gilt
+/// `LedgerSort.defaultSort`; das Modell behält die Wahl für die Rückkehr in die Gesamtsicht.
+let effectiveSort (model: Model) : LedgerSort =
+    match model.Sort.Field, model.SelectedFilter with
+    | SortByAccount, Some (OneAccount _) -> LedgerSort.defaultSort
+    | _ -> model.Sort
+
 /// Die Seitenanfrage an den Server. Rein, damit der Versatz testbar ist. Die fünf
 /// Such-Filter (Kategorie/Zeitraum/Payee/Betrag/Memo, ledger-vgfw3) sind Server-seitig
 /// da (ADR 0036). `LocallyRemoved` stammt aus dem Modell: jede Aktion, die Zeilen lokal
@@ -104,7 +132,7 @@ let buildPageQuery (model: Model) (accountId: Guid option) (page: int) : LedgerE
     Memo = model.Filters.Memo
     AmountMin = model.Filters.AmountMin
     AmountMax = model.Filters.AmountMax
-    Sort = LedgerSort.defaultSort
+    Sort = effectiveSort model
 }
 
 /// Trägt das Ergebnis eines Prüfvermerk-Befehls in die geladene Liste ein (ledger-r777c):
@@ -379,6 +407,10 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             History = NotAsked },
         Cmd.ofMsg LoadEntries,
         NoOp
+
+    | SetSort field ->
+        // Wie ein Filterwechsel: Seite 0, Auswahl leer, Filter und Konto bleiben stehen.
+        { (resetEntries model) with Sort = nextSort (effectiveSort model) field }, Cmd.ofMsg LoadEntries, NoOp
 
     // ============================================
     // Buchungen, seitenweise

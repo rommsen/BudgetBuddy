@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 21:40 -- Task verified and completed: ledger-bn913 - "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
+
+**Type:** Work / Task completion
+**Task:** ledger-bn913 - "Kassenbuch sortieren, PC und Client-Zustand: Klick auf einen Spaltenkopf sortiert serverseitig nach Datum, Betrag, Payee, Kategorie oder Konto; außer bei Datum fallen die Tagesköpfe weg"
+**Summary:** Das Kassenbuch sortiert am PC per Klick auf die Köpfe Datum, Konto (nur Gesamtsicht), Payee, Kategorie und Betrag serverseitig; der Sortierzustand lebt im Client-Modell, der aktive Kopf trägt Pfeil und aria-sort. Tagesgruppen und Tagessummen gibt es nur bei Datumssortierung, sonst eine flache Liste, am Handy mit dem Datum in Zeile 2.
+**Duration:** 1h24m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
 ## 2026-10-20 20:15 -- Batch started: [ledger-bn913]
 
 **Type:** Work / Batch start

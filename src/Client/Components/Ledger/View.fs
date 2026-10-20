@@ -51,6 +51,23 @@ let formatEntryDate (today: DateTime) (d: DateTime) : string =
 
 let private formatDate (d: DateTime) = formatEntryDate DateTime.Today d
 
+/// Tagesgruppen und Tagessummen gibt es nur bei Sortierung nach Datum, in beiden
+/// Richtungen (ledger-bn913). Jede andere Sortierung macht die Liste flach.
+let usesDayGroups (sort: LedgerSort) : bool = sort.Field = SortByDate
+
+/// Das Datum in Zeile 2 der Handy-Zeile: nur in der flachen Liste, vorn vor Kontokürzel und
+/// Kategorie (ledger-bn913). In der gruppierten Liste steht es im Tageskopf.
+let mobileRowDateText (today: DateTime) (flat: bool) (entry: LedgerEntryView) : string option =
+    if flat then Some (formatEntryDate today entry.Date) else None
+
+/// Die Sortierrichtung des Kopfs `field` für die Tabelle: nur der aktive Kopf trägt eine.
+let headerSortDirection (sort: LedgerSort) (field: LedgerSortField) : Table.SortDirection =
+    if sort.Field <> field then Table.Unsorted
+    else
+        match sort.Direction with
+        | SortAsc -> Table.Ascending
+        | SortDesc -> Table.Descending
+
 // ============================================
 // Reine Bausteine (unit-testbar ohne DOM, siehe LedgerViewTests)
 // ============================================
@@ -500,6 +517,7 @@ let private entryRow
     (onClick: unit -> unit)
     (selected: bool option)
     (accountAbbreviationOf: (Guid -> string) option)
+    (flatDate: bool)
     (entry: LedgerEntryView)
     =
     // `selected`: `None` im Normalbetrieb, `Some` im Auswahl-Modus (die Zeile schaltet dann
@@ -535,6 +553,9 @@ let private entryRow
             Html.div [
                 prop.className Tokens.ListRoles.mobileLine2
                 prop.children [
+                    match mobileRowDateText DateTime.Today flatDate entry with
+                    | Some text -> Html.span [ prop.className $"{Tokens.ListRoles.muted} shrink-0"; prop.text text ]
+                    | None -> ()
                     match accountAbbreviationOf with
                     | Some abbreviationOf -> keepWidth (accountBadge (abbreviationOf entry.AccountId))
                     | None -> ()
@@ -561,6 +582,7 @@ let private entryRowWithReviewMark
     (accountAbbreviationOf: (Guid -> string) option)
     (rowState: ReviewMarkRowState option)
     (selected: bool option)
+    (flatDate: bool)
     (entry: LedgerEntryView)
     =
     // Außen ein Container: die Zeile ist ein `button` (öffnet die Historie), die
@@ -592,6 +614,7 @@ let private entryRowWithReviewMark
                             | None -> dispatch (OpenHistory entry))
                         selected
                         accountAbbreviationOf
+                        flatDate
                         entry
                     // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
                     // Im Auswahl-Modus entfällt die Schaltfläche: die Leiste und die Zeilen
@@ -1199,9 +1222,10 @@ let private swipeableEntryRow
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
     (rowState: ReviewMarkRowState option)
+    (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None entry
+    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None flatDate entry
     if swipeAppliesTo entry then
         Html.div [
             prop.key (string entry.Id)
@@ -1294,13 +1318,14 @@ let private mobileEntryRow
     (selectionMode: bool)
     (selection: Selection)
     (rowState: ReviewMarkRowState option)
+    (flatDate: bool)
     (entry: LedgerEntryView)
     =
     let inner =
         if selectionMode then
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) entry
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) flatDate entry
         else
-            swipeableEntryRow dispatch accountAbbreviationOf rowState entry
+            swipeableEntryRow dispatch accountAbbreviationOf rowState flatDate entry
     React.keyedFragment (
         string entry.Id,
         [ LongPressRow (not selectionMode) (fun () -> dispatch (StartSelectionMode entry.Id)) inner ]
@@ -1314,6 +1339,7 @@ let private entryListMobile
     (selectionMode: bool)
     (selection: Selection)
     (alwaysVisible: bool)
+    (sort: LedgerSort)
     (entries: LedgerEntryView list)
     =
     // `alwaysVisible`: die kompakte Liste ersetzt die Tabelle auch ab `md`, wenn die
@@ -1322,20 +1348,25 @@ let private entryListMobile
         if alwaysVisible then Html.div children else Primitives.Responsive.mobileOnly children
 
     wrap [
+        let row (flat: bool) (entry: LedgerEntryView) =
+            mobileEntryRow
+                dispatch
+                accountAbbreviationOf
+                selectionMode
+                selection
+                (reviewRows |> Map.tryFind entry.Id)
+                flat
+                entry
+
         Html.div [
             prop.children (
-                groupByDate entries
-                |> List.collect (fun (date, group) ->
-                    dateGroupHeader date (daySum includeDeleted group)
-                    :: (group
-                        |> List.map (fun entry ->
-                            mobileEntryRow
-                                dispatch
-                                accountAbbreviationOf
-                                selectionMode
-                                selection
-                                (reviewRows |> Map.tryFind entry.Id)
-                                entry)))
+                if usesDayGroups sort then
+                    groupByDate entries
+                    |> List.collect (fun (date, group) ->
+                        dateGroupHeader date (daySum includeDeleted group)
+                        :: (group |> List.map (row false)))
+                else
+                    entries |> List.map (row true)
             )
         ]
     ]
@@ -1444,11 +1475,35 @@ let private entryListDesktop
     (selection: Selection)
     (anchor: Guid option)
     (focusedRow: Guid option)
+    (sort: LedgerSort)
     (entries: LedgerEntryView list)
     =
     // Spalten vor dem Betrag: alle sichtbaren außer Betrag und Status.
     let visible = columns |> List.map fst
     let columnsBeforeAmount = List.length visible - 2
+
+    let sortHeader (text: string) (align: string option) (field: LedgerSortField) =
+        Table.calmSortableHeaderCell text align (headerSortDirection sort field) (fun () -> dispatch (SetSort field))
+
+    let bodyRows (entry: LedgerEntryView) =
+        let rowState = reviewRows |> Map.tryFind entry.Id
+        React.keyedFragment (
+            string entry.Id,
+            [ entryTableRow
+                  dispatch
+                  visible
+                  isAllAccounts
+                  accountAbbreviationOf
+                  cellMenu
+                  rowState
+                  (isSelected selection entry.Id)
+                  (anchor = Some entry.Id)
+                  (focusedRow = Some entry.Id)
+                  entry
+              match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
+              | Some hintRow -> hintRow
+              | None -> () ]
+        )
 
     Primitives.Responsive.desktopOnly [
         Table.view
@@ -1474,38 +1529,22 @@ let private entryListDesktop
                 Html.colgroup [ for (_, width) in columns -> col width ]
                 Table.thead [
                     selectHeaderCell dispatch headerState
-                    Table.calmHeaderCell "Datum" None
-                    if List.contains AccountColumn visible then Table.calmHeaderCell "Konto" None
-                    Table.calmHeaderCell "Payee" None
-                    Table.calmHeaderCell "Kategorie" None
+                    sortHeader "Datum" None SortByDate
+                    if List.contains AccountColumn visible then sortHeader "Konto" None SortByAccount
+                    sortHeader "Payee" None SortByPayee
+                    sortHeader "Kategorie" None SortByCategory
                     if List.contains MemoColumn visible then Table.calmHeaderCell "Memo" None
-                    Table.calmHeaderCell "Betrag" (Some "right")
+                    sortHeader "Betrag" (Some "right") SortByAmount
                     Table.calmHeaderCell "Status" (Some "right")
                 ]
                 Table.tbody (
-                    groupByDate entries
-                    |> List.collect (fun (date, group) ->
-                        dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
-                        :: (group
-                            |> List.map (fun entry ->
-                                let rowState = reviewRows |> Map.tryFind entry.Id
-                                React.keyedFragment (
-                                    string entry.Id,
-                                    [ entryTableRow
-                                          dispatch
-                                          visible
-                                          isAllAccounts
-                                          accountAbbreviationOf
-                                          cellMenu
-                                          rowState
-                                          (isSelected selection entry.Id)
-                                          (anchor = Some entry.Id)
-                                          (focusedRow = Some entry.Id)
-                                          entry
-                                      match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
-                                      | Some hintRow -> hintRow
-                                      | None -> () ]
-                                ))))
+                    if usesDayGroups sort then
+                        groupByDate entries
+                        |> List.collect (fun (date, group) ->
+                            dateGroupRow columnsBeforeAmount date (daySum includeDeleted group)
+                            :: (group |> List.map bodyRows))
+                    else
+                        entries |> List.map bodyRows
                 )
             ]
     ]
@@ -1561,6 +1600,7 @@ let private entryList
 
     | Success entries ->
         let layout = visibleColumns tableWidth isAllAccounts
+        let sort = Components.Ledger.State.effectiveSort model
 
         Html.div [
             entryListMobile
@@ -1571,6 +1611,7 @@ let private entryList
                 model.SelectionMode
                 model.Selection
                 (layout = CompactList)
+                sort
                 entries
             match layout with
             | CompactList -> ()
@@ -1587,6 +1628,7 @@ let private entryList
                     model.Selection
                     model.SelectionAnchor
                     model.FocusedRow
+                    sort
                     entries
 
             if model.LoadingMore then

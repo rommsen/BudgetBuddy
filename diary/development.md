@@ -4,6 +4,34 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-20 21:30 - Kassenbuch sortieren über die Spaltenköpfe (ledger-bn913)
+
+**What I did:**
+Sortierzustand im Client (`Model.Sort`, `SetSort`, `effectiveSort`), klickbare Spaltenköpfe in der PC-Tabelle (`Table.calmSortableHeaderCell`), Tagesgruppen nur bei Datumssortierung, flache Liste mit Datum in der Handy-Zeile sonst.
+
+**Files Added:**
+- `src/Tests/LedgerSortClientTests.fs` - 17 Tests für Reducer, reine Funktionen und Quelltext-Zusicherungen
+- `scripts/ledger-sort-headers.test.mjs` - Playwright-Wächter für Klick, aria-sort, Tagesköpfe und Tastatur
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - `Model.Sort`, `SetSort`
+- `src/Client/Components/Ledger/State.fs` - `sortStartDirection`, `nextSort`, `effectiveSort`, `SetSort`, `buildPageQuery` sendet die wirksame Sortierung
+- `src/Client/Components/Ledger/View.fs` - sortierbare Köpfe, `usesDayGroups`, flache Listen, Datum in der Handy-Zeile
+- `src/Client/DesignSystem/Table.fs` - `ariaSortValue`, `calmSortableHeaderCell`
+- `src/Client/Components/Styleguide/View.fs` - Zustände der sortierbaren Kopfzelle
+- `src/Tests/LedgerViewTests.fs` - zwei Quelltext-Wächter auf `sortHeader` angepasst
+- `src/Tests/Tests.fsproj` - neue Testdatei
+
+**Rationale:**
+Roman will nach Betrag, Payee, Kategorie und Konto sortieren (ADR 0051); der Server liefert die Reihenfolge seit ledger-r72re, dieser Teil gibt dem PC die Bedienung.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1597 bestanden, 0 fehlgeschlagen, 7 übersprungen; Playwright-Wächter einzeln grün
+- Issues: Wächter mit gemockter API brauchen eine offene `mirrorYnabBudget`-Anfrage; `ledger-cell-menu.test.mjs` flattert unter Last
+
+---
+
 ## 2026-10-20 19:30 - Hotfix: Buchungsliste lädt mit altem Client wieder (500 bei getLedgerEntriesPage)
 
 **What I did:**

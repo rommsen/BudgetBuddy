@@ -434,6 +434,14 @@ let private calmListSection =
                 PageHeader.calm "Kassenbuch" (Some "Gespiegelt heute 22:24") [
                     Button.secondary "Sync" ignore
                 ]
+                note "Sortierbare Kopfzelle (ledger-bn913): aktiv aufsteigend, aktiv absteigend, nicht aktiv. Der Pfeil steht nur am aktiven Kopf, aria-sort trägt die Richtung."
+                Table.view { Table.defaultTableProps with Variant = Table.Hover } [
+                    Table.thead (keyed [
+                        Table.calmSortableHeaderCell "Betrag aufsteigend" None Table.Ascending ignore
+                        Table.calmSortableHeaderCell "Datum absteigend" None Table.Descending ignore
+                        Table.calmSortableHeaderCell "Payee ohne Sortierung" None Table.Unsorted ignore
+                    ])
+                ]
                 Table.view { Table.defaultTableProps with Variant = Table.Hover } [
                     Table.thead (keyed [
                         Table.calmHeaderCell "Datum" None

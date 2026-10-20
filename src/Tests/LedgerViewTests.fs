@@ -528,8 +528,8 @@ let private statusColumnTests =
             let desktopBody = sliceFunctionBody view "let private entryListDesktop"
             Expect.stringContains desktopBody "for (_, width) in columns -> col width"
                 "Die colgroup baut auf den Breiten aus visibleColumns."
-            Expect.stringContains desktopBody "Table.calmHeaderCell \"Payee\""
-                "Spaltenkopf der ruhigen Tabelle."
+            Expect.stringContains desktopBody "sortHeader \"Payee\" None SortByPayee"
+                "Sortierbarer Spaltenkopf der ruhigen Tabelle (ledger-bn913)."
             Expect.stringContains desktopBody "if List.contains MemoColumn visible then Table.calmHeaderCell \"Memo\""
                 "Der Memo-Kopf fällt mit der Memo-Spalte weg."
         }
@@ -839,7 +839,7 @@ let private calmListSourceTests =
             let view = readLedgerView ()
             Expect.stringContains (sliceFunctionBody view "let private tdMoney") "Table.amountCell" "Betragsrolle"
             Expect.stringContains (sliceFunctionBody view "let private entryListDesktop")
-                "Table.calmHeaderCell \"Betrag\" (Some \"right\")" "Kopf rechtsbündig"
+                "sortHeader \"Betrag\" (Some \"right\") SortByAmount" "Kopf rechtsbündig"
         }
 
         test "Zu prüfen ist in beiden Viewports die Statuskante, kein Punkt und kein Rahmen mehr" {

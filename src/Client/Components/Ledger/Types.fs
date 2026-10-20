@@ -341,6 +341,12 @@ type Model = {
     /// geladene Seite sie gemeldet hat (unabhängig von `IncludeDeleted`, AC2).
     DeletedCount: int
 
+    /// Die gewählte Sortierung der Liste (ledger-bn913, ADR 0051). Standard
+    /// `LedgerSort.defaultSort`. Lebt nur im Client-Zustand, übersteht Konto- und
+    /// Filterwechsel und wird nicht gespeichert. Gesendet und gezeigt wird
+    /// `effectiveSort`, nicht dieses Feld unmittelbar.
+    Sort: LedgerSort
+
     /// Zeigt die Liste nur zu prüfende Buchungen (ADR 0032)? Standardmäßig `false`.
     /// Geht in die nächste `getLedgerEntriesPage`-Abfrage ein, wie `IncludeDeleted`.
     OnlyNeedsReview: bool
@@ -679,6 +685,9 @@ type Msg =
 
     // Konto-Filter
     | SelectFilter of AccountFilter
+    /// Klick auf einen sortierbaren Spaltenkopf (ledger-bn913): dasselbe Feld dreht die
+    /// Richtung, ein anderes setzt Feld und Startrichtung. Lädt ab Seite 0 neu.
+    | SetSort of LedgerSortField
 
     // Buchungen, seitenweise
     | LoadEntries
