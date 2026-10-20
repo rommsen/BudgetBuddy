@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-20 10:07 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h25m
+**Completed:** 4 (first-try PASS: 3, re-dispatched: 1, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** r72re: 1, mhe2s: 1 (plus 1 Resolve-Dispatch für den Tests.fsproj-Konflikt mit qh9qx), qh9qx: 2, rfq5p: 1
+**Commits:** 7
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (4 tasks)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-10-20 10:01 -- Task verified and completed: ledger-rfq5p - "\"Hier nach filtern\": Klick auf Payee oder Kategorie einer Zeile öffnet ein kleines Menü, das den passenden Such-Filter in einem Schritt setzt"
 
 **Type:** Work / Task completion
