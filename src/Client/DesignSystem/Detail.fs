@@ -96,13 +96,12 @@ let filterButton (label: string) (onClick: unit -> unit) : ReactElement =
         prop.children [ Icons.filter Icons.SM Icons.Default ]
     ]
 
-/// Der Kopf des Panels: Betrag, Payee (mit Filter-Knopf, wenn der Aufrufer einen gibt),
-/// "Konto · Datum" und der Schließen-Knopf.
+/// Der Kopf des Panels: Betrag, "Konto · Datum" und der Schließen-Knopf. Der Payee steht
+/// als erste Feldzeile darunter, damit sein Filter-Knopf in derselben Spalte sitzt wie der
+/// der Kategorie.
 let head
     (amountElement: ReactElement)
-    (title: string)
     (subtitle: string)
-    (filter: ReactElement option)
     (onClose: (unit -> unit) option)
     : ReactElement =
     Html.div [
@@ -112,21 +111,8 @@ let head
                 prop.className "min-w-0"
                 prop.children [
                     amountElement
-                    Html.div [
-                        prop.className "mt-1.5 flex min-w-0 items-center gap-1"
-                        prop.children [
-                            Html.h2 [
-                                prop.custom ("data-testid", "detail-title")
-                                prop.className $"truncate {FontSizes.lg} font-semibold {Colors.textPrimary}"
-                                prop.text title
-                            ]
-                            match filter with
-                            | Some button -> button
-                            | None -> ()
-                        ]
-                    ]
                     Html.p [
-                        prop.className $"mt-0.5 {FontSizes.xs} {Colors.textMuted}"
+                        prop.className $"mt-1.5 {FontSizes.xs} {Colors.textMuted}"
                         prop.text subtitle
                     ]
                 ]

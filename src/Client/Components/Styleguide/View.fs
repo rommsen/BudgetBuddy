@@ -1175,7 +1175,7 @@ let private DetailDemo () =
                   { Key = "0"; Dot = Detail.DotGrey; Text = "Kategorie in YNAB geändert"; Stamp = "10.09.2026 17:50 · YNAB-Spiegel" } ]
         ]
 
-        card "components-detail-panel" "Detail: Seitenpanel" "Kopf mit Betrag, Payee und Filter-Knopf, darunter der scrollende Inhalt (ab md sichtbar)" [
+        card "components-detail-panel" "Detail: Seitenpanel" "Kopf mit Betrag und Konto · Datum, darunter Payee und Kategorie mit Filter-Knopf in einer Spalte (ab md sichtbar)" [
             Html.div [
                 prop.className "relative h-[28rem] overflow-hidden"
                 prop.children [
@@ -1183,11 +1183,19 @@ let private DetailDemo () =
                         "Detail REWE Mitte"
                         [ Detail.head
                               (Detail.amount -48.12m "EUR" false)
-                              "REWE Mitte"
                               "Girokonto Comdirect · 10.09.2026"
-                              (Some (Detail.filterButton "Nur Buchungen von REWE Mitte zeigen" ignore))
                               (Some ignore)
                           Detail.scrollBody [
+                              Detail.fieldRow
+                                  "styleguide-detail-panel-payee"
+                                  "Payee"
+                                  (Detail.valueText Tokens.Colors.textPrimary "REWE Mitte")
+                                  (Some (Detail.filterButton "Nur Buchungen von REWE Mitte zeigen" ignore))
+                              Detail.fieldRow
+                                  "styleguide-detail-panel-category"
+                                  "Kategorie"
+                                  (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
+                                  (Some (Detail.filterButton "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore))
                               Detail.fieldRow
                                   "styleguide-detail-panel-memo"
                                   "Memo"

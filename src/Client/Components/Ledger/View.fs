@@ -1103,15 +1103,11 @@ let private historyView (dispatch: Msg -> unit) (entry: LedgerEntryView) (histor
     | Success [] -> Detail.timelineEmpty "Noch keine Einträge"
     | Success lines -> Detail.timeline (historyTimelineItems lines)
 
-/// Der Kopf des Details: Betrag, Payee mit Filter-Knopf, "Konto · Datum", Schließen.
-let private detailHead (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
+/// Der Kopf des Details: Betrag, "Konto · Datum", Schließen.
+let private detailHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -> unit) option) =
     Detail.head
         (Detail.amount entry.Amount.Amount entry.Amount.Currency entry.DeletedInYnab)
-        (payeeLabel entry)
         (detailSubtitle (accountNameOf model entry) entry)
-        (match payeeFilterLabel entry, entry.Payee with
-         | Some label, Some payee -> Some (Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee)))
-         | _ -> None)
         onClose
 
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
@@ -1123,6 +1119,24 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     [ match detailNoticeFor rowState model.History entry with
       | Some notice -> noticeView dispatch rowState entry notice
       | None -> ()
+
+      // Payee: eigene Feldzeile, damit sein Filter-Knopf rechts bündig mit dem der
+      // Kategorie steht.
+      Detail.fieldRow
+          "detail-payee"
+          "Payee"
+          (Html.span [
+              prop.custom ("data-testid", "detail-title")
+              prop.className "min-w-0"
+              prop.children [
+                  Detail.valueText
+                      (if muted || entry.Payee.IsNone then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
+                      (payeeLabel entry)
+              ]
+          ])
+          (match payeeFilterLabel entry, entry.Payee with
+           | Some label, Some payee -> Some (Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee)))
+           | _ -> None)
 
       // Kategorie: lesend, am PC voll qualifiziert (ADR 0039). Rechts bleibt Platz für den
       // Pfeil des Kategorie-Pickers ab v2 (ledger-k2rbn); jetzt nur der Filter-Knopf.
@@ -1179,7 +1193,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
     Detail.panel
         $"Detail {payeeLabel entry}"
-        [ detailHead dispatch model entry (Some (fun () -> dispatch CloseDetail))
+        [ detailHead model entry (Some (fun () -> dispatch CloseDetail))
           Detail.scrollBody (detailContent dispatch model entry) ]
 
 /// Das Detail als BottomSheet (Handy, Kompaktliste, zu schmales Fenster für das Panel).
@@ -1197,7 +1211,7 @@ let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool)
         // sonst als verstecktes Doppel neben dem Panel stehen.
         [ match entry with
           | Some entry when open' ->
-              detailHead dispatch model entry None
+              detailHead model entry None
               yield! detailContent dispatch model entry
           | _ -> () ]
 

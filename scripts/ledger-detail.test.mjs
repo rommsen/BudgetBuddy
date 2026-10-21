@@ -151,8 +151,15 @@ test("PC: Das Panel zeigt Felder, Herkunft und die Zeitleiste, neueste Zeile obe
 });
 
 test("PC: Die Filter-Knöpfe tragen den vollen Namen, filtern und lassen das Panel offen", async () => {
-  const payeeButton = panel(page).locator('[data-testid="detail-filter"]').first();
+  const payeeButton = panel(page).locator('[data-testid="detail-payee"] [data-testid="detail-filter"]');
   assert.equal(await payeeButton.getAttribute("aria-label"), `Nur Buchungen von ${PAYEE} zeigen`);
+  // Roman suchte den Payee-Filter, solange er im Kopf direkt am Namen klebte: der Payee hat
+  // eine eigene Feldzeile, und beide Filter-Knöpfe enden an derselben rechten Kante.
+  const categoryRight = await panel(page)
+    .locator('[data-testid="detail-category"] [data-testid="detail-filter"]')
+    .evaluate((el) => el.getBoundingClientRect().right);
+  const payeeRight = await payeeButton.evaluate((el) => el.getBoundingClientRect().right);
+  assert.ok(Math.abs(payeeRight - categoryRight) < 1, `Filter-Knöpfe bündig rechts (${payeeRight} gegen ${categoryRight})`);
   assert.equal(await payeeButton.getAttribute("title"), `Nur Buchungen von ${PAYEE} zeigen`);
   const before = queries.length;
   await payeeButton.click();
@@ -242,7 +249,8 @@ test("Handy (390x844): Tipp öffnet das Sheet mit Filter-Knöpfen an den Feldern
     await buttons.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label"))),
     ["Nur Buchungen von Deutsche Bahn zeigen", "Nur Buchungen in Alltag: Bahn zeigen"]
   );
-  // Der Kategorie-Knopf sitzt in der Kategorie-Zeile, der Payee-Knopf im Kopf.
+  // Jeder Knopf sitzt in der Zeile seines Felds.
+  assert.equal(await sheet(mobilePage).locator('[data-testid="detail-payee"] [data-testid="detail-filter"]').count(), 1);
   assert.equal(await sheet(mobilePage).locator('[data-testid="detail-category"] [data-testid="detail-filter"]').count(), 1);
   const before = queries.length;
   await buttons.first().tap();

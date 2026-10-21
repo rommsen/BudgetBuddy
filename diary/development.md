@@ -4,6 +4,28 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-21 08:40 - Detail: Payee als eigene Feldzeile, Filter-Knöpfe bündig
+
+**What I did:**
+Im Buchungs-Detail steht der Payee jetzt als erste Feldzeile ("Payee", Wert und Filter-Knopf rechts) statt als Überschrift im Kopf. Der Kopf zeigt nur noch Betrag und "Konto · Datum". Damit stehen die Filter-Knöpfe von Payee und Kategorie rechts bündig untereinander.
+
+**Files Modified:**
+- `src/Client/DesignSystem/Detail.fs` - `head` ohne Titel und Filter-Parameter
+- `src/Client/Components/Ledger/View.fs` - `detailHead` vereinfacht, Feldzeile `detail-payee` (Wert trägt weiter `detail-title`)
+- `src/Client/Components/Styleguide/View.fs` - Panel-Beispiel mit Payee- und Kategorie-Feldzeile
+- `scripts/ledger-detail.test.mjs` - Regressionsprüfung: Payee-Knopf in der Payee-Zeile, rechte Kanten beider Knöpfe gleich; Handy: Knopf in der Payee-Zeile
+- `.agentheim/knowledge/contexts/ledger/README.md` - Eintrag Buchungs-Detail
+
+**Rationale:**
+Roman hat den Payee-Filter nach dem Deploy gesucht: im Kopf klebte der Knopf direkt am Namen, in anderer Spalte als der Kategorie-Knopf.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1667 bestanden, 0 Fehler; Wächter seriell 157/157; guard:classes OK
+- Issues: keine
+
+---
+
 ## 2026-10-20 23:10 - Detail: README nachgezogen, Punktfarbe gegen echte Sätze (ledger-q1hw2, Iteration 2)
 
 **What I did:**
