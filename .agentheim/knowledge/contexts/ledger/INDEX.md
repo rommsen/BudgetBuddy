@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0058** — Split-Schreibweg nach YNAB (proposed): bestehende Split-Buchungen werden gelöscht und mit derselben import_id neu angelegt, weil die API das Ändern von subtransactions ausschließt; Probelauf gegen ein Wegwerf-Budget steht aus — 2026-10-24 — `../../decisions/0058-split-schreibweg-loeschen-und-neu-anlegen.md`
 - **0056** — Lena zuweisen: Flag-Farbe aus den Settings, Schreibweg nach ADR 0050, Fehlschlag mit Baseline (Nachtrag) — 2026-10-24 — `../../decisions/0056-lena-zuweisen-flag-farbe-aus-settings-schreibweg-nach-adr-0050.md`
 - **0055** — Kategorie-Schreibweg: Ereignis mit alt/neu, Fehlschlag mit Baseline, YNAB gewinnt, Available live — 2026-10-24 — `../../decisions/0055-kategorie-schreibweg-ereignis-fehlschlag-mit-baseline-ynab-gewinnt.md`
 - **0054** — Kategorie ändern ist die erste v2-Fähigkeit, vor Abschluss von v1 — 2026-10-24 — `../../decisions/0054-kategorie-aendern-ist-die-erste-v2-faehigkeit-vor-abschluss-von-v1.md`

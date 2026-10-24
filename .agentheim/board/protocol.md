@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:09 -- Task verified and completed: ledger-mas5g - "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf"
+
+**Type:** Work / Task completion
+**Task:** ledger-mas5g - "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf"
+**Summary:** Die offizielle YNAB-OpenAPI (Version 1.87.0) schließt das Ändern der Split-Zeilen einer bestehenden Split-Buchung ausdrücklich aus (Fall b und c negativ belegt); das Aufteilen einer unaufgeteilten Buchung (Fall a) und Details zu Delete und Neuanlage sind aus der Spec nicht entscheidbar und brauchen ein Wegwerf-Budget. Empfohlen wird als Ersatz Löschen und Neuanlegen mit derselben import_id, mit den Folgen für approved, cleared, Verknüpfung und Übertrags-Gegenbuchungen im Outcome.
+**Duration:** 12m
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** 0058-split-schreibweg-loeschen-und-neu-anlegen.md
+
+---
+
 ## 2026-10-24 14:50 -- Batch started: [design-system-wfhxj, ledger-mas5g, ledger-k2rbn]
 
 **Type:** Work / Batch start

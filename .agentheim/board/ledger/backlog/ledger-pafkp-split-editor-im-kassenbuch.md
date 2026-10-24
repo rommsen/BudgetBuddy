@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-001, ledger-sfab0, ledger-kxme4, design-system-gffps]
 blocks: []
 tags: [frontend, kassenbuch, split, v2]
-related_adrs: [0005, 0006, 0049, 0053, 0055]
+related_adrs: [0005, 0006, 0049, 0053, 0055, 0058]
 related_research: []
 prior_art: [ledger-q1hw2]
 ---
@@ -90,3 +90,20 @@ Handoff ist inzwischen geholt und gegen ADR 0053 abgeglichen.) Dateien: Ledger-C
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
+
+## Spike-Ergebnis (ledger-mas5g, 2026-10-24)
+
+Die Oberfläche bleibt wie geplant, der Schreibweg dahinter ändert sich (siehe das Spike-Ergebnis
+in `ledger-kxme4` und ADR 0058, proposed): YNAB lässt die Zeilen einer bestehenden
+Split-Buchung nicht per Update ändern oder aufheben. "Ändern" und "Aufheben" laufen als Löschen
+und Neuanlegen. Folgen für die Oberfläche:
+1. Speichern kann länger dauern (zwei Aufrufe) und einen zusätzlichen Fehlschlag-Zustand haben
+   ("in YNAB gelöscht, Neuanlage offen"). Die Fehlschlag-Leiste aus `ledger-sfab0` braucht
+   dafür einen Text und "Erneut senden".
+2. Der Editor ist für Buchungen mit `cleared: reconciled` gesperrt, bis der Probelauf klärt,
+   wie YNAB sie behandelt (Hinweistext im Detail).
+3. "Rückgängig" im Toast ist ein zweiter Ersatz (Löschen und Neuanlegen) und kostet zwei
+   weitere YNAB-Aufrufe; die Historie zeigt beide Schreibvorgänge. Ratenbegrenzung beachten.
+4. Die YNAB-Id der Buchung ändert sich nach dem Speichern. Der Eintrag im Kassenbuch bleibt
+   bestehen (Zuordnung über `import_id`); Kriterien dazu stehen in `ledger-kxme4`.
+5. Abhängigkeit bleibt `ledger-kxme4`; zusätzlich Vorbedingung Probelauf und ADR 0058.

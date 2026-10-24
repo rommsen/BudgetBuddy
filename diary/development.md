@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 16:00 - Spike ledger-mas5g: YNAB-API und Split-Zeilen einer bestehenden Buchung
+
+**What I did:**
+OpenAPI-Spec 1.87.0 von api.ynab.com geladen (Scratchpad), die Stellen zu `subtransactions`, `category_id`, `date`, `amount`, `approved`, PUT, PATCH, POST und DELETE gelesen, ADR 0006, 0028, 0054, 0055, 0046 und die Folge-Tasks `ledger-kxme4` und `ledger-pafkp` abgeglichen. Kein Aufruf gegen YNAB.
+
+**Files Added:**
+- keine im Repo. Scratchpad: `.../scratchpad/ledger-mas5g/spec.yaml`, `.../scratchpad/ledger-mas5g/web/docs.html`
+
+**Files Modified:**
+- keine
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Von der Antwort hing ab, ob die Split-Bearbeitung wie geplant gebaut werden kann. Die Spec beantwortet Fall b und c negativ; Fall a, die import_id-Wiederverwendung, reconciled und das Verhalten der Gegenbuchungen sind nur per Wegwerf-Budget prüfbar. Stop-Loss: Der Ersatzweg ist bekannt, der Rest braucht Schreibzugriff, den der Spike nicht hat.
+
+**Outcomes:**
+- Build: nicht berührt (kein Code geändert)
+- Tests: nicht berührt
+- Issues: Keine Web-Tools in dieser Umgebung, nur curl; Forum und Support-Artikel konnten nicht geprüft werden.
+
+---
+
 ## 2026-10-24 14:10 - Design-Tafeln gesichert, Handoff Ablauf 4, Sammel-Modeling
 
 **What I did:**
