@@ -1,7 +1,7 @@
 ---
 id: ledger-h6mer
 title: "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
-status: backlog
+status: todo
 type: chore
 context: ledger
 created: 2026-10-02

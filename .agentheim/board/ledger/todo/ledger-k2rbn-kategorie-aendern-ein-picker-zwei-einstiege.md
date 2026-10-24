@@ -1,7 +1,7 @@
 ---
 id: ledger-k2rbn
 title: "Kategorie ändern in BB (v2), Schreibweg für eine Buchung: Befehl setEntryCategory, Ereignis EntryRecategorized, PUT nach YNAB, Fehlschlag mit Baseline, Erneut senden, YNAB gewinnt, Schreib-Sperre gegen den Spiegel"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-20

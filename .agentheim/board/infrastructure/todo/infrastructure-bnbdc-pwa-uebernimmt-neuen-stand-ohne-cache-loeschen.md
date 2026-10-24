@@ -1,7 +1,7 @@
 ---
 id: infrastructure-bnbdc
 title: "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)"
-status: backlog
+status: todo
 type: feature
 context: infrastructure
 created: 2026-10-20
