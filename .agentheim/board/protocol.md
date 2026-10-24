@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:57 -- Batch started: [ledger-kwwxz]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-kwwxz - "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
+**Parallel:** yes (Welle 3b, neben ledger-b7qmx und der Iteration 2 von design-system-gffps; startet nach Integration von infrastructure-bnbdc, beide ändern src/Client/State.fs)
+
+---
+
 ## 2026-10-24 15:56 -- Task verified and completed: infrastructure-bnbdc - "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)"
 
 **Type:** Work / Task completion

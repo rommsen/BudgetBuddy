@@ -1,7 +1,7 @@
 ---
 id: ledger-kwwxz
 title: "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-12
