@@ -4,6 +4,34 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 21:10 - Kassenbuch-Detail: Kategorie ändern (ledger-sfab0)
+
+**What I did:**
+Pfeil an der Kategorie im Buchungs-Detail öffnet den Kategorie-Picker (Popover im Panel, zweites Sheet am Handy). Auswahl über `setEntryCategory` mit Karte "Budget nach dem Wechsel", Toast mit Rückgängig, Vorschlägen zum Payee (neue Server-Abfrage), Hinweisleiste "Kategorie nicht in YNAB" mit Erneut senden, gesperrten Fällen und stehenbleibender Zeile (ausgegraut bei Filter-Nichttreffer, Leiste "Neu laden" bei Sortierschlüssel).
+
+**Files Added:**
+- `src/Tests/LedgerPayeeCategorySuggestionsTests.fs` - 5 Tests der Payee-Vorschläge über die Projektion
+- `src/Tests/LedgerCategoryChangeClientTests.fs` - 42 Tests für Reducer und reine Bausteine
+- `scripts/ledger-category-change.test.mjs` - 7 Playwright-Wächter (PC und 390 px)
+
+**Files Modified:**
+- `src/Shared/Api.fs`, `src/Server/Api.fs`, `src/Server/Ledger/QueryHandlers.fs`, `src/Server/Ledger/Persistence.fs` - Abfrage `getPayeeCategorySuggestions`
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs` - Modell, Nachrichten, Reducer, Ansicht (Pfeil, Picker, Karte, Hinweisleiste, ausgegraute Zeile, Stale-Leiste)
+- `src/Client/Types.fs`, `src/Client/State.fs` - `UndoCategory` und `toastActionMsg`
+- `src/Client/DesignSystem/Detail.fs`, `CategoryPicker.fs`, `FilterPopover.fs` - `fieldRowWith`, `pickerArrow`, `pickerArrowSpacer`, `popoverInPanel`, `panelWidthClass`
+- `src/Client/Components/Styleguide/View.fs`, `standards/frontend/styleguide.md` - Galerie und Beschreibung
+- `src/Tests/LedgerDetailTests.fs`, `src/Tests/Tests.fsproj` - drei Zusicherungen angepasst, neue Dateien eingetragen
+
+**Rationale:**
+Erste Oberfläche für Kategorie ändern (ADR 0054, 0055). Das Popover musste in die 420 px des Panels passen, deshalb eine eigene Breitenklasse. Der Payee-Filter-Knopf bekam einen Platzhalter, damit er bündig mit dem Kategorie-Filter-Knopf bleibt.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: dotnet test 1878 grün, 7 übersprungen; test:scripts 198/198
+- Issues: Ein Modul-Wert vom Typ ReactElement (`pickerArrowSpacer`) warf im Typ-Initialisierer unter .NET (Wächter "Modul-Startup"), jetzt eine Funktion.
+
+---
+
 ## 2026-10-24 16:52 - Split-Zeilen-Kategorie im Detail voll qualifiziert (ledger-b7qmx)
 
 **What I did:**

@@ -190,10 +190,26 @@ let notice (props: NoticeProps) : ReactElement =
 
 /// Eine Feldzeile: Bezeichnung links, Wert rechts, optional ein Knopf dahinter
 /// (Filter-Knopf, ab v2 der Pfeil des Kategorie-Pickers). `testId` benennt die Zeile.
-let fieldRow (testId: string) (label: string) (value: ReactElement) (trailing: ReactElement option) : ReactElement =
+let fieldRowWith
+    (onClick: (unit -> unit) option)
+    (testId: string)
+    (label: string)
+    (value: ReactElement)
+    (trailing: ReactElement option)
+    : ReactElement =
     Html.div [
         prop.custom ("data-testid", testId)
-        prop.className $"flex min-h-14 items-center gap-3 px-4 py-2 border-b {Borders.subtle}"
+        prop.className (
+            $"flex min-h-14 items-center gap-3 px-4 py-2 border-b {Borders.subtle}"
+            + (if onClick.IsSome then " cursor-pointer" else "")
+        )
+        match onClick with
+        | Some click ->
+            prop.onClick (fun _ -> click ())
+            // Ein offenes Popover schließt bei einem Mausdruck außerhalb. Gehört der Druck zu
+            // dieser Zeile, soll der Klick es schalten und nicht erst schließen und neu öffnen.
+            prop.onMouseDown (fun e -> e.stopPropagation ())
+        | None -> ()
         prop.children [
             Html.span [ prop.className $"shrink-0 {FontSizes.sm} {Colors.textMuted}"; prop.text label ]
             Html.div [
@@ -207,6 +223,37 @@ let fieldRow (testId: string) (label: string) (value: ReactElement) (trailing: R
             ]
         ]
     ]
+
+let fieldRow (testId: string) (label: string) (value: ReactElement) (trailing: ReactElement option) : ReactElement =
+    fieldRowWith None testId label value trailing
+
+/// Der Pfeil neben einem Feld, der eine Auswahl öffnet (Kategorie-Picker, ledger-sfab0).
+/// `lockedHint`: gesperrt, der Knopf ist gedämpft, wirkt nicht und nennt den Grund als
+/// Tooltip. Die Trefferfläche ist mindestens 44 px hoch.
+let pickerArrow (label: string) (isOpen: bool) (lockedHint: string option) (onClick: unit -> unit) : ReactElement =
+    let locked = lockedHint.IsSome
+    Html.button [
+        prop.type'.button
+        prop.title (lockedHint |> Option.defaultValue label)
+        prop.ariaLabel (lockedHint |> Option.defaultValue label)
+        prop.custom ("aria-disabled", (if locked then "true" else "false"))
+        prop.custom ("aria-expanded", (if isOpen then "true" else "false"))
+        prop.custom ("data-testid", "detail-category-arrow")
+        prop.className (
+            $"inline-flex h-11 w-8 shrink-0 items-center justify-center rounded-lg {Colors.textMuted} transition-colors touch-manipulation "
+            + (if locked then "opacity-40 cursor-not-allowed" else "hover:text-text-primary hover:bg-surface-hover")
+        )
+        prop.onMouseDown (fun e -> e.stopPropagation ())
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            if not locked then onClick ())
+        prop.children [ Icons.chevronDown Icons.SM Icons.Default ]
+    ]
+
+/// Ein unsichtbarer Platzhalter in der Breite des Pfeils: Feldzeilen ohne Pfeil (Payee) halten
+/// damit ihren Filter-Knopf bündig mit dem der Kategorie-Zeile.
+let pickerArrowSpacer () : ReactElement =
+    Html.span [ prop.className "h-11 w-8 shrink-0"; prop.ariaHidden true ]
 
 /// Der Wert einer Feldzeile als Text; `className` trägt die Farbe (Kategorie) oder
 /// `Colors.textMuted` für einen Platzhalter.

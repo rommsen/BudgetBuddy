@@ -66,6 +66,13 @@ let init () : Model * Cmd<Msg> =
         SelectionMode = false
         FocusedRow = None
         ReviewMarkBatchRunning = false
+        CategoryPickerFor = None
+        CategorySuggestions = []
+        CategoryRows = Map.empty
+        CategoryCard = None
+        CategoryCardVersion = 0
+        FilteredOut = Set.empty
+        OrderStale = false
     }
     model, Cmd.none
 
@@ -86,6 +93,10 @@ let private resetEntries (model: Model) : Model = {
         Selection = NoSelection
         SelectionAnchor = None
         SelectionMode = false
+        // Eine neu aufgesetzte Liste kennt weder ausgegraute Zeilen noch eine veraltete
+        // Reihenfolge (ledger-sfab0).
+        FilteredOut = Set.empty
+        OrderStale = false
 }
 
 /// Die Startrichtung beim Wechsel auf ein anderes Sortierfeld (ADR 0051 Punkt 9): Datum
@@ -286,6 +297,135 @@ let private applyUndoReviewMark
     let reinserted = reinsertSwipedAway entryId model
     applyReviewMarkResult entryId (Some (needsReviewOf previous)) (writeBackFailureOf outcome) reinserted
 
+// ============================================
+// Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
+// ============================================
+
+/// Die Buchung aus der geladenen Liste, sonst die Momentaufnahme des offenen Details.
+let private findEntry (model: Model) (entryId: Guid) : LedgerEntryView option =
+    let loaded =
+        match model.Entries with
+        | Success entries -> entries |> List.tryFind (fun e -> e.Id = entryId)
+        | _ -> None
+    loaded |> Option.orElse (model.DetailFor |> Option.filter (fun d -> d.Id = entryId))
+
+let private categoryOfId (model: Model) (id: YnabCategoryId option) : YnabCategory option =
+    match model.Categories, id with
+    | Success categories, Some wanted -> categories |> List.tryFind (fun c -> c.Id = wanted)
+    | _ -> None
+
+/// Der offene Fehlschlag der Buchung nach einem Kategorie-Befehl: der Grund aus der Antwort,
+/// `None` nach erfolgreichem Versand; ohne Änderung und ohne Versand bleibt ein bisheriger
+/// Fehlschlag stehen.
+let private categoryFailureOf (outcome: CategoryChangeOutcome) (entry: LedgerEntryView) : string option =
+    match outcome.WriteBack with
+    | CategorySendFailed reason -> Some reason
+    | CategorySent -> None
+    | CategoryNotSent -> if outcome.Change = CategoryUnchanged then entry.CategorizationWriteBackFailure else None
+
+/// Ersetzt die Buchung in der geladenen Liste und im offenen Detail.
+let private replaceEntry (updated: LedgerEntryView) (model: Model) : Model =
+    let entries =
+        match model.Entries with
+        | Success list -> Success (list |> List.map (fun e -> if e.Id = updated.Id then updated else e))
+        | other -> other
+    let detail =
+        match model.DetailFor with
+        | Some d when d.Id = updated.Id -> Some updated
+        | other -> other
+    { model with Entries = entries; DetailFor = detail }
+
+/// Fällt die geänderte Zeile aus dem aktiven Filter, bleibt sie ausgegraut stehen und zählt
+/// für den Seitenversatz wie eine entfernte Zeile; Trefferzahl und Summe gehen sofort mit.
+/// Macht eine Rücknahme sie wieder zum Treffer, kehrt alles um. Rein.
+let private applyFilterEffect (updated: LedgerEntryView) (model: Model) : Model =
+    let matches = rowMatchesFilters model.Filters updated
+    let wasOut = model.FilteredOut.Contains updated.Id
+    let amount = if updated.DeletedInYnab then 0m else updated.Amount.Amount
+    let loadedCount (m: Model) =
+        (match m.Entries with Success list -> List.length list | _ -> 0) - Set.count m.FilteredOut
+    match matches, wasOut with
+    | false, false ->
+        let m =
+            { model with
+                FilteredOut = Set.add updated.Id model.FilteredOut
+                LocallyRemoved = model.LocallyRemoved + 1
+                TotalCount = max 0 (model.TotalCount - 1)
+                TotalAmount = { model.TotalAmount with Amount = model.TotalAmount.Amount - amount } }
+        { m with HasMoreEntries = loadedCount m < m.TotalCount }
+    | true, true ->
+        let m =
+            { model with
+                FilteredOut = Set.remove updated.Id model.FilteredOut
+                LocallyRemoved = max 0 (model.LocallyRemoved - 1)
+                TotalCount = model.TotalCount + 1
+                TotalAmount = { model.TotalAmount with Amount = model.TotalAmount.Amount + amount } }
+        { m with HasMoreEntries = loadedCount m < m.TotalCount }
+    | _ -> model
+
+/// Trägt das Ergebnis von `setEntryCategory` in den Zustand ein. `newId` ist die gewählte
+/// Kategorie, `fallbackName` der Name, falls die Kategorienliste sie nicht kennt (Rücknahme).
+/// `showCard`: die Karte "Budget nach dem Wechsel" zeigen (nicht bei der Rücknahme). Das
+/// zweite Ergebnis sind die Folgebefehle (Ablauf der Karte, Zähler neu laden). Rein.
+let private applyCategoryResult
+    (entryId: Guid)
+    (newId: YnabCategoryId option)
+    (fallbackName: string option)
+    (showCard: bool)
+    (outcome: CategoryChangeOutcome)
+    (model: Model)
+    : Model * Cmd<Msg> =
+    let cleared =
+        { model with
+            CategoryRows = model.CategoryRows |> Map.remove entryId
+            CategoryPickerFor = None
+            CategorySuggestions = [] }
+    match findEntry cleared entryId with
+    | None -> cleared, Cmd.none
+    | Some entry when outcome.Change = CategoryUnchanged ->
+        replaceEntry { entry with CategorizationWriteBackFailure = categoryFailureOf outcome entry } cleared, Cmd.none
+    | Some entry ->
+        let oldId = entry.CategoryId |> Option.map YnabCategoryId
+        let category = categoryOfId cleared newId
+        let updated =
+            { entry with
+                CategoryId = newId |> Option.map (fun (YnabCategoryId g) -> g)
+                CategoryName = category |> Option.map (fun c -> c.Name) |> Option.orElse (newId |> Option.bind (fun _ -> fallbackName))
+                CategoryGroupName = category |> Option.map (fun c -> c.GroupName)
+                CategorizationWriteBackFailure = categoryFailureOf outcome entry }
+        let today = DateTime.Today
+        let args = (entry.Date, entry.Amount.Amount, oldId, newId, today)
+        let lines =
+            match cleared.Categories with
+            | Success categories when showCard -> categoryChangeHint args categories
+            | _ -> []
+        let categories =
+            match cleared.Categories with
+            | Success list -> Success (shiftAvailable args list)
+            | other -> other
+        let version = cleared.CategoryCardVersion + 1
+        let hasCard = showCard && not (List.isEmpty lines)
+        let withEntry = replaceEntry updated { cleared with Categories = categories }
+        let withCard =
+            { withEntry with
+                CategoryCard = (if hasCard then Some { EntryId = entryId; Lines = lines; Version = version } else None)
+                CategoryCardVersion = (if hasCard then version else cleared.CategoryCardVersion) }
+        let filtered = applyFilterEffect updated withCard
+        // Ändert sich der Schlüssel der aktiven Sortierung, sortiert die Zeile um: die Liste
+        // bleibt stehen und bietet "Neu laden" an (ADR 0055, Punkt 9).
+        let orderChanged = (effectiveSort filtered).Field = SortByCategory && oldId <> newId
+        let finalModel = if orderChanged then { filtered with OrderStale = true } else filtered
+        let timer =
+            if hasCard then
+                Cmd.OfAsync.perform
+                    (fun () -> async { do! Async.Sleep categoryCardDurationMs })
+                    ()
+                    (fun () -> CategoryCardExpired version)
+            else
+                Cmd.none
+        let refresh = if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none
+        finalModel, Cmd.batch [ timer; refresh ]
+
 /// Die Auswahl als Stapel-Auftrag an den Server (ledger-nhwrt). `Picked`: die Ids der
 /// gewählten Zeilen. `AllExcept`: der ganze Treffer als Seitenanfrage (derselbe Filter wie
 /// die Liste, Seite 0, ohne lokalen Versatz) plus die abgewählten Ids; der Server löst ihn
@@ -370,7 +510,9 @@ let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model
 /// gehören der Tastatur; ein offenes Seitenpanel nicht, es folgt der Markierung
 /// (ledger-q1hw2, ADR 0053 Punkt 5).
 let private keyboardBlocked (model: Model) : bool =
-    model.OpenPopover.IsSome || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
+    model.OpenPopover.IsSome
+    || model.CategoryPickerFor.IsSome
+    || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
 
 /// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
 /// stößt ihren Abruf an. Wechselt ein offenes Panel auf eine andere Buchung, läuft derselbe
@@ -519,7 +661,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             NextPage = page + 1
             TotalCount = entryPage.TotalCount
             TotalAmount = entryPage.TotalAmount
-            HasMoreEntries = List.length entries < entryPage.TotalCount
+            // Ausgegraute Zeilen stehen in der Liste, zählen aber nicht zum Treffer.
+            HasMoreEntries = List.length entries - Set.count model.FilteredOut < entryPage.TotalCount
             DeletedCount = entryPage.DeletedCount
             NeedsReviewCount = entryPage.NeedsReviewCount
             LoadingMore = false },
@@ -541,7 +684,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadMoreEntries ->
         // Reiner Wächter: kein zweiter Nachlade-Aufruf waehrend einer laeuft, keiner
         // ohne weitere Seiten, keiner ohne eine erfolgreich geladene erste Seite.
-        if model.LoadingMore || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
+        // Bei veralteter Reihenfolge ruht das Nachladen, bis "Neu laden" die Liste neu aufsetzt.
+        if model.LoadingMore || model.OrderStale || not model.HasMoreEntries || not (RemoteData.isSuccess model.Entries) then
             model, Cmd.none, NoOp
         else
             { model with LoadingMore = true }, Cmd.ofMsg (RunLoadEntriesPage model.NextPage), NoOp
@@ -1049,8 +1193,201 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     // ============================================
+    // Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
+    // ============================================
+
+    | OpenCategoryPicker entryId ->
+        // Nur für die Buchung im offenen Detail und nur, wenn sie änderbar ist; sonst bleibt der
+        // Picker zu (gesperrte Fälle haben einen Pfeil ohne Wirkung).
+        match findEntry model entryId with
+        | Some entry when categoryLockFor entry = CategoryEditable
+                          && model.DetailFor |> Option.exists (fun d -> d.Id = entryId) ->
+            let current = entry.CategoryId |> Option.map YnabCategoryId
+            let suggestions =
+                match entry.Payee with
+                | Some payee when not (String.IsNullOrWhiteSpace payee) ->
+                    Cmd.ofMsg (RunLoadCategorySuggestions (entryId, payee, current))
+                | _ -> Cmd.none
+            { model with CategoryPickerFor = Some entryId; CategorySuggestions = []; CategoryCard = None },
+            // Der Aufruf je Öffnung lädt die Kategorien nur bei Stand über zwei Minuten nach
+            // (ledger-kwwxz) und holt die Vorschläge zum Payee.
+            Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; suggestions ],
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | CloseCategoryPicker -> { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
+
+    | RunLoadCategorySuggestions (entryId, payee, current) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.getPayeeCategorySuggestions payee)
+                current
+                (fun ids -> CategorySuggestionsLoaded (entryId, Ok ids))
+                (fun ex -> CategorySuggestionsLoaded (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | CategorySuggestionsLoaded (entryId, result) when model.CategoryPickerFor = Some entryId ->
+        // Ein Fehler lässt den Abschnitt weg; der Picker bleibt benutzbar.
+        let ids = match result with Ok ids -> ids | Error _ -> []
+        { model with CategorySuggestions = ids }, Cmd.none, NoOp
+
+    // Die Antwort für einen Picker, der inzwischen zu ist oder zu einer anderen Buchung gehört.
+    | CategorySuggestionsLoaded _ -> model, Cmd.none, NoOp
+
+    | StartSetEntryCategory (entryId, newId) ->
+        match findEntry model entryId with
+        | Some entry when categoryLockFor entry = CategoryEditable
+                          && (model.CategoryRows |> Map.tryFind entryId) <> Some CategorySending ->
+            { model with
+                CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
+                CategoryPickerFor = None
+                CategorySuggestions = []
+                CategoryCard = None },
+            Cmd.ofMsg (RunSetEntryCategory (entryId, newId)),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSetEntryCategory (entryId, newId) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryCategory entryId)
+                newId
+                (fun result -> EntryCategorySet (entryId, newId, result))
+                (fun ex -> EntryCategorySet (entryId, newId, Error ex.Message))
+        model, cmd, NoOp
+
+    | EntryCategorySet (entryId, newId, Ok outcome) ->
+        let model', cmd = applyCategoryResult entryId newId None true outcome model
+        let newName = categoryOfId model newId |> Option.map (fun c -> c.Name)
+        let external =
+            match outcome.Change, outcome.WriteBack with
+            | CategoryUnchanged, CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | CategoryUnchanged, _ -> NoOp
+            | CategoryChanged, writeBack ->
+                let text = categoryChangedToastText newName outcome.Previous
+                let action = { Label = undoToastLabel; Kind = UndoCategory (entryId, outcome.Previous) }
+                match writeBack with
+                | CategorySendFailed reason ->
+                    ShowToastWithAction ($"{text}. {categoryHintTitle}: {reason}", ToastWarning, action)
+                | _ -> ShowToastWithAction (text, ToastSuccess, action)
+        model', cmd, external
+
+    | EntryCategorySet (entryId, _, Error message) ->
+        { model with
+            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
+
+    | StartUndoCategory (entryId, previous) ->
+        { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+        Cmd.ofMsg (RunUndoCategory (entryId, previous)),
+        NoOp
+
+    | RunUndoCategory (entryId, previous) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryCategory entryId)
+                (previous |> Option.map (fun p -> p.CategoryId))
+                (fun result -> EntryCategoryRestored (entryId, previous, result))
+                (fun ex -> EntryCategoryRestored (entryId, previous, Error ex.Message))
+        model, cmd, NoOp
+
+    | EntryCategoryRestored (entryId, previous, Ok outcome) ->
+        // Ohne neue Karte, mit vertauschten Kategorien in Available; der Rücknahme-Toast hat
+        // kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        let newId = previous |> Option.map (fun p -> p.CategoryId)
+        let fallback = previous |> Option.map (fun p -> p.CategoryName)
+        let model', cmd = applyCategoryResult entryId newId fallback false outcome model
+        let name = categoryOfId model newId |> Option.map (fun c -> c.Name) |> Option.orElse fallback
+        let external =
+            match outcome.WriteBack with
+            | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | _ when outcome.Change = CategoryUnchanged -> NoOp
+            | _ -> ShowToast (categoryRestoredToastText name, ToastSuccess)
+        model', cmd, external
+
+    | EntryCategoryRestored (entryId, _, Error message) ->
+        { model with
+            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartRetryCategorization entryId ->
+        { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+        Cmd.ofMsg (RunRetryCategorization entryId),
+        NoOp
+
+    | RunRetryCategorization entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryCategorizationWriteBack
+                entryId
+                (fun result -> CategorizationRetried (entryId, result))
+                (fun ex -> CategorizationRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | CategorizationRetried (entryId, Ok writeBack) ->
+        let failure =
+            match writeBack with
+            | CategorySendFailed reason -> Some reason
+            | CategorySent | CategoryNotSent -> None
+        let cleared = { model with CategoryRows = model.CategoryRows |> Map.remove entryId }
+        let model' =
+            match findEntry cleared entryId with
+            | Some entry -> replaceEntry { entry with CategorizationWriteBackFailure = failure } cleared
+            | None -> cleared
+        let external =
+            match writeBack with
+            | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | _ -> NoOp
+        model', Cmd.none, external
+
+    | CategorizationRetried (entryId, Error message) ->
+        { model with
+            CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
+        Cmd.none,
+        NoOp
+
+    | CategoryCardExpired version ->
+        match model.CategoryCard with
+        | Some card when card.Version = version -> { model with CategoryCard = None }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunRefreshTotals ->
+        match model.SelectedFilter with
+        | None -> model, Cmd.none, NoOp
+        | Some filter ->
+            let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
+            let query = { buildPageQuery model accountId 0 with LocallyRemoved = 0 }
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.ledger.getLedgerEntriesPage
+                    query
+                    (fun page -> TotalsRefreshed (Ok page))
+                    (fun ex -> TotalsRefreshed (Error ex.Message))
+            model, cmd, NoOp
+
+    | TotalsRefreshed (Ok page) when model.OrderStale ->
+        // Nur Trefferzahl und Summe: die Zeilen bleiben, wie sie sind, bis "Neu laden".
+        { model with
+            TotalCount = page.TotalCount
+            TotalAmount = page.TotalAmount
+            DeletedCount = page.DeletedCount
+            NeedsReviewCount = page.NeedsReviewCount },
+        Cmd.none,
+        NoOp
+
+    | TotalsRefreshed _ -> model, Cmd.none, NoOp
+
+    // ============================================
     // Auswahl mit Summe (ledger-r1d2f)
     // ============================================
+
+    | StartSelectionMode entryId when model.FilteredOut.Contains entryId -> model, Cmd.none, NoOp
+
+    | ToggleRowSelected entryId when model.FilteredOut.Contains entryId -> model, Cmd.none, NoOp
+
+    | ClickRowCheckbox (entryId, _) when model.FilteredOut.Contains entryId -> model, Cmd.none, NoOp
 
     | StartSelectionMode entryId ->
         { model with
@@ -1214,6 +1551,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // nicht; liegt er auf dem Chip, schließt diese Stufe es.
         if model.OpenPopover.IsSome then
             { model with OpenPopover = None }, Cmd.none, NoOp
+        elif model.CategoryPickerFor.IsSome then
+            { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
         elif model.DetailFor.IsSome then
             { model with DetailFor = None; History = NotAsked }, Cmd.none, NoOp
         elif model.SelectionMode || hasSelection model then
@@ -1227,7 +1566,22 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 /// Drücken am Handy.
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model', cmd, external = updateCore msg model
-    if model'.DetailFor.IsSome && not (hasSelection model) && hasSelection model' then
-        { model' with DetailFor = None; History = NotAsked }, cmd, external
-    else
+    let model' =
+        if model'.DetailFor.IsSome && not (hasSelection model) && hasSelection model' then
+            { model' with DetailFor = None; History = NotAsked }
+        else
+            model'
+    // Picker und Karte gehören zur Buchung im offenen Detail: schließt das Detail oder wechselt
+    // es auf eine andere Buchung (Klick, Pfeiltaste, Esc, Kontowechsel), enden beide.
+    let detailId = model'.DetailFor |> Option.map (fun d -> d.Id)
+    let pickerStays = model'.CategoryPickerFor.IsNone || model'.CategoryPickerFor = detailId
+    let cardStays = model'.CategoryCard |> Option.forall (fun c -> Some c.EntryId = detailId)
+    if pickerStays && cardStays then
         model', cmd, external
+    else
+        { model' with
+            CategoryPickerFor = (if pickerStays then model'.CategoryPickerFor else None)
+            CategorySuggestions = (if pickerStays then model'.CategorySuggestions else [])
+            CategoryCard = (if cardStays then model'.CategoryCard else None) },
+        cmd,
+        external

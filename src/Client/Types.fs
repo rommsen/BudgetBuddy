@@ -186,6 +186,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Geprüft" für eine ganze Auswahl (ledger-nhwrt): ein Klick stellt
     /// den Vorzustand jeder geänderten Buchung wieder her.
     | UndoReviewMarkBatch of items: Shared.Domain.ReviewMarkRestoreItem list
+    /// "Rückgängig" nach einer Kategorieänderung im Detail (ledger-sfab0, ADR 0055 Nachtrag):
+    /// die vorherige Kategorie kommt aus der Antwort des Befehls (`None`: ohne Kategorie).
+    | UndoCategory of entryId: Guid * previous: Shared.Domain.CategoryChoice option
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

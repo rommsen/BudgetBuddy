@@ -1,7 +1,7 @@
 ---
 id: ledger-sfab0
 title: "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Karte Budget nach dem Wechsel und Toast mit Rückgängig, Vorschläge zum Payee, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Zeile bleibt stehen (ausgegraut bei Filter-Nichttreffer, Hinweisleiste Neu laden bei Sortierschlüssel)"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-24
@@ -192,3 +192,27 @@ Abgleich mit dem gebauten Stand (2026-10-24, nach k2rbn, kwwxz, gffps, w4vte):
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
+
+## Outcome
+
+Kategorie ändern im Kassenbuch-Detail ist gebaut (ADR 0055 samt Nachtrag Ablauf 4, ADR 0053).
+
+**Server.** Neue Abfrage `getPayeeCategorySuggestions: string -> YnabCategoryId option -> Async<YnabCategoryId list>` (`Shared/Api.fs`, `Server/Api.fs`, `Ledger/QueryHandlers.getPayeeCategorySuggestions`, `Ledger/Persistence.loadPayeeCategorySuggestions`): Payee über `bb_lower`, nicht in YNAB gelöscht, `category_id` gesetzt, aktuelle Kategorie ausgeschlossen (vor dem LIMIT), `GROUP BY category_id`, Anzahl absteigend, bei Gleichstand die jüngste Buchung, `LIMIT 3`; leerer Payee ergibt `[]`. Kein neues Pflichtfeld in einem Remoting-Record, also kein null-Fallback nötig.
+
+**Client (Ledger/Types.fs, State.fs, View.fs).**
+- Neue Modellfelder `CategoryPickerFor`, `CategorySuggestions`, `CategoryRows`, `CategoryCard`, `CategoryCardVersion`, `FilteredOut`, `OrderStale`; Nachrichten `OpenCategoryPicker`, `StartSetEntryCategory`/`RunSetEntryCategory`/`EntryCategorySet`, `StartUndoCategory`/`RunUndoCategory`/`EntryCategoryRestored`, `StartRetryCategorization`/`RunRetryCategorization`/`CategorizationRetried`, `RunLoadCategorySuggestions`/`CategorySuggestionsLoaded`, `CategoryCardExpired`, `RunRefreshTotals`/`TotalsRefreshed`. Rein/unrein geteilt wie beim Prüfvermerk.
+- Reine Bausteine: `categoryLockFor`/`categoryLockHint` (gelöscht, Übertrag ohne Kategorie, Split "Split bearbeiten folgt"), `categoryHintFor`, `rowMatchesFilters`, `selectionForRows`, `categoryChangedToastText`, `categoryRestoredToastText`, `categoryPickerPlacement`, `categoryStandLabel`, `categoryCardLinesFor`, `categoryArrowMsg`, `detailNoticeWithCategory`.
+- Öffnen schickt `EnsureCategoriesFresh` und genau einen `RunLoadCategorySuggestions` (nur mit Payee). `CategoryChanged` ersetzt die Zeile in Liste und Detail, schreibt Available mit `shiftAvailable` fort, setzt die Karte (6 s, `CategoryCardExpired` mit Version) und den Toast "Kategorie geändert: <Name>" / "Kategorie entfernt: <alter Name>" mit `UndoCategory`; Versandfehler warnt (Toast mit Grund, Zeile trägt `CategorizationWriteBackFailure`). `CategoryUnchanged`: weder Karte noch Toast. Rückgängig ruft `setEntryCategory` mit `Previous |> Option.map CategoryId` auf, vertauscht Available, keine Karte, Toast ohne Aktion, die alte Karte endet.
+- Liste (ADR 0055 Nachtrag): Fällt die Zeile aus dem Kategorie-Filter oder dem Chip "Ohne Kategorie", bleibt sie in `Entries`, ist in `FilteredOut`, `LocallyRemoved` +1, `TotalCount` und `TotalAmount` sinken; Rücknahme kehrt um; `HasMoreEntries` zählt ausgegraute Zeilen nicht mit. Bei `SortByCategory` und geänderter Kategorie: `OrderStale`, Nachladen ruht, Treffer und Summe laden neu (`RunRefreshTotals`, eine Seite-0-Anfrage, nur Zähler übernommen), "Neu laden" ist `LoadEntries`. `resetEntries` leert beides. Ausgegraute Zeilen sind nie gewählt (`selectionForRows`, Guards in `ToggleRowSelected`, `ClickRowCheckbox`, `StartSelectionMode`).
+- Esc: Popover, dann Kategorie-Picker, dann Detail; bei offenem Picker ruhen die Listentasten (`keyboardBlocked`). `update` beendet Picker und Karte, sobald das Detail schließt oder auf eine andere Buchung wechselt.
+- `ToastActionKind.UndoCategory` in `Client/Types.fs`, Übersetzung in `toastActionMsg` (`Client/State.fs`).
+
+**Design-System.** `Detail.fieldRowWith` (klickbare Zeile), `Detail.pickerArrow` (Pfeil, gesperrt gedämpft mit Tooltip), `Detail.pickerArrowSpacer` (hält den Payee-Filter-Knopf bündig), `CategoryPicker.popoverWithWidth`/`popoverInPanel`, `FilterPopover.panelWidthClass` (das Panel ist 420 px und `overflow-hidden`, das 460-px-Popover wäre abgeschnitten). `/styleguide` zeigt Pfeil offen und gesperrt bei "Detail: Felder"; `standards/frontend/styleguide.md` ergänzt. Die Stale-Leiste nutzt `Detail.notice`, die Karte `CategoryChangeCard.view`; Optik nur aus Tokens.
+
+**Tests.** 5 Server-Tests (`LedgerPayeeCategorySuggestionsTests.fs`), 42 Client-Tests (`LedgerCategoryChangeClientTests.fs`: Öffnen und Sperren, Auswahl, Karte, Toast, Rückgängig, Erneut senden, Filter-Nichttreffer, OrderStale, Esc-Kette, Auswahl-Ausnahme, Quelltext-Zusicherungen der Verdrahtung), 7 Playwright-Wächter (`scripts/ledger-category-change.test.mjs`, am echten Fable-Client mit gemockten Antworten: Popover liegt ganz im Panel, Karte unter dem Kategorie-Feld mit durchgestrichenem altem Wert, Toast ohne Beträge, Rückgängig, Esc-Kette, gesperrte Fälle, Hinweisleiste auch nach Neuladen, ausgegraute Zeile mit Vermerk und gedämpfter Deckkraft, Leiste "Neu laden", 390 px: Picker als zweites Sheet über dem Detail mit höherem z-Index, Karte im Detail-Sheet). In `LedgerDetailTests.fs` drei Zusicherungen angepasst, weil die Kategorie-Zeile jetzt in `categoryField` lebt und einen Pfeil hat (der Test "keinen Pfeil" widersprach dem Auftrag).
+
+**Läufe (Worktree).** `dotnet build`: 0 Warnungen, 0 Fehler. `dotnet test`: 1878 erfolgreich, 0 Fehler, 7 übersprungen. `npm run build`, `npm run guard:classes`, `npm run guard:tokens`: grün. `npm run test:scripts` (seriell): 198 von 198 grün. `npm run check:readme-delta`: grün.
+
+**Nicht geprüft / für Roman.** Die `## Manuelle Prüfung` (Versandfehler mit ungültigem Token, Lauf während des Spiegels, Neustart des Containers) und die beiden `[human-eye]`-Kriterien (Geschwindigkeit am Handy, optisches Einfügen) sind nach dem Deploy dran. Das Kriterium "Esc schließt die Karte" ist über das Schließen des Details umgesetzt (die Karte endet mit dem Detail, ein eigener Esc-Schritt nur für die Karte existiert nicht, weil der Picker bei der Karte schon zu ist).
+
+**Hinweise.** Kein ADR nötig (keine Abweichung von 0050, 0051, 0053, 0055). Die Payee-Abfrage blieb im Task, sie war klein. Ein offener Fehlschlag der Kategorie zeigt die Hinweisleiste nur im Detail, nicht als Zeile in der Liste (so verlangt es der Task). Die Stale-Leiste ruft für die neue Trefferzahl `getLedgerEntriesPage` Seite 0 mit der Kategorie-Sortierung auf (ADR 0051 Punkt 4: lädt und sortiert den ganzen Treffer); es gibt keinen eigenen Zähl-Endpunkt.

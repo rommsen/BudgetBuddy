@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 20:26 -- Task verified and completed: ledger-sfab0 - "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Karte Budget nach dem Wechsel und Toast mit Rückgängig, Vorschläge zum Payee, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Zeile bleibt stehen (ausgegraut bei Filter-Nichttreffer, Hinweisleiste Neu laden bei Sortierschlüssel)"
+
+**Type:** Work / Task completion
+**Task:** ledger-sfab0 - "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Karte Budget nach dem Wechsel und Toast mit Rückgängig, Vorschläge zum Payee, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Zeile bleibt stehen (ausgegraut bei Filter-Nichttreffer, Hinweisleiste Neu laden bei Sortierschlüssel)"
+**Summary:** Im Kassenbuch-Detail öffnet der Pfeil an der Kategorie den Picker (Popover im Panel, zweites Sheet am Handy); die Auswahl läuft über setEntryCategory mit Karte "Budget nach dem Wechsel", Toast mit Rückgängig, Vorschlägen zum Payee (neue Server-Abfrage), Hinweisleiste "Kategorie nicht in YNAB" mit Erneut senden, gesperrten Fällen und stehenbleibender Zeile (ausgegraut bei Filter-Nichttreffer, Leiste "Neu laden" bei Sortierschlüssel).
+**Duration:** 46m16s
+**Verification:** PASS (iteration 1)
+**Files changed:** 19
+**Tests added:** 54
+**ADRs written:** none
+
+---
+
 ## 2026-10-24 19:40 -- Batch started: [ledger-sfab0]
 
 **Type:** Work / Batch start

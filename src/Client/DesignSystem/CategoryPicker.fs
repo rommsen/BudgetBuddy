@@ -378,10 +378,17 @@ let private Content (input: ContentProps) =
 /// Hülle für den PC: Popover unter dem Auslöser. Der Aufrufer stellt den Auslöser in einen
 /// `position:relative`-Wrapper (siehe `FilterPopover`). Esc oder ein Klick außerhalb
 /// schließen, ohne zu ändern.
-let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+let popoverWithWidth (widthClassName: string) (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.view
-        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = FilterPopover.categoryWidthClass }
+        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = widthClassName }
         [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto" } ]
+
+let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+    popoverWithWidth FilterPopover.categoryWidthClass isOpen props
+
+/// Wie `popover`, aber für den engen Wrapper des Seitenpanels (`FilterPopover.panelWidthClass`).
+let popoverInPanel (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+    popoverWithWidth FilterPopover.panelWidthClass isOpen props
 
 let private sheetWith (elevated: bool) (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
     // Das Sheet schließt gleich: ein später synthetischer Klick soll nicht die Liste dahinter

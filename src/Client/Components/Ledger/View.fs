@@ -752,6 +752,7 @@ let private entryTableRow
     (selected: bool)
     (isAnchor: bool)
     (isFocused: bool)
+    (isFilteredOut: bool)
     (entry: LedgerEntryView)
     =
     // "Zu prüfen" ist die Statuskante (`StatusEdge`, ADR 0049 Punkt 7), nicht mehr
@@ -762,7 +763,7 @@ let private entryTableRow
             OnClick = Some (fun () -> dispatch (OpenDetail entry))
             StatusEdge = entry.NeedsReview
             IsFocused = isFocused
-            ClassName = Some ("group " + selectableRowClassName selected isAnchor) }
+            ClassName = Some ("group " + selectableRowClassName selected isAnchor + (if isFilteredOut then " opacity-50" else "")) }
         [
             selectBoxCell dispatch selected entry
             Table.roleCell Table.DateCell [ Html.text (formatDate entry.Date) ]
@@ -825,6 +826,21 @@ let private entryHintRow
                 ]
             ]
         ])
+
+/// Die Zeile unter einer ausgegrauten Buchung (PC): der Vermerk, dass sie nicht mehr zum
+/// Filter passt.
+let private filteredOutNoteRow (columnCount: int) (entry: LedgerEntryView) : ReactElement =
+    Html.tr [
+        prop.key ("filtered-" + string entry.Id)
+        prop.custom ("data-testid", "filtered-out-note")
+        prop.children [
+            Html.td [
+                prop.colSpan columnCount
+                prop.className $"{Tokens.ListRoles.cellPaddingX} pb-2 pt-0 {Tokens.ListRoles.muted}"
+                prop.text filteredOutNote
+            ]
+        ]
+    ]
 
 /// Gruppenkopf eines Datums in der PC-Tabelle: Datum links über den ersten Spalten,
 /// Tagessumme in der Betragsspalte (`Table.calmGroupRow`, ADR 0049 Punkt 8).
@@ -1015,6 +1031,9 @@ type DetailNotice =
     | NotInYnabNotice of reason: string
     /// Orange, mit "Erneut senden", wenn etwas zu senden ist.
     | ReviewMarkNotice of ReviewMarkHint
+    /// Orange, mit "Erneut senden": die Kategorie ist in BB gesetzt, aber nicht in YNAB
+    /// (ADR 0055, Punkt 4).
+    | CategoryNotice of CategoryHint
 
 /// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
 /// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
@@ -1052,12 +1071,25 @@ let detailNoticeFor
     else
         reviewMarkHintFor rowState entry |> Option.map ReviewMarkNotice
 
-/// Die Nachricht der Aktion in der Hinweisleiste: nur die Prüfvermerk-Leiste hat eine
-/// ("Erneut senden", `retryReviewMarkWriteBack` aus ledger-r777c); gelöscht und "Noch nicht
-/// in YNAB" haben keine Aktion.
+/// Wie `detailNoticeFor`, mit der Kategorie: gelöscht, noch nicht in YNAB und der
+/// Prüfvermerk haben Vorrang, danach "Kategorie nicht in YNAB" (höchstens eine Leiste).
+let detailNoticeWithCategory
+    (rowState: ReviewMarkRowState option)
+    (categoryRow: CategoryRowState option)
+    (history: RemoteData<LedgerHistoryLine list>)
+    (entry: LedgerEntryView)
+    : DetailNotice option =
+    match detailNoticeFor rowState history entry with
+    | Some notice -> Some notice
+    | None -> categoryHintFor categoryRow entry |> Option.map CategoryNotice
+
+/// Die Nachricht der Aktion in der Hinweisleiste: die Prüfvermerk-Leiste ("Erneut senden",
+/// `retryReviewMarkWriteBack` aus ledger-r777c) und die Kategorie-Leiste
+/// (`retryCategorizationWriteBack`) haben eine; gelöscht und "Noch nicht in YNAB" nicht.
 let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     match notice with
     | ReviewMarkNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryReviewMark entryId)
+    | CategoryNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryCategorization entryId)
     | _ -> None
 
 /// Die Nachricht des Geprüft-Schalters: an setzt `Reviewed`, aus `Unreviewed`, über denselben
@@ -1068,6 +1100,7 @@ let reviewedSwitchMsg (entryId: Guid) (on: bool) : Msg =
 let private noticeView
     (dispatch: Msg -> unit)
     (rowState: ReviewMarkRowState option)
+    (categoryRow: CategoryRowState option)
     (entry: LedgerEntryView)
     (notice: DetailNotice)
     : ReactElement =
@@ -1087,6 +1120,19 @@ let private noticeView
                     Some
                         { Label = label
                           Busy = (rowState = Some ReviewMarkSending)
+                          OnClick = fun () -> dispatch msg }
+                | _ -> None }
+    | CategoryNotice hint ->
+        Detail.notice
+            { Tone = Detail.NoticeOrange
+              Badge = hint.Title
+              Reason = hint.Reason
+              Action =
+                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg ->
+                    Some
+                        { Label = label
+                          Busy = (categoryRow = Some CategorySending)
                           OnClick = fun () -> dispatch msg }
                 | _ -> None }
 
@@ -1137,14 +1183,97 @@ let private detailHead (model: Model) (entry: LedgerEntryView) (onClose: (unit -
         (detailSubtitle (accountNameOf model entry) entry)
         onClose
 
+/// Wo der Kategorie-Picker aufgeht: am PC als Popover im Panel, am Handy und in der
+/// Kompaktliste als zweites Sheet über dem Detail-Sheet (Tafel 4.2 und 4.10).
+type CategoryPickerPlacement =
+    | PickerPopover
+    | PickerSheet
+
+let categoryPickerPlacement (form: DetailForm) : CategoryPickerPlacement =
+    match form with
+    | DetailPanel -> PickerPopover
+    | DetailSheet -> PickerSheet
+
+/// Die Fußzeile des Pickers: "Stand vor 3 Min", fehlt, solange kein Abruf gelang.
+let categoryStandLabel (model: Model) (now: DateTime) : string option =
+    model.CategoriesLoadedAt |> Option.map (fun at -> availableAgeLabel at now)
+
+/// Die Zeilen der Karte "Budget nach dem Wechsel" für diese Buchung; leer, wenn die Karte
+/// nicht steht oder zu einer anderen Buchung gehört.
+let categoryCardLinesFor (model: Model) (entry: LedgerEntryView) : CategoryPicker.CategoryChangeCard.ChangeLine list =
+    match model.CategoryCard with
+    | Some card when card.EntryId = entry.Id ->
+        card.Lines |> List.map (fun r -> { Label = r.Label; OldText = r.OldText; NewText = r.NewText })
+    | _ -> []
+
+/// Die Nachricht des Klicks auf den Pfeil oder die Kategorie-Zeile: öffnet den Picker, ein
+/// zweiter Klick schließt ihn. Gesperrte Buchungen tun nichts.
+let categoryArrowMsg (model: Model) (entry: LedgerEntryView) : Msg option =
+    match categoryLockFor entry with
+    | CategoryEditable ->
+        if model.CategoryPickerFor = Some entry.Id then Some CloseCategoryPicker
+        else Some (OpenCategoryPicker entry.Id)
+    | _ -> None
+
+/// Die Kategorie-Zeile mit Pfeil, Picker (Popover oder Sheet) und, nach einer Änderung,
+/// der Karte "Budget nach dem Wechsel" darunter.
+let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (valueColor: string) : ReactElement =
+    let pickerOpen = model.CategoryPickerFor = Some entry.Id
+    let lock = categoryLockFor entry
+    let arrowMsg = categoryArrowMsg model entry
+    let onArrow = fun () -> arrowMsg |> Option.iter dispatch
+    let pickerProps : CategoryPicker.CategoryPickerProps =
+        { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
+          Current = entry.CategoryId |> Option.map YnabCategoryId
+          Suggested = model.CategorySuggestions
+          StandLabel = categoryStandLabel model DateTime.Now
+          OnSelect = fun choice -> dispatch (StartSetEntryCategory (entry.Id, choice))
+          OnClose = fun () -> dispatch CloseCategoryPicker }
+    let sheetSubtitle =
+        $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
+    React.fragment [
+        Html.div [
+            // Das Popover hängt unter dieser Zeile (`position: relative`, wie bei den Chips).
+            prop.className "relative"
+            prop.children [
+                Detail.fieldRowWith
+                    (if lock = CategoryEditable then Some onArrow else None)
+                    "detail-category"
+                    "Kategorie"
+                    (Detail.valueText valueColor (categoryLabelQualified entry))
+                    (Some (
+                        React.fragment [
+                            match categoryFilterLabel entry, entry.CategoryId with
+                            | Some label, Some categoryId ->
+                                Detail.filterButton label (fun () -> dispatch (FilterByRowCategory categoryId))
+                            | _ -> ()
+                            Detail.pickerArrow categoryArrowLabel pickerOpen (categoryLockHint lock) onArrow
+                        ]
+                    ))
+                match categoryPickerPlacement model.DetailForm with
+                | PickerPopover -> CategoryPicker.popoverInPanel pickerOpen pickerProps
+                | PickerSheet -> CategoryPicker.sheetLayered pickerOpen (Some sheetSubtitle) pickerProps
+            ]
+        ]
+        match categoryCardLinesFor model entry with
+        | [] -> ()
+        | lines ->
+            Html.div [
+                prop.custom ("data-testid", "category-change-card")
+                prop.className $"px-4 py-3 border-b {Tokens.Borders.subtle}"
+                prop.children [ CategoryPicker.CategoryChangeCard.view lines ]
+            ]
+    ]
+
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
+    let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
     let muted = entry.DeletedInYnab
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
 
-    [ match detailNoticeFor rowState model.History entry with
-      | Some notice -> noticeView dispatch rowState entry notice
+    [ match detailNoticeWithCategory rowState categoryRow model.History entry with
+      | Some notice -> noticeView dispatch rowState categoryRow entry notice
       | None -> ()
 
       // Payee: eigene Feldzeile, damit sein Filter-Knopf rechts bündig mit dem der
@@ -1162,23 +1291,26 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
               ]
           ])
           (match payeeFilterLabel entry, entry.Payee with
-           | Some label, Some payee -> Some (Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee)))
+           | Some label, Some payee ->
+               // Der Platzhalter hält den Filter-Knopf bündig mit dem der Kategorie-Zeile,
+               // die rechts daneben den Pfeil des Pickers trägt.
+               Some (
+                   React.fragment [
+                       Detail.filterButton label (fun () -> dispatch (FilterByRowPayee payee))
+                       Detail.pickerArrowSpacer ()
+                   ]
+               )
            | _ -> None)
 
-      // Kategorie: lesend, am PC voll qualifiziert (ADR 0039). Rechts bleibt Platz für den
-      // Pfeil des Kategorie-Pickers ab v2 (ledger-k2rbn); jetzt nur der Filter-Knopf.
-      Detail.fieldRow
-          "detail-category"
-          "Kategorie"
-          (Detail.valueText
-              (if muted then Tokens.Colors.textMuted
-               elif isWithoutCategory entry then Tokens.Colors.neonOrange
-               else Tokens.Colors.textPrimary)
-              (categoryLabelQualified entry))
-          (match categoryFilterLabel entry, entry.CategoryId with
-           | Some label, Some categoryId ->
-               Some (Detail.filterButton label (fun () -> dispatch (FilterByRowCategory categoryId)))
-           | _ -> None)
+      // Kategorie: voll qualifiziert (ADR 0039), rechts der Filter-Knopf und der Pfeil, der den
+      // Picker öffnet (ledger-sfab0). Filtern und Ändern sind getrennte Ziele (ADR 0053).
+      categoryField
+          dispatch
+          model
+          entry
+          (if muted then Tokens.Colors.textMuted
+           elif isWithoutCategory entry then Tokens.Colors.neonOrange
+           else Tokens.Colors.textPrimary)
 
       Detail.fieldRow
           "detail-split"
@@ -1455,6 +1587,7 @@ let private mobileEntryRow
     (selectionActive: bool)
     (selection: Selection)
     (rowState: ReviewMarkRowState option)
+    (isFilteredOut: bool)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
@@ -1467,9 +1600,25 @@ let private mobileEntryRow
             entryRowWithReviewMark dispatch accountAbbreviationOf rowState None true flatDate entry
         else
             swipeableEntryRow dispatch accountAbbreviationOf rowState flatDate entry
+    let row = LongPressRow (not selectionMode) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
     React.keyedFragment (
         string entry.Id,
-        [ LongPressRow (not selectionMode) (fun () -> dispatch (StartSelectionMode entry.Id)) inner ]
+        [ if isFilteredOut then
+              // Ausgegraut (Filter-Nichttreffer): die Zeile bleibt stehen, der Vermerk nennt den Grund.
+              Html.div [
+                  prop.custom ("data-testid", "filtered-out-row")
+                  prop.className "opacity-50"
+                  prop.children [
+                      row
+                      Html.div [
+                          prop.custom ("data-testid", "filtered-out-note")
+                          prop.className $"px-4 pb-1.5 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle} {Tokens.ListRoles.muted}"
+                          prop.text filteredOutNote
+                      ]
+                  ]
+              ]
+          else
+              row ]
     )
 
 let private entryListMobile
@@ -1481,6 +1630,7 @@ let private entryListMobile
     (selectionActive: bool)
     (selection: Selection)
     (alwaysVisible: bool)
+    (filteredOut: Set<Guid>)
     (sort: LedgerSort)
     (entries: LedgerEntryView list)
     =
@@ -1498,6 +1648,7 @@ let private entryListMobile
                 selectionActive
                 selection
                 (reviewRows |> Map.tryFind entry.Id)
+                (filteredOut.Contains entry.Id)
                 flat
                 entry
 
@@ -1639,6 +1790,7 @@ let private entryListDesktop
     (selection: Selection)
     (anchor: Guid option)
     (focusedRow: Guid option)
+    (filteredOut: Set<Guid>)
     (sort: LedgerSort)
     (entries: LedgerEntryView list)
     =
@@ -1663,7 +1815,9 @@ let private entryListDesktop
                   (isSelected selection entry.Id)
                   (anchor = Some entry.Id)
                   (focusedRow = Some entry.Id)
+                  (filteredOut.Contains entry.Id)
                   entry
+              if filteredOut.Contains entry.Id then filteredOutNoteRow (columnsBeforeAmount + 2) entry
               match entryHintRow dispatch (columnsBeforeAmount + 2) rowState entry with
               | Some hintRow -> hintRow
               | None -> () ]
@@ -1779,8 +1933,9 @@ let private entryList
                 model.ReviewMarkRows
                 model.SelectionMode
                 (hasSelection model)
-                model.Selection
+                (selectionForRows model)
                 (layout = CompactList)
+                model.FilteredOut
                 sort
                 entries
             match layout with
@@ -1795,9 +1950,10 @@ let private entryList
                     model.ReviewMarkRows
                     (headerCheckState model)
                     (hasSelection model)
-                    model.Selection
+                    (selectionForRows model)
                     model.SelectionAnchor
                     model.FocusedRow
+                    model.FilteredOut
                     sort
                     entries
 
@@ -2270,6 +2426,29 @@ let private selectionBarSpacers (model: Model) : ReactElement =
         elif keyboardHintVisible model then Html.div [ prop.className "hidden md:block h-12"; prop.ariaHidden true ]
     ]
 
+/// Die Hinweisleiste über der Liste, wenn eine Kategorieänderung den Sortierschlüssel verschoben
+/// hat (ADR 0055, Punkt 9). Sie steht nur bei `OrderStale`; "Neu laden" setzt die Liste ab
+/// Seite 1 mit der aktiven Sortierung neu auf.
+let private orderStaleBar (dispatch: Msg -> unit) (model: Model) : ReactElement =
+    if not model.OrderStale then
+        Html.none
+    else
+        Html.div [
+            prop.custom ("data-testid", "order-stale-bar")
+            prop.className $"overflow-hidden rounded-xl border {Tokens.Borders.subtle}"
+            prop.children [
+                Detail.notice
+                    { Tone = Detail.NoticeOrange
+                      Badge = "Liste nicht mehr aktuell"
+                      Reason = orderStaleText
+                      Action =
+                        Some
+                            { Label = orderStaleActionLabel
+                              Busy = RemoteData.isLoading model.Entries
+                              OnClick = fun () -> dispatch LoadEntries } }
+            ]
+        ]
+
 /// Zeile über der Liste, solange es gelöschte Buchungen im Filter gibt (AC2,
 /// ledger-p3n8k): Anzahl-Satz plus Schalter. Ohne gelöschte Buchungen im Filter
 /// steht hier nichts (ein Schalter ohne Wirkung wäre nur Rauschen).
@@ -2412,6 +2591,7 @@ let private FilterBarColumn
                 filterChipBar dispatch model categories (visibleColumns tableWidth isAllAccounts = CompactList) isAllAccounts (Some barCallbackRef)
                 summaryOrSelectionRow model
                 deletedToggleRow dispatch model
+                orderStaleBar dispatch model
                 entryList dispatch accounts isAllAccounts tableWidth panelOpen model
                 selectionBarSpacers model
             ]

@@ -125,6 +125,11 @@ sofort, es gibt kein „Übernehmen“. Pfeile bewegen, Enter wählt, Esc schlie
 `CategoryPicker.CategoryChangeCard.view` ist die Karte „Budget nach dem Wechsel“ (alter Wert
 durchgestrichen und gedämpft, Pfeil, neuer Wert), eine leere Liste rendert nichts. Beide stehen
 in `/styleguide` unter „26. Kategorie-Picker (Einfachauswahl)“.
+Im Buchungs-Detail öffnet `Detail.pickerArrow` (Pfeil rechts an der Kategorie-Zeile, `Detail.fieldRowWith`
+macht die ganze Zeile klickbar) den Picker: am PC `CategoryPicker.popoverInPanel` (Breite des
+420-px-Panels abzüglich Rand), am Handy `sheetLayered`. Der Pfeil ist bei gesperrten Buchungen
+gedämpft (`opacity-40`), ohne Wirkung und nennt den Grund im Tooltip. Beide Zeilen stehen in
+`/styleguide` bei „Detail: Felder“.
 
 Datumsfeld (`DesignSystem/DateField.fs`, design-system-m7z9q): Textfeld „TT.MM.JJJJ“ in
 `Input.Small`-Maßen, immer deutsch, daneben ein Kalender-Knopf für den nativen Kalender.

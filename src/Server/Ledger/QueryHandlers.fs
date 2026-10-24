@@ -485,6 +485,19 @@ let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<Ledger
         return suggestions |> List.map (fun (payee, count) -> { Payee = payee; Count = count })
     }
 
+/// Die Vorschläge zum Payee für den Kategorie-Picker (ledger-sfab0): höchstens drei
+/// Kategorien, die der Payee bisher hatte, häufigste zuerst, ohne die aktuelle. Ein leerer
+/// Payee ergibt keine Vorschläge.
+let getPayeeCategorySuggestions (payee: string) (current: YnabCategoryId option) : Async<YnabCategoryId list> =
+    async {
+        if String.IsNullOrWhiteSpace payee then
+            return []
+        else
+            let exclude = current |> Option.map (fun (YnabCategoryId id) -> id)
+            let! ids = Ledger.Persistence.loadPayeeCategorySuggestions (payee.Trim()) exclude 3
+            return ids |> List.map YnabCategoryId
+    }
+
 /// Die Kontostaende aller Konten in einem Durchlauf (ledger-b1xwe AC2): unabhaengig
 /// davon, welche Seite der Buchungsliste gerade geladen ist, weil sie ueber alle
 /// gespeicherten Buchungen gebildet werden, nicht ueber den geladenen Ausschnitt.

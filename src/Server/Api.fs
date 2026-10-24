@@ -1492,6 +1492,7 @@ let ledgerApi : LedgerApi = {
     getLedgerEntriesPage = fun query -> Ledger.QueryHandlers.getLedgerEntriesPage query
 
     getLedgerPayeeSuggestions = fun query -> Ledger.QueryHandlers.getLedgerPayeeSuggestions query
+    getPayeeCategorySuggestions = fun payee current -> Ledger.QueryHandlers.getPayeeCategorySuggestions payee current
 
     getLedgerAccountBalances = fun () -> Ledger.QueryHandlers.getLedgerAccountBalances ()
 

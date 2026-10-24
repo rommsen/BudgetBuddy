@@ -1424,6 +1424,31 @@ let loadPayeeSuggestions (accountId: LedgerAccountId option) (filter: EntryFilte
     }
 
 [<CLIMutable>]
+type private PayeeCategoryRow = { category_id: string; cnt: int64; latest: string }
+
+/// Die Kategorien, die ein Payee im Kassenbuch bisher hatte (ledger-sfab0, ADR 0055
+/// Nachtrag): Vorschläge im Kategorie-Picker. Payee ohne Beachtung der Groß-/Kleinschreibung
+/// (`bb_lower`, ADR 0037), nicht in YNAB gelöschte Buchungen mit gesetzter `category_id`,
+/// die ausgeschlossene Kategorie (die aktuelle) zählt nicht mit. Häufigste zuerst, bei
+/// Gleichstand die Kategorie mit der jüngsten Buchung, höchstens `limit`.
+let loadPayeeCategorySuggestions (payee: string) (exclude: Guid option) (limit: int) : Async<Guid list> =
+    async {
+        use conn = Core.getConnection ()
+        let excludeSql = if exclude.IsSome then " AND category_id <> @exclude" else ""
+        let sql =
+            "SELECT category_id, COUNT(*) AS cnt, MAX(date) AS latest FROM ledger_entries "
+            + "WHERE bb_lower(payee) = @payee AND deleted_in_ynab = 0 AND category_id IS NOT NULL"
+            + excludeSql
+            + " GROUP BY category_id ORDER BY cnt DESC, latest DESC LIMIT @limit"
+        let ps = DynamicParameters()
+        ps.Add("payee", Core.searchFold payee)
+        ps.Add("limit", limit)
+        exclude |> Option.iter (fun id -> ps.Add("exclude", id.ToString()))
+        let! rows = conn.QueryAsync<PayeeCategoryRow>(sql, ps) |> Async.AwaitTask
+        return rows |> Seq.map (fun r -> Guid.Parse r.category_id) |> Seq.toList
+    }
+
+[<CLIMutable>]
 type private BalanceRow = { account_id: string; amount: string; currency: string; deleted_in_ynab: int64 }
 
 /// Die Rohdaten fuer die Kontostaende aller Konten in einem Durchlauf (ledger-b1xwe

@@ -275,6 +275,122 @@ let reviewMarkHintFor (rowState: ReviewMarkRowState option) (entry: LedgerEntryV
     | _, None -> None
 
 // ============================================
+// Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
+// ============================================
+
+/// Eine Zeile der Karte "Budget nach dem Wechsel" (Tafel Ablauf 4, 4.3).
+type CategoryChangeHintRow = { Label: string; OldText: string option; NewText: string option }
+
+/// Der Zustand der Kategorie einer Zeile, solange ein Aufruf läuft oder der Befehl selbst
+/// scheiterte. Ein offener Fehlschlag beim Zurückschreiben nach YNAB steht an der Buchung
+/// (`CategorizationWriteBackFailure`), nicht hier.
+type CategoryRowState =
+    /// Der Befehl (Ändern, Rückgängig oder Erneut senden) ist unterwegs.
+    | CategorySending
+    /// Der Befehl selbst scheiterte (unbekannte oder in YNAB gelöschte Buchung, Netz zum
+    /// eigenen Server). Die Kategorie blieb unverändert.
+    | CategoryCommandFailed of message: string
+
+/// Der Hinweis "Kategorie nicht in YNAB" im Detail (Muster `ReviewMarkHint`).
+type CategoryHint = {
+    Title: string
+    Reason: string
+    /// `None`, wenn nichts Offenes zu senden ist (der Befehl selbst scheiterte).
+    RetryLabel: string option
+}
+
+let categoryHintTitle = "Kategorie nicht in YNAB"
+
+/// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler hat Vorrang, danach der offene
+/// Fehlschlag an der Buchung. Rein, wie `reviewMarkHintFor`.
+let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView) : CategoryHint option =
+    match rowState, entry.CategorizationWriteBackFailure with
+    | Some (CategoryCommandFailed message), failure ->
+        Some {
+            Title = "Kategorie nicht geändert"
+            Reason = message
+            RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
+        }
+    | _, Some reason -> Some { Title = categoryHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    | _, None -> None
+
+/// Wann der Pfeil an der Kategorie wirkt und wann nicht (ADR 0055 Punkt 7).
+type CategoryLock =
+    | CategoryEditable
+    | CategoryLockedDeleted
+    /// Übertrag zwischen Budget-Konten ohne Kategorie: YNAB lässt keine zu.
+    | CategoryLockedTransfer
+    /// Split-Buchung: der Pfeil öffnet später den Split-Editor (`ledger-pafkp`).
+    | CategoryLockedSplit
+
+let categoryLockFor (entry: LedgerEntryView) : CategoryLock =
+    if entry.DeletedInYnab then CategoryLockedDeleted
+    elif not (List.isEmpty entry.Splits) then CategoryLockedSplit
+    elif entry.IsTransfer && entry.CategoryId.IsNone then CategoryLockedTransfer
+    else CategoryEditable
+
+/// Der Hinweistext am gesperrten Pfeil; `None`, wenn die Kategorie änderbar ist.
+let categoryLockHint (lock: CategoryLock) : string option =
+    match lock with
+    | CategoryEditable -> None
+    | CategoryLockedDeleted -> Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern"
+    | CategoryLockedTransfer -> Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu"
+    | CategoryLockedSplit -> Some "Split bearbeiten folgt"
+
+/// Die Beschriftung des Pfeils an der Kategorie (Tooltip und Screenreader).
+let categoryArrowLabel = "Kategorie ändern"
+
+/// Die Karte "Budget nach dem Wechsel" für genau eine Buchung. `Version` unterscheidet die
+/// Karten nacheinander, damit ein später eintreffender Ablauf nur seine eigene schließt.
+type CategoryChangeCardState = {
+    EntryId: Guid
+    Lines: CategoryChangeHintRow list
+    Version: int
+}
+
+/// Wie lange die Karte steht (Millisekunden).
+let categoryCardDurationMs = 6000
+
+/// Passt die Buchung nach der Änderung noch zu den aktiven Kategorie-Filtern? Ohne
+/// Kategorie-Filter und ohne Chip "Ohne Kategorie" passt sie immer. Mit beiden gilt Oder
+/// (ADR 0048). "Ohne Kategorie" trifft keinen Übertrag und keinen Split.
+let rowMatchesFilters (filters: Filters) (entry: LedgerEntryView) : bool =
+    let hasCategoryFilter = not (Set.isEmpty filters.CategoryIds)
+    if not hasCategoryFilter && not filters.WithoutCategory then
+        true
+    else
+        let inCategories =
+            hasCategoryFilter
+            && (match entry.CategoryId with
+                | Some id -> filters.CategoryIds.Contains id
+                | None -> false)
+        let withoutCategory =
+            filters.WithoutCategory
+            && entry.CategoryId.IsNone
+            && not entry.IsTransfer
+            && List.isEmpty entry.Splits
+        inCategories || withoutCategory
+
+/// Der Toast nach einer Änderung (ohne Beträge, die stehen in der Karte).
+let categoryChangedToastText (newName: string option) (previous: CategoryChoice option) : string =
+    match newName, previous with
+    | Some name, _ -> $"Kategorie geändert: {name}"
+    | None, Some old -> $"Kategorie entfernt: {old.CategoryName}"
+    | None, None -> "Kategorie entfernt"
+
+/// Der Toast nach "Rückgängig".
+let categoryRestoredToastText (name: string option) : string =
+    let label = name |> Option.defaultValue "ohne Kategorie"
+    $"Kategorie zurückgesetzt: {label}"
+
+/// Der Vermerk an einer Zeile, die nach einer Änderung nicht mehr zum Filter passt.
+let filteredOutNote = "passt nicht mehr zum Filter"
+
+/// Hinweisleiste über der Liste, wenn eine Änderung den Sortierschlüssel verschoben hat.
+let orderStaleText = "Reihenfolge oder Treffer haben sich geändert."
+let orderStaleActionLabel = "Neu laden"
+
+// ============================================
 // Auswahl mit Summe (ledger-r1d2f)
 // ============================================
 
@@ -476,6 +592,32 @@ type Model = {
     /// Läuft gerade ein Stapel-Aufruf "Geprüft" für die Auswahl (ledger-nhwrt)? Dann ist die
     /// Aktion in der Leiste gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus.
     ReviewMarkBatchRunning: bool
+
+    // ============================================
+    // Kategorie ändern im Detail (ledger-sfab0)
+    // ============================================
+
+    /// Die Buchung, für die der Kategorie-Picker offen steht (immer die des Details).
+    CategoryPickerFor: Guid option
+
+    /// Die Vorschläge zum Payee für den offenen Picker (höchstens drei, häufigste zuerst).
+    /// Leer, bis die Antwort da ist, bei einem Fehler und ohne Payee.
+    CategorySuggestions: YnabCategoryId list
+
+    /// Der Zustand der Kategorie je Buchung (Aufruf läuft, Befehl scheiterte).
+    CategoryRows: Map<Guid, CategoryRowState>
+
+    /// Die Karte "Budget nach dem Wechsel", solange sie steht.
+    CategoryCard: CategoryChangeCardState option
+    CategoryCardVersion: int
+
+    /// Zeilen, die nach einer Änderung nicht mehr zum aktiven Filter passen. Sie bleiben
+    /// ausgegraut stehen (ADR 0055, Nachtrag). Neuladen, Filter- und Sortierwechsel leeren die Menge.
+    FilteredOut: Set<Guid>
+
+    /// Hat eine Änderung den Sortierschlüssel verschoben (`SortByCategory`)? Dann ruht das
+    /// Nachladen, bis "Neu laden" die Liste ab Seite 1 neu aufsetzt.
+    OrderStale: bool
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -540,6 +682,19 @@ let selectionTotals (model: Model) : SelectionTotals =
 /// Läuft eine nicht leere Auswahl? Nur dann zeigt die Summenzeile die Auswahl, und am PC
 /// erscheint die Leiste.
 let hasSelection (model: Model) : bool = (selectionTotals model).Count > 0
+
+/// Die Auswahl, wie die Zeilen sie zeigen: eine Zeile, die nicht mehr zum Filter passt
+/// (ausgegraut), ist nie gewählt, auch nicht über "alle auswählen" (ledger-sfab0).
+let selectionForRows (model: Model) : Selection =
+    if Set.isEmpty model.FilteredOut then
+        model.Selection
+    else
+        match model.Selection with
+        | NoSelection -> NoSelection
+        | Picked ids ->
+            let ids' = Set.difference ids model.FilteredOut
+            if Set.isEmpty ids' then NoSelection else Picked ids'
+        | AllExcept excluded -> AllExcept (Set.union excluded model.FilteredOut)
 
 /// Zustand des Kopfzeilen-Kästchens am PC, abgeleitet aus der Anzahl der Auswahl gegen
 /// `TotalCount`: leer, Teal-Strich (Teilauswahl) oder Haken (ganzer Treffer).
@@ -867,6 +1022,36 @@ type Msg =
     | ReviewMarkRestored of Guid * ReviewMarkState * Result<ReviewMarkOutcome, string>
 
     // ============================================
+    // Kategorie ändern im Detail (ledger-sfab0, ADR 0055)
+    // ============================================
+    // Dieselbe Teilung wie beim Prüfvermerk (ADR 0020): `Start...` ist rein, `Run...` ruft
+    // den Proxy auf.
+
+    /// Pfeil an der Kategorie im Detail: öffnet den Picker, wenn die Buchung änderbar ist.
+    | OpenCategoryPicker of Guid
+    | CloseCategoryPicker
+    /// Lädt die Vorschläge zum Payee (ein Aufruf je Öffnung).
+    | RunLoadCategorySuggestions of Guid * payee: string * current: YnabCategoryId option
+    | CategorySuggestionsLoaded of Guid * Result<YnabCategoryId list, string>
+    /// Klick im Picker.
+    | StartSetEntryCategory of Guid * YnabCategoryId option
+    | RunSetEntryCategory of Guid * YnabCategoryId option
+    | EntryCategorySet of Guid * YnabCategoryId option * Result<CategoryChangeOutcome, string>
+    /// "Rückgängig" im Toast: der alte Stand geht über denselben Schreibweg zurück.
+    | StartUndoCategory of Guid * CategoryChoice option
+    | RunUndoCategory of Guid * CategoryChoice option
+    | EntryCategoryRestored of Guid * CategoryChoice option * Result<CategoryChangeOutcome, string>
+    /// "Erneut senden" an der Hinweisleiste "Kategorie nicht in YNAB".
+    | StartRetryCategorization of Guid
+    | RunRetryCategorization of Guid
+    | CategorizationRetried of Guid * Result<CategoryWriteBack, string>
+    /// Die Karte "Budget nach dem Wechsel" läuft ab (nur die mit dieser Version).
+    | CategoryCardExpired of version: int
+    /// Trefferzahl und Summe neu holen, solange die Reihenfolge veraltet ist.
+    | RunRefreshTotals
+    | TotalsRefreshed of Result<LedgerEntryPage, string>
+
+    // ============================================
     // Auswahl mit Summe (ledger-r1d2f)
     // ============================================
 
@@ -1010,9 +1195,6 @@ let shiftAvailable
             match c.Available with
             | Some a when delta <> 0m -> { c with Available = Some { a with Amount = a.Amount + delta } }
             | _ -> c)
-
-/// Eine Zeile der Karte "Budget nach dem Wechsel" (Tafel Ablauf 4, 4.3).
-type CategoryChangeHintRow = { Label: string; OldText: string option; NewText: string option }
 
 /// Zeilen der Karte: zuerst die alte, dann die neue Kategorie. Mit Zahlen nur für
 /// Buchungen im laufenden Monat und Kategorien mit Available; sonst nur das Label.

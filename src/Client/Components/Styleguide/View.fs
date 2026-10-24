@@ -1251,6 +1251,18 @@ let private DetailDemo () =
                 "Kategorie"
                 (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
                 (Some (Detail.filterButton "Nur Buchungen in Alltag: Lebensmittel zeigen" ignore))
+            // Kategorie mit Pfeil (ledger-sfab0): änderbar und gesperrt mit Hinweistext am Knopf.
+            Detail.fieldRowWith
+                (Some ignore)
+                "styleguide-detail-category-arrow"
+                "Kategorie"
+                (Detail.valueText Tokens.Colors.textPrimary "Alltag: Lebensmittel")
+                (Some (Detail.pickerArrow "Kategorie ändern" false None ignore))
+            Detail.fieldRow
+                "styleguide-detail-category-locked"
+                "Kategorie"
+                (Detail.valueText Tokens.Colors.textMuted "Keine Kategorie")
+                (Some (Detail.pickerArrow "Kategorie ändern" false (Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu") ignore))
             Detail.fieldRow
                 "styleguide-detail-split"
                 "Split"

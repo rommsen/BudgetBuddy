@@ -474,19 +474,21 @@ let contentTests =
 
         testCase "Kategorie, Split, Memo und Geprüft erscheinen im Inhalt für Panel und Sheet gleich" <| fun () ->
             let source = viewSource ()
-            let content = functionBody source "let private detailContent"
+            // Die Kategorie-Zeile mit Pfeil und Picker lebt seit ledger-sfab0 in `categoryField`.
+            let content = functionBody source "let private detailContent" + functionBody source "let private categoryField"
             for field in [ "\"Kategorie\""; "\"Split\""; "\"Memo\""; "\"Geprüft\"" ] do
                 Expect.stringContains content field $"Feld {field}"
             Expect.stringContains (functionBody source "let private detailPanelView") "detailContent" "Panel nutzt den Inhalt"
             Expect.stringContains (functionBody source "let private detailSheetView") "detailContent" "Sheet nutzt den Inhalt"
 
-        testCase "die Kategorie-Zeile hat keinen Pfeil und ist nicht klickbar" <| fun () ->
+        testCase "die Felder im Inhalt sind lesend, der Pfeil der Kategorie lebt in categoryField (ledger-sfab0)" <| fun () ->
             let content = functionBody (viewSource ()) "let private detailContent"
-            Expect.isFalse (content.Contains "chevron") "kein Pfeil"
+            Expect.isFalse (content.Contains "chevron") "kein Pfeil im Inhalt"
             Expect.isFalse (content.Contains "onClick") "kein Klick in den Feldern"
+            Expect.stringContains (functionBody (viewSource ()) "let private categoryField") "Detail.pickerArrow" "Pfeil an der Kategorie"
 
         testCase "die Kategorie steht am PC voll qualifiziert" <| fun () ->
-            Expect.stringContains (functionBody (viewSource ()) "let private detailContent") "categoryLabelQualified entry" "voll qualifiziert"
+            Expect.stringContains (functionBody (viewSource ()) "let private categoryField") "categoryLabelQualified entry" "voll qualifiziert"
 
         testCase "die Herkunft-Zeile zeigt für jede Art das Wort der Domäne in einem Teal-Badge" <| fun () ->
             let content = functionBody (viewSource ()) "let private detailContent"

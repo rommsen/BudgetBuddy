@@ -359,6 +359,13 @@ type LedgerApi = {
     /// (CategoryNotSent) without an open write-back failure.
     retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>
 
+    /// The categories this payee had so far in the Kassenbuch, most frequent first, at most
+    /// three (ledger-sfab0, ADR 0055 Nachtrag): the picker's VORGESCHLAGEN section. Payee
+    /// match ignores case; bookings deleted in YNAB and bookings without a category do not
+    /// count; the given current category is left out. Ties go to the category with the
+    /// most recent booking. Returns an empty list for a blank payee.
+    getPayeeCategorySuggestions: string -> YnabCategoryId option -> Async<YnabCategoryId list>
+
     // ============================================
     // Prüfvermerk für eine Auswahl (ledger-nhwrt)
     // ============================================

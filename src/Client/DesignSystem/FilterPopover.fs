@@ -35,6 +35,10 @@ let defaultWidthClass = "w-[min(92vw,320px)]"
 /// Breite eines kleinen Aktionsmenüs (`menuItem`), z. B. "Nach REWE filtern" an einer
 /// Tabellenzelle (ledger-rfq5p).
 let menuWidthClass = "w-[min(92vw,240px)]"
+/// Breite eines Popovers im Seitenpanel (420 px, `overflow-hidden`): die Breite des Wrappers
+/// abzüglich je 1 rem Rand, damit das Popover nicht am Panelrand abgeschnitten wird
+/// (ledger-sfab0, Kategorie-Picker im Detail).
+let panelWidthClass = "ml-4 w-[calc(100%-2rem)]"
 
 [<ReactComponent>]
 let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactElement list) =
