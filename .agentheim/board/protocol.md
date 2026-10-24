@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 16:19 -- Task verified and completed: ledger-kwwxz - "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
+
+**Type:** Work / Task completion
+**Task:** ledger-kwwxz - "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
+**Summary:** Der Kassenbuch-Client hält Available je Kategorie frisch (Zeitstempel, Nachladen bei PWA-Vordergrund und Picker-Öffnung nur bei Stand über zwei Minuten, alter Stand bleibt bei Fehlern) und stellt die reinen Funktionen shiftAvailable, categoryChangeHint und availableAgeLabel bereit.
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 24
+**ADRs written:** none
+
+---
+
+## 2026-10-24 16:14 -- Verification failed: design-system-gffps - Kategorie-Picker mit Einfachauswahl
+
+**Type:** Work / Verification failure
+**Task:** design-system-gffps - Kategorie-Picker mit Einfachauswahl
+**Iteration:** 2 of 3
+**Reasons:** serieller test:scripts-Lauf rot (184/185): Handy-390-Messung 43,9999 px während der Sheet-Transition, Float exakt gegen 44 verglichen; Kriterien 2 und 3 jetzt belegt, übrige Läufe grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-24 15:57 -- Batch started: [ledger-kwwxz]
 
 **Type:** Work / Batch start

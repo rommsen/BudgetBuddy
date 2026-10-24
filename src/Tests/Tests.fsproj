@@ -49,6 +49,7 @@
     <Compile Include="PwaTests.fs" />
     <Compile Include="AppReadinessTests.fs" />
     <Compile Include="LedgerCategoriesSyncTests.fs" />
+    <Compile Include="LedgerCategoriesFreshnessTests.fs" />
     <Compile Include="SplitEditorTests.fs" />
     <Compile Include="RulesReorderTests.fs" />
     <Compile Include="ToastLifecycleTests.fs" />

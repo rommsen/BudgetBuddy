@@ -358,7 +358,7 @@ let init () : Model * Cmd<Msg> =
 // Update - Delegates to child components
 // ============================================
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
+let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     // ============================================
     // Navigation
@@ -384,7 +384,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // nennt das Frische-Kriterium für die Kassenbuch-Seite, nicht für die ganze App.
     | VisibilityChanged ->
         match model.CurrentPage with
-        | Ledger -> model, Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
+        | Ledger ->
+            model,
+            Cmd.batch [
+                Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
+                // Available je Kategorie (ledger-kwwxz): nur bei Stand älter als zwei Minuten.
+                if Components.Ledger.Types.categoriesReloadDue model.Ledger DateTime.Now then
+                    Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
+            ]
         | _ -> model, Cmd.none
 
     // Installierte PWA übernimmt einen neuen Deploy (ADR 0057). Geprüft wird höchstens
@@ -533,6 +540,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // ============================================
     // Ledger Component (Kassenbuch)
     // ============================================
+    | LedgerMsg Components.Ledger.Types.EnsureCategoriesFresh ->
+        if Components.Ledger.Types.categoriesReloadDue model.Ledger DateTime.Now then
+            update (LedgerMsg Components.Ledger.Types.LoadCategories) model
+        else
+            model, Cmd.none
+
     | LedgerMsg Components.Ledger.Types.LoadCategories ->
         // Die Kategorienauswahl der Filterleiste (ledger-j8xq4) braucht das
         // konfigurierte YNAB-Budget, derselbe Abfangpunkt wie `Rules`s
@@ -554,7 +567,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                             budgetId
                             (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorToString)))
                             (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Error ex.Message)))
-                    { model with Ledger = { model.Ledger with Categories = Loading } }, cmd
+                    // Ein vorhandener Stand bleibt sichtbar, bis der neue da ist (ledger-kwwxz).
+                    let categories =
+                        match model.Ledger.Categories with
+                        | Success _ -> model.Ledger.Categories
+                        | _ -> Loading
+                    { model with Ledger = { model.Ledger with Categories = categories; CategoriesRefreshing = true } }, cmd
                 | None -> model, Cmd.none
             | None -> model, Cmd.none
         | _ -> model, Cmd.none

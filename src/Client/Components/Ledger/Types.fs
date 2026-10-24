@@ -394,6 +394,15 @@ type Model = {
     /// `LoadCategories`), nicht hinter dem Fable.Remoting-Proxy dieses Moduls.
     Categories: RemoteData<YnabCategory list>
 
+    /// Zeitpunkt des letzten erfolgreichen `getCategories`-Abrufs (ledger-kwwxz,
+    /// ADR 0055 Punkt 8). `None`, solange noch nie einer gelang. Ein Fehler beim
+    /// Nachladen lässt ihn und `Categories` stehen.
+    CategoriesLoadedAt: DateTime option
+
+    /// Läuft gerade ein Abruf der Kategorien? Hält den alten Stand sichtbar
+    /// (`Categories` bleibt `Success`) und verhindert einen zweiten Abruf.
+    CategoriesRefreshing: bool
+
     /// Der committete Zustand aller fünf Such-Filter.
     Filters: Filters
 
@@ -773,6 +782,10 @@ type Msg =
     /// analog zu `Rules`s `LoadCategories`).
     | LoadCategories
     | CategoriesLoaded of Result<YnabCategory list, string>
+    /// Lädt die Kategorien nur, wenn der Stand älter als zwei Minuten ist
+    /// (`shouldReloadCategories`). Auslöser: Öffnen des Pickers (ledger-kwwxz,
+    /// verdrahtet in `ledger-sfab0`).
+    | EnsureCategoriesFresh
 
     /// Ein Filter-Chip öffnet sein Popover/Sheet; setzt den passenden Entwurf aus
     /// dem committeten Zustand vor.
@@ -950,3 +963,83 @@ let isMirrorStale (now: DateTime) (lastRun: MirrorRunStatus option) : bool =
     match lastRun with
     | None -> true
     | Some status -> now - status.RanAt > freshnessThreshold
+
+// ============================================
+// Available je Kategorie frisch halten (ledger-kwwxz, ADR 0055 Punkt 8)
+// ============================================
+
+/// Ab diesem Alter lädt der Picker-Auslöser und der PWA-Vordergrund die Kategorien neu.
+let categoriesFreshness = TimeSpan.FromMinutes 2.0
+
+/// Reine Nachlade-Entscheidung. Nie bei laufendem Abruf; sonst bei fehlendem Stand oder
+/// einem Stand älter als zwei Minuten.
+let shouldReloadCategories
+    (categories: RemoteData<YnabCategory list>)
+    (refreshing: bool)
+    (loadedAt: DateTime option)
+    (now: DateTime)
+    : bool =
+    if refreshing || RemoteData.isLoading categories then false
+    else
+        match loadedAt with
+        | None -> true
+        | Some at -> now - at > categoriesFreshness
+
+/// Nachlade-Entscheidung über dem Kassenbuch-Modell.
+let categoriesReloadDue (model: Model) (now: DateTime) : bool =
+    shouldReloadCategories model.Categories model.CategoriesRefreshing model.CategoriesLoadedAt now
+
+let private sameMonth (a: DateTime) (b: DateTime) = a.Year = b.Year && a.Month = b.Month
+
+/// Schreibt Available nach einer Kategorieänderung lokal fort. Gilt nur für Buchungen im
+/// Kalendermonat von `today` (YNABs `balance` ist der laufende Monat). Die alte Kategorie
+/// verliert den Betrag der Buchung (Ausgabe −50 erhöht um 50), die neue bekommt ihn
+/// (Ausgabe −50 senkt um 50). Kategorien ohne Available und "ohne Kategorie" (`None`)
+/// bleiben unberührt. Der nächste Abruf überschreibt.
+let shiftAvailable
+    (entryDate: DateTime, amount: decimal, oldCategoryId: YnabCategoryId option, newCategoryId: YnabCategoryId option, today: DateTime)
+    (categories: YnabCategory list)
+    : YnabCategory list =
+    if not (sameMonth entryDate today) then categories
+    else
+        categories
+        |> List.map (fun c ->
+            let delta =
+                (if oldCategoryId = Some c.Id then -amount else 0m)
+                + (if newCategoryId = Some c.Id then amount else 0m)
+            match c.Available with
+            | Some a when delta <> 0m -> { c with Available = Some { a with Amount = a.Amount + delta } }
+            | _ -> c)
+
+/// Eine Zeile der Karte "Budget nach dem Wechsel" (Tafel Ablauf 4, 4.3).
+type CategoryChangeHintRow = { Label: string; OldText: string option; NewText: string option }
+
+/// Zeilen der Karte: zuerst die alte, dann die neue Kategorie. Mit Zahlen nur für
+/// Buchungen im laufenden Monat und Kategorien mit Available; sonst nur das Label.
+/// "Ohne Kategorie" und unbekannte Ids ergeben keine Zeile.
+let categoryChangeHint
+    (entryDate: DateTime, amount: decimal, oldCategoryId: YnabCategoryId option, newCategoryId: YnabCategoryId option, today: DateTime)
+    (categories: YnabCategory list)
+    : CategoryChangeHintRow list =
+    let shifted = shiftAvailable (entryDate, amount, oldCategoryId, newCategoryId, today) categories
+    let text (m: Money) = Client.DesignSystem.Money.formatAmountText false true m.Amount m.Currency
+    let row (id: YnabCategoryId option) =
+        id
+        |> Option.bind (fun i -> categories |> List.tryFind (fun c -> c.Id = i))
+        |> Option.map (fun before ->
+            let label = $"{before.GroupName}: {before.Name}"
+            if sameMonth entryDate today then
+                let after = shifted |> List.find (fun c -> c.Id = before.Id)
+                { Label = label; OldText = before.Available |> Option.map text; NewText = after.Available |> Option.map text }
+            else
+                { Label = label; OldText = None; NewText = None })
+    [ row oldCategoryId; row newCategoryId ] |> List.choose id
+
+/// Fußzeile des Pickers: "Stand gerade eben", "Stand vor 3 Min" bis eine Stunde,
+/// danach die Uhrzeit ("Stand 10:42").
+let availableAgeLabel (loadedAt: DateTime) (now: DateTime) : string =
+    let age = now - loadedAt
+    let two (n: int) = (string n).PadLeft(2, '0')
+    if age < TimeSpan.FromMinutes 1.0 then "Stand gerade eben"
+    elif age < TimeSpan.FromHours 1.0 then $"Stand vor {int age.TotalMinutes} Min"
+    else $"Stand {two loadedAt.Hour}:{two loadedAt.Minute}"

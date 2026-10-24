@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 16:08 - Available je Kategorie frisch halten und fortschreiben (ledger-kwwxz)
+
+**What I did:**
+Zeitstempel und Nachlade-Entscheidung für die Kategorien im Kassenbuch-Client, Nachladen bei PWA-Vordergrund und Picker-Öffnung nur bei Stand über zwei Minuten, reine Funktionen für Fortschreibung, Karten-Zeilen und Alters-Label.
+
+**Files Added:**
+- `src/Tests/LedgerCategoriesFreshnessTests.fs` - 24 Tests (Reducer, Nachlade-Entscheidung, Auslöser im Haupt-State, shiftAvailable, categoryChangeHint, availableAgeLabel)
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - neue Model-Felder, Msg `EnsureCategoriesFresh`, reine Funktionen
+- `src/Client/Components/Ledger/State.fs` - Reducer für `CategoriesLoaded`, `EnsureCategoriesFresh`, Init
+- `src/Client/State.fs` - Vordergrund-Auslöser, `EnsureCategoriesFresh`, alter Stand bleibt bei `LoadCategories`
+- `src/Tests/Tests.fsproj` - neue Testdatei
+
+**Rationale:**
+ADR 0055 Punkt 8 hält Available live statt im Spiegel; die Zahl muss frisch bleiben, ohne das YNAB-Limit zu reizen (ein Abruf je Auslöser, kein Timer).
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 1790 bestanden, 7 übersprungen; test:scripts nach Wiederholung der Ladetimeouts grün
+- Issues: Playwright-Ladetimeouts unter Last, einzeln wiederholt grün
+
+---
+
 ## 2026-10-24 15:46 - PWA übernimmt neuen Deploy ohne Cache-Löschen (infrastructure-bnbdc)
 
 **What I did:**

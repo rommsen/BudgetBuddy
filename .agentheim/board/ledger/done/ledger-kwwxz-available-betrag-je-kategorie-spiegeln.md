@@ -1,7 +1,7 @@
 ---
 id: ledger-kwwxz
 title: "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-12
@@ -100,3 +100,16 @@ im Ledger-Client, Tests. Überschneidung mit `ledger-w4vte` und `ledger-sfab0` i
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
+
+## Outcome
+
+Available je Kategorie wird im Kassenbuch-Client live frisch gehalten, ohne persistierte Kopie (ADR 0055 Punkt 8).
+
+- `Components/Ledger/Types.fs`: Model-Felder `CategoriesLoadedAt: DateTime option` und `CategoriesRefreshing: bool`, neue Msg `EnsureCategoriesFresh` (Auslöser für das Öffnen des Pickers, Verdrahtung in `ledger-sfab0`), reine Funktionen `shouldReloadCategories`/`categoriesReloadDue` (Schwelle `categoriesFreshness` = 2 Minuten, nie bei laufendem Abruf), `shiftAvailable`, `categoryChangeHint` (Record `CategoryChangeHintRow { Label; OldText; NewText }`, Beträge über `Money.formatAmountText`, Format "412,10 €"), `availableAgeLabel` ("Stand gerade eben", "Stand vor 3 Min", ab einer Stunde "Stand 10:42").
+- `Components/Ledger/State.fs`: `CategoriesLoaded (Ok)` setzt Stand, Zeitstempel und beendet den Abruf; `CategoriesLoaded (Error)` lässt `Categories` und `CategoriesLoadedAt` bei vorhandenem Stand unverändert.
+- `State.fs` (Haupt): `LedgerMsg LoadCategories` setzt `Loading` nur ohne vorhandenen Stand und merkt den laufenden Abruf; `VisibilityChanged` auf der Kassenbuch-Seite löst `LoadCategories` bei Stand über zwei Minuten aus; `LedgerMsg EnsureCategoriesFresh` lädt bei Bedarf. `update` ist dafür `let rec`.
+- Tests: `src/Tests/LedgerCategoriesFreshnessTests.fs` (24 Tests, in `Tests.fsproj` direkt nach `LedgerCategoriesSyncTests.fs`).
+- Abweichung von der Task: Der Zeitstempel ist `DateTime` (lokale Uhr via `DateTime.Now`), damit die Nachricht `CategoriesLoaded` unverändert bleibt und die Fußzeile die Ortszeit zeigt. Keine neue UI, daher kein Styleguide-Eintrag; `guard:tokens` grün.
+- [human-eye]-Kriterium entfällt mangels sichtbarer Oberfläche (Anzeige folgt in `ledger-sfab0`).
+
+Läufe: `dotnet build` 0 Warnungen/0 Fehler; `dotnet test` 1790 bestanden, 7 übersprungen, 0 Fehler; `npm run build` grün; `npm run guard:classes` und `npm run guard:tokens` grün; `npm run test:scripts` (seriell) 178 von 181 beim ersten Gesamtlauf, die drei roten (Seiten-Ladetimeout unter Last in ledger-filter-bar und der Spaltenkopf-Datei) liefen einzeln wiederholt grün (19/19 und 3/3), erster Lauf hatte ebenfalls nur Ladetimeouts.

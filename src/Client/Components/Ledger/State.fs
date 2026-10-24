@@ -42,6 +42,8 @@ let init () : Model * Cmd<Msg> =
         LastMirrorRun = NotAsked
         MirrorRunning = false
         Categories = NotAsked
+        CategoriesLoadedAt = None
+        CategoriesRefreshing = false
         Filters = noFilters
         OpenPopover = None
         CategoryDraft = Set.empty
@@ -675,10 +677,25 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with Categories = Loading }, Cmd.none, NoOp
 
     | CategoriesLoaded (Ok categories) ->
-        { model with Categories = Success categories }, Cmd.none, NoOp
+        { model with
+            Categories = Success categories
+            CategoriesLoadedAt = Some DateTime.Now
+            CategoriesRefreshing = false },
+        Cmd.none,
+        NoOp
 
     | CategoriesLoaded (Error message) ->
-        { model with Categories = Failure message }, Cmd.none, NoOp
+        // Ein vorhandener Stand bleibt sichtbar (ledger-kwwxz); nur ohne Stand
+        // wird der Fehler zum Zustand.
+        let categories =
+            match model.Categories with
+            | Success _ -> model.Categories
+            | _ -> Failure message
+        { model with Categories = categories; CategoriesRefreshing = false }, Cmd.none, NoOp
+
+    | EnsureCategoriesFresh ->
+        // Die Entscheidung und der Abruf liegen im Haupt-`State.fs`.
+        model, Cmd.none, NoOp
 
     | OpenFilterPopover chip ->
         let model' =
