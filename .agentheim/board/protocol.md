@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:12 -- Capture / Captured: ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Picker zeigt Lade- und Fehlerzustand statt leerer Liste
+
+---
+
 ## 2026-10-24 22:12 -- Capture / Captured: ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
 
 **Type:** Capture
