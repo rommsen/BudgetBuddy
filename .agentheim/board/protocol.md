@@ -5,6 +5,26 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 17:03 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 2h13m
+**Completed:** 9 (first-try PASS: 3 (mas5g, bnbdc, kwwxz), re-dispatched: 4 (wfhxj, k2rbn, w4vte, gffps), b7qmx PASS beim ersten Verifier nach einem Literal-Nachzug wegen Merge, skipped: 1 (h6mer, Conductor-Task ohne Eingriff))
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** wfhxj: 2, mas5g: 1, k2rbn: 2, w4vte: 2, bnbdc: 1, gffps: 3, kwwxz: 1, b7qmx: 2 (Nachzug nach Merge von main, kein FAIL), h6mer: 0 (Conductor)
+**Commits:** 16
+**Vision-conformance:** none: batch aligns with vision (Kategorie ändern als erste v2-Fähigkeit laut ADR 0054, Split-Spike ohne Schreibzugriff, Rest Pflege und Bedienung des Kassenbuchs)
+**Batch mix:** 67% product-facing / 33% harness / 0% bookkeeping (9 tasks)
+**Carry-over:** none: working tree clean; alle Worktrees entfernt; 14 RESULT-Sidecars entfernt
+**Vorfall:** beim Anhängen von Verifier-Notizen hat ein Python-Einzeiler drei Task-Dateien (wfhxj, k2rbn, w4vte) geleert, die so nach done/ committet wurden; aus dem Batch-Start-Commit wiederhergestellt (be89d26). Kein Code betroffen.
+**Offen für Roman:** ADR 0058 (Split-Schreibweg, proposed) braucht Entscheidung und einen Probelauf gegen ein Wegwerf-Budget; human-eye-Kriterien von w4vte, bnbdc, gffps, b7qmx.
+
+---
+
 ## 2026-10-24 16:52 -- Task verified and completed: ledger-b7qmx - "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)"
 
 **Type:** Work / Task completion
