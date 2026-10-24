@@ -893,6 +893,11 @@ type LedgerEntryView = {
     /// diesem Grund und "Erneut senden". `None`, wenn nichts offen ist. Ändert die
     /// Zählung von "Zu prüfen" nicht.
     ReviewMarkWriteBackFailure: string option
+    /// Grund des offenen Fehlschlags beim Zurückschreiben der Kategorie nach YNAB
+    /// (ADR 0055, Punkt 4): die Kategorie bleibt in BB gesetzt, die Zeile zeigt den Grund
+    /// und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
+    /// älteren Servers, der das Feld nicht kennt).
+    CategorizationWriteBackFailure: string option
     /// Die Buchung trägt eine YNAB-Verknüpfung: vom Spiegel gesehene Buchungen immer,
     /// BB-geführte (Comdirect-Import, Quick Add) nach `EntryLinkedToYnab` (ADR 0021).
     LinkedToYnab: bool
@@ -949,6 +954,41 @@ type ReviewMarkOutcome = {
     Previous: ReviewMarkState
     Change: ReviewMarkChange
     WriteBack: ReviewMarkWriteBack
+}
+
+// ============================================
+// Kategorie ändern und zurückschreiben (ADR 0055, ledger-k2rbn)
+// ============================================
+
+/// Id und Name einer Kategorie in der Antwort des Befehls. Der Client braucht die Id für
+/// "Rückgängig" (er ruft `setEntryCategory` mit der alten Kategorie auf) und für die
+/// Budget-Karte am Picker.
+type CategoryChoice = {
+    CategoryId: YnabCategoryId
+    CategoryName: string
+}
+
+/// Hat der Befehl die Kategorie geändert? `CategoryUnchanged`: Ziel gleich Ist, weder
+/// Ereignis noch YNAB-Aufruf (ADR 0055, Punkt 1).
+type CategoryChange =
+    | CategoryChanged
+    | CategoryUnchanged
+
+/// Was mit dem Zurückschreiben der Kategorie nach YNAB passiert ist.
+type CategoryWriteBack =
+    /// Nichts zu senden (Ziel gleich Ist, oder kein offener Fehlschlag beim erneuten Senden).
+    | CategoryNotSent
+    /// YNAB hat die Kategorie angenommen.
+    | CategorySent
+    /// Der Weg nach YNAB ist gescheitert oder nicht möglich; die Kategorie bleibt in BB.
+    | CategorySendFailed of reason: string
+
+/// Antwort von `setEntryCategory` (ADR 0055).
+type CategoryChangeOutcome = {
+    /// Die Kategorie vor dem Befehl (`None`: ohne Kategorie), Grundlage für "Rückgängig".
+    Previous: CategoryChoice option
+    Change: CategoryChange
+    WriteBack: CategoryWriteBack
 }
 
 /// Eine Zeile der Historie einer Buchung: wann, von wem, und was passiert ist —

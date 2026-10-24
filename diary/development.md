@@ -4,6 +4,38 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 15:05 - Kategorie ändern: Server-Schreibweg für eine Buchung (ledger-k2rbn)
+
+**What I did:**
+Server-Teil von "Kategorie ändern" nach ADR 0055 gebaut: Befehl `setEntryCategory` und `retryCategorizationWriteBack`, Ereignisse `EntryCategorizationWriteBackFailed`/`EntryCategorizationWrittenBackToYnab` mit Baseline, PUT `updateCategory` mit nur `category_id`, `observe` mit Ausnahme für den offenen Fehlschlag, gemeinsame Schreib-Sperre (`WriteGuard`) mit dem Spiegel-Lauf, Historie-Sätze, Lesefeld `CategorizationWriteBackFailure`.
+
+**Files Added:**
+- `src/Tests/LedgerCategoryChangeTests.fs` - 38 Tests: Domäne, Codec, observe, Lesemodell, Befehle mit Fake-Push (In-Memory-SQLite), Schreib-Sperre, PUT-Vertrag
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - Vertrag: `CategoryChoice`, `CategoryChange`, `CategoryWriteBack`, `CategoryChangeOutcome`, zwei neue `LedgerApi`-Methoden, `LedgerEntryView.CategorizationWriteBackFailure`
+- `src/Server/Ledger/Events.fs` - zwei Ereignisse, Payload, Codec, Namen und Version
+- `src/Server/Ledger/Domain.fs` - `Entry.CategorizationWriteBackFailure`, `apply`, `observe`
+- `src/Server/Ledger/Persistence.fs` - Spalte `categorization_write_back_failure` (JSON), Migration, Lesen und Schreiben
+- `src/Server/Ledger/CommandHandlers.fs` - `WriteGuard`, `runMirrorGuarded` unter der Sperre, die zwei Befehle
+- `src/Server/Ledger/QueryHandlers.fs` - Sicht-Feld und Historie-Sätze
+- `src/Server/YnabClient.fs` - `buildCategoryBody`, `sendCategory`, `updateCategory`
+- `src/Server/Api.fs` - `categoryPush` und die zwei Endpunkte
+- `src/Tests/Tests.fsproj` - neue Testdatei mitten in der Liste
+- acht bestehende Testdateien - neues Pflichtfeld `CategorizationWriteBackFailure = None` in Record-Literalen
+
+**Rationale:**
+Roman öffnet YNAB nicht mehr zum Nachbearbeiten (ADR 0054). Der Fehlschlag trägt eine Baseline, damit der nächste Spiegel-Lauf eine gescheiterte Änderung nicht still zurückdreht, bevor "Erneut senden" möglich ist. Die Schreib-Sperre verhindert, dass ein Lauf zwischen Ereignis und PUT den alten YNAB-Stand als Änderung beobachtet.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1704 bestanden, 7 übersprungen, 0 Fehler (dotnet test); test:scripts 157/157 im zweiten Lauf (erster Lauf: 12 Timeouts unter Last, Dateien einzeln grün); guard:classes ok; npm run build ok
+- Issues: Schreib-Sperr-Test geprüft, dass er ohne den Wächter rot wird. Keine Client-Änderung, Folge-Tasks (Picker, Detail, Sammelaktion) bauen darauf auf.
+
+**Iteration 2:** Der Katalog `## Ereignisse` ist nachgezogen (zwei Entscheidungs-Bullets, Ausnahme am Beobachtungs-Bullet), kein Code geändert.
+
+---
+
 ## 2026-10-24 15:02 - Token-Wächter für Farb- und Schriftwerte (design-system-wfhxj)
 
 **What I did:**

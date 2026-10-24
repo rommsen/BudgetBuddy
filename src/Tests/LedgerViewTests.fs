@@ -37,6 +37,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     Flag = NoFlag
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
+    CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }

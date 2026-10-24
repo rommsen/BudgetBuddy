@@ -250,6 +250,17 @@ type EntryReviewMarkChangedInBbPayload = {
 /// möglich (ADR 0050, Punkt 7). `Reason` ist der Grund für die Zeile.
 type EntryReviewMarkWriteBackFailedPayload = { Reason: string }
 
+/// Das Zurückschreiben der Kategorie nach YNAB ist gescheitert oder war nicht möglich
+/// (ADR 0055, Punkt 4). `Reason` ist der Grund für die Zeile. Die Baseline ist der Stand,
+/// den YNAB vermutlich noch hat: die `Old*`-Werte der ersten gescheiterten Änderung (bei
+/// weiteren Änderungen mit offenem Fehlschlag bleibt die erste Baseline). `observe`
+/// vergleicht den beobachteten YNAB-Stand damit.
+type EntryCategorizationWriteBackFailedPayload = {
+    Reason: string
+    BaselineCategory: CategoryRef option
+    BaselineSplits: TransactionSplit list
+}
+
 /// Der Push einer Buchung nach YNAB ist gescheitert (ADR 0021, Punkt 2, Nachtrag
 /// ledger-rynk5). `Reason` ist ein kurzer, lesbarer Satz mit der Fehlerart; der
 /// Zeitpunkt ist der Ereignis-Zeitstempel. Die Buchung bleibt stehen, kein Rollback.
@@ -284,6 +295,12 @@ type LedgerEventBody =
     /// Der offene Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`) oder
     /// YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0050, Punkt 8).
     | EntryReviewMarkWrittenBackToYnab
+    /// Zurückschreiben der Kategorie nach YNAB gescheitert (ADR 0055, Punkt 4), mit
+    /// Baseline.
+    | EntryCategorizationWriteBackFailed of EntryCategorizationWriteBackFailedPayload
+    /// Der offene Kategorie-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
+    /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0055, Punkt 4).
+    | EntryCategorizationWrittenBackToYnab
     /// Push der Buchung nach YNAB gescheitert, Grund im Payload. Aufgelöst durch
     /// `EntryLinkedToYnab` (ADR 0021, Nachtrag ledger-rynk5).
     | EntryPushToYnabFailed of EntryPushToYnabFailedPayload
@@ -342,6 +359,8 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryReviewMarkChangedInBb _ -> "EntryReviewMarkChangedInBb"
     | EntryReviewMarkWriteBackFailed _ -> "EntryReviewMarkWriteBackFailed"
     | EntryReviewMarkWrittenBackToYnab -> "EntryReviewMarkWrittenBackToYnab"
+    | EntryCategorizationWriteBackFailed _ -> "EntryCategorizationWriteBackFailed"
+    | EntryCategorizationWrittenBackToYnab -> "EntryCategorizationWrittenBackToYnab"
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
@@ -368,6 +387,8 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryReviewMarkChangedInBb _ -> 1
     | EntryReviewMarkWriteBackFailed _ -> 1
     | EntryReviewMarkWrittenBackToYnab -> 1
+    | EntryCategorizationWriteBackFailed _ -> 1
+    | EntryCategorizationWrittenBackToYnab -> 1
     | EntryPushToYnabFailed _ -> 1
 
 // ============================================
@@ -823,6 +844,20 @@ module Codec =
     let decodeReviewMarkWriteBackFailed : Decoder<EntryReviewMarkWriteBackFailedPayload> =
         Decode.object (fun get -> { Reason = get.Required.Field "reason" Decode.string })
 
+    let encodeCategorizationWriteBackFailed (p: EntryCategorizationWriteBackFailedPayload) =
+        Encode.object [
+            "reason", Encode.string p.Reason
+            "baselineCategory", encodeOption encodeCategory p.BaselineCategory
+            "baselineSplits", encodeSplits p.BaselineSplits
+        ]
+
+    let decodeCategorizationWriteBackFailed : Decoder<EntryCategorizationWriteBackFailedPayload> =
+        Decode.object (fun get -> {
+            Reason = get.Required.Field "reason" Decode.string
+            BaselineCategory = get.Optional.Field "baselineCategory" decodeCategory
+            BaselineSplits = get.Optional.Field "baselineSplits" decodeSplits |> Option.defaultValue []
+        })
+
     let encodePushToYnabFailed (p: EntryPushToYnabFailedPayload) =
         Encode.object [ "reason", Encode.string p.Reason ]
 
@@ -850,6 +885,8 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryReviewMarkChangedInBb p -> Codec.encodeReviewMarkChanged p
         | EntryReviewMarkWriteBackFailed p -> Codec.encodeReviewMarkWriteBackFailed p
         | EntryReviewMarkWrittenBackToYnab -> Encode.object []
+        | EntryCategorizationWriteBackFailed p -> Codec.encodeCategorizationWriteBackFailed p
+        | EntryCategorizationWrittenBackToYnab -> Encode.object []
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
     Encode.toString 0 json
 
@@ -897,6 +934,10 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeReviewMarkWriteBackFailed payload
         |> Result.map EntryReviewMarkWriteBackFailed
     | "EntryReviewMarkWrittenBackToYnab", 1 -> Ok EntryReviewMarkWrittenBackToYnab
+    | "EntryCategorizationWriteBackFailed", 1 ->
+        Decode.fromString Codec.decodeCategorizationWriteBackFailed payload
+        |> Result.map EntryCategorizationWriteBackFailed
+    | "EntryCategorizationWrittenBackToYnab", 1 -> Ok EntryCategorizationWrittenBackToYnab
     | "EntryPushToYnabFailed", 1 ->
         Decode.fromString Codec.decodePushToYnabFailed payload |> Result.map EntryPushToYnabFailed
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"

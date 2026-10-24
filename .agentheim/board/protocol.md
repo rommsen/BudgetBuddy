@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:21 -- Task verified and completed: ledger-k2rbn - 
+
+**Type:** Work / Task completion
+**Task:** ledger-k2rbn - 
+**Summary:** Der Server-Schreibweg für die Kategorie einer Buchung steht: Befehl setEntryCategory mit EntryRecategorized vor dem PUT nach YNAB, Fehlschlag mit Baseline und Erneut senden, YNAB gewinnt in observe, gemeinsame Schreib-Sperre mit dem Spiegel-Lauf.
+**Duration:** 45m
+**Verification:** PASS (iteration 2)
+**Files changed:** 20
+**Tests added:** 38
+**ADRs written:** none
+
+---
+
+## 2026-10-24 15:19 -- Verification failed: ledger-k2rbn - Kategorie ändern, Schreibweg für eine Buchung
+
+**Type:** Work / Verification failure
+**Task:** ledger-k2rbn - Kategorie ändern, Schreibweg für eine Buchung
+**Iteration:** 1 of 3
+**Reasons:** zwei neue Ereignisse fehlen im verbindlichen Katalog ## Ereignisse der ledger-README, Bullet EntryCategorizationChangeObservedInYnab veraltet; Code, Tests und Läufe grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-24 15:19 -- Task verified and completed: design-system-wfhxj - 
 
 **Type:** Work / Task completion

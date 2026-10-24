@@ -1103,6 +1103,71 @@ let updateReviewMarkBatch
         return! sendReviewMarkBatch httpClient budgetId items
     }
 
+// ============================================
+// Kategorie zurückschreiben (ADR 0055)
+// ============================================
+
+/// Baut den Request-Body für das Zurückschreiben der Kategorie: nur `category_id`, `null`
+/// für "ohne Kategorie". Kein anderes Feld (ADR 0028, Punkt 1). Non-private, damit der
+/// JSON-Vertrag direkt testbar ist.
+let buildCategoryBody (categoryId: YnabCategoryId option) : string =
+    Encode.object [
+        "transaction", Encode.object [
+            match categoryId with
+            | Some (YnabCategoryId id) -> "category_id", Encode.guid id
+            | None -> "category_id", Encode.nil
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Sendet die Kategorie mit dem übergebenen `HttpClient` (injizierbar, damit ein Test
+/// gegen einen Fake-Handler läuft, nie gegen YNAB): `PUT .../transactions/{transaction_id}`,
+/// Fehlerzuordnung wie `sendReviewMark`.
+let sendCategory
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (categoryId: YnabCategoryId option)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let requestBody = buildCategoryBody categoryId
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Kategorie" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 200 -> return Ok ()
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Transaction not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update category: {ex.Message}")
+    }
+
+/// Schreibt die Kategorie einer Buchung nach YNAB zurück (ADR 0055). Eigener Name und
+/// eigene Signatur, die nur `category_id` kennt, keine allgemeine Update-Funktion
+/// (ADR 0028, Punkt 1).
+let updateCategory
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (categoryId: YnabCategoryId option)
+    : Async<YnabResult<unit>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendCategory httpClient budgetId ynabTransactionId categoryId
+    }
+
 /// Validates a YNAB token by attempting to fetch budgets
 let validateToken (token: string) : Async<YnabResult<unit>> =
     async {

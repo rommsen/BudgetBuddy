@@ -502,6 +502,26 @@ let runMirror
             return! finish (Error $"Spiegel-Lauf abgebrochen: {ex.Message}")
     }
 
+/// Die Schreib-Sperre (ADR 0055, Punkt 6): der Spiegel-Lauf (Abruf und `observe`) und die
+/// Kategorie-Befehle (Ereignis und Push) laufen nicht ineinander. Sonst kann ein Lauf, der
+/// zwischen Ereignis und PUT abruft, den alten YNAB-Stand als Änderung beobachten und die
+/// BB-Kategorie zurückdrehen. Ein Befehl wartet höchstens auf einen laufenden Lauf (oder
+/// einen anderen Befehl). `internal`, damit ein Test die Sperre halten kann
+/// (`InternalsVisibleTo "Tests"`).
+module internal WriteGuard =
+    let private gate = new System.Threading.SemaphoreSlim(1, 1)
+
+    /// Führt `work` aus, sobald die Sperre frei ist, und gibt sie danach wieder frei,
+    /// auch bei einer Ausnahme.
+    let exclusive (work: Async<'a>) : Async<'a> =
+        async {
+            do! gate.WaitAsync() |> Async.AwaitTask
+            try
+                return! work
+            finally
+                gate.Release() |> ignore
+        }
+
 // ============================================
 // Einzel-Flug-Schutz: zwei gleichzeitige Auslöser ergeben nur einen Lauf
 // ============================================
@@ -559,7 +579,7 @@ let runMirrorGuarded
     (fetchers: MirrorFetchers)
     (budgetId: YnabBudgetId)
     : Async<Result<MirrorRunSummary, string>> =
-    MirrorGuard.runGuarded (fun () -> runMirror now fetchers budgetId)
+    MirrorGuard.runGuarded (fun () -> WriteGuard.exclusive (runMirror now fetchers budgetId))
 
 // ============================================
 // Quick Add: Kassenbuch zuerst, dann Push, dann Verknuepfung (ADR 0021)
@@ -1351,3 +1371,175 @@ let restoreReviewMarkBatch
             let previousState = item.Previous.IsApproved, fromReviewClearedState item.Previous.ClearedState
             EntryId item.EntryId, reviewMarkRestoreTarget previousState
     ]
+
+// ============================================
+// Kategorie ändern und nach YNAB zurückschreiben (ADR 0055, ledger-k2rbn)
+// ============================================
+
+/// Der Push der Kategorie, injiziert wie `ReviewMarkPush`: bekommt die YNAB-Transaction-Id
+/// und die Kategorie (`None` heißt "ohne Kategorie", im Body `category_id = null`). Der
+/// Aufrufer (`Server.Api`) bindet Token und Budget ein (`Ynab.updateCategory`).
+type CategoryPush = string -> YnabCategoryId option -> Async<YnabResult<unit>>
+
+/// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB". Wie
+/// `describeReviewMarkPushError`, nur die Ablehnung nennt die Kategorie.
+let describeCategoryPushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat die Kategorie abgelehnt: {msg}"
+    | other -> describeReviewMarkPushError other
+
+/// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0055, Punkt 4).
+let categoryNotLinkedReason = reviewMarkNotLinkedReason
+
+let private categoryFailureEvent
+    (entryId: EntryId)
+    (now: DateTime)
+    (reason: string)
+    (baselineCategory: CategoryRef option, baselineSplits: TransactionSplit list)
+    : LedgerEvent =
+    reviewMarkEvent entryId now UserInBb (
+        EntryCategorizationWriteBackFailed {
+            Reason = reason
+            BaselineCategory = baselineCategory
+            BaselineSplits = baselineSplits
+        }
+    )
+
+/// Die Baseline eines neuen Fehlschlags: bei einem schon offenen die erste, sonst der
+/// Stand vor der Änderung (ADR 0055, Punkt 4).
+let private categoryBaseline (entry: Entry) (before: CategoryRef option * TransactionSplit list) =
+    match entry.CategorizationWriteBackFailure with
+    | Some failure -> failure.BaselineCategory, failure.BaselineSplits
+    | None -> before
+
+/// Schickt die Kategorie. Scheitert der Push (oder fehlt die Verknüpfung), schreibt die
+/// Funktion `EntryCategorizationWriteBackFailed`. Bei Erfolg schreibt sie kein Ereignis
+/// (ADR 0055, Punkt 2), außer ein früherer Fehlschlag war offen: dann ist er mit dem
+/// Erfolg beendet (`EntryCategorizationWrittenBackToYnab`).
+let private pushCategory
+    (now: DateTime)
+    (push: CategoryPush)
+    (entry: Entry)
+    (baseline: CategoryRef option * TransactionSplit list)
+    (target: YnabCategoryId option)
+    : Async<CategoryWriteBack> =
+    async {
+        let entryId = entry.Id
+
+        let fail (reason: string) =
+            async {
+                do! Ledger.Persistence.appendAndApply [ categoryFailureEvent entryId now reason baseline ]
+                return CategorySendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail categoryNotLinkedReason
+        | Some ynabTransactionId ->
+            match! push ynabTransactionId target with
+            | Ok () ->
+                if entry.CategorizationWriteBackFailure.IsSome then
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryCategorizationWrittenBackToYnab
+                        ]
+                return CategorySent
+            | Error err -> return! fail (describeCategoryPushError err)
+    }
+
+let private categoryChoiceOf (names: Map<Guid, string>) (category: CategoryRef) : CategoryChoice =
+    {
+        CategoryId = category.CategoryId
+        CategoryName = Ledger.Persistence.liveCategoryName names category.CategoryId category.CategoryName
+    }
+
+/// Warum die Kategorie einer Buchung nicht änderbar ist (ADR 0055, Punkt 7), oder `None`.
+let private categoryNotChangeableReason (entry: Entry) : string option =
+    if entry.DeletedInYnab then Some "Die Buchung ist in YNAB gelöscht"
+    elif not (List.isEmpty entry.Splits) then
+        Some "Die Buchung ist aufgeteilt, die Kategorien ändert der Split-Editor"
+    elif entry.Category.IsNone && (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome) then
+        Some "Ein Übertrag zwischen Budget-Konten hat keine Kategorie"
+    else None
+
+/// Der Befehl `setEntryCategory` (ADR 0055): lädt die Buchung, lehnt Unzulässiges ab
+/// (Fehler, kein Ereignis), schreibt bei einer Änderung zuerst `EntryRecategorized`
+/// (Actor `UserInBb`) und ruft danach den Push. Ziel gleich Ist (`categorizationIdentity`):
+/// kein Ereignis, kein Push, `CategoryUnchanged`. Läuft unter der Schreib-Sperre
+/// (`WriteGuard`), nie während eines Spiegel-Laufs.
+let setEntryCategory
+    (now: DateTime)
+    (push: CategoryPush)
+    (entryId: EntryId)
+    (target: YnabCategoryId option)
+    : Async<Result<CategoryChangeOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry ->
+                match categoryNotChangeableReason entry with
+                | Some reason -> return Error reason
+                | None ->
+                    let! names = Ledger.Persistence.loadCategoryNames ()
+
+                    let targetRef : Result<CategoryRef option, string> =
+                        match target with
+                        | None -> Ok None
+                        | Some categoryId ->
+                            let (YnabCategoryId id) = categoryId
+                            match Map.tryFind id names with
+                            | Some name -> Ok (Some { CategoryId = categoryId; CategoryName = name })
+                            | None -> Error "Unbekannte Kategorie"
+
+                    match targetRef with
+                    | Error reason -> return Error reason
+                    | Ok newCategory ->
+                        let previous = entry.Category |> Option.map (categoryChoiceOf names)
+
+                        if categorizationIdentity entry.Category entry.Splits = categorizationIdentity newCategory [] then
+                            return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent }
+                        else
+                            do!
+                                Ledger.Persistence.appendAndApply [
+                                    reviewMarkEvent entryId now UserInBb (
+                                        EntryRecategorized {
+                                            OldCategory = entry.Category
+                                            NewCategory = newCategory
+                                            OldSplits = []
+                                            NewSplits = []
+                                            OldPayee = entry.Payee
+                                            NewPayee = entry.Payee
+                                        }
+                                    )
+                                ]
+
+                            let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                            let! writeBack = pushCategory now push entry baseline target
+                            return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+        }
+    )
+
+/// "Erneut senden" am Hinweis "Kategorie nicht in YNAB" (ADR 0055, Punkt 4): sendet den
+/// aktuellen BB-Stand. Erfolg schreibt `EntryCategorizationWrittenBackToYnab` (Actor
+/// `UserInBb`), ein erneuter Fehlschlag ersetzt den Grund (die Baseline bleibt). Ohne
+/// offenen Fehlschlag tut der Befehl nichts (`CategoryNotSent`).
+let retryCategorizationWriteBack
+    (now: DateTime)
+    (push: CategoryPush)
+    (entryId: EntryId)
+    : Async<Result<CategoryWriteBack, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry when entry.CategorizationWriteBackFailure.IsNone -> return Ok CategoryNotSent
+            | Some entry when not (List.isEmpty entry.Splits) ->
+                return Error "Die Buchung ist aufgeteilt, die Kategorien ändert der Split-Editor"
+            | Some entry ->
+                let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                let target = entry.Category |> Option.map (fun c -> c.CategoryId)
+                let! writeBack = pushCategory now push entry baseline target
+                return Ok writeBack
+        }
+    )

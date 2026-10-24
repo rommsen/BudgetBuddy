@@ -1441,6 +1441,24 @@ let private reviewMarkPush () : Async<Ledger.CommandHandlers.ReviewMarkPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Push der Kategorie (ledger-k2rbn, ADR 0055) mit Token und Standard-Budget aus den
+/// Settings, mit denselben Fehlerfällen wie `reviewMarkPush`.
+let private categoryPush () : Async<Ledger.CommandHandlers.CategoryPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun ynabTransactionId categoryId ->
+                YnabClient.updateCategory token (YnabBudgetId budgetId) ynabTransactionId categoryId
+        | None, _ ->
+            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Der Sammel-Push des Prüfvermerks (ledger-nhwrt), mit denselben Fehlerfällen wie
 /// `reviewMarkPush`.
 let private reviewMarkBatchPush () : Async<Ledger.CommandHandlers.ReviewMarkBatchPush> =
@@ -1498,6 +1516,20 @@ let ledgerApi : LedgerApi = {
         let! push = reviewMarkPush ()
         return!
             Ledger.CommandHandlers.retryReviewMarkWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
+
+    // Kategorie ändern und nach YNAB zurückschreiben (ledger-k2rbn, ADR 0055). Kassenbuch
+    // zuerst, dann der Push, beides unter der Schreib-Sperre gegen den Spiegel-Lauf.
+    setEntryCategory = fun entryId target -> async {
+        let! push = categoryPush ()
+        return!
+            Ledger.CommandHandlers.setEntryCategory DateTime.UtcNow push (Ledger.Events.EntryId entryId) target
+    }
+
+    retryCategorizationWriteBack = fun entryId -> async {
+        let! push = categoryPush ()
+        return!
+            Ledger.CommandHandlers.retryCategorizationWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
     }
 
     // "Geprüft" für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-nhwrt):

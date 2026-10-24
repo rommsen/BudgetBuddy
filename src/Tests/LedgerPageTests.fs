@@ -73,6 +73,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     FlagColor = None
     FlagName = None
     ReviewMarkWriteBackFailure = None
+    CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }

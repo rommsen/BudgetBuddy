@@ -30,6 +30,7 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     Flag = NoFlag
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
+    CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }

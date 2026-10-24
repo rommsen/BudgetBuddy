@@ -152,6 +152,7 @@ let domainTests =
                 FlagColor = p.FlagColor
                 FlagName = p.FlagName
                 ReviewMarkWriteBackFailure = None
+                CategorizationWriteBackFailure = None
                 LinkedToYnab = true
                 PushToYnabFailure = None
             }

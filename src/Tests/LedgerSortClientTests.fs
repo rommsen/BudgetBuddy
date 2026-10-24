@@ -39,6 +39,7 @@ let private entryOn (n: int) (date: DateTime) (amount: decimal) : LedgerEntryVie
     Flag = NoFlag
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
+    CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }

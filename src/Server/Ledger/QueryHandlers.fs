@@ -151,6 +151,7 @@ module ReadModel =
             Flag = flagOf entry.FlagColor entry.FlagName
             IsTransfer = entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome
             ReviewMarkWriteBackFailure = entry.ReviewMarkWriteBackFailure
+            CategorizationWriteBackFailure = entry.CategorizationWriteBackFailure |> Option.map (fun f -> f.Reason)
             LinkedToYnab = entry.LinkedToYnab
             PushToYnabFailure = entry.PushToYnabFailure
         }
@@ -322,6 +323,8 @@ module ReadModel =
         | EntryReviewMarkChangedInBb p -> describeReviewMarkChanged p
         | EntryReviewMarkWriteBackFailed p -> $"Prüfvermerk nicht in YNAB: {p.Reason}"
         | EntryReviewMarkWrittenBackToYnab -> "Prüfvermerk in YNAB angekommen"
+        | EntryCategorizationWriteBackFailed p -> $"Kategorie nicht in YNAB: {p.Reason}"
+        | EntryCategorizationWrittenBackToYnab -> "Kategorie in YNAB angekommen"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.

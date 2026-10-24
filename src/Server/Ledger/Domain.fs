@@ -77,6 +77,14 @@ let linkSystemFromString =
 // Buchung (Zustandsmodell)
 // ============================================
 
+/// Der offene Fehlschlag beim Zurückschreiben der Kategorie nach YNAB (ADR 0055, Punkt 4):
+/// der Grund für die Zeile und die Baseline, der Stand, den YNAB vermutlich noch hat.
+type CategorizationWriteBackFailure = {
+    Reason: string
+    BaselineCategory: CategoryRef option
+    BaselineSplits: TransactionSplit list
+}
+
 /// Der aktuelle Stand einer Buchung, abgeleitet aus ihrem Ereignis-Log.
 type Entry = {
     Id: EntryId
@@ -113,6 +121,9 @@ type Entry = {
     /// Grund des offenen Fehlschlags beim Zurückschreiben des Prüfvermerks nach YNAB
     /// (ADR 0050, Punkt 7): "Prüfvermerk nicht in YNAB". `None`, wenn nichts offen ist.
     ReviewMarkWriteBackFailure: string option
+    /// Der offene Fehlschlag beim Zurückschreiben der Kategorie nach YNAB samt Baseline
+    /// (ADR 0055, Punkt 4). `None`, wenn nichts offen ist.
+    CategorizationWriteBackFailure: CategorizationWriteBackFailure option
     /// Die Buchung trägt eine YNAB-Verknüpfung: von Anfang an bei `EntryObservedInYnab`,
     /// sonst ab `EntryLinkedToYnab` (ADR 0021). Die Verknüpfung selbst liegt in der
     /// Fremd-Id-Tabelle (ADR 0015), das Feld ist ihre Spiegelung im Zustand.
@@ -259,6 +270,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagColor = p.FlagColor
             FlagName = p.FlagName
             ReviewMarkWriteBackFailure = None
+            CategorizationWriteBackFailure = None
             LinkedToYnab = true
             PushToYnabFailure = None
         }
@@ -274,7 +286,9 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
 
     | EntryCategorizationChangeObservedInYnab p ->
         let e = requireExisting ()
-        { e with Category = p.NewCategory; Splits = p.NewSplits }
+        // Der Stand von YNAB gilt, ein offener Fehlschlag beim Zurückschreiben der
+        // Kategorie ist damit beendet (ADR 0055, Punkt 5).
+        { e with Category = p.NewCategory; Splits = p.NewSplits; CategorizationWriteBackFailure = None }
 
     | EntryClearedStateChangeObservedInYnab p ->
         let e = requireExisting ()
@@ -351,6 +365,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagColor = None
             FlagName = None
             ReviewMarkWriteBackFailure = None
+            CategorizationWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
         }
@@ -393,6 +408,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagColor = None
             FlagName = None
             ReviewMarkWriteBackFailure = None
+            CategorizationWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
         }
@@ -426,6 +442,22 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
     | EntryReviewMarkWrittenBackToYnab ->
         let e = requireExisting ()
         { e with ReviewMarkWriteBackFailure = None }
+
+    | EntryCategorizationWriteBackFailed p ->
+        let e = requireExisting ()
+        // Bei einem schon offenen Fehlschlag bleibt die erste Baseline (ADR 0055, Punkt 4):
+        // sie ist der Stand, den YNAB vermutlich noch hat. Nur der Grund wird ersetzt.
+        let baselineCategory, baselineSplits =
+            match e.CategorizationWriteBackFailure with
+            | Some open' -> open'.BaselineCategory, open'.BaselineSplits
+            | None -> p.BaselineCategory, p.BaselineSplits
+        { e with
+            CategorizationWriteBackFailure =
+                Some { Reason = p.Reason; BaselineCategory = baselineCategory; BaselineSplits = baselineSplits } }
+
+    | EntryCategorizationWrittenBackToYnab ->
+        let e = requireExisting ()
+        { e with CategorizationWriteBackFailure = None }
 
 /// Die Fremd-Ids, die ein Ereignis mitbringt. Rein: der Store schreibt sie beim
 /// Anhaengen mit, ohne selbst zu wissen, welches Ereignis welche Verknuepfung stiftet.
@@ -700,9 +732,21 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             || entry.Memo <> obs.Memo
             || entry.AccountId <> ctx.AccountId
 
-        let categorizationChanged =
-            categorizationIdentity entry.Category entry.Splits
-            <> categorizationIdentity obs.Category obs.Splits
+        // ADR 0055, Punkt 5: Ohne offenen Fehlschlag gewinnt YNAB (jeder abweichende Stand
+        // ist eine Beobachtung). Mit offenem Fehlschlag: gleich dem BB-Stand heißt
+        // "angekommen", gleich der Baseline heißt "YNAB hat unseren Push nie gesehen"
+        // (kein Ereignis, Fehlschlag bleibt), jeder andere Stand ist eine echte Änderung in
+        // YNAB, die den Fehlschlag in `apply` beendet.
+        let current = categorizationIdentity entry.Category entry.Splits
+        let observed = categorizationIdentity obs.Category obs.Splits
+
+        let categorizationChanged, categorizationWrittenBack =
+            match entry.CategorizationWriteBackFailure with
+            | None -> current <> observed, false
+            | Some failure ->
+                if observed = current then false, true
+                elif observed = categorizationIdentity failure.BaselineCategory failure.BaselineSplits then false, false
+                else true, false
 
         let clearedChanged = entry.Cleared <> obs.Cleared
 
@@ -763,4 +807,8 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             // anderen Stand, löst schon das Beobachtungs-Ereignis ihn in `apply` auf.
             if entry.ReviewMarkWriteBackFailure.IsSome && not clearedChanged && not approvalChanged then
                 event EntryReviewMarkWrittenBackToYnab
+
+            // ADR 0055, Punkt 5: dasselbe für die Kategorie.
+            if categorizationWrittenBack then
+                event EntryCategorizationWrittenBackToYnab
         ]

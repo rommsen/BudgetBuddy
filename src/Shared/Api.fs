@@ -343,6 +343,23 @@ type LedgerApi = {
     retryReviewMarkWriteBack: Guid -> Async<Result<ReviewMarkWriteBack, string>>
 
     // ============================================
+    // Kategorie ändern (ledger-k2rbn, ADR 0055)
+    // ============================================
+
+    /// Sets the category of one booking in BB (None = without category), then writes it
+    /// back to YNAB. The ledger event (EntryRecategorized) comes first, the YNAB call
+    /// second; a failed write-back leaves the category set in BB and is reported in the
+    /// outcome. Returns the previous category (for undo and the budget card), whether
+    /// anything changed and the write-back result. Error when the booking is unknown or
+    /// deleted in YNAB, a transfer without category, a split booking, or the category is
+    /// unknown. Undo is this call with the previous category.
+    setEntryCategory: Guid -> YnabCategoryId option -> Async<Result<CategoryChangeOutcome, string>>
+
+    /// Sends the booking's current category to YNAB again ("Erneut senden"). Does nothing
+    /// (CategoryNotSent) without an open write-back failure.
+    retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>
+
+    // ============================================
     // Prüfvermerk für eine Auswahl (ledger-nhwrt)
     // ============================================
 

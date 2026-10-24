@@ -855,6 +855,7 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                CategorizationWriteBackFailure = None
                 LinkedToYnab = false
                 PushToYnabFailure = None
             }
@@ -885,6 +886,7 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                CategorizationWriteBackFailure = None
                 LinkedToYnab = false
                 PushToYnabFailure = None
             }
@@ -909,6 +911,7 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                CategorizationWriteBackFailure = None
                 LinkedToYnab = false
                 PushToYnabFailure = None
             }
@@ -938,6 +941,7 @@ let splitCategoryIdsTests =
                 FlagColor = None
                 FlagName = None
                 ReviewMarkWriteBackFailure = None
+                CategorizationWriteBackFailure = None
                 LinkedToYnab = false
                 PushToYnabFailure = None
             }
