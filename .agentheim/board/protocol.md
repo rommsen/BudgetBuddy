@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:45 -- Modeling / Refined: ledger-k9tq7, ledger-dmw83 - Reihenfolge-Kanten entfernt
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo (nach Promote)
+**Summary:** depends_on-Kanten k9tq7 auf y6atr und dmw83 auf k9tq7 entfernt: sie waren nur Reihenfolge wegen derselben Stelle in src/Client/State.fs und blockierten den Promote. Überschneidung und gewünschte Reihenfolge stehen in den Notes.
+
+---
+
 ## 2026-10-24 22:45 -- Modeling / Promoted: infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
 
 **Type:** Modeling / Promote

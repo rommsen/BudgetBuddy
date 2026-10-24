@@ -6,8 +6,8 @@ type: bug
 context: ledger
 created: 2026-10-24
 completed:
-depends_on: [infrastructure-y6atr]
-blocks: [ledger-dmw83]
+depends_on: []
+blocks: []
 tags: [captured, kategorie, picker]
 related_adrs: []
 related_research: []
@@ -64,6 +64,8 @@ Captured via `quick-capture` on 2026-10-24, verfeinert am 2026-10-24.
 
 Settings `Success` ohne YNAB-Budget bleibt außerhalb dieser Task (heute ebenfalls still).
 
-Abhängig von `infrastructure-y6atr` nur wegen derselben Stelle in `src/Client/State.fs`
-(Reihenfolge statt Merge-Konflikt), nicht fachlich. `ledger-dmw83` baut auf dem
-`Failure`-Zustand aus Punkt 4 auf.
+Überschneidung ohne fachliche Abhängigkeit: `infrastructure-y6atr` und `ledger-dmw83`
+ändern dieselbe Stelle in `src/Client/State.fs` (Zweig `LedgerMsg LoadCategories`). Nicht
+parallel bauen; Reihenfolge y6atr, k9tq7, dmw83. `ledger-dmw83` nutzt den `Failure`-Zustand
+aus Punkt 4, funktioniert aber auch ohne ihn (heute entsteht `Failure`, wenn `getCategories`
+scheitert).

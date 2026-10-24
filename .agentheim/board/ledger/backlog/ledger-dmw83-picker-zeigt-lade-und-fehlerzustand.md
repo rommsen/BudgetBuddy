@@ -6,7 +6,7 @@ type: bug
 context: ledger
 created: 2026-10-24
 completed:
-depends_on: [design-system-001, ledger-k9tq7]
+depends_on: [design-system-001]
 blocks: []
 tags: [captured, kategorie, picker, frontend]
 related_adrs: []
@@ -61,6 +61,8 @@ Zustände.
 ## Notes
 Captured via `quick-capture` on 2026-10-24, verfeinert am 2026-10-24.
 
-Hängt an `ledger-k9tq7`: erst dort entsteht verlässlich der `Failure`-Zustand, und
-"Erneut versuchen" hat ohne den Nachhol-Weg für die Settings keine Wirkung. Dieselbe Stelle
-in `src/Client/State.fs` ist ein weiterer Grund für die Reihenfolge.
+Zusammenspiel mit `ledger-k9tq7`: erst dort entsteht der `Failure`-Zustand auch nach
+gescheitertem Settings-Laden, und "Erneut versuchen" lädt dann die Settings mit nach. Ohne
+k9tq7 greift der Fehlerzustand nur, wenn `getCategories` selbst scheitert. Keine harte
+Abhängigkeit, aber nicht parallel zu k9tq7 und `infrastructure-y6atr` bauen (dieselbe
+Stelle in `src/Client/State.fs`); Reihenfolge y6atr, k9tq7, dmw83.
