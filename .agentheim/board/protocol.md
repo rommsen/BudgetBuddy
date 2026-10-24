@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:12 -- Capture / Captured: ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** LoadCategories holt fehlende Settings nach statt still aufzugeben
+
+---
+
 ## 2026-10-24 22:12 -- Capture / Captured: infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
 
 **Type:** Capture
