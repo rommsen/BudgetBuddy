@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:55 -- Modeling / Refined: ADR 0058 - Probelauf gegen Wegwerf-Budget
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog (ledger-kxme4, ledger-pafkp)
+**Summary:** Probelauf gegen das YNAB-Budget Test: Aufteilen per PUT geht, Zeilen ändern gibt 400, Kategorie auf Split wird still ignoriert, import_id nach DELETE gibt 409, Suffix-import_id geht, approved/cleared/reconciled übernehmbar, Gegenbuchung wird mitgelöscht, Split-Übertrag auf Budget-Konto geht. ADR 0058 überarbeitet (PUT fürs Aufteilen, DELETE+POST mit import_id-Suffix für Ändern/Aufheben), bleibt proposed bis zu zwei offenen Entscheidungen.
+**ADRs written:** 0058 (überarbeitet)
+
+---
+
 ## 2026-10-24 22:45 -- Modeling / Promoted: ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
 
 **Type:** Modeling / Promote
