@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 00:35 -- Batch started: [ledger-dmw83]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
+**Parallel:** no (1 worker). Letzte Welle: ledger-dmw83 startet auf dem integrierten Stand von infrastructure-y6atr und ledger-k9tq7 (gleicher Zweig in src/Client/State.fs)
+
+---
+
 ## 2026-10-25 00:35 -- Task verified and completed: ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
 
 **Type:** Work / Task completion
