@@ -36,6 +36,7 @@
 
     <!-- Utilities -->
     <Compile Include="Debounce.fs" />
+    <Compile Include="Retry.fs" />
 
     <!-- Shared types -->
     <Compile Include="Types.fs" />

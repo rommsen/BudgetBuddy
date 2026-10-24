@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 23:45 - Lesende Start-Abfragen bei Netzwerkfehler wiederholen (infrastructure-y6atr)
+
+**What I did:**
+Client-Helfer `Retry` angelegt und um die vier lesenden Start-Abfragen des Kassenbuchs gelegt (höchstens zwei Wiederholungen bei Status 0, Pausen 400 ms und 1200 ms).
+
+**Files Added:**
+- `src/Client/Retry.fs` - generischer Wiederholungs-Helfer, Netzwerkfehler-Einordnung, `reading`
+- `src/Tests/RetryTests.fs` - 8 Tests
+
+**Files Modified:**
+- `src/Client/Client.fsproj` - Compile-Zeile für Retry.fs
+- `src/Client/Components/Settings/State.fs` - getSettings über Retry.reading, open Client
+- `src/Client/Components/Ledger/State.fs` - getLedgerAccounts und getLastMirrorRun über Retry.reading
+- `src/Client/State.fs` - getCategories im Zweig LedgerMsg LoadCategories über Retry.reading, open Client
+- `src/Tests/Tests.fsproj` - Compile-Zeile für RetryTests.fs
+
+**Rationale:**
+Ein einmaliger Verbindungsabbruch im Browser ("Http error (0)", Firefox, nach Deploy) ließ das Kassenbuch dauerhaft im Fehlerzustand. Die Wiederholung behebt die Folge, nicht die Ursache der Abbrüche.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1886 bestanden, 7 übersprungen (dotnet test); 198/198 test:scripts
+- Issues: keine
+
+---
+
 ## 2026-10-24 22:30 - Bugfix: Toast am Handy lag hinter dem Detail-Sheet
 
 **What I did:**

@@ -1,7 +1,7 @@
 ---
 id: infrastructure-y6atr
 title: Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
-status: doing
+status: done
 type: bug
 context: infrastructure
 created: 2026-10-24
@@ -74,3 +74,11 @@ aus infrastructure-bnbdc, ADR 0057). Der Playwright-Wächter für den PWA-Wechse
 
 Andere Aufrufer von `getSettings` (SyncFlow, Rules) bleiben in dieser Task unberührt. Ob der
 Helfer später breiter genutzt wird, entscheidet sich, wenn der Befund dort auftritt.
+
+## Outcome
+
+Neuer Client-Helfer `Retry` in `src/Client/Retry.fs` (nach `Debounce.fs` in `Client.fsproj`). `Retry.withRetry` ist generisch über `Async`: Einordnung (`exn -> bool`), Pausenliste und `sleep` sind Parameter. Ergebnisse, auch fachliche `Error`-Werte, werden nie wiederholt; scheitert der letzte Versuch, kommt dessen Ausnahme unverändert. `Retry.isNetworkError` erkennt `ProxyRequestException` mit `StatusCode = 0`. `Retry.reading` umhüllt eine Abfrage mit den Standardwerten (400 ms, 1200 ms, Summe 1,6 s). Umhüllt sind `getSettings` (Settings/State.fs, `LoadSettings`), `getLedgerAccounts` und `getLastMirrorRun` (Ledger/State.fs) sowie `getCategories` im Zweig `LedgerMsg LoadCategories` (State.fs, nur das Umhüllen der Abfrage; der Rules-Zweig und SyncFlow bleiben unberührt). In Settings/State.fs und State.fs kam `open Client` dazu.
+
+Tests: `src/Tests/RetryTests.fs` (8 Tests, Kommentar nennt den Befund Firefox "Http error (0)" 2026-10-24): zweimal scheitern, dritter liefert; alle drei scheitern (Fehler des letzten); HTTP 500 und fremde Ausnahme genau ein Aufruf; Ok und fachliches Error genau ein Aufruf; Standardpausen höchstens 2 s und zwei Stück; `isNetworkError` für Status 0, 500, 404, fremde Ausnahme; Quelltext-Zusicherung, dass genau diese vier Abfragen über `Retry.reading` laufen. Pausen werden per Parameter aufgezeichnet, keine echte Wartezeit.
+
+Läufe: `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 1886 bestanden, 0 Fehler, 7 übersprungen; `npm run build` ok; `npm run guard:classes` ok; `npm run test:scripts` (seriell) 198 von 198 bestanden.

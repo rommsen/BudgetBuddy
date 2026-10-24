@@ -53,6 +53,7 @@ Generische Ops-/Tech-Begriffe (kein projektspezifisches Fachvokabular):
   (Lifecycle in `vision.md` / context-map).
 - **Container**, **Volume** (`~/my_apps/budgetbuddy/`), **Tailnet**, **Secret**
   (verschlüsselt persistiert).
+- **Lesende Abfrage mit Wiederholung**: Client-Helfer `Retry.reading` (src/Client/Retry.fs): wiederholt eine lesende Remoting-Abfrage höchstens zweimal (Pausen 400 ms, 1200 ms), wenn sie mit Status 0 scheitert (Browser hat die Verbindung abgebrochen). Schreibende Aufrufe laufen nie darüber. Gilt für die vier Start-Abfragen des Kassenbuchs.
 
 ## Relationships with other contexts
 - **Generic supporting für** alle drei fachlichen Contexts: stellt Persistence, Transport

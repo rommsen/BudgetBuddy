@@ -551,7 +551,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadAccounts ->
         let cmd =
             Cmd.OfAsync.either
-                Api.ledger.getLedgerAccounts
+                (Retry.reading Api.ledger.getLedgerAccounts)
                 ()
                 (Ok >> AccountsLoaded)
                 (fun ex -> AccountsLoaded (Error ex.Message))
@@ -753,7 +753,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadMirrorStatus ->
         let cmd =
             Cmd.OfAsync.either
-                Api.ledger.getLastMirrorRun
+                (Retry.reading Api.ledger.getLastMirrorRun)
                 ()
                 (Ok >> MirrorStatusLoaded)
                 (fun ex -> MirrorStatusLoaded (Error ex.Message))

@@ -2,6 +2,7 @@ module Components.Settings.State
 
 open System
 open Elmish
+open Client
 open Components.Settings.Types
 open Types
 open Shared.Domain
@@ -46,7 +47,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | LoadSettings ->
         let cmd =
             Cmd.OfAsync.either
-                Api.settings.getSettings
+                (Retry.reading Api.settings.getSettings)
                 ()
                 (Ok >> SettingsLoaded)
                 (fun ex -> Error ex.Message |> SettingsLoaded)

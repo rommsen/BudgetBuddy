@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 23:30 -- Task verified and completed: infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
+
+**Type:** Work / Task completion
+**Task:** infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
+**Summary:** Die vier lesenden Start-Abfragen des Kassenbuchs (getSettings, getLedgerAccounts, getLastMirrorRun, getCategories) wiederholen sich bei einem Netzwerkfehler (Status 0) höchstens zweimal nach 400 ms und 1200 ms, bevor der Fehler erscheint. Schreibende Aufrufe laufen nicht darüber.
+**Duration:** 25m23s
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-10-24 23:04 -- Batch started: [infrastructure-y6atr, ledger-kxme4]
 
 **Type:** Work / Batch start

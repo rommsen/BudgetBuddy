@@ -2,6 +2,7 @@ module State
 
 open System
 open Elmish
+open Client
 open Shared.Domain
 open Types
 open Feliz.Router
@@ -565,7 +566,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 | Some budgetId ->
                     let cmd =
                         Cmd.OfAsync.either
-                            Api.ynab.getCategories
+                            (Retry.reading Api.ynab.getCategories)
                             budgetId
                             (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorToString)))
                             (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Error ex.Message)))
