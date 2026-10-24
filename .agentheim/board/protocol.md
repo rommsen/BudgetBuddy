@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:12 -- Capture / Captured: infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Lesende Start-Abfragen wiederholen sich bei Netzwerkfehler
+
+---
+
 ## 2026-10-24 20:35 -- Work session ended
 
 **Type:** Work / Session end
