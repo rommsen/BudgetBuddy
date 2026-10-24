@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 19:40 -- Batch started: [ledger-sfab0]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-sfab0 - "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Karte Budget nach dem Wechsel und Toast mit Rückgängig, Vorschläge zum Payee, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Zeile bleibt stehen (ausgegraut bei Filter-Nichttreffer, Hinweisleiste Neu laden bei Sortierschlüssel)"
+**Parallel:** scoped: builder named ledger-sfab0; 0 other ready tasks
+
+---
+
 ## 2026-10-24 19:39 -- Modeling / Promoted: ledger-sfab0 - "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Karte Budget nach dem Wechsel und Toast mit Rückgängig, Vorschläge zum Payee, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Zeile bleibt stehen (ausgegraut bei Filter-Nichttreffer, Hinweisleiste Neu laden bei Sortierschlüssel)"
 
 **Type:** Modeling / Promote
