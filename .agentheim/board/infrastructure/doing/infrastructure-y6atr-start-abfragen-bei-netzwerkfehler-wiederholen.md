@@ -1,7 +1,7 @@
 ---
 id: infrastructure-y6atr
 title: Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-10-24

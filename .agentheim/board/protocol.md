@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 23:04 -- Batch started: [infrastructure-y6atr, ledger-kxme4]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint, ledger-kxme4 - "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
+**Parallel:** yes (2 workers). ledger-k9tq7 und ledger-dmw83 folgen nacheinander als eigene Wellen, sobald infrastructure-y6atr integriert ist: alle drei ändern den Zweig LedgerMsg LoadCategories in src/Client/State.fs, Reihenfolge laut Task-Notes y6atr, k9tq7, dmw83
+
+---
+
 ## 2026-10-24 23:01 -- Modeling / Promoted: ledger-kxme4 - "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
 
 **Type:** Modeling / Promote

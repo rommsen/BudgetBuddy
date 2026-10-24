@@ -1,7 +1,7 @@
 ---
 id: ledger-kxme4
 title: "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-24
