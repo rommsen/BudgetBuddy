@@ -44,6 +44,7 @@ let init () : Model * Cmd<Msg> =
         Categories = NotAsked
         CategoriesLoadedAt = None
         CategoriesRefreshing = false
+        CategoriesAwaitSettings = false
         Filters = noFilters
         OpenPopover = None
         CategoryDraft = Set.empty

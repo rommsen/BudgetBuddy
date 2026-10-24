@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 00:35 -- Task verified and completed: ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
+
+**Type:** Work / Task completion
+**Task:** ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
+**Summary:** Fordert das Kassenbuch Kategorien an, während die Settings fehlen oder gescheitert sind, lädt es die Settings nach, zeigt Loading und startet danach den Abruf; scheitern die Settings, wird daraus ein Failure statt eines leeren Pickers.
+**Duration:** 64m14s
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 8
+**ADRs written:** none
+
+---
+
 ## 2026-10-24 23:55 -- Task verified and completed: ledger-kxme4 - "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
 
 **Type:** Work / Task completion

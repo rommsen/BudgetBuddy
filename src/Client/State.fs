@@ -482,14 +482,29 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     // späteres erneutes Laden der Settings (z. B. nach einer Änderung
                     // auf der Settings-Seite) keinen bereits erfolgreichen oder
                     // fehlgeschlagenen Ladevorgang wiederholt.
-                    if model.CurrentPage = Ledger && model.Ledger.Categories = NotAsked then
+                    //
+                    // Wartet ein `LoadCategories` ausdrücklich auf die Settings
+                    // (`CategoriesAwaitSettings`, ledger-k9tq7), startet es hier
+                    // unabhängig von Seite und `Loading`-Zustand.
+                    if model.Ledger.CategoriesAwaitSettings
+                       || (model.CurrentPage = Ledger && model.Ledger.Categories = NotAsked) then
                         Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
                     else
                         Cmd.none
                 | _ -> Cmd.none
             | _ -> Cmd.none
 
-        { model with Settings = settingsModel' }, Cmd.batch [ Cmd.map SettingsMsg settingsCmd; externalCmd; syncCategoriesCmd ]
+        // Scheitern die Settings, während die Kategorien auf sie warten, wird daraus
+        // ein Fehlerzustand statt eines ewigen `Loading` (ledger-k9tq7).
+        let ledgerAfterSettings =
+            match settingsMsg with
+            | Components.Settings.Types.SettingsLoaded (Error _) when model.Ledger.CategoriesAwaitSettings ->
+                { model.Ledger with
+                    Categories = Failure "Einstellungen konnten nicht geladen werden"
+                    CategoriesAwaitSettings = false }
+            | _ -> model.Ledger
+
+        { model with Settings = settingsModel'; Ledger = ledgerAfterSettings }, Cmd.batch [ Cmd.map SettingsMsg settingsCmd; externalCmd; syncCategoriesCmd ]
 
     // ============================================
     // SyncFlow Component
@@ -575,10 +590,17 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                         match model.Ledger.Categories with
                         | Success _ -> model.Ledger.Categories
                         | _ -> Loading
-                    { model with Ledger = { model.Ledger with Categories = categories; CategoriesRefreshing = true } }, cmd
+                    { model with Ledger = { model.Ledger with Categories = categories; CategoriesRefreshing = true; CategoriesAwaitSettings = false } }, cmd
                 | None -> model, Cmd.none
             | None -> model, Cmd.none
-        | _ -> model, Cmd.none
+        | settings ->
+            // Settings fehlen oder sind gescheitert (ledger-k9tq7, Befund 2026-10-24):
+            // nicht still aufgeben, sondern auf die Settings warten. Läuft ihre Abfrage
+            // schon (`Loading`), kein zweites `LoadSettings`.
+            let cmd =
+                if RemoteData.isLoading settings then Cmd.none
+                else Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadSettings)
+            { model with Ledger = { model.Ledger with Categories = Loading; CategoriesAwaitSettings = true } }, cmd
 
     | LedgerMsg ledgerMsg ->
         let ledgerModel', ledgerCmd, externalMsg = Components.Ledger.State.update ledgerMsg model.Ledger

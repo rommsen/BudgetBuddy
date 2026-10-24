@@ -1,7 +1,7 @@
 ---
 id: ledger-k9tq7
 title: Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-10-24
@@ -69,3 +69,11 @@ Settings `Success` ohne YNAB-Budget bleibt außerhalb dieser Task (heute ebenfal
 parallel bauen; Reihenfolge y6atr, k9tq7, dmw83. `ledger-dmw83` nutzt den `Failure`-Zustand
 aus Punkt 4, funktioniert aber auch ohne ihn (heute entsteht `Failure`, wenn `getCategories`
 scheitert).
+
+## Outcome
+
+`LedgerMsg LoadCategories` (src/Client/State.fs) gibt bei Settings ungleich `Success` nicht mehr still auf. Bei `NotAsked` oder `Failure` löst es `LoadSettings` aus, bei `Loading` kein zweites. In beiden Fällen steht `Ledger.Categories` auf `Loading` und das neue Feld `CategoriesAwaitSettings` auf true (Ledger/Types.fs, init in Ledger/State.fs). Der `SettingsMsg`-Zweig startet `LoadCategories`, wenn `SettingsLoaded (Ok)` mit Budget eintrifft und die Kategorien warten (unabhängig von Seite und Loading), oder wie bisher bei `NotAsked` auf der Kassenbuch-Seite. `SettingsLoaded (Error)` bei wartenden Kategorien setzt `Failure "Einstellungen konnten nicht geladen werden"` und beendet das Warten. Der Abruf mit Budget läuft weiter über `Retry.reading Api.ynab.getCategories` (y6atr) und löscht das Warten.
+
+Tests: src/Tests/LedgerCategoriesAwaitSettingsTests.fs (8 Tests, Kommentar zum Befund vom 2026-10-24). Kriterium 4 ("dieser ruft dann getCategories"): `Cmd.OfAsync` mit Fable.Remoting-Proxy ist unter .NET nicht ausführbar; belegt wird, dass `LoadCategories` abgeschickt wird, und per Quelltext-Zusicherung, dass der Zweig `Retry.reading Api.ynab.getCategories` aufruft. Offen (außerhalb der Task): Settings `Success` ohne Budget lässt wartende Kategorien auf `Loading` stehen, wie bisher still.
+
+Läufe: dotnet build 0 Warnungen, 0 Fehler; dotnet test 1894 bestanden, 7 übersprungen, 0 Fehler (vorher 1886); npm run build ok; guard:classes ok; test:scripts seriell (`node --test --test-concurrency=1`) 198 von 198 bestanden (der parallele Lauf hängt, wie bekannt).

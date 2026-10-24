@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 00:22 - Kassenbuch holt fehlende Settings für die Kategorien nach (ledger-k9tq7)
+
+**What I did:**
+LoadCategories wartet bei fehlenden oder gescheiterten Settings auf diese, statt still aufzugeben. Neues Modellfeld CategoriesAwaitSettings, Nachhol- und Fehlerzweig im SettingsMsg-Zweig.
+
+**Files Added:**
+- `src/Tests/LedgerCategoriesAwaitSettingsTests.fs` - 8 Tests (Failure, NotAsked, Loading, Folge Ok, Folge Error, bestehendes Verhalten)
+
+**Files Modified:**
+- `src/Client/State.fs` - LoadCategories-Zweig, SettingsMsg-Zweig
+- `src/Client/Components/Ledger/Types.fs` - Feld CategoriesAwaitSettings
+- `src/Client/Components/Ledger/State.fs` - Initialwert
+- `src/Tests/Tests.fsproj` - Compile-Zeile
+
+**Rationale:**
+Live-Befund 2026-10-24: leerer Kategorie-Picker nach gescheitertem Settings-Laden.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1894 bestanden, 7 übersprungen; test:scripts 198/198
+- Issues: parallele test:scripts hängen, serieller Lauf grün
+
+---
+
 ## 2026-10-24 23:45 - Split-Schreibweg: setEntrySplits, Ersatz per DELETE und POST (ledger-kxme4)
 
 **What I did:**

@@ -50,6 +50,7 @@
     <Compile Include="RetryTests.fs" />
     <Compile Include="AppReadinessTests.fs" />
     <Compile Include="LedgerCategoriesSyncTests.fs" />
+    <Compile Include="LedgerCategoriesAwaitSettingsTests.fs" />
     <Compile Include="LedgerCategoriesFreshnessTests.fs" />
     <Compile Include="SplitEditorTests.fs" />
     <Compile Include="RulesReorderTests.fs" />

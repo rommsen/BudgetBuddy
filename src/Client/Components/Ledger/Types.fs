@@ -519,6 +519,12 @@ type Model = {
     /// (`Categories` bleibt `Success`) und verhindert einen zweiten Abruf.
     CategoriesRefreshing: bool
 
+    /// `LoadCategories` kam, als die Settings noch nicht da waren (`NotAsked`,
+    /// `Loading` oder `Failure`, ledger-k9tq7). `Categories` steht dann auf `Loading`;
+    /// `SettingsLoaded (Ok …)` startet den Abruf, `SettingsLoaded (Error …)` macht
+    /// `Categories` zu `Failure`.
+    CategoriesAwaitSettings: bool
+
     /// Der committete Zustand aller fünf Such-Filter.
     Filters: Filters
 
