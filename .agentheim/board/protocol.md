@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:45 -- Modeling / Promoted: ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-24 22:45 -- Modeling / Promoted: ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-24 22:45 -- Modeling / Refined: ledger-k9tq7, ledger-dmw83 - Reihenfolge-Kanten entfernt
 
 **Type:** Modeling / Refine

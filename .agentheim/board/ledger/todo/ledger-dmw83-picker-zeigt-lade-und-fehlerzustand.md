@@ -1,7 +1,7 @@
 ---
 id: ledger-dmw83
 title: Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-10-24
