@@ -4,6 +4,25 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 22:30 - Bugfix: Toast am Handy lag hinter dem Detail-Sheet
+
+**What I did:**
+Toasts liegen jetzt auf einer eigenen Ebene über allen Sheets. Vorher hatte der Toast-Container `z-50`, das Detail-Sheet `z-index: 60` (Picker-Sheet 80): Am Handy war der Toast nach einer Kategorieänderung samt "Rückgängig" unsichtbar. Live von Roman gefunden.
+
+**Files Modified:**
+- `src/Client/DesignSystem/Toast.fs` - beide Container nutzen `toast-layer` statt `z-50`
+- `src/Client/styles.css` - neue Klasse `.toast-layer { z-index: 90; }` über `layer-2`
+- `scripts/ledger-category-change.test.mjs` - Regressionstest im Handy-Fall (390 px): "Rückgängig" im Toast ist über dem offenen Detail-Sheet das oberste Element (`elementFromPoint`) und sendet beim Antippen die alte Kategorie. Vor dem Fix rot.
+
+**Rationale:**
+Der Test aus ledger-sfab0 prüfte den Toast nur bei 1440 px, wo das Detail ein Panel ist. Betroffen waren alle Toasts bei offenem Sheet am Handy, nicht nur die Kategorie.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: dotnet test 1879 grün, 6 übersprungen; test:scripts 198/198; guard:classes, guard:tokens grün
+
+---
+
 ## 2026-10-24 21:10 - Kassenbuch-Detail: Kategorie ändern (ledger-sfab0)
 
 **What I did:**

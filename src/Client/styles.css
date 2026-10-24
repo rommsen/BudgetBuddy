@@ -2412,6 +2412,10 @@ nav a:focus-visible {
 
 /* Elevated sheet layer: a second bottom sheet (category picker) opening on
    top of an already-open sheet (Quick Add form) */
+/* Toasts liegen über allen Sheets (auch layer-2), sonst verdeckt am Handy ein offenes
+   Detail-Sheet den Toast samt "Rückgängig" (Regression 2026-10-24). */
+.toast-layer { z-index: 90; }
+
 .overlay.layer-2 { z-index: 70; }
 .bottom-sheet.layer-2 { z-index: 80; }
 

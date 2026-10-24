@@ -372,5 +372,22 @@ test("Handy (390x844): Der Picker öffnet als zweites Sheet über dem Detail, di
   });
   assert.ok(order.cardTop >= order.rowBottom - 1, "Karte unter dem Kategorie-Feld im Detail-Sheet");
   assert.equal(await page.locator(".bottom-sheet.active", { hasText: "Kategorie wählen" }).count(), 0, "Picker-Sheet zu");
+  // Regression (2026-10-24, Live-Befund): Der Toast lag am Handy hinter dem Detail-Sheet
+  // (Toast z-50, .bottom-sheet z-60) und war samt "Rückgängig" unsichtbar. Er muss über
+  // dem offenen Detail-Sheet das oberste Element sein und sich antippen lassen.
+  const undo = page.locator('[data-toast-action="true"]', { hasText: "Rückgängig" });
+  await undo.waitFor();
+  const topmost = await undo.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return hit === el || el.contains(hit);
+  });
+  assert.ok(topmost, "Rückgängig im Toast liegt über dem Detail-Sheet");
+  // Das Picker-Sheet schluckt nach der Wahl 350 ms lang den nächsten Klick (ADR 0005);
+  // ein Mensch tippt später, der Test wartet die Sperre ab.
+  await page.waitForTimeout(400);
+  await undo.tap();
+  for (let i = 0; i < 50 && state.setCalls.length < 2; i += 1) await new Promise((r) => setTimeout(r, 40));
+  assert.deepEqual(state.setCalls[1]?.choice, { YnabCategoryId: CAT.lebensmittel.id }, "Rückgängig im Toast sendet am Handy die alte Kategorie");
   await context.close();
 });

@@ -222,7 +222,7 @@ let toastWithTitle (id: Guid) (title: string) (message: string) (variant: ToastV
 let container (position: ToastPosition) (children: ReactElement list) =
     Html.div [
         prop.className (
-            "fixed z-50 flex flex-col gap-2 pointer-events-none " +
+            "fixed toast-layer flex flex-col gap-2 pointer-events-none " +
             // Mobile: deliberate top strip, symmetric inset (no inherited bottom/right).
             "top-16 inset-x-4 " +
             // Desktop: drop the mobile insets, take a bounded width, then anchor.
@@ -266,7 +266,7 @@ let info' (id: Guid) (message: string) (onDismiss: Guid -> unit) =
 let private actionContainer (children: ReactElement list) =
     Html.div [
         prop.className (
-            "fixed z-50 flex flex-col gap-2 pointer-events-none toast-above-nav " +
+            "fixed toast-layer flex flex-col gap-2 pointer-events-none toast-above-nav " +
             "inset-x-4 md:inset-x-auto md:w-full md:max-w-sm md:right-4"
         )
         prop.children children
