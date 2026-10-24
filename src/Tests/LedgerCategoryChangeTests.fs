@@ -76,7 +76,7 @@ let private recategorized (oldC: CategoryRef option) (newC: CategoryRef option) 
     }
 
 let private failedBody (reason: string) (baseline: CategoryRef option) =
-    EntryCategorizationWriteBackFailed { Reason = reason; BaselineCategory = baseline; BaselineSplits = [] }
+    EntryCategorizationWriteBackFailed { Reason = reason; BaselineCategory = baseline; BaselineSplits = []; YnabDeletedTransactionId = None }
 
 let private entryWith (category: CategoryRef option) : Entry =
     apply None (eventOn (newEntryId ()) YnabMirror (EntryObservedInYnab (observedPayload "ynab-x" category)))
@@ -108,7 +108,7 @@ let categoryDomainTests =
             let failed = apply (Some e0) (eventOn e0.Id UserInBb (failedBody "Timeout" (Some catA)))
             Expect.equal
                 failed.CategorizationWriteBackFailure
-                (Some { Reason = "Timeout"; BaselineCategory = Some catA; BaselineSplits = [] })
+                (Some { Reason = "Timeout"; BaselineCategory = Some catA; BaselineSplits = []; YnabDeletedTransactionId = None })
                 "Grund und Baseline"
             let done' = apply (Some failed) (eventOn e0.Id UserInBb EntryCategorizationWrittenBackToYnab)
             Expect.isNone done'.CategorizationWriteBackFailure "beendet"
@@ -147,7 +147,7 @@ let categoryDomainTests =
             Expect.equal (replay events) folded "Replay gleich Faltung"
             Expect.equal
                 (replay events |> Option.get).CategorizationWriteBackFailure
-                (Some { Reason = "429"; BaselineCategory = Some catB; BaselineSplits = [] })
+                (Some { Reason = "429"; BaselineCategory = Some catB; BaselineSplits = []; YnabDeletedTransactionId = None })
                 "letzter Fehlschlag gilt"
 
         testCase "Codec-Rundreise beider neuen Ereignisse, Name und Schema-Version 1" <| fun () ->
@@ -156,8 +156,9 @@ let categoryDomainTests =
                     Reason = "Grund mit Umlaut: größer"
                     BaselineCategory = Some catA
                     BaselineSplits = []
+                    YnabDeletedTransactionId = None
                 }
-                EntryCategorizationWriteBackFailed { Reason = "ohne Baseline"; BaselineCategory = None; BaselineSplits = [] }
+                EntryCategorizationWriteBackFailed { Reason = "ohne Baseline"; BaselineCategory = None; BaselineSplits = []; YnabDeletedTransactionId = None }
                 EntryCategorizationWrittenBackToYnab
             ]
             for body in bodies do
@@ -441,7 +442,7 @@ let categoryCommandTests =
                     let e = entryOf entryId
                     Expect.equal
                         e.CategorizationWriteBackFailure
-                        (Some { Reason = reason; BaselineCategory = Some catA; BaselineSplits = [] })
+                        (Some { Reason = reason; BaselineCategory = Some catA; BaselineSplits = []; YnabDeletedTransactionId = None })
                         "Entry trägt Grund und Baseline"
                     Expect.equal e.Category (Some catB) "Kategorie bleibt in BB gesetzt"
                 | other -> failtest $"erwartet Fehlschlag, war {other}"

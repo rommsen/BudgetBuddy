@@ -52,6 +52,10 @@ type LinkSystem =
     | ImportIdSystem
     /// Die Comdirect-Reference. Wird mitgefuehrt, nie gematcht (ADR 0015).
     | ComdirectSystem
+    /// Eine abgelöste YNAB-Id (ADR 0058, Punkt 5): die Buchung wurde in YNAB ersetzt, die
+    /// alte Id zeigt weiter auf sie, damit der Spiegel sie findet, gilt aber nicht mehr als
+    /// aktuelle Verknüpfung und ihre Lösch-Beobachtung setzt `DeletedInYnab` nicht.
+    | YnabSupersededSystem
 
 /// Eine Fremd-Id, die auf genau eine Buchung zeigt. Je System und Wert eindeutig.
 type EntryLink = {
@@ -65,12 +69,14 @@ let linkSystemToString =
     | YnabSystem -> "ynab"
     | ImportIdSystem -> "importid"
     | ComdirectSystem -> "comdirect"
+    | YnabSupersededSystem -> "ynabsuperseded"
 
 let linkSystemFromString =
     function
     | "ynab" -> Ok YnabSystem
     | "importid" -> Ok ImportIdSystem
     | "comdirect" -> Ok ComdirectSystem
+    | "ynabsuperseded" -> Ok YnabSupersededSystem
     | other -> Error $"Unbekanntes Fremdsystem: {other}"
 
 // ============================================
@@ -83,6 +89,9 @@ type CategorizationWriteBackFailure = {
     Reason: string
     BaselineCategory: CategoryRef option
     BaselineSplits: TransactionSplit list
+    /// Beim Ersetzen einer Split-Buchung (ADR 0058, Punkt 3): das DELETE ist gelungen, das
+    /// POST nicht. Die gelöschte YNAB-Id; "Erneut senden" führt dann nur das POST aus.
+    YnabDeletedTransactionId: string option
 }
 
 /// Der aktuelle Stand einer Buchung, abgeleitet aus ihrem Ereignis-Log.
@@ -451,13 +460,30 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             match e.CategorizationWriteBackFailure with
             | Some open' -> open'.BaselineCategory, open'.BaselineSplits
             | None -> p.BaselineCategory, p.BaselineSplits
+        // Die gelöschte YNAB-Id (ADR 0058, Punkt 3) bleibt über weitere Fehlschläge erhalten.
+        let deleted =
+            p.YnabDeletedTransactionId
+            |> Option.orElse (e.CategorizationWriteBackFailure |> Option.bind (fun f -> f.YnabDeletedTransactionId))
         { e with
             CategorizationWriteBackFailure =
-                Some { Reason = p.Reason; BaselineCategory = baselineCategory; BaselineSplits = baselineSplits } }
+                Some {
+                    Reason = p.Reason
+                    BaselineCategory = baselineCategory
+                    BaselineSplits = baselineSplits
+                    YnabDeletedTransactionId = deleted
+                } }
 
     | EntryCategorizationWrittenBackToYnab ->
         let e = requireExisting ()
         { e with CategorizationWriteBackFailure = None }
+
+    | EntryReplacedInYnab _ ->
+        // ADR 0058, Punkt 5: YNAB hat die Subtransactions und die Gegenbuchungen neu
+        // angelegt, die alten Zuordnungen (Subtransaction-Id zu Gegenbuchung) gelten nicht
+        // mehr. Der Spiegel zieht sie nach, sobald er die neuen Gegenbuchungen sieht
+        // (ADR 0046). Die Verknüpfungen stiftet `linksFrom`.
+        let e = requireExisting ()
+        { e with SplitTransferCounterparts = Map.empty }
 
 /// Die Fremd-Ids, die ein Ereignis mitbringt. Rein: der Store schreibt sie beim
 /// Anhaengen mit, ohne selbst zu wissen, welches Ereignis welche Verknuepfung stiftet.
@@ -478,6 +504,14 @@ let linksFrom (event: LedgerEvent) : EntryLink list =
         ]
     | EntryLinkedToYnab p ->
         [ { EntryId = event.EntryId; System = YnabSystem; Value = p.YnabTransactionId } ]
+    | EntryReplacedInYnab p ->
+        [
+            { EntryId = event.EntryId; System = YnabSystem; Value = p.NewYnabTransactionId }
+            { EntryId = event.EntryId; System = YnabSupersededSystem; Value = p.OldYnabTransactionId }
+            match p.NewImportId with
+            | Some importId -> { EntryId = event.EntryId; System = ImportIdSystem; Value = importId }
+            | None -> ()
+        ]
     | _ -> []
 
 /// Faltet eine ganze Historie zu einem Zustand. Die Ereignisse muessen in ihrer

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 23:55 -- Task verified and completed: ledger-kxme4 - "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
+
+**Type:** Work / Task completion
+**Task:** ledger-kxme4 - "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
+**Summary:** Der Befehl setEntrySplits steht in LedgerApi und im Server: Aufteilen per PUT, Ändern und Aufheben per DELETE und POST mit abgeleiteter import_id (:r<n>), neuem Ereignis EntryReplacedInYnab, abgelöster YNAB-Id und dem Fehlschlag-Zustand "Neuanlage offen". "Erneut senden" deckt jetzt Kategorie und Split ab.
+**Duration:** 49m10s
+**Verification:** PASS (iteration 1)
+**Files changed:** 11
+**Tests added:** 35
+**ADRs written:** 0059-split-schreibweg-umsetzung-ersatz-ereignis-abgeloeste-id-und-retry-weg.md
+
+---
+
 ## 2026-10-24 23:31 -- Batch started: [ledger-k9tq7]
 
 **Type:** Work / Batch start

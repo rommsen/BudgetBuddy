@@ -61,6 +61,7 @@
     <Compile Include="LedgerMirrorTests.fs" />
     <Compile Include="LedgerReviewMarkTests.fs" />
     <Compile Include="LedgerCategoryChangeTests.fs" />
+    <Compile Include="LedgerSplitWriteTests.fs" />
     <Compile Include="LedgerReviewMarkBatchTests.fs" />
     <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="LedgerPushFailureTests.fs" />

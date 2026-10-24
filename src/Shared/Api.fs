@@ -355,6 +355,18 @@ type LedgerApi = {
     /// unknown. Undo is this call with the previous category.
     setEntryCategory: Guid -> YnabCategoryId option -> Async<Result<CategoryChangeOutcome, string>>
 
+    /// Sets the split lines of one booking in BB, then writes them back to YNAB
+    /// (ledger-kxme4, ADR 0058). Two or more lines split the booking or replace its lines;
+    /// exactly one line (a category line or an uncategorized line for the full amount)
+    /// removes the split, the booking then carries that category. Error without event and
+    /// without YNAB call when the list is empty, a single transfer line, the sum differs
+    /// from the booking amount, a category is unknown, the booking is deleted in YNAB, not
+    /// linked, a transfer between budget accounts, on a tracking account, reconciled, or
+    /// an already split booking whose import_id does not start with "BB:" (changing and
+    /// removing it is blocked, splitting it is allowed). Same outcome type, write-back
+    /// failure state and "Erneut senden" (retryCategorizationWriteBack) as setEntryCategory.
+    setEntrySplits: Guid -> TransactionSplit list -> Async<Result<CategoryChangeOutcome, string>>
+
     /// Sends the booking's current category to YNAB again ("Erneut senden"). Does nothing
     /// (CategoryNotSent) without an open write-back failure.
     retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>

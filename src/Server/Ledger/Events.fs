@@ -255,10 +255,27 @@ type EntryReviewMarkWriteBackFailedPayload = { Reason: string }
 /// den YNAB vermutlich noch hat: die `Old*`-Werte der ersten gescheiterten Änderung (bei
 /// weiteren Änderungen mit offenem Fehlschlag bleibt die erste Baseline). `observe`
 /// vergleicht den beobachteten YNAB-Stand damit.
+///
+/// `YnabDeletedTransactionId` (ADR 0058, Punkt 3): beim Ersetzen einer Split-Buchung ist
+/// das DELETE gelungen und das POST gescheitert. Die Buchung fehlt dann in YNAB ("Neuanlage
+/// offen"), das Feld nennt die gelöschte YNAB-Id. "Erneut senden" führt dann nur das POST
+/// aus. Fehlt das Feld im gespeicherten JSON (ältere Ereignisse), gilt `None`.
 type EntryCategorizationWriteBackFailedPayload = {
     Reason: string
     BaselineCategory: CategoryRef option
     BaselineSplits: TransactionSplit list
+    YnabDeletedTransactionId: string option
+}
+
+/// Eine Split-Buchung wurde in YNAB ersetzt (ADR 0058, Punkt 2 und 5): DELETE und POST sind
+/// gelungen, die Buchung trägt dort eine neue YNAB-Id, neue Subtransaction-Ids und eine
+/// abgeleitete `import_id` (alte plus `:r<n>`). Die alte YNAB-Id gilt als abgelöst: eine
+/// spätere Lösch-Beobachtung des Spiegels zu ihr setzt `DeletedInYnab` nicht. Actor `UserInBb`.
+type EntryReplacedInYnabPayload = {
+    OldYnabTransactionId: string
+    NewYnabTransactionId: string
+    /// Die neue `import_id`; `None`, wenn die Buchung keine hatte.
+    NewImportId: string option
 }
 
 /// Der Push einer Buchung nach YNAB ist gescheitert (ADR 0021, Punkt 2, Nachtrag
@@ -301,6 +318,10 @@ type LedgerEventBody =
     /// Der offene Kategorie-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
     /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0055, Punkt 4).
     | EntryCategorizationWrittenBackToYnab
+    /// Eine Split-Buchung ist in YNAB gelöscht und unter neuer Id angelegt worden
+    /// (ADR 0058). Stiftet die neuen Verknüpfungen (YNAB-Id, ImportId) und hält die alte
+    /// YNAB-Id als abgelöst fest.
+    | EntryReplacedInYnab of EntryReplacedInYnabPayload
     /// Push der Buchung nach YNAB gescheitert, Grund im Payload. Aufgelöst durch
     /// `EntryLinkedToYnab` (ADR 0021, Nachtrag ledger-rynk5).
     | EntryPushToYnabFailed of EntryPushToYnabFailedPayload
@@ -361,6 +382,7 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryReviewMarkWrittenBackToYnab -> "EntryReviewMarkWrittenBackToYnab"
     | EntryCategorizationWriteBackFailed _ -> "EntryCategorizationWriteBackFailed"
     | EntryCategorizationWrittenBackToYnab -> "EntryCategorizationWrittenBackToYnab"
+    | EntryReplacedInYnab _ -> "EntryReplacedInYnab"
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
 
 /// Die Schema-Version, mit der ein Ereignis heute geschrieben wird. Aendert sich die
@@ -389,6 +411,7 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryReviewMarkWrittenBackToYnab -> 1
     | EntryCategorizationWriteBackFailed _ -> 1
     | EntryCategorizationWrittenBackToYnab -> 1
+    | EntryReplacedInYnab _ -> 1
     | EntryPushToYnabFailed _ -> 1
 
 // ============================================
@@ -849,6 +872,9 @@ module Codec =
             "reason", Encode.string p.Reason
             "baselineCategory", encodeOption encodeCategory p.BaselineCategory
             "baselineSplits", encodeSplits p.BaselineSplits
+            match p.YnabDeletedTransactionId with
+            | Some id -> "ynabDeletedTransactionId", Encode.string id
+            | None -> ()
         ]
 
     let decodeCategorizationWriteBackFailed : Decoder<EntryCategorizationWriteBackFailedPayload> =
@@ -856,6 +882,21 @@ module Codec =
             Reason = get.Required.Field "reason" Decode.string
             BaselineCategory = get.Optional.Field "baselineCategory" decodeCategory
             BaselineSplits = get.Optional.Field "baselineSplits" decodeSplits |> Option.defaultValue []
+            YnabDeletedTransactionId = get.Optional.Field "ynabDeletedTransactionId" Decode.string
+        })
+
+    let encodeReplacedInYnab (p: EntryReplacedInYnabPayload) =
+        Encode.object [
+            "oldYnabTransactionId", Encode.string p.OldYnabTransactionId
+            "newYnabTransactionId", Encode.string p.NewYnabTransactionId
+            "newImportId", encodeOption Encode.string p.NewImportId
+        ]
+
+    let decodeReplacedInYnab : Decoder<EntryReplacedInYnabPayload> =
+        Decode.object (fun get -> {
+            OldYnabTransactionId = get.Required.Field "oldYnabTransactionId" Decode.string
+            NewYnabTransactionId = get.Required.Field "newYnabTransactionId" Decode.string
+            NewImportId = get.Optional.Field "newImportId" Decode.string
         })
 
     let encodePushToYnabFailed (p: EntryPushToYnabFailedPayload) =
@@ -887,6 +928,7 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryReviewMarkWrittenBackToYnab -> Encode.object []
         | EntryCategorizationWriteBackFailed p -> Codec.encodeCategorizationWriteBackFailed p
         | EntryCategorizationWrittenBackToYnab -> Encode.object []
+        | EntryReplacedInYnab p -> Codec.encodeReplacedInYnab p
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
     Encode.toString 0 json
 
@@ -938,6 +980,8 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeCategorizationWriteBackFailed payload
         |> Result.map EntryCategorizationWriteBackFailed
     | "EntryCategorizationWrittenBackToYnab", 1 -> Ok EntryCategorizationWrittenBackToYnab
+    | "EntryReplacedInYnab", 1 ->
+        Decode.fromString Codec.decodeReplacedInYnab payload |> Result.map EntryReplacedInYnab
     | "EntryPushToYnabFailed", 1 ->
         Decode.fromString Codec.decodePushToYnabFailed payload |> Result.map EntryPushToYnabFailed
     | t, v -> Error $"Unbekannter Ereignistyp '{t}' in Schema-Version {v}"

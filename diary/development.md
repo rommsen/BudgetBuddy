@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 23:45 - Split-Schreibweg: setEntrySplits, Ersatz per DELETE und POST (ledger-kxme4)
+
+**What I did:**
+Den Server-Teil des Split-Schreibwegs nach ADR 0058 gebaut. Neuer Befehl `setEntrySplits` (Aufteilen per PUT, Ändern und Aufheben per DELETE und POST mit `import_id`-Suffix `:r<n>`), neues Ereignis `EntryReplacedInYnab`, abgelöste YNAB-Ids als Verknüpfung `ynabsuperseded`, Fehlschlag-Zustand "Neuanlage offen" (`YnabDeletedTransactionId`) und ein gemeinsamer "Erneut senden"-Weg für Kategorie und Split. Der Spiegel überspringt Lösch-Beobachtungen abgelöster Ids.
+
+**Files Added:**
+- `src/Tests/LedgerSplitWriteTests.fs` - 35 Tests (Domäne, Befehle gegen In-Memory-SQLite, YnabClient gegen Fake-Handler)
+
+**Files Modified:**
+- `src/Shared/Api.fs` - `setEntrySplits` in `LedgerApi`
+- `src/Server/Api.fs` - `splitWriteTools`, Verdrahtung von `setEntrySplits` und `retryCategorizationWriteBack`
+- `src/Server/YnabClient.fs` - `SplitReplacement`, `buildSplitBody`, `buildReplacementBody`, `sendSplits`, `sendDeleteTransaction`, `sendCreateTransaction`, `updateSplits`, `deleteTransaction`, `createReplacement`, `replaceSplitTransaction`, `isTrackingAccount`
+- `src/Server/Ledger/CommandHandlers.fs` - `SplitWriteTools`, `setEntrySplits`, `pushSplitState`, `retryCategorizationOrSplitWriteBack`, `currentYnabTransactionId`, `isSupersededDeletion` im Spiegel-Lauf
+- `src/Server/Ledger/Domain.fs` - `YnabSupersededSystem`, `YnabDeletedTransactionId`, `apply` und `linksFrom` für `EntryReplacedInYnab`
+- `src/Server/Ledger/Events.fs` - `EntryReplacedInYnab` samt Codec, neues optionales Feld im Fehlschlag-Payload
+- `src/Server/Ledger/Persistence.fs` - Fehlschlag-Zustand mit dem neuen Feld lesen und schreiben
+- `src/Server/Ledger/QueryHandlers.fs` - Historien-Satz des Ersatzes
+- `src/Tests/LedgerCategoryChangeTests.fs` - bestehende Tests um das neue Pflichtfeld ergänzt
+- `src/Tests/Tests.fsproj` - neue Testdatei mitten in die Liste
+
+**Rationale:**
+YNAB lässt `subtransactions` einer bestehenden Split-Buchung nicht ändern (ADR 0058). Das Ersetzen braucht zwei Aufrufe mit einem Fenster, in dem die Buchung in YNAB fehlt; dafür hält der Fehlschlag die gelöschte Id, und die abgelöste Id verhindert, dass der Spiegel die Buchung als gelöscht führt.
+
+**Outcomes:**
+- Build: 0 Warnungen, 0 Fehler
+- Tests: dotnet test 1913 bestanden, 7 übersprungen, 0 Fehler (35 neu); npm run build grün; guard:classes grün; test:scripts 198 von 198 bestanden
+- Issues: keine. Offen (in ADR 0059 vermerkt): ein POST, das zwar ankam, aber als gescheitert gemeldet wurde, ergibt beim erneuten Senden ein 409 wegen derselben `import_id`.
+
+---
+
 ## 2026-10-24 23:45 - Lesende Start-Abfragen bei Netzwerkfehler wiederholen (infrastructure-y6atr)
 
 **What I did:**

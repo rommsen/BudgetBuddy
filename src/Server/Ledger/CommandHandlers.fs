@@ -374,6 +374,26 @@ let private linkSplitTransferCounterparts
                 do! Ledger.Persistence.appendAndApply (List.ofSeq events)
     }
 
+/// Ist diese Beobachtung die Lösch-Beobachtung einer abgelösten YNAB-Id (ADR 0058, Punkt 5)?
+/// Abgelöst ist eine Id, wenn ein Ersatz sie festgehalten hat (Verknüpfung
+/// `YnabSupersededSystem`) oder wenn das DELETE gelungen und die Neuanlage noch offen ist
+/// (`YnabDeletedTransactionId` am offenen Fehlschlag). Beides lässt `DeletedInYnab` aus.
+let private isSupersededDeletion (existing: Entry option) (obs: YnabObservation) : Async<bool> =
+    async {
+        if not obs.Deleted then
+            return false
+        else
+            let pendingDeletion =
+                existing
+                |> Option.bind (fun e -> e.CategorizationWriteBackFailure)
+                |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+            if pendingDeletion = Some obs.YnabTransactionId then
+                return true
+            else
+                let! superseded = Ledger.Persistence.findEntryByLink YnabSupersededSystem obs.YnabTransactionId
+                return superseded.IsSome
+    }
+
 /// Ein Spiegel-Lauf: Beobachtungen holen, Konten nachziehen, je Beobachtung die Buchung
 /// suchen, den Snapshot gegen den Zustand vergleichen und nur bei Unterschied Ereignisse
 /// schreiben. Am Ende steht das `server_knowledge` des Laufs in den Settings und der
@@ -434,11 +454,17 @@ let runMirror
                                     if known then Ledger.Persistence.loadEntry entryId
                                     else async.Return None
 
+                                // ADR 0058, Punkt 5: das Löschen der ersetzten Id ist BBs eigenes
+                                // Werk und darf die Buchung nicht als "in YNAB gelöscht" markieren.
+                                let! supersededDeletion = isSupersededDeletion existing obs
+
                                 let events =
-                                    observe
-                                        { EntryId = entryId; AccountId = ledgerAccountId; ObservedAt = now }
-                                        existing
-                                        obs
+                                    if supersededDeletion then []
+                                    else
+                                        observe
+                                            { EntryId = entryId; AccountId = ledgerAccountId; ObservedAt = now }
+                                            existing
+                                            obs
 
                                 do! Ledger.Persistence.appendAndApply events
 
@@ -1058,10 +1084,20 @@ let private clearedForPush (oldCleared: ClearedState) (newCleared: ClearedState)
         | Uncleared -> Some Ynab.SendUncleared
         | Reconciled -> None
 
+/// Die aktuelle YNAB-Id aus den Verknüpfungen einer Buchung: die YNAB-Verknüpfung, die
+/// nicht als abgelöst festgehalten ist (ADR 0058, Punkt 5). Nach einem Ersatz zeigen zwei
+/// YNAB-Verknüpfungen auf die Buchung, nur die neue gilt. Rein.
+let currentYnabTransactionId (links: EntryLink list) : string option =
+    let superseded =
+        links |> List.filter (fun l -> l.System = YnabSupersededSystem) |> List.map (fun l -> l.Value) |> Set.ofList
+    links
+    |> List.tryPick (fun l ->
+        if l.System = YnabSystem && not (Set.contains l.Value superseded) then Some l.Value else None)
+
 let private tryYnabTransactionId (entryId: EntryId) : Async<string option> =
     async {
         let! links = Ledger.Persistence.linksForEntry entryId
-        return links |> List.tryPick (fun l -> if l.System = YnabSystem then Some l.Value else None)
+        return currentYnabTransactionId links
     }
 
 let private reviewMarkEvent (entryId: EntryId) (now: DateTime) (actor: Actor) (body: LedgerEventBody) : LedgerEvent =
@@ -1391,19 +1427,24 @@ let describeCategoryPushError (error: YnabError) : string =
 /// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0055, Punkt 4).
 let categoryNotLinkedReason = reviewMarkNotLinkedReason
 
-let private categoryFailureEvent
+let private categoryFailureEventWith
     (entryId: EntryId)
     (now: DateTime)
     (reason: string)
     (baselineCategory: CategoryRef option, baselineSplits: TransactionSplit list)
+    (ynabDeleted: string option)
     : LedgerEvent =
     reviewMarkEvent entryId now UserInBb (
         EntryCategorizationWriteBackFailed {
             Reason = reason
             BaselineCategory = baselineCategory
             BaselineSplits = baselineSplits
+            YnabDeletedTransactionId = ynabDeleted
         }
     )
+
+let private categoryFailureEvent entryId now reason baseline =
+    categoryFailureEventWith entryId now reason baseline None
 
 /// Die Baseline eines neuen Fehlschlags: bei einem schon offenen die erste, sonst der
 /// Stand vor der Änderung (ADR 0055, Punkt 4).
@@ -1457,6 +1498,13 @@ let private categoryNotChangeableReason (entry: Entry) : string option =
     if entry.DeletedInYnab then Some "Die Buchung ist in YNAB gelöscht"
     elif not (List.isEmpty entry.Splits) then
         Some "Die Buchung ist aufgeteilt, die Kategorien ändert der Split-Editor"
+    elif
+        entry.CategorizationWriteBackFailure
+        |> Option.exists (fun f -> not (List.isEmpty f.BaselineSplits))
+    then
+        // YNAB hält noch den alten Split (oder gar keine Buchung): eine Kategorie würde
+        // dort still ignoriert (ADR 0058, Punkt 4). Erst "Erneut senden" im Split-Editor.
+        Some "Der Split der Buchung ist in YNAB noch nicht angepasst, bitte erneut senden"
     elif entry.Category.IsNone && (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome) then
         Some "Ein Übertrag zwischen Budget-Konten hat keine Kategorie"
     else None
@@ -1541,5 +1589,385 @@ let retryCategorizationWriteBack
                 let target = entry.Category |> Option.map (fun c -> c.CategoryId)
                 let! writeBack = pushCategory now push entry baseline target
                 return Ok writeBack
+        }
+    )
+
+// ============================================
+// Split-Schreibweg (ADR 0058, ledger-kxme4)
+// ============================================
+
+/// Die YNAB-Aufrufe des Split-Schreibwegs, injiziert wie `CategoryPush`. Der Aufrufer
+/// (`Server.Api`) bindet Token und Budget ein; ein Test ersetzt sie durch Aufzeichner.
+type SplitWriteTools = {
+    /// Ist das Konto (YNAB-Id) ein Tracking-Konto? Auf Tracking-Konten gibt es keine Splits.
+    IsTrackingAccount: YnabAccountId -> Async<YnabResult<bool>>
+    /// Eine Zeile mit Kategorie auf einer in YNAB unaufgeteilten Buchung: gewöhnlicher
+    /// Kategorie-PUT (wie `setEntryCategory`).
+    PutCategory: CategoryPush
+    /// Aufteilen einer in YNAB unaufgeteilten Buchung per PUT (ADR 0058, Punkt 1). `Error`
+    /// auch dann, wenn die Antwort keine `subtransactions` trägt.
+    PutSplits: string -> TransactionSplit list -> Async<YnabResult<unit>>
+    /// DELETE der alten Buchung (ADR 0058, Punkt 2, erster Schritt).
+    Delete: string -> Async<YnabResult<unit>>
+    /// POST der Ersatzbuchung (zweiter Schritt), liefert die neue YNAB-Id.
+    Create: Ynab.SplitReplacement -> Async<YnabResult<string>>
+}
+
+/// Das längste `import_id`, das YNAB annimmt.
+[<Literal>]
+let ImportIdMaxLength = 36
+
+let private replacementSuffix = System.Text.RegularExpressions.Regex(@"^(.*):r(\d+)$")
+
+/// Zerlegt eine `import_id` in Stamm und Zahl der bisherigen Ersätze (`BB:abc:r2` ist
+/// `BB:abc` und 2; ohne Suffix ist die Zahl 0). Rein.
+let private splitReplacementSuffix (importId: string) : string * int =
+    let m = replacementSuffix.Match importId
+    if m.Success then m.Groups.[1].Value, int m.Groups.[2].Value else importId, 0
+
+/// Die aktuelle `import_id` einer Buchung: unter ihren `import_id`-Verknüpfungen die mit der
+/// höchsten Ersatz-Zahl (ADR 0058, Punkt 2). Rein.
+let currentImportId (links: EntryLink list) : string option =
+    links
+    |> List.filter (fun l -> l.System = ImportIdSystem)
+    |> List.sortBy (fun l -> snd (splitReplacementSuffix l.Value))
+    |> List.tryLast
+    |> Option.map (fun l -> l.Value)
+
+/// Die `import_id` der Ersatzbuchung: die aktuelle plus `:r<n>`, n ist die Zahl der
+/// bisherigen Ersätze plus 1 (ADR 0058, Punkt 2). Ohne `import_id` keine. Rein.
+let replacementImportId (current: string option) : string option =
+    current
+    |> Option.map (fun id ->
+        let stem, replaced = splitReplacementSuffix id
+        $"{stem}:r{replaced + 1}")
+
+/// Die Form einer Split-Anfrage nach der Prüfung: eine Kategorie (Aufheben oder
+/// gewöhnliche Kategorie) oder mindestens zwei Zeilen.
+type SplitRequest =
+    | SingleLine of CategoryRef option
+    | MultipleLines of TransactionSplit list
+
+let private formatAmount (value: decimal) : string =
+    value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+
+/// Prüft die Zeilen einer Split-Anfrage gegen den Buchungsbetrag (ADR 0058, Punkt 1; die
+/// Invarianten stehen in `Shared.Domain.mkSplits`, ADR 0006). Leere Liste: abgelehnt. Eine
+/// Zeile: Kategorie oder unkategorisiert, voller Betrag; eine einzelne Übertrags-Zeile ist
+/// abgelehnt. Zwei oder mehr: `mkSplits`. Rein. Die Kategorie-Namen prüft der Befehl danach
+/// gegen den Bestand (`SingleLine` trägt hier nur die Id mit dem übergebenen Namen).
+let classifySplitLines (total: Money) (lines: TransactionSplit list) : Result<SplitRequest, string> =
+    match lines with
+    | [] -> Error "Es fehlen die Zeilen des Splits"
+    | [ single ] ->
+        if single.Amount.Currency <> total.Currency || abs (single.Amount.Amount - total.Amount) > 0.01m then
+            Error "Eine einzelne Zeile muss den ganzen Buchungsbetrag tragen"
+        else
+            match single.Target with
+            | ToTransfer _ -> Error "Eine einzelne Übertrags-Zeile ist kein Split"
+            | ToCategory (id, name) -> Ok (SingleLine (Some { CategoryId = id; CategoryName = name }))
+            | Uncategorized -> Ok (SingleLine None)
+    | many ->
+        match mkSplits total many with
+        | Ok splits -> Ok (MultipleLines splits)
+        | Error (SumMismatch (expected, actual)) ->
+            Error $"Die Summe der Zeilen ({formatAmount actual}) weicht vom Betrag ({formatAmount expected}) ab"
+        | Error CurrencyMismatch -> Error "Die Zeilen haben nicht dieselbe Währung wie die Buchung"
+        | Error (TooFewLines _) -> Error "Ein Split braucht mindestens zwei Zeilen"
+
+/// Setzt die Namen der Kategorien aus dem Bestand ein und lehnt unbekannte ab.
+let private resolveSplitNames
+    (names: Map<Guid, string>)
+    (request: SplitRequest)
+    : Result<CategoryRef option * TransactionSplit list, string> =
+    let live (YnabCategoryId id as categoryId) (name: string) =
+        match Map.tryFind id names with
+        | Some current -> Some (categoryId, Ledger.Persistence.liveCategoryName names categoryId name)
+        | None -> None
+
+    match request with
+    | SingleLine None -> Ok (None, [])
+    | SingleLine (Some category) ->
+        match live category.CategoryId category.CategoryName with
+        | Some (id, name) -> Ok (Some { CategoryId = id; CategoryName = name }, [])
+        | None -> Error "Unbekannte Kategorie"
+    | MultipleLines lines ->
+        let resolved =
+            lines
+            |> List.map (fun line ->
+                match line.Target with
+                | ToCategory (id, name) ->
+                    match live id name with
+                    | Some (resolvedId, resolvedName) ->
+                        Ok { line with Target = ToCategory (resolvedId, resolvedName) }
+                    | None -> Error "Unbekannte Kategorie"
+                | _ -> Ok line)
+        match resolved |> List.tryPick (function Error e -> Some e | Ok _ -> None) with
+        | Some e -> Error e
+        | None -> Ok (None, resolved |> List.choose (function Ok l -> Some l | Error _ -> None))
+
+/// Warum eine Buchung nicht aufgeteilt oder in ihrem Split geändert werden kann (ADR 0058,
+/// Punkt 6 und 7), oder `None`. Rein.
+let private splitNotChangeableReason (entry: Entry) : string option =
+    if entry.DeletedInYnab then Some "Die Buchung ist in YNAB gelöscht"
+    elif entry.Cleared = Reconciled then Some "Abgeglichene Buchungen lassen sich nicht aufteilen"
+    elif entry.Category.IsNone
+         && List.isEmpty entry.Splits
+         && (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome) then
+        Some "Ein Übertrag zwischen Budget-Konten lässt sich nicht aufteilen"
+    else None
+
+/// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB" beim Split-Schreibweg.
+let describeSplitPushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat die Aufteilung abgelehnt: {msg}"
+    | other -> describeReviewMarkPushError other
+
+let private clearedToYnab (cleared: ClearedState) : string =
+    match cleared with
+    | Uncleared -> "uncleared"
+    | Cleared -> "cleared"
+    | Reconciled -> "reconciled"
+
+/// Das YNAB-Konto eines Kassenbuch-Kontos, wenn es ein gespiegeltes ist.
+let private ynabAccountOf (accountId: LedgerAccountId) : Async<YnabAccountId option> =
+    async {
+        let! accounts = Ledger.Persistence.loadAccounts ()
+        return
+            accounts
+            |> List.tryFind (fun a -> a.Id = accountId)
+            |> Option.bind (fun a ->
+                match a.Link with
+                | YnabMirrored id -> Some id
+                | BbOwned -> None)
+    }
+
+/// Schickt den BB-Stand einer Buchung (`entry`, nach dem Ereignis) nach YNAB. Der Weg
+/// folgt dem, was YNAB vermutlich hält (die Baseline, ADR 0055 Punkt 4): ohne Split dort
+/// ein PUT (Kategorie oder Aufteilen), mit Split dort DELETE und POST (ADR 0058). Scheitert
+/// ein Schritt, schreibt die Funktion `EntryCategorizationWriteBackFailed`; ist das DELETE
+/// gelungen und das POST gescheitert, trägt der Fehlschlag die gelöschte Id, und
+/// "Erneut senden" ruft nur noch das POST (`pendingDeleted`). Erfolg beendet einen vorher
+/// offenen Fehlschlag (`EntryCategorizationWrittenBackToYnab`), ein Ersatz schreibt
+/// zusätzlich `EntryReplacedInYnab`.
+let private pushSplitState
+    (now: DateTime)
+    (tools: SplitWriteTools)
+    (entry: Entry)
+    (baseline: CategoryRef option * TransactionSplit list)
+    (hadOpenFailure: bool)
+    (pendingDeleted: string option)
+    : Async<CategoryWriteBack> =
+    async {
+        let entryId = entry.Id
+
+        let fail (reason: string) (deleted: string option) =
+            async {
+                do! Ledger.Persistence.appendAndApply [ categoryFailureEventWith entryId now reason baseline deleted ]
+                return CategorySendFailed reason
+            }
+
+        let succeed (extra: LedgerEvent list) =
+            async {
+                let ended =
+                    if hadOpenFailure then
+                        [ reviewMarkEvent entryId now UserInBb EntryCategorizationWrittenBackToYnab ]
+                    else
+                        []
+                let events = extra @ ended
+                if not (List.isEmpty events) then
+                    do! Ledger.Persistence.appendAndApply events
+                return CategorySent
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail categoryNotLinkedReason None
+        | Some currentId ->
+            if List.isEmpty (snd baseline) then
+                let! result =
+                    if List.isEmpty entry.Splits then
+                        tools.PutCategory currentId (entry.Category |> Option.map (fun c -> c.CategoryId))
+                    else
+                        tools.PutSplits currentId entry.Splits
+                match result with
+                | Ok () -> return! succeed []
+                | Error err -> return! fail (describeSplitPushError err) None
+            else
+                let! deleteResult =
+                    match pendingDeleted with
+                    | Some _ -> async.Return (Ok ())
+                    | None -> tools.Delete currentId
+
+                match deleteResult with
+                | Error err -> return! fail (describeSplitPushError err) None
+                | Ok () ->
+                    let oldId = defaultArg pendingDeleted currentId
+                    let newlyDeleted = if pendingDeleted.IsNone then Some oldId else None
+                    let! links = Ledger.Persistence.linksForEntry entryId
+                    let newImportId = replacementImportId (currentImportId links)
+
+                    match! ynabAccountOf entry.AccountId with
+                    | None -> return! fail "Das Konto der Buchung ist nicht mit YNAB verknüpft" newlyDeleted
+                    | Some ynabAccount ->
+                        let request : Ynab.SplitReplacement = {
+                            AccountId = ynabAccount
+                            Date = entry.Date
+                            Amount = entry.Amount
+                            Payee = entry.Payee
+                            Memo = entry.Memo
+                            FlagColor = entry.FlagColor
+                            Cleared = clearedToYnab entry.Cleared
+                            Approved = entry.Approved
+                            ImportId = newImportId
+                            CategoryId = entry.Category |> Option.map (fun c -> c.CategoryId)
+                            Splits = entry.Splits
+                        }
+
+                        match! tools.Create request with
+                        | Ok newId ->
+                            return!
+                                succeed [
+                                    reviewMarkEvent entryId now UserInBb (
+                                        EntryReplacedInYnab {
+                                            OldYnabTransactionId = oldId
+                                            NewYnabTransactionId = newId
+                                            NewImportId = newImportId
+                                        }
+                                    )
+                                ]
+                        | Error err -> return! fail (describeSplitPushError err) newlyDeleted
+    }
+
+/// Der Befehl `setEntrySplits` (ADR 0058): lädt die Buchung, lehnt Unzulässiges ab (Fehler,
+/// kein Ereignis, kein Schreib-Aufruf an YNAB), schreibt bei einer Änderung zuerst
+/// `EntryRecategorized` (Actor `UserInBb`, mit `NewSplits` bzw. beim Aufheben `NewCategory`)
+/// und ruft danach den Push (`pushSplitState`). Ziel gleich Ist: kein Ereignis, kein Push.
+/// Läuft unter der Schreib-Sperre (`WriteGuard`), nie während eines Spiegel-Laufs.
+let setEntrySplits
+    (now: DateTime)
+    (tools: SplitWriteTools)
+    (entryId: EntryId)
+    (lines: TransactionSplit list)
+    : Async<Result<CategoryChangeOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry ->
+                match splitNotChangeableReason entry with
+                | Some reason -> return Error reason
+                | None ->
+                    match classifySplitLines entry.Amount lines with
+                    | Error reason -> return Error reason
+                    | Ok request ->
+                        let! names = Ledger.Persistence.loadCategoryNames ()
+
+                        match resolveSplitNames names request with
+                        | Error reason -> return Error reason
+                        | Ok (newCategory, newSplits) ->
+                            let! links = Ledger.Persistence.linksForEntry entryId
+                            let previous = entry.Category |> Option.map (categoryChoiceOf names)
+
+                            match currentYnabTransactionId links with
+                            | None -> return Error "Die Buchung ist noch nicht mit YNAB verknüpft"
+                            | Some _ ->
+                                let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                                let pendingDeleted =
+                                    entry.CategorizationWriteBackFailure
+                                    |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+                                // YNAB hält die Buchung (vermutlich) aufgeteilt: Ändern und
+                                // Aufheben laufen über DELETE und POST (ADR 0058, Punkt 2).
+                                let replaceRoute = not (List.isEmpty (snd baseline))
+
+                                if categorizationIdentity entry.Category entry.Splits
+                                   = categorizationIdentity newCategory newSplits then
+                                    return Ok { Previous = previous; Change = CategoryUnchanged; WriteBack = CategoryNotSent }
+                                else
+                                    let foreignImportId =
+                                        match currentImportId links with
+                                        | Some id when not (id.StartsWith $"{ImportIdPrefix}:") -> Some id
+                                        | _ -> None
+
+                                    let tooLongImportId =
+                                        replacementImportId (currentImportId links)
+                                        |> Option.exists (fun id -> id.Length > ImportIdMaxLength)
+
+                                    if replaceRoute && pendingDeleted.IsNone && foreignImportId.IsSome then
+                                        return
+                                            Error
+                                                "Eine Split-Buchung mit einer import_id aus YNAB lässt sich nur aufteilen, nicht ändern oder aufheben"
+                                    elif replaceRoute && tooLongImportId then
+                                        return
+                                            Error
+                                                $"Die import_id wäre mit dem Suffix länger als {ImportIdMaxLength} Zeichen"
+                                    else
+                                        let! ynabAccount = ynabAccountOf entry.AccountId
+
+                                        let! tracking =
+                                            match ynabAccount with
+                                            | Some account -> tools.IsTrackingAccount account
+                                            | None -> async.Return (Ok false)
+
+                                        match tracking with
+                                        | Ok true -> return Error "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen"
+                                        | Error err ->
+                                            return Error $"Das Konto konnte nicht geprüft werden: {describeSplitPushError err}"
+                                        | Ok false ->
+                                            do!
+                                                Ledger.Persistence.appendAndApply [
+                                                    reviewMarkEvent entryId now UserInBb (
+                                                        EntryRecategorized {
+                                                            OldCategory = entry.Category
+                                                            NewCategory = newCategory
+                                                            OldSplits = entry.Splits
+                                                            NewSplits = newSplits
+                                                            OldPayee = entry.Payee
+                                                            NewPayee = entry.Payee
+                                                        }
+                                                    )
+                                                ]
+
+                                            let! updated = Ledger.Persistence.loadEntry entryId
+                                            let! writeBack =
+                                                pushSplitState
+                                                    now
+                                                    tools
+                                                    (Option.get updated)
+                                                    baseline
+                                                    entry.CategorizationWriteBackFailure.IsSome
+                                                    pendingDeleted
+                                            return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+        }
+    )
+
+/// "Erneut senden" am Hinweis "Kategorie nicht in YNAB", für Kategorie und Split zugleich
+/// (ADR 0055 Punkt 4, ADR 0058 Punkt 3). Hält YNAB (laut Baseline) keinen Split und trägt die
+/// Buchung keinen, ist es der Kategorie-Weg (`retryCategorizationWriteBack`); sonst der
+/// Split-Weg: PUT zum Aufteilen, oder bei einem Split in YNAB DELETE und POST, bzw. nur das
+/// POST, wenn das DELETE schon gelungen ist.
+let retryCategorizationOrSplitWriteBack
+    (now: DateTime)
+    (categoryPush: CategoryPush)
+    (tools: SplitWriteTools)
+    (entryId: EntryId)
+    : Async<Result<CategoryWriteBack, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry ->
+                match entry.CategorizationWriteBackFailure with
+                | None -> return Ok CategoryNotSent
+                | Some failure ->
+                    let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                    if List.isEmpty failure.BaselineSplits && List.isEmpty entry.Splits then
+                        let target = entry.Category |> Option.map (fun c -> c.CategoryId)
+                        let! writeBack = pushCategory now categoryPush entry baseline target
+                        return Ok writeBack
+                    else
+                        let! writeBack =
+                            pushSplitState now tools entry baseline true failure.YnabDeletedTransactionId
+                        return Ok writeBack
         }
     )

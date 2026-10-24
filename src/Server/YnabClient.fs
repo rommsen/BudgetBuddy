@@ -1168,6 +1168,337 @@ let updateCategory
         return! sendCategory httpClient budgetId ynabTransactionId categoryId
     }
 
+// ============================================
+// Split-Schreibweg (ledger-kxme4, ADR 0058)
+// ============================================
+// Aufteilen einer unaufgeteilten Buchung per PUT, Ändern und Aufheben einer Split-Buchung
+// per DELETE und anschließendem POST (YNAB lässt `subtransactions` einer bestehenden
+// Split-Buchung nicht ändern). Eigene Funktionen, keine allgemeine Update-Funktion
+// (ADR 0028, Punkt 1).
+
+/// Die Buchung, die nach dem Löschen einer Split-Buchung neu angelegt wird (ADR 0058,
+/// Punkt 2): Kopfdaten des Eintrags plus neue Kategorie oder neue Split-Zeilen.
+type SplitReplacement = {
+    AccountId: YnabAccountId
+    Date: DateTime
+    Amount: Money
+    Payee: string option
+    Memo: string option
+    /// YNABs `flag_color`, roh.
+    FlagColor: string option
+    /// "uncleared" oder "cleared" (`reconciled` wird im Split-Schreibweg nie geschrieben).
+    Cleared: string
+    Approved: bool
+    /// Die abgeleitete `import_id` (alte plus `:r<n>`); `None`, wenn die Buchung keine hatte.
+    ImportId: string option
+    /// Die Kategorie beim Aufheben (eine Zeile); bei Splits `None`.
+    CategoryId: YnabCategoryId option
+    /// Die neuen Split-Zeilen; leer beim Aufheben.
+    Splits: TransactionSplit list
+}
+
+let private milliunitsOf (money: Money) : int = int (money.Amount * 1000m)
+
+/// Der Body für das Aufteilen einer unaufgeteilten Buchung: `category_id` null und die
+/// Zeilen als `subtransactions` (ADR 0058, Probelauf 1). Übertrags-Zeilen gehen mit der
+/// `transfer_payee_id` des Zielkontos als `payee_id` und ohne `category_id` hinaus
+/// (ADR 0006). `Error` nennt das Konto ohne Übertrags-Payee. Non-private, damit der
+/// JSON-Vertrag direkt testbar ist.
+let buildSplitBody
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (splits: TransactionSplit list)
+    : Result<string, YnabAccountId> =
+    resolveSplits transferPayees splits
+    |> Result.map (fun subs ->
+        Encode.object [
+            "transaction", Encode.object [
+                "category_id", Encode.nil
+                "subtransactions", Encode.list (subs |> List.map encodeSubtransaction)
+            ]
+        ]
+        |> Encode.toString 2)
+
+/// Der Body für das Neuanlegen nach dem Löschen (ADR 0058, Punkt 2): Konto, Datum, Betrag,
+/// Payee, Memo, Flag, `cleared`, `approved` des Eintrags, die abgeleitete `import_id` und
+/// entweder die `category_id` (Aufheben) oder die `subtransactions`. Beträge in Milliunits
+/// als JSON-Zahl. Non-private, damit der JSON-Vertrag direkt testbar ist.
+let buildReplacementBody
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (replacement: SplitReplacement)
+    : Result<string, YnabAccountId> =
+    let (YnabAccountId accountGuid) = replacement.AccountId
+    resolveSplits transferPayees replacement.Splits
+    |> Result.map (fun subs ->
+        Encode.object [
+            "transaction", Encode.object [
+                "account_id", Encode.guid accountGuid
+                "date", Encode.string (replacement.Date.ToString("yyyy-MM-dd"))
+                "amount", Encode.int (milliunitsOf replacement.Amount)
+                match replacement.Payee with
+                | Some payee -> "payee_name", Encode.string payee
+                | None -> ()
+                match replacement.Memo with
+                | Some memo -> "memo", Encode.string memo
+                | None -> ()
+                "cleared", Encode.string replacement.Cleared
+                "approved", Encode.bool replacement.Approved
+                match replacement.FlagColor with
+                | Some flag -> "flag_color", Encode.string flag
+                | None -> ()
+                match replacement.ImportId with
+                | Some importId -> "import_id", Encode.string importId
+                | None -> ()
+                match replacement.CategoryId with
+                | Some (YnabCategoryId categoryGuid) -> "category_id", Encode.guid categoryGuid
+                | None -> ()
+                if not (List.isEmpty subs) then
+                    "subtransactions", Encode.list (subs |> List.map encodeSubtransaction)
+            ]
+        ]
+        |> Encode.toString 2)
+
+/// Trägt die Antwort des PUT `data.transaction.subtransactions` mit mindestens einer
+/// Zeile? Fehlt sie, hat YNAB das Aufteilen still ignoriert (ADR 0058, Decision Punkt 1).
+let splitResponseHasSubtransactions (bodyText: string) : bool =
+    let decoder =
+        Decode.field "data" (
+            Decode.field "transaction" (
+                Decode.field "subtransactions" (Decode.list Decode.value)
+            )
+        )
+    match Decode.fromString decoder bodyText with
+    | Ok subs -> not (List.isEmpty subs)
+    | Error _ -> false
+
+/// Liest die YNAB-Id der neu angelegten Buchung aus der Antwort des POST einer einzelnen
+/// Buchung: `data.transaction.id`, sonst `data.transaction_ids[0]`.
+let parseCreatedTransactionId (bodyText: string) : string option =
+    let fromTransaction = Decode.field "data" (Decode.field "transaction" (Decode.field "id" Decode.string))
+    let fromIds = Decode.field "data" (Decode.field "transaction_ids" (Decode.list Decode.string))
+    match Decode.fromString fromTransaction bodyText with
+    | Ok id -> Some id
+    | Error _ ->
+        match Decode.fromString fromIds bodyText with
+        | Ok (id :: _) -> Some id
+        | _ -> None
+
+let private mapSplitStatus (statusCode: int) (bodyText: string) (okCodes: int list) : YnabResult<unit> =
+    if List.contains statusCode okCodes then Ok ()
+    else
+        match statusCode with
+        | 400 -> Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+        | 401 -> Error (YnabError.Unauthorized "Invalid YNAB token")
+        | 404 -> Error (YnabError.InvalidResponse "Transaction not found")
+        | 409 -> Error (YnabError.InvalidResponse $"Conflict: {bodyText}")
+        | 429 -> Error (YnabError.RateLimitExceeded 60)
+        | _ -> Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+
+/// Aufteilen per PUT mit dem übergebenen `HttpClient` (injizierbar, damit ein Test gegen
+/// einen Fake-Handler läuft). Ein 200 ohne `subtransactions` in der Antwort gilt als
+/// Fehlschlag: YNAB hat das Aufteilen dann still ignoriert.
+let sendSplits
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (requestBody: string)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Split" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match mapSplitStatus statusCode bodyText [ 200 ] with
+            | Error e -> return Error e
+            | Ok () ->
+                if splitResponseHasSubtransactions bodyText then return Ok ()
+                else
+                    return
+                        Error (
+                            YnabError.InvalidResponse
+                                "Die Antwort enthält keine subtransactions, YNAB hat das Aufteilen nicht übernommen"
+                        )
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update splits: {ex.Message}")
+    }
+
+/// Löscht eine Buchung (`DELETE .../transactions/{id}`), erster Schritt beim Ersetzen
+/// einer Split-Buchung.
+let sendDeleteTransaction
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let! httpResponse =
+                httpClient.DeleteAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}")
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] DELETE /budgets/%s/transactions/%s" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            return mapSplitStatus statusCode bodyText [ 200 ]
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to delete transaction: {ex.Message}")
+    }
+
+/// Legt die ersetzte Buchung neu an (`POST .../transactions`, eine Buchung) und liefert
+/// ihre neue YNAB-Id.
+let sendCreateTransaction
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (requestBody: string)
+    : Async<YnabResult<string>> =
+    async {
+        try
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PostAsync($"{baseUrl}/budgets/{budgetId}/transactions", content) |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] POST /budgets/%s/transactions - Ersatz einer Split-Buchung" budgetId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match mapSplitStatus statusCode bodyText [ 200; 201 ] with
+            | Error e -> return Error e
+            | Ok () ->
+                match parseCreatedTransactionId bodyText with
+                | Some id -> return Ok id
+                | None -> return Error (YnabError.InvalidResponse "Die Antwort nennt keine Id der neuen Buchung")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
+    }
+
+let private transferPayeesFor
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (splits: TransactionSplit list)
+    : Async<YnabResult<Map<YnabAccountId, YnabPayeeId>>> =
+    async {
+        let hasTransfer = splits |> List.exists (fun s -> match s.Target with ToTransfer _ -> true | _ -> false)
+        if hasTransfer then
+            match! getPayees token budgetId with
+            | Ok payees -> return Ok (transferPayeeByAccount payees)
+            | Error e -> return Error e
+        else
+            return Ok Map.empty
+    }
+
+let private noTransferPayee (YnabAccountId accountGuid) =
+    YnabError.InvalidResponse $"Für das Zielkonto {accountGuid} gibt es in YNAB keinen Übertrags-Payee"
+
+/// Teilt eine unaufgeteilte Buchung in YNAB auf (ADR 0058, Punkt 1). Holt die Payees nur,
+/// wenn eine Übertrags-Zeile dabei ist.
+let updateSplits
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (splits: TransactionSplit list)
+    : Async<YnabResult<unit>> =
+    async {
+        match! transferPayeesFor token budgetId splits with
+        | Error e -> return Error e
+        | Ok payees ->
+            match buildSplitBody payees splits with
+            | Error account -> return Error (noTransferPayee account)
+            | Ok body ->
+                use httpClient = new System.Net.Http.HttpClient()
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+                return! sendSplits httpClient budgetId ynabTransactionId body
+    }
+
+/// Löscht eine Buchung in YNAB (ADR 0058, Punkt 2, erster Schritt).
+let deleteTransaction
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    : Async<YnabResult<unit>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendDeleteTransaction httpClient budgetId ynabTransactionId
+    }
+
+/// Legt die ersetzte Split-Buchung in YNAB neu an (ADR 0058, Punkt 2, zweiter Schritt) und
+/// liefert die neue YNAB-Id. `replaceSplitTransaction` ist DELETE (`deleteTransaction`) und
+/// dieses POST; sie sind getrennt, damit ein gescheitertes POST den Zustand "in YNAB
+/// gelöscht, Neuanlage offen" tragen kann.
+let createReplacement
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (replacement: SplitReplacement)
+    : Async<YnabResult<string>> =
+    async {
+        match! transferPayeesFor token budgetId replacement.Splits with
+        | Error e -> return Error e
+        | Ok payees ->
+            match buildReplacementBody payees replacement with
+            | Error account -> return Error (noTransferPayee account)
+            | Ok body ->
+                use httpClient = new System.Net.Http.HttpClient()
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+                return! sendCreateTransaction httpClient budgetId body
+    }
+
+/// Ersetzt eine Split-Buchung in YNAB: DELETE, danach POST (ADR 0058, Punkt 2). Liefert die
+/// neue YNAB-Id. Der Befehl in `Ledger.CommandHandlers` ruft die beiden Schritte einzeln auf,
+/// damit er zwischen ihnen den Zustand festhalten kann.
+let replaceSplitTransaction
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (oldYnabTransactionId: string)
+    (replacement: SplitReplacement)
+    : Async<YnabResult<string>> =
+    async {
+        match! deleteTransaction token budgetId oldYnabTransactionId with
+        | Error e -> return Error e
+        | Ok () -> return! createReplacement token budgetId replacement
+    }
+
+/// Liest `data.accounts` einer Konten-Antwort als `YnabAccount`-Liste (mit `on_budget`).
+let parseAccountsResponse (bodyText: string) : Result<YnabAccount list, string> =
+    Decode.fromString (Decode.field "data" (Decode.field "accounts" (Decode.list Decoders.accountDecoder))) bodyText
+
+/// Ist das Konto ein Tracking-Konto (`on_budget` falsch)? Spec: auf Tracking-Konten gibt es
+/// keine Splits (ADR 0058, Punkt 6). Leichter Abruf `GET .../accounts`, nicht das ganze Budget.
+let isTrackingAccount
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (accountId: YnabAccountId)
+    : Async<YnabResult<bool>> =
+    async {
+        try
+            use httpClient = new System.Net.Http.HttpClient()
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+            let! httpResponse = httpClient.GetAsync($"{baseUrl}/budgets/{budgetId}/accounts") |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            match mapSplitStatus statusCode bodyText [ 200 ] with
+            | Error e -> return Error e
+            | Ok () ->
+                match parseAccountsResponse bodyText with
+                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse accounts: {err}")
+                | Ok accounts ->
+                    match accounts |> List.tryFind (fun a -> a.Id = accountId) with
+                    | Some account -> return Ok (not account.OnBudget)
+                    | None ->
+                        let (YnabAccountId g) = accountId
+                        return Error (YnabError.AccountNotFound (g.ToString()))
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
+    }
+
 /// Validates a YNAB token by attempting to fetch budgets
 let validateToken (token: string) : Async<YnabResult<unit>> =
     async {

@@ -441,7 +441,11 @@ let private rowToEntry (row: EntryRow) : Entry =
             toOption row.categorization_write_back_failure
             |> Option.map (fun json ->
                 match Thoth.Json.Net.Decode.fromString Codec.decodeCategorizationWriteBackFailed json with
-                | Ok p -> { Reason = p.Reason; BaselineCategory = p.BaselineCategory; BaselineSplits = p.BaselineSplits }
+                | Ok p ->
+                    { Reason = p.Reason
+                      BaselineCategory = p.BaselineCategory
+                      BaselineSplits = p.BaselineSplits
+                      YnabDeletedTransactionId = p.YnabDeletedTransactionId }
                 | Error e -> failwith $"Kategorie-Fehlschlag der Buchung {row.id} nicht lesbar: {e}")
         LinkedToYnab = row.linked_to_ynab = 1L
         PushToYnabFailure =
@@ -508,7 +512,8 @@ let private entryParams (entry: Entry) =
                         Codec.encodeCategorizationWriteBackFailed
                             { Reason = f.Reason
                               BaselineCategory = f.BaselineCategory
-                              BaselineSplits = f.BaselineSplits }
+                              BaselineSplits = f.BaselineSplits
+                              YnabDeletedTransactionId = f.YnabDeletedTransactionId }
                     )
                 )
             | None -> null

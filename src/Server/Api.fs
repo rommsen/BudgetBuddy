@@ -1459,6 +1459,37 @@ let private categoryPush () : Async<Ledger.CommandHandlers.CategoryPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Die YNAB-Aufrufe des Split-Schreibwegs (ledger-kxme4, ADR 0058) mit Token und
+/// Standard-Budget aus den Settings, mit denselben Fehlerfällen wie `categoryPush`.
+let private splitWriteTools () : Async<Ledger.CommandHandlers.SplitWriteTools> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            let budget = YnabBudgetId budgetId
+            return {
+                IsTrackingAccount = fun account -> YnabClient.isTrackingAccount token budget account
+                PutCategory = fun ynabTransactionId categoryId -> YnabClient.updateCategory token budget ynabTransactionId categoryId
+                PutSplits = fun ynabTransactionId splits -> YnabClient.updateSplits token budget ynabTransactionId splits
+                Delete = fun ynabTransactionId -> YnabClient.deleteTransaction token budget ynabTransactionId
+                Create = fun replacement -> YnabClient.createReplacement token budget replacement
+            }
+        | _ ->
+            let error =
+                match tokenOpt with
+                | None -> YnabError.Unauthorized "No YNAB token configured"
+                | Some _ -> YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)"
+            return {
+                IsTrackingAccount = fun _ -> async { return Error error }
+                PutCategory = fun _ _ -> async { return Error error }
+                PutSplits = fun _ _ -> async { return Error error }
+                Delete = fun _ -> async { return Error error }
+                Create = fun _ -> async { return Error error }
+            }
+    }
+
 /// Der Sammel-Push des Prüfvermerks (ledger-nhwrt), mit denselben Fehlerfällen wie
 /// `reviewMarkPush`.
 let private reviewMarkBatchPush () : Async<Ledger.CommandHandlers.ReviewMarkBatchPush> =
@@ -1527,10 +1558,23 @@ let ledgerApi : LedgerApi = {
             Ledger.CommandHandlers.setEntryCategory DateTime.UtcNow push (Ledger.Events.EntryId entryId) target
     }
 
+    // Split setzen oder aufheben und nach YNAB zurückschreiben (ledger-kxme4, ADR 0058).
+    setEntrySplits = fun entryId lines -> async {
+        let! tools = splitWriteTools ()
+        return!
+            Ledger.CommandHandlers.setEntrySplits DateTime.UtcNow tools (Ledger.Events.EntryId entryId) lines
+    }
+
+    // "Erneut senden" gilt für Kategorie und Split (ADR 0058, Punkt 3).
     retryCategorizationWriteBack = fun entryId -> async {
         let! push = categoryPush ()
+        let! tools = splitWriteTools ()
         return!
-            Ledger.CommandHandlers.retryCategorizationWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+            Ledger.CommandHandlers.retryCategorizationOrSplitWriteBack
+                DateTime.UtcNow
+                push
+                tools
+                (Ledger.Events.EntryId entryId)
     }
 
     // "Geprüft" für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-nhwrt):

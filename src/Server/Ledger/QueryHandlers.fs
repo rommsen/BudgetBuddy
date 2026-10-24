@@ -336,6 +336,7 @@ module ReadModel =
         | EntryReviewMarkWrittenBackToYnab -> "Prüfvermerk in YNAB angekommen"
         | EntryCategorizationWriteBackFailed p -> $"Kategorie nicht in YNAB: {p.Reason}"
         | EntryCategorizationWrittenBackToYnab -> "Kategorie in YNAB angekommen"
+        | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
 
     /// Ein gespeichertes Ereignis als Historien-Zeile.
