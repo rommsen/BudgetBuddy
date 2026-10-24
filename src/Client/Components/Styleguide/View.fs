@@ -159,7 +159,7 @@ let private typographySection =
                 Html.p [ prop.className (Tokens.FontSizes.pageTitle + " " + Tokens.FontWeights.bold); prop.text "Page Title" ]
                 Html.p [ prop.className (Tokens.FontSizes.sectionTitle + " " + Tokens.FontWeights.semibold); prop.text "Section Title" ]
                 Html.p [ prop.className (Tokens.FontSizes.cardTitle + " " + Tokens.FontWeights.semibold); prop.text "Card Title" ]
-                Html.p [ prop.className Tokens.FontSizes.body; prop.text "Body — text-[15px] md:text-base" ]
+                Html.p [ prop.className Tokens.FontSizes.body; prop.text ("Body: " + Tokens.FontSizes.body) ]
                 Html.p [ prop.className (Tokens.FontSizes.xs + " " + Tokens.Colors.textMuted); prop.text "Label / Caption — text-xs" ]
             ]
         ]

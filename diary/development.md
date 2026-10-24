@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 15:02 - Token-Wächter für Farb- und Schriftwerte (design-system-wfhxj)
+
+**What I did:**
+Node-Wächter `scripts/token-guard.mjs` mit Ausnahmeliste und Test angelegt, `guard:tokens` in `package.json`, Styleguide-Treffer ersetzt, Regeltexte ergänzt.
+
+**Files Added:**
+- `scripts/token-guard.mjs` - Wächter (Exit 0/1/2)
+- `scripts/token-guard.test.mjs` - 19 Tests mit Fixture-Bäumen und Live-Lauf
+- `scripts/token-guard-exceptions.json` - 9 begründete Einträge für die Definitionsschicht
+
+**Files Modified:**
+- `package.json` - Skript `guard:tokens`
+- `src/Client/Components/Styleguide/View.fs` - Zeile 162: Beschriftung nutzt `Tokens.FontSizes.body` statt Literal `text-[15px]`
+- `standards/frontend/styleguide.md` - Durchsetzung im Block "Harte Regel"
+- `.claude/rules/design-tokens.md` - Abschnitt "Mechanische Prüfung"
+
+**Rationale:**
+Tafel-Werte (Hex, Pixelgrößen) sollen nicht in Feature-Code gelangen. Bisher war die Regel nur Prosa, `guard:classes` prüft nur Existenz von Klassen.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: dotnet 1666 bestanden; Skripttests 176/176
+- Playwright getComputedStyle des "Body"-Absatzes auf /#/styleguide, vorher und nachher identisch: Viewport 1280 breit: font-size 16px, line-height 24px, font-weight 400; Viewport 390 breit: font-size 15px, line-height 22.5px, font-weight 400.
+- Issues: Task-Zählung (9 Hex, 8 text-[Npx] in Tokens.fs) stimmte nicht; echter Stand 8 und 7. Card.fs und zwei Input.fs-Schatten kamen als Einträge dazu.
+
+Iteration 2 hat nur das README_DELTA ergänzt (Bullet Token-Wächter); kein Code geändert, keine neuen Testläufe nötig, die Ergebnisse aus Iteration 1 gelten unverändert.
+
+---
+
 ## 2026-10-24 15:10 - ledger-h6mer: Live-Nachverknüpfung der Split-Überträge geprüft, schon erledigt
 
 **What I did:**

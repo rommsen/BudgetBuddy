@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 34
+- **Doing:** 0
+- **Done:** 35
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-wfhxj** — "Token-Wächter: test:scripts scheitert, sobald Feature-Code Hex- oder rgb-Farben in Klassen, Standard-Tailwind-Farben, inline Farbe/Schriftgröße oder text-[Npx] benutzt; das Design-System selbst läuft über eine begründete Ausnahmeliste" (chore) — `doing/design-system-wfhxj-token-waechter-keine-farben-ausserhalb-der-tokens.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-wfhxj** —  (chore) — `done/design-system-wfhxj-token-waechter-keine-farben-ausserhalb-der-tokens.md`
 - **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `done/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 - **design-system-m7z9q** — Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs (feature) — `done/design-system-m7z9q-deutsches-datumsfeld-mit-kalender.md`
 - **design-system-zahv9** — Ruhige Bausteine für Auswahlen: Picker-Zeile, Money.available, Suchfeld, Footer, searchableSelect und Form auf Deutsch (feature) — `done/design-system-zahv9-ruhige-bausteine-fuer-auswahlen.md`

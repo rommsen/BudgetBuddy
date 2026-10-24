@@ -12,6 +12,7 @@
     "screenshot:route": "node scripts/screenshot-route.mjs",
     "check:readme-delta": "node scripts/readme-delta-check.mjs",
     "guard:classes": "node scripts/tailwind-class-guard.mjs",
+    "guard:tokens": "node scripts/token-guard.mjs",
     "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {

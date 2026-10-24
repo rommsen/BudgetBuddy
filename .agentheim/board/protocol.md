@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:19 -- Task verified and completed: design-system-wfhxj - 
+
+**Type:** Work / Task completion
+**Task:** design-system-wfhxj - 
+**Summary:** Der Token-Wächter `scripts/token-guard.mjs` (`npm run guard:tokens`, in `test:scripts`) scheitert bei Farb- und Schriftwerten außerhalb der Tokens; das Design-System läuft über eine begründete Ausnahmeliste, der Styleguide-Treffer ist ersetzt.
+**Duration:** 31m
+**Verification:** PASS (iteration 2)
+**Files changed:** 7
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
+## 2026-10-24 15:17 -- Verification failed: design-system-wfhxj - Token-Wächter
+
+**Type:** Work / Verification failure
+**Task:** design-system-wfhxj - Token-Wächter
+**Iteration:** 1 of 3
+**Reasons:** neuer BC-Begriff Token-Wächter ohne README_DELTA (Ubiquitous language beschreibt nur den Tailwind-Klassen-Wächter); Code, Tests und alle Läufe grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-24 15:10 -- Task completed (verification skipped): ledger-h6mer - "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
 
 **Type:** Work / Task completion

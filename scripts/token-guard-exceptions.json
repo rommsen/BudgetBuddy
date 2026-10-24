@@ -1,0 +1,56 @@
+[
+  {
+    "file": "src/Client/DesignSystem/Tokens.fs",
+    "pattern": "hex-arbitrary",
+    "count": 8,
+    "reason": "Definitionsstelle der Farb-Tokens: hier stehen die Hover- und Overlay-Hexwerte (z. B. hover:bg-[#00cc6a]) genau einmal, Feature-Code referenziert nur die benannten Tokens."
+  },
+  {
+    "file": "src/Client/DesignSystem/Tokens.fs",
+    "pattern": "rgb-arbitrary",
+    "count": 6,
+    "reason": "Definitionsstelle der Glow-Schatten (shadow-[0_0_30px_rgba(...)]) als benannte Tokens."
+  },
+  {
+    "file": "src/Client/DesignSystem/Tokens.fs",
+    "pattern": "text-arbitrary-size",
+    "count": 7,
+    "reason": "Definitionsstelle der Typografie-Skala (FontSizes, ListRoles): text-[10px], text-[11px] und text-[15px] stehen nur hier (ADR 0049, Styleguide §2)."
+  },
+  {
+    "file": "src/Client/DesignSystem/Button.fs",
+    "pattern": "hex-arbitrary",
+    "count": 1,
+    "reason": "Orange-Verlauf des Primärknopfs (hover:to-[#e55a1f]), Teil der Button-Definition."
+  },
+  {
+    "file": "src/Client/DesignSystem/Button.fs",
+    "pattern": "rgb-arbitrary",
+    "count": 1,
+    "reason": "Orange-Glow des Primärknopfs (zwei Schatten in einer Klasse), Teil der Button-Definition."
+  },
+  {
+    "file": "src/Client/DesignSystem/Card.fs",
+    "pattern": "rgb-arbitrary",
+    "count": 3,
+    "reason": "Glow-Schatten der Karten (Glow-Variante im Hover, Aktionskarte in Ruhe und im Hover), Teil der Card-Definition."
+  },
+  {
+    "file": "src/Client/DesignSystem/Input.fs",
+    "pattern": "rgb-arbitrary",
+    "count": 2,
+    "reason": "Fokusring der Eingabefelder im Fehler- und Erfolgszustand (shadow-[0_0_0_2px_rgba(...)]), Teil der Input-Definition."
+  },
+  {
+    "file": "src/Client/DesignSystem/Input.fs",
+    "pattern": "inline-style",
+    "count": 3,
+    "reason": "style.fontSize 16 als iOS-Zoom-Schutz bei Fokus (Kommentar in Input.fs): eine Utility-Klasse reicht nicht, weil der Wert unter Safari nicht unterschritten werden darf."
+  },
+  {
+    "file": "src/Client/DesignSystem/Loading.fs",
+    "pattern": "hex-arbitrary",
+    "count": 1,
+    "reason": "Overlay-Fläche des Lade-Zustands (bg-[#0a0a0f]/80), Teil der Loading-Definition."
+  }
+]

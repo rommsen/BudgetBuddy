@@ -22,6 +22,14 @@ paths: src/Client/**
   - Projekt-definierte Klassen wie `text-heading`, `text-body`, `text-meta` etc.
 - Bei neuem Farbwert: erst im Design-System definieren, dann in Tailwind nutzen
 
+## Mechanische Prüfung
+
+`npm run guard:tokens` (`scripts/token-guard.mjs`) prüft alle `.fs` unter `src/Client/` auf die
+oben verbotenen Muster und läuft in `npm run test:scripts`. Treffer außerhalb von
+`src/Client/DesignSystem/` sind nie erlaubt; innerhalb braucht jeder Treffer einen Eintrag mit
+Grund in `scripts/token-guard-exceptions.json`. Die Greps unten sind nur noch Handwerkszeug zum
+Suchen.
+
 ## Grep-Checks
 
 ```bash
