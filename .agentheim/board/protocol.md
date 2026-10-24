@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 20:35 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 56m (scoped run, Batch-Start 7fba3af bis Abschluss)
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-sfab0: 1
+**Commits:** 3
+**Vision-conformance:** none: batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (1 task)
+**Carry-over:** none: working tree clean
+
+---
+
 ## 2026-10-24 20:26 -- Task verified and completed: ledger-sfab0 - "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Karte Budget nach dem Wechsel und Toast mit Rückgängig, Vorschläge zum Payee, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Zeile bleibt stehen (ausgegraut bei Filter-Nichttreffer, Hinweisleiste Neu laden bei Sortierschlüssel)"
 
 **Type:** Work / Task completion
