@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:10 -- Task completed (verification skipped): ledger-h6mer - "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
+
+**Type:** Work / Task completion
+**Task:** ledger-h6mer - "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
+**Summary:** Die Nachverknüpfung der 197 historischen Split-Zeilen-Überträge war auf der Live-Datenbank schon erledigt (206 Split- und 768 Übertrags-Beobachtungen vom 2026-10-20, Beispielpaar aus ADR 0046 beidseitig verknüpft); kein Eingriff, Abschluss auf Romans Entscheidung
+**Duration:** 10m
+**Verification:** SKIPPED — Conductor-Task ohne Code-Änderung, Belege per SQL an einer Kopie der Live-Datei
+**Files changed:** 0
+
+---
+
 ## 2026-10-24 15:09 -- Batch started: [ledger-h6mer]
 
 **Type:** Work / Batch start

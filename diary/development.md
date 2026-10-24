@@ -4,7 +4,24 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-## 2026-10-24 16:00 - Spike ledger-mas5g: YNAB-API und Split-Zeilen einer bestehenden Buchung
+## 2026-10-24 15:10 - ledger-h6mer: Live-Nachverknüpfung der Split-Überträge geprüft, schon erledigt
+
+**What I did:**
+Live-Datenbank auf docker-host lesend kopiert und gezählt: 206 EntrySplitTransferCounterpartObservedInYnab und 768 EntryTransferCounterpartObservedInYnab, alle vom 2026-10-20 05:59 UTC; Beispielpaar aus ADR 0046 beidseitig verknüpft. Kein Eingriff, Task auf Romans Entscheidung geschlossen.
+
+**Files Modified:**
+- `.agentheim/board/ledger/done/ledger-h6mer-...md` - Outcome mit Zählungen und SQL-Stichprobe
+
+**Rationale:**
+Der geplante Vollabruf war nur nötig, falls die Bestandsfälle nie beobachtet worden wären. Sie waren es schon.
+
+**Outcomes:**
+- Build/Tests: nicht berührt (keine Code-Änderung)
+- Live-App healthy, HTTPS 200
+
+---
+
+## 2026-10-24 15:03 - Spike ledger-mas5g: YNAB-API und Split-Zeilen einer bestehenden Buchung
 
 **What I did:**
 OpenAPI-Spec 1.87.0 von api.ynab.com geladen (Scratchpad), die Stellen zu `subtransactions`, `category_id`, `date`, `amount`, `approved`, PUT, PATCH, POST und DELETE gelesen, ADR 0006, 0028, 0054, 0055, 0046 und die Folge-Tasks `ledger-kxme4` und `ledger-pafkp` abgeglichen. Kein Aufruf gegen YNAB.

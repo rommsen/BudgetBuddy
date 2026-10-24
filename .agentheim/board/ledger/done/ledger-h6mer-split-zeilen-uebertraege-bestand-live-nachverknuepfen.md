@@ -1,7 +1,7 @@
 ---
 id: ledger-h6mer
 title: "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
-status: doing
+status: done
 type: chore
 context: ledger
 created: 2026-10-02
@@ -98,3 +98,17 @@ Conductor Romans ausdrückliches Go, weil der Container kurz stoppt.
 Verfeinert am 2026-10-24 (Sammel-Modeling): Ausführender festgelegt, Pfade auf den echten
 Deploy-Stand (`/opt/stacks/budgetbuddy`, kein `sqlite3`/`sudo` auf dem Host) gezogen,
 Vorher-/Nachher-Zählung und Rücksetz-Prüfung des Settings-Schlüssels ergänzt.
+
+## Outcome
+
+Kein Eingriff nötig: die Nachverknüpfung war auf der Live-Datenbank schon vollständig, als der Conductor am 2026-10-24 um 15:00 nachzählte. Roman hat daraufhin entschieden, den Task ohne Stopp, Backup und Vollabruf zu schließen (2026-10-24).
+
+**Befund (Kopie der Live-Datei per `scp docker-host:/opt/stacks/budgetbuddy/data/budgetbuddy.db`, nur lesend, Container lief weiter):**
+- Mount laut `docker inspect budgetbuddy-app`: `/opt/stacks/budgetbuddy/data -> /app/data`, Container healthy, keine WAL-Dateien neben der Datenbank.
+- `EntrySplitTransferCounterpartObservedInYnab`: 206 Ereignisse, `EntryTransferCounterpartObservedInYnab`: 768 Ereignisse. Alle 974 tragen denselben Zeitstempel `2026-10-20T05:59:10.0077895Z`; die Beobachtungen entstanden also in einem einzigen Lauf am 20.10. (vermutlich der erste Spiegel-Lauf nach dem Deploy von ledger-h4nxz). Das Soll aus den Kriterien ("um ungefähr 206 gestiegen") ist damit schon erreicht, ein weiterer Vollabruf hätte nichts verknüpft.
+- `ledger_entry_split_transfers`: 197 Zeilen; 197 Buchungen tragen `split_transfer_counterparts`, das entspricht den 197 historischen Split-Zeilen-Überträgen aus dem Why.
+- Stichprobe Beispielpaar ADR 0046 (über `ledger_entry_links.value`): Girokonto-Buchung `f668dd4a-...` ist Kassenbuch-Eintrag `01a157e4-9baf-7b03-985e-1b65277cd2c4` mit `split_transfer_counterparts = [{"ynabSubtransactionId":"f585c0f4-c211-4217-adb6-6be0f6b619f9","counterpartEntryId":"01a157e4-9bf4-7857-8b5c-4d64fbdc52ef"}]` und einer Zeile in `ledger_entry_split_transfers`; Bar-Buchung `8466b531-...` ist Eintrag `01a157e4-9bf4-7857-8b5c-4d64fbdc52ef` mit `transfer_entry_id = 01a157e4-9baf-7b03-985e-1b65277cd2c4`. Beide Seiten verknüpft.
+- `settings` enthält `ledger_mirror_server_knowledge_e0b4c3e7-d283-423e-8e30-3f37b6328ebf` (Wert 47950), der normale Lauf ist ein Delta-Abruf.
+- App nach der Prüfung: `docker inspect` healthy (gestartet 2026-10-24 10:46 UTC), HTTPS-Aufruf 200.
+
+**Nicht gemacht (bewusst):** Container-Stopp, Backup nach `~/backups/`, Löschen der Settings-Schlüssel, Vollabruf. Die Kriterien dazu sind durch den Befund gegenstandslos; kein Schreibzugriff auf die Live-Umgebung.
