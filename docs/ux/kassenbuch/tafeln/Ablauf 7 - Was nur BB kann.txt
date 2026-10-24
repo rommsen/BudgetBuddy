@@ -1,0 +1,404 @@
+ABLAUF 7 
+Was nur BB kann: Herkunft, Historie, Abweichung 
+Zu jeder Buchung steht im Detail, woher sie stammt, was sich wann geändert hat, ob sie in YNAB gelöscht wurde und ob sie noch nicht in YNAB ist. In YNAB gibt es dafür keinen Referenzweg — dieser Ablauf ist die Begründung des Produkts. Handy 390 × 844 (7.1 bis 7.5), PC 1440 × 900 (7.6 bis 7.10). Konto „Girokonto Comdirect", Liste mit gemischten Herkünften. 
+ANNAHMEN 
+Vier Herkunft-Arten: Comdirect-Import , Regel , YNAB-Spiegel und (später) Handeingabe aus Quick Add. Im Detail steht die Art, die die Buchung ins Kassenbuch gebracht hat. 
+Die Historie ist eine Zeitleiste von neu nach alt. Jeder Eintrag nennt Urheber, Wirkung und Zeitstempel; die Punktfarbe trennt die Urheber. 
+„Noch nicht in YNAB" erscheint nie ohne Grund — hier: Push gescheitert am 10.09. 18:02, Netzwerkfehler. 
+„Erneut senden" ist im Prototyp nur der Knopf; der Lauf selbst gehört zu Sync. 
+Die Abweichung (BB sagt Lebensmittel, YNAB sagt Haushalt) entsteht erst mit dem Rückschreiben und ist als v2 gekennzeichnet. 
+Gelöschte Buchungen zählen in der Trefferzahl, nicht in der Summe und nie im Kontostand. 
+Erfunden: alle Zeitstempel, die Regel „REWE Mitte", der Bauhaus-Betrag -84,90 € und die 13 September-Treffer mit -712,26 €. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Badge (Herkunft, „noch nicht in YNAB", „in YNAB gelöscht", „Abweichung", Status) · BottomSheet (Detail am Handy) · Card (Panel, Hinweisleisten, Konten-Spalte) · Button (Orange primär „Erneut senden" / „YNAB übernehmen", Ghost „BB durchsetzen") · Icons (Schließen, Chevron) · Money (Beträge, Summen, Stände) · Table (Liste PC) · Navigation (Tab-Bar, Kopfzeile, Konten-Spalte) · Primitives (Chips, Kästchen, Schalter) · PageHeader. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Herkunft/Historie-Zeitleiste aus Badge und Text mit farbigen Punkten · Hinweisleiste mit Grund und Aktion aus Card, Badge und Button (drei Färbungen: Orange „nicht in YNAB", Pink „Abweichung", Rot „gelöscht") · Filter-Chip-Leiste aus Primitives-Chip · Summenzeile aus Card und Money · Geprüft-Schalter aus Primitives · Konto-Stände-Leiste Handy aus Card · Konten-Spalte PC aus Card-Liste. 
+Handy 390 × 844 
+ 7.1 Handy: Liste mit gemischten Herkünften 
+ 9:41 
+ KASSENBUCH Girokonto 
+Alle Konten 
+21.388,85 € 
+Girokonto Comdirect 
+2.418,37 € 
+ING Extra 
+6.902,10 € 
+Bar 
+63,50 € 
+ Zu prüfen (9) Kategorie Zeitraum Gelöschte zeigen 
+16.09. 
+ Bauhaus -84,90 € 
+ Möbel Dübel und Leisten 
+ noch nicht in YNAB 
+ REWE Mitte -48,12 € 
+ Lebensmittel 
+15.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Kita-Beitrag Stadt -125,00 € 
+ Kinder 
+12.09. 
+ Apotheke am Markt -18,20 € 
+ Apotheke 
+ Netflix -12,99 € 
+ Streaming 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Ausgangszustand, kein Filter aktiv, deshalb keine Summenzeile. Nur zwei Zeilen tragen ein Kennzeichen: „Bauhaus" ist noch nicht in YNAB. Alles andere sieht aus wie eine gewöhnliche Liste — was BB über Herkunft und Historie weiß, steht im Detail. Fünf der neun ungeprüften Zeilen plus vier geprüfte sind sichtbar, weitere kommen beim Scrollen. Weiter: Bauhaus antippen · REWE Mitte antippen · Gelöschte zeigen 
+ 7.2 Handy: Detail — noch nicht in YNAB 
+ 9:41 
+ KASSENBUCH Girokonto 
+Alle Konten 
+21.388,85 € 
+Girokonto Comdirect 
+2.418,37 € 
+ING Extra 
+6.902,10 € 
+Bar 
+63,50 € 
+ Zu prüfen (9) Kategorie Zeitraum Gelöschte zeigen 
+16.09. 
+ Bauhaus -84,90 € 
+ Möbel Dübel und Leisten 
+ noch nicht in YNAB 
+ REWE Mitte -48,12 € 
+ Lebensmittel 
+15.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Kita-Beitrag Stadt -125,00 € 
+ Kinder 
+12.09. 
+ Apotheke am Markt -18,20 € 
+ Apotheke 
+ Netflix -12,99 € 
+ Streaming 
+-84,90 € 
+Bauhaus 
+Girokonto Comdirect · 10.09.2026 
+ Noch nicht in YNAB 
+Push gescheitert am 10.09. 18:02 — Netzwerkfehler. BB versucht es beim nächsten Lauf erneut. 
+ Erneut senden 
+ Kategorie Möbel 
+ Memo Dübel und Leisten 
+ Geprüft 
+ HERKUNFT Comdirect-Import 
+HISTORIE 
+Push nach YNAB gescheitert: Netzwerkfehler 
+10.09.2026 18:02 · Sync 
+Comdirect-Import: Buchung erfasst 
+10.09.2026 17:58 · Import 
+Das Sheet sagt nicht nur „noch nicht in YNAB", sondern warum und wann: Push gescheitert, Grund Netzwerkfehler, Zeitstempel. „Erneut senden" ist die einzige primäre Aktion dieses Screens (im Prototyp nur der Knopf). Herkunft steht als eigene Zeile über der Historie, die Historie als Zeitleiste darunter — der Fehlschlag trägt einen roten Punkt. Das Sheet ist 620px hoch und deckt die Liste vollständig ab, die Kopfzone bleibt sichtbar. Weiter: REWE Mitte 
+ 7.3 Handy: Detail — Historie und Abweichung 
+ 9:41 
+ KASSENBUCH Girokonto 
+Alle Konten 
+21.388,85 € 
+Girokonto Comdirect 
+2.418,37 € 
+ING Extra 
+6.902,10 € 
+Bar 
+63,50 € 
+ Zu prüfen (9) Kategorie Zeitraum Gelöschte zeigen 
+16.09. 
+ Bauhaus -84,90 € 
+ Möbel Dübel und Leisten 
+ noch nicht in YNAB 
+ REWE Mitte -48,12 € 
+ Lebensmittel 
+15.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Kita-Beitrag Stadt -125,00 € 
+ Kinder 
+12.09. 
+ Apotheke am Markt -18,20 € 
+ Apotheke 
+ Netflix -12,99 € 
+ Streaming 
+-48,12 € 
+REWE Mitte 
+Girokonto Comdirect · 10.09.2026 
+ Abweichung ab v2 
+BB sagt Lebensmittel , YNAB sagt Haushalt . 
+ YNAB übernehmen BB durchsetzen 
+ Kategorie Lebensmittel 
+ Geprüft 
+ HERKUNFT Regel 
+HISTORIE 
+YNAB-Spiegel: Kategorie in YNAB geändert: Lebensmittel → Haushalt 
+11.09.2026 08:12 · Sync 
+Regel: Kategorie Lebensmittel gesetzt 
+10.09.2026 17:55 · Regel „REWE Mitte" 
+Comdirect-Import: Buchung erfasst 
+10.09.2026 17:55 · Import 
+Drei Herkünfte in einer Buchung: Comdirect hat sie gebracht, eine Regel hat die Kategorie gesetzt, YNAB hat sie später überschrieben. Genau das zeigt sonst niemand. Die Abweichung steht in Pink über den Feldern, mit beiden Auswegen — „YNAB übernehmen" ist die primäre Aktion, „BB durchsetzen" der Ghost-Knopf. Die Zeitleiste läuft von neu nach alt und scrollt, wenn mehr Einträge dazukommen. Weiter: Gelöschte zeigen 
+ 7.4 Handy: Gelöschte zeigen 
+ 9:41 
+ KASSENBUCH Girokonto 
+Alle Konten 
+21.388,85 € 
+Girokonto Comdirect 
+2.418,37 € 
+ING Extra 
+6.902,10 € 
+Bar 
+63,50 € 
+ Gelöschte zeigen 
+ Zeitraum: Dieser Monat 
+ Zu prüfen (9) Alle Filter löschen 
+ 13 Buchungen -712,26 € 
+16.09. 
+ Bauhaus -84,90 € 
+ Möbel Dübel und Leisten 
+ noch nicht in YNAB 
+ REWE Mitte -48,12 € 
+ Lebensmittel 
+15.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Kita-Beitrag Stadt -125,00 € 
+ Kinder 
+ Café Lotte -9,80 € 
+ Restaurants 
+ in YNAB gelöscht 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Der Chip „Gelöschte zeigen" holt die ausgeblendeten Buchungen zurück ( ledger-p3n8k ): „Café Lotte" steht ausgegraut an ihrem Platz und trägt „in YNAB gelöscht". Aktive Chips wandern nach vorn, deshalb steht „Gelöschte zeigen" zuerst. Die Summenzeile zählt die gelöschte Zeile mit — 13 Treffer — rechnet sie aber nicht in die Summe: sie ist kein Geld mehr. Fünf Zeilen passen ins Bild, acht folgen beim Scrollen. Weiter: Café Lotte antippen 
+ 7.5 Handy: Detail einer gelöschten Buchung 
+ 9:41 
+ KASSENBUCH Girokonto 
+Alle Konten 
+21.388,85 € 
+Girokonto Comdirect 
+2.418,37 € 
+ING Extra 
+6.902,10 € 
+Bar 
+63,50 € 
+ Gelöschte zeigen 
+ Zeitraum: Dieser Monat 
+ Zu prüfen (9) Alle Filter löschen 
+ 13 Buchungen -712,26 € 
+16.09. 
+ Bauhaus -84,90 € 
+ Möbel Dübel und Leisten 
+ noch nicht in YNAB 
+ REWE Mitte -48,12 € 
+ Lebensmittel 
+15.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Kita-Beitrag Stadt -125,00 € 
+ Kinder 
+ Café Lotte -9,80 € 
+ Restaurants 
+ in YNAB gelöscht 
+-9,80 € 
+Café Lotte 
+Girokonto Comdirect · 15.09.2026 
+ in YNAB gelöscht 
+Gelöscht in YNAB am 11.09.2026 08:20. Zählt nicht zum Kontostand und nicht zur Summe. 
+ Kategorie Restaurants 
+ Memo mit Lena 
+ HERKUNFT Comdirect-Import 
+HISTORIE 
+YNAB-Spiegel: in YNAB gelöscht 
+11.09.2026 08:20 · Sync 
+Regel: Kategorie Restaurants gesetzt 
+15.09.2026 19:40 · Regel „Café Lotte" 
+Comdirect-Import: Buchung erfasst 
+15.09.2026 19:40 · Import 
+Die gelöschte Buchung bleibt lesbar, aber nicht bearbeitbar: Betrag in Grau statt Rot, Felder ohne Chevron, kein Geprüft-Schalter, keine primäre Aktion. Der Hinweis nennt Zeitpunkt und Folge. Die Historie zeigt den ganzen Weg bis zur Löschung — in YNAB ist die Buchung weg, in BB bleibt nachvollziehbar, dass es sie gab. Das Sheet ist 576px hoch und setzt unter der Summenzeile an. Weiter: PC 
+PC 1440 × 900 
+ 7.6 PC: Liste mit Status und Kennzeichen 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Zu prüfen (9) Kategorie Zeitraum Payee Betrag Memo Flag Gelöschte zeigen Alle Filter löschen 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 16.09. Bauhaus Wohnen: Möbel Dübel und Leisten -84,90 € Zu prüfen Nicht in YNAB 
+ 16.09. REWE Mitte Alltag: Lebensmittel -48,12 € Zu prüfen Abweichung 
+ 15.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 15.09. Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 12.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Geprüft 
+ 12.09. Netflix Abos: Streaming -12,99 € Geprüft 
+ 10.09. Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. REWE Mitte Alltag: Lebensmittel -52,30 € Geprüft 
+ 08.09. Bäckerei Krause Alltag: Lebensmittel -4,80 € Geprüft 
+ 05.09. Amazon Marketplace Alltag: Haushalt Kabeltrommel -37,45 € Zu prüfen 
+ 03.09. Café Lotte Alltag: Restaurants -14,60 € Geprüft 
+ 01.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Geprüft 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Die Status-Spalte trägt bis zu zwei Kennzeichen: „Bauhaus" ist zu prüfen und nicht in YNAB, „REWE Mitte" zu prüfen und abweichend. Mehr steht nicht in der Zeile — Herkunft und Historie gehören ins Panel, sonst wird die Tabelle unlesbar. Kein Filter aktiv, deshalb keine Summenzeile. Weiter: Bauhaus anklicken · REWE Mitte anklicken · Gelöschte zeigen 
+ 7.7 PC: Seitenpanel — noch nicht in YNAB 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Zu prüfen (9) Kategorie Zeitraum Payee Betrag Gelöschte zeigen Alle Filter löschen 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 16.09. Bauhaus Wohnen: Möbel -84,90 € Zu prüfen Nicht in YNAB 
+ 16.09. REWE Mitte Alltag: Lebensmittel -48,12 € Zu prüfen Abweichung 
+ 15.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 15.09. Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 12.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Geprüft 
+ 12.09. Netflix Abos: Streaming -12,99 € Geprüft 
+ 10.09. Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. REWE Mitte Alltag: Lebensmittel -52,30 € Geprüft 
+ 08.09. Bäckerei Krause Alltag: Lebensmittel -4,80 € Geprüft 
+ 05.09. Amazon Marketplace Alltag: Haushalt -37,45 € Zu prüfen 
+ 03.09. Café Lotte Alltag: Restaurants -14,60 € Geprüft 
+ 01.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Geprüft 
+ ↑ ↓ bewegen G geprüft Esc Panel schließen 
+-84,90 € 
+Bauhaus 
+Girokonto Comdirect · 10.09.2026 
+ Noch nicht in YNAB 
+Push gescheitert am 10.09. 18:02 — Netzwerkfehler. BB versucht es beim nächsten Lauf erneut. 
+ Erneut senden 
+ Kategorie Wohnen: Möbel 
+ Split Kein Split 
+ Memo Dübel und Leisten 
+ Geprüft 
+ HERKUNFT Comdirect-Import 
+HISTORIE 
+Push nach YNAB gescheitert: Netzwerkfehler 
+10.09.2026 18:02 · Sync 
+Comdirect-Import: Buchung erfasst 
+10.09.2026 17:58 · Import 
+Das Panel ist 420px breit, die Liste bleibt sichtbar, die angeklickte Zeile ist markiert. Bei offenem Panel weicht die Memo-Spalte und die Chip-Leiste wird waagerecht scrollbar — hier fehlen Memo und Flag. „Erneut senden" sitzt im Hinweis, nicht am Panel-Fuß: die Aktion gehört zum Grund. Weiter: REWE Mitte 
+ 7.8 PC: Seitenpanel — Historie und Abweichung 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Zu prüfen (9) Kategorie Zeitraum Payee Betrag Gelöschte zeigen Alle Filter löschen 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 16.09. Bauhaus Wohnen: Möbel -84,90 € Zu prüfen Nicht in YNAB 
+ 16.09. REWE Mitte Alltag: Lebensmittel -48,12 € Zu prüfen Abweichung 
+ 15.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 15.09. Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 12.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Geprüft 
+ 12.09. Netflix Abos: Streaming -12,99 € Geprüft 
+ 10.09. Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. REWE Mitte Alltag: Lebensmittel -52,30 € Geprüft 
+ 08.09. Bäckerei Krause Alltag: Lebensmittel -4,80 € Geprüft 
+ 05.09. Amazon Marketplace Alltag: Haushalt -37,45 € Zu prüfen 
+ 03.09. Café Lotte Alltag: Restaurants -14,60 € Geprüft 
+ 01.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Geprüft 
+ ↑ ↓ bewegen G geprüft Esc Panel schließen 
+-48,12 € 
+REWE Mitte 
+Girokonto Comdirect · 10.09.2026 
+ Abweichung ab v2 
+BB sagt Alltag: Lebensmittel , YNAB sagt Alltag: Haushalt . 
+ YNAB übernehmen BB durchsetzen 
+ Kategorie Alltag: Lebensmittel 
+ Split Kein Split 
+ Memo Memo hinzufügen 
+ Geprüft 
+ HERKUNFT Regel 
+HISTORIE 
+YNAB-Spiegel: Kategorie in YNAB geändert: Lebensmittel → Haushalt 
+11.09.2026 08:12 · Sync 
+Regel: Kategorie Lebensmittel gesetzt 
+10.09.2026 17:55 · Regel „REWE Mitte" 
+Comdirect-Import: Buchung erfasst 
+10.09.2026 17:55 · Import 
+Am PC steht die Kategorie voll qualifiziert, auch im Abweichungshinweis. Die Zeitleiste ist der eigentliche Inhalt dieses Panels: drei Einträge, drei Urheber — Import, Regel, YNAB-Spiegel. Punktfarben trennen sie (Teal Import, Violett Regel, Grau Spiegel, Rot Fehler). Solange die Abweichung offen ist, bleibt sie auch in der Zeile als Pink-Badge sichtbar. Weiter: Gelöschte zeigen 
+ 7.9 PC: Gelöschte zeigen 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Gelöschte zeigen 
+ Zeitraum: Dieser Monat 
+ Zu prüfen (9) Kategorie Payee Betrag Memo Flag Alle Filter löschen 
+ 13 Buchungen -712,26 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 16.09. Bauhaus Wohnen: Möbel Dübel und Leisten -84,90 € Zu prüfen Nicht in YNAB 
+ 16.09. REWE Mitte Alltag: Lebensmittel -48,12 € Zu prüfen Abweichung 
+ 15.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 15.09. Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 15.09. Café Lotte Alltag: Restaurants mit Lena -9,80 € In YNAB gelöscht 
+ 12.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Geprüft 
+ 12.09. Netflix Abos: Streaming -12,99 € Geprüft 
+ 10.09. Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. REWE Mitte Alltag: Lebensmittel -52,30 € Geprüft 
+ 08.09. Bäckerei Krause Alltag: Lebensmittel -4,80 € Geprüft 
+ 05.09. Amazon Marketplace Alltag: Haushalt Kabeltrommel -37,45 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Zwei Filter aktiv, deshalb die Summenzeile: 13 Treffer über den gesamten Monat. Die gelöschte Zeile steht ausgegraut an ihrem Platz — Datum, Payee, Kategorie und Betrag bleiben lesbar, das Kästchen bleibt anklickbar, aber sie zählt nicht in die Summe. Am PC bleibt die Chip-Reihenfolge fest, aktive Chips wandern nicht nach vorn. Zwei weitere Treffer folgen beim Scrollen. Weiter: Café Lotte anklicken 
+ 7.10 PC: Seitenpanel einer gelöschten Buchung 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Gelöschte zeigen 
+ Zeitraum: Dieser Monat 
+ Zu prüfen (9) Kategorie Payee Betrag Memo Flag Alle Filter löschen 
+ 13 Buchungen -712,26 € 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 16.09. Bauhaus Wohnen: Möbel -84,90 € Zu prüfen Nicht in YNAB 
+ 16.09. REWE Mitte Alltag: Lebensmittel -48,12 € Zu prüfen Abweichung 
+ 15.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 15.09. Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 15.09. Café Lotte Alltag: Restaurants -9,80 € In YNAB gelöscht 
+ 12.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Geprüft 
+ 12.09. Netflix Abos: Streaming -12,99 € Geprüft 
+ 10.09. Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. REWE Mitte Alltag: Lebensmittel -52,30 € Geprüft 
+ 08.09. Bäckerei Krause Alltag: Lebensmittel -4,80 € Geprüft 
+ 05.09. Amazon Marketplace Alltag: Haushalt -37,45 € Zu prüfen 
+ ↑ ↓ bewegen G geprüft Esc Panel schließen 
+-9,80 € 
+Café Lotte 
+Girokonto Comdirect · 15.09.2026 
+ in YNAB gelöscht 
+Gelöscht in YNAB am 11.09.2026 08:20. Zählt nicht zum Kontostand und nicht zur Summe. 
+ Kategorie Alltag: Restaurants 
+ Split Kein Split 
+ Memo mit Lena 
+ HERKUNFT Comdirect-Import 
+HISTORIE 
+YNAB-Spiegel: in YNAB gelöscht 
+11.09.2026 08:20 · Sync 
+Roman in BB: geprüft 
+16.09.2026 07:12 · BudgetBuddy 
+Regel: Kategorie Restaurants gesetzt 
+15.09.2026 19:40 · Regel „Café Lotte" 
+Comdirect-Import: Buchung erfasst 
+15.09.2026 19:40 · Import 
+Das Panel einer gelöschten Buchung ist ein Lesepanel: keine Chevrons, kein Geprüft-Schalter, keine primäre Aktion. Die Historie ist hier am längsten und zeigt den Widerspruch, den nur BB kennt — Roman hat die Buchung geprüft, danach hat sie jemand in YNAB gelöscht. Ein „Wiederherstellen" gibt es nicht; das wäre ein Schreibvorgang nach YNAB und liegt hinter v2. Zurück: Liste

@@ -1,0 +1,415 @@
+ABLAUF 1 
+Durchsehen und als geprüft markieren 
+Ein Wisch je Buchung, keine zweite Geste. Handy 390 × 844 (1.1 bis 1.8), PC 1440 × 900 (1.9 bis 1.12). Die Links unter jedem Screen springen zum nächsten Schritt. 
+ANNAHMEN 
+Einstieg im zuletzt gewählten Konto „ING Extra", Chip „Zu prüfen (7)" aktiv. 
+Prüfen hängt nicht an der Kategorie: Amazon ohne Kategorie lässt sich prüfen. 
+Wisch nach links bleibt leer, damit die Geste eindeutig bleibt. 
+Prüfen sortiert nie um: ohne Filter bleiben geprüfte Zeilen an ihrem Platz. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Navigation (mobile Tab-Bar, Desktop-Leiste), Card (Kontostände), Money (alle Beträge, JetBrains Mono, tabular-nums), Badge (Status, „Keine Kategorie"), Swipe (Zeile mit freigelegter Aktion), BottomSheet (Detail), Toast, Table (PC), Button, Input, Icons. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Filter-Chips aus Primitives-Chip mit Aktivzustand in Teal · Summenzeile aus Card + Money · Auswahl-Leiste aus Card + Money + Buttons · Geprüft-Schalter aus Primitives · Herkunft und Historie als Zeitleiste aus Badge + Text. 
+Handy 390 × 844 · Hauptgerät für Durchsehen und Prüfen 
+ 1.1 Handy: Ausgangszustand 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ 7 Buchungen -296,06 € 
+HEUTE 
+ REWE Mitte -48,12 € 
+ Lebensmittel Wocheneinkauf 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+GESTERN 
+ Deutsche Bahn -29,90 € 
+ Bahn Ticket Köln 
+ Netflix -13,99 € 
+Streaming 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten Abschlag September 
+ Amazon Marketplace -37,45 € 
+ Keine Kategorie 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Kontostände als Card-Leiste, waagerecht scrollbar, aktives Konto in Teal. Chips mit „Zu prüfen (7)" zuoberst, darunter die Summenzeile über den gesamten Treffer. Weiter: Wisch auf REWE Mitte · Tipp auf Deutsche Bahn 
+ 1.2 Handy: während des Wischs 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ 7 Buchungen -296,06 € 
+HEUTE 
+ Geprüft 
+ REWE Mitte -48,12 € 
+ Lebensmittel Wocheneinkauf 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+GESTERN 
+ Deutsche Bahn -29,90 € 
+ Bahn Ticket Köln 
+ Netflix -13,99 € 
+Streaming 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten Abschlag September 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Swipe: ein einziger Wisch nach rechts legt „Geprüft" in Green frei. Nach links bleibt leer, damit die Geste eindeutig bleibt. Weiter: loslassen 
+ 1.3 Handy: nach dem Wisch 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (6) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ 6 Buchungen -247,94 € 
+HEUTE 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+GESTERN 
+ Deutsche Bahn -29,90 € 
+ Bahn Ticket Köln 
+ Netflix -13,99 € 
+Streaming 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten Abschlag September 
+ Amazon Marketplace -37,45 € 
+ Keine Kategorie 
+ REWE Mitte geprüft Rückgängig 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Zeile verlässt die gefilterte Liste, Chip zählt auf 6, Summenzeile rechnet nach. Rücknahme über den Toast, nicht über einen zweiten Wisch. Weiter: Wisch auf Amazon Marketplace 
+ 1.4 Handy: ohne Kategorie geprüft 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ 5 Buchungen -210,49 € 
+HEUTE 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+GESTERN 
+ Deutsche Bahn -29,90 € 
+ Bahn Ticket Köln 
+ Netflix -13,99 € 
+Streaming 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten Abschlag September 
+07.09. 
+ Apotheke am Markt -18,20 € 
+Apotheke 
+ Amazon Marketplace geprüft Rückgängig 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Die fehlende Kategorie hindert nicht am Prüfen. Deutsche Bahn ist als nächste Zeile angetippt (Teal-Kante). Weiter: Detail öffnen 
+ 1.5 Handy: Detail als BottomSheet 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ 5 Buchungen -210,49 € 
+HEUTE 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+-29,90 € 
+Deutsche Bahn 
+ING Extra · Gestern, 10.09.2026 
+ Kategorie Mobilität: Bahn 
+ Split Kein Split Split anlegen 
+ Memo Ticket Köln 
+ Lena fragen 
+ Markieren (temporär) 
+ Geprüft 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Aus YNAB gespiegelt: Betrag, Payee, Kategorie 
+10.09.2026 06:12 · Sync 
+Kategorie „Bahn" von YNAB übernommen 
+10.09.2026 06:12 · YNAB 
+BottomSheet mit Kopf, Feldern, Herkunft und Historie. Kein „Noch nicht in YNAB"-Hinweis, weil die Buchung aus dem YNAB-Spiegel kommt. Weiter: Geprüft-Schalter an 
+ 1.6 Handy: Geprüft im Sheet an 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ 4 Buchungen -180,59 € 
+HEUTE 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+-29,90 € 
+ Deutsche Bahn Geprüft 
+ING Extra · Gestern, 10.09.2026 
+ Kategorie Mobilität: Bahn 
+ Split Kein Split Split anlegen 
+ Memo Ticket Köln 
+ Lena fragen 
+ Markieren (temporär) 
+ Geprüft 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Geprüft von Roman 
+Heute 09:41 · Roman in BB 
+Aus YNAB gespiegelt: Betrag, Payee, Kategorie 
+10.09.2026 06:12 · Sync 
+Kategorie „Bahn" von YNAB übernommen 
+10.09.2026 06:12 · YNAB 
+Schalter an: Badge „Geprüft" im Kopf, Historie bekommt die Zeile mit Herkunft „Roman in BB". Chip und Summenzeile hinter dem Sheet stehen schon auf 4. Weiter: Sheet schließen 
+ 1.7 Handy: nach dem Sheet 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ 4 Buchungen -180,59 € 
+HEUTE 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+GESTERN 
+ Netflix -13,99 € 
+Streaming 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten Abschlag September 
+07.09. 
+ Apotheke am Markt -18,20 € 
+Apotheke 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Drei Buchungen sind geprüft, vier bleiben. Weiter: Chip „Zu prüfen" abwählen 
+ 1.8 Handy: Chip abgewählt, alle Buchungen 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+HEUTE 
+ REWE Mitte -48,12 € 
+ Lebensmittel Wocheneinkauf 
+ Bäckerei Krause -6,40 € 
+Lebensmittel 
+GESTERN 
+ Deutsche Bahn -29,90 € 
+ Bahn Ticket Köln 
+ Netflix -13,99 € 
+Streaming 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten Abschlag September 
+ Amazon Marketplace -37,45 € 
+ Keine Kategorie 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Ohne Filter keine Summenzeile. Geprüfte Zeilen tragen kein Kennzeichen, ungeprüfte einen Punkt in Pink am linken Rand. Die Reihenfolge ist unverändert, die Liste läuft nach unten weiter (07.09. Apotheke, 06.09. Café Lotte). Zurück: Chip wieder aktivieren 
+PC 1440 × 900 · Tastatur und Mehrfachauswahl 
+ 1.9 PC: Ausgangszustand, Zeile mit Tastatur markiert 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ 7 Buchungen · ING Extra · zu prüfen -296,06 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute REWE Mitte Alltag: Lebensmittel Wocheneinkauf -48,12 € Zu prüfen 
+ Heute Bäckerei Krause Alltag: Lebensmittel -6,40 € Zu prüfen 
+ Gestern Deutsche Bahn Mobilität: Bahn Ticket Köln -29,90 € Zu prüfen 
+ Gestern Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 08.09. Stadtwerke Musterstadt Wohnen: Nebenkosten Abschlag September -142,00 € Zu prüfen 
+ 08.09. Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ 07.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Linke Spalte mit „Alle Konten" zuoberst, aktives Konto in Teal. Keine Konto-Spalte, weil dies die Konto-Sicht ist (die Gesamtsicht hat sie). Zeile REWE Mitte ist per Pfeiltaste markiert. Weiter: Taste G 
+ 1.10 PC: nach Taste G 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (6) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ 6 Buchungen · ING Extra · zu prüfen -247,94 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute Bäckerei Krause Alltag: Lebensmittel -6,40 € Zu prüfen 
+ Gestern Deutsche Bahn Mobilität: Bahn Ticket Köln -29,90 € Zu prüfen 
+ Gestern Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 08.09. Stadtwerke Musterstadt Wohnen: Nebenkosten Abschlag September -142,00 € Zu prüfen 
+ 08.09. Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ 07.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+ REWE Mitte geprüft Rückgängig 
+Status-Spalte und Zählung folgen der Taste G, die Markierung wandert auf die nächste Zeile. Weiter: drei Kästchen setzen 
+ 1.11 PC: Mehrfachauswahl mit Summe 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (6) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Auswahl: 3 von 6 Buchungen -190,10 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute Bäckerei Krause Alltag: Lebensmittel -6,40 € Zu prüfen 
+ Gestern Deutsche Bahn Mobilität: Bahn Ticket Köln -29,90 € Zu prüfen 
+ Gestern Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 08.09. Stadtwerke Musterstadt Wohnen: Nebenkosten Abschlag September -142,00 € Zu prüfen 
+ 08.09. Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ 07.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 3 ausgewählt 
+ -190,10 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Auswahl aufheben 
+Solange eine Auswahl läuft, zeigt die Summenzeile die Auswahl statt des Filters. Genau eine primäre Aktion in Orange. Der Tastatur-Hinweis weicht der Auswahl-Leiste. Weiter: „Geprüft" 
+ 1.12 PC: nach „Geprüft" für die Auswahl 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (3) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ 3 Buchungen · ING Extra · zu prüfen -57,84 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute Bäckerei Krause Alltag: Lebensmittel -6,40 € Zu prüfen 
+ Gestern Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 08.09. Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+ 3 Buchungen geprüft Rückgängig 
+Auswahl aufgelöst, drei Buchungen bleiben zu prüfen. Ein Toast für die ganze Auswahl, eine Rücknahme. Zurück: Ausgangszustand

@@ -4,6 +4,28 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 14:10 - Design-Tafeln gesichert, Handoff Ablauf 4, Sammel-Modeling
+
+**What I did:**
+Neun Backlog-Tasks verfeinert (fünf parallele Orchestratoren), elf neue Tasks erfasst, ADR 0054 bis 0057 geschrieben, Vision um die vorgezogene v2-Scheibe ergänzt. Tafel Ablauf 4 als Handoff abgeleitet und Romans Entscheidungen (Rückgängig im Toast, Budget-Karte, Vorschläge zum Payee, ausgegraute Filter-Nichttreffer) in die Kategorie-Tasks eingearbeitet. Alle sieben Design-Tafeln samt Bundle, Schriften und Projekt-Grundlage aus dem Claude-Design-Projekt ins Repo gesichert, weil das eigenständige Claude Design am 14.12.2026 schließt.
+
+**Files Added:**
+- `docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md` - Handoff aus der Tafel Ablauf 4 mit Abgleich gegen den Repo-Stand
+- `docs/ux/kassenbuch/tafeln/` - Archiv der Tafeln 1 bis 7 (HTML, Textauszug), `support.js`, `_ds`-Bundle mit Schriften, `projekt-CLAUDE.md` (Abschrift), README
+
+**Files Modified:**
+- `.agentheim/` - Task-Dateien, INDEX, Protokoll, ADR 0054 bis 0057, Nachträge an 0028, 0055, 0056, `vision.md`
+
+**Rationale:**
+Romans Wunsch, möglichst viele Backlog-Items auf einmal zu verfeinern; die Design-Tafeln wären nach dem 14.12.2026 nicht mehr erreichbar.
+
+**Outcomes:**
+- Build: nicht betroffen (nur Markdown, HTML, Assets)
+- Tests: nicht ausgeführt (keine Codeänderung)
+- Issues: keine; die Tafeln rendern offline (geprüft an Ablauf 5)
+
+---
+
 ## 2026-10-21 08:40 - Detail: Payee als eigene Feldzeile, Filter-Knöpfe bündig
 
 **What I did:**

@@ -1,0 +1,540 @@
+ABLAUF 2 
+Buchungen finden 
+Kategorie zuerst, mehrere zugleich, am Handy genauso wie am PC. Handy 390 × 844 (2.1 bis 2.8, Auswahl 2.15), PC 1440 × 900 (2.9 bis 2.14, Auswahl 2.16). Die Links unter jedem Screen springen zum nächsten Schritt. 
+ANNAHMEN 
+Einstieg in der Gesamtsicht „Alle Konten", kein Filter aktiv. 
+Summenzeile erscheint erst mit dem ersten Filter, gerechnet über den gesamten Treffer. 
+Kategorienauswahl mit Mehrfachauswahl, Übernehmen erst auf Klick (Click-Commit). 
+Versteckte Kategorien bleiben eingeklappt und werden nie versehentlich getroffen. 
+Jede Zeile trägt in der Gesamtsicht ihr Konto: Kürzel am Handy, Spalte am PC. 
+Auswählen geht auf beiden Geräten: langes Drücken am Handy, Kästchen oder Leertaste am PC. Die Summenzeile zeigt dann die Summe der Auswahl. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Kategorienauswahl (neue Variante mit Kästchen je Zeile), BottomSheet (Handy), Modal/Popover-Muster (PC), Input (Suche, Von/Bis), Badge (Chips, Status, Konto-Kürzel), Money (alle Beträge), Table (PC-Liste), Card (Konten), Navigation, Button, Icons. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Filter-Chip-Leiste mit Zähler und „×" aus Primitives-Chip · Summenzeile aus Card + Money · Kategorie-Popover am PC aus Card + Kategorienauswahl · Schnellwahl Zeitraum aus Primitives-Chip · Auswahl-Leiste aus Card + Money + Button · Konto-Stände-Leiste Handy und Konten-Spalte PC aus Card. 
+Handy 390 × 844 · Filtern soll hier genauso leicht sein wie am PC 
+ 2.1 Handy: Gesamtsicht ohne Filter 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel Wocheneinkauf 
+ Bäckerei Krause -6,40 € 
+ GIRO Lebensmittel 
+GESTERN 
+ Deutsche Bahn -29,90 € 
+ ING Bahn Ticket Köln 
+ Café Lotte -9,80 € 
+ BAR Restaurants 
+08.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ GIRO Nebenkosten Abschlag September 
+ Netflix -13,99 € 
+ GIRO Streaming 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Kein Filter, also keine Summenzeile. Jede Zeile trägt ihr Konto-Kürzel, „Zu prüfen (7)" steht als erster Chip bereit, ist aber nicht aktiv. Weiter: Chip „Kategorie" 
+ 2.2 Handy: Kategorienauswahl offen 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel 
+ Kategorie 
+ Kategorie suchen 
+ZULETZT VERWENDET 
+ Lebensmittel 
+ Restaurants 
+ Nebenkosten 
+ Bahn 
+ALLTAG 
+ Lebensmittel 
+ Haushalt 
+ Restaurants 
+WOHNEN 
+ Nebenkosten 
+ Möbel 
+MOBILITÄT 
+ Bahn 
+ Versteckt (1) 
+ Zurücksetzen Übernehmen 
+BottomSheet: Suche, „Zuletzt verwendet", darunter die Gruppen mit Kästchen. „Versteckt (1)" sitzt eingeklappt am Ende, „Übernehmen" bleibt ohne Auswahl inaktiv. Weiter: Lebensmittel und Restaurants ankreuzen 
+ 2.3 Handy: zwei Kategorien gewählt 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel 
+ Kategorie 2 gewählt 
+ Kategorie suchen 
+ZULETZT VERWENDET 
+ Lebensmittel 
+ Restaurants 
+ Nebenkosten 
+ Bahn 
+ALLTAG 
+ Lebensmittel 
+ Haushalt 
+ Restaurants 
+WOHNEN 
+ Nebenkosten 
+ Möbel 
+MOBILITÄT 
+ Bahn 
+ Versteckt (1) 
+ Zurücksetzen Übernehmen (2) 
+Mehrfachauswahl: zwei Kästchen gesetzt, dieselben Kategorien leuchten oben in „Zuletzt verwendet" mit. Erst „Übernehmen" filtert — die einzige primäre Aktion im Screen. Weiter: Übernehmen 
+ 2.4 Handy: Treffer nach Kategorie 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Kategorie: 2 
+ Zu prüfen (7) 
+ Zeitraum 
+ Payee 
+ 312 Buchungen -9.874,20 € 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel Wocheneinkauf 
+ Bäckerei Krause -6,40 € 
+ GIRO Lebensmittel 
+GESTERN 
+ Café Lotte -9,80 € 
+ BAR Restaurants 
+ Bäckerei Krause -4,20 € 
+ GIRO Lebensmittel 
+08.09. 
+ Café Lotte -12,60 € 
+ BAR Restaurants 
+ Noch nicht in YNAB 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Aktiver Chip wandert nach vorn und zeigt „Kategorie: 2" mit „×". Summenzeile rechnet über alle 312 Treffer, nicht über die geladenen 100. Kennzeichen stehen nur, wenn sie abweichen. Weiter: Chip „Zeitraum" 
+ 2.5 Handy: Zeitraum wählen 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Kategorie: 2 
+ Zeitraum 
+ Payee 
+ 312 Buchungen -9.874,20 € 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel 
+ Bäckerei Krause -6,40 € 
+ GIRO Lebensmittel 
+ Zeitraum 
+SCHNELLWAHL 
+ Dieser Monat 
+ Letzter Monat 
+ Dieses Jahr 
+ Letzte 12 Monate 
+VON 
+13.09.2025 
+BIS 
+13.09.2026 
+ Zurücksetzen Übernehmen 
+Schnellwahl deckt die vier häufigen Fälle, Von/Bis bleibt für alles andere. Die Schnellwahl füllt Von/Bis mit, damit sichtbar ist, was gefiltert wird. Weiter: Übernehmen 
+ 2.6 Handy: Kategorie und Zeitraum 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Kategorie: 2 
+ 12 Monate 
+ Payee 
+ Betrag 
+ 148 Buchungen -4.610,55 € 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel Wocheneinkauf 
+ Bäckerei Krause -6,40 € 
+ GIRO Lebensmittel 
+GESTERN 
+ Café Lotte -9,80 € 
+ BAR Restaurants 
+ Bäckerei Krause -4,20 € 
+ GIRO Lebensmittel 
+08.09. 
+ Café Lotte -12,60 € 
+ BAR Restaurants 
+ Noch nicht in YNAB 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Zwei Filter, zwei aktive Chips; der Zeitraum-Chip trägt die Kurzform „12 Monate". Die neuesten Treffer bleiben gleich, nur Zahl und Summe fallen. Weiter: Chip „Payee" 
+ 2.7 Handy: Payee aus den Treffern 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Kategorie: 2 
+ 12 Monate 
+ Payee 
+ 148 Buchungen -4.610,55 € 
+HEUTE 
+ REWE Mitte -48,12 € 
+ ING Lebensmittel 
+ Payee 
+ Caf 
+VORSCHLÄGE AUS DEN 148 TREFFERN 
+ Café Lotte 9 
+ REWE Mitte 78 
+ Bäckerei Krause 52 
+Ein Tipp auf den Vorschlag filtert sofort — Payee ist immer nur einer. 
+Vorschläge kommen aus den 148 Treffern, mit Anzahl je Payee, und werden mit kurzer Verzögerung nachgeladen. Einzelauswahl, deshalb kein „Übernehmen". Weiter: Café Lotte 
+ 2.8 Handy: drei Filter, neun Treffer 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Café Lotte 
+ Kategorie: 2 
+ Alle Filter löschen 
+ 9 Buchungen -163,40 € 
+GESTERN 
+ Café Lotte -9,80 € 
+ BAR Restaurants 
+08.09. 
+ Café Lotte -12,60 € 
+ BAR Restaurants 
+ Noch nicht in YNAB 
+02.09. 
+ Café Lotte -18,40 € 
+ GIRO Restaurants Mittag 
+27.08. 
+ Café Lotte -11,20 € 
+ BAR Restaurants 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Der Payee-Chip trägt den Namen statt einer Zahl und steht vorn. „Alle Filter löschen" sitzt am Ende der Leiste; einzelne Filter gehen über das „×" am Chip. Vier von neun Treffern sind sichtbar, der Rest kommt beim Scrollen. Weiter: langes Drücken auf eine Zeile · Zurück: Ausgangszustand 
+ 2.15 Handy: Auswahl im Treffer mit Summe 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Café Lotte 
+ Kategorie: 2 
+ Alle Filter löschen 
+ Auswahl: 3 von 9 Buchungen -39,40 € 
+GESTERN 
+ Café Lotte -9,80 € BAR Restaurants 
+02.09. 
+ Café Lotte -18,40 € GIRO Restaurants Mittag 
+27.08. 
+ Café Lotte -11,20 € BAR Restaurants 
+ 3 ausgewählt -39,40 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Auswahl aufheben 
+Langes Drücken startet den Auswahl-Modus: Kästchen erscheinen vor jeder Zeile, gewählte Zeilen in Teal. Solange eine Auswahl läuft, zeigt die Summenzeile die Auswahl statt des Filters („Auswahl: 3 von 9 · -39,40 €"). Die Auswahl-Leiste ersetzt die Tab-Bar und trägt genau eine primäre Aktion in Orange. Der Screen zeigt die drei gewählten Zeilen vollständig; die nicht gewählte Zeile 08.09. (-12,60 €, „Noch nicht in YNAB") liegt hinter der Leiste und ist hier weggelassen. Weiter: „Geprüft" oder dieselbe Auswahl am PC 
+PC 1440 × 900 · Kategorienauswahl als Popover unter dem Chip 
+ 2.9 PC: Gesamtsicht ohne Filter 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute ING Extra REWE Mitte Alltag: Lebensmittel Wocheneinkauf -48,12 € Zu prüfen 
+ Heute Girokonto Bäckerei Krause Alltag: Lebensmittel -6,40 € Zu prüfen 
+ Gestern ING Extra Deutsche Bahn Mobilität: Bahn Ticket Köln -29,90 € Zu prüfen 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € Geprüft 
+ 08.09. Girokonto Stadtwerke Musterstadt Wohnen: Nebenkosten Abschlag September -142,00 € Zu prüfen 
+ 08.09. Girokonto Netflix Abos: Streaming -13,99 € Geprüft 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € Nicht in YNAB 
+ 07.09. ING Extra Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ 07.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 06.09. Girokonto Kita-Beitrag Stadt Familie: Kinder -186,00 € Geprüft 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Gesamtsicht: „Alle Konten" aktiv in der Konten-Spalte, dazu die Konto-Spalte in der Tabelle. Ohne Filter keine Summenzeile. Status zeigt nur, was abweicht. Weiter: Chip „Kategorie" 
+ 2.10 PC: Kategorienauswahl als Popover 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute ING Extra REWE Mitte Alltag: Lebensmittel Wocheneinkauf -48,12 € 
+ Heute Girokonto Bäckerei Krause Alltag: Lebensmittel -6,40 € 
+ Gestern ING Extra Deutsche Bahn Mobilität: Bahn Ticket Köln -29,90 € 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € 
+ 08.09. Girokonto Stadtwerke Musterstadt Wohnen: Nebenkosten Abschlag September -142,00 € 
+ 08.09. Girokonto Netflix Abos: Streaming -13,99 € 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € 
+ 07.09. ING Extra Amazon Marketplace -37,45 € 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+ Kategorie 2 gewählt Esc schließt 
+ Kategorie suchen 
+ZULETZT VERWENDET 
+ Lebensmittel Restaurants Nebenkosten Bahn 
+ALLTAG 
+ Lebensmittel 
+ Haushalt 
+ Restaurants 
+WOHNEN 
+ Nebenkosten 
+ Möbel 
+MOBILITÄT 
+ Bahn 
+ Versteckt (1) 
+ Zurücksetzen Übernehmen (2) 
+Popover hängt unter seinem Chip, die Liste bleibt sichtbar. Gleiche Kategorienauswahl wie am Handy, nur in 460px Breite. „Versteckt (1)" bleibt eingeklappt, Esc schließt ohne zu filtern. Weiter: Übernehmen 
+ 2.11 PC: Treffer nach zwei Kategorien 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 2 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Alle Filter löschen 
+ 312 Buchungen · alle Konten · Lebensmittel, Restaurants -9.874,20 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute ING Extra REWE Mitte Alltag: Lebensmittel Wocheneinkauf -48,12 € Zu prüfen 
+ Heute Girokonto Bäckerei Krause Alltag: Lebensmittel -6,40 € Zu prüfen 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € Geprüft 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € Nicht in YNAB 
+ 08.09. Girokonto REWE Mitte Alltag: Lebensmittel Getränke -31,45 € Geprüft 
+ 06.09. Girokonto Bäckerei Krause Alltag: Lebensmittel -4,20 € Geprüft 
+ 05.09. ING Extra REWE Mitte Alltag: Lebensmittel -52,80 € Geprüft 
+ 02.09. Girokonto Café Lotte Alltag: Restaurants Mittag -18,40 € Geprüft 
+ 01.09. Girokonto REWE Mitte Alltag: Lebensmittel -44,10 € Geprüft 
+ 30.08. Bar Bäckerei Krause Alltag: Lebensmittel -7,60 € Geprüft 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Chips bleiben am PC in ihrer Reihenfolge stehen, nur der aktive färbt sich und bekommt „×". Summenzeile nennt den Filter im Klartext und rechnet über alle 312 Treffer. „Alle Filter löschen" sitzt am Ende der Leiste. Weiter: Chip „Zeitraum" 
+ 2.12 PC: Zeitraum als Popover 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 2 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Alle Filter löschen 
+ 312 Buchungen · alle Konten · Lebensmittel, Restaurants -9.874,20 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute ING Extra REWE Mitte Alltag: Lebensmittel Wocheneinkauf -48,12 € 
+ Heute Girokonto Bäckerei Krause Alltag: Lebensmittel -6,40 € 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € 
+ 08.09. Girokonto REWE Mitte Alltag: Lebensmittel Getränke -31,45 € 
+ 06.09. Girokonto Bäckerei Krause Alltag: Lebensmittel -4,20 € 
+ 05.09. ING Extra REWE Mitte Alltag: Lebensmittel -52,80 € 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+ Zeitraum Esc schließt 
+SCHNELLWAHL 
+ Dieser Monat 
+ Letzter Monat 
+ Dieses Jahr 
+ Letzte 12 Monate 
+VON 
+13.09.2025 
+BIS 
+13.09.2026 
+ Zurücksetzen Übernehmen 
+Zweites Popover, gleiches Muster: Schnellwahl oben, Von/Bis darunter, Übernehmen rechts. Die Schnellwahl schreibt die Daten in Von/Bis. Weiter: Chip „Payee" 
+ 2.13 PC: Payee mit Vorschlägen 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 2 
+ 12 Monate 
+ Payee 
+ Betrag 
+ Memo 
+ Alle Filter löschen 
+ 148 Buchungen · alle Konten · Lebensmittel, Restaurants · letzte 12 Monate -4.610,55 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Heute ING Extra REWE Mitte Alltag: Lebensmittel Wocheneinkauf -48,12 € 
+ Heute Girokonto Bäckerei Krause Alltag: Lebensmittel -6,40 € 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € 
+ 08.09. Girokonto REWE Mitte Alltag: Lebensmittel Getränke -31,45 € 
+ 06.09. Girokonto Bäckerei Krause Alltag: Lebensmittel -4,20 € 
+ 05.09. ING Extra REWE Mitte Alltag: Lebensmittel -52,80 € 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+ Payee Esc schließt 
+ Caf 
+VORSCHLÄGE AUS DEN 148 TREFFERN 
+ Café Lotte 9 
+ REWE Mitte 78 
+ Bäckerei Krause 52 
+Payee ist immer nur einer — der Klick filtert sofort. 
+Die Vorschläge zählen nur innerhalb der bisherigen 148 Treffer, deshalb ist „9" schon die Antwort. Keine Mehrfachauswahl, also kein „Übernehmen". Weiter: Café Lotte 
+ 2.14 PC: drei Filter, neun Treffer 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 2 
+ 12 Monate 
+ Café Lotte 
+ Betrag 
+ Memo 
+ Alle Filter löschen 
+ 9 Buchungen · alle Konten · Café Lotte · letzte 12 Monate -163,40 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € Geprüft 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € Nicht in YNAB 
+ 02.09. Girokonto Café Lotte Alltag: Restaurants Mittag -18,40 € Geprüft 
+ 27.08. Bar Café Lotte Alltag: Restaurants -11,20 € Geprüft 
+ 19.08. Girokonto Café Lotte Alltag: Restaurants Kuchen -24,60 € Geprüft 
+ 05.08. Bar Café Lotte Alltag: Restaurants -8,90 € Geprüft 
+ 21.07. Girokonto Café Lotte Alltag: Restaurants -16,30 € Geprüft 
+ 30.06. Bar Café Lotte Alltag: Restaurants -14,70 € Geprüft 
+ 12.06. Girokonto Café Lotte Alltag: Restaurants Frühstück mit Lena -46,90 € Geprüft 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Alle neun Treffer passen auf eine Seite, die Summe der Zeilen ergibt genau die -163,40 € der Summenzeile. Einzelne Filter fallen über das „×" am Chip, alle zusammen über „Alle Filter löschen". Weiter: drei Kästchen setzen · Zurück: Ausgangszustand 
+ 2.16 PC: Auswahl im Treffer mit Summe 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 2 
+ 12 Monate 
+ Café Lotte 
+ Betrag 
+ Memo 
+ Alle Filter löschen 
+ Auswahl: 3 von 9 Buchungen -39,40 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ Gestern Bar Café Lotte Alltag: Restaurants -9,80 € Geprüft 
+ 08.09. Bar Café Lotte Alltag: Restaurants -12,60 € Nicht in YNAB 
+ 02.09. Girokonto Café Lotte Alltag: Restaurants Mittag -18,40 € Geprüft 
+ 27.08. Bar Café Lotte Alltag: Restaurants -11,20 € Geprüft 
+ 19.08. Girokonto Café Lotte Alltag: Restaurants Kuchen -24,60 € Geprüft 
+ 05.08. Bar Café Lotte Alltag: Restaurants -8,90 € Geprüft 
+ 21.07. Girokonto Café Lotte Alltag: Restaurants -16,30 € Geprüft 
+ 30.06. Bar Café Lotte Alltag: Restaurants -14,70 € Geprüft 
+ 12.06. Girokonto Café Lotte Alltag: Restaurants Frühstück mit Lena -46,90 € Geprüft 
+ 3 ausgewählt 
+ -39,40 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Auswahl aufheben 
+Kästchen oder Leertaste wählen aus, Shift-Klick nimmt eine Spanne. Summenzeile zeigt die Auswahl statt des Filters, dieselbe Auswahl und dieselbe Summe wie am Handy in 2.15 . Die Auswahl-Leiste weicht dem Tastatur-Hinweis und trägt genau eine primäre Aktion. Zurück: Auswahl aufheben

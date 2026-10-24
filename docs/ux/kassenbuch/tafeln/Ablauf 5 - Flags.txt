@@ -1,0 +1,409 @@
+ABLAUF 5 
+Flags: Lena fragen und temporär markieren 
+Roman weist Buchungen, bei denen er nichts findet, an Lena zu — im YNAB-Alltag ist das das Flag „Lena", in BB heißt es „Lena fragen". Daneben das seltene temporäre Markieren zum Gruppieren. PC ist das Hauptgerät (5.1 bis 5.9), das Handy zeigt denselben Weg im Detail-Sheet (5.10 bis 5.12). Ausgangszustand: Gesamtsicht, Chip „Zu prüfen (5)" aktiv, Zeile „Amazon Marketplace -37,45 €" ohne Kategorie und ohne Memo. 
+ANNAHMEN 
+Die Aktion heißt „Lena fragen", nicht „Flag setzen" — Roman denkt in Zuweisung. Das YNAB-Flag „Lena" ist die Umsetzung im Hintergrund. 
+Eine Zuweisung hat zwei Zustände: offen und erledigt. „Erledigt" nimmt sie zurück, das Kennzeichen verschwindet. 
+Zwei Flag-Arten: Zuweisung „Rückfrage Lena" (Violett, dauerhaft bis erledigt) und temporäre Markierung (Orange, zum Gruppieren, in einem Schwung aufhebbar). 
+Zuweisen prüft nicht mit und sortiert nie um — die Zeile bleibt „Zu prüfen" und an ihrem Platz. 
+Drei Buchungen tragen am Ende die Rückfrage: Amazon Marketplace -37,45 €, Bauhaus -41,60 €, Café Lotte -17,20 € — zusammen -96,25 €. 
+Bis zum Rückschreiben nach YNAB (v2) trägt die Änderung „noch nicht in YNAB" mit Grund. 
+„Für mich"-Sicht und Push für Lena sind Backlog ( ledger-xfjcp ) und nicht Teil dieses Ablaufs. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Badge („Rückfrage Lena", „Markiert", „Zu prüfen", „Keine Kategorie", „noch nicht in YNAB") · Button (Ghost mit Icon: „Lena fragen", „Markieren", „Erledigt") · Icons (Sprechblase, Fähnchen, Haken) · Table · BottomSheet · Money · Toast · Navigation · Card · Primitives · Stats. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Bereich „Zuweisen" im Detail (Card + Button + Badge) · Zuweisungs-Status „Zugewiesen an Lena, offen" (Card + Badge + Button) · Flag-Popover an seinem Chip (Popover-Muster aus Ablauf 2) · Filter-Chip-Leiste · Summenzeile (Card + Money) · Auswahl-Leiste (Card + Money + Button) · Herkunft/Historie-Zeitleiste (Badge + Text) · Konten-Spalte PC / Konto-Karten Handy (Card). 
+PC 1440 × 900 · Hauptgerät 
+ 5.1 PC: Ausgangszustand, Gesamtsicht, fünf zu prüfen 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ 5 Buchungen · Alle Konten · zu prüfen -144,35 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen 
+ 03.09. Bar Café Lotte Alltag: Restaurants Kuchen mit Lena -17,20 € Zu prüfen 
+ 02.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 01.09. ING Extra Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Gesamtsicht mit Konto-Spalte, Chip „Zu prüfen (5)" aktiv, Summenzeile über den gesamten Treffer. Die Amazon-Zeile ist die aktive Zeile, ohne Kategorie und ohne Memo — zu der findet Roman nichts. Kein Orange außer dem Kennzeichen „Keine Kategorie". Weiter: Zeile anklicken 
+ 5.2 PC: Seitenpanel mit Bereich „Zuweisen" 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ 5 Buchungen · zu prüfen -144,35 € 
+ DATUM KONTO PAYEE KATEGORIE BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen 
+ 03.09. Bar Café Lotte Restaurants -17,20 € Zu prüfen 
+ 02.09. Girokonto Apotheke am Markt Apotheke -18,20 € Zu prüfen 
+ 01.09. ING Extra Deutsche Bahn Bahn -29,90 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-37,45 € 
+Amazon Marketplace 
+Girokonto Comdirect · 05.09.2026 
+ Kategorie Keine Kategorie 
+ Split Kein Split Aufteilen 
+ Memo Memo hinzufügen 
+ Geprüft 
+ZUWEISEN 
+ Lena fragen 
+ Markieren 
+„Lena fragen" ist eine offene Zuweisung, „Markieren" nur eine temporäre Klammer zum Gruppieren. 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Aus YNAB gespiegelt: Betrag, Payee 
+05.09.2026 06:10 · Sync 
+Klick auf die Zeile öffnet das Panel rechts (420px), die Liste bleibt sichtbar — bei offenem Panel weicht die Memo-Spalte und die Chip-Leiste wird waagerecht scrollbar. Unter den Feldern steht der Bereich „Zuweisen" mit zwei Ghost-Buttons: „Lena fragen" (Sprechblase, Violett wie das Kennzeichen) und „Markieren" (Fähnchen, Orange). Kein primärer Button auf diesem Screen: die Zuweisung ist eine Nebenhandlung, kein Abschluss. Weiter: „Lena fragen" · „Markieren" 
+ 5.3 PC: zugewiesen an Lena, offen 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ 5 Buchungen · zu prüfen -144,35 € 
+ DATUM KONTO PAYEE KATEGORIE BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen Rückfrage Lena 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen 
+ 03.09. Bar Café Lotte Restaurants -17,20 € Zu prüfen 
+ 02.09. Girokonto Apotheke am Markt Apotheke -18,20 € Zu prüfen 
+ 01.09. ING Extra Deutsche Bahn Bahn -29,90 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-37,45 € 
+Amazon Marketplace 
+Girokonto Comdirect · 05.09.2026 
+ Änderung noch nicht in YNAB Flag „Lena" schreibt BB ab v2 zurück 
+ Zugewiesen an Lena, offen 
+seit 12.09.2026 09:41 
+ Erledigt 
+ Kategorie Keine Kategorie 
+ Memo Memo hinzufügen 
+ Geprüft 
+ZUWEISEN 
+ Markieren 
+HISTORIE 
+Roman in BB: Lena gefragt 
+12.09.2026 09:41 · BudgetBuddy 
+Aus YNAB gespiegelt: Betrag, Payee 
+05.09.2026 06:10 · Sync 
+ Lena gefragt: Amazon Marketplace Rückgängig 
+Ein Klick, drei Wirkungen: die Zeile trägt zusätzlich das Kennzeichen „Rückfrage Lena" (Violett, unter dem Status), das Panel zeigt oben den Zuweisungs-Status „Zugewiesen an Lena, offen" mit dem Knopf „Erledigt", und die Historie bekommt die Zeile „Roman in BB: Lena gefragt" — das ist das, was nur BB zeigt. Der Orange-Hinweis sagt, dass das Flag noch nicht in YNAB steht. Prüfen bleibt unberührt: die Zeile ist weiter „Zu prüfen" und steht an ihrem Platz. Rücknahme über den Toast. Weiter: zwei weitere Zeilen auswählen · „Erledigt" 
+ 5.4 PC: zwei weitere ausgewählt, Auswahl-Leiste 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ Auswahl: 2 von 5 Buchungen -58,80 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen Rückfrage Lena 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen 
+ 03.09. Bar Café Lotte Alltag: Restaurants Kuchen mit Lena -17,20 € Zu prüfen 
+ 02.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 01.09. ING Extra Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 2 ausgewählt 
+ -58,80 € 
+ Geprüft 
+ Kategorie ändern 
+ Lena fragen 
+ Markieren 
+ Auswahl aufheben 
+Kästchen bei Bauhaus und Café Lotte, die Auswahl-Leiste unten ersetzt den Tastatur-Hinweis. Aus der Aktion „Flag" aus Ablauf 3 werden hier zwei klare Aktionen: „Lena fragen" und „Markieren" — beide Ghost mit Icon, primär bleibt „Geprüft" in Orange. Die Summenzeile zeigt die Auswahl statt des Filters, das Kopf-Kästchen trägt den Teal-Strich der Teilauswahl. Weiter: „Lena fragen" 
+ 5.5 PC: drei Buchungen tragen die Rückfrage, ein Toast 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ Auswahl: 2 von 5 Buchungen -58,80 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen Rückfrage Lena 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen Rückfrage Lena 
+ 03.09. Bar Café Lotte Alltag: Restaurants Kuchen mit Lena -17,20 € Zu prüfen Rückfrage Lena 
+ 02.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 01.09. ING Extra Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 2 ausgewählt 
+ -58,80 € 
+ Geprüft 
+ Kategorie ändern 
+ Lena fragen 
+ Markieren 
+ Auswahl aufheben 
+ 2 Buchungen: Lena gefragt Rückgängig 
+Beide Zeilen tragen jetzt das Kennzeichen, zusammen mit Amazon sind es drei. Eine Mehrfachaktion ergibt einen Toast und eine Rücknahme. Die Auswahl bleibt stehen, damit Roman nachfassen kann („Lena fragen", dann prüfen); Ausstieg ist „Auswahl aufheben". Der aktive Zustand der Aktion ist am violetten Rand zu sehen. Weiter: Chip „Flag" 
+ 5.6 PC: Chip „Flag" — Popover mit den zwei Flag-Arten 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ 5 Buchungen · Alle Konten · zu prüfen -144,35 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen Rückfrage Lena 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen Rückfrage Lena 
+ 03.09. Bar Café Lotte Alltag: Restaurants Kuchen mit Lena -17,20 € Zu prüfen Rückfrage Lena 
+ 02.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 01.09. ING Extra Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+FLAG 
+ Rückfrage Lena 3 
+ Temporär 0 
+ Esc schließt ohne zu filtern · Klick filtert sofort 
+Der Flag-Chip öffnet dasselbe Popover-Muster wie Kategorie, Zeitraum und Payee — hier mit den zwei Flag-Arten und ihrer Anzahl aus dem aktuellen Treffer. Einzelauswahl, also filtert der Klick sofort, ohne „Übernehmen". Die Liste dahinter bleibt sichtbar (im Prototyp abgedunkelt, im Code kein Dimmen). Weiter: „Rückfrage Lena" wählen 
+ 5.7 PC: Filter „Rückfrage Lena" — 3 Buchungen · -96,25 € 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Rückfrage Lena 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ 3 Buchungen · Alle Konten · zu prüfen · Rückfrage Lena -96,25 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen Rückfrage Lena 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen Rückfrage Lena 
+ 03.09. Bar Café Lotte Alltag: Restaurants Kuchen mit Lena -17,20 € Zu prüfen Rückfrage Lena 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Der aktive Flag-Chip trägt den Namen plus „×" und steht am PC an der Stelle des Flag-Chips — die Reihenfolge bleibt fest. Zwei Filter wirken zusammen: zu prüfen und Rückfrage Lena, Treffer 3 Buchungen, Summe -96,25 € über den gesamten Treffer. Das ist die Liste, die Roman Lena zeigt. Weiter: Zeile öffnen und „Erledigt" 
+ 5.8 PC: „Erledigt" — Zuweisung zurückgenommen 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Rückfrage Lena 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ 2 Buchungen · zu prüfen · Rückfrage Lena -58,80 € 
+ DATUM KONTO PAYEE KATEGORIE BETRAG STATUS 
+ 05.09. Girokonto Amazon Marketplace Keine Kategorie -37,45 € Zu prüfen passt nicht mehr zum Filter 
+ 04.09. Girokonto Bauhaus Keine Kategorie -41,60 € Zu prüfen Rückfrage Lena 
+ 03.09. Bar Café Lotte Restaurants -17,20 € Zu prüfen Rückfrage Lena 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-37,45 € 
+Amazon Marketplace 
+Girokonto Comdirect · 05.09.2026 
+ Änderung noch nicht in YNAB Flag „Lena" bleibt dort bis v2 stehen 
+ Kategorie Keine Kategorie 
+ Memo Lena: war das Turnbeutel-Set 
+ Geprüft 
+ZUWEISEN 
+ Lena erneut fragen 
+ Markieren 
+HISTORIE 
+Roman in BB: Rückfrage erledigt 
+12.09.2026 19:20 · BudgetBuddy 
+Roman in BB: Lena gefragt 
+12.09.2026 09:41 · BudgetBuddy 
+Aus YNAB gespiegelt: Betrag, Payee 
+05.09.2026 06:10 · Sync 
+ Rückfrage erledigt: Amazon Marketplace Rückgängig 
+„Erledigt" nimmt die Zuweisung zurück: das Kennzeichen verschwindet, der Status-Block im Panel weicht wieder dem Bereich „Zuweisen" (jetzt „Lena erneut fragen"), und die Historie hält beides fest — gefragt und erledigt. Lenas Antwort steht als Memo. Die Zeile bleibt an ihrem Platz, ausgegraut mit dem Hinweis „passt nicht mehr zum Filter"; Trefferzahl und Summe gehen sofort auf 2 Buchungen · -58,80 €. Rücknahme über den Toast. Weiter: temporär markieren 
+ 5.9 PC: temporäre Markierung, Filter „Temporär" 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Temporär 
+ Gelöschte zeigen 
+ Alle Markierungen aufheben 
+ Alle Filter löschen 
+ 2 Buchungen · Alle Konten · temporär markiert -48,10 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 02.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ Markiert 
+ 01.09. ING Extra Deutsche Bahn Mobilität: Bahn Fahrt Hamburg -29,90 € Zu prüfen 
+ Markiert 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Die temporäre Markierung ist keine Zuweisung, nur eine Klammer: Kennzeichen „Markiert" mit Fähnchen in Orange, Filter „Temporär", und am Ende der Leiste „Alle Markierungen aufheben" — ein Klick räumt sie alle weg, ohne Zeile für Zeile. Der Chip „Zu prüfen" ist hier bewusst aus, damit die Klammer auch geprüfte Buchungen halten kann. Kein Orange-CTA auf diesem Screen, das Orange gehört der Markierung. Zurück: Panel 
+Handy 390 × 844 · derselbe Weg im Detail-Sheet 
+ 5.10 Handy: Detail-Sheet mit „Lena fragen" 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ 5 Buchungen -144,35 € 
+-37,45 € 
+Amazon Marketplace 
+Girokonto Comdirect · 05.09.2026 
+ Kategorie Keine Kategorie 
+ Split Kein Split Aufteilen 
+ Memo Memo hinzufügen 
+ZUWEISEN 
+ Lena fragen 
+ Markieren 
+ Geprüft 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Aus YNAB gespiegelt: Betrag, Payee 
+05.09.2026 06:10 · Sync 
+Am Handy steht „Zuweisen" als eigener Block unter den Feldern, beide Knöpfe 44px hoch. Das Sheet ist 640px hoch und setzt damit unter der Summenzeile an — die Kopfzone dahinter bleibt vollständig sichtbar, keine Zeile wird angeschnitten. Weiter: „Lena fragen" · Auswahl-Modus 
+ 5.11 Handy: Kennzeichen in der Zeile, Toast 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Zu prüfen (5) 
+ Flag 
+ Kategorie 
+ 5 Buchungen -144,35 € 
+05.09. 
+ Amazon Marketplace -37,45 € GIRO Keine Kategorie 
+ Rückfrage Lena 
+04.09. 
+ Bauhaus -41,60 € GIRO Keine Kategorie 
+ Rückfrage Lena 
+03.09. 
+ Café Lotte -17,20 € BAR Restaurants Kuchen mit Lena 
+ Rückfrage Lena 
+02.09. 
+ Apotheke am Markt -18,20 € GIRO Apotheke 
+ Lena gefragt Rückgängig 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+„Rückfrage Lena" ist ein abweichendes Kennzeichen und steht deshalb in der dritten Zeile der Listenzeile — solche Zeilen sind 99px hoch statt 66px. Drei Zeilen tragen es, die Apotheken-Zeile darunter zeigt den Normalfall. Der Toast sitzt über der Tab-Bar, die Liste endet knapp darüber. Der Chip „Flag" ist am Handy nach vorn gewandert, weil aktive Chips dort vorn stehen. Weiter: Auswahl-Modus 
+ 5.12 Handy: Auswahl-Modus mit „Lena fragen" 
+ 9:41 
+ KASSENBUCH Alle Konten 
+ Zu prüfen (5) 
+ Kategorie 
+ Zeitraum 
+ Auswahl: 2 von 5 Buchungen -58,80 € 
+05.09. 
+ Amazon Marketplace -37,45 € GIRO Keine Kategorie 
+ Rückfrage Lena 
+04.09. 
+ Bauhaus -41,60 € GIRO Keine Kategorie 
+03.09. 
+ Café Lotte -17,20 € BAR Restaurants 
+02.09. 
+ Apotheke am Markt -18,20 € GIRO Apotheke 
+ 2 ausgewählt -58,80 € 
+ Geprüft 
+ Kategorie ändern 
+ Lena fragen 
+ Markieren 
+ Alle 
+ Auswahl aufheben 
+Langes Drücken startet den Modus, die Auswahl-Leiste ersetzt die Tab-Bar. Mit „Lena fragen" und „Markieren" sind es sechs Aktionen, deshalb drei Reihen à 44px: die Leiste ist hier 197px hoch (statt 165px in Ablauf 3) und lässt 450px für die Liste — vier Zeilen bis 02.09., die letzte (01.09., Deutsche Bahn) liegt hinter der Leiste. Die Summenzeile zeigt die Auswahl statt des Filters. Zurück: Liste

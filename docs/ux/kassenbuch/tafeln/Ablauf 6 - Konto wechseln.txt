@@ -1,0 +1,310 @@
+ABLAUF 6 
+Konto wechseln, Gesamtsicht als Suchhilfe 
+Der Wechsel in ein einzelnes Konto ist der häufige Fall und muss mit einer Geste gehen; die Gesamtsicht ist die Rückfallebene für „in welchem Konto liegt diese Buchung?". Handy 390 × 844 (6.1 bis 6.6), PC 1440 × 900 (6.7 bis 6.10). Kontostände-Leiste, Chip-Leiste und Summenzeile sind aus Ablauf 1 und 2 übernommen. 
+ANNAHMEN 
+Zuschnitt korrigiert am 2026-09-12: der Konto-Wechsel ist der Ablauf, die Gesamtsicht hat genau einen, seltenen Zweck. 
+Ausgangszustand: Konto „ING Extra" (zuletzt gewählt), Chip „Zu prüfen (12)" aktiv. 
+Konto ist ein Filter: der Wechsel lässt andere Filter stehen, es gibt keinen Ladebildschirm und keinen Seitenwechsel. 
+Kontostände kommen aus dem Zustand, nie aus der geladenen Liste — sie bleiben auch bei drei Treffern unverändert. 
+Zu prüfen je Konto erfunden: ING 12 · Girokonto 9 · Bar 3 · ETF 3, zusammen 27 Buchungen · -685,27 €. 
+Die drei ETF-Zeilen („Kursgewinn Juli/Juni", „Umbuchung von ING Extra") sind erfunden; der ETF ist in YNAB nicht angelegt ( ledger-nb4tv ). 
+Kein Orange auf den Wechsel-Screens: es gibt nichts zu tun. Orange tritt nur in der ETF-Hinweisleiste als Warnfarbe auf. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Card (Konto-Karten, Konten-Zeilen), Money (Stände, Summen, Beträge), Stats (Kontostände), Table (Liste PC, mit und ohne Konto-Spalte), Navigation (Tab-Bar, Kopfzeile, Konten-Spalte), Badge (Status, Konto-Kürzel, Hinweis), BottomSheet (Konto-Wechsler), Primitives (Chips, Kästchen), Icons, PageHeader. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Konto-Stände-Leiste Handy aus Card, waagerecht scrollbar · Konten-Spalte PC aus Card-Liste plus Lauf-Status als Overline · Konto-Wechsler-Sheet aus BottomSheet plus Card-Zeilen mit Money · Filter-Chip-Leiste aus Primitives-Chip mit Teal-Aktivzustand · Summenzeile aus Card und Money · Hinweisleiste „nicht in YNAB angelegt" aus Badge und Text. 
+Handy 390 × 844 
+ 6.1 Handy: Konto-Sicht ING Extra 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (12) 
+ Kategorie Zeitraum Alle Filter löschen 
+ 12 Buchungen -625,38 € 
+16.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Netflix -12,99 € 
+ Streaming 
+12.09. 
+ Amazon Marketplace -24,90 € 
+ Haushalt Filter Wasserhahn 
+ Deutsche Bahn -29,90 € 
+ Bahn 
+09.09. 
+ Bauhaus -78,40 € 
+ Möbel Dübel und Leisten 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Ausgangszustand. Die Kontostände-Leiste ist waagerecht scrollbar, das aktive Konto trägt Teal-Rand und Glow; „Alle Konten" steht immer zuoberst. Der Titel nennt das Konto und trägt den Chevron. Fünf der zwölf Treffer sind sichtbar, der Rest kommt beim Scrollen. In der Konto-Sicht trägt keine Zeile ein Konto-Kürzel. Weiter: Chevron im Titel oder Tipp auf Bar in der Leiste 
+ 6.2 Handy: Konto-Wechsler (BottomSheet) 
+ 9:41 
+ KASSENBUCH ING Extra 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (12) 
+ Kategorie Zeitraum Alle Filter löschen 
+ 12 Buchungen -625,38 € 
+16.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ Nebenkosten 
+ Netflix -12,99 € 
+ Streaming 
+12.09. 
+ Amazon Marketplace -24,90 € 
+ Haushalt Filter Wasserhahn 
+ Deutsche Bahn -29,90 € 
+ Bahn 
+09.09. 
+ Bauhaus -78,40 € 
+ Möbel Dübel und Leisten 
+ Konto wechseln Schließen 
+ Alle Konten 
+ 21.388,85 € 
+ ING Extra 
+ 6.902,10 € 
+ Girokonto Comdirect 
+ 2.418,37 € 
+ Bar 
+ 63,50 € 
+ Geldmarkt-ETF 
+ 12.004,88 € 
+Der aktive Filter „Zu prüfen" bleibt beim Wechsel stehen. 
+Der Chevron im Titel öffnet dieselbe Auswahl als Sheet — nötig für die Konten, die in der Leiste rechts aus dem Bild laufen. Zeilen 56px, das aktive Konto in Teal mit Haken. Kein „Übernehmen": ein Tipp wechselt sofort und schließt. Weiter: Bar gewählt 
+ 6.3 Handy: nach dem Wechsel auf Bar 
+ 9:41 
+ KASSENBUCH Bar 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (3) 
+ Kategorie Zeitraum Alle Filter löschen 
+ 3 Buchungen -35,80 € 
+14.09. 
+ Bäckerei Krause -4,80 € 
+ Lebensmittel 
+ Café Lotte -12,40 € 
+ Restaurants mit Lena 
+08.09. 
+ REWE Mitte -18,60 € 
+ Lebensmittel 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Ein Tipp, und die Liste zeigt Bar — kein Ladebildschirm, kein Seitenwechsel, die Kopfzone bleibt stehen. Der Filter „Zu prüfen" bleibt und zählt neu (3 statt 12), die Summenzeile geht mit. Bar hat wenige Buchungen, deshalb endet die Liste nach drei Zeilen; die Stände bleiben unverändert, weil sie aus dem Zustand kommen. Weiter: Tipp auf Alle Konten 
+ 6.4 Handy: Gesamtsicht 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Zu prüfen (27) 
+ Kategorie Zeitraum Alle Filter löschen 
+ 27 Buchungen -685,27 € 
+16.09. 
+ Stadtwerke Musterstadt -142,00 € 
+ ING Nebenkosten 
+ Netflix -12,99 € 
+ ING Streaming 
+15.09. 
+ Kita-Beitrag Stadt -125,00 € 
+ GIRO Kinder 
+ REWE Mitte -52,30 € 
+ GIRO Lebensmittel 
+14.09. 
+ Bäckerei Krause -4,80 € 
+ BAR Lebensmittel 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Die Gesamtsicht ist der Zustand, in dem die Filter über alle Konten greifen. Jede Zeile trägt ihr Konto-Kürzel (ING, GIRO, BAR, ETF) — das ist der einzige Unterschied zur Konto-Sicht. Titel „Alle Konten", Treffer 27 · -685,27 €; fünf Zeilen passen ins Bild. Weiter: verirrte Buchung suchen 
+ 6.5 Handy: Gesamtsicht als Suchhilfe 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Café Lotte 
+ Zu prüfen (27) Kategorie Alle Filter löschen 
+ 5 Buchungen -61,40 € 
+14.09. 
+ Café Lotte -12,40 € 
+ BAR Restaurants mit Lena 
+22.08. 
+ Café Lotte -13,40 € 
+ GIRO Restaurants 
+30.07. 
+ Café Lotte -9,80 € 
+ GIRO Restaurants 
+12.07. 
+ Café Lotte -14,20 € 
+ BAR Restaurants 
+ Café Lotte -11,60 € 
+ GIRO Restaurants 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Der eigentliche Zweck: Roman weiß nicht, in welchem Konto „Café Lotte" gelandet ist. Payee-Filter setzen, „Zu prüfen" fällt weg — fünf Treffer über alle Konten, -61,40 €. Das Kürzel gibt die Antwort: zwei liegen in Bar, dort hat er nicht gesucht. Danach wechselt er zurück in sein Konto. Weiter: Geldmarkt-ETF 
+ 6.6 Handy: Geldmarkt-ETF 
+ 9:41 
+ KASSENBUCH Geldmarkt-ETF 
+Alle Konten 
+21.388,85 € 
+Geldmarkt-ETF 
+12.004,88 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+ Zu prüfen (3) 
+ Kategorie Zeitraum Alle Filter löschen 
+ 3 Buchungen +310,70 € 
+ In YNAB noch nicht angelegt — dieses Konto wird nicht gespiegelt. 
+31.08. 
+ Kursgewinn Juli +42,10 € 
+ Keine Kategorie 
+ Noch nicht in YNAB 
+31.07. 
+ Kursgewinn Juni +18,60 € 
+ Keine Kategorie 
+ Noch nicht in YNAB 
+01.07. 
+ Umbuchung von ING Extra +250,00 € 
+ Keine Kategorie Sparplan 
+ Noch nicht in YNAB 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Das Wertpapierkonto mit Budget-Geld: Bewertungs-Buchungen und Einzahlungen, positive Beträge in Green mit Glow. Die Hinweisleiste sagt, warum hier nichts gespiegelt wird — das Konto ist in YNAB noch nicht angelegt ( ledger-nb4tv ), deshalb trägt jede Zeile „Noch nicht in YNAB". Zeilen mit Kennzeichen sind 99px hoch, es passen drei ins Bild. Weiter: PC 
+PC 1440 × 900 
+ 6.7 PC: Konto-Sicht ING Extra 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Zu prüfen (12) 
+ Kategorie Zeitraum Payee Betrag Memo Flag Alle Filter löschen 
+ 12 Buchungen -625,38 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 16.09. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 16.09. Netflix Abos: Streaming -12,99 € Zu prüfen 
+ 12.09. Amazon Marketplace Alltag: Haushalt Filter Wasserhahn -24,90 € Zu prüfen 
+ 12.09. Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. Bauhaus Wohnen: Möbel Dübel und Leisten -78,40 € Zu prüfen 
+ 09.09. REWE Mitte Alltag: Lebensmittel -34,20 € Zu prüfen 
+ 02.09. Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ 28.08. Amazon Marketplace Alltag: Haushalt -56,10 € Zu prüfen 
+ 16.08. Netflix Abos: Streaming -12,99 € Zu prüfen 
+ 12.08. Deutsche Bahn Mobilität: Bahn Fahrt Hamburg -49,90 € Zu prüfen 
+ 08.08. Bauhaus Wohnen: Möbel -23,80 € Zu prüfen 
+ 01.08. Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Die Konten-Spalte ist der Wechsler: „Alle Konten" zuoberst, darunter die vier Konten mit Stand, das aktive mit Teal-Strich und Glow. Unten in der Spalte der Lauf-Status des Spiegels. In der Konto-Sicht hat die Tabelle keine Konto-Spalte, die Breite geht an Payee und Memo. Alle zwölf Treffer stehen im Bild. Weiter: Klick auf Alle Konten 
+ 6.8 PC: Gesamtsicht mit Konto-Spalte 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Zu prüfen (27) 
+ Kategorie Zeitraum Payee Betrag Memo Flag Alle Filter löschen 
+ 27 Buchungen -685,27 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 16.09. ING Extra Stadtwerke Musterstadt Wohnen: Nebenkosten -142,00 € Zu prüfen 
+ 16.09. ING Extra Netflix Abos: Streaming -12,99 € Zu prüfen 
+ 15.09. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Zu prüfen 
+ 15.09. Girokonto REWE Mitte Alltag: Lebensmittel -52,30 € Zu prüfen 
+ 14.09. Bar Bäckerei Krause Alltag: Lebensmittel -4,80 € Zu prüfen 
+ 14.09. Bar Café Lotte Alltag: Restaurants mit Lena -12,40 € Zu prüfen 
+ 12.09. ING Extra Amazon Marketplace Alltag: Haushalt Filter Wasserhahn -24,90 € Zu prüfen 
+ 12.09. ING Extra Deutsche Bahn Mobilität: Bahn -29,90 € Zu prüfen 
+ 09.09. ING Extra Bauhaus Wohnen: Möbel Dübel und Leisten -78,40 € Zu prüfen 
+ 09.09. ING Extra REWE Mitte Alltag: Lebensmittel -34,20 € Zu prüfen 
+ 08.09. Bar REWE Mitte Alltag: Lebensmittel -18,60 € Zu prüfen 
+ 05.09. Girokonto Apotheke am Markt Gesundheit: Apotheke -18,20 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Ein Klick wechselt die Liste, der Filter bleibt und zählt neu (27 · -685,27 €). Die Tabelle bekommt die Konto-Spalte dazu, alles andere bleibt an seinem Platz. Zwölf der 27 Treffer sind geladen, der Rest kommt beim Scrollen. Weiter: Payee-Filter setzen 
+ 6.9 PC: Gesamtsicht als Suchhilfe 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Café Lotte 
+ Zu prüfen (27) Kategorie Zeitraum Betrag Memo Flag Alle Filter löschen 
+ 5 Buchungen -61,40 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 14.09. Bar Café Lotte Alltag: Restaurants mit Lena -12,40 € Zu prüfen 
+ 22.08. Girokonto Café Lotte Alltag: Restaurants -13,40 € Geprüft 
+ 30.07. Girokonto Café Lotte Alltag: Restaurants -9,80 € Geprüft 
+ 12.07. Bar Café Lotte Alltag: Restaurants -14,20 € Geprüft 
+ 28.06. Girokonto Café Lotte Alltag: Restaurants -11,60 € Geprüft 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Payee „Café Lotte" als Einzelauswahl filtert sofort, ohne „Übernehmen". Fünf Treffer, und die Konto-Spalte sagt, wo sie liegen: zwei in Bar. Der Screen bleibt halb leer, weil es wirklich nur fünf Treffer sind — die Summenzeile rechnet über den gesamten Treffer, nicht über die geladene Seite. Weiter: Geldmarkt-ETF 
+ 6.10 PC: Geldmarkt-ETF 
+B BudgetBuddy 
+ Kassenbuch Sync Regeln Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ ING Extra 6.902,10 € 
+ Girokonto Comdirect 2.418,37 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ ZULETZT GESPIEGELT heute 21:40 
+ Zu prüfen (3) 
+ Kategorie Zeitraum Payee Betrag Memo Flag Alle Filter löschen 
+ Geldmarkt-ETF ist in YNAB noch nicht angelegt — die Buchungen dieses Kontos werden nicht gespiegelt. ledger-nb4tv 
+ 3 Buchungen +310,70 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 31.08. Kursgewinn Juli Keine Kategorie +42,10 € Nicht in YNAB 
+ 31.07. Kursgewinn Juni Keine Kategorie +18,60 € Nicht in YNAB 
+ 01.07. Umbuchung von ING Extra Keine Kategorie Sparplan +250,00 € Nicht in YNAB 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Die Hinweisleiste sitzt zwischen Chip-Leiste und Summenzeile und nennt den Grund samt Task-Nummer. Positive Beträge in Green mit Glow, Status „Nicht in YNAB" statt „Zu prüfen", keine Kategorie — die Bewertungs-Buchungen sind das, was nur BB zeigt. Zurück: Konto-Sicht

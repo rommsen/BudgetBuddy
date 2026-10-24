@@ -1,0 +1,245 @@
+ABLAUF 3 
+Mehrfachauswahl mit Summe 
+Die Summe des Treffers steht ohne Zutun da; daraus wählt Roman eine Teilmenge und liest deren Summe ab. Handy 390 × 844 (3.1 bis 3.4), PC 1440 × 900 (3.5 bis 3.7). Auswahl-Modus und Auswahl-Leiste sind aus Ablauf 2 übernommen. 
+ANNAHMEN 
+Ausgangszustand ist das Ende von Ablauf 2: „Kategorie: 1" (Kinder) und „Dieses Jahr", 34 Buchungen · -2.140,00 €. 
+Die Summenzeile rechnet über den gesamten Treffer, auch über nicht geladene Seiten. Schritt 1 ist damit oft schon das Ziel. 
+Auswahl-Modus, Auswahl-Leiste und die Umschaltung der Summenzeile kommen unverändert aus 2.15 / 2.16. 
+Kein „Kopieren" — Roman liest die Summe ab (Entscheidung Roman, 2026-09-14). 
+Kopfzeilen-Kästchen am PC wählt den gesamten Treffer, nicht nur die geladene Seite. 
+Kita-Beitrag Stadt steht auf 125,00 € im Monat, damit 34 Buchungen auf -2.140,00 € und die obersten zwölf auf -780,00 € aufgehen. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Table mit Auswahlzeilen ( IsSelected ), Money (Summen und Beträge), Badge (Status), Button (Leisten-Aktionen), Card (Konten), Navigation (Tab-Bar und Kopfzeile), Primitives (Kästchen, Chips), Icons. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Summenzeile aus Card + Money, in zwei Zuständen (Treffer und Auswahl) · Auswahl-Leiste aus Card + Money + Button, am Handy dreizeilig mit 44px-Reihen · Kopfzeilen-Kästchen mit Teilauswahl-Strich aus Primitives · Filter-Chip-Leiste aus Primitives-Chip · Konto-Stände-Leiste Handy und Konten-Spalte PC aus Card. 
+Handy 390 × 844 
+ 3.1 Handy: Treffer mit Summe, ohne Auswahl 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Kategorie: 1 
+ Dieses Jahr 
+ Alle Filter löschen 
+ 34 Buchungen -2.140,00 € 
+09.09. 
+ Kita-Beitrag Stadt -125,00 € 
+ GIRO Kinder 
+05.09. 
+ Amazon Marketplace -42,80 € 
+ GIRO Kinder Turnbeutel 
+01.09. 
+ Bauhaus -118,00 € 
+ GIRO Kinder Regal Kinderzimmer 
+28.08. 
+ Apotheke am Markt -23,60 € 
+ BAR Kinder 
+ Kassenbuch 
+ Quick Add 
+ Sync 
+ Mehr 
+Schritt 1: die Summenzeile steht da, ohne dass Roman etwas ankreuzt — „34 Buchungen · -2.140,00 €", gerechnet über den gesamten Treffer, nicht über die geladene Seite. Kein Orange auf diesem Screen, es gibt nichts zu tun. Vier der 34 Treffer sind sichtbar, der Rest kommt beim Scrollen. Weiter: langes Drücken auf eine Zeile 
+ 3.2 Handy: Auswahl-Modus, eine Zeile 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Kategorie: 1 
+ Dieses Jahr 
+ Alle Filter löschen 
+ Auswahl: 1 von 34 Buchungen -125,00 € 
+09.09. 
+ Kita-Beitrag Stadt -125,00 € GIRO Kinder 
+05.09. 
+ Amazon Marketplace -42,80 € GIRO Kinder Turnbeutel 
+01.09. 
+ Bauhaus -118,00 € GIRO Kinder Regal Kinderzimmer 
+ 1 ausgewählt -125,00 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Alle 
+ Auswahl aufheben 
+Langes Drücken startet den Modus, Kästchen erscheinen vor jeder Zeile. Die Summenzeile springt vom Treffer auf die Auswahl, die Auswahl-Leiste ersetzt die Tab-Bar (165px, drei Reihen à 44px). „Alle" ist neu gegenüber 2.15 und wählt den gesamten Treffer, nicht nur die geladene Seite. Drei Zeilen sind sichtbar, die vierte liegt hinter der Leiste. Weiter: „Alle" · zwölf einzeln antippen 
+ 3.3 Handy: „Alle" — 34 ausgewählt 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Kategorie: 1 
+ Dieses Jahr 
+ Alle Filter löschen 
+ Auswahl: 34 von 34 Buchungen -2.140,00 € 
+09.09. 
+ Kita-Beitrag Stadt -125,00 € GIRO Kinder 
+05.09. 
+ Amazon Marketplace -42,80 € GIRO Kinder Turnbeutel 
+01.09. 
+ Bauhaus -118,00 € GIRO Kinder Regal Kinderzimmer 
+ 34 ausgewählt -2.140,00 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Alle 
+ Auswahl aufheben 
+„Alle" greift den gesamten Treffer, auch die 22 noch nicht geladenen Buchungen — deshalb stimmt die Summe der Auswahl mit der Summe des Treffers aus 3.1 überein. Der Chip „Alle" trägt jetzt den Aktivzustand in Teal; nochmal tippen hebt die Auswahl auf. Weiter: Teilmenge wählen 
+ 3.4 Handy: Teilmenge, 12 ausgewählt 
+ 9:41 
+ KASSENBUCH Alle Konten 
+Alle Konten 
+21.388,85 € 
+ING Extra 
+6.902,10 € 
+Girokonto Comdirect 
+2.418,37 € 
+Bar 
+63,50 € 
+ Kategorie: 1 
+ Dieses Jahr 
+ Alle Filter löschen 
+ Auswahl: 12 von 34 Buchungen -780,00 € 
+08.07. 
+ Amazon Marketplace -55,00 € GIRO Kinder 
+02.07. 
+ Deutsche Bahn -61,30 € GIRO Kinder Fahrt Oma 
+25.06. 
+ Bauhaus -48,20 € GIRO Kinder 
+ 12 ausgewählt -780,00 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Alle 
+ Auswahl aufheben 
+Weiter unten in der Liste: die Grenze der Auswahl ist sichtbar — 02.07. ist die zwölfte und letzte gewählte Zeile, 25.06. steht schon außerhalb. Am Handy gibt es keine Spanne wie am PC, die zwölf kommen per Tipp zusammen. „Auswahl aufheben" führt zurück auf den Treffer in 3.1 , die Summenzeile zeigt dann wieder -2.140,00 €. Dieselbe Auswahl am PC: 3.7 
+PC 1440 × 900 
+ 3.5 PC: Treffer mit Summe, ohne Auswahl 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 1 
+ Dieses Jahr 
+ Payee 
+ Betrag 
+ Memo 
+ Alle Filter löschen 
+ 34 Buchungen -2.140,00 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 09.09. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 05.09. Girokonto Amazon Marketplace Familie: Kinder Turnbeutel -42,80 € Geprüft 
+ 01.09. Girokonto Bauhaus Familie: Kinder Regal Kinderzimmer -118,00 € Geprüft 
+ 28.08. Bar Apotheke am Markt Familie: Kinder -23,60 € Nicht in YNAB 
+ 21.08. Girokonto Amazon Marketplace Familie: Kinder -34,90 € Geprüft 
+ 12.08. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 06.08. Girokonto REWE Mitte Familie: Kinder Pausensnacks -27,90 € Geprüft 
+ 30.07. Girokonto Amazon Marketplace Familie: Kinder -38,40 € Geprüft 
+ 22.07. Bar Apotheke am Markt Familie: Kinder -31,60 € Geprüft 
+ 15.07. Girokonto Bauhaus Familie: Kinder -96,50 € Geprüft 
+ 08.07. Girokonto Amazon Marketplace Familie: Kinder -55,00 € Geprüft 
+ 02.07. Girokonto Deutsche Bahn Familie: Kinder Fahrt Oma -61,30 € Geprüft 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Schritt 1 am PC: „34 Buchungen · -2.140,00 €" steht über der Tabelle, ohne dass ein Kästchen gesetzt ist. Zwölf der 34 Zeilen passen auf eine Seite, der Rest kommt beim Scrollen — die Summe bleibt trotzdem die des gesamten Treffers. Weiter: Kopfzeilen-Kästchen 
+ 3.6 PC: Kopfzeilen-Kästchen — alle 34 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 1 
+ Dieses Jahr 
+ Payee 
+ Betrag 
+ Memo 
+ Alle Filter löschen 
+ Auswahl: 34 von 34 Buchungen -2.140,00 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 09.09. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 05.09. Girokonto Amazon Marketplace Familie: Kinder Turnbeutel -42,80 € Geprüft 
+ 01.09. Girokonto Bauhaus Familie: Kinder Regal Kinderzimmer -118,00 € Geprüft 
+ 28.08. Bar Apotheke am Markt Familie: Kinder -23,60 € Nicht in YNAB 
+ 21.08. Girokonto Amazon Marketplace Familie: Kinder -34,90 € Geprüft 
+ 12.08. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 06.08. Girokonto REWE Mitte Familie: Kinder Pausensnacks -27,90 € Geprüft 
+ 30.07. Girokonto Amazon Marketplace Familie: Kinder -38,40 € Geprüft 
+ 22.07. Bar Apotheke am Markt Familie: Kinder -31,60 € Geprüft 
+ 15.07. Girokonto Bauhaus Familie: Kinder -96,50 € Geprüft 
+ 08.07. Girokonto Amazon Marketplace Familie: Kinder -55,00 € Geprüft 
+ 34 ausgewählt 
+ -2.140,00 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Auswahl aufheben 
+Das Kästchen in der Kopfzeile wählt den gesamten Treffer, nicht die geladene Seite — 34 von 34, Summe gleich der Treffer-Summe. Die Summenzeile springt auf die Auswahl, die Auswahl-Leiste ersetzt den Tastatur-Hinweis. Elf Zeilen sind sichtbar, die zwölfte (02.07., -61,30 €) liegt hinter der Leiste. Weiter: Spanne per Shift-Klick · Zurück: Auswahl aufheben 
+ 3.7 PC: Spanne per Shift-Klick — 12 von 34 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (7) 
+ Kategorie: 1 
+ Dieses Jahr 
+ Payee 
+ Betrag 
+ Memo 
+ Alle Filter löschen 
+ Auswahl: 12 von 34 Buchungen -780,00 € 
+ DATUM KONTO PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 09.09. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 05.09. Girokonto Amazon Marketplace Familie: Kinder Turnbeutel -42,80 € Geprüft 
+ 01.09. Girokonto Bauhaus Familie: Kinder Regal Kinderzimmer -118,00 € Geprüft 
+ 28.08. Bar Apotheke am Markt Familie: Kinder -23,60 € Nicht in YNAB 
+ 21.08. Girokonto Amazon Marketplace Familie: Kinder -34,90 € Geprüft 
+ 12.08. Girokonto Kita-Beitrag Stadt Familie: Kinder -125,00 € Geprüft 
+ 06.08. Girokonto REWE Mitte Familie: Kinder Pausensnacks -27,90 € Geprüft 
+ 30.07. Girokonto Amazon Marketplace Familie: Kinder -38,40 € Geprüft 
+ 22.07. Bar Apotheke am Markt Familie: Kinder -31,60 € Geprüft 
+ 15.07. Girokonto Bauhaus Familie: Kinder -96,50 € Geprüft 
+ 08.07. Girokonto Amazon Marketplace Familie: Kinder -55,00 € Geprüft 
+ 12 ausgewählt 
+ -780,00 € 
+ Geprüft 
+ Kategorie ändern 
+ Flag 
+ Auswahl aufheben 
+Klick auf das erste Kästchen, Shift-Klick auf das zwölfte: die Spanne steht, der Anker (09.09.) trägt die Teal-Kante. Das Kopfzeilen-Kästchen zeigt den Teilauswahl-Strich statt des Hakens. Elf der zwölf gewählten Zeilen sind sichtbar, die zwölfte (02.07., -61,30 €) liegt hinter der Leiste — die Summe -780,00 € rechnet sie mit. „Auswahl aufheben" führt zurück auf 3.5 , die Summenzeile zeigt wieder -2.140,00 €. Dieselbe Auswahl am Handy: 3.4

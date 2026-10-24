@@ -1,0 +1,409 @@
+ABLAUF 4 
+Kategorie ändern, Split festlegen oder ändern 
+Roman korrigiert die Kategorie einer Buchung und teilt sie auf. PC ist das Hauptgerät und steht deshalb zuerst (4.1 bis 4.8), das Handy folgt als Nachweis, dass beides im Detail-Sheet geht (4.9 bis 4.11). Buchung: Bauhaus -81,90 €, Konto Girokonto Comdirect, Chip „Zu prüfen (4)" aktiv. 
+ANNAHMEN 
+Jede Kategorie zeigt in der Auswahl ihren Available-Betrag aus dem Spiegel (Wunsch Roman, Klärung ledger-s8m3w ). 
+Kategoriewechsel prüft nie mit und sortiert nie um — die Zeile bleibt an ihrem Platz und bleibt „Zu prüfen". 
+Split-Bearbeitung nur im Detail (Panel am PC, Sheet am Handy), nie in der Tabelle. 
+„Rest" je Zeile füllt den offenen Betrag ein; „Speichern" wird erst bei Rest 0,00 € aktiv — kein Kopfrechnen. 
+Bauhaus -81,90 €, Split 23,40 € Möbel + 58,50 € Haushalt. Available: Haushalt 412,10 €, Möbel 120,00 €. 
+Bis zum Rückschreiben nach YNAB (v2) trägt die Buchung „Änderung noch nicht in YNAB" mit Grund. 
+KOMPONENTEN AUS DEM DESIGN-SYSTEM 
+Kategorienauswahl ( components-categorypicker ) mit Available-Money je Zeile · BottomSheet, Layer 1 und Layer 2 · Input (Betrag, Memo, Suche) · Button (Rest, Zeile hinzufügen, Speichern) · Table · Money · Badge („Aufgeteilt (2)", „Zu prüfen", „Änderung noch nicht in YNAB") · Toast · Navigation · Card · Primitives · Icons. 
+ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT 
+Kategorie-Popover am PC (Kategorienauswahl im Popover-Rahmen statt Sheet) · Split-Editor (Input + Button + Money, Rest-Zeile im Kopf) · Budget-Hinweis alt → neu (Card + Money) · Seitenpanel rechts (Card-Spalte) · Herkunft/Historie-Zeitleiste (Badge + Text) · Filter-Chip-Leiste (Primitives-Chip) · Summenzeile (Card + Money) · Geprüft-Schalter (Primitives). 
+PC 1440 × 900 · Hauptgerät 
+ 4.1 PC: Ausgangszustand, Bauhaus in „Haushalt" 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ 4 Buchungen · Girokonto Comdirect · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 12.09. Bauhaus Alltag: Haushalt Werkzeug + Lampe -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+Vier ungeprüfte Buchungen auf dem Girokonto. Die Bauhaus-Zeile ist die aktive Zeile der Tastaturführung (Teal-Rahmen), ihre Kategorie „Alltag: Haushalt" passt nicht — das Regal war ein Möbelstück. Kein Orange auf diesem Screen. Weiter: Klick auf die Kategorie-Zelle 
+ 4.2 PC: Kategorienauswahl als Popover, mit Available 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ 4 Buchungen · Girokonto Comdirect · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 12.09. Bauhaus Alltag: Haushalt 
+ Werkzeug + Lampe -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+ Kategorie suchen… 
+VORGESCHLAGEN 
+ Wohnen: Möbel 
+ Wohnen: Nebenkosten 
+ALLE KATEGORIEN 
+Alltag 
+ Lebensmittel 128,40 € 
+ Haushalt 412,10 € 
+ Restaurants -32,10 € 
+Wohnen 
+ Nebenkosten 240,00 € 
+ Möbel 120,00 € 
+Mobilität 
+ Bahn 64,50 € 
+ Auto 0,00 € 
+ Versteckte Kategorien (1) 
+ Esc schließt ohne zu ändern · Klick wählt sofort 
+Der Klick auf die Zelle öffnet die Kategorienauswahl als Popover unter der Zelle — dasselbe Popover-Muster wie die Filter in Ablauf 2, die Liste bleibt sichtbar. Jede Kategorie trägt rechts ihren Available-Betrag (Green positiv, Red negativ, tertiär bei 0,00 €); das ist der Wunsch aus dem YNAB-Vergleich. Die heutige Kategorie „Haushalt" trägt den Haken, „Möbel" ist der Vorschlag zum Payee Bauhaus. Einzelauswahl heißt Klick-Commit: kein „Übernehmen". Weiter: „Möbel" wählen 
+ 4.3 PC: „Möbel" gewählt — Zeile bleibt, Budget-Hinweis 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ Flag 
+ Gelöschte zeigen 
+ Alle Filter löschen 
+ 4 Buchungen · Girokonto Comdirect · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE MEMO BETRAG STATUS 
+ 12.09. Bauhaus Wohnen: Möbel Werkzeug + Lampe -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen G geprüft Enter Detail öffnen 
+BUDGET NACH DEM WECHSEL 
+ Alltag: Haushalt 412,10 € → 494,00 € 
+ Wohnen: Möbel 120,00 € → 38,10 € 
+ Kategorie geändert: Möbel Rückgängig 
+Die Zelle zeigt „Wohnen: Möbel", die Zeile steht weiter an erster Stelle und bleibt „Zu prüfen" — genau das, was an YNAB stört, passiert hier nicht. An der Stelle des Popovers steht kurz der Budget-Hinweis: alter Wert durchgestrichen, neuer Wert daneben, beide Seiten des Wechsels auf einmal. Rücknahme über den Toast, nicht über eine zweite Geste. Weiter: Zeile anklicken, Seitenpanel 
+ 4.4 PC: Seitenpanel, Kategorie und „Aufteilen" 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ 4 Buchungen · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 12.09. Bauhaus Wohnen: Möbel -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-81,90 € 
+Bauhaus 
+Girokonto Comdirect · 12.09.2026 
+ Änderung noch nicht in YNAB Rückschreiben kommt mit v2 
+ Kategorie Wohnen: Möbel 
+ Split Kein Split Aufteilen 
+ Memo Werkzeug + Lampe 
+ Lena fragen 
+ Geprüft 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Kategorie geändert: Haushalt → Möbel 
+15.09.2026 09:22 · Roman in BB 
+Aus YNAB gespiegelt: Betrag, Payee, Kategorie „Haushalt" 
+12.09.2026 06:10 · Sync 
+Klick auf die Zeile öffnet das Panel rechts, die Liste bleibt sichtbar. Bei offenem Panel weicht die Memo-Spalte — das Memo steht ohnehin im Panel — und die Chip-Leiste wird waagerecht scrollbar. Die Historie trägt schon die Zeile „Roman in BB"; das ist das, was YNAB nicht zeigt. Der Hinweis mit Grund sitzt direkt unter dem Kopf. Weiter: „Aufteilen" 
+ 4.5 PC: Split-Editor, erste Zeile 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ 4 Buchungen · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 12.09. Bauhaus Wohnen: Möbel -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-81,90 € 
+Bauhaus 
+Girokonto Comdirect · 12.09.2026 
+ Änderung noch nicht in YNAB Rückschreiben kommt mit v2 
+AUFTEILEN 
+ Gesamtbetrag -81,90 € 
+ Rest 58,50 € 
+ ZEILE 1 
+ Wohnen: Möbel 
+23,40 € 
+ Rest 
+Lampe 
+ Zeile hinzufügen 
+ Abbrechen 
+ Speichern 
+Der Split-Editor sitzt im Panel — Split-Bearbeitung gibt es nur hier, nie in der Tabelle. Über den Zeilen stehen Gesamtbetrag und Rest; der Rest in Pink sagt, dass noch 58,50 € offen sind. „Speichern" bleibt inaktiv, solange der Rest nicht 0,00 € ist. Zeile 1: Möbel, 23,40 €, Memo „Lampe". Weiter: Zeile hinzufügen und „Rest" 
+ 4.6 PC: zweite Zeile mit „Rest" gefüllt 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ 4 Buchungen · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 12.09. Bauhaus Wohnen: Möbel -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-81,90 € 
+Bauhaus 
+Girokonto Comdirect · 12.09.2026 
+ Änderung noch nicht in YNAB Rückschreiben kommt mit v2 
+AUFTEILEN 
+ Gesamtbetrag -81,90 € 
+ Rest 0,00 € 
+ ZEILE 1 
+ Wohnen: Möbel 
+23,40 € 
+ Rest 
+Lampe 
+ ZEILE 2 
+ Alltag: Haushalt 
+58,50 € 
+ Rest 
+Werkzeug 
+ Zeile hinzufügen 
+ Abbrechen 
+ Speichern 
+„Rest" neben dem Betragsfeld füllt die 58,50 € ein — kein Kopfrechnen, das ist das Muster aus der Import-Prüfung. Der Rest steht auf 0,00 € in Green, erst jetzt wird „Speichern" aktiv und ist das einzige Orange im Screen. „Zeile hinzufügen" ist ausgegraut, weil nichts mehr offen ist. Weiter: Speichern 
+ 4.7 PC: gespeichert — „Aufgeteilt (2)" 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ 4 Buchungen · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 12.09. Bauhaus Aufgeteilt (2) -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-81,90 € 
+Bauhaus 
+Girokonto Comdirect · 12.09.2026 
+ Änderung noch nicht in YNAB Rückschreiben kommt mit v2 
+ Kategorie Aufgeteilt (2) 
+ SPLIT Ändern 
+ Wohnen: Möbel Lampe -23,40 € 
+ Alltag: Haushalt Werkzeug -58,50 € 
+ Memo Werkzeug + Lampe 
+ Lena fragen 
+ Geprüft 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Aufgeteilt in Möbel 23,40 €, Haushalt 58,50 € 
+15.09.2026 09:24 · Roman in BB 
+Kategorie geändert: Haushalt → Möbel 
+15.09.2026 09:22 · Roman in BB 
+Aus YNAB gespiegelt: Betrag, Payee, Kategorie „Haushalt" 
+12.09.2026 06:10 · Sync 
+ Aufgeteilt in 2 Zeilen Rückgängig 
+Die Tabellenzeile trägt das Badge „Aufgeteilt (2)" statt einer Kategorie, im Panel stehen die zwei Zeilen mit Betrag und Memo. Die Historie bekommt eine Zeile mit Herkunft „Roman in BB" — das zeigt nur BB. Ein Toast, eine Rücknahme. Die Buchung bleibt ungeprüft. Weiter: Rückweg: wieder eine Kategorie 
+ 4.8 PC: Rückweg auf eine Kategorie 
+B BudgetBuddy 
+ Kassenbuch 
+ Sync 
+ Regeln 
+ Einstellungen 
+KONTEN 
+ Alle Konten 21.388,85 € 
+ Girokonto Comdirect 2.418,37 € 
+ ING Extra 6.902,10 € 
+ Bar 63,50 € 
+ Geldmarkt-ETF 12.004,88 € 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ Payee 
+ Betrag 
+ Memo 
+ 4 Buchungen · zu prüfen -143,49 € 
+ DATUM PAYEE KATEGORIE BETRAG STATUS 
+ 12.09. Bauhaus Aufgeteilt (2) -81,90 € Zu prüfen 
+ 11.09. REWE Mitte Alltag: Lebensmittel -38,20 € Zu prüfen 
+ 10.09. Netflix Abos: Streaming -13,99 € Zu prüfen 
+ 09.09. Café Lotte Alltag: Restaurants -9,40 € Zu prüfen 
+ ↑ ↓ bewegen Leertaste auswählen Esc Panel schließen 
+-81,90 € 
+Bauhaus 
+Girokonto Comdirect · 12.09.2026 
+ Änderung noch nicht in YNAB Rückschreiben kommt mit v2 
+AUFTEILEN 
+ Gesamtbetrag -81,90 € 
+ Rest 0,00 € 
+ ZEILE 1 
+ Alltag: Haushalt 
+81,90 € 
+ Rest 
+Werkzeug + Lampe 
+ Zeile hinzufügen 
+ Abbrechen 
+ Speichern 
+Rückweg über „Ändern": Zeile „Möbel 23,40 €" entfernt, auf der verbleibenden Zeile einmal „Rest" — 81,90 €, Rest 0,00 €. Speichern macht daraus wieder eine einzelne Kategorie „Alltag: Haushalt", das Badge „Aufgeteilt (2)" verschwindet, die Historie bekommt die passende Zeile. Zurück: Ausgangszustand 
+Handy 390 × 844 · Nachweis 
+ 4.9 Handy: Detail-Sheet mit Kategorie und Split 
+ 9:41 
+ KASSENBUCH Girokonto Comdirect 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ 4 Buchungen -143,49 € 
+-81,90 € 
+Bauhaus 
+Girokonto Comdirect · 12.09.2026 
+ Kategorie Haushalt 
+ Split Kein Split Aufteilen 
+ Memo Werkzeug + Lampe 
+ Lena fragen 
+ Geprüft 
+ HERKUNFT YNAB-Spiegel 
+HISTORIE 
+Aus YNAB gespiegelt: Betrag, Payee, Kategorie 
+12.09.2026 06:10 · Sync 
+Kategorie „Haushalt" von YNAB übernommen 
+12.09.2026 06:10 · YNAB 
+Tipp auf die Zeile öffnet das Detail als BottomSheet (Layer 1). Kategorie steht am Handy kurz („Haushalt"), Split zeigt „Kein Split" und den Knopf „Aufteilen" — beide Trefferflächen 44px. Herkunft und Historie stehen unten wie in Ablauf 1. Weiter: Kategorie tippen · „Aufteilen" 
+ 4.10 Handy: Kategorienauswahl als Layer 2 
+ 9:41 
+ KASSENBUCH Girokonto Comdirect 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ 4 Buchungen -143,49 € 
+Kategorie wählen 
+Bauhaus · -81,90 € 
+ Kategorie suchen… 
+VORGESCHLAGEN 
+ Möbel 
+ Nebenkosten 
+ALLE KATEGORIEN 
+Alltag 
+ Lebensmittel 128,40 € 
+ Haushalt 412,10 € 
+ Restaurants -32,10 € 
+Wohnen 
+ Nebenkosten 240,00 € 
+ Möbel 120,00 € 
+ Versteckte Kategorien (1) 
+Die Kategorienauswahl legt sich als zweites Sheet über das Detail (Layer 2, der Rand von Layer 1 bleibt oben sichtbar). Dieselben Available-Beträge wie am PC, dieselbe Reihenfolge: Vorschläge, dann Gruppen, versteckte Kategorien eingeklappt. Klick-Commit: der Tipp auf „Möbel" wählt und schließt, „Haushalt" trägt bis dahin den Haken. Zurück: Detail 
+ 4.11 Handy: Split-Editor im Sheet 
+ 9:41 
+ KASSENBUCH Girokonto Comdirect 
+ Zu prüfen (4) 
+ Kategorie 
+ Zeitraum 
+ 4 Buchungen -143,49 € 
+Aufteilen 
+Bauhaus · 12.09.2026 
+ Gesamtbetrag -81,90 € 
+ Rest 0,00 € 
+ ZEILE 1 
+ Möbel 
+23,40 € 
+ Rest 
+Lampe 
+ ZEILE 2 
+ Haushalt 
+58,50 € 
+ Rest 
+Werkzeug 
+ Zeile hinzufügen 
+ Speichern 
+Der Split-Editor läuft im selben Sheet, Zeilen untereinander, „Rest" je Zeile, „Speichern" klebt unten am Rand — die einzige primäre Aktion. Gesamtbetrag und Rest stehen über den Zeilen, Rest 0,00 € in Green; „Zeile hinzufügen" ist ausgegraut, weil nichts mehr offen ist. Das Sheet steht für den Editor höher als für den Picker (740px statt 630px), damit beide Zeilen vollständig über der Speichern-Leiste enden. Zurück: Detail · gleiche Sache am PC: 4.6

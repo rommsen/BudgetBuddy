@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/budgetbuddy-design-system-3a764a23-efa6-4d3a-8a66-e0325666d0c3/styles.css">
+<script src="_ds/budgetbuddy-design-system-3a764a23-efa6-4d3a-8a66-e0325666d0c3/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;background:#050510;font-family:'Inter',sans-serif}
+a{color:#00d4aa;text-decoration:none}
+a:hover{color:#00ff88}
+</style>
+</helmet>
+
+<section style="padding:44px 48px 64px;color:#e8e8f0">
+<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px">
+<span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.16em;padding:4px 9px;border-radius:999px;background:rgba(255,107,44,.12);border:1px solid rgba(255,107,44,.35);color:#ff6b2c">ABLAUF 4</span>
+<h1 style="margin:0;font:600 26px 'Space Grotesk',sans-serif;color:#e8e8f0">Kategorie ändern, Split festlegen oder ändern</h1>
+</div>
+<p style="margin:0 0 24px;font:400 14px/1.5 'Inter',sans-serif;color:#7a7a98;max-width:940px">Roman korrigiert die Kategorie einer Buchung und teilt sie auf. PC ist das Hauptgerät und steht deshalb zuerst (4.1 bis 4.8), das Handy folgt als Nachweis, dass beides im Detail-Sheet geht (4.9 bis 4.11). Buchung: Bauhaus -81,90 €, Konto Girokonto Comdirect, Chip „Zu prüfen (4)" aktiv.</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:40px">
+<div style="flex:1 1 300px;min-width:280px;padding:16px 18px;border-radius:14px;background:#111128;border:1px solid #2a2a4a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">ANNAHMEN</div>
+<ul style="margin:0;padding-left:18px;font:400 13px/1.7 'Inter',sans-serif;color:#7a7a98">
+<li>Jede Kategorie zeigt in der Auswahl ihren Available-Betrag aus dem Spiegel (Wunsch Roman, Klärung <span style="font-family:'JetBrains Mono',monospace;color:#e8e8f0">ledger-s8m3w</span>).</li>
+<li>Kategoriewechsel prüft nie mit und sortiert nie um — die Zeile bleibt an ihrem Platz und bleibt „Zu prüfen".</li>
+<li>Split-Bearbeitung nur im Detail (Panel am PC, Sheet am Handy), nie in der Tabelle.</li>
+<li>„Rest" je Zeile füllt den offenen Betrag ein; „Speichern" wird erst bei Rest 0,00 € aktiv — kein Kopfrechnen.</li>
+<li>Bauhaus -81,90 €, Split 23,40 € Möbel + 58,50 € Haushalt. Available: Haushalt 412,10 €, Möbel 120,00 €.</li>
+<li>Bis zum Rückschreiben nach YNAB (v2) trägt die Buchung „Änderung noch nicht in YNAB" mit Grund.</li>
+</ul>
+</div>
+<div style="flex:1 1 300px;min-width:280px;padding:16px 18px;border-radius:14px;background:#111128;border:1px solid #2a2a4a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">KOMPONENTEN AUS DEM DESIGN-SYSTEM</div>
+<p style="margin:0;font:400 13px/1.7 'Inter',sans-serif;color:#7a7a98">Kategorienauswahl (<span style="font-family:'JetBrains Mono',monospace;color:#e8e8f0">components-categorypicker</span>) mit Available-Money je Zeile · BottomSheet, Layer 1 und Layer 2 · Input (Betrag, Memo, Suche) · Button (Rest, Zeile hinzufügen, Speichern) · Table · Money · Badge („Aufgeteilt (2)", „Zu prüfen", „Änderung noch nicht in YNAB") · Toast · Navigation · Card · Primitives · Icons.</p>
+</div>
+<div style="flex:1 1 300px;min-width:280px;padding:16px 18px;border-radius:14px;background:#111128;border:1px solid #2a2a4a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">ZUSAMMENGESETZT, WEIL KOMPONENTE FEHLT</div>
+<p style="margin:0;font:400 13px/1.7 'Inter',sans-serif;color:#7a7a98">Kategorie-Popover am PC (Kategorienauswahl im Popover-Rahmen statt Sheet) · Split-Editor (Input + Button + Money, Rest-Zeile im Kopf) · Budget-Hinweis alt → neu (Card + Money) · Seitenpanel rechts (Card-Spalte) · Herkunft/Historie-Zeitleiste (Badge + Text) · Filter-Chip-Leiste (Primitives-Chip) · Summenzeile (Card + Money) · Geprüft-Schalter (Primitives).</p>
+</div>
+</div>
+
+<sc-if value="{{ pcZeigen }}" hint-placeholder-val="{{ true }}">
+<div style="margin-bottom:44px">
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px"><h2 style="margin:0;font:600 15px 'Space Grotesk',sans-serif;color:#e8e8f0">PC</h2><span style="font:500 12px 'JetBrains Mono',monospace;color:#4a4a68">1440 × 900 · Hauptgerät</span></div>
+<div id="pc-reihe" style="display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start">
+<div id="s4-1" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.1</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: Ausgangszustand, Bauhaus in „Haushalt"</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38">
+<span style="padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Flag</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Gelöschte zeigen</span>
+<span style="margin-left:auto;padding:9px 13px;border-radius:999px;color:#00d4aa;font:600 13px 'Inter',sans-serif">Alle Filter löschen</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · Girokonto Comdirect · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span>MEMO</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><a href="#s4-2" style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Haushalt</a><span style="font:400 13px 'Inter',sans-serif;color:#7a7a98">Werkzeug + Lampe</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:16px;padding:12px 20px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">G</span> geprüft</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Enter</span> Detail öffnen</span></div></sc-if>
+</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Vier ungeprüfte Buchungen auf dem Girokonto. Die Bauhaus-Zeile ist die aktive Zeile der Tastaturführung (Teal-Rahmen), ihre Kategorie „Alltag: Haushalt" passt nicht — das Regal war ein Möbelstück. Kein Orange auf diesem Screen. Weiter: <a href="#s4-2">Klick auf die Kategorie-Zelle</a></p></sc-if>
+</div>
+<div id="s4-2" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.2</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: Kategorienauswahl als Popover, mit Available</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38">
+<span style="padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Flag</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Gelöschte zeigen</span>
+<span style="margin-left:auto;padding:9px 13px;border-radius:999px;color:#00d4aa;font:600 13px 'Inter',sans-serif">Alle Filter löschen</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · Girokonto Comdirect · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span>MEMO</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="justify-self:start;display:inline-flex;align-items:center;gap:7px;padding:5px 9px;margin-left:-9px;border-radius:8px;background:#16162e;border:1px solid rgba(0,212,170,.55);font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Haushalt<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m19.5 8.25-7.5 7.5-7.5-7.5"></path></svg></span><span style="font:400 13px 'Inter',sans-serif;color:#7a7a98">Werkzeug + Lampe</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:16px;padding:12px 20px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">G</span> geprüft</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Enter</span> Detail öffnen</span></div></sc-if>
+</div>
+</div>
+<div style="position:absolute;left:688px;top:254px;width:404px;border-radius:14px;background:#1a1a36;border:1px solid #2a2a4a;box-shadow:0 24px 60px rgba(0,0,0,.65);overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid #1c1c38"><div style="display:flex;align-items:center;gap:9px;padding:0 12px;height:38px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"></path></svg><span style="font:400 13px 'Inter',sans-serif;color:#4a4a68">Kategorie suchen…</span></div></div>
+<div style="padding:12px 14px 4px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">VORGESCHLAGEN</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 14px 14px">
+<a href="#s4-3" style="padding:7px 12px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Wohnen: Möbel</a>
+<span style="padding:7px 12px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;font:500 12px 'Inter',sans-serif;color:#7a7a98">Wohnen: Nebenkosten</span>
+</div>
+<div style="padding:4px 14px 4px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;border-top:1px solid #1c1c38">ALLE KATEGORIEN</div>
+<div style="padding:6px 0 0">
+<div style="padding:8px 14px 4px;font:600 12px 'Inter',sans-serif;color:#7a7a98">Alltag</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px"><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Lebensmittel</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">128,40 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px;background:rgba(0,212,170,.07)"><span style="display:flex;align-items:center;gap:8px;font:600 13px 'Inter',sans-serif;color:#00d4aa"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.75l6 6 9-13.5"></path></svg>Haushalt</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">412,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px"><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Restaurants</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-32,10 €</span></div>
+<div style="padding:8px 14px 4px;font:600 12px 'Inter',sans-serif;color:#7a7a98">Wohnen</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px"><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Nebenkosten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">240,00 €</span></div>
+<a href="#s4-3" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px;background:#1e1e3c;box-shadow:inset 2px 0 0 #00d4aa"><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">Möbel</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">120,00 €</span></a>
+<div style="padding:8px 14px 4px;font:600 12px 'Inter',sans-serif;color:#7a7a98">Mobilität</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px"><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Bahn</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">64,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:40px"><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Auto</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#4a4a68">0,00 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 14px;height:44px;border-top:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Versteckte Kategorien (1)</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+</div>
+<div style="padding:10px 14px;border-top:1px solid #1c1c38;background:#111128;font:500 11px 'Inter',sans-serif;color:#4a4a68"><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Esc</span> schließt ohne zu ändern · Klick wählt sofort</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Der Klick auf die Zelle öffnet die Kategorienauswahl als Popover unter der Zelle — dasselbe Popover-Muster wie die Filter in Ablauf 2, die Liste bleibt sichtbar. Jede Kategorie trägt rechts ihren Available-Betrag (Green positiv, Red negativ, tertiär bei 0,00 €); das ist der Wunsch aus dem YNAB-Vergleich. Die heutige Kategorie „Haushalt" trägt den Haken, „Möbel" ist der Vorschlag zum Payee Bauhaus. Einzelauswahl heißt Klick-Commit: kein „Übernehmen". Weiter: <a href="#s4-3">„Möbel" wählen</a></p></sc-if>
+</div>
+<div id="s4-3" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.3</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: „Möbel" gewählt — Zeile bleibt, Budget-Hinweis</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38">
+<span style="padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Flag</span>
+<span style="padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Gelöschte zeigen</span>
+<span style="margin-left:auto;padding:9px 13px;border-radius:999px;color:#00d4aa;font:600 13px 'Inter',sans-serif">Alle Filter löschen</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · Girokonto Comdirect · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span>MEMO</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<a href="#s4-4" style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45);color:inherit">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><span style="font:400 13px 'Inter',sans-serif;color:#7a7a98">Werkzeug + Lampe</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</a>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:44px 96px 1fr 200px 1fr 132px 128px;align-items:center;padding:0 20px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span></span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:16px;padding:12px 20px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">G</span> geprüft</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Enter</span> Detail öffnen</span></div></sc-if>
+</div>
+</div>
+<div style="position:absolute;left:688px;top:254px;width:340px;padding:12px 14px;border-radius:14px;background:#1a1a36;border:1px solid #2a2a4a;box-shadow:0 18px 44px rgba(0,0,0,.55)">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">BUDGET NACH DEM WECHSEL</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:7px"><span style="font:500 12px 'Inter',sans-serif;color:#7a7a98">Alltag: Haushalt</span><span style="display:flex;align-items:baseline;gap:6px;font:600 12px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap"><span style="color:#4a4a68;text-decoration:line-through">412,10 €</span><span style="color:#4a4a68">→</span><span style="color:#00ff88">494,00 €</span></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font:500 12px 'Inter',sans-serif;color:#7a7a98">Wohnen: Möbel</span><span style="display:flex;align-items:baseline;gap:6px;font:600 12px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap"><span style="color:#4a4a68;text-decoration:line-through">120,00 €</span><span style="color:#4a4a68">→</span><span style="color:#00ff88">38,10 €</span></span></div>
+</div>
+<div style="position:absolute;right:24px;bottom:78px;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:#1a1a36;border:1px solid #2a2a4a;box-shadow:0 16px 48px rgba(0,0,0,.6)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.75l6 6 9-13.5"></path></svg><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Kategorie geändert: Möbel</span><a href="#s4-1" style="font:600 13px 'Inter',sans-serif;color:#00d4aa">Rückgängig</a></div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Die Zelle zeigt „Wohnen: Möbel", die Zeile steht weiter an erster Stelle und bleibt „Zu prüfen" — genau das, was an YNAB stört, passiert hier nicht. An der Stelle des Popovers steht kurz der Budget-Hinweis: alter Wert durchgestrichen, neuer Wert daneben, beide Seiten des Wechsels auf einmal. Rücknahme über den Toast, nicht über eine zweite Geste. Weiter: <a href="#s4-4">Zeile anklicken, Seitenpanel</a></p></sc-if>
+</div>
+<div id="s4-4" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.4</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: Seitenpanel, Kategorie und „Aufteilen"</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38;overflow:hidden">
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Esc</span> Panel schließen</span></div></sc-if>
+</div>
+<div style="width:420px;flex:none;border-left:1px solid #2a2a4a;background:#111128;display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 16px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 28px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</div><div style="margin-top:6px;font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Bauhaus</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Girokonto Comdirect · 12.09.2026</div></div>
+<a href="#s4-3" style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></a>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 18px;background:rgba(255,107,44,.07);border-bottom:1px solid #1c1c38"><span style="flex:none;display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,107,44,.12);border:1px solid rgba(255,107,44,.35);color:#ff6b2c;font:500 11px 'Inter',sans-serif;white-space:nowrap">Änderung noch nicht in YNAB</span><span style="font:400 11px/1.4 'Inter',sans-serif;color:#7a7a98">Rückschreiben kommt mit v2</span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Kategorie</span><a href="#s4-2" style="display:flex;align-items:center;gap:8px;font:600 14px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></a></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:60px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Split</span><span style="display:flex;align-items:center;gap:10px"><span style="font:400 13px 'Inter',sans-serif;color:#4a4a68">Kein Split</span><a href="#s4-5" style="padding:10px 14px;border-radius:8px;background:#16162e;border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Aufteilen</a></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Memo</span><span style="font:400 14px 'Inter',sans-serif;color:#e8e8f0">Werkzeug + Lampe</span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Lena fragen</span><span style="width:50px;height:30px;flex:none;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;padding:3px"><span style="width:22px;height:22px;border-radius:999px;background:#4a4a68"></span></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:60px;border-bottom:1px solid #1c1c38;background:#16162e"><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Geprüft</span><span style="width:50px;height:30px;flex:none;border-radius:999px;background:#111128;border:1px solid #2a2a4a;display:flex;align-items:center;padding:3px"><span style="width:22px;height:22px;border-radius:999px;background:#4a4a68"></span></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #1c1c38"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">HERKUNFT</span><span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);color:#00d4aa;font:500 11px 'Inter',sans-serif">YNAB-Spiegel</span></div>
+<div style="padding:14px 18px 20px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:12px">HISTORIE</div>
+<div style="display:flex;gap:11px;padding-bottom:14px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#00d4aa;box-shadow:0 0 10px rgba(0,212,170,.5)"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Kategorie geändert: Haushalt → Möbel</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">15.09.2026 09:22 · Roman in BB</div></div></div>
+<div style="display:flex;gap:11px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#2a2a4a"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Aus YNAB gespiegelt: Betrag, Payee, Kategorie „Haushalt"</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">12.09.2026 06:10 · Sync</div></div></div>
+</div>
+</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Klick auf die Zeile öffnet das Panel rechts, die Liste bleibt sichtbar. Bei offenem Panel weicht die Memo-Spalte — das Memo steht ohnehin im Panel — und die Chip-Leiste wird waagerecht scrollbar. Die Historie trägt schon die Zeile „Roman in BB"; das ist das, was YNAB nicht zeigt. Der Hinweis mit Grund sitzt direkt unter dem Kopf. Weiter: <a href="#s4-5">„Aufteilen"</a></p></sc-if>
+</div>
+<div id="s4-5" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.5</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: Split-Editor, erste Zeile</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38;overflow:hidden">
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Esc</span> Panel schließen</span></div></sc-if>
+</div>
+<div style="width:420px;flex:none;border-left:1px solid #2a2a4a;background:#111128;display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 16px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 28px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</div><div style="margin-top:6px;font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Bauhaus</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Girokonto Comdirect · 12.09.2026</div></div>
+<a href="#s4-4" style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></a>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 18px;background:rgba(255,107,44,.07);border-bottom:1px solid #1c1c38"><span style="flex:none;display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,107,44,.12);border:1px solid rgba(255,107,44,.35);color:#ff6b2c;font:500 11px 'Inter',sans-serif;white-space:nowrap">Änderung noch nicht in YNAB</span><span style="font:400 11px/1.4 'Inter',sans-serif;color:#7a7a98">Rückschreiben kommt mit v2</span></div>
+<div style="flex:none;padding:14px 18px 10px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">AUFTEILEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Gesamtbetrag</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Rest</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff1f8f">58,50 €</span></div>
+</div>
+<div style="flex:none;display:flex;flex-direction:column;gap:12px;padding:4px 18px 16px">
+<div style="padding:12px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">ZEILE 1</span><span style="width:26px;height:26px;border-radius:8px;background:#1a1a36;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a"><span style="font:600 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.45);font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#e8e8f0">23,40 €</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:74px;height:40px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Rest</span>
+</div>
+<div style="display:flex;align-items:center;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:400 13px 'Inter',sans-serif;color:#e8e8f0">Lampe</div>
+</div>
+<a href="#s4-6" style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:10px;border:1px dashed rgba(0,212,170,.4);font:600 13px 'Inter',sans-serif;color:#00d4aa">Zeile hinzufügen</a>
+</div>
+<div style="flex:none;margin-top:auto;display:flex;gap:10px;padding:14px 18px 18px;border-top:1px solid #1c1c38;background:#111128">
+<a href="#s4-4" style="flex:0 0 120px;display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;font:600 14px 'Inter',sans-serif;color:#7a7a98">Abbrechen</a>
+<span style="flex:1;display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;font:600 14px 'Inter',sans-serif;color:#4a4a68">Speichern</span>
+</div>
+</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Der Split-Editor sitzt im Panel — Split-Bearbeitung gibt es nur hier, nie in der Tabelle. Über den Zeilen stehen Gesamtbetrag und Rest; der Rest in Pink sagt, dass noch 58,50 € offen sind. „Speichern" bleibt inaktiv, solange der Rest nicht 0,00 € ist. Zeile 1: Möbel, 23,40 €, Memo „Lampe". Weiter: <a href="#s4-6">Zeile hinzufügen und „Rest"</a></p></sc-if>
+</div>
+<div id="s4-6" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.6</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: zweite Zeile mit „Rest" gefüllt</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38;overflow:hidden">
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Esc</span> Panel schließen</span></div></sc-if>
+</div>
+<div style="width:420px;flex:none;border-left:1px solid #2a2a4a;background:#111128;display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 16px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 28px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</div><div style="margin-top:6px;font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Bauhaus</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Girokonto Comdirect · 12.09.2026</div></div>
+<a href="#s4-4" style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></a>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 18px;background:rgba(255,107,44,.07);border-bottom:1px solid #1c1c38"><span style="flex:none;display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,107,44,.12);border:1px solid rgba(255,107,44,.35);color:#ff6b2c;font:500 11px 'Inter',sans-serif;white-space:nowrap">Änderung noch nicht in YNAB</span><span style="font:400 11px/1.4 'Inter',sans-serif;color:#7a7a98">Rückschreiben kommt mit v2</span></div>
+<div style="flex:none;padding:14px 18px 10px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">AUFTEILEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Gesamtbetrag</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Rest</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">0,00 €</span></div>
+</div>
+<div style="flex:none;display:flex;flex-direction:column;gap:12px;padding:4px 18px 16px">
+<div style="padding:12px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">ZEILE 1</span><span style="width:26px;height:26px;border-radius:8px;background:#1a1a36;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a"><span style="font:600 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#e8e8f0">23,40 €</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:74px;height:40px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Rest</span>
+</div>
+<div style="display:flex;align-items:center;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:400 13px 'Inter',sans-serif;color:#e8e8f0">Lampe</div>
+</div>
+<div style="padding:12px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">ZEILE 2</span><span style="width:26px;height:26px;border-radius:8px;background:#1a1a36;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a"><span style="font:600 13px 'Inter',sans-serif;color:#a855f7">Alltag: Haushalt</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.45);font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#e8e8f0">58,50 €</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:74px;height:40px;border-radius:10px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Rest</span>
+</div>
+<div style="display:flex;align-items:center;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:400 13px 'Inter',sans-serif;color:#e8e8f0">Werkzeug</div>
+</div>
+<span style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:10px;border:1px dashed #2a2a4a;font:600 13px 'Inter',sans-serif;color:#4a4a68">Zeile hinzufügen</span>
+</div>
+<div style="flex:none;margin-top:auto;display:flex;gap:10px;padding:14px 18px 18px;border-top:1px solid #1c1c38;background:#111128">
+<a href="#s4-4" style="flex:0 0 120px;display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;font:600 14px 'Inter',sans-serif;color:#7a7a98">Abbrechen</a>
+<a href="#s4-7" style="flex:1;display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;background:linear-gradient(135deg,#ff6b2c,#e55a1f);box-shadow:0 0 20px rgba(255,107,44,.5);font:600 14px 'Inter',sans-serif;color:#fff">Speichern</a>
+</div>
+</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">„Rest" neben dem Betragsfeld füllt die 58,50 € ein — kein Kopfrechnen, das ist das Muster aus der Import-Prüfung. Der Rest steht auf 0,00 € in Green, erst jetzt wird „Speichern" aktiv und ist das einzige Orange im Screen. „Zeile hinzufügen" ist ausgegraut, weil nichts mehr offen ist. Weiter: <a href="#s4-7">Speichern</a></p></sc-if>
+</div>
+<div id="s4-7" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.7</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: gespeichert — „Aufgeteilt (2)"</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38;overflow:hidden">
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="justify-self:start;display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);color:#a855f7;font:600 11px 'Inter',sans-serif">Aufgeteilt (2)</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Esc</span> Panel schließen</span></div></sc-if>
+</div>
+<div style="width:420px;flex:none;border-left:1px solid #2a2a4a;background:#111128;display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 16px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 28px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</div><div style="margin-top:6px;font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Bauhaus</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Girokonto Comdirect · 12.09.2026</div></div>
+<a href="#s4-3" style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></a>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 18px;background:rgba(255,107,44,.07);border-bottom:1px solid #1c1c38"><span style="flex:none;display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,107,44,.12);border:1px solid rgba(255,107,44,.35);color:#ff6b2c;font:500 11px 'Inter',sans-serif;white-space:nowrap">Änderung noch nicht in YNAB</span><span style="font:400 11px/1.4 'Inter',sans-serif;color:#7a7a98">Rückschreiben kommt mit v2</span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Kategorie</span><span style="display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);color:#a855f7;font:600 12px 'Inter',sans-serif">Aufgeteilt (2)</span></div>
+<div style="flex:none;padding:14px 18px 16px;border-bottom:1px solid #1c1c38">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">SPLIT</span><a href="#s4-8" style="padding:8px 12px;border-radius:8px;background:#16162e;border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Ändern</a></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #1c1c38"><span style="min-width:0"><span style="display:block;font:600 13px 'Inter',sans-serif;color:#a855f7">Wohnen: Möbel</span><span style="display:block;margin-top:2px;font:400 12px 'Inter',sans-serif;color:#4a4a68">Lampe</span></span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c;white-space:nowrap">-23,40 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0"><span style="min-width:0"><span style="display:block;font:600 13px 'Inter',sans-serif;color:#a855f7">Alltag: Haushalt</span><span style="display:block;margin-top:2px;font:400 12px 'Inter',sans-serif;color:#4a4a68">Werkzeug</span></span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c;white-space:nowrap">-58,50 €</span></div>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Memo</span><span style="font:400 14px 'Inter',sans-serif;color:#e8e8f0">Werkzeug + Lampe</span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Lena fragen</span><span style="width:50px;height:30px;flex:none;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;padding:3px"><span style="width:22px;height:22px;border-radius:999px;background:#4a4a68"></span></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:60px;border-bottom:1px solid #1c1c38;background:#16162e"><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Geprüft</span><span style="width:50px;height:30px;flex:none;border-radius:999px;background:#111128;border:1px solid #2a2a4a;display:flex;align-items:center;padding:3px"><span style="width:22px;height:22px;border-radius:999px;background:#4a4a68"></span></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #1c1c38"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">HERKUNFT</span><span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);color:#00d4aa;font:500 11px 'Inter',sans-serif">YNAB-Spiegel</span></div>
+<div style="padding:14px 18px 20px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:12px">HISTORIE</div>
+<div style="display:flex;gap:11px;padding-bottom:14px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#00d4aa;box-shadow:0 0 10px rgba(0,212,170,.5)"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Aufgeteilt in Möbel 23,40 €, Haushalt 58,50 €</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">15.09.2026 09:24 · Roman in BB</div></div></div>
+<div style="display:flex;gap:11px;padding-bottom:14px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#2a2a4a"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Kategorie geändert: Haushalt → Möbel</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">15.09.2026 09:22 · Roman in BB</div></div></div>
+<div style="display:flex;gap:11px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#2a2a4a"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Aus YNAB gespiegelt: Betrag, Payee, Kategorie „Haushalt"</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">12.09.2026 06:10 · Sync</div></div></div>
+</div>
+</div>
+</div>
+<div style="position:absolute;right:460px;bottom:78px;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:#1a1a36;border:1px solid #2a2a4a;box-shadow:0 16px 48px rgba(0,0,0,.6)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.75l6 6 9-13.5"></path></svg><span style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Aufgeteilt in 2 Zeilen</span><a href="#s4-6" style="font:600 13px 'Inter',sans-serif;color:#00d4aa">Rückgängig</a></div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Die Tabellenzeile trägt das Badge „Aufgeteilt (2)" statt einer Kategorie, im Panel stehen die zwei Zeilen mit Betrag und Memo. Die Historie bekommt eine Zeile mit Herkunft „Roman in BB" — das zeigt nur BB. Ein Toast, eine Rücknahme. Die Buchung bleibt ungeprüft. Weiter: <a href="#s4-8">Rückweg: wieder eine Kategorie</a></p></sc-if>
+</div>
+<div id="s4-8" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:1440px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.8</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">PC: Rückweg auf eine Kategorie</span></div>
+<div style="position:relative;width:1440px;height:900px;background:#08081a;border:1px solid #2a2a4a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;border-bottom:1px solid #1c1c38;background:rgba(8,8,26,.85)">
+<div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#ff6b2c,#00d4aa);display:flex;align-items:center;justify-content:center;font:700 20px 'Space Grotesk',sans-serif;color:#fff">B</div><span style="font:700 18px 'Space Grotesk',sans-serif;color:#e8e8f0">BudgetBuddy</span></div>
+<div style="display:flex;align-items:center;gap:6px">
+<span style="padding:10px 14px;border-radius:10px;background:rgba(0,212,170,.1);color:#00d4aa;font:600 14px 'Inter',sans-serif">Kassenbuch</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Sync</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Regeln</span>
+<span style="padding:10px 14px;border-radius:10px;color:#4a4a68;font:500 14px 'Inter',sans-serif">Einstellungen</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="width:268px;flex:none;border-right:1px solid #1c1c38;padding:18px 14px;display:flex;flex-direction:column;gap:4px;background:#08081a">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;padding:0 10px 10px">KONTEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Alle Konten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">21.388,85 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;background:#1a1a36;box-shadow:inset 2px 0 0 #00d4aa"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 13px 'Inter',sans-serif;color:#e8e8f0">Girokonto Comdirect</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.35)">2.418,37 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">ING Extra</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">6.902,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Bar</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">63,50 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Geldmarkt-ETF</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;color:#00ff88">12.004,88 €</span></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:8px;padding:14px 20px;border-bottom:1px solid #1c1c38;overflow:hidden">
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px 'Inter',sans-serif">Zu prüfen (4)</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Kategorie</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Zeitraum</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Payee</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Betrag</span>
+<span style="flex:none;padding:9px 13px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px 'Inter',sans-serif">Memo</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">4 Buchungen · zu prüfen</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="flex:none;display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:42px;background:#1a1a36;border-bottom:1px solid #2a2a4a;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.12em;color:#4a4a68">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span>DATUM</span><span>PAYEE</span><span>KATEGORIE</span><span style="text-align:right">BETRAG</span><span style="text-align:right">STATUS</span>
+</div>
+<div style="flex:1;min-height:0;overflow:hidden">
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38;background:#1e1e3c;box-shadow:inset 0 0 0 1px rgba(0,212,170,.45)">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">12.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Bauhaus</span><span style="justify-self:start;display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.35);color:#a855f7;font:600 11px 'Inter',sans-serif">Aufgeteilt (2)</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">11.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">REWE Mitte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Lebensmittel</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-38,20 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">10.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Netflix</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Abos: Streaming</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-13,99 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+<div style="display:grid;grid-template-columns:40px 80px 1fr 152px 104px 100px;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1c1c38">
+<span><span style="display:block;width:17px;height:17px;border-radius:5px;background:#16162e;border:1px solid #2a2a4a"></span></span><span style="font:500 13px 'JetBrains Mono',monospace;color:#7a7a98">09.09.</span><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Café Lotte</span><span style="font:500 13px 'Inter',sans-serif;color:#a855f7">Alltag: Restaurants</span><span style="text-align:right;font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-9,40 €</span><span style="text-align:right"><span style="display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,31,143,.1);border:1px solid rgba(255,31,143,.3);color:#ff1f8f;font:500 11px 'Inter',sans-serif">Zu prüfen</span></span>
+</div>
+</div>
+<sc-if value="{{ tastatur }}" hint-placeholder-val="{{ true }}"><div style="flex:none;display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid #1c1c38;background:#08081a;font:500 12px 'Inter',sans-serif;color:#4a4a68"><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">↑ ↓</span> bewegen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Leertaste</span> auswählen</span><span><span style="font-family:'JetBrains Mono',monospace;color:#7a7a98">Esc</span> Panel schließen</span></div></sc-if>
+</div>
+<div style="width:420px;flex:none;border-left:1px solid #2a2a4a;background:#111128;display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 18px 16px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 28px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</div><div style="margin-top:6px;font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Bauhaus</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Girokonto Comdirect · 12.09.2026</div></div>
+<a href="#s4-7" style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></a>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:12px 18px;background:rgba(255,107,44,.07);border-bottom:1px solid #1c1c38"><span style="flex:none;display:inline-flex;padding:3px 9px;border-radius:999px;background:rgba(255,107,44,.12);border:1px solid rgba(255,107,44,.35);color:#ff6b2c;font:500 11px 'Inter',sans-serif;white-space:nowrap">Änderung noch nicht in YNAB</span><span style="font:400 11px/1.4 'Inter',sans-serif;color:#7a7a98">Rückschreiben kommt mit v2</span></div>
+<div style="flex:none;padding:14px 18px 10px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:10px">AUFTEILEN</div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Gesamtbetrag</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Rest</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">0,00 €</span></div>
+</div>
+<div style="flex:none;display:flex;flex-direction:column;gap:12px;padding:4px 18px 16px">
+<div style="padding:12px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">ZEILE 1</span><span style="width:26px;height:26px;border-radius:8px;background:#1a1a36;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a"><span style="font:600 13px 'Inter',sans-serif;color:#a855f7">Alltag: Haushalt</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.45);font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#e8e8f0">81,90 €</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:74px;height:40px;border-radius:10px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);font:600 12px 'Inter',sans-serif;color:#00d4aa">Rest</span>
+</div>
+<div style="display:flex;align-items:center;height:40px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:400 13px 'Inter',sans-serif;color:#e8e8f0">Werkzeug + Lampe</div>
+</div>
+<span style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:10px;border:1px dashed #2a2a4a;font:600 13px 'Inter',sans-serif;color:#4a4a68">Zeile hinzufügen</span>
+</div>
+<div style="flex:none;margin-top:auto;display:flex;gap:10px;padding:14px 18px 18px;border-top:1px solid #1c1c38;background:#111128">
+<a href="#s4-4" style="flex:0 0 120px;display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;font:600 14px 'Inter',sans-serif;color:#7a7a98">Abbrechen</a>
+<a href="#null" style="flex:1;display:flex;align-items:center;justify-content:center;height:44px;border-radius:10px;background:linear-gradient(135deg,#ff6b2c,#e55a1f);box-shadow:0 0 20px rgba(255,107,44,.5);font:600 14px 'Inter',sans-serif;color:#fff">Speichern</a>
+</div>
+</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:900px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Rückweg über „Ändern": Zeile „Möbel 23,40 €" entfernt, auf der verbleibenden Zeile einmal „Rest" — 81,90 €, Rest 0,00 €. Speichern macht daraus wieder eine einzelne Kategorie „Alltag: Haushalt", das Badge „Aufgeteilt (2)" verschwindet, die Historie bekommt die passende Zeile. Zurück: <a href="#s4-1">Ausgangszustand</a></p></sc-if>
+</div>
+<!--PC-ENDE-->
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ handyZeigen }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px"><h2 style="margin:0;font:600 15px 'Space Grotesk',sans-serif;color:#e8e8f0">Handy</h2><span style="font:500 12px 'JetBrains Mono',monospace;color:#4a4a68">390 × 844 · Nachweis</span></div>
+<div id="handy-reihe" style="display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start">
+<div id="s4-9" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:390px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.9</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">Handy: Detail-Sheet mit Kategorie und Split</span></div>
+<div style="position:relative;width:390px;height:844px;background:#08081a;border:1px solid #2a2a4a;border-radius:30px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 24px 4px;font:600 13px 'JetBrains Mono',monospace;color:#7a7a98"><span>9:41</span><div style="display:flex;align-items:center;gap:6px"><div style="width:16px;height:9px;border-radius:2px;border:1px solid #4a4a68"></div><div style="width:22px;height:10px;border-radius:3px;border:1px solid #4a4a68;padding:1px;display:flex"><div style="width:70%;background:#00ff88;border-radius:2px"></div></div></div></div>
+<div style="flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:4px 16px 12px">
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">KASSENBUCH</span><span style="display:flex;align-items:center;gap:7px;font:600 22px 'Space Grotesk',sans-serif;color:#e8e8f0;white-space:nowrap;overflow:hidden">Girokonto Comdirect<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19.5 8.25-7.5 7.5-7.5-7.5"></path></svg></span></div>
+<div style="display:flex;gap:8px"><div style="width:44px;height:44px;border-radius:12px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="1.8" stroke-linecap="round"><path d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"></path></svg></div><div style="width:44px;height:44px;border-radius:12px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"></path></svg></div></div>
+</div>
+<div style="flex:none;display:flex;gap:8px;padding:0 16px 12px;overflow:hidden;border-bottom:1px solid #1c1c38">
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px/20px 'Inter',sans-serif;white-space:nowrap">Zu prüfen (4)</span>
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px/20px 'Inter',sans-serif;white-space:nowrap">Kategorie</span>
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px/20px 'Inter',sans-serif;white-space:nowrap">Zeitraum</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 12px 'Inter',sans-serif;color:#7a7a98">4 Buchungen</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="position:absolute;inset:0;background:rgba(5,5,16,.72)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:640px;background:#1a1a36;border-top:1px solid #2a2a4a;border-radius:22px 22px 0 0;box-shadow:0 -24px 60px rgba(0,0,0,.65);display:flex;flex-direction:column;overflow:hidden">
+<div style="width:40px;height:4px;border-radius:999px;background:#2a2a4a;margin:10px auto 6px"></div>
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 18px 16px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 30px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</div><div style="margin-top:6px;font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Bauhaus</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Girokonto Comdirect · 12.09.2026</div></div>
+<span style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span>
+</div>
+<a href="#s4-10" style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38;color:inherit"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Kategorie</span><span style="display:flex;align-items:center;gap:8px;font:600 14px 'Inter',sans-serif;color:#a855f7">Haushalt<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></span></a>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:60px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Split</span><span style="display:flex;align-items:center;gap:10px"><span style="font:400 13px 'Inter',sans-serif;color:#4a4a68">Kein Split</span><a href="#s4-11" style="display:flex;align-items:center;min-height:44px;padding:0 14px;border-radius:8px;background:#16162e;border:1px solid rgba(0,212,170,.4);font:600 13px 'Inter',sans-serif;color:#00d4aa">Aufteilen</a></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Memo</span><span style="font:400 14px 'Inter',sans-serif;color:#e8e8f0">Werkzeug + Lampe</span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:56px;border-bottom:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Lena fragen</span><span style="width:50px;height:30px;flex:none;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;padding:3px"><span style="width:22px;height:22px;border-radius:999px;background:#4a4a68"></span></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;min-height:60px;border-bottom:1px solid #1c1c38;background:#16162e"><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Geprüft</span><span style="width:50px;height:30px;flex:none;border-radius:999px;background:#111128;border:1px solid #2a2a4a;display:flex;align-items:center;padding:3px"><span style="width:22px;height:22px;border-radius:999px;background:#4a4a68"></span></span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #1c1c38"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">HERKUNFT</span><span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.3);color:#00d4aa;font:500 11px 'Inter',sans-serif">YNAB-Spiegel</span></div>
+<div style="padding:14px 18px 20px">
+<div style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;margin-bottom:12px">HISTORIE</div>
+<div style="display:flex;gap:11px;padding-bottom:14px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#00d4aa"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#e8e8f0">Aus YNAB gespiegelt: Betrag, Payee, Kategorie</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">12.09.2026 06:10 · Sync</div></div></div>
+<div style="display:flex;gap:11px"><span style="flex:none;width:8px;height:8px;margin-top:4px;border-radius:999px;background:#2a2a4a"></span><div><div style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Kategorie „Haushalt" von YNAB übernommen</div><div style="margin-top:2px;font:400 11px 'JetBrains Mono',monospace;color:#4a4a68">12.09.2026 06:10 · YNAB</div></div></div>
+</div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:390px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Tipp auf die Zeile öffnet das Detail als BottomSheet (Layer 1). Kategorie steht am Handy kurz („Haushalt"), Split zeigt „Kein Split" und den Knopf „Aufteilen" — beide Trefferflächen 44px. Herkunft und Historie stehen unten wie in Ablauf 1. Weiter: <a href="#s4-10">Kategorie tippen</a> · <a href="#s4-11">„Aufteilen"</a></p></sc-if>
+</div>
+<div id="s4-10" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:390px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.10</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">Handy: Kategorienauswahl als Layer 2</span></div>
+<div style="position:relative;width:390px;height:844px;background:#08081a;border:1px solid #2a2a4a;border-radius:30px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 24px 4px;font:600 13px 'JetBrains Mono',monospace;color:#7a7a98"><span>9:41</span><div style="display:flex;align-items:center;gap:6px"><div style="width:16px;height:9px;border-radius:2px;border:1px solid #4a4a68"></div><div style="width:22px;height:10px;border-radius:3px;border:1px solid #4a4a68;padding:1px;display:flex"><div style="width:70%;background:#00ff88;border-radius:2px"></div></div></div></div>
+<div style="flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:4px 16px 12px">
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">KASSENBUCH</span><span style="display:flex;align-items:center;gap:7px;font:600 22px 'Space Grotesk',sans-serif;color:#e8e8f0;white-space:nowrap;overflow:hidden">Girokonto Comdirect<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19.5 8.25-7.5 7.5-7.5-7.5"></path></svg></span></div>
+<div style="display:flex;gap:8px"><div style="width:44px;height:44px;border-radius:12px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="1.8" stroke-linecap="round"><path d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"></path></svg></div><div style="width:44px;height:44px;border-radius:12px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"></path></svg></div></div>
+</div>
+<div style="flex:none;display:flex;gap:8px;padding:0 16px 12px;overflow:hidden;border-bottom:1px solid #1c1c38">
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px/20px 'Inter',sans-serif;white-space:nowrap">Zu prüfen (4)</span>
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px/20px 'Inter',sans-serif;white-space:nowrap">Kategorie</span>
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px/20px 'Inter',sans-serif;white-space:nowrap">Zeitraum</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 12px 'Inter',sans-serif;color:#7a7a98">4 Buchungen</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="position:absolute;inset:0;background:rgba(5,5,16,.72)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:640px;background:#1a1a36;border-top:1px solid #2a2a4a;border-radius:22px 22px 0 0"></div>
+<div style="position:absolute;inset:0;background:rgba(5,5,16,.5)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:630px;background:#1a1a36;border-top:1px solid #2a2a4a;border-radius:22px 22px 0 0;box-shadow:0 -24px 60px rgba(0,0,0,.75);display:flex;flex-direction:column;overflow:hidden">
+<div style="width:40px;height:4px;border-radius:999px;background:#2a2a4a;margin:10px auto 6px"></div>
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 18px 14px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Kategorie wählen</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Bauhaus · -81,90 €</div></div>
+<a href="#s4-9" style="color:inherit"><span style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></a>
+</div>
+<div style="flex:none;padding:12px 18px;border-bottom:1px solid #1c1c38"><div style="display:flex;align-items:center;gap:9px;padding:0 12px;height:44px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"></path></svg><span style="font:400 14px 'Inter',sans-serif;color:#4a4a68">Kategorie suchen…</span></div></div>
+<div style="flex:none;padding:12px 18px 4px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">VORGESCHLAGEN</div>
+<div style="flex:none;display:flex;flex-wrap:wrap;gap:8px;padding:6px 18px 14px">
+<span style="display:flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);font:600 13px 'Inter',sans-serif;color:#00d4aa">Möbel</span>
+<span style="display:flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;font:500 13px 'Inter',sans-serif;color:#7a7a98">Nebenkosten</span>
+</div>
+<div style="flex:none;padding:4px 18px 8px;font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68;border-top:1px solid #1c1c38">ALLE KATEGORIEN</div>
+<div style="flex:none;padding:4px 18px 6px;font:600 12px 'Inter',sans-serif;color:#7a7a98">Alltag</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;height:44px;"><span style="display:flex;align-items:center;gap:8px;font:500 14px 'Inter',sans-serif;color:#e8e8f0">Lebensmittel</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">128,40 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;height:44px;background:rgba(0,212,170,.07);"><span style="display:flex;align-items:center;gap:8px;font:600 14px 'Inter',sans-serif;color:#00d4aa"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.75l6 6 9-13.5"></path></svg>Haushalt</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">412,10 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;height:44px;"><span style="display:flex;align-items:center;gap:8px;font:500 14px 'Inter',sans-serif;color:#e8e8f0">Restaurants</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-32,10 €</span></div>
+<div style="flex:none;padding:8px 18px 6px;font:600 12px 'Inter',sans-serif;color:#7a7a98">Wohnen</div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;height:44px;"><span style="display:flex;align-items:center;gap:8px;font:500 14px 'Inter',sans-serif;color:#e8e8f0">Nebenkosten</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">240,00 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;height:44px;background:#1e1e3c;box-shadow:inset 2px 0 0 #00d4aa"><span style="font:600 14px 'Inter',sans-serif;color:#e8e8f0">Möbel</span><span style="font:600 13px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">120,00 €</span></div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;height:48px;margin-top:6px;border-top:1px solid #1c1c38"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Versteckte Kategorien (1)</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:390px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Die Kategorienauswahl legt sich als zweites Sheet über das Detail (Layer 2, der Rand von Layer 1 bleibt oben sichtbar). Dieselben Available-Beträge wie am PC, dieselbe Reihenfolge: Vorschläge, dann Gruppen, versteckte Kategorien eingeklappt. Klick-Commit: der Tipp auf „Möbel" wählt und schließt, „Haushalt" trägt bis dahin den Haken. Zurück: <a href="#s4-9">Detail</a></p></sc-if>
+</div>
+<div id="s4-11" style="scroll-margin:32px;display:flex;flex-direction:column;gap:10px;width:390px">
+<div style="display:flex;align-items:baseline;gap:9px"><span style="font:600 11px 'JetBrains Mono',monospace;padding:3px 7px;border-radius:5px;background:#1a1a36;border:1px solid #2a2a4a;color:#00d4aa">4.11</span><span style="font:600 13px 'Inter',sans-serif;color:#e8e8f0">Handy: Split-Editor im Sheet</span></div>
+<div style="position:relative;width:390px;height:844px;background:#08081a;border:1px solid #2a2a4a;border-radius:30px;overflow:hidden;display:flex;flex-direction:column;color:#e8e8f0">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 24px 4px;font:600 13px 'JetBrains Mono',monospace;color:#7a7a98"><span>9:41</span><div style="display:flex;align-items:center;gap:6px"><div style="width:16px;height:9px;border-radius:2px;border:1px solid #4a4a68"></div><div style="width:22px;height:10px;border-radius:3px;border:1px solid #4a4a68;padding:1px;display:flex"><div style="width:70%;background:#00ff88;border-radius:2px"></div></div></div></div>
+<div style="flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:4px 16px 12px">
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">KASSENBUCH</span><span style="display:flex;align-items:center;gap:7px;font:600 22px 'Space Grotesk',sans-serif;color:#e8e8f0;white-space:nowrap;overflow:hidden">Girokonto Comdirect<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19.5 8.25-7.5 7.5-7.5-7.5"></path></svg></span></div>
+<div style="display:flex;gap:8px"><div style="width:44px;height:44px;border-radius:12px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="1.8" stroke-linecap="round"><path d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"></path></svg></div><div style="width:44px;height:44px;border-radius:12px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"></path></svg></div></div>
+</div>
+<div style="flex:none;display:flex;gap:8px;padding:0 16px 12px;overflow:hidden;border-bottom:1px solid #1c1c38">
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);color:#00d4aa;font:600 13px/20px 'Inter',sans-serif;white-space:nowrap">Zu prüfen (4)</span>
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px/20px 'Inter',sans-serif;white-space:nowrap">Kategorie</span>
+<span style="flex:none;padding:12px 14px;border-radius:999px;background:#16162e;border:1px solid #2a2a4a;color:#7a7a98;font:500 13px/20px 'Inter',sans-serif;white-space:nowrap">Zeitraum</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#111128;border-bottom:1px solid #1c1c38"><span style="font:500 12px 'Inter',sans-serif;color:#7a7a98">4 Buchungen</span><span style="font:600 14px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-143,49 €</span></div>
+<div style="position:absolute;inset:0;background:rgba(5,5,16,.72)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:752px;background:#1a1a36;border-top:1px solid #2a2a4a;border-radius:22px 22px 0 0"></div>
+<div style="position:absolute;inset:0;background:rgba(5,5,16,.5)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:740px;background:#1a1a36;border-top:1px solid #2a2a4a;border-radius:22px 22px 0 0;box-shadow:0 -24px 60px rgba(0,0,0,.75);display:flex;flex-direction:column;overflow:hidden">
+<div style="width:40px;height:4px;border-radius:999px;background:#2a2a4a;margin:10px auto 6px"></div>
+<div style="flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 18px 14px;border-bottom:1px solid #1c1c38">
+<div><div style="font:600 17px 'Space Grotesk',sans-serif;color:#e8e8f0">Aufteilen</div><div style="margin-top:3px;font:400 12px 'Inter',sans-serif;color:#7a7a98">Bauhaus · 12.09.2026</div></div>
+<a href="#s4-9" style="color:inherit"><span style="width:36px;height:36px;flex:none;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></a>
+</div>
+<div style="flex:none;padding:12px 18px 10px;border-bottom:1px solid #1c1c38">
+<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Gesamtbetrag</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#ff3b5c">-81,90 €</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:500 13px 'Inter',sans-serif;color:#7a7a98">Rest</span><span style="font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#00ff88">0,00 €</span></div>
+</div>
+<div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:12px 18px 0;overflow:hidden">
+
+<div style="padding:12px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">ZEILE 1</span><span style="width:28px;height:28px;border-radius:8px;background:#1a1a36;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:44px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a"><span style="font:600 14px 'Inter',sans-serif;color:#a855f7">Möbel</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;height:44px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#e8e8f0">23,40 €</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:74px;height:44px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.4);font:600 13px 'Inter',sans-serif;color:#00d4aa">Rest</span>
+</div>
+<div style="display:flex;align-items:center;height:44px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:400 14px 'Inter',sans-serif;color:#e8e8f0">Lampe</div>
+</div>
+
+<div style="padding:12px;border-radius:10px;background:#16162e;border:1px solid #2a2a4a;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:.16em;color:#4a4a68">ZEILE 2</span><span style="width:28px;height:28px;border-radius:8px;background:#1a1a36;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a7a98" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"></path></svg></span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;height:44px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a"><span style="font:600 14px 'Inter',sans-serif;color:#a855f7">Haushalt</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4a68" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"></path></svg></div>
+<div style="display:flex;gap:8px">
+<div style="flex:1;display:flex;align-items:center;justify-content:flex-end;height:44px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid rgba(0,212,170,.45);font:600 15px 'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:#e8e8f0">58,50 €</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:74px;height:44px;border-radius:10px;background:rgba(0,212,170,.12);border:1px solid rgba(0,212,170,.4);font:600 13px 'Inter',sans-serif;color:#00d4aa">Rest</span>
+</div>
+<div style="display:flex;align-items:center;height:44px;padding:0 12px;border-radius:10px;background:#1a1a36;border:1px solid #2a2a4a;font:400 14px 'Inter',sans-serif;color:#e8e8f0">Werkzeug</div>
+</div>
+<span style="display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:10px;border:1px dashed #2a2a4a;font:600 13px 'Inter',sans-serif;color:#4a4a68">Zeile hinzufügen</span>
+</div>
+<div style="flex:none;padding:12px 18px 20px;border-top:1px solid #1c1c38;background:#1a1a36"><span style="display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:10px;background:linear-gradient(135deg,#ff6b2c,#e55a1f);box-shadow:0 0 20px rgba(255,107,44,.5);font:600 15px 'Inter',sans-serif;color:#fff">Speichern</span></div>
+</div>
+</div>
+<sc-if value="{{ notizen }}" hint-placeholder-val="{{ true }}"><p style="margin:0;max-width:390px;font:400 12px/1.6 'Inter',sans-serif;color:#7a7a98">Der Split-Editor läuft im selben Sheet, Zeilen untereinander, „Rest" je Zeile, „Speichern" klebt unten am Rand — die einzige primäre Aktion. Gesamtbetrag und Rest stehen über den Zeilen, Rest 0,00 € in Green; „Zeile hinzufügen" ist ausgegraut, weil nichts mehr offen ist. Das Sheet steht für den Editor höher als für den Picker (740px statt 630px), damit beide Zeilen vollständig über der Speichern-Leiste enden. Zurück: <a href="#s4-9">Detail</a> · gleiche Sache am PC: <a href="#s4-6">4.6</a></p></sc-if>
+</div>
+</div>
+</div>
+</sc-if>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;notizen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tafel&quot;},&quot;tastaturHinweis&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Tafel&quot;},&quot;geraete&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Beide&quot;,&quot;Nur Handy&quot;,&quot;Nur PC&quot;],&quot;default&quot;:&quot;Beide&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tafel&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const g = this.props.geraete ?? "Beide";
+    return {
+      notizen: this.props.notizen ?? true,
+      tastatur: this.props.tastaturHinweis ?? true,
+      handyZeigen: g !== "Nur PC",
+      pcZeigen: g !== "Nur Handy"
+    };
+  }
+}
+
+</script>
+</body>
+</html>
