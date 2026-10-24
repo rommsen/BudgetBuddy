@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-wfhxj** — "Token-Wächter: test:scripts scheitert, sobald Feature-Code Hex- oder rgb-Farben in Klassen, Standard-Tailwind-Farben, inline Farbe/Schriftgröße oder text-[Npx] benutzt; das Design-System selbst läuft über eine begründete Ausnahmeliste" (chore) — `todo/design-system-wfhxj-token-waechter-keine-farben-ausserhalb-der-tokens.md`
 - **design-system-gffps** — "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Gruppen, zuletzt benutzten, Zeile Ohne Kategorie, Available rechts und Stand-Zeile" (feature) — `todo/design-system-gffps-kategorie-picker-popover-und-sheet.md`
 <!-- todo-list:end -->
 

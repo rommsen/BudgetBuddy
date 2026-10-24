@@ -130,6 +130,12 @@ Detail öffnet den Picker. `ledger-q1hw2` hat den Platz freigehalten (`detail-ca
 - [ ] `dotnet build`, `dotnet test`, `npm run build`, `npm run guard:classes`,
       `npm run test:scripts` grün. Die BC-README ist nachgezogen.
 - [ ] Kategorie ändern fühlt sich am Handy so schnell an wie in der YNAB-App. [human-eye]
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4; Entscheidungen Roman, 2026-10-24): Rückgängig
@@ -145,3 +151,7 @@ danach todo. Dateien: `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View
 `src/Server/Api.fs`, `Ledger/QueryHandlers.fs`, `Ledger/Persistence.fs` (Vorschläge), Tests. Überschneidung mit
 `ledger-w4vte` (Esc-Kette, `keyboardBlocked`), `ledger-kwwxz` und `ledger-w29y6` und `-6`
 in denselben drei Ledger-Client-Dateien: nicht parallel in einer Welle bauen.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 14:45 -- Modeling / Refined: Stil-Absicherung für neue Frontend-Tasks
+
+**Type:** Modeling / Refine
+**BC:** design-system, ledger, infrastructure
+**Status after:** unverändert; neu design-system-wfhxj in todo
+**Summary:** Die Design-Tafeln zeigen den Stand vom September 2026, die Optik ist seitdem weitergegangen und wurde nicht zurückgespiegelt. Vorrangregel (Tafeln/Handoffs nur Ablauf, Optik aus Styleguide, DesignSystem und /styleguide) in Tafel-README, allen fünf Handoffs und dem Styleguide; Handoff 4 ersetzt die Tafel-Maße durch eine Zuordnung Tafel-Element zu heutigem Baustein; Token-Wächter design-system-wfhxj angelegt; elf Frontend-Tasks bekommen ein Token-Kriterium und ein human-eye-Kriterium, zwei unverfeinerte nur die Notiz.
+
+---
+
+## 2026-10-24 14:45 -- Modeling / Captured: design-system-wfhxj - "Token-Wächter: test:scripts scheitert, sobald Feature-Code Hex- oder rgb-Farben in Klassen, Standard-Tailwind-Farben, inline Farbe/Schriftgröße oder text-[Npx] benutzt; das Design-System selbst läuft über eine begründete Ausnahmeliste"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** todo
+**Summary:** Token-Wächter in test:scripts, damit neue Frontend-Arbeit die Optik aus Styleguide und Design-System nimmt und keine Tafel-Werte abmalt.
+
+---
+
 ## 2026-10-24 14:14 -- Modeling / Refined: Kategorie-Scheiben nach Handoff Ablauf 4
 
 **Type:** Modeling / Refine

@@ -102,6 +102,12 @@ Architektur: ADR 0057.
   unverändert funktionsfähig.
 - [ ] Hinweis-Toast sieht im Styleguide-Stil aus (Info-Variante, Knopf "Neu laden") und ist am
   Handy neben der Tab-Leiste nicht verdeckt. [human-eye]
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Erfasst am 2026-10-20 auf Romans Wunsch.
@@ -147,3 +153,7 @@ Dateien, die ein Worker anfasst: `vite.config.js`, `src/Client/Client.fsproj`, n
 `src/Client/Pwa.fs`, `src/Client/App.fs`, `src/Client/Types.fs` (`ToastActionKind`, evtl.
 `Toast`), `src/Client/State.fs`, `src/Client/DesignSystem/Toast.fs` und der Toast-Aufruf in
 `src/Client/View.fs`, `src/Tests/` (neue Testdatei plus `Tests.fsproj`).
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

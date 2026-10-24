@@ -69,6 +69,12 @@ Ein Design-System-Baustein `CategoryPicker` (Datei neben `CategoryMultiSelect.fs
 - [ ] `npm run guard:classes` und `dotnet test` grün; Galerie rendert den Picker mit
       Beispieldaten.
 - [ ] Der Picker wirkt am Handy ruhig und die Beträge stehen bündig rechts. [human-eye]
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4): "Zuletzt verwendet" ersetzt durch
@@ -80,3 +86,7 @@ Ledger-Zustand: der Aufrufer liefert die Liste (`YnabCategory`-Felder: Id, Grupp
 Available, Hidden). Dateien: neue Datei in `src/Client/DesignSystem/`, `Server`-fsproj nicht
 betroffen, `Client.fsproj` (Compile-Reihenfolge), `Styleguide/View.fs`, `PickerParts.fs`
 (nur falls ein Baustein fehlt). Überschneidung mit anderen Tasks: gering.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

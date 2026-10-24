@@ -142,6 +142,12 @@ Entscheidungen Roman, 2026-10-20 (ADR 0053 Punkte 2, 4, 5, 7):
       `npm run test:scripts` grün.
 - [ ] Auswählen per Tastatur fühlt sich am PC flüssig an, ohne dass die Maus nötig ist.
       [human-eye]
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Entstanden aus der Konzeptrunde am 2026-10-20 (ADR 0053). Roman will große Umbauten statt
@@ -180,3 +186,7 @@ der Esc-Kette konkretisiert (Reducer schließt, Fokus-Lücke genannt); Leertaste
 festgelegt (native Wirkung gewinnt); Enter bei Auswahl ergänzt; Platzhalter statt fehlender
 Prüf-Schaltfläche; Kästchen-Handler am Handy benannt; Hinweistexte und betroffene Dateien
 ausgeschrieben; Acceptance criteria testbar gemacht.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

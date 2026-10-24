@@ -1,5 +1,13 @@
 # Handoff: Kassenbuch „Was nur BB kann" (Ablauf 7)
 
+> **Vorrang (2026-10-24):** Dieser Handoff legt den **Ablauf** fest: welche Elemente es
+> gibt, welche Zustände, welche Reihenfolge, welche Texte. Die **Optik** (Farben, Flächen,
+> Schriftgrößen, Abstände, Glow) kommt ausschließlich aus
+> `standards/frontend/styleguide.md`, den Komponenten in `src/Client/DesignSystem/` und
+> der Route `/styleguide`. Hex-Werte und Maße in diesem Dokument sind Stand der
+> Design-Tafel und werden **nicht** in Code übernommen. Fehlt ein Baustein, entsteht er im
+> Design-System aus Tokens und erscheint in `/styleguide`.
+
 > **Herkunft.** Grundlage ist die Tafel `Ablauf 7 - Was nur BB kann.dc.html` aus dem
 > Claude-Design-Projekt „Gelesen UI-Mockups" (`5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`).
 > Zu Ablauf 7 gibt es dort **kein** Übergabepaket `design_handoff_kassenbuch_ablauf7/`,

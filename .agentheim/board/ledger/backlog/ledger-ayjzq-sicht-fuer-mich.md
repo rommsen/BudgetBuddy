@@ -31,3 +31,7 @@ Zu verfeinern. Grundlage ist der Filter "Rückfrage Lena" aus `ledger-xfjcp`.
 
 ## Notes
 Brainstorm mit Roman nötig vor der Verfeinerung.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

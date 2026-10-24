@@ -38,3 +38,7 @@ Entworfen am 2026-10-24 (Sammel-Modeling) als Scheibe (f). Ziel-Lage: backlog. C
 `ledger`, weil Auslöser und Oberfläche im Kassenbuch liegen; `categorization` liefert den
 unveränderten Regel-Weg. Dateien: Ledger-Client `Types.fs`, `State.fs`, `View.fs`, ggf.
 `src/Client/State.fs` (Brücke zu `RulesMsg`). Überschneidung mit `ledger-sfab0` und `-3`.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

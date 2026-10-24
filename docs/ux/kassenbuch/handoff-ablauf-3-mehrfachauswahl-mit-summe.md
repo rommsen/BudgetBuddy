@@ -1,5 +1,13 @@
 # Handoff: Kassenbuch, Ablauf 3 „Mehrfachauswahl mit Summe"
 
+> **Vorrang (2026-10-24):** Dieser Handoff legt den **Ablauf** fest: welche Elemente es
+> gibt, welche Zustände, welche Reihenfolge, welche Texte. Die **Optik** (Farben, Flächen,
+> Schriftgrößen, Abstände, Glow) kommt ausschließlich aus
+> `standards/frontend/styleguide.md`, den Komponenten in `src/Client/DesignSystem/` und
+> der Route `/styleguide`. Hex-Werte und Maße in diesem Dokument sind Stand der
+> Design-Tafel und werden **nicht** in Code übernommen. Fehlt ein Baustein, entsteht er im
+> Design-System aus Tokens und erscheint in `/styleguide`.
+
 > **Herkunft.** Verfasst am 2026-09-18 im Repo, direkt aus der Design-Tafel
 > `Ablauf 3 - Mehrfachauswahl mit Summe.dc.html` (Claude Design, Projekt
 > „Gelesen UI-Mockups", `5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`). Anders als bei Ablauf 1

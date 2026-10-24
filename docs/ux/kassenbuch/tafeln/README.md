@@ -5,9 +5,15 @@ Sicherung aller sieben Ablauf-Tafeln aus dem Claude-Design-Projekt "Gelesen UI-M
 Anlass: das eigenständige Claude Design (claude.ai/design) schließt am 14.12.2026; danach
 sind die Tafeln dort nicht mehr erreichbar.
 
-**Referenz, nicht Code.** Nachgebaut wird in F#/Fable/Elmish gegen
-`src/Client/DesignSystem/*.fs`. Wo eine Tafel und eine spätere ADR auseinandergehen, gilt
-die ADR (Beispiel: ADR 0053 nimmt der Kategorie-Zelle das eigene Klickziel aus Ablauf 4).
+**Ablauf ja, Optik nein.** Die Tafeln zeigen den Stand vom September 2026. Sie legen fest,
+welche Elemente, Zustände, Reihenfolgen und Texte ein Ablauf hat. Die Optik ist seitdem
+weitergegangen (ruhige Listen nach ADR 0049, ruhige Auswahl, gebautes Detail) und wurde
+bewusst nicht ins Design-Projekt zurückgespiegelt. Farben, Flächen, Schriftgrößen und
+Abstände kommen deshalb ausschließlich aus `standards/frontend/styleguide.md`, den
+Komponenten in `src/Client/DesignSystem/` und der Route `/styleguide`; Hex-Werte aus den
+Tafeln werden nie in Code übernommen. Wo eine Tafel und eine spätere ADR auseinandergehen,
+gilt die ADR (Beispiel: ADR 0053 nimmt der Kategorie-Zelle das eigene Klickziel aus
+Ablauf 4).
 
 ## Inhalt
 

@@ -38,6 +38,16 @@ Ohne gesetzte Flag-Farbe ist die Aktion gesperrt.
 - [ ] Ansichts-Test: die Leiste zeigt die Aktion mit Anzahl; ohne Farbe deaktiviert mit Grund.
 - [ ] `dotnet build`, `dotnet test`, `npm run build`, `npm run guard:classes`,
       `npm run test:scripts` grün.
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Dateien: wie `ledger-xfjcp`, dazu die Auswahl-Leiste in `Client/Components/Ledger/View.fs`.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

@@ -102,6 +102,12 @@ in ADR 0056.
       Beobachtung mit dem alten Flag (Baseline) ein; Flag "Lena" und Fehlschlag bleiben in BB
       stehen. Eine Beobachtung mit dem BB-Stand beendet den Fehlschlag, eine mit einem
       dritten Flag gewinnt.
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Annahme für den Bau: die YNAB-OpenAPI kennt beim Schreiben nur `flag_color`; der Worker
@@ -131,3 +137,6 @@ Baseline wie beim Kategorie-Schreibweg (ADR 0056, Nachtrag). Deshalb hängt die 
 fassen dieselben Dateien an (`Ledger/Events.fs`, `CommandHandlers.fs`, `YnabClient.fs`,
 Client Ledger), was eine gleichzeitige Arbeit in zwei Worktrees ohnehin ausschließt.
 
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

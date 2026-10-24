@@ -339,6 +339,12 @@ Die UI spricht **Deutsch, direkt, knapp, ohne Füllwörter** — wie Roman selbs
 
 ## Quellen (autoritativ — bei Konflikt gewinnt der Code)
 
+- **Design-Tafeln und Handoffs** (`docs/ux/kassenbuch/tafeln/`, `docs/ux/kassenbuch/handoff-ablauf-*.md`)
+  legen nur den Ablauf fest (Elemente, Zustände, Reihenfolge, Texte). Ihre Farben und Maße
+  sind Stand September 2026 und werden nicht übernommen; die Optik kommt aus diesem
+  Styleguide, den DS-Komponenten und `/styleguide`. Mechanisch abgesichert durch den
+  Token-Wächter in `npm run test:scripts`.
+
 - [`src/Client/DesignSystem/Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs) — Farb-/Glow-/Spacing-/Preset-Tokens.
 - [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 20 Komponenten.
 - [`src/Client/styles.css`](../../src/Client/styles.css) / [`index.html`](../../src/Client/index.html) — Spring-Easing, `prefers-reduced-motion`, visualViewport-Anker, Viewport-Meta.

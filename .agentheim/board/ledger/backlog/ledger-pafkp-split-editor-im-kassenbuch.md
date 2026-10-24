@@ -69,6 +69,12 @@ Wird nach `ledger-kxme4` verfeinert; der Rahmen steht:
   - [ ] Ansichts-Test: Rest-Farbe (Pink, Green), "Zeile hinzufügen" ausgegraut bei Rest 0,00 €,
         "Speichern" inaktiv bei Rest ungleich null, am Handy kein "Abbrechen".
   - [ ] Die übrigen Kriterien nach `ledger-kxme4` und dem Spike `ledger-mas5g`.
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
+      keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
+      `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
+      (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
+      `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4): Handoff liegt vor, "Aufteilen" fest statt
@@ -80,3 +86,7 @@ Entworfen am 2026-10-24 (Sammel-Modeling) als Scheibe (e, Oberfläche). Ziel-Lag
 Handoff ist inzwischen geholt und gegen ADR 0053 abgeglichen.) Dateien: Ledger-Client
 `Types.fs`, `State.fs`, `View.fs`, eine neue Ansichtsdatei für den Editor.
 Überschneidung mit `ledger-sfab0` und `-3` in den drei Ledger-Client-Dateien.
+
+Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
+kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
+(Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).

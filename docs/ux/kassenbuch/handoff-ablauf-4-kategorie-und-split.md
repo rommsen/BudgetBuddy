@@ -1,5 +1,13 @@
 # Handoff Ablauf 4: Kategorie ändern, Split festlegen oder ändern
 
+> **Vorrang (2026-10-24):** Dieser Handoff legt den **Ablauf** fest: welche Elemente es
+> gibt, welche Zustände, welche Reihenfolge, welche Texte. Die **Optik** (Farben, Flächen,
+> Schriftgrößen, Abstände, Glow) kommt ausschließlich aus
+> `standards/frontend/styleguide.md`, den Komponenten in `src/Client/DesignSystem/` und
+> der Route `/styleguide`. Hex-Werte und Maße in diesem Dokument sind Stand der
+> Design-Tafel und werden **nicht** in Code übernommen. Fehlt ein Baustein, entsteht er im
+> Design-System aus Tokens und erscheint in `/styleguide`.
+
 > **Herkunft:** Tafel `Ablauf 4 - Kategorie und Split.dc.html` im Claude-Design-Projekt
 > "Gelesen UI-Mockups" (projectId `5d2107c4-d0c2-490f-b4f7-dbcff25a2f7d`), Screens PC 4.1
 > bis 4.8 und Handy 4.9 bis 4.11, gelesen am 2026-10-24. Dazu der Abschnitt "Aus Ablauf 4
@@ -53,29 +61,35 @@ Ziel-Split: 23,40 € Möbel ("Lampe") und 58,50 € Haushalt ("Werkzeug").
 | 4.10 | Kategorienauswahl als zweites Sheet über dem Detail (Layer 2, Rand von Layer 1 oben sichtbar), Titel "Kategorie wählen", Unterzeile "Bauhaus · -81,90 €". Gleiche Reihenfolge wie am PC (Vorschläge, Gruppen, versteckte eingeklappt), gleiche Available-Beträge. Ein Tipp wählt und schließt. Sheet 630 px hoch. |
 | 4.11 | Split-Editor im selben Sheet, Titel "Aufteilen", Unterzeile "Bauhaus · 12.09.2026". Zeilen untereinander, "Rest" je Zeile, "Speichern" klebt unten (einzige primäre Aktion). Sheet 740 px hoch, damit beide Zeilen über der Speichern-Leiste enden. Am Handy kein "Abbrechen"-Knopf, Rückweg über das Sheet. |
 
-## Split-Editor im Detail (Maße aus 4.6)
+## Tafel-Element und heutiger Baustein
 
-- Abschnittskopf `AUFTEILEN`: JetBrains Mono 600 10 px, Laufweite .16em, `#4a4a68`.
-- Kopfzeilen "Gesamtbetrag" und "Rest": Label Inter 500 13 px `#7a7a98`, Wert JetBrains Mono
-  600 14 px tabular-nums. Gesamtbetrag Red `#ff3b5c`; Rest Pink `#ff1f8f` bei ≠ 0, Green
-  `#00ff88` bei 0,00 €.
-- Je Zeile eine Karte: Padding 12 px, Radius 10 px, Fläche `#16162e`, Rand `#2a2a4a`, Abstand
-  10 px innen, 12 px zwischen den Karten.
-  - Kopf: "ZEILE n" (Overline wie oben) und rechts ein Entfernen-Knopf 26 × 26 px, Radius
-    8 px, Fläche `#1a1a36`, Rand `#2a2a4a`, X-Icon 12 px `#7a7a98`.
-  - Kategorie-Feld: 40 px hoch, Radius 10 px, Fläche `#1a1a36`, Rand `#2a2a4a`, Text Inter
-    600 13 px in Purple `#a855f7`, Chevron rechts `#4a4a68`. Öffnet die Kategorienauswahl
-    (PC: Popover am Feld; Handy: Layer 2).
-  - Betrag: Feld 40 px, rechtsbündig, JetBrains Mono 600 14 px `#e8e8f0`, **positiv
-    eingegeben**, das Vorzeichen kommt vom Gesamtbetrag (Projekt-Notiz 7). Fokus-Rand Teal
-    `rgba(0,212,170,.45)`. Daneben Knopf "Rest" 74 × 40 px, Rand `rgba(0,212,170,.4)`, Text
-    Teal Inter 600 12 px; nach Benutzung Fläche `rgba(0,212,170,.12)`.
-  - Memo: Feld 40 px, Inter 400 13 px.
-- "Zeile hinzufügen": 44 px, Radius 10 px, gestrichelter Rand `#2a2a4a`, Inter 600 13 px;
-  ausgegraut (`#4a4a68`), solange der Rest 0,00 € ist.
-- Fußleiste (PC): Rand oben `#1c1c38`, Fläche `#111128`, Padding 14/18/18 px. "Abbrechen"
-  120 px breit, 44 px, sekundär; "Speichern" füllt den Rest, Orange-Verlauf
-  `#ff6b2c → #e55a1f`, Glow `0 0 20px rgba(255,107,44,.5)`, inaktiv solange Rest ≠ 0.
+Die Tafel zeigt den Stand vom September 2026. Seitdem sind Listen und Auswahl ruhig
+geworden (ADR 0049, `PickerParts`, `Money.available`, `Input.Small`), und das Detail ist
+gebaut (`ledger-q1hw2`, `DesignSystem/Detail.fs`). Für die Umsetzung gilt diese Zuordnung,
+nicht die Farben und Maße der Tafel:
+
+| Tafel-Element | Heutiger Baustein | Hinweis |
+|---|---|---|
+| Kategorie-Popover am Feld (4.2), Sheet Layer 2 (4.10) | Picker aus `design-system-gffps` auf Basis von `PickerParts` und `CategoryMultiSelect`; am Handy `BottomSheet.categoryPickerLayered` | Zeilen ruhig nach Styleguide "Auswahl": Name `ListRoles.primary`, Betrag `Money.available` ohne Glow, keine violette Kategorie |
+| Abschnitt VORGESCHLAGEN, Gruppen, versteckte Kategorien | `PickerParts`-Gruppenkopf (`ListRoles.groupHeader`) | "Alle Kategorien" nur über "Vorgeschlagen" |
+| Budget-Karte "Budget nach dem Wechsel" (4.3) | neu: `CategoryChangeCard` (`design-system-gffps`) | aus Card-Tokens; Beträge mit `Money`, alter Wert durchgestrichen; in `/styleguide` aufnehmen |
+| Toast mit "Rückgängig" | `Toast.renderList` mit Aktion (Muster `StartUndoReviewMark`) | |
+| Panel, Kopf, Feldzeilen (4.4, 4.7) | `Detail.panel`, `Detail.head`, `Detail.fieldRow`, `Detail.valueText` | Kategorie-Feld mit Pfeil als `trailing` von `fieldRow` |
+| Hinweisleiste "Kategorie nicht in YNAB" | `Detail.notice` | erscheint nur bei gescheitertem Push (ADR 0055) |
+| Split-Zeilen im Detail lesend (4.7) | `Detail.splitLines` | Gruppe qualifiziert nach `ledger-b7qmx` |
+| Badge "Aufgeteilt (n)" in der Tabelle | heutiges Label "N Split-Zeilen" in `categoryLabel` | Text der Tafel nur übernehmen, wenn Roman es so will; heute gilt der gebaute Text |
+| Split-Editor (4.5, 4.6, 4.8, 4.11) | optische Vorlage ist der gebaute Import-Split-Editor `src/Client/Components/SyncFlow/Views/SplitSheet.fs` (`splitLineRow`, `splitAmountClass`) | Bausteine von dort ins Design-System heben statt die Tafel nachzubauen; Kategorie-Feld je Zeile ohne Violett |
+| Gesamtbetrag und Rest über den Zeilen | `Money` bzw. `Money.formatAmountText`; Rest-Farbe über `splitAmountClass` (ADR 0049) | keine eigene Pink/Green-Wahl |
+| Knopf "Rest" je Zeile | `Button.secondary` in kompakter Größe | |
+| Zeile entfernen | `Button.iconButton` mit `Icons.x` | |
+| "Zeile hinzufügen" | `Button.addButton` | gesperrt bei Rest 0,00 € |
+| Fußleiste "Abbrechen" / "Speichern" | `Button.secondary` und `Button.primary` (genau eine primäre Aktion) | am Handy "Speichern" klebend unten wie im `SplitSheet` |
+| Betrags- und Memo-Feld | `Input.text` in `Input.Small`-Maßen | |
+
+Was die Tafel inhaltlich festlegt und weiter gilt: Gesamtbetrag und Rest stehen über den
+Zeilen; je Zeile Kategorie, Betrag, Memo, "Rest"; Beträge im Editor positiv, Vorzeichen vom
+Gesamtbetrag; "Speichern" erst bei Rest 0,00 €; "Zeile hinzufügen" gesperrt, wenn nichts
+offen ist; der Editor läuft im Panel (PC) bzw. im selben Sheet (Handy).
 
 ## Abgleich mit dem Repo-Stand (2026-10-24)
 
