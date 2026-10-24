@@ -115,6 +115,17 @@ Gemeinsame Bausteine in `DesignSystem/PickerParts.fs`, benutzt von `CategoryMult
 Zeile nur mit dem Namen); die Suche findet Gruppe und Name. Texte deutsch („Suchen…“,
 „Keine Treffer“).
 
+Kategorie-Picker mit Einfachauswahl (`DesignSystem/CategoryPicker.fs`, design-system-gffps): ein
+Inhalt, zwei Hüllen. Am PC `CategoryPicker.popover` (Mechanik von `FilterPopover`, 460px breit),
+am Handy `CategoryPicker.sheet` bzw. `sheetLayered` (über dem Detail). Aufbau von oben: Suchfeld,
+Zeile „Ohne Kategorie“, Abschnitt „Vorgeschlagen“ zum Payee (höchstens drei, kein „Zuletzt
+verwendet“), „Alle Kategorien“ nur darunter und nicht bei Suche, Gruppen mit Available rechts
+(`Money.available`), „Versteckt (n)“ eingeklappt, optional eine Stand-Zeile. Ein Klick übernimmt
+sofort, es gibt kein „Übernehmen“. Pfeile bewegen, Enter wählt, Esc schließt nur den Picker.
+`CategoryPicker.CategoryChangeCard.view` ist die Karte „Budget nach dem Wechsel“ (alter Wert
+durchgestrichen und gedämpft, Pfeil, neuer Wert), eine leere Liste rendert nichts. Beide stehen
+in `/styleguide` unter „26. Kategorie-Picker (Einfachauswahl)“.
+
 Datumsfeld (`DesignSystem/DateField.fs`, design-system-m7z9q): Textfeld „TT.MM.JJJJ“ in
 `Input.Small`-Maßen, immer deutsch, daneben ein Kalender-Knopf für den nativen Kalender.
 Ungültige Eingabe zeigt den Fehlerzustand mit dem Hinweis „Datum als TT.MM.JJJJ“ und sperrt

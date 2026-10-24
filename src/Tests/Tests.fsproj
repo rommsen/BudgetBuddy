@@ -52,6 +52,7 @@
     <Compile Include="LedgerCategoriesFreshnessTests.fs" />
     <Compile Include="SplitEditorTests.fs" />
     <Compile Include="RulesReorderTests.fs" />
+    <Compile Include="CategoryPickerTests.fs" />
     <Compile Include="ToastLifecycleTests.fs" />
     <Compile Include="FontFaceRegressionTests.fs" />
     <Compile Include="TailwindClassGuardTests.fs" />

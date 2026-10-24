@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 35
+- **Doing:** 0
+- **Done:** 36
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-gffps** — "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel" (feature) — `doing/design-system-gffps-kategorie-picker-popover-und-sheet.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-gffps** — "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel" (feature) — `done/design-system-gffps-kategorie-picker-popover-und-sheet.md`
 - **design-system-wfhxj** —  (chore) — `done/design-system-wfhxj-token-waechter-keine-farben-ausserhalb-der-tokens.md`
 - **design-system-btwhg** — Input.Small zeigt am Handy 14px statt 16px (.input-field überstimmt text-base) (bug) — `done/design-system-btwhg-input-small-zeigt-am-handy-14px-statt-16px-input-field-berst.md`
 - **design-system-m7z9q** — Deutsches Datumsfeld mit Kalender-Knopf im DS, eingesetzt im Zeitraum-Filter des Kassenbuchs (feature) — `done/design-system-m7z9q-deutsches-datumsfeld-mit-kalender.md`

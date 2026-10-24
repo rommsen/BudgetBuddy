@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 16:49 -- Task verified and completed: design-system-gffps - "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel"
+
+**Type:** Work / Task completion
+**Task:** design-system-gffps - "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel"
+**Summary:** Der Baustein CategoryPicker (Einfachauswahl, Popover am PC und BottomSheet am Handy, ein Inhalt) und die Karte CategoryChangeCard für Budget nach dem Wechsel stehen im Design-System, in der Galerie /styleguide (Sektion 26) und im geschriebenen Styleguide. BottomSheet hat dafür die Variante viewLayered bekommen.
+**Duration:** 85m
+**Verification:** PASS (iteration 3)
+**Files changed:** 8
+**Tests added:** 40
+**ADRs written:** none
+
+---
+
 ## 2026-10-24 16:19 -- Task verified and completed: ledger-kwwxz - "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
 
 **Type:** Work / Task completion

@@ -26,6 +26,8 @@ type BottomSheetProps = {
 type private BottomSheetInternalProps = {
     Props: BottomSheetProps
     Children: ReactElement list
+    /// Overlay und Sheet auf der erhöhten Ebene, damit das Sheet über einem anderen liegt
+    Elevated: bool
 }
 
 /// One selectable category in the picker.
@@ -138,6 +140,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
     let children = input.Children
 
     let activeClass = if props.IsOpen then " active" else ""
+    let layerClass = if input.Elevated then " layer-2" else ""
 
     useBodyScrollLock props.IsOpen
 
@@ -146,7 +149,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
             prop.children [
                 // Overlay
                 Html.div [
-                    prop.className ("overlay" + activeClass)
+                    prop.className ("overlay" + layerClass + activeClass)
                     prop.onClick (fun e ->
                         e.stopPropagation()
                         props.OnClose()
@@ -155,7 +158,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 
                 // Bottom sheet container
                 Html.div [
-                    prop.className ("bottom-sheet" + activeClass)
+                    prop.className ("bottom-sheet" + layerClass + activeClass)
                     prop.onClick (fun e -> e.stopPropagation())
                     prop.children [
                         // Drag handle
@@ -212,7 +215,12 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children }
+    BottomSheetInternal { Props = props; Children = children; Elevated = false }
+
+/// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
+/// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.
+let viewLayered (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
+    BottomSheetInternal { Props = props; Children = children; Elevated = true }
 
 // ---------------------------------------------------------------------------
 // Category Picker (specialised bottom sheet)

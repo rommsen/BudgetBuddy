@@ -917,6 +917,108 @@ let private CategoryPickerDemo () =
             (fun () -> setOpen false)
     ]
 
+/// Kategorie-Picker mit Einfachauswahl (design-system-gffps): Popover (PC) und Sheet (Handy)
+/// zeigen denselben Inhalt, dazu die Karte "Budget nach dem Wechsel". Erfundene Beispieldaten.
+[<ReactComponent>]
+let private CategoryPickerSingleDemo () =
+    let popoverOpen, setPopoverOpen = React.useState false
+    let sheetOpen, setSheetOpen = React.useState false
+    let current, setCurrent = React.useState (Some (YnabCategoryId (Guid.Parse "00000000-0000-0000-0000-000000002002")))
+    let chosenText, setChosenText = React.useState ""
+    let plainOpen, setPlainOpen = React.useState false
+    // Zählt die OnSelect-Aufrufe, damit "genau einmal pro Klick" an der Galerie prüfbar ist.
+    let selectCount, setSelectCount = React.useState 0
+    let selectCounter = React.useRef 0
+
+    let guidOf (i: int) = Guid.Parse ("00000000-0000-0000-0000-" + (string (2000 + i)).PadLeft(12, '0'))
+
+    let categories : YnabCategory list =
+        (demoCategoryData
+         |> List.mapi (fun i (_, group, name, amount) ->
+             { Id = YnabCategoryId (guidOf (i + 1))
+               Name = name
+               GroupName = group
+               Available = Some { Amount = amount; Currency = "EUR" }
+               Hidden = false }))
+        @ [ { Id = YnabCategoryId (guidOf 99)
+              Name = "Altes Sparziel"
+              GroupName = "Fixkosten"
+              Available = None
+              Hidden = true } ]
+
+    let nameOf (id: YnabCategoryId option) =
+        match id with
+        | None -> CategoryPicker.withoutCategoryLabel
+        | Some i -> categories |> List.tryFind (fun c -> c.Id = i) |> Option.map (fun c -> c.Name) |> Option.defaultValue ""
+
+    let pickerProps (close: unit -> unit) : CategoryPicker.CategoryPickerProps =
+        { Categories = categories
+          Current = current
+          Suggested = [ YnabCategoryId (guidOf 1); YnabCategoryId (guidOf 3); YnabCategoryId (guidOf 2) ]
+          StandLabel = Some "Stand 14:02"
+          OnSelect =
+            fun choice ->
+                selectCounter.current <- selectCounter.current + 1
+                setSelectCount selectCounter.current
+                setCurrent choice
+                setChosenText (nameOf choice)
+                close ()
+          OnClose = close }
+
+    section "26. Kategorie-Picker (Einfachauswahl)" [
+        note "Kategorie ändern im Buchungs-Detail (Ablauf 4): Suche, Abschnitt Vorgeschlagen zum Payee \
+              (höchstens drei), Zeile Ohne Kategorie, Gruppen mit Available rechts, versteckte \
+              Kategorien eingeklappt. Ein Klick übernimmt sofort, Pfeile und Enter wählen, Esc \
+              schließt nur den Picker. Am PC als Popover am Auslöser, am Handy als Sheet. Darunter \
+              die Karte Budget nach dem Wechsel. ADR 0005, ADR 0053, styleguide.md §7.1."
+        row [
+            Html.div [
+                prop.className "relative"
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-popover-trigger")
+                        prop.children [ Button.secondary "Popover öffnen (PC)" (fun () -> setPopoverOpen (not popoverOpen)) ]
+                    ]
+                    Html.div [
+                        prop.custom ("data-ds-demo", "category-picker-with-stand")
+                        prop.children [ CategoryPicker.popover popoverOpen (pickerProps (fun () -> setPopoverOpen false)) ]
+                    ]
+                ]
+            ]
+            Html.div [
+                prop.className "relative"
+                prop.custom ("data-ds-demo", "category-picker-plain")
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-plain-trigger")
+                        prop.children [ Button.secondary "Popover ohne Stand-Zeile" (fun () -> setPlainOpen (not plainOpen)) ]
+                    ]
+                    CategoryPicker.popover plainOpen { pickerProps (fun () -> setPlainOpen false) with StandLabel = None }
+                ]
+            ]
+            Html.span [
+                prop.custom ("data-ds-demo", "category-picker-sheet-trigger")
+                prop.children [ Button.secondary "Sheet öffnen (Handy)" (fun () -> setSheetOpen true) ]
+            ]
+            if chosenText <> "" then Badge.info chosenText
+            Html.span [
+                prop.custom ("data-ds-demo", "category-picker-select-count")
+                prop.className "text-xs text-text-muted"
+                prop.text (string selectCount)
+            ]
+        ]
+        CategoryPicker.sheet sheetOpen (Some "REWE Markt · -42,10 €") (pickerProps (fun () -> setSheetOpen false))
+        Html.div [
+            prop.className "max-w-sm pt-4"
+            prop.children [
+                CategoryPicker.CategoryChangeCard.view [
+                    { Label = "Alltag: Haushalt"; OldText = Some "412,10 €"; NewText = Some "494,00 €" }
+                    { Label = "Wohnen: Möbel"; OldText = Some "120,00 €"; NewText = Some "38,10 €" }
+                ]
+            ]
+        ]
+    ]
+
 /// Swipe-Demo: eine wischbare Listenzeile (mobile).
 [<ReactComponent>]
 let private SwipeDemo () =
@@ -1301,6 +1403,7 @@ let view () =
                         ToastDemo()
                         BottomSheetDemo()
                         CategoryPickerDemo()
+                        CategoryPickerSingleDemo()
                         SwipeDemo()
                         navigationSection
                         voiceSection

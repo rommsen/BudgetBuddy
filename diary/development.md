@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 16:49 - Kategorie-Picker mit Einfachauswahl und Karte Budget nach dem Wechsel (design-system-gffps)
+
+**What I did:**
+Neuen DS-Baustein `CategoryPicker` gebaut: ein Inhalt (Suche, Ohne Kategorie, Vorgeschlagen zum Payee, Gruppen mit Available rechts, Versteckt eingeklappt, Stand-Zeile), zwei Hüllen (Popover am PC, BottomSheet am Handy), Click-Commit, Tastatur (Pfeile, Enter, Esc). Dazu die darstellende Karte `CategoryChangeCard` und `BottomSheet.viewLayered`. Galerie-Sektion 26 und Styleguide-Absatz ergänzt, Playwright-Wächter angelegt.
+
+**Files Added:**
+- `src/Client/DesignSystem/CategoryPicker.fs` - Picker, Hüllen, reine Listenfunktionen, `CategoryChangeCard`
+- `src/Tests/CategoryPickerTests.fs` - 31 Expecto-Tests
+- `scripts/category-picker.test.mjs` - Playwright-Wächter an der echten Galerie (9 Tests)
+
+**Files Modified:**
+- `src/Client/DesignSystem/BottomSheet.fs` - `Elevated` im Internal-Record, `viewLayered`
+- `src/Client/Client.fsproj` - Compile-Zeile hinter `CategoryMultiSelect.fs`
+- `src/Client/Components/Styleguide/View.fs` - Sektion 26 mit Popover, Sheet und Karte
+- `src/Tests/Tests.fsproj` - Compile-Zeile hinter `RulesReorderTests.fs`
+- `standards/frontend/styleguide.md` - Absatz zu Picker und Karte unter "Auswahl"
+
+**Rationale:**
+"Kategorie ändern" (ADR 0054) braucht am PC einen Einfach-Picker, der Sheet-Picker war an den Import-Ablauf gebunden (ADR 0053: ein Picker für Detail und Leiste). Optik nur aus PickerParts, Money.available und Tokens (Vorrangregel Styleguide).
+
+**Outcomes:**
+- Build: 0 Warnungen, 0 Fehler
+- Tests: dotnet test 1735 bestanden (7 übersprungen); test:scripts 185/185; guard:classes und guard:tokens grün; npm run build grün
+- Messung (Playwright, echtes Element): alle Betragsslots enden an derselben rechten Kante (PC und 390 px), Suchfeld 16 px am Handy, Zeilenhöhe im Sheet mindestens 44 px
+- Iteration 2: Gallery-Zähler für OnSelect, Variante ohne Stand-Zeile, vier neue Playwright-Tests (Farbklasse, Versteckt-Slot, Mausklick genau einmal, Stand-Zeile), schwache Quelltext-Zusicherung gestrichen
+- Iteration 3: Handy-Test misst erst nach ruhender Sheet-Lage (5 Frames), 0,5 px Toleranz; Suite 185/185 zweimal grün (dazwischen ein fremder Ladetimeout)
+- Issues: erste Playwright-Fassung scheiterte an Locator-Eindeutigkeit (Galerie hat mehrere Suchfelder) und am festen Handy-Header über dem Auslöser; behoben durch Scoping auf die Sektion und DOM-Klick
+
+---
+
 ## 2026-10-24 16:08 - Available je Kategorie frisch halten und fortschreiben (ledger-kwwxz)
 
 **What I did:**
