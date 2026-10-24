@@ -5,12 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:48 -- Batch started: [ledger-b7qmx]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-b7qmx - "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)"
+**Parallel:** yes (Welle 3a, 1 Worker neben den Verifiern für design-system-gffps und infrastructure-bnbdc; ledger-kwwxz hält bis zur Integration von bnbdc, beide ändern src/Client/State.fs)
+
+---
+
 ## 2026-10-24 15:48 -- Task verified and completed: ledger-w4vte - 
 
 **Type:** Work / Task completion
 **Task:** ledger-w4vte - 
 **Summary:** Die Auswahl folgt jetzt ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, Detail, Auswahl in dieser Folge, und bei laufender Auswahl ruhen Prüf-Schaltfläche, G, Wisch und das Öffnen eines Details auf PC und Handy; das Handy-Kästchen reagiert auf den Tipp.
-**Duration:** 26m
+**Duration:** 24m
 **Verification:** PASS (iteration 2)
 **Files changed:** 8
 **Tests added:** 16

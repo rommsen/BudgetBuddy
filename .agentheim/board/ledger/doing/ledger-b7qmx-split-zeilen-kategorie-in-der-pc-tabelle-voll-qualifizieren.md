@@ -1,7 +1,7 @@
 ---
 id: ledger-b7qmx
 title: "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-09-25
