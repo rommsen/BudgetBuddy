@@ -181,7 +181,8 @@ let keyboardTests =
             let model =
                 { (modelWith (rows 3) |> asPanel |> step (OpenDetail (entry 1))) with OpenPopover = Some CategoryChip }
                 |> step EscapePressed
-            Expect.isSome model.DetailFor "das Popover schließt sich selbst, das Detail bleibt"
+            Expect.isNone model.OpenPopover "Esc schließt das Popover im Reducer (erste Stufe der Kette)"
+            Expect.isSome model.DetailFor "das Detail bleibt stehen, erst das nächste Esc schließt es"
 
         testCase "bei offenem Sheet bleiben die Listentasten gesperrt" <| fun () ->
             let opened = modelWith (rows 3) |> asSheet |> step (OpenDetail (entry 1))

@@ -562,6 +562,7 @@ let private entryRowWithReviewMark
     (accountAbbreviationOf: (Guid -> string) option)
     (rowState: ReviewMarkRowState option)
     (selected: bool option)
+    (selectionActive: bool)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
@@ -578,9 +579,13 @@ let private entryRowWithReviewMark
                     // Auswahl statt das Detail zu öffnen (ledger-r1d2f).
                     match selected with
                     | Some isOn ->
+                        // Das Kästchen ist rein dargestellt (`aria-hidden`); der Container um es
+                        // trägt den Tipp, mindestens 44 px breit, und schaltet wie die Zeile
+                        // daneben (ledger-w4vte).
                         Html.div [
+                            prop.onClick (fun _ -> dispatch (ToggleRowSelected entry.Id))
                             prop.className (
-                                "shrink-0 flex items-center pl-4 pr-3 border-b " +
+                                "shrink-0 flex items-center min-w-11 pl-4 pr-3 border-b " +
                                 $"{Tokens.Borders.subtle} " +
                                 (if isOn then "bg-neon-teal/[0.07]" else Tokens.Backgrounds.dark)
                             )
@@ -597,9 +602,9 @@ let private entryRowWithReviewMark
                         flatDate
                         entry
                     // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
-                    // Im Auswahl-Modus entfällt die Schaltfläche: die Leiste und die Zeilen
-                    // schreiben nichts (ledger-r1d2f).
-                    if not entry.DeletedInYnab && selected.IsNone then
+                    // Bei laufender Auswahl entfällt die Schaltfläche: die Leiste schreibt,
+                    // die Zeilen nicht (ledger-r1d2f, ledger-w4vte).
+                    if not entry.DeletedInYnab && selected.IsNone && not selectionActive then
                         Html.div [
                             prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
                             prop.children [ reviewMarkButton dispatch false false rowState entry ]
@@ -732,6 +737,7 @@ let private entryTableRow
     (isAllAccounts: bool)
     (accountAbbreviationOf: Guid -> string)
     (rowState: ReviewMarkRowState option)
+    (selectionActive: bool)
     (selected: bool)
     (isAnchor: bool)
     (isFocused: bool)
@@ -775,7 +781,14 @@ let private entryTableRow
                         if entry.DeletedInYnab then deletedStatusIcon ()
                         // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk mehr an
                         // (der Server lehnt sie ab), also bekommt sie keine Schaltfläche.
-                        if not entry.DeletedInYnab then reviewMarkButton dispatch true isFocused rowState entry
+                        // Bei laufender Auswahl ersetzt ein unsichtbarer Platzhalter gleicher
+                        // Größe die Schaltfläche (der einzige Prüfweg ist "Geprüft" in der
+                        // Leiste); so springen die Kennzeichen nicht (ledger-w4vte).
+                        if not entry.DeletedInYnab then
+                            if selectionActive then
+                                Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
+                            else
+                                reviewMarkButton dispatch true isFocused rowState entry
                     ]
                 ]
             ]
@@ -1300,7 +1313,8 @@ let private KeyboardNavigation (focusedRow: Guid option) (dispatch: Msg -> unit)
 
 /// Der Tastaturhinweis am PC (Handoff Ablauf 1, 1.9): eine Fußzeile, solange keine
 /// Auswahl läuft. Tasten in Mono, der Rest gedämpft.
-let keyboardHintText = "↑ ↓ bewegen · G geprüft · Umschalt+G ungeprüft · Enter Detail öffnen"
+let keyboardHintText =
+    "↑ ↓ J K bewegen · Enter Detail · Leertaste auswählen · G geprüft · Umschalt+G ungeprüft"
 
 /// Der Hinweis bei offenem Panel (ledger-q1hw2): die Tasten, die dann wirken.
 let keyboardHintPanelText = "↑ ↓ bewegen · G geprüft · Esc Panel schließen"
@@ -1333,7 +1347,7 @@ let private swipeableEntryRow
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None flatDate entry
+    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None false flatDate entry
     if swipeAppliesTo entry then
         Html.div [
             prop.key (string entry.Id)
@@ -1424,6 +1438,7 @@ let private mobileEntryRow
     (dispatch: Msg -> unit)
     (accountAbbreviationOf: (Guid -> string) option)
     (selectionMode: bool)
+    (selectionActive: bool)
     (selection: Selection)
     (rowState: ReviewMarkRowState option)
     (flatDate: bool)
@@ -1431,7 +1446,11 @@ let private mobileEntryRow
     =
     let inner =
         if selectionMode then
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) flatDate entry
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) true flatDate entry
+        elif selectionActive then
+            // Eine Auswahl ohne Modus (das Fenster ist mit bestehender Auswahl von der
+            // Tabelle auf die Kompaktliste geschrumpft): weder Wisch noch Schaltfläche.
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState None true flatDate entry
         else
             swipeableEntryRow dispatch accountAbbreviationOf rowState flatDate entry
     React.keyedFragment (
@@ -1445,6 +1464,7 @@ let private entryListMobile
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (selectionMode: bool)
+    (selectionActive: bool)
     (selection: Selection)
     (alwaysVisible: bool)
     (sort: LedgerSort)
@@ -1461,6 +1481,7 @@ let private entryListMobile
                 dispatch
                 accountAbbreviationOf
                 selectionMode
+                selectionActive
                 selection
                 (reviewRows |> Map.tryFind entry.Id)
                 flat
@@ -1600,6 +1621,7 @@ let private entryListDesktop
     (includeDeleted: bool)
     (reviewRows: Map<Guid, ReviewMarkRowState>)
     (headerState: HeaderCheckState)
+    (selectionActive: bool)
     (selection: Selection)
     (anchor: Guid option)
     (focusedRow: Guid option)
@@ -1623,6 +1645,7 @@ let private entryListDesktop
                   isAllAccounts
                   accountAbbreviationOf
                   rowState
+                  selectionActive
                   (isSelected selection entry.Id)
                   (anchor = Some entry.Id)
                   (focusedRow = Some entry.Id)
@@ -1741,6 +1764,7 @@ let private entryList
                 model.IncludeDeleted
                 model.ReviewMarkRows
                 model.SelectionMode
+                (hasSelection model)
                 model.Selection
                 (layout = CompactList)
                 sort
@@ -1756,6 +1780,7 @@ let private entryList
                     model.IncludeDeleted
                     model.ReviewMarkRows
                     (headerCheckState model)
+                    (hasSelection model)
                     model.Selection
                     model.SelectionAnchor
                     model.FocusedRow
@@ -2216,6 +2241,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 model.ReviewMarkBatchRunning
                 (fun () -> dispatch StartReviewMarkBatch)
                 selectionClearLabel
+                selectionClearKeyHint
                 (fun () -> dispatch ClearSelection)
         elif keyboardHintVisible model then
             keyboardHint (keyboardHintTextFor model)

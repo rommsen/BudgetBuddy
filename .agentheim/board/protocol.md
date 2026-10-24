@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:48 -- Task verified and completed: ledger-w4vte - 
+
+**Type:** Work / Task completion
+**Task:** ledger-w4vte - 
+**Summary:** Die Auswahl folgt jetzt ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, Detail, Auswahl in dieser Folge, und bei laufender Auswahl ruhen Prüf-Schaltfläche, G, Wisch und das Öffnen eines Details auf PC und Handy; das Handy-Kästchen reagiert auf den Tipp.
+**Duration:** 26m
+**Verification:** PASS (iteration 2)
+**Files changed:** 8
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
+## 2026-10-24 15:44 -- Verification failed: ledger-w4vte - Auswahl nach ADR 0053
+
+**Type:** Work / Verification failure
+**Task:** ledger-w4vte - Auswahl nach ADR 0053
+**Iteration:** 1 of 3
+**Reasons:** Kriterium 5: bestehender Test Esc bei offenem Popover prüft OpenPopover = None nicht und nennt die alte Begründung; übrige Prüfungen und alle Läufe grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-24 15:23 -- Batch started: [design-system-gffps, infrastructure-bnbdc, ledger-w4vte]
 
 **Type:** Work / Batch start

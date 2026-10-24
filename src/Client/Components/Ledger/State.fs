@@ -398,7 +398,7 @@ let private reviewKeyBlocked (model: Model) (entry: LedgerEntryView) : bool =
     || entry.DeletedInYnab
     || (model.ReviewMarkRows |> Map.tryFind entry.Id) = Some ReviewMarkSending
 
-let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
 
     // ============================================
@@ -566,8 +566,12 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     // ============================================
     | OpenDetail entry ->
         // Im Auswahl-Modus am Handy wählt der Tipp aus (ADR 0053 Punkt 7), er öffnet nichts.
+        // Am PC öffnet bei laufender Auswahl ein Klick auf die Zeile ebenfalls kein Detail,
+        // er markiert die Zeile nur (ledger-w4vte).
         if model.SelectionMode then
             model, Cmd.none, NoOp
+        elif hasSelection model then
+            { model with FocusedRow = Some entry.Id }, Cmd.none, NoOp
         else
             let model', cmd = showDetail entry model
             model', cmd, NoOp
@@ -1164,7 +1168,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Some entry when not (keyboardBlocked model) && not (reviewKeyBlocked model entry) ->
             // Derselbe Weg wie der Klick auf die Schaltfläche (Fehlschlag-Hinweis inbegriffen);
             // der Fokus springt sofort auf die nächste Zeile.
-            update (StartSetReviewMark (entry.Id, target)) { model with FocusedRow = Some (nextFocusAfter entries entry.Id) }
+            updateCore (StartSetReviewMark (entry.Id, target)) { model with FocusedRow = Some (nextFocusAfter entries entry.Id) }
             |> followFocusWithPanel
         | _ -> model, Cmd.none, NoOp
 
@@ -1174,14 +1178,39 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             model.FocusedRow
             |> Option.bind (fun id -> entries |> List.tryFind (fun e -> e.Id = id))
         match focused with
-        | Some entry when not (keyboardBlocked model) && not model.SelectionMode ->
+        | Some entry when not (keyboardBlocked model) && not model.SelectionMode && not (hasSelection model) ->
             let model', cmd = showDetail entry model
             model', cmd, NoOp
         | _ -> model, Cmd.none, NoOp
 
+    | ToggleFocusedSelected ->
+        // Wie ein Klick auf das Kästchen der markierten Zeile, mit Anker. Ein offenes Popover
+        // oder Sheet gehört der Tastatur; ein offenes Panel nicht (dann schließt die beginnende
+        // Auswahl es in `update`).
+        match model.FocusedRow with
+        | Some id when not (keyboardBlocked model) -> updateCore (ClickRowCheckbox (id, false)) model
+        | _ -> model, Cmd.none, NoOp
+
     | EscapePressed ->
-        // Ein offenes Popover schließt sich selbst; das Detail bleibt dann stehen.
-        if model.OpenPopover.IsSome || model.DetailFor.IsNone then
-            model, Cmd.none, NoOp
-        else
+        // Ein Esc schließt genau eine Stufe: Popover, dann Detail, dann Auswahl. Liegt der
+        // Fokus im Popover, behandelt es Esc selbst und das Ereignis erreicht das Dokument
+        // nicht; liegt er auf dem Chip, schließt diese Stufe es.
+        if model.OpenPopover.IsSome then
+            { model with OpenPopover = None }, Cmd.none, NoOp
+        elif model.DetailFor.IsSome then
             { model with DetailFor = None; History = NotAsked }, Cmd.none, NoOp
+        elif model.SelectionMode || hasSelection model then
+            updateCore ClearSelection model
+        else
+            model, Cmd.none, NoOp
+
+/// Eine beginnende Auswahl (von leer auf nicht leer) schließt ein offenes Panel oder Sheet
+/// (ADR 0053 Punkt 4, ledger-w4vte). Der Vergleich von Zustand vor und nach dem Schritt
+/// deckt jeden Weg ab: Kästchen, Umschalt-Klick, Leertaste, Kopfzeile, "Alle" und das lange
+/// Drücken am Handy.
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
+    let model', cmd, external = updateCore msg model
+    if model'.DetailFor.IsSome && not (hasSelection model) && hasSelection model' then
+        { model' with DetailFor = None; History = NotAsked }, cmd, external
+    else
+        model', cmd, external

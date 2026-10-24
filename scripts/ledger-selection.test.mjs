@@ -171,6 +171,15 @@ test("Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async 
     await rowButton(1).click();
     await rowButton(2).click();
     assert.match(await visibleBar(page).innerText(), /2 ausgewählt/, "zwei Zeilen");
+    // Der Tipp auf das Kästchen selbst (ledger-w4vte) wählt ab und wieder an; der Container
+    // um das Kästchen ist mindestens 44 px breit.
+    const boxContainer = rowButton(2).locator("xpath=preceding-sibling::div[1]");
+    const containerBox = await boxContainer.boundingBox();
+    assert.ok(containerBox.width >= 44, `Kästchen-Trefferfläche mindestens 44 px breit, war: ${containerBox.width}`);
+    await boxContainer.tap();
+    assert.match(await visibleBar(page).innerText(), /1 ausgewählt/, "Tipp auf das Kästchen wählt ab");
+    await boxContainer.tap();
+    assert.match(await visibleBar(page).innerText(), /2 ausgewählt/, "und wieder an");
     assert.equal(await page.getByRole("dialog").filter({ visible: true }).count(), 0, "kein Tipp öffnet die Historie");
 
     // Alle: 34 von 34 mit der Summe des Treffers, obwohl nur zwölf geladen sind.
@@ -268,6 +277,76 @@ test("PC 1440x900: Kästchen, Shift-Spanne mit Anker, Kopfzeilen-Kästchen und L
     await visibleBar(page).getByRole("button", { name: "Auswahl aufheben" }).click();
     assert.equal(await visibleBar(page).count(), 0, "Leiste weg nach Auswahl aufheben");
     assert.equal(await header.getAttribute("aria-checked"), "false", "Kopfzeilen-Kästchen leer");
+  } finally {
+    await context.close();
+  }
+});
+
+const countIn = async (page) => {
+  const bar = visibleBar(page);
+  if ((await bar.count()) === 0) return 0;
+  const match = (await bar.innerText()).match(/(\d+) ausgewählt/);
+  return match ? Number(match[1]) : 0;
+};
+
+test("PC 1440x900: Leertaste wählt genau einmal, schließt das Panel, Prüf-Schaltfläche ruht, Esc-Kette (ledger-w4vte)", async () => {
+  const { page, context } = await openLedger({ width: 1440, height: 900 }, false);
+  try {
+    const box = (n) =>
+      page.getByRole("checkbox", { name: `Auswahlzeile ${String(n).padStart(2, "0")} auswählen` }).filter({ visible: true });
+    const row = (n) => page.locator("tr", { hasText: `Auswahlzeile ${String(n).padStart(2, "0")}` }).filter({ visible: true }).first();
+    const panel = page.locator('[data-testid="ledger-detail-panel"]');
+    const reviewButtons = (n) => row(n).locator('button[title^="Als "]');
+
+    // Mausklick auf ein Kästchen, danach Leertaste: der Fokus liegt auf dem Knopf, die native
+    // Wirkung gewinnt und die Auswahl ändert sich genau einmal.
+    assert.ok((await reviewButtons(3).count()) >= 1, "ohne Auswahl trägt die Zeile die Prüf-Schaltfläche");
+    await box(1).click();
+    await box(2).click();
+    assert.equal(await countIn(page), 2, "zwei gewählt");
+    const heightWithBar = await row(3).evaluate((el) => el.getBoundingClientRect().height);
+    assert.equal(await reviewButtons(3).count(), 0, "bei laufender Auswahl keine Prüf-Schaltfläche in der Zeile");
+    const placeholder = await row(3).locator("td").last().locator('span[aria-hidden="true"]').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) };
+    });
+    assert.deepEqual(placeholder, { w: 28, h: 28 }, "unsichtbarer Platzhalter in der Größe der Schaltfläche");
+    assert.ok(heightWithBar > 0, "Zeile steht");
+    await page.keyboard.press("Space");
+    assert.equal(await countIn(page), 1, "Maus plus Leertaste kippt genau einmal (nicht zweimal)");
+    await page.keyboard.press("Space");
+    assert.equal(await countIn(page), 2, "und wieder genau einmal zurück");
+    await visibleBar(page).getByRole("button", { name: "Auswahl aufheben" }).click();
+    assert.equal(await countIn(page), 0, "Auswahl aufgehoben");
+
+    // Leertaste auf der markierten Zeile ohne vorherigen Klick auf ein Kästchen: Zeile gewählt,
+    // ein offenes Panel ist zu.
+    await row(3).getByText("Auswahlzeile 03").click();
+    await panel.waitFor();
+    await page.keyboard.press("Space");
+    await panel.waitFor({ state: "detached" });
+    assert.equal(await countIn(page), 1, "eine Zeile gewählt");
+    assert.equal(await box(3).getAttribute("aria-checked"), "true", "es ist die markierte Zeile");
+    assert.ok(
+      (await visibleBar(page).innerText()).includes("Esc aufheben"),
+      "die PC-Leiste nennt Esc aufheben"
+    );
+
+    // Bei laufender Auswahl öffnet ein Klick auf die Zeile kein Detail.
+    await row(5).getByText("Auswahlzeile 05").click();
+    assert.equal(await panel.count(), 0, "kein Panel bei laufender Auswahl");
+    // G ruht bei laufender Auswahl: kein Aufruf, die Auswahl bleibt.
+    let reviewCalls = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("setReviewMark")) reviewCalls++;
+    });
+    await page.keyboard.press("g");
+    await page.waitForTimeout(300);
+    assert.equal(reviewCalls, 0, "G schreibt bei laufender Auswahl nichts");
+
+    // Esc hebt die Auswahl auf (kein Popover, kein Detail offen).
+    await page.keyboard.press("Escape");
+    assert.equal(await countIn(page), 0, "Esc hebt die Auswahl auf");
   } finally {
     await context.close();
   }

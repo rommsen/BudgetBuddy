@@ -4,6 +4,31 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 15:48 - Auswahl nach ADR 0053 (ledger-w4vte)
+
+**What I did:**
+Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, Detail, Auswahl in dieser Folge. Bei laufender Auswahl ruhen am PC die Prüf-Schaltfläche (unsichtbarer Platzhalter), G und das Öffnen eines Details, am Handy zusätzlich der Wisch bei Auswahl ohne Modus. Das Handy-Kästchen reagiert auf den Tipp (Container mit Handler, mindestens 44 px). Der Grundhinweis nennt alle Tasten, die PC-Leiste "Esc aufheben".
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - Nachricht `ToggleFocusedSelected`, Leertaste in `keyCommandFor`, Konstante `selectionClearKeyHint`
+- `src/Client/Components/Ledger/State.fs` - `updateCore` plus `update`-Hülle für das Schließen, neue Zweige und Esc-Kette
+- `src/Client/Components/Ledger/View.fs` - `selectionActive` durch Desktop- und Handy-Zeilen, Kästchen-Handler, neuer Hinweistext
+- `src/Client/DesignSystem/MultiSelect.fs` - `barDesktop` mit Tastenhinweis
+- `src/Tests/LedgerKeyboardTests.fs` - 16 neue Fälle, ein Test umgeschrieben
+- `scripts/ledger-selection.test.mjs` - Tipp auf das Kästchen (390 px), neuer PC-Wächter für Leertaste, Platzhalter, Esc
+
+**Rationale:**
+ADR 0053 trennt "eine Buchung, das Detail" von "viele Buchungen, die Leiste"; die Regeln der Auswahl liefen bisher nebeneinander her (Reibungen 6, 7, 9, 11, 13, 14 der Bestandsaufnahme).
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 1721 bestanden (dotnet test), test:scripts 177/177
+- Messwerte (Playwright, gerendertes Element): Platzhalter 28x28 px, Kästchen-Container am Handy mindestens 44 px breit, Maus plus Leertaste ändert die Auswahl genau einmal
+- Issues: keine
+- Iteration 2 (2026-10-24): Test in `LedgerDetailTests.fs` um `OpenPopover = None` ergänzt, Test "Esc aufheben" nach `LedgerSelectionTests.fs` verschoben; Build 0 Warnungen, Tests 1721 bestanden.
+
+---
+
 ## 2026-10-24 15:05 - Kategorie ändern: Server-Schreibweg für eine Buchung (ledger-k2rbn)
 
 **What I did:**

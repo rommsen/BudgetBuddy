@@ -555,6 +555,9 @@ let selectionBarCountText (count: int) : string =
     $"{Client.DesignSystem.Money.formatCount count} ausgewählt"
 
 let selectionClearLabel = "Auswahl aufheben"
+
+/// Der Tastenhinweis neben "Auswahl aufheben" in der PC-Leiste (ledger-w4vte).
+let selectionClearKeyHint = "Esc aufheben"
 let selectionAllLabel = "Alle"
 
 /// Die primäre Aktion der Auswahl-Leiste (ledger-nhwrt): setzt "Geprüft" für die Auswahl.
@@ -892,15 +895,19 @@ type Msg =
     | ReviewKeyPressed of ReviewMarkTarget
     /// Enter auf der markierten Zeile (ledger-q1hw2): öffnet das Detail.
     | OpenFocusedDetail
-    /// Esc (ledger-q1hw2): schließt das Detail, solange kein Popover offen ist. Die volle
-    /// Kette Popover, Detail, Auswahl kommt mit ledger-w4vte.
+    /// Leertaste auf der markierten Zeile (ledger-w4vte): nimmt sie in die Auswahl oder
+    /// heraus, wie ein Klick auf ihr Kästchen.
+    | ToggleFocusedSelected
+    /// Esc (ledger-q1hw2, Kette ledger-w4vte): schließt genau eine Stufe, erst das offene
+    /// Popover, dann das Detail, dann die Auswahl.
     | EscapePressed
 
 /// Die Tastenbelegung der Kassenbuch-Liste (PC): Pfeil ab/auf und J/K bewegen den Fokus,
 /// G setzt "Geprüft", Umschalt+G "Ungeprüft", Enter öffnet das Detail der markierten Zeile
-/// und Esc schließt es (ledger-q1hw2). Ein Tastenereignis aus einem Eingabefeld oder mit
-/// Strg, Meta oder Alt löst nichts aus. Enter auf einem Knopf oder Link bleibt dessen
-/// eigene Aktivierung: sonst löste ein fokussierter Filter-Knopf zweimal aus (ADR 0053).
+/// und Esc schließt eine Stufe (ledger-q1hw2), die Leertaste wählt die markierte Zeile
+/// (ledger-w4vte). Ein Tastenereignis aus einem Eingabefeld oder mit
+/// Strg, Meta oder Alt löst nichts aus. Enter und Leertaste auf einem Knopf oder Link bleiben
+/// dessen eigene Aktivierung: sonst löste ein fokussierter Knopf zweimal aus (ADR 0053).
 let keyCommandFor
     (tagName: string)
     (isContentEditable: bool)
@@ -917,6 +924,7 @@ let keyCommandFor
         | "g" -> Some (ReviewKeyPressed Reviewed)
         | "G" -> Some (ReviewKeyPressed Unreviewed)
         | "Enter" when not (isActivatable tagName) -> Some OpenFocusedDetail
+        | " " when not (isActivatable tagName) -> Some ToggleFocusedSelected
         | "Escape" -> Some EscapePressed
         | _ -> None
 

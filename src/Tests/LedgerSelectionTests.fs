@@ -356,3 +356,19 @@ let viewTests =
             let selectionBranch = body.Substring(0, body.IndexOf "else")
             Expect.isFalse (selectionBranch.Contains "swipeableEntryRow") "im Modus keine Wisch-Zeile"
     ]
+
+[<Tests>]
+let escHintTests =
+    testList "PC-Leiste: Esc aufheben (ledger-w4vte)" [
+        testCase "die PC-Leiste trägt 'Esc aufheben', die Handy-Leiste nicht (Quelltext)" <| fun () ->
+            Expect.equal selectionClearKeyHint "Esc aufheben" "Text"
+            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "MultiSelect.fs" ]
+            let from = ds.IndexOf "let barDesktop"
+            let desktop = ds.Substring from
+            Expect.stringContains desktop "clearKeyHint" "PC-Leiste setzt den Hinweis"
+            let mobileFrom = ds.IndexOf "let barMobile"
+            let mobile = ds.Substring(mobileFrom, from - mobileFrom)
+            Expect.isFalse (mobile.Contains "clearKeyHint") "kein Hinweis am Handy"
+            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
+            Expect.stringContains view "selectionClearKeyHint" "die Seite reicht den Text an die Leiste"
+    ]

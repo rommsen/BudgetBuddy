@@ -188,6 +188,7 @@ let barDesktop
     (reviewedBusy: bool)
     (onReviewed: unit -> unit)
     (clearLabel: string)
+    (clearKeyHint: string)
     (onClear: unit -> unit)
     : ReactElement =
     Html.div [
@@ -200,6 +201,11 @@ let barDesktop
             Html.div [
                 prop.className "ml-auto flex items-center gap-2"
                 prop.children [
+                    // Die Taste zum Aufheben, gedämpft in Mono neben dem Knopf (ledger-w4vte).
+                    Html.span [
+                        prop.className $"{Fonts.mono} {FontSizes.xs} {Colors.textMuted}"
+                        prop.text clearKeyHint
+                    ]
                     clearButton clearLabel onClear false
                     reviewedButton reviewedLabel reviewedBusy onReviewed ""
                 ]

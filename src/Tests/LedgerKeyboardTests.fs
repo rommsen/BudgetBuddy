@@ -202,11 +202,21 @@ let keyBindingTests =
             Expect.isNone (keyCommandFor "BODY" false true false "g") "Strg oder Meta"
             Expect.isNone (keyCommandFor "BODY" false false true "g") "Alt"
 
-        testCase "Enter öffnet das Detail, Esc schließt es, Leertaste bleibt frei (ledger-q1hw2)" <| fun () ->
+        testCase "Enter öffnet das Detail, Esc schließt eine Stufe, Leertaste wählt aus (ledger-q1hw2, ledger-w4vte)" <| fun () ->
             Expect.equal (keyCommandFor "BODY" false false false "Enter") (Some OpenFocusedDetail) "Enter"
             Expect.equal (keyCommandFor "BODY" false false false "Escape") (Some EscapePressed) "Esc"
-            for k in [ " "; "a" ] do
-                Expect.isNone (keyCommandFor "BODY" false false false k) k
+            Expect.equal (keyCommandFor "BODY" false false false " ") (Some ToggleFocusedSelected) "Leertaste"
+            Expect.isNone (keyCommandFor "BODY" false false false "a") "a bleibt frei"
+
+        testCase "Leertaste löst in Feldern, mit Strg, Meta oder Alt und auf Knöpfen nichts aus (ledger-w4vte)" <| fun () ->
+            for tag in [ "INPUT"; "TEXTAREA"; "SELECT" ] do
+                Expect.isNone (keyCommandFor tag false false false " ") $"Leertaste im Feld {tag}"
+            Expect.isNone (keyCommandFor "DIV" true false false " ") "contenteditable"
+            Expect.isNone (keyCommandFor "BODY" false true false " ") "Strg oder Meta"
+            Expect.isNone (keyCommandFor "BODY" false false true " ") "Alt"
+            // Die native Wirkung des Knopfs gewinnt: sonst kippte die Auswahl nach einem Mausklick zweimal.
+            for tag in [ "BUTTON"; "button"; "A"; "SUMMARY" ] do
+                Expect.isNone (keyCommandFor tag false false false " ") $"Leertaste auf {tag}"
 
         testCase "Enter auf einem Knopf oder Link löst kein Detail aus, damit er nicht doppelt wirkt" <| fun () ->
             for tag in [ "BUTTON"; "button"; "A"; "SUMMARY" ] do
@@ -257,4 +267,146 @@ let viewTests =
             Expect.isTrue (Components.Ledger.View.keyboardHintVisible model) "mit Zeilen"
             Expect.isFalse (Components.Ledger.View.keyboardHintVisible { model with Selection = Picked (Set.singleton (idOf 1)) }) "mit Auswahl"
             Expect.isFalse (Components.Ledger.View.keyboardHintVisible { model with Entries = Success [] }) "ohne Zeilen"
+    ]
+
+[<Tests>]
+let selectionRulesTests =
+    testList "Auswahl nach ADR 0053 (ledger-w4vte)" [
+
+        testCase "Leertaste nimmt die markierte Zeile in die Auswahl, setzt den Anker, ein zweites Mal heraus" <| fun () ->
+            let marked = modelWith (rows 3) |> focusOn 2
+            let on = step ToggleFocusedSelected marked
+            Expect.equal on.Selection (Picked (Set.singleton (idOf 2))) "gewählt"
+            Expect.equal on.SelectionAnchor (Some (idOf 2)) "Anker"
+            let off = step ToggleFocusedSelected on
+            Expect.isFalse (isSelected off.Selection (idOf 2)) "heraus"
+
+        testCase "Leertaste ohne markierte Zeile ändert nichts" <| fun () ->
+            let model = modelWith (rows 3)
+            Expect.equal (step ToggleFocusedSelected model) model "unverändert"
+
+        testCase "Leertaste bei offenem Popover oder Sheet ändert nichts" <| fun () ->
+            let marked = modelWith (rows 3) |> focusOn 1
+            let withPopover = { marked with OpenPopover = Some CategoryChip }
+            Expect.equal (step ToggleFocusedSelected withPopover) withPopover "Popover"
+            let withSheet =
+                { marked with DetailForm = DetailSheet }
+                |> step (OpenDetail (entry 1 true))
+            Expect.isSome withSheet.DetailFor "Sheet steht"
+            Expect.equal (step ToggleFocusedSelected withSheet) withSheet "Sheet"
+
+        testCase "bei offenem Panel wirkt die Leertaste und schließt das Panel" <| fun () ->
+            let opened = { modelWith (rows 3) with DetailForm = DetailPanel } |> step (OpenDetail (entry 1 true))
+            let model = step ToggleFocusedSelected opened
+            Expect.isTrue (isSelected model.Selection (idOf 1)) "gewählt"
+            Expect.isNone model.DetailFor "Panel zu"
+            Expect.equal model.History NotAsked "Historie leer"
+
+        testCase "jeder Weg, der die Auswahl beginnt, schließt ein offenes Panel und Sheet" <| fun () ->
+            let ways : (string * Msg) list =
+                [ "Kästchen", ClickRowCheckbox (idOf 2, false)
+                  "Umschalt-Klick", ClickRowCheckbox (idOf 2, true)
+                  "Leertaste", ToggleFocusedSelected
+                  "Kopfzeile", ToggleHeaderCheckbox
+                  "Alle", ToggleSelectAll
+                  "langes Drücken", StartSelectionMode (idOf 2) ]
+            for form in [ DetailPanel; DetailSheet ] do
+                // Bei offenem Sheet gehört die Tastatur dem Sheet: die Leertaste wirkt dort nicht.
+                for name, msg in ways |> List.filter (fun (n, _) -> not (form = DetailSheet && n = "Leertaste")) do
+                    let opened = { modelWith (rows 3) with DetailForm = form } |> step (OpenDetail (entry 1 true))
+                    Expect.isSome opened.DetailFor $"{name}: Detail steht vorher"
+                    let model = step msg opened
+                    Expect.isNone model.DetailFor $"{name} ({form}): Detail zu"
+                    Expect.equal model.History NotAsked $"{name} ({form}): Historie leer"
+
+        testCase "ein Schritt, der die Auswahl nicht von leer auf nicht leer ändert, lässt das Detail stehen" <| fun () ->
+            let opened = { modelWith (rows 3) with DetailForm = DetailPanel } |> step (OpenDetail (entry 1 true))
+            Expect.isSome (step ClearSelection opened).DetailFor "ClearSelection auf leerer Auswahl"
+            // Abwählen: das Detail ist hier von Hand wieder offen, die Auswahl schrumpft nur.
+            let two = { opened with Selection = Picked (Set [ idOf 1; idOf 2 ]) }
+            Expect.isSome (step (ClickRowCheckbox (idOf 1, false)) two).DetailFor "Abwählen mit Rest"
+            let one = { opened with Selection = Picked (Set.singleton (idOf 1)) }
+            Expect.isSome (step (ClickRowCheckbox (idOf 1, false)) one).DetailFor "Abwählen der letzten"
+            // Eine Auswahl, die schon stand, lässt ein Detail ebenfalls stehen.
+            Expect.isSome (step (ClickRowCheckbox (idOf 2, false)) two).DetailFor "Hinzuwählen"
+
+        testCase "mit nicht leerer Auswahl öffnet ein Klick auf die Zeile kein Detail und markiert nur" <| fun () ->
+            let selecting = { modelWith (rows 3) with Selection = Picked (Set.singleton (idOf 1)) }
+            let model, sent = run (OpenDetail (entry 3 true)) selecting
+            Expect.isNone model.DetailFor "kein Detail"
+            Expect.isEmpty sent "kein Historie-Abruf"
+            Expect.equal model.FocusedRow (Some (idOf 3)) "die Zeile ist markiert"
+            Expect.equal model.Selection selecting.Selection "Auswahl unberührt"
+
+        testCase "mit nicht leerer Auswahl öffnet Enter nichts" <| fun () ->
+            let selecting = { modelWith (rows 3) with Selection = Picked (Set.singleton (idOf 1)) } |> focusOn 2
+            let model, sent = run OpenFocusedDetail selecting
+            Expect.isNone model.DetailFor "kein Detail"
+            Expect.isEmpty sent "kein Abruf"
+
+        testCase "AllExcept mit allen Ausnahmen zählt als leer: Klick öffnet wieder das Detail" <| fun () ->
+            let allOut = { modelWith (rows 2) with Selection = AllExcept (Set [ idOf 1; idOf 2 ]) }
+            Expect.isSome (step (OpenDetail (entry 1 true)) allOut).DetailFor "leer, also Detail"
+
+        testCase "Esc-Kette: Popover, dann Detail, dann Auswahl, dann nichts" <| fun () ->
+            let opened = { modelWith (rows 3) with DetailForm = DetailPanel } |> step (OpenDetail (entry 1 true))
+            // Popover und Auswahl nachträglich: die Auswahl beginnt nicht über den Weg, der das Detail schließt.
+            let start =
+                { opened with
+                    OpenPopover = Some CategoryChip
+                    Selection = Picked (Set.singleton (idOf 2))
+                    SelectionMode = true }
+            let first = step EscapePressed start
+            Expect.isNone first.OpenPopover "1. Esc: Popover zu"
+            Expect.isSome first.DetailFor "Detail steht noch"
+            Expect.equal first.Selection start.Selection "Auswahl steht noch"
+            let second = step EscapePressed first
+            Expect.isNone second.DetailFor "2. Esc: Detail zu"
+            Expect.equal second.Selection start.Selection "Auswahl steht noch"
+            let third = step EscapePressed second
+            Expect.equal third.Selection NoSelection "3. Esc: Auswahl weg"
+            Expect.isFalse third.SelectionMode "Modus aus"
+            Expect.equal (step EscapePressed third) third "4. Esc: nichts"
+
+        testCase "Esc hebt auch eine Auswahl am PC ohne Modus auf" <| fun () ->
+            let selecting = { modelWith (rows 3) with Selection = Picked (Set.singleton (idOf 1)) }
+            Expect.equal (step EscapePressed selecting).Selection NoSelection "aufgehoben"
+
+        testCase "Hinweis ohne Auswahl nennt alle belegten Tasten, mit Auswahl ist er aus" <| fun () ->
+            let text = Components.Ledger.View.keyboardHintText
+            for part in [ "J K"; "Enter"; "Leertaste"; "G geprüft"; "Umschalt+G ungeprüft" ] do
+                Expect.stringContains text part part
+            let model = modelWith (rows 2)
+            Expect.equal (Components.Ledger.View.keyboardHintTextFor model) text "Grundtext"
+            let selecting = { model with Selection = Picked (Set.singleton (idOf 1)) }
+            Expect.isFalse (Components.Ledger.View.keyboardHintVisible selecting) "mit Auswahl ersetzt die Leiste den Hinweis"
+
+
+        testCase "PC-Zeile: bei laufender Auswahl ein Platzhalter statt Prüf-Schaltfläche (Quelltext)" <| fun () ->
+            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
+            let from = view.IndexOf "let private entryTableRow"
+            let body = view.Substring(from, view.IndexOf("let private entryHintRow", from) - from)
+            Expect.stringContains body "(selectionActive: bool)" "Parameter"
+            Expect.stringContains body "if selectionActive then" "Auswahl läuft"
+            Expect.stringContains body "h-7 w-7 shrink-0" "Platzhalter gleicher Größe"
+            Expect.stringContains body "prop.ariaHidden true" "Platzhalter ist versteckt"
+            Expect.stringContains view "(hasSelection model)" "entryList reicht hasSelection durch"
+
+        testCase "Handy-Zeile: bei hasSelection ohne Modus weder Wisch noch Schaltfläche (Quelltext)" <| fun () ->
+            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
+            let from = view.IndexOf "let private mobileEntryRow"
+            let body = view.Substring(from, view.IndexOf("let private entryListMobile", from) - from)
+            Expect.stringContains body "elif selectionActive then" "eigener Zweig für Auswahl ohne Modus"
+            let swipeAt = body.IndexOf "swipeableEntryRow"
+            Expect.isGreaterThan swipeAt (body.IndexOf "elif selectionActive then") "Wisch erst im Zweig ohne Auswahl"
+            let rowFrom = view.IndexOf "let private entryRowWithReviewMark"
+            let rowBody = view.Substring(rowFrom, view.IndexOf("let private dateGroupHeader", rowFrom) - rowFrom)
+            Expect.stringContains rowBody "selected.IsNone && not selectionActive" "Schaltfläche nur ohne Auswahl"
+
+        testCase "Handy-Kästchen: der Container trägt den Tipp und ist mindestens 44 px breit (Quelltext)" <| fun () ->
+            let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
+            let rowFrom = view.IndexOf "let private entryRowWithReviewMark"
+            let rowBody = view.Substring(rowFrom, view.IndexOf("let private dateGroupHeader", rowFrom) - rowFrom)
+            Expect.stringContains rowBody "prop.onClick (fun _ -> dispatch (ToggleRowSelected entry.Id))" "Handler am Container"
+            Expect.stringContains rowBody "min-w-11" "mindestens 44 px"
     ]
