@@ -34,6 +34,7 @@ let private baseModel (page: Page) : State.Model =
     {
         CurrentPage = page
         Toasts = []
+        Pwa = Pwa.initialState
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel

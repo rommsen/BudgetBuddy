@@ -29,7 +29,7 @@ Konkret bei BudgetBuddy:
   **nur die statische App-Shell**; **`/api/*` ist strikt network-only und wird NIE gecacht**
   (`runtimeCaching: []`, `navigateFallbackDenylist: [/^\/api\//]`) — gecachte Finanzdaten
   wären gegen die Live-Companion-Vision schädlich (stale Beträge, Dedup-/ImportId-Verwirrung).
-  `registerType: 'autoUpdate'` (stille Updates, deploy-kontrolliert). SW-`scope: /`, kein
+  `registerType: 'prompt'` mit `injectRegister: false` (ADR 0057): der Client registriert den Service Worker selbst (`src/Client/Pwa.fs`), prüft beim Zurückholen höchstens alle 5 Minuten, lädt sofort neu und zeigt bei laufender Eingabe den Hinweis "Neue Version verfügbar" mit Knopf. SW-`scope: /`, kein
   Vite-`base` (Tailscale serviert an Root). `theme_color`/`background_color` = `#08081a`
   (`--bg-app`, aus `design-system-008`). Gebrandete `offline.html` als Navigations-Floor
   (cached keine Daten). **Manifest-MIME:** der Giraffe-Static-Handler (`Program.fs`) muss

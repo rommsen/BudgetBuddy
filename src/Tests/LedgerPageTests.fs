@@ -1338,6 +1338,7 @@ let private rootModel (page: Types.Page) : State.Model =
     {
         CurrentPage = page
         Toasts = []
+        Pwa = Pwa.initialState
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel

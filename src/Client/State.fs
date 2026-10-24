@@ -17,6 +17,9 @@ type Model = {
     // Toast notifications
     Toasts: Toast list
 
+    // Aktualisierung der installierten PWA (infrastructure-bnbdc, ADR 0057)
+    Pwa: Pwa.PwaState
+
     // Child component models
     Settings: Components.Settings.Types.Model
     SyncFlow: Components.SyncFlow.Types.Model
@@ -46,6 +49,14 @@ type Msg =
     // PWA kommt in den Vordergrund (ADR 0014, Frische-Kriterium): verhält sich auf der
     // Kassenbuch-Seite wie ein Seitenaufruf, sonst tut sie nichts (ledger-h4p6c).
     | VisibilityChanged
+
+    // Installierte PWA übernimmt einen neuen Deploy (infrastructure-bnbdc, ADR 0057).
+    // Die PWA kam in den Vordergrund; Parameter: `Date.now()` in ms.
+    | PwaForegrounded of nowMs: int64
+    // `onNeedRefresh` von `registerSW`: ein neuer Service Worker wartet.
+    | PwaUpdateWaiting
+    // Klick auf "Neu laden" oder sofortiges Neuladen: den wartenden Worker freigeben.
+    | PwaApplyUpdate
 
     // Toast (two-phase removal: StartDismissToast marks exiting → ToastExited removes)
     | ShowToast of string * ToastType
@@ -123,6 +134,7 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoReviewMark (entryId, previous))
     | UndoReviewMarkBatch items ->
         LedgerMsg (Components.Ledger.Types.StartUndoReviewMarkBatch items)
+    | ReloadForUpdate -> PwaApplyUpdate
 
 let private addToastWithAction
     (message: string)
@@ -223,6 +235,86 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Ledger.Entries
         && notLoading model.Ledger.Categories
 
+/// Läuft gerade eine Eingabe, die ein Neuladen verlieren würde (infrastructure-bnbdc,
+/// ADR 0057)? Reiner Schnappschuss des Modells. Nicht erfasst ist ein Textfeld mit Fokus,
+/// dessen Inhalt nicht im Modell steht: das gilt als "keine Eingabe läuft".
+let isInputActive (model: Model) : bool =
+    let ledger = model.Ledger
+    let filters = ledger.Filters
+    let draftDiffers (draft: string) (committed: string) = draft.Trim() <> committed
+    let amountText = Option.map Components.Ledger.Types.formatAmountDraft >> Option.defaultValue ""
+    let selectionActive =
+        match ledger.Selection with
+        | Components.Ledger.Types.NoSelection -> false
+        | Components.Ledger.Types.Picked ids -> not (Set.isEmpty ids)
+        | Components.Ledger.Types.AllExcept _ -> true
+    let ledgerActive =
+        ledger.DetailFor.IsSome
+        || ledger.OpenPopover.IsSome
+        || ledger.SortSheetOpen
+        || ledger.SelectionMode
+        || selectionActive
+        || draftDiffers ledger.MemoDraft (filters.Memo |> Option.defaultValue "")
+        || draftDiffers ledger.AmountMinDraft (amountText filters.AmountMin)
+        || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
+        || ledger.ReviewMarkBatchRunning
+    let rulesActive = model.Rules.EditingRule.IsSome
+    let settingsActive = model.Settings.EditingSection.IsSome
+    let quickAddActive =
+        match model.QuickAdd with
+        | None -> false
+        | Some form ->
+            form.IsSaving
+            || [ form.AmountText; form.Payee; form.Memo; form.CategoryId ]
+               |> List.exists (fun text -> not (String.IsNullOrWhiteSpace text))
+    let syncActive =
+        let sync = model.SyncFlow
+        let sessionRunning =
+            match sync.CurrentSession with
+            | Success (Some session) ->
+                match session.Status with
+                | Completed | Failed _ -> false
+                | _ -> true
+            | _ -> false
+        sessionRunning || sync.IsTanConfirming || sync.SplitEdit.IsSome || sync.InlineRuleForm.IsSome
+    ledgerActive || rulesActive || settingsActive || quickAddActive || syncActive
+
+/// Der Hinweis "Neue Version, neu laden": ein Info-Toast mit Aktion, der nicht nach 5 s
+/// verschwindet (kein Auto-Dismiss-Befehl). Er geht nur durch Schließen oder Klick.
+let private updateNoticeToast : Toast =
+    { Id = Guid.NewGuid()
+      Message = "Neue Version verfügbar."
+      Type = ToastInfo
+      Exiting = false
+      Action = Some { Label = "Neu laden"; Kind = ReloadForUpdate } }
+
+let private isUpdateNotice (toast: Toast) : bool =
+    match toast.Action with
+    | Some { Kind = ReloadForUpdate } -> true
+    | _ -> false
+
+/// Wird der Hinweis geschlossen (Schließen oder Klick), steht er wieder nicht da: das
+/// nächste saubere Zurückholen kann ihn (oder das Neuladen) erneut auslösen.
+let private noticeClosed (id: Guid) (model: Model) : Model =
+    match model.Toasts |> List.tryFind (fun t -> t.Id = id) with
+    | Some toast when isUpdateNotice toast -> { model with Pwa = { model.Pwa with NoticeShown = false } }
+    | _ -> model
+
+let private applyUpdateCmd : Cmd<Msg> = [ fun _ -> Pwa.applyUpdate () ]
+let private checkForUpdateCmd : Cmd<Msg> = [ fun _ -> Pwa.checkForUpdate () ]
+
+/// Wertet `Pwa.decide` über dem aktuellen Modell aus und führt das Ergebnis aus.
+let private applyPwaDecision (model: Model) : Model * Cmd<Msg> =
+    match Pwa.decide model.Pwa (isInputActive model) with
+    | Pwa.Nothing -> model, Cmd.none
+    | Pwa.ReloadNow -> { model with Pwa = { model.Pwa with Reloading = true } }, applyUpdateCmd
+    | Pwa.ShowNotice ->
+        let toast = { updateNoticeToast with Id = Guid.NewGuid() }
+        { model with
+            Toasts = toast :: model.Toasts
+            Pwa = { model.Pwa with NoticeShown = true } },
+        Cmd.none
+
 // ============================================
 // Init
 // ============================================
@@ -241,6 +333,7 @@ let init () : Model * Cmd<Msg> =
     let model = {
         CurrentPage = initialPage
         Toasts = []
+        Pwa = Pwa.initialState
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel
@@ -294,6 +387,24 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | Ledger -> model, Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
         | _ -> model, Cmd.none
 
+    // Installierte PWA übernimmt einen neuen Deploy (ADR 0057). Geprüft wird höchstens
+    // alle fünf Minuten; wartet schon ein Worker, wird zusätzlich `decide` ausgewertet,
+    // damit ein früher nur gezeigter Hinweis beim nächsten sauberen Zurückholen lädt.
+    | PwaForegrounded nowMs ->
+        if Pwa.shouldCheck model.Pwa.LastCheckMs nowMs then
+            let model' = { model with Pwa = { model.Pwa with LastCheckMs = Some nowMs } }
+            let model'', decideCmd = applyPwaDecision model'
+            model'', Cmd.batch [ checkForUpdateCmd; decideCmd ]
+        else
+            applyPwaDecision model
+
+    | PwaUpdateWaiting ->
+        applyPwaDecision { model with Pwa = { model.Pwa with UpdateWaiting = true } }
+
+    | PwaApplyUpdate ->
+        if model.Pwa.Reloading then model, Cmd.none
+        else { model with Pwa = { model.Pwa with Reloading = true } }, applyUpdateCmd
+
     // ============================================
     // Toast
     // ============================================
@@ -309,7 +420,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         // mehr aus: ein zweiter Klick darf nicht zweimal rückgängig machen.
         match model.Toasts |> List.tryFind (fun t -> t.Id = id && not t.Exiting) with
         | Some { Action = Some action } ->
-            { model with Toasts = Toast.markExiting id model.Toasts },
+            { noticeClosed id model with Toasts = Toast.markExiting id model.Toasts },
             Cmd.batch [ delayed Toast.exitDurationMs (ToastExited id); Cmd.ofMsg (toastActionMsg action.Kind) ]
         | _ -> model, Cmd.none
 
@@ -321,7 +432,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         if Toast.isExiting id model.Toasts then
             model, Cmd.none
         else
-            { model with Toasts = Toast.markExiting id model.Toasts },
+            { noticeClosed id model with Toasts = Toast.markExiting id model.Toasts },
             delayed Toast.exitDurationMs (ToastExited id)
 
     | ToastExited id ->

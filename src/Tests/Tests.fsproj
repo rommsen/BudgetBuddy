@@ -46,6 +46,7 @@
     <Compile Include="SyncFlowViewTests.fs" />
     <Compile Include="SyncFlowStateTests.fs" />
     <Compile Include="QuickAddTests.fs" />
+    <Compile Include="PwaTests.fs" />
     <Compile Include="AppReadinessTests.fs" />
     <Compile Include="LedgerCategoriesSyncTests.fs" />
     <Compile Include="SplitEditorTests.fs" />

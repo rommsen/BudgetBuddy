@@ -27,13 +27,15 @@ export default defineConfig({
     // navigate fallback (navigateFallbackDenylist) and not matched by any runtime
     // caching route (there are none). See ADR 0010.
     VitePWA({
-      // Silent updates: Single-User, deploy-controlled by Roman. The installed
-      // shell refreshes on next load/navigate without a "new version" prompt.
-      registerType: 'autoUpdate',
-      // Inject a standalone registration <script> into index.html. The Fable entry
-      // (App.fs -> compiled JS) is not a convenient host for a virtual import, so we
-      // let the plugin own SW registration in the HTML. Disabled in dev (no SW built).
-      injectRegister: 'script',
+      // Neuer Stand ohne Cache-Löschen (infrastructure-bnbdc, ADR 0057): Im Modus
+      // 'prompt' bleibt ein neuer Worker im Zustand "waiting", bis der Client ihn
+      // freigibt. Wann das geschieht (beim Zurückholen der PWA, nie mitten in einer
+      // Eingabe), entscheidet der Elmish-Code in src/Client/Pwa.fs und State.fs.
+      registerType: 'prompt',
+      // Kein registerSW.js im HTML: der Client registriert den Worker selbst über
+      // `virtual:pwa-register` (src/Client/Pwa.fs). Im Dev-Server ist die PWA aus,
+      // das virtuelle Modul ist dort ein No-op.
+      injectRegister: false,
       // App served at the tailnet host root (tailscale serve --https=443 -> :5001);
       // Giraffe serves dist/public at /. SW scope is therefore /, no Vite base.
       scope: '/',
@@ -73,7 +75,10 @@ export default defineConfig({
         // No runtime caching routes at all -> no API/data response ever enters the
         // cache. The only cache is the precache (the static shell).
         runtimeCaching: [],
-        cleanupOutdatedCaches: true
+        cleanupOutdatedCaches: true,
+        // Die erste Installation übernimmt die Seite sofort. Kein skipWaiting: ein
+        // aktualisierter Worker wartet, bis Pwa.applyUpdate ihn freigibt (ADR 0057).
+        clientsClaim: true
       }
     })
   ],

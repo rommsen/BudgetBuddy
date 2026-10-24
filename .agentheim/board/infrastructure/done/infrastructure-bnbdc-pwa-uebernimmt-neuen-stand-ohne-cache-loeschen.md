@@ -1,7 +1,7 @@
 ---
 id: infrastructure-bnbdc
 title: "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)"
-status: doing
+status: done
 type: feature
 context: infrastructure
 created: 2026-10-20
@@ -157,3 +157,26 @@ Dateien, die ein Worker anfasst: `vite.config.js`, `src/Client/Client.fsproj`, n
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
+
+## Outcome
+
+Umgesetzt nach ADR 0057 (Datei `0057-pwa-neuer-stand-register-type-prompt-und-neu-laden-nur-beim-oeffnen.md`).
+
+- `vite.config.js`: `registerType: 'prompt'`, `injectRegister: false`, `workbox.clientsClaim: true`. Rest unverändert (ADR 0010).
+- `src/Client/Pwa.fs` (neu, nach `Api.fs`): `PwaState`, `PwaAction`, `shouldCheck`, `decide` (rein), Interop zu `virtual:pwa-register` (`register`, `checkForUpdate`, `applyUpdate`; No-ops ohne Registrierung).
+- `State.fs`: Root-Feld `Pwa`, Nachrichten `PwaForegrounded of int64`, `PwaUpdateWaiting`, `PwaApplyUpdate`, `isInputActive`, Hinweis-Toast ohne Auto-Dismiss. `Types.fs`: `ToastActionKind.ReloadForUpdate`.
+- `App.fs`: die Sichtbarkeits-Subscription meldet zusätzlich `PwaForegrounded`, eine zweite Subscription ruft `Pwa.register` einmal.
+- Tests: `src/Tests/PwaTests.fs` (45 Expecto-Tests: shouldCheck, decide-Tabelle, update-Übergänge, isInputActive je Punkt) und `scripts/pwa-update.test.mjs` (4 Tests, baut in ein Wegwerf-Verzeichnis). Fünf bestehende Testdateien bekamen nur `Pwa = Pwa.initialState` im Modell-Literal.
+
+Prüfung der Annahmen und Abweichungen:
+- Kriterium 1 wörtlich "ohne skipWaiting im Worker-Code": nicht erfüllbar, der Plugin-Worker im Modus 'prompt' enthält `self.skipWaiting()` als Antwort auf die Nachricht SKIP_WAITING (so gibt `updateSW(true)` den Worker frei). Es gibt keinen unbedingten Aufruf; der Node-Test prüft genau das (ein Aufruf, nur im SKIP_WAITING-Handler) und `index.html` ohne `registerSW.js`.
+- `vite-plugin-pwa` `register.js` bestätigt: `updateSW` sendet SKIP_WAITING, Neuladen bei `controlling` mit `isUpdate`; erste Installation ruft nur `onOfflineReady` (Kommentar in `Pwa.fs`). Im Browser mit zwei Deploys nicht nachgestellt (laut Task nicht Teil des Tasks).
+- `sw.js`-Cache-Header: `UseStaticFiles` setzt kein max-age, `registration.update()` holt `sw.js` ohnehin am HTTP-Cache vorbei; `Program.fs` bleibt unverändert.
+- Dev-Server (PWA aus): `npm run dev` startet, `/#/ledger` rendert (screenshot-route, PC und Handy). Der `virtual:pwa-register`-Import ist dort unkritisch.
+- `visibilitychange` in der iOS-Homescreen-PWA nicht erneut geprüft (ADR 0014).
+- Über die Liste im Task hinaus zählen in `isInputActive` auch `SyncFlow.IsTanConfirming`, `InlineRuleForm` und `SplitEdit`. Ein laufender Sync heißt: Sitzung nicht Completed/Failed. Entwürfe zählen nur, wenn sie vom Filter abweichen.
+- Toast-Text "Neue Version verfügbar.", Knopf "Neu laden"; kein neuer DS-Baustein, daher kein neuer Styleguide-Abschnitt (der bestehende Toast mit Aktion trägt ihn). human-eye-Kriterien (Handy, Einfügen in die Screens) sind nicht abgenommen, der Toast erscheint nur bei laufender Eingabe plus wartendem Worker.
+- Zahlen: dotnet build 0 Warnungen, dotnet test 1749 grün (7 übersprungen, wie zuvor), npm run build grün, guard:classes und guard:tokens grün, test:scripts seriell 180 von 180 grün (ein erster Lauf scheiterte in export-design-system.test.mjs:292, der Wiederholungslauf war grün, vermutlich zeitabhängig).
+
+### README von Hand
+Infrastructure-README, Abschnitt "Invariants / conventions", Bullet "PWA = installierbar, kein Offline-Daten-Cache". Alter Satz: "`registerType: 'autoUpdate'` (stille Updates, deploy-kontrolliert)." Neuer Satz: "`registerType: 'prompt'` mit `injectRegister: false` (ADR 0057): der Client registriert den Service Worker selbst (`src/Client/Pwa.fs`), prüft beim Zurückholen höchstens alle 5 Minuten, lädt sofort neu und zeigt bei laufender Eingabe den Hinweis 'Neue Version verfügbar' mit Knopf."

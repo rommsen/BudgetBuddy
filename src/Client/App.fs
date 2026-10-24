@@ -26,14 +26,29 @@ let private visibilitySubscription (_model: State.Model) : Elmish.Sub<State.Msg>
             let handler =
                 fun (_: Browser.Types.Event) ->
                     let state: string = document?visibilityState
-                    if state = "visible" then dispatch State.VisibilityChanged
+                    if state = "visible" then
+                        dispatch State.VisibilityChanged
+                        // Installierte PWA übernimmt einen neuen Deploy (ADR 0057).
+                        dispatch (State.PwaForegrounded (int64 (Fable.Core.JS.Constructors.Date.now ())))
             document.addEventListener ("visibilitychange", handler)
             { new System.IDisposable with
                 member _.Dispose() = document.removeEventListener ("visibilitychange", handler) }
     ]
 
+// Der Service Worker wird einmal beim Start registriert (Pwa.register); `onNeedRefresh`
+// meldet einen wartenden neuen Worker als Nachricht, die Entscheidung trifft `update`
+// (ADR 0057). Im Dev-Server (PWA aus) tut `registerSW` nichts.
+let private pwaSubscription (_model: State.Model) : Elmish.Sub<State.Msg> =
+    [
+        [ "pwa-register" ],
+        fun dispatch ->
+            Pwa.register (fun () -> dispatch State.PwaUpdateWaiting)
+            { new System.IDisposable with
+                member _.Dispose() = () }
+    ]
+
 // Start the Elmish application
 Program.mkProgram State.init State.update View.view
-|> Program.withSubscription visibilitySubscription
+|> Program.withSubscription (fun model -> visibilitySubscription model @ pwaSubscription model)
 |> Program.withReactSynchronous "root"
 |> Program.run

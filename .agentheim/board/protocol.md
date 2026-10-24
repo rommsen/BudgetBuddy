@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:56 -- Task verified and completed: infrastructure-bnbdc - "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-bnbdc - "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)"
+**Summary:** Die installierte PWA fragt beim Zurückholen (höchstens alle 5 Minuten) nach einem neuen Service Worker und lädt sofort neu, außer es läuft eine Eingabe; dann steht ein Info-Toast "Neue Version verfügbar." mit Knopf "Neu laden" bis zum Klick oder Schließen. vite-plugin-pwa läuft mit registerType 'prompt', die Entscheidung liegt in reinen Funktionen und in State.update.
+**Duration:** 32m
+**Verification:** PASS (iteration 1)
+**Files changed:** 14
+**Tests added:** 49
+**ADRs written:** none
+
+---
+
+## 2026-10-24 15:49 -- Verification failed: design-system-gffps - Kategorie-Picker mit Einfachauswahl
+
+**Type:** Work / Verification failure
+**Task:** design-system-gffps - Kategorie-Picker mit Einfachauswahl
+**Iteration:** 1 of 3
+**Reasons:** Kriterium 2 (Farbklasse nach Vorzeichen, leerer Slot bei None, Stand-Zeile fehlt ohne Beschriftung) nicht am gerenderten Element belegt; Kriterium 3 (OnSelect genau einmal, Mausklick auf Ohne Kategorie) nicht belegt; schwache Quelltext-Zusicherung
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-24 15:48 -- Batch started: [ledger-b7qmx]
 
 **Type:** Work / Batch start

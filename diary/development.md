@@ -4,6 +4,31 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 15:46 - PWA übernimmt neuen Deploy ohne Cache-Löschen (infrastructure-bnbdc)
+
+**What I did:**
+registerType auf 'prompt' gestellt, Service Worker über `Pwa.fs` selbst registriert, Prüfung beim Zurückholen (5 Minuten Drosselung), sofortiges Neuladen oder Hinweis-Toast mit Knopf bei laufender Eingabe.
+
+**Files Added:**
+- `src/Client/Pwa.fs` - reine Entscheidungslogik und Interop zu virtual:pwa-register
+- `src/Tests/PwaTests.fs` - 45 Expecto-Tests
+- `scripts/pwa-update.test.mjs` - Build-Wächter (prompt, kein registerSW.js, skipWaiting nur bei SKIP_WAITING)
+
+**Files Modified:**
+- `vite.config.js` - prompt, injectRegister false, clientsClaim
+- `src/Client/State.fs`, `src/Client/Types.fs`, `src/Client/App.fs`, `src/Client/Client.fsproj` - Modell, Nachrichten, isInputActive, Toast-Aktion, Subscriptions
+- `src/Tests/Tests.fsproj` und fünf Testdateien - neue Datei eingehängt, Modell-Literale um das Feld Pwa ergänzt
+
+**Rationale:**
+Die Homescreen-PWA wird oft ohne Navigation fortgesetzt, dann fragt der Browser nicht nach einem neuen Worker; autoUpdate lud zudem mitten in einer Eingabe neu (ADR 0057).
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 1749 grün (7 übersprungen); test:scripts 180/180; guard:classes und guard:tokens grün
+- Issues: skipWaiting steht im Worker nur im SKIP_WAITING-Handler; ein erster test:scripts-Lauf scheiterte einmal in export-design-system.test.mjs, Wiederholung grün
+
+---
+
 ## 2026-10-24 15:48 - Auswahl nach ADR 0053 (ledger-w4vte)
 
 **What I did:**

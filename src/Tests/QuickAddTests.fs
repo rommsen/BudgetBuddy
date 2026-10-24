@@ -369,6 +369,7 @@ let private modelWithForm (form: QuickAddFormState) : State.Model =
     {
         CurrentPage = Types.QuickAdd
         Toasts = []
+        Pwa = Pwa.initialState
         Settings = settingsModel
         SyncFlow = syncFlowModel
         Rules = rulesModel
