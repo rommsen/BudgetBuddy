@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
-- **Todo:** 0
+- **Backlog:** 1
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-y6atr** — Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint (bug) — `todo/infrastructure-y6atr-start-abfragen-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -39,7 +40,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-y6atr** — Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint (bug) — `backlog/infrastructure-y6atr-start-abfragen-bei-netzwerkfehler-wiederholen.md`
 - **infrastructure-aaryk** — Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (chore) — `backlog/infrastructure-aaryk-playwright-waechter-pwa-wechsel.md`
 <!-- backlog-list:end -->
 

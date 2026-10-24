@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:45 -- Modeling / Promoted: infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-24 22:45 -- Modeling / Refined: infrastructure-y6atr, ledger-k9tq7, ledger-dmw83 - Folgen von Http error (0) im Kassenbuch
 
 **Type:** Modeling / Refine
