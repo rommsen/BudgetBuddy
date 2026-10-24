@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0057** — PWA übernimmt neuen Stand: registerType prompt, neu laden nur beim Öffnen, sonst Hinweis — 2026-10-24 — `../../decisions/0057-pwa-neuer-stand-register-type-prompt-und-neu-laden-nur-beim-oeffnen.md`
 - **0034** — Backend-Port kommt aus ASPNETCORE_URLS statt aus einem Literal in app.Run, mechanisch abgesichert durch Wächter-Tests — 2026-09-19 — `../../decisions/0034-backend-port-ueber-aspnetcore-urls-statt-literal.md`
 - **0033** — DB-Setup in [<Tests>]-Bindings nur in testCase-Closures, mechanisch durchgesetzt statt nur dokumentiert — 2026-09-19 — `../../decisions/0033-db-setup-nur-in-testcase-closures-mechanisch-durchgesetzt.md`
 - **0030** — dotnet test erzwingt die In-Memory-DB über test.runsettings (VSTest ruft nie main auf) — 2026-09-12 — `../../decisions/0030-dotnet-test-erzwingt-in-memory-db-ueber-runsettings.md`

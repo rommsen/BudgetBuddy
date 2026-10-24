@@ -7,7 +7,7 @@ date: 2026-09-12
 supersedes: []
 superseded_by: []
 related_tasks: [ledger-s8m3w, ledger-xbrht, ledger-kdnnz]
-related_adrs: [0012, 0013, 0014, 0021, 0032]
+related_adrs: [0012, 0013, 0014, 0021, 0032, 0054]
 related_research: []
 ---
 
@@ -89,3 +89,10 @@ Kategorie oder ein kaputter Split verfälscht Zahlen, auf die sich das Budget st
 **Den Prüfvermerk nur lokal in BB führen, ohne Rückschreiben.** Dann wüsste YNAB nichts
 davon, und Roman müsste weiter in der YNAB-App prüfen. Zwei Orte mit zwei Wahrheiten für
 dasselbe Häkchen, genau das, wogegen der Spiegel gebaut wurde.
+
+## Nachtrag 2026-10-24
+
+Roman hat entschieden, Kategorie ändern und die Split-Bearbeitung vor dem Abschluss von v1
+als erste v2-Fähigkeit zu bauen. Punkt 2 dieser ADR gilt damit nicht mehr für Kategorie und
+Split; Punkt 1 (kein allgemeiner Update-Weg) gilt sinngemäß weiter, Punkt 3 gilt nur für den
+Prüfvermerk. Die Begründung steht in ADR 0054, der Schreibweg in ADR 0055.

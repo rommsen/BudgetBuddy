@@ -1,6 +1,9 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0056** — Lena zuweisen: Flag-Farbe aus den Settings, Schreibweg nach ADR 0050, Fehlschlag mit Baseline (Nachtrag) — 2026-10-24 — `../../decisions/0056-lena-zuweisen-flag-farbe-aus-settings-schreibweg-nach-adr-0050.md`
+- **0055** — Kategorie-Schreibweg: Ereignis mit alt/neu, Fehlschlag mit Baseline, YNAB gewinnt, Available live — 2026-10-24 — `../../decisions/0055-kategorie-schreibweg-ereignis-fehlschlag-mit-baseline-ynab-gewinnt.md`
+- **0054** — Kategorie ändern ist die erste v2-Fähigkeit, vor Abschluss von v1 — 2026-10-24 — `../../decisions/0054-kategorie-aendern-ist-die-erste-v2-faehigkeit-vor-abschluss-von-v1.md`
 - **0053** — Bedienung der Kassenbuch-Zeile: Panel für eine Buchung, Leiste für viele, Zellen ohne eigene Klickziele, Gesten nach Eingabegerät — 2026-10-20 — `../../decisions/0053-bedienung-der-kassenbuch-zeile-panel-fuer-eine-leiste-fuer-viele.md`
 - **0052** — Grenze zwischen PC-Tabelle und kompakter Liste folgt der gemessenen Tabellenbreite, die Filter-Chrome bleibt beim Viewport (bewusste Abweichung von ADR 0043) — 2026-10-20 — `../../decisions/0052-grenze-tabelle-liste-folgt-der-gemessenen-tabellenbreite.md`
 - **0051** — Kassenbuch-Sortierung gehört zur Seitenanfrage und nicht zum EntryFilter, Betrag und Kategorie sortieren in F# — 2026-10-20 — `../../decisions/0051-kassenbuch-sortierung-teil-der-seitenanfrage-nicht-des-filters.md`

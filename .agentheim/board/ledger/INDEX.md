@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 0
+- **Backlog:** 17
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 69
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-mas5g** — "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf" (spike) — `todo/ledger-mas5g-spike-ynab-split-api.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -55,6 +56,14 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
+- **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`
+- **ledger-y54gr** — "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color" (feature) — `backlog/ledger-y54gr-lena-fragen-in-der-auswahl-leiste.md`
+- **ledger-hg5m5** — "Regel-Angebot nach einer Kategorie-Änderung im Kassenbuch: Anbieten, aus Payee und neuer Kategorie eine Kategorisierungsregel anzulegen" (feature) — `backlog/ledger-hg5m5-regel-angebot-nach-kategorie-aenderung.md`
+- **ledger-pafkp** — "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits" (feature) — `backlog/ledger-pafkp-split-editor-im-kassenbuch.md`
+- **ledger-kxme4** — "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie" (feature) — `backlog/ledger-kxme4-split-schreibweg.md`
+- **ledger-w29y6** — "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen" (feature) — `backlog/ledger-w29y6-kategorie-setzen-fuer-die-auswahl.md`
+- **ledger-sfab0** — "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Hinweis alt und neu als Toast, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Liste bleibt stehen mit Hinweisleiste Neu laden" (feature) — `backlog/ledger-sfab0-kategorie-aendern-im-detail.md`
 - **ledger-k2rbn** — "Kategorie ändern in BB (v2): ein Kategorie-Picker mit zwei Einstiegen, dem Pfeil an der Kategorie im Detail für eine Buchung und \"Kategorie setzen\" in der Auswahl-Leiste für viele; BB schreibt die Änderung nach YNAB nach dem Muster des Prüfvermerks" (feature) — `backlog/ledger-k2rbn-kategorie-aendern-ein-picker-zwei-einstiege.md`
 - **ledger-m6zpd** — "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute" (feature) — `backlog/ledger-m6zpd-kompaktliste-nach-eingabegeraet.md`
 - **ledger-w4vte** — "Auswahl nach ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, dann Detail, dann Auswahl; während einer Auswahl ruhen Prüf-Schaltfläche, G und Wisch auf PC und Handy" (feature) — `backlog/ledger-w4vte-auswahl-nach-adr-0053.md`

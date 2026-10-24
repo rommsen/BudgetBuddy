@@ -5,7 +5,7 @@ status: backlog
 type: feature
 context: ledger
 created: 2026-09-25
-depends_on: [ledger-q1hw2, design-system-001]
+depends_on: [design-system-001]
 blocks: []
 tags: [backend, frontend, kassenbuch]
 related_adrs: [0039, 0045]
@@ -29,17 +29,16 @@ Listenzeile selbst bleibt unverändert bei "N Split-Zeilen"
 (`categoryLabel`/`categoryLabelQualified`, `src/Client/Components/Ledger/View.fs`): sie
 fasst ohnehin mehrere Ziele zusammen, eine Qualifizierung dort wäre nicht sinnvoll lesbar.
 
-Befund bei der Verfeinerung: ein Bereich, der eine Split-Zeile im `ledger`-Client
-überhaupt einzeln anzeigt, existiert heute noch nicht. `OpenHistory`/`historySheet` zeigt
-nur sprechende Sätze aus `getEntryHistory`; `entry.Splits` wird im `ledger`-Client aktuell
-nur gezählt. Der tatsächlich existierende Split-Editor mit Zeilen-Picker
-(`src/Client/Components/SyncFlow/Views/SplitSheet.fs`, `targetLabel`) gehört zur Bounded
-Context `ynab-sync`, nicht zu `ledger`, und ist nicht Teil dieser Aufgabe (ADR 0045 Punkt
-6). Das für `ledger` geplante Lesen-Detail (BottomSheet am Handy, Seitenpanel am PC,
-"Kategorie oder Splits" lesend) ist `ledger-q1hw2`, noch offen. Deshalb hängt diese
-Aufgabe an `ledger-q1hw2`: die Server-/Shared-Erweiterung und ihre Verdrahtung in die
-Darstellung gehören in eine Umsetzung, sobald es dort tatsächlich etwas zu qualifizieren
-gibt (ADR 0045 Punkt 5, gegen die Alternative, ein Feld ohne Konsumenten vorzuziehen).
+Befund bei der Verfeinerung (Stand 2026-10-24): `ledger-q1hw2` ist gebaut (Commit 2d4f5c0,
+Fix a009eb9) und rendert Split-Zeilen im Detail bereits einzeln, heute unqualifiziert. Die
+Feldzeile "Split" (`detail-split`) steht in `detailContent`
+(`src/Client/Components/Ledger/View.fs`) und baut ihre Zeilen aus `splitLineTexts entry`;
+das ruft `splitTargetLabel` je `TransactionSplit` auf (`ToCategory` zeigt nur den
+Blattnamen, `ToTransfer` "Übertrag: <Konto>", `Uncategorized` "kein Ziel") und gibt
+`(Ziel, Betrag)`-Paare an `Detail.splitLines` (`src/Client/DesignSystem/Detail.fs`). Panel
+(`detailPanelView`, PC) und BottomSheet (Handy, Kompaktliste, schmales Fenster) teilen sich
+dieselbe `detailContent`, es gibt also genau eine Stelle für die Verdrahtung. Der
+Split-Editor in `ynab-sync` (`SplitSheet.fs`) bleibt außen vor (ADR 0045 Punkt 6).
 
 ## What
 
@@ -66,11 +65,36 @@ gibt (ADR 0045 Punkt 5, gegen die Alternative, ein Feld ohne Konsumenten vorzuzi
   Refactoring, Verhalten unverändert, bestehende Tests müssen weiter grün sein) und die
   neue Split-Zeilen-Darstellung benutzt dieselbe Funktion.
 
-### Frontend: Verdrahtung in `ledger-q1hw2`s Detail-Darstellung
-- Wo genau `ledger-q1hw2` die Split-Zeilen rendert (BottomSheet am Handy, Seitenpanel am
-  PC): für jede `ToCategory`-Zeile `qualify (entry.SplitCategoryGroupNames.TryFind
-  categoryId) categoryName` anzeigen; `ToTransfer`- und `Uncategorized`-Zeilen behalten
-  ihr bisheriges Label unverändert.
+### Frontend: Verdrahtung in `detailContent`
+- `splitTargetLabel` bekommt die Map als ersten Parameter:
+  `splitTargetLabel (groupNames: Map<Guid, string>) (split: TransactionSplit) : string`.
+  `ToCategory (YnabCategoryId id, name)` ergibt `qualify (groupNames.TryFind id) name`;
+  `ToTransfer` und `Uncategorized` behalten ihr Label (`Übertrag: <Konto>`, `kein Ziel`).
+- `splitLineTexts (entry)` reicht `entry.SplitCategoryGroupNames` durch. `detailContent`
+  und `Detail.splitLines` bleiben unverändert (die Paare tragen schon den fertigen Text).
+- Die Feldzeile "Kategorie" (`detail-category`) und die Listenzeile
+  (`categoryLabel`/`categoryLabelQualified`, "N Split-Zeilen") bleiben unverändert.
+- Panel und Sheet brauchen keinen eigenen Code: beide rendern `detailContent`.
+- Annahme: `Detail.splitLines` setzt `prop.key (target + amountText)`. Zwei Zeilen mit
+  demselben qualifizierten Text und Betrag wären auch heute schon ein Key-Duplikat; das
+  Verhalten ändert sich durch die Qualifizierung nicht und gehört nicht in diese Task.
+
+### Test-Literale (neues Pflichtfeld in `LedgerEntryView`)
+`SplitCategoryGroupNames` ist ein Server→Client-Feld, ein Null-Fallback für die
+Remoting-Deserialisierung ist nicht nötig (der Server füllt es immer, eine leere Map bei
+Buchungen ohne Splits). Voll ausgeschriebene Record-Literale brauchen aber
+`SplitCategoryGroupNames = Map.empty` in diesen Dateien (Fundstellen mit
+`CategoryGroupName = ...` im Literal):
+- `src/Tests/LedgerSelectionTests.fs` (`entryOf`, von Detail-, Keyboard- und
+  ReviewMarkBatchClient-Tests mitbenutzt)
+- `src/Tests/LedgerPagingTests.fs` (`entryView`)
+- `src/Tests/LedgerFilterButtonTests.fs` (`view`)
+- `src/Tests/LedgerViewTests.fs` (`entryView`)
+- `src/Tests/LedgerSortClientTests.fs` (`entryOn`)
+- `src/Tests/LedgerReviewMarkClientTests.fs` (`entryView`)
+`LedgerPageTests`, `LedgerReviewMarkTests` und `LedgerDetailTests` bauen über `toEntryView`
+oder `{ ... with }` und brauchen keine Änderung. Gegenprobe: `grep -rn "IsTransfer = false"
+src/Tests` sollte genau diese sechs Dateien liefern.
 
 ## Acceptance criteria
 - [ ] `LedgerEntryView.SplitCategoryGroupNames` enthält für eine Buchung mit zwei
@@ -88,18 +112,34 @@ gibt (ADR 0045 Punkt 5, gegen die Alternative, ein Feld ohne Konsumenten vorzuzi
       "Gruppe: " ohne Blatt). `categoryLabelQualified`, umgestellt auf `qualify`, liefert
       für alle bestehenden `LedgerViewTests`-Fälle dasselbe Ergebnis wie vorher
       (Regressionstest: bestehende Tests bleiben grün, keine neuen Abweichungen).
-- [ ] Im Detail-Panel (`ledger-q1hw2`) erscheint eine Split-Zeile mit bekannter Gruppe als
-      "Gruppe: Kategorie"; eine Split-Zeile ohne bekannte Gruppe nur mit dem Blattnamen;
-      eine `ToTransfer`-Zeile und eine `Uncategorized`-Zeile unverändert mit ihrem
-      bisherigen Label. Die Listenzeile derselben Buchung zeigt weiterhin unverändert
-      "N Split-Zeilen" (Regressionstest: `categoryLabel`/`categoryLabelQualified` für die
-      Listenzeile ändern sich nicht).
+- [ ] `splitLineTexts` (Test in `LedgerDetailTests`, neben dem bestehenden Split-Test): eine
+      Buchung mit einer `ToCategory`-Zeile (Id in `SplitCategoryGroupNames`, Gruppe
+      "Alltag", Name "Lebensmittel"), einer `ToCategory`-Zeile ohne Map-Eintrag, einer
+      `ToTransfer`-Zeile und einer `Uncategorized`-Zeile liefert die Ziel-Texte
+      "Alltag: Lebensmittel", den bloßen Blattnamen, "Übertrag: <Konto>" und "kein Ziel",
+      mit unveränderten Beträgen. Der bestehende Test ohne Map (leere Map) bleibt grün.
+- [ ] Panel und Sheet zeigen dieselben Texte: `detailContent` ist die einzige Stelle, die
+      `splitLineTexts` aufruft (Quelltext-Test nach dem Muster der bestehenden
+      `LedgerDetailTests`, die `detailContent` per `functionBody` prüfen).
+- [ ] Die Listenzeile derselben Buchung zeigt weiterhin "N Split-Zeilen" und die
+      Feldzeile "Kategorie" im Detail den Kopf-Wert (Regressionstest:
+      `categoryLabel`/`categoryLabelQualified` für eine Buchung mit Splits ändern sich
+      nicht, auch wenn `SplitCategoryGroupNames` gefüllt ist).
+- [ ] Alle sechs oben genannten Test-Dateien kompilieren mit `SplitCategoryGroupNames = Map.empty`.
 - [ ] `dotnet build` und `dotnet test` grün.
 
 ## Notes
 Abgetrennt am 2026-09-25 bei der Verfeinerung von `ledger-h6ptn`. Von `type: decision` zu
 `type: feature` umgewandelt und modelliert am 2026-10-02 (tactical-modeler-Konsultation
-durch den orchestrator); Entscheidung und Schnitt in ADR 0045. Bewusst **kein** separater
-Folge-Task: `depends_on: [ledger-q1hw2, design-system-001]` sorgt dafür, dass diese Aufgabe
-erst beginnt, wenn es im `ledger`-Client tatsächlich eine Stelle gibt, die eine Split-Zeile
-einzeln rendert.
+durch den orchestrator); Entscheidung und Schnitt in ADR 0045. `ledger-q1hw2` ist seit
+2026-10-24 fertig, deshalb ist das `depends_on` darauf entfallen und die Task bereit für todo.
+
+Server-seitig gibt es eine zweite Zusammensetzung von "Gruppe: Name"
+(`Ledger.Persistence.qualifiedCategoryName`, Sortierschlüssel, ADR 0051). Sie bleibt außerhalb
+dieser Task; `qualify` lebt im Client (`View.fs`), wie ADR 0045 Punkt 4 es festlegt.
+
+Verfeinert am 2026-10-24 (Sammel-Modeling): Befund gegen den gebauten Code nachgezogen
+(`splitTargetLabel`/`splitLineTexts`/`detailContent` statt "Wo genau q1hw2 rendert"),
+`depends_on` auf `design-system-001` reduziert, Acceptance criteria auf `splitLineTexts`
+und das gemeinsame `detailContent` (Panel und Sheet) zugeschnitten, betroffene
+Test-Literale aufgelistet. Kein ADR-Nachtrag nötig.

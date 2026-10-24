@@ -5,6 +5,116 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 13:25 -- Modeling / Refined: Sammel-Verfeinerung von neun Backlog-Tasks
+
+**Type:** Modeling / Refine
+**BC:** ledger, infrastructure, design-system
+**Status after:** backlog (Promotion folgt einzeln)
+**Summary:** Sammel-Verfeinerung von neun Backlog-Tasks mit fünf parallelen Orchestratoren nach Romans Entscheidungen vom 2026-10-24. w4vte, m6zpd und b7qmx gegen das gebaute Detail aus q1hw2 abgeglichen; bnbdc mit "neu laden nur beim Öffnen" geschärft; h6mer als Conductor-Operation auf der Live-DB festgelegt; v2 begonnen: k2rbn auf den Server-Schreibweg einer Buchung geschnitten, kwwxz auf live frische Available-Beträge umgestellt (der Kassenbuch-Client lädt Available schon live), xfjcp auf "Lena fragen" im Detail mit Baseline-Schutz nach ADR 0055 (hängt deshalb an k2rbn). c7j8e und nb4tv bleiben auf Romans Wunsch unberührt.
+**Split into:** design-system-gffps, ledger-mas5g, ledger-sfab0, ledger-w29y6, ledger-kxme4, ledger-pafkp, ledger-hg5m5 (aus k2rbn); ledger-y54gr, ledger-ayjzq, ledger-g47hp (aus xfjcp); infrastructure-aaryk (aus bnbdc)
+**ADRs written:** 0054, 0055, 0056 (mit Nachtrag), 0057; Nachtrag an 0028
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: infrastructure-aaryk - Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus infrastructure-bnbdc: optionaler Playwright-Wächter mit zwei Builds für den PWA-Wechsel.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-g47hp - "Benachrichtigung für Lena bei neuer Rückfrage"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-xfjcp: Benachrichtigung für Lena bei neuer Rückfrage, Kanal offen.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-ayjzq - "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-xfjcp: Sicht Für mich für Lena, offene UX-Fragen.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-xfjcp: Lena fragen als Sammelaktion in der Auswahl-Leiste.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-hg5m5 - "Regel-Angebot nach einer Kategorie-Änderung im Kassenbuch: Anbieten, aus Payee und neuer Kategorie eine Kategorisierungsregel anzulegen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-k2rbn: Regel-Angebot nach einer Kategorie-Änderung, bewusst eigene spätere Scheibe.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-pafkp - "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-k2rbn: Split-Editor im Kassenbuch (Romans Entscheidung, Split-Bearbeitung mitbauen).
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-kxme4 - "Split-Buchungen in BB bearbeiten, Schreibweg: Befehl setEntrySplits mit Prüfung Summe gleich Betrag, EntryRecategorized mit Splits, eigener Push nach YNAB, derselbe Fehlschlag-Zustand wie bei der Kategorie"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-k2rbn: Split-Schreibweg setEntrySplits, Kriterien nach dem Spike ledger-mas5g.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-w29y6 - "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-k2rbn: Kategorie setzen für die Auswahl mit Sammel-PATCH.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-sfab0 - "Kassenbuch-Detail: Pfeil an der Kategorie öffnet den Picker, Änderung über setEntryCategory mit Hinweis alt und neu als Toast, Hinweisleiste Kategorie nicht in YNAB mit Erneut senden, gesperrte Fälle, Liste bleibt stehen mit Hinweisleiste Neu laden"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Abgeschnitten aus ledger-k2rbn: Einstieg Kategorie ändern im Buchungs-Detail mit Picker, Toast alt/neu und Fehlschlag-Leiste.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: ledger-mas5g - "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Spike: klärt, ob und wie die YNAB-API Split-Zeilen bestehender Buchungen ändern lässt, bevor der Split-Schreibweg gebaut wird.
+
+---
+
+## 2026-10-24 13:25 -- Modeling / Captured: design-system-gffps - "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Gruppen, zuletzt benutzten, Zeile Ohne Kategorie, Available rechts und Stand-Zeile"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** todo
+**Summary:** Abgeschnitten aus ledger-k2rbn: Kategorie-Picker im Design-System mit Available-Spalte, Popover am PC, BottomSheet am Handy.
+
+---
+
 ## 2026-10-20 22:34 -- Work session ended
 
 **Type:** Work / Session end
