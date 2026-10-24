@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-24
 supersedes: []
 superseded_by: []
-related_tasks: [ledger-k2rbn, ledger-kwwxz, ledger-w4vte]
+related_tasks: [ledger-k2rbn, ledger-kwwxz, ledger-w4vte, ledger-sfab0, ledger-w29y6, ledger-pafkp, design-system-gffps]
 related_adrs: [0014, 0021, 0028, 0044, 0050, 0051, 0053, 0054]
 related_research: []
 ---
@@ -143,3 +143,30 @@ Bleibt als additive Option, falls das Kassenbuch ohne YNAB-Verbindung Zahlen zei
 **Zusätzlicher Spiegel-Lauf nach jedem Schreiben.** Bei vielen Änderungen hintereinander
 würde das Limit von rund 200 Anfragen je Stunde schnell erreicht. Verworfen zugunsten der
 lokalen Fortschreibung.
+
+## Nachtrag 2026-10-24, Ablauf 4
+Roman hat am 2026-10-24 vier Punkte aus der Tafel Ablauf 4 entschieden
+(`docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md`). Sie ändern Punkt 9 und
+ergänzen die Oberfläche; die Schreibwege (Punkte 1 bis 8) bleiben.
+
+- **Punkt 9, Filter-Nichttreffer.** Lässt die Änderung die Zeile aus dem aktiven Filter
+  fallen, bleibt sie ausgegraut an ihrem Platz ("passt nicht mehr zum Filter"), Trefferzahl und
+  Summe gehen sofort mit. `LocallyRemoved` wird um eins erhöht: die Zeile bleibt gerendert, fehlt
+  aber im Server-Ergebnis, die Formel von ADR 0051 Punkt 7 trägt, weil die Ordnung der übrigen
+  Zeilen unverändert bleibt. `OrderStale` mit der Leiste "Neu laden" gilt nur noch, wenn sich
+  der Schlüssel der aktiven Sortierung ändert (`SortByCategory`). Der Satz "`LocallyRemoved`
+  bleibt unverändert" in Punkt 9 gilt nur für diesen Fall.
+- **Rückgängig.** Der Toast trägt "Rückgängig" (Kategorie, Split, Sammel-Variante für alle). Die
+  Rücknahme ist kein eigener Befehl: der Client ruft `setEntryCategory` bzw. `setEntrySplits`
+  mit dem alten Stand auf. Es entsteht ein zweites `EntryRecategorized` und ein zweiter Push;
+  das Log bleibt unverändert additiv, die Historie zeigt beide Zeilen. Dafür trägt
+  `CategoryChangeOutcome.Previous` die Id der vorherigen Kategorie.
+- **Budget-Hinweis** (Punkt 8) erscheint als Karte am Picker, nicht im Toast. Die Berechnung
+  bleibt die lokale Fortschreibung.
+- **Vorschläge zum Payee** im Picker kommen aus einer eigenen Server-Abfrage über die
+  Projektion (Kategorie-Häufigkeit je Payee), nicht aus dem Spiegel-Stand von YNAB.
+
+**Verworfen:** `OrderStale` auch bei Filter-Nichttreffer. Die Zeile würde nicht mehr unter dem
+Finger bleiben, und eine Leiste für einen Fall, den die ausgegraute Zeile schon zeigt, ist
+Lärm. Tafel Ablauf 5 (Screen 5.8) sieht ausgegraut ohnehin vor.
+

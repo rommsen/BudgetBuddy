@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 14:14 -- Modeling / Refined: Kategorie-Scheiben nach Handoff Ablauf 4
+
+**Type:** Modeling / Refine
+**BC:** ledger, design-system
+**Status after:** unverändert (gffps, kwwxz, k2rbn todo; sfab0, w29y6, pafkp backlog)
+**Summary:** Tafel Ablauf 4 aus dem Design-Projekt als docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md ins Repo geholt und mit dem Repo-Stand abgeglichen. Romans Entscheidungen: Rückgängig im Toast für Kategorie und Split, Budget-Karte alt/neu am Picker statt im Toast, Picker-Abschnitt Vorgeschlagen zum Payee statt Zuletzt verwendet, Filter-Nichttreffer bleibt ausgegraut stehen (OrderStale nur bei geändertem Sortierschlüssel), Aufteilen fest im Detail.
+**ADRs written:** Nachtrag an 0055
+
+---
+
 ## 2026-10-24 13:48 -- Modeling / Refined: ledger-pafkp - Split-Editor, Vision angepasst
 
 **Type:** Modeling / Refine

@@ -1,6 +1,6 @@
 ---
 id: ledger-kwwxz
-title: "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Text des Hinweises mit alt und neu"
+title: "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Zeilen der Karte Budget nach dem Wechsel mit alt und neu"
 status: todo
 type: feature
 context: ledger
@@ -38,10 +38,14 @@ deshalb gegen eine persistierte Kopie im Spiegel: sie wäre älter als der Live-
    Betrag (Ausgabe −50 erhöht um 50) und steigt Available der neuen um den Betrag. Für
    Buchungen anderer Monate, Kategorien ohne Available und "ohne Kategorie" bleibt alles
    unverändert. Der nächste Abruf überschreibt.
-3. **Text des Hinweises.** Eine reine Funktion `categoryChangeHint` liefert die Zeilen für
-   den Toast nach der Änderung: "Alt: <Gruppe: Name> 120,00 € zu 170,00 €" und
-   "Neu: <Gruppe: Name> 80,00 € zu 30,00 €". Ohne Zahlen (andere Monate, kein Available)
-   nur die Namen. Rendern und Auslösen gehören zu `ledger-sfab0`.
+3. **Zeilen der Karte.** Eine reine Funktion `categoryChangeHint` liefert die Zeilen der Karte
+   "Budget nach dem Wechsel" (Tafel Ablauf 4, 4.3), nicht des Toasts: eine Liste von
+   `{ Label: string; OldText: string option; NewText: string option }`, zuerst die alte, dann
+   die neue Kategorie, z. B. `("Alltag: Haushalt", Some "412,10 €", Some "494,00 €")` und
+   `("Wohnen: Möbel", Some "120,00 €", Some "38,10 €")`. Ohne Zahlen (andere Monate, kein
+   Available) `None` in beiden Texten, nur das Label. Für "ohne Kategorie" entfällt die
+   Zeile. Die Karte selbst (`CategoryChangeCard`, `design-system-gffps`) und das Auslösen
+   (`ledger-sfab0`) gehören nicht hierher; der Toast trägt nur "Kategorie geändert: <Name>".
 4. **Alter im Picker.** Eine reine Funktion `availableAgeLabel` ("Stand 10:42" oder
    "Stand vor 3 Min") für die Fußzeile des Pickers; Anzeige in `ledger-sfab0`.
 
@@ -58,12 +62,17 @@ Grenze zur Vision: Budgetieren wird nicht nachgebaut. Die Zahl wird gezeigt, YNA
 - [ ] `shiftAvailable`-Tests: Ausgabe im laufenden Monat (alt plus Betrag, neu minus
       Betrag), Einnahme (umgekehrt), Buchung aus einem Vormonat ändert nichts, Wechsel auf
       "ohne Kategorie" erhöht nur die alte, Kategorie ohne Available bleibt ohne.
-- [ ] `categoryChangeHint`-Tests: Zeilen mit Zahlen im laufenden Monat, nur Namen im
-      Vormonat und ohne Available; Beträge im deutschen Format.
+- [ ] `categoryChangeHint`-Tests: Zeilen mit alt und neu im laufenden Monat (Reihenfolge alt,
+      neu; neuer Wert gleich Wert nach `shiftAvailable`), nur Label im Vormonat und ohne
+      Available, keine Zeile für "ohne Kategorie"; Beträge im deutschen Format.
 - [ ] `availableAgeLabel`-Tests: unter einer Minute, Minuten, über eine Stunde.
 - [ ] `dotnet build`, `dotnet test`, `npm run build` grün.
 
 ## Notes
+Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4): `categoryChangeHint` liefert die Zeilen
+der Karte am Picker, nicht des Toasts (Roman, 2026-10-24). Handoff:
+`docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md`. Rückgängig nutzt `shiftAvailable` mit vertauschten Kategorien, keine neue Funktion.
+
 Verfeinert am 2026-10-24 (Sammel-Modeling): Umgeschrieben von "Spiegel führt Available" auf
 "Available live frisch halten". Roman hatte am 2026-10-24 den Spiegel als Weg genannt und
 die Frische zu klären gebeten. Befund: `Model.Categories` trägt `Available` bereits, der

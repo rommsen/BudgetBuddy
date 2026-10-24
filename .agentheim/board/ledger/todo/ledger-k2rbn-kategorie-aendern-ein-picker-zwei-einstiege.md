@@ -29,7 +29,7 @@ Entscheidungen in ADR 0055; hier die Umsetzung, im Muster von ADR 0050 und
    - `setEntryCategory: Guid -> YnabCategoryId option -> Async<Result<CategoryChangeOutcome, string>>`.
      `None` heißt "ohne Kategorie".
    - `retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>`.
-   - `CategoryChangeOutcome = { Previous: CategoryRef-ähnlich (Id und Name, option); Change: CategoryChanged | CategoryUnchanged; WriteBack: CategoryWriteBack }`,
+   - `CategoryChangeOutcome = { Previous: CategoryRef-ähnlich (Id und Name, option; die Id wird für Rückgängig und die Karte im Client gebraucht); Change: CategoryChanged | CategoryUnchanged; WriteBack: CategoryWriteBack }`,
      `CategoryWriteBack = CategorySent | CategorySendFailed of reason | CategoryNotSent`.
    - `LedgerEntryView.CategorizationWriteBackFailure: string option`.
 2. **Befehl** `setEntryCategory` in `Ledger.CommandHandlers`: lädt die Buchung, lehnt ab
@@ -68,6 +68,10 @@ Entscheidungen in ADR 0055; hier die Umsetzung, im Muster von ADR 0050 und
 - [ ] Handler-Test `setEntryCategory` (Fake-Push): Änderung schreibt genau ein
       `EntryRecategorized` (Actor `UserInBb`) vor dem Push und genau einen Push mit
       `category_id`; Erfolg erzeugt kein weiteres Ereignis, `WriteBack = CategorySent`.
+- [ ] Handler-Test Rücknahme: `setEntryCategory` mit dem alten Wert nach einer Änderung (auch
+      von und nach "ohne Kategorie") schreibt ein zweites `EntryRecategorized` und einen zweiten
+      Push; `Previous` trägt Id und Namen der vorherigen Kategorie. Das genügt für das
+      Rückgängig im Toast, ein eigener Befehl ist nicht nötig.
 - [ ] Handler-Test: Ziel gleich Ist erzeugt weder Ereignis noch Push (`CategoryUnchanged`);
       Wechsel von einer Kategorie auf "ohne Kategorie" sendet `category_id = null`.
 - [ ] Handler-Test: scheitert der Push (Netz, 400, 429), steht `EntryCategorizationWriteBackFailed`
@@ -108,6 +112,11 @@ Dateien, die ein Worker anfasst: `src/Shared/Domain.fs`, `src/Shared/Api.fs`,
 `src/Server/Api.fs`, `src/Server/YnabClient.fs`, `src/Server/Ledger/Events.fs`, `Domain.fs`,
 `CommandHandlers.fs`, `QueryHandlers.fs`, `Persistence.fs` (nur falls die Projektion Spalten
 braucht), Tests.
+
+Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4): Rückgängig im Toast (Roman, 2026-10-24)
+braucht serverseitig nichts Neues: der Client ruft `setEntryCategory` mit `Previous` auf, die
+Historie zeigt beide Ereignisse. Nur `Previous.Id` muss im Ergebnis stehen. Handoff:
+`docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md`.
 
 Hinweis zur Namensfalle: `describeRecategorized` sagt "In BB umkategorisiert". Roman nennt
 die Zeitleistenzeile "In BB geändert"; der Satz bleibt, weil er Alt und Neu schon nennt.
