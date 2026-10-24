@@ -122,6 +122,9 @@ Zeile „Ohne Kategorie“, Abschnitt „Vorgeschlagen“ zum Payee (höchstens 
 verwendet“), „Alle Kategorien“ nur darunter und nicht bei Suche, Gruppen mit Available rechts
 (`Money.available`), „Versteckt (n)“ eingeklappt, optional eine Stand-Zeile. Ein Klick übernimmt
 sofort, es gibt kein „Übernehmen“. Pfeile bewegen, Enter wählt, Esc schließt nur den Picker.
+Ohne Kategorien-Liste ersetzt ein Hinweis die Zeilen (`LoadState`): „Kategorien werden geladen“ mit
+Spinner, nach einem Fehler „Kategorien konnten nicht geladen werden“ mit dem Knopf „Erneut versuchen“.
+Beim Nachladen mit vorhandener Liste bleibt der Picker unverändert.
 `CategoryPicker.CategoryChangeCard.view` ist die Karte „Budget nach dem Wechsel“ (alter Wert
 durchgestrichen und gedämpft, Pfeil, neuer Wert), eine leere Liste rendert nichts. Beide stehen
 in `/styleguide` unter „26. Kategorie-Picker (Einfachauswahl)“.

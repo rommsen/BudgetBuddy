@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 01:03 - Kategorie-Picker: Lade- und Fehlerzustand (ledger-dmw83, Iteration 2)
+
+**What I did:**
+Der DS-Baustein CategoryPicker bekam `LoadState` und `OnRetry`. Ohne Liste ersetzt ein Ladehinweis mit Spinner oder ein Fehlerhinweis mit "Erneut versuchen" die Zeilen. Das Kassenbuch leitet den Zustand aus `Ledger.Categories` ab, `/styleguide` zeigt beide Zustände. Iteration 2: fester Screenshot-Pfad aus dem Playwright-Wächter entfernt, `page.close()` ergänzt.
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `src/Client/DesignSystem/CategoryPicker.fs` - PickerLoadState, PickerNotice, noticeFor, layoutFor, Hinweise in der Hülle
+- `src/Client/Components/Ledger/View.fs` - categoryLoadState, LoadState und OnRetry in pickerProps
+- `src/Client/Components/Styleguide/View.fs` - zwei neue Popover (lädt, fehlgeschlagen), Pflichtfelder gesetzt
+- `src/Tests/CategoryPickerTests.fs`, `src/Tests/LedgerCategoryChangeClientTests.fs` - neue Tests
+- `scripts/category-picker.test.mjs` - zwei Playwright-Tests am echten Element
+- `standards/frontend/styleguide.md` - Picker-Absatz um Lade- und Fehlerzustand ergänzt
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Live-Befund 2026-10-24: Ein Ladefehler sah im Picker aus wie "es gibt keine Kategorien", ohne Weg zum erneuten Versuch.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: dotnet 1938 bestanden (7 übersprungen), Playwright-Wächter 200/200
+- Issues: keine
+
+---
+
 ## 2026-10-25 00:22 - Kassenbuch holt fehlende Settings für die Kategorien nach (ledger-k9tq7)
 
 **What I did:**

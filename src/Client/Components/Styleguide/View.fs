@@ -926,6 +926,9 @@ let private CategoryPickerSingleDemo () =
     let current, setCurrent = React.useState (Some (YnabCategoryId (Guid.Parse "00000000-0000-0000-0000-000000002002")))
     let chosenText, setChosenText = React.useState ""
     let plainOpen, setPlainOpen = React.useState false
+    let loadingOpen, setLoadingOpen = React.useState false
+    let failedOpen, setFailedOpen = React.useState false
+    let retryCount, setRetryCount = React.useState 0
     // Zählt die OnSelect-Aufrufe, damit "genau einmal pro Klick" an der Galerie prüfbar ist.
     let selectCount, setSelectCount = React.useState 0
     let selectCounter = React.useRef 0
@@ -956,6 +959,8 @@ let private CategoryPickerSingleDemo () =
           Current = current
           Suggested = [ YnabCategoryId (guidOf 1); YnabCategoryId (guidOf 3); YnabCategoryId (guidOf 2) ]
           StandLabel = Some "Stand 14:02"
+          LoadState = CategoryPicker.PickerReady
+          OnRetry = ignore
           OnSelect =
             fun choice ->
                 selectCounter.current <- selectCounter.current + 1
@@ -995,6 +1000,42 @@ let private CategoryPickerSingleDemo () =
                     ]
                     CategoryPicker.popover plainOpen { pickerProps (fun () -> setPlainOpen false) with StandLabel = None }
                 ]
+            ]
+            Html.div [
+                prop.className "relative"
+                prop.custom ("data-ds-demo", "category-picker-loading")
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-loading-trigger")
+                        prop.children [ Button.secondary "Popover lädt" (fun () -> setLoadingOpen (not loadingOpen)) ]
+                    ]
+                    CategoryPicker.popover
+                        loadingOpen
+                        { pickerProps (fun () -> setLoadingOpen false) with
+                            Categories = []
+                            LoadState = CategoryPicker.PickerLoading }
+                ]
+            ]
+            Html.div [
+                prop.className "relative"
+                prop.custom ("data-ds-demo", "category-picker-failed")
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-failed-trigger")
+                        prop.children [ Button.secondary "Popover fehlgeschlagen" (fun () -> setFailedOpen (not failedOpen)) ]
+                    ]
+                    CategoryPicker.popover
+                        failedOpen
+                        { pickerProps (fun () -> setFailedOpen false) with
+                            Categories = []
+                            LoadState = CategoryPicker.PickerFailed
+                            OnRetry = fun () -> setRetryCount (retryCount + 1) }
+                ]
+            ]
+            Html.span [
+                prop.custom ("data-ds-demo", "category-picker-retry-count")
+                prop.className "text-xs text-text-muted"
+                prop.text (string retryCount)
             ]
             Html.span [
                 prop.custom ("data-ds-demo", "category-picker-sheet-trigger")

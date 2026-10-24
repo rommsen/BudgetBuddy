@@ -21,6 +21,13 @@ open Client.DesignSystem.Tokens
 // Typen
 // ============================================
 
+/// Ladezustand der Kategorien aus Sicht des Pickers (ledger-dmw83). `PickerLoading` zählt nur
+/// ohne vorhandene Liste; mit Liste (Nachladen) bleibt der Picker unverändert.
+type PickerLoadState =
+    | PickerReady
+    | PickerLoading
+    | PickerFailed
+
 type CategoryPickerProps = {
     /// Alle wählbaren Kategorien (interne YNAB-Kategorien filtert der Aufrufer heraus)
     Categories: YnabCategory list
@@ -30,6 +37,10 @@ type CategoryPickerProps = {
     Suggested: YnabCategoryId list
     /// Beschriftung der Fußzeile, zum Beispiel "Stand 14:02". `None` blendet sie aus.
     StandLabel: string option
+    /// Ladezustand der Kategorien: statt der Liste ein Ladehinweis oder ein Fehlerhinweis
+    LoadState: PickerLoadState
+    /// "Erneut versuchen" im Fehlerzustand
+    OnRetry: unit -> unit
     OnSelect: YnabCategoryId option -> unit
     OnClose: unit -> unit
 }
@@ -39,8 +50,15 @@ type PickerRow =
     | WithoutCategory
     | Category of YnabCategory
 
+/// Hinweis, der die Liste ersetzt
+type PickerNotice =
+    | LoadingNotice
+    | FailedNotice
+
 /// Aufbau der Liste für einen Suchtext
 type Layout = {
+    /// Ist ein Hinweis gesetzt, hat das Layout keine Zeilen
+    Notice: PickerNotice option
     ShowWithout: bool
     Suggested: YnabCategory list
     Groups: (string * YnabCategory list) list
@@ -100,17 +118,31 @@ let isCurrentCategory (current: YnabCategoryId option) (c: YnabCategory) : bool 
 let showWithoutRow (search: string) : bool =
     not (isSearching search) || withoutCategoryLabel.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
 
-let layout
+let loadingText = "Kategorien werden geladen"
+let failedText = "Kategorien konnten nicht geladen werden"
+let retryLabel = "Erneut versuchen"
+
+/// Welcher Hinweis die Liste ersetzt. Beim Nachladen mit vorhandener Liste keiner.
+let noticeFor (loadState: PickerLoadState) (categories: YnabCategory list) : PickerNotice option =
+    match loadState with
+    | PickerFailed -> Some FailedNotice
+    | PickerLoading when List.isEmpty categories -> Some LoadingNotice
+    | _ -> None
+
+let layoutFor
+    (loadState: PickerLoadState)
     (search: string)
     (current: YnabCategoryId option)
     (suggested: YnabCategoryId list)
     (categories: YnabCategory list)
     : Layout =
+    let notice = noticeFor loadState categories
     let searching = isSearching search
     // Während einer Suche steht der Abschnitt Vorgeschlagen nicht da (wie im Sheet bisher)
     let suggestedList = if searching then [] else suggestedCategories categories current suggested
     let hiddenAll = categories |> List.filter (fun c -> c.Hidden)
-    {
+    let full = {
+        Notice = None
         ShowWithout = showWithoutRow search
         Suggested = suggestedList
         Groups =
@@ -121,6 +153,25 @@ let layout
         Hidden = hiddenAll |> List.filter (matchesSearch search)
         ShowAllHeader = PickerParts.showAllCategoriesHeader (not suggestedList.IsEmpty) false searching
     }
+    match notice with
+    | None -> full
+    | Some n ->
+        { full with
+            Notice = Some n
+            ShowWithout = false
+            Suggested = []
+            Groups = []
+            HiddenCount = 0
+            Hidden = []
+            ShowAllHeader = false }
+
+let layout
+    (search: string)
+    (current: YnabCategoryId option)
+    (suggested: YnabCategoryId list)
+    (categories: YnabCategory list)
+    : Layout =
+    layoutFor PickerReady search current suggested categories
 
 /// Die Zeilen in Anzeigereihenfolge, auf der die Pfeiltasten laufen
 let navigableRows (hiddenExpanded: bool) (l: Layout) : PickerRow list =
@@ -178,7 +229,7 @@ let private Content (input: ContentProps) =
     let active, setActive = React.useState<int option> None
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
 
-    let lay = layout search props.Current props.Suggested props.Categories
+    let lay = layoutFor props.LoadState search props.Current props.Suggested props.Categories
     let rows = navigableRows hiddenExpanded lay
     let searching = isSearching search
 
@@ -291,6 +342,29 @@ let private Content (input: ContentProps) =
                 prop.role "listbox"
                 prop.className ("flex flex-col gap-3 " + input.ListClass)
                 prop.children [
+                    match lay.Notice with
+                    | Some LoadingNotice ->
+                        Html.div [
+                            prop.key "notice-loading"
+                            prop.role "status"
+                            prop.className $"flex items-center gap-2 py-3 {ListRoles.muted}"
+                            prop.children [
+                                Loading.spinner Loading.SM Loading.Default
+                                Html.span [ prop.text loadingText ]
+                            ]
+                        ]
+                    | Some FailedNotice ->
+                        Html.div [
+                            prop.key "notice-failed"
+                            prop.role "alert"
+                            prop.className "flex flex-col items-start gap-2 py-3"
+                            prop.children [
+                                Html.span [ prop.className ListRoles.muted; prop.text failedText ]
+                                Button.secondary retryLabel (fun () -> props.OnRetry ())
+                            ]
+                        ]
+                    | None -> ()
+
                     if lay.ShowWithout || not lay.Suggested.IsEmpty then
                         Html.div [
                             prop.key "top"
@@ -353,7 +427,7 @@ let private Content (input: ContentProps) =
                             ]
                         ]
 
-                    if List.isEmpty rows && lay.HiddenCount = 0 then
+                    if lay.Notice.IsNone && List.isEmpty rows && lay.HiddenCount = 0 then
                         Html.div [
                             prop.className $"py-2 {ListRoles.muted}"
                             prop.text "Keine Treffer"

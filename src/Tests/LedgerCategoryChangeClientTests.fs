@@ -585,4 +585,19 @@ let viewTests =
             Expect.equal (categoryChangedToastText (Some "Möbel") (Some lebensmittel)) "Kategorie geändert: Möbel" "geändert"
             Expect.equal (categoryChangedToastText None (Some lebensmittel)) "Kategorie entfernt: Lebensmittel" "entfernt"
             Expect.equal (categoryRestoredToastText None) "Kategorie zurückgesetzt: ohne Kategorie" "zurückgesetzt"
+
+        // Befund vom 2026-10-24: ein Ladefehler sah im Picker aus wie "es gibt keine Kategorien".
+        testCase "Der Ladezustand des Pickers leitet sich aus dem Abruf der Kategorien ab (dmw83)" <| fun () ->
+            let derive = Components.Ledger.View.categoryLoadState
+            Expect.equal (derive NotAsked) Client.DesignSystem.CategoryPicker.PickerLoading "NotAsked lädt"
+            Expect.equal (derive Loading) Client.DesignSystem.CategoryPicker.PickerLoading "Loading lädt"
+            Expect.equal (derive (Failure "x")) Client.DesignSystem.CategoryPicker.PickerFailed "Failure fehlgeschlagen"
+            Expect.equal (derive (Success categories)) Client.DesignSystem.CategoryPicker.PickerReady "Success bereit"
+
+        testCase "Erneut versuchen im Picker löst LoadCategories aus, das auf Loading schaltet (dmw83)" <| fun () ->
+            let src = System.IO.File.ReadAllText(System.IO.Path.Combine(__SOURCE_DIRECTORY__, "..", "Client", "Components", "Ledger", "View.fs"))
+            Expect.stringContains src "OnRetry = fun () -> dispatch LoadCategories" "Rückruf löst LoadCategories aus"
+            let failed = { defaultModel () with Categories = Failure "x" }
+            let model, _, _ = update LoadCategories failed
+            Expect.equal model.Categories Loading "der Abruf beginnt, der Picker zeigt den Ladehinweis"
     ]

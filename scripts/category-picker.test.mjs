@@ -224,3 +224,37 @@ test("Karte Budget nach dem Wechsel: Label, alter Wert durchgestrichen, neuer We
   assert.equal(await card.evaluate((el) => getComputedStyle(el.querySelector(".line-through")).textDecorationLine), "line-through");
   await page.close();
 });
+
+// ledger-dmw83: Lade- und Fehlerzustand. Befund vom 2026-10-24: Waren die Kategorien nicht
+// geladen, zeigte der Picker nur "Ohne Kategorie"; ein Ladefehler sah aus wie "es gibt keine
+// Kategorien" und es gab keinen Weg, es erneut zu versuchen.
+
+test("PC: Zustand lädt zeigt Spinner und Hinweis statt der Liste, auch ohne Ohne Kategorie", async () => {
+  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
+  await page.locator('[data-ds-demo="category-picker-loading-trigger"] button').click();
+  const box = page.locator('[data-ds-demo="category-picker-loading"]');
+  const status = box.locator('[role="status"]');
+  await status.waitFor();
+  assert.match(await status.textContent(), /Kategorien werden geladen/);
+  assert.equal(await status.locator(".proto-spinner").count(), 1, "Spinner aus dem Design-System");
+  assert.equal(await box.locator('[role="option"]').count(), 0, "keine Zeilen");
+  assert.equal(await box.getByText("Ohne Kategorie").count(), 0, "kein Ohne Kategorie");
+  assert.equal(await box.locator('input ~ * button, [role="listbox"] button').count(), 0, "kein Knopf im Inhalt");
+  await page.close();
+});
+
+test("PC: Zustand fehlgeschlagen zeigt Fehlertext und Erneut versuchen, der Knopf ruft OnRetry", async () => {
+  const page = await openGallery({ viewport: { width: 1440, height: 900 } });
+  await page.locator('[data-ds-demo="category-picker-failed-trigger"] button').click();
+  const box = page.locator('[data-ds-demo="category-picker-failed"]');
+  const alert = box.locator('[role="alert"]');
+  await alert.waitFor();
+  assert.match(await alert.textContent(), /Kategorien konnten nicht geladen werden/);
+  assert.equal(await box.locator('[role="option"]').count(), 0, "keine Zeilen");
+  assert.equal(await box.getByText("Ohne Kategorie").count(), 0, "kein Ohne Kategorie");
+  const count = page.locator('[data-ds-demo="category-picker-retry-count"]');
+  assert.equal(await count.textContent(), "0");
+  await alert.getByRole("button", { name: "Erneut versuchen" }).click();
+  assert.equal(await count.textContent(), "1", "OnRetry genau einmal");
+  await page.close();
+});

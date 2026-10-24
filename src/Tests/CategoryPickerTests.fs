@@ -216,12 +216,60 @@ let private tests =
             }
         ]
 
+        testList "Lade- und Fehlerzustand (dmw83)" [
+            // Befund vom 2026-10-24: Waren die Kategorien nicht geladen, zeigte der Picker nur
+            // "Ohne Kategorie". Ein Ladefehler sah aus wie "es gibt keine Kategorien".
+            let noRows (l: Layout) =
+                not l.ShowWithout && l.Suggested.IsEmpty && l.Groups.IsEmpty && l.HiddenCount = 0 && l.Hidden.IsEmpty
+
+            test "lädt ohne Liste: keine Zeilen, auch nicht Ohne Kategorie, dafür der Ladehinweis" {
+                let l = layoutFor PickerLoading "" None [] []
+                Expect.isTrue (noRows l) "keine Zeilen"
+                Expect.equal l.Notice (Some LoadingNotice) "Ladehinweis"
+                Expect.equal loadingText "Kategorien werden geladen" "Text"
+            }
+            test "lädt ohne Liste: eine Suche ändert nichts" {
+                let l = layoutFor PickerLoading "ohne" None [] []
+                Expect.isTrue (noRows l) "keine Zeilen"
+                Expect.equal l.Notice (Some LoadingNotice) "Ladehinweis"
+            }
+            test "fehlgeschlagen: keine Zeilen, Fehlerhinweis mit Erneut versuchen" {
+                let l = layoutFor PickerFailed "" None [] []
+                Expect.isTrue (noRows l) "keine Zeilen"
+                Expect.equal l.Notice (Some FailedNotice) "Fehlerhinweis"
+                Expect.equal failedText "Kategorien konnten nicht geladen werden" "Text"
+                Expect.equal retryLabel "Erneut versuchen" "Knopf"
+            }
+            test "lädt mit vorhandener Liste: gleich dem Zustand bereit" {
+                let loading = layoutFor PickerLoading "" None [] categories
+                let ready = layoutFor PickerReady "" None [] categories
+                Expect.equal loading ready "gleiches Layout"
+                Expect.isNone loading.Notice "kein Hinweis"
+                Expect.isFalse (List.isEmpty loading.Groups) "Liste sichtbar"
+            }
+            test "bereit mit leerer Liste zeigt weiter Ohne Kategorie" {
+                let l = layoutFor PickerReady "" None [] []
+                Expect.isTrue l.ShowWithout "Zeile bleibt"
+                Expect.isNone l.Notice "kein Hinweis"
+            }
+            test "layout ohne Ladezustand entspricht bereit" {
+                Expect.equal (layout "" None [] categories) (layoutFor PickerReady "" None [] categories) "gleich"
+            }
+            test "Die Hülle zeigt Spinner und Knopf aus dem Design-System und ruft OnRetry" {
+                let src = readDs "CategoryPicker.fs"
+                Expect.stringContains src "Loading.spinner" "Spinner"
+                Expect.stringContains src "Button.secondary retryLabel (fun () -> props.OnRetry ())" "Knopf löst OnRetry aus"
+            }
+        ]
+
         testList "Styleguide" [
             test "Galerie und geschriebener Styleguide führen den Picker" {
                 let gallery = File.ReadAllText(Path.Combine(repoRoot, "src", "Client", "Components", "Styleguide", "View.fs"))
                 Expect.stringContains gallery "CategoryPicker.popover" "Popover in der Galerie"
                 Expect.stringContains gallery "CategoryPicker.sheet" "Sheet in der Galerie"
                 Expect.stringContains gallery "CategoryChangeCard.view" "Karte in der Galerie"
+                Expect.stringContains gallery "CategoryPicker.PickerLoading" "Zustand lädt in der Galerie"
+                Expect.stringContains gallery "CategoryPicker.PickerFailed" "Zustand fehlgeschlagen in der Galerie"
                 let guide = File.ReadAllText(Path.Combine(repoRoot, "standards", "frontend", "styleguide.md"))
                 Expect.stringContains guide "CategoryPicker" "Eintrag im Styleguide"
                 Expect.stringContains guide "CategoryChangeCard" "Karte im Styleguide"

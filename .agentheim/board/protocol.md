@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 01:14 -- Task verified and completed: ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
+
+**Type:** Work / Task completion
+**Task:** ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
+**Summary:** Der Kategorie-Picker kennt jetzt die Ladezustände bereit, lädt und fehlgeschlagen. Ohne Liste zeigt er "Kategorien werden geladen" mit Spinner bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen" (löst LoadCategories aus), statt nur "Ohne Kategorie". Das Kassenbuch leitet den Zustand aus Ledger.Categories ab, /styleguide zeigt beide neuen Zustände.
+**Duration:** 37m32s
+**Verification:** PASS (iteration 2)
+**Files changed:** 7
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
+## 2026-10-25 00:53 -- Verification failed: ledger-dmw83 - Kategorie-Picker zeigt Lade- und Fehlerzustand
+
+**Type:** Work / Verification failure
+**Task:** ledger-dmw83 - Kategorie-Picker zeigt Lade- und Fehlerzustand
+**Iteration:** 1 of 3
+**Reasons:** fester Scratchpad-Pfad für Screenshots im dauerhaften Playwright-Test scripts/category-picker.test.mjs, fehlendes page.close() in den zwei neuen Tests
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-25 00:35 -- Batch started: [ledger-dmw83]
 
 **Type:** Work / Batch start

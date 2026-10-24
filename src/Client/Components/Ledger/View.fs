@@ -1198,6 +1198,14 @@ let categoryPickerPlacement (form: DetailForm) : CategoryPickerPlacement =
 let categoryStandLabel (model: Model) (now: DateTime) : string option =
     model.CategoriesLoadedAt |> Option.map (fun at -> availableAgeLabel at now)
 
+/// Ladezustand des Pickers aus dem Abruf der Kategorien (ledger-dmw83): ohne Liste lädt er
+/// (auch vor dem ersten Abruf), nach einem Fehler bietet er "Erneut versuchen".
+let categoryLoadState (categories: RemoteData<YnabCategory list>) : CategoryPicker.PickerLoadState =
+    match categories with
+    | NotAsked | Loading -> CategoryPicker.PickerLoading
+    | Failure _ -> CategoryPicker.PickerFailed
+    | Success _ -> CategoryPicker.PickerReady
+
 /// Die Zeilen der Karte "Budget nach dem Wechsel" für diese Buchung; leer, wenn die Karte
 /// nicht steht oder zu einer anderen Buchung gehört.
 let categoryCardLinesFor (model: Model) (entry: LedgerEntryView) : CategoryPicker.CategoryChangeCard.ChangeLine list =
@@ -1227,6 +1235,8 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
           Current = entry.CategoryId |> Option.map YnabCategoryId
           Suggested = model.CategorySuggestions
           StandLabel = categoryStandLabel model DateTime.Now
+          LoadState = categoryLoadState model.Categories
+          OnRetry = fun () -> dispatch LoadCategories
           OnSelect = fun choice -> dispatch (StartSetEntryCategory (entry.Id, choice))
           OnClose = fun () -> dispatch CloseCategoryPicker }
     let sheetSubtitle =
