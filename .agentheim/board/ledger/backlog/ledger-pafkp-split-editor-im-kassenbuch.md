@@ -57,29 +57,49 @@ Wird nach `ledger-kxme4` verfeinert; der Rahmen steht:
    `SyncFlow`.
 
 ## Acceptance criteria
-- [ ] Rahmen, vorbehaltlich der Verfeinerung nach `ledger-kxme4` (Platzhalter bis dahin):
-  - [ ] Detail einer unaufgeteilten Buchung rendert "Kein Split" und den Knopf "Aufteilen"
-        (Trefferfläche mindestens 44 px am Handy); bei aufgeteilter Buchung Zeilen und "Ändern".
-  - [ ] Reine Funktionen: Rest gleich Gesamtbetrag minus Summe der positiv eingegebenen Beträge;
-        "Rest" füllt die Zeile mit dem Rest; Speichern nur bei Rest 0,00 €; die Zeilen gehen mit
-        dem Vorzeichen des Gesamtbetrags an `setEntrySplits`.
-  - [ ] Reducer-Test: Speichern ruft `setEntrySplits` genau einmal; der Toast "Aufgeteilt in n
-        Zeilen" trägt "Rückgängig"; Rückgängig stellt Kategorie oder alte Zeilen über
-        `setEntrySplits` wieder her (zweiter Befehl, keine zweite Sonderlogik).
-  - [ ] Ansichts-Test: Rest-Farbe (Pink, Green), "Zeile hinzufügen" ausgegraut bei Rest 0,00 €,
-        "Speichern" inaktiv bei Rest ungleich null, am Handy kein "Abbrechen".
-  - [ ] Die übrigen Kriterien nach `ledger-kxme4` und dem Spike `ledger-mas5g`.
+- [ ] Detail einer unaufgeteilten Buchung rendert "Kein Split" und den Knopf "Aufteilen"
+      (Trefferfläche mindestens 44 px am Handy); bei aufgeteilter Buchung die Zeilen mit
+      Vorzeichen und den Knopf "Ändern".
+- [ ] Reine Funktionen: Rest gleich Gesamtbetrag minus Summe der positiv eingegebenen
+      Beträge; "Rest" füllt die Zeile mit dem Rest; Speichern nur bei Rest 0,00 €; die Zeilen
+      gehen mit dem Vorzeichen des Gesamtbetrags an `setEntrySplits`. Rechen- und
+      Prüffunktionen aus `Shared.Domain` (`splitRemainder`, `mkSplits`), nicht aus `SyncFlow`.
+- [ ] Reine Funktion: bleibt beim Speichern genau eine Zeile übrig, geht sie als einzelne
+      Zeile an `setEntrySplits` (Aufheben, `ledger-kxme4` Punkt 1), und der Toast heißt
+      "Aufteilung aufgehoben".
+- [ ] Reducer-Test: Speichern ruft `setEntrySplits` genau einmal; der Toast "Aufgeteilt in n
+      Zeilen" trägt "Rückgängig" (`ToastActionKind.UndoSplit`); Rückgängig ruft
+      `setEntrySplits` mit den alten Zeilen bzw. mit einer Zeile der alten Kategorie (zweiter
+      Befehl, keine Sonderlogik).
+- [ ] Reducer-Test: "Rückgängig" fehlt im Toast, wenn der Rückweg gesperrt wäre (Aufteilen
+      einer Buchung mit `import_id` `YNAB:…`, siehe `ledger-kxme4`).
+- [ ] Gesperrte Fälle (Ansichts- oder Reducer-Test je Fall): bei `Reconciled`, Tracking-Konto,
+      Übertrag zwischen Budget-Konten und in YNAB gelöschter Buchung sind "Aufteilen" und
+      "Ändern" inaktiv mit Hinweistext im Detail; bei einer Split-Buchung mit `import_id`
+      `YNAB:…` ist nur "Ändern" inaktiv. Der Lesepfad (`LedgerEntryView`) liefert dafür die
+      nötigen Angaben (Sperrgrund oder Felder), nicht der Client aus Rohdaten geraten.
+- [ ] Fehlschlag-Leiste aus `ledger-sfab0` zeigt für den Fall "in YNAB gelöscht, Neuanlage
+      offen" einen eigenen Text und "Erneut senden" (Reducer-Test: "Erneut senden" ruft den
+      Wiederholungsweg aus `ledger-kxme4`).
+- [ ] Nach dem Speichern bleibt die Zeile an ihrem Platz und ungeprüft (4.7), auch wenn sich
+      ihre YNAB-Id durch einen Ersatz geändert hat (Reducer-Test: der Eintrag wird über die
+      BB-Eintrags-Id gefunden, nicht über die YNAB-Id).
+- [ ] Ansichts-Test: Rest-Farbe (Pink bei ungleich null, Green bei 0,00 €), "Zeile
+      hinzufügen" ausgegraut bei Rest 0,00 €, "Speichern" inaktiv bei Rest ungleich null, am
+      Handy kein "Abbrechen".
 - [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
       keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
       `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
       (Wächter aus `design-system-wfhxj`, sobald integriert).
+- [ ] `dotnet build`, `dotnet test` und `npm run build` grün.
 - [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
       `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
 
 ## Notes
 Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4): Handoff liegt vor, "Aufteilen" fest statt
 optional, Beträge im Editor positiv, Rückgängig im Toast (Roman, 2026-10-24). Der Task bleibt
-in backlog, weil `ledger-kxme4` und der Spike noch fehlen. Handoff: `docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md`.
+in backlog, bis `ledger-kxme4` gebaut ist (Promote-Sperre über `depends_on`). Acceptance criteria
+verfeinert am 2026-10-24 nach Probelauf und Annahme von ADR 0058. Handoff: `docs/ux/kassenbuch/handoff-ablauf-4-kategorie-und-split.md`.
 
 Entworfen am 2026-10-24 (Sammel-Modeling) als Scheibe (e, Oberfläche). Ziel-Lage: backlog.
 (Korrigiert am 2026-10-24: der erste Entwurf nannte den Editor fälschlich ungestaltet; der
@@ -91,19 +111,15 @@ Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; di
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
 
-## Spike-Ergebnis (ledger-mas5g, 2026-10-24)
+## Spike-Ergebnis und Probelauf (2026-10-24)
 
-Die Oberfläche bleibt wie geplant, der Schreibweg dahinter ändert sich (siehe das Spike-Ergebnis
-in `ledger-kxme4` und ADR 0058, proposed): YNAB lässt die Zeilen einer bestehenden
-Split-Buchung nicht per Update ändern oder aufheben. "Ändern" und "Aufheben" laufen als Löschen
-und Neuanlegen. Folgen für die Oberfläche:
-1. Speichern kann länger dauern (zwei Aufrufe) und einen zusätzlichen Fehlschlag-Zustand haben
-   ("in YNAB gelöscht, Neuanlage offen"). Die Fehlschlag-Leiste aus `ledger-sfab0` braucht
-   dafür einen Text und "Erneut senden".
-2. Der Editor ist für Buchungen mit `cleared: reconciled` gesperrt, bis der Probelauf klärt,
-   wie YNAB sie behandelt (Hinweistext im Detail).
-3. "Rückgängig" im Toast ist ein zweiter Ersatz (Löschen und Neuanlegen) und kostet zwei
-   weitere YNAB-Aufrufe; die Historie zeigt beide Schreibvorgänge. Ratenbegrenzung beachten.
-4. Die YNAB-Id der Buchung ändert sich nach dem Speichern. Der Eintrag im Kassenbuch bleibt
-   bestehen (Zuordnung über `import_id`); Kriterien dazu stehen in `ledger-kxme4`.
-5. Abhängigkeit bleibt `ledger-kxme4`; zusätzlich Vorbedingung Probelauf und ADR 0058.
+ADR 0058 ist angenommen (Probelauf gegen ein Wegwerf-Budget). Folgen für die Oberfläche:
+1. Aufteilen ist ein einzelner Aufruf, die YNAB-Id bleibt. Ändern und Aufheben laufen als
+   Löschen und Neuanlegen: Speichern kann länger dauern, und es gibt den zusätzlichen
+   Fehlschlag "in YNAB gelöscht, Neuanlage offen" mit "Erneut senden".
+2. Gesperrt: abgeglichene Buchungen (`reconciled`, Roman 2026-10-24) ganz; Split-Buchungen
+   mit fremder `import_id` (`YNAB:…`) nur für Ändern und Aufheben. Roman hat solche Buchungen
+   derzeit nicht.
+3. "Rückgängig" nach Ändern oder Aufheben ist ein zweiter Ersatz und kostet zwei weitere
+   YNAB-Aufrufe; die Historie zeigt beide Schreibvorgänge.
+4. Die YNAB-Id ändert sich nach einem Ersatz, der Eintrag im Kassenbuch bleibt derselbe.

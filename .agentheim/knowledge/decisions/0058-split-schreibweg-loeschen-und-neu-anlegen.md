@@ -2,7 +2,7 @@
 id: ADR-0058
 title: Split-Schreibweg nach YNAB: bestehende Split-Buchungen werden gelöscht und neu angelegt, weil die API das Ändern von subtransactions ausschließt
 scope: ledger
-status: proposed
+status: accepted
 date: 2026-10-24
 related_tasks: [ledger-mas5g, ledger-kxme4, ledger-pafkp]
 related_adrs: [0006, 0028, 0046, 0054, 0055]
@@ -41,7 +41,7 @@ Rohdaten im Scratchpad der Modeling-Sitzung vom 2026-10-24 (nicht im Repo).
 | 5 | DELETE einer Split-Buchung mit Übertrags-Zeile aufs Tracking-Konto | Die Gegenbuchung ist danach weg (GET 404). Neuanlage (mit Suffix-`import_id`) erzeugt eine neue Gegenbuchung mit neuer Id. |
 | 5b | POST Split mit Übertrags-Zeile auf ein **Budget**-Konto | 201, angenommen. Der Spec-Satz zu "transfers between on-budget accounts" meint die Buchung selbst, nicht eine Split-Zeile. |
 
-## Decision (vorgeschlagen, nach Probelauf überarbeitet)
+## Decision (angenommen 2026-10-24, nach Probelauf)
 
 1. **Aufteilen einer unaufgeteilten Buchung:** PUT mit `category_id: null` und
    `subtransactions` (Probelauf 1). Kein Löschen, die Buchungs-Id bleibt. Der Server prüft
@@ -54,8 +54,10 @@ Rohdaten im Scratchpad der Modeling-Sitzung vom 2026-10-24 (nicht im Repo).
    dieser Buchung). BBs Duplikat-Erkennung prüft per Präfix (`Shared.Domain.matchesImportId`,
    `StartsWith`) und erkennt die Buchung damit weiter als importiert. Längenlimit 36 Zeichen:
    BB-Ids sind heute höchstens 26 Zeichen lang, Platz für das Suffix ist da. Eine Buchung ohne
-   `import_id` wird ohne `import_id` neu angelegt. **Offen:** Buchungen mit einer `import_id`,
-   die nicht von BB stammt (YNAB-Direktimport, `YNAB:…`), siehe Consequences.
+   `import_id` wird ohne `import_id` neu angelegt. Buchungen mit einer `import_id`, die nicht
+   von BB stammt (nicht mit `BB:` beginnt, etwa YNAB-Direktimport `YNAB:…`), lassen sich nicht
+   ändern oder aufheben, nur aufteilen (Punkt 1, ohne Löschen). Roman hat keine Konten mit
+   YNAB-Bank-Verbindung (2026-10-24); die Sperre schützt vor einem ungeprüften Fall.
 3. Der Schreibweg ist eine eigene benannte Funktion (`YnabClient.replaceSplitTransaction`),
    nicht `updateCategory`. Der Fehlschlag-Zustand aus ADR 0055 bekommt zusätzlich den Fall
    "in YNAB gelöscht, Neuanlage fehlgeschlagen" (BB hält die Daten, "Erneut senden" legt nur
@@ -67,14 +69,16 @@ Rohdaten im Scratchpad der Modeling-Sitzung vom 2026-10-24 (nicht im Repo).
    und die Ids der Übertrags-Gegenbuchungen (Probelauf 5: YNAB löscht die Gegenbuchung mit).
    BB übernimmt die neue Id aus der POST-Antwort direkt in den Eintrag; der Spiegel erkennt
    die alte Id als gelöscht und die neue als zugehörig über diese gespeicherte Zuordnung
-   (die `import_id` taugt dafür nur noch als Präfix). Die Verknüpfung der Split-Überträge
+   (die `import_id` taugt dafür nur noch als Präfix). Das Löschen der alten, ersetzten Id
+   darf die Buchung nicht als "in YNAB gelöscht" markieren: der Ersatz hält die alte Id als
+   abgelöst fest, und eine Lösch-Beobachtung zu einer abgelösten Id bleibt ohne Wirkung. Die Verknüpfung der Split-Überträge
    (`ledger-h6mer`) läuft nach jedem Ersatz neu.
 6. Übertrags-Zeilen auf Budget-Konten und auf Tracking-Konten sind beim Anlegen erlaubt
    (Probelauf 5, 5b). Gesperrt bleibt nur ein Split auf einem Tracking-Konto selbst und auf
    einer Buchung, die selbst ein Übertrag zwischen Budget-Konten ist (Spec).
-7. Abgeglichene Buchungen (`reconciled`) sind technisch ersetzbar (Probelauf 4). Ob der
-   Editor sie trotzdem sperrt, weil ein Löschen den Abgleich in YNAB kurz stört, ist eine
-   Produktentscheidung (offen).
+7. Abgeglichene Buchungen (`reconciled`) sind technisch ersetzbar (Probelauf 4), werden im
+   Split-Schreibweg aber ganz abgelehnt (Aufteilen, Ändern, Aufheben): ein Löschen stört den
+   Abgleich in YNAB, und Roman sieht keinen Bedarf (2026-10-24).
 
 ## Consequences
 
@@ -83,9 +87,9 @@ Rohdaten im Scratchpad der Modeling-Sitzung vom 2026-10-24 (nicht im Repo).
 - Negativ: Ändern und Aufheben brauchen zwei Aufrufe mit einem Fenster, in dem die Buchung
   in YNAB fehlt. Ids ändern sich. Übertrags-Gegenbuchungen werden gelöscht und neu erzeugt;
   was an ihnen in YNAB von Hand geändert wurde (Memo, Kategorie, Status), geht verloren.
-- Risiko bei fremden `import_id`s: Hat YNAB eine Buchung selbst per Bank-Verbindung importiert
-  (`YNAB:…`), erkennt YNABs eigener Import die ersetzte Buchung unter der neuen `import_id`
-  womöglich nicht wieder. Nicht geprüft (das Wegwerf-Budget hat keine Bank-Verbindung).
+- Fremde `import_id`s (`YNAB:…`): ob YNABs eigener Import eine ersetzte Buchung unter neuer
+  `import_id` wiedererkennt, ist ungeprüft. Deshalb die Sperre in Punkt 2. Käme später eine
+  Bank-Verbindung in YNAB dazu, wäre das neu zu prüfen.
 - Verworfen: Splits nur in BB halten. Widerspricht ADR 0054 (YNAB nachziehen) und lässt
   die Kategoriezahlen in YNAB falsch.
 - Verworfen: dieselbe `import_id` nach DELETE wiederverwenden. Der Probelauf zeigt 409.

@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 23:01 -- Modeling / Refined: ledger-kxme4, ledger-pafkp - Split-Schreibweg und Split-Editor nach ADR 0058
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo (kxme4), backlog (pafkp, wartet auf kxme4)
+**Summary:** ADR 0058 angenommen mit Romans Entscheidungen: Ändern/Aufheben gesperrt bei fremder import_id (YNAB:), Split-Editor bei reconciled gesperrt. kxme4: setEntrySplits mit einer Zeile als Aufheben, Aufteilen per PUT, Ändern/Aufheben per DELETE+POST mit import_id-Suffix :r<n>, abgelöste YNAB-Id ohne DeletedInYnab, Fehlschlag Neuanlage offen. pafkp: konkrete Kriterien für Sperren, Aufheben-Toast, Rückgängig, Fehlschlag-Leiste.
+**ADRs written:** 0058 (accepted)
+
+---
+
 ## 2026-10-24 22:55 -- Modeling / Refined: ADR 0058 - Probelauf gegen Wegwerf-Budget
 
 **Type:** Modeling / Refine
