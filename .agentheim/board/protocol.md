@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:09 -- Batch started: [ledger-h6mer]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-h6mer - "Split-Zeilen-Überträge: Bestandsfälle auf der Live-Datenbank nachverknüpfen"
+**Parallel:** no (Conductor-Task in der Hauptsitzung, Live-Datenbank; neben laufenden Verifiern für design-system-wfhxj und ledger-k2rbn)
+
+---
+
 ## 2026-10-24 15:09 -- Task verified and completed: ledger-mas5g - "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf"
 
 **Type:** Work / Task completion
