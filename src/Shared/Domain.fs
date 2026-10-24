@@ -873,6 +873,10 @@ type LedgerEntryView = {
     /// (`ledger_categories`, `ledger-p3wnq`). In beiden Fällen zeigt die Anzeige
     /// dann nur `CategoryName`, nie ein erfundenes Präfix.
     CategoryGroupName: string option
+    /// Gruppenname je `ToCategory`-Split-Zeile dieser Buchung (ADR 0045): Schlüssel ist die
+    /// Kategorie-Id der Zeile, Wert ihr Gruppenname. Eine Kategorie ohne bekannte oder
+    /// mit leerer Gruppe hat keinen Eintrag. Übertrag- und offene Zeilen nie.
+    SplitCategoryGroupNames: Map<Guid, string>
     Splits: TransactionSplit list
     /// Woher die Buchung stammt: der Actor ihres ersten Ereignisses.
     Origin: LedgerOrigin

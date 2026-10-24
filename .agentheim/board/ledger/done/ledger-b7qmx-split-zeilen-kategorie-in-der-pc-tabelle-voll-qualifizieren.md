@@ -1,7 +1,7 @@
 ---
 id: ledger-b7qmx
 title: "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-25
@@ -153,3 +153,16 @@ Test-Literale aufgelistet. Kein ADR-Nachtrag nötig.
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
+
+## Outcome
+
+Eine Split-Zeilen-Kategorie erscheint im Buchungs-Detail (Panel am PC und Sheet teilen `detailContent`) voll qualifiziert, ADR 0045 umgesetzt.
+
+- `src/Shared/Domain.fs`: `LedgerEntryView.SplitCategoryGroupNames: Map<Guid, string>` (Pflichtfeld).
+- `src/Server/Ledger/QueryHandlers.fs`: `ReadModel.toEntryView` füllt die Map aus dem vorhandenen `categoryGroups`-Parameter; nur `ToCategory`-Zeilen mit bekannter, nicht leerer Gruppe bekommen einen Eintrag.
+- `src/Client/Components/Ledger/View.fs`: neue reine Funktion `qualify`; `categoryLabelQualified` nutzt sie (Verhalten unverändert); `splitTargetLabel` nimmt die Map als ersten Parameter, `splitLineTexts` reicht `entry.SplitCategoryGroupNames` durch. Kein neuer DS-Baustein, keine Optik- oder Maßwerte.
+- Tests: 4 ReadModel-Tests (`LedgerPageTests`), 3 `qualify`-Tests (`LedgerViewTests`), 3 Detail-Tests (`LedgerDetailTests`: Split-Texte, Listenzeile und Kategorie-Feldzeile unverändert, einziger Aufruf in `detailContent`), 1 Playwright-Test im echten gerenderten Panel (`scripts/ledger-detail.test.mjs`, neue Fixture-Buchung "Kaufland Split"). Fixtures `ledger-filter-bar.mjs` und `ledger-status-column.mjs` tragen das neue Feld, `SplitCategoryGroupNames = Map.empty` in den sechs Test-Dateien.
+- Zur Wire-Form: der Playwright-Test belegt, dass der Client die Map in der Form `{ "\"guid\"": "Gruppe" }` (so serialisiert `Fable.Remoting.Json`) dekodiert.
+- Läufe aus dem Worktree: `dotnet build` 0 Warnungen/0 Fehler; `dotnet test` 1800 bestanden, 7 übersprungen (Integrationstests ohne .env), 0 Fehler; `npm run build` ok; `npm run guard:classes` ok; `npm run guard:tokens` ok; `test:scripts` seriell (`node --test --test-concurrency=1 scripts/*.test.mjs`) 182 bestanden, 0 Fehler. Hinweis: `npm run test:scripts` selbst läuft parallel und hing hier, daher serieller Lauf.
+- Nach dem Merge von main (infrastructure-bnbdc, ledger-kwwxz): `src/Tests/PwaTests.fs` (`anEntry`) bekam `SplitCategoryGroupNames = Map.empty`; sonst kein weiteres volles `LedgerEntryView`-Literal gefunden. Build, dotnet test (1800), npm run build, guard:tokens und serielle Skript-Tests (182) erneut grün.
+- Hinweis: das Null-Fallback-Thema aus dem Lauf-Kontext entfällt (Server füllt das Feld immer, reines Server-zu-Client-Feld).

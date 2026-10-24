@@ -64,6 +64,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     Payee: `Testfixtur ${n}`,
     Memo: null,
     CategoryName: "Testkategorie",
+    SplitCategoryGroupNames: [],
     Splits: [],
     Origin: "MirroredFromYnab",
     DeletedInYnab: false,

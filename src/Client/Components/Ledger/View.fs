@@ -316,6 +316,17 @@ let categoryLabel (entry: LedgerEntryView) : string =
 let isWithoutCategory (entry: LedgerEntryView) : bool =
     entry.CategoryName.IsNone && List.isEmpty entry.Splits && not entry.IsTransfer
 
+/// Die gemeinsame ": "-Zusammensetzung (ADR 0045 Punkt 4): "Gruppe: Blatt" bei bekannter,
+/// nicht leerer Gruppe, sonst unverändert der Blattname. Ein leerer Blattname (nach
+/// `Trim()`) wird nie qualifiziert, es gibt kein "Gruppe: " ohne Blatt, kein führendes
+/// ": " und keinen erfundenen Gruppennamen. Kopf-Kategorie (`categoryLabelQualified`)
+/// und Split-Zeilen im Detail (`splitTargetLabel`) benutzen dieselbe Funktion.
+let qualify (groupName: string option) (leafName: string) : string =
+    match groupName with
+    | Some group when not (String.IsNullOrWhiteSpace group) && not (String.IsNullOrWhiteSpace leafName) ->
+        $"{group.Trim()}: {leafName}"
+    | _ -> leafName
+
 /// Die Kategorie-Beschriftung voll qualifiziert ("Gruppe: Name", Handoff 1.9 Zeile
 /// 260), für die PC-Tabelle (ADR 0039, ledger-h6ptn). `CategoryGroupName` kommt
 /// aus dem Lesepfad (`ledger_categories`, `ledger-p3wnq`), nicht aus dem
@@ -325,9 +336,9 @@ let isWithoutCategory (entry: LedgerEntryView) : bool =
 /// oder Platzhaltertext), liefert `categoryLabel` unverändert dasselbe Ergebnis,
 /// weil es dann nichts zu qualifizieren gibt.
 let categoryLabelQualified (entry: LedgerEntryView) : string =
-    match entry.CategoryName, entry.CategoryGroupName with
-    | Some name, Some group when not (String.IsNullOrWhiteSpace group) -> $"{group.Trim()}: {name}"
-    | _ -> categoryLabel entry
+    match entry.CategoryName with
+    | Some name -> qualify entry.CategoryGroupName name
+    | None -> categoryLabel entry
 
 /// Der Payee-Text einer Buchung: der Payee, sonst der Platzhaltertext für eine
 /// fehlende Angabe (siehe Rückfallzeile unten). Reine Funktion, analog zu
@@ -1080,9 +1091,12 @@ let private noticeView
                 | _ -> None }
 
 /// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
-let splitTargetLabel (split: TransactionSplit) : string =
+///
+/// Eine `ToCategory`-Zeile erscheint voll qualifiziert ("Gruppe: Name", ADR 0045), wenn
+/// `groupNames` (`LedgerEntryView.SplitCategoryGroupNames`) ihre Kategorie-Id kennt.
+let splitTargetLabel (groupNames: Map<Guid, string>) (split: TransactionSplit) : string =
     match split.Target with
-    | ToCategory (_, name) -> name
+    | ToCategory (YnabCategoryId id, name) -> qualify (Map.tryFind id groupNames) name
     | ToTransfer (_, accountName) -> $"Übertrag: {accountName}"
     | Uncategorized -> "kein Ziel"
 
@@ -1090,7 +1104,7 @@ let splitTargetLabel (split: TransactionSplit) : string =
 let splitLineTexts (entry: LedgerEntryView) : (string * string) list =
     entry.Splits
     |> List.map (fun split ->
-        splitTargetLabel split, Money.formatAmountText false true split.Amount.Amount split.Amount.Currency)
+        splitTargetLabel entry.SplitCategoryGroupNames split, Money.formatAmountText false true split.Amount.Amount split.Amount.Currency)
 
 let private accountNameOf (model: Model) (entry: LedgerEntryView) : string =
     match model.Accounts with

@@ -3100,6 +3100,49 @@ let categoryGroupLookupTests =
 
             let leer = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab (entry 1 -42.5m)
             Expect.equal leer.CategoryGroupName None "eine leere Zuordnung ergibt keine Gruppe, keinen Fehler"
+
+        testCase "SplitCategoryGroupNames hat je ToCategory-Zeile mit bekannter Gruppe genau einen Eintrag (ADR 0045)" <| fun () ->
+            let idOf n = let (YnabCategoryId id) = (category n "x").CategoryId in id
+            let zeile n name : TransactionSplit =
+                { Target = ToCategory ((category n name).CategoryId, name)
+                  Amount = { Amount = -10m; Currency = "EUR" }
+                  Memo = None }
+            let groups = Map.ofList [ idOf 1, "Alltag"; idOf 2, "Freizeit" ]
+            let view =
+                ReadModel.toEntryView Map.empty groups MirroredFromYnab
+                    { entry 1 -20m with Category = None; Splits = [ zeile 1 "Lebensmittel"; zeile 2 "Kino" ] }
+            Expect.equal view.SplitCategoryGroupNames (Map.ofList [ idOf 1, "Alltag"; idOf 2, "Freizeit" ])
+                "genau zwei Einträge, je mit der richtigen Gruppe"
+
+        testCase "SplitCategoryGroupNames lässt unbekannte und leere Gruppen weg, kein None und kein leerer String" <| fun () ->
+            let idOf n = let (YnabCategoryId id) = (category n "x").CategoryId in id
+            let zeile n : TransactionSplit =
+                { Target = ToCategory ((category n "Blatt").CategoryId, "Blatt")
+                  Amount = { Amount = -10m; Currency = "EUR" }
+                  Memo = None }
+            let groups = Map.ofList [ idOf 1, "Alltag"; idOf 2, "   "; idOf 3, "" ]
+            let view =
+                ReadModel.toEntryView Map.empty groups MirroredFromYnab
+                    { entry 1 -20m with Category = None; Splits = [ zeile 1; zeile 2; zeile 3; zeile 4 ] }
+            Expect.equal view.SplitCategoryGroupNames (Map.ofList [ idOf 1, "Alltag" ])
+                "nur die bekannte, nicht leere Gruppe hat einen Eintrag"
+
+        testCase "SplitCategoryGroupNames bekommt für Übertrag und offene Zeilen nie einen Eintrag" <| fun () ->
+            let id = Guid.NewGuid()
+            let groups = Map.ofList [ id, "Alltag" ]
+            let transfer : TransactionSplit =
+                { Target = ToTransfer (YnabAccountId id, "Tagesgeld")
+                  Amount = { Amount = -10m; Currency = "EUR" }
+                  Memo = None }
+            let offen : TransactionSplit = { transfer with Target = Uncategorized }
+            let view =
+                ReadModel.toEntryView Map.empty groups MirroredFromYnab
+                    { entry 1 -20m with Category = None; Splits = [ transfer; offen ] }
+            Expect.isEmpty (Map.toList view.SplitCategoryGroupNames) "auch bei gleicher Guid kein Eintrag"
+
+        testCase "SplitCategoryGroupNames ist leer bei einer Buchung ohne Splits" <| fun () ->
+            let view = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab (entry 1 -42.5m)
+            Expect.isEmpty (Map.toList view.SplitCategoryGroupNames) "keine Splits, keine Einträge"
     ]
 
 /// `IsTransfer` der Kassenbuch-Zeile (ledger-n4vte, ADR 0048): ein Übertrag trägt ein

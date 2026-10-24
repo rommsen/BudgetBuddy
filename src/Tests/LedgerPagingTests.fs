@@ -30,6 +30,7 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     CategoryName = None
     CategoryId = None
     CategoryGroupName = None
+    SplitCategoryGroupNames = Map.empty
     Splits = []
     Origin = MirroredFromYnab
     DeletedInYnab = false

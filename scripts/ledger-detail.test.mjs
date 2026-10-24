@@ -60,6 +60,23 @@ function entries(accountId) {
       LinkedToYnab: true,
       DeletedInYnab: true,
     }),
+    // Aufgeteilt (ledger-b7qmx, ADR 0045): eine Zeile mit bekannter Gruppe, eine ohne,
+    // dazu ein Übertrag und eine offene Zeile.
+    buildEntryFixture(accountId, 5, {
+      Payee: "Kaufland Split",
+      CategoryName: null,
+      CategoryId: null,
+      CategoryGroupName: null,
+      LinkedToYnab: true,
+      Amount: { Amount: -50, Currency: "EUR" },
+      SplitCategoryGroupNames: { [JSON.stringify(CATEGORY_IDS.lebensmittel)]: "Alltag" },
+      Splits: [
+        { Target: { ToCategory: [{ YnabCategoryId: CATEGORY_IDS.lebensmittel }, "Lebensmittel"] }, Amount: { Amount: -30, Currency: "EUR" }, Memo: null },
+        { Target: { ToCategory: [{ YnabCategoryId: CATEGORY_IDS.bahn }, "Bahn"] }, Amount: { Amount: -10, Currency: "EUR" }, Memo: null },
+        { Target: { ToTransfer: [{ YnabAccountId: CATEGORY_IDS.nebenkosten }, "Tagesgeld"] }, Amount: { Amount: -5, Currency: "EUR" }, Memo: null },
+        { Target: "Uncategorized", Amount: { Amount: -5, Currency: "EUR" }, Memo: null },
+      ],
+    }),
   ];
 }
 
@@ -225,6 +242,19 @@ test("PC: Eine gelöschte Buchung ist ein Lesezustand: rote Leiste, kein Schalte
   assert.equal(await panel(page).locator('[data-testid="detail-filter"]').count(), 2, "beide Filter-Knöpfe");
   const muted = await page.locator('[data-testid="detail-amount"]').evaluate((el) => el.className);
   assert.match(muted, /text-text-muted/, "der Betrag ist grau");
+});
+
+test("PC: Eine aufgeteilte Buchung zeigt im Detail die Split-Kategorien voll qualifiziert, die Liste bleibt bei N Split-Zeilen", async () => {
+  await row(page, "Kaufland Split").locator("td").nth(2).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="detail-title"]')?.textContent === "Kaufland Split");
+  const lines = await panel(page).locator('[data-testid="detail-split"]').innerText();
+  assert.match(lines, /Alltag: Lebensmittel/, "bekannte Gruppe: qualifiziert");
+  assert.match(lines, /(^|\n)Bahn(\n|$)/, "ohne Gruppe: nur der Blattname");
+  assert.match(lines, /Übertrag: Tagesgeld/);
+  assert.match(lines, /kein Ziel/);
+  assert.equal(await row(page, "Kaufland Split").locator("td").filter({ hasText: "4 Split-Zeilen" }).count(), 1, "Listenzeile unverändert");
+  assert.match(await panel(page).locator('[data-testid="detail-category"]').textContent(), /4 Split-Zeilen/, "Kategorie-Feldzeile unverändert");
+  await page.keyboard.press("Escape");
 });
 
 test("PC (900): Die Kompaktliste öffnet das Detail als Sheet statt als Panel", async () => {

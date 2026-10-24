@@ -422,7 +422,50 @@ let contentTests =
             Expect.equal
                 (splitLineTexts split)
                 [ "Lebensmittel", "-30,50 €"; "Übertrag: Tagesgeld", "-20,00 €" ]
-                "Ziel und Betrag je Zeile"
+                "Ziel und Betrag je Zeile (leere Map, nur der Blattname)"
+
+        testCase "Split-Zeilen im Detail: Kategorie qualifiziert, Rest unverändert (ledger-b7qmx, ADR 0045)" <| fun () ->
+            let (YnabCategoryId bekannt) = YnabCategoryId (Guid.NewGuid())
+            let mitGruppe : TransactionSplit =
+                { Target = ToCategory (YnabCategoryId bekannt, "Lebensmittel")
+                  Amount = { Amount = -30.5m; Currency = "EUR" }
+                  Memo = None }
+            let ohneGruppe = { categorySplit with Amount = { Amount = -5m; Currency = "EUR" } }
+            let offen = { transferSplit with Target = Uncategorized }
+            let split =
+                { entry 1 with
+                    Splits = [ mitGruppe; ohneGruppe; transferSplit; offen ]
+                    SplitCategoryGroupNames = Map.ofList [ bekannt, "Alltag" ] }
+            Expect.equal
+                (splitLineTexts split)
+                [ "Alltag: Lebensmittel", "-30,50 €"
+                  "Lebensmittel", "-5,00 €"
+                  "Übertrag: Tagesgeld", "-20,00 €"
+                  "kein Ziel", "-20,00 €" ]
+                "qualifiziert nur mit Map-Eintrag, Übertrag und kein Ziel unverändert"
+
+        testCase "die Listenzeile und die Kategorie-Feldzeile einer Buchung mit Splits bleiben unverändert" <| fun () ->
+            let id = Guid.NewGuid()
+            let zeile : TransactionSplit =
+                { Target = ToCategory (YnabCategoryId id, "Lebensmittel")
+                  Amount = { Amount = -30m; Currency = "EUR" }
+                  Memo = None }
+            let split =
+                { entry 1 with
+                    CategoryName = None
+                    CategoryGroupName = None
+                    Splits = [ zeile; zeile ]
+                    SplitCategoryGroupNames = Map.ofList [ id, "Alltag" ] }
+            Expect.equal (categoryLabel split) "2 Split-Zeilen" "Handy-Zeile"
+            Expect.equal (categoryLabelQualified split) "2 Split-Zeilen" "PC-Zeile"
+
+        testCase "nur detailContent ruft splitLineTexts auf, Panel und Sheet zeigen dieselben Texte" <| fun () ->
+            let source = viewSource ()
+            Expect.stringContains (functionBody source "let private detailContent") "splitLineTexts entry" "Verdrahtung"
+            let aufrufe = source.Split("splitLineTexts entry").Length - 1
+            Expect.equal aufrufe 1 "genau ein Aufruf im Modul"
+            Expect.isFalse ((functionBody source "let private detailPanelView").Contains "splitLineTexts") "Panel hat keinen eigenen Aufruf"
+            Expect.isFalse ((functionBody source "let private detailSheetView").Contains "splitLineTexts") "Sheet hat keinen eigenen Aufruf"
 
         testCase "ohne Splits gibt es keine Zeilen, die Ansicht schreibt dann Kein Split" <| fun () ->
             Expect.isEmpty (splitLineTexts (entry 1)) "keine Zeilen"

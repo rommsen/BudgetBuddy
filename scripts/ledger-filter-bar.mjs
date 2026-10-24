@@ -39,6 +39,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     Memo: null,
     CategoryName: "Testkategorie",
     CategoryGroupName: "Alltag",
+    SplitCategoryGroupNames: [],
     Splits: [],
     Origin: "MirroredFromYnab",
     DeletedInYnab: false,

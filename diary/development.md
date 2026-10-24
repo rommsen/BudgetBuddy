@@ -4,6 +4,29 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-24 16:52 - Split-Zeilen-Kategorie im Detail voll qualifiziert (ledger-b7qmx)
+
+**What I did:**
+`SplitCategoryGroupNames` im `LedgerEntryView`, Befüllung in `toEntryView`, Hilfsfunktion `qualify`, Verdrahtung über `splitTargetLabel`/`splitLineTexts` in `detailContent`.
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Server/Ledger/QueryHandlers.fs`, `src/Client/Components/Ledger/View.fs`
+- `src/Tests/LedgerDetailTests.fs`, `LedgerPageTests.fs`, `LedgerViewTests.fs` (neue Tests); `LedgerSelectionTests.fs`, `LedgerPagingTests.fs`, `LedgerFilterButtonTests.fs`, `LedgerSortClientTests.fs`, `LedgerReviewMarkClientTests.fs` (Literale)
+- `scripts/ledger-detail.test.mjs` (neuer Test, neue Fixture-Buchung), `scripts/ledger-filter-bar.mjs`, `scripts/ledger-status-column.mjs` (Fixture-Feld)
+
+**Rationale:**
+ADR 0045: die Gruppe ist Stammdatum und kommt aus demselben Lookup wie die Kopf-Kategorie; die ": "-Regel steht an einer Stelle.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: dotnet 1800 bestanden; test:scripts 182 bestanden
+- Issues: `npm run test:scripts` (parallel) hing, serieller Lauf grün
+
+---
+
 ## 2026-10-24 16:49 - Kategorie-Picker mit Einfachauswahl und Karte Budget nach dem Wechsel (design-system-gffps)
 
 **What I did:**

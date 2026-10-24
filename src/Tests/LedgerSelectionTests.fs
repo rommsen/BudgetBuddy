@@ -23,6 +23,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     CategoryName = None
     CategoryId = None
     CategoryGroupName = None
+    SplitCategoryGroupNames = Map.empty
     Splits = []
     Origin = MirroredFromYnab
     DeletedInYnab = deleted

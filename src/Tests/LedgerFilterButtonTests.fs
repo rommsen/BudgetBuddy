@@ -30,6 +30,7 @@ let private view (payee: string option) (categoryId: Guid option) : LedgerEntryV
     CategoryName = categoryId |> Option.map (fun _ -> "Lebensmittel")
     CategoryId = categoryId
     CategoryGroupName = categoryId |> Option.map (fun _ -> "Alltag")
+    SplitCategoryGroupNames = Map.empty
     Splits = []
     Origin = MirroredFromYnab
     DeletedInYnab = false

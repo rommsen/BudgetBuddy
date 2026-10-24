@@ -30,6 +30,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     CategoryName = None
     CategoryId = None
     CategoryGroupName = None
+    SplitCategoryGroupNames = Map.empty
     Splits = []
     Origin = MirroredFromYnab
     DeletedInYnab = false
@@ -181,6 +182,23 @@ let private categoryLabelTests =
 /// Zeile 104-112). `categoryLabelQualified` ist eine eigene, reine Funktion über
 /// derselben Quelle wie `categoryLabel`, kein zweiter Zweig in den Views
 /// (ADR 0039, ledger-h6ptn).
+let private qualifyTests =
+    testList "qualify (ledger-b7qmx, ADR 0045)" [
+        test "bekannte, nicht leere Gruppe ergibt Gruppe: Blatt" {
+            Expect.equal (qualify (Some "Alltag") "Lebensmittel") "Alltag: Lebensmittel" "qualifiziert"
+            Expect.equal (qualify (Some "  Alltag ") "Lebensmittel") "Alltag: Lebensmittel" "Gruppe wird getrimmt"
+        }
+        test "ohne Gruppe oder mit leerer Gruppe bleibt der Blattname" {
+            Expect.equal (qualify None "Lebensmittel") "Lebensmittel" "keine Gruppe"
+            Expect.equal (qualify (Some "") "Lebensmittel") "Lebensmittel" "leere Gruppe"
+            Expect.equal (qualify (Some "   ") "Lebensmittel") "Lebensmittel" "Gruppe nur Leerzeichen"
+        }
+        test "ein leerer Blattname wird nie qualifiziert" {
+            Expect.equal (qualify (Some "Alltag") "") "" "kein Gruppe: ohne Blatt"
+            Expect.equal (qualify (Some "Alltag") "  ") "  " "auch nach Trim leer"
+        }
+    ]
+
 let private categoryLabelQualifiedTests =
     testList "categoryLabelQualified (ledger-h6ptn, ADR 0039)" [
 
@@ -1295,6 +1313,7 @@ let ledgerViewTests =
           groupByDateTests
           formatEntryDateTests
           categoryLabelTests
+          qualifyTests
           categoryLabelQualifiedTests
           categoryColorTests
           categoryColorCssBindingTests

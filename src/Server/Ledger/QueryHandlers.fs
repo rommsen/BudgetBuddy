@@ -128,6 +128,16 @@ module ReadModel =
         let categoryGroupName =
             entry.Category
             |> Option.bind (fun c -> Ledger.Persistence.categoryGroupOf categoryGroups c.CategoryId)
+        let splitCategoryGroupNames =
+            entry.Splits
+            |> List.choose (fun s ->
+                match s.Target with
+                | ToCategory (categoryId, _) ->
+                    Ledger.Persistence.categoryGroupOf categoryGroups categoryId
+                    |> Option.filter (String.IsNullOrWhiteSpace >> not)
+                    |> Option.map (fun group -> (let (YnabCategoryId id) = categoryId in id), group)
+                | _ -> None)
+            |> Map.ofList
         {
             Id = id
             AccountId = accountId
@@ -138,6 +148,7 @@ module ReadModel =
             CategoryName = entry.Category |> Option.map (fun c -> liveName c.CategoryId c.CategoryName)
             CategoryId = entry.Category |> Option.map (fun c -> let (YnabCategoryId id) = c.CategoryId in id)
             CategoryGroupName = categoryGroupName
+            SplitCategoryGroupNames = splitCategoryGroupNames
             Splits =
                 entry.Splits
                 |> List.map (fun s ->

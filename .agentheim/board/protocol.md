@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 16:52 -- Task verified and completed: ledger-b7qmx - "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)"
+
+**Type:** Work / Task completion
+**Task:** ledger-b7qmx - "Split-Zeilen-Kategorie im Buchungs-Detail voll qualifizieren (ADR 0045)"
+**Summary:** Das Buchungs-Detail zeigt die Kategorie einer Split-Zeile jetzt voll qualifiziert ("Alltag: Lebensmittel"); der Server liefert dafür `SplitCategoryGroupNames`, und die gemeinsame Funktion `qualify` bündelt die ": "-Regel für Kopf und Split-Zeilen. Listenzeile und Kategorie-Feldzeile bleiben unverändert.
+**Duration:** 64m
+**Verification:** PASS (iteration 1)
+**Files changed:** 15
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
 ## 2026-10-24 16:49 -- Task verified and completed: design-system-gffps - "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel"
 
 **Type:** Work / Task completion
