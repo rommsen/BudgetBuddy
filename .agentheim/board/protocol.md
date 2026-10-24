@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 22:45 -- Modeling / Refined: infrastructure-y6atr, ledger-k9tq7, ledger-dmw83 - Folgen von Http error (0) im Kassenbuch
+
+**Type:** Modeling / Refine
+**BC:** infrastructure, ledger
+**Status after:** todo (nach Promote)
+**Summary:** Acceptance criteria für die drei Folge-Bugs des Firefox-Befunds geschrieben: Wiederholen lesender Start-Abfragen bei Status 0 (testbarer generischer Helfer, Schreibaufrufe ausgenommen), Nachladen fehlender Settings in LedgerMsg LoadCategories mit Failure-Zustand, Lade- und Fehlerzustand im DS-Baustein CategoryPicker samt /styleguide. Reihenfolge y6atr, k9tq7, dmw83 wegen derselben Stelle in src/Client/State.fs.
+
+---
+
 ## 2026-10-24 22:12 -- Capture / Captured: ledger-dmw83 - Kategorie-Picker zeigt "Kategorien werden geladen" bzw. "Kategorien konnten nicht geladen werden" mit "Erneut versuchen", statt einer leeren Liste ohne Erklärung
 
 **Type:** Capture

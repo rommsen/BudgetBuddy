@@ -6,12 +6,12 @@ type: bug
 context: ledger
 created: 2026-10-24
 completed:
-depends_on: []
+depends_on: [design-system-001, ledger-k9tq7]
 blocks: []
 tags: [captured, kategorie, picker, frontend]
 related_adrs: []
 related_research: []
-prior_art: []
+prior_art: [ledger-sfab0, ledger-kwwxz]
 ---
 
 ## Why
@@ -20,14 +20,47 @@ Kategorie". Ein Ladefehler sah aus wie "es gibt keine Kategorien", und es gab ke
 es erneut zu versuchen.
 
 ## What
-Bei `Categories = Loading` zeigt der Kategorie-Picker "Kategorien werden geladen", bei
-`Failure` "Kategorien konnten nicht geladen werden" mit "Erneut versuchen". Mit
-Regressionstest.
+Der DS-Baustein `CategoryPicker` (`src/Client/DesignSystem/CategoryPicker.fs`) bekommt in
+`CategoryPickerProps` einen Ladezustand mit drei Fällen: bereit, lädt, fehlgeschlagen (mit
+Rückruf für "Erneut versuchen").
+
+- **Lädt und noch keine Kategorien da:** statt der Liste (auch statt "Ohne Kategorie") ein
+  Ladehinweis "Kategorien werden geladen" mit Spinner aus `Loading`. Suche ohne Wirkung.
+- **Fehlgeschlagen:** statt der Liste "Kategorien konnten nicht geladen werden" und ein
+  Knopf "Erneut versuchen" (DS-Button).
+- **Bereit**, und auch "lädt" bei schon vorhandener Liste (Nachladen nach ledger-kwwxz):
+  unverändert, kein Hinweis.
+
+Das Kassenbuch (`src/Client/Components/Ledger/View.fs`, `pickerProps`) leitet den Zustand
+aus `Ledger.Categories` ab: `NotAsked` und `Loading` ohne Liste ergeben "lädt", `Failure`
+ergibt "fehlgeschlagen" mit `LoadCategories` als Rückruf (der lädt dank `ledger-k9tq7` bei
+Bedarf auch die Settings nach), `Success` ergibt "bereit". `/styleguide` zeigt beide neuen
+Zustände.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] Test auf der reinen Layout-Ebene des Bausteins: im Zustand "lädt" mit leerer Liste
+      enthält das Layout keine Zeilen (auch nicht "Ohne Kategorie") und den Ladehinweis.
+- [ ] Test: im Zustand "fehlgeschlagen" enthält das Layout keine Zeilen und den Fehlertext mit
+      "Erneut versuchen".
+- [ ] Test: im Zustand "lädt" mit nicht leerer Liste ist das Layout gleich dem Zustand
+      "bereit" (kein Hinweis, Liste sichtbar).
+- [ ] Test der reinen Ableitung im Kassenbuch: `NotAsked` und `Loading` (ohne Liste) ergeben
+      "lädt", `Failure` ergibt "fehlgeschlagen", `Success` ergibt "bereit".
+- [ ] Reducer- oder Ansichts-Test: "Erneut versuchen" löst `LedgerMsg LoadCategories` aus.
+- [ ] Alle Aufrufer von `CategoryPickerProps` (Kassenbuch, `/styleguide`) setzen das neue
+      Feld; `dotnet build` grün.
+- [ ] `/styleguide` (`src/Client/Components/Styleguide/View.fs`) zeigt den Picker zusätzlich
+      im Zustand "lädt" und im Zustand "fehlgeschlagen".
+- [ ] Optik nur aus Design-System und Tokens (Styleguide §3); `npm run guard:tokens` grün,
+      sofern der Wächter integriert ist.
+- [ ] Die Regressionstests tragen einen Kommentar zum Befund vom 2026-10-24.
+- [ ] `dotnet test` grün.
+- [ ] Lade- und Fehlerzustand fügen sich optisch in Popover und Sheet des Pickers ein.
+      [human-eye]
 
 ## Notes
-Captured via `quick-capture` on 2026-10-24: raw, unrefined. Needs a `modeling` refine pass before
-it can be promoted. Berührt vermutlich auch den DS-Baustein `CategoryPicker` (Props brauchen
-einen Ladezustand) und damit design-system und `/styleguide`.
+Captured via `quick-capture` on 2026-10-24, verfeinert am 2026-10-24.
+
+Hängt an `ledger-k9tq7`: erst dort entsteht verlässlich der `Failure`-Zustand, und
+"Erneut versuchen" hat ohne den Nachhol-Weg für die Settings keine Wirkung. Dieselbe Stelle
+in `src/Client/State.fs` ist ein weiterer Grund für die Reihenfolge.
