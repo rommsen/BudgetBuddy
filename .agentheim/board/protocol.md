@@ -5,12 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 15:23 -- Batch started: [design-system-gffps, infrastructure-bnbdc, ledger-w4vte]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-gffps - "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel", infrastructure-bnbdc - "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)", ledger-w4vte - "Auswahl nach ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, dann Detail, dann Auswahl; während einer Auswahl ruhen Prüf-Schaltfläche, G und Wisch auf PC und Handy"
+**Parallel:** yes (3 workers, Welle 2; ledger-b7qmx und ledger-kwwxz halten bis Welle 3, weil sie mit ledger-w4vte dieselben Ledger-Client-Dateien Types.fs/State.fs/View.fs ändern; Client.fsproj, Tests.fsproj und Styleguide/View.fs mit vorab verteilten Einfügestellen)
+
+---
+
 ## 2026-10-24 15:21 -- Task verified and completed: ledger-k2rbn - 
 
 **Type:** Work / Task completion
 **Task:** ledger-k2rbn - 
 **Summary:** Der Server-Schreibweg für die Kategorie einer Buchung steht: Befehl setEntryCategory mit EntryRecategorized vor dem PUT nach YNAB, Fehlschlag mit Baseline und Erneut senden, YNAB gewinnt in observe, gemeinsame Schreib-Sperre mit dem Spiegel-Lauf.
-**Duration:** 45m
+**Duration:** 30m
 **Verification:** PASS (iteration 2)
 **Files changed:** 20
 **Tests added:** 38
@@ -34,7 +42,7 @@ Newest entries on top.
 **Type:** Work / Task completion
 **Task:** design-system-wfhxj - 
 **Summary:** Der Token-Wächter `scripts/token-guard.mjs` (`npm run guard:tokens`, in `test:scripts`) scheitert bei Farb- und Schriftwerten außerhalb der Tokens; das Design-System läuft über eine begründete Ausnahmeliste, der Styleguide-Treffer ist ersetzt.
-**Duration:** 31m
+**Duration:** 28m
 **Verification:** PASS (iteration 2)
 **Files changed:** 7
 **Tests added:** 19

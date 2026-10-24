@@ -1,7 +1,7 @@
 ---
 id: design-system-gffps
 title: "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel"
-status: todo
+status: doing
 type: feature
 context: design-system
 created: 2026-10-24

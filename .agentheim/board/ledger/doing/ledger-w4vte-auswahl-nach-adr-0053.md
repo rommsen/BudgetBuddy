@@ -1,7 +1,7 @@
 ---
 id: ledger-w4vte
 title: "Auswahl nach ADR 0053: Leertaste wählt die markierte Zeile, eine beginnende Auswahl schließt das Detail, Esc schließt Popover, dann Detail, dann Auswahl; während einer Auswahl ruhen Prüf-Schaltfläche, G und Wisch auf PC und Handy"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20
