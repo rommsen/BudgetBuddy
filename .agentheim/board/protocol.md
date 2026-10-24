@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 23:31 -- Batch started: [ledger-k9tq7]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-k9tq7 - Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
+**Parallel:** yes (2 workers: ledger-kxme4 läuft seit Welle 1 weiter). ledger-k9tq7 startet auf dem integrierten Stand von infrastructure-y6atr; ledger-dmw83 folgt danach (gleicher Zweig LedgerMsg LoadCategories in src/Client/State.fs)
+
+---
+
 ## 2026-10-24 23:30 -- Task verified and completed: infrastructure-y6atr - Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint
 
 **Type:** Work / Task completion

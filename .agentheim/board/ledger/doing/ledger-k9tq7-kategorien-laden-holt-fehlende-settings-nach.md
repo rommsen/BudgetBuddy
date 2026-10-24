@@ -1,7 +1,7 @@
 ---
 id: ledger-k9tq7
 title: Kassenbuch lädt fehlende Settings nach, statt beim Laden der Kategorien still aufzugeben (sonst bleibt der Kategorie-Picker leer bis zum Neuladen)
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-24
