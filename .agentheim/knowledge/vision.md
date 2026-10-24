@@ -65,7 +65,8 @@ Zwei Stufen, in dieser Reihenfolge. Die zweite ist das Gate für alles Weitere.
   Buchungen in BB als geprüft, BB schreibt das nach YNAB zurück. Das ist sein häufigster
   Ablauf am Handy und der Grund, aus dem er die YNAB-App heute öffnet. Ein Kassenbuch, das
   ihn nicht übernimmt, wird nicht benutzt. Der Rückschreibe-Weg ist bewusst auf dieses eine
-  Feld zugeschnitten; alles andere Nachbearbeiten bleibt v2.
+  Feld zugeschnitten; alles andere Nachbearbeiten bleibt v2. Ausnahme seit ADR 0054: BB
+  baut "Kategorie ändern" bereits vor dem Abschluss von v1.
 
 **v2 · Ownership.** ("Das war es wert.")
 - Roman öffnet YNAB nicht mehr zum Nachbearbeiten: Kategorie ändern, Split ändern, Übertrag
@@ -74,6 +75,11 @@ Zwei Stufen, in dieser Reihenfolge. Die zweite ist das Gate für alles Weitere.
   abweicht.
 - Erst wenn v2 sich im Alltag bewährt hat, fällt die Entscheidung, ob das Budgetieren
   (Zuweisungen, Targets, Underfunded) nachzieht. Wenn ja: mindestens so schnell wie in YNAB.
+- **Vorgezogen (2026-10-24):** Kategorie ändern (mit Split-Bearbeitung) wird als erste
+  v2-Fähigkeit schon gebaut, bevor das v1-Kriterium Geldmarkt-ETF erfüllt ist (ADR 0054);
+  "Lena fragen" folgt auf demselben Schreibweg (ADR 0056). Bei einem Konflikt gewinnt in
+  diesen Scheiben YNAB, die Historie zeigt beides; die Sicht auf Abweichungen bleibt v2.
+  Übertrag zusammenführen hat keinen vorgezogenen Termin.
 
 **Woran man scheitern würde:** Wenn der Spiegel unzuverlässig ist und BB und YNAB sich
 unerklärt widersprechen. Wenn BB langsamer oder umständlicher wird als YNAB-Web. Wenn das

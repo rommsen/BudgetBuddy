@@ -17,8 +17,14 @@ prior_art: [ledger-q1hw2]
 ## Why
 Die Oberfläche zu `ledger-kxme4`. Referenz ist der Split-Editor des Import-Ablaufs
 (`src/Client/Components/SyncFlow/Views/SplitSheet.fs`, ynab-sync); er bleibt unberührt. Der
-Handoff Ablauf 7 (`docs/ux/kassenbuch/handoff-ablauf-7-was-nur-bb-kann.md`) behandelt das
-Detail lesend und enthält keinen Split-Editor; die Gestaltung ist hier offen.
+Gestaltung: Brief Ablauf 4 "Kategorie ändern, Split festlegen oder ändern"
+(`docs/ux/kassenbuch/briefs.md`, Schrittfolge PC und Handy: "Aufteilen" im Detail,
+Zeilen mit Kategorie-Picker, Betrag und Memo, "Zeile hinzufügen", Gesamtbetrag und Rest,
+"Rest"-Knopf je Zeile, Speichern erst bei Rest 0,00 €, am Handy im selben Sheet mit
+stehendem "Speichern"). Dazu die Tafel Ablauf 4 im Claude-Design-Projekt "Gelesen
+UI-Mockups" (Screens 4.1 bis 4.11). Ein Handoff-Paket für Ablauf 4 liegt noch nicht im
+Repo. Abweichung seit ADR 0053: Schritt 1 des Briefs (Klick auf die Kategorie-Zelle
+öffnet den Picker) gilt nicht mehr; Picker und Editor öffnen nur aus dem Detail.
 
 ## What
 Wird nach `ledger-kxme4` verfeinert; der Rahmen steht:
@@ -37,7 +43,9 @@ Wird nach `ledger-kxme4` verfeinert; der Rahmen steht:
 
 ## Notes
 Entworfen am 2026-10-24 (Sammel-Modeling) als Scheibe (e, Oberfläche). Ziel-Lage: backlog.
-Offen: Gestaltung des Editors am Handy und am PC (Sheet oder Panel-Ersatz). Vorschlag: ein
-Entwurf im Claude-Design-Projekt vor der Verfeinerung. Dateien: Ledger-Client
+Vor der Verfeinerung: Tafel Ablauf 4 aus dem Design-Projekt als Handoff nach
+`docs/ux/kassenbuch/handoff-ablauf-4-*.md` holen (nur in der Hauptsitzung möglich, DesignSync)
+und gegen ADR 0053 und den Brief abgleichen. (Korrigiert am 2026-10-24: der erste Entwurf
+nannte den Editor fälschlich ungestaltet.) Dateien: Ledger-Client
 `Types.fs`, `State.fs`, `View.fs`, eine neue Ansichtsdatei für den Editor.
 Überschneidung mit `ledger-sfab0` und `-3` in den drei Ledger-Client-Dateien.

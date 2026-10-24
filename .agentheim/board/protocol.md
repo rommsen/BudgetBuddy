@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 13:48 -- Modeling / Refined: ledger-pafkp - Split-Editor, Vision angepasst
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** vision.md um die vorgezogene v2-Scheibe ergänzt (Kategorie ändern mit Split, Lena fragen; ADR 0054, 0056), auf Romans Wunsch. ledger-pafkp verweist jetzt auf Brief Ablauf 4 und die Design-Tafel Ablauf 4 (4.1 bis 4.11) statt fälschlich auf einen fehlenden Entwurf; Handoff für Ablauf 4 fehlt noch im Repo.
+
+---
+
 ## 2026-10-24 13:26 -- Modeling / Promoted: ledger-kwwxz - "Available-Betrag je Kategorie im Kassenbuch frisch halten und fortschreiben: Kategorien neu laden bei Seitenaufruf, PWA-Vordergrund und Picker-Öffnung, lokale Fortschreibung nach einer Änderung, Text des Hinweises mit alt und neu"
 
 **Type:** Modeling / Promote
