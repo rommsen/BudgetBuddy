@@ -1,7 +1,7 @@
 ---
 id: ledger-mas5g
 title: "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf"
-status: todo
+status: doing
 type: spike
 context: ledger
 created: 2026-10-24

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 14:50 -- Batch started: [design-system-wfhxj, ledger-mas5g, ledger-k2rbn]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-wfhxj - "Token-Wächter: test:scripts scheitert, sobald Feature-Code Hex- oder rgb-Farben in Klassen, Standard-Tailwind-Farben, inline Farbe/Schriftgröße oder text-[Npx] benutzt; das Design-System selbst läuft über eine begründete Ausnahmeliste", ledger-mas5g - "Spike: Lässt die YNAB-API zu, die Split-Zeilen einer bestehenden Buchung zu setzen, zu ändern und aufzuheben, und mit welchem Aufruf", ledger-k2rbn - "Kategorie ändern in BB (v2), Schreibweg für eine Buchung: Befehl setEntryCategory, Ereignis EntryRecategorized, PUT nach YNAB, Fehlschlag mit Baseline, Erneut senden, YNAB gewinnt, Schreib-Sperre gegen den Spiegel"
+**Parallel:** yes (3 workers; 6 weitere bereite Tasks auf spätere Wellen verteilt: gffps, bnbdc, w4vte in Welle 2, b7qmx und kwwxz in Welle 3 wegen Überschneidung in Ledger Types.fs/State.fs/View.fs; ledger-h6mer führt der Conductor selbst auf der Live-Datenbank aus, nicht dispatchbar)
+
+---
+
 ## 2026-10-24 14:45 -- Modeling / Refined: Stil-Absicherung für neue Frontend-Tasks
 
 **Type:** Modeling / Refine

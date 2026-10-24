@@ -1,7 +1,7 @@
 ---
 id: design-system-wfhxj
 title: "Token-Wächter: test:scripts scheitert, sobald Feature-Code Hex- oder rgb-Farben in Klassen, Standard-Tailwind-Farben, inline Farbe/Schriftgröße oder text-[Npx] benutzt; das Design-System selbst läuft über eine begründete Ausnahmeliste"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-10-24
