@@ -40,7 +40,7 @@ Detail öffnet den Picker. `ledger-q1hw2` hat den Platz freigehalten (`detail-ca
      mit Buchungs-Id und `Previous` aus `CategoryChangeOutcome`), übersetzt in
      `toastActionMsg` wie `UndoReviewMark`.
    - "Rückgängig" setzt den alten Stand über denselben Schreibweg zurück
-     (`setEntryCategory` mit `Previous.Id`): zweites `EntryRecategorized`, zweiter Push nach
+     (`setEntryCategory` mit `Previous |> Option.map _.CategoryId`): zweites `EntryRecategorized`, zweiter Push nach
      YNAB, die Historie zeigt beide. Available wird mit vertauschten Kategorien fortgeschrieben,
      ohne neue Karte; der Rücknahme-Toast hat kein "Rückgängig". Eine Aktion, ein Toast, eine
      Rücknahme.
@@ -95,7 +95,7 @@ Detail öffnet den Picker. `ledger-q1hw2` hat den Platz freigehalten (`detail-ca
       "Kategorie geändert: <Name>" mit Aktion `UndoCategory` und schreibt Available fort;
       `CategoryUnchanged` erzeugt weder Karte noch Toast.
 - [ ] Test `toastActionMsg (UndoCategory ...)` und Reducer: "Rückgängig" ruft `setEntryCategory`
-      mit `Previous.Id` (auch `None` für "ohne Kategorie"), die Zeile trägt danach wieder die
+      mit `Previous |> Option.map _.CategoryId` (auch `None` für "ohne Kategorie"), die Zeile trägt danach wieder die
       alte Kategorie, Available ist mit vertauschten Kategorien fortgeschrieben, der
       Rücknahme-Toast hat keine Aktion.
 - [ ] Ansichts-Test Karte: erscheint nach der Änderung mit durchgestrichenem alten und neuem
@@ -107,7 +107,10 @@ Detail öffnet den Picker. `ledger-q1hw2` hat den Platz freigehalten (`detail-ca
       und kategorielose Buchungen zählen nicht, Payee ohne Beachtung der Groß/Kleinschreibung.
 - [ ] Reducer-Test: Öffnen des Pickers lädt die Vorschläge genau einmal; Fehler oder leere
       Antwort lassen den Abschnitt weg.
-- [ ] Reducer-Test: `CategorySendFailed reason` setzt `CategorizationWriteBackFailure` auf
+- [ ] Reducer-Test: Öffnen des Pickers schickt `EnsureCategoriesFresh` (`ledger-kwwxz`, lädt
+      nur bei Stand über zwei Minuten); die Fußzeile `StandLabel` kommt aus `availableAgeLabel`
+      mit `CategoriesLoadedAt` und fehlt, solange `CategoriesLoadedAt` leer ist.
+- [ ] Reducer-Test: `WriteBack = CategorySendFailed reason` setzt `CategorizationWriteBackFailure` auf
       der Zeile und zeigt die Warnung; "Erneut senden" ruft `retryCategorizationWriteBack`
       und räumt den Zustand bei `CategorySent`.
 - [ ] Reducer-Test Filter-Nichttreffer: Fällt die Zeile bei Kategorie-Filter (oder Chip "Ohne
@@ -133,9 +136,22 @@ Detail öffnet den Picker. `ledger-q1hw2` hat den Platz freigehalten (`detail-ca
 - [ ] Optik nur aus Design-System und Tokens (Styleguide §3, Vorrangregel in den Handoffs):
       keine Farb- oder Maßwerte aus den Design-Tafeln; ein neuer DS-Baustein erscheint in
       `/styleguide` (`src/Client/Components/Styleguide/View.fs`); `npm run guard:tokens` grün
-      (Wächter aus `design-system-wfhxj`, sobald integriert).
+      (Wächter aus `design-system-wfhxj`).
 - [ ] Das Neue fügt sich optisch in die gebauten Screens (Kassenbuch, Buchungs-Detail,
       `/styleguide`) ein und fällt daneben nicht auf. [human-eye]
+
+## Manuelle Prüfung
+Von `ledger-k2rbn` übernommen (dort ohne Oberfläche nicht von Hand prüfbar). Roman prüft nach
+dem Deploy; der Verifier bewertet diese Punkte nicht.
+- Kategorie im Detail ändern, während YNAB nicht erreichbar ist (z. B. Token in den
+  Einstellungen ungültig machen), danach einen Spiegel-Lauf starten: Die BB-Kategorie bleibt,
+  die Hinweisleiste "Kategorie nicht in YNAB" bleibt stehen. YNAB wieder erreichbar machen,
+  "Erneut senden": Die Hinweisleiste verschwindet, YNAB zeigt die neue Kategorie.
+- Während eines laufenden Spiegel-Laufs eine Kategorie ändern: Die Antwort kommt erst nach
+  dem Lauf, die neue Kategorie bleibt stehen und wird nicht vom Spiegel zurückgedreht.
+- Einen Fehlschlag wie im ersten Punkt erzeugen, dann den Container neu starten: Die
+  Hinweisleiste ist danach noch da. Die Spalte `categorization_write_back_failure` ist in der
+  Live-Datenbank vorhanden (am 2026-10-24 lesend geprüft, 14159 Zeilen, kein Fehlschlag).
 
 ## Notes
 Verfeinert am 2026-10-24 (Sammel-Modeling, Ablauf 4; Entscheidungen Roman, 2026-10-24): Rückgängig
@@ -149,8 +165,29 @@ bis `ledger-k2rbn`, `ledger-kwwxz` und `design-system-gffps` in done liegen (Abh
 danach todo. Dateien: `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs`,
 `src/Client/State.fs` (Toast-Weg wie `StartUndoReviewMark`, `toastActionMsg`), `src/Shared/Api.fs`,
 `src/Server/Api.fs`, `Ledger/QueryHandlers.fs`, `Ledger/Persistence.fs` (Vorschläge), Tests. Überschneidung mit
-`ledger-w4vte` (Esc-Kette, `keyboardBlocked`), `ledger-kwwxz` und `ledger-w29y6` und `-6`
+`ledger-w4vte` (Esc-Kette, `keyboardBlocked`), `ledger-kwwxz` und `ledger-w29y6`
 in denselben drei Ledger-Client-Dateien: nicht parallel in einer Welle bauen.
+
+Abgleich mit dem gebauten Stand (2026-10-24, nach k2rbn, kwwxz, gffps, w4vte):
+- `setEntryCategory: Guid -> YnabCategoryId option -> Async<Result<CategoryChangeOutcome, string>>`.
+  `CategoryChangeOutcome` ist ein Record: `Previous: CategoryChoice option` (`CategoryId`,
+  `CategoryName`), `Change: CategoryChanged | CategoryUnchanged`, `WriteBack: CategoryNotSent
+  | CategorySent | CategorySendFailed of reason`. "Kategorie geändert: <Name>" und "Kategorie
+  entfernt: <alter Name>" bilden sich aus `Previous.CategoryName` und `Model.Categories`.
+- `retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>`. Der offene
+  Fehlschlag steht als `CategorizationWriteBackFailure: string option` auf `LedgerEntryView`.
+  Ereignis des Befehls: `EntryRecategorized`.
+- Picker: `CategoryPicker.popover` (PC) und `CategoryPicker.sheetLayered` (Handy, über dem
+  Detail-Sheet, nutzt `BottomSheet.viewLayered`), Props `CategoryPickerProps` mit
+  `Categories`, `Current`, `Suggested`, `StandLabel`, `OnSelect`, `OnClose`. Der Baustein
+  kürzt die Vorschläge selbst auf drei und lässt die aktuelle Kategorie weg.
+- Karte: `CategoryPicker.CategoryChangeCard.view` nimmt `ChangeLine list`
+  (`Label`, `OldText`, `NewText`); `categoryChangeHint` liefert `CategoryChangeHintRow` mit
+  denselben Feldern, eine Abbildung genügt. `CategoryChangeCard.hasContent` entscheidet, ob
+  die Karte erscheint.
+- `shiftAvailable`, `categoryChangeHint`, `availableAgeLabel`, `categoriesReloadDue` und
+  die Message `EnsureCategoriesFresh` liegen in `src/Client/Components/Ledger/Types.fs`
+  bzw. `src/Client/State.fs`.
 
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`

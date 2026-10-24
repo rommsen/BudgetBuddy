@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-24 19:39 -- Modeling / Refined: ledger-sfab0 - Kassenbuch-Detail: Kategorie ändern
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Abgleich mit dem gebauten Stand nach k2rbn, kwwxz, gffps und w4vte: Bezeichner korrigiert (CategoryChangeOutcome als Record, Previous.CategoryId, WriteBack), Kriterium für EnsureCategoriesFresh und StandLabel ergänzt, Abschnitt Manuelle Prüfung mit den drei Prüfpunkten aus k2rbn angelegt.
+
+---
+
 ## 2026-10-24 17:03 -- Work session ended
 
 **Type:** Work / Session end
