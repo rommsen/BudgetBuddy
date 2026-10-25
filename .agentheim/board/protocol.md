@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 18:21 -- Modeling / Promoted: ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-25 18:21 -- Task verified and completed: ledger-xfjcp - "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
 
 **Type:** Work / Task completion
