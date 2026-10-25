@@ -1,7 +1,7 @@
 ---
 id: ledger-w29y6
 title: "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-24

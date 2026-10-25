@@ -1,7 +1,7 @@
 ---
 id: ledger-m6zpd
 title: "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-20

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 11:48 -- Batch started: [ledger-m6zpd, ledger-pafkp, ledger-w29y6]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-m6zpd - "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute", ledger-pafkp - "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast", ledger-w29y6 - "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle"
+**Parallel:** yes (3 workers; alle drei teilen die Ledger-Client-Dateien Types.fs/State.fs/View.fs, m6zpd und w29y6 zusätzlich selectionBars und scripts/ledger-selection.test.mjs, pafkp und w29y6 Shared/Api.fs, Server/Api.fs und ToastActionKind; Einfügestellen je Worker vorab verteilt, Integration in Reihenfolge des PASS)
+
+---
+
 ## 2026-10-25 11:34 -- Modeling / Promoted: ledger-m6zpd - "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
 
 **Type:** Modeling / Promote
