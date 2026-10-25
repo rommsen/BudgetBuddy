@@ -5,6 +5,42 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 16:32 -- Modeling / Captured: ledger-fa1fp - "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Detail-Feinschliff: Memo bearbeiten mit Schreibweg, Historie nach Aufteilen, Kategorie-Kurzform am Handy, Picker-Fußtext, MultiSelect im Styleguide.
+
+---
+
+## 2026-10-25 16:32 -- Modeling / Captured: ledger-cks06 - "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Noch nicht in YNAB: Kennzeichen in Liste und Statusspalte, Erneut senden mit sofortigem Push, Verhalten des nächsten Laufs festhalten.
+
+---
+
+## 2026-10-25 16:32 -- Modeling / Captured: ledger-ybmqc - "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Konto-Wahl je Gerät merken und Handy-Kontowechsler als Titel mit Chevron und BottomSheet.
+
+---
+
+## 2026-10-25 16:32 -- Modeling / Captured: ledger-v9rq3 - "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** todo
+**Summary:** Liste im Prüf-Zustand nach den Tafeln: Summenzeile bei Chips, Klartext-Filter am PC, Leerzustand Alles geprüft, Zuletzt verwendet, Übernehmen erst mit Änderung.
+
+---
+
 ## 2026-10-25 13:16 -- Work session ended
 
 **Type:** Work / Session end

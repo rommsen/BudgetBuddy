@@ -11,13 +11,17 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 0
+- **Todo:** 4
 - **Doing:** 0
 - **Done:** 82
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-fa1fp** — "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide" (feature) — `todo/ledger-fa1fp-detail-feinschliff-memo-und-historie.md`
+- **ledger-cks06** — "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push" (feature) — `todo/ledger-cks06-noch-nicht-in-ynab-vollstaendig.md`
+- **ledger-ybmqc** — "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen" (feature) — `todo/ledger-ybmqc-konto-wahl-merken-und-handy-wechsler.md`
+- **ledger-v9rq3** — "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl" (feature) — `todo/ledger-v9rq3-liste-im-pruef-zustand.md`
 <!-- todo-list:end -->
 
 ### Doing
