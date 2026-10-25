@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 22:54 -- Modeling / Captured: budgeting-r4tkq - "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Research-Spike: Targets aus der YNAB-API lesen und zugewiesenen Betrag pro Kategorie und Monat setzen, mit Probelauf; Voraussetzung für Targets anwenden (ADR 0063).
+
+---
+
 ## 2026-10-25 22:53 -- Brainstorm: Budget
 
 **Type:** Brainstorm
