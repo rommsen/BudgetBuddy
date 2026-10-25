@@ -1,163 +1,198 @@
 # Vision: BudgetBuddy
 
-> **Revision 2026-09-06.** Löst die Companion-Vision vom 2026-06-01 ab (ADR 0001 →
-> ADR 0012). Der Companion-Teil (Bank→YNAB schnell und fehlerfrei) bleibt vollständig
-> gültig; er ist jetzt der Anfang eines längeren Weges, nicht mehr dessen Grenze.
+> **Revision 2026-10-25.** Erweitert die Vision vom 2026-09-06 um das **Budget** (ADR 0063).
+> Das Budget ist die nächste große Fähigkeit, vor der ETF-Bewertung. YNAB abschalten wird
+> vom Non-Goal zur Richtung. Kassenbuch, Spiegel und Companion-Teil bleiben unverändert
+> gültig.
+>
+> **Revision 2026-09-06.** Löste die Companion-Vision vom 2026-06-01 ab (ADR 0001 →
+> ADR 0012).
 
 ## Purpose
 BudgetBuddy wird das **führende System für unsere Finanzen**, Fähigkeit für Fähigkeit.
 YNAB bleibt so lange Projektion und Fallback, wie BudgetBuddy eine Fähigkeit noch nicht
-hat. Der Kern ist ein eigenes, dauerhaftes **Kassenbuch** über alle Konten, mit einer
-Historie, die wirklich auditierbar ist: jede Änderung an einer Buchung ist nachvollziehbar
-nach Zeitpunkt und Herkunft (BB-Regel, Roman in BB, Roman in YNAB, Bank-Import).
+hat. Die Richtung ist, YNAB perspektivisch nicht mehr zu brauchen. Der Kern ist ein
+eigenes, dauerhaftes **Kassenbuch** über alle Konten, mit einer Historie, die wirklich
+auditierbar ist: jede Änderung an einer Buchung ist nachvollziehbar nach Zeitpunkt und
+Herkunft (BB-Regel, Roman in BB, Roman in YNAB, Bank-Import).
 
-Heute ist BudgetBuddy ein Companion: Comdirect-Import, regelbasierte Kategorisierung,
-Duplikat-Schutz, Push nach YNAB, Quick Add für Bar-Ausgaben. Das bleibt und ist bereits
-der erste Fall des Musters, das die neue Vision trägt: **BB entscheidet, YNAB wird
-nachgezogen.** Was fehlt, ist das Gedächtnis: BB vergisst heute jede Buchung nach dem Push.
+Das Kassenbuch steht und wird benutzt: Spiegel, Prüfvermerk, Kategorie ändern, Splits,
+Lena fragen, Memo. Die größte Fähigkeit, die noch an YNAB bindet, ist das **Budget**:
+Geld auf Kategorien verteilen, verschieben, Targets anwenden. Es kommt als Nächstes, nach
+demselben Muster wie alles andere (**BB entscheidet, YNAB wird nachgezogen**), und an
+einigen Stellen besser als in YNAB.
 
 Gebaut von und für Roman als Daily Driver (Frau nutzt mit). Leitprinzip unverändert:
 **fertiges Tool, kein Hobby-Projekt. Was nicht real gebraucht wird, fliegt raus.**
 
 ## Users
-- **Roman** — primärer Nutzer. Zieht Comdirect-Transaktionen, kategorisiert, pflegt Regeln,
-  bearbeitet Buchungen nach (Kategorie, Splits, Überträge), budgetiert am Monatsersten.
-  PC für Planung und Nacharbeit, Handy für Lesen, Kategorisieren und Bar-Eingabe.
-- **Frau** — erfasst Bar-Ausgaben (Quick Add), bestellt bei Amazon (Buchungen, die Roman
-  ohne Kontext sieht), liest mit. Keine Planänderungen.
+- **Roman**: primärer Nutzer. Zieht Comdirect-Transaktionen, kategorisiert, pflegt Regeln,
+  bearbeitet Buchungen nach, budgetiert. Verteilt am Monatsersten nach seinen Targets,
+  verschiebt im Laufe des Monats häufig Geld zwischen Kategorien, auch am Handy. Sucht bei
+  größeren Anschaffungen nach Gefühl, aus welchen Kategorien er Geld nehmen kann.
+- **Frau**: erfasst Bar-Ausgaben (Quick Add), bestellt bei Amazon, liest mit. Budgetiert
+  praktisch nicht.
 
 Single-User-Modell mit gemeinsamem Konto. Kein Multi-Tenant, keine Rollen, kein Konfliktmodell.
 
 ## The problem
 1. **Nicht alles unter einem Dach.** YNAB kennt Comdirect, Bar und die ING-Konten, aber
-   weder die Depots (ING, Consors) noch das Geld, das seit dem Umstieg von Tagesgeld auf
-   einen Geldmarkt-ETF im ING-Depot liegt. Dieses Geld ist **Budget-Geld** (es gehört zu
-   Kategorien). YNAB kann es als manuelles Budget-Konto führen, den Wert aber nicht selbst
-   ermitteln. Bis zur Revision 2026-09-06 passierte damit gar nichts: das Budget war um
-   diesen Posten falsch und driftete weiter.
-2. **Keine Ownership über die eigenen Daten.** Jede Buchung, jede Korrektur, jede
-   Historie lebt nur in YNAB. BudgetBuddy hält nichts fest. YNAB wird an fünf Stellen an
-   BB vorbei beschrieben (ING-Import, Transfer-Erkennung, Split-Korrekturen, nachträgliche
-   Kategorie-Änderungen, Amazon-Bestellungen der Frau), und nichts davon ist in BB sichtbar.
+   weder die Depots (ING, Consors) noch das Geld im Geldmarkt-ETF, das Budget-Geld ist.
+   Gemildert: der ETF läuft als manuelles YNAB-Konto, BB spiegelt es.
+2. **Keine Ownership über die eigenen Daten.** Bis zum Kassenbuch lebte jede Buchung nur
+   in YNAB. Für Buchungen ist das gelöst. Für das Budget gilt es weiter: jede Zuweisung,
+   jede Verschiebung, jedes Target lebt nur in YNAB.
 3. **Abhängigkeit.** YNAB ist das zentrale Tool für die Familienfinanzen; wohin es sich
-   entwickelt und was es künftig kostet, ist offen. Das ist ein Versicherungsmotiv, kein
-   akuter Schmerz, aber es nagt.
-
-Was **nicht** weh tut: das Budgetieren selbst. "Alle Kategorien auswählen, Underfunded,
-fertig" funktioniert gut. Budgetieren wird nicht nachgebaut, weil es schlecht wäre, sondern
-nur, wenn Budget-Geld auf Konten liegen soll, die YNAB nicht kennt, und erst, wenn das
-Vertrauen in das Kassenbuch da ist.
+   entwickelt und was es kostet, ist offen (inzwischen heißt das Budget dort "Plan").
+   Seit das Kassenbuch trägt, ist aus dem Versicherungsmotiv eine Richtung geworden.
+4. **YNABs Budget kann einiges nicht, was Roman braucht.** Es tut nicht weh, aber Roman
+   löst es heute im Kopf, von Hand oder in Excel:
+   - **Underfunded** verlangt, jedes Mal alle Kategorien auszuwählen.
+   - **"Auffüllen bis"** rechnet mit dem scheinbaren Rest. Zahlungen vom Monatsende, die
+     erst am 1. bis 3. abgebucht werden, fehlen dann im neuen Monat. Roman nutzt dieses
+     Target deshalb nie.
+   - **Rot ist Rot.** Am Ersten verteilt Roman bewusst mehr, als da ist, weil das
+     Kindergeld sicher am 15. kommt. YNAB zeigt das genauso wie einen echten Fehlbetrag.
+     Geplante Transaktionen helfen nicht, weil die echte Buchung über Comdirect kommt und
+     dann doppelt da ist.
+   - **Durchspielen geht nicht.** "Hier 200 runter, da 100, wie viel habe ich dann?"
+     rechnet Roman von Hand oder macht danach vieles rückgängig.
+   - **Leihen kennt YNAB nicht.** Beim Autokauf hat Roman in Excel geführt, aus welchen
+     Kategorien er Geld geliehen hat, und es nach und nach zurückgezahlt.
+   - **Am Handy** kann man nicht nach einer Kategorie suchen.
 
 ## What success looks like
-Zwei Stufen, in dieser Reihenfolge. Die zweite ist das Gate für alles Weitere.
+Die bisherigen Stufen bleiben, die Reihenfolge ändert sich: **das Budget kommt vor der
+ETF-Bewertung** (ADR 0063). v2 (Ownership der Nachbearbeitung) läuft schon und wird
+weitergeführt.
 
-**v1 · Alles unter einem Dach.**
-- BB zeigt alle Konten mit richtigem Stand: Comdirect, Bar, ING-Konten, und den
-  Geldmarkt-ETF als Budget-Konto. In v1 führt YNAB den ETF als manuelles Konto, das Roman
-  monatlich auf Stückzahl mal Kurs abgleicht; BB spiegelt es wie jedes andere Konto. Die
-  Bewertung in BB (BB rechnet, YNAB wird nachgezogen) kommt später als BB-geführte
-  Fähigkeit (ADR 0016).
-- Buchungen pro Konto und über alle Konten, wie YNABs "All Accounts".
-- Das Kassenbuch ist vollständig, weil es YNABs Zustand laufend nachführt (Spiegel), und
-  merkt sich zusätzlich, was BB selbst entschieden hat.
-- Das Budget-Loch durch den ETF ist geschlossen, in v1 über das manuelle YNAB-Konto.
-- **Der Prüfvermerk ist die eine schreibende Ausnahme in v1** (ADR 0028): Roman markiert
-  Buchungen in BB als geprüft, BB schreibt das nach YNAB zurück. Das ist sein häufigster
-  Ablauf am Handy und der Grund, aus dem er die YNAB-App heute öffnet. Ein Kassenbuch, das
-  ihn nicht übernimmt, wird nicht benutzt. Der Rückschreibe-Weg ist bewusst auf dieses eine
-  Feld zugeschnitten; alles andere Nachbearbeiten bleibt v2. Ausnahme seit ADR 0054: BB
-  baut "Kategorie ändern" bereits vor dem Abschluss von v1.
+**v1 · Alles unter einem Dach.** Erreicht bis auf die ETF-Bewertung in BB, die nach
+hinten rückt. Der ETF bleibt bis dahin ein manuelles YNAB-Konto mit monatlichem Abgleich,
+das BB spiegelt (ADR 0016).
 
-**v2 · Ownership.** ("Das war es wert.")
-- Roman öffnet YNAB nicht mehr zum Nachbearbeiten: Kategorie ändern, Split ändern, Übertrag
-  zusammenführen (Comdirect raus, ING rein = eine Bewegung), alles in BB, mit Historie.
-- BB ist für diese Fähigkeiten führend; YNAB wird nachgezogen, und BB sieht, wo YNAB
-  abweicht.
-- Erst wenn v2 sich im Alltag bewährt hat, fällt die Entscheidung, ob das Budgetieren
-  (Zuweisungen, Targets, Underfunded) nachzieht. Wenn ja: mindestens so schnell wie in YNAB.
-- **Vorgezogen (2026-10-24):** Kategorie ändern (mit Split-Bearbeitung) wird als erste
-  v2-Fähigkeit schon gebaut, bevor das v1-Kriterium Geldmarkt-ETF erfüllt ist (ADR 0054);
-  "Lena fragen" folgt auf demselben Schreibweg (ADR 0056). Bei einem Konflikt gewinnt in
-  diesen Scheiben YNAB, die Historie zeigt beides; die Sicht auf Abweichungen bleibt v2.
-  Übertrag zusammenführen hat keinen vorgezogenen Termin.
+**v2 · Ownership der Nachbearbeitung.** Kategorie ändern, Split, Lena fragen und Memo
+laufen in BB (ADR 0054). Offen sind Übertrag zusammenführen und die Sicht auf
+Abweichungen. Sie haben keinen Termin vor dem Budget.
 
-**Woran man scheitern würde:** Wenn der Spiegel unzuverlässig ist und BB und YNAB sich
-unerklärt widersprechen. Wenn BB langsamer oder umständlicher wird als YNAB-Web. Wenn das
-Kassenbuch gebaut ist, aber niemand hineinschaut.
+**Budget · Der Monat entsteht in BB.** Kein langer Lese-Vorlauf: das Kassenbuch hat
+gezeigt, dass eine reine Lese-Sicht nicht benutzt wird. Sehen und Handeln kommen zusammen.
+
+- **Grundlage:** Verfügbar pro Kategorie im laufenden Monat, mit Gruppen, am Handy und am
+  PC; **Zu verteilen** als eine Zahl; der **Vortrag** in den Folgemonat stimmt ab dem
+  ersten Tag; Kategorie-Suche am Handy.
+- **Stufe 1, die Handlung, die holt:**
+  1. **Targets anwenden** mit einem Knopf am Monatsersten, ohne alle auszuwählen. Die
+     Targets kommen zunächst aus YNAB.
+  2. **Geld verschieben** zwischen Kategorien, am Handy schnell.
+  3. **Kategorie-Detail:** Ausgaben des Monats, Sprung zur Buchung im Kassenbuch.
+- **Stufe 2:** **Budget-Historie** (wer hat wann wie viel zugewiesen, verschoben,
+  per Targets verteilt), allgemein und pro Kategorie, nach Art filterbar.
+- **Stufe 3, besser als YNAB:**
+  - **Erwartete Einnahme**: Gelb statt Rot, wird beim Comdirect-Import eingelöst.
+  - **Leihen und zurückzahlen** zwischen Kategorien.
+  - **Entwurf**: Verschiebungen durchspielen, Summe sehen, übernehmen oder verwerfen.
+  - **Targets in BB pflegen**, mit **Deckel** ("50 € pro Monat bis 1000 €").
+
+Woran man merkt, dass es gelungen ist: Roman öffnet YNAB am Monatsersten nicht mehr und
+verschiebt Geld am Handy in BB. YNAB ist für das Budget nur noch Nachzieh-Ziel.
+
+**Woran man scheitern würde:** Wenn BBs Verfügbar und YNABs Verfügbar sich unerklärt
+widersprechen. Wenn Verschieben in BB langsamer ist als in YNAB. Wenn das Budget gebaut
+ist, Roman aber weiter in YNAB budgetiert.
 
 ## Non-goals
-- **YNAB abschalten.** Der Cutover ist eine Möglichkeit nach v2, kein Ziel dieser Vision.
-  Solange YNAB Fähigkeiten hat, die BB nicht hat, läuft es weiter.
-- **Budgetieren nachbauen vor v2.** Zuweisen, Targets, Underfunded bleiben in YNAB, bis
-  das Kassenbuch Vertrauen aufgebaut hat. Wenn es kommt, dann als Parität plus ETF-Konto,
-  nicht als Neuerfindung.
-- **Depot-Vermögenssicht** (ING-Depot, Consors) ist nicht v1 oder v2. Depots sind Vermögen,
-  kein Budget-Geld. Kommt als eigene Sicht obendrauf, wenn das Kassenbuch steht.
-- **ING-Bankadapter** ist nicht v1. ING-Buchungen kommen vorerst über den YNAB-Spiegel.
-- **Amazon-Auslesen, lokale LLMs, Finanz-Vorschläge** bleiben geparkt, bis das Kassenbuch
-  steht. Theoretische Optionen, nichts für morgen.
-- **Reports** weiterhin nur, wenn real vermisst. Wenn sie kommen, dann als Sichten auf die
-  eigene Historie, nicht als Nachbau der YNAB-Reports.
-- **Multi-User, Konfliktmodell, mobiles Budgetieren** bleiben draußen wie bisher.
-- **Companion-Funktionen wegwerfen.** Import, Regeln, Dedup, Push, Quick Add bleiben, wie
-  sie sind. Sie werden auf das Kassenbuch gesetzt, nicht ersetzt.
+- **YNAB abschalten an einem Datum.** Es ist die Richtung, kein Termin. Abgeschaltet wird
+  erst, wenn BB alles führt, was Roman braucht.
+- **Eine neue Budget-Methode.** "Nur verteilen, was da ist", Zu verteilen und der Vortrag
+  bleiben. BB verbessert YNABs Modell und ersetzt es nicht durch ein anderes.
+- **Automatik am Monatsersten.** Ein Knopf, kein Zeitplan. Roman bestätigt.
+- **Berechnete Empfehlung, woher Geld kommen kann.** Die Entscheidung "da brauche ich es
+  nicht" bleibt Romans Gefühl. BB macht sie leichter (Entwurf, Leihen), trifft sie nicht.
+- **Kategorie-Verwaltung** (anlegen, umbenennen, Gruppen umbauen) im Budget-Schritt.
+  Bleibt in YNAB.
+- **Prognosen, Cashflow-Vorschau.** Die erwartete Einnahme ist eine einzelne Ankündigung,
+  kein Forecast-Modul.
+- **Lena-Sicht** im Budget als eigenes Feature.
+- **Depot-Vermögenssicht** (ING-Depot, Consors): Vermögen, kein Budget-Geld. Kommt als
+  eigene Sicht, wenn sie gebraucht wird.
+- **ING-Bankadapter:** ING-Buchungen kommen weiter über den YNAB-Spiegel.
+- **Amazon-Auslesen, lokale LLMs, Finanz-Vorschläge** bleiben geparkt.
+- **Reports** nur, wenn real vermisst, dann als Sichten auf die eigene Historie.
+- **Multi-User, Konfliktmodell.** Mobiles Budgetieren ist kein Non-Goal mehr: Verschieben
+  und Ansehen am Handy gehören zum Budget.
+- **Companion-Funktionen wegwerfen.** Import, Regeln, Dedup, Push, Quick Add bleiben.
 
-### Die Scope-Formel (ersetzt die aus ADR 0001)
+### Die Scope-Formel (erweitert 2026-10-25)
 **In-Scope = eine Fähigkeit, die heute in YNAB liegt, nach BB holen, so dass BB sie führt
 und YNAB nachgezogen wird. Oder eine Fähigkeit, die YNAB nicht hat und die das Kassenbuch
-braucht.** Non-Goal = eine Fähigkeit nachbauen, die in YNAB nicht weh tut und für die es
-keinen Kassenbuch-Grund gibt.
+oder das Budget braucht, weil Roman sie heute im Kopf, von Hand oder in Excel löst.**
+Non-Goal = eine Fähigkeit nachbauen, für die es weder einen YNAB-Ablöse-Grund noch einen
+gelebten Behelf gibt.
 
 ## Ubiquitous language (seed)
 Der Companion-Kern (Sync, SyncSession, BankTransaction, SyncTransaction, Rule,
-DuplicateStatus, YnabImportStatus, ImportId, Order-ID-Matching, Quick Add) gilt
-unverändert; verbindliche Definitionen in den BC-READMEs. Neu mit dieser Revision:
+DuplicateStatus, YnabImportStatus, ImportId, Order-ID-Matching, Quick Add) und die
+Kassenbuch-Begriffe gelten unverändert; verbindliche Definitionen in den BC-READMEs.
 
-- **Kassenbuch** (Ledger) — BBs eigenes, dauerhaftes Buch aller Buchungen über alle Konten.
-  Das Gedächtnis, das BB heute fehlt. Lebt im neuen Context `ledger`.
-- **Konto** — ein Ort, an dem Geld liegt. Bankkonto (Comdirect, ING), Bar, oder ein
-  **Wertpapierkonto mit Budget-Geld** (der Geldmarkt-ETF). Jedes Konto ist On-Budget oder
-  nicht; Depots als Vermögen sind es nicht und sind vorerst kein Konto im Kassenbuch.
-- **Buchung** — ein Eintrag im Kassenbuch: Datum, Betrag, Konto, Payee, Memo, Kategorie,
-  ggf. Splits. Trägt ihre **Herkunft** und ihre **Historie**.
-- **Herkunft** — woher eine Buchung oder Änderung kam: Comdirect-Import, Quick Add, Regel,
-  Roman in BB, YNAB-Spiegel (dahinter: ING-Import, Änderung in YNAB, Transfer-Erkennung).
-- **Historie** — die vollständige, unveränderliche Folge aller Änderungen an einer Buchung,
-  je mit Zeitpunkt und Herkunft. "Auditierbar" heißt: jede Zahl im Kassenbuch lässt sich
-  bis zu ihrem Ursprung zurückverfolgen.
-- **Spiegel** — das laufende Nachführen von YNABs Zustand ins Kassenbuch (alle Konten,
-  alle Buchungen, alle Änderungen). Der Spiegel macht das Kassenbuch vollständig, solange
-  YNAB noch Eingabeort ist. Ein Spiegel mit Gedächtnis: er kennt zusätzlich BBs eigene
-  Entscheidungen.
-- **Abweichung** — ein Unterschied zwischen dem, was BB entschieden hat, und dem, was
-  YNAB heute zeigt (z.B. Split in YNAB geändert). Sichtbar, nicht still überschrieben.
-- **Führung** — welche Seite für eine Fähigkeit entscheidet. **BB-geführt:** BB entscheidet,
-  YNAB wird nachgezogen (heute: Import, Kategorisierung, Quick Add). **YNAB-geführt:** YNAB
-  entscheidet, BB spiegelt (heute: Nachbearbeitung, Überträge, ING, Budgetieren). Die Vision
-  ist der Weg, Fähigkeiten von YNAB-geführt zu BB-geführt zu bewegen.
-- **Übertrag** — zwei Buchungen auf zwei Konten, die eine Bewegung sind (Comdirect 1000
-  raus, ING 1000 rein). Keine Budget-Wirkung.
-- **Bewertung** — der Wert eines Wertpapierkontos mit Budget-Geld: Stückzahl mal Kurs.
-  Eine Bewertungsänderung wird als Buchung sichtbar (Kursgewinn/-verlust), damit der
-  Kontostand stimmt.
-- **Gesamtsicht** — alle Konten zusammen, Buchungen und Stände (YNABs "All Accounts").
+**Kassenbuch** (`ledger`):
+- **Kassenbuch**: BBs dauerhaftes Buch aller Buchungen über alle Konten.
+- **Konto**: ein Ort, an dem Geld liegt (Bankkonto, Bar, Wertpapierkonto mit Budget-Geld).
+- **Buchung**: ein Eintrag mit Datum, Betrag, Konto, Payee, Memo, Kategorie, ggf. Splits;
+  trägt Herkunft und Historie.
+- **Herkunft**, **Historie**, **Spiegel**, **Abweichung**, **Führung**, **Bewertung**,
+  **Gesamtsicht**: wie im `ledger`-README.
+- **Übertrag**: zwei Buchungen auf zwei Konten, die eine Bewegung sind. Keine
+  Budget-Wirkung. Nicht zu verwechseln mit dem **Vortrag**.
+
+**Budget** (`budgeting`, neu 2026-10-25):
+- **Budget**: das Ganze, alle Kategorien mit ihren Beträgen über die Monate. YNAB nennt es
+  inzwischen "Plan"; BB bleibt bei "Budget".
+- **Kategorie**: der einzelne Topf (Essen, Strom, Haushaltshilfe). Dieselbe Kategorie, an
+  der Buchungen hängen. Kein eigenes Wort "Budget" für einen Topf.
+- **Kategoriegruppe**: Gruppierung von Kategorien zur Anzeige.
+- **Zu verteilen**: Geld, das da ist, aber noch keiner Kategorie gehört (YNABs "Ready to
+  Assign"). Darf bewusst negativ werden.
+- **Zuweisen**: Geld aus "Zu verteilen" einer Kategorie für einen Monat geben.
+- **Verschieben**: Geld von einer Kategorie auf eine andere legen.
+- **Verfügbar**: was in einer Kategorie im Monat übrig ist (Vortrag + Zugewiesen +
+  Aktivität).
+- **Vortrag**: Verfügbares, das am Monatsende in der Kategorie bleibt und im Folgemonat
+  weiterzählt.
+- **Target**: Romans Vorgabe pro Kategorie. Arten heute: *pro Woche ein Betrag*, *jeden
+  Monat ein fester Betrag*, *bis zu einem Datum ansparen*, *auffüllen bis* (ungenutzt).
+  Gewünscht: *mit Deckel*.
+- **Targets anwenden**: alle Kategorien mit einem Knopf auf das bringen, was ihre Targets
+  verlangen (YNABs "Underfunded" ohne Auswählen).
+- **Budget-Bewegung**: eine Zuweisung, Verschiebung oder Target-Anwendung mit Zeitpunkt
+  und Herkunft. Die **Budget-Historie** ist ihre Folge.
+- **Erwartete Einnahme**: eine Ankündigung ("Kindergeld, ca. 250 €, am 15."), die ein
+  negatives Zu verteilen gelb statt rot macht und beim Import der echten Buchung eingelöst
+  wird. Keine Buchung.
+- **Leihe**: Geld, das aus einer Kategorie genommen wurde und zurück soll. Bleibt offen,
+  bis es zurückgezahlt ist.
+- **Entwurf**: eine Reihe von Verschiebungen, die noch nicht gilt; zeigt die Summe und
+  wird übernommen oder verworfen.
 
 ## Open questions
-- **Wie wird die Historie technisch gehalten?** Gelöst (ADR 0013, 2026-09-06): append-only
-  Log semantischer Delta-Ereignisse nach souls-Muster, persistiert, Zustandsmodell synchron
-  in derselben Transaktion. SQLite bleibt.
-- **Wie läuft der Spiegel?** Gelöst (ADR 0014): Delta-Sync über `server_knowledge`, ausgelöst
-  über ein Frische-Kriterium (Seitenaufruf oder Vordergrund, älter als 5 Minuten) und nach
-  jedem Push, kein Server-Timer. Abweichungs-Erkennung liegt im `ledger` (ADR 0013).
-- **Kursquelle für den Geldmarkt-ETF:** vertagt (ADR 0016). In v1 läuft der ETF als manuelles
-  YNAB-Konto mit monatlichem Abgleich; die Bewertung in BB kommt später als BB-geführte
-  Fähigkeit, die Kursquelle als Research-Spike `ledger-c7j8e`.
-- **Bar-Konto und Quick-Add-Konto:** Gelöst (ADR 0016): ein Konto "Bar". Quick Add ist ein
-  Eingabeweg (Herkunft), kein Konto. Die frühere Annahme "heute in YNAB zwei" war falsch.
-- **Zugriff der Frau** auf das Kassenbuch: nur über die bestehende App (gemeinsames Konto),
-  keine eigene Identität. Bleibt so, bis es stört.
-- **Wann ist v2 "bewährt"?** Abbruchkriterien aus `docs/idea-ynab-replacement.md`
-  (unerklärte Abweichung an 3 Tagen in Folge → Stop) bleiben als Vorschlag stehen und
-  werden bei Beginn von v2 festgezurrt.
+- **Kursquelle für den Geldmarkt-ETF:** vertagt (ADR 0016, Research-Spike `ledger-c7j8e`),
+  durch ADR 0063 weiter nach hinten gerückt. (open since 2026-09-06)
+- **Wann ist v2 "bewährt"?** Abbruchkriterium aus `docs/idea-ynab-replacement.md`
+  (unerklärte Abweichung an 3 Tagen in Folge → Stop) als Vorschlag. (open since 2026-09-06)
 - **ING-Adapter:** eigener Adapter in `banking-import` oder Comdirect-Muster
-  generalisieren? (verschoben, nicht v1)
+  generalisieren? (verschoben) (open since 2026-09-06)
+- **Zugriff der Frau** auf das Kassenbuch: über die bestehende App, keine eigene
+  Identität. Bleibt so, bis es stört. (open since 2026-09-06)
+- **Liefert die YNAB-API die Targets lesbar** (Art, Betrag, Rhythmus) und erlaubt sie,
+  den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Stufe 1,
+  nicht verifiziert. (open since 2026-10-25)
+- **Wer führt die Targets?** Bis Stufe 3 YNAB (BB spiegelt und wendet an), danach BB.
+  Wie der Wechsel aussieht und was mit in YNAB geänderten Targets passiert, ist offen.
+  (open since 2026-10-25)
+- **Woher kennt BB Verfügbar und Zu verteilen?** Selbst rechnen aus Kassenbuch und
+  Budget-Bewegungen, oder von YNAB übernehmen und abgleichen? Eng verbunden mit
+  "unerklärter Widerspruch" als Scheiter-Kriterium. (open since 2026-10-25)
+- **Löst BB das "Auffüllen bis"-Problem** über den Monatswechsel (vorgemerkte Umsätze,
+  Buchungsdatum)? Nur relevant, wenn es mit den Targets in BB ohne Aufwand mitkommt.
+  (open since 2026-10-25)
+- **Gibt es bei YNAB schon ein Target mit Deckel?** Ändert nichts am Wunsch, aber an der
+  Frage, ob BB es beim Spiegeln der Targets schon vorfindet. (open since 2026-10-25)

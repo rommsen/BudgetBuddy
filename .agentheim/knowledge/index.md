@@ -11,6 +11,7 @@ For BC-scoped artifacts, see each BC's `INDEX.md`.
 ## Bounded contexts
 
 <!-- bc-list:start -->
+- **budgeting** — Das Budget: zuweisen, verschieben, Targets anwenden, BB führt und YNAB wird nachgezogen (neu 2026-10-25, ADR 0063) — `contexts/budgeting/INDEX.md`
 - **ledger** — BBs dauerhaftes Kassenbuch über alle Konten mit Herkunft und auditierbarer Historie (neu 2026-09-06, ADR 0012) — `contexts/ledger/INDEX.md`
 - **banking-import** — Holt Bank-Transaktionen (Comdirect) und beurteilt Duplikate vor dem Push — `contexts/banking-import/INDEX.md`
 - **categorization** — Regelbasierte Auto-Kategorisierung + Order-ID-Propagierung — `contexts/categorization/INDEX.md`
@@ -22,6 +23,7 @@ For BC-scoped artifacts, see each BC's `INDEX.md`.
 ## Global ADRs (scope: global)
 
 <!-- adr-global:start -->
+- **0063** — Das Budget ist die nächste große Fähigkeit vor der ETF-Bewertung, YNAB abschalten wird Richtung, eigener Context budgeting — 2026-10-25 — `knowledge/decisions/0063-budget-ist-die-naechste-faehigkeit-vor-der-etf-bewertung.md`
 - **0012** — BudgetBuddy wird führendes System, YNAB Projektion und Fallback (löst ADR 0001 ab) — 2026-09-06 — `knowledge/decisions/0012-budgetbuddy-leads-ynab-projects.md`
 - **0003** — Quick Add aktiviert Phase 0 der Ersatz-Idee (Amendment zu ADR 0001) — 2026-06-12 — `knowledge/decisions/0003-quick-add-activates-phase-0.md`
 - **0002** — Drei Bounded Contexts entlang der Sync-Pipeline — 2026-06-01 — `knowledge/decisions/0002-three-bounded-contexts.md`

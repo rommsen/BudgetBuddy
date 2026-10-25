@@ -1,11 +1,13 @@
 # Context map
 
-BudgetBuddy zerfällt in vier fachliche Bounded Contexts plus zwei Infrastruktur-Contexts.
+BudgetBuddy zerfällt in fünf fachliche Bounded Contexts plus zwei Infrastruktur-Contexts.
 Die Sync-Pipeline **banking-import → categorization → ynab-sync** bleibt bestehen; neu
 (Revision 2026-09-06, ADR 0012) ist das **Kassenbuch** (`ledger`) als Mitte, in der jede
 Buchung dauerhaft landet und ihre Historie behält. `ynab-sync` wird dadurch beidseitig:
 es pusht weiterhin BBs Entscheidungen nach YNAB und spiegelt zusätzlich YNABs Zustand ins
-Kassenbuch zurück.
+Kassenbuch zurück. Seit der Revision 2026-10-25 (ADR 0063) kommt das **Budget**
+(`budgeting`) dazu: es liest die Aktivität pro Kategorie aus dem Kassenbuch und schreibt
+Zuweisungen über `ynab-sync` nach YNAB.
 
 ## Contexts
 
@@ -43,6 +45,18 @@ Kassenbuch zurück.
 - **Key actors:** Roman (liest, bearbeitet nach), Frau (liest), YNAB (Spiegel-Quelle und
   Projektionsziel), Kursquelle (Bewertung).
 
+### budgeting *(neu, 2026-10-25)*
+- **Purpose:** Das **Budget**: Geld auf Kategorien zuweisen, zwischen Kategorien
+  verschieben, Targets anwenden, Monat für Monat mit Vortrag. BB führt, YNAB wird
+  nachgezogen. Später erwartete Einnahmen, Leihen zwischen Kategorien, Entwürfe, Targets
+  mit Deckel.
+- **Core language:** Budget (das Ganze), Kategorie (der Topf), Kategoriegruppe, Monat,
+  Zu verteilen, Zuweisen, Verschieben, Aktivität, Verfügbar, Vortrag, Target, Targets
+  anwenden, Budget-Bewegung, Budget-Historie, erwartete Einnahme, Leihe, Entwurf.
+- **Classification:** core: die Fähigkeit, die am stärksten an YNAB bindet.
+- **Key actors:** Roman (verteilt, verschiebt), YNAB (Quelle der Targets, Ziel der
+  Zuweisungen), Kassenbuch (liefert Aktivität).
+
 ### ynab-sync
 - **Purpose:** In **beide Richtungen** zwischen Kassenbuch und YNAB vermitteln. Push:
   kategorisierte Transaktionen und BB-Entscheidungen nach YNAB, mit Import-ID-Dedup.
@@ -76,8 +90,6 @@ Kassenbuch zurück.
 ### Künftige Contexts (Seeds, nicht angelegt)
 - **wealth** (Vermögen): Depots ING und Consors als Vermögenssicht, kein Budget-Geld.
   Nicht v1/v2. Wird angelegt, wenn das Kassenbuch steht.
-- **budgeting**: Zuweisungen, Targets, Underfunded. Nur nach bewährtem v2 und nur, wenn
-  Budget-Geld auf Konten liegen soll, die YNAB nicht kennt.
 
 ## Relationships
 
@@ -103,9 +115,18 @@ Kassenbuch zurück.
   der beide verbindet, und wird im Kassenbuch als Teil der Herkunft mitgeführt.
 - **Führung wandert:** Jede Fähigkeit ist entweder BB-geführt oder YNAB-geführt. Das
   Kassenbuch kennt für jede Buchung beides. Die Vision bewegt Fähigkeiten von rechts nach
-  links (Nachbearbeitung, Überträge, später Budgetieren).
+  links (Nachbearbeitung, Überträge, als Nächstes das Budget).
+- **ledger → budgeting:** Customer-supplier. Das Kassenbuch liefert die Aktivität pro
+  Kategorie und Monat; das Kategorie-Detail springt zurück zur Buchung. Die Kategorie ist
+  in beiden Contexts dasselbe Ding (YNABs Kategorie-Id), "Vortrag" (Budget) und
+  "Übertrag" (Kassenbuch) sind verschiedene Begriffe.
+- **budgeting ↔ ynab-sync:** Partnership. `ynab-sync` holt Targets und Budget-Zustand aus
+  YNAB und schreibt BBs Zuweisungen zurück, nach demselben Muster wie die Schreibwege des
+  Kassenbuchs.
+- **banking-import → budgeting** (künftig): eine erwartete Einnahme wird beim Import der
+  echten Buchung eingelöst.
 - **infrastructure** ist generic supporting für alle fachlichen Contexts.
-- **design-system → alle UI-tragenden BCs** (jetzt auch `ledger`): Customer-Supplier.
+- **design-system → alle UI-tragenden BCs** (auch `ledger` und `budgeting`): Customer-Supplier.
   Der Styleguide (`design-system-001`) ist das **Gate**; jede UI-Task hängt daran.
 
 ## Open questions
@@ -113,5 +134,5 @@ Kassenbuch zurück.
   generalisieren? (verschoben; bis dahin über den Spiegel)
 - **Quick Add** zuerst ins Kassenbuch? *Gelöst (ADR 0021, 2026-09-11):* ja, erst
   Kassenbuch, dann Push, dann Verknüpfung (`ledger-tdnpk`).
-- Ob **budgeting** ein eigener Context wird oder in `ledger` aufgeht, entscheidet sich
-  nach v2.
+- Ob **budgeting** ein eigener Context wird oder in `ledger` aufgeht: *Gelöst (ADR 0063,
+  2026-10-25):* eigener Context.

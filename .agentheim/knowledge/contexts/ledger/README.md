@@ -9,7 +9,7 @@ BB zum führenden System macht (ADR 0012), und wird schrittweise der Ort, an dem
 nachbearbeitet werden.
 
 Was hier **nicht** passiert: Bank-Abruf (`banking-import`), Regel-Matching
-(`categorization`), YNAB-API-Verkehr (`ynab-sync`), Budgetieren (noch nirgends in BB).
+(`categorization`), YNAB-API-Verkehr (`ynab-sync`), Budgetieren (`budgeting`, ADR 0063).
 
 ## Classification
 **core** — ohne Kassenbuch gibt es weder Ownership noch Historie noch das ETF-Konto; die

@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 22:53 -- Brainstorm: Budget
+
+**Type:** Brainstorm
+**Outcome:** vision extended
+**BCs identified:** budgeting (neu)
+**Summary:** Das Budget ist die nächste große Fähigkeit, vor der ETF-Bewertung; YNAB abschalten wird Richtung ohne Datum, mobiles Budgetieren ist kein Non-Goal mehr. Reihenfolge: Grundlage (Verfügbar, Zu verteilen, Vortrag, Suche) mit Stufe 1 Targets anwenden per Knopf, Geld verschieben, Kategorie-Detail; Stufe 2 Budget-Historie; Stufe 3 erwartete Einnahme, Leihe, Entwurf, Targets mit Deckel. Budget = das Ganze, Kategorie = der Topf; YNABs Plan wird nicht übernommen.
+**ADRs written:** 0063
+**Foundation tasks emitted:** skipped (reifes Projekt, Infrastruktur und Styleguide-Gate bestehen; budgeting-README trägt die Gate-Regel)
+
+---
+
 ## 2026-10-25 20:41 -- Work session ended
 
 **Type:** Work / Session end
