@@ -73,8 +73,9 @@ Noch nicht modelliert (Kandidaten: Targets anwenden, Geld verschieben).
   hängt an `design-system-001` (`depends_on`), gemessen an `standards/frontend/styleguide.md`.
 
 ## Open questions
-- Liefert die YNAB-API die Targets lesbar und erlaubt sie das Setzen des zugewiesenen
-  Betrags pro Kategorie und Monat? (open since 2026-10-25)
+- ~~Liefert die YNAB-API die Targets lesbar und erlaubt sie das Setzen des zugewiesenen
+  Betrags pro Kategorie und Monat?~~ Gelöst (`budgeting-r4tkq`): ja, Fehlbetrag inklusive;
+  siehe `research/ynab-api-targets-zuweisung-2026-10-25.md`.
 - Rechnet BB Verfügbar und Zu verteilen selbst oder übernimmt es sie von YNAB und gleicht
   ab? (open since 2026-10-25)
 - Wer führt die Targets, und wie läuft der Wechsel von YNAB zu BB? (open since 2026-10-25)

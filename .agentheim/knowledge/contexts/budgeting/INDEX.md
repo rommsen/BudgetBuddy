@@ -15,6 +15,7 @@ Catalog of ADRs, research, and concept synthesis pages scoped to this bounded co
 ## Research touching this BC
 
 <!-- research-local:start -->
+- **ynab-api-targets-zuweisung** — YNAB-API: Targets lesen, Fehlbetrag goal_under_funded, Zuweisen per PATCH, Verfügbar pro Monat — 2026-10-25 — `../../research/ynab-api-targets-zuweisung-2026-10-25.md`
 <!-- research-local:end -->
 
 ## Concepts (opt-in synthesis pages)

@@ -182,9 +182,10 @@ Kassenbuch-Begriffe gelten unverändert; verbindliche Definitionen in den BC-REA
   generalisieren? (verschoben) (open since 2026-09-06)
 - **Zugriff der Frau** auf das Kassenbuch: über die bestehende App, keine eigene
   Identität. Bleibt so, bis es stört. (open since 2026-09-06)
-- **Liefert die YNAB-API die Targets lesbar** (Art, Betrag, Rhythmus) und erlaubt sie,
-  den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Stufe 1,
-  nicht verifiziert. (open since 2026-10-25)
+- ~~**Liefert die YNAB-API die Targets lesbar** und erlaubt sie, den zugewiesenen Betrag
+  pro Kategorie und Monat zu setzen?~~ Gelöst (Spike `budgeting-r4tkq`, 2026-10-25): ja,
+  inklusive Fehlbetrag pro Kategorie (`goal_under_funded`); Bericht
+  `research/ynab-api-targets-zuweisung-2026-10-25.md`.
 - **Wer führt die Targets?** Bis Stufe 3 YNAB (BB spiegelt und wendet an), danach BB.
   Wie der Wechsel aussieht und was mit in YNAB geänderten Targets passiert, ist offen.
   (open since 2026-10-25)

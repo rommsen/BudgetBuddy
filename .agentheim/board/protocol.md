@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 23:07 -- Task verified and completed: budgeting-r4tkq - "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
+
+**Type:** Work / Task completion
+**Task:** budgeting-r4tkq - "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
+**Summary:** Spike: die YNAB-API liefert Targets samt Fehlbetrag pro Kategorie und Monat, Zuweisen geht per PATCH (im Test-Budget belegt); Empfehlung Fehlbetrag von YNAB übernehmen
+**Duration:** 4m28s
+**Verification:** PASS (iteration 1)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 23:01 -- Batch started: [budgeting-r4tkq]
 
 **Type:** Work / Batch start

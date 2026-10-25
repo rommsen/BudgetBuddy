@@ -1,7 +1,7 @@
 ---
 id: budgeting-r4tkq
 title: "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
-status: doing
+status: done
 type: spike
 context: budgeting
 created: 2026-10-25
@@ -10,7 +10,7 @@ depends_on: []
 blocks: []
 tags: [ynab-api, targets, budget]
 related_adrs: [0063, 0058]
-related_research: []
+related_research: [ynab-api-targets-zuweisung-2026-10-25]
 prior_art: []
 ---
 
@@ -67,3 +67,23 @@ Gegen die echte YNAB-API klären und als Research-Bericht in
   (CLAUDE.md); der Probelauf ist ein einmaliges Skript im Scratchpad, kein Testcode.
 - Ergebnis fließt in die erste Feature-Task "Targets anwenden" in `budgeting`, die nach
   diesem Spike geschnitten wird.
+
+## Outcome
+
+Spike abgeschlossen. Bericht: `.agentheim/knowledge/research/ynab-api-targets-zuweisung-2026-10-25.md`
+(vom Worker im Scratchpad geschrieben, weil Worker nicht unter `.agentheim/` schreiben; vom
+Conductor übernommen, eine Zählung von 17 auf 18 MF-Kategorien korrigiert nach Hinweis des
+Verifiers).
+
+1. **Targets lesen:** ja. `goal_type`, `goal_cadence`, `goal_cadence_frequency`, `goal_day`,
+   `goal_target`, `goal_target_date`, `goal_needs_whole_amount`, `goal_snoozed_at` pro Kategorie
+   im Monats-Endpunkt. Die vier Arten sind erst über die Feldkombination unterscheidbar.
+2. **Fehlbetrag:** ja, `goal_under_funded` pro Kategorie und Monat (rechnet Wochen selbst).
+3. **Zuweisen:** ja, `PATCH .../months/{month}/categories/{id}` mit `{"category":{"budgeted":n}}`,
+   absolut, eine Kategorie pro Aufruf. Live im Wegwerf-Budget "Test" belegt und exakt
+   zurückgesetzt; Romans Budget wurde nur gelesen.
+4. **Zugewiesen, Aktivität, Verfügbar:** ja, `budgeted`, `activity`, `balance` im Monats-Endpunkt.
+5. **Targets schreiben:** teilweise, nur "Plan Your Spending" (NEED).
+
+Empfehlung: Fehlbetrag von YNAB übernehmen (`budgeted + goal_under_funded`). Offen fürs
+Feature: teilweise zugewiesene Kategorie, Snooze, Rate-Limit, Rundung.
