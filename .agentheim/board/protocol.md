@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 18:52 -- Batch started: [ledger-fa1fp, ledger-y54gr]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-fa1fp - "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide", ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
+**Parallel:** yes (2 workers, zweite Welle nach ledger-xfjcp; beide ändern Ledger Types/State/View, Shared/Server Api und Toast-Arten, Einfügestellen-Tabelle im Worker-Kontext)
+
+---
+
 ## 2026-10-25 18:52 -- Task verified and completed: ledger-cks06 - "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push"
 
 **Type:** Work / Task completion

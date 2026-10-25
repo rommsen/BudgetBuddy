@@ -1,7 +1,7 @@
 ---
 id: ledger-fa1fp
 title: "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-25

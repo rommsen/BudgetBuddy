@@ -1,7 +1,7 @@
 ---
 id: ledger-y54gr
 title: "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-24
