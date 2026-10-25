@@ -56,7 +56,7 @@ function buildEntries(accountId) {
     TotalCount: entries.length,
     TotalAmount: { Amount: entries.reduce((s, e) => s + e.Amount.Amount, 0), Currency: "EUR" },
     DeletedCount: entries.filter((e) => e.DeletedInYnab).length,
-    NeedsReviewCount: entries.filter((e) => e.NeedsReview).length,
+    NeedsReviewCount: entries.filter((e) => e.NeedsReview).length, AskLenaCount: 0,
   };
 }
 

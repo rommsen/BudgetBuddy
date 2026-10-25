@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 18:21 -- Task verified and completed: ledger-xfjcp - "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
+
+**Type:** Work / Task completion
+**Task:** ledger-xfjcp - "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
+**Summary:** Lena fragen ist gebaut: Aktion "Lena fragen" bzw. "Rückfrage zurücknehmen" im Detail mit Schreibweg nach YNAB (nur flag_color), drei neue Ereignisse mit Baseline, Rückgängig, Hinweisleiste "Flag nicht in YNAB" mit Erneut senden, Chip "Rückfrage Lena (n)" mit ausgegrauter Zeile, Historie und Settings-Karte für die Flag-Farbe.
+**Duration:** 60m
+**Verification:** PASS (iteration 1)
+**Files changed:** 50
+**Tests added:** 75
+**ADRs written:** 0061-lena-zurueck-nehmen-nur-bei-rueckfrage-und-einstellung-ueber-settingsapi.md
+
+---
+
+## 2026-10-25 18:17 -- Verification failed: ledger-cks06 - Noch nicht in YNAB vollständig
+
+**Type:** Work / Verification failure
+**Task:** ledger-cks06 - Noch nicht in YNAB vollständig
+**Iteration:** 1 of 3
+**Reasons:** retryPushToYnab fehlt unter Key commands, Actor-Aussagen zu EntryLinkedToYnab/EntryPushToYnabFailed ohne UserInBb, veralteter Doc-Kommentar in YnabClient
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-25 17:58 -- Task verified and completed: ledger-ybmqc - "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen"
 
 **Type:** Work / Task completion

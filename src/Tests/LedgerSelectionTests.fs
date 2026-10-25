@@ -32,6 +32,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
+    FlagWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None
@@ -153,6 +154,7 @@ let reducerTests =
                 TotalAmount = eur -210m
                 DeletedCount = 0
                 NeedsReviewCount = 0
+                AskLenaCount = 0
             }
             let loaded = first |> step (EntriesPageLoaded (1, Ok page))
             Expect.isTrue (isSelected loaded.Selection (idOf 5)) "eine nachgeladene Zeile gilt als gewählt"

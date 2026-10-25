@@ -2161,3 +2161,198 @@ let retryCategorizationOrSplitWriteBack
                         return Ok writeBack
         }
     )
+
+// ============================================
+// Lena fragen: Flag setzen und nach YNAB zurückschreiben (ADR 0056, ledger-xfjcp)
+// ============================================
+
+/// Der Push des Flags, injiziert wie `CategoryPush`: bekommt die YNAB-Transaction-Id und die
+/// Farbe (`None` heißt "kein Flag", im Body `flag_color = null`). Der Name geht nie hinaus
+/// (ADR 0056, Punkt 4). Der Aufrufer (`Server.Api`) bindet Token und Budget ein
+/// (`Ynab.updateFlag`).
+type FlagPush = string -> string option -> Async<YnabResult<unit>>
+
+/// Der Grund-Text für den Hinweis "Flag nicht in YNAB". Wie `describeReviewMarkPushError`,
+/// nur die Ablehnung nennt das Flag.
+let describeFlagPushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat das Flag abgelehnt: {msg}"
+    | other -> describeReviewMarkPushError other
+
+/// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0056, Punkt 5).
+let flagNotLinkedReason = reviewMarkNotLinkedReason
+
+let private flagPairOf (entry: Entry) : string option * string option = entry.FlagColor, entry.FlagName
+
+let private flagStateOf (entry: Entry) : FlagState = { Color = entry.FlagColor; Name = entry.FlagName }
+
+/// Die Baseline eines neuen Fehlschlags: bei einem schon offenen die erste, sonst der Stand
+/// vor der Änderung (ADR 0056, Nachtrag).
+let private flagBaseline (entry: Entry) (before: string option * string option) =
+    match entry.FlagWriteBackFailure with
+    | Some failure -> failure.BaselineFlagColor, failure.BaselineFlagName
+    | None -> before
+
+/// Schickt die Farbe. Scheitert der Push (oder fehlt die Verknüpfung), schreibt die Funktion
+/// `EntryFlagWriteBackFailed`. Bei Erfolg schreibt sie kein Ereignis (ADR 0056, Punkt 4),
+/// außer ein früherer Fehlschlag war offen: dann ist er mit dem Erfolg beendet
+/// (`EntryFlagWrittenBackToYnab`).
+let private pushFlag
+    (now: DateTime)
+    (push: FlagPush)
+    (entry: Entry)
+    (baseline: string option * string option)
+    (color: string option)
+    : Async<FlagWriteBack> =
+    async {
+        let entryId = entry.Id
+
+        let fail (reason: string) =
+            async {
+                let baselineColor, baselineName = baseline
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryFlagWriteBackFailed {
+                                Reason = reason
+                                BaselineFlagColor = baselineColor
+                                BaselineFlagName = baselineName
+                            }
+                        )
+                    ]
+                return FlagSendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail flagNotLinkedReason
+        | Some ynabTransactionId ->
+            match! push ynabTransactionId color with
+            | Ok () ->
+                if entry.FlagWriteBackFailure.IsSome then
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryFlagWrittenBackToYnab
+                        ]
+                return FlagSent
+            | Error err -> return! fail (describeFlagPushError err)
+    }
+
+/// Gemeinsamer Ablauf für `setLenaFlag` und `restoreFlag`: lädt die Buchung, lehnt gelöschte
+/// ab, bestimmt das Ziel (`resolveTarget`: `Error` lehnt ab, `Ok None` heißt nichts zu tun),
+/// schreibt bei einer Änderung zuerst `EntryFlagChangedInBb` und ruft danach den Push
+/// (ADR 0056, Punkt 2 bis 5). Ziel gleich Ist: kein Ereignis, kein Push, `FlagUnchanged`.
+/// Läuft unter der Schreib-Sperre (`WriteGuard`), nie während eines Spiegel-Laufs.
+let private changeFlag
+    (now: DateTime)
+    (push: FlagPush)
+    (entryId: EntryId)
+    (resolveTarget: Entry -> Result<(string option * string option) option, string>)
+    : Async<Result<FlagOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry ->
+                match resolveTarget entry with
+                | Error reason -> return Error reason
+                | Ok None ->
+                    return Ok { Previous = flagStateOf entry; Change = FlagUnchanged; WriteBack = FlagNotSent }
+                | Ok (Some (newColor, newName)) when (newColor, newName) = flagPairOf entry ->
+                    return Ok { Previous = flagStateOf entry; Change = FlagUnchanged; WriteBack = FlagNotSent }
+                | Ok (Some (newColor, newName)) ->
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb (
+                                EntryFlagChangedInBb {
+                                    OldFlagColor = entry.FlagColor
+                                    OldFlagName = entry.FlagName
+                                    NewFlagColor = newColor
+                                    NewFlagName = newName
+                                }
+                            )
+                        ]
+
+                    let baseline = flagBaseline entry (flagPairOf entry)
+                    let! writeBack = pushFlag now push entry baseline newColor
+                    return Ok { Previous = flagStateOf entry; Change = FlagChanged; WriteBack = writeBack }
+        }
+    )
+
+/// "Lena fragen" und "Rückfrage zurücknehmen" (ADR 0056). `lenaColor` ist die Einstellung
+/// `lena_flag_color`.
+///
+/// `AssignLena`: ohne gültige Farbe abgelehnt (Fehler, kein Ereignis); deutet der Ist-Stand
+/// schon als *Rückfrage Lena* (Flag-Name "Lena"), nichts zu tun; sonst schreibt der Befehl
+/// Farbe und Name "Lena" und überschreibt ein anderes Flag (*Markiert*). `WithdrawLena`:
+/// schreibt "kein Flag", aber nur, wenn die Buchung *Rückfrage Lena* ist; ein anderes Flag
+/// bleibt stehen, weil "Rückfrage zurücknehmen" nur die Lena-Rückfrage meint.
+let setLenaFlag
+    (now: DateTime)
+    (push: FlagPush)
+    (lenaColor: string option)
+    (entryId: EntryId)
+    (target: LenaFlagTarget)
+    : Async<Result<FlagOutcome, string>> =
+    changeFlag now push entryId (fun entry ->
+        let isLena = isLenaFlagName entry.FlagName
+        match target with
+        | AssignLena ->
+            match lenaColor with
+            | Some color when List.contains color ynabFlagColors ->
+                if isLena then Ok None else Ok (Some (Some color, Some lenaFlagName))
+            | _ -> Error lenaColorMissingReason
+        | WithdrawLena -> if isLena then Ok (Some (None, None)) else Ok None)
+
+/// "Rückgängig": stellt Farbe und Name des Vorzustands her, auch ein anderes Flag wie
+/// *Markiert* (ADR 0056, Punkt 2). Der Push sendet nur die Farbe.
+let restoreFlag
+    (now: DateTime)
+    (push: FlagPush)
+    (entryId: EntryId)
+    (previous: FlagState)
+    : Async<Result<FlagOutcome, string>> =
+    changeFlag now push entryId (fun _ -> Ok (Some (previous.Color, previous.Name)))
+
+/// "Erneut senden" am Hinweis "Flag nicht in YNAB" (ADR 0056, Punkt 5): sendet die Farbe des
+/// aktuellen BB-Stands. Erfolg schreibt `EntryFlagWrittenBackToYnab` (Actor `UserInBb`), ein
+/// erneuter Fehlschlag ersetzt den Grund (die Baseline bleibt). Ohne offenen Fehlschlag tut
+/// der Befehl nichts (`FlagNotSent`).
+let retryFlagWriteBack
+    (now: DateTime)
+    (push: FlagPush)
+    (entryId: EntryId)
+    : Async<Result<FlagWriteBack, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry when entry.FlagWriteBackFailure.IsNone -> return Ok FlagNotSent
+            | Some entry ->
+                let baseline = flagBaseline entry (flagPairOf entry)
+                let! writeBack = pushFlag now push entry baseline entry.FlagColor
+                return Ok writeBack
+        }
+    )
+
+// ============================================
+// Einstellung "Lena fragen": die Flag-Farbe (ADR 0056, Punkt 1)
+// ============================================
+
+/// Schlüssel der Einstellung: die YNAB-Flag-Farbe, die Roman "Lena" genannt hat.
+let lenaFlagColorSettingKey = "lena_flag_color"
+
+/// Speichert die Farbe für "Lena fragen". `None` löscht die Einstellung. Nur die sechs
+/// YNAB-Flag-Farben sind erlaubt (`Server.Validation.validateLenaFlagColor`).
+let saveLenaFlagColor (color: string option) : Async<Result<unit, string>> =
+    async {
+        match Server.Validation.validateLenaFlagColor color with
+        | Error message -> return Error message
+        | Ok None ->
+            do! Core.Settings.deleteSetting lenaFlagColorSettingKey
+            return Ok ()
+        | Ok (Some valid) ->
+            do! Core.Settings.setSetting lenaFlagColorSettingKey valid false
+            return Ok ()
+    }

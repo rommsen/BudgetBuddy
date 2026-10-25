@@ -62,6 +62,14 @@ let validateSyncSettings (settings: SyncSettings) : Result<SyncSettings, string 
 
     if errors.IsEmpty then Ok settings else Error errors
 
+/// Die Farbe für "Lena fragen" (ADR 0056, Punkt 1): `None` löscht die Einstellung, sonst
+/// muss es eine der sechs YNAB-Flag-Farben sein.
+let validateLenaFlagColor (color: string option) : Result<string option, string> =
+    match color with
+    | None -> Ok None
+    | Some c when List.contains c ynabFlagColors -> Ok (Some c)
+    | Some c -> Error $"Unbekannte Flag-Farbe: {c}"
+
 // ============================================
 // Rules Validation
 // ============================================

@@ -1446,6 +1446,28 @@ let private DetailDemo () =
                     ]
                  ])
                 (Some (Detail.splitActionButton "Aufteilen" (Some "Abgeglichene Buchungen lassen sich nicht aufteilen") ignore))
+            // Flag-Zeile mit festem Knopf (ledger-xfjcp): Lena fragen, zurücknehmen und gesperrt.
+            Detail.fieldRow
+                "styleguide-detail-flag-ask"
+                "Flag"
+                (Detail.valueText Tokens.Colors.textMuted "Kein Flag")
+                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" None false ignore))
+            Detail.fieldRow
+                "styleguide-detail-flag-withdraw"
+                "Flag"
+                (Detail.valueText Tokens.Colors.textPrimary "Rückfrage Lena")
+                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Rückfrage zurücknehmen" None false ignore))
+            Detail.fieldRow
+                "styleguide-detail-flag-locked"
+                "Flag"
+                (Html.div [
+                    prop.className "flex min-w-0 flex-col"
+                    prop.children [
+                        Detail.valueText Tokens.Colors.textMuted "Kein Flag"
+                        Detail.fieldLockHint "styleguide-detail-flag-lock-hint" "In den Settings die Flag-Farbe für Lena wählen"
+                    ]
+                 ])
+                (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" (Some "In den Settings die Flag-Farbe für Lena wählen") false ignore))
             Detail.fieldRow
                 "styleguide-detail-memo"
                 "Memo"

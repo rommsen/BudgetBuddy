@@ -4,7 +4,24 @@ open Shared.Domain
 open Types
 
 /// Which settings section is being edited
-type SettingsSection = | YnabSection | ComdirectSection | SyncSection
+type SettingsSection = | YnabSection | ComdirectSection | SyncSection | LenaSection
+
+/// Der Anzeigename einer YNAB-Flag-Farbe in der Einstellung "Lena fragen" (ADR 0056, Punkt 1).
+let lenaFlagColorLabel (color: string) : string =
+    match color with
+    | "red" -> "Rot"
+    | "orange" -> "Orange"
+    | "yellow" -> "Gelb"
+    | "green" -> "Grün"
+    | "blue" -> "Blau"
+    | "purple" -> "Violett"
+    | other -> other
+
+/// Die Farbe, die das Auswahlfeld beim Laden vorbelegt: die gespeicherte, sonst der Vorschlag
+/// (Farbe der jüngsten gespiegelten Buchung mit Flag-Name "Lena"), sonst keine. Ein Vorschlag
+/// gilt erst, wenn Roman ihn speichert (ADR 0056, Punkt 1). Rein, testbar ohne Proxy.
+let lenaFlagColorPreselection (settings: LenaFlagSettings) : string option =
+    settings.SavedColor |> Option.orElse settings.SuggestedColor
 
 /// Settings-specific model state
 type Model = {
@@ -19,6 +36,11 @@ type Model = {
     ComdirectPasswordInput: string
     ComdirectAccountIdInput: string
     SyncDaysInput: int
+
+    // Lena fragen (ledger-xfjcp, ADR 0056): die Farbe im Auswahlfeld ("" = keine) und der
+    // geladene Stand mit Vorschlag.
+    LenaFlagColorInput: string
+    LenaFlag: LenaFlagSettings
 
     // Comdirect connection test state
     ComdirectConnectionValid: RemoteData<unit>
@@ -47,6 +69,11 @@ type Msg =
     | UpdateSyncDaysInput of int
     | SaveSyncSettings
     | SyncSettingsSaved of Result<unit, SettingsError>
+    | LoadLenaFlagSettings
+    | LenaFlagSettingsLoaded of Result<LenaFlagSettings, string>
+    | UpdateLenaFlagColorInput of string
+    | SaveLenaFlagColor
+    | LenaFlagColorSaved of string option * Result<unit, SettingsError>
     | SetDefaultBudget of YnabBudgetId
     | DefaultBudgetSet of YnabBudgetId * Result<unit, YnabError>
     | SetDefaultAccount of YnabAccountId

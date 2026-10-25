@@ -134,7 +134,7 @@ export function buildEntriesFixture(accountId, fillerCount = 40) {
     TotalCount: entries.length,
     TotalAmount: { Amount: totalAmount, Currency: "EUR" },
     DeletedCount: deletedCount,
-    NeedsReviewCount: needsReviewCount,
+    NeedsReviewCount: needsReviewCount, AskLenaCount: 0,
   };
 }
 

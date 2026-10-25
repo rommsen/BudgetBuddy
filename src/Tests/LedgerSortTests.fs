@@ -100,6 +100,7 @@ let private baseQuery (tag: int) (sort: LedgerSort) : LedgerEntryPageQuery = {
     LocallyRemoved = 0
     IncludeDeleted = false
     OnlyNeedsReview = false
+    OnlyAskLena = false
     WithoutCategory = false
     CategoryIds = []
     DateFrom = None

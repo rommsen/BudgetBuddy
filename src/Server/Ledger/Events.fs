@@ -267,6 +267,26 @@ type EntryCategorizationWriteBackFailedPayload = {
     YnabDeletedTransactionId: string option
 }
 
+/// Das Flag wurde in BB geändert (ADR 0056, Punkt 2): "Lena fragen", "Rückfrage zurücknehmen"
+/// und "Rückgängig" erzeugen denselben Typ. Die Absicht steht nicht im Log, nur der Übergang
+/// (Alt und Neu, roh wie YNAB sie liefert). Actor `UserInBb`.
+type EntryFlagChangedInBbPayload = {
+    OldFlagColor: string option
+    OldFlagName: string option
+    NewFlagColor: string option
+    NewFlagName: string option
+}
+
+/// Das Zurückschreiben des Flags nach YNAB ist gescheitert oder war nicht möglich (ADR 0056,
+/// Punkt 5 und Nachtrag). `Reason` ist der Grund für die Zeile. Die Baseline ist der Stand,
+/// den YNAB vermutlich noch hat: die `Old*`-Werte der ersten gescheiterten Änderung (bei
+/// weiteren Gesten mit offenem Fehlschlag bleibt die erste Baseline).
+type EntryFlagWriteBackFailedPayload = {
+    Reason: string
+    BaselineFlagColor: string option
+    BaselineFlagName: string option
+}
+
 /// Eine Split-Buchung wurde in YNAB ersetzt (ADR 0058, Punkt 2 und 5): DELETE und POST sind
 /// gelungen, die Buchung trägt dort eine neue YNAB-Id, neue Subtransaction-Ids und eine
 /// abgeleitete `import_id` (alte plus `:r<n>`). Die alte YNAB-Id gilt als abgelöst: eine
@@ -318,6 +338,13 @@ type LedgerEventBody =
     /// Der offene Kategorie-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
     /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0055, Punkt 4).
     | EntryCategorizationWrittenBackToYnab
+    /// Flag in BB geändert (ADR 0056). Entscheidung, Actor `UserInBb`.
+    | EntryFlagChangedInBb of EntryFlagChangedInBbPayload
+    /// Zurückschreiben des Flags nach YNAB gescheitert (ADR 0056, Punkt 5), mit Baseline.
+    | EntryFlagWriteBackFailed of EntryFlagWriteBackFailedPayload
+    /// Der offene Flag-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
+    /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0056, Punkt 5).
+    | EntryFlagWrittenBackToYnab
     /// Eine Split-Buchung ist in YNAB gelöscht und unter neuer Id angelegt worden
     /// (ADR 0058). Stiftet die neuen Verknüpfungen (YNAB-Id, ImportId) und hält die alte
     /// YNAB-Id als abgelöst fest.
@@ -382,6 +409,9 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryReviewMarkWrittenBackToYnab -> "EntryReviewMarkWrittenBackToYnab"
     | EntryCategorizationWriteBackFailed _ -> "EntryCategorizationWriteBackFailed"
     | EntryCategorizationWrittenBackToYnab -> "EntryCategorizationWrittenBackToYnab"
+    | EntryFlagChangedInBb _ -> "EntryFlagChangedInBb"
+    | EntryFlagWriteBackFailed _ -> "EntryFlagWriteBackFailed"
+    | EntryFlagWrittenBackToYnab -> "EntryFlagWrittenBackToYnab"
     | EntryReplacedInYnab _ -> "EntryReplacedInYnab"
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
 
@@ -411,6 +441,9 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryReviewMarkWrittenBackToYnab -> 1
     | EntryCategorizationWriteBackFailed _ -> 1
     | EntryCategorizationWrittenBackToYnab -> 1
+    | EntryFlagChangedInBb _ -> 1
+    | EntryFlagWriteBackFailed _ -> 1
+    | EntryFlagWrittenBackToYnab -> 1
     | EntryReplacedInYnab _ -> 1
     | EntryPushToYnabFailed _ -> 1
 
@@ -885,6 +918,36 @@ module Codec =
             YnabDeletedTransactionId = get.Optional.Field "ynabDeletedTransactionId" Decode.string
         })
 
+    let encodeFlagChangedInBb (p: EntryFlagChangedInBbPayload) =
+        Encode.object [
+            "oldFlagColor", encodeOptionalString p.OldFlagColor
+            "oldFlagName", encodeOptionalString p.OldFlagName
+            "newFlagColor", encodeOptionalString p.NewFlagColor
+            "newFlagName", encodeOptionalString p.NewFlagName
+        ]
+
+    let decodeFlagChangedInBb : Decoder<EntryFlagChangedInBbPayload> =
+        Decode.object (fun get -> {
+            OldFlagColor = get.Optional.Field "oldFlagColor" Decode.string
+            OldFlagName = get.Optional.Field "oldFlagName" Decode.string
+            NewFlagColor = get.Optional.Field "newFlagColor" Decode.string
+            NewFlagName = get.Optional.Field "newFlagName" Decode.string
+        })
+
+    let encodeFlagWriteBackFailed (p: EntryFlagWriteBackFailedPayload) =
+        Encode.object [
+            "reason", Encode.string p.Reason
+            "baselineFlagColor", encodeOptionalString p.BaselineFlagColor
+            "baselineFlagName", encodeOptionalString p.BaselineFlagName
+        ]
+
+    let decodeFlagWriteBackFailed : Decoder<EntryFlagWriteBackFailedPayload> =
+        Decode.object (fun get -> {
+            Reason = get.Required.Field "reason" Decode.string
+            BaselineFlagColor = get.Optional.Field "baselineFlagColor" Decode.string
+            BaselineFlagName = get.Optional.Field "baselineFlagName" Decode.string
+        })
+
     let encodeReplacedInYnab (p: EntryReplacedInYnabPayload) =
         Encode.object [
             "oldYnabTransactionId", Encode.string p.OldYnabTransactionId
@@ -928,6 +991,9 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryReviewMarkWrittenBackToYnab -> Encode.object []
         | EntryCategorizationWriteBackFailed p -> Codec.encodeCategorizationWriteBackFailed p
         | EntryCategorizationWrittenBackToYnab -> Encode.object []
+        | EntryFlagChangedInBb p -> Codec.encodeFlagChangedInBb p
+        | EntryFlagWriteBackFailed p -> Codec.encodeFlagWriteBackFailed p
+        | EntryFlagWrittenBackToYnab -> Encode.object []
         | EntryReplacedInYnab p -> Codec.encodeReplacedInYnab p
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
     Encode.toString 0 json
@@ -980,6 +1046,11 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
         Decode.fromString Codec.decodeCategorizationWriteBackFailed payload
         |> Result.map EntryCategorizationWriteBackFailed
     | "EntryCategorizationWrittenBackToYnab", 1 -> Ok EntryCategorizationWrittenBackToYnab
+    | "EntryFlagChangedInBb", 1 ->
+        Decode.fromString Codec.decodeFlagChangedInBb payload |> Result.map EntryFlagChangedInBb
+    | "EntryFlagWriteBackFailed", 1 ->
+        Decode.fromString Codec.decodeFlagWriteBackFailed payload |> Result.map EntryFlagWriteBackFailed
+    | "EntryFlagWrittenBackToYnab", 1 -> Ok EntryFlagWrittenBackToYnab
     | "EntryReplacedInYnab", 1 ->
         Decode.fromString Codec.decodeReplacedInYnab payload |> Result.map EntryReplacedInYnab
     | "EntryPushToYnabFailed", 1 ->

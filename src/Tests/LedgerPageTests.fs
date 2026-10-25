@@ -74,6 +74,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     FlagName = None
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
+    FlagWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }
@@ -573,6 +574,7 @@ let private page (entries: LedgerEntryView list) (totalCount: int) : LedgerEntry
     TotalAmount = ledgerBalance "EUR" entries
     DeletedCount = entries |> List.filter (fun e -> e.DeletedInYnab) |> List.length
     NeedsReviewCount = entries |> List.filter (fun e -> e.NeedsReview) |> List.length
+    AskLenaCount = 0
 }
 
 /// Fuehrt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein. Zulaessig nur
@@ -1176,7 +1178,8 @@ let reducerTests =
                           Memo = Some "Kuchen"
                           AmountMin = Some 5m
                           AmountMax = Some 50m
-                          WithoutCategory = false }
+                          WithoutCategory = false
+                          OnlyAskLena = false }
                     OnlyNeedsReview = true
                     IncludeDeleted = true }
             let updated, cmd, _ = Components.Ledger.State.update ClearAllFilters withEverything
@@ -1732,6 +1735,7 @@ let private baseQuery (accountId: Guid option) : LedgerEntryPageQuery = {
     LocallyRemoved = 0
     IncludeDeleted = false
     OnlyNeedsReview = false
+    OnlyAskLena = false
     WithoutCategory = false
     CategoryIds = []
     DateFrom = None
@@ -1749,6 +1753,7 @@ let private baseSuggestionQuery (accountId: Guid option) : LedgerPayeeSuggestion
     AccountId = accountId
     IncludeDeleted = false
     OnlyNeedsReview = false
+    OnlyAskLena = false
     WithoutCategory = false
     CategoryIds = []
     DateFrom = None

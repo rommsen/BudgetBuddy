@@ -130,6 +130,17 @@ let private comdirectErrorToString (error: ComdirectError) : string =
 // ============================================
 
 let settingsApi : SettingsApi = {
+    getLenaFlagSettings = fun () -> Ledger.QueryHandlers.getLenaFlagSettings ()
+
+    saveLenaFlagColor = fun color -> async {
+        try
+            match! Ledger.CommandHandlers.saveLenaFlagColor color with
+            | Ok () -> return Ok ()
+            | Error msg -> return Error (SettingsError.DatabaseError ("validation", msg))
+        with ex ->
+            return Error (SettingsError.DatabaseError ("save_lena_flag_color", ex.Message))
+    }
+
     getSettings = fun () -> async {
         try
             // Load all settings from database
@@ -1459,6 +1470,24 @@ let private categoryPush () : Async<Ledger.CommandHandlers.CategoryPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Push des Flags (ledger-xfjcp, ADR 0056) mit Token und Standard-Budget aus den
+/// Settings, mit denselben Fehlerfällen wie `categoryPush`. Sendet nur die Farbe.
+let private flagPush () : Async<Ledger.CommandHandlers.FlagPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun ynabTransactionId flagColor ->
+                YnabClient.updateFlag token (YnabBudgetId budgetId) ynabTransactionId flagColor
+        | None, _ ->
+            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Die YNAB-Aufrufe des Split-Schreibwegs (ledger-kxme4, ADR 0058) mit Token und
 /// Standard-Budget aus den Settings, mit denselben Fehlerfällen wie `categoryPush`.
 let private splitWriteTools () : Async<Ledger.CommandHandlers.SplitWriteTools> =
@@ -1672,6 +1701,25 @@ let ledgerApi : LedgerApi = {
     setEntryCategoryBatch = fun selection target -> async {
         let! push = categoryBatchPush ()
         return! Ledger.CommandHandlers.setEntryCategoryBatch DateTime.UtcNow push selection target
+    }
+
+    // Lena fragen: Flag setzen, zurücknehmen und nach YNAB zurückschreiben (ledger-xfjcp,
+    // ADR 0056). Kassenbuch zuerst, dann der Push (nur `flag_color`), unter der Schreib-Sperre.
+    setLenaFlag = fun entryId target -> async {
+        let! push = flagPush ()
+        let! lenaColor = Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
+        return!
+            Ledger.CommandHandlers.setLenaFlag DateTime.UtcNow push lenaColor (Ledger.Events.EntryId entryId) target
+    }
+
+    restoreFlag = fun entryId previous -> async {
+        let! push = flagPush ()
+        return! Ledger.CommandHandlers.restoreFlag DateTime.UtcNow push (Ledger.Events.EntryId entryId) previous
+    }
+
+    retryFlagWriteBack = fun entryId -> async {
+        let! push = flagPush ()
+        return! Ledger.CommandHandlers.retryFlagWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
     }
 }
 

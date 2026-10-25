@@ -177,6 +177,9 @@ let migrateLedgerEntryColumns (conn: SqliteConnection) =
     // ADR 0055: offener Fehlschlag beim Zurückschreiben der Kategorie als JSON
     // (Grund, Baseline-Kategorie, Baseline-Splits), NULL heißt kein offener Fehlschlag.
     migrateColumn "ALTER TABLE ledger_entries ADD COLUMN categorization_write_back_failure TEXT" |> ignore
+    // ADR 0056: offener Fehlschlag beim Zurückschreiben des Flags als JSON
+    // (Grund, Baseline-Farbe, Baseline-Name), NULL heißt kein offener Fehlschlag.
+    migrateColumn "ALTER TABLE ledger_entries ADD COLUMN flag_write_back_failure TEXT" |> ignore
     // ledger-rynk5: offener Push-Fehlschlag (Grund, Zeitpunkt) und Spiegelung der
     // YNAB-Verknüpfung im Zustand. Beim Anlegen von `linked_to_ynab` trägt ein einmaliger
     // Backfill aus der Fremd-Id-Tabelle die bestehenden Verknüpfungen nach.
@@ -245,6 +248,7 @@ let internal createLedgerSchemaOn (conn: SqliteConnection) =
             split_transfer_counterparts TEXT,
             review_mark_write_back_failure TEXT,
             categorization_write_back_failure TEXT,
+            flag_write_back_failure TEXT,
             push_failure_reason TEXT,
             push_failure_at TEXT,
             linked_to_ynab INTEGER NOT NULL DEFAULT 0
@@ -333,6 +337,7 @@ type private EntryRow = {
     split_transfer_counterparts: string
     review_mark_write_back_failure: string
     categorization_write_back_failure: string
+    flag_write_back_failure: string
     push_failure_reason: string
     push_failure_at: string
     linked_to_ynab: int64
@@ -447,6 +452,15 @@ let private rowToEntry (row: EntryRow) : Entry =
                       BaselineSplits = p.BaselineSplits
                       YnabDeletedTransactionId = p.YnabDeletedTransactionId }
                 | Error e -> failwith $"Kategorie-Fehlschlag der Buchung {row.id} nicht lesbar: {e}")
+        FlagWriteBackFailure =
+            toOption row.flag_write_back_failure
+            |> Option.map (fun json ->
+                match Thoth.Json.Net.Decode.fromString Codec.decodeFlagWriteBackFailed json with
+                | Ok p ->
+                    { Reason = p.Reason
+                      BaselineFlagColor = p.BaselineFlagColor
+                      BaselineFlagName = p.BaselineFlagName }
+                | Error e -> failwith $"Flag-Fehlschlag der Buchung {row.id} nicht lesbar: {e}")
         LinkedToYnab = row.linked_to_ynab = 1L
         PushToYnabFailure =
             toOption row.push_failure_reason
@@ -517,6 +531,18 @@ let private entryParams (entry: Entry) =
                     )
                 )
             | None -> null
+        flag_write_back_failure =
+            match entry.FlagWriteBackFailure with
+            | Some f ->
+                box (
+                    Thoth.Json.Net.Encode.toString 0 (
+                        Codec.encodeFlagWriteBackFailed
+                            { Reason = f.Reason
+                              BaselineFlagColor = f.BaselineFlagColor
+                              BaselineFlagName = f.BaselineFlagName }
+                    )
+                )
+            | None -> null
         push_failure_reason = orNull (entry.PushToYnabFailure |> Option.map (fun f -> f.Reason))
         push_failure_at = orNull (entry.PushToYnabFailure |> Option.map (fun f -> dateToText f.FailedAt))
         linked_to_ynab = (if entry.LinkedToYnab then 1 else 0)
@@ -534,12 +560,12 @@ let private upsertEntrySql =
          (id, account_id, date, amount, currency, payee, memo, category_id, category_name,
           splits, cleared, transfer_entry_id, deleted_in_ynab, approved, flag_color, flag_name,
           transfer_account_id, split_transfer_counterparts, review_mark_write_back_failure,
-          categorization_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab)
+          categorization_write_back_failure, flag_write_back_failure, push_failure_reason, push_failure_at, linked_to_ynab)
        VALUES
          (@id, @account_id, @date, @amount, @currency, @payee, @memo, @category_id,
           @category_name, @splits, @cleared, @transfer_entry_id, @deleted_in_ynab, @approved,
           @flag_color, @flag_name, @transfer_account_id, @split_transfer_counterparts,
-          @review_mark_write_back_failure, @categorization_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab)
+          @review_mark_write_back_failure, @categorization_write_back_failure, @flag_write_back_failure, @push_failure_reason, @push_failure_at, @linked_to_ynab)
        ON CONFLICT(id) DO UPDATE SET
           account_id = excluded.account_id,
           date = excluded.date,
@@ -560,6 +586,7 @@ let private upsertEntrySql =
           split_transfer_counterparts = excluded.split_transfer_counterparts,
           review_mark_write_back_failure = excluded.review_mark_write_back_failure,
           categorization_write_back_failure = excluded.categorization_write_back_failure,
+          flag_write_back_failure = excluded.flag_write_back_failure,
           push_failure_reason = excluded.push_failure_reason,
           push_failure_at = excluded.push_failure_at,
           linked_to_ynab = excluded.linked_to_ynab"""
@@ -857,6 +884,13 @@ let loadEntriesForAccount (accountId: LedgerAccountId) : Async<Entry list> =
 /// `Uncleared`.
 let private needsReviewSqlClause = "(approved = 0 OR cleared = 'Uncleared')"
 
+/// Die WHERE-Klausel für "Rückfrage Lena" (ADR 0056, Punkt 6): der Flag-Name "Lena", getrimmt
+/// und ohne Beachtung der Groß-/Kleinschreibung, wie `Ledger.Domain.isLenaFlagName`. Eine
+/// bloße Flag-Farbe ohne Namen trifft nicht. `trim` bekommt die Whitespace-Zeichen, die auch
+/// `String.Trim` entfernt (Leerzeichen, Tab, Zeilenumbruch).
+let private askLenaSqlClause =
+    "bb_lower(trim(flag_name, ' ' || char(9) || char(10) || char(13))) = 'lena'"
+
 /// Die fünf Such-Filter (ledger-vgfw3, ADR 0036), plus die beiden bestehenden
 /// Schalter — gebündelt, weil inzwischen fünf der acht Lese-Funktionen unten
 /// dieselben Kriterien anwenden müssen (AC "alle vier Zählwege ziehen mit").
@@ -869,6 +903,8 @@ let private needsReviewSqlClause = "(approved = 0 OR cleared = 'Uncleared')"
 type EntryFilter = {
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    /// Chip "Rückfrage Lena" (ADR 0056, Punkt 6): Buchungen mit Flag-Name "Lena".
+    OnlyAskLena: bool
     /// Chip "Ohne Kategorie" (ADR 0048): Buchungen ohne Ziel (weder Kategorie noch Übertrag).
     WithoutCategory: bool
     CategoryIds: Guid list
@@ -886,6 +922,7 @@ type EntryFilter = {
 let noFilter = {
     IncludeDeleted = false
     OnlyNeedsReview = false
+    OnlyAskLena = false
     WithoutCategory = false
     CategoryIds = []
     DateFrom = None
@@ -902,6 +939,7 @@ let noFilter = {
 let entryFilterOfPageQuery (query: LedgerEntryPageQuery) : EntryFilter = {
     IncludeDeleted = query.IncludeDeleted
     OnlyNeedsReview = query.OnlyNeedsReview
+    OnlyAskLena = query.OnlyAskLena
     WithoutCategory = query.WithoutCategory
     CategoryIds = query.CategoryIds
     DateFrom = query.DateFrom
@@ -941,6 +979,9 @@ let private buildFilterClause (accountId: LedgerAccountId option) (filter: Entry
 
     if filter.OnlyNeedsReview then
         clause.Append($" AND {needsReviewSqlClause}") |> ignore
+
+    if filter.OnlyAskLena then
+        clause.Append($" AND {askLenaSqlClause}") |> ignore
 
     // Chip "Ohne Kategorie" (ADR 0048): kein Ziel, weder Kategorie noch Übertrag.
     let withoutCategoryClause =
@@ -1337,6 +1378,41 @@ let countNeedsReviewEntries (accountId: LedgerAccountId option) : Async<int> =
                     $"SELECT COUNT(*) FROM ledger_entries WHERE deleted_in_ynab = 0 AND {needsReviewSqlClause}")
                 |> Async.AwaitTask
         return int count
+    }
+
+/// Die Zahl der Buchungen mit Flag "Lena" eines Kontos oder aller Konten (ADR 0056, Punkt 6),
+/// unabhängig vom Chip `OnlyAskLena` und ohne die Such-Filter: wie `countNeedsReviewEntries`
+/// ein fester Zähler für den Chip "Rückfrage Lena (n)". Gelöschte Buchungen zählen nie mit.
+let countAskLenaEntries (accountId: LedgerAccountId option) : Async<int> =
+    async {
+        use conn = Core.getConnection ()
+        let! count =
+            match accountId with
+            | Some (LedgerAccountId id) ->
+                conn.ExecuteScalarAsync<int64>(
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE account_id = @accountId AND deleted_in_ynab = 0 AND {askLenaSqlClause}",
+                    {| accountId = id.ToString() |}
+                )
+                |> Async.AwaitTask
+            | None ->
+                conn.ExecuteScalarAsync<int64>(
+                    $"SELECT COUNT(*) FROM ledger_entries WHERE deleted_in_ynab = 0 AND {askLenaSqlClause}")
+                |> Async.AwaitTask
+        return int count
+    }
+
+/// Die Farbe des Flags "Lena" aus dem Spiegel (ADR 0056, Punkt 1): die `flag_color` der
+/// jüngsten gespiegelten Buchung (nach Datum, dann Id), deren Flag-Name "Lena" deutet und
+/// die eine Farbe trägt. Grundlage der Vorbelegung in den Settings. `None`, wenn es keine gibt.
+let latestLenaFlagColor () : Async<string option> =
+    async {
+        use conn = Core.getConnection ()
+        let! colors =
+            conn.QueryAsync<string>(
+                $"SELECT flag_color FROM ledger_entries WHERE flag_color IS NOT NULL AND {askLenaSqlClause} ORDER BY date DESC, id DESC LIMIT 1"
+            )
+            |> Async.AwaitTask
+        return colors |> Seq.tryHead
     }
 
 [<CLIMutable>]

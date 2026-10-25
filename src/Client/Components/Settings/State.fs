@@ -36,11 +36,13 @@ let init () : Model * Cmd<Msg> =
         ComdirectPasswordInput = ""
         ComdirectAccountIdInput = ""
         SyncDaysInput = 30
+        LenaFlagColorInput = ""
+        LenaFlag = { SavedColor = None; SuggestedColor = None }
         ComdirectConnectionValid = NotAsked
         ComdirectAuthPending = false
         EditingSection = None
     }
-    model, Cmd.ofMsg LoadSettings
+    model, Cmd.batch [ Cmd.ofMsg LoadSettings; Cmd.ofMsg LoadLenaFlagSettings ]
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -190,6 +192,48 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | SyncSettingsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
 
+    | LoadLenaFlagSettings ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.settings.getLenaFlagSettings
+                ()
+                (Ok >> LenaFlagSettingsLoaded)
+                (fun ex -> Error ex.Message |> LenaFlagSettingsLoaded)
+        model, cmd, NoOp
+
+    | LenaFlagSettingsLoaded (Ok settings) ->
+        { model with
+            LenaFlag = settings
+            LenaFlagColorInput = lenaFlagColorPreselection settings |> Option.defaultValue "" },
+        Cmd.none,
+        NoOp
+
+    | LenaFlagSettingsLoaded (Error err) ->
+        model, Cmd.none, ShowToast ($"Failed to load Lena flag colour: {err}", ToastError)
+
+    | UpdateLenaFlagColorInput value ->
+        { model with LenaFlagColorInput = value }, Cmd.none, NoOp
+
+    | SaveLenaFlagColor ->
+        let color = if String.IsNullOrWhiteSpace model.LenaFlagColorInput then None else Some model.LenaFlagColorInput
+        let cmd =
+            Cmd.OfAsync.either
+                Api.settings.saveLenaFlagColor
+                color
+                (fun result -> LenaFlagColorSaved (color, result))
+                (fun ex -> LenaFlagColorSaved (color, Error (SettingsError.DatabaseError ("save", ex.Message))))
+        model, cmd, NoOp
+
+    | LenaFlagColorSaved (color, Ok _) ->
+        { model with
+            LenaFlag = { model.LenaFlag with SavedColor = color }
+            EditingSection = None },
+        Cmd.none,
+        ShowToast ("Flag-Farbe für Lena gespeichert", ToastSuccess)
+
+    | LenaFlagColorSaved (_, Error err) ->
+        model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+
     | SetDefaultBudget budgetId ->
         let cmd =
             Cmd.OfAsync.either
@@ -304,4 +348,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with EditingSection = Some section }, Cmd.none, NoOp
 
     | CancelEditing ->
-        { model with EditingSection = None }, Cmd.none, NoOp
+        // Ein verworfener Entwurf der Lena-Farbe fällt auf den geladenen Stand zurück.
+        { model with
+            EditingSection = None
+            LenaFlagColorInput = lenaFlagColorPreselection model.LenaFlag |> Option.defaultValue "" },
+        Cmd.none,
+        NoOp

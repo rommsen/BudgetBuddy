@@ -106,6 +106,7 @@ let private pageQueryOn (account: LedgerAccountId) : LedgerEntryPageQuery =
         LocallyRemoved = 4
         IncludeDeleted = false
         OnlyNeedsReview = true
+        OnlyAskLena = false
         WithoutCategory = false
         CategoryIds = []
         DateFrom = None

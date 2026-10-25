@@ -71,6 +71,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     SplitCategoryGroupNames = Map.empty
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
+    FlagWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

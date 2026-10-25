@@ -917,6 +917,11 @@ type LedgerEntryView = {
     /// und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
     /// älteren Servers, der das Feld nicht kennt).
     CategorizationWriteBackFailure: string option
+    /// Grund des offenen Fehlschlags beim Zurückschreiben des Flags nach YNAB (ADR 0056,
+    /// Punkt 5): das Flag bleibt in BB gesetzt, das Detail zeigt "Flag nicht in YNAB" mit
+    /// dem Grund und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
+    /// älteren Servers, der das Feld nicht kennt).
+    FlagWriteBackFailure: string option
     /// Die Buchung trägt eine YNAB-Verknüpfung: vom Spiegel gesehene Buchungen immer,
     /// BB-geführte (Comdirect-Import, Quick Add) nach `EntryLinkedToYnab` (ADR 0021).
     LinkedToYnab: bool
@@ -976,6 +981,65 @@ type ReviewMarkOutcome = {
     Previous: ReviewMarkState
     Change: ReviewMarkChange
     WriteBack: ReviewMarkWriteBack
+}
+
+// ============================================
+// Lena fragen: Flag setzen und zurückschreiben (ADR 0056, ledger-xfjcp)
+// ============================================
+
+/// Die sechs Farben, die YNAB für ein Flag kennt (Wert wie in `flag_color`).
+let ynabFlagColors : string list = [ "red"; "orange"; "yellow"; "green"; "blue"; "purple" ]
+
+/// Der Name, unter dem BB das Flag "Rückfrage Lena" führt (ADR 0056, Punkt 2).
+let lenaFlagName = "Lena"
+
+/// Der Grund, wenn die Einstellung `lena_flag_color` fehlt oder keine YNAB-Farbe ist
+/// (ADR 0056, Punkt 1). Der Server lehnt den Befehl damit ab, das Detail nennt ihn als
+/// Grund der gesperrten Aktion.
+let lenaColorMissingReason = "In den Settings die Flag-Farbe für Lena wählen"
+
+/// Das rohe Flag einer Buchung, wie YNAB es führt: Farbe und Name. Die Antwort der Flag-
+/// Befehle trägt den Vorzustand in dieser Form, "Rückgängig" schickt ihn zurück (auch ein
+/// anderes Flag wie *Markiert*, ADR 0056, Punkt 2).
+type FlagState = {
+    Color: string option
+    Name: string option
+}
+
+/// Hat der Befehl das Flag geändert? `FlagUnchanged`: Ziel gleich Ist, weder Ereignis noch
+/// YNAB-Aufruf (ADR 0056, Punkt 3).
+type FlagChange =
+    | FlagChanged
+    | FlagUnchanged
+
+/// Was mit dem Zurückschreiben des Flags nach YNAB passiert ist.
+type FlagWriteBack =
+    /// Nichts zu senden (Ziel gleich Ist, oder kein offener Fehlschlag beim erneuten Senden).
+    | FlagNotSent
+    /// YNAB hat das Flag angenommen.
+    | FlagSent
+    /// Der Weg nach YNAB ist gescheitert oder nicht möglich; das Flag bleibt in BB.
+    | FlagSendFailed of reason: string
+
+/// Antwort von `setLenaFlag` und `restoreFlag` (ADR 0056, Punkt 3).
+type FlagOutcome = {
+    /// Das Flag vor dem Befehl, Grundlage für "Rückgängig".
+    Previous: FlagState
+    Change: FlagChange
+    WriteBack: FlagWriteBack
+}
+
+/// Ziel von `setLenaFlag`: die Rückfrage setzen oder zurücknehmen.
+type LenaFlagTarget =
+    | AssignLena
+    | WithdrawLena
+
+/// Die Einstellung für "Lena fragen" (ADR 0056, Punkt 1): die Farbe, die Roman in YNAB
+/// "Lena" genannt hat, und der Vorschlag (Farbe der jüngsten gespiegelten Buchung mit
+/// Flag-Name "Lena").
+type LenaFlagSettings = {
+    SavedColor: string option
+    SuggestedColor: string option
 }
 
 // ============================================
@@ -1150,6 +1214,9 @@ type LedgerEntryPageQuery = {
     LocallyRemoved: int
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    /// Chip "Rückfrage Lena (n)" (ADR 0056, Punkt 6): nur Buchungen, deren Flag-Name "Lena"
+    /// deutet (getrimmt, ohne Groß-/Kleinschreibung). Und-Verknüpfung mit den übrigen Filtern.
+    OnlyAskLena: bool
     /// Chip "Ohne Kategorie" (ADR 0048): nur Buchungen ohne Ziel (weder Kategorie noch
     /// Übertrag). Mit nicht leeren `CategoryIds` gilt die Vereinigung beider Mengen.
     WithoutCategory: bool
@@ -1180,6 +1247,9 @@ type LedgerEntryPage = {
     TotalAmount: Money
     DeletedCount: int
     NeedsReviewCount: int
+    /// Die Zahl der Buchungen mit Flag "Lena" im Filter (Konto oder alle), unabhängig von
+    /// `OnlyAskLena` (ADR 0056, Punkt 6): der Zähler des Chips "Rückfrage Lena (n)".
+    AskLenaCount: int
 }
 
 /// Ein Payee-Vorschlag mit seiner Anzahl **innerhalb des übergebenen Filters**
@@ -1200,6 +1270,8 @@ type LedgerPayeeSuggestionQuery = {
     AccountId: Guid option
     IncludeDeleted: bool
     OnlyNeedsReview: bool
+    /// Chip "Rückfrage Lena (n)" (ADR 0056, Punkt 6), wie in `LedgerEntryPageQuery`.
+    OnlyAskLena: bool
     /// Chip "Ohne Kategorie" (ADR 0048): nur Buchungen ohne Ziel (weder Kategorie noch
     /// Übertrag). Mit nicht leeren `CategoryIds` gilt die Vereinigung beider Mengen.
     WithoutCategory: bool

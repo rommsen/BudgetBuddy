@@ -14,6 +14,14 @@ type SettingsApi = {
     /// Returns: Complete settings object with encrypted secrets decrypted.
     getSettings: unit -> Async<AppSettings>
 
+    /// The "Lena" flag colour (ADR 0056, Punkt 1): the saved colour and the suggestion taken
+    /// from the most recently mirrored booking whose flag name reads "Lena".
+    getLenaFlagSettings: unit -> Async<LenaFlagSettings>
+
+    /// Saves the colour Roman named "Lena" in YNAB (None clears it). Only the six YNAB flag
+    /// colours are accepted.
+    saveLenaFlagColor: string option -> Async<SettingsResult<unit>>
+
     /// Validates and persists YNAB Personal Access Token.
     /// Purpose: Tests token validity before storage to prevent invalid configurations.
     /// Returns: Unit on success or SettingsError (YnabTokenInvalid, YnabConnectionFailed).
@@ -411,4 +419,21 @@ type LedgerApi = {
     /// reason. An unknown target category rejects the whole command. The answer names the
     /// previous category per changed booking, which the client uses for the shared undo.
     setEntryCategoryBatch: ReviewMarkBatchSelection -> YnabCategoryId option -> Async<Result<CategoryBatchOutcome, string>>
+
+    // ============================================
+    // Lena fragen (ledger-xfjcp, ADR 0056)
+    // ============================================
+
+    /// Assigns the YNAB flag that Roman named "Lena" (colour from the settings) to one booking,
+    /// or withdraws it, in BB first, then writes it back to YNAB (only `flag_color`). Returns
+    /// the previous flag (for undo), whether anything changed and the write-back result. Error
+    /// when the booking is unknown or deleted in YNAB, or the colour setting is missing.
+    setLenaFlag: Guid -> LenaFlagTarget -> Async<Result<FlagOutcome, string>>
+
+    /// Restores a previous flag (undo): colour and name of the state before.
+    restoreFlag: Guid -> FlagState -> Async<Result<FlagOutcome, string>>
+
+    /// Sends the booking's current flag to YNAB again ("Erneut senden"). Does nothing
+    /// (FlagNotSent) without an open flag write-back failure.
+    retryFlagWriteBack: Guid -> Async<Result<FlagWriteBack, string>>
 }

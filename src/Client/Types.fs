@@ -193,6 +193,9 @@ type ToastActionKind =
     /// vor dem Speichern gehen über `setEntrySplits` zurück (eine Zeile der alten Kategorie, wenn
     /// die Buchung unaufgeteilt war).
     | UndoSplit of entryId: Guid * restore: Shared.Domain.TransactionSplit list
+    /// "Rückgängig" nach "Lena fragen" oder "Rückfrage zurücknehmen" (ledger-xfjcp, ADR 0056):
+    /// Farbe und Name des Vorzustands kommen aus der Antwort des Befehls.
+    | UndoFlag of entryId: Guid * previous: Shared.Domain.FlagState
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

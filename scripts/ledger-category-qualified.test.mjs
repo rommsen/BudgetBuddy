@@ -66,7 +66,7 @@ function buildEntriesFixture(accountId) {
     TotalCount: entries.length,
     TotalAmount: { Amount: totalAmount, Currency: "EUR" },
     DeletedCount: 0,
-    NeedsReviewCount: 0,
+    NeedsReviewCount: 0, AskLenaCount: 0,
   };
 }
 

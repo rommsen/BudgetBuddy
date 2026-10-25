@@ -48,6 +48,7 @@ let private entryOf (n: int) : LedgerEntryView =
       IsTransfer = false
       ReviewMarkWriteBackFailure = None
       CategorizationWriteBackFailure = None
+      FlagWriteBackFailure = None
       LinkedToYnab = true
       PushToYnabFailure = None
       SplitLocks = unlocked }

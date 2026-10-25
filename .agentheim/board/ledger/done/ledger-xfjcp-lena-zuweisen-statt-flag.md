@@ -1,7 +1,7 @@
 ---
 id: ledger-xfjcp
 title: "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-09-12
@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-001, ledger-q1hw2, ledger-k2rbn]
 blocks: []
 tags: [frontend, backend, kassenbuch, flags, v2, lena]
-related_adrs: [0028, 0032, 0050, 0053, 0055, 0056]
+related_adrs: [0028, 0032, 0050, 0053, 0055, 0056, 0061]
 related_research: []
 prior_art: [ledger-r777c, ledger-q1hw2, ledger-nhwrt]
 ---
@@ -142,3 +142,25 @@ Client Ledger), was eine gleichzeitige Arbeit in zwei Worktrees ohnehin ausschli
 Stil-Absicherung (2026-10-24): Tafeln und Handoffs legen nur den Ablauf fest; die Optik
 kommt aus `standards/frontend/styleguide.md`, `src/Client/DesignSystem/` und `/styleguide`
 (Vorrangregel in `docs/ux/kassenbuch/tafeln/README.md`).
+
+## Outcome
+
+Lena fragen im Kassenbuch-Detail nach ADR 0056 (mit Baseline-Nachtrag) ist gebaut, von der Einstellung bis zum Filter.
+
+**Server.** Drei neue Ereignisse (`EntryFlagChangedInBb`, `EntryFlagWriteBackFailed` mit `BaselineFlagColor/Name`, `EntryFlagWrittenBackToYnab`, Schema-Version 1) in `Ledger/Events.fs` mit Codec, `apply`-Fällen und `Entry.FlagWriteBackFailure` (Spalte `flag_write_back_failure`, Migration in `Ledger/Persistence.fs`). `observe` übernimmt die Baseline-Regel der Kategorie: gleich BB-Stand beendet den Fehlschlag (Actor YnabMirror), gleich Baseline lässt ihn offen, anderer Stand gewinnt. Befehle `setLenaFlag`, `restoreFlag`, `retryFlagWriteBack` in `Ledger/CommandHandlers.fs` (Ereignis zuerst, Push danach, unter `WriteGuard`). `Ynab.buildFlagBody/sendFlag/updateFlag` senden nur `flag_color` (Wert oder null) per `PUT .../transactions/{tid}`. Abfragen: `OnlyAskLena` in `LedgerEntryPageQuery` und `LedgerPayeeSuggestionQuery`, `AskLenaCount` in `LedgerEntryPage`, Historien-Sätze "Lena gefragt", "Rückfrage Lena zurückgenommen", "Flag in BB geändert", "Flag nicht in YNAB: ...", "Flag in YNAB angekommen". Einstellung `lena_flag_color` über `SettingsApi.getLenaFlagSettings/saveLenaFlagColor` (Vorschlag aus der jüngsten gespiegelten Lena-Buchung).
+
+**Client.** Flag-Zeile im Detail (`flagField`, neuer DS-Baustein `Detail.fieldActionButton` und `fieldLockHint`, in `/styleguide` gezeigt), Hinweisleiste `FlagNotice`, Chip `AskLenaChip` mit `Filters.OnlyAskLena` und `AskLenaCount`, Reducer-Fälle in `Ledger/State.fs` (zurückgenommene Buchung bleibt bei aktivem Chip ausgegraut über `applyFilterEffect`), Toast `UndoFlag`, Settings-Karte "Kassenbuch: Lena fragen".
+
+**Hinweise.** OpenAPI konnte ich nicht online prüfen; der Body folgt ADR 0056 (nur `flag_color`), `flag_name` und `approved` gehen nie hinaus (Test). Abweichung von ADR 0056 Punkt 2 im Detail: `WithdrawLena` auf einem fremden Flag ist NoChange (ADR 0061). Bestehende Tests, Fixtures und Playwright-Mocks erhielten die neuen Pflichtfelder (`FlagWriteBackFailure`, `OnlyAskLena`, `AskLenaCount`, `ChipActivity.AskLena`); die Chip-Reihenfolge-Erwartungen und die Chip-Zahl (8) wurden angepasst. Die [human-eye]-Kriterien (Optik) sind nicht bestätigt, nur über Design-System-Bausteine gebaut.
+
+**Läufe.** `dotnet build` 0 Warnungen, `dotnet test` 2127 bestanden, 7 übersprungen, 0 Fehler (vorher 2064 gesamt, 70 neue .NET-Tests), `npm run build` grün, `npm run guard:classes` grün, `node --test --test-concurrency=1 scripts/*.test.mjs` 221 von 221 grün (davon 5 neue in `scripts/ledger-lena.test.mjs`).
+
+Wichtige Dateien: `/Users/romansachse/src/BudgetBuddy/.worktrees/ledger-xfjcp/src/Server/Ledger/CommandHandlers.fs`, `/Users/romansachse/src/BudgetBuddy/.worktrees/ledger-xfjcp/src/Server/Ledger/Events.fs`, `/Users/romansachse/src/BudgetBuddy/.worktrees/ledger-xfjcp/src/Client/Components/Ledger/State.fs`, `/Users/romansachse/src/BudgetBuddy/.worktrees/ledger-xfjcp/src/Tests/LedgerLenaFlagTests.fs`, `/Users/romansachse/src/BudgetBuddy/.worktrees/ledger-xfjcp/src/Tests/LedgerLenaFlagClientTests.fs`.
+
+### README von Hand
+
+Im Abschnitt `## Ereignisse` hinter dem Bullet `- \`EntryCategorizationWrittenBackToYnab\`: ...` (endet mit `Historien-Satz: "Kategorie in YNAB angekommen".`) und vor `- \`EntryReplacedInYnab\`` einfügen (neue Zeilen, kein alter Satz ändert sich):
+
+- `EntryFlagChangedInBb`: das Flag wurde in BB geändert (ADR 0056 Punkt 2). Payload `OldFlagColor`, `OldFlagName`, `NewFlagColor`, `NewFlagName` (roh). Ein Typ für "Lena fragen", "Rückfrage zurücknehmen" und "Rückgängig". Schema-Version 1, Actor `UserInBb`. Setzt `Entry.FlagColor/FlagName` und leert `FlagWriteBackFailure`. Historien-Sätze: "Lena gefragt", "Rückfrage Lena zurückgenommen", sonst "Flag in BB geändert".
+- `EntryFlagWriteBackFailed`: das Zurückschreiben des Flags nach YNAB ist gescheitert (ADR 0056 Punkt 5 und Nachtrag). Payload `Reason`, `BaselineFlagColor`, `BaselineFlagName` (die `Old*`-Werte der ersten gescheiterten Änderung; bei einem schon offenen Fehlschlag bleibt die erste Baseline). Schema-Version 1, Actor `UserInBb`. Setzt `Entry.FlagWriteBackFailure`. Historien-Satz: "Flag nicht in YNAB: <Grund>".
+- `EntryFlagWrittenBackToYnab`: der offene Flag-Fehlschlag ist beendet. Kein Payload, Schema-Version 1. Actor `UserInBb` nach Erfolg bei offenem Fehlschlag oder "Erneut senden", Actor `YnabMirror`, wenn der Spiegel YNAB auf dem BB-Stand sieht. Historien-Satz: "Flag in YNAB angekommen".

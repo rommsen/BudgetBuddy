@@ -592,6 +592,71 @@ let private syncSettingsCard (model: Model) (dispatch: Msg -> unit) =
     ]
 
 // ============================================
+// Lena-Flag Card (ledger-xfjcp, ADR 0056)
+// ============================================
+
+let private lenaFlagCard (model: Model) (dispatch: Msg -> unit) =
+    let isEditing = model.EditingSection = Some LenaSection
+    let saved = model.LenaFlag.SavedColor
+    let suggestionNote =
+        match saved, model.LenaFlag.SuggestedColor with
+        | None, Some suggested ->
+            Some $"Vorschlag aus dem Spiegel: {lenaFlagColorLabel suggested}. Gilt erst nach dem Speichern."
+        | _ -> None
+
+    Card.standard [
+        sectionHeader "Kassenbuch: Lena fragen" saved.IsSome
+
+        if not isEditing then
+            Html.div [
+                prop.className "p-4"
+                prop.custom ("data-testid", "settings-lena-card")
+                prop.children [
+                    settingRow
+                        "Flag-Farbe für Lena"
+                        "Die YNAB-Flag-Farbe, die Sie in YNAB Lena genannt haben"
+                        (saved |> Option.map lenaFlagColorLabel |> Option.defaultValue "Nicht gewählt")
+                    match suggestionNote with
+                    | Some note -> Html.p [ prop.className "text-xs text-text-muted pt-2"; prop.text note ]
+                    | None -> ()
+
+                    Html.div [
+                        prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
+                        prop.children [
+                            Button.secondary "Bearbeiten" (fun () -> dispatch (StartEditing LenaSection))
+                        ]
+                    ]
+                ]
+            ]
+        else
+            Html.div [
+                prop.className "space-y-5 p-4"
+                prop.custom ("data-testid", "settings-lena-form")
+                prop.children [
+                    Input.groupSimple
+                        "Flag-Farbe für Lena"
+                        (Input.selectSimple
+                            model.LenaFlagColorInput
+                            (fun value -> dispatch (UpdateLenaFlagColorInput value))
+                            (("", "Nicht gewählt")
+                             :: (ynabFlagColors |> List.map (fun c -> c, lenaFlagColorLabel c))))
+                    match suggestionNote with
+                    | Some note -> Html.p [ prop.className "text-xs text-text-muted"; prop.text note ]
+                    | None -> ()
+
+                    Button.primaryWithIcon "Einstellungen speichern" (Icons.check Icons.SM Icons.Primary) (fun () -> dispatch SaveLenaFlagColor)
+
+                    Html.div [
+                        prop.className "pt-2"
+                        prop.children [
+                            Button.ghost "Abbrechen" (fun () -> dispatch CancelEditing)
+                        ]
+                    ]
+                ]
+            ]
+    ]
+
+// ============================================
 // Page Header
 // ============================================
 
@@ -647,6 +712,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                             prop.className "animate-slide-up"
                             prop.style [ style.custom ("animationDelay", "190ms") ]
                             prop.children [ syncSettingsCard model dispatch ]
+                        ]
+                        Html.div [
+                            prop.className "animate-slide-up"
+                            prop.style [ style.custom ("animationDelay", "225ms") ]
+                            prop.children [ lenaFlagCard model dispatch ]
                         ]
                         // Discreet entry point to the living Styleguide gallery.
                         // Uses a plain hash-router anchor so Settings stays free of

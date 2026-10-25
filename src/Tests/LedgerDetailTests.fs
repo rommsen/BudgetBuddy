@@ -224,7 +224,8 @@ let sortTests =
                   TotalCount = 40
                   TotalAmount = { Amount = -400m; Currency = "EUR" }
                   DeletedCount = 0
-                  NeedsReviewCount = 2 }
+                  NeedsReviewCount = 2
+                  AskLenaCount = 0 }
             let model = opened |> step (SetSort SortByAmount) |> step (EntriesPageLoaded (0, Ok page))
             Expect.equal (model.DetailFor |> Option.map (fun e -> e.Id)) (Some (idOf 2)) "Panel zeigt weiter seine Buchung"
             Expect.isNone model.FocusedRow "keine Zeile markiert"
@@ -236,7 +237,8 @@ let sortTests =
                   TotalCount = 3
                   TotalAmount = { Amount = -60m; Currency = "EUR" }
                   DeletedCount = 0
-                  NeedsReviewCount = 3 }
+                  NeedsReviewCount = 3
+                  AskLenaCount = 0 }
             let model = opened |> step (SetSort SortByAmount) |> step (EntriesPageLoaded (0, Ok page))
             Expect.equal model.FocusedRow (Some (idOf 2)) "die Markierung ist die Buchung im Panel"
 

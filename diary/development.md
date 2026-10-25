@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 19:00 - Lena fragen im Buchungs-Detail (ledger-xfjcp)
+
+**What I did:**
+Schreibweg für das Lena-Flag (ADR 0056) mit drei Ereignissen und Baseline, Befehle setLenaFlag/restoreFlag/retryFlagWriteBack, YnabClient-PUT mit nur flag_color, Filter und Zähler "Rückfrage Lena", Historie, Settings-Karte für die Flag-Farbe, Flag-Zeile, Hinweisleiste, Chip und Toast im Kassenbuch-Client.
+
+**Files Added:**
+- `src/Tests/LedgerLenaFlagTests.fs` - Server: Ereignisse, Befehle, observe mit Baseline, Filter, Historie, Einstellung, YnabClient
+- `src/Tests/LedgerLenaFlagClientTests.fs` - Client: Reducer, reine Bausteine, Settings-Seite
+- `scripts/ledger-lena.test.mjs` - Playwright-Wächter am echten Client
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - Flag-Typen, LedgerApi und SettingsApi erweitert, Pflichtfelder
+- `src/Server/Ledger/{Events,Domain,Persistence,CommandHandlers,QueryHandlers}.fs`, `src/Server/{YnabClient,Validation,Api}.fs` - Schreibweg, Spalte, Filter, Einstellung
+- `src/Client/Components/Ledger/{Types,State,View}.fs`, `src/Client/Components/Settings/*`, `src/Client/DesignSystem/Detail.fs`, `src/Client/Components/Styleguide/View.fs`, `src/Client/{State,Types}.fs` - Oberfläche
+- bestehende Tests und Playwright-Mocks - neue Pflichtfelder, Chip-Anzahl 8
+
+**Rationale:**
+Roman soll Buchungen mit einem Klick an Lena geben können, ohne YNAB zu öffnen; der Schreibweg folgt ADR 0050/0055.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: dotnet 2127 bestanden, 7 übersprungen; Skripte 221/221
+- Issues: keine; Optik nicht von Menschen geprüft
+
+---
+
 ## 2026-10-25 18:10 - Konto-Wahl merken und Handy-Wechsler (ledger-ybmqc)
 
 **What I did:**

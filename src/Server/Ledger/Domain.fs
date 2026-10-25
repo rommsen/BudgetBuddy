@@ -94,6 +94,14 @@ type CategorizationWriteBackFailure = {
     YnabDeletedTransactionId: string option
 }
 
+/// Der offene Fehlschlag beim Zurückschreiben des Flags nach YNAB (ADR 0056, Punkt 5 und
+/// Nachtrag): der Grund für die Zeile und die Baseline, das Flag, das YNAB vermutlich noch hat.
+type FlagWriteBackFailure = {
+    Reason: string
+    BaselineFlagColor: string option
+    BaselineFlagName: string option
+}
+
 /// Der aktuelle Stand einer Buchung, abgeleitet aus ihrem Ereignis-Log.
 type Entry = {
     Id: EntryId
@@ -133,6 +141,9 @@ type Entry = {
     /// Der offene Fehlschlag beim Zurückschreiben der Kategorie nach YNAB samt Baseline
     /// (ADR 0055, Punkt 4). `None`, wenn nichts offen ist.
     CategorizationWriteBackFailure: CategorizationWriteBackFailure option
+    /// Der offene Fehlschlag beim Zurückschreiben des Flags nach YNAB samt Baseline
+    /// (ADR 0056, Punkt 5). `None`, wenn nichts offen ist.
+    FlagWriteBackFailure: FlagWriteBackFailure option
     /// Die Buchung trägt eine YNAB-Verknüpfung: von Anfang an bei `EntryObservedInYnab`,
     /// sonst ab `EntryLinkedToYnab` (ADR 0021). Die Verknüpfung selbst liegt in der
     /// Fremd-Id-Tabelle (ADR 0015), das Feld ist ihre Spiegelung im Zustand.
@@ -142,6 +153,14 @@ type Entry = {
     /// löst ihn auf, ein zweiter Fehlschlag ersetzt ihn.
     PushToYnabFailure: LedgerPushFailure option
 }
+
+/// Deutet der rohe Flag-Name als *Rückfrage Lena*? "Lena" nach Trim, ohne Beachtung der
+/// Groß-/Kleinschreibung (ADR 0032, Punkt 5). Die eine Stelle dieser Deutung: der Lesepfad
+/// (`ReadModel.flagOf`) und die Flag-Befehle (ADR 0056) lesen beide sie.
+let isLenaFlagName (flagName: string option) : bool =
+    match flagName with
+    | Some name -> String.Equals(name.Trim(), "Lena", StringComparison.OrdinalIgnoreCase)
+    | None -> false
 
 /// Ist eine Buchung "zu prüfen"? Wahr, wenn sie in YNAB nicht genehmigt ist oder ihr
 /// Cleared-Status noch offen ist (ADR 0032): Roman markiert eine Buchung erst als
@@ -280,6 +299,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagName = p.FlagName
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
+            FlagWriteBackFailure = None
             LinkedToYnab = true
             PushToYnabFailure = None
         }
@@ -311,7 +331,33 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
 
     | EntryFlagChangeObservedInYnab p ->
         let e = requireExisting ()
-        { e with FlagColor = p.NewFlagColor; FlagName = p.NewFlagName }
+        // Der Stand von YNAB gilt, ein offener Fehlschlag beim Zurückschreiben des Flags
+        // ist damit beendet (ADR 0056, Punkt 5).
+        { e with FlagColor = p.NewFlagColor; FlagName = p.NewFlagName; FlagWriteBackFailure = None }
+
+    | EntryFlagChangedInBb p ->
+        // Eine neue Geste setzt einen offenen Fehlschlag zurück (ADR 0056, Punkt 5).
+        let e = requireExisting ()
+        { e with FlagColor = p.NewFlagColor; FlagName = p.NewFlagName; FlagWriteBackFailure = None }
+
+    | EntryFlagWriteBackFailed p ->
+        let e = requireExisting ()
+        // Bei einem schon offenen Fehlschlag bleibt die erste Baseline (ADR 0056, Nachtrag).
+        let baselineColor, baselineName =
+            match e.FlagWriteBackFailure with
+            | Some open' -> open'.BaselineFlagColor, open'.BaselineFlagName
+            | None -> p.BaselineFlagColor, p.BaselineFlagName
+        { e with
+            FlagWriteBackFailure =
+                Some {
+                    Reason = p.Reason
+                    BaselineFlagColor = baselineColor
+                    BaselineFlagName = baselineName
+                } }
+
+    | EntryFlagWrittenBackToYnab ->
+        let e = requireExisting ()
+        { e with FlagWriteBackFailure = None }
 
     | EntryTransferCounterpartObservedInYnab p ->
         // Kein zweites Entstehungs-Ereignis: eine unbekannte Buchung ist ein kaputtes
@@ -375,6 +421,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagName = None
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
+            FlagWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
         }
@@ -418,6 +465,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             FlagName = None
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
+            FlagWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
         }
@@ -786,7 +834,19 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
 
         let approvalChanged = entry.Approved <> obs.Approved
 
-        let flagChanged = entry.FlagColor <> obs.FlagColor || entry.FlagName <> obs.FlagName
+        // ADR 0056, Nachtrag: dieselbe Regel für das Flag. Mit offenem Fehlschlag heißt der
+        // BB-Stand "angekommen", die Baseline "YNAB hat den Push nie gesehen" (kein Ereignis,
+        // Fehlschlag bleibt), jeder andere Stand ist eine echte Änderung in YNAB.
+        let currentFlag = entry.FlagColor, entry.FlagName
+        let observedFlag = obs.FlagColor, obs.FlagName
+
+        let flagChanged, flagWrittenBack =
+            match entry.FlagWriteBackFailure with
+            | None -> currentFlag <> observedFlag, false
+            | Some failure ->
+                if observedFlag = currentFlag then false, true
+                elif observedFlag = (failure.BaselineFlagColor, failure.BaselineFlagName) then false, false
+                else true, false
 
         [
             if detailsChanged then
@@ -845,4 +905,8 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             // ADR 0055, Punkt 5: dasselbe für die Kategorie.
             if categorizationWrittenBack then
                 event EntryCategorizationWrittenBackToYnab
+
+            // ADR 0056, Punkt 5: dasselbe für das Flag.
+            if flagWrittenBack then
+                event EntryFlagWrittenBackToYnab
         ]

@@ -133,6 +133,9 @@ let init () : Model * Cmd<Msg> =
         TransferTargets = NotAsked
         CategorySuggestions = []
         CategoryRows = Map.empty
+        FlagRows = Map.empty
+        LenaFlagColor = None
+        AskLenaCount = 0
         CategoryCard = None
         CategoryCardVersion = 0
         FilteredOut = Set.empty
@@ -232,6 +235,7 @@ let buildPageQuery (model: Model) (accountId: Guid option) (page: int) : LedgerE
     LocallyRemoved = model.LocallyRemoved
     IncludeDeleted = model.IncludeDeleted
     OnlyNeedsReview = model.OnlyNeedsReview
+    OnlyAskLena = model.Filters.OnlyAskLena
     WithoutCategory = model.Filters.WithoutCategory
     CategoryIds = model.Filters.CategoryIds |> Set.toList
     DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
@@ -489,6 +493,38 @@ let private applyCategoryResult
                 Cmd.none
         let refresh = if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none
         finalModel, Cmd.batch [ timer; refresh ]
+
+/// Der offene Fehlschlag der Buchung nach einem Flag-Befehl: der Grund aus der Antwort,
+/// `None` nach erfolgreichem Versand; ohne Änderung und ohne Versand bleibt ein bisheriger
+/// Fehlschlag stehen.
+let private flagFailureOf (outcome: FlagOutcome) (entry: LedgerEntryView) : string option =
+    match outcome.WriteBack with
+    | FlagSendFailed reason -> Some reason
+    | FlagSent -> None
+    | FlagNotSent -> if outcome.Change = FlagUnchanged then entry.FlagWriteBackFailure else None
+
+/// Trägt das Ergebnis von `setLenaFlag` und `restoreFlag` in den Zustand ein (ADR 0056).
+/// `newState` ist das Flag, das der Befehl gesetzt hat. Die Zeile bleibt an ihrem Platz; passt
+/// sie bei aktivem Chip "Rückfrage Lena" nicht mehr zum Filter, bleibt sie ausgegraut stehen
+/// (`applyFilterEffect`, wie bei der Kategorie), erst das nächste Laden nimmt sie heraus. Der
+/// Zähler "Rückfrage Lena (n)" folgt dem BB-Stand. Rein, ohne Proxy.
+let private applyFlagResult (entryId: Guid) (newState: FlagState) (outcome: FlagOutcome) (model: Model) : Model =
+    let cleared = { model with FlagRows = model.FlagRows |> Map.remove entryId }
+    match findEntry cleared entryId with
+    | None -> cleared
+    | Some entry when outcome.Change = FlagUnchanged ->
+        replaceEntry { entry with FlagWriteBackFailure = flagFailureOf outcome entry } cleared
+    | Some entry ->
+        let updated =
+            { entry with
+                Flag = flagOfState newState
+                FlagWriteBackFailure = flagFailureOf outcome entry }
+        let isLena (e: LedgerEntryView) = if e.Flag = AskLena then 1 else 0
+        let withEntry =
+            replaceEntry
+                updated
+                { cleared with AskLenaCount = max 0 (cleared.AskLenaCount + isLena updated - isLena entry) }
+        applyFilterEffect updated withEntry
 
 /// Trägt das Ergebnis von `setEntrySplits` in den Zustand ein (ledger-pafkp). `lines` sind die
 /// geschickten Zeilen: eine Zeile hebt die Aufteilung auf (die Buchung trägt dann diese
@@ -786,7 +822,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 ()
                 (Ok >> AccountsLoaded)
                 (fun ex -> AccountsLoaded (Error ex.Message))
-        { model with Accounts = Loading }, cmd, NoOp
+        // Die Flag-Farbe für "Lena fragen" kommt mit den Konten (ADR 0056, Punkt 1).
+        { model with Accounts = Loading }, Cmd.batch [ cmd; Cmd.ofMsg LoadLenaFlagSettings ], NoOp
 
     | AccountsLoaded (Ok accounts) ->
         // Die Vorauswahl kommt vom Server (YNAB-Standardkonto, sonst das erste) —
@@ -899,6 +936,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             HasMoreEntries = List.length entries - Set.count model.FilteredOut < entryPage.TotalCount
             DeletedCount = entryPage.DeletedCount
             NeedsReviewCount = entryPage.NeedsReviewCount
+            AskLenaCount = entryPage.AskLenaCount
             LoadingMore = false },
         Cmd.none,
         NoOp
@@ -935,6 +973,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // `ToggleIncludeDeleted`/ADR 0020): der Proxy-Aufruf steckt erst hinter
         // `RunLoadEntriesPage`, nicht in diesem Zweig.
         { (resetEntries model) with OnlyNeedsReview = not model.OnlyNeedsReview }, Cmd.ofMsg LoadEntries, NoOp
+
+    | ToggleOnlyAskLena ->
+        // Wie `ToggleWithoutCategory`: reine Zustandsänderung plus `LoadEntries` (ADR 0020).
+        let filters = { model.Filters with OnlyAskLena = not model.Filters.OnlyAskLena }
+        { (resetEntries model) with Filters = filters }, Cmd.ofMsg LoadEntries, NoOp
 
     | ToggleWithoutCategory ->
         // Wie `ToggleOnlyNeedsReview`: reine Zustandsänderung plus `LoadEntries` (ADR 0020).
@@ -1100,6 +1143,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                     AmountMinDraft = model.Filters.AmountMin |> Option.map formatAmountDraft |> Option.defaultValue ""
                     AmountMaxDraft = model.Filters.AmountMax |> Option.map formatAmountDraft |> Option.defaultValue "" }
             | NeedsReviewChip -> model
+            // Ein Umschalter ohne Popover wie "Zu prüfen".
+            | AskLenaChip -> model
             // Ein Umschalter ohne Popover (ADR 0048): es gibt keinen Entwurf zu setzen.
             | WithoutCategoryChip -> model
         let cmd = if chip = PayeeChip then Cmd.ofMsg LoadPayeeSuggestions else Cmd.none
@@ -1218,6 +1263,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 AccountId = accountId
                 IncludeDeleted = model.IncludeDeleted
                 OnlyNeedsReview = model.OnlyNeedsReview
+                OnlyAskLena = model.Filters.OnlyAskLena
                 WithoutCategory = model.Filters.WithoutCategory
                 CategoryIds = model.Filters.CategoryIds |> Set.toList
                 DateFrom = model.Filters.DateRange |> Option.bind (fun d -> d.From)
@@ -1297,7 +1343,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | ClearAllFilters ->
         // Der Chip "Ohne Kategorie" bleibt stehen (wie "Zu prüfen"): er gehört nicht zu
         // den fünf Such-Filtern (ADR 0048).
-        resetEntries { model with Filters = { noFilters with WithoutCategory = model.Filters.WithoutCategory } },
+        resetEntries
+            { model with
+                Filters =
+                    { noFilters with
+                        WithoutCategory = model.Filters.WithoutCategory
+                        OnlyAskLena = model.Filters.OnlyAskLena } },
         Cmd.ofMsg LoadEntries,
         NoOp
 
@@ -1593,6 +1644,130 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     // ============================================
+    // Lena fragen im Detail (ledger-xfjcp, ADR 0056)
+    // ============================================
+
+    | LoadLenaFlagSettings ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.settings.getLenaFlagSettings
+                ()
+                (Ok >> LenaFlagSettingsLoaded)
+                (fun ex -> LenaFlagSettingsLoaded (Error ex.Message))
+        model, cmd, NoOp
+
+    | LenaFlagSettingsLoaded (Ok settings) ->
+        { model with LenaFlagColor = settings.SavedColor }, Cmd.none, NoOp
+
+    // Ohne die Farbe bleibt "Lena fragen" gesperrt und nennt den Grund; ein Fehler ist kein Toast wert.
+    | LenaFlagSettingsLoaded (Error _) -> model, Cmd.none, NoOp
+
+    | StartSetLenaFlag (entryId, target) ->
+        match findEntry model entryId with
+        | Some entry when (lenaActionFor model.LenaFlagColor entry).DisabledReason.IsNone
+                          && (lenaActionFor model.LenaFlagColor entry).Target = target
+                          && (model.FlagRows |> Map.tryFind entryId) <> Some FlagSending ->
+            { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
+            Cmd.ofMsg (RunSetLenaFlag (entryId, target)),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSetLenaFlag (entryId, target) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setLenaFlag entryId)
+                target
+                (fun result -> LenaFlagSet (entryId, target, result))
+                (fun ex -> LenaFlagSet (entryId, target, Error ex.Message))
+        model, cmd, NoOp
+
+    | LenaFlagSet (entryId, target, Ok outcome) ->
+        let newState =
+            match target with
+            | AssignLena -> { Color = model.LenaFlagColor; Name = Some lenaFlagName }
+            | WithdrawLena -> { Color = None; Name = None }
+        let model' = applyFlagResult entryId newState outcome model
+        let external =
+            match outcome.Change, outcome.WriteBack with
+            | FlagUnchanged, _ -> NoOp
+            | FlagChanged, writeBack ->
+                let text = lenaFlagToastText target
+                let action = { Label = undoToastLabel; Kind = UndoFlag (entryId, outcome.Previous) }
+                match writeBack with
+                | FlagSendFailed reason -> ShowToastWithAction ($"{text}. {flagHintTitle}: {reason}", ToastWarning, action)
+                | _ -> ShowToastWithAction (text, ToastSuccess, action)
+        model', Cmd.none, external
+
+    | LenaFlagSet (entryId, _, Error message) ->
+        { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Flag nicht geändert: {message}", ToastError)
+
+    | StartUndoFlag (entryId, previous) ->
+        { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
+        Cmd.ofMsg (RunUndoFlag (entryId, previous)),
+        NoOp
+
+    | RunUndoFlag (entryId, previous) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.restoreFlag entryId)
+                previous
+                (fun result -> FlagRestored (entryId, previous, result))
+                (fun ex -> FlagRestored (entryId, previous, Error ex.Message))
+        model, cmd, NoOp
+
+    | FlagRestored (entryId, previous, Ok outcome) ->
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        let model' = applyFlagResult entryId previous outcome model
+        let external =
+            match outcome.WriteBack with
+            | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
+            | _ when outcome.Change = FlagUnchanged -> NoOp
+            | _ -> ShowToast (flagRestoredToastText, ToastSuccess)
+        model', Cmd.none, external
+
+    | FlagRestored (entryId, _, Error message) ->
+        { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartRetryFlag entryId ->
+        { model with FlagRows = model.FlagRows |> Map.add entryId FlagSending },
+        Cmd.ofMsg (RunRetryFlag entryId),
+        NoOp
+
+    | RunRetryFlag entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryFlagWriteBack
+                entryId
+                (fun result -> FlagRetried (entryId, result))
+                (fun ex -> FlagRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | FlagRetried (entryId, Ok writeBack) ->
+        let failure =
+            match writeBack with
+            | FlagSendFailed reason -> Some reason
+            | FlagSent | FlagNotSent -> None
+        let cleared = { model with FlagRows = model.FlagRows |> Map.remove entryId }
+        let model' =
+            match findEntry cleared entryId with
+            | Some entry -> replaceEntry { entry with FlagWriteBackFailure = failure } cleared
+            | None -> cleared
+        let external =
+            match writeBack with
+            | FlagSendFailed reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
+            | _ -> NoOp
+        model', Cmd.none, external
+
+    | FlagRetried (entryId, Error message) ->
+        { model with FlagRows = model.FlagRows |> Map.add entryId (FlagCommandFailed message) },
+        Cmd.none,
+        NoOp
+
+    // ============================================
     // Split-Editor im Detail (ledger-pafkp, ADR 0058)
     // ============================================
 
@@ -1779,7 +1954,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             TotalCount = page.TotalCount
             TotalAmount = page.TotalAmount
             DeletedCount = page.DeletedCount
-            NeedsReviewCount = page.NeedsReviewCount },
+            NeedsReviewCount = page.NeedsReviewCount
+            AskLenaCount = page.AskLenaCount },
         Cmd.none,
         NoOp
 

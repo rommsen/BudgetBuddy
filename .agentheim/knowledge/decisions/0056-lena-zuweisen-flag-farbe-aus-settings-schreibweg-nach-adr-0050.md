@@ -110,3 +110,4 @@ erste Baseline). Bei offenem Fehlschlag heißt ein beobachteter Stand gleich der
 jeder andere Stand ist eine echte Änderung in YNAB und gewinnt (Punkt 6 bleibt). Die Task
 `ledger-xfjcp` hängt dafür an `ledger-k2rbn` und übernimmt dessen Umsetzung als Muster.
 
+**Nachtrag (2026-10-25, ledger-xfjcp):** ADR 0061 verfeinert Punkt 3: "Rückfrage zurücknehmen" schreibt "kein Flag" nur bei *Rückfrage Lena*, bei jedem anderen Flag bleibt es unverändert (`FlagUnchanged`). Die Einstellung `lena_flag_color` läuft über `SettingsApi.getLenaFlagSettings` und `saveLenaFlagColor`.

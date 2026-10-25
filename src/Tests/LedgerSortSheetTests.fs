@@ -85,7 +85,7 @@ let sortSheetTests =
 
         test "Der Sortier-Chip steht nicht in den Filter-Chips" {
             let order = orderChipsForDisplay true (chipActivityOf false noFilters)
-            Expect.equal order.Length 7 "die sieben Filter-Chips, kein Sortier-Chip"
+            Expect.equal order.Length 8 "die acht Filter-Chips, kein Sortier-Chip"
         }
 
         test "SetSortExactly setzt die Sortierung genau, auch wenn sie gleich bleibt" {

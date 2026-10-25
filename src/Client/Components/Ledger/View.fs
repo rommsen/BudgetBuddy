@@ -147,6 +147,9 @@ let deletedCountText (totalCount: int) (deletedCount: int) (includeDeleted: bool
 /// Fable/Badge-Kontext.
 let needsReviewChipLabel (count: int) : string = $"Zu prüfen ({count})"
 
+/// Der Text des Chips "Rückfrage Lena (n)" (ADR 0056, Punkt 6), im Muster von "Zu prüfen (n)".
+let askLenaChipLabel (count: int) : string = $"Rückfrage Lena ({count})"
+
 /// Eine Karte der Kontostaende-Leiste: ein Filter (Konto oder "Alle Konten"), ihr
 /// Anzeigename und ihr Stand.
 type AccountCard = {
@@ -1105,6 +1108,9 @@ type DetailNotice =
     /// Orange, mit "Erneut senden": die Kategorie ist in BB gesetzt, aber nicht in YNAB
     /// (ADR 0055, Punkt 4).
     | CategoryNotice of CategoryHint
+    /// Orange, mit "Erneut senden": das Flag ist in BB gesetzt, aber nicht in YNAB (ADR 0056,
+    /// Punkt 5). `busy`: der Aufruf läuft.
+    | FlagNotice of FlagHint * busy: bool
 
 /// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
 /// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
@@ -1154,6 +1160,19 @@ let detailNoticeWithCategory
     | Some notice -> Some notice
     | None -> categoryHintFor categoryRow entry |> Option.map CategoryNotice
 
+/// Wie `detailNoticeWithCategory`, mit dem Flag: alle bisherigen Hinweise haben Vorrang, danach
+/// "Flag nicht in YNAB" (höchstens eine Leiste).
+let detailNoticeWithFlag
+    (rowState: ReviewMarkRowState option)
+    (categoryRow: CategoryRowState option)
+    (flagRow: FlagRowState option)
+    (history: RemoteData<LedgerHistoryLine list>)
+    (entry: LedgerEntryView)
+    : DetailNotice option =
+    match detailNoticeWithCategory rowState categoryRow history entry with
+    | Some notice -> Some notice
+    | None -> flagHintFor flagRow entry |> Option.map (fun hint -> FlagNotice (hint, (flagRow = Some FlagSending)))
+
 /// Die Nachricht der Aktion in der Hinweisleiste: die Prüfvermerk-Leiste ("Erneut senden",
 /// `retryReviewMarkWriteBack` aus ledger-r777c) und die Kategorie-Leiste
 /// (`retryCategorizationWriteBack`) haben eine; gelöscht und "Noch nicht in YNAB" nicht.
@@ -1161,6 +1180,7 @@ let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     match notice with
     | ReviewMarkNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryReviewMark entryId)
     | CategoryNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryCategorization entryId)
+    | FlagNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryFlag entryId)
     | _ -> None
 
 /// Die Nachricht des Geprüft-Schalters: an setzt `Reviewed`, aus `Unreviewed`, über denselben
@@ -1205,6 +1225,15 @@ let private noticeView
                         { Label = label
                           Busy = (categoryRow = Some CategorySending)
                           OnClick = fun () -> dispatch msg }
+                | _ -> None }
+    | FlagNotice (hint, busy) ->
+        Detail.notice
+            { Tone = Detail.NoticeOrange
+              Badge = hint.Title
+              Reason = hint.Reason
+              Action =
+                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg -> Some { Label = label; Busy = busy; OnClick = fun () -> dispatch msg }
                 | _ -> None }
 
 /// Die Beschriftung einer Split-Zeile: Kategorie, Übertrag oder offen.
@@ -1386,14 +1415,56 @@ let private splitField (dispatch: Msg -> unit) (entry: LedgerEntryView) : ReactE
                 (fun () -> splitActionMsg entry |> Option.iter dispatch)
         ))
 
+/// Die Nachricht der Aktion in der Flag-Zeile ("Lena fragen" bzw. "Rückfrage zurücknehmen"):
+/// `None`, wenn sie gesperrt ist oder gerade ein Aufruf läuft (ledger-xfjcp, ADR 0056).
+let lenaActionMsg (model: Model) (entry: LedgerEntryView) : Msg option =
+    let action = lenaActionFor model.LenaFlagColor entry
+    if action.DisabledReason.IsSome || (model.FlagRows |> Map.tryFind entry.Id) = Some FlagSending then None
+    else Some (StartSetLenaFlag (entry.Id, action.Target))
+
+/// Die Flag-Zeile: das gedeutete Flag und der feste Knopf "Lena fragen" bzw. "Rückfrage
+/// zurücknehmen". Ist die Aktion gesperrt, nennt ein Text unter dem Wert den Grund.
+let private flagField
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (flagRow: FlagRowState option)
+    (entry: LedgerEntryView)
+    : ReactElement =
+    let action = lenaActionFor model.LenaFlagColor entry
+    let value =
+        Html.div [
+            prop.className "flex min-w-0 flex-col"
+            prop.children [
+                Detail.valueText
+                    (if entry.DeletedInYnab || entry.Flag = NoFlag then Tokens.Colors.textMuted else Tokens.Colors.textPrimary)
+                    (flagValueText entry.Flag)
+                match action.DisabledReason with
+                | Some reason -> Detail.fieldLockHint "detail-flag-lock-hint" reason
+                | None -> ()
+            ]
+        ]
+    Detail.fieldRow
+        "detail-flag"
+        "Flag"
+        value
+        (Some (
+            Detail.fieldActionButton
+                "detail-flag-action"
+                action.Label
+                action.DisabledReason
+                (flagRow = Some FlagSending)
+                (fun () -> lenaActionMsg model entry |> Option.iter dispatch)
+        ))
+
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
+    let flagRow = model.FlagRows |> Map.tryFind entry.Id
     let muted = entry.DeletedInYnab
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
 
-    [ match detailNoticeWithCategory rowState categoryRow model.History entry with
+    [ match detailNoticeWithFlag rowState categoryRow flagRow model.History entry with
       | Some notice -> noticeView dispatch rowState categoryRow entry notice
       | None -> ()
 
@@ -1442,6 +1513,8 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
            | Some memo -> Detail.valueText textColor memo
            | None -> Detail.valueText Tokens.Colors.textMuted "Kein Memo")
           None
+
+      flagField dispatch model flagRow entry
 
       // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an: kein Schalter.
       if not entry.DeletedInYnab then
@@ -2516,6 +2589,7 @@ let private amountPickerBody (dispatch: Msg -> unit) (model: Model) =
 let private chipTitle (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> ""
+    | AskLenaChip -> ""
     | CategoryChip -> "Kategorie"
     | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> "Zeitraum"
@@ -2533,6 +2607,7 @@ let popoverWidth (chip: ChipId) : string =
 let private popoverBody (dispatch: Msg -> unit) (model: Model) (categories: YnabCategory list) (chip: ChipId) : ReactElement =
     match chip with
     | NeedsReviewChip
+    | AskLenaChip
     | WithoutCategoryChip -> Html.none
     | CategoryChip -> categoryPickerBody dispatch model categories
     | DateChip -> datePickerBody dispatch model
@@ -2564,6 +2639,7 @@ let private dateChipLabel (filters: Filters) : string =
 let private chipLabel (model: Model) (chip: ChipId) : string =
     match chip with
     | NeedsReviewChip -> needsReviewChipLabel model.NeedsReviewCount
+    | AskLenaChip -> askLenaChipLabel model.AskLenaCount
     | CategoryChip -> if hasCategoryFilter model.Filters then categoryChipLabel model.Filters else "Kategorie"
     | WithoutCategoryChip -> "Ohne Kategorie"
     | DateChip -> if hasDateFilter model.Filters then dateChipLabel model.Filters else "Zeitraum"
@@ -2574,6 +2650,7 @@ let private chipLabel (model: Model) (chip: ChipId) : string =
 let private isChipActive (model: Model) (chip: ChipId) : bool =
     match chip with
     | NeedsReviewChip -> model.OnlyNeedsReview
+    | AskLenaChip -> model.Filters.OnlyAskLena
     | CategoryChip -> hasCategoryFilter model.Filters
     | WithoutCategoryChip -> model.Filters.WithoutCategory
     | DateChip -> hasDateFilter model.Filters
@@ -2584,6 +2661,7 @@ let private isChipActive (model: Model) (chip: ChipId) : bool =
 let private removeChipMsg (chip: ChipId) : Msg option =
     match chip with
     | NeedsReviewChip -> None
+    | AskLenaChip -> None
     | CategoryChip -> Some RemoveCategoryFilter
     | WithoutCategoryChip -> None
     | DateChip -> Some RemoveDateFilter
@@ -2594,6 +2672,7 @@ let private removeChipMsg (chip: ChipId) : Msg option =
 let private chipOnClick (dispatch: Msg -> unit) (chip: ChipId) : unit -> unit =
     match chip with
     | NeedsReviewChip -> fun () -> dispatch ToggleOnlyNeedsReview
+    | AskLenaChip -> fun () -> dispatch ToggleOnlyAskLena
     | WithoutCategoryChip -> fun () -> dispatch ToggleWithoutCategory
     | other -> fun () -> dispatch (OpenFilterPopover other)
 
@@ -2608,6 +2687,7 @@ let private filterChip (dispatch: Msg -> unit) (model: Model) (categories: YnabC
         }
     match chip with
     | NeedsReviewChip
+    | AskLenaChip
     | WithoutCategoryChip -> chipElement
     | _ ->
         let isOpen = model.OpenPopover = Some chip

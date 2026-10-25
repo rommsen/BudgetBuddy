@@ -39,6 +39,7 @@ let private view (payee: string option) (categoryId: Guid option) : LedgerEntryV
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
+    FlagWriteBackFailure = None
     LinkedToYnab = true
     PushToYnabFailure = None
     SplitLocks = None
@@ -77,6 +78,7 @@ let private storedEntry : Entry = {
     FlagName = None
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
+    FlagWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }

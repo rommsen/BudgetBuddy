@@ -60,12 +60,7 @@ module ReadModel =
     /// andere gesetzte Flag (auch nur eine Farbe ohne Namen) ist *Markiert*, sonst
     /// *kein Flag*. Rein, ohne I/O.
     let flagOf (flagColor: string option) (flagName: string option) : LedgerFlag =
-        let isLena =
-            match flagName with
-            | Some name -> String.Equals(name.Trim(), "Lena", StringComparison.OrdinalIgnoreCase)
-            | None -> false
-
-        if isLena then AskLena
+        if isLenaFlagName flagName then AskLena
         elif flagColor.IsSome || flagName.IsSome then Marked
         else NoFlag
 
@@ -163,6 +158,7 @@ module ReadModel =
             IsTransfer = entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome
             ReviewMarkWriteBackFailure = entry.ReviewMarkWriteBackFailure
             CategorizationWriteBackFailure = entry.CategorizationWriteBackFailure |> Option.map (fun f -> f.Reason)
+            FlagWriteBackFailure = entry.FlagWriteBackFailure |> Option.map (fun f -> f.Reason)
             LinkedToYnab = entry.LinkedToYnab
             PushToYnabFailure = entry.PushToYnabFailure
             // Ohne Konten-Abruf und ohne Verknüpfungen: Tracking-Konto und Fremd-`import_id`
@@ -286,6 +282,14 @@ module ReadModel =
         | Marked -> "Flag in YNAB gesetzt"
         | NoFlag -> "Flag in YNAB entfernt"
 
+    /// Sätze für die Flag-Änderung aus BB (ADR 0056): Lena gefragt, Rückfrage zurückgenommen,
+    /// sonst ein anderes Flag (Rückgängig auf *Markiert*, Flag entfernt).
+    let private describeFlagChangedInBb (p: EntryFlagChangedInBbPayload) =
+        match flagOf p.OldFlagColor p.OldFlagName, flagOf p.NewFlagColor p.NewFlagName with
+        | _, AskLena -> "Lena gefragt"
+        | AskLena, NoFlag -> "Rückfrage Lena zurückgenommen"
+        | _ -> "Flag in BB geändert"
+
     let private describeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
         $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
 
@@ -377,6 +381,9 @@ module ReadModel =
         | EntryReviewMarkWrittenBackToYnab -> "Prüfvermerk in YNAB angekommen"
         | EntryCategorizationWriteBackFailed p -> $"Kategorie nicht in YNAB: {p.Reason}"
         | EntryCategorizationWrittenBackToYnab -> "Kategorie in YNAB angekommen"
+        | EntryFlagChangedInBb p -> describeFlagChangedInBb p
+        | EntryFlagWriteBackFailed p -> $"Flag nicht in YNAB: {p.Reason}"
+        | EntryFlagWrittenBackToYnab -> "Flag in YNAB angekommen"
         | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
 
@@ -515,6 +522,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! totalAmounts = Ledger.Persistence.loadAmountsForQuery accountId filter
         let! deletedCount = Ledger.Persistence.countDeletedEntries accountId filter
         let! needsReviewCount = Ledger.Persistence.countNeedsReviewEntries accountId
+        let! askLenaCount = Ledger.Persistence.countAskLenaEntries accountId
         let! origins = Ledger.Persistence.loadEntryOrigins ()
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
@@ -536,6 +544,7 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
             TotalAmount = sumMoney "EUR" totalAmounts
             DeletedCount = deletedCount
             NeedsReviewCount = needsReviewCount
+            AskLenaCount = askLenaCount
         }
     }
 
@@ -548,6 +557,7 @@ let getLedgerPayeeSuggestions (query: LedgerPayeeSuggestionQuery) : Async<Ledger
         let filter : Ledger.Persistence.EntryFilter = {
             IncludeDeleted = query.IncludeDeleted
             OnlyNeedsReview = query.OnlyNeedsReview
+            OnlyAskLena = query.OnlyAskLena
             WithoutCategory = query.WithoutCategory
             CategoryIds = query.CategoryIds
             DateFrom = query.DateFrom
@@ -605,4 +615,15 @@ let getEntryHistory (entryId: Guid) : Async<LedgerHistoryLine list> =
     async {
         let! events = Ledger.Persistence.loadEventsForEntry (EntryId entryId)
         return events |> List.map ReadModel.toHistoryLine
+    }
+
+/// Die Einstellung "Lena fragen" (ADR 0056, Punkt 1): die gespeicherte Farbe und der Vorschlag
+/// (Farbe der jüngsten gespiegelten Buchung mit Flag-Name "Lena"). Eine gespeicherte Farbe,
+/// die keine YNAB-Farbe ist, zählt als nicht gesetzt.
+let getLenaFlagSettings () : Async<LenaFlagSettings> =
+    async {
+        let! stored = Core.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
+        let! suggested = Ledger.Persistence.latestLenaFlagColor ()
+        let valid (color: string option) = color |> Option.filter (fun c -> List.contains c ynabFlagColors)
+        return { SavedColor = valid stored; SuggestedColor = valid suggested }
     }

@@ -86,6 +86,9 @@ type Filters = {
     /// Chip "Ohne Kategorie" (ADR 0048): reiner Toggle wie `OnlyNeedsReview`. Zählt
     /// nicht zu `hasAnyFilter` und bleibt von `ClearAllFilters` unberührt.
     WithoutCategory: bool
+    /// Chip "Rückfrage Lena (n)" (ADR 0056, Punkt 6): reiner Toggle wie `WithoutCategory`.
+    /// Zählt nicht zu `hasAnyFilter` und bleibt von `ClearAllFilters` unberührt.
+    OnlyAskLena: bool
 }
 
 let noFilters : Filters = {
@@ -96,6 +99,7 @@ let noFilters : Filters = {
     AmountMin = None
     AmountMax = None
     WithoutCategory = false
+    OnlyAskLena = false
 }
 
 /// Liest den Text eines Betrags-Suchfelds als `decimal option`: leer (nach
@@ -260,6 +264,7 @@ let writeRecentCategories (ids: Guid list) : unit =
 /// nicht zu `hasAnyFilter`.
 type ChipId =
     | NeedsReviewChip
+    | AskLenaChip
     | CategoryChip
     | WithoutCategoryChip
     | DateChip
@@ -268,12 +273,13 @@ type ChipId =
     | AmountChip
 
 let fixedChipOrder : ChipId list =
-    [ NeedsReviewChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+    [ NeedsReviewChip; AskLenaChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
 
 /// Ob jeder Chip gerade aktiv ist: reiner Datensatz statt eines Funktionswerts,
 /// damit `orderChipsForDisplay` unit-testbar bleibt, ohne ein Model zu bauen.
 type ChipActivity = {
     NeedsReview: bool
+    AskLena: bool
     Category: bool
     WithoutCategory: bool
     Date: bool
@@ -285,6 +291,7 @@ type ChipActivity = {
 let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
     match chip with
     | NeedsReviewChip -> activity.NeedsReview
+    | AskLenaChip -> activity.AskLena
     | CategoryChip -> activity.Category
     | WithoutCategoryChip -> activity.WithoutCategory
     | DateChip -> activity.Date
@@ -294,6 +301,7 @@ let private isChipActive (activity: ChipActivity) (chip: ChipId) : bool =
 
 let chipActivityOf (onlyNeedsReview: bool) (filters: Filters) : ChipActivity = {
     NeedsReview = onlyNeedsReview
+    AskLena = filters.OnlyAskLena
     Category = hasCategoryFilter filters
     WithoutCategory = filters.WithoutCategory
     Date = hasDateFilter filters
@@ -436,6 +444,92 @@ let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView)
     | _, Some reason -> Some { Title = categoryHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, None -> None
 
+// ============================================
+// Lena fragen im Detail (ledger-xfjcp, ADR 0056)
+// ============================================
+
+/// Der Zustand der Flag-Aktion einer Buchung, solange ein Aufruf läuft oder der Befehl selbst
+/// scheiterte. Ein offener Fehlschlag beim Zurückschreiben nach YNAB steht an der Buchung
+/// (`FlagWriteBackFailure`), nicht hier.
+type FlagRowState =
+    /// Der Befehl (Zuweisen, Zurücknehmen, Rückgängig oder Erneut senden) ist unterwegs.
+    | FlagSending
+    /// Der Befehl selbst scheiterte (unbekannte oder in YNAB gelöschte Buchung, Netz zum
+    /// eigenen Server). Das Flag blieb unverändert.
+    | FlagCommandFailed of message: string
+
+/// Der Hinweis "Flag nicht in YNAB" im Detail (Muster `CategoryHint`).
+type FlagHint = {
+    Title: string
+    Reason: string
+    /// `None`, wenn nichts Offenes zu senden ist (der Befehl selbst scheiterte).
+    RetryLabel: string option
+}
+
+let flagHintTitle = "Flag nicht in YNAB"
+
+/// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler hat Vorrang, danach der offene
+/// Fehlschlag an der Buchung. Rein, wie `categoryHintFor`.
+let flagHintFor (rowState: FlagRowState option) (entry: LedgerEntryView) : FlagHint option =
+    match rowState, entry.FlagWriteBackFailure with
+    | Some (FlagCommandFailed message), failure ->
+        Some {
+            Title = "Flag nicht geändert"
+            Reason = message
+            RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
+        }
+    | _, Some reason -> Some { Title = flagHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    | _, None -> None
+
+/// Die Aktion der Flag-Zeile im Detail (ADR 0056, Punkt 2): "Lena fragen" bei einer Buchung
+/// ohne Flag oder mit einem anderen, "Rückfrage zurücknehmen" bei *Rückfrage Lena*.
+/// `DisabledReason`: der Grund, aus dem sie nicht wirkt (in YNAB gelöscht, Farbe fehlt).
+type LenaAction = {
+    Label: string
+    Target: LenaFlagTarget
+    DisabledReason: string option
+}
+
+let lenaDeletedReason = "In YNAB gelöscht, das Flag lässt sich nicht ändern"
+
+let lenaActionFor (lenaColor: string option) (entry: LedgerEntryView) : LenaAction =
+    let label, target =
+        match entry.Flag with
+        | AskLena -> "Rückfrage zurücknehmen", WithdrawLena
+        | _ -> "Lena fragen", AssignLena
+    let reason =
+        if entry.DeletedInYnab then Some lenaDeletedReason
+        // Zurücknehmen braucht die Farbe nicht, nur das Zuweisen.
+        elif target = AssignLena && lenaColor.IsNone then Some lenaColorMissingReason
+        else None
+    { Label = label; Target = target; DisabledReason = reason }
+
+/// Deutet ein rohes Flag wie der Lesepfad (`Ledger.QueryHandlers.ReadModel.flagOf`): der Name
+/// "Lena" (getrimmt, ohne Groß-/Kleinschreibung) ist *Rückfrage Lena*, jedes andere gesetzte
+/// Flag *Markiert*. Der Client braucht es, um die Zeile nach einem Flag-Befehl lokal
+/// nachzuziehen.
+let flagOfState (state: FlagState) : LedgerFlag =
+    let isLena =
+        match state.Name with
+        | Some name -> String.Equals(name.Trim(), lenaFlagName, StringComparison.OrdinalIgnoreCase)
+        | None -> false
+    if isLena then AskLena
+    elif state.Color.IsSome || state.Name.IsSome then Marked
+    else NoFlag
+
+/// Der Wert der Flag-Zeile: das gedeutete Flag als Text.
+let flagValueText (flag: LedgerFlag) : string =
+    flagLabel flag |> Option.defaultValue "Kein Flag"
+
+/// Der Toast nach "Lena fragen" bzw. "Rückfrage zurücknehmen".
+let lenaFlagToastText (target: LenaFlagTarget) : string =
+    match target with
+    | AssignLena -> "Lena gefragt"
+    | WithdrawLena -> "Rückfrage zurückgenommen"
+
+/// Der Toast nach "Rückgängig".
+let flagRestoredToastText : string = "Flag zurückgesetzt"
+
 /// Wann der Pfeil an der Kategorie wirkt und wann nicht (ADR 0055 Punkt 7).
 type CategoryLock =
     | CategoryEditable
@@ -485,7 +579,10 @@ let categoryCardDurationMs = 6000
 /// (ADR 0048). "Ohne Kategorie" trifft keinen Übertrag und keinen Split.
 let rowMatchesFilters (filters: Filters) (entry: LedgerEntryView) : bool =
     let hasCategoryFilter = not (Set.isEmpty filters.CategoryIds)
-    if not hasCategoryFilter && not filters.WithoutCategory then
+    // Der Chip "Rückfrage Lena" ist eine Und-Bedingung (ADR 0056, Punkt 6).
+    if filters.OnlyAskLena && entry.Flag <> AskLena then
+        false
+    elif not hasCategoryFilter && not filters.WithoutCategory then
         true
     else
         let inCategories =
@@ -782,6 +879,21 @@ type Model = {
 
     /// Der Zustand der Kategorie je Buchung (Aufruf läuft, Befehl scheiterte).
     CategoryRows: Map<Guid, CategoryRowState>
+
+    // ============================================
+    // Lena fragen im Detail (ledger-xfjcp, ADR 0056)
+    // ============================================
+
+    /// Der Zustand der Flag-Aktion je Buchung (Aufruf läuft, Befehl scheiterte).
+    FlagRows: Map<Guid, FlagRowState>
+
+    /// Die Flag-Farbe, die Roman in den Settings für "Lena" gewählt hat. `None`, solange sie
+    /// nicht gesetzt oder nicht geladen ist: die Aktion "Lena fragen" ist dann gesperrt.
+    LenaFlagColor: string option
+
+    /// Die Zahl der Buchungen mit Flag "Lena" im aktiven Konto-Filter, wie die zuletzt geladene
+    /// Seite sie gemeldet hat (unabhängig vom Chip "Rückfrage Lena").
+    AskLenaCount: int
 
     /// Die Karte "Budget nach dem Wechsel", solange sie steht.
     CategoryCard: CategoryChangeCardState option
@@ -1351,6 +1463,29 @@ type Msg =
     | EntryRefreshed of Guid * Result<LedgerEntryView option, string>
     | RunRetryCategorization of Guid
     | CategorizationRetried of Guid * Result<CategoryWriteBack, string>
+
+    // ============================================
+    // Lena fragen im Detail (ledger-xfjcp, ADR 0056)
+    // ============================================
+    // Dieselbe Teilung wie bei der Kategorie (ADR 0020): `Start...` ist rein, `Run...` ruft den Proxy.
+
+    /// Der Chip "Rückfrage Lena (n)" wurde angetippt: kippt `Filters.OnlyAskLena` und lädt ab Seite 0 neu.
+    | ToggleOnlyAskLena
+    /// Lädt die Flag-Farbe aus den Settings (ein Aufruf beim Betreten der Seite).
+    | LoadLenaFlagSettings
+    | LenaFlagSettingsLoaded of Result<LenaFlagSettings, string>
+    /// "Lena fragen" bzw. "Rückfrage zurücknehmen" im Detail.
+    | StartSetLenaFlag of Guid * LenaFlagTarget
+    | RunSetLenaFlag of Guid * LenaFlagTarget
+    | LenaFlagSet of Guid * LenaFlagTarget * Result<FlagOutcome, string>
+    /// "Rückgängig" im Toast: stellt Farbe und Name des Vorzustands her.
+    | StartUndoFlag of Guid * FlagState
+    | RunUndoFlag of Guid * FlagState
+    | FlagRestored of Guid * FlagState * Result<FlagOutcome, string>
+    /// "Erneut senden" an der Hinweisleiste "Flag nicht in YNAB".
+    | StartRetryFlag of Guid
+    | RunRetryFlag of Guid
+    | FlagRetried of Guid * Result<FlagWriteBack, string>
     /// Die Karte "Budget nach dem Wechsel" läuft ab (nur die mit dieser Version).
     | CategoryCardExpired of version: int
     /// Trefferzahl und Summe neu holen, solange die Reihenfolge veraltet ist.

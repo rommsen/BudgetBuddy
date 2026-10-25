@@ -39,6 +39,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     IsTransfer = false
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
+    FlagWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None
@@ -1046,28 +1047,28 @@ let private chipOrderingTests =
     testList "Chip-Reihenfolge (AC: aktive Chips wandern am Handy nach vorn)" [
 
         test "Am PC bleibt die feste Reihenfolge, egal welche Chips aktiv sind" {
-            let activity = { NeedsReview = true; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
             Expect.equal (orderChipsForDisplay false activity) fixedChipOrder "PC ändert die Reihenfolge nie"
         }
 
         test "Ohne aktiven Filter bleibt auch am Handy die feste Reihenfolge" {
-            let activity = { NeedsReview = false; Category = false; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = false; AskLena = false; Category = false; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
             Expect.equal (orderChipsForDisplay true activity) fixedChipOrder "Nichts zu ordnen, wenn nichts aktiv ist"
         }
 
         test "Am Handy wandert ein aktiver Kategorie-Filter vor das inaktive 'Zu prüfen' (Handoff Screen 2.4)" {
-            let activity = { NeedsReview = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
             Expect.equal
                 (orderChipsForDisplay true activity)
-                [ CategoryChip; NeedsReviewChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+                [ CategoryChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
                 "Kategorie ist aktiv, das inaktive 'Zu prüfen' rutscht dahinter"
         }
 
         test "Zwei aktive Chips (inkl. 'Zu prüfen') behalten ihre bisherige Reihenfolge zueinander" {
-            let activity = { NeedsReview = true; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
+            let activity = { NeedsReview = true; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = false; Memo = false; Amount = false }
             Expect.equal
                 (orderChipsForDisplay true activity)
-                [ NeedsReviewChip; CategoryChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
+                [ NeedsReviewChip; CategoryChip; AskLenaChip; WithoutCategoryChip; DateChip; PayeeChip; MemoChip; AmountChip ]
                 "Beide aktiv: die stabile Partition ändert ihre gegenseitige Reihenfolge nicht"
         }
 
@@ -1075,10 +1076,10 @@ let private chipOrderingTests =
             // Handoff 2.8: "Café Lotte" x, "Kategorie: 2" x, dann "Alle Filter löschen":
             // die aktiven Chips selbst bleiben in ihrer festen Reihenfolge zueinander,
             // nur alle inaktiven rutschen gemeinsam dahinter.
-            let activity = { NeedsReview = false; Category = true; WithoutCategory = false; Date = false; Payee = true; Memo = false; Amount = false }
+            let activity = { NeedsReview = false; AskLena = false; Category = true; WithoutCategory = false; Date = false; Payee = true; Memo = false; Amount = false }
             Expect.equal
                 (orderChipsForDisplay true activity)
-                [ CategoryChip; PayeeChip; NeedsReviewChip; WithoutCategoryChip; DateChip; MemoChip; AmountChip ]
+                [ CategoryChip; PayeeChip; NeedsReviewChip; AskLenaChip; WithoutCategoryChip; DateChip; MemoChip; AmountChip ]
                 "Kategorie vor Payee (ihre feste Reihenfolge), beide vor den inaktiven"
         }
     ]

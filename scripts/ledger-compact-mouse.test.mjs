@@ -58,7 +58,7 @@ async function openLedger(contextOptions) {
         TotalCount: TOTAL,
         TotalAmount: { Amount: -200, Currency: "EUR" },
         DeletedCount: 0,
-        NeedsReviewCount: TOTAL,
+        NeedsReviewCount: TOTAL, AskLenaCount: 0,
       }),
     })
   );
