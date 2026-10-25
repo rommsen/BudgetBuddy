@@ -1,7 +1,7 @@
 ---
 id: ledger-pafkp
 title: "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-24
