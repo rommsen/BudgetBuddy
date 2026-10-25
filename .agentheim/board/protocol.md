@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 23:08 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 6m10s
+**Completed:** 1 (first-try PASS: 1, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** budgeting-r4tkq: 1
+**Commits:** 2
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 0% product-facing / 100% harness / 0% bookkeeping (1 task, spike)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-10-25 23:07 -- Task verified and completed: budgeting-r4tkq - "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
 
 **Type:** Work / Task completion
