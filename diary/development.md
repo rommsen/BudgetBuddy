@@ -4,6 +4,31 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 18:10 - Konto-Wahl merken und Handy-Wechsler (ledger-ybmqc)
+
+**What I did:**
+Die zuletzt gewählte Sicht wird je Gerät in localStorage gemerkt und beim Öffnen vorgewählt; am Handy öffnet der Kontoname als Titel mit Chevron ein BottomSheet mit allen Konten und Ständen.
+
+**Files Added:**
+- `src/Tests/LedgerAccountChoiceTests.fs` - 11 Expecto-Tests (Speicherwert, Vorauswahl, Wechsel, Sheet)
+- `scripts/ledger-account-choice.test.mjs` - Playwright-Wächter (PC Neuladen, Handy Wechsler)
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - Felder RememberedFilter, AccountSheetOpen; Msgs OpenAccountSheet, CloseAccountSheet
+- `src/Client/Components/Ledger/State.fs` - Speicher lesen/schreiben, resolveInitialFilter, SelectFilter merkt und schließt Sheet
+- `src/Client/Components/Ledger/View.fs` - accountSwitcher (Titelknopf und BottomSheet)
+- `src/Tests/Tests.fsproj` - neue Testdatei eingetragen
+
+**Rationale:**
+Die README sagte "zuletzt gewähltes Konto", gebaut war es nur innerhalb einer Sitzung. Tafeln 6.1/6.2 verlangen den Wechsler am Handy.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 2068 grün (Expecto), 218/218 test:scripts
+- Issues: einmaliger, nicht reproduzierter dotnet-test-Fehler
+
+---
+
 ## 2026-10-25 18:10 - Liste im Prüf-Zustand (ledger-v9rq3)
 
 **What I did:**

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 17:58 -- Task verified and completed: ledger-ybmqc - "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen"
+
+**Type:** Work / Task completion
+**Task:** ledger-ybmqc - "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen"
+**Summary:** Das Kassenbuch merkt die zuletzt gewählte Sicht (Konto oder Alle Konten) je Gerät in localStorage und öffnet damit auch nach einem Neustart; am Handy öffnet der Kontoname als Titel mit Chevron ein BottomSheet "Konto wechseln" mit Alle Konten und allen Konten samt Stand.
+**Duration:** 40m
+**Verification:** FAIL (iteration 1, nur README-Delta mit Gedankenstrich), Delta vom Conductor korrigiert, Code unverändert
+**Files changed:** 6
+**Tests added:** 13
+**ADRs written:** none
+
+---
+
+## 2026-10-25 17:58 -- Verification failed: ledger-ybmqc - Konto-Wahl merken und Handy-Wechsler
+
+**Type:** Work / Verification failure
+**Task:** ledger-ybmqc - Konto-Wahl merken und Handy-Wechsler
+**Iteration:** 1 of 3
+**Reasons:** README_DELTA-Bullet mit Gedankenstrich (Schreibregel); Code, Tests und Guards grün
+**Iteration hint:** likely-fixable
+**Next:** Delta-Text vom Conductor korrigiert (reine Buchhaltung), kein erneuter Worker-Lauf, Integration
+
+---
+
 ## 2026-10-25 17:50 -- Task verified and completed: ledger-v9rq3 - "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl"
 
 **Type:** Work / Task completion

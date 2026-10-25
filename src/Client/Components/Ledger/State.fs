@@ -15,6 +15,61 @@ open Client
 
 module DateField = Client.DesignSystem.DateField
 
+// ============================================
+// Gemerkte Konto-Wahl (ledger-ybmqc)
+// ============================================
+
+/// Der Schlüssel im Gerätespeicher (`localStorage`).
+let accountChoiceStorageKey = "ledger.selectedAccountFilter"
+
+/// Der Speicherwert einer Sicht: "all" oder "account:<Id>".
+let encodeAccountFilter (filter: AccountFilter) : string =
+    match filter with
+    | AllAccounts -> "all"
+    | OneAccount id -> $"account:{id}"
+
+/// Liest einen Speicherwert zurück; Unbekanntes und Kaputtes ergibt `None`.
+let decodeAccountFilter (value: string) : AccountFilter option =
+    if isNull value then None
+    elif value = "all" then Some AllAccounts
+    elif value.StartsWith "account:" then
+        match Guid.TryParse(value.Substring "account:".Length) with
+        | true, id -> Some (OneAccount id)
+        | _ -> None
+    else None
+
+/// Die Sicht beim Öffnen: die laufende Wahl, sonst die gemerkte (nur wenn das Konto noch
+/// existiert), sonst das YNAB-Standardkonto vom Server.
+let resolveInitialFilter
+    (current: AccountFilter option)
+    (remembered: AccountFilter option)
+    (accounts: LedgerAccountsView)
+    : AccountFilter option =
+    let exists id = accounts.Accounts |> List.exists (fun a -> a.Id = id)
+    let usable choice =
+        match choice with
+        | Some AllAccounts -> Some AllAccounts
+        | Some (OneAccount id) when exists id -> Some (OneAccount id)
+        | _ -> None
+    match usable current with
+    | Some f -> Some f
+    | None ->
+        match usable remembered with
+        | Some f -> Some f
+        | None -> accounts.DefaultAccountId |> Option.map OneAccount
+
+/// Liest die gemerkte Sicht; ohne Speicher (privater Modus, .NET-Tests) `None`.
+let private readRememberedFilter () : AccountFilter option =
+    try
+        decodeAccountFilter (Browser.Dom.window.localStorage.getItem accountChoiceStorageKey)
+    with _ -> None
+
+/// Schreibt die Wahl in den Gerätespeicher; schlägt der Speicher fehl, gilt der heutige Weg.
+let private writeRememberedFilter (filter: AccountFilter) : unit =
+    try
+        Browser.Dom.window.localStorage.setItem (accountChoiceStorageKey, encodeAccountFilter filter)
+    with _ -> ()
+
 /// Ein frisches, leeres Kassenbuch. Geladen wird beim Betreten der Seite
 /// (`UrlChanged` im Haupt-State), nicht beim Start der App: das Kassenbuch soll
 /// keine Abfrage ausloesen, solange niemand hineinschaut.
@@ -23,6 +78,8 @@ let init () : Model * Cmd<Msg> =
         Accounts = NotAsked
         Balances = NotAsked
         SelectedFilter = None
+        RememberedFilter = readRememberedFilter ()
+        AccountSheetOpen = false
         Entries = NotAsked
         NextPage = 0
         LocallyRemoved = 0
@@ -737,12 +794,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // (auch "Alle Konten") ueberlebt ein Neuladen, solange das gewaehlte Konto
         // noch existiert: sonst springt die Seite nach jedem Spiegel-Lauf zurueck
         // auf das Standardkonto, waehrend Roman einen anderen Filter ansieht.
-        let filter =
-            match model.SelectedFilter with
-            | Some AllAccounts -> Some AllAccounts
-            | Some (OneAccount id) when accounts.Accounts |> List.exists (fun a -> a.Id = id) ->
-                Some (OneAccount id)
-            | _ -> accounts.DefaultAccountId |> Option.map OneAccount
+        // Beim ersten Öffnen kommt die gemerkte Sicht des Geräts vor dem Standardkonto
+        // (ledger-ybmqc); ist das gemerkte Konto weg, gilt das Standardkonto.
+        let filter = resolveInitialFilter model.SelectedFilter model.RememberedFilter accounts
         let model' = { model with Accounts = Success accounts; SelectedFilter = filter }
         match filter with
         | Some _ -> resetEntries model', Cmd.ofMsg LoadEntries, NoOp
@@ -779,10 +833,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // Zustaende (Kontostaende, Lauf-Status) bleiben unangetastet stehen.
         { (resetEntries model) with
             SelectedFilter = Some filter
+            RememberedFilter = Some filter
+            AccountSheetOpen = false
             DetailFor = None
             History = NotAsked },
-        Cmd.ofMsg LoadEntries,
+        Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ],
         NoOp
+
+    | OpenAccountSheet -> { model with AccountSheetOpen = true }, Cmd.none, NoOp
+
+    | CloseAccountSheet -> { model with AccountSheetOpen = false }, Cmd.none, NoOp
 
     | SetSort field ->
         // Wie ein Filterwechsel: Seite 0, Auswahl leer, Filter und Konto bleiben stehen.

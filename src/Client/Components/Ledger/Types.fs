@@ -560,6 +560,13 @@ type Model = {
     /// Kassenbuch leer ist (kein Konto zum Filtern).
     SelectedFilter: AccountFilter option
 
+    /// Die je Gerät gemerkte Sicht (ledger-ybmqc), beim `init` aus dem Gerätespeicher
+    /// gelesen. Sie gilt nur für die Vorauswahl beim Öffnen des Kassenbuchs.
+    RememberedFilter: AccountFilter option
+
+    /// Ist der Konto-Wechsler (BottomSheet am Handy) offen? (ledger-ybmqc)
+    AccountSheetOpen: bool
+
     /// Die bereits geladenen Buchungen des aktiven Filters, neueste zuerst, ueber
     /// alle bisher geladenen Seiten hinweg zusammengefuehrt. In YNAB geloeschte
     /// Buchungen sind enthalten und werden gekennzeichnet, nie herausgefiltert.
@@ -1139,6 +1146,9 @@ type Msg =
 
     // Konto-Filter
     | SelectFilter of AccountFilter
+    /// Konto-Wechsler am Handy (ledger-ybmqc): Titel antippen öffnet, Schließen oder Wahl schließt.
+    | OpenAccountSheet
+    | CloseAccountSheet
     /// Klick auf einen sortierbaren Spaltenkopf (ledger-bn913): dasselbe Feld dreht die
     /// Richtung, ein anderes setzt Feld und Startrichtung. Lädt ab Seite 0 neu.
     | SetSort of LedgerSortField

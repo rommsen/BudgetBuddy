@@ -3016,6 +3016,63 @@ let private FilterBarColumn
         ]
     ]
 
+/// Der Konto-Wechsler am Handy (ledger-ybmqc, Tafeln 6.1 und 6.2): der Kontoname als Titel
+/// mit Chevron öffnet ein BottomSheet mit "Alle Konten" zuoberst und jedem Konto samt Stand.
+/// Die Kartenleiste bleibt am Handy stehen (Tafel 6.1 zeigt sie unter dem Titel).
+let private accountSwitcher
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (accounts: LedgerAccountView list)
+    (balances: LedgerAccountBalanceView list)
+    : ReactElement =
+    if List.isEmpty accounts then
+        Html.none
+    else
+        let cards = buildAccountCards accounts balances
+        let activeLabel =
+            cards
+            |> List.tryFind (fun c -> Some c.Filter = model.SelectedFilter)
+            |> Option.map (fun c -> c.Label)
+            |> Option.defaultValue "Konto wählen"
+        Primitives.Responsive.mobileOnly [
+            Html.button [
+                prop.type' "button"
+                prop.className "flex items-center gap-1 min-h-[44px] mb-2 text-left text-text-primary"
+                prop.custom ("data-testid", "ledger-account-switcher")
+                prop.custom ("aria-haspopup", "dialog")
+                prop.onClick (fun _ -> dispatch OpenAccountSheet)
+                prop.children [
+                    Html.span [
+                        prop.className "text-base font-semibold font-display truncate"
+                        prop.text activeLabel
+                    ]
+                    Icons.chevronDown Icons.SM Icons.Default
+                ]
+            ]
+            BottomSheet.view
+                { IsOpen = model.AccountSheetOpen
+                  OnClose = (fun () -> dispatch CloseAccountSheet)
+                  Title = "Konto wechseln"
+                  Subtitle = None
+                  Footer = None }
+                [ Html.div [
+                    prop.className "flex flex-col gap-0.5"
+                    prop.custom ("data-testid", "ledger-account-sheet")
+                    prop.children [
+                        for card in cards ->
+                            React.keyedFragment (
+                                card.Label,
+                                [ Money.accountListRow
+                                    card.Label
+                                    card.Balance.Amount
+                                    card.Balance.Currency
+                                    (Some card.Filter = model.SelectedFilter)
+                                    (fun () -> dispatch (SelectFilter card.Filter)) ]
+                            )
+                    ]
+                  ] ]
+        ]
+
 let view (model: Model) (dispatch: Msg -> unit) =
     let accounts = model.Accounts |> RemoteData.toOption |> Option.map (fun a -> a.Accounts) |> Option.defaultValue []
     let balances = model.Balances |> RemoteData.toOption |> Option.defaultValue []
@@ -3057,6 +3114,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             Html.div [
                 prop.className "flex flex-col md:flex-row md:items-start md:gap-6 gap-4"
                 prop.children [
+                    accountSwitcher dispatch model accounts balances
                     accountStrip dispatch accounts balances model.SelectedFilter
 
                     FilterBarColumn dispatch model categories accounts isAllAccounts
