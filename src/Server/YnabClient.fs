@@ -1546,6 +1546,27 @@ let replaceSplitTransaction
 let parseAccountsResponse (bodyText: string) : Result<YnabAccount list, string> =
     Decode.fromString (Decode.field "data" (Decode.field "accounts" (Decode.list Decoders.accountDecoder))) bodyText
 
+/// Alle Konten des Budgets mit `on_budget` und `closed` (ledger-pafkp): speist im Kassenbuch die
+/// Sperre für Tracking-Konten und die Ziel-Liste der Übertrags-Zeilen im Split-Editor.
+let fetchBudgetAccounts (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabAccount list>> =
+    async {
+        try
+            use httpClient = new System.Net.Http.HttpClient()
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+            let! httpResponse = httpClient.GetAsync($"{baseUrl}/budgets/{budgetId}/accounts") |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            match mapSplitStatus statusCode bodyText [ 200 ] with
+            | Error e -> return Error e
+            | Ok () ->
+                match parseAccountsResponse bodyText with
+                | Error err -> return Error (YnabError.InvalidResponse $"Failed to parse accounts: {err}")
+                | Ok accounts -> return Ok accounts
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch accounts: {ex.Message}")
+    }
+
 /// Ist das Konto ein Tracking-Konto (`on_budget` falsch)? Spec: auf Tracking-Konten gibt es
 /// keine Splits (ADR 0058, Punkt 6). Leichter Abruf `GET .../accounts`, nicht das ganze Budget.
 let isTrackingAccount

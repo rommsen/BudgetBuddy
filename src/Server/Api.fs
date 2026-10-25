@@ -1507,6 +1507,50 @@ let private reviewMarkBatchPush () : Async<Ledger.CommandHandlers.ReviewMarkBatc
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Die YNAB-Kontenliste des Standard-Budgets, einige Minuten gemerkt (ledger-pafkp). Sie speist
+/// die Tracking-Sperre in den Buchungs-Sichten und die Übertrags-Ziele des Split-Editors; ein
+/// Abruf je Seitenanfrage wäre zu teuer (Ratenbegrenzung). Fehlschläge werden nicht gemerkt.
+let private budgetAccountsCache : (DateTime * YnabAccount list) option ref = ref None
+let private budgetAccountsTtl = TimeSpan.FromMinutes 5.0
+
+let private budgetAccounts () : Async<Result<YnabAccount list, string>> =
+    async {
+        match budgetAccountsCache.Value with
+        | Some (at, accounts) when DateTime.UtcNow - at < budgetAccountsTtl -> return Ok accounts
+        | _ ->
+            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+            match tokenOpt, budgetOpt with
+            | Some token, Some budgetId ->
+                match! YnabClient.fetchBudgetAccounts token (YnabBudgetId budgetId) with
+                | Ok accounts ->
+                    budgetAccountsCache.Value <- Some (DateTime.UtcNow, accounts)
+                    return Ok accounts
+                | Error err -> return Error (Ledger.CommandHandlers.describeSplitPushError err)
+            | None, _ -> return Error "Kein YNAB-Token eingerichtet"
+            | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
+    }
+
+/// Ergänzt die Sperre für Tracking-Konten an den Buchungs-Sichten. Ohne Kontenliste (kein Token,
+/// YNAB nicht erreichbar) bleibt es bei den lokalen Sperren; der Befehl prüft beim Speichern
+/// selbst noch einmal live.
+let private withTrackingLocks (views: LedgerEntryView list) : Async<LedgerEntryView list> =
+    async {
+        if List.isEmpty views then
+            return views
+        else
+            match! budgetAccounts () with
+            | Error _ -> return views
+            | Ok ynabAccounts ->
+                let! ledgerAccounts = Ledger.Persistence.loadAccounts ()
+                let tracking = Ledger.QueryHandlers.ReadModel.trackingLedgerAccounts ynabAccounts ledgerAccounts
+                if Set.isEmpty tracking then
+                    return views
+                else
+                    return views |> List.map (Ledger.QueryHandlers.ReadModel.withTrackingLock tracking)
+    }
+
 /// Der Sammel-Push der Kategorie (ledger-w29y6), mit denselben Fehlerfällen wie
 /// `categoryPush`.
 let private categoryBatchPush () : Async<Ledger.CommandHandlers.CategoryBatchPush> =
@@ -1535,9 +1579,16 @@ let ledgerApi : LedgerApi = {
     // nur die Historie einer einzelnen Buchung greift auf das Ereignis-Log zu.
     getLedgerAccounts = fun () -> Ledger.QueryHandlers.getLedgerAccounts ()
 
-    getLedgerEntriesForAccount = fun accountId -> Ledger.QueryHandlers.getLedgerEntriesForAccount accountId
+    getLedgerEntriesForAccount = fun accountId -> async {
+        let! views = Ledger.QueryHandlers.getLedgerEntriesForAccount accountId
+        return! withTrackingLocks views
+    }
 
-    getLedgerEntriesPage = fun query -> Ledger.QueryHandlers.getLedgerEntriesPage query
+    getLedgerEntriesPage = fun query -> async {
+        let! page = Ledger.QueryHandlers.getLedgerEntriesPage query
+        let! entries = withTrackingLocks page.Entries
+        return { page with Entries = entries }
+    }
 
     getLedgerPayeeSuggestions = fun query -> Ledger.QueryHandlers.getLedgerPayeeSuggestions query
     getPayeeCategorySuggestions = fun payee current -> Ledger.QueryHandlers.getPayeeCategorySuggestions payee current
@@ -1580,6 +1631,16 @@ let ledgerApi : LedgerApi = {
         let! tools = splitWriteTools ()
         return!
             Ledger.CommandHandlers.setEntrySplits DateTime.UtcNow tools (Ledger.Events.EntryId entryId) lines
+    }
+
+    getBudgetAccounts = fun () -> budgetAccounts ()
+
+    getLedgerEntry = fun entryId -> async {
+        match! Ledger.QueryHandlers.getLedgerEntry entryId with
+        | None -> return None
+        | Some view ->
+            let! locked = withTrackingLocks [ view ]
+            return List.tryHead locked
     }
 
     // "Erneut senden" gilt für Kategorie und Split (ADR 0058, Punkt 3).

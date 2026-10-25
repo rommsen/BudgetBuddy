@@ -43,6 +43,7 @@ let private entryOn (n: int) (date: DateTime) (amount: decimal) : LedgerEntryVie
     CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
+    SplitLocks = None
 }
 
 let private baseModel () : Model =

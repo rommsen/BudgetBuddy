@@ -301,6 +301,10 @@ type CategoryHint = {
 
 let categoryHintTitle = "Kategorie nicht in YNAB"
 
+/// Titel der Hinweisleiste, wenn das DELETE in YNAB gelang und die Neuanlage noch aussteht
+/// (ADR 0058, ledger-pafkp).
+let categoryReplacementTitle = "In YNAB gelöscht, Neuanlage offen"
+
 /// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler hat Vorrang, danach der offene
 /// Fehlschlag an der Buchung. Rein, wie `reviewMarkHintFor`.
 let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView) : CategoryHint option =
@@ -311,6 +315,8 @@ let categoryHintFor (rowState: CategoryRowState option) (entry: LedgerEntryView)
             Reason = message
             RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
         }
+    | _, Some reason when entry.SplitLocks |> Option.exists (fun l -> l.ReplacementPending) ->
+        Some { Title = categoryReplacementTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, Some reason -> Some { Title = categoryHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
     | _, None -> None
 
@@ -320,12 +326,18 @@ type CategoryLock =
     | CategoryLockedDeleted
     /// Übertrag zwischen Budget-Konten ohne Kategorie: YNAB lässt keine zu.
     | CategoryLockedTransfer
-    /// Split-Buchung: der Pfeil öffnet später den Split-Editor (`ledger-pafkp`).
-    | CategoryLockedSplit
+    /// Split-Buchung: der Pfeil öffnet den Split-Editor (ledger-pafkp).
+    | CategoryOpensSplitEditor
+    /// Split-Buchung, deren Zeilen sich nicht ändern lassen (abgeglichen, Tracking-Konto,
+    /// fremde `import_id`): der Pfeil bleibt ohne Wirkung, der Grund steht im Tooltip.
+    | CategoryLockedSplit of reason: string
 
 let categoryLockFor (entry: LedgerEntryView) : CategoryLock =
     if entry.DeletedInYnab then CategoryLockedDeleted
-    elif not (List.isEmpty entry.Splits) then CategoryLockedSplit
+    elif not (List.isEmpty entry.Splits) then
+        match Components.Ledger.SplitEditor.lockReasonFor entry with
+        | Some reason -> CategoryLockedSplit reason
+        | None -> CategoryOpensSplitEditor
     elif entry.IsTransfer && entry.CategoryId.IsNone then CategoryLockedTransfer
     else CategoryEditable
 
@@ -335,7 +347,8 @@ let categoryLockHint (lock: CategoryLock) : string option =
     | CategoryEditable -> None
     | CategoryLockedDeleted -> Some "In YNAB gelöscht, die Kategorie lässt sich nicht ändern"
     | CategoryLockedTransfer -> Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu"
-    | CategoryLockedSplit -> Some "Split bearbeiten folgt"
+    | CategoryOpensSplitEditor -> None
+    | CategoryLockedSplit reason -> Some reason
 
 /// Die Beschriftung des Pfeils an der Kategorie (Tooltip und Screenreader).
 let categoryArrowLabel = "Kategorie ändern"
@@ -626,6 +639,17 @@ type Model = {
 
     /// Die Buchung, für die der Kategorie-Picker offen steht (immer die des Details).
     CategoryPickerFor: Guid option
+
+    // ============================================
+    // Split-Editor im Detail (ledger-pafkp, ADR 0058)
+    // ============================================
+
+    /// Der offene Split-Editor (immer für die Buchung im Detail), samt Entwurf. `None`, wenn zu.
+    SplitEditor: Components.Ledger.SplitEditor.SplitEditorState option
+
+    /// Die Konten des Budgets für das Übertrag-Ziel je Zeile; der Editor zeigt davon die offenen
+    /// Budget-Konten (`openOnBudgetAccounts`).
+    TransferTargets: RemoteData<YnabAccount list>
 
     /// Die Vorschläge zum Payee für den offenen Picker (höchstens drei, häufigste zuerst).
     /// Leer, bis die Antwort da ist, bei einem Fehler und ohne Payee.
@@ -1161,6 +1185,42 @@ type Msg =
     | EntryCategoryRestored of Guid * CategoryChoice option * Result<CategoryChangeOutcome, string>
     /// "Erneut senden" an der Hinweisleiste "Kategorie nicht in YNAB".
     | StartRetryCategorization of Guid
+
+    // ============================================
+    // Split-Editor im Detail (ledger-pafkp, ADR 0058)
+    // ============================================
+    // Dieselbe Teilung wie bei der Kategorie (ADR 0020): `Start...` ist rein, `Run...` ruft den Proxy.
+
+    /// "Aufteilen", "Ändern" oder der Pfeil an der Kategorie einer Split-Buchung: öffnet den
+    /// Editor, wenn die Sperren es erlauben.
+    | OpenSplitEditor of Guid
+    /// "Abbrechen", Esc oder Schließen des Details: verwirft den Entwurf.
+    | CloseSplitEditor
+    | RunLoadTransferTargets
+    | TransferTargetsLoaded of Result<YnabAccount list, string>
+    | AddSplitLine
+    | RemoveSplitLine of int
+    | SetSplitLineAmount of int * string
+    | SetSplitLineMemo of int * string
+    /// Knopf "Rest" an der Zeile.
+    | FillSplitLineRest of int
+    | OpenSplitCategoryPicker of int
+    | OpenSplitAccountPicker of int
+    | CloseSplitPicker
+    /// Wahl im Kategorie-Picker einer Zeile; `None` ist "Ohne Kategorie".
+    | SelectSplitCategory of int * YnabCategoryId option
+    | SelectSplitAccount of int * YnabAccountId
+    /// "Speichern" im Editor.
+    | StartSaveSplits
+    | RunSaveSplits of Guid * TransactionSplit list
+    | SplitsSaved of Guid * TransactionSplit list * Result<CategoryChangeOutcome, string>
+    /// "Rückgängig" im Toast: stellt über denselben Schreibweg die Zeilen vor dem Speichern her.
+    | StartUndoSplit of Guid * TransactionSplit list
+    | RunUndoSplit of Guid * TransactionSplit list
+    | SplitsRestored of Guid * TransactionSplit list * Result<CategoryChangeOutcome, string>
+    /// Holt eine Buchung neu (nach einem gescheiterten Split-Versand), um die offene Neuanlage zu sehen.
+    | RunRefreshEntry of Guid
+    | EntryRefreshed of Guid * Result<LedgerEntryView option, string>
     | RunRetryCategorization of Guid
     | CategorizationRetried of Guid * Result<CategoryWriteBack, string>
     /// Die Karte "Budget nach dem Wechsel" läuft ab (nur die mit dieser Version).

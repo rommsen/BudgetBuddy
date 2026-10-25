@@ -137,6 +137,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoReviewMarkBatch items)
     | UndoCategory (entryId, previous) ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategory (entryId, previous))
+    | UndoSplit (entryId, restore) ->
+        LedgerMsg (Components.Ledger.Types.StartUndoSplit (entryId, restore))
     | ReloadForUpdate -> PwaApplyUpdate
     | UndoCategoryBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)

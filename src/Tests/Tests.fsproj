@@ -63,6 +63,7 @@
     <Compile Include="LedgerReviewMarkTests.fs" />
     <Compile Include="LedgerCategoryChangeTests.fs" />
     <Compile Include="LedgerSplitWriteTests.fs" />
+    <Compile Include="LedgerSplitReadTests.fs" />
     <Compile Include="LedgerReviewMarkBatchTests.fs" />
     <Compile Include="LedgerCategoryBatchTests.fs" />
     <Compile Include="LedgerReviewMarkClientTests.fs" />
@@ -80,6 +81,7 @@
     <Compile Include="LedgerSortSheetTests.fs" />
     <Compile Include="LedgerPayeeCategorySuggestionsTests.fs" />
     <Compile Include="LedgerCategoryChangeClientTests.fs" />
+    <Compile Include="LedgerSplitEditorClientTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
     <Compile Include="LedgerCompactInteractionTests.fs" />

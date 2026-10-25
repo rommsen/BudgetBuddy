@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 13:04 -- Task verified and completed: ledger-pafkp - "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast"
+
+**Type:** Work / Task completion
+**Task:** ledger-pafkp - "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast"
+**Summary:** Der Split-Editor im Kassenbuch-Detail ist gebaut. Das Feld Split trägt den festen Knopf Aufteilen bzw. Ändern, der Editor rechnet Rest und Speichern-Sperre über Shared.Domain, speichert über setEntrySplits mit Toast und Rückgängig, und der Lesepfad liefert die Sperren (SplitLocks) samt offener Neuanlage.
+**Duration:** 1h14m
+**Verification:** PASS (iteration 1, nach Merge-Konflikt mit ledger-w29y6)
+**Files changed:** 3
+**Tests added:** 77
+**ADRs written:** 0060-tracking-sperre-aus-gemerkter-ynab-kontenliste.md
+
+---
+
 ## 2026-10-25 12:45 -- Task verified and completed: ledger-w29y6 - "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle"
 
 **Type:** Work / Task completion

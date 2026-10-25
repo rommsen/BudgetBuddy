@@ -367,6 +367,17 @@ type LedgerApi = {
     /// failure state and "Erneut senden" (retryCategorizationWriteBack) as setEntryCategory.
     setEntrySplits: Guid -> TransactionSplit list -> Async<Result<CategoryChangeOutcome, string>>
 
+    /// The accounts of the configured YNAB budget (ledger-pafkp): open and closed, budget and
+    /// tracking ones, with `OnBudget` and `Closed`. The split editor offers
+    /// `openOnBudgetAccounts` of it as transfer targets. Cached on the server for a few
+    /// minutes. Error text when no token or budget is configured or YNAB cannot be reached.
+    getBudgetAccounts: unit -> Async<Result<YnabAccount list, string>>
+
+    /// One booking as the Kassenbuch shows it (ledger-pafkp), None for an unknown id. The client
+    /// reloads a booking with it after a failed split write-back, to learn whether a re-creation
+    /// in YNAB is pending.
+    getLedgerEntry: Guid -> Async<LedgerEntryView option>
+
     /// Sends the booking's current category to YNAB again ("Erneut senden"). Does nothing
     /// (CategoryNotSent) without an open write-back failure.
     retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>

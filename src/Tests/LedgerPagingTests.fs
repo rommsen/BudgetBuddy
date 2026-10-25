@@ -41,6 +41,7 @@ let private entryView (n: int) (needsReview: bool) : LedgerEntryView = {
     CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
+    SplitLocks = None
 }
 
 /// Zwei geladene Seiten sind für den Test ein Modell, das schon bei Seite 2 steht und

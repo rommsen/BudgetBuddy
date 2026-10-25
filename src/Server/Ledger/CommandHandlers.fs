@@ -1857,7 +1857,7 @@ let private resolveSplitNames
 
 /// Warum eine Buchung nicht aufgeteilt oder in ihrem Split geändert werden kann (ADR 0058,
 /// Punkt 6 und 7), oder `None`. Rein.
-let private splitNotChangeableReason (entry: Entry) : string option =
+let splitNotChangeableReason (entry: Entry) : string option =
     if entry.DeletedInYnab then Some "Die Buchung ist in YNAB gelöscht"
     elif entry.Cleared = Reconciled then Some "Abgeglichene Buchungen lassen sich nicht aufteilen"
     elif entry.Category.IsNone
@@ -1865,6 +1865,49 @@ let private splitNotChangeableReason (entry: Entry) : string option =
          && (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome) then
         Some "Ein Übertrag zwischen Budget-Konten lässt sich nicht aufteilen"
     else None
+
+/// Die Texte der Sperren, vom Befehl und vom Lesepfad gemeinsam benutzt.
+let trackingSplitReason = "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen"
+
+let foreignImportIdChangeReason =
+    "Eine Split-Buchung mit einer import_id aus YNAB lässt sich nur aufteilen, nicht ändern oder aufheben"
+
+/// Die Sperren des Split-Schreibwegs für den Lesepfad (ledger-pafkp), nach denselben Regeln wie
+/// `setEntrySplits`: lokale Sperren aus `splitNotChangeableReason`, Tracking-Konto, und eine
+/// Fremd-`import_id` (sperrt nur Ändern und Aufheben, und nur solange das DELETE nicht schon
+/// gelungen ist; bei einer unaufgeteilten Buchung heißt das: eine Aufteilung ließe sich danach
+/// nicht mehr zurücknehmen, der Client lässt "Rückgängig" dann weg). `isTracking` und
+/// `importId` kommen von außen (Konten-Abruf, Verknüpfungen), die Funktion bleibt rein.
+/// `None`, wenn nichts gesperrt und nichts offen ist.
+let splitLocksOf (isTracking: bool) (importId: string option) (entry: Entry) : SplitLocks option =
+    let cannotSplit =
+        match splitNotChangeableReason entry with
+        | Some reason -> Some reason
+        | None -> if isTracking then Some trackingSplitReason else None
+
+    let pendingDeleted =
+        entry.CategorizationWriteBackFailure
+        |> Option.bind (fun f -> f.YnabDeletedTransactionId)
+
+    let foreign =
+        pendingDeleted.IsNone
+        && (match importId with
+            | Some id -> not (id.StartsWith $"{ImportIdPrefix}:")
+            | None -> false)
+
+    let cannotChange =
+        match cannotSplit with
+        | Some reason -> Some reason
+        | None -> if foreign then Some foreignImportIdChangeReason else None
+
+    if cannotSplit.IsNone && cannotChange.IsNone && pendingDeleted.IsNone then
+        None
+    else
+        Some {
+            CannotSplitReason = cannotSplit
+            CannotChangeReason = cannotChange
+            ReplacementPending = pendingDeleted.IsSome
+        }
 
 /// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB" beim Split-Schreibweg.
 let describeSplitPushError (error: YnabError) : string =
@@ -2042,9 +2085,7 @@ let setEntrySplits
                                         |> Option.exists (fun id -> id.Length > ImportIdMaxLength)
 
                                     if replaceRoute && pendingDeleted.IsNone && foreignImportId.IsSome then
-                                        return
-                                            Error
-                                                "Eine Split-Buchung mit einer import_id aus YNAB lässt sich nur aufteilen, nicht ändern oder aufheben"
+                                        return Error foreignImportIdChangeReason
                                     elif replaceRoute && tooLongImportId then
                                         return
                                             Error
@@ -2058,7 +2099,7 @@ let setEntrySplits
                                             | None -> async.Return (Ok false)
 
                                         match tracking with
-                                        | Ok true -> return Error "Auf einem Tracking-Konto lassen sich Buchungen nicht aufteilen"
+                                        | Ok true -> return Error trackingSplitReason
                                         | Error err ->
                                             return Error $"Das Konto konnte nicht geprüft werden: {describeSplitPushError err}"
                                         | Ok false ->

@@ -33,6 +33,8 @@
     <Compile Include="DesignSystem/Detail.fs" />
     <Compile Include="DesignSystem/CategoryMultiSelect.fs" />
     <Compile Include="DesignSystem/CategoryPicker.fs" />
+    <Compile Include="DesignSystem/AccountPicker.fs" />
+    <Compile Include="DesignSystem/SplitEditor.fs" />
 
     <!-- Utilities -->
     <Compile Include="Debounce.fs" />
@@ -65,6 +67,7 @@
     <Compile Include="Components/Rules/View.fs" />
 
     <!-- Component: Ledger (Kassenbuch) -->
+    <Compile Include="Components/Ledger/SplitEditor.fs" />
     <Compile Include="Components/Ledger/Types.fs" />
     <Compile Include="Components/Ledger/State.fs" />
     <Compile Include="Components/Ledger/View.fs" />

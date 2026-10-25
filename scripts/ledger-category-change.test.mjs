@@ -236,14 +236,13 @@ test("PC: Esc schließt zuerst den Picker, dann das Detail; ein zweiter Klick au
   await context.close();
 });
 
-test("PC: Gesperrte Fälle (Übertrag ohne Kategorie, gelöscht, Split) zeigen den Pfeil gedämpft mit Hinweistext und öffnen nichts", async () => {
+test("PC: Gesperrte Fälle (Übertrag ohne Kategorie, gelöscht) zeigen den Pfeil gedämpft mit Hinweistext und öffnen nichts", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
   const cases = [
     ["Girokonto Übertrag", /Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu/],
     ["Café Lotte", /In YNAB gelöscht/],
-    ["Kaufland Split", /Split bearbeiten folgt/],
   ];
   for (const [payee, hint] of cases) {
     await row(page, payee).locator("td").nth(2).click();

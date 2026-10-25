@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0060**: Tracking-Konto im Lesepfad der Split-Sperren aus einer fünf Minuten gemerkten YNAB-Kontenliste statt aus der Projektion; der Befehl prüft beim Speichern weiter live, dieselbe Liste speist die Übertrags-Ziele des Split-Editors · 2026-10-25 · `../../decisions/0060-tracking-sperre-aus-gemerkter-ynab-kontenliste.md`
 - **0059** — Split-Schreibweg, Umsetzung: neues Ereignis EntryReplacedInYnab, abgelöste YNAB-Id als Verknüpfung ynabsuperseded, Fehlschlag "Neuanlage offen", Weg nach Baseline, Tracking-Prüfung per Konten-Abruf — 2026-10-24 — `../../decisions/0059-split-schreibweg-umsetzung-ersatz-ereignis-abgeloeste-id-und-retry-weg.md`
 - **0058** — Split-Schreibweg nach YNAB (angenommen nach Probelauf): Aufteilen per PUT, bestehende Split-Buchungen werden gelöscht und mit abgeleiteter import_id neu angelegt, weil die API das Ändern von subtransactions ausschließt — 2026-10-24 — `../../decisions/0058-split-schreibweg-loeschen-und-neu-anlegen.md`
 - **0056** — Lena zuweisen: Flag-Farbe aus den Settings, Schreibweg nach ADR 0050, Fehlschlag mit Baseline (Nachtrag) — 2026-10-24 — `../../decisions/0056-lena-zuweisen-flag-farbe-aus-settings-schreibweg-nach-adr-0050.md`

@@ -1515,6 +1515,31 @@ let linksForEntry (entryId: EntryId) : Async<EntryLink list> =
             |> Seq.toList
     }
 
+/// Die `import_id`-Verknüpfungen mehrerer Buchungen in wenigen Abfragen (ledger-pafkp,
+/// Lesepfad der Split-Sperren). Buchungen ohne Verknüpfung fehlen in der Map.
+let importIdLinksForEntries (entryIds: EntryId list) : Async<Map<Guid, EntryLink list>> =
+    async {
+        use conn = Core.getConnection ()
+        let ids = entryIds |> List.map (fun (EntryId id) -> id.ToString())
+        let mutable acc : EntryLink list = []
+        for chunk in List.chunkBySize 400 ids do
+            let! rows =
+                conn.QueryAsync<LinkRow>(
+                    "SELECT * FROM ledger_entry_links WHERE system = @system AND entry_id IN @ids",
+                    {| system = linkSystemToString ImportIdSystem; ids = chunk |}
+                )
+                |> Async.AwaitTask
+            acc <-
+                acc
+                @ (rows
+                   |> Seq.map (fun r -> { EntryId = EntryId (Guid.Parse r.entry_id); System = ImportIdSystem; Value = r.value })
+                   |> Seq.toList)
+        return
+            acc
+            |> List.groupBy (fun l -> let (EntryId id) = l.EntryId in id)
+            |> Map.ofList
+    }
+
 /// Sucht die Buchung zu einer Fremd-Id. Der Spiegel matcht damit YNAB-Id vor ImportId
 /// (ADR 0015).
 let findEntryByLink (system: LinkSystem) (value: string) : Async<EntryId option> =

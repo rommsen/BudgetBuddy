@@ -50,7 +50,7 @@ let private entryOf (n: int) : LedgerEntryView =
       ReviewMarkWriteBackFailure = None
       CategorizationWriteBackFailure = None
       LinkedToYnab = true
-      PushToYnabFailure = None }
+      PushToYnabFailure = None; SplitLocks = None }
 
 let private idOf (n: int) = (entryOf n).Id
 
@@ -153,11 +153,12 @@ let openingTests =
             Expect.isNone (categoryLockHint (categoryLockFor (entryOf 1))) "änderbar: kein Text"
             let deleted = categoryLockHint (categoryLockFor { entryOf 1 with DeletedInYnab = true })
             let transfer = categoryLockHint (categoryLockFor { entryOf 1 with IsTransfer = true; CategoryId = None })
-            let split =
-                categoryLockHint (categoryLockFor { entryOf 1 with Splits = [ { Target = Uncategorized; Amount = eur -1m; Memo = None } ] })
+            let splitEntry = { entryOf 1 with Splits = [ { Target = Uncategorized; Amount = eur -1m; Memo = None } ] }
             Expect.isSome deleted "gelöscht"
             Expect.equal transfer (Some "Übertrag zwischen Budget-Konten, YNAB lässt hier keine Kategorie zu") "Übertrag"
-            Expect.equal split (Some "Split bearbeiten folgt") "Split"
+            // Seit ledger-pafkp öffnet der Pfeil bei einer Split-Buchung den Editor, der Hinweis "Split bearbeiten folgt" entfällt.
+            Expect.isNone (categoryLockHint (categoryLockFor splitEntry)) "Split: der Pfeil wirkt, kein Hinweis"
+            Expect.equal (categoryLockFor splitEntry) CategoryOpensSplitEditor "Split öffnet den Editor"
 
         testCase "Der Pfeil schaltet den Picker, bei gesperrter Buchung tut er nichts" <| fun () ->
             let model = defaultModel ()
@@ -548,7 +549,7 @@ let viewTests =
             let source = viewSource ()
             Expect.stringContains source "\"detail-category\"" "Zeile"
             Expect.stringContains source "Detail.pickerArrow categoryArrowLabel pickerOpen (categoryLockHint lock) onArrow" "Pfeil mit Sperrtext"
-            Expect.stringContains source "(if lock = CategoryEditable then Some onArrow else None)" "Klick auf die Zeile öffnet, gesperrt nicht"
+            Expect.stringContains source "(if arrowMsg.IsSome then Some onArrow else None)" "Klick auf die Zeile öffnet, gesperrt nicht"
             let ds = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
             Expect.stringContains ds "aria-disabled" "gesperrt ist ausgezeichnet"
             Expect.stringContains ds "opacity-40 cursor-not-allowed" "gedämpft"

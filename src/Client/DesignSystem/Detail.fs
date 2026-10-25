@@ -283,6 +283,37 @@ let splitLines (lines: (string * string) list) : ReactElement =
         ]
     ]
 
+/// Der feste Knopf im Feld Split ("Aufteilen" bei einer unaufgeteilten, "Ändern" bei einer
+/// aufgeteilten Buchung, ledger-pafkp). Die Trefferfläche ist mindestens 44 px hoch. `lockedHint`:
+/// gesperrt, der Knopf ist gedämpft und wirkt nicht; der Grund steht als Tooltip und, für
+/// Touch-Geräte, zusätzlich als Text (`splitLockHint`).
+let splitActionButton (label: string) (lockedHint: string option) (onClick: unit -> unit) : ReactElement =
+    let locked = lockedHint.IsSome
+    Html.button [
+        prop.type'.button
+        prop.title (lockedHint |> Option.defaultValue label)
+        prop.custom ("aria-disabled", (if locked then "true" else "false"))
+        prop.custom ("data-testid", "detail-split-action")
+        prop.className (
+            $"inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border {Borders.default'} " +
+            $"{Backgrounds.elevated} px-3 {FontSizes.sm} {Colors.textPrimary} transition-colors touch-manipulation " +
+            (if locked then "opacity-40 cursor-not-allowed" else "hover:border-neon-teal active:scale-[0.98]")
+        )
+        prop.onMouseDown (fun e -> e.stopPropagation ())
+        prop.onClick (fun e ->
+            e.stopPropagation ()
+            if not locked then onClick ())
+        prop.text label
+    ]
+
+/// Der Grund, aus dem das Feld Split gesperrt ist, als gedämpfter Text unter dem Wert.
+let splitLockHint (text: string) : ReactElement =
+    Html.p [
+        prop.custom ("data-testid", "detail-split-lock-hint")
+        prop.className $"mt-1 text-right {ListRoles.muted}"
+        prop.text text
+    ]
+
 /// Der Geprüft-Schalter als eigene Zeile (Handoff: Zeile mit Grund `surface-input`).
 /// `Busy` sperrt ihn, solange der Aufruf läuft. Rolle `switch`, Zustand in `aria-checked`.
 let reviewedSwitch (label: string) (isOn: bool) (busy: bool) (onToggle: bool -> unit) : ReactElement =

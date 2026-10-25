@@ -461,7 +461,9 @@ let contentTests =
 
         testCase "nur detailContent ruft splitLineTexts auf, Panel und Sheet zeigen dieselben Texte" <| fun () ->
             let source = viewSource ()
-            Expect.stringContains (functionBody source "let private detailContent") "splitLineTexts entry" "Verdrahtung"
+            // Der Aufruf lebt seit ledger-pafkp im Split-Feld (`splitField`), das detailContent einhängt.
+            Expect.stringContains (functionBody source "let private splitField") "splitLineTexts entry" "Verdrahtung"
+            Expect.stringContains (functionBody source "let private detailContent") "splitField dispatch entry" "Inhalt hängt das Feld ein"
             let aufrufe = source.Split("splitLineTexts entry").Length - 1
             Expect.equal aufrufe 1 "genau ein Aufruf im Modul"
             Expect.isFalse ((functionBody source "let private detailPanelView").Contains "splitLineTexts") "Panel hat keinen eigenen Aufruf"
@@ -469,13 +471,16 @@ let contentTests =
 
         testCase "ohne Splits gibt es keine Zeilen, die Ansicht schreibt dann Kein Split" <| fun () ->
             Expect.isEmpty (splitLineTexts (entry 1)) "keine Zeilen"
-            let content = functionBody (viewSource ()) "let private detailContent"
+            let content = functionBody (viewSource ()) "let private splitField"
             Expect.stringContains content "\"Kein Split\"" "Platzhalter"
 
         testCase "Kategorie, Split, Memo und Geprüft erscheinen im Inhalt für Panel und Sheet gleich" <| fun () ->
             let source = viewSource ()
             // Die Kategorie-Zeile mit Pfeil und Picker lebt seit ledger-sfab0 in `categoryField`.
-            let content = functionBody source "let private detailContent" + functionBody source "let private categoryField"
+            let content =
+                functionBody source "let private detailContent"
+                + functionBody source "let private categoryField"
+                + functionBody source "let private splitField"
             for field in [ "\"Kategorie\""; "\"Split\""; "\"Memo\""; "\"Geprüft\"" ] do
                 Expect.stringContains content field $"Feld {field}"
             Expect.stringContains (functionBody source "let private detailPanelView") "detailContent" "Panel nutzt den Inhalt"

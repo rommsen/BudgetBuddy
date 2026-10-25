@@ -1,7 +1,7 @@
 ---
 id: ledger-pafkp
 title: "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-24
@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-001, ledger-sfab0, ledger-kxme4, design-system-gffps]
 blocks: []
 tags: [frontend, kassenbuch, split, v2]
-related_adrs: [0005, 0006, 0049, 0053, 0055, 0058, 0059]
+related_adrs: [0005, 0006, 0049, 0053, 0055, 0058, 0059, 0060]
 related_research: []
 prior_art: [ledger-q1hw2]
 ---
@@ -201,3 +201,34 @@ Entscheidung am 2026-10-25 (Roman): Das Übertrag-Ziel je Split-Zeile samt Konte
 Konto-Popover am PC bleibt in dieser Task. Woher die Tracking-Angabe für den Lesepfad kommt
 (Feld `OnBudget` in der Konten-Projektion oder Live-Abruf), entscheidet der Worker als
 technische Frage; Vorgabe ist nur, dass der Lesepfad die Sperrgründe liefert.
+
+## Merge-conflict note (iteration 1)
+
+Geschwister: ledger-w29y6 (Kategorie setzen für die Auswahl), auf main integriert als d8e4f14.
+Neue Basis: d8e4f14. Auflösungsliste: `src/Client/Components/Ledger/State.fs` (Esc-Kette in
+`EscapePressed` und Nachlauf in `update`: `BatchCategoryPickerOpen` gegen `SplitEditor`),
+`src/Server/Api.fs` (`categoryBatchPush` gegen `budgetAccountsCache`/`budgetAccounts`).
+Beide Absichten bleiben erhalten.
+
+## Outcome
+
+Der Split-Editor im Kassenbuch ist gebaut (Lesepfad, reine Editor-Funktionen, Reducer, Ansicht, Design-System).
+
+**Lesepfad.** `LedgerEntryView.SplitLocks: SplitLocks option` (`CannotSplitReason`, `CannotChangeReason`, `ReplacementPending`), abgeleitet von `Ledger.CommandHandlers.splitLocksOf` nach den Regeln von `setEntrySplits` (gelöscht, abgeglichen, Übertrag, Tracking, fremde `import_id`, offene Neuanlage). Die `import_id`-Verknüpfungen kommen gebündelt (`importIdLinksForEntries`). Tracking: Entscheidung in ADR 0060 (gemerkte YNAB-Kontenliste statt `OnBudget` in der Projektion). Neue API-Member hinter `setEntrySplits`: `getBudgetAccounts` (Übertrag-Ziele) und `getLedgerEntry` (Buchung nach gescheitertem Versand neu holen). Ein Feld statt dreier, damit die Testliterale nur eine Zeile bekommen; fehlt es (älterer Server), ist nichts gesperrt.
+
+**Client.** `Components/Ledger/SplitEditor.fs` (Entwurf, `remainder` über `splitRemainder`, `requestLines` über `mkSplits`, Rückweg `undoLines`, `undoAvailable`), Model-Felder `SplitEditor` und `TransferTargets`, Nachrichten `OpenSplitEditor` bis `EntryRefreshed`, `ToastActionKind.UndoSplit`. `CategoryLockedSplit` ist nun `CategoryLockedSplit of reason`, neu `CategoryOpensSplitEditor`; "Split bearbeiten folgt" ist entfernt. Die Hinweisleiste trägt für offene Neuanlage den Titel "In YNAB gelöscht, Neuanlage offen". Die Fußleiste des Panels steht als haftende Zeile im scrollenden Bereich (bei kurzer Liste läge sie sonst unter dem Fenster). Tasten der Liste sind bei offenem Editor aus. Zeile und Reihenfolge verhalten sich wie bei der Kategorieänderung (`FilteredOut`, `OrderStale`).
+
+**Design-System.** Neu `DesignSystem/SplitEditor.fs` (Summe, Zeile, Zeile hinzufügen, Speichern, Abbrechen, Fußleiste), `DesignSystem/AccountPicker.fs` (Popover am PC, zweites Sheet am Handy), `Detail.splitActionButton` und `Detail.splitLockHint`; alle in `/styleguide` (Sektion 27 und Karte der Detail-Felder). `SplitSheet.fs` des Imports blieb unberührt.
+
+**Tests.** 77 neue Tests: `LedgerSplitReadTests.fs` (Regel, Sichten gegen In-Memory-SQLite je Fall, Tracking, `getLedgerEntry`), `LedgerSplitEditorClientTests.fs` (Rechnen, Sperren, Reducer, Ansicht), `scripts/ledger-split-editor.test.mjs` (9 Playwright-Tests am echten Client, auch ohne `SplitLocks` in den Fixtures als Fall "älterer Server"). Angepasst: `ledger-category-change.test.mjs` (Split-Fall entfernt), `LedgerCategoryChangeClientTests`, `LedgerDetailTests` (Verdrahtung über `splitField`), alle Testliterale von `LedgerEntryView` (`SplitLocks = None`).
+
+**Merge mit w29y6 (Resolve):** Marker in State.fs (Esc-Kette: Batch-Picker, dann Split-Editor, dann Kategorie-Picker; Nachlauf in `update`: beide Blöcke nacheinander) und Server/Api.fs (beide Definitionen) aufgelöst; `LedgerCategoryBatchClientTests.fs` bekam `SplitLocks = None`. Nach dem Merge: build 0 Warnungen, dotnet test 2057 bestanden, npm build, guard:classes, guard:tokens grün, Playwright split-editor, selection, category-change, detail, compact-mouse seriell 37/37 grün.
+
+**Läufe vor dem Merge (aus dem Worktree):** `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 2006 bestanden, 7 übersprungen (Integrationstests ohne .env), 0 Fehler; `npm run build` grün; `guard:classes` und `guard:tokens` grün; `test:scripts` seriell 209 von 209 grün; `check:readme-delta` für das Delta ohne Fehler. Hinweis des Conductors zu m6zpd (View.fs, Types.fs, `ListInteraction`): erst beim Merge relevant, meine Änderungen an `View.fs` liegen in `categoryField`/`splitField`/Editor-Funktionen und `detailPanelView`/`detailSheetView`.
+
+**Screenshots für [human-eye]** (einmalig, nicht in Tests): /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-pafkp/ mit pc-detail-kein-split.png, pc-detail-split.png, pc-detail-gesperrt.png, pc-editor-picker.png, pc-editor-rest-offen.png, pc-editor-rest-null.png, pc-editor-konto.png, pc-editor-footer.png, mobile-detail.png, mobile-editor.png, styleguide-split-editor.png. Offener Blick: gesperrter Hinweistext im Feld Split ist rechtsbündig und eng.
+
+**Abweichungen und Hinweise.** (1) "Rückgängig" fehlt, wenn eine Aufteilung entsteht und `CannotChangeReason` gesetzt ist; deshalb sperrt die fremde `import_id` auch bei einer unaufgeteilten Buchung `CannotChangeReason` (Aufteilen bleibt erlaubt). (2) Am Handy wirkt nach einer Wahl im zweiten Sheet 350 ms lang `swallowNextClick` (ADR 0005), die Playwright-Tests warten darauf. (3) Der Pfeil bei einer unaufgeteilten, abgeglichenen Buchung bleibt wie bisher auf dem Kategorie-Picker (Kategorie ändern ist dort erlaubt).
+
+### README von Hand
+Nicht nötig, das Delta ist per Gate geprüft.

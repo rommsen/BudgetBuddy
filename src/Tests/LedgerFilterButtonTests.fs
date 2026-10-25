@@ -41,6 +41,7 @@ let private view (payee: string option) (categoryId: Guid option) : LedgerEntryV
     CategorizationWriteBackFailure = None
     LinkedToYnab = true
     PushToYnabFailure = None
+    SplitLocks = None
 }
 
 let private split : TransactionSplit =

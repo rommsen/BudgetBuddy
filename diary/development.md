@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 14:00 - Split-Editor im Kassenbuch (ledger-pafkp)
+
+**What I did:**
+Lesepfad mit Split-Sperren (`SplitLocks`), reine Editor-Funktionen, Reducer, Ansicht im Panel und im Sheet, Konto-Auswahl für Übertrag-Ziele, Toast mit Rückgängig, Hinweis für offene Neuanlage, Design-System-Bausteine samt /styleguide.
+
+**Files Added:**
+- `src/Client/Components/Ledger/SplitEditor.fs` - Entwurf und reine Rechen- und Prüffunktionen
+- `src/Client/DesignSystem/SplitEditor.fs`, `src/Client/DesignSystem/AccountPicker.fs` - neue Bausteine
+- `src/Tests/LedgerSplitReadTests.fs`, `src/Tests/LedgerSplitEditorClientTests.fs`, `scripts/ledger-split-editor.test.mjs` - Tests
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - `SplitLocks`, `getBudgetAccounts`, `getLedgerEntry`
+- `src/Server/Ledger/CommandHandlers.fs`, `QueryHandlers.fs`, `Persistence.fs`, `src/Server/Api.fs`, `src/Server/YnabClient.fs` - Sperren im Lesepfad, gemerkte Kontenliste
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs`, `src/Client/Types.fs`, `src/Client/State.fs`, `src/Client/DesignSystem/Detail.fs`, `src/Client/Components/Styleguide/View.fs`, `src/Client/Client.fsproj` - Editor, Knopf im Feld Split, Galerie
+- bestehende Tests und Playwright-Skript `ledger-category-change.test.mjs` - Anpassungen an `SplitLocks` und den entfallenen Hinweis
+
+**Rationale:**
+Aufteilen, Ändern und Aufheben gehören ins Detail (ADR 0053, Ablauf 4). Die Sperren kommen vom Server, damit der Client nichts aus Rohdaten rät.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 2006 bestanden, 7 übersprungen; Playwright seriell 209/209
+- Issues: Panel-Fußleiste musste in den scrollenden Bereich, weil das Panel bei kurzer Liste unter das Fenster ragt
+
+---
+
 ## 2026-10-25 12:40 - Kategorie setzen für die Auswahl (ledger-w29y6)
 
 **What I did:**

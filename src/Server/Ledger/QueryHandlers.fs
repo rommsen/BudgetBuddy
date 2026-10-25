@@ -165,7 +165,48 @@ module ReadModel =
             CategorizationWriteBackFailure = entry.CategorizationWriteBackFailure |> Option.map (fun f -> f.Reason)
             LinkedToYnab = entry.LinkedToYnab
             PushToYnabFailure = entry.PushToYnabFailure
+            // Ohne Konten-Abruf und ohne Verknüpfungen: Tracking-Konto und Fremd-`import_id`
+            // ergänzen `withImportIdLock` und `withTrackingLock` (ledger-pafkp).
+            SplitLocks = Ledger.CommandHandlers.splitLocksOf false None entry
         }
+
+    /// Setzt die Sperren neu, sobald die `import_id` der Buchung bekannt ist (ledger-pafkp):
+    /// eine aufgeteilte Buchung mit einer `import_id` ohne Präfix `BB:` lässt sich nicht
+    /// ändern oder aufheben. Der Tracking-Anteil bleibt, wie `withTrackingLock` ihn setzt.
+    let withImportIdLock (entry: Entry) (importId: string option) (view: LedgerEntryView) : LedgerEntryView =
+        { view with SplitLocks = Ledger.CommandHandlers.splitLocksOf false importId entry }
+
+    /// Ergänzt die Sperre für Buchungen auf einem Tracking-Konto (ledger-pafkp): Aufteilen,
+    /// Ändern und Aufheben sind dort gesperrt (ADR 0058 Punkt 6). `trackingAccounts` sind die
+    /// Kassenbuch-Konto-Ids der Tracking-Konten.
+    let withTrackingLock (trackingAccounts: Set<Guid>) (view: LedgerEntryView) : LedgerEntryView =
+        if not (trackingAccounts.Contains view.AccountId) then
+            view
+        else
+            let current =
+                view.SplitLocks
+                |> Option.defaultValue { CannotSplitReason = None; CannotChangeReason = None; ReplacementPending = false }
+            let reasonOf (existing: string option) =
+                existing |> Option.orElse (Some Ledger.CommandHandlers.trackingSplitReason)
+            { view with
+                SplitLocks =
+                    Some {
+                        current with
+                            CannotSplitReason = reasonOf current.CannotSplitReason
+                            CannotChangeReason = reasonOf current.CannotChangeReason
+                    } }
+
+    /// Die Kassenbuch-Konten, die in YNAB Tracking-Konten sind (`on_budget` falsch). Rein:
+    /// die YNAB-Kontenliste und die gespiegelten Konten kommen von außen.
+    let trackingLedgerAccounts (ynabAccounts: YnabAccount list) (ledgerAccounts: LedgerAccount list) : Set<Guid> =
+        let tracking =
+            ynabAccounts |> List.filter (fun a -> not a.OnBudget) |> List.map (fun a -> a.Id) |> Set.ofList
+        ledgerAccounts
+        |> List.choose (fun a ->
+            match a.Link with
+            | YnabMirrored id when tracking.Contains id -> Some (let (LedgerAccountId g) = a.Id in g)
+            | _ -> None)
+        |> Set.ofList
 
     // --- Die Sprache der Historie ---
 
@@ -373,6 +414,14 @@ let getLedgerAccounts () : Async<LedgerAccountsView> =
         }
     }
 
+/// Die Ids der Buchungen, deren `import_id` der Lesepfad braucht: alle (die Fremd-`import_id`
+/// sperrt Ändern und Aufheben einer Aufteilung, auch einer, die erst entstehen soll).
+let private splitEntryIds (entries: Entry list) : EntryId list =
+    entries |> List.map (fun e -> e.Id)
+
+let private currentImportIdOf (links: Map<Guid, EntryLink list>) (id: Guid) : string option =
+    links |> Map.tryFind id |> Option.bind Ledger.CommandHandlers.currentImportId
+
 /// Die Buchungen eines Kontos, neueste zuerst. Geloeschte Buchungen bleiben in der
 /// Liste (mit Kennzeichen) — das Kassenbuch verliert nichts (ADR 0013).
 let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
@@ -381,6 +430,8 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
         let! origins = Ledger.Persistence.loadEntryOrigins ()
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
+
+        let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds entries)
 
         return
             entries
@@ -394,7 +445,28 @@ let getLedgerEntriesForAccount (accountId: Guid) : Async<LedgerEntryView list> =
                     |> Option.map ReadModel.originOf
                     |> Option.defaultValue MirroredFromYnab
 
-                ReadModel.toEntryView categoryNames categoryGroups origin entry)
+                ReadModel.toEntryView categoryNames categoryGroups origin entry
+                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id))
+    }
+
+/// Eine einzelne Buchung als Sicht (ledger-pafkp): der Client holt sie nach einem gescheiterten
+/// Split-Versand neu, um zu wissen, ob eine Neuanlage in YNAB offen ist. `None` für eine
+/// unbekannte Buchung.
+let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
+    async {
+        match! Ledger.Persistence.loadEntry (EntryId entryGuid) with
+        | None -> return None
+        | Some entry ->
+            let! origins = Ledger.Persistence.loadEntryOrigins ()
+            let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
+            let! categoryNames = Ledger.Persistence.loadCategoryNames ()
+            let! importLinks = Ledger.Persistence.importIdLinksForEntries [ entry.Id ]
+            let origin =
+                origins |> Map.tryFind entryGuid |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
+            return
+                ReadModel.toEntryView categoryNames categoryGroups origin entry
+                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks entryGuid)
+                |> Some
     }
 
 /// Baut das `Ledger.Persistence.EntryFilter` aus den Such-Feldern einer
@@ -447,13 +519,16 @@ let getLedgerEntriesPage (query: LedgerEntryPageQuery) : Async<LedgerEntryPage> 
         let! categoryGroups = Ledger.Persistence.loadCategoryGroups ()
         let! categoryNames = Ledger.Persistence.loadCategoryNames ()
 
+        let! importLinks = Ledger.Persistence.importIdLinksForEntries (splitEntryIds pageEntries)
+
         let views =
             pageEntries
             |> List.map (fun entry ->
                 let (EntryId id) = entry.Id
                 let origin =
                     origins |> Map.tryFind id |> Option.map ReadModel.originOf |> Option.defaultValue MirroredFromYnab
-                ReadModel.toEntryView categoryNames categoryGroups origin entry)
+                ReadModel.toEntryView categoryNames categoryGroups origin entry
+                |> ReadModel.withImportIdLock entry (currentImportIdOf importLinks id))
 
         return {
             Entries = views

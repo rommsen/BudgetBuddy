@@ -34,6 +34,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
+    SplitLocks = None
 }
 
 /// Zeile n mit dem Betrag -10 * n.

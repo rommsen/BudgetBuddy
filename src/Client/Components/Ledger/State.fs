@@ -71,6 +71,8 @@ let init () : Model * Cmd<Msg> =
         FocusedRow = None
         ReviewMarkBatchRunning = false
         CategoryPickerFor = None
+        SplitEditor = None
+        TransferTargets = NotAsked
         CategorySuggestions = []
         CategoryRows = Map.empty
         CategoryCard = None
@@ -430,6 +432,106 @@ let private applyCategoryResult
         let refresh = if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none
         finalModel, Cmd.batch [ timer; refresh ]
 
+/// Trägt das Ergebnis von `setEntrySplits` in den Zustand ein (ledger-pafkp). `lines` sind die
+/// geschickten Zeilen: eine Zeile hebt die Aufteilung auf (die Buchung trägt dann diese
+/// Kategorie), mehrere teilen auf oder ersetzen die Zeilen. Die Zeile bleibt an ihrem Platz und
+/// ungeprüft, sie wird über `LedgerEntryView.Id` ersetzt. Filter und Sortierung verhalten sich
+/// wie bei der Kategorieänderung. Scheitert der Versand nach YNAB, holt der Folgebefehl die
+/// Buchung neu (sichtbar wird so eine offene Neuanlage). Rein.
+let private applySplitResult
+    (entryId: Guid)
+    (lines: TransactionSplit list)
+    (outcome: CategoryChangeOutcome)
+    (model: Model)
+    : Model * Cmd<Msg> =
+    let cleared =
+        { model with
+            CategoryRows = model.CategoryRows |> Map.remove entryId
+            SplitEditor =
+                (match model.SplitEditor with
+                 | Some editor when editor.EntryId = entryId -> None
+                 | other -> other) }
+    match findEntry cleared entryId with
+    | None -> cleared, Cmd.none
+    | Some entry ->
+        let refresh =
+            match outcome.WriteBack with
+            | CategorySendFailed _ -> Cmd.ofMsg (RunRefreshEntry entryId)
+            | _ -> Cmd.none
+        let failure = categoryFailureOf outcome entry
+        // Erfolg beendet eine offene Neuanlage; bei einem Fehlschlag sagt erst der Abruf, was offen ist.
+        let locks =
+            match outcome.WriteBack with
+            | CategorySent -> entry.SplitLocks |> Option.map (fun l -> { l with ReplacementPending = false })
+            | _ -> entry.SplitLocks
+        if outcome.Change = CategoryUnchanged then
+            replaceEntry { entry with CategorizationWriteBackFailure = failure; SplitLocks = locks } cleared, refresh
+        else
+            let liveName (id: YnabCategoryId) (name: string) =
+                categoryOfId cleared (Some id) |> Option.map (fun c -> c.Name) |> Option.defaultValue name
+            let groupOf (id: YnabCategoryId) = categoryOfId cleared (Some id) |> Option.map (fun c -> c.GroupName)
+            let updated =
+                match lines with
+                | [ single ] ->
+                    let category =
+                        match single.Target with
+                        | ToCategory (id, name) -> Some (id, liveName id name)
+                        | _ -> None
+                    { entry with
+                        Splits = []
+                        SplitCategoryGroupNames = Map.empty
+                        CategoryId = category |> Option.map (fun (YnabCategoryId g, _) -> g)
+                        CategoryName = category |> Option.map snd
+                        CategoryGroupName = category |> Option.bind (fun (id, _) -> groupOf id)
+                        CategorizationWriteBackFailure = failure
+                        SplitLocks = locks }
+                | many ->
+                    let renamed =
+                        many
+                        |> List.map (fun s ->
+                            match s.Target with
+                            | ToCategory (id, name) -> { s with Target = ToCategory (id, liveName id name) }
+                            | _ -> s)
+                    let groups =
+                        renamed
+                        |> List.choose (fun s ->
+                            match s.Target with
+                            | ToCategory (id, _) -> groupOf id |> Option.map (fun g -> (let (YnabCategoryId guid) = id in guid), g)
+                            | _ -> None)
+                        |> Map.ofList
+                    { entry with
+                        Splits = renamed
+                        SplitCategoryGroupNames = groups
+                        CategoryId = None
+                        CategoryName = None
+                        CategoryGroupName = None
+                        CategorizationWriteBackFailure = failure
+                        SplitLocks = locks }
+            let withEntry = replaceEntry updated cleared
+            let filtered = applyFilterEffect updated withEntry
+            // Ändert sich der Schlüssel der aktiven Sortierung, sortiert die Zeile um (ADR 0055 Punkt 9).
+            let keyChanged =
+                entry.CategoryId <> updated.CategoryId || List.isEmpty entry.Splits <> List.isEmpty updated.Splits
+            let orderChanged = (effectiveSort filtered).Field = SortByCategory && keyChanged
+            let finalModel = if orderChanged then { filtered with OrderStale = true } else filtered
+            finalModel, Cmd.batch [ refresh; (if orderChanged then Cmd.ofMsg RunRefreshTotals else Cmd.none) ]
+
+/// Ist für diese Buchung ein Aufruf des Split-Wegs unterwegs?
+let private splitBusy (model: Model) (entryId: Guid) : bool =
+    (model.CategoryRows |> Map.tryFind entryId) = Some CategorySending
+
+/// Ändert den Entwurf des offenen Editors.
+let private editSplit (f: SplitEditor.SplitEditorState -> SplitEditor.SplitEditorState) (model: Model) : Model =
+    match model.SplitEditor with
+    | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = Some (f editor) }
+    | _ -> model
+
+/// Der Name eines Übertrag-Ziels aus der Kontenliste.
+let private accountNameOf (model: Model) (id: YnabAccountId) : string option =
+    match model.TransferTargets with
+    | Success accounts -> accounts |> List.tryFind (fun a -> a.Id = id) |> Option.map (fun a -> a.Name)
+    | _ -> None
+
 /// Die Auswahl als Stapel-Auftrag an den Server (ledger-nhwrt). `Picked`: die Ids der
 /// gewählten Zeilen. `AllExcept`: der ganze Treffer als Seitenanfrage (derselbe Filter wie
 /// die Liste, Seite 0, ohne lokalen Versatz) plus die abgewählten Ids; der Server löst ihn
@@ -582,6 +684,7 @@ let private keyboardBlocked (model: Model) : bool =
     model.OpenPopover.IsSome
     || model.BatchCategoryPickerOpen
     || model.CategoryPickerFor.IsSome
+    || model.SplitEditor.IsSome
     || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
 
 /// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
@@ -1421,6 +1524,168 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.none,
         NoOp
 
+    // ============================================
+    // Split-Editor im Detail (ledger-pafkp, ADR 0058)
+    // ============================================
+
+    | OpenSplitEditor entryId ->
+        // Nur für die Buchung im offenen Detail und nur, wenn die Sperren es erlauben; sonst bleibt
+        // der Editor zu (gesperrte Fälle haben Knöpfe ohne Wirkung).
+        match findEntry model entryId with
+        | Some entry when model.DetailFor |> Option.exists (fun d -> d.Id = entryId)
+                          && not entry.DeletedInYnab
+                          && (SplitEditor.lockReasonFor entry).IsNone
+                          && not (splitBusy model entryId) ->
+            let loadTargets =
+                match model.TransferTargets with
+                | Success _ | Loading -> Cmd.none
+                | _ -> Cmd.ofMsg RunLoadTransferTargets
+            { model with
+                SplitEditor = Some (SplitEditor.startState entry)
+                CategoryPickerFor = None
+                CategorySuggestions = []
+                CategoryCard = None },
+            Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets ],
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | CloseSplitEditor ->
+        match model.SplitEditor with
+        | Some editor when not (splitBusy model editor.EntryId) -> { model with SplitEditor = None }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunLoadTransferTargets ->
+        { model with TransferTargets = Loading },
+        Cmd.OfAsync.either
+            Api.ledger.getBudgetAccounts
+            ()
+            (fun result -> TransferTargetsLoaded result)
+            (fun ex -> TransferTargetsLoaded (Error ex.Message)),
+        NoOp
+
+    | TransferTargetsLoaded (Ok accounts) -> { model with TransferTargets = Success accounts }, Cmd.none, NoOp
+    | TransferTargetsLoaded (Error message) -> { model with TransferTargets = Failure message }, Cmd.none, NoOp
+
+    | AddSplitLine -> editSplit SplitEditor.addLine model, Cmd.none, NoOp
+    | RemoveSplitLine index -> editSplit (SplitEditor.removeLine index) model, Cmd.none, NoOp
+    | SetSplitLineAmount (index, text) -> editSplit (SplitEditor.setAmountText index text) model, Cmd.none, NoOp
+    | SetSplitLineMemo (index, text) -> editSplit (SplitEditor.setMemo index text) model, Cmd.none, NoOp
+    | FillSplitLineRest index -> editSplit (SplitEditor.fillRest index) model, Cmd.none, NoOp
+
+    | OpenSplitCategoryPicker index ->
+        editSplit (fun e -> { e with Picker = SplitEditor.SplitCategoryPickerFor index }) model, Cmd.ofMsg EnsureCategoriesFresh, NoOp
+
+    | OpenSplitAccountPicker index ->
+        editSplit (fun e -> { e with Picker = SplitEditor.SplitAccountPickerFor index }) model, Cmd.none, NoOp
+
+    | CloseSplitPicker -> editSplit (fun e -> { e with Picker = SplitEditor.NoSplitPicker }) model, Cmd.none, NoOp
+
+    | SelectSplitCategory (index, choice) ->
+        // `None` ist "Ohne Kategorie": die Zeile bleibt als unkategorisierte Zeile.
+        let target =
+            match choice with
+            | None -> Some Uncategorized
+            | Some id -> categoryOfId model (Some id) |> Option.map (fun c -> ToCategory (c.Id, c.Name))
+        match target with
+        | Some t -> editSplit (SplitEditor.setTarget index t) model, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | SelectSplitAccount (index, accountId) ->
+        match accountNameOf model accountId with
+        | Some name -> editSplit (SplitEditor.setTarget index (ToTransfer (accountId, name))) model, Cmd.none, NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | StartSaveSplits ->
+        match model.SplitEditor with
+        | Some editor when not (splitBusy model editor.EntryId) ->
+            match SplitEditor.requestLines editor with
+            | Some lines ->
+                { model with CategoryRows = model.CategoryRows |> Map.add editor.EntryId CategorySending },
+                Cmd.ofMsg (RunSaveSplits (editor.EntryId, lines)),
+                NoOp
+            | None -> model, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSaveSplits (entryId, lines) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntrySplits entryId)
+                lines
+                (fun result -> SplitsSaved (entryId, lines, result))
+                (fun ex -> SplitsSaved (entryId, lines, Error ex.Message))
+        model, cmd, NoOp
+
+    | SplitsSaved (entryId, lines, Ok outcome) ->
+        // Der Stand vor dem Speichern steht noch in der Liste: daraus kommt der Rückweg.
+        let before = findEntry model entryId
+        let model', cmd = applySplitResult entryId lines outcome model
+        let external =
+            match outcome.Change, outcome.WriteBack, before with
+            | CategoryUnchanged, CategorySendFailed reason, _ ->
+                ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | CategoryUnchanged, _, _ -> NoOp
+            | CategoryChanged, writeBack, Some entry ->
+                let text = SplitEditor.savedToastText lines
+                let full =
+                    match writeBack with
+                    | CategorySendFailed reason -> $"{text}. {categoryHintTitle}: {reason}"
+                    | _ -> text
+                let tone = (match writeBack with CategorySendFailed _ -> ToastWarning | _ -> ToastSuccess)
+                if SplitEditor.undoAvailable entry.SplitLocks lines then
+                    let restore = SplitEditor.undoLines (SplitEditor.startState entry).Before entry.Amount
+                    ShowToastWithAction (full, tone, { Label = SplitEditor.undoLabel; Kind = UndoSplit (entryId, restore) })
+                else
+                    ShowToast (full, tone)
+            | CategoryChanged, _, None -> NoOp
+        model', cmd, external
+
+    | SplitsSaved (entryId, _, Error message) ->
+        // Der Editor bleibt offen: der Entwurf geht nicht verloren.
+        { model with CategoryRows = model.CategoryRows |> Map.remove entryId },
+        Cmd.none,
+        ShowToast ($"Aufteilung nicht gespeichert: {message}", ToastError)
+
+    | StartUndoSplit (entryId, lines) ->
+        { model with CategoryRows = model.CategoryRows |> Map.add entryId CategorySending },
+        Cmd.ofMsg (RunUndoSplit (entryId, lines)),
+        NoOp
+
+    | RunUndoSplit (entryId, lines) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntrySplits entryId)
+                lines
+                (fun result -> SplitsRestored (entryId, lines, result))
+                (fun ex -> SplitsRestored (entryId, lines, Error ex.Message))
+        model, cmd, NoOp
+
+    | SplitsRestored (entryId, lines, Ok outcome) ->
+        // Ohne neuen Toast-Knopf: eine Aktion, ein Toast, eine Rücknahme.
+        let model', cmd = applySplitResult entryId lines outcome model
+        let external =
+            match outcome.WriteBack with
+            | CategorySendFailed reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | _ when outcome.Change = CategoryUnchanged -> NoOp
+            | _ -> ShowToast ("Aufteilung zurückgenommen", ToastSuccess)
+        model', cmd, external
+
+    | SplitsRestored (entryId, _, Error message) ->
+        { model with CategoryRows = model.CategoryRows |> Map.add entryId (CategoryCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | RunRefreshEntry entryId ->
+        model,
+        Cmd.OfAsync.either
+            Api.ledger.getLedgerEntry
+            entryId
+            (fun result -> EntryRefreshed (entryId, Ok result))
+            (fun ex -> EntryRefreshed (entryId, Error ex.Message)),
+        NoOp
+
+    | EntryRefreshed (_, Ok (Some view)) -> replaceEntry view model, Cmd.none, NoOp
+    | EntryRefreshed _ -> model, Cmd.none, NoOp
+
     | CategoryCardExpired version ->
         match model.CategoryCard with
         | Some card when card.Version = version -> { model with CategoryCard = None }, Cmd.none, NoOp
@@ -1740,6 +2005,11 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             { model with OpenPopover = None }, Cmd.none, NoOp
         elif model.BatchCategoryPickerOpen then
             { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
+        elif model.SplitEditor.IsSome then
+            // Erst die Auswahl über dem Editor, dann der Editor selbst (Entwurf verworfen).
+            match model.SplitEditor with
+            | Some editor when editor.Picker <> SplitEditor.NoSplitPicker -> updateCore CloseSplitPicker model
+            | _ -> updateCore CloseSplitEditor model
         elif model.CategoryPickerFor.IsSome then
             { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
         elif model.DetailFor.IsSome then
@@ -1767,6 +2037,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             { model' with BatchCategoryPickerOpen = false }
         else
             model'
+    // Der Split-Editor gehört ebenfalls zur Buchung im offenen Detail; ohne sie ist der Entwurf verworfen.
+    let model' =
+        match model'.SplitEditor with
+        | Some editor when not (model'.DetailFor |> Option.exists (fun d -> d.Id = editor.EntryId)) ->
+            { model' with SplitEditor = None }
+        | _ -> model'
     // Picker und Karte gehören zur Buchung im offenen Detail: schließt das Detail oder wechselt
     // es auf eine andere Buchung (Klick, Pfeiltaste, Esc, Kontowechsel), enden beide.
     let detailId = model'.DetailFor |> Option.map (fun d -> d.Id)

@@ -41,6 +41,7 @@ let private entryView (accId: Guid) (date: DateTime) (payee: string) : LedgerEnt
     CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
+    SplitLocks = None
 }
 
 let private splitLine (amount: decimal) : TransactionSplit = {

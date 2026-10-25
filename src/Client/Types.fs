@@ -189,6 +189,10 @@ type ToastActionKind =
     /// "Rückgängig" nach einer Kategorieänderung im Detail (ledger-sfab0, ADR 0055 Nachtrag):
     /// die vorherige Kategorie kommt aus der Antwort des Befehls (`None`: ohne Kategorie).
     | UndoCategory of entryId: Guid * previous: Shared.Domain.CategoryChoice option
+    /// "Rückgängig" nach dem Aufteilen, Ändern oder Aufheben (ledger-pafkp, ADR 0058): die Zeilen
+    /// vor dem Speichern gehen über `setEntrySplits` zurück (eine Zeile der alten Kategorie, wenn
+    /// die Buchung unaufgeteilt war).
+    | UndoSplit of entryId: Guid * restore: Shared.Domain.TransactionSplit list
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

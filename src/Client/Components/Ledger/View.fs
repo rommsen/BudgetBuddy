@@ -17,6 +17,11 @@ open Types
 open Components.Ledger.Types
 open Client.DesignSystem
 
+/// Der Split-Editor: Bausteine im Design-System, Rechnung und Entwurf im Kassenbuch. Die Namen
+/// sind getrennt, weil beide Module `SplitEditor` heißen.
+module SplitUi = Client.DesignSystem.SplitEditor
+module SplitLogic = Components.Ledger.SplitEditor
+
 // ============================================
 // Formatierung
 // ============================================
@@ -1287,6 +1292,8 @@ let categoryArrowMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     | CategoryEditable ->
         if model.CategoryPickerFor = Some entry.Id then Some CloseCategoryPicker
         else Some (OpenCategoryPicker entry.Id)
+    // Bei einer Split-Buchung öffnet der Pfeil den Split-Editor (ledger-pafkp).
+    | CategoryOpensSplitEditor -> Some (OpenSplitEditor entry.Id)
     | _ -> None
 
 /// Die Kategorie-Zeile mit Pfeil, Picker (Popover oder Sheet) und, nach einer Änderung,
@@ -1313,7 +1320,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
             prop.className "relative"
             prop.children [
                 Detail.fieldRowWith
-                    (if lock = CategoryEditable then Some onArrow else None)
+                    (if arrowMsg.IsSome then Some onArrow else None)
                     "detail-category"
                     "Kategorie"
                     (Detail.valueText valueColor (categoryLabelQualified entry))
@@ -1340,6 +1347,44 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                 prop.children [ CategoryPicker.CategoryChangeCard.view lines ]
             ]
     ]
+
+/// Die Nachricht des festen Knopfs im Feld Split ("Aufteilen" bzw. "Ändern"): öffnet den Editor,
+/// wenn die Sperren der Buchung es erlauben, sonst nichts (ledger-pafkp).
+let splitActionMsg (entry: LedgerEntryView) : Msg option =
+    if entry.DeletedInYnab || (SplitLogic.lockReasonFor entry).IsSome then None else Some (OpenSplitEditor entry.Id)
+
+/// Der Grund, aus dem das Feld Split gesperrt ist. Eine in YNAB gelöschte Buchung nennt ihren
+/// eigenen Hinweis, sonst kommt der Grund aus den Sperren, die der Lesepfad liefert.
+let splitLockTextFor (entry: LedgerEntryView) : string option =
+    if entry.DeletedInYnab then Some "In YNAB gelöscht, die Buchung lässt sich nicht aufteilen"
+    else SplitLogic.lockReasonFor entry
+
+/// Das Feld Split: "Kein Split" mit festem Knopf "Aufteilen", bei einer aufgeteilten Buchung die
+/// Zeilen mit Vorzeichen und der Knopf "Ändern" (ledger-pafkp, Tafel 4.4, 4.7, 4.9).
+let private splitField (dispatch: Msg -> unit) (entry: LedgerEntryView) : ReactElement =
+    let lockText = splitLockTextFor entry
+    let value =
+        Html.div [
+            prop.className "flex min-w-0 flex-col"
+            prop.children [
+                match splitLineTexts entry with
+                | [] -> Detail.valueText Tokens.Colors.textMuted "Kein Split"
+                | lines -> Detail.splitLines lines
+                match lockText with
+                | Some text -> Detail.splitLockHint text
+                | None -> ()
+            ]
+        ]
+    Detail.fieldRow
+        "detail-split"
+        "Split"
+        value
+        (Some (
+            Detail.splitActionButton
+                (SplitLogic.splitActionLabel entry)
+                lockText
+                (fun () -> splitActionMsg entry |> Option.iter dispatch)
+        ))
 
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
@@ -1388,13 +1433,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
            elif isWithoutCategory entry then Tokens.Colors.neonOrange
            else Tokens.Colors.textPrimary)
 
-      Detail.fieldRow
-          "detail-split"
-          "Split"
-          (match splitLineTexts entry with
-           | [] -> Detail.valueText Tokens.Colors.textMuted "Kein Split"
-           | lines -> Detail.splitLines lines)
-          None
+      splitField dispatch entry
 
       Detail.fieldRow
           "detail-memo"
@@ -1425,27 +1464,196 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
       historyView dispatch entry model.History ]
 
 /// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`).
+// ============================================
+// Split-Editor (ledger-pafkp, ADR 0058, Handoff Ablauf 4)
+// ============================================
+
+/// Die wählbaren Übertrag-Ziele einer Zeile: die offenen Budget-Konten des Budgets
+/// (`openOnBudgetAccounts`), ohne das eigene Konto der Buchung. Solange die Liste nicht geladen
+/// ist, ist sie leer.
+let transferTargetsFor (model: Model) (entry: LedgerEntryView) : YnabAccount list =
+    let own =
+        match model.Accounts with
+        | Success view ->
+            view.Accounts
+            |> List.tryFind (fun a -> a.Id = entry.AccountId)
+            |> Option.bind (fun a -> a.YnabAccountId)
+        | _ -> None
+    match model.TransferTargets with
+    | Success accounts -> openOnBudgetAccounts accounts |> List.filter (fun a -> Some a.Id <> own)
+    | _ -> []
+
+let private isSavingSplit (model: Model) (editor: SplitLogic.SplitEditorState) : bool =
+    (model.CategoryRows |> Map.tryFind editor.EntryId) = Some CategorySending
+
+/// Gesamtbetrag und Rest über den Zeilen. Beträge ohne Vorzeichen, wie die Eingabe; die Rest-Farbe
+/// folgt der Klasse des Import-Editors (ADR 0049): neutral bei 0,00 €, Warnfarbe sonst.
+let splitSummaryProps (editor: SplitLogic.SplitEditorState) : SplitUi.SummaryProps =
+    let rest = SplitLogic.remainder editor
+    let text (value: decimal) = Money.formatAmountText false true value editor.Total.Currency
+    { TotalText = text (abs editor.Total.Amount)
+      RestText = text rest
+      RestWarn = rest <> 0m
+      Balanced = rest = 0m }
+
+let private lineCategoryId (line: SplitLogic.SplitDraftLine) : YnabCategoryId option =
+    match line.Target with
+    | Some (ToCategory (id, _)) -> Some id
+    | _ -> None
+
+/// Der Picker einer Zeile: dieselben Props wie im Kategorie-Feld, ohne Vorschläge zum Payee.
+let private splitCategoryPickerProps
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (index: int)
+    (line: SplitLogic.SplitDraftLine)
+    : CategoryPicker.CategoryPickerProps =
+    { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
+      Current = lineCategoryId line
+      Suggested = []
+      StandLabel = categoryStandLabel model DateTime.Now
+      LoadState = categoryLoadState model.Categories
+      OnRetry = fun () -> dispatch LoadCategories
+      OnSelect = fun choice -> dispatch (SelectSplitCategory (index, choice))
+      OnClose = fun () -> dispatch CloseSplitPicker }
+
+let private splitAccountPickerProps
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (entry: LedgerEntryView)
+    (index: int)
+    : AccountPicker.AccountPickerProps =
+    { Accounts = transferTargetsFor model entry
+      OnSelect = fun id -> dispatch (SelectSplitAccount (index, id))
+      OnClose = fun () -> dispatch CloseSplitPicker }
+
+/// Der Inhalt des Editors, für Panel und Sheet derselbe: Summe, Zeilen, "Zeile hinzufügen". Der
+/// Kategorie-Picker je Zeile ist am PC ein Popover unter der Zeile, am Handy ein zweites Sheet über
+/// dem Detail (ADR 0005); das Übertrag-Ziel läuft genauso über die Konto-Auswahl.
+let private splitEditorBody
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (entry: LedgerEntryView)
+    (editor: SplitLogic.SplitEditorState)
+    : ReactElement list =
+    let saving = isSavingSplit model editor
+    let placement = categoryPickerPlacement model.DetailForm
+    let lineCount = List.length editor.Lines
+    [ yield SplitUi.summary (splitSummaryProps editor)
+      for index, line in List.indexed editor.Lines do
+          yield
+              Html.div [
+                  prop.key (string index)
+                  prop.className "relative"
+                  prop.children [
+                      SplitUi.line
+                          { Index = index
+                            TargetLabel = SplitLogic.targetLabel line
+                            TargetChosen = line.Target.IsSome
+                            IsTransfer = SplitLogic.isTransferLine line
+                            AmountText = line.AmountText
+                            Memo = line.Memo
+                            Disabled = saving
+                            CanRemove = lineCount > 1
+                            OnPickCategory = fun () -> dispatch (OpenSplitCategoryPicker index)
+                            OnPickAccount = fun () -> dispatch (OpenSplitAccountPicker index)
+                            OnAmount = fun text -> dispatch (SetSplitLineAmount (index, text))
+                            OnMemo = fun text -> dispatch (SetSplitLineMemo (index, text))
+                            OnRest = fun () -> dispatch (FillSplitLineRest index)
+                            OnRemove = fun () -> dispatch (RemoveSplitLine index) }
+                      match placement with
+                      | PickerPopover ->
+                          CategoryPicker.popoverInPanel
+                              (editor.Picker = SplitLogic.SplitCategoryPickerFor index)
+                              (splitCategoryPickerProps dispatch model index line)
+                          AccountPicker.popoverInPanel
+                              (editor.Picker = SplitLogic.SplitAccountPickerFor index)
+                              (splitAccountPickerProps dispatch model entry index)
+                      | PickerSheet -> ()
+                  ]
+              ]
+      yield SplitUi.addLineButton (SplitLogic.canAddLine editor && not saving) (fun () -> dispatch AddSplitLine)
+      match placement with
+      | PickerSheet ->
+          let pickerIndex =
+              match editor.Picker with
+              | SplitLogic.SplitCategoryPickerFor i | SplitLogic.SplitAccountPickerFor i -> i
+              | SplitLogic.NoSplitPicker -> 0
+          match List.tryItem pickerIndex editor.Lines with
+          | Some line ->
+              let subtitle =
+                  $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
+              yield
+                  CategoryPicker.sheetLayered
+                      (editor.Picker = SplitLogic.SplitCategoryPickerFor pickerIndex)
+                      (Some subtitle)
+                      (splitCategoryPickerProps dispatch model pickerIndex line)
+              yield
+                  AccountPicker.sheetLayered
+                      (editor.Picker = SplitLogic.SplitAccountPickerFor pickerIndex)
+                      (splitAccountPickerProps dispatch model entry pickerIndex)
+          | None -> ()
+      | PickerPopover -> () ]
+
+/// Der Editor im offenen Detail dieser Buchung, sonst `None`.
+let splitEditorFor (model: Model) (entry: LedgerEntryView) : SplitLogic.SplitEditorState option =
+    model.SplitEditor |> Option.filter (fun e -> e.EntryId = entry.Id)
+
+/// Das Detail als Seitenpanel (PC). Gerendert in der Spalte der Liste (`FilterBarColumn`). Mit
+/// offenem Editor ersetzt er die Felder; Kopf und Hülle bleiben, die Fußleiste trägt "Abbrechen"
+/// und "Speichern".
 let private detailPanelView (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement =
-    Detail.panel
-        $"Detail {payeeLabel entry}"
-        [ detailHead model entry (Some (fun () -> dispatch CloseDetail))
-          Detail.scrollBody (detailContent dispatch model entry) ]
+    match splitEditorFor model entry with
+    | Some editor ->
+        let saving = isSavingSplit model editor
+        Detail.panel
+            $"Aufteilen {payeeLabel entry}"
+            [ detailHead model entry (Some (fun () -> dispatch CloseDetail))
+              // Die Fußleiste steht im scrollenden Bereich, am unteren Rand haftend: bei wenigen Zeilen
+              // folgt sie dem Inhalt, bei vielen bleibt sie sichtbar. Als eigene Zeile unter dem
+              // Panel läge sie bei einer kurzen Liste unterhalb des Fensters.
+              Detail.scrollBody (
+                  [ yield Detail.sectionLabel "AUFTEILEN"
+                    yield! splitEditorBody dispatch model entry editor
+                    yield
+                        SplitUi.footer
+                            (SplitLogic.canSave editor && not saving)
+                            saving
+                            (fun () -> dispatch CloseSplitEditor)
+                            (fun () -> dispatch StartSaveSplits) ]
+              ) ]
+    | None ->
+        Detail.panel
+            $"Detail {payeeLabel entry}"
+            [ detailHead model entry (Some (fun () -> dispatch CloseDetail))
+              Detail.scrollBody (detailContent dispatch model entry) ]
 
 /// Das Detail als BottomSheet (Handy, Kompaktliste, zu schmales Fenster für das Panel).
 /// Das Sheet bringt Titel und Schließen-Knopf mit; der Kopf mit Betrag und Payee steht
-/// im Inhalt.
+/// im Inhalt. Mit offenem Editor heißt es "Aufteilen" mit Payee und Datum als Unterzeile, der
+/// Schließen-Knopf kehrt zum Detail zurück, und "Speichern" klebt unten (kein "Abbrechen").
 let private detailSheetView (dispatch: Msg -> unit) (model: Model) (open': bool) : ReactElement =
     let entry = detailEntryOf model
+    let editor = entry |> Option.bind (splitEditorFor model)
     BottomSheet.view
         { IsOpen = open' && entry.IsSome
-          OnClose = fun () -> dispatch CloseDetail
-          Title = "Buchung"
-          Subtitle = None
-          Footer = None }
+          OnClose = (fun () -> dispatch (if editor.IsSome then CloseSplitEditor else CloseDetail))
+          Title = (if editor.IsSome then "Aufteilen" else "Buchung")
+          Subtitle =
+            (match entry, editor with
+             | Some e, Some _ -> Some $"{payeeLabel e} · {formatDateFull e.Date}"
+             | _ -> None)
+          Footer =
+            (match editor with
+             | Some ed ->
+                 let saving = isSavingSplit model ed
+                 Some [ SplitUi.saveButton true (SplitLogic.canSave ed && not saving) saving (fun () -> dispatch StartSaveSplits) ]
+             | None -> None) }
         // Der Inhalt steht nur im DOM, solange das Sheet offen ist: ein geschlossenes Sheet bliebe
         // sonst als verstecktes Doppel neben dem Panel stehen.
-        [ match entry with
-          | Some entry when open' ->
+        [ match entry, editor with
+          | Some entry, Some ed when open' -> yield! splitEditorBody dispatch model entry ed
+          | Some entry, None when open' ->
               detailHead model entry None
               yield! detailContent dispatch model entry
           | _ -> () ]

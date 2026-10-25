@@ -851,6 +851,21 @@ type LedgerPushFailure = {
     FailedAt: DateTime
 }
 
+/// Die Sperren des Split-Schreibwegs für eine Buchung, abgeleitet im Lesepfad nach denselben
+/// Regeln wie der Befehl `setEntrySplits` (ledger-pafkp, ADR 0058 Punkt 2, 6 und 7). `None` an
+/// der Buchung heißt: nichts gesperrt, nichts offen (auch bei Antworten eines älteren Servers).
+type SplitLocks = {
+    /// Grund, warum die Buchung sich nicht aufteilen lässt (in YNAB gelöscht, abgeglichen,
+    /// Tracking-Konto, Übertrag zwischen Budget-Konten). `None`, wenn Aufteilen erlaubt ist.
+    CannotSplitReason: string option
+    /// Grund, warum die Zeilen einer Split-Buchung sich nicht ändern oder aufheben lassen:
+    /// alle Gründe von `CannotSplitReason` plus eine `import_id`, die nicht mit `BB:` beginnt.
+    CannotChangeReason: string option
+    /// Das DELETE in YNAB ist gelungen, die Neuanlage steht noch aus ("in YNAB gelöscht,
+    /// Neuanlage offen"); "Erneut senden" legt nur an.
+    ReplacementPending: bool
+}
+
 /// Eine Buchung, wie die Kassenbuch-Seite sie zeigt.
 type LedgerEntryView = {
     Id: Guid
@@ -909,6 +924,9 @@ type LedgerEntryView = {
     /// Punkt 2, Nachtrag ledger-rynk5). `None`, wenn nichts offen ist; die Verknüpfung
     /// mit YNAB löst ihn auf.
     PushToYnabFailure: LedgerPushFailure option
+    /// Die Sperren des Split-Schreibwegs (ledger-pafkp). `None`: nichts gesperrt und nichts
+    /// offen, auch für Antworten eines älteren Servers, der das Feld nicht kennt.
+    SplitLocks: SplitLocks option
 }
 
 // ============================================

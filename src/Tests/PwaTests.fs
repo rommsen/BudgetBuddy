@@ -73,6 +73,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     CategorizationWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
+    SplitLocks = None
 }
 
 let private noticeToasts (m: State.Model) =
