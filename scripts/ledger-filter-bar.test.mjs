@@ -153,8 +153,8 @@ beforeEach(async () => {
 
 test("Die Kategorienauswahl öffnet als Popover unter dem Chip, mit den geladenen Kategorien (AC5)", async () => {
   await categoryChip().click();
-  await popover().getByText("Lebensmittel", { exact: true }).waitFor();
-  assert.ok(await popover().getByText("Bahn", { exact: true }).isVisible(), "Bahn steht in der Liste");
+  await popover().getByText("Lebensmittel", { exact: true }).last().waitFor();
+  assert.ok(await popover().getByText("Bahn", { exact: true }).last().isVisible(), "Bahn steht in der Liste");
   assert.ok(await popover().getByText("Nebenkosten", { exact: true }).isVisible(), "Nebenkosten steht in der Liste");
 
   // AC5: Available rechtsbündig, wenn vorhanden (Lebensmittel: 120,50 €), sonst leer (Bahn: kein Available in der Fixture).
@@ -172,7 +172,7 @@ test("Die Kategorienauswahl öffnet als Popover unter dem Chip, mit den geladene
 
 test("Click-Commit: Antippen wirkt erst auf 'Übernehmen', der Filter bleibt bis dahin unverändert (AC)", async () => {
   await categoryChip().click();
-  await popover().getByText("Lebensmittel", { exact: true }).click();
+  await popover().getByText("Lebensmittel", { exact: true }).last().click();
   assert.ok(await popover().getByRole("button", { name: "Übernehmen (1)" }).isVisible(), "Der Zähler steht auf 1");
   // Vor 'Übernehmen' bleibt der Chip inaktiv (Filter noch nicht committet).
   assert.equal(await categoryChip().innerText(), "Kategorie", "Der Chip zeigt noch keinen Zähler");
@@ -332,8 +332,8 @@ test("Zwei Kategorien gewählt und übernommen zeigen die Vereinigung beider Kat
   assert.equal(await page.getByText(/^\d+ Buchungen$/).count(), 0, "Ohne aktiven Filter steht keine Summenzeile");
 
   await categoryChip().click();
-  await popover().getByText("Lebensmittel", { exact: true }).click();
-  await popover().getByText("Bahn", { exact: true }).click();
+  await popover().getByText("Lebensmittel", { exact: true }).last().click();
+  await popover().getByText("Bahn", { exact: true }).last().click();
   await popover().getByRole("button", { name: "Übernehmen (2)" }).click();
 
   assert.equal(await categoryChip().innerText(), "Kategorie: 2", "Der Chip zeigt die Anzahl (AC 'Kategorie: 2')");
@@ -345,15 +345,16 @@ test("Zwei Kategorien gewählt und übernommen zeigen die Vereinigung beider Kat
   assert.ok(await table().getByText("Deutsche Bahn", { exact: true }).isVisible(), "Bahn-Treffer ist da");
   assert.equal(await table().getByText("Stadtwerke Musterstadt", { exact: true }).count(), 0, "Nebenkosten ist NICHT im Treffer");
 
-  assert.ok(await page.getByText("3 Buchungen", { exact: true }).isVisible(), "Trefferzahl über den ganzen Treffer (AC)");
+  // Am PC folgt der Filter im Klartext hinter der Trefferzahl (ledger-v9rq3).
+  assert.ok((await page.getByTestId("ledger-summary-text").innerText()).startsWith("3 Buchungen"), "Trefferzahl über den ganzen Treffer (AC)");
   // Summe: -(10+1) + -(10+2) + -(10+3) = -36,00 €.
-  const summaryText = await page.getByText("3 Buchungen", { exact: true }).locator("xpath=..").innerText();
+  const summaryText = await page.getByTestId("ledger-summary-text").locator("xpath=..").innerText();
   assert.match(summaryText, /36,00/, `Die Summe über den ganzen Treffer muss -36,00 € zeigen, war: ${summaryText}`);
 });
 
 test("'×' am Kategorie-Chip entfernt genau diesen Filter, die Summenzeile verschwindet wieder (AC)", async () => {
   await categoryChip().click();
-  await popover().getByText("Lebensmittel", { exact: true }).click();
+  await popover().getByText("Lebensmittel", { exact: true }).last().click();
   await popover().getByRole("button", { name: "Übernehmen (1)" }).click();
   assert.equal(await categoryChip().innerText(), "Kategorie: 1");
 
@@ -367,7 +368,7 @@ test("'Alle Filter löschen' erscheint nur bei aktivem Filter und setzt ihn zur�
   assert.equal(await page.getByRole("button", { name: "Alle Filter löschen" }).count(), 0, "Ohne Filter fehlt der Knopf");
 
   await categoryChip().click();
-  await popover().getByText("Bahn", { exact: true }).click();
+  await popover().getByText("Bahn", { exact: true }).last().click();
   await popover().getByRole("button", { name: "Übernehmen (1)" }).click();
   assert.ok(await page.getByRole("button", { name: "Alle Filter löschen" }).isVisible(), "Mit aktivem Filter steht der Knopf da");
 
@@ -378,7 +379,7 @@ test("'Alle Filter löschen' erscheint nur bei aktivem Filter und setzt ihn zur�
 
 test("Ohne Treffer steht ein Leerzustand mit einer nächsten Handlung da (AC)", async () => {
   await categoryChip().click();
-  await popover().getByText("Apotheke", { exact: true }).click();
+  await popover().getByText("Apotheke", { exact: true }).last().click();
   await popover().getByRole("button", { name: "Übernehmen (1)" }).click();
 
   await page.getByText("Kein Treffer", { exact: true }).waitFor();

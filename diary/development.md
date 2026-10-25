@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 18:10 - Liste im Prüf-Zustand (ledger-v9rq3)
+
+**What I did:**
+Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext. Leerzustände Alles geprüft und Alles kategorisiert. Zuletzt verwendet im Kategorie-Filter (localStorage), Übernehmen erst mit Änderung.
+
+**Files Added:**
+- `src/Tests/LedgerReviewStateTests.fs` - 13 Tests für Prädikat, Klartext, Leerzustand, Zuletzt verwendet, Übernehmen
+- `scripts/ledger-review-state.test.mjs` - 3 Playwright-Tests (PC, Handy, Kategorie-Filter)
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - hasSummaryFilter, filterPlainText, emptyListKind, Recent-Helfer, Modellfeld RecentCategories
+- `src/Client/Components/Ledger/State.fs` - init liest Recents, ApplyCategoryFilter merkt sie und sperrt Unverändertes
+- `src/Client/Components/Ledger/View.fs` - summaryState, summaryRow mit Klartext, Leerzustände, Props für die Kategorienauswahl
+- `src/Client/DesignSystem/CategoryMultiSelect.fs`, `PickerParts.fs` - Recent, ApplyDisabled, footerWhen
+- `src/Client/Components/Styleguide/View.fs` - neue Props neutral gefüllt
+- `src/Tests/LedgerSelectionTests.fs`, `Tests.fsproj`, `scripts/ledger-filter-bar.test.mjs` - angepasst bzw. eingehängt
+
+**Rationale:**
+Der tägliche Prüf-Durchgang verlor die Summenzeile, und nach dem letzten Prüfen sah die Liste aus, als fehlten Daten.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 2070 dotnet grün, 219 Skript-Tests grün
+- Issues: keine
+
+---
+
 ## 2026-10-25 14:00 - Split-Editor im Kassenbuch (ledger-pafkp)
 
 **What I did:**

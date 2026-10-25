@@ -2192,6 +2192,13 @@ let private entryListDesktop
             ]
     ]
 
+/// Das Konto für den Klartext-Filter: Kontoname oder "alle Konten".
+let accountScopeText (accounts: LedgerAccountView list) (selected: AccountFilter option) : string =
+    match selected with
+    | Some (OneAccount id) ->
+        accounts |> List.tryFind (fun a -> a.Id = id) |> Option.map (fun a -> a.Name) |> Option.defaultValue "alle Konten"
+    | _ -> "alle Konten"
+
 let private entryList
     (dispatch: Msg -> unit)
     (accounts: LedgerAccountView list)
@@ -2225,7 +2232,24 @@ let private entryList
             message
             (Some (fun () -> dispatch LoadEntries))
 
-    | Success [] when hasAnyFilter model.Filters ->
+    | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.AllReviewed ->
+        // Nach dem letzten Prüfen fehlt nichts: kein "Jetzt spiegeln" (ledger-v9rq3).
+        let scope = accountScopeText accounts model.SelectedFilter
+        Card.emptyState
+            (Icons.check Icons.XL Icons.Default)
+            "Alles geprüft"
+            (if scope = "alle Konten" then "In allen Konten steht nichts mehr zu prüfen." else $"In {scope} steht nichts mehr zu prüfen.")
+            None
+
+    | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.AllCategorized ->
+        let scope = accountScopeText accounts model.SelectedFilter
+        Card.emptyState
+            (Icons.check Icons.XL Icons.Default)
+            "Alles kategorisiert"
+            (if scope = "alle Konten" then "In allen Konten hat jede Buchung eine Kategorie." else $"In {scope} hat jede Buchung eine Kategorie.")
+            None
+
+    | Success [] when emptyListKind model.OnlyNeedsReview model.Filters = EmptyListKind.NoMatch ->
         // AC "Leerzustand ohne Treffer": nennt eine nächste Handlung, statt nur
         // Leere zu melden, anders als der Fall ohne jeden Filter (Zweig darunter),
         // der auf den fehlenden Spiegel-Lauf hinweist.
@@ -2233,7 +2257,7 @@ let private entryList
             (Icons.banknotes Icons.XL Icons.Default)
             "Kein Treffer"
             "Filter lockern oder alle Filter löschen."
-            (Some (Button.secondary "Alle Filter löschen" (fun () -> dispatch ClearAllFilters)))
+            (if hasAnyFilter model.Filters then Some (Button.secondary "Alle Filter löschen" (fun () -> dispatch ClearAllFilters)) else None)
 
     | Success [] ->
         Card.emptyState
@@ -2320,6 +2344,10 @@ let private categoryPickerBody (dispatch: Msg -> unit) (model: Model) (categorie
         Selected = model.CategoryDraft
         Search = model.CategorySearch
         HiddenExpanded = model.HiddenCategoriesExpanded
+        Recent =
+            model.RecentCategories
+            |> List.choose (fun g -> categories |> List.tryFind (fun c -> let (YnabCategoryId id) = c.Id in id = g))
+        ApplyDisabled = categoryApplyDisabled model.CategoryDraft model.Filters.CategoryIds
         OnToggle = fun guid -> dispatch (ToggleCategoryDraft guid)
         OnSearchChange = fun text -> dispatch (SetCategorySearch text)
         OnToggleHiddenExpanded = fun () -> dispatch ToggleHiddenCategoriesExpanded
@@ -2651,7 +2679,7 @@ type SummaryState =
     | Ready
 
 let summaryState (model: Model) : SummaryState =
-    if not (hasAnyFilter model.Filters) then
+    if not (hasSummaryFilter model.OnlyNeedsReview model.Filters) then
         SummaryState.Hidden
     else
         match model.Entries with
@@ -2669,7 +2697,13 @@ let summaryCountText (count: int) : string =
 /// Filter aktiv ist; Trefferzahl und Summe über den ganzen Treffer, nicht die Seite
 /// (beide kommen unverändert vom Server, `model.TotalCount`/`model.TotalAmount`).
 /// Ohne Karte, eine schlanke Zeile; beim Laden bleibt sie als Skeleton stehen.
-let private summaryRow (model: Model) : ReactElement =
+/// Die Namen der gewählten Kategorien in Listenreihenfolge der Kategorien (unbekannte entfallen).
+let private selectedCategoryNames (categories: YnabCategory list) (ids: Guid Set) : string list =
+    categories
+    |> List.filter (fun c -> let (YnabCategoryId g) = c.Id in ids.Contains g)
+    |> List.map (fun c -> c.Name)
+
+let private summaryRow (accounts: LedgerAccountView list) (categories: YnabCategory list) (model: Model) : ReactElement =
     match summaryState model with
     | SummaryState.Hidden -> Html.none
     | state ->
@@ -2683,7 +2717,19 @@ let private summaryRow (model: Model) : ReactElement =
                 | _ ->
                     Html.span [
                         prop.className Tokens.ListRoles.secondary
-                        prop.text (summaryCountText model.TotalCount)
+                        prop.custom ("data-testid", "ledger-summary-text")
+                        prop.text (
+                            if Viewport.isDesktopViewport () then
+                                let plain =
+                                    filterPlainText
+                                        (accountScopeText accounts model.SelectedFilter)
+                                        model.OnlyNeedsReview
+                                        (selectedCategoryNames categories model.Filters.CategoryIds)
+                                        model.Filters
+                                $"{summaryCountText model.TotalCount} · {plain}"
+                            else
+                                summaryCountText model.TotalCount
+                        )
                     ]
                     Money.listAmount model.TotalAmount.Amount model.TotalAmount.Currency
             ]
@@ -2698,8 +2744,8 @@ let private selectionSummaryRow (model: Model) : ReactElement =
     MultiSelect.summaryRow (selectionSummaryText totals.Count model.TotalCount) totals.Amount
 
 /// Summenzeile über der Liste: die Auswahl, wenn eine läuft, sonst der Treffer.
-let private summaryOrSelectionRow (model: Model) : ReactElement =
-    if hasSelection model then selectionSummaryRow model else summaryRow model
+let private summaryOrSelectionRow (accounts: LedgerAccountView list) (categories: YnabCategory list) (model: Model) : ReactElement =
+    if hasSelection model then selectionSummaryRow model else summaryRow accounts categories model
 
 /// Steht der Tastaturhinweis da? Nur mit geladenen Zeilen und ohne Auswahl, an deren Stelle
 /// die Leiste tritt. In der Kompaktliste nur mit Maus (ledger-m6zpd): das Modellfeld
@@ -2959,7 +3005,7 @@ let private FilterBarColumn
                     Loading.inlineWithText "Spiegel läuft — die Liste bleibt so lange stehen."
 
                 filterChipBar dispatch model categories (visibleColumns tableWidth isAllAccounts = CompactList) isAllAccounts (Some barCallbackRef)
-                summaryOrSelectionRow model
+                summaryOrSelectionRow accounts categories model
                 deletedToggleRow dispatch model
                 orderStaleBar dispatch model
                 entryList dispatch accounts isAllAccounts tableWidth panelOpen model

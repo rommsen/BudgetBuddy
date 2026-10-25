@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 8
 - **Todo:** 1
-- **Doing:** 4
-- **Done:** 82
+- **Doing:** 3
+- **Done:** 83
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,13 +24,13 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **ledger-ybmqc** — "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen" (feature) — `doing/ledger-ybmqc-konto-wahl-merken-und-handy-wechsler.md`
-- **ledger-v9rq3** — "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl" (feature) — `doing/ledger-v9rq3-liste-im-pruef-zustand.md`
 - **ledger-cks06** — "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push" (feature) — `doing/ledger-cks06-noch-nicht-in-ynab-vollstaendig.md`
 - **ledger-xfjcp** — "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand" (feature) — `doing/ledger-xfjcp-lena-zuweisen-statt-flag.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-v9rq3** — "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl" (feature) — `done/ledger-v9rq3-liste-im-pruef-zustand.md`
 - **ledger-pafkp** — "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast" (feature) — `done/ledger-pafkp-split-editor-im-kassenbuch.md`
 - **ledger-w29y6** — "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle" (feature) — `done/ledger-w29y6-kategorie-setzen-fuer-die-auswahl.md`
 - **ledger-m6zpd** — "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute" (feature) — `done/ledger-m6zpd-kompaktliste-nach-eingabegeraet.md`

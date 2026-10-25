@@ -14,6 +14,10 @@ type CategoryMultiSelectProps = {
     Selected: Guid Set
     Search: string
     HiddenExpanded: bool
+    /// Zuletzt verwendete Kategorien (höchstens 5), über der Gruppenliste; leer blendet den Abschnitt aus
+    Recent: YnabCategory list
+    /// Übernehmen gesperrt, solange die Auswahl dem aktiven Filter gleicht
+    ApplyDisabled: bool
     OnToggle: Guid -> unit
     OnSearchChange: string -> unit
     OnToggleHiddenExpanded: unit -> unit
@@ -30,13 +34,15 @@ let private categoryMatchesSearch (search: string) (c: YnabCategory) : bool =
     || c.Name.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
     || c.GroupName.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
 
-let private categoryRow (props: CategoryMultiSelectProps) (c: YnabCategory) =
+let private categoryRowKeyed (keyPrefix: string) (props: CategoryMultiSelectProps) (c: YnabCategory) =
     let guid = categoryGuidOf c.Id
     PickerParts.row
         "py-2"
-        [ prop.key (string guid) ]
+        [ prop.key (keyPrefix + string guid) ]
         (Input.checkboxListRow (props.Selected.Contains guid) (fun _ -> props.OnToggle guid) c.Name)
         (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
+
+let private categoryRow (props: CategoryMultiSelectProps) (c: YnabCategory) = categoryRowKeyed "" props c
 
 let view (props: CategoryMultiSelectProps) : ReactElement =
     let visibleGroups =
@@ -54,6 +60,19 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
             Html.div [
                 prop.className "flex flex-col gap-3 max-h-72 overflow-y-auto"
                 prop.children [
+                    if not (List.isEmpty props.Recent) && String.IsNullOrWhiteSpace props.Search then
+                        Html.div [
+                            prop.key "zuletzt-verwendet"
+                            prop.custom ("data-testid", "category-recent")
+                            prop.children [
+                                PickerParts.groupHeader "Zuletzt verwendet"
+                                Html.div [
+                                    prop.className "flex flex-col"
+                                    prop.children (props.Recent |> List.map (categoryRowKeyed "recent-" props))
+                                ]
+                            ]
+                        ]
+
                     for (groupName, items) in visibleGroups do
                         Html.div [
                             prop.key groupName
@@ -92,6 +111,6 @@ let view (props: CategoryMultiSelectProps) : ReactElement =
                 ]
             ]
 
-            PickerParts.footer (Set.count props.Selected) props.OnReset props.OnApply
+            PickerParts.footerWhen props.ApplyDisabled (Set.count props.Selected) props.OnReset props.OnApply
         ]
     ]

@@ -116,3 +116,10 @@ let footer (selectedCount: int) (onReset: unit -> unit) (onApply: unit -> unit) 
         Button.ghost "Zurücksetzen" onReset
         applyButton selectedCount onApply
     ]
+
+/// Footer wie `footer`, mit gesperrtem Übernehmen (zum Beispiel solange die Auswahl unverändert ist)
+let footerWhen (disabled: bool) (selectedCount: int) (onReset: unit -> unit) (onApply: unit -> unit) : ReactElement =
+    Primitives.HStack.spaceBetween [
+        Button.ghost "Zurücksetzen" onReset
+        applyButtonWhen disabled selectedCount onApply
+    ]

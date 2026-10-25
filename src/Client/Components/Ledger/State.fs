@@ -51,6 +51,7 @@ let init () : Model * Cmd<Msg> =
         CategoryDraft = Set.empty
         CategorySearch = ""
         HiddenCategoriesExpanded = false
+        RecentCategories = readRecentCategories ()
         DateDraft = emptyDateRange
         DateDraftFromInvalid = false
         DateDraftToInvalid = false
@@ -1082,8 +1083,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with CategoryDraft = Set.empty }, Cmd.none, NoOp
 
     | ApplyCategoryFilter ->
-        let filters = { model.Filters with CategoryIds = model.CategoryDraft }
-        resetEntries { model with Filters = filters; OpenPopover = None }, Cmd.ofMsg LoadEntries, NoOp
+        if categoryApplyDisabled model.CategoryDraft model.Filters.CategoryIds then
+            model, Cmd.none, NoOp
+        else
+            let filters = { model.Filters with CategoryIds = model.CategoryDraft }
+            let recent = pushRecentCategories model.CategoryDraft model.RecentCategories
+            let remember = Cmd.ofEffect (fun _ -> writeRecentCategories recent)
+            resetEntries { model with Filters = filters; OpenPopover = None; RecentCategories = recent },
+            Cmd.batch [ Cmd.ofMsg LoadEntries; remember ],
+            NoOp
 
     | RemoveCategoryFilter ->
         let filters = { model.Filters with CategoryIds = Set.empty }

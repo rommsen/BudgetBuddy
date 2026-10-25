@@ -293,9 +293,9 @@ let viewTests =
 
         testCase "Summenzeile zeigt bei leerer Auswahl den Treffer, sonst die Auswahl (Quelltext)" <| fun () ->
             let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
-            Expect.stringContains view "if hasSelection model then selectionSummaryRow model else summaryRow model"
+            Expect.stringContains view "if hasSelection model then selectionSummaryRow model else summaryRow accounts categories model"
                 "Auswahl statt Treffer, solange die Auswahl nicht leer ist"
-            Expect.stringContains view "summaryOrSelectionRow model" "die Spalte benutzt diese Umschaltung"
+            Expect.stringContains view "summaryOrSelectionRow accounts categories model" "die Spalte benutzt diese Umschaltung"
 
         testCase "Leiste: 'n ausgewählt', Alle und Auswahl aufheben" <| fun () ->
             Expect.equal (selectionBarCountText 12) "12 ausgewählt" "Anzahl"

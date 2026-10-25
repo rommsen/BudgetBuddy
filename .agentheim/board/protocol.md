@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 17:50 -- Task verified and completed: ledger-v9rq3 - "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl"
+
+**Type:** Work / Task completion
+**Task:** ledger-v9rq3 - "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl"
+**Summary:** Die Summenzeile steht jetzt auch bei den Chips Zu prüfen und Ohne Kategorie, am PC mit dem Filter im Klartext. Nach dem letzten Prüfen zeigt die Liste Alles geprüft (bzw. Alles kategorisiert) statt Jetzt spiegeln. Der Kategorie-Filter hat Zuletzt verwendet (je Gerät in localStorage) und Übernehmen erst nach einer Änderung.
+**Duration:** 33m
+**Verification:** PASS (iteration 1)
+**Files changed:** 11
+**Tests added:** 16
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 17:22 -- Capture / Captured: ledger-xa7jf - Quick Add auf Quality-of-Life-Funktionen prüfen, die im Kassenbuch fehlen
 
 **Type:** Capture

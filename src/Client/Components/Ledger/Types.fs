@@ -12,6 +12,7 @@
 module Components.Ledger.Types
 
 open System
+open Fable.Core
 open Shared.Domain
 open Types
 
@@ -137,6 +138,121 @@ let hasAmountFilter (f: Filters) = f.AmountMin.IsSome || f.AmountMax.IsSome
 /// beide sind eigene, ältere Bedienelemente außerhalb dieser fünf Filter.
 let hasAnyFilter (f: Filters) : bool =
     hasCategoryFilter f || hasDateFilter f || hasPayeeFilter f || hasMemoFilter f || hasAmountFilter f
+
+/// Steht die Summenzeile über der Liste? Eigenes Prädikat neben `hasAnyFilter` (ledger-v9rq3):
+/// die Chips "Zu prüfen" und "Ohne Kategorie" zeigen Treffer und Summe wie die fünf
+/// Such-Filter, bleiben aber außerhalb von `hasAnyFilter`, weil "Alle Filter löschen" und der
+/// Leerzustand "Kein Treffer" an dessen Bedeutung hängen.
+let hasSummaryFilter (onlyNeedsReview: bool) (f: Filters) : bool =
+    hasAnyFilter f || onlyNeedsReview || f.WithoutCategory
+
+let private plainDate (d: DateTime) : string =
+    d.ToString("dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture)
+
+let private plainAmount (value: decimal) : string =
+    (formatAmountDraft value).Replace(".", ",")
+
+/// Der Filter in Worten für die PC-Summenzeile (Tafeln Ablauf 1 und 2): Konto, Chips,
+/// Kategorien, Zeitraum, Payee, Memo, Betrag, getrennt durch " · ". `scope` ist der
+/// Kontoname oder "alle Konten"; `categoryNames` die Namen der gewählten Kategorien.
+let filterPlainText (scope: string) (onlyNeedsReview: bool) (categoryNames: string list) (f: Filters) : string =
+    [ yield scope
+      if onlyNeedsReview then yield "zu prüfen"
+      if f.WithoutCategory then yield "ohne Kategorie"
+      if not (List.isEmpty categoryNames) then yield String.Join(", ", categoryNames)
+      match f.DateRange with
+      | Some r ->
+          match r.Quick, r.From, r.To with
+          | Some Last12Months, _, _ -> yield "letzte 12 Monate"
+          | Some ThisMonth, _, _ -> yield "dieser Monat"
+          | Some LastMonth, _, _ -> yield "letzter Monat"
+          | Some ThisYear, _, _ -> yield "dieses Jahr"
+          | None, Some a, Some b -> yield $"{plainDate a} bis {plainDate b}"
+          | None, Some a, None -> yield $"ab {plainDate a}"
+          | None, None, Some b -> yield $"bis {plainDate b}"
+          | None, None, None -> ()
+      | None -> ()
+      match f.Payee with
+      | Some p -> yield p
+      | None -> ()
+      match f.Memo with
+      | Some m -> yield $"Memo: {m}"
+      | None -> ()
+      match f.AmountMin, f.AmountMax with
+      | Some a, Some b -> yield $"Betrag {plainAmount a} bis {plainAmount b}"
+      | Some a, None -> yield $"Betrag ab {plainAmount a}"
+      | None, Some b -> yield $"Betrag bis {plainAmount b}"
+      | None, None -> () ]
+    |> String.concat " · "
+
+/// Welcher Leerzustand gilt für eine leere Liste (ledger-v9rq3).
+[<RequireQualifiedAccess>]
+type EmptyListKind =
+    /// Nur "Zu prüfen" aktiv: es gibt nichts mehr zu prüfen.
+    | AllReviewed
+    /// Nur "Ohne Kategorie" aktiv: alles hat eine Kategorie.
+    | AllCategorized
+    /// Filter aktiv, aber kein Treffer.
+    | NoMatch
+    /// Kein Filter: das Konto hat keine Buchungen.
+    | NoEntries
+
+let emptyListKind (onlyNeedsReview: bool) (f: Filters) : EmptyListKind =
+    if hasAnyFilter f then EmptyListKind.NoMatch
+    elif onlyNeedsReview && f.WithoutCategory then EmptyListKind.NoMatch
+    elif onlyNeedsReview then EmptyListKind.AllReviewed
+    elif f.WithoutCategory then EmptyListKind.AllCategorized
+    else EmptyListKind.NoEntries
+
+/// "Zuletzt verwendet" im Kategorie-Filter: höchstens so viele Kategorien, je Gerät gemerkt.
+let maxRecentCategories = 5
+
+/// Die gerade angewendeten Kategorien rücken nach vorn, Doppelte entfallen, gekappt auf
+/// `maxRecentCategories`. Eine leere Auswahl ändert nichts.
+let pushRecentCategories (applied: Guid Set) (recent: Guid list) : Guid list =
+    if Set.isEmpty applied then recent
+    else
+        (Set.toList applied @ recent) |> List.distinct |> List.truncate maxRecentCategories
+
+let serializeRecentCategories (ids: Guid list) : string =
+    ids |> List.map string |> String.concat ","
+
+let parseRecentCategories (text: string) : Guid list =
+    if String.IsNullOrWhiteSpace text then []
+    else
+        text.Split(',')
+        |> Array.toList
+        |> List.choose (fun part ->
+            match Guid.TryParse(part.Trim()) with
+            | true, g -> Some g
+            | _ -> None)
+        |> List.distinct
+        |> List.truncate maxRecentCategories
+
+/// "Übernehmen" in der Kategorienauswahl ist gesperrt, solange der Entwurf dem aktiven Filter gleicht.
+let categoryApplyDisabled (draft: Guid Set) (applied: Guid Set) : bool = draft = applied
+
+let recentCategoriesStorageKey = "bb.ledger.recentCategoryFilter"
+
+[<Emit("window.localStorage.getItem($0)")>]
+let private storageGet (key: string) : string = jsNative
+
+[<Emit("window.localStorage.setItem($0, $1)")>]
+let private storageSet (key: string) (value: string) : unit = jsNative
+
+/// Liest die gemerkten Kategorien aus dem Browser; ohne Browser (Tests) oder bei gesperrtem
+/// Speicher bleibt die Liste leer.
+let readRecentCategories () : Guid list =
+    try
+        parseRecentCategories (storageGet recentCategoriesStorageKey)
+    with _ ->
+        []
+
+let writeRecentCategories (ids: Guid list) : unit =
+    try
+        storageSet recentCategoriesStorageKey (serializeRecentCategories ids)
+    with _ ->
+        ()
 
 /// Die Chips der Filterleiste, in fester Reihenfolge (PC, Handoff Screen 2.9).
 /// `NeedsReviewChip` ist der bestehende Chip "Zu prüfen (n)" (ADR 0032): er zählt
@@ -565,6 +681,8 @@ type Model = {
     CategoryDraft: Guid Set
     CategorySearch: string
     HiddenCategoriesExpanded: bool
+    /// Zuletzt im Kategorie-Filter angewendete Kategorien, neueste zuerst (je Gerät gemerkt).
+    RecentCategories: Guid list
 
     /// Der Entwurf des Zeitraum-Filters, solange die Zeitraum-Auswahl offen ist.
     DateDraft: DateRangeFilter
