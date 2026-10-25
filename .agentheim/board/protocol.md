@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 23:01 -- Batch started: [budgeting-r4tkq]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-r4tkq - "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
+**Parallel:** no (1 worker, einziger bereiter Task)
+
+---
+
 ## 2026-10-25 22:54 -- Modeling / Captured: budgeting-r4tkq - "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
 
 **Type:** Modeling / Capture

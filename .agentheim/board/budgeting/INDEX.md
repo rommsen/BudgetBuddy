@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 0
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-r4tkq** — "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden." (spike) — `todo/budgeting-r4tkq-ynab-api-targets-und-zuweisung.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-r4tkq** — "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden." (spike) — `doing/budgeting-r4tkq-ynab-api-targets-und-zuweisung.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

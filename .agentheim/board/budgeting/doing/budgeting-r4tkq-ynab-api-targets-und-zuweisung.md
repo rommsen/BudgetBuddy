@@ -1,7 +1,7 @@
 ---
 id: budgeting-r4tkq
 title: "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden."
-status: todo
+status: doing
 type: spike
 context: budgeting
 created: 2026-10-25
