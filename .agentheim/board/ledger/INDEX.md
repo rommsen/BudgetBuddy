@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 8
 - **Todo:** 1
 - **Doing:** 4
 - **Done:** 82
@@ -73,6 +73,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-xa7jf** — Quick Add auf Quality-of-Life-Funktionen prüfen, die im Kassenbuch fehlen (spike) — `backlog/ledger-xa7jf-quick-add-qol-luecken-pruefen.md`
+- **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `backlog/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
 - **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`
 - **ledger-y54gr** — "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color" (feature) — `backlog/ledger-y54gr-lena-fragen-in-der-auswahl-leiste.md`

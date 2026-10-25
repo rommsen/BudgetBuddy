@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 17:22 -- Capture / Captured: ledger-xa7jf - Quick Add auf Quality-of-Life-Funktionen prüfen, die im Kassenbuch fehlen
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Quick Add durchsehen auf Quality-of-Life-Funktionen, die im Kassenbuch fehlen
+
+---
+
+## 2026-10-25 17:22 -- Capture / Captured: ledger-rjhwp - Amazon-Link im Kassenbuch
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Amazon-Link im Kassenbuch wie im Sync-Prozess, direkt zur Amazon-Bestellung
+
+---
+
 ## 2026-10-25 17:16 -- Batch started: [ledger-xfjcp, ledger-cks06, ledger-v9rq3, ledger-ybmqc]
 
 **Type:** Work / Batch start
