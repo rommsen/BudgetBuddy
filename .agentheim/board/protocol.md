@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 11:34 -- Modeling / Refined: ledger-pafkp, ledger-w29y6, ledger-m6zpd - Abgleich mit dem gebauten Code
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo (nach Promote)
+**Summary:** Alle Abhängigkeiten sind erledigt; die drei Tasks wurden gegen den gebauten Code abgeglichen. pafkp: Lesepfad braucht Sperrgründe und Merkmal Neuanlage offen in LedgerEntryView, Rückgängig nach Aufteilen als eine Zeile der alten Kategorie, Rest-Farbe nach splitAmountClass, Picker-Namen wie gebaut, Übertrag-Ziel mit Kontenliste und PC-Konto-Popover bleibt drin (Roman). w29y6: Entries/FilteredOut statt Rows, Überspring-Gründe über categoryNotChangeableReason inkl. offenem Split-Fehlschlag, YnabClient-Sammelweg nach sendReviewMarkBatch, WriteGuard Pflicht, Popover nach oben und Picker ohne Haken als DS-Erweiterung; Roman: Handy-Leiste in einer Reihe, Picker immer ohne Haken, Sheet-Unterzeile n Buchungen · Summe. m6zpd: w4vte-Lieferungen bestätigt, Zeilenmodus mit vier Fällen, Knopf-Fokus-Fallstrick, Layout-Ergebnis als Nachricht aus FilterBarColumn, damit keyboardHintVisible rein bleibt.
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 08:56 -- Work session ended
 
 **Type:** Work / Session end
