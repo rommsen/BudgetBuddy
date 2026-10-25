@@ -4,6 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 12:40 - Kompaktliste nach Eingabegerät (ledger-m6zpd)
+
+**What I did:**
+Die Kompaktliste des Kassenbuchs bekam eine Bedienung nach Eingabegerät. Reine Entscheidung `listInteractionFor` (Layout, `pointer: fine`, Fensterbreite) und `listInteractionTraits`; Modellfeld `ListInteraction` mit Nachricht `ListInteractionChanged`, gesetzt von `FilterBarColumn`. Mit Maus hat jede Zeile ein Kästchen, Umschalt-Klick, sichtbare Markierung (`Table.focusedRowClass`, `data-keyboard-focus`), die Prüf-Schaltfläche bei Hover und alle Tasten; die Zeile ist dort ein `div` statt eines Knopfes. Der Fußzeilen-Hinweis liest nur das Modellfeld.
+
+**Files Added:**
+- `src/Tests/LedgerCompactInteractionTests.fs` - 9 Expecto-Tests (Entscheidung, Merkmale, Hinweis, Reducer, Quelltext)
+- `scripts/ledger-compact-mouse.test.mjs` - 5 Playwright-Tests (Maus 900 px, Touch 390 und 820 px)
+
+**Files Modified:**
+- `src/Client/Components/Ledger/Types.fs` - Typ `ListInteraction`, Modellfeld, Nachricht `ListInteractionChanged`
+- `src/Client/Components/Ledger/State.fs` - Anfangswert `TableRows`, Reducer-Zweig
+- `src/Client/Components/Ledger/View.fs` - `MouseRowInfo`, `mouseRowContainerClassName`, `entryRow`, `entryRowWithReviewMark`, `mobileEntryRow`, `entryListMobile`, `listInteractionFor`, `listInteractionTraits`, `keyboardHintVisible`, Effekt in `FilterBarColumn`
+- `src/Tests/Tests.fsproj` - neue Testdatei hinter `LedgerSelectionTests.fs` (sie nutzt dessen `entryOf`)
+- `src/Tests/LedgerSelectionTests.fs` - Quelltext-Fenster 900 auf 1500 Zeichen
+- `scripts/ledger-detail.test.mjs` - Kompaktzeile per Text statt per Knopf suchen
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+ADR 0053 Punkt 6: die Breite wählt nur das Layout, die Gesten folgen dem Eingabegerät. Ein Knopf als Zeile behielte nach dem Mausklick den Fokus und fing Enter und Leertaste ab, deshalb `div` mit Klick wie die `tr` der Tabelle.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: dotnet test 1947 bestanden, 7 übersprungen; test:scripts 205 Tests, Fehler nur durch Ladetimeouts unter Last, Einzelläufe grün
+- Issues: Tailwind-Wächter liest `prop.className` mit reinem Bezeichner als dynamisches Token; Lösung `"group " + mouseRowContainerClassName ...`
+
+---
+
 ## 2026-10-25 01:03 - Kategorie-Picker: Lade- und Fehlerzustand (ledger-dmw83, Iteration 2)
 
 **What I did:**

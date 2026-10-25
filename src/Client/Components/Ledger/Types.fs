@@ -410,6 +410,15 @@ type DetailForm =
     | DetailPanel
     | DetailSheet
 
+/// Wie die Liste bedient wird (ADR 0053 Punkt 6): die Breite wählt nur das Layout, die Gesten
+/// folgen dem Eingabegerät. `TableRows` ist die Tabelle (ab `md`), `CompactMouse` die schmale
+/// Kompaktliste mit Maus (Kästchen, Markierung, alle Tasten), `CompactTouch` die Kompaktliste
+/// mit Finger (langes Drücken, Wisch). Die Ansicht misst und meldet es mit `ListInteractionChanged`.
+type ListInteraction =
+    | TableRows
+    | CompactMouse
+    | CompactTouch
+
 type Model = {
     /// Die Konten samt Vorauswahl des Servers.
     Accounts: RemoteData<LedgerAccountsView>
@@ -488,6 +497,10 @@ type Model = {
     /// die Form mit `DetailFormChanged`; sie hängt nur von der Breite ohne Panel ab und
     /// kippt deshalb nicht hin und her, wenn das Panel selbst Platz nimmt.
     DetailForm: DetailForm
+
+    /// Wie die Liste bei der gemessenen Breite und dem Eingabegerät bedient wird (ledger-m6zpd).
+    /// Die Ansicht meldet es mit `ListInteractionChanged`; der Fußzeilen-Hinweis liest nur dieses Feld.
+    ListInteraction: ListInteraction
 
     /// Die Historie der offenen Buchung.
     History: RemoteData<LedgerHistoryLine list>
@@ -922,6 +935,8 @@ type Msg =
     | CloseDetail
     /// Die Ansicht meldet, in welcher Form das Detail bei der gemessenen Breite aufgeht.
     | DetailFormChanged of DetailForm
+    /// Die Ansicht meldet, wie die Liste bei Breite und Eingabegerät bedient wird (ledger-m6zpd).
+    | ListInteractionChanged of ListInteraction
     | LoadHistory of Guid
     /// Die Historie der Buchung `Guid`; kommt sie nach einem Wechsel der Buchung an, gilt sie nicht mehr.
     | HistoryLoaded of Guid * Result<LedgerHistoryLine list, string>

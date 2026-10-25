@@ -81,6 +81,7 @@
     <Compile Include="LedgerCategoryChangeClientTests.fs" />
     <Compile Include="LedgerWithoutCategoryTests.fs" />
     <Compile Include="LedgerSelectionTests.fs" />
+    <Compile Include="LedgerCompactInteractionTests.fs" />
     <Compile Include="LedgerDetailTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
     <Compile Include="LedgerKeyboardTests.fs" />

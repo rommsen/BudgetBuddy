@@ -260,8 +260,9 @@ test("PC: Eine aufgeteilte Buchung zeigt im Detail die Split-Kategorien voll qua
 test("PC (900): Die Kompaktliste öffnet das Detail als Sheet statt als Panel", async () => {
   await page.setViewportSize({ width: 900, height: 900 });
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /ohne Payee/ }).first().waitFor();
-  await page.getByRole("button", { name: /Deutsche Bahn/ }).first().click();
+  // Mit Maus ist die Kompaktzeile ein `div` mit Klick (ledger-m6zpd), kein Knopf mehr.
+  await page.getByText(/ohne Payee/).first().waitFor();
+  await page.getByText("Deutsche Bahn").first().click();
   await sheet(page).waitFor();
   assert.equal(await panel(page).count(), 0, "kein Panel");
   assert.equal(await sheet(page).locator('[data-testid="detail-filter"]').count() >= 1, true, "Filter-Knöpfe im Sheet");

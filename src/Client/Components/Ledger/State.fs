@@ -38,6 +38,7 @@ let init () : Model * Cmd<Msg> =
         NeedsReviewCount = 0
         DetailFor = None
         DetailForm = DetailSheet
+        ListInteraction = TableRows
         History = NotAsked
         LastMirrorRun = NotAsked
         MirrorRunning = false
@@ -728,6 +729,9 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | DetailFormChanged form ->
         { model with DetailForm = form }, Cmd.none, NoOp
+
+    | ListInteractionChanged interaction ->
+        { model with ListInteraction = interaction }, Cmd.none, NoOp
 
     | LoadHistory entryId ->
         let cmd =

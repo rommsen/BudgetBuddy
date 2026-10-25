@@ -1,7 +1,7 @@
 ---
 id: ledger-m6zpd
 title: "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-20
@@ -222,3 +222,20 @@ Playwright-Schritt ergänzt; Punkt 4 korrigiert: `selectionBarSpacers` liegt in
 `FilterBarColumn`, `Viewport.isFinePointer ()` wandert aus `keyboardHintVisible` in den Effekt,
 das Modellfeld trägt das ganze Ergebnis (`ListInteraction`), `DetailForm` ist kein Ersatz;
 "sobald integriert" beim Token-Wächter gestrichen.
+
+## Outcome
+
+Die Kompaktliste (`entryListMobile`) unterscheidet jetzt drei Bedienungen (`ListInteraction` in `Types.fs`: `TableRows`, `CompactMouse`, `CompactTouch`). `listInteractionFor layout finePointer desktopViewport` (View.fs, neben `visibleColumns`) entscheidet rein; `listInteractionTraits` gibt je Modus Kästchen, Hover-Schaltfläche, Markierung, Gesten und Fußzeilen-Hinweis an. `FilterBarColumn` berechnet das Ergebnis (mit `Viewport.isFinePointer ()` und `Viewport.isDesktopViewport ()`) und meldet es per `ListInteractionChanged` in das Modellfeld `ListInteraction` (Anfangswert `TableRows`); `keyboardHintVisible` und damit `selectionBarSpacers` lesen nur dieses Feld und bleiben rein.
+
+Maus-Zeile (`entryRowWithReviewMark` mit neuem Parameter `mouse: MouseRowInfo option`): links `MultiSelect.boxButton` (Klick schickt `ClickRowCheckbox (id, shift)`, kein `SelectionMode`); die Zeile selbst ist ein `div` mit Klick (`OpenDetail`) statt eines Knopfes, damit sie keinen Knopf-Fokus hält und Leertaste und Enter bei der markierten Zeile ankommen; der Container (`mouseRowContainerClassName`) trägt `group`, die Fokus-Darstellung `Table.focusedRowClass` samt `aria-selected` und `data-keyboard-focus`, blasses Teal für gewählte Zeilen, die Teal-Kante für den Anker (gewinnt gegen die Statuskante); die Prüf-Schaltfläche erscheint bei Hover oder markierter Zeile, bei laufender Auswahl steht ein unsichtbarer 28-px-Platzhalter. `mobileEntryRow` hat einen eigenen Zweig (weder `swipeableEntryRow` noch `LongPressRow`). Abweichung von der Verfeinerung: statt eines Zeilenmodus-Unions bekam `entryRowWithReviewMark` einen `MouseRowInfo option`-Parameter, weil mehrere Quelltext-Tests die bestehenden Zweige (`selected.IsNone && not selectionActive`, `elif selectionActive then`) festnageln. Kein neuer DS-Baustein, `/styleguide` unverändert.
+
+Tests: `src/Tests/LedgerCompactInteractionTests.fs` (9 Expecto-Tests: acht Kombinationen, Merkmale je Modus, Hinweis, `ListInteractionChanged`, `ClickRowCheckbox` ohne Modus, Quelltext-Zusicherungen zu Kästchen, div statt Knopf, Gesten aus, Klassen des Containers). `scripts/ledger-compact-mouse.test.mjs` (5 Playwright-Tests): Maus bei 900 px (zuerst kein `table`, `pointer: fine`): Kästchen sichtbar, Umschalt-Klick wählt Spanne, PC-Leiste statt Hinweis, `↓` setzt `data-keyboard-focus`, Hover zeigt die Schaltfläche (Opazität 0 zu 1), `G` ruft `setReviewMark` und springt weiter, Leertaste wählt die markierte Zeile, Esc hebt auf, Enter öffnet das Sheet; nach einem Mausklick auf die Zeile und Esc wählt die Leertaste die markierte Zeile, öffnet kein Detail und der aktive Knoten ist kein BUTTON. Touch (390 px und 820 px, `hasTouch`, `isMobile`): `pointer: coarse` wird gemeldet (der Test prüft es), kein Kästchen, kein Hinweis, Prüf-Schaltfläche sichtbar, langes Drücken startet den Auswahl-Modus. Angepasst: `scripts/ledger-detail.test.mjs` (die Kompaktzeile ist mit Maus kein Knopf mehr, Suche per Text) und `LedgerSelectionTests.fs` (Quelltext-Fenster 900 auf 1500 Zeichen, weil `mobileEntryRow` länger wurde).
+
+Läufe aus dem Worktree: `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 1947 bestanden, 7 übersprungen (Integration ohne .env), 0 Fehler; `npm run build` grün; `npm run guard:classes` grün; `npm run guard:tokens` grün; `npm run test:scripts` 205 Tests: im ersten Lauf 2 Fehler (ledger-detail, angepasst und danach grün; ledger-review-mark Timeout beim Seitenladen), im zweiten Lauf 12 Fehler durch Ladetimeouts unter paralleler Last anderer Worker (ledger-status-column, ledger-table-columns); beide Dateien einzeln wiederholt grün (12 von 12), ledger-detail und ledger-review-mark zusammen 19 von 19.
+
+[human-eye] Screenshots (einmalig, außerhalb der Tests): /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-m6zpd/mouse-selection.png (Maus 900 px, drei gewählte Zeilen, Anker mit Teal-Kante, markierte Zeile, PC-Leiste), mouse-hint.png (Hinweis in der Fußzeile), touch.png (390 px unverändert). Die Liste wirkt wie eine schmale Tabelle (Kästchen links, Kanten, Markierung); die Optik kommt nur aus Tokens und `Table.focusedRowClass`.
+
+Bekannte Lücke wie in der Task: die Kompaktliste mit Maus hat keinen "Alle"-Weg (keine Kopfzeile); ob er nötig ist, entscheidet Roman. Annahme bleibt: unter 768 px gilt Touch-Bedienung auch mit Maus; ein Gerätewechsel im Betrieb wird nicht nachgeführt. Das Raster der Maus-Kompaktzeile bei Wanderung des Tabellen-Schwellwerts (Layout wechselt zwischen Kompaktliste und Tabelle) wurde nicht gesondert gemessen.
+
+### README von Hand
+Nicht nötig, README_DELTA reicht (per `npm run check:readme-delta` geprüft). Der Satz "Die kompakte Liste hat keine Kästchen-Spalte und keine Tabellen-Interaktionen" aus ADR 0052 steht nicht in der BC-README.

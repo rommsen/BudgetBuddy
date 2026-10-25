@@ -401,6 +401,25 @@ let entryRowSelectedClassName : string =
     $"w-full text-left {Tokens.ListRoles.mobileRowPadding} transition-colors touch-manipulation " +
     $"bg-neon-teal/[0.07] border-b {Tokens.Borders.subtle}"
 
+/// Der Zustand einer Kompaktzeile mit Maus (ledger-m6zpd): gewählt, Anker der Spanne, von der
+/// Tastatur markiert.
+type MouseRowInfo = { Selected: bool; IsAnchor: bool; IsFocused: bool }
+
+/// Klassen des Containers einer Kompaktzeile mit Maus. Er trägt Grund, Unterkante und die
+/// Kanten, damit Kästchen, Zeile und Schaltfläche gemeinsam hervorgehoben sind: gewählt
+/// blasses Teal, markiert die Fokus-Darstellung der Tabellenzeile (`Table.focusedRowClass`),
+/// sonst der Kartengrund mit Hover. Der Anker trägt die Teal-Kante und gewinnt gegen die
+/// Statuskante "zu prüfen" (wie `selectableRowClassName` in der Tabelle).
+let mouseRowContainerClassName (info: MouseRowInfo) (needsReview: bool) : string =
+    [ "group flex items-stretch transition-colors"
+      $"border-b {Tokens.Borders.subtle}"
+      if info.Selected then "bg-neon-teal/[0.07]"
+      elif info.IsFocused then Table.focusedRowClass
+      else $"{Tokens.Backgrounds.dark} hover:bg-surface-hover"
+      if info.IsAnchor then "shadow-[inset_2px_0_0_0_var(--color-neon-teal)]"
+      elif needsReview then Tokens.ListRoles.statusEdge ]
+    |> String.concat " "
+
 /// Ein Kennzeichen in Zeile 2 der Handy-Zeile, das nicht schrumpfen darf.
 let private keepWidth (child: ReactElement) =
     Html.span [ prop.className "shrink-0"; prop.children [ child ] ]
@@ -507,10 +526,15 @@ let private reviewMarkHintView
 let private entryRow
     (onClick: unit -> unit)
     (selected: bool option)
+    (mouse: MouseRowInfo option)
     (accountAbbreviationOf: (Guid -> string) option)
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
+    // `mouse`: die Zeile der Kompaktliste mit Maus (ledger-m6zpd). Sie ist kein Knopf, sondern
+    // ein `div` mit Klick wie die `tr` der Tabelle: ein Knopf behielte nach dem Klick den
+    // DOM-Fokus, und Enter und Leertaste wären dann seine eigene Aktivierung (`isActivatable`)
+    // statt der Tasten der markierten Zeile. Grund und Kanten trägt der Container.
     // `selected`: `None` im Normalbetrieb, `Some` im Auswahl-Modus (die Zeile schaltet dann
     // die Auswahl, ledger-r1d2f). Eine gewählte Zeile tauscht den Grund gegen blasses Teal.
     let rowClass =
@@ -520,10 +544,15 @@ let private entryRow
         | _, true -> entryRowReviewClassName
         | _, false -> entryRowClassName
 
-    Html.button [
+    let element : IReactProperty list -> ReactElement =
+        if mouse.IsSome then (fun props -> Html.div props) else (fun props -> Html.button props)
+    element [
         // `min-w-0 flex-1`: die Zeile teilt sich den Platz mit der Schaltfläche daneben
         // (`entryRowWithReviewMark`) und darf dafür schrumpfen.
-        prop.className $"{rowClass} min-w-0 flex-1"
+        match mouse with
+        | Some _ ->
+            prop.className $"w-full text-left {Tokens.ListRoles.mobileRowPadding} cursor-pointer min-w-0 flex-1"
+        | None -> prop.className $"{rowClass} min-w-0 flex-1"
         prop.onClick (fun _ -> onClick ())
         match selected with
         | Some isOn ->
@@ -573,6 +602,7 @@ let private entryRowWithReviewMark
     (accountAbbreviationOf: (Guid -> string) option)
     (rowState: ReviewMarkRowState option)
     (selected: bool option)
+    (mouse: MouseRowInfo option)
     (selectionActive: bool)
     (flatDate: bool)
     (entry: LedgerEntryView)
@@ -584,8 +614,28 @@ let private entryRowWithReviewMark
         prop.key (string entry.Id)
         prop.children [
             Html.div [
-                prop.className $"flex items-stretch {Tokens.Backgrounds.dark}"
+                match mouse with
+                | Some info ->
+                    prop.className ("group " + mouseRowContainerClassName info entry.NeedsReview)
+                    if info.IsFocused then
+                        prop.custom ("aria-selected", "true")
+                        prop.custom ("data-keyboard-focus", "true")
+                | None -> prop.className $"flex items-stretch {Tokens.Backgrounds.dark}"
                 prop.children [
+                    // Mit Maus steht links immer das Kästchen (ohne Hover sichtbar), wie in der
+                    // Tabelle: Klick wählt, mit Umschalt die Spanne; es entsteht kein Auswahl-Modus.
+                    match mouse with
+                    | Some info ->
+                        Html.div [
+                            prop.className "shrink-0 flex items-center pl-5 pr-3"
+                            prop.children [
+                                MultiSelect.boxButton
+                                    (if info.Selected then MultiSelect.Checked else MultiSelect.Unchecked)
+                                    $"{payeeLabel entry} auswählen"
+                                    (fun shift -> dispatch (ClickRowCheckbox (entry.Id, shift)))
+                            ]
+                        ]
+                    | None -> ()
                     // Im Auswahl-Modus steht links das Kästchen und die Zeile schaltet die
                     // Auswahl statt das Detail zu öffnen (ledger-r1d2f).
                     match selected with
@@ -609,13 +659,29 @@ let private entryRowWithReviewMark
                             | Some _ -> dispatch (ToggleRowSelected entry.Id)
                             | None -> dispatch (OpenDetail entry))
                         selected
+                        mouse
                         accountAbbreviationOf
                         flatDate
                         entry
+                    // Mit Maus: die Schaltfläche erscheint bei Hover und bei markierter Zeile; bei
+                    // laufender Auswahl steht wie in der Tabelle ein unsichtbarer Platzhalter.
+                    match mouse with
+                    | Some info ->
+                        if not entry.DeletedInYnab then
+                            Html.div [
+                                prop.className "shrink-0 flex items-center px-1"
+                                prop.children [
+                                    if selectionActive then
+                                        Html.span [ prop.className "h-7 w-7 shrink-0"; prop.ariaHidden true ]
+                                    else
+                                        reviewMarkButton dispatch true info.IsFocused rowState entry
+                                ]
+                            ]
+                    | None -> ()
                     // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk an (wie am PC).
                     // Bei laufender Auswahl entfällt die Schaltfläche: die Leiste schreibt,
                     // die Zeilen nicht (ledger-r1d2f, ledger-w4vte).
-                    if not entry.DeletedInYnab && selected.IsNone && not selectionActive then
+                    if not entry.DeletedInYnab && mouse.IsNone && selected.IsNone && not selectionActive then
                         Html.div [
                             prop.className $"shrink-0 flex items-center px-1 {Tokens.Backgrounds.dark} border-b {Tokens.Borders.subtle}"
                             prop.children [ reviewMarkButton dispatch false false rowState entry ]
@@ -1503,7 +1569,7 @@ let private swipeableEntryRow
     (flatDate: bool)
     (entry: LedgerEntryView)
     =
-    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None false flatDate entry
+    let row = entryRowWithReviewMark dispatch accountAbbreviationOf rowState None None false flatDate entry
     if swipeAppliesTo entry then
         Html.div [
             prop.key (string entry.Id)
@@ -1596,6 +1662,7 @@ let private mobileEntryRow
     (selectionMode: bool)
     (selectionActive: bool)
     (selection: Selection)
+    (mouse: MouseRowInfo option)
     (rowState: ReviewMarkRowState option)
     (isFilteredOut: bool)
     (flatDate: bool)
@@ -1603,14 +1670,18 @@ let private mobileEntryRow
     =
     let inner =
         if selectionMode then
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) true flatDate entry
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState (Some (isSelected selection entry.Id)) None true flatDate entry
+        elif mouse.IsSome then
+            // Kompaktliste mit Maus (ledger-m6zpd): Kästchen, Markierung, Hover-Schaltfläche,
+            // weder Wisch noch langes Drücken (auch nicht am Touchscreen eines Laptops).
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState None mouse selectionActive flatDate entry
         elif selectionActive then
             // Eine Auswahl ohne Modus (das Fenster ist mit bestehender Auswahl von der
             // Tabelle auf die Kompaktliste geschrumpft): weder Wisch noch Schaltfläche.
-            entryRowWithReviewMark dispatch accountAbbreviationOf rowState None true flatDate entry
+            entryRowWithReviewMark dispatch accountAbbreviationOf rowState None None true flatDate entry
         else
             swipeableEntryRow dispatch accountAbbreviationOf rowState flatDate entry
-    let row = LongPressRow (not selectionMode) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
+    let row = LongPressRow (not selectionMode && mouse.IsNone) (fun () -> dispatch (StartSelectionMode entry.Id)) inner
     React.keyedFragment (
         string entry.Id,
         [ if isFilteredOut then
@@ -1640,10 +1711,14 @@ let private entryListMobile
     (selectionActive: bool)
     (selection: Selection)
     (alwaysVisible: bool)
+    (listInteraction: ListInteraction)
+    (anchor: Guid option)
+    (focusedRow: Guid option)
     (filteredOut: Set<Guid>)
     (sort: LedgerSort)
     (entries: LedgerEntryView list)
     =
+    // `listInteraction`: nur `CompactMouse` gibt der Zeile Kästchen und Markierung (ledger-m6zpd).
     // `alwaysVisible`: die kompakte Liste ersetzt die Tabelle auch ab `md`, wenn die
     // Tabellenbreite für die Mindestspalten nicht reicht (`visibleColumns`).
     let wrap (children: ReactElement list) =
@@ -1657,6 +1732,12 @@ let private entryListMobile
                 selectionMode
                 selectionActive
                 selection
+                (if listInteraction = CompactMouse then
+                     Some { Selected = isSelected selection entry.Id
+                            IsAnchor = (anchor = Some entry.Id)
+                            IsFocused = (focusedRow = Some entry.Id) }
+                 else
+                     None)
                 (reviewRows |> Map.tryFind entry.Id)
                 (filteredOut.Contains entry.Id)
                 flat
@@ -1753,6 +1834,32 @@ let private visibleColumnsWith (allowMemo: bool) (tableWidth: float) (showAccoun
 
 let visibleColumns (tableWidth: float) (showAccountColumn: bool) : TableLayout =
     visibleColumnsWith true tableWidth showAccountColumn
+
+/// Reine Entscheidung (ADR 0053 Punkt 6, ledger-m6zpd): wie die Liste bedient wird. Die Tabelle
+/// (`Columns`) ist immer `TableRows`. Die Kompaktliste ist `CompactMouse`, wenn der primäre
+/// Zeiger fein ist (`pointer: fine`) und das Fenster mindestens `md` breit ist; sonst
+/// `CompactTouch`. Unter `md` bleibt es Touch, weil PC-Leiste und Hinweis erst ab `md` da sind.
+let listInteractionFor (layout: TableLayout) (finePointer: bool) (desktopViewport: bool) : ListInteraction =
+    match layout with
+    | Columns _ -> TableRows
+    | CompactList -> if finePointer && desktopViewport then CompactMouse else CompactTouch
+
+/// Was ein Bedienmodus der Liste zeigt und erlaubt.
+type ListInteractionTraits =
+    { CheckboxVisible: bool
+      HoverReviewButton: bool
+      FocusMarkVisible: bool
+      GesturesEnabled: bool
+      FooterHint: bool }
+
+let listInteractionTraits (interaction: ListInteraction) : ListInteractionTraits =
+    match interaction with
+    | TableRows ->
+        { CheckboxVisible = true; HoverReviewButton = true; FocusMarkVisible = true; GesturesEnabled = false; FooterHint = true }
+    | CompactMouse ->
+        { CheckboxVisible = true; HoverReviewButton = true; FocusMarkVisible = true; GesturesEnabled = false; FooterHint = true }
+    | CompactTouch ->
+        { CheckboxVisible = false; HoverReviewButton = false; FocusMarkVisible = false; GesturesEnabled = true; FooterHint = false }
 
 /// Die Breite, die das Seitenpanel der Tabelle nimmt (ledger-q1hw2).
 let detailPanelWidth : float = float Detail.panelWidthPx
@@ -1945,6 +2052,9 @@ let private entryList
                 (hasSelection model)
                 (selectionForRows model)
                 (layout = CompactList)
+                model.ListInteraction
+                model.SelectionAnchor
+                model.FocusedRow
                 model.FilteredOut
                 sort
                 entries
@@ -2384,10 +2494,11 @@ let private summaryOrSelectionRow (model: Model) : ReactElement =
     if hasSelection model then selectionSummaryRow model else summaryRow model
 
 /// Steht der Tastaturhinweis da? Nur mit geladenen Zeilen und ohne Auswahl, an deren Stelle
-/// die Leiste tritt.
+/// die Leiste tritt. In der Kompaktliste nur mit Maus (ledger-m6zpd): das Modellfeld
+/// `ListInteraction` trägt, was die Ansicht gemessen hat, so bleibt die Funktion rein.
 let keyboardHintVisible (model: Model) : bool =
     match model.Entries with
-    | Success (_ :: _) -> not (hasSelection model)
+    | Success (_ :: _) -> (listInteractionTraits model.ListInteraction).FooterHint && not (hasSelection model)
     | _ -> false
 
 /// Die Auswahl-Leiste am unteren Rand (ledger-r1d2f), mit der einen primären Aktion
@@ -2545,6 +2656,15 @@ let private FilterBarColumn
     React.useEffect (
         (fun () -> if model.DetailForm <> detailForm then dispatch (DetailFormChanged detailForm)),
         [| box detailForm; box model.DetailForm |]
+    )
+    // Bedienung der Liste: Layout aus der Breite, dazu Zeigerart und Fensterbreite (zur
+    // Renderzeit gelesen, ein Gerätewechsel im Betrieb wird nicht nachgeführt). Der Hinweis
+    // und sein Abstandshalter lesen nur das Modellfeld (ledger-m6zpd).
+    let listInteraction =
+        listInteractionFor (visibleColumns tableWidth isAllAccounts) (Viewport.isFinePointer ()) (Viewport.isDesktopViewport ())
+    React.useEffect (
+        (fun () -> if model.ListInteraction <> listInteraction then dispatch (ListInteractionChanged listInteraction)),
+        [| box listInteraction; box model.ListInteraction |]
     )
     let disconnectRef = React.useRef<(unit -> unit) option> None
     let widthDisconnectRef = React.useRef<(unit -> unit) option> None

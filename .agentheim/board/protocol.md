@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 12:32 -- Task verified and completed: ledger-m6zpd - "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
+
+**Type:** Work / Task completion
+**Task:** ledger-m6zpd - "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
+**Summary:** Die schmale PC-Liste folgt jetzt dem Eingabegerät: mit Maus (pointer: fine, ab 768 px) hat jede Zeile ein Kästchen mit Umschalt-Klick-Spanne, eine sichtbare Markierung, die Prüf-Schaltfläche bei Hover und alle Tasten, ohne langes Drücken und Wisch; mit Finger bleibt sie wie bisher. Der Fußzeilen-Hinweis erscheint in der Kompaktliste nur mit Maus.
+**Duration:** 42m
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 11:48 -- Batch started: [ledger-m6zpd, ledger-pafkp, ledger-w29y6]
 
 **Type:** Work / Batch start

@@ -352,7 +352,7 @@ let viewTests =
         testCase "Im Auswahl-Modus ist die Wisch-Geste aus (Quelltext)" <| fun () ->
             let view = readRepo [ "src"; "Client"; "Components"; "Ledger"; "View.fs" ]
             let start = view.IndexOf "let private mobileEntryRow"
-            let body = view.Substring(start, 900)
+            let body = view.Substring(start, 1500)
             Expect.stringContains body "if selectionMode then" "der Modus entscheidet"
             let selectionBranch = body.Substring(0, body.IndexOf "else")
             Expect.isFalse (selectionBranch.Contains "swipeableEntryRow") "im Modus keine Wisch-Zeile"
