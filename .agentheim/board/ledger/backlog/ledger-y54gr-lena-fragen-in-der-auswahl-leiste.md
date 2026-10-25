@@ -34,7 +34,8 @@ Ohne gesetzte Flag-Farbe ist die Aktion gesperrt.
 - [ ] Domain-Test: nennt die Antwort Ids nicht als gespeichert, folgt für sie
       `EntryFlagWriteBackFailed`; ein Netzfehler trifft den ganzen Stapel.
 - [ ] Reducer-Test: "Rückgängig" stellt je Buchung den Vorzustand her; bei aktivem Chip
-      "Rückfrage Lena" verlassen zurückgenommene Buchungen die Liste lokal.
+      "Rückfrage Lena" bleiben zurückgenommene Buchungen ausgegraut stehen wie im Detail
+      (ledger-xfjcp, Tafel 5.8, Roman 2026-10-25).
 - [ ] Ansichts-Test: die Leiste zeigt die Aktion mit Anzahl; ohne Farbe deaktiviert mit Grund.
 - [ ] `dotnet build`, `dotnet test`, `npm run build`, `npm run guard:classes`,
       `npm run test:scripts` grün.

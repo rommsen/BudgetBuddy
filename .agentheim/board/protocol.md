@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 17:14 -- Modeling / Refined: ledger-xfjcp, ledger-y54gr - zurückgenommene Rückfrage bleibt ausgegraut
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** backlog
+**Summary:** Roman 2026-10-25: eine bei aktivem Chip Rückfrage Lena zurückgenommene Buchung bleibt ausgegraut stehen wie bei der Kategorie (Tafel 5.8), statt die Liste lokal zu verlassen. Reducer-Kriterien in beiden Tasks angepasst.
+
+---
+
 ## 2026-10-25 16:32 -- Modeling / Captured: ledger-fa1fp - "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide"
 
 **Type:** Modeling / Capture

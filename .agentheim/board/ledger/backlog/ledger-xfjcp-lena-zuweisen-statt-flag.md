@@ -86,8 +86,10 @@ in ADR 0056.
       `AskLenaCount` zählt unabhängig vom Chip; Und-Verknüpfung mit Konto und
       "Zu prüfen".
 - [ ] Reducer-Test: Chip "Rückfrage Lena" kippt `OnlyAskLena` und lädt ab Seite 0 neu; eine
-      Buchung, die bei aktivem Chip zurückgenommen wird, verlässt die Liste lokal
-      (`LocallyRemoved`, ADR 0051).
+      Buchung, die bei aktivem Chip zurückgenommen wird, bleibt ausgegraut in der Liste
+      stehen mit dem Hinweis, dass sie nicht mehr zum Filter passt (Tafel 5.8, Roman
+      2026-10-25), nach dem Muster der Kategorie (`applyFilterEffect`, `filteredOutNote`,
+      sfab0/w29y6); erst das nächste Laden nimmt sie heraus.
 - [ ] Ansichts-Test: das Detail zeigt "Lena fragen" bzw. "Rückfrage zurücknehmen", ist ohne
       Farbe deaktiviert mit Grund, zeigt "Flag nicht in YNAB" mit "Erneut senden" bei
       gesetztem `FlagWriteBackFailure`; Zeile und Detail zeigen das Kennzeichen "Rückfrage
