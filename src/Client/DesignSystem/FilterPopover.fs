@@ -40,8 +40,14 @@ let menuWidthClass = "w-[min(92vw,240px)]"
 /// (ledger-sfab0, Kategorie-Picker im Detail).
 let panelWidthClass = "ml-4 w-[calc(100%-2rem)]"
 
+/// Lage des Popovers zu seinem Wrapper: unter dem Chip, linksbündig (Standard) oder über
+/// dem Auslöser, rechtsbündig (für eine feste Leiste am unteren Bildschirmrand, ledger-w29y6).
+let private belowClass = "top-full left-0 mt-2"
+// `mb-6` (24 px) hebt das Popover über die Leiste: der Auslöser sitzt 14 px unter ihrer Oberkante.
+let private aboveEndClass = "bottom-full right-0 mb-6"
+
 [<ReactComponent>]
-let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactElement list) =
+let private FilterPopoverInternal (props: FilterPopoverProps) (positionClass: string) (children: ReactElement list) =
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
 
     // Klick außerhalb schließt (dasselbe Muster wie `Input.fs`s `SearchableSelect`).
@@ -72,7 +78,9 @@ let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactEl
         Html.div [
             prop.ref containerRef
             prop.className (
-                "absolute z-30 top-full left-0 mt-2 "
+                "absolute z-30 "
+                + positionClass
+                + " "
                 + props.WidthClassName
                 + " rounded-2xl border border-border-default bg-surface-elevated shadow-2xl p-4"
             )
@@ -94,7 +102,14 @@ let private FilterPopoverInternal (props: FilterPopoverProps) (children: ReactEl
 /// Ein Popover unter seinem Chip. `anchor` ist der Chip selbst, der Aufrufer muss
 /// ihn in einen `position:relative`-Wrapper stellen (siehe `ChipBar.chipWithPopover`).
 let view (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
-    FilterPopoverInternal props children
+    FilterPopoverInternal props belowClass children
+
+/// Wie `view`, aber über dem Auslöser und rechtsbündig mit ihm (`bottom-full right-0`). Für
+/// einen Auslöser in der festen Leiste unten am Bildschirm, wo ein Popover nach unten aus dem
+/// Bildschirm ragte (ledger-w29y6). Der Aufrufer stellt den Auslöser in einen
+/// `position:relative`-Wrapper.
+let viewAbove (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
+    FilterPopoverInternal props aboveEndClass children
 
 let private menuItemWith (autoFocus: bool) (label: string) (onClick: unit -> unit) : ReactElement =
     Html.button [

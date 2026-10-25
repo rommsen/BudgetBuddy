@@ -114,8 +114,8 @@ let private clearButton (label: string) (onClick: unit -> unit) (fill: bool) : R
     Html.button [
         prop.type' "button"
         prop.className (
-            (if fill then "flex-1 min-h-[44px] " else "py-2.5 ") +
-            $"inline-flex items-center justify-center rounded-lg px-3.5 font-semibold {FontSizes.sm} " +
+            (if fill then "flex-1 min-h-[44px] px-2 " else "py-2.5 px-3.5 ") +
+            $"inline-flex items-center justify-center rounded-lg font-semibold {FontSizes.sm} " +
             $"{Colors.textSecondary} hover:text-text-primary hover:bg-surface-hover transition-colors touch-manipulation"
         )
         prop.onClick (fun _ -> onClick ())
@@ -130,22 +130,59 @@ let private countAndSum (countText: string) (amount: Shared.Domain.Money) : Reac
           prop.text (amountText amount)
       ] ]
 
-/// Die einzige primäre Aktion der Leiste (Orange): setzt "Geprüft" für die Auswahl.
-/// Während der Aufruf läuft, zeigt sie den Spinner und ist gesperrt. `className` setzt
-/// die Breite (am Handy behält sie ihre Textbreite, "Auswahl aufheben" füllt den Rest der Reihe).
-let private reviewedButton (label: string) (busy: bool) (onClick: unit -> unit) (className: string) : ReactElement =
+/// Die zweite Sammelaktion der Leiste (ledger-w29y6): "Kategorie setzen", sekundär.
+/// `IsBusy`: der Aufruf läuft, der Knopf zeigt den Spinner. `IsLocked`: irgendein Sammelaufruf
+/// läuft, beide Aktionen der Leiste sind gesperrt. `Popover`: der Picker am PC (steht in einem
+/// Wrapper am Knopf und öffnet über der Leiste), `Html.none` am Handy. `Sheet`: der Picker am
+/// Handy (portalt in den Body), `Html.none` am PC.
+type CategoryAction = {
+    Label: string
+    IsBusy: bool
+    IsLocked: bool
+    OnClick: unit -> unit
+    Popover: ReactElement
+    Sheet: ReactElement
+}
+
+/// Die primäre Aktion der Leiste (Orange): setzt "Geprüft" für die Auswahl.
+/// Während der Aufruf läuft, zeigt sie den Spinner und ist gesperrt; `locked` sperrt sie auch,
+/// wenn die andere Sammelaktion läuft. `className` setzt die Breite (am Handy behält sie ihre
+/// Textbreite, "Auswahl aufheben" füllt den Rest der Reihe).
+let private reviewedButton
+    (label: string)
+    (busy: bool)
+    (locked: bool)
+    (size: Button.ButtonSize)
+    (onClick: unit -> unit)
+    (className: string)
+    : ReactElement =
     Button.view {
         Button.defaultProps with
             Text = label
+            Size = size
             OnClick = onClick
             Variant = Button.Primary
             IsLoading = busy
+            IsDisabled = locked
+            ClassName = Some className
+    }
+
+/// Die sekundäre Sammelaktion (Teal-Rand aus dem Design-System).
+let private categoryButton (action: CategoryAction) (size: Button.ButtonSize) (className: string) : ReactElement =
+    Button.view {
+        Button.defaultProps with
+            Text = action.Label
+            Size = size
+            OnClick = action.OnClick
+            Variant = Button.Secondary
+            IsLoading = action.IsBusy
+            IsDisabled = action.IsLocked
             ClassName = Some className
     }
 
 /// Die Auswahl-Leiste am Handy: ersetzt die Tab-Bar. Reihe 1 "n ausgewählt" und Summe,
-/// Reihe 2 "Alle" (Teal, wenn der ganze Treffer gewählt ist), "Geprüft" (primär) und
-/// "Auswahl aufheben".
+/// Reihe 2 "Alle" (Teal, wenn der ganze Treffer gewählt ist), "Geprüft" (primär),
+/// "Kategorie setzen" (sekundär) und "Auswahl aufheben". `locked`: ein Sammelaufruf läuft.
 let barMobile
     (countText: string)
     (amount: Shared.Domain.Money)
@@ -154,7 +191,9 @@ let barMobile
     (onAll: unit -> unit)
     (reviewedLabel: string)
     (reviewedBusy: bool)
+    (locked: bool)
     (onReviewed: unit -> unit)
+    (category: CategoryAction)
     (clearLabel: string)
     (onClear: unit -> unit)
     : ReactElement =
@@ -172,21 +211,27 @@ let barMobile
                 prop.className "flex items-center gap-2"
                 prop.children [
                     ChipBar.chip { Label = allLabel; IsActive = allActive; OnClick = onAll; OnRemove = None }
-                    reviewedButton reviewedLabel reviewedBusy onReviewed "shrink-0"
+                    // Kleine Knöpfe, damit vier Elemente bei 390 px in eine Reihe passen.
+                    reviewedButton reviewedLabel reviewedBusy locked Button.Small onReviewed "shrink-0 whitespace-nowrap"
+                    categoryButton category Button.Small "shrink-0 whitespace-nowrap"
                     clearButton clearLabel onClear true
                 ]
             ]
+            category.Sheet
         ]
     ]
 
 /// Die Auswahl-Leiste am PC: eine Reihe, ersetzt den Tastatur-Hinweis. Kein "Alle", das
-/// Kopfzeilen-Kästchen erledigt es. Rechts "Geprüft" (primär) vor "Auswahl aufheben".
+/// Kopfzeilen-Kästchen erledigt es. Rechts "Auswahl aufheben", "Kategorie setzen" (sekundär,
+/// mit dem Picker als Popover über der Leiste) und zuletzt "Geprüft" (primär).
 let barDesktop
     (countText: string)
     (amount: Shared.Domain.Money)
     (reviewedLabel: string)
     (reviewedBusy: bool)
+    (locked: bool)
     (onReviewed: unit -> unit)
+    (category: CategoryAction)
     (clearLabel: string)
     (clearKeyHint: string)
     (onClear: unit -> unit)
@@ -207,7 +252,16 @@ let barDesktop
                         prop.text clearKeyHint
                     ]
                     clearButton clearLabel onClear false
-                    reviewedButton reviewedLabel reviewedBusy onReviewed ""
+                    // Der Wrapper trägt das Popover; es öffnet über dem Knopf (`bottom-full`).
+                    Html.div [
+                        prop.className "relative"
+                        // Ein Klick auf den Knopf schaltet den Picker um; das Schließen "Klick
+                        // außerhalb" des Popovers (mousedown am Dokument) soll ihn nicht vorher
+                        // schließen, sonst öffnete derselbe Klick ihn gleich wieder.
+                        prop.onMouseDown (fun e -> e.stopPropagation ())
+                        prop.children [ categoryButton category Button.Medium ""; category.Popover ]
+                    ]
+                    reviewedButton reviewedLabel reviewedBusy locked Button.Medium onReviewed ""
                 ]
             ]
         ]

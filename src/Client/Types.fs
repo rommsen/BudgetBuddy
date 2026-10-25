@@ -192,6 +192,9 @@ type ToastActionKind =
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate
+    /// "Rückgängig" nach "Kategorie setzen" für eine ganze Auswahl (ledger-w29y6): ein Klick
+    /// stellt die vorherige Kategorie jeder geänderten Buchung wieder her.
+    | UndoCategoryBatch of changes: Shared.Domain.CategoryBatchChange list
 
 /// Die optionale Aktion eines Toasts: Beschriftung und was der Klick auslöst.
 type ToastAction = {

@@ -929,6 +929,8 @@ let private CategoryPickerSingleDemo () =
     let loadingOpen, setLoadingOpen = React.useState false
     let failedOpen, setFailedOpen = React.useState false
     let retryCount, setRetryCount = React.useState 0
+    let aboveOpen, setAboveOpen = React.useState false
+    let selectionSheetOpen, setSelectionSheetOpen = React.useState false
     // Zählt die OnSelect-Aufrufe, damit "genau einmal pro Klick" an der Galerie prüfbar ist.
     let selectCount, setSelectCount = React.useState 0
     let selectCounter = React.useRef 0
@@ -1032,6 +1034,21 @@ let private CategoryPickerSingleDemo () =
                             OnRetry = fun () -> setRetryCount (retryCount + 1) }
                 ]
             ]
+            Html.div [
+                prop.className "relative"
+                prop.custom ("data-ds-demo", "category-picker-above")
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-above-trigger")
+                        prop.children [ Button.secondary "Popover der Auswahl (PC, nach oben, ohne Haken)" (fun () -> setAboveOpen (not aboveOpen)) ]
+                    ]
+                    CategoryPicker.selectionPopover aboveOpen { pickerProps (fun () -> setAboveOpen false) with Current = None }
+                ]
+            ]
+            Html.span [
+                prop.custom ("data-ds-demo", "category-picker-selection-sheet-trigger")
+                prop.children [ Button.secondary "Sheet der Auswahl (Handy, ohne Haken)" (fun () -> setSelectionSheetOpen true) ]
+            ]
             Html.span [
                 prop.custom ("data-ds-demo", "category-picker-retry-count")
                 prop.className "text-xs text-text-muted"
@@ -1049,6 +1066,10 @@ let private CategoryPickerSingleDemo () =
             ]
         ]
         CategoryPicker.sheet sheetOpen (Some "REWE Markt · -42,10 €") (pickerProps (fun () -> setSheetOpen false))
+        CategoryPicker.selectionSheet
+            selectionSheetOpen
+            (Some "12 Buchungen · -340,20 €")
+            { pickerProps (fun () -> setSelectionSheetOpen false) with Current = None }
         Html.div [
             prop.className "max-w-sm pt-4"
             prop.children [

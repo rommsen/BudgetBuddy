@@ -219,6 +219,10 @@ type private ContentProps = {
     FocusSearch: bool
     /// Klassen der Liste: im Popover begrenzte Höhe mit Scroll, im Sheet scrollt der Körper
     ListClass: string
+    /// Markiert der Picker die aktuelle Kategorie mit Haken? Für eine Auswahl aus mehreren
+    /// Buchungen gibt es keine aktuelle Kategorie: dann steht kein Haken, auch nicht bei
+    /// "Ohne Kategorie" (ledger-w29y6).
+    MarkCurrent: bool
 }
 
 [<ReactComponent>]
@@ -261,7 +265,7 @@ let private Content (input: ContentProps) =
 
     let itemRow (keyPrefix: string) (label: string) (c: YnabCategory) =
         let index = nextIndex ()
-        let isCurrent = isCurrentCategory props.Current c
+        let isCurrent = input.MarkCurrent && isCurrentCategory props.Current c
         let (YnabCategoryId guid) = c.Id
         PickerParts.row
             (rowClassFor (active = Some index))
@@ -287,7 +291,7 @@ let private Content (input: ContentProps) =
 
     let withoutRow () =
         let index = nextIndex ()
-        let isCurrent = props.Current.IsNone
+        let isCurrent = input.MarkCurrent && props.Current.IsNone
         PickerParts.row
             (rowClassFor (active = Some index))
             [
@@ -455,7 +459,16 @@ let private Content (input: ContentProps) =
 let popoverWithWidth (widthClassName: string) (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.view
         { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = widthClassName }
-        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto" } ]
+        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = true } ]
+
+/// Das Popover für die Auswahl-Leiste (ledger-w29y6): öffnet über dem Auslöser und
+/// rechtsbündig mit ihm (die Leiste sitzt fest am unteren Bildschirmrand) und markiert keine
+/// Zeile mit Haken, denn mehrere Buchungen haben keine gemeinsame aktuelle Kategorie. Der
+/// Auslöser steht in einem `position:relative`-Wrapper.
+let selectionPopover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+    FilterPopover.viewAbove
+        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = FilterPopover.categoryWidthClass }
+        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = false } ]
 
 let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     popoverWithWidth FilterPopover.categoryWidthClass isOpen props
@@ -464,7 +477,7 @@ let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
 let popoverInPanel (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     popoverWithWidth FilterPopover.panelWidthClass isOpen props
 
-let private sheetWith (elevated: bool) (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
+let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
     // Das Sheet schließt gleich: ein später synthetischer Klick soll nicht die Liste dahinter
     // treffen (ADR 0005, Click-Commit).
     let closing =
@@ -486,18 +499,24 @@ let private sheetWith (elevated: bool) (isOpen: bool) (subtitle: string option) 
           Footer = None }
     let children =
         [ if isOpen then
-              Content { Picker = closing; FocusSearch = Viewport.isFinePointer (); ListClass = "" } ]
+              Content { Picker = closing; FocusSearch = Viewport.isFinePointer (); ListClass = ""; MarkCurrent = markCurrent } ]
     if elevated then BottomSheet.viewLayered sheetProps children
     else BottomSheet.view sheetProps children
 
 /// Hülle für das Handy: BottomSheet mit Titel "Kategorie wählen" und optionaler Unterzeile
 /// (zum Beispiel Payee und Betrag).
 let sheet (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
-    sheetWith false isOpen subtitle props
+    sheetWith false true isOpen subtitle props
 
 /// Wie `sheet`, aber auf der erhöhten Ebene, damit der Picker über dem Detail-Sheet liegt
 let sheetLayered (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
-    sheetWith true isOpen subtitle props
+    sheetWith true true isOpen subtitle props
+
+/// Das Sheet für die Auswahl am Handy (ledger-w29y6): wie `sheet`, aber ohne Haken, denn
+/// mehrere Buchungen haben keine gemeinsame aktuelle Kategorie. Die Unterzeile nennt Zahl
+/// und Summe der Auswahl.
+let selectionSheet (isOpen: bool) (subtitle: string option) (props: CategoryPickerProps) : ReactElement =
+    sheetWith false false isOpen subtitle props
 
 // ============================================
 // Karte "Budget nach dem Wechsel"

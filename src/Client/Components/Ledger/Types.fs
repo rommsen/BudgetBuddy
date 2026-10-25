@@ -602,6 +602,14 @@ type Model = {
     /// leerer Auswahl bleibt er an.
     SelectionMode: bool
 
+    /// Steht der Kategorie-Picker der Auswahl offen (ledger-w29y6)? Eigenes Feld, damit
+    /// `CategoryPickerFor` dem Detail bleibt. Die Auswahl bleibt während der Wahl bestehen.
+    BatchCategoryPickerOpen: bool
+
+    /// Läuft gerade ein Sammel-Aufruf "Kategorie setzen" (oder seine Rücknahme)? Dann sind
+    /// beide Sammelaktionen der Leiste gesperrt.
+    CategoryBatchRunning: bool
+
     /// Die Fokuszeile der Tastaturnavigation am PC (ledger-rjb8w, `keyboardCursor` aus
     /// Handoff Ablauf 7). `None`, bis die erste Taste sie setzt. Sie überlebt das
     /// Neuladen der Liste; fällt die Zeile danach aus der Liste, springt der Fokus auf die
@@ -780,6 +788,95 @@ let reviewBatchToastType (outcome: Shared.Domain.ReviewMarkBatchOutcome) : Toast
     if anySendFailed || outcome.FailedCount > 0 then ToastWarning
     elif List.isEmpty outcome.Changed then ToastInfo
     else ToastSuccess
+
+// ============================================
+// "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
+// ============================================
+
+/// Die zweite Sammelaktion der Auswahl-Leiste (sekundär): öffnet den Kategorie-Picker.
+let selectionCategoryLabel = "Kategorie setzen"
+
+/// Die Unterzeile des Pickers am Handy: "12 Buchungen · -340,20 €", analog zu
+/// "Payee · Betrag" im Einzelweg.
+let selectionPickerSubtitle (count: int) (amount: Shared.Domain.Money) : string =
+    let noun = if count = 1 then "Buchung" else "Buchungen"
+    let sum = Client.DesignSystem.Money.formatAmountText false true amount.Amount amount.Currency
+    $"{Client.DesignSystem.Money.formatCount count} {noun} · {sum}"
+
+/// Wie viele Buchungen der Sammel-Befehl übersprungen hat: Ziel gleich Ist und die nicht
+/// änderbaren zusammen.
+let categoryBatchSkippedCount (outcome: Shared.Domain.CategoryBatchOutcome) : int =
+    outcome.UnchangedCount + List.length outcome.Skipped
+
+/// Die Gründe der übersprungenen Buchungen für den Toast, ohne Wiederholung und in fester
+/// Reihenfolge: "Split, Übertrag, gelöscht". Ziel gleich Ist heißt "schon dort".
+let categoryBatchSkipReasons (outcome: Shared.Domain.CategoryBatchOutcome) : string list =
+    let has reason = List.contains reason outcome.Skipped
+    [ if has Shared.Domain.SkipSplit || has Shared.Domain.SkipSplitNotAdjusted then "Split"
+      if has Shared.Domain.SkipTransfer then "Übertrag"
+      if has Shared.Domain.SkipDeletedInYnab then "gelöscht"
+      if has Shared.Domain.SkipNotFound then "nicht gefunden"
+      if outcome.UnchangedCount > 0 then "schon dort" ]
+
+/// Die Buchungen des Stapels, deren Weg nach YNAB gescheitert ist, mit ihrem Grund.
+let categoryBatchSendFailures (outcome: Shared.Domain.CategoryBatchOutcome) : string list =
+    outcome.Changed
+    |> List.choose (fun c ->
+        match c.WriteBack with
+        | Shared.Domain.CategorySendFailed reason -> Some reason
+        | _ -> None)
+
+/// Der Satz des Toasts nach "Kategorie setzen" für die Auswahl: "n Buchungen nach <Kategorie>
+/// verschoben" (bei `None`: "Kategorie bei n Buchungen entfernt"), bei Bedarf mit
+/// ", m übersprungen (Split, Übertrag, gelöscht)" und dem Hinweis "Kategorie nicht in YNAB"
+/// samt erstem Grund, wenn der Weg nach YNAB bei Buchungen gescheitert ist.
+let categoryBatchToastText (targetName: string option) (outcome: Shared.Domain.CategoryBatchOutcome) : string =
+    let changed = List.length outcome.Changed
+    let countText = Client.DesignSystem.Money.formatCount changed
+    let head =
+        match changed, targetName with
+        | 0, _ -> "Keine Buchung geändert"
+        | 1, Some name -> $"1 Buchung nach {name} verschoben"
+        | n, Some name -> $"{Client.DesignSystem.Money.formatCount n} Buchungen nach {name} verschoben"
+        | 1, None -> "Kategorie bei 1 Buchung entfernt"
+        | _, None -> $"Kategorie bei {countText} Buchungen entfernt"
+    let skipped = categoryBatchSkippedCount outcome
+    let withSkipped =
+        if skipped > 0 then
+            let reasons = categoryBatchSkipReasons outcome
+            let reasonText = String.concat ", " reasons
+            $"{head}, {Client.DesignSystem.Money.formatCount skipped} übersprungen ({reasonText})"
+        else
+            head
+    match categoryBatchSendFailures outcome with
+    | [] -> withSkipped
+    | [ reason ] -> $"{withSkipped}. {categoryHintTitle}: {reason}"
+    | reason :: rest ->
+        $"{withSkipped}. {categoryHintTitle}: {reason} (bei {List.length rest + 1} Buchungen)"
+
+/// Die Art des Toasts: Warnung, sobald der Weg nach YNAB gescheitert ist, Info ohne Änderung,
+/// sonst Erfolg.
+let categoryBatchToastType (outcome: Shared.Domain.CategoryBatchOutcome) : ToastType =
+    if not (List.isEmpty (categoryBatchSendFailures outcome)) then ToastWarning
+    elif List.isEmpty outcome.Changed then ToastInfo
+    else ToastSuccess
+
+/// Die Gruppen der Rücknahme: die geänderten Buchungen nach ihrer vorherigen Kategorie
+/// gruppiert (`None`: ohne Kategorie), in der Reihenfolge des ersten Auftretens. Je Gruppe
+/// geht ein Sammel-Befehl hinaus, also ein PATCH.
+let categoryBatchUndoGroups (changes: Shared.Domain.CategoryBatchChange list) : (CategoryChoice option * Guid list) list =
+    changes
+    |> List.map (fun c -> c.Previous, c.EntryId)
+    |> List.fold
+        (fun (order: CategoryChoice option list, groups: Map<CategoryChoice option, Guid list>) (previous, id) ->
+            let order' = if List.contains previous order then order else order @ [ previous ]
+            order', groups |> Map.add previous ((groups |> Map.tryFind previous |> Option.defaultValue []) @ [ id ]))
+        ([], Map.empty)
+    |> fun (order, groups) -> order |> List.map (fun key -> key, groups.[key])
+
+/// Ist ein Filter aktiv, der die Kategorie betrifft (Kategorie-Chips oder "Ohne Kategorie")?
+let categoryFilterActive (filters: Filters) : bool =
+    not (Set.isEmpty filters.CategoryIds) || filters.WithoutCategory
 
 /// Ist "Alle" in der Handy-Leiste aktiv? Nur beim ganzen Treffer ohne Ausnahme.
 let isAllSelected (selection: Selection) : bool =
@@ -1117,6 +1214,26 @@ type Msg =
     /// Leertaste auf der markierten Zeile (ledger-w4vte): nimmt sie in die Auswahl oder
     /// heraus, wie ein Klick auf ihr Kästchen.
     | ToggleFocusedSelected
+
+    // ============================================
+    // "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
+    // ============================================
+
+    /// "Kategorie setzen" in der Leiste: öffnet den Picker (nur mit nicht leerer Auswahl),
+    /// ein zweiter Klick schließt ihn.
+    | ToggleBatchCategoryPicker
+    | CloseBatchCategoryPicker
+    /// Wahl im Picker (`None`: ohne Kategorie): sperrt die Aktionen und stößt den Aufruf an.
+    | StartCategoryBatch of YnabCategoryId option
+    /// Der Sammel-Aufruf mit der Auswahl und der Ziel-Kategorie.
+    | RunCategoryBatch of ReviewMarkBatchSelection * YnabCategoryId option
+    | CategoryBatchDone of YnabCategoryId option * Result<CategoryBatchOutcome, string>
+    /// Klick auf "Rückgängig" im Toast: ein Sammel-Befehl je Gruppe gleicher vorheriger Kategorie.
+    | StartUndoCategoryBatch of CategoryBatchChange list
+    | RunUndoCategoryBatch of (CategoryChoice option * Guid list) list
+    /// Die Antworten der Gruppen der Rücknahme, je mit der Kategorie, auf die sie zurückstellte.
+    | CategoryBatchRestored of (CategoryChoice option * Result<CategoryBatchOutcome, string>) list
+
     /// Esc (ledger-q1hw2, Kette ledger-w4vte): schließt genau eine Stufe, erst das offene
     /// Popover, dann das Detail, dann die Auswahl.
     | EscapePressed

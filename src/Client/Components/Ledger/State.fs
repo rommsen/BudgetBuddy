@@ -66,6 +66,8 @@ let init () : Model * Cmd<Msg> =
         Selection = NoSelection
         SelectionAnchor = None
         SelectionMode = false
+        BatchCategoryPickerOpen = false
+        CategoryBatchRunning = false
         FocusedRow = None
         ReviewMarkBatchRunning = false
         CategoryPickerFor = None
@@ -508,11 +510,77 @@ let private applyReviewMarkBatch (outcome: ReviewMarkBatchOutcome) (model: Model
         model', (ended.OnlyNeedsReview && unloadedChanged > 0)
     | _ -> ended, false
 
+/// Trägt das Ergebnis von "Kategorie setzen" für die Auswahl (oder einer Gruppe der Rücknahme)
+/// in die geladene Liste ein (ledger-w29y6). `target`: die Kategorie, auf die der Befehl
+/// gesetzt hat (`None`: ohne Kategorie). Die Auswahl endet samt Auswahl-Modus und Picker.
+/// Jede geänderte geladene Zeile trägt die neue Kategorie und ihren Fehlschlag; fällt sie aus
+/// dem aktiven Filter, bleibt sie ausgegraut stehen (`applyFilterEffect`), eine Rücknahme macht
+/// sie wieder zum Treffer. Ändert sich der Schlüssel der Sortierung (`SortByCategory`), oder
+/// waren geänderte Buchungen nie geladen (`AllExcept`) und ein Kategorie-Filter ist aktiv,
+/// ist die Liste veraltet (`OrderStale`) und Trefferzahl und Summe werden neu geholt
+/// (`RunRefreshTotals`). Available wird nicht fortgeschrieben, die Kategorien laden danach
+/// unbedingt neu. Rein, ohne Proxy.
+let private applyCategoryBatch
+    (target: CategoryChoice option)
+    (outcome: CategoryBatchOutcome)
+    (model: Model)
+    : Model * Cmd<Msg> =
+    let ended = {
+        model with
+            Selection = NoSelection
+            SelectionAnchor = None
+            SelectionMode = false
+            BatchCategoryPickerOpen = false
+            CategoryBatchRunning = false
+    }
+    let changedCount = List.length outcome.Changed
+    let targetId = target |> Option.map (fun t -> t.CategoryId)
+    let category = categoryOfId ended targetId
+    let changeById = outcome.Changed |> List.map (fun c -> c.EntryId, c) |> Map.ofList
+    let loaded =
+        match ended.Entries with
+        | Success entries -> entries |> List.filter (fun e -> changeById |> Map.containsKey e.Id)
+        | _ -> []
+    let updatedById =
+        loaded
+        |> List.map (fun e ->
+            let failure =
+                match changeById.[e.Id].WriteBack with
+                | CategorySendFailed reason -> Some reason
+                | _ -> None
+            e.Id,
+            { e with
+                CategoryId = targetId |> Option.map (fun (YnabCategoryId g) -> g)
+                CategoryName =
+                    category
+                    |> Option.map (fun c -> c.Name)
+                    |> Option.orElse (target |> Option.map (fun t -> t.CategoryName))
+                CategoryGroupName = category |> Option.map (fun c -> c.GroupName)
+                CategorizationWriteBackFailure = failure })
+        |> Map.ofList
+    let withRows =
+        match ended.Entries with
+        | Success entries ->
+            { ended with
+                Entries = Success (entries |> List.map (fun e -> updatedById |> Map.tryFind e.Id |> Option.defaultValue e))
+                DetailFor =
+                    ended.DetailFor |> Option.map (fun d -> updatedById |> Map.tryFind d.Id |> Option.defaultValue d) }
+        | _ -> ended
+    let filtered = updatedById |> Map.toList |> List.fold (fun m (_, e) -> applyFilterEffect e m) withRows
+    let unloadedChanged = changedCount - List.length loaded
+    let sortKeyMoved = changedCount > 0 && (effectiveSort filtered).Field = SortByCategory
+    let totalsStale = unloadedChanged > 0 && categoryFilterActive filtered.Filters
+    let stale = sortKeyMoved || totalsStale
+    let finalModel = if stale then { filtered with OrderStale = true } else filtered
+    let refresh = if stale then Cmd.ofMsg RunRefreshTotals else Cmd.none
+    finalModel, Cmd.batch [ refresh; (if changedCount > 0 then Cmd.ofMsg LoadCategories else Cmd.none) ]
+
 /// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover und ein offenes Sheet
 /// gehören der Tastatur; ein offenes Seitenpanel nicht, es folgt der Markierung
 /// (ledger-q1hw2, ADR 0053 Punkt 5).
 let private keyboardBlocked (model: Model) : bool =
     model.OpenPopover.IsSome
+    || model.BatchCategoryPickerOpen
     || model.CategoryPickerFor.IsSome
     || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
 
@@ -1505,6 +1573,120 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         model, Cmd.none, ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     // ============================================
+    // "Kategorie setzen" für die ganze Auswahl (ledger-w29y6)
+    // ============================================
+
+    | ToggleBatchCategoryPicker ->
+        if model.BatchCategoryPickerOpen then
+            { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
+        else
+            // Nur mit nicht leerer Auswahl und ohne laufenden Sammelaufruf (einer sperrt beide
+            // Aktionen der Leiste). Öffnen lädt die Kategorien bei Stand über zwei Minuten nach.
+            match reviewMarkBatchSelection model with
+            | Some _ when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning ->
+                { model with BatchCategoryPickerOpen = true; OpenPopover = None },
+                Cmd.ofMsg EnsureCategoriesFresh,
+                NoOp
+            | _ -> model, Cmd.none, NoOp
+
+    | CloseBatchCategoryPicker -> { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
+
+    | StartCategoryBatch target ->
+        match reviewMarkBatchSelection model with
+        | Some selection when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning ->
+            { model with CategoryBatchRunning = true; BatchCategoryPickerOpen = false },
+            Cmd.ofMsg (RunCategoryBatch (selection, target)),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunCategoryBatch (selection, target) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryCategoryBatch selection)
+                target
+                (fun result -> CategoryBatchDone (target, result))
+                (fun ex -> CategoryBatchDone (target, Error ex.Message))
+        model, cmd, NoOp
+
+    | CategoryBatchDone (target, Ok outcome) ->
+        let category = categoryOfId model target
+        let targetChoice =
+            target
+            |> Option.map (fun id ->
+                { CategoryId = id
+                  CategoryName = category |> Option.map (fun c -> c.Name) |> Option.defaultValue "" })
+        let model', cmd = applyCategoryBatch targetChoice outcome model
+        let text = categoryBatchToastText (category |> Option.map (fun c -> c.Name)) outcome
+        let toastType = categoryBatchToastType outcome
+        let external =
+            if List.isEmpty outcome.Changed then
+                ShowToast (text, toastType)
+            else
+                ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoCategoryBatch outcome.Changed })
+        model', cmd, external
+
+    | CategoryBatchDone (_, Error message) ->
+        { model with CategoryBatchRunning = false },
+        Cmd.none,
+        ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
+
+    | StartUndoCategoryBatch changes ->
+        if model.CategoryBatchRunning || model.ReviewMarkBatchRunning then
+            model, Cmd.none, NoOp
+        else
+            { model with CategoryBatchRunning = true },
+            Cmd.ofMsg (RunUndoCategoryBatch (categoryBatchUndoGroups changes)),
+            NoOp
+
+    | RunUndoCategoryBatch groups ->
+        // Ein Sammel-Befehl je Gruppe gleicher vorheriger Kategorie, nacheinander (die
+        // Schreib-Sperre des Servers ordnet sie ohnehin), eine Antwort für den einen Toast.
+        let run () =
+            async {
+                let results = ResizeArray<CategoryChoice option * Result<CategoryBatchOutcome, string>>()
+                for (previous, ids) in groups do
+                    let! result =
+                        Api.ledger.setEntryCategoryBatch (BatchPicked ids) (previous |> Option.map (fun p -> p.CategoryId))
+                    results.Add((previous, result))
+                return List.ofSeq results
+            }
+        let cmd =
+            Cmd.OfAsync.either
+                run
+                ()
+                CategoryBatchRestored
+                (fun ex -> CategoryBatchRestored (groups |> List.map (fun (previous, _) -> previous, Error ex.Message)))
+        model, cmd, NoOp
+
+    | CategoryBatchRestored results ->
+        // Ohne neue Aktion: eine Aktion, ein Toast, eine Rücknahme.
+        let ended = { model with CategoryBatchRunning = false }
+        let model', cmd =
+            results
+            |> List.fold
+                (fun (m: Model, cmds: Cmd<Msg> list) (previous, result) ->
+                    match result with
+                    | Ok outcome ->
+                        let m', c = applyCategoryBatch previous outcome m
+                        m', cmds @ [ c ]
+                    | Error _ -> m, cmds)
+                (ended, [])
+            |> fun (m, cmds) -> m, Cmd.batch cmds
+        let outcomes = results |> List.choose (fun (_, r) -> match r with Ok o -> Some o | Error _ -> None)
+        let firstError = results |> List.tryPick (fun (_, r) -> match r with Error e -> Some e | Ok _ -> None)
+        let restored = outcomes |> List.sumBy (fun o -> List.length o.Changed)
+        let firstFailure = outcomes |> List.tryPick (fun o -> categoryBatchSendFailures o |> List.tryHead)
+        let external =
+            match firstError, firstFailure with
+            | Some message, _ -> ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+            | None, Some reason -> ShowToast ($"{categoryHintTitle}: {reason}", ToastWarning)
+            | None, None when restored = 0 -> NoOp
+            | None, None ->
+                let noun = if restored = 1 then "Buchung" else "Buchungen"
+                ShowToast ($"Kategorie bei {Client.DesignSystem.Money.formatCount restored} {noun} zurückgesetzt", ToastSuccess)
+        model', cmd, external
+
+    // ============================================
     // Tastaturfokus und Taste G (ledger-rjb8w, PC)
     // ============================================
 
@@ -1556,6 +1738,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         // nicht; liegt er auf dem Chip, schließt diese Stufe es.
         if model.OpenPopover.IsSome then
             { model with OpenPopover = None }, Cmd.none, NoOp
+        elif model.BatchCategoryPickerOpen then
+            { model with BatchCategoryPickerOpen = false }, Cmd.none, NoOp
         elif model.CategoryPickerFor.IsSome then
             { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
         elif model.DetailFor.IsSome then
@@ -1574,6 +1758,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model' =
         if model'.DetailFor.IsSome && not (hasSelection model) && hasSelection model' then
             { model' with DetailFor = None; History = NotAsked }
+        else
+            model'
+    // Der Picker der Auswahl gehört zur Auswahl: endet sie (Aufheben, Esc, Konto- oder
+    // Filterwechsel), endet er mit ihr (ledger-w29y6).
+    let model' =
+        if model'.BatchCategoryPickerOpen && not (hasSelection model') then
+            { model' with BatchCategoryPickerOpen = false }
         else
             model'
     // Picker und Karte gehören zur Buchung im offenen Detail: schließt das Detail oder wechselt

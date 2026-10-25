@@ -392,4 +392,12 @@ type LedgerApi = {
     /// One undo for a whole batch: restores each booking's previous state (one event per
     /// booking, one bulk PATCH). Never writes from or to Reconciled.
     restoreReviewMarkBatch: ReviewMarkRestoreItem list -> Async<Result<ReviewMarkBatchOutcome, string>>
+
+    /// Sets one category (or none) for a whole selection (ledger-w29y6): the server resolves
+    /// the selection like setReviewMarkBatch, writes one EntryRecategorized per changed
+    /// booking and sends ONE bulk PATCH to YNAB. Bookings that cannot change category (deleted,
+    /// split, transfer) and bookings already in the target category are skipped with a
+    /// reason. An unknown target category rejects the whole command. The answer names the
+    /// previous category per changed booking, which the client uses for the shared undo.
+    setEntryCategoryBatch: ReviewMarkBatchSelection -> YnabCategoryId option -> Async<Result<CategoryBatchOutcome, string>>
 }

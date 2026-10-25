@@ -1,7 +1,7 @@
 ---
 id: ledger-w29y6
 title: "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-24
@@ -185,3 +185,30 @@ Befehl. Zusätzliche Dateien: `src/Client/Types.fs`, `DesignSystem/MultiSelect.f
 Entscheidungen am 2026-10-25 (Roman): Handy-Leiste in einer Reihe mit "Geprüft" primär und
 "Kategorie setzen" sekundär; Picker der Auswahl öffnet immer ohne Haken; Sheet-Unterzeile
 "n Buchungen · Summe".
+
+## Outcome
+
+"Kategorie setzen" ist als zweite, sekundäre Sammelaktion neben "Geprüft" in der Auswahl-Leiste da. Der Befehl `setEntryCategoryBatch` löst die Auswahl auf dem Server auf, schreibt je geänderter Buchung ein `EntryRecategorized` und schickt einen einzigen Sammel-PATCH (`YnabClient.updateCategoryBatch`, `PATCH /budgets/{id}/transactions`). Übersprungen werden (mit Grund, ohne Ereignis, nicht im PATCH) die nicht änderbaren Buchungen und Ziel gleich Ist. Fehlschläge, Baseline, nicht gespeicherte Ids und `WrittenBackToYnab` folgen den Regeln des Einzelwegs. Der Befehl läuft unter `WriteGuard.exclusive`.
+
+Kernpunkte und Dateien:
+- Server: `src/Server/Ledger/CommandHandlers.fs` (`setEntryCategoryBatch`, `CategoryBatchPush`, `categoryNotSavedReason`; `categoryNotChangeableReason` ist jetzt eine dünne Hülle über `categoryNotChangeable : Entry -> CategorySkipReason option`, damit Einzelweg und Sammelweg dieselbe Prüfung nutzen, keine Kopie), `src/Server/YnabClient.fs` (`CategoryBatchItem`, `buildCategoryBatchBody`, `sendCategoryBatch`, `updateCategoryBatch`), `src/Server/Api.fs` (`categoryBatchPush`, `setEntryCategoryBatch`), `src/Shared/Domain.fs` (`CategorySkipReason`, `CategoryBatchChange`, `CategoryBatchOutcome`), `src/Shared/Api.fs`.
+- Client: `Components/Ledger/Types.fs` (Modellfelder `BatchCategoryPickerOpen`, `CategoryBatchRunning`, Nachrichten, reine Helfer `categoryBatchToastText`, `categoryBatchUndoGroups`, `selectionPickerSubtitle`, `categoryFilterActive`), `State.fs` (`applyCategoryBatch`, Esc-Kette, `keyboardBlocked`, Picker endet mit der Auswahl), `View.fs` (`selectionBars`), `src/Client/Types.fs` (`UndoCategoryBatch`), `src/Client/State.fs` (`toastActionMsg`, PWA-Update wartet während des Aufrufs).
+- Design-System: `FilterPopover.viewAbove` (öffnet über dem Auslöser, rechtsbündig, `bottom-full right-0 mb-6`), `CategoryPicker.selectionPopover` und `selectionSheet` (ohne Haken, `MarkCurrent = false` im privaten `ContentProps`, damit keine bestehende `CategoryPickerProps`-Konstruktion bricht), `MultiSelect.CategoryAction` mit `barDesktop`/`barMobile`. Beide neuen Varianten stehen in `/styleguide` (Sektion 26) und in `standards/frontend/styleguide.md`.
+- Rücknahme: der Client ruft den Sammel-Befehl je Gruppe gleicher vorheriger Kategorie nacheinander in einem Async auf, eine Antwort für einen Toast ohne Aktion ("Kategorie bei n Buchungen zurückgesetzt").
+- Liste und Filter wie im Einzelweg über `applyFilterEffect` (ausgegraut, `LocallyRemoved`, `TotalCount`, `TotalAmount`); `SortByCategory` setzt `OrderStale` und stößt `RunRefreshTotals` an; nach dem Befehl und nach der Rücknahme folgt unbedingt `LoadCategories`.
+
+Entscheidungen im Detail:
+- Unter `AllExcept` mit aktivem Kategorie-Filter und nie geladenen geänderten Buchungen setzt der Client zusätzlich `OrderStale`, weil `TotalsRefreshed` nur bei `OrderStale` Treffer und Summe übernimmt (sonst würde `RunRefreshTotals` ins Leere laufen). Die Liste bietet dann "Neu laden" an.
+- Handy-Leiste: damit vier Elemente bei 390 px in eine Reihe passen, sind "Geprüft" und "Kategorie setzen" am Handy `Button.Small` (36 px hoch), "Auswahl aufheben" bekommt weniger Seitenabstand und bricht auf zwei Zeilen um. Am PC bleiben beide Knöpfe `Medium`; Reihenfolge am PC: Esc-Hinweis, Auswahl aufheben, Kategorie setzen, Geprüft (primär bleibt rechts), am Handy: Alle, Geprüft, Kategorie setzen, Auswahl aufheben.
+- Der Picker-Wrapper am PC stoppt `mousedown`, damit das Schließen "Klick außerhalb" den Picker nicht vor dem Klick auf den Knopf schließt (sonst öffnete derselbe Klick ihn gleich wieder); `ToggleBatchCategoryPicker` schaltet um.
+- Die Prüfung auf `CategorySkipReason` führt `SkipNotFound` für Buchungen, die zwischen Auswahl und Befehl verschwinden.
+
+Tests (45 neu): `src/Tests/LedgerCategoryBatchTests.fs` (10 Befehlstests inkl. Picked mit vier Buchungen, AllExcept mit kleiner Seitengröße, PATCH-Fehler mit erster Baseline, nicht gespeicherte Ids, nicht verknüpft, WrittenBack, unbekannte Kategorie, Rücknahme je Gruppe, 1 Schreib-Sperren-Test, 4 YNAB-Client-Tests mit Fake-Handler und JSON-Vertrag), `src/Tests/LedgerCategoryBatchClientTests.fs` (28 Reducer-, Text- und Quelltext-Tests), dazu zwei neue Playwright-Tests in `scripts/ledger-selection.test.mjs` und angepasste Zusicherungen der bestehenden Leistentests (vier Knöpfe in einer Reihe ohne Überlauf bei 390 px, sekundär/primär, PC-Reihenfolge). Rot ohne Änderung: der Schreib-Sperren-Test wurde ohne `WriteGuard.exclusive` kurz probiert und schlug fehl (beide Sperren-Tests), danach zurückgedreht. Tests entstanden nach dem Code (Implementierung zuerst, dann Tests und der Rotlauf per Zurückdrehen), nicht streng Red-Green je Kriterium. Zwei bestehende Quelltext-Tests mussten mitziehen: `CategoryPickerTests` (drei statt zwei `Content {`) und `LedgerReviewMarkBatchClientTests` (gemeinsame Sperre `locked` in `selectionBars`).
+
+Pflichtläufe im Worktree: `dotnet build` 0 Warnungen 0 Fehler; `dotnet test` 1980 bestanden, 7 übersprungen (vorher 1937 bestanden); `npm run build` ok; `npm run guard:classes` ok; `npm run guard:tokens` ok; `node --test --test-concurrency=1 scripts/*.test.mjs` 202 von 202 bestanden (serielle Form von `npm run test:scripts`, die parallele Form hängt auf Romans Rechner).
+
+[human-eye] Screenshots (einmalig, außerhalb der Tests): /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-w29y6/handy-bar.png (Handy-Leiste mit vier Elementen in einer Reihe), /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-w29y6/handy-picker.png (Sheet mit Unterzeile "1 Buchung · -10,00 €", ohne Haken), /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-w29y6/pc-bar.png und /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-w29y6/pc-picker.png (PC-Leiste, Popover über der Leiste, ganz im Bildschirm), /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/883da6b7-8bd8-4383-85fb-89b4ad0ac73f/scratchpad/ledger-w29y6/styleguide-popover-above.png (Popover nach oben in `/styleguide`, Sektion 26). Der Toast mit Zahl und übersprungenen Buchungen ist im Playwright-Test geprüft, kein Bild.
+
+### README von Hand
+
+Nicht nötig, die README-Änderungen laufen über das `README_DELTA` (Gate `npm run check:readme-delta` grün, Exit 0). Die Zeile im Abschnitt `## Ereignisse` bleibt unverändert, es gibt kein neues Ereignis (nur neue Nutzung von `EntryRecategorized`, `EntryCategorizationWriteBackFailed` und `EntryCategorizationWrittenBackToYnab`).

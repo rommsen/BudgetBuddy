@@ -4,6 +4,35 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 12:40 - Kategorie setzen für die Auswahl (ledger-w29y6)
+
+**What I did:**
+Sammel-Befehl `setEntryCategoryBatch` mit einem Sammel-PATCH nach YNAB, zweite Sammelaktion "Kategorie setzen" in der Auswahl-Leiste mit dem Kategorie-Picker (PC: Popover über der Leiste, Handy: Sheet, beide ohne Haken), Toast mit Zahl der geänderten und übersprungenen Buchungen und eine Rücknahme für alle (ein Sammel-Befehl je Gruppe gleicher vorheriger Kategorie).
+
+**Files Added:**
+- `src/Tests/LedgerCategoryBatchTests.fs` - Befehle, Schreib-Sperre und YNAB-PATCH (Fake-Handler)
+- `src/Tests/LedgerCategoryBatchClientTests.fs` - Reducer, Texte, Rücknahme, Quelltext-Zusicherungen
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - `CategorySkipReason`, `CategoryBatchChange`, `CategoryBatchOutcome`, `setEntryCategoryBatch`
+- `src/Server/YnabClient.fs`, `src/Server/Ledger/CommandHandlers.fs`, `src/Server/Api.fs` - Sammel-PATCH, Handler, Verdrahtung; `categoryNotChangeable` als gemeinsame Prüfung
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs`, `src/Client/Types.fs`, `src/Client/State.fs` - Modell, Nachrichten, Reducer, Leiste, Toast-Aktion
+- `src/Client/DesignSystem/FilterPopover.fs`, `CategoryPicker.fs`, `MultiSelect.fs` - Popover nach oben, Picker ohne Haken, zweite Sammelaktion
+- `src/Client/Components/Styleguide/View.fs`, `standards/frontend/styleguide.md` - neue Varianten in Sektion 26
+- `src/Tests/CategoryPickerTests.fs`, `src/Tests/LedgerReviewMarkBatchClientTests.fs`, `src/Tests/Tests.fsproj`, `scripts/ledger-selection.test.mjs` - angepasste und neue Tests
+
+**Rationale:**
+Einstieg für viele Buchungen (ADR 0053, Punkt 2), nach dem Muster von "Geprüft für die Auswahl" (ledger-nhwrt) und dem Einzelweg (ledger-k2rbn, ledger-sfab0).
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 1980 bestanden, 7 übersprungen (dotnet test); 202 von 202 Playwright- und Skript-Tests (seriell)
+- Messwerte Handy 390 px: Alle 42 px, Geprüft 68 px (36 hoch), Kategorie setzen 124 px, Auswahl aufheben 89 px (zweizeilig), alles innerhalb 390 px, kein seitliches Scrollen
+- Messwerte PC 1440 px: Popover ganz im Bildschirm, Unterkante über der Leiste
+- Issues: `npm run test:scripts` läuft parallel und hängt; ich habe die serielle Form benutzt und die versehentlich gestartete parallele Form per PID beendet
+
+---
+
 ## 2026-10-25 12:40 - Kompaktliste nach Eingabegerät (ledger-m6zpd)
 
 **What I did:**

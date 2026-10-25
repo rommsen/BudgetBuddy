@@ -138,6 +138,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
     | UndoCategory (entryId, previous) ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategory (entryId, previous))
     | ReloadForUpdate -> PwaApplyUpdate
+    | UndoCategoryBatch changes ->
+        LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)
 
 let private addToastWithAction
     (message: string)
@@ -261,6 +263,7 @@ let isInputActive (model: Model) : bool =
         || draftDiffers ledger.AmountMinDraft (amountText filters.AmountMin)
         || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
         || ledger.ReviewMarkBatchRunning
+        || ledger.CategoryBatchRunning
     let rulesActive = model.Rules.EditingRule.IsSome
     let settingsActive = model.Settings.EditingSection.IsSome
     let quickAddActive =

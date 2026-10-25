@@ -995,6 +995,33 @@ type CategoryChangeOutcome = {
     WriteBack: CategoryWriteBack
 }
 
+/// Warum `setEntryCategoryBatch` eine Buchung übersprungen hat (kein Ereignis, nicht im
+/// PATCH). Die Gründe entsprechen den Ablehnungen von `setEntryCategory` (ADR 0055,
+/// Punkt 7) plus dem Fall, dass die Buchung nicht mehr existiert.
+type CategorySkipReason =
+    | SkipDeletedInYnab
+    | SkipSplit
+    | SkipSplitNotAdjusted
+    | SkipTransfer
+    | SkipNotFound
+
+/// Eine Buchung, deren Kategorie der Stapel geändert hat: ihre vorherige Kategorie (für
+/// die gemeinsame Rücknahme) und das Ergebnis des Sammel-PATCH für sie.
+type CategoryBatchChange = {
+    EntryId: Guid
+    Previous: CategoryChoice option
+    WriteBack: CategoryWriteBack
+}
+
+/// Antwort von `setEntryCategoryBatch` (ledger-w29y6). `Changed`: je geänderter Buchung ein
+/// Eintrag. `UnchangedCount`: Ziel gleich Ist. `Skipped`: je übersprungener Buchung der
+/// Grund. Beides ohne Ereignis und ohne PATCH.
+type CategoryBatchOutcome = {
+    Changed: CategoryBatchChange list
+    UnchangedCount: int
+    Skipped: CategorySkipReason list
+}
+
 /// Eine Zeile der Historie einer Buchung: wann, von wem, und was passiert ist —
 /// in der Sprache des Kassenbuchs, nicht als Ereignis-Typname (ADR 0013).
 type LedgerHistoryLine = {

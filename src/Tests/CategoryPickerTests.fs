@@ -176,7 +176,8 @@ let private tests =
                 Expect.stringContains src "FilterPopover.view" "Popover"
                 Expect.stringContains src "BottomSheet.view sheetProps" "Sheet"
                 Expect.stringContains src "BottomSheet.viewLayered sheetProps" "Sheet über dem Detail"
-                Expect.equal (src.Split("Content {").Length - 1) 2 "beide Hüllen rendern denselben Content"
+                // Popover, Popover der Auswahl (ledger-w29y6) und Sheet rendern denselben Content.
+                Expect.equal (src.Split("Content {").Length - 1) 3 "alle Hüllen rendern denselben Content"
             }
             test "Esc im Picker bleibt im Picker" {
                 let src = readDs "CategoryPicker.fs"

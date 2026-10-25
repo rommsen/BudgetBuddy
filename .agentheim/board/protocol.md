@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 12:45 -- Task verified and completed: ledger-w29y6 - "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle"
+
+**Type:** Work / Task completion
+**Task:** ledger-w29y6 - "Kategorie setzen für die Auswahl: Sammel-Befehl mit einem Sammel-PATCH nach YNAB, Schaltfläche Kategorie setzen in der Auswahl-Leiste mit demselben Picker, Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle"
+**Summary:** Die Auswahl-Leiste hat eine zweite Sammelaktion "Kategorie setzen": derselbe Picker (am PC als Popover über der Leiste, am Handy als Sheet, beide ohne Haken), ein Sammel-Befehl mit einem Sammel-PATCH nach YNAB und ein Toast mit Zahl der geänderten und übersprungenen Buchungen und einer Rücknahme für alle.
+**Duration:** 58m
+**Verification:** PASS (iteration 1)
+**Files changed:** 21
+**Tests added:** 45
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 12:32 -- Task verified and completed: ledger-m6zpd - "Kompaktliste nach Eingabegerät (ADR 0053 Punkt 6): mit Maus bekommt die schmale PC-Liste Kästchen, Umschalt-Klick, Prüf-Schaltfläche bei Hover, eine sichtbare Markierung und alle Tasten; mit Finger bleibt sie wie heute"
 
 **Type:** Work / Task completion

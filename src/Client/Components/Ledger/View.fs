@@ -2511,6 +2511,34 @@ let keyboardHintVisible (model: Model) : bool =
 let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     let totals = selectionTotals model
     let countText = selectionBarCountText totals.Count
+    // Läuft einer der beiden Sammelaufrufe, sind beide Aktionen gesperrt.
+    let locked = model.ReviewMarkBatchRunning || model.CategoryBatchRunning
+    let pickerProps : CategoryPicker.CategoryPickerProps =
+        { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
+          Current = None
+          Suggested = []
+          StandLabel = categoryStandLabel model DateTime.Now
+          LoadState = categoryLoadState model.Categories
+          OnRetry = fun () -> dispatch LoadCategories
+          OnSelect = fun choice -> dispatch (StartCategoryBatch choice)
+          OnClose = fun () -> dispatch CloseBatchCategoryPicker }
+    // Popover am PC, Sheet am Handy: nie beide, denn das Sheet portalt in den Body (ADR 0043).
+    let desktop = Viewport.isDesktopViewport ()
+    let category : MultiSelect.CategoryAction =
+        { Label = selectionCategoryLabel
+          IsBusy = model.CategoryBatchRunning
+          IsLocked = locked
+          OnClick = fun () -> dispatch ToggleBatchCategoryPicker
+          Popover =
+            (if desktop then CategoryPicker.selectionPopover model.BatchCategoryPickerOpen pickerProps
+             else Html.none)
+          Sheet =
+            (if desktop then Html.none
+             else
+                CategoryPicker.selectionSheet
+                    model.BatchCategoryPickerOpen
+                    (Some (selectionPickerSubtitle totals.Count totals.Amount))
+                    pickerProps) }
     React.fragment [
         if model.SelectionMode then
             MultiSelect.barMobile
@@ -2521,7 +2549,9 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 (fun () -> dispatch ToggleSelectAll)
                 selectionReviewedLabel
                 model.ReviewMarkBatchRunning
+                locked
                 (fun () -> dispatch StartReviewMarkBatch)
+                category
                 selectionClearLabel
                 (fun () -> dispatch ClearSelection)
         if totals.Count > 0 then
@@ -2530,7 +2560,9 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 totals.Amount
                 selectionReviewedLabel
                 model.ReviewMarkBatchRunning
+                locked
                 (fun () -> dispatch StartReviewMarkBatch)
+                category
                 selectionClearLabel
                 selectionClearKeyHint
                 (fun () -> dispatch ClearSelection)

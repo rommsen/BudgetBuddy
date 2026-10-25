@@ -283,7 +283,9 @@ let barTests =
             let count (needle: string) =
                 barView.Split([| needle |], StringSplitOptions.None).Length - 1
             Expect.equal (count "selectionReviewedLabel") 2 "in Handy- und PC-Leiste"
-            Expect.equal (count "model.ReviewMarkBatchRunning") 2 "Sperre in beiden"
+            // Einmal in `locked` (beide Sammelaktionen, ledger-w29y6), je einmal als Spinner in den Leisten.
+            Expect.equal (count "model.ReviewMarkBatchRunning") 3 "Sperre in beiden"
+            Expect.equal (count "\n                locked\n") 2 "die gemeinsame Sperre erreicht beide Leisten"
             Expect.equal (count "dispatch StartReviewMarkBatch") 2 "Klick in beiden"
             Expect.equal selectionReviewedLabel "Geprüft" "Beschriftung"
     ]

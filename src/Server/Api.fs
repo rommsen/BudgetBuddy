@@ -1507,6 +1507,23 @@ let private reviewMarkBatchPush () : Async<Ledger.CommandHandlers.ReviewMarkBatc
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Sammel-Push der Kategorie (ledger-w29y6), mit denselben Fehlerfällen wie
+/// `categoryPush`.
+let private categoryBatchPush () : Async<Ledger.CommandHandlers.CategoryBatchPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun items -> YnabClient.updateCategoryBatch token (YnabBudgetId budgetId) items
+        | None, _ ->
+            return fun _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 let ledgerApi : LedgerApi = {
     // Der manuelle Ausloeser "Jetzt spiegeln" (ADR 0014, Punkt 3). Frische-Kriterium
     // und Lauf nach Push sind Folge-Arbeit.
@@ -1587,6 +1604,13 @@ let ledgerApi : LedgerApi = {
     restoreReviewMarkBatch = fun items -> async {
         let! push = reviewMarkBatchPush ()
         return! Ledger.CommandHandlers.restoreReviewMarkBatch DateTime.UtcNow push items
+    }
+
+    // Kategorie für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-w29y6):
+    // ein Ereignis je Buchung, ein Sammel-PATCH an YNAB, unter der Schreib-Sperre.
+    setEntryCategoryBatch = fun selection target -> async {
+        let! push = categoryBatchPush ()
+        return! Ledger.CommandHandlers.setEntryCategoryBatch DateTime.UtcNow push selection target
     }
 }
 

@@ -1494,20 +1494,33 @@ let private categoryChoiceOf (names: Map<Guid, string>) (category: CategoryRef) 
     }
 
 /// Warum die Kategorie einer Buchung nicht änderbar ist (ADR 0055, Punkt 7), oder `None`.
-let private categoryNotChangeableReason (entry: Entry) : string option =
-    if entry.DeletedInYnab then Some "Die Buchung ist in YNAB gelöscht"
-    elif not (List.isEmpty entry.Splits) then
-        Some "Die Buchung ist aufgeteilt, die Kategorien ändert der Split-Editor"
+/// Die eine Quelle der Prüfung: `categoryNotChangeableReason` (Text für den Einzelweg) und
+/// `setEntryCategoryBatch` (Überspring-Grund) lesen beide diese Funktion.
+let private categoryNotChangeable (entry: Entry) : CategorySkipReason option =
+    if entry.DeletedInYnab then Some SkipDeletedInYnab
+    elif not (List.isEmpty entry.Splits) then Some SkipSplit
     elif
         entry.CategorizationWriteBackFailure
         |> Option.exists (fun f -> not (List.isEmpty f.BaselineSplits))
     then
         // YNAB hält noch den alten Split (oder gar keine Buchung): eine Kategorie würde
         // dort still ignoriert (ADR 0058, Punkt 4). Erst "Erneut senden" im Split-Editor.
-        Some "Der Split der Buchung ist in YNAB noch nicht angepasst, bitte erneut senden"
+        Some SkipSplitNotAdjusted
     elif entry.Category.IsNone && (entry.TransferAccountId.IsSome || entry.TransferEntryId.IsSome) then
-        Some "Ein Übertrag zwischen Budget-Konten hat keine Kategorie"
+        Some SkipTransfer
     else None
+
+/// Der Text zu einem Grund, warum die Kategorie einer Buchung nicht änderbar ist.
+let private categoryNotChangeableText (reason: CategorySkipReason) : string =
+    match reason with
+    | SkipDeletedInYnab -> "Die Buchung ist in YNAB gelöscht"
+    | SkipSplit -> "Die Buchung ist aufgeteilt, die Kategorien ändert der Split-Editor"
+    | SkipSplitNotAdjusted -> "Der Split der Buchung ist in YNAB noch nicht angepasst, bitte erneut senden"
+    | SkipTransfer -> "Ein Übertrag zwischen Budget-Konten hat keine Kategorie"
+    | SkipNotFound -> "Buchung nicht gefunden"
+
+let private categoryNotChangeableReason (entry: Entry) : string option =
+    categoryNotChangeable entry |> Option.map categoryNotChangeableText
 
 /// Der Befehl `setEntryCategory` (ADR 0055): lädt die Buchung, lehnt Unzulässiges ab
 /// (Fehler, kein Ereignis), schreibt bei einer Änderung zuerst `EntryRecategorized`
@@ -1564,6 +1577,142 @@ let setEntryCategory
                             let baseline = categoryBaseline entry (entry.Category, entry.Splits)
                             let! writeBack = pushCategory now push entry baseline target
                             return Ok { Previous = previous; Change = CategoryChanged; WriteBack = writeBack }
+        }
+    )
+
+// ============================================
+// Kategorie für eine ganze Auswahl, ein Sammel-PATCH (ledger-w29y6)
+// ============================================
+
+/// Der Sammel-Push der Kategorie, injiziert wie `ReviewMarkBatchPush`: bekommt je
+/// geänderter, verknüpfter Buchung YNAB-Id und Ziel-Kategorie und liefert die Ids, die YNAB
+/// nicht als gespeichert nennt. Ein `Error` trifft den ganzen Stapel (`Ynab.updateCategoryBatch`).
+type CategoryBatchPush = Ynab.CategoryBatchItem list -> Async<YnabResult<string list>>
+
+/// Der Grund für eine Buchung, die YNAB in der Antwort des Sammel-PATCH nicht nennt.
+let categoryNotSavedReason = "YNAB hat die Buchung im Sammelaufruf nicht gespeichert"
+
+/// Setzt die Kategorie (oder "ohne Kategorie") für die ganze Auswahl. Eine unbekannte
+/// Ziel-Kategorie lehnt den ganzen Befehl ab (Fehler, kein Ereignis). Je Buchung wie
+/// `setEntryCategory`: nicht änderbar (`categoryNotChangeable`) oder Ziel gleich Ist
+/// (`categorizationIdentity`) wird übersprungen, ohne Ereignis und ohne PATCH. Für jede
+/// geänderte Buchung steht ein eigenes `EntryRecategorized`, danach geht EIN Sammel-PATCH
+/// mit den verknüpften hinaus (ohne verknüpfte kein PATCH). Eine nicht verknüpfte Buchung
+/// bekommt `EntryCategorizationWriteBackFailed` (Grund `categoryNotLinkedReason`), scheitert
+/// der PATCH, trägt jede Buchung darin einen Fehlschlag mit der Baseline aus
+/// `categoryBaseline`; nennt die Antwort einzelne nicht gespeicherte Ids, gelten nur diese
+/// als gescheitert. Erfolg bei offenem früheren Fehlschlag schreibt
+/// `EntryCategorizationWrittenBackToYnab`. Läuft unter der Schreib-Sperre (`WriteGuard`).
+let setEntryCategoryBatch
+    (now: DateTime)
+    (push: CategoryBatchPush)
+    (selection: ReviewMarkBatchSelection)
+    (target: YnabCategoryId option)
+    : Async<Result<CategoryBatchOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            let! names = Ledger.Persistence.loadCategoryNames ()
+
+            let targetRef : Result<CategoryRef option, string> =
+                match target with
+                | None -> Ok None
+                | Some categoryId ->
+                    let (YnabCategoryId id) = categoryId
+                    match Map.tryFind id names with
+                    | Some name -> Ok (Some { CategoryId = categoryId; CategoryName = name })
+                    | None -> Error "Unbekannte Kategorie"
+
+            match targetRef with
+            | Error reason -> return Error reason
+            | Ok newCategory ->
+                let! ids = resolveReviewMarkBatchSelection selection
+                let candidates = ResizeArray<Entry>()
+                let skipped = ResizeArray<CategorySkipReason>()
+                let mutable unchanged = 0
+
+                for entryId in ids do
+                    match! Ledger.Persistence.loadEntry entryId with
+                    | None -> skipped.Add SkipNotFound
+                    | Some entry ->
+                        match categoryNotChangeable entry with
+                        | Some reason -> skipped.Add reason
+                        | None ->
+                            if categorizationIdentity entry.Category entry.Splits = categorizationIdentity newCategory [] then
+                                unchanged <- unchanged + 1
+                            else
+                                candidates.Add entry
+
+                let changed = candidates |> Seq.toList
+
+                if List.isEmpty changed then
+                    return Ok { Changed = []; UnchangedCount = unchanged; Skipped = skipped |> Seq.toList }
+                else
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            for entry in changed ->
+                                reviewMarkEvent entry.Id now UserInBb (
+                                    EntryRecategorized {
+                                        OldCategory = entry.Category
+                                        NewCategory = newCategory
+                                        OldSplits = []
+                                        NewSplits = []
+                                        OldPayee = entry.Payee
+                                        NewPayee = entry.Payee
+                                    }
+                                )
+                        ]
+
+                    let linked = ResizeArray<Entry * string>()
+                    let unlinked = ResizeArray<Entry>()
+
+                    for entry in changed do
+                        match! tryYnabTransactionId entry.Id with
+                        | Some ynabId -> linked.Add((entry, ynabId))
+                        | None -> unlinked.Add entry
+
+                    let linked = linked |> Seq.toList
+
+                    let! pushed =
+                        if List.isEmpty linked then
+                            async { return Ok [] }
+                        else
+                            push [ for _, ynabId in linked -> ({ YnabTransactionId = ynabId; CategoryId = target }: Ynab.CategoryBatchItem) ]
+
+                    let reasonOfLinked (ynabId: string) : string option =
+                        match pushed with
+                        | Ok notSaved when notSaved |> List.contains ynabId -> Some categoryNotSavedReason
+                        | Ok _ -> None
+                        | Error err -> Some (describeCategoryPushError err)
+
+                    let results : (Entry * string option) list =
+                        [ for entry in changed ->
+                            match linked |> List.tryFind (fun (e, _) -> e.Id = entry.Id) with
+                            | Some (_, ynabId) -> entry, reasonOfLinked ynabId
+                            | None -> entry, Some categoryNotLinkedReason ]
+
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            for entry, reason in results do
+                                match reason with
+                                | Some r ->
+                                    let baseline = categoryBaseline entry (entry.Category, entry.Splits)
+                                    categoryFailureEvent entry.Id now r baseline
+                                | None ->
+                                    if entry.CategorizationWriteBackFailure.IsSome then
+                                        reviewMarkEvent entry.Id now UserInBb EntryCategorizationWrittenBackToYnab
+                        ]
+
+                    let outcomes : CategoryBatchChange list =
+                        [ for entry, reason in results ->
+                            let (EntryId id) = entry.Id
+                            { EntryId = id
+                              Previous = entry.Category |> Option.map (categoryChoiceOf names)
+                              WriteBack =
+                                (match reason with
+                                 | Some r -> CategorySendFailed r
+                                 | None -> CategorySent) } ]
+
+                    return Ok { Changed = outcomes; UnchangedCount = unchanged; Skipped = skipped |> Seq.toList }
         }
     )
 

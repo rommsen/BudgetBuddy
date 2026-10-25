@@ -133,6 +133,13 @@ macht die ganze Zeile klickbar) den Picker: am PC `CategoryPicker.popoverInPanel
 420-px-Panels abzüglich Rand), am Handy `sheetLayered`. Der Pfeil ist bei gesperrten Buchungen
 gedämpft (`opacity-40`), ohne Wirkung und nennt den Grund im Tooltip. Beide Zeilen stehen in
 `/styleguide` bei „Detail: Felder“.
+Für die Auswahl-Leiste (Aktion „Kategorie setzen“, ledger-w29y6) gibt es zwei Varianten ohne
+markierte Zeile, denn mehrere Buchungen haben keine gemeinsame aktuelle Kategorie: der Picker
+öffnet immer ohne Haken, auch bei „Ohne Kategorie“. Am PC `CategoryPicker.selectionPopover`
+(`FilterPopover.viewAbove`: öffnet über dem Auslöser, rechtsbündig mit ihm, weil die Leiste
+fest am unteren Bildschirmrand sitzt), am Handy `CategoryPicker.selectionSheet` mit der
+Unterzeile „n Buchungen · Summe“. Beide stehen in `/styleguide` unter „26. Kategorie-Picker
+(Einfachauswahl)“.
 
 Datumsfeld (`DesignSystem/DateField.fs`, design-system-m7z9q): Textfeld „TT.MM.JJJJ“ in
 `Input.Small`-Maßen, immer deutsch, daneben ein Kalender-Knopf für den nativen Kalender.
