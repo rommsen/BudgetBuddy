@@ -6,7 +6,7 @@ type: feature
 context: ledger
 created: 2026-10-25
 completed:
-depends_on: [design-system-001]
+depends_on: [design-system-001, ledger-xfjcp]
 blocks: []
 tags: [frontend, backend, kassenbuch, detail, memo, historie, styleguide, tafeln]
 related_adrs: [0045, 0050, 0055, 0058, 0059]
@@ -48,5 +48,6 @@ bearbeiten (Detail zeigt "Kein Memo"), die Tafeln sehen "Memo hinzufügen" vor (
 
 ## Notes
 - Tafeln: `docs/ux/kassenbuch/tafeln/` (Ablauf 4, 5, 7).
+- Hängt an `ledger-xfjcp`: dieselbe Hinweisleiste im Detail (`DetailNotice`, `detailNoticeActionMsg`), und der Memo-Schreibweg folgt dem Flag-Schreibweg als Muster.
 - Das Memo ist der größte Teil. Wird die Task zu groß, darf der Worker die Punkte 2 bis 5 in einer Folge-Task melden, statt sie halb zu bauen.
 - Gap-Bericht Ablauf 3 und 4 ("Offen, ohne Task"), Ablauf 5 bis 7 Punkt 6.
