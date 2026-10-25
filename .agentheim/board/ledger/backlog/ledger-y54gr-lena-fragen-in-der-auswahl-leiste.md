@@ -13,8 +13,6 @@ related_adrs: [0050, 0053, 0056]
 related_research: []
 prior_art: [ledger-nhwrt, ledger-xfjcp]
 ---
-Ziel-Lage: backlog (wartet auf ledger-w4vte und ledger-xfjcp).
-
 ## Why
 ADR 0053 Punkt 2: für viele Buchungen die Leiste. Roman will mehrere Buchungen auf einmal
 an Lena geben, wie er heute mehrere in YNAB flaggt.

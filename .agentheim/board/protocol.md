@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 17:15 -- Modeling / Promoted: ledger-xfjcp - "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-25 17:14 -- Modeling / Refined: ledger-xfjcp, ledger-y54gr - zurückgenommene Rückfrage bleibt ausgegraut
 
 **Type:** Modeling / Refine

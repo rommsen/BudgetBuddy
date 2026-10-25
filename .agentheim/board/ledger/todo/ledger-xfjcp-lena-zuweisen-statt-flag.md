@@ -1,7 +1,7 @@
 ---
 id: ledger-xfjcp
 title: "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-09-12
