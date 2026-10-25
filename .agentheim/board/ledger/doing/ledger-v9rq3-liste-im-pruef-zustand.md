@@ -1,7 +1,7 @@
 ---
 id: ledger-v9rq3
 title: "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-25

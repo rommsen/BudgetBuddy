@@ -1,7 +1,7 @@
 ---
 id: ledger-cks06
 title: "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-25

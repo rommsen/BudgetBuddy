@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 17:16 -- Batch started: [ledger-xfjcp, ledger-cks06, ledger-v9rq3, ledger-ybmqc]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-xfjcp - "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand", ledger-cks06 - "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push", ledger-v9rq3 - "Liste im Prüf-Zustand nach den Tafeln: Summenzeile auch bei Zu prüfen und Ohne Kategorie, am PC mit Filter im Klartext, eigener Leerzustand nach dem letzten Prüfen, Zuletzt verwendet im Kategorie-Filter, Übernehmen erst mit Auswahl", ledger-ybmqc - "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen"
+**Parallel:** yes (4 workers, MAX_PARALLEL auf 4 nach Absprache mit Roman; ledger-fa1fp wartet auf ledger-xfjcp, ledger-y54gr liegt im Backlog. Alle vier ändern Ledger Types/State/View, Einfügestellen-Tabelle im Worker-Kontext; Merge-Reihenfolge xfjcp, cks06, v9rq3, ybmqc)
+
+---
+
 ## 2026-10-25 17:15 -- Modeling / Promoted: ledger-xfjcp - "Lena fragen im Buchungs-Detail: setzt das YNAB-Flag, das Roman Lena genannt hat (Farbe aus den Settings), mit Kennzeichen, Filter-Chip, Zurücknehmen und Rückschreibe-Zustand"
 
 **Type:** Modeling / Promote

@@ -1,7 +1,7 @@
 ---
 id: ledger-ybmqc
 title: "Konto-Wahl: das Kassenbuch öffnet im zuletzt gewählten Konto (auch nach Neustart), am Handy steht der Kontoname als Titel mit Chevron und öffnet ein BottomSheet mit allen Konten und Ständen"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-25
