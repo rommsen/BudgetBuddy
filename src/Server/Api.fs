@@ -1488,6 +1488,22 @@ let private flagPush () : Async<Ledger.CommandHandlers.FlagPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Sammel-Push des Flags (ledger-y54gr), mit denselben Fehlerfällen wie `flagPush`.
+let private flagBatchPush () : Async<Ledger.CommandHandlers.FlagBatchPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun items -> YnabClient.updateFlagBatch token (YnabBudgetId budgetId) items
+        | None, _ ->
+            return fun _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Der Einzel-Push einer nicht verknüpften Buchung (ledger-cks06) mit Token und
 /// Standard-Budget aus den Settings. Die Buchung geht mit ihrem aktuellen Stand und, wenn
 /// sie eine `import_id` trägt, mit dieser hinaus. Fehlt Token, Budget oder die
@@ -1773,6 +1789,19 @@ let ledgerApi : LedgerApi = {
     retryFlagWriteBack = fun entryId -> async {
         let! push = flagPush ()
         return! Ledger.CommandHandlers.retryFlagWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
+
+    // Lena fragen für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-y54gr):
+    // ein Ereignis je Buchung, ein Sammel-PATCH mit nur `flag_color`, unter der Schreib-Sperre.
+    setLenaFlagBatch = fun selection target -> async {
+        let! push = flagBatchPush ()
+        let! lenaColor = Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
+        return! Ledger.CommandHandlers.setLenaFlagBatch DateTime.UtcNow push lenaColor selection target
+    }
+
+    restoreFlagBatch = fun items -> async {
+        let! push = flagBatchPush ()
+        return! Ledger.CommandHandlers.restoreFlagBatch DateTime.UtcNow push items
     }
 }
 

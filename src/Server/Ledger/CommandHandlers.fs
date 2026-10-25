@@ -2336,6 +2336,24 @@ let private changeFlag
         }
     )
 
+/// Das Ziel-Flag einer Buchung für "Lena fragen" bzw. "Rückfrage zurücknehmen" (ADR 0056):
+/// `Error` lehnt ab (fehlende Farbe), `Ok None` heißt nichts zu tun, `Ok (Some (Farbe, Name))`
+/// ist das neue Flag. Die eine Quelle für den Einzelweg `setLenaFlag` und den Stapel
+/// `setLenaFlagBatch`.
+let private lenaFlagTargetOf
+    (lenaColor: string option)
+    (target: LenaFlagTarget)
+    (entry: Entry)
+    : Result<(string option * string option) option, string> =
+    let isLena = isLenaFlagName entry.FlagName
+    match target with
+    | AssignLena ->
+        match lenaColor with
+        | Some color when List.contains color ynabFlagColors ->
+            if isLena then Ok None else Ok (Some (Some color, Some lenaFlagName))
+        | _ -> Error lenaColorMissingReason
+    | WithdrawLena -> if isLena then Ok (Some (None, None)) else Ok None
+
 /// "Lena fragen" und "Rückfrage zurücknehmen" (ADR 0056). `lenaColor` ist die Einstellung
 /// `lena_flag_color`.
 ///
@@ -2351,15 +2369,7 @@ let setLenaFlag
     (entryId: EntryId)
     (target: LenaFlagTarget)
     : Async<Result<FlagOutcome, string>> =
-    changeFlag now push entryId (fun entry ->
-        let isLena = isLenaFlagName entry.FlagName
-        match target with
-        | AssignLena ->
-            match lenaColor with
-            | Some color when List.contains color ynabFlagColors ->
-                if isLena then Ok None else Ok (Some (Some color, Some lenaFlagName))
-            | _ -> Error lenaColorMissingReason
-        | WithdrawLena -> if isLena then Ok (Some (None, None)) else Ok None)
+    changeFlag now push entryId (lenaFlagTargetOf lenaColor target)
 
 /// "Rückgängig": stellt Farbe und Name des Vorzustands her, auch ein anderes Flag wie
 /// *Markiert* (ADR 0056, Punkt 2). Der Push sendet nur die Farbe.
@@ -2392,6 +2402,161 @@ let retryFlagWriteBack
                 return Ok writeBack
         }
     )
+
+// ============================================
+// Lena fragen für eine ganze Auswahl, ein Sammel-PATCH (ledger-y54gr)
+// ============================================
+
+/// Der Sammel-Push des Flags, injiziert wie `CategoryBatchPush`: bekommt je geänderter,
+/// verknüpfter Buchung YNAB-Id und Ziel-Farbe und liefert die Ids, die YNAB nicht als
+/// gespeichert nennt. Ein `Error` trifft den ganzen Stapel (`Ynab.updateFlagBatch`).
+type FlagBatchPush = Ynab.FlagBatchItem list -> Async<YnabResult<string list>>
+
+/// Der Grund für eine Buchung, die YNAB in der Antwort des Sammel-PATCH nicht nennt.
+let flagNotSavedReason = "YNAB hat die Buchung im Sammelaufruf nicht gespeichert"
+
+/// Gemeinsamer Ablauf für `setLenaFlagBatch` und `restoreFlagBatch`: prüft jede Buchung wie
+/// `changeFlag` (unbekannt oder in YNAB gelöscht: gescheitert, ohne Ereignis; Ziel gleich
+/// Ist: unverändert, ohne Ereignis), schreibt für jede geänderte Buchung ein eigenes
+/// `EntryFlagChangedInBb` und sendet danach EINEN Sammel-PATCH mit den verknüpften. Eine
+/// nicht verknüpfte Buchung bekommt `EntryFlagWriteBackFailed` (Grund `flagNotLinkedReason`),
+/// scheitert der PATCH, trägt jede Buchung darin einen Fehlschlag mit der Baseline aus
+/// `flagBaseline`; nennt die Antwort einzelne nicht gespeicherte Ids, gelten nur diese als
+/// gescheitert. Erfolg bei offenem früheren Fehlschlag schreibt `EntryFlagWrittenBackToYnab`.
+/// Ohne geänderte Buchung geht kein PATCH hinaus. Läuft unter der Schreib-Sperre.
+let private changeFlagBatch
+    (now: DateTime)
+    (push: FlagBatchPush)
+    (targets: (EntryId * (Entry -> (string option * string option) option)) list)
+    : Async<Result<FlagBatchOutcome, string>> =
+    WriteGuard.exclusive (
+        async {
+            let candidates = ResizeArray<Entry * (string option * string option)>()
+            let mutable unchanged = 0
+            let mutable failed = 0
+
+            for entryId, resolveTarget in targets do
+                match! Ledger.Persistence.loadEntry entryId with
+                | None -> failed <- failed + 1
+                | Some entry when entry.DeletedInYnab -> failed <- failed + 1
+                | Some entry ->
+                    match resolveTarget entry with
+                    | None -> unchanged <- unchanged + 1
+                    | Some target when target = flagPairOf entry -> unchanged <- unchanged + 1
+                    | Some target -> candidates.Add((entry, target))
+
+            let changed = candidates |> Seq.toList
+
+            if List.isEmpty changed then
+                return Ok { Changed = []; UnchangedCount = unchanged; FailedCount = failed }
+            else
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        for entry, (newColor, newName) in changed ->
+                            reviewMarkEvent entry.Id now UserInBb (
+                                EntryFlagChangedInBb {
+                                    OldFlagColor = entry.FlagColor
+                                    OldFlagName = entry.FlagName
+                                    NewFlagColor = newColor
+                                    NewFlagName = newName
+                                }
+                            )
+                    ]
+
+                let linked = ResizeArray<Entry * string option * string>()
+
+                for entry, (newColor, _) in changed do
+                    match! tryYnabTransactionId entry.Id with
+                    | Some ynabId -> linked.Add((entry, newColor, ynabId))
+                    | None -> ()
+
+                let linked = linked |> Seq.toList
+
+                let! pushed =
+                    if List.isEmpty linked then
+                        async { return Ok [] }
+                    else
+                        push [ for _, color, ynabId in linked -> ({ YnabTransactionId = ynabId; FlagColor = color }: Ynab.FlagBatchItem) ]
+
+                let reasonOfLinked (ynabId: string) : string option =
+                    match pushed with
+                    | Ok notSaved when notSaved |> List.contains ynabId -> Some flagNotSavedReason
+                    | Ok _ -> None
+                    | Error err -> Some (describeFlagPushError err)
+
+                let results : (Entry * string option) list =
+                    [ for entry, _ in changed ->
+                        match linked |> List.tryFind (fun (e, _, _) -> e.Id = entry.Id) with
+                        | Some (_, _, ynabId) -> entry, reasonOfLinked ynabId
+                        | None -> entry, Some flagNotLinkedReason ]
+
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        for entry, reason in results do
+                            match reason with
+                            | Some r ->
+                                let baselineColor, baselineName = flagBaseline entry (flagPairOf entry)
+                                reviewMarkEvent entry.Id now UserInBb (
+                                    EntryFlagWriteBackFailed {
+                                        Reason = r
+                                        BaselineFlagColor = baselineColor
+                                        BaselineFlagName = baselineName
+                                    }
+                                )
+                            | None ->
+                                if entry.FlagWriteBackFailure.IsSome then
+                                    reviewMarkEvent entry.Id now UserInBb EntryFlagWrittenBackToYnab
+                    ]
+
+                let outcomes : FlagBatchChange list =
+                    [ for entry, reason in results ->
+                        let (EntryId id) = entry.Id
+                        { EntryId = id
+                          Previous = flagStateOf entry
+                          WriteBack =
+                            (match reason with
+                             | Some r -> FlagSendFailed r
+                             | None -> FlagSent) } ]
+
+                return Ok { Changed = outcomes; UnchangedCount = unchanged; FailedCount = failed }
+        }
+    )
+
+/// "Lena fragen" bzw. "Rückfrage zurücknehmen" für die ganze Auswahl (ledger-y54gr). Je
+/// Buchung gilt die Regel von `setLenaFlag` (`lenaFlagTargetOf`). `AssignLena` ohne gültige
+/// Farbe lehnt den ganzen Befehl ab (Fehler, kein Ereignis). `lenaColor` ist die Einstellung
+/// `lena_flag_color`.
+let setLenaFlagBatch
+    (now: DateTime)
+    (push: FlagBatchPush)
+    (lenaColor: string option)
+    (selection: ReviewMarkBatchSelection)
+    (target: LenaFlagTarget)
+    : Async<Result<FlagBatchOutcome, string>> =
+    async {
+        match target, lenaColor with
+        | AssignLena, Some color when not (List.contains color ynabFlagColors) -> return Error lenaColorMissingReason
+        | AssignLena, None -> return Error lenaColorMissingReason
+        | _ ->
+            let! ids = resolveReviewMarkBatchSelection selection
+            let resolve (entry: Entry) =
+                match lenaFlagTargetOf lenaColor target entry with
+                | Ok t -> t
+                | Error _ -> None
+            return! changeFlagBatch now push [ for id in ids -> id, resolve ]
+    }
+
+/// Ein "Rückgängig" für den ganzen Stapel: stellt für jede genannte Buchung Farbe und Name
+/// des Vorzustands wieder her (Logik von `restoreFlag`), je ein Ereignis und ein Sammel-PATCH.
+/// Buchungen, die schon im Vorzustand stehen, bleiben unangetastet.
+let restoreFlagBatch
+    (now: DateTime)
+    (push: FlagBatchPush)
+    (items: FlagRestoreItem list)
+    : Async<Result<FlagBatchOutcome, string>> =
+    changeFlagBatch now push [
+        for item in items -> EntryId item.EntryId, (fun _ -> Some (item.Previous.Color, item.Previous.Name))
+    ]
 
 // ============================================
 // Einstellung "Lena fragen": die Flag-Farbe (ADR 0056, Punkt 1)

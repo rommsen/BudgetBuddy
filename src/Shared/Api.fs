@@ -440,4 +440,15 @@ type LedgerApi = {
     /// Sends the booking's current flag to YNAB again ("Erneut senden"). Does nothing
     /// (FlagNotSent) without an open flag write-back failure.
     retryFlagWriteBack: Guid -> Async<Result<FlagWriteBack, string>>
+
+    /// Assigns (or withdraws) the Lena flag for a whole selection (ledger-y54gr): the server
+    /// resolves the selection like setReviewMarkBatch, writes one EntryFlagChangedInBb per
+    /// changed booking and sends ONE bulk PATCH with only `flag_color`. Bookings already in
+    /// the target state (already Lena, or withdraw on a booking that is not Lena) are
+    /// unchanged and skipped. Error when assigning without a valid colour setting.
+    setLenaFlagBatch: ReviewMarkBatchSelection -> LenaFlagTarget -> Async<Result<FlagBatchOutcome, string>>
+
+    /// One undo for a whole flag batch: restores colour and name of each booking's previous
+    /// flag (one event per booking, one bulk PATCH).
+    restoreFlagBatch: FlagRestoreItem list -> Async<Result<FlagBatchOutcome, string>>
 }

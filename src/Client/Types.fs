@@ -202,6 +202,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Kategorie setzen" für eine ganze Auswahl (ledger-w29y6): ein Klick
     /// stellt die vorherige Kategorie jeder geänderten Buchung wieder her.
     | UndoCategoryBatch of changes: Shared.Domain.CategoryBatchChange list
+    /// "Rückgängig" nach "Lena fragen" bzw. "Rückfrage zurücknehmen" für eine ganze Auswahl
+    /// (ledger-y54gr): ein Klick stellt Farbe und Name jeder geänderten Buchung wieder her.
+    | UndoFlagBatch of changes: Shared.Domain.FlagBatchChange list
 
 /// Die optionale Aktion eines Toasts: Beschriftung und was der Klick auslöst.
 type ToastAction = {

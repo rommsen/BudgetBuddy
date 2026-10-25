@@ -142,8 +142,10 @@ test("Handy 390x844: langes Drücken, Tippen, Alle und Auswahl aufheben", async 
     assert.match(barText, /1 ausgewählt/, "Reihe 1: Anzahl");
     assert.ok(barText.includes("-10,00"), `Reihe 1: Summe der Zeile, war: ${barText}`);
     assert.ok(barText.includes("Alle") && barText.includes("Auswahl aufheben"), "Reihe 2: Alle und Auswahl aufheben");
-    // Geprüft ist die einzige schreibende Aktion (ledger-nhwrt), primär (Orange), in Reihe 2 neben Alle und Auswahl aufheben.
-    for (const word of ["Kategorie ändern", "Flag", "Ungeprüft"]) {
+    // Geprüft ist die primäre Aktion (ledger-nhwrt, Orange), in Reihe 2 neben Alle und Auswahl aufheben.
+    // Die Lena-Aktionen (ledger-y54gr) stehen in Reihe 3; ohne Farbe nennt die Leiste den Grund
+    // (mit dem Wort Flag), deshalb steht 'Flag' hier nicht mehr in der Verbotsliste.
+    for (const word of ["Kategorie ändern", "Ungeprüft"]) {
       assert.ok(!barText.includes(word), `keine weitere schreibende Aktion '${word}' in der Leiste`);
     }
     const reviewedButton = bar.getByRole("button", { name: "Geprüft", exact: true });

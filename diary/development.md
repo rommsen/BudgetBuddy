@@ -4,6 +4,37 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 20:10 - Lena fragen in der Auswahl-Leiste (ledger-y54gr)
+
+**What I did:**
+"Lena fragen" und "Rückfrage zurücknehmen" als Sammelaktionen der Auswahl-Leiste gebaut: Server (`setLenaFlagBatch`, `restoreFlagBatch`, `Ynab.updateFlagBatch`), Shared-Typen und API, Client-Reducer mit Rückgängig, Leiste mit Zahl der Auswahl und gesperrter Aktion ohne Farbe.
+
+**Files Added:**
+- `src/Tests/LedgerLenaFlagBatchTests.fs` - Domain-Tests und YnabClient-Vertrag des Sammel-PATCH (13 Tests)
+- `src/Tests/LedgerLenaFlagBatchClientTests.fs` - Reducer, Texte, Quelltext der Leiste (19 Tests)
+- `scripts/ledger-lena-batch.test.mjs` - Playwright-Wächter am gerenderten Element (3 Tests)
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - `FlagBatchChange`, `FlagBatchOutcome`, `FlagRestoreItem`, `setLenaFlagBatch`, `restoreFlagBatch`
+- `src/Server/YnabClient.fs` - `FlagBatchItem`, `buildFlagBatchBody`, `sendFlagBatch`, `updateFlagBatch`
+- `src/Server/Ledger/CommandHandlers.fs` - `lenaFlagTargetOf` (geteilt mit `setLenaFlag`), `changeFlagBatch`, `setLenaFlagBatch`, `restoreFlagBatch`
+- `src/Server/Api.fs` - `flagBatchPush`, die zwei neuen Remoting-Funktionen
+- `src/Client/Types.fs`, `src/Client/State.fs` - `UndoFlagBatch`, Zuordnung zur Nachricht, `LenaBatchRunning` in `ledgerActive`
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs` - Modellfeld, Nachrichten, `applyFlagBatch`, Handler, Texte, Leiste mit zwei Aktionen, Sperren der anderen Sammelaktionen, Abstandshalter
+- `src/Client/DesignSystem/MultiSelect.fs` - `LenaAction`, `lenaButton`, dritte Reihe am Handy, umbrechende PC-Leiste
+- `src/Tests/Tests.fsproj` - zwei neue Compile-Zeilen
+- `scripts/ledger-selection.test.mjs` - Verbotsliste der Handy-Prüfung ohne "Flag"
+
+**Rationale:**
+ADR 0053 Punkt 2: für viele Buchungen die Leiste. Muster `updateReviewMarkBatch`/`setEntryCategoryBatch`, Flag-Regeln unverändert aus ledger-xfjcp (ADR 0056, 0061).
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: dotnet test 2203 bestanden, 7 übersprungen; Playwright-Wächter 235 von 235
+- Issues: PC-Leiste lief bei 768 px über und darf nun umbrechen; Signatur von `barMobile`/`barDesktop` geändert (siehe Outcome)
+
+---
+
 ## 2026-10-25 18:05 - Noch nicht in YNAB vollständig (ledger-cks06)
 
 **What I did:**

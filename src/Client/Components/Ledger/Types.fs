@@ -869,6 +869,11 @@ type Model = {
     /// Aktion in der Leiste gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus.
     ReviewMarkBatchRunning: bool
 
+    /// Läuft gerade ein Sammel-Aufruf "Lena fragen" bzw. "Rückfrage zurücknehmen" für die
+    /// Auswahl (ledger-y54gr), oder seine Rücknahme? Dann sind alle Sammelaktionen der Leiste
+    /// gesperrt, ein zweiter Klick löst keinen zweiten Aufruf aus.
+    LenaBatchRunning: bool
+
     // ============================================
     // Kategorie ändern im Detail (ledger-sfab0)
     // ============================================
@@ -1148,6 +1153,67 @@ let categoryBatchUndoGroups (changes: Shared.Domain.CategoryBatchChange list) : 
             order', groups |> Map.add previous ((groups |> Map.tryFind previous |> Option.defaultValue []) @ [ id ]))
         ([], Map.empty)
     |> fun (order, groups) -> order |> List.map (fun key -> key, groups.[key])
+
+// ============================================
+// "Lena fragen" für die ganze Auswahl (ledger-y54gr)
+// ============================================
+
+/// Beschriftung der Sammelaktion "Lena fragen" mit der Zahl der gewählten Buchungen.
+let selectionLenaLabel (count: int) : string =
+    $"Lena fragen ({Client.DesignSystem.Money.formatCount count})"
+
+/// Beschriftung der Sammelaktion "Rückfrage zurücknehmen" mit der Zahl der gewählten Buchungen.
+let selectionWithdrawLabel (count: int) : string =
+    $"Rückfrage zurücknehmen ({Client.DesignSystem.Money.formatCount count})"
+
+/// Warum "Lena fragen" in der Leiste gesperrt ist, oder `None`: ohne gesetzte Flag-Farbe
+/// (ADR 0056, Punkt 1). Zurücknehmen braucht die Farbe nicht.
+let selectionLenaDisabledReason (lenaColor: string option) : string option =
+    if lenaColor.IsNone then Some lenaColorMissingReason else None
+
+/// Die Buchungen des Stapels, deren Weg nach YNAB gescheitert ist, mit ihrem Grund.
+let flagBatchSendFailures (outcome: Shared.Domain.FlagBatchOutcome) : string list =
+    outcome.Changed
+    |> List.choose (fun c ->
+        match c.WriteBack with
+        | Shared.Domain.FlagSendFailed reason -> Some reason
+        | _ -> None)
+
+/// Der Satz des Toasts nach "Lena fragen" bzw. "Rückfrage zurücknehmen" für die Auswahl:
+/// "n Buchungen an Lena gefragt" bzw. "Rückfrage bei n Buchungen zurückgenommen", bei Bedarf
+/// mit den Zahlen "ohne Änderung" und "nicht in YNAB" (gelöscht oder unbekannt) und dem Hinweis
+/// "Flag nicht in YNAB" samt erstem Grund, wenn der Weg nach YNAB bei Buchungen gescheitert ist.
+let flagBatchToastText (target: Shared.Domain.LenaFlagTarget) (outcome: Shared.Domain.FlagBatchOutcome) : string =
+    let changed = List.length outcome.Changed
+    let count = Client.DesignSystem.Money.formatCount changed
+    let head =
+        match target, changed with
+        | Shared.Domain.AssignLena, 0 -> "Keine Buchung an Lena gefragt"
+        | Shared.Domain.AssignLena, 1 -> "1 Buchung an Lena gefragt"
+        | Shared.Domain.AssignLena, _ -> $"{count} Buchungen an Lena gefragt"
+        | Shared.Domain.WithdrawLena, 0 -> "Keine Rückfrage zurückgenommen"
+        | Shared.Domain.WithdrawLena, 1 -> "Rückfrage bei 1 Buchung zurückgenommen"
+        | Shared.Domain.WithdrawLena, _ -> $"Rückfrage bei {count} Buchungen zurückgenommen"
+    let notes =
+        [ if outcome.UnchangedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.UnchangedCount} ohne Änderung"
+          if outcome.FailedCount > 0 then $"{Client.DesignSystem.Money.formatCount outcome.FailedCount} nicht in YNAB" ]
+    let withNotes = if List.isEmpty notes then head else head + " (" + String.concat ", " notes + ")"
+    match flagBatchSendFailures outcome with
+    | [] -> withNotes
+    | [ reason ] -> $"{withNotes}. {flagHintTitle}: {reason}"
+    | reason :: rest -> $"{withNotes}. {flagHintTitle}: {reason} (bei {List.length rest + 1} Buchungen)"
+
+/// Die Art des Toasts: Warnung, sobald etwas nicht geklappt hat (nicht in YNAB, nicht gesendet),
+/// Info ohne Änderung, sonst Erfolg.
+let flagBatchToastType (outcome: Shared.Domain.FlagBatchOutcome) : ToastType =
+    if not (List.isEmpty (flagBatchSendFailures outcome)) || outcome.FailedCount > 0 then ToastWarning
+    elif List.isEmpty outcome.Changed then ToastInfo
+    else ToastSuccess
+
+/// Der Toast nach dem gemeinsamen "Rückgängig" der Sammelaktion.
+let flagBatchRestoredToastText (count: int) : string =
+    let noun = if count = 1 then "Buchung" else "Buchungen"
+    $"Flag bei {Client.DesignSystem.Money.formatCount count} {noun} zurückgesetzt"
 
 /// Ist ein Filter aktiv, der die Kategorie betrifft (Kategorie-Chips oder "Ohne Kategorie")?
 let categoryFilterActive (filters: Filters) : bool =
@@ -1496,6 +1562,17 @@ type Msg =
     | StartSetLenaFlag of Guid * LenaFlagTarget
     | RunSetLenaFlag of Guid * LenaFlagTarget
     | LenaFlagSet of Guid * LenaFlagTarget * Result<FlagOutcome, string>
+    /// "Lena fragen" bzw. "Rückfrage zurücknehmen" in der Auswahl-Leiste (ledger-y54gr): sperrt
+    /// die Sammelaktionen und stößt den Aufruf an (nur mit nicht leerer Auswahl, bei
+    /// "Lena fragen" nur mit gesetzter Flag-Farbe).
+    | StartLenaBatch of LenaFlagTarget
+    /// Der Sammel-Aufruf mit der Auswahl und dem Ziel.
+    | RunLenaBatch of ReviewMarkBatchSelection * LenaFlagTarget
+    | LenaBatchDone of LenaFlagTarget * Result<FlagBatchOutcome, string>
+    /// Klick auf "Rückgängig" im Toast: stellt Farbe und Name jeder geänderten Buchung her.
+    | StartUndoFlagBatch of FlagBatchChange list
+    | RunUndoFlagBatch of FlagRestoreItem list
+    | FlagBatchRestored of FlagRestoreItem list * Result<FlagBatchOutcome, string>
     /// "Rückgängig" im Toast: stellt Farbe und Name des Vorzustands her.
     | StartUndoFlag of Guid * FlagState
     | RunUndoFlag of Guid * FlagState

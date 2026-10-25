@@ -129,6 +129,7 @@ let init () : Model * Cmd<Msg> =
         CategoryBatchRunning = false
         FocusedRow = None
         ReviewMarkBatchRunning = false
+        LenaBatchRunning = false
         CategoryPickerFor = None
         SplitEditor = None
         TransferTargets = NotAsked
@@ -792,6 +793,57 @@ let private applyCategoryBatch
     let finalModel = if stale then { filtered with OrderStale = true } else filtered
     let refresh = if stale then Cmd.ofMsg RunRefreshTotals else Cmd.none
     finalModel, Cmd.batch [ refresh; (if changedCount > 0 then Cmd.ofMsg LoadCategories else Cmd.none) ]
+
+/// Trägt das Ergebnis von "Lena fragen" bzw. "Rückfrage zurücknehmen" für die Auswahl (oder von
+/// ihrer Rücknahme) in die geladene Liste ein (ledger-y54gr). `newStateOf` liefert das Flag, das
+/// der Befehl für die Buchung gesetzt hat. `endSelection`: die Auswahl endet samt Auswahl-Modus
+/// (die Aktion selbst); die Rücknahme lässt eine neue Auswahl stehen. Jede geänderte geladene
+/// Zeile trägt das neue Flag und ihren Fehlschlag; fällt sie aus dem aktiven Filter, bleibt sie
+/// ausgegraut stehen (`applyFilterEffect`, wie im Detail), eine Rücknahme macht sie wieder zum
+/// Treffer. Der Zähler "Rückfrage Lena (n)" folgt den Vorzuständen der Antwort, auch bei
+/// Buchungen, die nie geladen waren. Rein, ohne Proxy.
+let private applyFlagBatch
+    (newStateOf: Guid -> FlagState)
+    (endSelection: bool)
+    (outcome: FlagBatchOutcome)
+    (model: Model)
+    : Model =
+    let ended =
+        if endSelection then
+            { model with
+                Selection = NoSelection
+                SelectionAnchor = None
+                SelectionMode = false
+                LenaBatchRunning = false }
+        else
+            { model with LenaBatchRunning = false }
+    let isLena (state: FlagState) = if flagOfState state = AskLena then 1 else 0
+    let askLenaDelta =
+        outcome.Changed |> List.sumBy (fun c -> isLena (newStateOf c.EntryId) - isLena c.Previous)
+    let withCount = { ended with AskLenaCount = max 0 (ended.AskLenaCount + askLenaDelta) }
+    let changeById = outcome.Changed |> List.map (fun c -> c.EntryId, c) |> Map.ofList
+    let update (e: LedgerEntryView) : LedgerEntryView option =
+        changeById
+        |> Map.tryFind e.Id
+        |> Option.map (fun c ->
+            let failure =
+                match c.WriteBack with
+                | FlagSendFailed reason -> Some reason
+                | _ -> None
+            { e with Flag = flagOfState (newStateOf e.Id); FlagWriteBackFailure = failure })
+    let loaded =
+        match withCount.Entries with
+        | Success entries -> entries |> List.choose update
+        | _ -> []
+    let updatedById = loaded |> List.map (fun e -> e.Id, e) |> Map.ofList
+    let withRows =
+        match withCount.Entries with
+        | Success entries ->
+            { withCount with
+                Entries = Success (entries |> List.map (fun e -> updatedById |> Map.tryFind e.Id |> Option.defaultValue e))
+                DetailFor = withCount.DetailFor |> Option.map (fun d -> update d |> Option.defaultValue d) }
+        | _ -> withCount
+    updatedById |> Map.toList |> List.fold (fun m (_, e) -> applyFilterEffect e m) withRows
 
 /// Sind die Tasten der Liste gerade aus? Ein offenes Filter-Popover und ein offenes Sheet
 /// gehören der Tastatur; ein offenes Seitenpanel nicht, es folgt der Markierung
@@ -2072,7 +2124,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | StartReviewMarkBatch ->
         // Nur mit Auswahl und ohne laufenden Aufruf; der Proxy-Aufruf steckt hinter `Run...`.
         match reviewMarkBatchSelection model with
-        | Some selection when not model.ReviewMarkBatchRunning ->
+        | Some selection when not model.ReviewMarkBatchRunning && not model.LenaBatchRunning ->
             { model with ReviewMarkBatchRunning = true }, Cmd.ofMsg (RunReviewMarkBatch selection), NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -2144,7 +2196,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             // Nur mit nicht leerer Auswahl und ohne laufenden Sammelaufruf (einer sperrt beide
             // Aktionen der Leiste). Öffnen lädt die Kategorien bei Stand über zwei Minuten nach.
             match reviewMarkBatchSelection model with
-            | Some _ when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning ->
+            | Some _ when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning && not model.LenaBatchRunning ->
                 { model with BatchCategoryPickerOpen = true; OpenPopover = None },
                 Cmd.ofMsg EnsureCategoriesFresh,
                 NoOp
@@ -2154,7 +2206,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 
     | StartCategoryBatch target ->
         match reviewMarkBatchSelection model with
-        | Some selection when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning ->
+        | Some selection when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning && not model.LenaBatchRunning ->
             { model with CategoryBatchRunning = true; BatchCategoryPickerOpen = false },
             Cmd.ofMsg (RunCategoryBatch (selection, target)),
             NoOp
@@ -2192,7 +2244,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Kategorie nicht geändert: {message}", ToastError)
 
     | StartUndoCategoryBatch changes ->
-        if model.CategoryBatchRunning || model.ReviewMarkBatchRunning then
+        if model.CategoryBatchRunning || model.ReviewMarkBatchRunning || model.LenaBatchRunning then
             model, Cmd.none, NoOp
         else
             { model with CategoryBatchRunning = true },
@@ -2246,6 +2298,87 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 let noun = if restored = 1 then "Buchung" else "Buchungen"
                 ShowToast ($"Kategorie bei {Client.DesignSystem.Money.formatCount restored} {noun} zurückgesetzt", ToastSuccess)
         model', cmd, external
+
+    // ============================================
+    // "Lena fragen" für die ganze Auswahl (ledger-y54gr)
+    // ============================================
+
+    | StartLenaBatch target ->
+        // Wie die anderen Sammelaktionen: nur mit Auswahl und ohne laufenden Sammelaufruf; "Lena
+        // fragen" zusätzlich nur mit gesetzter Flag-Farbe. Der Proxy-Aufruf steckt hinter `Run...`.
+        let blocked =
+            model.ReviewMarkBatchRunning
+            || model.CategoryBatchRunning
+            || model.LenaBatchRunning
+            || (target = AssignLena && (selectionLenaDisabledReason model.LenaFlagColor).IsSome)
+        match reviewMarkBatchSelection model with
+        | Some selection when not blocked ->
+            { model with LenaBatchRunning = true; BatchCategoryPickerOpen = false },
+            Cmd.ofMsg (RunLenaBatch (selection, target)),
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunLenaBatch (selection, target) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setLenaFlagBatch selection)
+                target
+                (fun result -> LenaBatchDone (target, result))
+                (fun ex -> LenaBatchDone (target, Error ex.Message))
+        model, cmd, NoOp
+
+    | LenaBatchDone (target, Ok outcome) ->
+        let newState =
+            match target with
+            | AssignLena -> { Color = model.LenaFlagColor; Name = Some lenaFlagName }
+            | WithdrawLena -> { Color = None; Name = None }
+        let model' = applyFlagBatch (fun _ -> newState) true outcome model
+        let text = flagBatchToastText target outcome
+        let toastType = flagBatchToastType outcome
+        let external =
+            if List.isEmpty outcome.Changed then
+                ShowToast (text, toastType)
+            else
+                ShowToastWithAction (text, toastType, { Label = undoToastLabel; Kind = UndoFlagBatch outcome.Changed })
+        model', Cmd.none, external
+
+    | LenaBatchDone (_, Error message) ->
+        { model with LenaBatchRunning = false },
+        Cmd.none,
+        ShowToast ($"Flag nicht geändert: {message}", ToastError)
+
+    | StartUndoFlagBatch changes ->
+        if model.LenaBatchRunning || model.CategoryBatchRunning || model.ReviewMarkBatchRunning then
+            model, Cmd.none, NoOp
+        else
+            let items = changes |> List.map (fun (c: FlagBatchChange) -> ({ EntryId = c.EntryId; Previous = c.Previous }: FlagRestoreItem))
+            { model with LenaBatchRunning = true }, Cmd.ofMsg (RunUndoFlagBatch items), NoOp
+
+    | RunUndoFlagBatch items ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.restoreFlagBatch
+                items
+                (fun result -> FlagBatchRestored (items, result))
+                (fun ex -> FlagBatchRestored (items, Error ex.Message))
+        model, cmd, NoOp
+
+    | FlagBatchRestored (items, Ok outcome) ->
+        // Ohne neue Aktion: eine Aktion, ein Toast, eine Rücknahme.
+        let previousById = items |> List.map (fun i -> i.EntryId, i.Previous) |> Map.ofList
+        let newStateOf id = previousById |> Map.tryFind id |> Option.defaultValue { Color = None; Name = None }
+        let model' = applyFlagBatch newStateOf false outcome model
+        let external =
+            match flagBatchSendFailures outcome |> List.tryHead with
+            | Some reason -> ShowToast ($"{flagHintTitle}: {reason}", ToastWarning)
+            | None when List.isEmpty outcome.Changed -> NoOp
+            | None -> ShowToast (flagBatchRestoredToastText (List.length outcome.Changed), ToastSuccess)
+        model', Cmd.none, external
+
+    | FlagBatchRestored (_, Error message) ->
+        { model with LenaBatchRunning = false },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     // ============================================
     // Tastaturfokus und Taste G (ledger-rjb8w, PC)

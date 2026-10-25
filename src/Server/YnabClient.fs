@@ -1333,6 +1333,82 @@ let updateFlag
         return! sendFlag httpClient budgetId ynabTransactionId flagColor
     }
 
+/// Eine Buchung im Sammel-PATCH des Flags: YNAB-Id und Ziel-Farbe (`None`: kein Flag).
+type FlagBatchItem = {
+    YnabTransactionId: string
+    FlagColor: string option
+}
+
+/// Baut den Body des Sammel-PATCH des Flags: `{"transactions":[{"id", "flag_color"}]}`,
+/// `null` für "kein Flag" (YNAB-OpenAPI `updateTransactions`). Weder `flag_name` noch ein
+/// anderes Feld (ADR 0028, Punkt 1, ADR 0056, Punkt 4). Non-private, damit der JSON-Vertrag
+/// direkt testbar ist.
+let buildFlagBatchBody (items: FlagBatchItem list) : string =
+    Encode.object [
+        "transactions", Encode.list [
+            for item in items ->
+                Encode.object [
+                    "id", Encode.string item.YnabTransactionId
+                    match item.FlagColor with
+                    | Some color -> "flag_color", Encode.string color
+                    | None -> "flag_color", Encode.nil
+                ]
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Sendet das Flag mehrerer Buchungen in EINER Anfrage: `PATCH .../transactions` (Sammelweg;
+/// der Einzelweg `sendFlag` ist ein PUT). Ok liefert die Ids aus `items`, die YNAB in der
+/// Antwort nicht als gespeichert nennt (`transaction_ids`); Fehlerzuordnung wie
+/// `sendReviewMarkBatch`, ein Fehler trifft den ganzen Stapel.
+let sendFlagBatch
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (items: FlagBatchItem list)
+    : Async<YnabResult<string list>> =
+    async {
+        try
+            let requestBody = buildFlagBatchBody items
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            use request =
+                new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Patch, $"{baseUrl}/budgets/{budgetId}/transactions")
+            request.Content <- content
+            let! httpResponse = httpClient.SendAsync(request) |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PATCH /budgets/%s/transactions - Flag für %d Buchungen" budgetId (List.length items)
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 200 ->
+                match Decode.fromString savedTransactionIdsDecoder bodyText with
+                | Ok saved ->
+                    let savedSet = Set.ofList saved
+                    return Ok (items |> List.map (fun i -> i.YnabTransactionId) |> List.filter (savedSet.Contains >> not))
+                | Error _ -> return Ok []
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Transaction not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update flags: {ex.Message}")
+    }
+
+/// Schreibt das Flag mehrerer Buchungen in einem Sammel-PATCH nach YNAB zurück
+/// (ledger-y54gr). Eigener Name, nur `flag_color` (ADR 0028, Punkt 1).
+let updateFlagBatch
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (items: FlagBatchItem list)
+    : Async<YnabResult<string list>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendFlagBatch httpClient budgetId items
+    }
+
 // ============================================
 // Split-Schreibweg (ledger-kxme4, ADR 0058)
 // ============================================

@@ -3,8 +3,8 @@
 /// Auswahl-Leiste am unteren Rand (Handy: zwei Reihen, PC: eine Reihe). Die Bausteine
 /// kennen weder Zeilen noch Modell, der Aufrufer reicht Zahlen, Texte und Rückrufe herein.
 ///
-/// Die Leiste zeigt bewusst keine schreibenden Aktionen (Entscheidung Roman 2026-10-19):
-/// "Geprüft", "Kategorie ändern" und "Flag" kommen mit ihren eigenen Aufgaben.
+/// Die Leiste trägt die Sammelaktionen, die je eine eigene Aufgabe eingeführt hat: "Geprüft"
+/// (primär), "Kategorie setzen" und die Rückfrage an Lena (beide sekundär).
 module Client.DesignSystem.MultiSelect
 
 open Feliz
@@ -144,6 +144,19 @@ type CategoryAction = {
     Sheet: ReactElement
 }
 
+/// Eine der beiden Lena-Aktionen der Leiste (ledger-y54gr): "Lena fragen" oder "Rückfrage
+/// zurücknehmen", sekundär. `Label` trägt die Zahl der gewählten Buchungen. `IsBusy`: der Aufruf
+/// läuft, der Knopf zeigt den Spinner. `IsLocked`: irgendein Sammelaufruf läuft. `Reason`: der
+/// Grund, aus dem die Aktion nicht wirkt (z. B. fehlende Farbe in den Settings); der Knopf ist
+/// dann gesperrt und nennt ihn als Tooltip, am Handy zusätzlich als Zeile unter den Knöpfen.
+type LenaAction = {
+    Label: string
+    IsBusy: bool
+    IsLocked: bool
+    Reason: string option
+    OnClick: unit -> unit
+}
+
 /// Die primäre Aktion der Leiste (Orange): setzt "Geprüft" für die Auswahl.
 /// Während der Aufruf läuft, zeigt sie den Spinner und ist gesperrt; `locked` sperrt sie auch,
 /// wenn die andere Sammelaktion läuft. `className` setzt die Breite (am Handy behält sie ihre
@@ -180,9 +193,24 @@ let private categoryButton (action: CategoryAction) (size: Button.ButtonSize) (c
             ClassName = Some className
     }
 
+/// Ein sekundärer Lena-Knopf. Ein Grund sperrt ihn und steht im Tooltip.
+let private lenaButton (action: LenaAction) (size: Button.ButtonSize) (className: string) : ReactElement =
+    Button.view {
+        Button.defaultProps with
+            Text = action.Label
+            Size = size
+            OnClick = action.OnClick
+            Variant = Button.Secondary
+            IsLoading = action.IsBusy
+            IsDisabled = action.IsLocked || action.Reason.IsSome
+            Title = action.Reason
+            ClassName = Some className
+    }
+
 /// Die Auswahl-Leiste am Handy: ersetzt die Tab-Bar. Reihe 1 "n ausgewählt" und Summe,
 /// Reihe 2 "Alle" (Teal, wenn der ganze Treffer gewählt ist), "Geprüft" (primär),
-/// "Kategorie setzen" (sekundär) und "Auswahl aufheben". `locked`: ein Sammelaufruf läuft.
+/// "Kategorie setzen" (sekundär) und "Auswahl aufheben", Reihe 3 die beiden Lena-Aktionen
+/// (sekundär) und, wenn eine gesperrt ist, deren Grund. `locked`: ein Sammelaufruf läuft.
 let barMobile
     (countText: string)
     (amount: Shared.Domain.Money)
@@ -194,6 +222,8 @@ let barMobile
     (locked: bool)
     (onReviewed: unit -> unit)
     (category: CategoryAction)
+    (lena: LenaAction)
+    (withdraw: LenaAction)
     (clearLabel: string)
     (onClear: unit -> unit)
     : ReactElement =
@@ -217,13 +247,29 @@ let barMobile
                     clearButton clearLabel onClear true
                 ]
             ]
+            Html.div [
+                prop.className "flex items-center gap-2"
+                prop.children [
+                    lenaButton lena Button.Small "flex-1 whitespace-nowrap"
+                    lenaButton withdraw Button.Small "flex-1 whitespace-nowrap"
+                ]
+            ]
+            match lena.Reason with
+            | Some reason ->
+                Html.p [
+                    prop.custom ("data-testid", "selection-lena-reason")
+                    prop.className $"{FontSizes.xs} {Colors.textMuted}"
+                    prop.text reason
+                ]
+            | None -> ()
             category.Sheet
         ]
     ]
 
 /// Die Auswahl-Leiste am PC: eine Reihe, ersetzt den Tastatur-Hinweis. Kein "Alle", das
-/// Kopfzeilen-Kästchen erledigt es. Rechts "Auswahl aufheben", "Kategorie setzen" (sekundär,
-/// mit dem Picker als Popover über der Leiste) und zuletzt "Geprüft" (primär).
+/// Kopfzeilen-Kästchen erledigt es. Rechts "Auswahl aufheben", die beiden Lena-Aktionen
+/// (sekundär, ein Grund steht im Tooltip), "Kategorie setzen" (sekundär, mit dem Picker als
+/// Popover über der Leiste) und zuletzt "Geprüft" (primär).
 let barDesktop
     (countText: string)
     (amount: Shared.Domain.Money)
@@ -232,26 +278,30 @@ let barDesktop
     (locked: bool)
     (onReviewed: unit -> unit)
     (category: CategoryAction)
+    (lena: LenaAction)
+    (withdraw: LenaAction)
     (clearLabel: string)
     (clearKeyHint: string)
     (onClear: unit -> unit)
     : ReactElement =
     Html.div [
         prop.className (
-            $"selection-bar hidden md:flex fixed bottom-0 left-0 right-0 z-40 items-center gap-4 {Backgrounds.surface} " +
+            $"selection-bar hidden md:flex flex-wrap fixed bottom-0 left-0 right-0 z-40 items-center gap-x-4 gap-y-2 {Backgrounds.surface} " +
             $"border-t {Borders.default'} px-5 py-3.5"
         )
         prop.children [
             yield! countAndSum countText amount
             Html.div [
-                prop.className "ml-auto flex items-center gap-2"
+                prop.className "ml-auto flex flex-wrap items-center justify-end gap-2"
                 prop.children [
                     // Die Taste zum Aufheben, gedämpft in Mono neben dem Knopf (ledger-w4vte).
                     Html.span [
-                        prop.className $"{Fonts.mono} {FontSizes.xs} {Colors.textMuted}"
+                        prop.className $"hidden lg:inline {Fonts.mono} {FontSizes.xs} {Colors.textMuted}"
                         prop.text clearKeyHint
                     ]
                     clearButton clearLabel onClear false
+                    lenaButton withdraw Button.Medium ""
+                    lenaButton lena Button.Medium ""
                     // Der Wrapper trägt das Popover; es öffnet über dem Knopf (`bottom-full`).
                     Html.div [
                         prop.className "relative"

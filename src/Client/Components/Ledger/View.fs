@@ -2890,7 +2890,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
     let totals = selectionTotals model
     let countText = selectionBarCountText totals.Count
     // Läuft einer der beiden Sammelaufrufe, sind beide Aktionen gesperrt.
-    let locked = model.ReviewMarkBatchRunning || model.CategoryBatchRunning
+    let locked = model.ReviewMarkBatchRunning || model.CategoryBatchRunning || model.LenaBatchRunning
     let pickerProps : CategoryPicker.CategoryPickerProps =
         { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
           Current = None
@@ -2917,6 +2917,21 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                     model.BatchCategoryPickerOpen
                     (Some (selectionPickerSubtitle totals.Count totals.Amount))
                     pickerProps) }
+    // Die Rückfrage an Lena (ledger-y54gr): zwei sekundäre Aktionen mit der Zahl der Auswahl.
+    // "Lena fragen" braucht die Flag-Farbe aus den Settings, sonst ist sie gesperrt und nennt den
+    // Grund; zurücknehmen braucht sie nicht.
+    let lena : MultiSelect.LenaAction =
+        { Label = selectionLenaLabel totals.Count
+          IsBusy = model.LenaBatchRunning
+          IsLocked = locked
+          Reason = selectionLenaDisabledReason model.LenaFlagColor
+          OnClick = fun () -> dispatch (StartLenaBatch AssignLena) }
+    let withdraw : MultiSelect.LenaAction =
+        { Label = selectionWithdrawLabel totals.Count
+          IsBusy = false
+          IsLocked = locked
+          Reason = None
+          OnClick = fun () -> dispatch (StartLenaBatch WithdrawLena) }
     React.fragment [
         if model.SelectionMode then
             MultiSelect.barMobile
@@ -2930,6 +2945,8 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 locked
                 (fun () -> dispatch StartReviewMarkBatch)
                 category
+                lena
+                withdraw
                 selectionClearLabel
                 (fun () -> dispatch ClearSelection)
         if totals.Count > 0 then
@@ -2941,6 +2958,8 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
                 locked
                 (fun () -> dispatch StartReviewMarkBatch)
                 category
+                lena
+                withdraw
                 selectionClearLabel
                 selectionClearKeyHint
                 (fun () -> dispatch ClearSelection)
@@ -2952,8 +2971,8 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
 /// erreichbar bleibt: sie ist nie dauerhaft verdeckt.
 let private selectionBarSpacers (model: Model) : ReactElement =
     React.fragment [
-        if model.SelectionMode then Html.div [ prop.className "md:hidden h-40"; prop.ariaHidden true ]
-        if hasSelection model then Html.div [ prop.className "hidden md:block h-20"; prop.ariaHidden true ]
+        if model.SelectionMode then Html.div [ prop.className "md:hidden h-52"; prop.ariaHidden true ]
+        if hasSelection model then Html.div [ prop.className "hidden md:block h-28 lg:h-20"; prop.ariaHidden true ]
         elif keyboardHintVisible model then Html.div [ prop.className "hidden md:block h-12"; prop.ariaHidden true ]
     ]
 

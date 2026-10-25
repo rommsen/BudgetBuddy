@@ -144,6 +144,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
     | ReloadForUpdate -> PwaApplyUpdate
     | UndoCategoryBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)
+    | UndoFlagBatch changes ->
+        LedgerMsg (Components.Ledger.Types.StartUndoFlagBatch changes)
 
 let private addToastWithAction
     (message: string)
@@ -268,6 +270,7 @@ let isInputActive (model: Model) : bool =
         || draftDiffers ledger.AmountMaxDraft (amountText filters.AmountMax)
         || ledger.ReviewMarkBatchRunning
         || ledger.CategoryBatchRunning
+        || ledger.LenaBatchRunning
     let rulesActive = model.Rules.EditingRule.IsSome
     let settingsActive = model.Settings.EditingSection.IsSome
     let quickAddActive =

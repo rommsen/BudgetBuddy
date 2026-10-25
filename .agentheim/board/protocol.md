@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 19:52 -- Task verified and completed: ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
+
+**Type:** Work / Task completion
+**Task:** ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
+**Summary:** Die Auswahl-Leiste hat jetzt "Lena fragen (n)" und "Rückfrage zurücknehmen (n)": je geänderter Buchung ein EntryFlagChangedInBb, danach ein Sammel-PATCH mit nur id und flag_color, Fehlschlag je Buchung, ein gemeinsames Rückgängig im Toast. Ohne gesetzte Flag-Farbe ist "Lena fragen" gesperrt und nennt den Grund.
+**Duration:** 57m
+**Verification:** PASS (iteration 1)
+**Files changed:** 16
+**Tests added:** 35
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 18:52 -- Batch started: [ledger-fa1fp, ledger-y54gr]
 
 **Type:** Work / Batch start

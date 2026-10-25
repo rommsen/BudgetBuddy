@@ -1042,6 +1042,29 @@ type LenaFlagTarget =
     | AssignLena
     | WithdrawLena
 
+/// Eine Buchung, deren Flag der Stapel geändert hat: ihr Vorzustand (für das gemeinsame
+/// "Rückgängig") und das Ergebnis des Sammel-PATCH für sie (ledger-y54gr).
+type FlagBatchChange = {
+    EntryId: Guid
+    Previous: FlagState
+    WriteBack: FlagWriteBack
+}
+
+/// Antwort der Flag-Stapel-Befehle. `Changed`: je geänderter Buchung ein Eintrag.
+/// `UnchangedCount`: Ziel gleich Ist (kein Ereignis, nicht im PATCH). `FailedCount`: in
+/// YNAB gelöscht oder unbekannt (kein Ereignis, nicht im PATCH).
+type FlagBatchOutcome = {
+    Changed: FlagBatchChange list
+    UnchangedCount: int
+    FailedCount: int
+}
+
+/// Eine Buchung mit dem Flag, auf das "Rückgängig" sie zurückstellen soll.
+type FlagRestoreItem = {
+    EntryId: Guid
+    Previous: FlagState
+}
+
 /// Die Einstellung für "Lena fragen" (ADR 0056, Punkt 1): die Farbe, die Roman in YNAB
 /// "Lena" genannt hat, und der Vorschlag (Farbe der jüngsten gespiegelten Buchung mit
 /// Flag-Name "Lena").
