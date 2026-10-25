@@ -489,6 +489,8 @@ let contentTests =
                 functionBody source "let private detailContent"
                 + functionBody source "let private categoryField"
                 + functionBody source "let private splitField"
+                // Die Memo-Zeile lebt seit ledger-fa1fp in `memoField`.
+                + functionBody source "let private memoField"
             for field in [ "\"Kategorie\""; "\"Split\""; "\"Memo\""; "\"Geprüft\"" ] do
                 Expect.stringContains content field $"Feld {field}"
             Expect.stringContains (functionBody source "let private detailPanelView") "detailContent" "Panel nutzt den Inhalt"
@@ -500,8 +502,12 @@ let contentTests =
             Expect.isFalse (content.Contains "onClick") "kein Klick in den Feldern"
             Expect.stringContains (functionBody (viewSource ()) "let private categoryField") "Detail.pickerArrow" "Pfeil an der Kategorie"
 
-        testCase "die Kategorie steht am PC voll qualifiziert" <| fun () ->
-            Expect.stringContains (functionBody (viewSource ()) "let private categoryField") "categoryLabelQualified entry" "voll qualifiziert"
+        testCase "die Kategorie steht am PC voll qualifiziert, im Sheet am Handy kurz (ledger-fa1fp)" <| fun () ->
+            let source = viewSource ()
+            Expect.stringContains (functionBody source "let private categoryField") "detailCategoryLabel model.DetailForm entry" "Form entscheidet"
+            let label = functionBody source "let detailCategoryLabel"
+            Expect.stringContains label "DetailPanel -> categoryLabelQualified entry" "PC voll qualifiziert"
+            Expect.stringContains label "DetailSheet -> categoryLabel entry" "Handy kurz"
 
         testCase "die Herkunft-Zeile zeigt für jede Art das Wort der Domäne in einem Teal-Badge" <| fun () ->
             let content = functionBody (viewSource ()) "let private detailContent"

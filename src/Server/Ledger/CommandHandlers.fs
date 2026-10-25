@@ -2404,6 +2404,141 @@ let retryFlagWriteBack
     )
 
 // ============================================
+// Memo bearbeiten und nach YNAB zurückschreiben (ADR 0062, ledger-fa1fp)
+// ============================================
+
+/// Der Push des Memos, injiziert wie `FlagPush`: bekommt die YNAB-Transaction-Id und das Memo
+/// (`None` heißt "kein Memo", im Body `memo = null`). Der Aufrufer (`Server.Api`) bindet Token
+/// und Budget ein (`Ynab.updateMemo`).
+type MemoPush = string -> string option -> Async<YnabResult<unit>>
+
+/// Der Grund-Text für den Hinweis "Memo nicht in YNAB". Wie `describeFlagPushError`.
+let describeMemoPushError (error: YnabError) : string =
+    match error with
+    | YnabError.InvalidResponse msg -> $"YNAB hat das Memo abgelehnt: {msg}"
+    | other -> describeReviewMarkPushError other
+
+/// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0062).
+let memoNotLinkedReason = reviewMarkNotLinkedReason
+
+/// Die Baseline eines neuen Fehlschlags: bei einem schon offenen die erste, sonst der Stand
+/// vor der Änderung (ADR 0062).
+let private memoBaseline (entry: Entry) (before: string option) : string option =
+    match entry.MemoWriteBackFailure with
+    | Some failure -> failure.BaselineMemo
+    | None -> before
+
+/// Schickt das Memo. Scheitert der Push (oder fehlt die Verknüpfung), schreibt die Funktion
+/// `EntryMemoWriteBackFailed`. Bei Erfolg schreibt sie kein Ereignis, außer ein früherer
+/// Fehlschlag war offen: dann ist er mit dem Erfolg beendet (`EntryMemoWrittenBackToYnab`).
+let private pushMemo
+    (now: DateTime)
+    (push: MemoPush)
+    (entry: Entry)
+    (baseline: string option)
+    (memo: string option)
+    : Async<MemoWriteBack> =
+    async {
+        let entryId = entry.Id
+
+        let fail (reason: string) =
+            async {
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        reviewMarkEvent entryId now UserInBb (
+                            EntryMemoWriteBackFailed { Reason = reason; BaselineMemo = baseline }
+                        )
+                    ]
+                return MemoSendFailed reason
+            }
+
+        match! tryYnabTransactionId entryId with
+        | None -> return! fail memoNotLinkedReason
+        | Some ynabTransactionId ->
+            match! push ynabTransactionId memo with
+            | Ok () ->
+                if entry.MemoWriteBackFailure.IsSome then
+                    do!
+                        Ledger.Persistence.appendAndApply [
+                            reviewMarkEvent entryId now UserInBb EntryMemoWrittenBackToYnab
+                        ]
+                return MemoSent
+            | Error err -> return! fail (describeMemoPushError err)
+    }
+
+/// Memo setzen, ändern oder leeren (ADR 0062) und "Rückgängig" (derselbe Befehl mit dem alten
+/// Memo). Die Eingabe läuft durch `normalizeMemo`: getrimmt, leer heißt "kein Memo", zu lang
+/// wird abgelehnt (kein Ereignis, kein Push). Gelöschte und unbekannte Buchungen werden
+/// abgelehnt. Ziel gleich Ist: weder Ereignis noch Push (`MemoUnchanged`). Sonst schreibt der
+/// Befehl zuerst `EntryMemoChangedInBb` und ruft danach den Push (Reihenfolge wie ADR 0050,
+/// Punkt 5). Läuft unter der Schreib-Sperre (`WriteGuard`), nie während eines Spiegel-Laufs.
+let setEntryMemo
+    (now: DateTime)
+    (push: MemoPush)
+    (entryId: EntryId)
+    (text: string)
+    : Async<Result<MemoOutcome, string>> =
+    match normalizeMemo text with
+    | Error reason -> async { return Error reason }
+    | Ok newMemo ->
+        WriteGuard.exclusive (
+            async {
+                match! Ledger.Persistence.loadEntry entryId with
+                | None -> return Error "Buchung nicht gefunden"
+                | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+                | Some entry ->
+                    let previous = memoKey entry.Memo
+                    if newMemo = previous then
+                        return
+                            Ok {
+                                PreviousMemo = previous
+                                CurrentMemo = previous
+                                MemoChange = MemoUnchanged
+                                MemoWriteBack = MemoNotSent
+                            }
+                    else
+                        do!
+                            Ledger.Persistence.appendAndApply [
+                                reviewMarkEvent entryId now UserInBb (
+                                    EntryMemoChangedInBb { OldMemo = previous; NewMemo = newMemo }
+                                )
+                            ]
+
+                        let baseline = memoBaseline entry previous
+                        let! writeBack = pushMemo now push entry baseline newMemo
+                        return
+                            Ok {
+                                PreviousMemo = previous
+                                CurrentMemo = newMemo
+                                MemoChange = MemoChanged
+                                MemoWriteBack = writeBack
+                            }
+            }
+        )
+
+/// "Erneut senden" am Hinweis "Memo nicht in YNAB" (ADR 0062): sendet das Memo des aktuellen
+/// BB-Stands. Erfolg schreibt `EntryMemoWrittenBackToYnab` (Actor `UserInBb`), ein erneuter
+/// Fehlschlag ersetzt den Grund (die Baseline bleibt). Ohne offenen Fehlschlag tut der Befehl
+/// nichts (`MemoNotSent`).
+let retryMemoWriteBack
+    (now: DateTime)
+    (push: MemoPush)
+    (entryId: EntryId)
+    : Async<Result<MemoWriteBack, string>> =
+    WriteGuard.exclusive (
+        async {
+            match! Ledger.Persistence.loadEntry entryId with
+            | None -> return Error "Buchung nicht gefunden"
+            | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+            | Some entry when entry.MemoWriteBackFailure.IsNone -> return Ok MemoNotSent
+            | Some entry ->
+                let baseline = memoBaseline entry (memoKey entry.Memo)
+                let! writeBack = pushMemo now push entry baseline (memoKey entry.Memo)
+                return Ok writeBack
+        }
+    )
+
+// ============================================
 // Lena fragen für eine ganze Auswahl, ein Sammel-PATCH (ledger-y54gr)
 // ============================================
 

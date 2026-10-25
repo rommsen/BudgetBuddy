@@ -922,6 +922,11 @@ type LedgerEntryView = {
     /// dem Grund und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
     /// älteren Servers, der das Feld nicht kennt).
     FlagWriteBackFailure: string option
+    /// Grund des offenen Fehlschlags beim Zurückschreiben des Memos nach YNAB (ledger-fa1fp,
+    /// ADR 0062): das Memo bleibt in BB gesetzt, das Detail zeigt "Memo nicht in YNAB" mit dem
+    /// Grund und "Erneut senden". `None`, wenn nichts offen ist (und für Antworten eines
+    /// älteren Servers, der das Feld nicht kennt).
+    MemoWriteBackFailure: string option
     /// Die Buchung trägt eine YNAB-Verknüpfung: vom Spiegel gesehene Buchungen immer,
     /// BB-geführte (Comdirect-Import, Quick Add) nach `EntryLinkedToYnab` (ADR 0021).
     LinkedToYnab: bool
@@ -1071,6 +1076,56 @@ type FlagRestoreItem = {
 type LenaFlagSettings = {
     SavedColor: string option
     SuggestedColor: string option
+}
+
+// ============================================
+// Memo bearbeiten und zurückschreiben (ledger-fa1fp, ADR 0062)
+// ============================================
+
+/// Die längste Memo-Länge, die BB nach YNAB schickt. YNABs OpenAPI-Schema führt für `memo`
+/// 500 Zeichen als Obergrenze (nicht online geprüft, Annahme aus der Spezifikation). Ein
+/// längerer Text wird abgelehnt, nie stillschweigend gekürzt.
+let ynabMemoMaxLength = 500
+
+/// Der Grund, wenn ein Memo über die Grenze von YNAB hinausgeht.
+let memoTooLongReason = $"Das Memo ist zu lang (höchstens {ynabMemoMaxLength} Zeichen)"
+
+/// Bringt die Eingabe in die Form, die BB speichert und YNAB bekommt: getrimmt, leer heißt
+/// "kein Memo" (`None`). Zu lange Eingaben lehnt sie ab. Rein; Client (Speichern sperren,
+/// Zähler) und Server (Befehl) nutzen dieselbe Regel.
+let normalizeMemo (text: string) : Result<string option, string> =
+    let trimmed = if isNull text then "" else text.Trim()
+    if trimmed = "" then Ok None
+    elif trimmed.Length > ynabMemoMaxLength then Error memoTooLongReason
+    else Ok (Some trimmed)
+
+/// Das Memo einer Buchung als Vergleichswert: leer und Leerraum zählen als "kein Memo".
+let memoKey (memo: string option) : string option =
+    memo |> Option.map (fun m -> m.Trim()) |> Option.filter (fun m -> m <> "")
+
+/// Hat der Befehl das Memo geändert? `MemoUnchanged`: Ziel gleich Ist, weder Ereignis noch
+/// YNAB-Aufruf.
+type MemoChange =
+    | MemoChanged
+    | MemoUnchanged
+
+/// Was mit dem Zurückschreiben des Memos nach YNAB passiert ist.
+type MemoWriteBack =
+    /// Nichts zu senden (Ziel gleich Ist, oder kein offener Fehlschlag beim erneuten Senden).
+    | MemoNotSent
+    /// YNAB hat das Memo angenommen.
+    | MemoSent
+    /// Der Weg nach YNAB ist gescheitert oder nicht möglich; das Memo bleibt in BB.
+    | MemoSendFailed of reason: string
+
+/// Antwort von `setEntryMemo`.
+type MemoOutcome = {
+    /// Das Memo vor dem Befehl, Grundlage für "Rückgängig".
+    PreviousMemo: string option
+    /// Das gespeicherte Memo nach dem Befehl (getrimmt, `None` für "kein Memo").
+    CurrentMemo: string option
+    MemoChange: MemoChange
+    MemoWriteBack: MemoWriteBack
 }
 
 // ============================================

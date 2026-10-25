@@ -72,6 +72,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None
+    MemoWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

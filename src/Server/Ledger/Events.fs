@@ -287,6 +287,23 @@ type EntryFlagWriteBackFailedPayload = {
     BaselineFlagName: string option
 }
 
+/// Das Memo wurde in BB geändert (ADR 0062): setzen, ändern, leeren und "Rückgängig" erzeugen
+/// denselben Typ. Alt und Neu sind das gespeicherte Memo (getrimmt, `None` für "kein Memo").
+/// Actor `UserInBb`.
+type EntryMemoChangedInBbPayload = {
+    OldMemo: string option
+    NewMemo: string option
+}
+
+/// Das Zurückschreiben des Memos nach YNAB ist gescheitert oder war nicht möglich (ADR 0062).
+/// `Reason` ist der Grund für die Zeile. Die Baseline ist das Memo, das YNAB vermutlich noch
+/// hat: der `OldMemo`-Wert der ersten gescheiterten Änderung (bei weiteren Gesten mit offenem
+/// Fehlschlag bleibt die erste Baseline).
+type EntryMemoWriteBackFailedPayload = {
+    Reason: string
+    BaselineMemo: string option
+}
+
 /// Eine Split-Buchung wurde in YNAB ersetzt (ADR 0058, Punkt 2 und 5): DELETE und POST sind
 /// gelungen, die Buchung trägt dort eine neue YNAB-Id, neue Subtransaction-Ids und eine
 /// abgeleitete `import_id` (alte plus `:r<n>`). Die alte YNAB-Id gilt als abgelöst: eine
@@ -345,6 +362,13 @@ type LedgerEventBody =
     /// Der offene Flag-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
     /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0056, Punkt 5).
     | EntryFlagWrittenBackToYnab
+    /// Memo in BB geändert (ADR 0062). Entscheidung, Actor `UserInBb`.
+    | EntryMemoChangedInBb of EntryMemoChangedInBbPayload
+    /// Zurückschreiben des Memos nach YNAB gescheitert (ADR 0062), mit Baseline.
+    | EntryMemoWriteBackFailed of EntryMemoWriteBackFailedPayload
+    /// Der offene Memo-Fehlschlag ist beendet: der Push hat Erfolg (Actor `UserInBb`)
+    /// oder YNAB zeigt den BB-Stand (Actor `YnabMirror`). Kein Payload (ADR 0062).
+    | EntryMemoWrittenBackToYnab
     /// Eine Split-Buchung ist in YNAB gelöscht und unter neuer Id angelegt worden
     /// (ADR 0058). Stiftet die neuen Verknüpfungen (YNAB-Id, ImportId) und hält die alte
     /// YNAB-Id als abgelöst fest.
@@ -412,6 +436,9 @@ let eventTypeName (body: LedgerEventBody) : string =
     | EntryFlagChangedInBb _ -> "EntryFlagChangedInBb"
     | EntryFlagWriteBackFailed _ -> "EntryFlagWriteBackFailed"
     | EntryFlagWrittenBackToYnab -> "EntryFlagWrittenBackToYnab"
+    | EntryMemoChangedInBb _ -> "EntryMemoChangedInBb"
+    | EntryMemoWriteBackFailed _ -> "EntryMemoWriteBackFailed"
+    | EntryMemoWrittenBackToYnab -> "EntryMemoWrittenBackToYnab"
     | EntryReplacedInYnab _ -> "EntryReplacedInYnab"
     | EntryPushToYnabFailed _ -> "EntryPushToYnabFailed"
 
@@ -444,6 +471,9 @@ let schemaVersion (body: LedgerEventBody) : int =
     | EntryFlagChangedInBb _ -> 1
     | EntryFlagWriteBackFailed _ -> 1
     | EntryFlagWrittenBackToYnab -> 1
+    | EntryMemoChangedInBb _ -> 1
+    | EntryMemoWriteBackFailed _ -> 1
+    | EntryMemoWrittenBackToYnab -> 1
     | EntryReplacedInYnab _ -> 1
     | EntryPushToYnabFailed _ -> 1
 
@@ -948,6 +978,30 @@ module Codec =
             BaselineFlagName = get.Optional.Field "baselineFlagName" Decode.string
         })
 
+    let encodeMemoChangedInBb (p: EntryMemoChangedInBbPayload) =
+        Encode.object [
+            "oldMemo", encodeOptionalString p.OldMemo
+            "newMemo", encodeOptionalString p.NewMemo
+        ]
+
+    let decodeMemoChangedInBb : Decoder<EntryMemoChangedInBbPayload> =
+        Decode.object (fun get -> {
+            OldMemo = get.Optional.Field "oldMemo" Decode.string
+            NewMemo = get.Optional.Field "newMemo" Decode.string
+        })
+
+    let encodeMemoWriteBackFailed (p: EntryMemoWriteBackFailedPayload) =
+        Encode.object [
+            "reason", Encode.string p.Reason
+            "baselineMemo", encodeOptionalString p.BaselineMemo
+        ]
+
+    let decodeMemoWriteBackFailed : Decoder<EntryMemoWriteBackFailedPayload> =
+        Decode.object (fun get -> {
+            Reason = get.Required.Field "reason" Decode.string
+            BaselineMemo = get.Optional.Field "baselineMemo" Decode.string
+        })
+
     let encodeReplacedInYnab (p: EntryReplacedInYnabPayload) =
         Encode.object [
             "oldYnabTransactionId", Encode.string p.OldYnabTransactionId
@@ -994,6 +1048,9 @@ let encodePayload (body: LedgerEventBody) : string =
         | EntryFlagChangedInBb p -> Codec.encodeFlagChangedInBb p
         | EntryFlagWriteBackFailed p -> Codec.encodeFlagWriteBackFailed p
         | EntryFlagWrittenBackToYnab -> Encode.object []
+        | EntryMemoChangedInBb p -> Codec.encodeMemoChangedInBb p
+        | EntryMemoWriteBackFailed p -> Codec.encodeMemoWriteBackFailed p
+        | EntryMemoWrittenBackToYnab -> Encode.object []
         | EntryReplacedInYnab p -> Codec.encodeReplacedInYnab p
         | EntryPushToYnabFailed p -> Codec.encodePushToYnabFailed p
     Encode.toString 0 json
@@ -1051,6 +1108,11 @@ let decodePayload (eventType: string) (version: int) (payload: string) : Result<
     | "EntryFlagWriteBackFailed", 1 ->
         Decode.fromString Codec.decodeFlagWriteBackFailed payload |> Result.map EntryFlagWriteBackFailed
     | "EntryFlagWrittenBackToYnab", 1 -> Ok EntryFlagWrittenBackToYnab
+    | "EntryMemoChangedInBb", 1 ->
+        Decode.fromString Codec.decodeMemoChangedInBb payload |> Result.map EntryMemoChangedInBb
+    | "EntryMemoWriteBackFailed", 1 ->
+        Decode.fromString Codec.decodeMemoWriteBackFailed payload |> Result.map EntryMemoWriteBackFailed
+    | "EntryMemoWrittenBackToYnab", 1 -> Ok EntryMemoWrittenBackToYnab
     | "EntryReplacedInYnab", 1 ->
         Decode.fromString Codec.decodeReplacedInYnab payload |> Result.map EntryReplacedInYnab
     | "EntryPushToYnabFailed", 1 ->

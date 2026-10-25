@@ -1488,6 +1488,24 @@ let private flagPush () : Async<Ledger.CommandHandlers.FlagPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Push des Memos (ledger-fa1fp, ADR 0062) mit Token und Standard-Budget aus den
+/// Settings, mit denselben Fehlerfällen wie `flagPush`. Sendet nur `memo`.
+let private memoPush () : Async<Ledger.CommandHandlers.MemoPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun ynabTransactionId memo ->
+                YnabClient.updateMemo token (YnabBudgetId budgetId) ynabTransactionId memo
+        | None, _ ->
+            return fun _ _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Der Sammel-Push des Flags (ledger-y54gr), mit denselben Fehlerfällen wie `flagPush`.
 let private flagBatchPush () : Async<Ledger.CommandHandlers.FlagBatchPush> =
     async {
@@ -1789,6 +1807,18 @@ let ledgerApi : LedgerApi = {
     retryFlagWriteBack = fun entryId -> async {
         let! push = flagPush ()
         return! Ledger.CommandHandlers.retryFlagWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
+    }
+
+    // Memo bearbeiten (ledger-fa1fp, ADR 0062): Kassenbuch zuerst, dann der Push (nur `memo`),
+    // unter der Schreib-Sperre. Das Rückgängig läuft über denselben Befehl.
+    setEntryMemo = fun entryId text -> async {
+        let! push = memoPush ()
+        return! Ledger.CommandHandlers.setEntryMemo DateTime.UtcNow push (Ledger.Events.EntryId entryId) text
+    }
+
+    retryMemoWriteBack = fun entryId -> async {
+        let! push = memoPush ()
+        return! Ledger.CommandHandlers.retryMemoWriteBack DateTime.UtcNow push (Ledger.Events.EntryId entryId)
     }
 
     // Lena fragen für eine ganze Auswahl und das gemeinsame "Rückgängig" (ledger-y54gr):

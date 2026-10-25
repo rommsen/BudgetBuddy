@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 20:26 -- Task verified and completed: ledger-fa1fp - "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide"
+
+**Type:** Work / Task completion
+**Task:** ledger-fa1fp - "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide"
+**Summary:** Das Memo lässt sich im Detail setzen, ändern und leeren (Ereignis mit Alt und Neu, Push nur mit memo, Fehlschlag mit Baseline, Erneut senden, Toast mit Rückgängig). Die Historie nach dem Aufteilen nennt Ziele und Beträge, das Handy-Detail zeigt die Kategorie kurz, der Picker am PC trägt den Fußtext und /styleguide zeigt die Auswahl-Bausteine samt Lena-Knöpfen. Iteration 2 löst den Merge mit ledger-y54gr auf.
+**Duration:** 1h50m
+**Verification:** PASS (iteration 1 nach Merge-Konflikt mit ledger-y54gr; Iteration 3 nur Kommentar-Banner)
+**Files changed:** 38
+**Tests added:** 79
+**ADRs written:** 0062-memo-schreibweg-ereignis-fehlschlag-mit-baseline-grenze-500.md
+
+---
+
 ## 2026-10-25 19:52 -- Task verified and completed: ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
 
 **Type:** Work / Task completion

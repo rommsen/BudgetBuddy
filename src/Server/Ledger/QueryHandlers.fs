@@ -159,6 +159,7 @@ module ReadModel =
             ReviewMarkWriteBackFailure = entry.ReviewMarkWriteBackFailure
             CategorizationWriteBackFailure = entry.CategorizationWriteBackFailure |> Option.map (fun f -> f.Reason)
             FlagWriteBackFailure = entry.FlagWriteBackFailure |> Option.map (fun f -> f.Reason)
+            MemoWriteBackFailure = entry.MemoWriteBackFailure |> Option.map (fun f -> f.Reason)
             LinkedToYnab = entry.LinkedToYnab
             PushToYnabFailure = entry.PushToYnabFailure
             // Ohne Konten-Abruf und ohne Verknüpfungen: Tracking-Konto und Fremd-`import_id`
@@ -290,6 +291,14 @@ module ReadModel =
         | AskLena, NoFlag -> "Rückfrage Lena zurückgenommen"
         | _ -> "Flag in BB geändert"
 
+    /// Sätze für die Memo-Änderung aus BB (ADR 0062): gesetzt, geändert, entfernt.
+    let private describeMemoChangedInBb (p: EntryMemoChangedInBbPayload) =
+        match p.OldMemo, p.NewMemo with
+        | None, Some n -> $"Memo gesetzt: {n}"
+        | Some o, Some n -> $"Memo geändert: {o} → {n}"
+        | Some o, None -> $"Memo entfernt: {o}"
+        | None, None -> "Memo in BB geändert"
+
     let private describeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
         $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
 
@@ -300,6 +309,19 @@ module ReadModel =
             | None when not (List.isEmpty p.Splits) -> $"{List.length p.Splits} Split-Zeilen"
             | None -> "ohne Kategorie"
         $"""Regel „{p.RuleName}“ hat kategorisiert: {target}"""
+
+    /// Die Split-Zeilen als Satzteil: Ziel und Betrag je Zeile ("Möbel 23,40 €, Haushalt
+    /// 58,50 €", Tafel 4.7). Ein Übertrag nennt das Konto, eine Zeile ohne Ziel "ohne Ziel".
+    let splitLinesText (splits: TransactionSplit list) : string =
+        splits
+        |> List.map (fun split ->
+            let target =
+                match split.Target with
+                | ToCategory (_, name) -> name
+                | ToTransfer (_, accountName) -> $"Übertrag {accountName}"
+                | Uncategorized -> "ohne Ziel"
+            $"{target} {formatMoney split.Amount}")
+        |> String.concat ", "
 
     let private describeRecategorized (p: EntryRecategorizedPayload) =
         let categoryPart =
@@ -313,10 +335,10 @@ module ReadModel =
         let splitPart =
             match p.OldSplits, p.NewSplits with
             | [], [] -> []
-            | [], newSplits -> [ $"In {List.length newSplits} Split-Zeilen aufgeteilt" ]
+            | [], newSplits -> [ $"Aufgeteilt in {splitLinesText newSplits}" ]
             | _, [] -> [ "Split aufgehoben" ]
             | oldSplits, newSplits when oldSplits <> newSplits ->
-                [ $"Splits geändert: {List.length oldSplits} → {List.length newSplits} Zeilen" ]
+                [ $"Aufteilung geändert: {splitLinesText oldSplits} → {splitLinesText newSplits}" ]
             | _ -> []
 
         let parts = categoryPart @ splitPart
@@ -384,6 +406,9 @@ module ReadModel =
         | EntryFlagChangedInBb p -> describeFlagChangedInBb p
         | EntryFlagWriteBackFailed p -> $"Flag nicht in YNAB: {p.Reason}"
         | EntryFlagWrittenBackToYnab -> "Flag in YNAB angekommen"
+        | EntryMemoChangedInBb p -> describeMemoChangedInBb p
+        | EntryMemoWriteBackFailed p -> $"Memo nicht in YNAB: {p.Reason}"
+        | EntryMemoWrittenBackToYnab -> "Memo in YNAB angekommen"
         | EntryReplacedInYnab _ -> "In YNAB neu angelegt (Split-Buchung ersetzt)"
         | EntryPushToYnabFailed p -> $"Push nach YNAB gescheitert: {p.Reason}"
 

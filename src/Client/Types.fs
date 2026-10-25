@@ -196,6 +196,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Lena fragen" oder "Rückfrage zurücknehmen" (ledger-xfjcp, ADR 0056):
     /// Farbe und Name des Vorzustands kommen aus der Antwort des Befehls.
     | UndoFlag of entryId: Guid * previous: Shared.Domain.FlagState
+    /// "Rückgängig" nach dem Speichern eines Memos (ledger-fa1fp, ADR 0062): das Memo vor dem
+    /// Speichern kommt aus der Antwort des Befehls (`None`: kein Memo).
+    | UndoMemo of entryId: Guid * previous: string option
     /// "Neu laden" am Hinweis "Neue Version" der installierten PWA (infrastructure-bnbdc,
     /// ADR 0057): gibt den wartenden Service Worker frei, die Seite lädt neu.
     | ReloadForUpdate

@@ -1468,15 +1468,58 @@ let private DetailDemo () =
                     ]
                  ])
                 (Some (Detail.fieldActionButton "styleguide-detail-flag-action" "Lena fragen" (Some "In den Settings die Flag-Farbe für Lena wählen") false ignore))
+            // Memo-Zeile mit festem Knopf (ledger-fa1fp): ohne Memo, mit Memo und gesperrt.
             Detail.fieldRow
                 "styleguide-detail-memo"
                 "Memo"
                 (Detail.valueText Tokens.Colors.textMuted "Kein Memo")
-                None
+                (Some (Detail.fieldActionButton "styleguide-detail-memo-action" "Memo hinzufügen" None false ignore))
+            Detail.fieldRow
+                "styleguide-detail-memo-set"
+                "Memo"
+                (Detail.valueText Tokens.Colors.textPrimary "Werkzeug + Lampe")
+                (Some (Detail.fieldActionButton "styleguide-detail-memo-action" "Bearbeiten" None false ignore))
+            Detail.fieldRow
+                "styleguide-detail-memo-locked"
+                "Memo"
+                (Html.div [
+                    prop.className "flex min-w-0 flex-col"
+                    prop.children [
+                        Detail.valueText Tokens.Colors.textMuted "Werkzeug + Lampe"
+                        Detail.fieldLockHint "styleguide-detail-memo-lock-hint" "In YNAB gelöscht, das Memo lässt sich nicht ändern"
+                    ]
+                 ])
+                (Some (Detail.fieldActionButton "styleguide-detail-memo-action" "Bearbeiten" (Some "In YNAB gelöscht, das Memo lässt sich nicht ändern") false ignore))
             Detail.reviewedSwitch "Geprüft" reviewed false setReviewed
             Detail.originRow (
                 Badge.view { Badge.defaultProps with Text = "Comdirect-Import"; Variant = Badge.Info; Size = Badge.Small }
             )
+        ]
+
+        card "components-detail-memo" "Detail: Memo bearbeiten" "Eingabefeld mit Zähler, Speichern und Abbrechen; zu langer Text; Hinweis Memo nicht in YNAB" [
+            Detail.memoEditor
+                { Value = "Werkzeug + Lampe"
+                  OnChange = ignore
+                  OnSave = ignore
+                  OnCancel = ignore
+                  Busy = false
+                  Problem = None
+                  MaxLength = ynabMemoMaxLength
+                  SaveDisabled = false }
+            Detail.memoEditor
+                { Value = String('x', ynabMemoMaxLength + 3)
+                  OnChange = ignore
+                  OnSave = ignore
+                  OnCancel = ignore
+                  Busy = false
+                  Problem = Some memoTooLongReason
+                  MaxLength = ynabMemoMaxLength
+                  SaveDisabled = true }
+            Detail.notice
+                { Tone = Detail.NoticeOrange
+                  Badge = "Memo nicht in YNAB"
+                  Reason = "Keine Verbindung zu YNAB: Zeitüberschreitung."
+                  Action = Some { Label = "Erneut senden"; Busy = false; OnClick = ignore } }
         ]
 
         card "components-detail-timeline" "Detail: Zeitleiste" "Punktfarbe nach Urheber, neueste Zeile oben" [
@@ -1577,6 +1620,100 @@ let private CategoryMultiSelectDemo () =
     ]
 
 // ============================================
+// Mehrfachauswahl in Listen (ledger-fa1fp)
+// ============================================
+
+/// Ein Rahmen, in dem die feste Auswahl-Leiste in der Galerie an ihrem Platz bleibt: eine
+/// Umwandlung (`transform`) macht den Rahmen zum Bezugspunkt für `position: fixed`.
+let private barFrame (children: ReactElement list) =
+    Html.div [
+        prop.className "relative h-40 overflow-hidden transform-gpu"
+        prop.children children
+    ]
+
+/// Die Leisten der Galerie in je einem Helfer: ändert sich die Signatur der Bausteine, ist hier
+/// die einzige Stelle zum Nachziehen.
+let private demoLena : MultiSelect.LenaAction =
+    { Label = "Lena fragen"; IsBusy = false; IsLocked = false; Reason = None; OnClick = ignore }
+
+let private demoWithdraw : MultiSelect.LenaAction =
+    { Label = "Rückfrage zurücknehmen"; IsBusy = false; IsLocked = false; Reason = None; OnClick = ignore }
+
+let private demoBarMobile (sum: Money) (category: MultiSelect.CategoryAction) =
+    MultiSelect.barMobile "3 ausgewählt" sum "Alle 34" false ignore "Geprüft" false false ignore category demoLena demoWithdraw "Auswahl aufheben" ignore
+
+let private demoBarDesktop (sum: Money) (category: MultiSelect.CategoryAction) =
+    MultiSelect.barDesktop "3 ausgewählt" sum "Geprüft" false false ignore category demoLena demoWithdraw "Auswahl aufheben" "Esc" ignore
+
+let private multiSelectSection =
+    let sum = { Amount = -143.49m; Currency = "EUR" }
+    let category : MultiSelect.CategoryAction =
+        { Label = "Kategorie setzen"
+          IsBusy = false
+          IsLocked = false
+          OnClick = ignore
+          Popover = Html.none
+          Sheet = Html.none }
+
+    let card (id: string) (name: string) (subtitle: string) (children: ReactElement list) =
+        Html.div [
+            prop.custom ("data-ds-card", id)
+            prop.custom ("data-ds-card-name", name)
+            prop.custom ("data-ds-card-subtitle", subtitle)
+            prop.custom ("data-ds-group", "Components")
+            prop.className "mb-6 overflow-hidden rounded-xl border border-border-subtle"
+            prop.children children
+        ]
+
+    section "28. Mehrfachauswahl in Listen" [
+        note "Die Bausteine der Auswahl im Kassenbuch (`DesignSystem/MultiSelect.fs`): das Kästchen \
+              mit drei Zuständen, die Summenzeile im Auswahl-Zustand und die Auswahl-Leiste am \
+              unteren Rand. Das Kästchen in der Kopfzeile wählt den ganzen Treffer und zeigt eine \
+              Teilauswahl mit einem Strich (ADR 0053)."
+
+        card "components-multiselect-checkbox" "Mehrfachauswahl: Kästchen" "Leer, gesetzt, Teilauswahl; Handy 20 px, PC 17 px; Kopfzeilen-Kästchen" [
+            Html.div [
+                prop.className "flex flex-wrap items-center gap-6 px-4 py-4"
+                prop.children [
+                    for state, label in
+                        [ MultiSelect.Unchecked, "leer"
+                          MultiSelect.Checked, "gesetzt"
+                          MultiSelect.Partial, "Teilauswahl" ] do
+                        Html.div [
+                            prop.key label
+                            prop.className "flex items-center gap-3"
+                            prop.children [
+                                MultiSelect.box state true
+                                MultiSelect.box state false
+                                caption label
+                            ]
+                        ]
+                ]
+            ]
+            Html.div [
+                prop.custom ("data-testid", "styleguide-multiselect-header")
+                prop.className $"flex items-center gap-4 border-t px-5 py-2 {Tokens.Borders.subtle} {Tokens.Backgrounds.dark}"
+                prop.children [
+                    MultiSelect.boxButton MultiSelect.Partial "Alle Buchungen des Treffers auswählen" ignore
+                    Html.span [ prop.className Tokens.ListRoles.columnHeader; prop.text "Payee" ]
+                ]
+            ]
+        ]
+
+        card "components-multiselect-summary" "Mehrfachauswahl: Summenzeile" "Teal-Kante links, Beschriftung in Teal, Summe der Auswahl rechts" [
+            MultiSelect.summaryRow "Auswahl: 3 von 34 Buchungen" sum
+        ]
+
+        card "components-multiselect-bar-mobile" "Mehrfachauswahl: Leiste am Handy" "Zwei Reihen: Anzahl und Summe, dann Alle, Geprüft, Kategorie setzen, Auswahl aufheben (nur unter md sichtbar)" [
+            barFrame [ demoBarMobile sum category ]
+        ]
+
+        card "components-multiselect-bar-desktop" "Mehrfachauswahl: Leiste am PC" "Eine Reihe: Anzahl und Summe links, rechts Auswahl aufheben mit Taste, Kategorie setzen, Geprüft (ab md sichtbar)" [
+            barFrame [ demoBarDesktop sum category ]
+        ]
+    ]
+
+// ============================================
 // Seite
 // ============================================
 
@@ -1626,6 +1763,7 @@ let view () =
                         FilterPopoverDemo()
                         FilterPopoverMenuDemo()
                         DetailDemo()
+                        multiSelectSection
                         CategoryMultiSelectDemo()
                     ]
                     |> List.mapi (fun i sectionEl -> React.keyedFragment (i, [ sectionEl ]))

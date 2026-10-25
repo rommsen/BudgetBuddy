@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 21:10 - Detail-Feinschliff: Memo bearbeiten, Historie, Kategorie kurz, Picker-Fußtext, Styleguide
+
+**What I did:**
+Memo-Schreibweg (ADR 0062) von Ereignis bis Detail-Ansicht, Historie-Zeile nach dem Aufteilen mit Zielen und Beträgen, Kategorie im Handy-Sheet kurz, Fußtext im PC-Picker, Auswahl-Bausteine und Memo-Karte im Styleguide.
+
+**Files Added:**
+- `src/Tests/LedgerMemoTests.fs` - Regel, Codec, Befehle, observe, Historie, PUT
+- `src/Tests/LedgerMemoClientTests.fs` - Bausteine, Reducer, Ansicht
+- `scripts/ledger-memo.test.mjs` - Playwright-Wächter
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - Memo-Typen, Regel, zwei API-Member
+- `src/Server/Ledger/Events.fs`, `Domain.fs`, `Persistence.fs`, `CommandHandlers.fs`, `QueryHandlers.fs`, `src/Server/YnabClient.fs`, `src/Server/Api.fs` - Ereignisse, Zustand, Spalte, Befehle, Push, Historie
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs`, `src/Client/Types.fs`, `src/Client/State.fs` - Memo-Zustand, Reducer, Zeile, Hinweis, Toast
+- `src/Client/DesignSystem/Detail.fs`, `CategoryPicker.fs`, `src/Client/Components/Styleguide/View.fs` - Eingabefeld, Fußtext, Galerie
+- 15 Testdateien: Pflichtfeld `MemoWriteBackFailure = None`; `LedgerDetailTests.fs` angepasst; `Tests.fsproj`
+
+**Rationale:**
+Memo ließ sich in BB nicht bearbeiten (Tafeln 5.2, 7.8); die übrigen Punkte berühren dieselbe Fläche.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: dotnet test 2237 bestanden, 7 übersprungen; Skripte 243 von 243 bestanden, darunter `ledger-memo.test.mjs` und `ledger-lena-batch.test.mjs`
+- Issues: YNAB-Grenze 500 Zeichen online nicht geprüft
+
+---
+
 ## 2026-10-25 20:10 - Lena fragen in der Auswahl-Leiste (ledger-y54gr)
 
 **What I did:**

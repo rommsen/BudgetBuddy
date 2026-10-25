@@ -155,6 +155,7 @@ let domainTests =
                 ReviewMarkWriteBackFailure = None
                 CategorizationWriteBackFailure = None
                 FlagWriteBackFailure = None
+                MemoWriteBackFailure = None
                 LinkedToYnab = true
                 PushToYnabFailure = None
             }

@@ -1410,6 +1410,71 @@ let updateFlagBatch
     }
 
 // ============================================
+// Memo zurückschreiben (ADR 0062, ledger-fa1fp)
+// ============================================
+
+/// Baut den Request-Body für das Zurückschreiben des Memos: nur `memo`, `null` für "kein
+/// Memo". Weder `approved`/`cleared` noch Kategorie oder Flag (ADR 0028, Punkt 1). Der Text
+/// geht unverändert hinaus (BB hat ihn vorher getrimmt und auf die Grenze von YNAB geprüft,
+/// `Shared.Domain.normalizeMemo`). Non-private, damit der JSON-Vertrag direkt testbar ist.
+let buildMemoBody (memo: string option) : string =
+    Encode.object [
+        "transaction", Encode.object [
+            match memo with
+            | Some text -> "memo", Encode.string text
+            | None -> "memo", Encode.nil
+        ]
+    ]
+    |> Encode.toString 2
+
+/// Sendet das Memo mit dem übergebenen `HttpClient` (injizierbar, damit ein Test gegen einen
+/// Fake-Handler läuft, nie gegen YNAB): `PUT .../transactions/{transaction_id}`,
+/// Fehlerzuordnung wie `sendFlag`.
+let sendMemo
+    (httpClient: System.Net.Http.HttpClient)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (memo: string option)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let requestBody = buildMemoBody memo
+            use content = new System.Net.Http.StringContent(requestBody, System.Text.Encoding.UTF8, "application/json")
+            let! httpResponse =
+                httpClient.PutAsync($"{baseUrl}/budgets/{budgetId}/transactions/{ynabTransactionId}", content)
+                |> Async.AwaitTask
+            let! bodyText = httpResponse.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let statusCode = int httpResponse.StatusCode
+
+            printfn "[YNAB] PUT /budgets/%s/transactions/%s - Memo" budgetId ynabTransactionId
+            printfn "[YNAB] Response Status: %d" statusCode
+
+            match statusCode with
+            | 200 -> return Ok ()
+            | 400 -> return Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+            | 401 -> return Error (YnabError.Unauthorized "Invalid YNAB token")
+            | 404 -> return Error (YnabError.InvalidResponse "Transaction not found")
+            | 429 -> return Error (YnabError.RateLimitExceeded 60)
+            | _ -> return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to update memo: {ex.Message}")
+    }
+
+/// Schreibt das Memo einer Buchung nach YNAB zurück (ADR 0062). Eigener Name und eigene
+/// Signatur, die nur `memo` kennt, keine allgemeine Update-Funktion (ADR 0028, Punkt 1).
+let updateMemo
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (ynabTransactionId: string)
+    (memo: string option)
+    : Async<YnabResult<unit>> =
+    async {
+        use httpClient = new System.Net.Http.HttpClient()
+        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
+        return! sendMemo httpClient budgetId ynabTransactionId memo
+    }
+
+// ============================================
 // Split-Schreibweg (ledger-kxme4, ADR 0058)
 // ============================================
 // Aufteilen einer unaufgeteilten Buchung per PUT, Ändern und Aufheben einer Split-Buchung

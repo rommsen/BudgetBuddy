@@ -33,6 +33,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None
+    MemoWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None

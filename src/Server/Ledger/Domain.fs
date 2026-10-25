@@ -102,6 +102,13 @@ type FlagWriteBackFailure = {
     BaselineFlagName: string option
 }
 
+/// Der offene Fehlschlag beim Zurückschreiben des Memos nach YNAB (ADR 0062): der Grund für
+/// die Zeile und die Baseline, das Memo, das YNAB vermutlich noch hat.
+type MemoWriteBackFailure = {
+    Reason: string
+    BaselineMemo: string option
+}
+
 /// Der aktuelle Stand einer Buchung, abgeleitet aus ihrem Ereignis-Log.
 type Entry = {
     Id: EntryId
@@ -144,6 +151,9 @@ type Entry = {
     /// Der offene Fehlschlag beim Zurückschreiben des Flags nach YNAB samt Baseline
     /// (ADR 0056, Punkt 5). `None`, wenn nichts offen ist.
     FlagWriteBackFailure: FlagWriteBackFailure option
+    /// Der offene Fehlschlag beim Zurückschreiben des Memos nach YNAB samt Baseline
+    /// (ADR 0062). `None`, wenn nichts offen ist.
+    MemoWriteBackFailure: MemoWriteBackFailure option
     /// Die Buchung trägt eine YNAB-Verknüpfung: von Anfang an bei `EntryObservedInYnab`,
     /// sonst ab `EntryLinkedToYnab` (ADR 0021). Die Verknüpfung selbst liegt in der
     /// Fremd-Id-Tabelle (ADR 0015), das Feld ist ihre Spiegelung im Zustand.
@@ -300,6 +310,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
+            MemoWriteBackFailure = None
             LinkedToYnab = true
             PushToYnabFailure = None
         }
@@ -311,7 +322,11 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             Amount = p.NewAmount
             Payee = p.NewPayee
             Memo = p.NewMemo
-            AccountId = p.NewAccountId }
+            AccountId = p.NewAccountId
+            // Ändert YNAB das Memo, gilt YNABs Stand und ein offener Fehlschlag ist beendet
+            // (ADR 0062). `observe` lässt das Memo unverändert, wenn YNAB noch die Baseline zeigt.
+            MemoWriteBackFailure =
+                if p.NewMemo <> p.OldMemo then None else e.MemoWriteBackFailure }
 
     | EntryCategorizationChangeObservedInYnab p ->
         let e = requireExisting ()
@@ -358,6 +373,24 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
     | EntryFlagWrittenBackToYnab ->
         let e = requireExisting ()
         { e with FlagWriteBackFailure = None }
+
+    | EntryMemoChangedInBb p ->
+        // Eine neue Geste setzt einen offenen Fehlschlag zurück (ADR 0062).
+        let e = requireExisting ()
+        { e with Memo = p.NewMemo; MemoWriteBackFailure = None }
+
+    | EntryMemoWriteBackFailed p ->
+        let e = requireExisting ()
+        // Bei einem schon offenen Fehlschlag bleibt die erste Baseline (ADR 0062).
+        let baseline =
+            match e.MemoWriteBackFailure with
+            | Some open' -> open'.BaselineMemo
+            | None -> p.BaselineMemo
+        { e with MemoWriteBackFailure = Some { Reason = p.Reason; BaselineMemo = baseline } }
+
+    | EntryMemoWrittenBackToYnab ->
+        let e = requireExisting ()
+        { e with MemoWriteBackFailure = None }
 
     | EntryTransferCounterpartObservedInYnab p ->
         // Kein zweites Entstehungs-Ereignis: eine unbekannte Buchung ist ein kaputtes
@@ -422,6 +455,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
+            MemoWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
         }
@@ -466,6 +500,7 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
+            MemoWriteBackFailure = None
             LinkedToYnab = false
             PushToYnabFailure = None
         }
@@ -807,12 +842,27 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
         ]
 
     | Some entry, false ->
+        // ADR 0062: dieselbe Regel für das Memo. Mit offenem Fehlschlag heißt der BB-Stand
+        // "angekommen", die Baseline "YNAB hat den Push nie gesehen" (das Memo bleibt, kein
+        // Ereignis, Fehlschlag bleibt), jeder andere Stand ist eine echte Änderung in YNAB.
+        let memoChanged, memoWrittenBack =
+            match entry.MemoWriteBackFailure with
+            | None -> entry.Memo <> obs.Memo, false
+            | Some failure ->
+                if obs.Memo = entry.Memo then false, true
+                elif obs.Memo = failure.BaselineMemo then false, false
+                else true, false
+
         let detailsChanged =
             entry.Date <> obs.Date
             || entry.Amount <> obs.Amount
             || entry.Payee <> obs.Payee
-            || entry.Memo <> obs.Memo
+            || memoChanged
             || entry.AccountId <> ctx.AccountId
+
+        // Das Memo des Ereignisses: bei einer Änderung in YNAB das beobachtete, sonst bleibt
+        // der BB-Stand (Baseline-Fall, sonst würde das Ereignis das BB-Memo überschreiben).
+        let newMemo = if memoChanged then obs.Memo else entry.Memo
 
         // ADR 0055, Punkt 5: Ohne offenen Fehlschlag gewinnt YNAB (jeder abweichende Stand
         // ist eine Beobachtung). Mit offenem Fehlschlag: gleich dem BB-Stand heißt
@@ -859,7 +909,7 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
                         OldPayee = entry.Payee
                         NewPayee = obs.Payee
                         OldMemo = entry.Memo
-                        NewMemo = obs.Memo
+                        NewMemo = newMemo
                         OldAccountId = entry.AccountId
                         NewAccountId = ctx.AccountId
                     })
@@ -909,4 +959,8 @@ let observe (ctx: ObservationContext) (existing: Entry option) (obs: YnabObserva
             // ADR 0056, Punkt 5: dasselbe für das Flag.
             if flagWrittenBack then
                 event EntryFlagWrittenBackToYnab
+
+            // ADR 0062: dasselbe für das Memo.
+            if memoWrittenBack then
+                event EntryMemoWrittenBackToYnab
         ]

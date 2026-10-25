@@ -540,6 +540,89 @@ let lenaFlagToastText (target: LenaFlagTarget) : string =
 /// Der Toast nach "Rückgängig".
 let flagRestoredToastText : string = "Flag zurückgesetzt"
 
+// ============================================
+// Memo bearbeiten im Detail (ledger-fa1fp, ADR 0062)
+// ============================================
+
+/// Der Zustand der Memo-Aktion einer Buchung, solange ein Aufruf läuft oder der Befehl selbst
+/// scheiterte. Ein offener Fehlschlag beim Zurückschreiben nach YNAB steht an der Buchung
+/// (`MemoWriteBackFailure`), nicht hier.
+type MemoRowState =
+    /// Der Befehl (Speichern, Rückgängig oder Erneut senden) ist unterwegs.
+    | MemoSending
+    /// Der Befehl selbst scheiterte (unbekannte oder in YNAB gelöschte Buchung, zu langes Memo,
+    /// Netz zum eigenen Server). Das Memo blieb unverändert.
+    | MemoCommandFailed of message: string
+
+/// Das offene Eingabefeld des Memos im Detail: die Buchung und der Text, den Roman gerade tippt.
+type MemoEdit = {
+    MemoEntryId: Guid
+    MemoDraft: string
+}
+
+/// Der Hinweis "Memo nicht in YNAB" im Detail (Muster `FlagHint`).
+type MemoHint = {
+    Title: string
+    Reason: string
+    /// `None`, wenn nichts Offenes zu senden ist (der Befehl selbst scheiterte).
+    RetryLabel: string option
+}
+
+let memoHintTitle = "Memo nicht in YNAB"
+
+/// Welchen Hinweis trägt die Buchung? Ein Befehlsfehler hat Vorrang, danach der offene
+/// Fehlschlag an der Buchung. Rein, wie `flagHintFor`.
+let memoHintFor (rowState: MemoRowState option) (entry: LedgerEntryView) : MemoHint option =
+    match rowState, entry.MemoWriteBackFailure with
+    | Some (MemoCommandFailed message), failure ->
+        Some {
+            Title = "Memo nicht geändert"
+            Reason = message
+            RetryLabel = failure |> Option.map (fun _ -> "Erneut senden")
+        }
+    | _, Some reason -> Some { Title = memoHintTitle; Reason = reason; RetryLabel = Some "Erneut senden" }
+    | _, None -> None
+
+/// Das Memo der Buchung als Text im Eingabefeld und in der Zeile: Leerraum zählt als "kein Memo".
+let memoTextOf (entry: LedgerEntryView) : string option = memoKey entry.Memo
+
+/// Die Aktion der Memo-Zeile im Detail (Tafeln 5.2 und 7.8): "Memo hinzufügen" ohne Memo,
+/// sonst "Bearbeiten". `DisabledReason`: der Grund, aus dem sie nicht wirkt (in YNAB gelöscht).
+type MemoAction = {
+    Label: string
+    DisabledReason: string option
+}
+
+let memoDeletedReason = "In YNAB gelöscht, das Memo lässt sich nicht ändern"
+
+let memoActionFor (entry: LedgerEntryView) : MemoAction =
+    { Label = (if (memoTextOf entry).IsSome then "Bearbeiten" else "Memo hinzufügen")
+      DisabledReason = (if entry.DeletedInYnab then Some memoDeletedReason else None) }
+
+/// Warum das Eingabefeld sich nicht speichern lässt (zu lang), sonst `None`. Dieselbe Regel wie
+/// auf dem Server (`Shared.Domain.normalizeMemo`).
+let memoDraftProblem (draft: string) : string option =
+    match normalizeMemo draft with
+    | Error reason -> Some reason
+    | Ok _ -> None
+
+/// Ändert der Entwurf das Memo der Buchung? Gleiches Memo (auch mit Leerraum drumherum) ist
+/// keine Änderung: Speichern schließt das Feld, ohne den Server zu rufen.
+let memoDraftChangesEntry (draft: string) (entry: LedgerEntryView) : bool =
+    match normalizeMemo draft with
+    | Ok target -> target <> memoTextOf entry
+    | Error _ -> false
+
+/// Der Toast nach dem Speichern: gesetzt, geändert oder entfernt.
+let memoToastText (previous: string option) (current: string option) : string =
+    match previous, current with
+    | None, Some _ -> "Memo gesetzt"
+    | Some _, None -> "Memo entfernt"
+    | _ -> "Memo geändert"
+
+/// Der Toast nach "Rückgängig".
+let memoRestoredToastText : string = "Memo zurückgesetzt"
+
 /// Wann der Pfeil an der Kategorie wirkt und wann nicht (ADR 0055 Punkt 7).
 type CategoryLock =
     | CategoryEditable
@@ -740,6 +823,13 @@ type Model = {
     /// die Form mit `DetailFormChanged`; sie hängt nur von der Breite ohne Panel ab und
     /// kippt deshalb nicht hin und her, wenn das Panel selbst Platz nimmt.
     DetailForm: DetailForm
+
+    /// Das offene Memo-Eingabefeld im Detail (ledger-fa1fp, ADR 0062): höchstens eines, es
+    /// gehört zur Buchung im offenen Detail und schließt mit ihm.
+    MemoEdit: MemoEdit option
+
+    /// Der Zustand der Memo-Aktion je Buchung (ledger-fa1fp): unterwegs oder Befehl gescheitert.
+    MemoRows: Map<Guid, MemoRowState>
 
     /// Wie die Liste bei der gemessenen Breite und dem Eingabegerät bedient wird (ledger-m6zpd).
     /// Die Ansicht meldet es mit `ListInteractionChanged`; der Fußzeilen-Hinweis liest nur dieses Feld.
@@ -1376,6 +1466,30 @@ type Msg =
     | CloseDetail
     /// Die Ansicht meldet, in welcher Form das Detail bei der gemessenen Breite aufgeht.
     | DetailFormChanged of DetailForm
+
+    // ============================================
+    // Memo bearbeiten im Detail (ledger-fa1fp, ADR 0062)
+    // ============================================
+    // Dieselbe Teilung wie bei der Kategorie (ADR 0020): `Start...` ist rein, `Run...` ruft den Proxy.
+
+    /// "Bearbeiten" bzw. "Memo hinzufügen": öffnet das Eingabefeld mit dem heutigen Memo.
+    | StartMemoEdit of Guid
+    /// Der Text im Eingabefeld hat sich geändert.
+    | MemoEditChanged of string
+    /// "Abbrechen" (oder Esc): schließt das Feld ohne Änderung.
+    | CancelMemoEdit
+    /// "Speichern": ein zu langer Text und ein unveränderter Text rufen den Server nicht.
+    | StartSaveMemo of Guid
+    | RunSetMemo of Guid * string
+    | MemoSet of Guid * Result<MemoOutcome, string>
+    /// "Rückgängig" im Toast: stellt das Memo vor dem Speichern wieder her.
+    | StartUndoMemo of Guid * string option
+    | RunUndoMemo of Guid * string option
+    | MemoRestored of Guid * Result<MemoOutcome, string>
+    /// "Erneut senden" an der Hinweisleiste "Memo nicht in YNAB".
+    | StartRetryMemo of Guid
+    | RunRetryMemo of Guid
+    | MemoRetried of Guid * Result<MemoWriteBack, string>
     /// Die Ansicht meldet, wie die Liste bei Breite und Eingabegerät bedient wird (ledger-m6zpd).
     | ListInteractionChanged of ListInteraction
     | LoadHistory of Guid

@@ -441,6 +441,21 @@ type LedgerApi = {
     /// (FlagNotSent) without an open flag write-back failure.
     retryFlagWriteBack: Guid -> Async<Result<FlagWriteBack, string>>
 
+    // ============================================
+    // Memo bearbeiten (ledger-fa1fp, ADR 0062)
+    // ============================================
+
+    /// Sets, changes or clears the memo of one booking (also the undo: the same command with the
+    /// old memo), in BB first, then writes it back to YNAB (only `memo`). The text is trimmed,
+    /// empty means no memo, longer than YNAB's limit is rejected. Returns the previous memo (for
+    /// undo), whether anything changed and the write-back result. Error when the booking is
+    /// unknown or deleted in YNAB, or the text is too long.
+    setEntryMemo: Guid -> string -> Async<Result<MemoOutcome, string>>
+
+    /// Sends the booking's current memo to YNAB again ("Erneut senden"). Does nothing
+    /// (MemoNotSent) without an open memo write-back failure.
+    retryMemoWriteBack: Guid -> Async<Result<MemoWriteBack, string>>
+
     /// Assigns (or withdraws) the Lena flag for a whole selection (ledger-y54gr): the server
     /// resolves the selection like setReviewMarkBatch, writes one EntryFlagChangedInBb per
     /// changed booking and sends ONE bulk PATCH with only `flag_color`. Bookings already in

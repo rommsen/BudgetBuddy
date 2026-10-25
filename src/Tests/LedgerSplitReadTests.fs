@@ -271,6 +271,7 @@ let trackingLockTests =
           ReviewMarkWriteBackFailure = None
           CategorizationWriteBackFailure = None
           FlagWriteBackFailure = None
+          MemoWriteBackFailure = None
           LinkedToYnab = true
           PushToYnabFailure = None
           SplitLocks = None }

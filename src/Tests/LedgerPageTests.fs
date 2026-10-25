@@ -75,6 +75,7 @@ let private entry (n: int) (amount: decimal) : Entry = {
     ReviewMarkWriteBackFailure = None
     CategorizationWriteBackFailure = None
     FlagWriteBackFailure = None
+    MemoWriteBackFailure = None
     LinkedToYnab = false
     PushToYnabFailure = None
 }

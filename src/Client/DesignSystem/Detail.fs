@@ -351,6 +351,90 @@ let fieldLockHint (testId: string) (text: string) : ReactElement =
         prop.text text
     ]
 
+/// Das Eingabefeld des Memos im Detail (ledger-fa1fp, ADR 0062, Tafeln 5.2 und 7.8): eine Zeile
+/// mit der Bezeichnung, darunter das Textfeld, der Zähler gegen die Grenze von YNAB, ein Grund
+/// bei zu langem Text und die Knöpfe "Speichern" und "Abbrechen". Enter speichert, Esc bricht ab
+/// (das Ereignis erreicht das Dokument nicht, das Detail bleibt offen). `Busy`: der Aufruf läuft.
+type MemoEditorProps = {
+    Value: string
+    OnChange: string -> unit
+    OnSave: unit -> unit
+    OnCancel: unit -> unit
+    Busy: bool
+    /// Warum Speichern gesperrt ist (zu lang) oder der Befehl scheiterte; `None`: nichts zu melden.
+    Problem: string option
+    /// Die Grenze von YNAB in Zeichen, für den Zähler.
+    MaxLength: int
+    /// Speichern ist gesperrt (Problem, oder der Aufruf läuft).
+    SaveDisabled: bool
+}
+
+let memoEditor (props: MemoEditorProps) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", "detail-memo-editor")
+        prop.className $"flex flex-col gap-2 px-4 py-3 border-b {Borders.subtle}"
+        prop.onKeyDown (fun e ->
+            if e.key = "Enter" then
+                e.preventDefault ()
+                e.stopPropagation ()
+                if not props.SaveDisabled then props.OnSave ()
+            elif e.key = "Escape" then
+                e.stopPropagation ()
+                if not props.Busy then props.OnCancel ())
+        prop.children [
+            Html.label [
+                prop.className $"{FontSizes.sm} {Colors.textMuted}"
+                prop.text "Memo"
+            ]
+            Input.text
+                { Input.textInputDefaults with
+                    Value = props.Value
+                    OnChange = props.OnChange
+                    Placeholder = "Memo"
+                    Disabled = props.Busy
+                    State = (if props.Problem.IsSome then Input.Error "" else Input.Normal) }
+            Html.div [
+                prop.className "flex items-center justify-between gap-3"
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-testid", "detail-memo-counter")
+                        prop.className ListRoles.muted
+                        prop.text $"{props.Value.Length} / {props.MaxLength}"
+                    ]
+                    Html.div [
+                        prop.className "flex items-center gap-2"
+                        prop.children [
+                            Button.view
+                                { Button.defaultProps with
+                                    Text = "Abbrechen"
+                                    Variant = Button.Ghost
+                                    IsDisabled = props.Busy
+                                    OnClick = props.OnCancel
+                                    Title = Some "Abbrechen (Esc)" }
+                            Button.view
+                                { Button.defaultProps with
+                                    Text = "Speichern"
+                                    Variant = Button.Secondary
+                                    IsLoading = props.Busy
+                                    IsDisabled = props.SaveDisabled
+                                    OnClick = props.OnSave
+                                    Title = Some "Speichern (Enter)" }
+                        ]
+                    ]
+                ]
+            ]
+            match props.Problem with
+            | Some problem ->
+                Html.p [
+                    prop.custom ("data-testid", "detail-memo-problem")
+                    prop.role "alert"
+                    prop.className $"{FontSizes.sm} text-neon-red"
+                    prop.text problem
+                ]
+            | None -> ()
+        ]
+    ]
+
 /// Der Geprüft-Schalter als eigene Zeile (Handoff: Zeile mit Grund `surface-input`).
 /// `Busy` sperrt ihn, solange der Aufruf läuft. Rolle `switch`, Zustand in `aria-checked`.
 let reviewedSwitch (label: string) (isOn: bool) (busy: bool) (onToggle: bool -> unit) : ReactElement =

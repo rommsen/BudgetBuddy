@@ -1142,6 +1142,9 @@ type DetailNotice =
     /// Orange, mit "Erneut senden": das Flag ist in BB gesetzt, aber nicht in YNAB (ADR 0056,
     /// Punkt 5). `busy`: der Aufruf läuft.
     | FlagNotice of FlagHint * busy: bool
+    /// Orange, mit "Erneut senden": das Memo ist in BB gesetzt, aber nicht in YNAB (ADR 0062).
+    /// `busy`: der Aufruf läuft.
+    | MemoNotice of MemoHint * busy: bool
 
 /// Der Satz der roten Leiste. Den Zeitpunkt liefert die jüngste Historie-Zeile "In YNAB
 /// gelöscht"; ohne geladene Historie steht der Satz ohne Zeit da.
@@ -1205,6 +1208,20 @@ let detailNoticeWithFlag
     | Some notice -> Some notice
     | None -> flagHintFor flagRow entry |> Option.map (fun hint -> FlagNotice (hint, (flagRow = Some FlagSending)))
 
+/// Wie `detailNoticeWithFlag`, mit dem Memo: alle bisherigen Hinweise haben Vorrang, danach
+/// "Memo nicht in YNAB" (höchstens eine Leiste, ADR 0062).
+let detailNoticeWithMemo
+    (rowState: ReviewMarkRowState option)
+    (categoryRow: CategoryRowState option)
+    (flagRow: FlagRowState option)
+    (memoRow: MemoRowState option)
+    (history: RemoteData<LedgerHistoryLine list>)
+    (entry: LedgerEntryView)
+    : DetailNotice option =
+    match detailNoticeWithFlag rowState categoryRow flagRow history entry with
+    | Some notice -> Some notice
+    | None -> memoHintFor memoRow entry |> Option.map (fun hint -> MemoNotice (hint, (memoRow = Some MemoSending)))
+
 /// Die Nachricht der Aktion in der Hinweisleiste: die Prüfvermerk-Leiste ("Erneut senden",
 /// `retryReviewMarkWriteBack` aus ledger-r777c) und die Kategorie-Leiste
 /// (`retryCategorizationWriteBack`) haben eine, ebenso "Noch nicht in YNAB"
@@ -1214,6 +1231,7 @@ let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     | ReviewMarkNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryReviewMark entryId)
     | CategoryNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryCategorization entryId)
     | FlagNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryFlag entryId)
+    | MemoNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryMemo entryId)
     | NotInYnabNotice _ -> Some (StartRetryPush entryId)
     | _ -> None
 
@@ -1271,6 +1289,15 @@ let private noticeView
                           OnClick = fun () -> dispatch msg }
                 | _ -> None }
     | FlagNotice (hint, busy) ->
+        Detail.notice
+            { Tone = Detail.NoticeOrange
+              Badge = hint.Title
+              Reason = hint.Reason
+              Action =
+                match hint.RetryLabel, detailNoticeActionMsg entry.Id notice with
+                | Some label, Some msg -> Some { Label = label; Busy = busy; OnClick = fun () -> dispatch msg }
+                | _ -> None }
+    | MemoNotice (hint, busy) ->
         Detail.notice
             { Tone = Detail.NoticeOrange
               Badge = hint.Title
@@ -1369,6 +1396,15 @@ let categoryArrowMsg (model: Model) (entry: LedgerEntryView) : Msg option =
     | CategoryOpensSplitEditor -> Some (OpenSplitEditor entry.Id)
     | _ -> None
 
+/// Die Kategorie im Kopf des Details (Tafel 4.9, ledger-fa1fp): am PC voll qualifiziert
+/// ("Gruppe: Name", ADR 0039), im Sheet am Handy kurz (der Blattname). Split-Zeilen im Detail
+/// bleiben voll qualifiziert (`splitTargetLabel`, ADR 0045): dort wäre die Kurzform mehrdeutig,
+/// weil zwei Zeilen denselben Blattnamen in verschiedenen Gruppen tragen können.
+let detailCategoryLabel (form: DetailForm) (entry: LedgerEntryView) : string =
+    match form with
+    | DetailPanel -> categoryLabelQualified entry
+    | DetailSheet -> categoryLabel entry
+
 /// Die Kategorie-Zeile mit Pfeil, Picker (Popover oder Sheet) und, nach einer Änderung,
 /// der Karte "Budget nach dem Wechsel" darunter.
 let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) (valueColor: string) : ReactElement =
@@ -1396,7 +1432,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
                     (if arrowMsg.IsSome then Some onArrow else None)
                     "detail-category"
                     "Kategorie"
-                    (Detail.valueText valueColor (categoryLabelQualified entry))
+                    (Detail.valueText valueColor (detailCategoryLabel model.DetailForm entry))
                     (Some (
                         React.fragment [
                             match categoryFilterLabel entry, entry.CategoryId with
@@ -1500,15 +1536,82 @@ let private flagField
                 (fun () -> lenaActionMsg model entry |> Option.iter dispatch)
         ))
 
+/// Die Nachricht der Memo-Aktion ("Memo hinzufügen" bzw. "Bearbeiten"): `None`, wenn sie
+/// gesperrt ist oder gerade ein Aufruf läuft (ledger-fa1fp, ADR 0062).
+let memoActionMsg (model: Model) (entry: LedgerEntryView) : Msg option =
+    let action = memoActionFor entry
+    if action.DisabledReason.IsSome || (model.MemoRows |> Map.tryFind entry.Id) = Some MemoSending then None
+    else Some (StartMemoEdit entry.Id)
+
+/// Das Eingabefeld des Memos, wenn es für diese Buchung offen ist.
+let memoEditFor (model: Model) (entry: LedgerEntryView) : MemoEdit option =
+    model.MemoEdit |> Option.filter (fun edit -> edit.MemoEntryId = entry.Id)
+
+/// Die Memo-Zeile (Tafeln 5.2 und 7.8): der Text oder "Kein Memo" und der Knopf "Memo
+/// hinzufügen" bzw. "Bearbeiten". Ist das Feld offen, steht an dieser Stelle das Eingabefeld
+/// mit Speichern und Abbrechen. Ist die Aktion gesperrt (in YNAB gelöscht), nennt ein Text
+/// unter dem Wert den Grund.
+let private memoField
+    (dispatch: Msg -> unit)
+    (model: Model)
+    (memoRow: MemoRowState option)
+    (entry: LedgerEntryView)
+    (textColor: string)
+    : ReactElement =
+    match memoEditFor model entry with
+    | Some edit ->
+        let problem =
+            match memoDraftProblem edit.MemoDraft, memoRow with
+            | Some problem, _ -> Some problem
+            | None, Some (MemoCommandFailed message) -> Some message
+            | None, _ -> None
+        let busy = (memoRow = Some MemoSending)
+        Detail.memoEditor
+            { Value = edit.MemoDraft
+              OnChange = fun text -> dispatch (MemoEditChanged text)
+              OnSave = fun () -> dispatch (StartSaveMemo entry.Id)
+              OnCancel = fun () -> dispatch CancelMemoEdit
+              Busy = busy
+              Problem = problem
+              MaxLength = ynabMemoMaxLength
+              SaveDisabled = busy || (memoDraftProblem edit.MemoDraft).IsSome }
+    | None ->
+        let action = memoActionFor entry
+        let value =
+            Html.div [
+                prop.className "flex min-w-0 flex-col"
+                prop.children [
+                    match memoTextOf entry with
+                    | Some memo -> Detail.valueText textColor memo
+                    | None -> Detail.valueText Tokens.Colors.textMuted "Kein Memo"
+                    match action.DisabledReason with
+                    | Some reason -> Detail.fieldLockHint "detail-memo-lock-hint" reason
+                    | None -> ()
+                ]
+            ]
+        Detail.fieldRow
+            "detail-memo"
+            "Memo"
+            value
+            (Some (
+                Detail.fieldActionButton
+                    "detail-memo-action"
+                    action.Label
+                    action.DisabledReason
+                    (memoRow = Some MemoSending)
+                    (fun () -> memoActionMsg model entry |> Option.iter dispatch)
+            ))
+
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
     let categoryRow = model.CategoryRows |> Map.tryFind entry.Id
     let flagRow = model.FlagRows |> Map.tryFind entry.Id
+    let memoRow = model.MemoRows |> Map.tryFind entry.Id
     let muted = entry.DeletedInYnab
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
 
-    [ match detailNoticeWithFlag rowState categoryRow flagRow model.History entry with
+    [ match detailNoticeWithMemo rowState categoryRow flagRow memoRow model.History entry with
       | Some notice -> noticeView dispatch rowState categoryRow (model.PushRetryRows |> Map.tryFind entry.Id) entry notice
       | None -> ()
 
@@ -1550,13 +1653,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
 
       splitField dispatch entry
 
-      Detail.fieldRow
-          "detail-memo"
-          "Memo"
-          (match entry.Memo |> Option.filter (String.IsNullOrWhiteSpace >> not) with
-           | Some memo -> Detail.valueText textColor memo
-           | None -> Detail.valueText Tokens.Colors.textMuted "Kein Memo")
-          None
+      memoField dispatch model memoRow entry textColor
 
       flagField dispatch model flagRow entry
 

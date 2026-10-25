@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0062**: Memo-Schreibweg nach dem Muster von ADR 0056: Ereignis EntryMemoChangedInBb mit Alt und Neu, Push mit nur memo, Fehlschlag mit Baseline-Memo, Grenze 500 Zeichen ohne stilles Kürzen · 2026-10-25 · `../../decisions/0062-memo-schreibweg-ereignis-fehlschlag-mit-baseline-grenze-500.md`
 - **0061**: Rückfrage zurücknehmen schreibt kein Flag nur bei Rückfrage Lena, ein fremdes Flag bleibt; die Lena-Farbe läuft über SettingsApi.getLenaFlagSettings und saveLenaFlagColor · 2026-10-25 · `../../decisions/0061-lena-zurueck-nehmen-nur-bei-rueckfrage-und-einstellung-ueber-settingsapi.md`
 - **0060**: Tracking-Konto im Lesepfad der Split-Sperren aus einer fünf Minuten gemerkten YNAB-Kontenliste statt aus der Projektion; der Befehl prüft beim Speichern weiter live, dieselbe Liste speist die Übertrags-Ziele des Split-Editors · 2026-10-25 · `../../decisions/0060-tracking-sperre-aus-gemerkter-ynab-kontenliste.md`
 - **0059** — Split-Schreibweg, Umsetzung: neues Ereignis EntryReplacedInYnab, abgelöste YNAB-Id als Verknüpfung ynabsuperseded, Fehlschlag "Neuanlage offen", Weg nach Baseline, Tracking-Prüfung per Konten-Abruf — 2026-10-24 — `../../decisions/0059-split-schreibweg-umsetzung-ersatz-ereignis-abgeloeste-id-und-retry-weg.md`

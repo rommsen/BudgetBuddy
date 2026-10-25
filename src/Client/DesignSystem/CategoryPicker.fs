@@ -223,7 +223,13 @@ type private ContentProps = {
     /// Buchungen gibt es keine aktuelle Kategorie: dann steht kein Haken, auch nicht bei
     /// "Ohne Kategorie" (ledger-w29y6).
     MarkCurrent: bool
+    /// Der Fußtext mit der Bedienung (Tafel 4.2): nur in der Popover-Hülle am PC, nie im Sheet
+    /// am Handy. `None` blendet ihn aus.
+    FooterHint: string option
 }
+
+/// Der Fußtext des Pickers am PC (Tafel 4.2, ledger-fa1fp).
+let popoverFooterHint = "Esc schließt ohne zu ändern · Klick wählt sofort"
 
 [<ReactComponent>]
 let private Content (input: ContentProps) =
@@ -446,6 +452,15 @@ let private Content (input: ContentProps) =
                     prop.text label
                 ]
             | None -> ()
+
+            match input.FooterHint with
+            | Some hint ->
+                Html.div [
+                    prop.custom ("data-testid", "category-picker-footer-hint")
+                    prop.className $"pt-2 {ListRoles.muted}"
+                    prop.text hint
+                ]
+            | None -> ()
         ]
     ]
 
@@ -459,7 +474,7 @@ let private Content (input: ContentProps) =
 let popoverWithWidth (widthClassName: string) (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.view
         { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = widthClassName }
-        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = true } ]
+        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = true; FooterHint = Some popoverFooterHint } ]
 
 /// Das Popover für die Auswahl-Leiste (ledger-w29y6): öffnet über dem Auslöser und
 /// rechtsbündig mit ihm (die Leiste sitzt fest am unteren Bildschirmrand) und markiert keine
@@ -468,7 +483,7 @@ let popoverWithWidth (widthClassName: string) (isOpen: bool) (props: CategoryPic
 let selectionPopover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.viewAbove
         { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = FilterPopover.categoryWidthClass }
-        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = false } ]
+        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = false; FooterHint = Some popoverFooterHint } ]
 
 let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     popoverWithWidth FilterPopover.categoryWidthClass isOpen props
@@ -499,7 +514,7 @@ let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subti
           Footer = None }
     let children =
         [ if isOpen then
-              Content { Picker = closing; FocusSearch = Viewport.isFinePointer (); ListClass = ""; MarkCurrent = markCurrent } ]
+              Content { Picker = closing; FocusSearch = Viewport.isFinePointer (); ListClass = ""; MarkCurrent = markCurrent; FooterHint = None } ]
     if elevated then BottomSheet.viewLayered sheetProps children
     else BottomSheet.view sheetProps children
 

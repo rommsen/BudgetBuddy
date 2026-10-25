@@ -95,6 +95,8 @@ let init () : Model * Cmd<Msg> =
         NeedsReviewCount = 0
         DetailFor = None
         DetailForm = DetailSheet
+        MemoEdit = None
+        MemoRows = Map.empty
         ListInteraction = TableRows
         History = NotAsked
         LastMirrorRun = NotAsked
@@ -549,6 +551,39 @@ let private applyFlagResult (entryId: Guid) (newState: FlagState) (outcome: Flag
                 { cleared with AskLenaCount = max 0 (cleared.AskLenaCount + isLena updated - isLena entry) }
         applyFilterEffect updated withEntry
 
+/// Der offene Fehlschlag der Buchung nach einem Memo-Befehl: der Grund aus der Antwort,
+/// `None` nach erfolgreichem Versand; ohne Änderung und ohne Versand bleibt ein bisheriger
+/// Fehlschlag stehen.
+let private memoFailureOf (outcome: MemoOutcome) (entry: LedgerEntryView) : string option =
+    match outcome.MemoWriteBack with
+    | MemoSendFailed reason -> Some reason
+    | MemoSent -> None
+    | MemoNotSent -> if outcome.MemoChange = MemoUnchanged then entry.MemoWriteBackFailure else None
+
+/// Trägt das Ergebnis von `setEntryMemo` in den Zustand ein (ADR 0062): die Zeile bekommt das
+/// gespeicherte Memo und den Zustand des Zurückschreibens, das Eingabefeld dieser Buchung
+/// schließt. Rein, ohne Proxy.
+let private applyMemoResult (entryId: Guid) (outcome: MemoOutcome) (model: Model) : Model =
+    let cleared =
+        { model with
+            MemoRows = model.MemoRows |> Map.remove entryId
+            MemoEdit = model.MemoEdit |> Option.filter (fun edit -> edit.MemoEntryId <> entryId) }
+    match findEntry cleared entryId with
+    | None -> cleared
+    | Some entry when outcome.MemoChange = MemoUnchanged ->
+        replaceEntry { entry with MemoWriteBackFailure = memoFailureOf outcome entry } cleared
+    | Some entry ->
+        replaceEntry
+            { entry with
+                Memo = outcome.CurrentMemo
+                MemoWriteBackFailure = memoFailureOf outcome entry }
+            cleared
+
+/// Holt die Historie der offenen Buchung neu, damit die Zeile der Memo-Änderung dort steht.
+let private reloadHistoryFor (entryId: Guid) (model: Model) : Cmd<Msg> =
+    if model.DetailFor |> Option.exists (fun d -> d.Id = entryId) then Cmd.ofMsg (LoadHistory entryId)
+    else Cmd.none
+
 /// Trägt das Ergebnis von `setEntrySplits` in den Zustand ein (ledger-pafkp). `lines` sind die
 /// geschickten Zeilen: eine Zeile hebt die Aufteilung auf (die Buchung trägt dann diese
 /// Kategorie), mehrere teilen auf oder ersetzen die Zeilen. Die Zeile bleibt an ihrem Platz und
@@ -853,13 +888,14 @@ let private keyboardBlocked (model: Model) : bool =
     || model.BatchCategoryPickerOpen
     || model.CategoryPickerFor.IsSome
     || model.SplitEditor.IsSome
+    || model.MemoEdit.IsSome
     || (model.DetailFor.IsSome && model.DetailForm = DetailSheet)
 
 /// Öffnet das Detail für `entry`: markiert die Zeile, setzt die Historie auf "lädt" und
 /// stößt ihren Abruf an. Wechselt ein offenes Panel auf eine andere Buchung, läuft derselbe
 /// Weg.
 let private showDetail (entry: LedgerEntryView) (model: Model) : Model * Cmd<Msg> =
-    { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading },
+    { model with DetailFor = Some entry; FocusedRow = Some entry.Id; History = Loading; MemoEdit = None },
     Cmd.ofMsg (LoadHistory entry.Id)
 
 /// Folgt ein offenes Panel der Markierung? Zeigt es eine andere Buchung als die markierte
@@ -947,6 +983,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             RememberedFilter = Some filter
             AccountSheetOpen = false
             DetailFor = None
+            MemoEdit = None
             History = NotAsked },
         Cmd.batch [ Cmd.ofMsg LoadEntries; Cmd.ofEffect (fun _ -> writeRememberedFilter filter) ],
         NoOp
@@ -1074,7 +1111,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             model', cmd, NoOp
 
     | CloseDetail ->
-        { model with DetailFor = None; History = NotAsked }, Cmd.none, NoOp
+        { model with DetailFor = None; History = NotAsked; MemoEdit = None }, Cmd.none, NoOp
 
     | DetailFormChanged form ->
         { model with DetailForm = form }, Cmd.none, NoOp
@@ -1872,6 +1909,145 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         NoOp
 
     // ============================================
+    // Memo bearbeiten im Detail (ledger-fa1fp, ADR 0062)
+    // ============================================
+
+    | StartMemoEdit entryId ->
+        match findEntry model entryId with
+        | Some entry when (memoActionFor entry).DisabledReason.IsNone
+                          && (model.MemoRows |> Map.tryFind entryId) <> Some MemoSending ->
+            { model with
+                MemoEdit = Some { MemoEntryId = entryId; MemoDraft = memoTextOf entry |> Option.defaultValue "" }
+                MemoRows = model.MemoRows |> Map.remove entryId },
+            Cmd.none,
+            NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | MemoEditChanged text ->
+        match model.MemoEdit with
+        | Some edit ->
+            { model with
+                MemoEdit = Some { edit with MemoDraft = text }
+                MemoRows = model.MemoRows |> Map.remove edit.MemoEntryId },
+            Cmd.none,
+            NoOp
+        | None -> model, Cmd.none, NoOp
+
+    | CancelMemoEdit ->
+        match model.MemoEdit with
+        | Some edit when (model.MemoRows |> Map.tryFind edit.MemoEntryId) <> Some MemoSending ->
+            { model with MemoEdit = None; MemoRows = model.MemoRows |> Map.remove edit.MemoEntryId }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | StartSaveMemo entryId ->
+        match model.MemoEdit, findEntry model entryId with
+        | Some edit, Some entry when edit.MemoEntryId = entryId
+                                     && (model.MemoRows |> Map.tryFind entryId) <> Some MemoSending
+                                     && (memoActionFor entry).DisabledReason.IsNone
+                                     && (memoDraftProblem edit.MemoDraft).IsNone ->
+            if memoDraftChangesEntry edit.MemoDraft entry then
+                { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
+                Cmd.ofMsg (RunSetMemo (entryId, edit.MemoDraft)),
+                NoOp
+            else
+                // Gleiches Memo: nichts zu speichern, das Feld schließt ohne Aufruf.
+                { model with MemoEdit = None }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | RunSetMemo (entryId, text) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryMemo entryId)
+                text
+                (fun result -> MemoSet (entryId, result))
+                (fun ex -> MemoSet (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | MemoSet (entryId, Ok outcome) ->
+        let model' = applyMemoResult entryId outcome model
+        let history = reloadHistoryFor entryId model'
+        let external =
+            match outcome.MemoChange, outcome.MemoWriteBack with
+            | MemoUnchanged, _ -> NoOp
+            | MemoChanged, writeBack ->
+                let text = memoToastText outcome.PreviousMemo outcome.CurrentMemo
+                let action = { Label = undoToastLabel; Kind = UndoMemo (entryId, outcome.PreviousMemo) }
+                match writeBack with
+                | MemoSendFailed reason -> ShowToastWithAction ($"{text}. {memoHintTitle}: {reason}", ToastWarning, action)
+                | _ -> ShowToastWithAction (text, ToastSuccess, action)
+        model', (if outcome.MemoChange = MemoChanged then history else Cmd.none), external
+
+    // Das Eingabefeld bleibt mit dem Entwurf offen, der Hinweis nennt den Grund.
+    | MemoSet (entryId, Error message) ->
+        { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Memo nicht geändert: {message}", ToastError)
+
+    | StartUndoMemo (entryId, previous) ->
+        { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
+        Cmd.ofMsg (RunUndoMemo (entryId, previous)),
+        NoOp
+
+    | RunUndoMemo (entryId, previous) ->
+        let cmd =
+            Cmd.OfAsync.either
+                (Api.ledger.setEntryMemo entryId)
+                (previous |> Option.defaultValue "")
+                (fun result -> MemoRestored (entryId, result))
+                (fun ex -> MemoRestored (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | MemoRestored (entryId, Ok outcome) ->
+        // Der Rücknahme-Toast hat kein "Rückgängig" (eine Aktion, ein Toast, eine Rücknahme).
+        let model' = applyMemoResult entryId outcome model
+        let external =
+            match outcome.MemoWriteBack with
+            | MemoSendFailed reason -> ShowToast ($"{memoHintTitle}: {reason}", ToastWarning)
+            | _ when outcome.MemoChange = MemoUnchanged -> NoOp
+            | _ -> ShowToast (memoRestoredToastText, ToastSuccess)
+        model', (if outcome.MemoChange = MemoChanged then reloadHistoryFor entryId model' else Cmd.none), external
+
+    | MemoRestored (entryId, Error message) ->
+        { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
+        Cmd.none,
+        ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
+
+    | StartRetryMemo entryId ->
+        { model with MemoRows = model.MemoRows |> Map.add entryId MemoSending },
+        Cmd.ofMsg (RunRetryMemo entryId),
+        NoOp
+
+    | RunRetryMemo entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryMemoWriteBack
+                entryId
+                (fun result -> MemoRetried (entryId, result))
+                (fun ex -> MemoRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | MemoRetried (entryId, Ok writeBack) ->
+        let failure =
+            match writeBack with
+            | MemoSendFailed reason -> Some reason
+            | MemoSent | MemoNotSent -> None
+        let cleared = { model with MemoRows = model.MemoRows |> Map.remove entryId }
+        let model' =
+            match findEntry cleared entryId with
+            | Some entry -> replaceEntry { entry with MemoWriteBackFailure = failure } cleared
+            | None -> cleared
+        let external =
+            match writeBack with
+            | MemoSendFailed reason -> ShowToast ($"{memoHintTitle}: {reason}", ToastWarning)
+            | _ -> NoOp
+        model', Cmd.none, external
+
+    | MemoRetried (entryId, Error message) ->
+        { model with MemoRows = model.MemoRows |> Map.add entryId (MemoCommandFailed message) },
+        Cmd.none,
+        NoOp
+
+    // ============================================
     // Split-Editor im Detail (ledger-pafkp, ADR 0058)
     // ============================================
 
@@ -2441,8 +2617,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             | _ -> updateCore CloseSplitEditor model
         elif model.CategoryPickerFor.IsSome then
             { model with CategoryPickerFor = None; CategorySuggestions = [] }, Cmd.none, NoOp
+        elif model.MemoEdit.IsSome then
+            updateCore CancelMemoEdit model
         elif model.DetailFor.IsSome then
-            { model with DetailFor = None; History = NotAsked }, Cmd.none, NoOp
+            { model with DetailFor = None; History = NotAsked; MemoEdit = None }, Cmd.none, NoOp
         elif model.SelectionMode || hasSelection model then
             updateCore ClearSelection model
         else
@@ -2456,7 +2634,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model', cmd, external = updateCore msg model
     let model' =
         if model'.DetailFor.IsSome && not (hasSelection model) && hasSelection model' then
-            { model' with DetailFor = None; History = NotAsked }
+            { model' with DetailFor = None; History = NotAsked; MemoEdit = None }
         else
             model'
     // Der Picker der Auswahl gehört zur Auswahl: endet sie (Aufheben, Esc, Konto- oder
