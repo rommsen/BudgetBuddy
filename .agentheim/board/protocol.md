@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 13:16 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 1h28m
+**Completed:** 3 (first-try PASS: 3, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** ledger-m6zpd: 1, ledger-w29y6: 1, ledger-pafkp: 1 (plus ein Resolve-Dispatch nach Merge-Konflikt mit ledger-w29y6 in Ledger/State.fs und Server/Api.fs)
+**Commits:** 4
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 100% product-facing / 0% harness / 0% bookkeeping (3 tasks)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-10-25 13:04 -- Task verified and completed: ledger-pafkp - "Split-Editor im Kassenbuch: Pfeil an der Kategorie einer Split-Buchung öffnet das Formular-Sheet zum Aufteilen, Ändern und Aufheben der Zeilen mit Rest-Anzeige und Speichern über setEntrySplits, Aufteilen als fester Knopf, Rückgängig im Toast"
 
 **Type:** Work / Task completion
