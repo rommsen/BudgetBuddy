@@ -389,6 +389,10 @@ type LedgerApi = {
     /// Sends the booking's current category to YNAB again ("Erneut senden"). Does nothing
     /// (CategoryNotSent) without an open write-back failure.
     retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>
+    /// "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06): pusht die eine
+    /// nicht verknüpfte Buchung sofort. Eine unbekannte, gelöschte oder schon verknüpfte
+    /// Buchung wird abgelehnt, ohne Push.
+    retryPushToYnab: Guid -> Async<Result<PushToYnabWriteBack, string>>
 
     /// The categories this payee had so far in the Kassenbuch, most frequent first, at most
     /// three (ledger-sfab0, ADR 0055 Nachtrag): the picker's VORGESCHLAGEN section. Payee

@@ -857,11 +857,17 @@ let markCreatedAsImported (result: TransactionCreateResult) (transactions: SyncT
         else
             tx)
 
-/// Builds the JSON body for a single manual transaction (Quick Add).
-/// Deliberately sets no import_id: manual entries are user-entered (like
+/// Builds the JSON body for a single transaction created from the Kassenbuch (Quick Add,
+/// and "Erneut senden" for a booking that is not yet in YNAB, ledger-cks06).
+/// A manual entry sets no import_id (`importId = None`): it is user-entered (like
 /// YNAB's own mobile quick add) and must never collide with the bank-import
-/// deduplication that keys on import_id.
-let buildManualTransactionBody (YnabAccountId accountId: YnabAccountId) (request: ManualTransactionRequest) : string =
+/// deduplication that keys on import_id. Only a re-send of a booking that already carries
+/// an import_id passes it (`Some`), so YNAB deduplicates the re-send.
+let buildManualTransactionBodyWith
+    (importId: string option)
+    (YnabAccountId accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : string =
     let amount = Shared.Domain.manualTransactionMilliunits request
 
     Encode.object [
@@ -883,9 +889,17 @@ let buildManualTransactionBody (YnabAccountId accountId: YnabAccountId) (request
             match request.CategoryId with
             | Some (YnabCategoryId catId) -> "category_id", Encode.string (catId.ToString())
             | None -> ()
+            // Nur beim erneuten Senden einer Buchung, die schon eine import_id trägt
+            // (ledger-cks06): YNAB dedupliziert dann über sie.
+            match importId with
+            | Some id -> "import_id", Encode.string id
+            | None -> ()
         ]
     ]
     |> Encode.toString 2
+
+let buildManualTransactionBody (accountId: YnabAccountId) (request: ManualTransactionRequest) : string =
+    buildManualTransactionBodyWith None accountId request
 
 /// Liest die YNAB-Transaction-Id aus der Antwort eines Einzel-Posts
 /// (`POST /transactions` mit einem einzelnen `"transaction"`-Objekt, nicht der
@@ -900,7 +914,8 @@ let manualTransactionIdDecoder : Decoder<string> =
 /// Creates a single manually entered transaction (Quick Add) in YNAB.
 /// Returns the YNAB transaction id from the response so the caller can link the
 /// Kassenbuch-Buchung to it (`EntryLinkedToYnab`, ADR 0021).
-let createManualTransaction
+let createTransactionWith
+    (importId: string option)
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
     (accountId: YnabAccountId)
@@ -909,7 +924,7 @@ let createManualTransaction
 
     async {
         try
-            let requestBody = buildManualTransactionBody accountId request
+            let requestBody = buildManualTransactionBodyWith importId accountId request
 
             use httpClient = new System.Net.Http.HttpClient()
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
@@ -936,6 +951,14 @@ let createManualTransaction
         with ex ->
             return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
     }
+
+let createManualTransaction
+    (token: string)
+    (budget: YnabBudgetId)
+    (accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : Async<YnabResult<string>> =
+    createTransactionWith None token budget accountId request
 
 // ============================================
 // Prüfvermerk zurückschreiben (ADR 0050)

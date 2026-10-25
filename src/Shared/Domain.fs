@@ -975,6 +975,14 @@ type ReviewMarkWriteBack =
     /// Der Weg nach YNAB ist gescheitert oder nicht möglich; der Prüfvermerk bleibt in BB.
     | ReviewMarkSendFailed of reason: string
 
+/// Was beim erneuten Senden einer nicht verknüpften Buchung nach YNAB passiert ist
+/// (ledger-cks06).
+type PushToYnabWriteBack =
+    /// YNAB hat die Buchung angelegt, sie ist jetzt verknüpft.
+    | PushToYnabSent
+    /// Der Push ist gescheitert; Grund und Zeitpunkt stehen an der Buchung.
+    | PushToYnabFailed of reason: string
+
 /// Antwort von `setReviewMark` und `restoreReviewMark` (ADR 0050, Punkt 10).
 type ReviewMarkOutcome = {
     /// Der Prüfvermerk vor der Geste, Grundlage für "Rückgängig".

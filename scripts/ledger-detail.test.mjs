@@ -224,14 +224,14 @@ test("PC: Ein Sortierwechsel lässt das Panel mit seiner Buchung stehen", async 
   assert.equal(await title(page).textContent(), "ohne Payee");
 });
 
-test("PC: Noch nicht in YNAB nennt Zeitpunkt und Grund, ohne Aktion; die Leiste fällt als Fläche auf", async () => {
+test("PC: Noch nicht in YNAB nennt Zeitpunkt und Grund und bietet Erneut senden", async () => {
   await row(page, "Deutsche Bahn").locator("td").nth(2).click();
   const notice = page.locator('[data-testid="detail-notice"]');
   await notice.waitFor();
   const text = await notice.textContent();
   assert.match(text, /Noch nicht in YNAB/);
-  assert.match(text, /Push gescheitert am \d{2}\.\d{2}\.2026 \d{2}:\d{2}: Netzwerkfehler\. BB versucht es beim nächsten Lauf erneut\./);
-  assert.equal(await notice.locator("button").count(), 0, "keine Aktion");
+  assert.match(text, /Push gescheitert am \d{2}\.\d{2}\.2026 \d{2}:\d{2}: Netzwerkfehler\. Erneut senden schickt die Buchung sofort\./);
+  assert.equal(await notice.locator("button", { hasText: "Erneut senden" }).count(), 1, "Erneut senden");
 });
 
 test("PC: Eine gelöschte Buchung ist ein Lesezustand: rote Leiste, kein Schalter, grauer Betrag, Filter-Knöpfe da", async () => {

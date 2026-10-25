@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-25 18:52 -- Task verified and completed: ledger-cks06 - "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push"
+
+**Type:** Work / Task completion
+**Task:** ledger-cks06 - "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push"
+**Summary:** Eine nicht verknüpfte Buchung trägt jetzt das Kennzeichen "Nicht in YNAB" an der Handy-Zeile und in der PC-Statusspalte, und die Hinweisleiste im Detail bietet "Erneut senden" mit sofortigem Push dieser einen Buchung (neuer Befehl retryPushToYnab). Der Spiegel-Lauf pusht nichts, deshalb verspricht der Satz der Leiste keinen Versuch beim nächsten Lauf mehr. Iteration 3 löst den Merge-Konflikt mit ledger-xfjcp in View.fs und Server/Api.fs auf.
+**Duration:** 1h45m
+**Verification:** PASS (iteration 3, nach Merge-Konflikt mit ledger-xfjcp; iteration 1 FAIL README-Sync)
+**Files changed:** 16
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-10-25 18:21 -- Modeling / Promoted: ledger-y54gr - "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color"
 
 **Type:** Modeling / Promote

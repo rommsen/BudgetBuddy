@@ -4,6 +4,34 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-25 18:05 - Noch nicht in YNAB vollständig (ledger-cks06)
+
+**What I did:**
+Kennzeichen "Nicht in YNAB" an Handy-Zeile und PC-Statusspalte, "Erneut senden" in der Hinweisleiste mit sofortigem Push (retryPushToYnab), Satz der Leiste an das tatsächliche Verhalten des Spiegel-Laufs angepasst. Iteration 2: Doku (Key commands, Actor-Aussagen) und Doc-Kommentar in YnabClient.fs nachgezogen.
+
+**Files Added:**
+- `src/Tests/LedgerRetryPushTests.fs` - Server-Tests des Retry-Befehls und des Spiegel-Laufs
+- `src/Tests/LedgerNotInYnabClientTests.fs` - Rangfolge, Reducer, Satz der Leiste
+- `scripts/ledger-not-in-ynab.test.mjs` - Playwright-Wächter
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - PushToYnabWriteBack, retryPushToYnab
+- `src/Server/YnabClient.fs` - createTransactionWith, buildManualTransactionBodyWith (optionale import_id, Doc-Kommentar)
+- `src/Server/Ledger/CommandHandlers.fs` - retryPushToYnab
+- `src/Server/Api.fs` - entryPush, Verdrahtung
+- `src/Client/Components/Ledger/Types.fs`, `State.fs`, `View.fs` - PushRetryRows, Nachrichten, applyPushRetryResult, rowStatusMark, Leiste mit Aktion
+- `src/Tests/LedgerDetailTests.fs`, `LedgerViewTests.fs`, `Tests.fsproj`; `scripts/ledger-detail.test.mjs`, `scripts/ledger-status-column.mjs`
+
+**Rationale:**
+Tafeln 7.1, 7.6 und 6.6 zeigen das Kennzeichen in der Liste, und die Leiste hatte keine Aktion und versprach einen Retry, den der Spiegel-Lauf nicht macht.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 2167 bestanden (dotnet), Playwright 232 von 232
+- Issues: Fixture-Voreinstellung LinkedToYnab false brach vier Statusspalten-Wächter, behoben.
+
+---
+
 ## 2026-10-25 19:00 - Lena fragen im Buchungs-Detail (ledger-xfjcp)
 
 **What I did:**

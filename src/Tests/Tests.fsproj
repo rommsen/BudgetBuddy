@@ -69,6 +69,7 @@
     <Compile Include="LedgerLenaFlagTests.fs" />
     <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="LedgerPushFailureTests.fs" />
+    <Compile Include="LedgerRetryPushTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
     <Compile Include="PushOutcomeClassificationTests.fs" />
     <Compile Include="LedgerPageTests.fs" />
@@ -89,6 +90,7 @@
     <Compile Include="LedgerSelectionTests.fs" />
     <Compile Include="LedgerCompactInteractionTests.fs" />
     <Compile Include="LedgerDetailTests.fs" />
+    <Compile Include="LedgerNotInYnabClientTests.fs" />
     <Compile Include="LedgerReviewMarkBatchClientTests.fs" />
     <Compile Include="LedgerCategoryBatchClientTests.fs" />
     <Compile Include="LedgerLenaFlagClientTests.fs" />

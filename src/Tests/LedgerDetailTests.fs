@@ -344,20 +344,23 @@ let noticeTests =
         testCase "eine verknüpfte, nicht gelöschte Buchung ohne Fehlschlag hat keine Leiste" <| fun () ->
             Expect.isNone (noticeOf None NotAsked linked) "keine Leiste"
 
-        testCase "Noch nicht in YNAB mit gescheitertem Push nennt Datum, Uhrzeit und Grund und hat keine Aktion" <| fun () ->
+        testCase "Noch nicht in YNAB mit gescheitertem Push nennt Datum, Uhrzeit und Grund und hat Erneut senden" <| fun () ->
             let failure : LedgerPushFailure =
                 { Reason = "Netzwerkfehler"; FailedAt = DateTime(2026, 9, 10, 18, 2, 0, DateTimeKind.Local) }
             let text = notInYnabNoticeReason (Some failure)
             Expect.equal
                 text
-                "Push gescheitert am 10.09.2026 18:02: Netzwerkfehler. BB versucht es beim nächsten Lauf erneut."
+                "Push gescheitert am 10.09.2026 18:02: Netzwerkfehler. Erneut senden schickt die Buchung sofort."
                 "Satz mit Zeitpunkt und Grund"
             let notice = noticeOf None NotAsked { linked with LinkedToYnab = false; PushToYnabFailure = Some failure }
-            Expect.isNone (notice |> Option.bind (detailNoticeActionMsg linked.Id)) "keine Aktion"
+            Expect.equal
+                (notice |> Option.bind (detailNoticeActionMsg linked.Id))
+                (Some (StartRetryPush linked.Id))
+                "Erneut senden mit sofortigem Push"
 
         testCase "ein Grund, der schon mit Punkt endet, bekommt keinen doppelten Punkt" <| fun () ->
             let failure : LedgerPushFailure = { Reason = "Zeitüberschreitung."; FailedAt = DateTime(2026, 9, 10, 18, 2, 0, DateTimeKind.Local) }
-            Expect.stringContains (notInYnabNoticeReason (Some failure)) "Zeitüberschreitung. BB versucht" "ein Punkt"
+            Expect.stringContains (notInYnabNoticeReason (Some failure)) "Zeitüberschreitung. Erneut senden" "ein Punkt"
             Expect.isFalse ((notInYnabNoticeReason (Some failure)).Contains "..") "kein Doppelpunkt-Paar"
 
         testCase "Noch nicht in YNAB ohne Fehlschlag sagt, dass noch nichts gesendet wurde" <| fun () ->
@@ -385,9 +388,12 @@ let noticeTests =
             Expect.equal sent [ RunRetryReviewMark withFailure.Id ] "der Befehl läuft"
             Expect.equal sending.ReviewMarkRows.[withFailure.Id] ReviewMarkSending "Zeile sendet"
 
-        testCase "gelöscht und Noch nicht in YNAB haben keine Aktion" <| fun () ->
+        testCase "gelöscht hat keine Aktion, Noch nicht in YNAB hat Erneut senden" <| fun () ->
             Expect.isNone (detailNoticeActionMsg linked.Id (DeletedNotice "x")) "gelöscht"
-            Expect.isNone (detailNoticeActionMsg linked.Id (NotInYnabNotice "x")) "Noch nicht in YNAB"
+            Expect.equal
+                (detailNoticeActionMsg linked.Id (NotInYnabNotice "x"))
+                (Some (StartRetryPush linked.Id))
+                "Noch nicht in YNAB"
 
         testCase "der Geprüft-Schalter ruft setReviewMark Reviewed beziehungsweise Unreviewed" <| fun () ->
             Expect.equal (reviewedSwitchMsg linked.Id true) (StartSetReviewMark (linked.Id, Reviewed)) "an"

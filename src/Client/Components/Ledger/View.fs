@@ -190,6 +190,28 @@ let private deletedBadge () =
             Size = Badge.Small
     }
 
+/// Kennzeichen einer Buchung, die in BB steht, aber nicht in YNAB (`LinkedToYnab = false`,
+/// ledger-cks06): orange nach ADR 0049, Handy-Zeile und PC-Statusspalte.
+let private notInYnabBadge () =
+    Badge.view {
+        Badge.defaultProps with
+            Text = "Nicht in YNAB"
+            Variant = Badge.Orange
+            Size = Badge.Small
+    }
+
+/// Das Zustands-Kennzeichen einer Zeile (PC-Statusspalte) in der Rangfolge: in YNAB
+/// gelöscht vor noch nicht in YNAB vor den übrigen Zuständen (Zu prüfen, Flag).
+type RowStatusMark =
+    | RowDeleted
+    | RowNotInYnab
+    | RowOtherStates
+
+let rowStatusMark (entry: LedgerEntryView) : RowStatusMark =
+    if entry.DeletedInYnab then RowDeleted
+    elif not entry.LinkedToYnab then RowNotInYnab
+    else RowOtherStates
+
 /// Das Status-Kennzeichen "zu prüfen" der PC-Statusspalte (ADR 0032, ADR 0049 Punkt
 /// 7): ein kleines Wort in Pink statt eines Badges. Die eigentliche Markierung ist
 /// die Statuskante am Zeilenrand (`Table.RowProps.StatusEdge`); das Wort ist der
@@ -599,7 +621,10 @@ let private entryRow
                         ]
                     | None -> ()
                     if entry.Flag <> NoFlag then keepWidth (flagBadge entry.Flag)
-                    if entry.DeletedInYnab then keepWidth (deletedBadge ())
+                    match rowStatusMark entry with
+                    | RowDeleted -> keepWidth (deletedBadge ())
+                    | RowNotInYnab -> keepWidth (notInYnabBadge ())
+                    | RowOtherStates -> ()
                 ]
             ]
         ]
@@ -862,9 +887,15 @@ let private entryTableRow
                     // (`detailContent`): die Statusspalte trägt nur Status.
                     prop.className "flex flex-nowrap items-center justify-end gap-1"
                     prop.children [
-                        if entry.NeedsReview then needsReviewStatusBadge ()
-                        flagStatusBadge entry.Flag
-                        if entry.DeletedInYnab then deletedStatusIcon ()
+                        // Gelöscht steht vor Nicht in YNAB (ledger-cks06): die gelöschte Buchung
+                        // behält ihre bisherigen Kennzeichen samt Symbol, die nicht verknüpfte
+                        // trägt nur das Wort, damit die 128px-Zelle nicht überläuft.
+                        match rowStatusMark entry with
+                        | RowNotInYnab -> notInYnabBadge ()
+                        | mark ->
+                            if entry.NeedsReview then needsReviewStatusBadge ()
+                            flagStatusBadge entry.Flag
+                            if mark = RowDeleted then deletedStatusIcon ()
                         // Eine in YNAB gelöschte Buchung nimmt keinen Prüfvermerk mehr an
                         // (der Server lehnt sie ab), also bekommt sie keine Schaltfläche.
                         // Bei laufender Auswahl ersetzt ein unsichtbarer Platzhalter gleicher
@@ -1101,7 +1132,7 @@ let categoryFilterLabel (entry: LedgerEntryView) : string option =
 type DetailNotice =
     /// Rot, ohne Aktion. Der Satz trägt den Löschzeitpunkt aus der Historie, wenn sie da ist.
     | DeletedNotice of reason: string
-    /// Orange, ohne Aktion: der Push nach YNAB steht aus oder scheiterte.
+    /// Orange, mit "Erneut senden" (sofortiger Push): der Push nach YNAB steht aus oder scheiterte.
     | NotInYnabNotice of reason: string
     /// Orange, mit "Erneut senden", wenn etwas zu senden ist.
     | ReviewMarkNotice of ReviewMarkHint
@@ -1128,12 +1159,13 @@ let deletedNoticeReason (history: RemoteData<LedgerHistoryLine list>) : string =
     | None -> "Gelöscht in YNAB. Zählt nicht zum Kontostand."
 
 /// Der Satz der orangen Leiste "Noch nicht in YNAB": mit gescheitertem Push Zeitpunkt und
-/// Grund, sonst, dass noch nichts gesendet wurde.
+/// Grund, sonst, dass noch nichts gesendet wurde. Der Spiegel-Lauf pusht nichts (er liest
+/// nur aus YNAB), deshalb verspricht der Satz keinen Versuch beim nächsten Lauf (ledger-cks06).
 let notInYnabNoticeReason (failure: LedgerPushFailure option) : string =
     match failure with
     | Some f ->
         let reason = f.Reason.Trim().TrimEnd('.')
-        $"Push gescheitert am {formatDateTime f.FailedAt}: {reason}. BB versucht es beim nächsten Lauf erneut."
+        $"Push gescheitert am {formatDateTime f.FailedAt}: {reason}. Erneut senden schickt die Buchung sofort."
     | None -> "Noch nicht an YNAB gesendet."
 
 let detailNoticeFor
@@ -1175,12 +1207,14 @@ let detailNoticeWithFlag
 
 /// Die Nachricht der Aktion in der Hinweisleiste: die Prüfvermerk-Leiste ("Erneut senden",
 /// `retryReviewMarkWriteBack` aus ledger-r777c) und die Kategorie-Leiste
-/// (`retryCategorizationWriteBack`) haben eine; gelöscht und "Noch nicht in YNAB" nicht.
+/// (`retryCategorizationWriteBack`) haben eine, ebenso "Noch nicht in YNAB"
+/// (`retryPushToYnab`, ledger-cks06); gelöscht nicht.
 let detailNoticeActionMsg (entryId: Guid) (notice: DetailNotice) : Msg option =
     match notice with
     | ReviewMarkNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryReviewMark entryId)
     | CategoryNotice hint when hint.RetryLabel.IsSome -> Some (StartRetryCategorization entryId)
     | FlagNotice (hint, _) when hint.RetryLabel.IsSome -> Some (StartRetryFlag entryId)
+    | NotInYnabNotice _ -> Some (StartRetryPush entryId)
     | _ -> None
 
 /// Die Nachricht des Geprüft-Schalters: an setzt `Reviewed`, aus `Unreviewed`, über denselben
@@ -1192,6 +1226,7 @@ let private noticeView
     (dispatch: Msg -> unit)
     (rowState: ReviewMarkRowState option)
     (categoryRow: CategoryRowState option)
+    (pushRow: PushRetryRowState option)
     (entry: LedgerEntryView)
     (notice: DetailNotice)
     : ReactElement =
@@ -1199,7 +1234,16 @@ let private noticeView
     | DeletedNotice reason ->
         Detail.notice { Tone = Detail.NoticeRed; Badge = "In YNAB gelöscht"; Reason = reason; Action = None }
     | NotInYnabNotice reason ->
-        Detail.notice { Tone = Detail.NoticeOrange; Badge = "Noch nicht in YNAB"; Reason = reason; Action = None }
+        Detail.notice
+            { Tone = Detail.NoticeOrange
+              Badge = "Noch nicht in YNAB"
+              Reason = reason
+              Action =
+                detailNoticeActionMsg entry.Id notice
+                |> Option.map (fun msg ->
+                    { Label = "Erneut senden"
+                      Busy = (pushRow = Some PushSending)
+                      OnClick = fun () -> dispatch msg }) }
     | ReviewMarkNotice hint ->
         Detail.notice
             { Tone = Detail.NoticeOrange
@@ -1465,7 +1509,7 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
     let textColor = if muted then Tokens.Colors.textMuted else Tokens.Colors.textPrimary
 
     [ match detailNoticeWithFlag rowState categoryRow flagRow model.History entry with
-      | Some notice -> noticeView dispatch rowState categoryRow entry notice
+      | Some notice -> noticeView dispatch rowState categoryRow (model.PushRetryRows |> Map.tryFind entry.Id) entry notice
       | None -> ()
 
       // Payee: eigene Feldzeile, damit sein Filter-Knopf rechts bündig mit dem der

@@ -120,6 +120,7 @@ let init () : Model * Cmd<Msg> =
         AmountMaxDraft = ""
         AmountVersion = 0
         ReviewMarkRows = Map.empty
+        PushRetryRows = Map.empty
         SwipedAway = Map.empty
         Selection = NoSelection
         SelectionAnchor = None
@@ -304,6 +305,27 @@ let private applyReviewMarkResult
                 FocusedRow = (if leavesList then focusAfterRemoval entries entryId cleared.FocusedRow else cleared.FocusedRow)
                 HasMoreEntries = List.length remaining < totalCount }
     | _ -> cleared
+
+/// Trägt das Ergebnis von "Erneut senden" am Hinweis "Noch nicht in YNAB" in die Zeile und
+/// das offene Detail ein (ledger-cks06): Erfolg verknüpft die Buchung und löscht den
+/// Fehlschlag, ein neuer Fehlschlag ersetzt Grund und Zeitpunkt. Der Sende-Zustand wird
+/// zurückgesetzt. Rein, ohne Proxy; `now` kommt von außen.
+let applyPushRetryResult (entryId: Guid) (now: DateTime) (result: PushToYnabWriteBack) (model: Model) : Model =
+    let update (entry: LedgerEntryView) =
+        match result with
+        | PushToYnabSent -> { entry with LinkedToYnab = true; PushToYnabFailure = None }
+        | PushToYnabFailed reason ->
+            { entry with PushToYnabFailure = Some { Reason = reason; FailedAt = now } }
+    let cleared = { model with PushRetryRows = model.PushRetryRows |> Map.remove entryId }
+    { cleared with
+        Entries =
+            (match cleared.Entries with
+             | Success entries -> Success (entries |> List.map (fun e -> if e.Id = entryId then update e else e))
+             | other -> other)
+        DetailFor =
+            (match cleared.DetailFor with
+             | Some detail when detail.Id = entryId -> Some (update detail)
+             | other -> other) }
 
 /// Der offene Fehlschlag der Zeile nach einem Prüfvermerk-Befehl: der Grund aus der
 /// Antwort, `None` nach erfolgreichem Versand; ohne Änderung und ohne Versand bleibt ein
@@ -1408,6 +1430,36 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with ReviewMarkRows = model.ReviewMarkRows |> Map.add entryId (ReviewMarkCommandFailed message) },
         Cmd.none,
         NoOp
+
+    // ============================================
+    // Erneut senden am Hinweis "Noch nicht in YNAB" (ledger-cks06)
+    // ============================================
+
+    | StartRetryPush entryId ->
+        { model with PushRetryRows = model.PushRetryRows |> Map.add entryId PushSending },
+        Cmd.ofMsg (RunRetryPush entryId),
+        NoOp
+
+    | RunRetryPush entryId ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.ledger.retryPushToYnab
+                entryId
+                (fun result -> PushRetried (entryId, result))
+                (fun ex -> PushRetried (entryId, Error ex.Message))
+        model, cmd, NoOp
+
+    | PushRetried (entryId, Ok result) ->
+        let toast =
+            match result with
+            | PushToYnabSent -> ShowToast (pushRetrySentToastText, ToastSuccess)
+            | PushToYnabFailed reason -> ShowToast ($"{pushRetryFailedToastTitle}: {reason}", ToastError)
+        applyPushRetryResult entryId DateTime.UtcNow result model, Cmd.none, toast
+
+    | PushRetried (entryId, Error message) ->
+        { model with PushRetryRows = model.PushRetryRows |> Map.remove entryId },
+        Cmd.none,
+        ShowToast ($"{pushRetryFailedToastTitle}: {message}", ToastError)
 
     // ============================================
     // Wisch nach rechts: geprüft, mit Rückgängig (ledger-th36h)

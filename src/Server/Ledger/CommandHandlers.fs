@@ -713,6 +713,63 @@ let addCashExpense
     }
 
 // ============================================
+// Erneut senden: Push einer nicht verknüpften Buchung (ledger-cks06, ADR 0021)
+// ============================================
+
+/// Der Einzel-Push einer Kassenbuch-Buchung nach YNAB, injiziert wie `addCashExpense`s
+/// `push`: bekommt den aktuellen Stand der Buchung und liefert die YNAB-Transaction-Id
+/// aus der Antwort.
+type EntryPush = Entry -> Async<YnabResult<string>>
+
+/// Der Grund, wenn die Buchung zu keinem YNAB-Konto gehört (BB-eigenes Konto).
+let pushNotPossibleReason = "Das Konto der Buchung ist nicht mit YNAB verbunden"
+
+/// "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06): pusht genau diese
+/// eine Buchung über denselben Weg wie die Neuanlage. Erfolg schreibt `EntryLinkedToYnab`
+/// (löst den offenen Fehlschlag auf) und stößt den Spiegel an, ein Fehlschlag schreibt
+/// `EntryPushToYnabFailed` mit Grund (ersetzt den alten Fehlschlag, Zeitpunkt `now`).
+/// Eine unbekannte, in YNAB gelöschte oder schon verknüpfte Buchung wird abgelehnt, ohne
+/// dass `push` aufgerufen wird (eine zweite YNAB-Buchung wäre die Folge).
+let retryPushToYnab
+    (now: DateTime)
+    (push: EntryPush)
+    (triggerMirror: unit -> unit)
+    (entryId: EntryId)
+    : Async<Result<PushToYnabWriteBack, string>> =
+    async {
+        match! Ledger.Persistence.loadEntry entryId with
+        | None -> return Error "Buchung nicht gefunden"
+        | Some entry when entry.DeletedInYnab -> return Error "Die Buchung ist in YNAB gelöscht"
+        | Some entry when entry.LinkedToYnab -> return Error "Die Buchung ist schon in YNAB"
+        | Some entry ->
+            match! push entry with
+            | Ok ynabTransactionId ->
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        {
+                            EntryId = entryId
+                            OccurredAt = now
+                            Actor = UserInBb
+                            Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
+                        }
+                    ]
+                triggerMirror ()
+                return Ok PushToYnabSent
+            | Error err ->
+                let reason = describePushFailure err
+                do!
+                    Ledger.Persistence.appendAndApply [
+                        {
+                            EntryId = entryId
+                            OccurredAt = now
+                            Actor = UserInBb
+                            Body = EntryPushToYnabFailed { Reason = reason }
+                        }
+                    ]
+                return Ok (PushToYnabFailed reason)
+    }
+
+// ============================================
 // Import-Push: Kassenbuch zuerst, dann YNAB, dann Verknüpfung (ADR 0021, Teil 2)
 // ============================================
 

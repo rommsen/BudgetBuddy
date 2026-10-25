@@ -1488,6 +1488,47 @@ let private flagPush () : Async<Ledger.CommandHandlers.FlagPush> =
                 async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
     }
 
+/// Der Einzel-Push einer nicht verknüpften Buchung (ledger-cks06) mit Token und
+/// Standard-Budget aus den Settings. Die Buchung geht mit ihrem aktuellen Stand und, wenn
+/// sie eine `import_id` trägt, mit dieser hinaus. Fehlt Token, Budget oder die
+/// YNAB-Verknüpfung des Kontos, liefert der Push einen Fehler statt zu werfen.
+let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
+    async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+
+        match tokenOpt, budgetOpt with
+        | Some token, Some budgetId ->
+            return fun entry -> async {
+                let! accounts = Ledger.Persistence.loadAccounts ()
+                match accounts |> List.tryFind (fun a -> a.Id = entry.AccountId) with
+                | Some { Link = Ledger.Domain.YnabMirrored ynabAccountId } ->
+                    let! links = Ledger.Persistence.linksForEntry entry.Id
+                    let request : ManualTransactionRequest = {
+                        Amount = abs entry.Amount.Amount
+                        IsOutflow = entry.Amount.Amount < 0m
+                        PayeeName = entry.Payee |> Option.defaultValue ""
+                        CategoryId = entry.Category |> Option.map (fun c -> c.CategoryId)
+                        Date = entry.Date
+                        Memo = entry.Memo
+                    }
+                    return!
+                        YnabClient.createTransactionWith
+                            (Ledger.CommandHandlers.currentImportId links)
+                            token
+                            (YnabBudgetId budgetId)
+                            ynabAccountId
+                            request
+                | _ ->
+                    return Error (YnabError.AccountNotFound Ledger.CommandHandlers.pushNotPossibleReason)
+            }
+        | None, _ ->
+            return fun _ -> async { return Error (YnabError.Unauthorized "No YNAB token configured") }
+        | _, None ->
+            return fun _ ->
+                async { return Error (YnabError.BudgetNotFound "Kein Standard-Budget konfiguriert (Settings)") }
+    }
+
 /// Die YNAB-Aufrufe des Split-Schreibwegs (ledger-kxme4, ADR 0058) mit Token und
 /// Standard-Budget aus den Settings, mit denselben Fehlerfällen wie `categoryPush`.
 let private splitWriteTools () : Async<Ledger.CommandHandlers.SplitWriteTools> =
@@ -1681,6 +1722,18 @@ let ledgerApi : LedgerApi = {
                 DateTime.UtcNow
                 push
                 tools
+                (Ledger.Events.EntryId entryId)
+    }
+
+    // "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06): sofortiger Push
+    // dieser einen Buchung, danach der Spiegel.
+    retryPushToYnab = fun entryId -> async {
+        let! push = entryPush ()
+        return!
+            Ledger.CommandHandlers.retryPushToYnab
+                DateTime.UtcNow
+                push
+                Ledger.CommandHandlers.triggerMirrorInBackground
                 (Ledger.Events.EntryId entryId)
     }
 

@@ -573,11 +573,14 @@ let private statusColumnTests =
                 "Die Quelle bleibt entry.NeedsReview (ADR 0032); eine geprüfte Buchung trägt kein Badge."
         }
 
-        test "entryTableRow rendert deletedStatusIcon nur bei entry.DeletedInYnab" {
+        test "entryTableRow rendert deletedStatusIcon nur für rowStatusMark RowDeleted (an entry.DeletedInYnab gebunden)" {
             let view = readLedgerView ()
             let entryTableRowBody = sliceFunctionBody view "let private entryTableRow"
-            Expect.stringContains entryTableRowBody "if entry.DeletedInYnab then deletedStatusIcon ()"
-                "Das Ausnahme-Kennzeichen bleibt an entry.DeletedInYnab gebunden, wie zuvor an deletedBadge()."
+            Expect.stringContains entryTableRowBody "if mark = RowDeleted then deletedStatusIcon ()"
+                "Das Ausnahme-Kennzeichen steht in der Rangfolge vorn (ledger-cks06)."
+            let markBody = sliceFunctionBody view "let rowStatusMark"
+            Expect.stringContains markBody "if entry.DeletedInYnab then RowDeleted"
+                "RowDeleted bleibt an entry.DeletedInYnab gebunden."
         }
 
         /// Regression für AC5: zwei Kennzeichen nebeneinander dürfen die Spalte

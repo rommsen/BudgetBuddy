@@ -335,6 +335,12 @@ type ReviewMarkRowState =
     /// zum eigenen Server). Der Vermerk blieb unverändert.
     | ReviewMarkCommandFailed of message: string
 
+/// Der Zustand von "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06), solange
+/// der Push läuft. Ein gescheiterter Push steht an der Buchung (`PushToYnabFailure`).
+type PushRetryRowState =
+    /// Der Push dieser einen Buchung ist unterwegs.
+    | PushSending
+
 /// Die Aktion der Schaltfläche einer Zeile: "Geprüft" für eine zu prüfende Buchung,
 /// "Ungeprüft" für eine geprüfte. Rein, damit die Beschriftung ohne React testbar ist.
 type ReviewMarkAction = {
@@ -380,6 +386,10 @@ let swipeAppliesTo (entry: LedgerEntryView) : bool =
     entry.NeedsReview && not entry.DeletedInYnab
 
 let reviewMarkHintTitle = "Prüfvermerk nicht in YNAB"
+
+/// Texte zu "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06).
+let pushRetrySentToastText = "Buchung an YNAB gesendet"
+let pushRetryFailedToastTitle = "Noch nicht in YNAB"
 
 /// Welchen Hinweis trägt die Zeile? Ein Befehlsfehler (`ReviewMarkCommandFailed`) hat
 /// Vorrang, danach der offene Fehlschlag an der Buchung. Während `ReviewMarkSending`
@@ -819,6 +829,10 @@ type Model = {
     /// Der Zustand der Prüfvermerk-Schaltfläche je Buchung (ledger-r777c): läuft ein
     /// Aufruf oder scheiterte der Befehl. Zeilen ohne Eintrag sind im Ruhezustand.
     ReviewMarkRows: Map<Guid, ReviewMarkRowState>
+
+    /// Der Sende-Zustand von "Erneut senden" am Hinweis "Noch nicht in YNAB" je Buchung
+    /// (ledger-cks06). Zeilen ohne Eintrag sind im Ruhezustand.
+    PushRetryRows: Map<Guid, PushRetryRowState>
 
     /// Buchungen, die eine Wisch-Geste aus der Liste genommen hat (Chip "Zu prüfen"),
     /// samt ihrem Platz in der Liste (ledger-th36h). "Rückgängig" setzt sie dorthin
@@ -1387,6 +1401,10 @@ type Msg =
     | StartRetryReviewMark of Guid
     | RunRetryReviewMark of Guid
     | ReviewMarkRetried of Guid * Result<ReviewMarkWriteBack, string>
+    /// Klick auf "Erneut senden" am Hinweis "Noch nicht in YNAB" (ledger-cks06).
+    | StartRetryPush of Guid
+    | RunRetryPush of Guid
+    | PushRetried of Guid * Result<PushToYnabWriteBack, string>
 
     // ============================================
     // Wisch nach rechts: geprüft, mit Rückgängig (ledger-th36h)
