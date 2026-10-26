@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 88
+- **Doing:** 0
+- **Done:** 89
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-xa7jf** — "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt" (spike) — `doing/ledger-xa7jf-quick-add-qol-luecken-pruefen.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-xa7jf** — "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt" (spike) — `done/ledger-xa7jf-quick-add-qol-luecken-pruefen.md`
 - **ledger-fa1fp** — "Detail-Feinschliff nach den Tafeln: Memo in BB bearbeiten mit Schreibweg nach YNAB, Historie nach dem Aufteilen mit Zielen und Beträgen, Kategorie am Handy in Kurzform, Fußtext im Picker, Auswahl-Bausteine im Styleguide" (feature) — `done/ledger-fa1fp-detail-feinschliff-memo-und-historie.md`
 - **ledger-y54gr** — "Lena fragen in der Auswahl-Leiste: eine Sammelaktion für viele Buchungen, ein Sammel-PATCH mit flag_color" (feature) — `done/ledger-y54gr-lena-fragen-in-der-auswahl-leiste.md`
 - **ledger-cks06** — "Noch nicht in YNAB vollständig: Kennzeichen an der Handy-Zeile und in der PC-Statusspalte, Erneut senden in der Hinweisleiste des Details mit sofortigem Push" (feature) — `done/ledger-cks06-noch-nicht-in-ynab-vollstaendig.md`

@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-26 14:00 - Spike ledger-xa7jf: Quick Add und Import nach Komfortfunktionen durchgesehen
+
+**What I did:**
+Quick Add (`QuickAddPage.fs`, `QuickAdd*` in `State.fs`) und die Import-Seite (`SyncFlow/`) Funktion für Funktion mit dem Kassenbuch (`Ledger/`, `CategoryPicker.fs`) verglichen. Ergebnis: acht Lücken in einer Tabelle (vier sinnvoll, zwei fraglich, zwei nicht übertragbar) und eine Liste bereits abgedeckter Funktionen mit Verweis auf Kassenbuch-Stelle oder erledigte Task. Die sinnvollen Lücken wurden gegen das offene ledger-Backlog geprüft (Überschneidung mit ledger-hg5m5 und ledger-rjhwp).
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- keine
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Roman wählt aus der Liste die Backlog-Tasks aus. Der Spike darf nach Aufgabe keinen Code ändern und keine Tasks anlegen.
+
+**Outcomes:**
+- Build: nicht angewendet (keine Änderung)
+- Tests: nicht angewendet (keine Änderung)
+- Issues: keine
+
+---
+
 ## 2026-10-25 21:10 - Detail-Feinschliff: Memo bearbeiten, Historie, Kategorie kurz, Picker-Fußtext, Styleguide
 
 **What I did:**
