@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 12:54 -- Modeling / Captured: ynab-sync-d9e51 - "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
+
+**Type:** Modeling / Capture
+**BC:** ynab-sync
+**Filed to:** todo
+**Summary:** Lena fragen an der einzelnen Importzeile, Flag-Farbe direkt im Import-Push, auch ohne Kategorie; Kassenbuch-Eintrag sofort als Rückfrage Lena.
+
+---
+
 ## 2026-10-26 11:28 -- Modeling / Captured: budgeting-h2zfn - "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
 
 **Type:** Modeling / Capture

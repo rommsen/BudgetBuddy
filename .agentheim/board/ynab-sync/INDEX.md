@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 13
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ynab-sync-d9e51** — "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena" (feature) — `todo/ynab-sync-d9e51-lena-fragen-beim-import.md`
 <!-- todo-list:end -->
 
 ### Doing
