@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 11:28 -- Modeling / Captured: budgeting-h2zfn - "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Targets anwenden mit Vorschau und Übernehmen, Budget-Bewegungen in BB (Entwurf ADR 0064), Fehlgeschlagene erneut senden, Probe gegen das Test-Budget.
+
+---
+
+## 2026-10-26 11:28 -- Modeling / Captured: budgeting-k7wmd - "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Budget-Seite live aus YNAB: Monat dieser/nächster, Zu verteilen, Kategorien nach Gruppen mit Zugewiesen, Aktivität, Verfügbar.
+
+---
+
 ## 2026-10-25 23:08 -- Work session ended
 
 **Type:** Work / Session end
