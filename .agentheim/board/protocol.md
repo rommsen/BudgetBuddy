@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 13:07 -- Modeling / Refined: ledger-xa7jf - Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Quelle geklärt (Quick Add plus Import-Seite), Ergebnis ist eine Lückentabelle mit Einschätzung und Abgleich gegen das Backlog; Roman wählt danach aus. Frage nach Auflösen der Quick-Add-Seite bewusst ausgeklammert.
+
+---
+
 ## 2026-10-26 12:54 -- Modeling / Captured: ynab-sync-d9e51 - "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
 
 **Type:** Modeling / Capture
