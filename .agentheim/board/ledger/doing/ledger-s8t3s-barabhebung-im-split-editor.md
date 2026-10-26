@@ -1,7 +1,7 @@
 ---
 id: ledger-s8t3s
 title: "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-26
