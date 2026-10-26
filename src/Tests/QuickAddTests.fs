@@ -374,6 +374,7 @@ let private modelWithForm (form: QuickAddFormState) : State.Model =
         SyncFlow = syncFlowModel
         Rules = rulesModel
         Ledger = ledgerModel
+        Budget = Components.Budget.State.init ()
         QuickAdd = Some form
         QuickAddTemplates = NotAsked
     }

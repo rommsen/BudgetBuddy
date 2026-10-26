@@ -477,3 +477,17 @@ type LedgerApi = {
     /// flag (one event per booking, one bulk PATCH).
     restoreFlagBatch: FlagRestoreItem list -> Async<Result<FlagBatchOutcome, string>>
 }
+
+// ============================================
+// Budget (budgeting-k7wmd)
+// ============================================
+
+/// Die Budget-Seite (Context `budgeting`): liest den Monat live aus YNAB, speichert nichts
+/// und schreibt nichts nach YNAB.
+type BudgetApi = {
+    /// Holt den Monat mit Zu verteilen und den Kategorien nach Gruppe. Der Schlüssel ist
+    /// "current" (laufender Monat) oder "next" (nächster Monat); alles andere lehnt die
+    /// Grenze ab. Error mit lesbarer Meldung bei fehlendem Token oder Budget, bei YNAB-Fehlern
+    /// (auch 429) und bei ungültigem Monat.
+    getBudgetMonth: string -> Async<Result<Shared.Budgeting.BudgetMonth, string>>
+}

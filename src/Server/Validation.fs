@@ -142,3 +142,11 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
         |> List.choose id
 
     if errors.IsEmpty then Ok request else Error errors
+
+// ============================================
+// Budget (budgeting-k7wmd)
+// ============================================
+
+/// Prüft den Monats-Schlüssel der Budget-Seite an der Grenze: "current" oder "next".
+let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
+    Shared.Budgeting.parseMonthChoice key

@@ -82,7 +82,7 @@ export const DEFAULT_OUT_DIR = path.join(ROOT, "docs", "ux", "screenshots");
 // eine Route in Types.fs ergänzt, muss sie hier nachgezogen werden;
 // screenshot-route.test.mjs liest Types.fs tatsächlich und schlägt fehl,
 // wenn diese Liste von dort abweicht.
-export const KNOWN_ROUTES = new Set(["/", "/rules", "/settings", "/styleguide", "/quickadd", "/ledger"]);
+export const KNOWN_ROUTES = new Set(["/", "/rules", "/settings", "/styleguide", "/quickadd", "/ledger", "/budget"]);
 
 // Routen, die rein präsentational sind und deshalb ohne Backend und ohne
 // Datenbankkopie aufgenommen werden können (design-system-m4kp7). Alles, was

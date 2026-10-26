@@ -31,6 +31,7 @@ let private baseModel () : State.Model =
         SyncFlow = syncFlowModel
         Rules = rulesModel
         Ledger = ledgerModel
+        Budget = Components.Budget.State.init ()
         QuickAdd = None
         QuickAddTemplates = NotAsked
     }

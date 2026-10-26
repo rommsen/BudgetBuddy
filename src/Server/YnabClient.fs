@@ -59,6 +59,41 @@ module Decoders =
         Decode.field "data" (Decode.field "month" (Decode.field "to_be_budgeted" Decode.int64))
         |> Decode.map (fun milliunits -> { Amount = decimal milliunits / 1000m; Currency = "EUR" })
 
+    /// Milliunits aus YNAB als Money (EUR).
+    let private milliunitsMoney (milliunits: int64) : Money =
+        { Amount = decimal milliunits / 1000m; Currency = "EUR" }
+
+    /// Eine Kategorie aus `GET /budgets/{id}/months/{month}` (budgeting-k7wmd).
+    /// `goal_under_funded` ist `null` ohne Target (dann `None`), sonst der Fehlbetrag;
+    /// `goal_snoozed_at` gesetzt heißt pausiert. Fehlende Flags gelten als `false`.
+    let monthCategoryDecoder : Decoder<Shared.Budgeting.YnabMonthCategory> =
+        Decode.object (fun get ->
+            let flag name = get.Optional.Field name Decode.bool |> Option.defaultValue false
+            ({ Id = get.Required.Field "id" Decode.guid
+               Name = get.Required.Field "name" Decode.string
+               GroupName =
+                   get.Optional.Field "category_group_name" Decode.string
+                   |> Option.defaultValue ""
+               Assigned = get.Required.Field "budgeted" Decode.int64 |> milliunitsMoney
+               Activity = get.Required.Field "activity" Decode.int64 |> milliunitsMoney
+               Available = get.Required.Field "balance" Decode.int64 |> milliunitsMoney
+               Underfunded =
+                   get.Optional.Field "goal_under_funded" Decode.int64 |> Option.map milliunitsMoney
+               Snoozed =
+                   get.Optional.Field "goal_snoozed_at" Decode.string |> Option.isSome
+               Hidden = flag "hidden"
+               Deleted = flag "deleted"
+               Internal = flag "internal" } : Shared.Budgeting.YnabMonthCategory))
+
+    /// Der ganze Monat aus `GET /budgets/{id}/months/{month}`: Monat, Zu verteilen und
+    /// alle Kategorien in YNABs Reihenfolge (budgeting-k7wmd).
+    let monthDecoder : Decoder<Shared.Budgeting.YnabMonth> =
+        Decode.field "data" (Decode.field "month" (Decode.object (fun get ->
+            ({ Month = get.Required.Field "month" Decode.string
+               ToBeBudgeted = get.Required.Field "to_be_budgeted" Decode.int64 |> milliunitsMoney
+               Categories = get.Required.Field "categories" (Decode.list monthCategoryDecoder) }
+             : Shared.Budgeting.YnabMonth))))
+
     /// Decoder for categories when category_group_name is present (from /categories endpoint)
     let categoryDecoder : Decoder<YnabCategory> =
         Decode.object (fun get -> {
@@ -230,6 +265,53 @@ let getReadyToAssign (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Asy
                 return None
         with _ -> return None
     }
+
+/// Liest einen Monat live aus YNAB (`GET /budgets/{id}/months/{YYYY-MM-01}`), mit Zu verteilen
+/// und je Kategorie Zugewiesen, Aktivität, Verfügbar, Fehlbetrag und Pausiert (budgeting-k7wmd).
+/// Schreibt nichts und merkt sich nichts. 429 kommt als `RateLimitExceeded`, ein Monat, den
+/// YNAB nicht kennt (404), als `InvalidResponse`.
+let interpretMonthResponse (monthKey: string) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.YnabMonth> =
+    match status with
+    | 200 ->
+        match Decode.fromString Decoders.monthDecoder bodyText with
+        | Ok month -> Ok month
+        | Error err -> Error (YnabError.InvalidResponse $"Failed to parse month: {err}")
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
+    | 404 -> Error (YnabError.InvalidResponse $"YNAB kennt den Monat {monthKey} nicht")
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
+
+/// Naht für Tests: `fetch` liefert Statuscode und Antworttext. Eine Ausnahme (Netzfehler)
+/// wird zu `NetworkError`.
+let getMonthWith
+    (fetch: unit -> Async<int * string>)
+    (monthKey: string)
+    : Async<YnabResult<Shared.Budgeting.YnabMonth>> =
+    async {
+        try
+            let! status, bodyText = fetch ()
+            return interpretMonthResponse monthKey status bodyText
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch month: {ex.Message}")
+    }
+
+let getMonth
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (monthKey: string)
+    : Async<YnabResult<Shared.Budgeting.YnabMonth>> =
+    let fetch () =
+        async {
+            let! response =
+                http {
+                    GET $"{baseUrl}/budgets/{budgetId}/months/{monthKey}"
+                    Authorization $"Bearer {token}"
+                }
+                |> Request.sendAsync
+            let! bodyText = response |> Response.toTextAsync
+            return (response.statusCode |> int), bodyText
+        }
+    getMonthWith fetch monthKey
 
 /// Fetches all categories for a specific budget
 let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list>> =

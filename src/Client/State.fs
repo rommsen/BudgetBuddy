@@ -26,6 +26,7 @@ type Model = {
     SyncFlow: Components.SyncFlow.Types.Model
     Rules: Components.Rules.Types.Model
     Ledger: Components.Ledger.Types.Model
+    Budget: Components.Budget.Types.Model
 
     // Quick Add page form state — lifted out of SyncFlow (ynab-q7k3m). `None`
     // until the page is first opened; reset to a fresh form on each visit and
@@ -71,6 +72,7 @@ type Msg =
     | SyncFlowMsg of Components.SyncFlow.Types.Msg
     | RulesMsg of Components.Rules.Types.Msg
     | LedgerMsg of Components.Ledger.Types.Msg
+    | BudgetMsg of Components.Budget.Types.Msg
 
     // Quick Add (manual transaction entry → YNAB), lifted from SyncFlow (ynab-q7k3m)
     | OpenQuickAdd
@@ -205,6 +207,9 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
             // Haupt-`State.fs` abgefangen, nicht hinter dem Ledger-Proxy.
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
         ]
+    | Budget ->
+        // Der Monat wird bei jedem Betreten live aus YNAB geholt (budgeting-k7wmd).
+        Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.Load)
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
         // (categories are loaded into SyncFlow at startup; retry in
@@ -247,6 +252,7 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Ledger.Balances
         && notLoading model.Ledger.Entries
         && notLoading model.Ledger.Categories
+    | Budget -> notLoading model.Budget.Month
 
 /// Läuft gerade eine Eingabe, die ein Neuladen verlieren würde (infrastructure-bnbdc,
 /// ADR 0057)? Reiner Schnappschuss des Modells. Nicht erfasst ist ein Textfeld mit Fokus,
@@ -353,6 +359,7 @@ let init () : Model * Cmd<Msg> =
         SyncFlow = syncFlowModel
         Rules = rulesModel
         Ledger = ledgerModel
+        Budget = Components.Budget.State.init ()
         QuickAdd = None
         QuickAddTemplates = NotAsked
     }
@@ -625,6 +632,10 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
 
         { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd ]
+
+    | BudgetMsg budgetMsg ->
+        let budgetModel', budgetCmd = Components.Budget.State.update budgetMsg model.Budget
+        { model with Budget = budgetModel' }, Cmd.map BudgetMsg budgetCmd
 
     // ============================================
     // Quick Add (manual transaction entry → YNAB)

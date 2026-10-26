@@ -48,6 +48,7 @@ let private rootModel stamp page : State.Model =
       SyncFlow = syncFlowModel
       Rules = rulesModel
       Ledger = { model () with Categories = Success categories; CategoriesLoadedAt = stamp }
+      Budget = Components.Budget.State.init ()
       QuickAdd = None
       QuickAddTemplates = NotAsked }
 

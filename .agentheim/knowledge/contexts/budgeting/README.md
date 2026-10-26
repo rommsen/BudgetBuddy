@@ -20,7 +20,7 @@ YNAB unverzichtbar.
 - **Frau**: budgetiert praktisch nicht.
 - **YNAB**: über `ynab-sync`: Quelle der Targets und des heutigen Budget-Zustands, Ziel
   der Zuweisungen.
-- **Kassenbuch** (`ledger`): liefert die Aktivität pro Kategorie und Monat.
+- **Kassenbuch** (`ledger`): liefert die Aktivität pro Kategorie und Monat (auf der Budget-Seite vorerst von YNAB, bis die Naht steht).
 
 ## Ubiquitous language
 - **Budget**: das Ganze, alle Kategorien mit ihren Beträgen über die Monate. YNAB nennt es
@@ -34,7 +34,7 @@ YNAB unverzichtbar.
   Assign"). Darf bewusst negativ werden.
 - **Zuweisen**: Geld aus "Zu verteilen" einer Kategorie für einen Monat geben.
 - **Verschieben**: Geld von einer Kategorie auf eine andere legen, im selben Monat.
-- **Aktivität**: Summe der Buchungen einer Kategorie in einem Monat (aus dem Kassenbuch).
+- **Aktivität**: Summe der Buchungen einer Kategorie in einem Monat (aus dem Kassenbuch). Auf der Budget-Seite kommt sie vorerst von YNAB (`activity`), bis die Naht ledger/budgeting steht (Entwurf ADR 0065 in budgeting-h2zfn).
 - **Verfügbar**: Vortrag + Zugewiesen + Aktivität.
 - **Vortrag**: Verfügbares, das am Monatsende in der Kategorie bleibt und im Folgemonat
   weiterzählt. Nicht zu verwechseln mit dem **Übertrag** im Kassenbuch (zwei Buchungen,
@@ -53,6 +53,9 @@ YNAB unverzichtbar.
   bis es zurückgezahlt ist.
 - **Entwurf**: eine Reihe von Verschiebungen, die noch nicht gilt. Zeigt die Summe, wird
   übernommen oder verworfen.
+- **Budget-Seite** (budgeting-k7wmd): die Seite #/budget. Zeigt den gewählten Monat (dieser oder nächster), Zu verteilen als große Zahl und die Kategorien nach Kategoriegruppe mit Zugewiesen, Aktivität und Verfügbar. Liest live aus YNAB, speichert und schreibt nichts. Negatives Zu verteilen erscheint negativ, ohne Hinweis und ohne Sperre. Ausgeblendete, gelöschte und interne Kategorien (Inflow) fehlen.
+- **Fehlbetrag** (budgeting-k7wmd): was einer Kategorie in einem Monat noch zugewiesen werden muss, damit ihr Target erfüllt ist (YNAB `goal_under_funded`). Ohne Target gibt es keinen Fehlbetrag, 0 heißt erfüllt. Die Seite lädt ihn schon mit, zeigt ihn aber nicht; Targets anwenden (budgeting-h2zfn) nutzt ihn.
+- **Pausiert** (budgeting-k7wmd): ein Target, das YNAB für den Monat ausgesetzt hat (`goal_snoozed_at` gesetzt). Sein Fehlbetrag zählt dann nicht.
 
 ## Aggregates
 Noch nicht modelliert. Tactical Modeling folgt mit den ersten Tasks.
@@ -79,3 +82,4 @@ Noch nicht modelliert (Kandidaten: Targets anwenden, Geld verschieben).
 - Rechnet BB Verfügbar und Zu verteilen selbst oder übernimmt es sie von YNAB und gleicht
   ab? (open since 2026-10-25)
 - Wer führt die Targets, und wie läuft der Wechsel von YNAB zu BB? (open since 2026-10-25)
+- ~~Enthält `to_be_budgeted` des nächsten Monats den Rest des laufenden Monats?~~ Gelöst (`budgeting-k7wmd`, lesende Probe am 2026-10-26 gegen Romans Budget): ja. Oktober hatte Zu verteilen 35,45 €, der November (Einnahmen 0, Zugewiesen 0, Aktivität 0) ebenfalls 35,45 €. Der Rest wandert also in den Folgemonat: Zu verteilen ist ein laufender Stand, der von Monat zu Monat weiterzählt. Zwei Monate voraus (Dezember) liefert YNAB 404; der nächste Monat ist die Grenze der Seite.

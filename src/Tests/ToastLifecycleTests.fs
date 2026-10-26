@@ -118,7 +118,7 @@ let toastLifecycleTests =
             let rules, _ = Components.Rules.State.init ()
             let model : State.Model =
                 { CurrentPage = Ledger; Toasts = [ toast ]; Pwa = Pwa.initialState; Settings = settings; SyncFlow = syncFlow
-                  Rules = rules; Ledger = ledger; QuickAdd = None; QuickAddTemplates = NotAsked }
+                  Rules = rules; Ledger = ledger; Budget = Components.Budget.State.init (); QuickAdd = None; QuickAddTemplates = NotAsked }
             let after, cmd = State.update (State.ToastActionClicked idA) model
             Expect.isTrue (Toast.isExiting idA after.Toasts) "Toast geht ab"
             Expect.isNonEmpty cmd "Aktion und Entfernen sind geplant"

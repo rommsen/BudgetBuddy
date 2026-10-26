@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 1
+- **Doing:** 0
+- **Done:** 2
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-k7wmd** — "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC" (feature) — `doing/budgeting-k7wmd-budget-seite-live-aus-ynab.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-k7wmd** — "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC" (feature) — `done/budgeting-k7wmd-budget-seite-live-aus-ynab.md`
 - **budgeting-r4tkq** — "Spike: liefert die YNAB-API die Targets lesbar (Art, Betrag, Rhythmus) und erlaubt sie, den zugewiesenen Betrag pro Kategorie und Monat zu setzen? Voraussetzung für Targets anwenden." (spike) — `done/budgeting-r4tkq-ynab-api-targets-und-zuweisung.md`
 <!-- done-list:end -->
 

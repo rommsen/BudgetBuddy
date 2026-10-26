@@ -138,6 +138,8 @@ type Page =
     /// Das Kassenbuch: Buchungen und Stand je Konto, Historie je Buchung
     /// (ledger-q5w9c).
     | Ledger
+    /// Das Budget: Monat, Zu verteilen und Kategorien, live aus YNAB (budgeting-k7wmd).
+    | Budget
 
 
 /// URL routing helpers for hash-based navigation
@@ -153,6 +155,7 @@ module Routing =
         | ["styleguide"] -> Styleguide
         | ["quickadd"] -> QuickAdd
         | ["ledger"] -> Ledger
+        | ["budget"] -> Budget
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
     /// Convert Page to URL segments (for navigation)
@@ -164,6 +167,7 @@ module Routing =
         | Styleguide -> ["styleguide"]
         | QuickAdd -> ["quickadd"]
         | Ledger -> ["ledger"]
+        | Budget -> ["budget"]
 
     /// Get current page from URL (for initialization)
     let currentPage () : Page =

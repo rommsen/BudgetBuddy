@@ -71,6 +71,9 @@
     <Compile Include="Components/Ledger/Types.fs" />
     <Compile Include="Components/Ledger/State.fs" />
     <Compile Include="Components/Ledger/View.fs" />
+    <Compile Include="Components/Budget/Types.fs" />
+    <Compile Include="Components/Budget/State.fs" />
+    <Compile Include="Components/Budget/View.fs" />
 
     <!-- Component: Styleguide (living component gallery — presentational) -->
     <Compile Include="Components/Styleguide/View.fs" />

@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 14:56 -- Task verified and completed: budgeting-k7wmd - "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC"
+
+**Type:** Work / Task completion
+**Task:** budgeting-k7wmd - "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC"
+**Summary:** Die Budget-Seite (#/budget) liest den Monat live aus YNAB und zeigt Zu verteilen sowie Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar, dieser oder nächster Monat, am Handy als Zeilen und am PC als Tabelle. Die Probe belegt: to_be_budgeted des nächsten Monats enthält den Rest des laufenden Monats.
+**Duration:** 1h44m
+**Verification:** PASS (iteration 2; iteration 1 FAIL Server-Fehlerzuordnung ungetestet, README Aktivität)
+**Files changed:** 30
+**Tests added:** 50
+**ADRs written:** none
+
+---
+
+## 2026-10-26 14:07 -- Verification failed: budgeting-k7wmd - Budget-Seite live aus YNAB
+
+**Type:** Work / Verification failure
+**Task:** budgeting-k7wmd - Budget-Seite live aus YNAB
+**Iteration:** 1 of 3
+**Reasons:** Serverseitige Fehlerzuordnung in YnabClient.getMonth (401/404/429/Netzfehler) und budgetApi ohne Test und ohne Naht, README-Begriff Aktivität widerspricht der Seite (YNAB statt Kassenbuch), Antithese im Open-questions-Delta
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-26 13:57 -- Task verified and completed: ynab-sync-d9e51 - "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
 
 **Type:** Work / Task completion

@@ -32,3 +32,9 @@ let ledger : LedgerApi =
     Remoting.createApi()
     |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
     |> Remoting.buildProxy<LedgerApi>
+
+/// Fable.Remoting proxy for Budget API (Budget-Seite)
+let budget : BudgetApi =
+    Remoting.createApi()
+    |> Remoting.withRouteBuilder (fun typeName methodName -> $"/api/{typeName}/{methodName}")
+    |> Remoting.buildProxy<BudgetApi>

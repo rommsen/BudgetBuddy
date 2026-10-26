@@ -1872,6 +1872,42 @@ let ledgerApi : LedgerApi = {
 }
 
 // ============================================
+// Budget (budgeting-k7wmd)
+// ============================================
+
+/// Der Weg der Budget-Seite ohne Settings und Netz: Schlüssel prüfen, Token und Budget
+/// verlangen, Monat holen (`fetchMonth token budgetId monthKey`), Fehler lesbar machen.
+let budgetMonthFor
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (today: DateTime)
+    (monthKeyText: string)
+    (fetchMonth: string -> YnabBudgetId -> string -> Async<YnabResult<Shared.Budgeting.YnabMonth>>)
+    : Async<Result<Shared.Budgeting.BudgetMonth, string>> =
+    async {
+        match Validation.validateBudgetMonth monthKeyText with
+        | Error message -> return Error message
+        | Ok choice ->
+            match tokenOpt, budgetOpt with
+            | None, _ -> return Error (ynabErrorToString (YnabError.Unauthorized "No YNAB token configured"))
+            | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
+            | Some token, Some budgetId ->
+                let key = Server.Budgeting.Domain.monthKey today choice
+                match! fetchMonth token (YnabBudgetId budgetId) key with
+                | Error e -> return Error (ynabErrorToString e)
+                | Ok month -> return Ok (Server.Budgeting.Domain.toBudgetMonth month)
+    }
+
+/// Die Budget-Seite: liest den Monat live aus YNAB, speichert und schreibt nichts.
+let budgetApi : BudgetApi = {
+    getBudgetMonth = fun monthKeyText -> async {
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+        return! budgetMonthFor tokenOpt budgetOpt DateTime.Today monthKeyText YnabClient.getMonth
+    }
+}
+
+// ============================================
 // HTTP Handler
 // ============================================
 
@@ -1914,5 +1950,11 @@ let webApp() =
         |> Remoting.withRouteBuilder routeBuilder
         |> Remoting.withErrorHandler errorHandler
         |> Remoting.fromValue ledgerApi
+        |> Remoting.buildHttpHandler
+
+        Remoting.createApi()
+        |> Remoting.withRouteBuilder routeBuilder
+        |> Remoting.withErrorHandler errorHandler
+        |> Remoting.fromValue budgetApi
         |> Remoting.buildHttpHandler
     ]

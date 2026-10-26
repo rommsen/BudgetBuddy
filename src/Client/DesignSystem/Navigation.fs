@@ -16,6 +16,7 @@ type NavPage =
     | Settings
     | QuickAdd
     | Ledger
+    | Budget
 
 /// Navigation item definition
 type NavItem = {
@@ -30,6 +31,7 @@ let navItems: NavItem list = [
     { Page = Rules; Label = "Rules"; Icon = rules }
     { Page = QuickAdd; Label = "Quick Add"; Icon = plus }
     { Page = Ledger; Label = "Kassenbuch"; Icon = banknotes }
+    { Page = Budget; Label = "Budget"; Icon = dollar }
     { Page = Settings; Label = "Settings"; Icon = settings }
 ]
 

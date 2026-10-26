@@ -4,6 +4,39 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-26 15:00 - Budget-Seite live aus YNAB (budgeting-k7wmd)
+
+**What I did:**
+Die Seite #/budget gebaut: Monat (dieser oder nächster) wählbar, Zu verteilen groß, Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB. Server liest `GET /budgets/{id}/months/{YYYY-MM-01}`, Domain gruppiert und filtert, Client zeigt am Handy Zeilen und am PC eine Tabelle. Lesende Probe: der nächste Monat trägt den Rest des laufenden Monats.
+
+**Files Added:**
+- `src/Shared/Budgeting.fs` - Shared-Typen und Monats-Schlüssel
+- `src/Server/Budgeting/Domain.fs` - Monatsumrechnung und Gruppieren
+- `src/Client/Components/Budget/Types.fs`, `State.fs`, `View.fs` - Seite
+- `src/Tests/BudgetingTests.fs`, `src/Tests/BudgetPageTests.fs` - Expecto-Tests
+- `scripts/budget-page.test.mjs` - Playwright-Wächter
+
+**Files Modified:**
+- `src/Shared/Api.fs`, `src/Shared/Shared.fsproj` - `BudgetApi`, neue Datei
+- `src/Server/YnabClient.fs`, `Api.fs`, `Validation.fs`, `Server.fsproj` - Lesepfad, `budgetApi`, Validierung
+- `src/Client/Types.fs`, `State.fs`, `View.fs`, `Api.fs`, `Client.fsproj`, `DesignSystem/Navigation.fs` - Seite, Routing, Navigation, Proxy
+- `scripts/screenshot-route.mjs` - `/budget` in `KNOWN_ROUTES`
+- `src/Tests/Tests.fsproj` und acht Testdateien mit vollständigem `State.Model` - Pflichtfeld `Budget`
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+ADR 0063: das Budget ist die nächste große Fähigkeit; die Seite ist die Fläche für Targets anwenden und zeigt Roman den YNAB-Stand ohne eigene Persistenz.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: dotnet test 2343 bestanden (7 übersprungen), test:scripts 252 von 252
+- Iteration 2: Naht und Fehlertests für den Server-Lesepfad, Aktivität-Delta, Formulierung
+- Issues: Kopfzeile der PC-Tabelle war zuerst verschachtelt (`Table.thead` bringt die `tr` selbst mit), behoben und getestet
+
+---
+
 ## 2026-10-26 13:50 - Lena fragen beim Import (ynab-sync-d9e51)
 
 **What I did:**

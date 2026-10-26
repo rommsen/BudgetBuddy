@@ -38,6 +38,7 @@
     <Compile Include="ImportAskLena.fs" />
     <Compile Include="Ledger/CommandHandlers.fs" />
     <Compile Include="Ledger/QueryHandlers.fs" />
+    <Compile Include="Budgeting/Domain.fs" />
     <Compile Include="PushOutcomeClassification.fs" />
     <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />

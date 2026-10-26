@@ -18,6 +18,7 @@ let private toNavPage (page: Page) : Navigation.NavPage =
     | Settings -> Navigation.Settings
     | QuickAdd -> Navigation.QuickAdd
     | Ledger -> Navigation.Ledger
+    | Budget -> Navigation.Budget
     // Styleguide has no own nav tab; it's reached from Settings, so the
     // Settings tab stays highlighted while viewing the gallery.
     | Styleguide -> Navigation.Settings
@@ -30,6 +31,7 @@ let private fromNavPage (navPage: Navigation.NavPage) : Page =
     | Navigation.Settings -> Settings
     | Navigation.QuickAdd -> QuickAdd
     | Navigation.Ledger -> Ledger
+    | Navigation.Budget -> Budget
 
 /// Convert Types.ToastType to Toast.ToastVariant
 let private toToastVariant (toastType: ToastType) : Toast.ToastVariant =
@@ -120,6 +122,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                 Components.Ledger.View.view
                                     model.Ledger
                                     (LedgerMsg >> dispatch)
+                            | Budget ->
+                                Components.Budget.View.view
+                                    model.Budget
+                                    (BudgetMsg >> dispatch)
                             | Styleguide ->
                                 // Presentational gallery — no model/dispatch needed.
                                 Components.Styleguide.View.view ()
