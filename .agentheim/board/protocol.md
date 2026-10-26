@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 16:37 -- Modeling / Captured: ledger-s8t3s - "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf legt die bisherige Kategorie und einen Übertrag aufs Bar-Konto an, Roman trägt nur den Bargeld-Betrag ein"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus Spike ledger-xa7jf, Lücke 2, Variante (a): Knopf Barabhebung im Split-Editor legt Kategorie und Übertrag aufs Quick-Add-Konto an.
+
+---
+
+## 2026-10-26 16:37 -- Modeling / Captured: ledger-d4msf - "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Aus Spike ledger-xa7jf, Lücke 1: Abschnitt Zuletzt verwendet im Kategorie-Picker beim Ändern und bei Kategorie für die Auswahl; Daten liegen im Ledger-Modell schon vor.
+
+---
+
 ## 2026-10-26 16:01 -- Work session ended
 
 **Type:** Work / Session end
