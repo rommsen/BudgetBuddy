@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 20:51 -- Capture / Captured: design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen (Split-Editor: Barabhebung, Zeile hinzufügen)"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen (Split-Editor: Barabhebung, Zeile hinzufügen)
+
+---
+
 ## 2026-10-26 18:45 -- Work session ended
 
 **Type:** Work / Session end
