@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 7
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 89
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-d4msf** — "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt" (feature) — `todo/ledger-d4msf-zuletzt-verwendet-im-kategorie-picker.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -76,7 +77,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **ledger-s8t3s** — "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf legt die bisherige Kategorie und einen Übertrag aufs Bar-Konto an, Roman trägt nur den Bargeld-Betrag ein" (feature) — `backlog/ledger-s8t3s-barabhebung-im-split-editor.md`
-- **ledger-d4msf** — "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt" (feature) — `backlog/ledger-d4msf-zuletzt-verwendet-im-kategorie-picker.md`
 - **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `backlog/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
 - **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`

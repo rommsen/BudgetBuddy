@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 17:19 -- Modeling / Promoted: ledger-d4msf - "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-26 17:19 -- Modeling / Refined: ledger-d4msf, ledger-s8t3s - Zuletzt verwendet im Picker, Barabhebung im Split-Editor
 
 **Type:** Modeling / Refine

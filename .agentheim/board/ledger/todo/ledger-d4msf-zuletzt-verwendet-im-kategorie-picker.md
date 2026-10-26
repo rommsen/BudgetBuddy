@@ -1,7 +1,7 @@
 ---
 id: ledger-d4msf
 title: "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-26
