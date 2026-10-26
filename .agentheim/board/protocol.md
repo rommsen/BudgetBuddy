@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 20:51 -- Capture / Captured: design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions)"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions)
+
+---
+
 ## 2026-10-26 20:51 -- Capture / Captured: design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen (Split-Editor: Barabhebung, Zeile hinzufügen)"
 
 **Type:** Capture

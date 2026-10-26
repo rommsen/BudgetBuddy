@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 36
@@ -59,6 +59,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions)" (chore) — `backlog/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`
 - **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen (Split-Editor: Barabhebung, Zeile hinzufügen)" (bug) — `backlog/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
 <!-- backlog-list:end -->
 
