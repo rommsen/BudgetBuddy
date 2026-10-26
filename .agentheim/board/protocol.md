@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 17:19 -- Modeling / Refined: ledger-d4msf, ledger-s8t3s - Zuletzt verwendet im Picker, Barabhebung im Split-Editor
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Offene Fragen mit Roman geklärt. Barabhebung: Beträge wie im Import über Rest, kein automatischer Ausgleich; der Knopf belegt die erste Zeile ohne Ziel mit einem Übertrag aufs Quick-Add-Konto oder hängt eine an, ersetzt nichts. Zuletzt verwendet: eine gemeinsame Liste mit dem Kategorie-Filter, Doppelungen mit Vorgeschlagen erlaubt.
+
+---
+
 ## 2026-10-26 16:37 -- Modeling / Captured: ledger-s8t3s - "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf legt die bisherige Kategorie und einen Übertrag aufs Bar-Konto an, Roman trägt nur den Bargeld-Betrag ein"
 
 **Type:** Modeling / Capture

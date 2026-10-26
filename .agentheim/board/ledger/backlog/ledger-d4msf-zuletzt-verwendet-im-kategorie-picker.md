@@ -32,18 +32,21 @@ Kategorie-Filter genutzt (ledger-v9rq3).
 Vorbild: Quick Add und Import (`RecentlyUsedCategoryIds` in `SyncFlow.State`,
 `BottomSheet.categoryPickerLayered` mit Abschnitt "Zuletzt verwendet").
 
+**Entscheidungen (Roman, 2026-10-26):** Picker und Filter führen **eine gemeinsame Liste**:
+jede vergebene Kategorie rückt nach vorne, egal ob im Picker (einzeln oder für die Auswahl)
+oder im Filter gewählt. Eine Kategorie darf zugleich unter "Vorgeschlagen" und "Zuletzt
+verwendet" stehen. Der Hauptnutzen liegt am Handy.
+
 ## Acceptance criteria
-- [ ] Der Picker beim Ändern der Kategorie zeigt einen Abschnitt "Zuletzt verwendet" mit höchstens fünf Kategorien, neueste zuerst.
+- [ ] Der Picker beim Ändern der Kategorie zeigt einen Abschnitt "Zuletzt verwendet" mit höchstens fünf Kategorien, neueste zuerst, am Handy (BottomSheet) und am PC.
 - [ ] Derselbe Abschnitt erscheint bei "Kategorie für die Auswahl".
-- [ ] Eine im Kassenbuch vergebene Kategorie (einzeln oder für die Auswahl) rückt an die Spitze der Liste.
+- [ ] Eine im Picker vergebene Kategorie (einzeln oder für die Auswahl) rückt an die Spitze derselben Liste, die der Kategorie-Filter nutzt; eine im Filter gewählte Kategorie erscheint ebenso im Picker (reiner Test auf `pushRecentCategories` bzw. dem Übergang).
+- [ ] Eine Kategorie darf in "Vorgeschlagen" und "Zuletzt verwendet" zugleich stehen.
 - [ ] Ohne bisherige Kategorien fehlt der Abschnitt.
+- [ ] Playwright am echten Picker (Handy und PC): nach dem Vergeben einer Kategorie steht sie beim nächsten Öffnen oben unter "Zuletzt verwendet".
 
 ## Notes
-Offen für die Verfeinerung:
-- Speist der Filter dieselbe Liste wie der Picker, oder führen beide eine eigene? Heute
-  füllt nur das Anwenden des Filters `RecentCategories`.
-- Reihenfolge und Doppelungen mit "Vorgeschlagen": erscheint eine Kategorie in beiden
-  Abschnitten?
-- Am Handy (BottomSheet) und am PC (Popover) gleich.
+Offene Fragen geklärt am 2026-10-26 (Roman): gemeinsame Liste mit dem Filter, Doppelungen
+mit "Vorgeschlagen" erlaubt.
 
 Herkunft: Spike ledger-xa7jf, Outcome-Tabelle Lücke 1.

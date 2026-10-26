@@ -1,6 +1,6 @@
 ---
 id: ledger-s8t3s
-title: "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf legt die bisherige Kategorie und einen Übertrag aufs Bar-Konto an, Roman trägt nur den Bargeld-Betrag ein"
+title: "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest"
 status: backlog
 type: feature
 context: ledger
@@ -25,32 +25,33 @@ Entscheidung Roman, 2026-10-26: **Variante (a)**, ein Knopf "Barabhebung" im Spl
 des Kassenbuchs (`src/Client/Components/Ledger/SplitEditor.fs`, ledger-pafkp) als
 Startvorlage. Kein eigener Knopf im Buchungs-Detail.
 
-Der Knopf legt zwei Zeilen an:
-1. die bisherige Kategorie der Buchung (fehlt sie, bleibt das Ziel leer),
-2. einen Übertrag auf das Bar-Konto, das Quick-Add-Konto (ADR 0004, Übertrag im Split nach
-   ADR 0006); ist keins eingestellt, bleibt das Ziel leer.
+**Regel (Roman, 2026-10-26):** "Barabhebung" setzt die erste Zeile ohne Ziel auf einen
+Übertrag zum Bar-Konto; gibt es keine Zeile ohne Ziel, hängt der Knopf eine neue
+Übertrag-Zeile an. Bestehende Zeilen und Beträge bleiben unangetastet. Der Editor öffnet
+schon heute mit der bisherigen Kategorie und einer leeren Zeile (`SplitEditor.startState`),
+frisch geöffnet ergibt das also Kategorie plus Übertrag. Bar-Konto ist das Quick-Add-Konto
+(ADR 0004, Übertrag im Split nach ADR 0006); ist keins eingestellt, kommt die Zeile ohne
+Ziel und Roman wählt das Konto selbst.
 
-Roman trägt nur den Bargeld-Betrag ein, der Rest der Buchung landet auf der Kategorie-Zeile.
+Die Beträge bleiben leer wie im Import: Roman trägt den Bargeld-Betrag ein und gleicht mit
+"Rest" aus (`SplitEditor.fillRest`). Kein automatischer Ausgleich.
 
 Vorbild Import: Chip "Barabhebung" in `src/Client/Components/SyncFlow/Views/TransactionRow.fs`,
 Nachricht `StartCashbackSplit` in `src/Client/Components/SyncFlow/State.fs`. Dort bleiben
 beide Beträge leer und der Nutzer gleicht mit "Rest" aus.
 
 ## Acceptance criteria
-- [ ] Der Split-Editor im Kassenbuch zeigt einen Knopf "Barabhebung".
-- [ ] Der Knopf legt zwei Zeilen an: Kategorie der Buchung und Übertrag auf das Quick-Add-Konto.
-- [ ] Nach Eingabe des Bargeld-Betrags geht die Aufteilung ohne weiteren Schritt auf die Gesamtsumme auf.
-- [ ] Ohne Kategorie an der Buchung oder ohne Quick-Add-Konto bleibt das jeweilige Ziel leer und ist wählbar.
+- [ ] Der Split-Editor im Kassenbuch zeigt einen Knopf "Barabhebung", am Handy und am PC.
+- [ ] Frisch geöffnet ergibt der Knopf zwei Zeilen: die bisherige Kategorie der Buchung und einen Übertrag auf das Quick-Add-Konto.
+- [ ] Gibt es eine Zeile ohne Ziel, wird genau diese zum Übertrag; gibt es keine, kommt eine neue Übertrag-Zeile dazu. Andere Zeilen, Ziele und Beträge ändern sich nicht (reiner Test auf der Editor-Logik).
+- [ ] Die Beträge bleiben leer; der Ausgleich geht wie bisher über "Rest".
+- [ ] Ohne Quick-Add-Konto bleibt das Ziel der Übertrag-Zeile leer und ist wählbar.
 - [ ] Gespeichert wird über den bestehenden Split-Schreibweg (ledger-kxme4), ohne neuen Befehl.
+- [ ] Playwright am echten Editor: Knopf drücken, Übertrag-Zeile erscheint mit dem Bar-Konto als Ziel.
 
 ## Notes
-Offen für die Verfeinerung:
-- Rechnet sich der Rest automatisch auf die Kategorie-Zeile (Romans Wunsch "der Rest
-  rechnet sich"), oder wie im Import über "Rest"? Das Kriterium oben geht vom automatischen
-  Ausgleich aus.
-- Wann ist der Knopf sichtbar: nur im leeren Editor, oder auch über eine schon begonnene
-  Aufteilung (ersetzen oder nicht)?
-- Vorzeichen: eine Ausgabe mit Bargeld ist zweimal negativ (Kategorie und Übertrag).
-- Am Handy und am PC.
+Offene Fragen geklärt am 2026-10-26 (Roman): kein automatischer Ausgleich, Beträge wie im
+Import über "Rest"; der Knopf ersetzt nichts, er belegt die erste leere Zeile oder hängt eine
+an.
 
 Herkunft: Spike ledger-xa7jf, Outcome-Tabelle Lücke 2.
