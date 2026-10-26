@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 88
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-xa7jf** — "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt" (spike) — `todo/ledger-xa7jf-quick-add-qol-luecken-pruefen.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -74,7 +75,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-xa7jf** — Quick Add auf Quality-of-Life-Funktionen prüfen, die im Kassenbuch fehlen (spike) — `backlog/ledger-xa7jf-quick-add-qol-luecken-pruefen.md`
 - **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `backlog/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
 - **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`

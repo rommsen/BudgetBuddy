@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 13:07 -- Modeling / Promoted: ledger-xa7jf - "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-26 13:07 -- Modeling / Refined: ledger-xa7jf - Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen
 
 **Type:** Modeling / Refine
