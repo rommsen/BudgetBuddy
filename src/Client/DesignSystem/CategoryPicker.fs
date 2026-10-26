@@ -35,6 +35,9 @@ type CategoryPickerProps = {
     Current: YnabCategoryId option
     /// Vorgeschlagene Kategorien zum Payee, häufigste zuerst (der Baustein kürzt auf drei)
     Suggested: YnabCategoryId list
+    /// Zuletzt vergebene Kategorien, neueste zuerst (der Baustein kürzt auf fünf). Darf sich mit
+    /// `Suggested` überschneiden. Leer blendet den Abschnitt "Zuletzt verwendet" aus.
+    Recent: YnabCategoryId list
     /// Beschriftung der Fußzeile, zum Beispiel "Stand 14:02". `None` blendet sie aus.
     StandLabel: string option
     /// Ladezustand der Kategorien: statt der Liste ein Ladehinweis oder ein Fehlerhinweis
@@ -61,6 +64,8 @@ type Layout = {
     Notice: PickerNotice option
     ShowWithout: bool
     Suggested: YnabCategory list
+    /// Abschnitt "Zuletzt verwendet" (ledger-d4msf)
+    Recent: YnabCategory list
     Groups: (string * YnabCategory list) list
     /// Anzahl aller versteckten Kategorien (die Zahl im Kopf "Versteckt (n)")
     HiddenCount: int
@@ -107,6 +112,23 @@ let suggestedCategories
     |> List.filter (fun c -> Some c.Id <> current)
     |> List.truncate maxSuggestions
 
+/// Höchstzahl der zuletzt verwendeten Kategorien
+let maxRecent = 5
+
+/// Zuletzt verwendet (ledger-d4msf): Reihenfolge der Eingabe (neueste zuerst), ohne Dubletten,
+/// ohne unbekannte Ids, ohne versteckte Kategorien, ohne die aktuelle Kategorie, höchstens
+/// fünf. Eine Kategorie darf zugleich unter "Vorgeschlagen" stehen.
+let recentCategories
+    (categories: YnabCategory list)
+    (current: YnabCategoryId option)
+    (recent: YnabCategoryId list)
+    : YnabCategory list =
+    recent
+    |> List.distinct
+    |> List.choose (fun id -> categories |> List.tryFind (fun c -> c.Id = id))
+    |> List.filter (fun c -> not c.Hidden && Some c.Id <> current)
+    |> List.truncate maxRecent
+
 /// Beschriftung einer Vorschlagszeile: "Gruppe: Name", denn der Gruppenkopf fehlt dort
 let suggestedLabel (c: YnabCategory) : string = $"{c.GroupName}: {c.Name}"
 
@@ -129,29 +151,32 @@ let noticeFor (loadState: PickerLoadState) (categories: YnabCategory list) : Pic
     | PickerLoading when List.isEmpty categories -> Some LoadingNotice
     | _ -> None
 
-let layoutFor
+let layoutForRecent
     (loadState: PickerLoadState)
     (search: string)
     (current: YnabCategoryId option)
     (suggested: YnabCategoryId list)
+    (recent: YnabCategoryId list)
     (categories: YnabCategory list)
     : Layout =
     let notice = noticeFor loadState categories
     let searching = isSearching search
     // Während einer Suche steht der Abschnitt Vorgeschlagen nicht da (wie im Sheet bisher)
     let suggestedList = if searching then [] else suggestedCategories categories current suggested
+    let recentList = if searching then [] else recentCategories categories current recent
     let hiddenAll = categories |> List.filter (fun c -> c.Hidden)
     let full = {
         Notice = None
         ShowWithout = showWithoutRow search
         Suggested = suggestedList
+        Recent = recentList
         Groups =
             categories
             |> List.filter (fun c -> not c.Hidden && matchesSearch search c)
             |> List.groupBy (fun c -> c.GroupName)
         HiddenCount = List.length hiddenAll
         Hidden = hiddenAll |> List.filter (matchesSearch search)
-        ShowAllHeader = PickerParts.showAllCategoriesHeader (not suggestedList.IsEmpty) false searching
+        ShowAllHeader = PickerParts.showAllCategoriesHeader (not suggestedList.IsEmpty) (not recentList.IsEmpty) searching
     }
     match notice with
     | None -> full
@@ -160,10 +185,20 @@ let layoutFor
             Notice = Some n
             ShowWithout = false
             Suggested = []
+            Recent = []
             Groups = []
             HiddenCount = 0
             Hidden = []
             ShowAllHeader = false }
+
+let layoutFor
+    (loadState: PickerLoadState)
+    (search: string)
+    (current: YnabCategoryId option)
+    (suggested: YnabCategoryId list)
+    (categories: YnabCategory list)
+    : Layout =
+    layoutForRecent loadState search current suggested [] categories
 
 let layout
     (search: string)
@@ -177,6 +212,7 @@ let layout
 let navigableRows (hiddenExpanded: bool) (l: Layout) : PickerRow list =
     [ if l.ShowWithout then yield WithoutCategory
       for c in l.Suggested -> Category c
+      for c in l.Recent -> Category c
       for (_, items) in l.Groups do
           for c in items -> Category c
       if hiddenExpanded then
@@ -239,7 +275,7 @@ let private Content (input: ContentProps) =
     let active, setActive = React.useState<int option> None
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
 
-    let lay = layoutFor props.LoadState search props.Current props.Suggested props.Categories
+    let lay = layoutForRecent props.LoadState search props.Current props.Suggested props.Recent props.Categories
     let rows = navigableRows hiddenExpanded lay
     let searching = isSearching search
 
@@ -375,7 +411,7 @@ let private Content (input: ContentProps) =
                         ]
                     | None -> ()
 
-                    if lay.ShowWithout || not lay.Suggested.IsEmpty then
+                    if lay.ShowWithout || not lay.Suggested.IsEmpty || not lay.Recent.IsEmpty then
                         Html.div [
                             prop.key "top"
                             prop.className "flex flex-col"
@@ -392,6 +428,22 @@ let private Content (input: ContentProps) =
                                                 prop.className "flex flex-col"
                                                 prop.children (
                                                     lay.Suggested |> List.map (fun c -> itemRow "s" (suggestedLabel c) c)
+                                                )
+                                            ]
+                                        ]
+                                    ]
+
+                                if not lay.Recent.IsEmpty then
+                                    Html.div [
+                                        prop.key "recent"
+                                        prop.custom ("data-testid", "category-picker-recent")
+                                        prop.className "pt-2"
+                                        prop.children [
+                                            PickerParts.groupHeader "Zuletzt verwendet"
+                                            Html.div [
+                                                prop.className "flex flex-col"
+                                                prop.children (
+                                                    lay.Recent |> List.map (fun c -> itemRow "r" (suggestedLabel c) c)
                                                 )
                                             ]
                                         ]

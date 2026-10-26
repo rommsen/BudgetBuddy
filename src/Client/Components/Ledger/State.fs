@@ -1678,8 +1678,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 CategoryRows = model.CategoryRows |> Map.add entryId CategorySending
                 CategoryPickerFor = None
                 CategorySuggestions = []
-                CategoryCard = None },
-            Cmd.ofMsg (RunSetEntryCategory (entryId, newId)),
+                CategoryCard = None
+                RecentCategories = rememberPickedCategory newId model.RecentCategories },
+            Cmd.batch [
+                Cmd.ofMsg (RunSetEntryCategory (entryId, newId))
+                Cmd.ofEffect (fun _ -> writeRecentCategories (rememberPickedCategory newId model.RecentCategories))
+            ],
             NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -2383,8 +2387,14 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | StartCategoryBatch target ->
         match reviewMarkBatchSelection model with
         | Some selection when not model.ReviewMarkBatchRunning && not model.CategoryBatchRunning && not model.LenaBatchRunning ->
-            { model with CategoryBatchRunning = true; BatchCategoryPickerOpen = false },
-            Cmd.ofMsg (RunCategoryBatch (selection, target)),
+            { model with
+                CategoryBatchRunning = true
+                BatchCategoryPickerOpen = false
+                RecentCategories = rememberPickedCategory target model.RecentCategories },
+            Cmd.batch [
+                Cmd.ofMsg (RunCategoryBatch (selection, target))
+                Cmd.ofEffect (fun _ -> writeRecentCategories (rememberPickedCategory target model.RecentCategories))
+            ],
             NoOp
         | _ -> model, Cmd.none, NoOp
 

@@ -960,6 +960,7 @@ let private CategoryPickerSingleDemo () =
         { Categories = categories
           Current = current
           Suggested = [ YnabCategoryId (guidOf 1); YnabCategoryId (guidOf 3); YnabCategoryId (guidOf 2) ]
+          Recent = []
           StandLabel = Some "Stand 14:02"
           LoadState = CategoryPicker.PickerReady
           OnRetry = ignore

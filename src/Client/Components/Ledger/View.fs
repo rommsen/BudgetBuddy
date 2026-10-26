@@ -1416,6 +1416,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
         { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
           Current = entry.CategoryId |> Option.map YnabCategoryId
           Suggested = model.CategorySuggestions
+          Recent = recentPickerIds model.RecentCategories
           StandLabel = categoryStandLabel model DateTime.Now
           LoadState = categoryLoadState model.Categories
           OnRetry = fun () -> dispatch LoadCategories
@@ -1725,6 +1726,7 @@ let private splitCategoryPickerProps
     { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
       Current = lineCategoryId line
       Suggested = []
+      Recent = []
       StandLabel = categoryStandLabel model DateTime.Now
       LoadState = categoryLoadState model.Categories
       OnRetry = fun () -> dispatch LoadCategories
@@ -2992,6 +2994,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
         { Categories = model.Categories |> RemoteData.toOption |> Option.defaultValue [] |> withoutInternalCategories
           Current = None
           Suggested = []
+          Recent = recentPickerIds model.RecentCategories
           StandLabel = categoryStandLabel model DateTime.Now
           LoadState = categoryLoadState model.Categories
           OnRetry = fun () -> dispatch LoadCategories

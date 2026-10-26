@@ -218,6 +218,17 @@ let pushRecentCategories (applied: Guid Set) (recent: Guid list) : Guid list =
     else
         (Set.toList applied @ recent) |> List.distinct |> List.truncate maxRecentCategories
 
+/// Eine im Kategorie-Picker vergebene Kategorie rückt an die Spitze derselben Liste, die der
+/// Kategorie-Filter nutzt (ledger-d4msf). "Ohne Kategorie" (`None`) ändert die Liste nicht.
+let rememberPickedCategory (picked: YnabCategoryId option) (recent: Guid list) : Guid list =
+    match picked with
+    | Some (YnabCategoryId id) -> pushRecentCategories (Set.singleton id) recent
+    | None -> recent
+
+/// Die gemerkten Kategorien als Ids für den Kategorie-Picker
+let recentPickerIds (recent: Guid list) : YnabCategoryId list =
+    recent |> List.map YnabCategoryId
+
 let serializeRecentCategories (ids: Guid list) : string =
     ids |> List.map string |> String.concat ","
 

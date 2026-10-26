@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-26 18:20 - Zuletzt verwendet im Kategorie-Picker des Kassenbuchs (ledger-d4msf)
+
+**What I did:**
+Abschnitt "Zuletzt verwendet" im Kategorie-Picker, beim Ändern der Kategorie und bei Kategorie setzen für die Auswahl. Die Liste ist dieselbe wie im Kategorie-Filter; Einzelwahl und Auswahl-Wahl rücken die Kategorie nach vorn und schreiben den Gerätespeicher.
+
+**Files Added:**
+- `src/Tests/LedgerRecentCategoriesTests.fs` - 9 Werttests und Verdrahtungs-Zusicherungen
+- `scripts/ledger-recent-categories.test.mjs` - 3 Playwright-Wächter (PC, Auswahl, Handy)
+
+**Files Modified:**
+- `src/Client/DesignSystem/CategoryPicker.fs` - Props-Feld `Recent`, `recentCategories`, `layoutForRecent`, Abschnitt in der Ansicht
+- `src/Client/Components/Ledger/Types.fs` - `rememberPickedCategory`, `recentPickerIds`
+- `src/Client/Components/Ledger/State.fs` - Liste in `StartSetEntryCategory` und `StartCategoryBatch` fortschreiben
+- `src/Client/Components/Ledger/View.fs` - Liste an Kategorie-Feld und Auswahl-Picker, Split leer
+- `src/Client/Components/Styleguide/View.fs` - neues Props-Feld mit leerer Liste
+- `src/Tests/Tests.fsproj` - neue Testdatei
+
+**Rationale:**
+Spike ledger-xa7jf, Lücke 1: Quick Add und Import zeigen Zuletzt verwendet, das Kassenbuch nicht. Roman: eine gemeinsame Liste mit dem Filter, Doppelungen mit Vorgeschlagen erlaubt.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: dotnet test 2400 bestanden; test:scripts 260 von 260
+- Issues: keine
+
+---
+
 ## 2026-10-26 15:25 - Targets anwenden (budgeting-h2zfn)
 
 **What I did:**

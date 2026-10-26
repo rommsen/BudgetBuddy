@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 18:16 -- Task verified and completed: ledger-d4msf - "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
+
+**Type:** Work / Task completion
+**Task:** ledger-d4msf - "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
+**Summary:** Der Kategorie-Picker des Kassenbuchs zeigt einen Abschnitt Zuletzt verwendet (höchstens fünf, neueste zuerst) beim Ändern der Kategorie und bei Kategorie setzen für die Auswahl, am PC und am Handy. Picker und Kategorie-Filter führen dieselbe Liste; jede vergebene Kategorie rückt nach vorn.
+**Duration:** 46m22s
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
 ## 2026-10-26 17:28 -- Batch started: [ledger-d4msf, ledger-s8t3s]
 
 **Type:** Work / Batch start
