@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 14:57 -- Batch started: [budgeting-h2zfn]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-h2zfn - "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
+**Parallel:** no (1 worker, zweite Welle nach budgeting-k7wmd; keine weiteren bereiten Tasks)
+
+---
+
 ## 2026-10-26 14:56 -- Task verified and completed: budgeting-k7wmd - "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC"
 
 **Type:** Work / Task completion

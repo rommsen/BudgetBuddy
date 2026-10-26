@@ -1,7 +1,7 @@
 ---
 id: budgeting-h2zfn
 title: "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-10-26

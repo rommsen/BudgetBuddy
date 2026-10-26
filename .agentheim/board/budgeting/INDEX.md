@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 0
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 2
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-h2zfn** — "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar" (feature) — `todo/budgeting-h2zfn-targets-anwenden.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-h2zfn** — "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar" (feature) — `doing/budgeting-h2zfn-targets-anwenden.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
