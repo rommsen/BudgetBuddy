@@ -23,6 +23,8 @@ let totalLabel = "Gesamt"
 let restLabel = "Rest"
 let balancedLabel = "Stimmt"
 let addLineLabel = "Zeile hinzufügen"
+let cashbackLabel = "Barabhebung"
+let cashbackTitle = "Zeile für einen Übertrag aufs Bar-Konto"
 let restButtonLabel = "Rest"
 let restButtonTitle = "Restbetrag einsetzen"
 let removeLineLabel = "Zeile entfernen"
@@ -197,6 +199,32 @@ let addLineButton (enabled: bool) (onClick: unit -> unit) : ReactElement =
                     IsDisabled = not enabled
                     Icon = Some (Icons.plus Icons.SM Icons.NeonTeal)
                     OnClick = onClick }
+        ]
+    ]
+
+/// Die Zeile unter den Editor-Zeilen im Kassenbuch: "Zeile hinzufügen" und "Barabhebung" (ledger-s8t3s),
+/// beide sekundär. "Barabhebung" belegt die erste Zeile ohne Ziel mit einem Übertrag aufs Bar-Konto
+/// oder hängt eine an; sie bleibt aktiv, solange nicht gespeichert wird.
+let lineActions (addEnabled: bool) (onAdd: unit -> unit) (cashbackEnabled: bool) (onCashback: unit -> unit) : ReactElement =
+    Html.div [
+        prop.className "px-4 py-3 flex flex-wrap items-center gap-2"
+        prop.children [
+            Button.view
+                { Button.defaultProps with
+                    Text = addLineLabel
+                    Variant = Button.Secondary
+                    Size = Button.Small
+                    IsDisabled = not addEnabled
+                    Icon = Some (Icons.plus Icons.SM Icons.NeonTeal)
+                    OnClick = onAdd }
+            Button.view
+                { Button.defaultProps with
+                    Text = cashbackLabel
+                    Variant = Button.Secondary
+                    Size = Button.Small
+                    IsDisabled = not cashbackEnabled
+                    Title = Some cashbackTitle
+                    OnClick = onCashback }
         ]
     ]
 

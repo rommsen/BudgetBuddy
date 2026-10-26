@@ -733,3 +733,99 @@ let viewTests =
                 Expect.isFalse (text.Contains "style.fontSize") $"{file}: kein style.fontSize"
                 Expect.isFalse (System.Text.RegularExpressions.Regex.IsMatch(text, "(text|bg|border)-(red|green|blue|gray|slate|pink|purple)-[0-9]")) $"{file}: keine Standardfarben"
     ]
+
+// ledger-s8t3s: Knopf "Barabhebung" im Split-Editor des Kassenbuchs.
+[<Tests>]
+let cashbackTests =
+    let cashAccountId = YnabAccountId (Guid.Parse "0195f6a3-0000-7000-8000-0000000058a1")
+    let cashAccount : YnabAccount =
+        { Id = cashAccountId; Name = "Bargeld s8t3s"; Balance = eur 0m; OnBudget = true; Closed = false }
+    let otherAccount : YnabAccount =
+        { Id = YnabAccountId (Guid.Parse "0195f6a3-0000-7000-8000-0000000058a2")
+          Name = "Tagesgeld s8t3s"
+          Balance = eur 0m
+          OnBudget = true
+          Closed = false }
+    let toCash = Some (ToTransfer (cashAccountId, "Bargeld s8t3s"))
+
+    testList "Split-Editor: Barabhebung (ledger-s8t3s)" [
+
+        testCase "frisch geöffnet: bisherige Kategorie plus Übertrag aufs Bar-Konto, Beträge leer" <| fun () ->
+            let state = startState (entryOf 1) |> startCashback toCash
+            Expect.equal
+                state.Lines
+                [ lineWith toHaushalt ""; lineWith toCash "" ]
+                "Kategorie der Buchung und Übertrag, ohne Beträge (-81,90 € bzw. -81900 Milliunits bleibt als Rest offen)"
+            Expect.equal (remainder state) 81.90m "kein automatischer Ausgleich"
+
+        testCase "die erste Zeile ohne Ziel wird zum Übertrag, andere Zeilen bleiben unangetastet" <| fun () ->
+            let state =
+                stateOf -81.90m [ lineWith toMoebel "20,00"; lineWith None ""; lineWith None "" ]
+            let result = startCashback toCash state
+            Expect.equal
+                result.Lines
+                [ lineWith toMoebel "20,00"; lineWith toCash ""; lineWith None "" ]
+                "genau die erste leere Zeile, die zweite leere bleibt leer"
+
+        testCase "ohne Zeile ohne Ziel kommt eine neue Übertrag-Zeile dazu, auch bei Rest null" <| fun () ->
+            let state = stateOf -81.90m [ lineWith toMoebel "20,00"; lineWith toHaushalt "61,90" ]
+            Expect.isFalse (canAddLine state) "Vorbedingung: Zeile hinzufügen ist ausgegraut"
+            let result = startCashback toCash state
+            Expect.equal
+                result.Lines
+                [ lineWith toMoebel "20,00"; lineWith toHaushalt "61,90"; lineWith toCash "" ]
+                "bestehende Zeilen und Beträge unverändert, neue Zeile hinten"
+
+        testCase "ohne Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl der Zeile geht auf" <| fun () ->
+            let result = startCashback None (startState (entryOf 1))
+            Expect.equal result.Lines [ lineWith toHaushalt ""; lineWith None "" ] "Zeile ohne Ziel bleibt"
+            Expect.equal result.Picker (SplitAccountPickerFor 1) "Auswahl für die erste leere Zeile"
+
+        testCase "ohne Quick-Add-Konto und ohne leere Zeile hängt der Knopf eine leere Zeile an" <| fun () ->
+            let state = stateOf -10m [ lineWith toMoebel "10,00" ]
+            let result = startCashback None state
+            Expect.equal result.Lines [ lineWith toMoebel "10,00"; lineWith None "" ] "neue leere Zeile"
+            Expect.equal result.Picker (SplitAccountPickerFor 1) "Auswahl für die neue Zeile"
+
+        testCase "der Ausgleich geht danach über Rest wie bisher" <| fun () ->
+            let state = startState (entryOf 1) |> startCashback toCash
+            let typed = setAmountText 1 "50,00" state
+            let balanced = fillRest 0 typed
+            Expect.equal balanced.Lines.[0].AmountText "31,90" "Rest an der Kategorie-Zeile"
+            Expect.isTrue (isBalanced balanced) "ausgeglichen"
+            Expect.isTrue (canSave balanced) "speicherbar über den bestehenden Schreibweg"
+            match requestLines balanced with
+            | Some [ cat; transfer ] ->
+                Expect.equal cat.Amount.Amount -31.90m "Kategorie -31,90 € (-31900 Milliunits)"
+                Expect.equal transfer.Target (ToTransfer (cashAccountId, "Bargeld s8t3s")) "Übertrag aufs Bar-Konto"
+                Expect.equal transfer.Amount.Amount -50.00m "Übertrag -50,00 € (-50000 Milliunits)"
+            | other -> failtestf "zwei Zeilen erwartet, war %A" other
+
+        testCase "cashbackTarget nimmt das Quick-Add-Konto, wenn es wählbar ist" <| fun () ->
+            Expect.equal (cashbackTarget (Some cashAccountId) [ otherAccount; cashAccount ]) toCash "gefunden"
+
+        testCase "cashbackTarget ist leer ohne Einstellung oder wenn das Konto nicht wählbar ist" <| fun () ->
+            Expect.isNone (cashbackTarget None [ cashAccount ]) "nicht eingestellt"
+            Expect.isNone (cashbackTarget (Some cashAccountId) [ otherAccount ]) "nicht unter den Zielen (zu, Tracking oder eigenes Konto)"
+            Expect.isNone (cashbackTarget (Some cashAccountId) []) "Liste noch nicht geladen"
+
+        testCase "Reducer: StartSplitCashback verändert den offenen Entwurf" <| fun () ->
+            let model = opened (entryOf 1)
+            let result, _, _ = update (StartSplitCashback toCash) model
+            Expect.equal (editorOf result).Lines [ lineWith toHaushalt ""; lineWith toCash "" ] "Übertrag in der zweiten Zeile"
+
+        testCase "Reducer: das Öffnen des Editors holt das Quick-Add-Konto, die Antwort landet im Modell" <| fun () ->
+            let _, sent, _ = run (OpenSplitEditor (idOf 1)) (modelWith [ entryOf 1; entryOf 2 ])
+            Expect.contains sent LoadQuickAddAccount "Abruf beim Öffnen"
+            let loaded, _, _ = update (QuickAddAccountLoaded (Ok (Some cashAccountId))) (modelWith [ entryOf 1 ])
+            Expect.equal loaded.QuickAddAccountId (Some cashAccountId) "gemerkt"
+            let failed, _, _ = update (QuickAddAccountLoaded (Error "weg")) loaded
+            Expect.equal failed.QuickAddAccountId (Some cashAccountId) "ein Fehler lässt den Stand"
+
+        testCase "Ansicht: der Knopf Barabhebung steht im Editor und löst das Ziel aus Quick-Add-Konto und Konto-Liste auf" <| fun () ->
+            let body = functionBody (viewSource ()) "let private splitEditorBody"
+            Expect.stringContains body "SplitUi.lineActions" "Knopfzeile mit Barabhebung"
+            Expect.stringContains body "StartSplitCashback" "Nachricht"
+            Expect.stringContains body "cashbackTarget model.QuickAddAccountId (transferTargetsFor model entry)" "Ziel aus beiden Quellen"
+            Expect.equal Client.DesignSystem.SplitEditor.cashbackLabel "Barabhebung" "Beschriftung"
+    ]

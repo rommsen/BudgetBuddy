@@ -1788,7 +1788,15 @@ let private splitEditorBody
                       | PickerSheet -> ()
                   ]
               ]
-      yield SplitUi.addLineButton (SplitLogic.canAddLine editor && not saving) (fun () -> dispatch AddSplitLine)
+      yield
+          SplitUi.lineActions
+              (SplitLogic.canAddLine editor && not saving)
+              (fun () -> dispatch AddSplitLine)
+              (not saving)
+              (fun () ->
+                  dispatch (
+                      StartSplitCashback (SplitLogic.cashbackTarget model.QuickAddAccountId (transferTargetsFor model entry))
+                  ))
       match placement with
       | PickerSheet ->
           let pickerIndex =

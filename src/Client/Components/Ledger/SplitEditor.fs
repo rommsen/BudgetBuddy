@@ -98,6 +98,30 @@ let canAddLine (state: SplitEditorState) : bool = remainder state <> 0m
 let addLine (state: SplitEditorState) : SplitEditorState =
     if canAddLine state then { state with Lines = state.Lines @ [ emptyLine ] } else state
 
+/// Das Ziel für "Barabhebung": das Quick-Add-Konto (ADR 0004) als Übertrag, wenn es unter den
+/// wählbaren Übertrag-Zielen vorkommt. Ohne eingestelltes oder wählbares Konto (zu, kein
+/// Budget-Konto, das eigene Konto der Buchung) gibt es kein Ziel: Roman wählt das Konto selbst.
+let cashbackTarget (quickAddAccountId: YnabAccountId option) (transferTargets: YnabAccount list) : SplitTarget option =
+    quickAddAccountId
+    |> Option.bind (fun id -> transferTargets |> List.tryFind (fun a -> a.Id = id))
+    |> Option.map (fun a -> ToTransfer (a.Id, a.Name))
+
+/// "Barabhebung" (ledger-s8t3s): die erste Zeile ohne Ziel wird zum Übertrag auf das Bar-Konto;
+/// gibt es keine, kommt eine neue Zeile dazu. Bestehende Zeilen, Ziele und Beträge bleiben,
+/// die Beträge bleiben leer (der Ausgleich geht über "Rest", wie im Import). Ohne Ziel (kein
+/// Quick-Add-Konto) bleibt die Zeile leer und die Konto-Auswahl für sie geht auf.
+let startCashback (target: SplitTarget option) (state: SplitEditorState) : SplitEditorState =
+    let lines, index =
+        match state.Lines |> List.tryFindIndex (fun l -> l.Target.IsNone) with
+        | Some i -> state.Lines, i
+        | None -> state.Lines @ [ emptyLine ], List.length state.Lines
+    match target with
+    | Some t ->
+        { state with
+            Lines = lines |> List.mapi (fun i l -> if i = index then { l with Target = Some t } else l)
+            Picker = NoSplitPicker }
+    | None -> { state with Lines = lines; Picker = SplitAccountPickerFor index }
+
 let removeLine (index: int) (state: SplitEditorState) : SplitEditorState =
     { state with Lines = state.Lines |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd }
 

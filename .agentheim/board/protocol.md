@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 18:37 -- Task verified and completed: ledger-s8t3s - "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest"
+
+**Type:** Work / Task completion
+**Task:** ledger-s8t3s - "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest"
+**Summary:** Der Split-Editor im Kassenbuch hat den Knopf "Barabhebung" neben "Zeile hinzufügen": er belegt die erste Zeile ohne Ziel mit einem Übertrag aufs Quick-Add-Konto oder hängt eine solche Zeile an, Beträge bleiben leer, der Ausgleich geht über "Rest", gespeichert wird über das bestehende setEntrySplits. Ohne Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl der Zeile geht auf.
+**Duration:** 62m47s
+**Verification:** PASS (iteration 1)
+**Files changed:** 7
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-10-26 18:16 -- Task verified and completed: ledger-d4msf - "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
 
 **Type:** Work / Task completion

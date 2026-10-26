@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-26 18:00 - Barabhebung im Split-Editor des Kassenbuchs (ledger-s8t3s)
+
+**What I did:**
+Knopf "Barabhebung" im Split-Editor: belegt die erste Zeile ohne Ziel mit einem Übertrag aufs Quick-Add-Konto oder hängt eine an. Beträge bleiben leer, Ausgleich über "Rest", Speichern über den bestehenden Split-Schreibweg. Das Quick-Add-Konto wird beim Öffnen des Editors aus den Einstellungen geladen.
+
+**Files Added:**
+- `scripts/ledger-split-cashback.test.mjs` - Playwright-Wächter am echten Editor (PC und Handy)
+
+**Files Modified:**
+- `src/Client/Components/Ledger/SplitEditor.fs` - `cashbackTarget`, `startCashback`
+- `src/Client/Components/Ledger/Types.fs` - `Model.QuickAddAccountId`, `StartSplitCashback`, `LoadQuickAddAccount`, `QuickAddAccountLoaded`
+- `src/Client/Components/Ledger/State.fs` - Zweige für die drei Nachrichten, Abruf beim Öffnen des Editors
+- `src/Client/Components/Ledger/View.fs` - Knopfzeile im Editor
+- `src/Client/DesignSystem/SplitEditor.fs` - `lineActions`, `cashbackLabel`
+- `src/Tests/LedgerSplitEditorClientTests.fs` - 11 neue Tests
+
+**Rationale:**
+Eine EC-Zahlung mit Bargeld-Anteil kommt häufiger vor; im Kassenbuch musste sie bisher Zeile für Zeile aufgeteilt werden (Spike ledger-xa7jf, Lücke 2).
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 2402 bestanden (dotnet), 261 von 261 Playwright-Wächter (seriell)
+- Issues: keine
+
+---
+
 ## 2026-10-26 18:20 - Zuletzt verwendet im Kategorie-Picker des Kassenbuchs (ledger-d4msf)
 
 **What I did:**

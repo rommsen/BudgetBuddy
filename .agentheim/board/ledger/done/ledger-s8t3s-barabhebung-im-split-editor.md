@@ -1,7 +1,7 @@
 ---
 id: ledger-s8t3s
 title: "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-26
@@ -55,3 +55,13 @@ Import über "Rest"; der Knopf ersetzt nichts, er belegt die erste leere Zeile o
 an.
 
 Herkunft: Spike ledger-xa7jf, Outcome-Tabelle Lücke 2.
+
+## Outcome
+
+Der Split-Editor des Kassenbuchs zeigt neben "Zeile hinzufügen" den Knopf "Barabhebung" (am PC im Panel, am Handy im Sheet). Die Logik liegt als reine Funktionen in `Components.Ledger.SplitEditor`: `startCashback` setzt die erste Zeile ohne Ziel auf den Übertrag oder hängt eine Zeile an (auch bei Rest 0,00 €), ändert sonst nichts und lässt die Beträge leer; `cashbackTarget` löst das Quick-Add-Konto (ADR 0004) gegen die wählbaren Übertrag-Ziele auf. Ohne Ziel (kein Quick-Add-Konto, oder es ist nicht wählbar, z. B. das eigene Konto der Buchung) bleibt die Zeile leer und die Konto-Auswahl dieser Zeile geht auf. Das Quick-Add-Konto lädt der Ledger neu aus `getSettings` (`LoadQuickAddAccount` beim Öffnen des Editors, `Model.QuickAddAccountId`); ein Ladefehler lässt das Ziel leer. Die Ansicht (`splitEditorBody`) löst das Ziel aus Modell und `transferTargetsFor` auf und schickt `StartSplitCashback`. Der Knopf sitzt in der neuen DS-Funktion `SplitEditor.lineActions` (Design System), `addLineButton` bleibt für den Styleguide. Gespeichert wird über den bestehenden `setEntrySplits`, kein neuer Befehl.
+
+Dateien: `src/Client/Components/Ledger/SplitEditor.fs`, `Types.fs`, `State.fs`, `View.fs`, `src/Client/DesignSystem/SplitEditor.fs`, Tests in `src/Tests/LedgerSplitEditorClientTests.fs` (11 neue Expecto-Tests), Wächter `scripts/ledger-split-cashback.test.mjs` (4 Playwright-Tests am echten Client: Kategorie plus Übertrag mit Bar-Konto als Ziel, leere Beträge, Ausgleich über Rest und Speichern mit -31,90 € / -50,00 € (-31900 / -50000 Milliunits), zweiter Klick hängt Zeile an, ohne Quick-Add-Konto leeres Ziel und offene Konto-Auswahl, Handy 390 px).
+
+Läufe aus dem Worktree: `dotnet build` 0 Warnungen, 0 Fehler; `dotnet test` 2402 bestanden, 7 übersprungen, 0 Fehler; `npm run build` ok; `npm run guard:classes` ok; Playwright-Wächter seriell (`node --test --test-concurrency=1 scripts/*.test.mjs`) 261 von 261 bestanden. Der parallele Aufruf `npm run test:scripts` hängt auf dieser Maschine (bekannt), die serielle Variante ist grün.
+
+Hinweis Touch-Fläche: "Barabhebung" hat dieselbe Höhe (Small, 36 px) wie der Nachbarknopf "Zeile hinzufügen"; der Wächter prüft die Gleichheit, keine 44 px, weil der bestehende Nachbarknopf sie auch nicht hat.

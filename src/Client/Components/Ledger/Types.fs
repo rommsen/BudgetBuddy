@@ -989,6 +989,10 @@ type Model = {
     /// Der offene Split-Editor (immer für die Buchung im Detail), samt Entwurf. `None`, wenn zu.
     SplitEditor: Components.Ledger.SplitEditor.SplitEditorState option
 
+    /// Das Quick-Add-Konto aus den Einstellungen (ADR 0004), Ziel des Übertrags bei "Barabhebung" im
+    /// Split-Editor (ledger-s8t3s). `None`, solange nicht geladen oder nicht eingestellt.
+    QuickAddAccountId: YnabAccountId option
+
     /// Die Konten des Budgets für das Übertrag-Ziel je Zeile; der Editor zeigt davon die offenen
     /// Budget-Konten (`openOnBudgetAccounts`).
     TransferTargets: RemoteData<YnabAccount list>
@@ -1653,6 +1657,11 @@ type Msg =
     | SetSplitLineMemo of int * string
     /// Knopf "Rest" an der Zeile.
     | FillSplitLineRest of int
+    /// Knopf "Barabhebung": belegt die erste Zeile ohne Ziel mit dem Übertrag aufs Bar-Konto
+    /// oder hängt eine an. Das Ziel löst die Ansicht aus Quick-Add-Konto und Konto-Liste auf.
+    | StartSplitCashback of SplitTarget option
+    | LoadQuickAddAccount
+    | QuickAddAccountLoaded of Result<YnabAccountId option, string>
     | OpenSplitCategoryPicker of int
     | OpenSplitAccountPicker of int
     | CloseSplitPicker

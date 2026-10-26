@@ -134,6 +134,7 @@ let init () : Model * Cmd<Msg> =
         LenaBatchRunning = false
         CategoryPickerFor = None
         SplitEditor = None
+        QuickAddAccountId = None
         TransferTargets = NotAsked
         CategorySuggestions = []
         CategoryRows = Map.empty
@@ -2072,7 +2073,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
                 CategoryPickerFor = None
                 CategorySuggestions = []
                 CategoryCard = None },
-            Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets ],
+            Cmd.batch [ Cmd.ofMsg EnsureCategoriesFresh; loadTargets; Cmd.ofMsg LoadQuickAddAccount ],
             NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -2098,6 +2099,20 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | SetSplitLineAmount (index, text) -> editSplit (SplitEditor.setAmountText index text) model, Cmd.none, NoOp
     | SetSplitLineMemo (index, text) -> editSplit (SplitEditor.setMemo index text) model, Cmd.none, NoOp
     | FillSplitLineRest index -> editSplit (SplitEditor.fillRest index) model, Cmd.none, NoOp
+    | StartSplitCashback target -> editSplit (SplitEditor.startCashback target) model, Cmd.none, NoOp
+
+    | LoadQuickAddAccount ->
+        model,
+        Cmd.OfAsync.either
+            Api.settings.getSettings
+            ()
+            (fun settings -> QuickAddAccountLoaded (Ok (settings.Ynab |> Option.bind (fun y -> y.QuickAddAccountId))))
+            (fun ex -> QuickAddAccountLoaded (Error ex.Message)),
+        NoOp
+
+    | QuickAddAccountLoaded (Ok id) -> { model with QuickAddAccountId = id }, Cmd.none, NoOp
+    // Ohne das Konto bleibt das Ziel der Übertrag-Zeile leer und wählbar; ein Fehler ist keinen Toast wert.
+    | QuickAddAccountLoaded (Error _) -> model, Cmd.none, NoOp
 
     | OpenSplitCategoryPicker index ->
         editSplit (fun e -> { e with Picker = SplitEditor.SplitCategoryPickerFor index }) model, Cmd.ofMsg EnsureCategoriesFresh, NoOp
