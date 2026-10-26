@@ -35,6 +35,7 @@ let createSyncTransaction payee memo status categoryId categoryName =
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 let createYnabTransaction memo payee categoryId categoryName date =

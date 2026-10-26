@@ -63,6 +63,7 @@ let createTestSyncTransaction (sessionId: SyncSessionId) (status: TransactionSta
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 [<Tests>]

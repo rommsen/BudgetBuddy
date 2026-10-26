@@ -319,6 +319,8 @@ let observeTests =
                             Memo = None
                             Cleared = Uncleared
                             Approved = false
+                            FlagColor = None
+                            FlagName = None
                         }
                 }
             Expect.isFalse pushed.Approved "die gepushte Buchung ist zunächst unbestätigt"
@@ -1272,6 +1274,7 @@ let mirrorRunTests =
                 ImportId = importId
                 CategoryId = None
                 Subtransactions = None
+                FlagColor = None
             }
 
             // Wie `Server.Api.importToYnab` (Verifier-Fund, Iteration 3): Payee/Memo der

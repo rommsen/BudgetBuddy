@@ -241,6 +241,7 @@ let transactionListView (model: Model) (dispatch: Msg -> unit) =
                                                         IsPendingCategorySave = isPendingCategorySave
                                                         Dispatch = dispatch
                                                         OnOpenCategoryPicker = onOpenCategoryPicker
+                                                        LenaFlagColor = model.LenaFlagColor
                                                     }
                                                 ]
                                             ]

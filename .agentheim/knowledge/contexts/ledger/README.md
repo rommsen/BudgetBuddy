@@ -379,7 +379,11 @@ fallen nicht in "Zu prüfen".
 
 **Entscheidungen** (BB hat etwas festgelegt):
 - `EntryImportedFromComdirect`: Comdirect-Buchung beim Push angelegt, ohne Kategorie. Die
-  Kategorisierung folgt als eigenes Ereignis in derselben Sequenz.
+  Kategorisierung folgt als eigenes Ereignis in derselben Sequenz. Seit ynab-sync-d9e51
+  optional `flagColor` und `flagName` (Schema-Version 2, Schlüssel nur bei Rückfrage Lena
+  beim Import, Name "Lena"): die Buchung entsteht sofort als *Rückfrage Lena*, ohne
+  zusätzliches `EntryFlagChangedInBb`. Ein Ereignis ohne die Felder liest sich als kein Flag
+  (ADR 0064). Historie: "Lena gefragt beim Import".
 - `EntryCategorizedByRule`: eine Regel hat kategorisiert; die RuleId steht im Actor. Nur
   auf einer noch unkategorisierten Buchung zulässig.
 - `EntryRecategorized`: Roman hat in BB kategorisiert oder umkategorisiert (Actor

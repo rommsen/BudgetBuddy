@@ -300,7 +300,11 @@ module ReadModel =
         | None, None -> "Memo in BB geändert"
 
     let private describeImportedFromComdirect (p: EntryImportedFromComdirectPayload) =
-        $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
+        let basis = $"Comdirect-Import angelegt: {payeeOr p.Payee}, {formatMoney p.Amount}"
+        // Rückfrage Lena schon beim Import (ynab-sync-d9e51): die Herkunft steht im Satz.
+        match flagOf p.FlagColor p.FlagName with
+        | AskLena -> basis + ", Lena gefragt beim Import"
+        | _ -> basis
 
     let private describeCategorizedByRule (p: EntryCategorizedByRulePayload) =
         let target =

@@ -45,7 +45,7 @@ let syncFlowStateTests =
         test "ImportCompleted (Ok) lädt weiterhin die Session neu (unverändertes Verhalten)" {
             // Intakt-Szenario: der Erfolgspfad lud die Session schon vor diesem
             // Fix neu und darf sich durch die Änderung am Fehlerpfad nicht ändern.
-            let result: ImportResult = { CreatedCount = 2; DuplicateTransactionIds = [] }
+            let result: ImportResult = { CreatedCount = 2; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
             let _, cmd, _ = update (ImportCompleted (Ok result)) (freshModel ())
             Expect.contains (dispatched cmd) LoadCurrentSession
                 "Der Erfolgspfad lädt die Session weiterhin neu"

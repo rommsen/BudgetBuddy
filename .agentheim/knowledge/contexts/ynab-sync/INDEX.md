@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0064**: Lena fragen beim Import: Zustand AskLena an der Sitzungs-Transaktion (nicht persistiert), Flag-Farbe erst beim Push aus lena_flag_color, das Import-Ereignis trägt optional flagColor und flagName · 2026-10-26 · `../../decisions/0064-lena-fragen-beim-import-zustand-an-der-sitzungs-transaktion-flag-im-import-ereignis.md`
 - **0018** — Konten holt der Spiegel je Lauf vollständig, das server_knowledge gilt nur für Transaktionen — 2026-09-06 — `../../decisions/0018-konten-je-spiegel-lauf-vollstaendig.md`
 - **0014** — Spiegel YNAB → Kassenbuch per Delta-Sync mit server_knowledge, Freshness-Trigger statt Server-Timer — 2026-09-06 — `../../decisions/0014-spiegel-mechanik-delta-sync-freshness-trigger.md`
 - **0006** — Transfer-Zeile im Split — DU-Split-Ziel als Konto, Payee erst beim Push aufgelöst — 2026-06-13 — `../../decisions/0006-transfer-line-in-split-du-account-payee-at-push.md`

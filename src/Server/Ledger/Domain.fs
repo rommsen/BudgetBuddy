@@ -450,8 +450,9 @@ let apply (existing: Entry option) (event: LedgerEvent) : Entry =
             SplitTransferCounterparts = Map.empty
             DeletedInYnab = false
             Approved = p.Approved
-            FlagColor = None
-            FlagName = None
+            // Rückfrage Lena beim Import (ynab-sync-d9e51): sofort als Flag im Zustand.
+            FlagColor = p.FlagColor
+            FlagName = p.FlagName
             ReviewMarkWriteBackFailure = None
             CategorizationWriteBackFailure = None
             FlagWriteBackFailure = None
@@ -637,6 +638,9 @@ type ComdirectPushInput = {
     Memo: string option
     PushedAt: DateTime
     ReviewSteps: ReviewStep list
+    /// Die Lena-Flag-Farbe, mit der die Buchung gesendet wird (Rückfrage beim Import,
+    /// ynab-sync-d9e51). `Some` schreibt Farbe und Name "Lena" in die Entstehung.
+    LenaFlagColor: string option
 }
 
 /// Baut aus einer Comdirect-Buchung und ihrer Review-Spur die geordnete Ereignisfolge,
@@ -692,6 +696,8 @@ let recordComdirectPush
                 // Der Push sendet kein `approved`; YNAB legt die Buchung unbestätigt
                 // an (ADR 0032).
                 Approved = false
+                FlagColor = input.LenaFlagColor
+                FlagName = input.LenaFlagColor |> Option.map (fun _ -> lenaFlagName)
             }
     }
 

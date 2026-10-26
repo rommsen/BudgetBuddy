@@ -46,6 +46,7 @@ module private Fixtures =
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
     /// Baut ein echtes `PrepareResult` über `prepareTransactions`, damit ImportId und

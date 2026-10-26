@@ -37,6 +37,7 @@ let createSyncTransaction () =
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 /// Creates a sync transaction with a specific status

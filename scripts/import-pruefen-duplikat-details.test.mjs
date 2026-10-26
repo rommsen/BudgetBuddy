@@ -30,7 +30,7 @@ const tx = (n, d, amount, payee, status, cat, dup, ynab = "NotAttempted") => ({
   Transaction: { Id: W("TransactionId", `t${n}`), BookingDate: day(d), Amount: { Amount: amount, Currency: "EUR" }, Payee: payee, Memo: "Kartenzahlung", Reference: `ref${n}`, RawData: "" },
   Status: status, CategoryId: cat === null ? null : W("YnabCategoryId", g(100 + cat)), CategoryName: cat === null ? null : cats[cat].Name,
   MatchedRuleId: null, PayeeOverride: null, ExternalLinks: [], UserNotes: null, DuplicateStatus: dup ?? { NotDuplicate: det },
-  YnabImportStatus: ynab, Splits: null, SuggestedByOrderId: null, ReviewSteps: [],
+  YnabImportStatus: ynab, Splits: null, SuggestedByOrderId: null, ReviewSteps: [], AskLena: false,
 });
 const txs = [
   tx(1, 0, -48.12, "Unauffällig GmbH", "AutoCategorized", 0),

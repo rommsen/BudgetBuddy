@@ -317,6 +317,10 @@ type SyncTransaction = {
     /// Die Review-Spur: älteste Entscheidung zuerst, damit die Reihenfolge direkt in
     /// Ereignis-Reihenfolge übersetzbar ist (categorization-gdrx8, ADR 0021).
     ReviewSteps: ReviewStep list
+    /// Rückfrage Lena, schon beim Import gesetzt (ynab-sync-d9e51): der Import-Push sendet
+    /// die eingestellte Lena-Flag-Farbe mit, das Kassenbuch zeigt die Buchung sofort als
+    /// Rückfrage. Nur an offenen Zeilen setzbar; Überspringen hebt sie auf.
+    AskLena: bool
 }
 
 /// Hängt einen Review-Schritt an, der den aktuellen Kategorisierungs-Stand von `tx`
@@ -628,6 +632,10 @@ type SyncError =
     | YnabImportFailed of failedCount: int * message: string
     | InvalidSessionState of expected: string * actual: string
     | DatabaseError of operation: string * message: string
+    /// "Lena fragen" an einer Importzeile abgelehnt (ynab-sync-d9e51): keine Flag-Farbe
+    /// eingestellt oder die Zeile ist nicht mehr offen. Der Grund ist ein deutscher Satz
+    /// für die Anzeige.
+    | AskLenaRejected of reason: string
 
 /// Errors from Comdirect API operations.
 /// Purpose: Distinguishes auth failures from network issues for retry logic.

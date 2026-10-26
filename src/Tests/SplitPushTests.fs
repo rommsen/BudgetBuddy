@@ -57,7 +57,7 @@ let private splitTx (id: string) (amount: decimal) (splits: TransactionSplit lis
       YnabImportStatus = NotAttempted
       Splits = Some splits
       SuggestedByOrderId = None
-      ReviewSteps = [] }
+      ReviewSteps = []; AskLena = false }
 
 let private categorySplit (amount: decimal) : TransactionSplit =
     { Target = ToCategory (YnabCategoryId (Guid.NewGuid()), "Groceries")

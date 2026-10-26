@@ -898,6 +898,7 @@ module SyncTransactions =
                     Splits = None  // Splits are not persisted yet
                     SuggestedByOrderId = None  // Suggestions are session-only, not persisted
                     ReviewSteps = ReviewStepJson.decode row.review_steps
+                    AskLena = false  // Die Rückfrage Lena ist sitzungsgebunden und nicht persistiert (ynab-sync-d9e51)
                 }
             )
         }

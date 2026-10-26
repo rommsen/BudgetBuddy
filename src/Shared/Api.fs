@@ -163,6 +163,9 @@ type ImportResult = {
     CreatedCount: int
     /// Transaction IDs that were rejected because they already exist in YNAB
     DuplicateTransactionIds: TransactionId list
+    /// Zeilen mit Rückfrage Lena, die ohne Flag nach YNAB gingen, weil die Lena-Farbe bis
+    /// zum Push entfernt wurde (ynab-sync-d9e51). 0 im Normalfall.
+    LenaFlagNotSentCount: int
 }
 
 // ============================================
@@ -245,6 +248,13 @@ type SyncApi = {
     /// Purpose: Allows user to undo a split and use regular categorization.
     /// Returns: Updated transaction without splits or SyncError (SessionNotFound).
     clearSplit: SyncSessionId * TransactionId -> Async<SyncResult<SyncTransaction>>
+
+    /// Setzt oder nimmt die Rückfrage Lena an einer Importzeile (ynab-sync-d9e51, ADR 0056).
+    /// Purpose: "Lena fragen" schon beim Prüfen; der Import-Push sendet die Flag-Farbe mit.
+    /// Parameters: (sessionId, transactionId, askLena)
+    /// Returns: Updated transaction, or SyncError (SessionNotFound; AskLenaRejected bei
+    /// fehlender Flag-Farbe in den Settings oder bei übersprungener/importierter Zeile).
+    setAskLena: SyncSessionId * TransactionId * bool -> Async<SyncResult<SyncTransaction>>
 
     // ============================================
     // Import

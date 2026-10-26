@@ -35,6 +35,7 @@
     <Compile Include="OrderIdMatcher.fs" />
     <Compile Include="Validation.fs" />
     <Compile Include="SyncSessionManager.fs" />
+    <Compile Include="ImportAskLena.fs" />
     <Compile Include="Ledger/CommandHandlers.fs" />
     <Compile Include="Ledger/QueryHandlers.fs" />
     <Compile Include="PushOutcomeClassification.fs" />

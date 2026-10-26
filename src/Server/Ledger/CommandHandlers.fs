@@ -721,6 +721,12 @@ let addCashExpense
 /// aus der Antwort.
 type EntryPush = Entry -> Async<YnabResult<string>>
 
+/// Die Flag-Farbe, die ein Push dieser Buchung mitsendet (ynab-sync-d9e51): die Farbe des
+/// BB-Stands, ohne Flag keine. "Erneut senden" nach einem gescheiterten Import-Push schickt
+/// so die Rückfrage Lena mit, mit der die Buchung entstanden ist. Nur die Farbe, nie der Name
+/// (ADR 0056).
+let pushFlagColorOf (entry: Entry) : string option = entry.FlagColor
+
 /// Der Grund, wenn die Buchung zu keinem YNAB-Konto gehört (BB-eigenes Konto).
 let pushNotPossibleReason = "Das Konto der Buchung ist nicht mit YNAB verbunden"
 
@@ -917,6 +923,10 @@ let pushComdirectImports
                                 Memo = candidate.Memo
                                 PushedAt = now
                                 ReviewSteps = candidate.ReviewSteps
+                                // Rückfrage Lena beim Import (ynab-sync-d9e51): die Farbe, die der
+                                // Create-Body trägt, steht schon in der Entstehung (Kassenbuch
+                                // zuerst, ADR 0021), nicht erst nach dem Push.
+                                LenaFlagColor = prepared.Request.FlagColor
                             }
 
                         try

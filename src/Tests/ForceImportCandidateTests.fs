@@ -53,6 +53,7 @@ module private Fixtures =
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 [<Tests>]

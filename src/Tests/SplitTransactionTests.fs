@@ -86,6 +86,7 @@ let splitTypeTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
             Expect.isNone syncTx.Splits "Splits should be None"
 
@@ -105,6 +106,7 @@ let splitTypeTests =
                 Splits = Some []
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
             Expect.isEmpty syncTx.Splits.Value "Splits list should be empty"
@@ -129,6 +131,7 @@ let splitTypeTests =
                 Splits = Some splits
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
             Expect.isSome syncTx.Splits "Splits should be Some"
             Expect.equal syncTx.Splits.Value.Length 2 "Should have 2 splits"
@@ -207,6 +210,7 @@ let splitImportReadyTests =
                 Splits = Some splits
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             // Check import readiness logic
@@ -234,6 +238,7 @@ let splitImportReadyTests =
                 Splits = Some splits
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             let isReadyForImport =
@@ -263,6 +268,7 @@ let splitImportReadyTests =
                 Splits = Some splits
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             let isReadyForImport =
@@ -288,6 +294,7 @@ let splitImportReadyTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             let isReadyForImport =

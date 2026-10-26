@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 13:57 -- Task verified and completed: ynab-sync-d9e51 - "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
+
+**Type:** Work / Task completion
+**Task:** ynab-sync-d9e51 - "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
+**Summary:** In Import prüfen trägt jede offene Zeile die Aktion "Lena fragen" bzw. "Rückfrage zurücknehmen" (gesperrt mit Grund ohne Flag-Farbe); der Import-Push sendet für diese Zeilen flag_color mit, das Kassenbuch legt die Buchung sofort als Rückfrage Lena an, die Historie nennt "Lena gefragt beim Import", Erneut senden schickt das Flag mit.
+**Duration:** 44m
+**Verification:** PASS (iteration 1 FAIL nur ADR-Text, vom Conductor korrigiert)
+**Files changed:** 36
+**Tests added:** 29
+**ADRs written:** 0064-lena-fragen-beim-import-zustand-an-der-sitzungs-transaktion-flag-im-import-ereignis.md
+
+---
+
+## 2026-10-26 13:56 -- Verification failed: ynab-sync-d9e51 - Lena fragen beim Import
+
+**Type:** Work / Verification failure
+**Task:** ynab-sync-d9e51 - Lena fragen beim Import
+**Iteration:** 1 of 3
+**Reasons:** ADR-Entwurf mit "nicht X, sondern Y" (Schreibregel), Folgen-Satz zur alten PWA verdreht und sachlich falsch; Code, Tests und Guards grün
+**Iteration hint:** likely-fixable
+**Next:** ADR-Text vom Conductor korrigiert (reine Buchhaltung, ADR-Nummer 0064), kein erneuter Worker-Lauf, Integration
+
+---
+
 ## 2026-10-26 13:17 -- Task verified and completed: ledger-xa7jf - "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt"
 
 **Type:** Work / Task completion

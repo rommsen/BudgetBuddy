@@ -4,7 +4,36 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-## 2026-10-26 14:00 - Spike ledger-xa7jf: Quick Add und Import nach Komfortfunktionen durchgesehen
+## 2026-10-26 13:50 - Lena fragen beim Import (ynab-sync-d9e51)
+
+**What I did:**
+"Lena fragen" an der einzelnen Importzeile in Import prüfen: Zustand `AskLena` an der Sitzungs-Transaktion, Befehl `SyncApi.setAskLena`, `flag_color` im Import-Push (nur Rückfrage-Zeilen), Kassenbuch-Eintrag entsteht sofort mit Flag Lena, Historie nennt die Herkunft, Erneut senden schickt das Flag mit.
+
+**Files Added:**
+- `src/Server/ImportAskLena.fs` - reine Regeln des Befehls
+- `src/Tests/ImportAskLenaTests.fs`, `src/Tests/ImportAskLenaClientTests.fs` - Server- und Client-Tests
+- `scripts/import-lena.test.mjs` - Playwright-Wächter (PC und 390 px)
+
+**Files Modified:**
+- `src/Shared/Domain.fs`, `src/Shared/Api.fs` - `AskLena`, `AskLenaRejected`, `setAskLena`, `LenaFlagNotSentCount`
+- `src/Server/YnabClient.fs` - `FlagColor` im Request, `applyLenaFlag`, `createTransactionWithFlag`, `encodeTransaction` öffentlich
+- `src/Server/Api.fs` - `setAskLena`, Skip hebt auf, Farbe beim Push lesen (Import und Force-Import), Retry mit Farbe
+- `src/Server/Ledger/Events.fs`, `Domain.fs`, `CommandHandlers.fs`, `QueryHandlers.fs` - Payload-Felder, apply, recordComdirectPush, pushFlagColorOf, Historie
+- `src/Server/Persistence.fs`, `RulesEngine.fs`, `Server.fsproj` - neues Feld, neue Datei
+- `src/Client/Components/SyncFlow/Types.fs`, `State.fs`, `Views/TransactionRow.fs`, `Views/TransactionList.fs` - Aktion, Modell, Nachrichten, Kennzeichen
+- Bestehende Tests und `scripts/import-pruefen-duplikat-details.test.mjs`: nur neue Pflichtfelder in Record-Literalen ergänzt
+
+**Rationale:**
+Roman soll die Rückfrage in einem Schritt beim Import setzen. Ablauf nach ADR 0021 (Kassenbuch zuerst), Flag-Schreibweg nach ADR 0056/0061, Entscheidungen in ADR 0064.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: 2298/2298 (dotnet test), test:scripts 247/247 nach Fixture-Korrektur, guard:classes und guard:tokens grün
+- Issues: Rückfrage ist sitzungsgebunden (nicht persistiert), siehe ADR 0064
+
+---
+
+## 2026-10-26 13:15 - Spike ledger-xa7jf: Quick Add und Import nach Komfortfunktionen durchgesehen
 
 **What I did:**
 Quick Add (`QuickAddPage.fs`, `QuickAdd*` in `State.fs`) und die Import-Seite (`SyncFlow/`) Funktion für Funktion mit dem Kassenbuch (`Ledger/`, `CategoryPicker.fs`) verglichen. Ergebnis: acht Lücken in einer Tabelle (vier sinnvoll, zwei fraglich, zwei nicht übertragbar) und eine Liste bereits abgedeckter Funktionen mit Verweis auf Kassenbuch-Stelle oder erledigte Task. Die sinnvollen Lücken wurden gegen das offene ledger-Backlog geprüft (Überschneidung mit ledger-hg5m5 und ledger-rjhwp).

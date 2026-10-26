@@ -62,6 +62,7 @@ let private syncErrorToString (error: SyncError) : string =
     | SyncError.YnabImportFailed (count, msg) -> $"Failed to import {count} transactions: {msg}"
     | SyncError.InvalidSessionState (expected, actual) -> $"Invalid session state. Expected: {expected}, Actual: {actual}"
     | SyncError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
+    | SyncError.AskLenaRejected reason -> reason
 
 /// Parses Comdirect API error JSON and extracts user-friendly message
 /// Comdirect errors have format: {"code":"TAN_UNGUELTIG","messages":[{"message":"TAN-Freigabe..."}]}
@@ -1028,7 +1029,8 @@ let syncApi : SyncApi = {
             match SyncSessionManager.getTransaction txId with
             | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
             | Some tx ->
-                let updated = { tx with Status = Skipped }
+                // Überspringen hebt eine gesetzte Rückfrage Lena auf (ynab-sync-d9e51).
+                let updated = ImportAskLena.skip tx
                 SyncSessionManager.updateTransaction updated
                 return Ok updated
     }
@@ -1136,6 +1138,23 @@ let syncApi : SyncApi = {
                 return Ok updated
     }
 
+    // "Lena fragen" an der Importzeile (ynab-sync-d9e51, ADR 0056): der Zustand hängt an
+    // der Sitzungs-Transaktion, die Flag-Farbe kommt aus den Settings.
+    setAskLena = fun (sessionId, txId, askLena) -> async {
+        match SyncSessionManager.validateSession sessionId with
+        | Error err -> return Error err
+        | Ok _ ->
+            match SyncSessionManager.getTransaction txId with
+            | None -> return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
+            | Some tx ->
+                let! lenaColor = Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
+                match ImportAskLena.setAskLena lenaColor askLena tx with
+                | Error reason -> return Error (SyncError.AskLenaRejected reason)
+                | Ok updated ->
+                    SyncSessionManager.updateTransaction updated
+                    return Ok updated
+    }
+
     // ============================================
     // Import
     // ============================================
@@ -1158,7 +1177,7 @@ let syncApi : SyncApi = {
                 )
 
             if toImport.IsEmpty then
-                return Ok { CreatedCount = 0; DuplicateTransactionIds = [] }
+                return Ok { CreatedCount = 0; DuplicateTransactionIds = []; LenaFlagNotSentCount = 0 }
             else
                 // Get YNAB settings
                 let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
@@ -1191,8 +1210,16 @@ let syncApi : SyncApi = {
                             return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorToString ynabError))
                         | Ok transferPayees ->
                             let today = DateTime.Today
-                            let prepared =
+                            let prepared0 =
                                 prepareTransactions today ynabAccountId transferPayees false toImport
+
+                            // Rückfrage Lena (ynab-sync-d9e51): die Farbe wird erst jetzt aus
+                            // den Settings gelesen, nicht beim Setzen der Rückfrage. Fehlt sie
+                            // inzwischen, geht die Zeile ohne Flag und der Bericht nennt das.
+                            let! storedLenaColor =
+                                Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
+                            let lenaColor = ImportAskLena.validColor storedLenaColor
+                            let prepared, lenaFlagNotSent = applyLenaFlag lenaColor toImport prepared0
 
                             // Teil 2 (ADR 0021): je vorbereiteter Buchung die Rohdaten und
                             // die Review-Spur (categorization-gdrx8) mitgeben, aus der das
@@ -1281,6 +1308,7 @@ let syncApi : SyncApi = {
                                         return Ok {
                                             CreatedCount = createdCount
                                             DuplicateTransactionIds = classification.DuplicateTransactionIds
+                                            LenaFlagNotSentCount = lenaFlagNotSent
                                         }
                                 | None ->
                                     return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
@@ -1337,7 +1365,14 @@ let syncApi : SyncApi = {
                             // alte, deterministische ImportId
                             // (`buildComdirectImportCandidates true`, ledger-w6tbq), nicht
                             // über diese neue (ledger-fq3kd).
-                            let prepared = prepareTransactions today ynabAccountId transferPayees true transactionsToForce
+                            let prepared0 = prepareTransactions today ynabAccountId transferPayees true transactionsToForce
+                            // Eine erzwungene Buchung mit Rückfrage Lena geht wieder mit der Flag-Farbe
+                            // (ynab-sync-d9e51); die Zahl der ohne Flag gesendeten ist hier nicht Teil
+                            // des Ergebnisses.
+                            let! storedLenaColor =
+                                Persistence.Settings.getSetting Ledger.CommandHandlers.lenaFlagColorSettingKey
+                            let prepared, _ =
+                                applyLenaFlag (ImportAskLena.validColor storedLenaColor) transactionsToForce prepared0
 
                             let candidates =
                                 buildComdirectImportCandidates true transactionsToForce prepared
@@ -1547,8 +1582,9 @@ let private entryPush () : Async<Ledger.CommandHandlers.EntryPush> =
                         Memo = entry.Memo
                     }
                     return!
-                        YnabClient.createTransactionWith
+                        YnabClient.createTransactionWithFlag
                             (Ledger.CommandHandlers.currentImportId links)
+                            (Ledger.CommandHandlers.pushFlagColorOf entry)
                             token
                             (YnabBudgetId budgetId)
                             ynabAccountId

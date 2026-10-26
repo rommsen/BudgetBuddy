@@ -501,6 +501,7 @@ let createSyncTransaction () : SyncTransaction =
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 [<Tests>]

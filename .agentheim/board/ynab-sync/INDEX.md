@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 0
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 13
+- **Doing:** 0
+- **Done:** 14
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ynab-sync-d9e51** — "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena" (feature) — `doing/ynab-sync-d9e51-lena-fragen-beim-import.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **ynab-sync-d9e51** — "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena" (feature) — `done/ynab-sync-d9e51-lena-fragen-beim-import.md`
 - **ynab-sync-e4gm3** — Import prüfen: Duplikat-Details deutsch, bei Verdacht sichtbar, sonst hinter "Details"; YNAB-Ergebnis getrennt (feature) — `done/ynab-sync-e4gm3-duplikat-details-deutsch-und-nur-bei-verdacht.md`
 - **ynab-sync-aj5tv** — Import prüfen an ADR 0049 angleichen: nur die Kante farbig, deutsche Zahlen und Datumsformate (feature) — `done/ynab-sync-aj5tv-import-pruefen-ruhige-liste-und-deutsche-formate.md`
 - **ynab-r9k4t** — "Bug: since_date-Transaktions-Decoder verschiebt YNAB-Buchungstage um den lokalen Zeitzonen-Offset" (bug) — `done/ynab-r9k4t-bug-since-date-transaktions-decoder-verschiebt-ynab-buchungs.md`

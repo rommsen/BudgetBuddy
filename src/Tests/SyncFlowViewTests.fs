@@ -53,6 +53,7 @@ let private mkTransaction
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 /// Shorthand: create a simple pending transaction with NotDuplicate status

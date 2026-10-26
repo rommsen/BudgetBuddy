@@ -145,6 +145,8 @@ let private importedFromComdirectPayload (importId: string) (comdirectRef: strin
     Memo = None
     Cleared = Uncleared
     Approved = false
+    FlagColor = None
+    FlagName = None
 }
 
 let private cashExpenseAddedPayload : CashExpenseAddedPayload = {
@@ -983,6 +985,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = pushedAt
                     ReviewSteps = []
+                    LenaFlagColor = None
                 }
 
             Expect.equal
@@ -1029,6 +1032,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = pushedAt
                     ReviewSteps = [ ruleStep; userStep ]
+                    LenaFlagColor = None
                 }
 
             Expect.equal
@@ -1082,6 +1086,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = DateTime(2026, 3, 2, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ orderIdStep ]
+                    LenaFlagColor = None
                 }
 
             Expect.equal
@@ -1131,6 +1136,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = DateTime(2026, 3, 3, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ ruleStep; removeOverrideStep ]
+                    LenaFlagColor = None
                 }
 
             match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
@@ -1173,6 +1179,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ step ]
+                    LenaFlagColor = None
                 }
 
             let expectedPayeeName = Server.PayeeFormatting.resolvePayeeName step.PayeeOverride None
@@ -1215,6 +1222,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = DateTime(2026, 3, 4, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ step ]
+                    LenaFlagColor = None
                 }
 
             match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
@@ -1255,6 +1263,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = DateTime(2026, 3, 5, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ step ]
+                    LenaFlagColor = None
                 }
 
             match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryRecategorized") with
@@ -1291,6 +1300,7 @@ let recordComdirectPushTests =
                     Memo = None
                     PushedAt = DateTime(2026, 3, 6, 10, 0, 0, DateTimeKind.Utc)
                     ReviewSteps = [ step ]
+                    LenaFlagColor = None
                 }
 
             match events |> List.tryFind (fun e -> eventTypeName e.Body = "EntryCategorizedByRule") with
@@ -1976,6 +1986,7 @@ module private PushFixtures =
         ImportId = importId
         CategoryId = None
         Subtransactions = None
+        FlagColor = None
     }
 
     let prepared (txId: string) (importId: string) : PreparedTransaction = {

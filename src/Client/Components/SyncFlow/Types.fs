@@ -172,6 +172,35 @@ let canSaveSplits (state: SplitEditState) : bool =
     allLinesTargeted &&
     (match validateSplitEdit state with Ok _ -> true | Error _ -> false)
 
+/// Die Aktion "Lena fragen" bzw. "Rückfrage zurücknehmen" an einer Importzeile
+/// (ynab-sync-d9e51). `Target` ist der Wert, den der Befehl `setAskLena` setzt.
+/// `DisabledReason` ist gesetzt, wenn die Aktion gesperrt ist (ADR 0056, Punkt 1).
+type AskLenaAction = {
+    Label: string
+    Target: bool
+    DisabledReason: string option
+}
+
+/// Der Grund, wenn keine Lena-Farbe eingestellt ist (Wortlaut wie im Kassenbuch).
+let askLenaNoColorReason = "In den Settings die Flag-Farbe für Lena wählen"
+
+/// Die Aktion an einer Importzeile: nur an offenen Zeilen (nicht übersprungen, nicht
+/// importiert). Mit gesetzter Rückfrage "Rückfrage zurücknehmen" (nie gesperrt, es schickt
+/// nichts), sonst "Lena fragen", gesperrt ohne eingestellte Flag-Farbe. Rein.
+let askLenaActionFor (lenaColor: string option) (tx: SyncTransaction) : AskLenaAction option =
+    match tx.Status with
+    | Skipped | Imported -> None
+    | Pending | AutoCategorized | ManualCategorized | NeedsAttention ->
+        if tx.AskLena then
+            Some { Label = "Rückfrage zurücknehmen"; Target = false; DisabledReason = None }
+        else
+            let validColor = lenaColor |> Option.filter (fun c -> List.contains c ynabFlagColors)
+            Some {
+                Label = "Lena fragen"
+                Target = true
+                DisabledReason = if validColor.IsSome then None else Some askLenaNoColorReason
+            }
+
 /// SyncFlow-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
@@ -206,6 +235,9 @@ type Model = {
     PendingPayeeVersions: Map<TransactionId, int>
     /// Recently used category IDs, most recent first (max 10)
     RecentlyUsedCategoryIds: YnabCategoryId list
+    /// Die in den Settings gewählte Lena-Flag-Farbe (`lena_flag_color`, ADR 0056). Ohne sie
+    /// ist "Lena fragen" an der Importzeile gesperrt.
+    LenaFlagColor: string option
 }
 
 /// SyncFlow-specific messages
@@ -261,6 +293,11 @@ type Msg =
     | SplitsSaved of Result<SyncTransaction, SyncError>
     | ClearSplit of TransactionId
     | SplitCleared of Result<SyncTransaction, SyncError>
+    // Lena fragen an der Importzeile (ynab-sync-d9e51)
+    | LoadLenaFlagColor
+    | LenaFlagColorLoaded of string option
+    | SetAskLena of TransactionId * bool
+    | AskLenaSet of Result<SyncTransaction, SyncError>
     // Account loading (for the transfer-target picker + cashback default)
     | LoadAccounts
     | AccountsLoaded of YnabAccount list * YnabAccountId option

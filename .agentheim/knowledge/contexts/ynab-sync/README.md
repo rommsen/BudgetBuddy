@@ -96,6 +96,7 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - **Transfer-Payee im Lesepfad** — YNAB nennt die Payee einer Übertrags-Zeile
   "Transfer : <Konto>". Der Spiegel schneidet das Präfix ab, damit die Transfer-Split-Zeile
   den **Kontonamen** trägt, wie `SplitTarget.ToTransfer` ihn verlangt.
+- **Rückfrage Lena beim Import** (ynab-sync-d9e51): Zustand `AskLena` an der Sitzungs-Transaktion (`SyncTransaction`), gesetzt über `SyncApi.setAskLena` an der einzelnen offenen Importzeile (Pending, AutoCategorized, ManualCategorized, NeedsAttention). Der Import-Push sendet für diese Zeilen `flag_color` mit der Einstellung `lena_flag_color` (ADR 0056, 0061), auch ohne Kategorie; Zeilen ohne Rückfrage senden den Schlüssel nicht. Ohne gültige Farbe ist die Aktion gesperrt (`SyncError.AskLenaRejected`), Überspringen hebt die Rückfrage auf, ist die Farbe bis zum Push entfernt, geht die Zeile ohne Flag und `ImportResult.LenaFlagNotSentCount` nennt das. Der Zustand ist sitzungsgebunden und nicht persistiert (ADR 0064).
 
 ## Aggregates
 - **YnabTransaction** — Invariante: gültige ImportId; bei Splits Summe == Amount und ≥2 Teile.
@@ -111,6 +112,7 @@ Spiegel-*Ergebnis* und die Abweichung gehören dem `ledger`.
 - *AddManualTransaction* (Quick Add: einzelne manuelle Buchung aufs Quick-Add-Konto).
 - *MirrorYnabBudget* (Spiegel-Lauf: Konten- und Transaktions-Abruf, Beobachtungen ans
   Kassenbuch; in v1 manuell ausgelöst).
+- *SetAskLena* (ynab-sync-d9e51: Rückfrage Lena an einer Importzeile setzen oder zurücknehmen; reine Regeln in `Server.ImportAskLena`, der Push-Teil `YnabClient.applyLenaFlag`).
 
 ## Relationships with other contexts
 - **Downstream of:** `ledger` für den Push (ADR 0021): gepusht wird, was vorher ins

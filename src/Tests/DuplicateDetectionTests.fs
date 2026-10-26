@@ -367,7 +367,7 @@ let markDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
                 { Transaction = bankTx2
                   Status = Pending
                   CategoryId = None
@@ -380,7 +380,7 @@ let markDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
                 { Transaction = bankTx3
                   Status = Pending
                   CategoryId = None
@@ -393,7 +393,7 @@ let markDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
             ]
 
             let ynabTransactions = [
@@ -467,6 +467,7 @@ let additionalEdgeCaseTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             // YNAB transaction that matches
@@ -678,7 +679,7 @@ let countDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -691,7 +692,7 @@ let countDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -704,7 +705,7 @@ let countDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
                 { Transaction = bankTx
                   Status = Pending
                   CategoryId = None
@@ -717,7 +718,7 @@ let countDuplicatesTests =
                   YnabImportStatus = NotAttempted
                   Splits = None
                   SuggestedByOrderId = None
-                  ReviewSteps = [] }
+                  ReviewSteps = []; AskLena = false }
             ]
 
             let result = countDuplicates syncTransactions

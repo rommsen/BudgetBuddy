@@ -193,6 +193,12 @@ type EntryImportedFromComdirectPayload = {
     /// kein `approved`, YNAB legt die Buchung unbestätigt an. Version 1 ohne dieses
     /// Feld gilt beim Lesen als `true` (`Codec.decodeImportedFromComdirectV1`).
     Approved: bool
+    /// Rückfrage Lena schon beim Import (ynab-sync-d9e51): Flag-Farbe und Flag-Name "Lena",
+    /// mit denen die Buchung entsteht, so dass `ReadModel.flagOf` sie sofort als Rückfrage
+    /// Lena deutet. Beide `None` = kein Flag. Ein Ereignis ohne diese Felder (jedes bisher
+    /// geschriebene) liest sich beim Dekodieren als "kein Flag".
+    FlagColor: string option
+    FlagName: string option
 }
 
 /// Eine Kategorisierungs-Regel hat entschieden. Nur auf einer noch unkategorisierten
@@ -796,6 +802,14 @@ module Codec =
             "memo", encodeOptionalString p.Memo
             "cleared", encodeClearedState p.Cleared
             "approved", Encode.bool p.Approved
+            // Nur bei einer Rückfrage Lena; ohne Flag fehlen die Schlüssel, die
+            // gespeicherte Form bleibt wie vor ynab-sync-d9e51.
+            match p.FlagColor with
+            | Some color -> "flagColor", Encode.string color
+            | None -> ()
+            match p.FlagName with
+            | Some name -> "flagName", Encode.string name
+            | None -> ()
         ]
 
     /// Schema-Version 2 (ADR 0032): mit `approved`.
@@ -810,6 +824,8 @@ module Codec =
             Memo = get.Optional.Field "memo" Decode.string
             Cleared = get.Required.Field "cleared" decodeClearedState
             Approved = get.Required.Field "approved" Decode.bool
+            FlagColor = get.Optional.Field "flagColor" Decode.string
+            FlagName = get.Optional.Field "flagName" Decode.string
         })
 
     /// Schema-Version 1: ohne `approved`. Gilt beim Lesen als genehmigt (ADR 0032).
@@ -824,6 +840,8 @@ module Codec =
             Memo = get.Optional.Field "memo" Decode.string
             Cleared = get.Required.Field "cleared" decodeClearedState
             Approved = true
+            FlagColor = None
+            FlagName = None
         })
 
     let encodeCategorizedByRule (p: EntryCategorizedByRulePayload) =

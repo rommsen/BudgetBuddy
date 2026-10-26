@@ -254,6 +254,7 @@ let classifyTransactions
                         Splits = None
                         SuggestedByOrderId = None
                         ReviewSteps = []
+                        AskLena = false
                     }
                     |> appendReviewStep now (ByRule (matchedRule.Id, matchedRule.Name))
                 | None ->
@@ -271,6 +272,7 @@ let classifyTransactions
                         Splits = None
                         SuggestedByOrderId = None
                         ReviewSteps = []  // No rule matched: nothing to record yet
+                        AskLena = false
                     }
             )
 

@@ -454,6 +454,10 @@ type YnabTransactionRequest = {
     ImportId: string
     CategoryId: string option
     Subtransactions: YnabSubtransactionRequest list option
+    /// Flag-Farbe für "Lena fragen" beim Import (ynab-sync-d9e51, ADR 0056). `None`
+    /// (Normalfall): der Schlüssel `flag_color` fehlt im Body, er ist dann byte-gleich zu
+    /// früher. Der Flag-Name geht nie hinaus, YNAB leitet ihn aus der Farbe ab.
+    FlagColor: string option
 }
 
 /// Encoder for subtransactions.
@@ -491,8 +495,9 @@ let encodeSubtransaction (sub: YnabSubtransactionRequest) =
             | None -> ()
         ]
 
-/// Encoder for transaction requests
-let private encodeTransaction (tx: YnabTransactionRequest) =
+/// Encoder for transaction requests. Non-private so the Create-Body contract (e.g. the
+/// optional `flag_color`, ynab-sync-d9e51) can be asserted directly in tests.
+let encodeTransaction (tx: YnabTransactionRequest) =
     Encode.object [
         "account_id", Encode.string tx.AccountId
         "date", Encode.string tx.Date
@@ -508,6 +513,9 @@ let private encodeTransaction (tx: YnabTransactionRequest) =
         | Some subs when subs.Length > 0 ->
             "subtransactions", Encode.list (subs |> List.map encodeSubtransaction)
         | _ -> ()
+        match tx.FlagColor with
+        | Some color -> "flag_color", Encode.string color
+        | None -> ()
     ]
 
 /// Builds a `Map<YnabAccountId, YnabPayeeId>` from a payee list by joining on
@@ -592,6 +600,7 @@ let buildTransactionRequest
         ImportId = importId  // Prevents duplicates (max 36 chars)
         CategoryId = None
         Subtransactions = None
+        FlagColor = None
     }
 
     match tx.Splits with
@@ -671,6 +680,33 @@ let prepareTransactions
         FutureDatedTransactionIds = futureDated |> List.map (fun tx -> tx.Transaction.Id)
         RejectedTransferTransactionIds = rejected
     }
+
+/// "Lena fragen" beim Import (ynab-sync-d9e51): trägt für jede vorbereitete Buchung, deren
+/// Sitzungs-Transaktion eine Rückfrage trägt (`AskLena`), die eingestellte Lena-Farbe als
+/// `flag_color` in den Create-Body ein. Buchungen ohne Rückfrage bleiben unverändert (kein
+/// `flag_color`-Schlüssel). Ist keine Farbe gesetzt (zwischen Setzen der Rückfrage und
+/// Push entfernt), geht keine Buchung mit Flag; die Anzahl der Rückfragen, die deshalb
+/// ohne Flag blieben, liefert die zweite Komponente. Pure, kein I/O.
+let applyLenaFlag
+    (lenaColor: string option)
+    (transactions: SyncTransaction list)
+    (prepared: PrepareResult)
+    : PrepareResult * int =
+    let asking =
+        transactions |> List.filter (fun tx -> tx.AskLena) |> List.map (fun tx -> tx.Transaction.Id) |> Set.ofList
+    match lenaColor with
+    | None ->
+        let notSent = prepared.ToSend |> List.filter (fun p -> asking.Contains p.TransactionId) |> List.length
+        prepared, notSent
+    | Some color ->
+        let toSend =
+            prepared.ToSend
+            |> List.map (fun p ->
+                if asking.Contains p.TransactionId then
+                    { p with Request = { p.Request with FlagColor = Some color } }
+                else
+                    p)
+        { prepared with ToSend = toSend }, 0
 
 /// Liest `data.transactions[].{import_id, id}` und `data.duplicate_import_ids` aus der
 /// 201-Antwort von `POST /transactions`. Non-private und pur, damit der JSON-Vertrag
@@ -863,8 +899,9 @@ let markCreatedAsImported (result: TransactionCreateResult) (transactions: SyncT
 /// YNAB's own mobile quick add) and must never collide with the bank-import
 /// deduplication that keys on import_id. Only a re-send of a booking that already carries
 /// an import_id passes it (`Some`), so YNAB deduplicates the re-send.
-let buildManualTransactionBodyWith
+let buildManualTransactionBodyWithFlag
     (importId: string option)
+    (flagColor: string option)
     (YnabAccountId accountId: YnabAccountId)
     (request: ManualTransactionRequest)
     : string =
@@ -894,9 +931,21 @@ let buildManualTransactionBodyWith
             match importId with
             | Some id -> "import_id", Encode.string id
             | None -> ()
+            // Erneutes Senden einer Buchung mit Rückfrage Lena (ynab-sync-d9e51): nur die
+            // Farbe, nie der Name (ADR 0056). Ohne Flag fehlt der Schlüssel.
+            match flagColor with
+            | Some color -> "flag_color", Encode.string color
+            | None -> ()
         ]
     ]
     |> Encode.toString 2
+
+let buildManualTransactionBodyWith
+    (importId: string option)
+    (accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : string =
+    buildManualTransactionBodyWithFlag importId None accountId request
 
 let buildManualTransactionBody (accountId: YnabAccountId) (request: ManualTransactionRequest) : string =
     buildManualTransactionBodyWith None accountId request
@@ -914,8 +963,9 @@ let manualTransactionIdDecoder : Decoder<string> =
 /// Creates a single manually entered transaction (Quick Add) in YNAB.
 /// Returns the YNAB transaction id from the response so the caller can link the
 /// Kassenbuch-Buchung to it (`EntryLinkedToYnab`, ADR 0021).
-let createTransactionWith
+let createTransactionWithFlag
     (importId: string option)
+    (flagColor: string option)
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
     (accountId: YnabAccountId)
@@ -924,7 +974,7 @@ let createTransactionWith
 
     async {
         try
-            let requestBody = buildManualTransactionBodyWith importId accountId request
+            let requestBody = buildManualTransactionBodyWithFlag importId flagColor accountId request
 
             use httpClient = new System.Net.Http.HttpClient()
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}")
@@ -951,6 +1001,15 @@ let createTransactionWith
         with ex ->
             return Error (YnabError.NetworkError $"Failed to create transaction: {ex.Message}")
     }
+
+let createTransactionWith
+    (importId: string option)
+    (token: string)
+    (budgetId: YnabBudgetId)
+    (accountId: YnabAccountId)
+    (request: ManualTransactionRequest)
+    : Async<YnabResult<string>> =
+    createTransactionWithFlag importId None token budgetId accountId request
 
 let createManualTransaction
     (token: string)

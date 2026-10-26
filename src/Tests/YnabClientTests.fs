@@ -661,6 +661,7 @@ let transactionConversionTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             // Simulate the conversion logic from createTransactions
@@ -714,6 +715,7 @@ let transactionConversionTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             let payeeName =
@@ -764,6 +766,7 @@ let transactionConversionTests =
                     Splits = None
                     SuggestedByOrderId = None
                     ReviewSteps = []
+                    AskLena = false
                 }
             ]
 
@@ -799,6 +802,7 @@ let transactionConversionTests =
                     Splits = None
                     SuggestedByOrderId = None
                     ReviewSteps = []
+                    AskLena = false
                 }
             ]
 
@@ -836,6 +840,7 @@ let transactionConversionTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             let transactions = [
@@ -880,6 +885,7 @@ let transactionConversionTests =
                 Splits = None
                 SuggestedByOrderId = None
                 ReviewSteps = []
+                AskLena = false
             }
 
             let isFuture = tx.Transaction.BookingDate.Date > today
@@ -1100,6 +1106,7 @@ let jsonEncodingTests =
                 ImportId = "BB:tx123"
                 CategoryId = Some "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
                 Subtransactions = None
+                FlagColor = None
             }
 
             let requestBody =
@@ -1147,6 +1154,7 @@ let jsonEncodingTests =
                 ImportId = "BB:tx123"
                 CategoryId = Some "c1b2a3d4-e5f6-7890-abcd-ef1234567890"
                 Subtransactions = None
+                FlagColor = None
             }
 
             let json =
@@ -1172,6 +1180,7 @@ let jsonEncodingTests =
                 ImportId = "BB:tx123"
                 CategoryId = None  // No category
                 Subtransactions = None
+                FlagColor = None
             }
 
             let json =
@@ -1449,6 +1458,7 @@ module private PrepareFixtures =
         Splits = None
         SuggestedByOrderId = None
         ReviewSteps = []
+        AskLena = false
     }
 
 [<Tests>]

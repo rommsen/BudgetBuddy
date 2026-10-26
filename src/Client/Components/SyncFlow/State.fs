@@ -18,6 +18,14 @@ let private syncErrorToString (error: SyncError) : string =
     | SyncError.YnabImportFailed (count, msg) -> $"Failed to import {count} transactions: {msg}"
     | SyncError.InvalidSessionState (expected, actual) -> $"Invalid session state. Expected: {expected}, Actual: {actual}"
     | SyncError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
+    | SyncError.AskLenaRejected reason -> reason
+
+/// Der Hinweis im Bericht nach dem Import, wenn Rückfragen Lena ohne Flag gesendet wurden
+/// (die Flag-Farbe wurde zwischen Setzen und Push entfernt, ynab-sync-d9e51). Leer bei 0.
+let importLenaFlagNote (notSent: int) : string =
+    if notSent <= 0 then ""
+    elif notSent = 1 then " 1 Rückfrage Lena ging ohne Flag nach YNAB, weil die Flag-Farbe in den Settings fehlt."
+    else $" {notSent} Rückfragen Lena gingen ohne Flag nach YNAB, weil die Flag-Farbe in den Settings fehlt."
 
 // (ynabErrorToString moved with the Quick Add submit logic to the top-level
 // State, the only place it was used — ynab-q7k3m.)
@@ -101,6 +109,7 @@ let init () : Model * Cmd<Msg> =
         PendingCategoryVersions = Map.empty
         PendingPayeeVersions = Map.empty
         RecentlyUsedCategoryIds = []
+        LenaFlagColor = None
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadCurrentSession
@@ -198,7 +207,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     session.Id
                     TransactionsLoaded
                     (fun ex -> Error (SyncError.DatabaseError ("load", ex.Message)) |> TransactionsLoaded)
-            { model with SyncTransactions = Loading }, cmd, NoOp
+            // Die Lena-Farbe frisch mitladen: Roman kann sie in den Settings geändert haben.
+            { model with SyncTransactions = Loading }, Cmd.batch [ cmd; Cmd.ofMsg LoadLenaFlagColor ], NoOp
         | _ -> model, Cmd.none, NoOp
 
     | TransactionsLoaded (Ok transactions) ->
@@ -357,6 +367,43 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
             { model with SyncTransactions = Success newTxs }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
+
+    // Lena fragen an der Importzeile (ynab-sync-d9e51, ADR 0056)
+    | LoadLenaFlagColor ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.settings.getLenaFlagSettings
+                ()
+                (fun settings -> LenaFlagColorLoaded settings.SavedColor)
+                // Ein Fehler lässt die Farbe unbekannt: die Aktion bleibt gesperrt, kein Toast.
+                (fun _ -> LenaFlagColorLoaded None)
+        model, cmd, NoOp
+
+    | LenaFlagColorLoaded color ->
+        { model with LenaFlagColor = color }, Cmd.none, NoOp
+
+    | SetAskLena (txId, ask) ->
+        match model.CurrentSession with
+        | Success (Some session) ->
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.sync.setAskLena
+                    (session.Id, txId, ask)
+                    AskLenaSet
+                    (fun ex -> Error (SyncError.DatabaseError ("ask_lena", ex.Message)) |> AskLenaSet)
+            model, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | AskLenaSet (Ok updatedTx) ->
+        match model.SyncTransactions with
+        | Success transactions ->
+            let newTxs = transactions |> List.map (fun tx ->
+                if tx.Transaction.Id = updatedTx.Transaction.Id then updatedTx else tx)
+            { model with SyncTransactions = Success newTxs }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | AskLenaSet (Error err) ->
+        model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | TransactionSkipped (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
@@ -721,7 +768,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 $"Successfully imported {result.CreatedCount} transaction(s) to YNAB!"
             else
                 $"Imported {result.CreatedCount} transaction(s). {result.DuplicateTransactionIds.Length} already exist in YNAB."
-        let toastType = if result.DuplicateTransactionIds.IsEmpty then ToastSuccess else ToastWarning
+        // Rückfragen, die ohne Flag nach YNAB gingen, weil die Lena-Farbe bis zum Push entfernt wurde.
+        let toastMsg = toastMsg + importLenaFlagNote result.LenaFlagNotSentCount
+        let toastType =
+            if result.DuplicateTransactionIds.IsEmpty && result.LenaFlagNotSentCount = 0 then ToastSuccess
+            else ToastWarning
         model', Cmd.ofMsg LoadCurrentSession, ShowToast (toastMsg, toastType)
 
     | ImportCompleted (Error err) ->

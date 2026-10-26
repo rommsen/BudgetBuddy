@@ -184,6 +184,7 @@ module private Fixtures =
         ImportId = importId
         CategoryId = None
         Subtransactions = None
+        FlagColor = None
     }
 
     let candidate (txId: string) (importId: string) : ComdirectImportCandidate = {

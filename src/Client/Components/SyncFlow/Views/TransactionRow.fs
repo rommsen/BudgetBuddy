@@ -202,6 +202,8 @@ type TransactionRowProps = {
     IsPendingCategorySave: bool
     Dispatch: Msg -> unit
     OnOpenCategoryPicker: TransactionId -> string -> unit
+    /// Die Lena-Flag-Farbe aus den Settings; ohne sie ist "Lena fragen" gesperrt.
+    LenaFlagColor: string option
 }
 
 let transactionRow (props: TransactionRowProps) =
@@ -214,6 +216,7 @@ let transactionRow (props: TransactionRowProps) =
     let isPendingCategorySave = props.IsPendingCategorySave
     let dispatch = props.Dispatch
     let onOpenCategoryPicker = props.OnOpenCategoryPicker
+    let askLenaAction = askLenaActionFor props.LenaFlagColor tx
 
     let rowClasses = getRowStateClasses tx
     let originalPayee = tx.Transaction.Payee |> Option.defaultValue ""
@@ -299,6 +302,17 @@ let transactionRow (props: TransactionRowProps) =
                                     pendingCategorySaveIndicator
                                 ]
                             ]
+
+                            // Kennzeichen der Rückfrage Lena, im Wortlaut des Kassenbuchs
+                            // (ynab-sync-d9e51). Nur bei gesetzter Rückfrage, sonst bleibt die
+                            // ruhige Liste (ADR 0049) unverändert.
+                            if tx.AskLena then
+                                Badge.view {
+                                    Badge.defaultProps with
+                                        Text = "Rückfrage Lena"
+                                        Variant = Badge.Purple
+                                        Size = Badge.Small
+                                }
 
                             if shouldShowCreateRule then
                                 Html.button [
@@ -486,6 +500,29 @@ let transactionRow (props: TransactionRowProps) =
                                                             ]
                                                         ]
                                                     | _ -> ()
+
+                                                    // Lena fragen (ynab-sync-d9e51): gesperrt ohne Flag-Farbe,
+                                                    // mit sichtbarem Grund.
+                                                    match askLenaAction with
+                                                    | Some action ->
+                                                        Html.button [
+                                                            prop.className "action-chip"
+                                                            prop.disabled action.DisabledReason.IsSome
+                                                            prop.title (action.DisabledReason |> Option.defaultValue action.Label)
+                                                            prop.onClick (fun e ->
+                                                                e.stopPropagation()
+                                                                if action.DisabledReason.IsNone then
+                                                                    dispatch (SetAskLena (tx.Transaction.Id, action.Target)))
+                                                            prop.text action.Label
+                                                        ]
+                                                        match action.DisabledReason with
+                                                        | Some blockedBecause ->
+                                                            Html.span [
+                                                                prop.className $"{ListRoles.muted} self-center"
+                                                                prop.text blockedBecause
+                                                            ]
+                                                        | None -> ()
+                                                    | None -> ()
 
                                                     if tx.Status <> Skipped then
                                                         Html.button [
