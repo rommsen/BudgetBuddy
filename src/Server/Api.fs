@@ -1898,12 +1898,70 @@ let budgetMonthFor
                 | Ok month -> return Ok (Server.Budgeting.Domain.toBudgetMonth month)
     }
 
-/// Die Budget-Seite: liest den Monat live aus YNAB, speichert und schreibt nichts.
+/// Der Weg von "Targets anwenden" ohne Settings und Netz: Token und Budget verlangen, den
+/// YNAB-Port bauen (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden
+/// lesbar (`ynabErrorToString`).
+let targetsWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (run: Server.Budgeting.CommandHandlers.YnabPort -> Async<Result<'a, YnabError>>)
+    : Async<Result<'a, string>> =
+    async {
+        match tokenOpt, budgetOpt with
+        | None, _ -> return Error (ynabErrorToString (YnabError.Unauthorized "No YNAB token configured"))
+        | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
+        | Some token, Some budgetId ->
+            match! run (portFor token (YnabBudgetId budgetId)) with
+            | Ok value -> return Ok value
+            | Error e -> return Error (ynabErrorToString e)
+    }
+
+/// Der YNAB-Port der Server-Abläufe: echter Client für Lesen und Zuweisen.
+let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.CommandHandlers.YnabPort =
+    { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
+      SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits }
+
+/// Die Budget-Seite: liest den Monat live aus YNAB. Nur "Targets anwenden" schreibt (nach
+/// YNAB und in die Budget-Bewegungen).
 let budgetApi : BudgetApi = {
     getBudgetMonth = fun monthKeyText -> async {
         let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
         let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
         return! budgetMonthFor tokenOpt budgetOpt DateTime.Today monthKeyText YnabClient.getMonth
+    }
+
+    previewTargets = fun monthKeyText -> async {
+        match Validation.validateBudgetMonth monthKeyText with
+        | Error message -> return Error message
+        | Ok choice ->
+            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+            let key = Server.Budgeting.Domain.monthKey DateTime.Today choice
+            return! targetsWith tokenOpt budgetOpt livePort (fun port -> Server.Budgeting.CommandHandlers.preview port key)
+    }
+
+    applyTargets = fun monthKeyText shown -> async {
+        match Validation.validateBudgetMonth monthKeyText with
+        | Error message -> return Error message
+        | Ok choice ->
+            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+            let key = Server.Budgeting.Domain.monthKey DateTime.Today choice
+            return!
+                targetsWith tokenOpt budgetOpt livePort (fun port ->
+                    Server.Budgeting.CommandHandlers.apply port DateTime.UtcNow key shown)
+    }
+
+    retryFailedTargets = fun applicationIdText -> async {
+        match Guid.TryParse applicationIdText with
+        | false, _ -> return Error $"Ungültige Anwendung: '{applicationIdText}'"
+        | true, applicationId ->
+            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+            return!
+                targetsWith tokenOpt budgetOpt livePort (fun port ->
+                    Server.Budgeting.CommandHandlers.retryFailed port DateTime.UtcNow applicationId)
     }
 }
 

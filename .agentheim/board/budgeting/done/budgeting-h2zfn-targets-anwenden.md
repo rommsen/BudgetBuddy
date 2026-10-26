@@ -1,7 +1,7 @@
 ---
 id: budgeting-h2zfn
 title: "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-10-26
@@ -9,7 +9,7 @@ completed:
 depends_on: [budgeting-k7wmd, design-system-001]
 blocks: []
 tags: [budgeting, ui, ynab-write, targets, adr]
-related_adrs: [0063, 0055, 0050, 0013]
+related_adrs: [0063, 0055, 0050, 0013, 0065]
 related_research: [ynab-api-targets-zuweisung-2026-10-25]
 prior_art: [budgeting-r4tkq]
 ---
@@ -173,3 +173,57 @@ wann was zugewiesen hat.
 - ADR 0013, 0050, 0055, 0063
 - research/ynab-api-targets-zuweisung-2026-10-25.md
 ```
+
+## Verifier note (iteration 1)
+
+**REASONS:**
+- README_DELTA, Open questions: die Probe-Werte stehen in falscher Einheit ("Fehlbetrag 5.000,00 €; ... noch 4.700,00 €"); laut Probe-Protokoll sind es 500000 und 470000 Milliunits, also 500,00 € und 470,00 €.
+- README: die Bullet **Budget-Seite** (budgeting-k7wmd) sagt weiter "Liest live aus YNAB, speichert und schreibt nichts", die Seite schreibt jetzt über Targets anwenden nach YNAB und in die Budget-Bewegungen; kein `replace`-Op dafür.
+- Hinweis: der Delta-Gate lehnt die Anhänge in Aggregates/Key events/Key commands ab (Einfügepunkt hinter Fließtext); der Worker hat das unter "README von Hand" vorgesehen.
+- Alles andere geprüft und grün: dotnet build 0 Warnungen, dotnet test 2391/0/7, npm run build, guard:classes, guard:tokens, Playwright der Budget-Dateien seriell 10/10; Kriterien 1 bis 11 je mit benanntem Test; ADR durchgehend 0065.
+
+**SUGGESTED_FIX:** Nur Delta: 500,00 € und 470,00 € schreiben; `replace` auf **Budget-Seite** (liest live, nur Targets anwenden schreibt). Kein Code-Eingriff.
+
+**ITERATION_HINT:** likely-fixable
+
+**Conductor:** Delta im Ergebnis-JSON korrigiert (Werte, `replace` auf Budget-Seite, Gate grün); Aggregates, Key events und Key commands von Hand gesetzt, die "Noch nicht modelliert"-Sätze ersetzt, "nicht im Kassenbuch-Ereignis-Log" direkt formuliert. Code unverändert.
+
+## Outcome
+
+Targets anwenden steht auf der Budget-Seite (#/budget): Der Knopf "Targets anwenden" öffnet einen Dialog mit der Vorschau (Kategorien mit neuem Betrag, Summe und "Zu verteilen danach" oben, außerhalb des scrollenden Teils, darunter die übersprungenen pausierten Kategorien). "Übernehmen" schickt die gezeigte Vorschau an den Server. Der liest den Monat neu; weicht etwas ab, wird nichts geschrieben und die neue Vorschau kommt mit "Stand hat sich geändert". Sonst hält der Server zuerst alle Budget-Bewegungen fest (eine Transaktion) und sendet danach je Kategorie einen PATCH nacheinander. Fehler treffen nur ihre Zeile, bei 429 bricht der Lauf ab und der Rest steht als "fehlgeschlagen, Rate-Limit". Danach liest der Server Zu verteilen erneut; der Dialog zeigt "X von N übernommen", die Fehlgeschlagenen oben mit Grund, den tatsächlichen Betrag und einen Hinweis, wenn er von der Vorschau abweicht. "Fehlgeschlagene erneut senden" entscheidet je Zeile am Live-Wert: Baseline gleich senden, Ziel gleich nichts senden und als geschrieben festhalten, sonst "in YNAB geändert" (YNAB gewinnt, ADR 0055). Schließen nach einer Anwendung lädt den Monat neu. ADR 0065 im ADRS-Block (Nummer wie im Prompt vorgegeben).
+
+Wichtige Stellen:
+- Shared: `/Users/romansachse/src/BudgetBuddy/.worktrees/budgeting-h2zfn/src/Shared/Budgeting.fs` (TargetPreview, TargetLine, ApplyReport, LineOutcome, toMilliunits, isOnTenMilliunits), `src/Shared/Api.fs` (BudgetApi: previewTargets, applyTargets, retryFailedTargets).
+- Server Domain (rein): `src/Server/Budgeting/Domain.fs` (`planTargetApplication`, `previewsMatch`, `decideRetry`).
+- Server Persistenz: `src/Server/Budgeting/Persistence.fs` (Tabellen budget_movements und budget_movement_results, beide per SQLite-Trigger append-only; Schema-Init in `Program.fs` hinter `initializeLedgerSchema`).
+- Server Abläufe: `src/Server/Budgeting/CommandHandlers.fs` (YnabPort als Naht für den Fake-Client, `MonthGuard` je Monat, `preview`, `apply`, `retryFailed`, `failureReason`).
+- YNAB-Client: `src/Server/YnabClient.fs` (`assignUrl`, `buildAssignBody`, `interpretAssignResponse`, `setAssignedWith`, `setAssigned`). Befund beim Test: Thoth schreibt int64 und decimal als JSON-String; `buildAssignBody` nutzt deshalb `Encode.int`, der Regressionstest war ohne diese Zeile rot.
+- Api: `src/Server/Api.fs` (`targetsWith` mit Fehlerzuordnung, `budgetApi` erweitert).
+- Client: `src/Client/Components/Budget/{Types,State,View}.fs` (reine Übergänge `openTargets`, `confirmTargets`, `applyApplied`, `retryFailed`, `closeTargets`, `actualCheck`; Dialog nur mit Modal, Button, Money, Badge, ErrorDisplay, Loading).
+
+Tests: 53 neu. `src/Tests/TargetsApplyTests.fs` (33: Planung, PATCH-Pfad und Body, Statuszuordnung, Api-Weg, Abläufe gegen Fake-YNAB und In-Memory-SQLite, Persistenz inklusive Trigger), `src/Tests/TargetsApplyClientTests.fs` (15), `scripts/targets-apply.test.mjs` (5 Playwright-Wächter am echten Client: Handy mit 40 Zeilen, negatives Zu verteilen, Abbrechen, Übernehmen mit erneutem Senden, Stand geändert). Läufe aus dem Worktree: `dotnet build` 0 Warnungen und 0 Fehler, `dotnet test` 2391 bestanden, 7 übersprungen (Bestand), 0 Fehler; `npm run build` grün; `npm run guard:classes` und `npm run guard:tokens` grün; `npm run test:scripts` 257 bestanden, 0 Fehler.
+
+### Probe gegen das Budget "Test" (2026-10-26)
+Vor jedem schreibenden Aufruf wurde die Budget-Id per `GET /budgets` über den Namen "Test" neu aufgelöst und gegen Romans Budget geprüft; in "My Budget" wurde nichts geschrieben (nur das Budget "Test", Monat 2026-10-01, Kategorie Groceries, Typ NEED, wöchentlich). Die API kennt kein Anlegen von Targets; die Fixture entstand per PATCH `goal_target` 100000 (geschrieben nur in Test, danach auf 0 zurückgesetzt).
+- vorher: budgeted 0, goal_under_funded null, goal_target 0, to_be_budgeted 0
+- Target 100000 gesetzt: budgeted 0, goal_under_funded 500000, to_be_budgeted 0
+- 30000 zugewiesen: budgeted 30000, goal_under_funded 470000, to_be_budgeted -30000
+- budgeted plus Fehlbetrag = 500000 gesendet: budgeted 500000, goal_under_funded 0, to_be_budgeted -500000. Die Differenz von Zu verteilen war genau -470000. Die Gleichung stimmt, kein BOUNCE.
+- dasselbe Ziel noch einmal gesendet: nichts geändert (idempotent).
+- 12345 gesendet: budgeted liest 12345, to_be_budgeted bewegt sich um 12350. YNAB rundet also auf 10 Milliunits; BB lehnt solche Beträge deshalb ab.
+- nachher (zurückgesetzt): budgeted 0, goal_under_funded 0, goal_target 0, to_be_budgeted 0.
+Nicht durchgeführt: pausiertes Target (`goal_snoozed_at` lässt sich über die API nicht setzen) und Target mit Deckel (nicht anlegbar); die Auslassung pausierter Targets ist durch Domain-Tests belegt, das Feld wurde schon in budgeting-k7wmd gegen Romans Budget gelesen.
+
+### Bildschirmfotos ([human-eye], einmalig außerhalb der Tests)
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/04b6aafe-6e4f-485e-a143-c16e2369c195/scratchpad/budgeting-h2zfn/vorschau-handy.png (390 px: Summe und Zu verteilen danach oben, Übernehmen ohne Scrollen im Bild)
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/04b6aafe-6e4f-485e-a143-c16e2369c195/scratchpad/budgeting-h2zfn/vorschau-pc.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/04b6aafe-6e4f-485e-a143-c16e2369c195/scratchpad/budgeting-h2zfn/ergebnis-handy.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/04b6aafe-6e4f-485e-a143-c16e2369c195/scratchpad/budgeting-h2zfn/ergebnis-pc.png
+(Die Toasts im PC-Ergebnisbild stammen aus ungemockten Settings-Routen des Screenshot-Skripts.)
+
+### README von Hand
+Die Abschnitte Aggregates, Key events und Key commands der budgeting-README beginnen mit dem Satz "Noch nicht modelliert ...". Das README_DELTA hängt die neuen Bullets dahinter an; der alte Satz sollte beim Einfügen entfallen:
+- Aggregates, alt: "Noch nicht modelliert. Tactical Modeling folgt mit den ersten Tasks." Neu: Satz streichen, es bleibt der Bullet **Anwendung**.
+- Key events, alt: "Noch nicht modelliert (Kandidaten: zugewiesen, verschoben, Targets angewendet)." Neu: "Weitere Kandidaten: zugewiesen, verschoben." vor den Bullet **TargetsAngewendet** ...
+- Key commands, alt: "Noch nicht modelliert (Kandidaten: Targets anwenden, Geld verschieben)." Neu: "Weiterer Kandidat: Geld verschieben." vor den Bullet **TargetsÜbernehmen** ...
+- Purpose/Relationships bleiben unverändert.

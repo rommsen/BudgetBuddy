@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 15:30 -- Task verified and completed: budgeting-h2zfn - "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
+
+**Type:** Work / Task completion
+**Task:** budgeting-h2zfn - "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar"
+**Summary:** Die Budget-Seite hat den Knopf "Targets anwenden": Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen (Fehlbetrag plus altes Zugewiesen) nach YNAB, hält jede Budget-Bewegung zuerst in BB fest, zeigt "X von N übernommen" und sendet Fehlgeschlagene erneut. Die Probe gegen das Budget "Test" bestätigt die Gleichung budgeted + goal_under_funded.
+**Duration:** 32m
+**Verification:** PASS (iteration 1 FAIL nur README-Delta, vom Conductor korrigiert)
+**Files changed:** 17
+**Tests added:** 53
+**ADRs written:** 0065-budget-zustand-live-aus-ynab-budget-bewegungen-in-bb.md
+
+---
+
+## 2026-10-26 15:30 -- Verification failed: budgeting-h2zfn - Targets anwenden
+
+**Type:** Work / Verification failure
+**Task:** budgeting-h2zfn - Targets anwenden
+**Iteration:** 1 of 3
+**Reasons:** README-Delta mit Probe-Werten in falscher Einheit (5.000,00 statt 500,00 €), Bullet Budget-Seite sagt weiter "schreibt nichts"; Code, Tests und Guards grün
+**Iteration hint:** likely-fixable
+**Next:** Delta vom Conductor korrigiert (reine Buchhaltung), kein erneuter Worker-Lauf, Integration
+
+---
+
 ## 2026-10-26 14:57 -- Batch started: [budgeting-h2zfn]
 
 **Type:** Work / Batch start

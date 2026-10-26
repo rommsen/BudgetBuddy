@@ -313,6 +313,73 @@ let getMonth
         }
     getMonthWith fetch monthKey
 
+// ============================================
+// Zuweisung setzen (budgeting-h2zfn)
+// ============================================
+
+/// Der Pfad zur Zuweisung einer Kategorie in einem Monat:
+/// `/budgets/{id}/months/{YYYY-MM-01}/categories/{id}`.
+let assignUrl (budgetId: string) (monthKey: string) (categoryId: Guid) : string =
+    $"{baseUrl}/budgets/{budgetId}/months/{monthKey}/categories/{categoryId}"
+
+/// Der Body des Zuweisens: `{"category":{"budgeted":n}}`. `budgeted` ist eine JSON-Zahl in
+/// Milliunits (absoluter Wert, nicht die Änderung), kein String.
+let buildAssignBody (milliunits: int64) : string =
+    // Thoth schreibt int64 und decimal als String; YNAB braucht eine JSON-Zahl, also int
+    // (Obergrenze rund 2,1 Mio. Euro je Kategorie, Checked.int wirft sonst).
+    Encode.object [ "category", Encode.object [ "budgeted", Encode.int (Checked.int milliunits) ] ]
+    |> Encode.toString 0
+
+/// Ordnet die Antwort von `PATCH .../months/{month}/categories/{id}` zu. 429 kommt als
+/// `RateLimitExceeded`, damit der Aufrufer den Lauf abbrechen kann.
+let interpretAssignResponse (monthKey: string) (status: int) (bodyText: string) : YnabResult<unit> =
+    match status with
+    | 200 -> Ok ()
+    | 400 -> Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
+    | 404 -> Error (YnabError.InvalidResponse $"YNAB kennt Monat {monthKey} oder die Kategorie nicht")
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
+
+/// Naht für Tests: `send` bekommt Pfad und Body und liefert Statuscode und Antworttext. Eine
+/// Ausnahme (Netzfehler) wird zu `NetworkError`.
+let setAssignedWith
+    (send: string -> string -> Async<int * string>)
+    (budgetId: string)
+    (monthKey: string)
+    (categoryId: Guid)
+    (milliunits: int64)
+    : Async<YnabResult<unit>> =
+    async {
+        try
+            let! status, bodyText = send (assignUrl budgetId monthKey categoryId) (buildAssignBody milliunits)
+            return interpretAssignResponse monthKey status bodyText
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to assign category: {ex.Message}")
+    }
+
+/// Setzt das Zugewiesen einer Kategorie in einem Monat auf einen absoluten Wert in Milliunits
+/// (YNAB kennt keinen Sammelaufruf, eine Kategorie je Anfrage).
+let setAssigned
+    (token: string)
+    (YnabBudgetId budgetId: YnabBudgetId)
+    (monthKey: string)
+    (categoryId: Guid)
+    (milliunits: int64)
+    : Async<YnabResult<unit>> =
+    let send (url: string) (body: string) =
+        async {
+            use client = new System.Net.Http.HttpClient()
+            use content = new System.Net.Http.StringContent(body, System.Text.Encoding.UTF8, "application/json")
+            use request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Patch, url)
+            request.Headers.Authorization <- System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token)
+            request.Content <- content
+            let! response = client.SendAsync(request) |> Async.AwaitTask
+            let! bodyText = response.Content.ReadAsStringAsync() |> Async.AwaitTask
+            return int response.StatusCode, bodyText
+        }
+    setAssignedWith send budgetId monthKey categoryId milliunits
+
 /// Fetches all categories for a specific budget
 let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list>> =
     async {

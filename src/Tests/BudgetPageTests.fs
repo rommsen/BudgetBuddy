@@ -56,7 +56,7 @@ let private loadedTests =
             | other -> failtestf "Success erwartet, war %A" other
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
-            let waiting = { Choice = NextMonth; Month = Loading }
+            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed }
             let m = applyLoaded CurrentMonth (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
         }
@@ -112,7 +112,7 @@ let private routingTests =
                   SyncFlow = syncFlowModel
                   Rules = rulesModel
                   Ledger = ledgerModel
-                  Budget = { Choice = CurrentMonth; Month = month }
+                  Budget = { Choice = CurrentMonth; Month = month; Targets = TargetsClosed }
                   QuickAdd = None
                   QuickAddTemplates = NotAsked }
             Expect.isFalse (State.isPageReady (model Loading)) "lädt"

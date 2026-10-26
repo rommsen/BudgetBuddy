@@ -4,7 +4,38 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
-## 2026-10-26 15:00 - Budget-Seite live aus YNAB (budgeting-k7wmd)
+## 2026-10-26 15:25 - Targets anwenden (budgeting-h2zfn)
+
+**What I did:**
+Targets anwenden auf der Budget-Seite gebaut: reine Planung, Vorschau, Übernehmen mit Vergleich gegen die gezeigte Vorschau, Budget-Bewegungen als append-only Tabellen, PATCH je Kategorie mit Abbruch bei 429, Fehlgeschlagene erneut senden mit Entscheidung am Live-Wert, Dialog in der Budget-Seite. Probe gegen das Budget "Test" durchgeführt (Gleichung budgeted plus goal_under_funded stimmt).
+
+**Files Added:**
+- `src/Server/Budgeting/Persistence.fs` - Tabellen budget_movements und budget_movement_results mit Triggern gegen UPDATE und DELETE
+- `src/Server/Budgeting/CommandHandlers.fs` - preview, apply, retryFailed, MonthGuard, YnabPort
+- `src/Tests/TargetsApplyTests.fs` - 33 Tests (Planung, YNAB-Zuweisung, Api-Weg, Abläufe mit Fake-YNAB, Persistenz)
+- `src/Tests/TargetsApplyClientTests.fs` - 15 Tests der Dialog-Übergänge und der Ansicht
+- `scripts/targets-apply.test.mjs` - 5 Playwright-Wächter (Handy mit 40 Zeilen, negatives Zu verteilen, Abbrechen, Übernehmen und erneut Senden, Stand geändert)
+
+**Files Modified:**
+- `src/Shared/Budgeting.fs`, `src/Shared/Api.fs` - Vorschau- und Berichtstypen, drei neue BudgetApi-Methoden
+- `src/Server/Budgeting/Domain.fs` - planTargetApplication, previewsMatch, decideRetry
+- `src/Server/YnabClient.fs` - Pfad, Body (Encode.int, weil Thoth int64 als String schreibt), Statuszuordnung, setAssigned
+- `src/Server/Api.fs`, `src/Server/Program.fs`, `src/Server/Server.fsproj` - Weg targetsWith, Schema-Init, Compile-Zeilen
+- `src/Client/Components/Budget/{Types,State,View}.fs` - Dialogzustand, Aufrufe, Dialog mit DS-Bausteinen
+- `src/Tests/BudgetPageTests.fs`, `src/Tests/Tests.fsproj` - Model-Feld Targets, neue Compile-Zeilen
+
+**Rationale:**
+Roman soll am Monatsersten Targets mit einem Knopf anwenden, und die Budget-Historie soll von Beginn an aufgezeichnet werden (ADR 0065).
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: dotnet test 2391 bestanden, 7 übersprungen; test:scripts 257 bestanden; guard:classes und guard:tokens grün; npm run build grün
+- Neue Tests: 48 Expecto (33 Server, 15 Client) und 5 Playwright
+- Issues: Thoth schreibt int64 und decimal als JSON-String (Regressionstest zeigt es); Probe: pausierte Targets und Deckel lassen sich über die API nicht anlegen
+
+---
+
+## 2026-10-26 14:40 - Budget-Seite live aus YNAB (budgeting-k7wmd)
 
 **What I did:**
 Die Seite #/budget gebaut: Monat (dieser oder nächster) wählbar, Zu verteilen groß, Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB. Server liest `GET /budgets/{id}/months/{YYYY-MM-01}`, Domain gruppiert und filtert, Client zeigt am Handy Zeilen und am PC eine Tabelle. Lesende Probe: der nächste Monat trägt den Rest des laufenden Monats.

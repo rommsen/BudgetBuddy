@@ -39,6 +39,7 @@
     <Compile Include="DuplicateDetectionTests.fs" />
     <Compile Include="OrderIdMatcherTests.fs" />
     <Compile Include="BudgetingTests.fs" />
+    <Compile Include="TargetsApplyTests.fs" />
     <Compile Include="SplitTransactionTests.fs" />
     <Compile Include="SplitPushTests.fs" />
     <Compile Include="ImportAskLenaTests.fs" />
@@ -104,6 +105,7 @@
     <Compile Include="LedgerKeyboardTests.fs" />
     <Compile Include="MoneyFormatTests.fs" />
     <Compile Include="BudgetPageTests.fs" />
+    <Compile Include="TargetsApplyClientTests.fs" />
     <Compile Include="StatsAccentTests.fs" />
     <Compile Include="DesignSystemStartupTests.fs" />
     <Compile Include="TextGlowTokenTests.fs" />

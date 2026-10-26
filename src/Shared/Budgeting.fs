@@ -81,3 +81,88 @@ type BudgetMonth = {
     ToBeBudgeted: Money
     Groups: BudgetGroup list
 }
+
+// ============================================
+// Targets anwenden (budgeting-h2zfn)
+// ============================================
+
+/// Milliunits eines Betrags (YNAB rechnet in Tausendsteln). Ein Betrag mit mehr als drei
+/// Nachkommastellen wird gerundet; Beträge aus YNAB haben nie mehr.
+let toMilliunits (money: Money) : int64 =
+    int64 (Math.Round(money.Amount * 1000m, MidpointRounding.AwayFromZero))
+
+/// YNAB nimmt Zuweisungen nur auf 10 Milliunits genau an (12345 wurde 12350). Ein Betrag
+/// dazwischen wäre eine stille Rundung und wird deshalb abgelehnt.
+let isOnTenMilliunits (money: Money) : bool =
+    money.Amount * 1000m = decimal (toMilliunits money) && (toMilliunits money) % 10L = 0L
+
+/// Eine Kategorie der Vorschau: neu = altes Zugewiesen + Fehlbetrag.
+type TargetLine = {
+    CategoryId: Guid
+    CategoryName: string
+    GroupName: string
+    OldAssigned: Money
+    Underfunded: Money
+    NewAssigned: Money
+}
+
+/// Eine Kategorie, deren Target pausiert ist: wird nicht angewendet, aber ausgewiesen.
+type SkippedLine = {
+    CategoryId: Guid
+    CategoryName: string
+    Underfunded: Money
+}
+
+/// Die Vorschau von "Targets anwenden". Schreibt nichts.
+type TargetPreview = {
+    /// Erster des Monats als "YYYY-MM-01".
+    Month: string
+    Lines: TargetLine list
+    Skipped: SkippedLine list
+    /// Summe der Fehlbeträge (= Summe der Erhöhungen).
+    Total: Money
+    /// Zu verteilen vor dem Anwenden.
+    ToBeBudgeted: Money
+    /// Zu verteilen nach dem Anwenden (Zu verteilen minus Summe), darf negativ sein.
+    ToBeBudgetedAfter: Money
+}
+
+/// Stand einer Zeile einer Anwendung (das jüngste Ergebnis).
+type LineOutcome =
+    /// Nach YNAB geschrieben.
+    | Written
+    /// Nicht geschrieben, mit Grund (auch Rate-Limit). Erneut sendbar.
+    | Failed of reason: string
+    /// YNAB stand weder auf dem alten noch auf dem Zielwert: YNAB gewinnt, nichts geschrieben.
+    | ChangedInYnab
+
+type ApplyLineResult = {
+    CategoryId: Guid
+    CategoryName: string
+    OldAssigned: Money
+    NewAssigned: Money
+    Outcome: LineOutcome
+}
+
+/// Ausgang einer Anwendung oder eines erneuten Sendens.
+type ApplyReport = {
+    ApplicationId: string
+    Month: string
+    Lines: ApplyLineResult list
+    /// Zu verteilen, wie YNAB es nach dem Lauf meldet (`None`, wenn das erneute Lesen scheiterte).
+    ActualToBeBudgeted: Money option
+}
+
+/// Antwort auf "Übernehmen": entweder ist der Stand gleich geblieben und es wurde
+/// angewendet, oder YNAB steht anders als in der Vorschau und es wurde nichts geschrieben.
+type ApplyResult =
+    | Applied of ApplyReport
+    | PreviewChanged of TargetPreview
+
+/// Anzahl der Zeilen im Zustand `Written`.
+let writtenCount (report: ApplyReport) : int =
+    report.Lines |> List.filter (fun l -> l.Outcome = Written) |> List.length
+
+/// Anzahl der Zeilen im Zustand `Failed`.
+let failedCount (report: ApplyReport) : int =
+    report.Lines |> List.filter (fun l -> match l.Outcome with Failed _ -> true | _ -> false) |> List.length
