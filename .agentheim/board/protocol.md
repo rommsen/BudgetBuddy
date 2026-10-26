@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 13:10 -- Batch started: [ledger-xa7jf, budgeting-k7wmd, ynab-sync-d9e51]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-xa7jf - "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt", budgeting-k7wmd - "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC", ynab-sync-d9e51 - "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
+**Parallel:** yes (3 workers; budgeting-h2zfn hängt an budgeting-k7wmd und folgt in Welle 2; k7wmd und d9e51 berühren beide Shared/Api.fs, Server/Api.fs, YnabClient.fs und Tests.fsproj, Einfügestellen-Tabelle im Worker-Kontext)
+
+---
+
 ## 2026-10-26 13:07 -- Modeling / Promoted: ledger-xa7jf - "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt"
 
 **Type:** Modeling / Promote

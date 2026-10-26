@@ -1,7 +1,7 @@
 ---
 id: ynab-sync-d9e51
 title: "Lena fragen schon beim Import: eine Aktion an der einzelnen Zeile in Import prüfen, die Buchung geht mit der Lena-Flag-Farbe im Import-Push nach YNAB (auch ohne Kategorie) und steht im Kassenbuch sofort als Rückfrage Lena"
-status: todo
+status: doing
 type: feature
 context: ynab-sync
 created: 2026-10-26

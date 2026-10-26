@@ -1,7 +1,7 @@
 ---
 id: budgeting-k7wmd
 title: "Budget-Seite: Monat (dieser oder nächster), Zu verteilen und Kategorien nach Gruppen mit Zugewiesen, Aktivität und Verfügbar, live aus YNAB, am Handy und am PC"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-10-26

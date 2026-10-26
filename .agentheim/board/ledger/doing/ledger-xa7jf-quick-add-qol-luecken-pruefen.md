@@ -1,7 +1,7 @@
 ---
 id: ledger-xa7jf
 title: "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt"
-status: todo
+status: doing
 type: spike
 context: ledger
 created: 2026-10-25
