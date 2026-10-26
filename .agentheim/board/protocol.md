@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 20:51 -- Capture / Captured: ledger-vqvq6 - "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms
+
+---
+
 ## 2026-10-26 20:51 -- Capture / Captured: design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions)"
 
 **Type:** Capture
