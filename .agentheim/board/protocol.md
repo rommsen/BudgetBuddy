@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-26 17:19 -- Modeling / Promoted: ledger-s8t3s - "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-26 17:19 -- Modeling / Promoted: ledger-d4msf - "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt"
 
 **Type:** Modeling / Promote
