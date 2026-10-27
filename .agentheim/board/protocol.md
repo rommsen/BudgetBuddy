@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 10:46 -- Capture / Captured: design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche, Sync-Symbol entfällt
+
+---
+
 ## 2026-10-26 20:51 -- Capture / Captured: ledger-vqvq6 - "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms"
 
 **Type:** Capture
