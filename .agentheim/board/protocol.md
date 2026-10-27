@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 19:16 -- Modeling / Captured: ledger-wj6pd - Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px; im Verifier-Lauf von ledger-rjhwp zweimal rot, einzeln grün.
+
+---
+
 ## 2026-10-27 19:16 -- Task verified and completed: ledger-rjhwp - Amazon-Link im Kassenbuch
 
 **Type:** Work / Task completion
