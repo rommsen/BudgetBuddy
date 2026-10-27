@@ -13,7 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   CATEGORY_IDS,
   buildAccountsFixture,
@@ -328,6 +328,7 @@ test("PC: Bei Sortierung nach Kategorie erscheint die Leiste Neu laden, Neu lade
   const before = state.queries.length;
   await bar.getByRole("button", { name: "Neu laden" }).click();
   await bar.waitFor({ state: "detached" });
+  await pollUntil(() => state.queries.length > before);
   const last = state.queries[state.queries.length - 1];
   assert.ok(state.queries.length > before, "Neu laden fragt den Server");
   assert.equal(last.Page, 0, "ab Seite 1");

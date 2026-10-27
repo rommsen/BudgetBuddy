@@ -4,6 +4,34 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-27 19:50 - Wächter einmal bauen, statisch ausliefern, parallel laufen lassen
+
+**What I did:**
+`test:scripts` baut den Client einmal und liefert ihn über einen kleinen Node-Server aus, statt je Wächterdatei einen Vite mit Fable-Kompilierung zu starten. Parallelität nach Messung auf 4 Dateien gesetzt. Latente Zählerrennen in 6 Wächtern mit `pollUntil` behoben.
+
+**Files Added:**
+- `scripts/run-guards.mjs` - Gesamtlauf: bauen, BB_GUARD_DIST, node --test, aufräumen
+- `scripts/run-guards.test.mjs` - 4 Tests dazu
+- `scripts/static-serve.mjs` - statischer Server (SPA-Rückfall, 404 für Service Worker)
+- `scripts/static-serve.test.mjs` - 7 Tests inkl. startFrontend-Zweig
+
+**Files Modified:**
+- `package.json` - test:scripts ruft run-guards.mjs
+- `scripts/screenshot-route.mjs` - startFrontend-Zweig für BB_GUARD_DIST, pollUntil
+- `scripts/pwa-update.test.mjs` - nutzt BB_GUARD_DIST statt zweitem Build
+- `scripts/ledger-account-choice|category-change|detail|recent-categories|selection|sort-chip.test.mjs` - pollUntil vor Zählerzusicherungen
+- `standards/frontend/styleguide.md` - Hinweis auf run-guards
+
+**Rationale:**
+Der Aufbau (Fable-Kompilierung je Datei) machte den Großteil der 15 bis 20 Minuten aus; ohne ihn entfällt auch der Hänger bei Parallelität.
+
+**Outcomes:**
+- Build: ok (0 Warnungen)
+- Tests: dotnet 2426 ok; test:scripts 278/278, seriell 6,5 min, parallel 4: 1,9 min, dreimal grün
+- Issues: erster Lauf gegen das Bundle 10 rot (Zählerrennen), behoben
+
+---
+
 ## 2026-10-27 18:15 - Amazon- und PayPal-Link im Buchungs-Detail (ledger-rjhwp)
 
 **What I did:**

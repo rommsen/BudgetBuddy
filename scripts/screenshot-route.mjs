@@ -327,7 +327,15 @@ export async function startBackend(dataDir, port, sourceDataDir = resolveSourceD
 /// Zusätzlich: läuft der vite-Prozess vorher mit einem Fehlercode ab (z. B.
 /// weil der reservierte Port inzwischen doch belegt ist), rennt das gegen
 /// dieselbe Wette und gewinnt, statt bis zum Timeout zu warten.
+///
+/// Gesetztes BB_GUARD_DIST (scripts/run-guards.mjs) und kein `backendPort`:
+/// statt Vite startet ein kleiner statischer Node-Server (static-serve.mjs)
+/// das einmal gebaute Bundle (infrastructure-eq27s). Rückgabe und
+/// stopServer() bleiben gleich (ein detached Kindprozess).
 export async function startFrontend(port, backendPort) {
+  if (process.env.BB_GUARD_DIST && backendPort === undefined) {
+    return startStaticFrontend(process.env.BB_GUARD_DIST, port);
+  }
   const child = spawn(
     "npx",
     ["vite", "--port", String(port), "--strictPort", "--host", "127.0.0.1"],
@@ -365,6 +373,43 @@ export async function startFrontend(port, backendPort) {
     throw new Error(`vite konnte nicht starten: ${err.message}\n${stderrOutput}`);
   }
 
+  return child;
+}
+
+/// Wartet bis `cond()` wahr ist (Polling, höchstens `timeoutMs`). Für Wächter, die
+/// mitgezählte, gemockte Anfragen prüfen: der Zähler der Route läuft asynchron
+/// zur Oberfläche, und das statisch ausgelieferte Produktions-Bundle ist schnell
+/// genug, dass die Oberfläche dem Zähler vorauseilt (infrastructure-eq27s).
+export async function pollUntil(cond, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!cond() && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+async function startStaticFrontend(distDir, port) {
+  const child = spawn(
+    process.execPath,
+    [path.join(ROOT, "scripts", "static-serve.mjs"), distDir, String(port)],
+    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], detached: true }
+  );
+  let stderrOutput = "";
+  child.stderr.on("data", (buf) => {
+    stderrOutput += buf.toString();
+  });
+  const earlyExit = new Promise((_, reject) => {
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code !== null && code !== 0) {
+        reject(new Error(`static-serve beendete sich mit Code ${code}`));
+      }
+    });
+  });
+  try {
+    await Promise.race([waitForPort(port, 15000, "statischer Server"), earlyExit]);
+  } catch (err) {
+    throw new Error(`statischer Server konnte nicht starten: ${err.message}\n${stderrOutput}`);
+  }
   return child;
 }
 

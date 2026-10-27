@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 20:04 -- Task verified and completed: infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
+
+**Type:** Work / Task completion
+**Task:** infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
+**Summary:** test:scripts baut den Client einmal und liefert ihn über einen statischen Node-Server an alle Browser-Wächter aus; der Gesamtlauf braucht mit 4 parallelen Dateien rund 1,9 statt 15 bis 20 Minuten und lief dreimal grün.
+**Duration:** 43m
+**Verification:** PASS (iteration 3: iteration 1 FAIL Zählerrennen, iteration 2 FAIL nur README-Delta, vom Conductor korrigiert)
+**Files changed:** 14
+**Tests added:** 11
+**ADRs written:** none
+
+---
+
+## 2026-10-27 20:04 -- Verification failed: infrastructure-eq27s - Wächter einmal bauen
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-eq27s - Wächter einmal bauen
+**Iteration:** 2 of 3
+**Reasons:** README-Bullet formulierte eine unerzwungene Regel für künftige Wächter (ADR 0059, Check 6c); Code, Tests und Guards grün (278/278 in 109 s)
+**Iteration hint:** likely-fixable
+**Next:** Delta vom Conductor korrigiert (reine Doku), kein erneuter Worker-Lauf, Integration
+
+---
+
+## 2026-10-27 19:55 -- Verification failed: infrastructure-eq27s - Wächter einmal bauen
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-eq27s - Wächter einmal bauen
+**Iteration:** 1 of 3
+**Reasons:** ledger-category-change.test.mjs liest die letzte Anfrage vor dem pollUntil, die Page/Sort-Zusicherung kann alte Daten prüfen; sonst alles grün (278/278 in 112 s)
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-27 19:22 -- Batch started: [infrastructure-eq27s]
 
 **Type:** Work / Batch start

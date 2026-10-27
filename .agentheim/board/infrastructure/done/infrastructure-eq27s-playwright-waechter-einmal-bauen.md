@@ -1,7 +1,7 @@
 ---
 id: infrastructure-eq27s
 title: Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-10-27
@@ -40,3 +40,41 @@ Risiken für den Worker: Produktions-Bundle statt Entwicklungsmodus (Minifizieru
 Wo die Wächter-Regel überall steht (nach der Änderung prüfen und anpassen): `CLAUDE.md` (README-Deltas, `npm run test:scripts`), `standards/frontend/styleguide.md` Zeile 159 und 379, `.claude/rules/design-tokens.md`. Die BC-README von infrastructure bekommt einen Eintrag für den Wächter-Lauf.
 
 Erfasst am 2026-10-27 aus dem work-Lauf ledger-rjhwp. Seitdem steht in `package.json` vorläufig `node --test --test-concurrency=1 scripts/*.test.mjs` (Commit 00c3057).
+
+## Verifier note (iteration 1)
+
+REASONS:
+- In `scripts/ledger-category-change.test.mjs` (Test "PC: Bei Sortierung nach Kategorie erscheint die Leiste Neu laden, Neu laden lädt ab Seite 1", um Zeile 330) wird `const last = state.queries[state.queries.length - 1];` VOR dem neuen `await pollUntil(() => state.queries.length > before);` gelesen. Läuft der Zähler der Oberfläche hinterher, ist `last` noch die Anfrage vor dem Klick; die Zusicherungen auf `Page` und `Sort.Field` prüfen dann alte Daten. Das schwächt den Wächter (Kriterium 5).
+- Alles andere geprüft und in Ordnung: `npm run test:scripts` 278/278 in 112 s, Pfad-Ausbruchsschutz und `/sw.js`-404 in `static-serve.mjs` echt und getestet, `run-guards.mjs` reicht Exit-Code und Dateiargumente durch und räumt im `finally` auf, keine Gedankenstriche.
+
+SUGGESTED_FIX: `const last = ...` unter das `await pollUntil(...)` ziehen, dann die Datei und `npm run test:scripts` erneut laufen lassen.
+
+ITERATION_HINT: likely-fixable
+
+## Verifier note (iteration 2)
+
+REASONS:
+- Check 6c (ADR 0059): der README-Bullet "Wächter-Lauf" formulierte eine Regel für künftige Wächter ("Wächter, die gemockte Anfragen zählen, warten per `pollUntil` auf den Zähler, nicht auf die Oberfläche."), ohne Durchsetzung und ohne Vermerk "prose-only, unenforced".
+- Sonst alles grün: Iteration-1-Fehler behoben; `dotnet build` 0 Warnungen, `dotnet test` 2426 bestanden, Build und Guards grün, `npm run test:scripts` 278/278 in 109 s, Vite-Pfad direkt 3/3.
+
+SUGGESTED_FIX: Satz als Beschreibung der Änderung formulieren oder als "prose-only, unenforced" kennzeichnen.
+
+ITERATION_HINT: likely-fixable
+
+Vom Conductor erledigt (reine Doku): der Satz beschreibt jetzt, was diese Änderung getan hat ("Die sechs Wächter, die gemockte Anfragen zählen, warten seit dieser Änderung per `pollUntil` ... auf den Zähler, bevor sie ihn prüfen."). Kein weiterer Worker-Lauf.
+
+## Outcome
+
+`npm run test:scripts` ruft jetzt `scripts/run-guards.mjs`: ein `vite build` in ein temporäres Verzeichnis, `BB_GUARD_DIST` setzen, `node --test` über alle `scripts/*.test.mjs` (Dateiargumente nach `--` werden durchgereicht, Exit-Code wird zurückgegeben, Verzeichnis wird im `finally` entfernt). `startFrontend` startet bei gesetztem `BB_GUARD_DIST` und ohne Backend-Port `scripts/static-serve.mjs` (detached Kindprozess, nur Node-Bibliothek: Dateien, SPA-Rückfall für Pfade ohne Endung, 404 für `/sw.js`, `registerSW.js`, `workbox-*.js`, Schutz vor Pfad-Ausbruch). Ohne `BB_GUARD_DIST` bleibt alles wie bisher (Vite). `pwa-update.test.mjs` nutzt `BB_GUARD_DIST`, wenn gesetzt (kein zweiter Build).
+
+Neue Tests: `scripts/static-serve.test.mjs` (7: startFrontend startet den statischen Server und nicht Vite, `/`, Assets, Rückfall, 404, `/sw.js` 404, kein Pfad-Ausbruch), `scripts/run-guards.test.mjs` (4: einmal bauen und Env setzen, Exit-Code und Aufräumen bei rotem Lauf, Aufräumen bei Wurf, Dateiargumente). Der Static-Test war vor der Änderung rot (Vite lief weiter).
+
+### Messung (Gesamtlauf, gleiche Maschine, per date)
+- Vorher (Conductor, serieller Dev-Server-Lauf, 267 Tests): rund 15 bis 20 Minuten.
+- Nachher seriell (BB_GUARD_CONCURRENCY=1): 19:35:10 bis 19:41:38, rund 6,5 Minuten, 278 Tests grün.
+- Nachher mit 4 Dateien parallel: 112 s, 112 s, 111 s (duration_ms 111832, 112602, 111246), dreimal hintereinander 278/278 grün, keine Datei länger als 5 Minuten, kein Hänger. Gewählt: 4 (Konstante `TEST_CONCURRENCY` in `run-guards.mjs`, `BB_GUARD_CONCURRENCY=1` erzwingt seriell). Den reinen Node-Standardwert (CPU-Anzahl minus 1) habe ich nicht gemessen.
+
+### Produktions-Bundle deckte latente Wächter-Rennen auf (Risiko aus den Notes)
+Der erste Gesamtlauf gegen das Bundle hatte 10 rote Tests in 7 Dateien (ledger-account-choice, -category-change, -detail, -recent-categories, -selection, -sort-chip). Ursache: Die Wächter prüfen den Zähler einer gemockten Anfrage (`queries.length`, `calls.set.length`, `sortsSeen`, `requestedAccounts`) sofort nach einem Oberflächenzustand. Im Produktions-Bundle ist die Oberfläche schneller als der Zähler der Playwright-Route, im Dev-Server war es umgekehrt. Fachlich ist nichts geändert: vor jeder dieser Zusicherungen steht jetzt ein `await pollUntil(() => <Zähler erreicht>)` (neuer Helfer in `screenshot-route.mjs`, Polling bis 5 s). Zusicherungen selbst blieben. Iteration 2: in ledger-category-change wird `last` jetzt nach dem `pollUntil` gelesen (Verifier-Hinweis); die anderen Stellen lesen korrekt. Danach ledger-category-change einzeln ohne BB_GUARD_DIST (Vite) 7/7 grün und ein weiterer Gesamtlauf 278/278 in 112 s.
+
+Doku: `standards/frontend/styleguide.md` (Durchsetzungs-Absatz nennt run-guards). `CLAUDE.md` und `.claude/rules/design-tokens.md` bleiben richtig und unverändert. Pflichtläufe: `dotnet build` 0 Warnungen 0 Fehler, `dotnet test` 2426 bestanden/7 übersprungen/0 Fehler, `npm run build`, `guard:classes`, `guard:tokens` grün. Ein temporäres Build-Verzeichnis aus der Zwischenmessung (Pfad in `/var/folders/.../T/tmp.*`) konnte ich wegen der rm-Sicherheitsprüfung nicht löschen; es liegt im Temp-Verzeichnis des Systems.

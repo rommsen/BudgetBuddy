@@ -13,7 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   CATEGORY_IDS,
   buildAccountsFixture,
@@ -181,6 +181,7 @@ test("PC: Die Filter-Knöpfe tragen den vollen Namen, filtern und lassen das Pan
   const before = queries.length;
   await payeeButton.click();
   await page.waitForFunction(() => true);
+  await pollUntil(() => queries.length > before);
   assert.ok(queries.length > before, "ein Neuladen lief");
   assert.equal(queries[queries.length - 1].Payee, PAYEE);
   assert.equal(queries[queries.length - 1].Page, 0);
@@ -192,6 +193,7 @@ test("PC: Die Filter-Knöpfe tragen den vollen Namen, filtern und lassen das Pan
   const beforeCategory = queries.length;
   await categoryButton.click();
   await page.waitForFunction(() => true);
+  await pollUntil(() => queries.length > beforeCategory);
   assert.ok(queries.length > beforeCategory, "ein Neuladen lief");
   const last = queries[queries.length - 1];
   assert.deepEqual(last.CategoryIds, [CATEGORY_IDS.lebensmittel]);
@@ -286,6 +288,7 @@ test("Handy (390x844): Tipp öffnet das Sheet mit Filter-Knöpfen an den Feldern
   const before = queries.length;
   await buttons.first().tap();
   await mobilePage.waitForFunction(() => true);
+  await pollUntil(() => queries.length > before);
   assert.ok(queries.length > before, "ein Neuladen lief");
   assert.equal(queries[queries.length - 1].Payee, "Deutsche Bahn");
   assert.equal(await sheet(mobilePage).count(), 1, "das Sheet bleibt offen");

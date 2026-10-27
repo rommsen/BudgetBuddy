@@ -13,7 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
@@ -102,6 +102,7 @@ test("Handy: Chip am Ende der Leiste, Sheet mit zehn Optionen, Betrag aufsteigen
 
   await sheet.getByText("Größte Ausgabe zuerst").click();
   await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
+  await pollUntil(() => sortsSeen.at(-1)?.Field === "SortByAmount");
   assert.deepEqual(sortsSeen.at(-1), { Field: "SortByAmount", Direction: "SortAsc" });
   await page.waitForFunction(() => [...document.querySelectorAll(".ledger-filter-bar button")].some((b) => b.textContent === "Betrag ↑"));
 

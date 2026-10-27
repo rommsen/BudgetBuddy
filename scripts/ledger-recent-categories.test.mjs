@@ -12,7 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   CATEGORY_IDS,
   buildAccountsFixture,
@@ -132,6 +132,7 @@ test("PC (1440): ohne bisherige Kategorien fehlt der Abschnitt, nach dem Vergebe
   assert.equal(await recentIn(listbox).count(), 0, "ohne bisherige Kategorien kein Abschnitt");
   await listbox.locator('[role="option"]', { hasText: "Nebenkosten" }).last().click();
   await listbox.waitFor({ state: "detached" });
+  await pollUntil(() => calls.set.length > 0);
   assert.deepEqual(calls.set.map((c) => c.choice), [{ YnabCategoryId: CATEGORY_IDS.nebenkosten }]);
 
   // Nächste Buchung: die gerade vergebene Kategorie steht oben im Abschnitt.
@@ -195,6 +196,7 @@ test("Handy (390x844): im Sheet über dem Detail steht die vergebene Kategorie b
   assert.equal(await recentIn(pickerSheet).count(), 0, "ohne bisherige Kategorien kein Abschnitt");
   await pickerSheet.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
   await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 1);
+  await pollUntil(() => calls.set.length > 0);
   assert.equal(calls.set.length, 1);
   // Detail schließen und eine andere Buchung öffnen.
   await page.keyboard.press("Escape");

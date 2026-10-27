@@ -156,7 +156,7 @@ Ungültige Eingabe zeigt den Fehlerzustand mit dem Hinweis „Datum als TT.MM.JJ
 > (`bg-[#…]`, `text-[#…]`), keine inline `style.color`. Immer die semantischen Tokens.
 >
 > **Durchsetzung:** `npm run guard:tokens` (`scripts/token-guard.mjs`, läuft in
-> `npm run test:scripts`) scheitert bei Hex- und rgb-Arbitrary-Werten, Standard-Tailwind-Farben,
+> `npm run test:scripts`; baut den Client einmal, `scripts/run-guards.mjs`) scheitert bei Hex- und rgb-Arbitrary-Werten, Standard-Tailwind-Farben,
 > `style.color`/`backgroundColor`/`borderColor`/`fontSize` und `text-[Npx]` in jeder `.fs` unter
 > `src/Client/`. Nur die Definitionsschicht `src/Client/DesignSystem/` darf Treffer haben, und
 > nur mit Eintrag samt Grund in `scripts/token-guard-exceptions.json`. Feature-Code hat keine

@@ -12,7 +12,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
@@ -105,6 +105,7 @@ test("Handy: Titel zeigt den Kontonamen, Sheet listet alle Konten, Tipp wechselt
   await page.waitForFunction(() => document.querySelectorAll(".bottom-sheet.active").length === 0);
   assert.match(await title.innerText(), new RegExp(second().Name));
   assert.equal(await stored(page), `account:${second().Id}`);
+  await pollUntil(() => requestedAccounts.length > before);
   assert.ok(requestedAccounts.length > before, "Liste wurde nicht neu geladen");
   // Neuladen: das Handy öffnet im gemerkten Konto.
   await page.reload({ waitUntil: "load" });

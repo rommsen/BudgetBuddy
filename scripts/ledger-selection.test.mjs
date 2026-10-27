@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
-import { getFreePort, startFrontend, stopServer, waitForPageLoaded } from "./screenshot-route.mjs";
+import { getFreePort, startFrontend, stopServer, waitForPageLoaded, pollUntil } from "./screenshot-route.mjs";
 import {
   buildAccountsFixture,
   buildBalancesFixture,
@@ -457,6 +457,7 @@ test("PC 1440x900: Kategorie setzen öffnet das Popover über der Leiste ohne Ha
     await listbox.getByText("Bahn", { exact: true }).click();
     await page.waitForFunction(() => document.querySelectorAll(".selection-bar button:disabled").length >= 2);
     assert.equal(await bar.getByRole("button", { name: "Geprüft", exact: true }).isDisabled(), true, "Geprüft gesperrt");
+    await pollUntil(() => calls.length > 0);
     assert.equal(calls.length, 1, "genau ein Sammel-Aufruf");
     assert.equal(calls[0].selection.BatchPicked.length, 3, "mit den drei gewählten Ids");
     assert.deepEqual(calls[0].target, { YnabCategoryId: CATEGORY_IDS.bahn }, "Ziel-Kategorie");

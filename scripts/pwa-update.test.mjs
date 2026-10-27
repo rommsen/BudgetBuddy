@@ -25,19 +25,27 @@ let outDir;
 let sw;
 let html;
 
+// Mit BB_GUARD_DIST (scripts/run-guards.mjs) gibt es schon ein gebautes Bundle:
+// kein zweiter Build. Direkt gestartet baut der Wächter selbst.
+const sharedDist = process.env.BB_GUARD_DIST;
+
 before(() => {
-  outDir = fs.mkdtempSync(path.join(os.tmpdir(), "bb-pwa-update-"));
-  execFileSync("npx", ["vite", "build", "--outDir", outDir, "--emptyOutDir"], {
-    cwd: repoRoot,
-    stdio: "pipe",
-    timeout: 240000,
-  });
+  if (sharedDist) {
+    outDir = sharedDist;
+  } else {
+    outDir = fs.mkdtempSync(path.join(os.tmpdir(), "bb-pwa-update-"));
+    execFileSync("npx", ["vite", "build", "--outDir", outDir, "--emptyOutDir"], {
+      cwd: repoRoot,
+      stdio: "pipe",
+      timeout: 240000,
+    });
+  }
   sw = fs.readFileSync(path.join(outDir, "sw.js"), "utf8");
   html = fs.readFileSync(path.join(outDir, "index.html"), "utf8");
 });
 
 after(() => {
-  if (outDir) fs.rmSync(outDir, { recursive: true, force: true });
+  if (outDir && !sharedDist) fs.rmSync(outDir, { recursive: true, force: true });
 });
 
 test("vite.config.js: registerType prompt, kein injizierter Registrierungs-Script", () => {
