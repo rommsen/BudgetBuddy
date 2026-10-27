@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 22:05 -- Modeling / Promoted: ledger-b0b7q - "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-27 22:05 -- Modeling / Promoted: design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)"
 
 **Type:** Modeling / Promote
