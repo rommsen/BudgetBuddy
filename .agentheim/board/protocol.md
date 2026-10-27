@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 22:05 -- Modeling / Promoted: design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-27 22:04 -- Modeling / Refined: design-system-j6dnj, design-system-y2bdj, design-system-bym4m, ledger-b0b7q
 
 **Type:** Modeling / Refine
