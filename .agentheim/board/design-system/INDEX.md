@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
-- **Todo:** 1
+- **Backlog:** 1
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 36
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)" (chore) — `todo/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`
 - **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)" (bug) — `todo/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
 <!-- todo-list:end -->
 
@@ -61,7 +62,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **design-system-bym4m** — "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import" (feature) — `backlog/design-system-bym4m-split-ziel-ein-picker-fuer-kategorie-und-konto.md`
-- **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions)" (chore) — `backlog/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`
 <!-- backlog-list:end -->
 
 
