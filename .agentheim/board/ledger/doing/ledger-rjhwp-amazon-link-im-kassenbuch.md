@@ -1,7 +1,7 @@
 ---
 id: ledger-rjhwp
 title: Amazon-Link im Kassenbuch
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-25

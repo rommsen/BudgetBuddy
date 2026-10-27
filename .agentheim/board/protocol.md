@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 17:31 -- Batch started: [ledger-rjhwp]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-rjhwp - Amazon-Link im Kassenbuch
+**Parallel:** scoped: builder named ledger-rjhwp; 0 other ready tasks not dispatched
+**Planning advisory:** whats-next (current, 13:15): refine design-system-bym4m; builder chose ledger-rjhwp explicitly
+
+---
+
 ## 2026-10-27 17:25 -- Modeling / Promoted: ledger-rjhwp - Amazon-Link im Kassenbuch
 
 **Type:** Modeling / Promote
