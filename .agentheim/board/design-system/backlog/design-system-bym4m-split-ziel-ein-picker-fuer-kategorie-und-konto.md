@@ -27,4 +27,7 @@ Erwogen und verworfen (Gespräch 2026-10-27): zwei Select-Boxen nebeneinander. E
 
 ## Notes
 Captured via `quick-capture` on 2026-10-27, raw, unrefined. Needs a `modeling` refine pass before
-it can be promoted. Offen für die Verfeinerung: Steht der Konten-Abschnitt oben (nur rund sieben Konten, sonst hinter vielen Kategorien versteckt) oder unten? Zählen Konten bei "Zuletzt verwendet" (ledger-d4msf) mit? Bezug: ledger-pafkp (Split-Editor Kassenbuch), ADR 0006 (Übertrag im Split), ledger-s8t3s (Barabhebung setzt das Konto-Ziel direkt).
+it can be promoted. **Entscheidungen (Roman, 2026-10-27):**
+- Der Abschnitt "Übertrag auf Konto" steht **unten**, unter den Kategorien.
+- Die Suche findet ein Konto über seinen Namen ("Bar") und über das Präfix "Konto:" (z. B. "Konto: Bar" bzw. "Konto:" allein zeigt nur die Konten).
+- Konten erscheinen **nicht** unter "Zuletzt verwendet" (ledger-d4msf); die Liste bleibt Kategorien vorbehalten. Bezug: ledger-pafkp (Split-Editor Kassenbuch), ADR 0006 (Übertrag im Split), ledger-s8t3s (Barabhebung setzt das Konto-Ziel direkt).
