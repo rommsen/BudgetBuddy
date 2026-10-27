@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,5 +11,8 @@
 
   <ItemGroup>
     <PackageReference Include="Fable.Remoting.Giraffe" Version="5.16.0" />
+    <!-- Hebt das transitive Newtonsoft.Json 12.0.3 aus Fable.Remoting an (GHSA-5crp-9r3c-p9vr).
+         Seit SDK 10 meldet der NuGet-Audit auch transitive Pakete (NU1903). -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 </Project>

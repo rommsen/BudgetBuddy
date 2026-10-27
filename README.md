@@ -60,7 +60,7 @@ BudgetBuddy bridges the gap between your German bank account (Comdirect) and YNA
 
 ### Prerequisites
 
-- .NET 9+ SDK
+- .NET 10 SDK
 - Node.js 20+
 - Docker (for deployment)
 

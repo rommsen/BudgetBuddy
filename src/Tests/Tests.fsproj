@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <GenerateProgramFile>false</GenerateProgramFile>
     <!-- Erzwingt USE_MEMORY_DB=true fuer `dotnet test` (VSTest ruft nie den
          Einstiegspunkt in Main.fs auf, siehe dort und test.runsettings). -->
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
     <!-- Die Tests laufen ohne Kulturdaten, wie der Server im Alpine-Container
-         (aspnet:9.0-alpine, kein ICU). Sonst bleibt ein Zugriff auf "de-DE"
+         (aspnet:10.0-alpine, kein ICU). Sonst bleibt ein Zugriff auf "de-DE"
          lokal grün und wirft erst in Produktion (Historie 500, 2026-10-20). -->
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
@@ -124,10 +124,10 @@
     <PackageReference Include="Thoth.Json.Net" Version="12.*" />
     <!-- Pin Microsoft.Data.Sqlite to the SAME explicit version as Server (infra-001):
          without this the test process resolves the 9.0.11 facade transitively while
-         Server.dll is compiled against 9.0.13, and the version skew triggers an
+         Server.dll is compiled against the pinned version, and the version skew triggers an
          intermittent SqliteConnection.RemoveCommand index-out-of-range during
          connection disposal on the first full suite run. -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.13" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
   </ItemGroup>
 
   <ItemGroup>

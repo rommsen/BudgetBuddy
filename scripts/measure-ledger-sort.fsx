@@ -2,7 +2,7 @@
 //
 // Läuft gegen eine Datei-Datenbank (wie im Container), nie gegen die Entwicklungsdatenbank:
 //   dotnet build src/Server
-//   DYLD_FALLBACK_LIBRARY_PATH=$PWD/src/Server/bin/Debug/net9.0/runtimes/osx-arm64/native \
+//   DYLD_FALLBACK_LIBRARY_PATH=$PWD/src/Server/bin/Debug/net10.0/runtimes/osx-arm64/native \
 //     dotnet fsi scripts/measure-ledger-sort.fsx <leeres Verzeichnis für die Messdatenbank>
 // (Die DYLD-Variable braucht fsi, damit die native SQLite-Bibliothek gefunden wird.)
 //
@@ -10,15 +10,15 @@
 // dann der Median aus fünf Läufen. Schwelle: höchstens 1000 ms. Ein Wert darüber heißt:
 // keinen Index auf Verdacht anlegen, die Entscheidung neu treffen (ADR 0051 Punkt 8).
 
-#r "../src/Server/bin/Debug/net9.0/FSharp.Core.dll"
-#r "../src/Server/bin/Debug/net9.0/Dapper.dll"
-#r "../src/Server/bin/Debug/net9.0/Microsoft.Data.Sqlite.dll"
-#r "../src/Server/bin/Debug/net9.0/SQLitePCLRaw.core.dll"
-#r "../src/Server/bin/Debug/net9.0/SQLitePCLRaw.batteries_v2.dll"
-#r "../src/Server/bin/Debug/net9.0/SQLitePCLRaw.provider.e_sqlite3.dll"
-#r "../src/Server/bin/Debug/net9.0/Thoth.Json.Net.dll"
-#r "../src/Server/bin/Debug/net9.0/Shared.dll"
-#r "../src/Server/bin/Debug/net9.0/Server.dll"
+#r "../src/Server/bin/Debug/net10.0/FSharp.Core.dll"
+#r "../src/Server/bin/Debug/net10.0/Dapper.dll"
+#r "../src/Server/bin/Debug/net10.0/Microsoft.Data.Sqlite.dll"
+#r "../src/Server/bin/Debug/net10.0/SQLitePCLRaw.core.dll"
+#r "../src/Server/bin/Debug/net10.0/SQLitePCLRaw.batteries_v2.dll"
+#r "../src/Server/bin/Debug/net10.0/SQLitePCLRaw.provider.e_sqlite3.dll"
+#r "../src/Server/bin/Debug/net10.0/Thoth.Json.Net.dll"
+#r "../src/Server/bin/Debug/net10.0/Shared.dll"
+#r "../src/Server/bin/Debug/net10.0/Server.dll"
 
 open System
 open System.Diagnostics

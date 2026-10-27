@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 13:01 -- Task completed (verification skipped): infrastructure-r72gd - Migration von .NET 9 auf .NET 10, nachdem brew upgrade die Runtime 9 entfernt hat
+
+**Type:** Work / Task completion
+**Task:** infrastructure-r72gd - Migration von .NET 9 auf .NET 10, nachdem brew upgrade die Runtime 9 entfernt hat
+**Summary:** Alle vier Projekte auf net10.0, Microsoft.Data.Sqlite 10.0.14, Newtonsoft.Json 13.0.3 direkt in Shared gegen NU1903, Docker-Images 10.0-alpine; Auslöser war brew upgrade, das die Runtime 9 entfernt hat
+**Duration:** (nachgetragen)
+**Verification:** SKIPPED — nachgetragen, Arbeit ohne agentheim-Lauf; geprüft mit dotnet test (2412 bestanden, 6 übersprungen), test:scripts (alle 33 Dateien grün), npm run build und docker build
+**Files changed:** 11
+
+---
+
 ## 2026-10-27 10:46 -- Capture / Captured: design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
 
 **Type:** Capture

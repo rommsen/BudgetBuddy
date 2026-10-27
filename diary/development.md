@@ -4,6 +4,32 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-27 11:30 - Migration von .NET 9 auf .NET 10
+
+**What I did:**
+Nach einem `brew upgrade` war nur noch das SDK 10.0.403 mit Runtime 10.0.14 installiert. `dotnet build` lief weiter (SDK 10 kompiliert net9.0), `dotnet test` und `dotnet run` brachen ab, weil `Microsoft.NETCore.App 9.0.0` fehlte. Alle Projekte zielen jetzt auf net10.0, das Docker-Image nutzt die 10er-Images.
+
+**Files Modified:**
+- `src/Client/Client.fsproj`, `src/Shared/Shared.fsproj`, `src/Server/Server.fsproj`, `src/Tests/Tests.fsproj`: `TargetFramework` net10.0
+- `src/Server/Server.fsproj`, `src/Tests/Tests.fsproj`: Microsoft.Data.Sqlite 9.0.13 auf 10.0.14 (beide Pins bleiben gleich, infra-001)
+- `src/Shared/Shared.fsproj`: direkte Referenz Newtonsoft.Json 13.0.3. Der NuGet-Audit prüft unter SDK 10 auch transitive Pakete und meldete NU1903 für das 12.0.3 aus Fable.Remoting.Giraffe 5.16.0
+- `Dockerfile`: `dotnet10-sdk` (Alpine, Fable-Stufe), `sdk:10.0-alpine`, `aspnet:10.0-alpine`
+- `scripts/measure-ledger-sort.fsx`: `#r`-Pfade auf `bin/Debug/net10.0`
+- `README.md`, `.agentheim/knowledge/contexts/infrastructure/README.md`: Stack-Angabe .NET 10
+
+**Rationale:**
+Ohne Runtime 9 liefen lokal weder Tests noch Server. .NET 9 (STS) endet im November 2026, .NET 10 ist LTS. ADRs mit .NET-9-Bezug (0015, 0037) bleiben als historische Entscheidungen unverändert.
+
+**Outcomes:**
+- Build: ✅ 0 Warnungen, 0 Fehler (nach sauberem Löschen von bin/obj)
+- Tests: 2412/2418 bestanden, 6 übersprungen (YNAB-Integration ohne .env)
+- `npm run build` (Fable/Vite): ✅
+- `docker build`: ✅
+- `npm run test:scripts`: alle 33 Dateien grün (6 Dateien im ersten Lauf, `ledger-category-change` einzeln 7/7, die 26 Dateien danach 217/217). Ein Lauf mit Standard-Parallelität neben anderer Last hing und lief in 60-s-Timeouts.
+- Issues: Nachgetragen als agentheim-Task `infrastructure-r72gd`
+
+---
+
 ## 2026-10-26 18:00 - Barabhebung im Split-Editor des Kassenbuchs (ledger-s8t3s)
 
 **What I did:**

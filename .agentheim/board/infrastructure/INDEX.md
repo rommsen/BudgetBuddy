@@ -13,7 +13,7 @@ research touching this BC, and concept synthesis pages.
 - **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
-- **Done:** 10
+- **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
@@ -26,6 +26,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-r72gd** — Migration von .NET 9 auf .NET 10, nachdem brew upgrade die Runtime 9 entfernt hat (chore) — `done/infrastructure-r72gd-migration-auf-dotnet-10.md`
 - **infrastructure-y6atr** — Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint (bug) — `done/infrastructure-y6atr-start-abfragen-bei-netzwerkfehler-wiederholen.md`
 - **infrastructure-bnbdc** — "Installierte PWA übernimmt einen neuen Deploy: beim Zurückholen nach neuem Service Worker fragen, sofort neu laden, außer es läuft eine Eingabe (dann Hinweis mit Knopf)" (feature) — `done/infrastructure-bnbdc-pwa-uebernimmt-neuen-stand-ohne-cache-loeschen.md`
 - **infrastructure-b6kzp** — "Gate gegen leise danebengehende README-Deltas (repo-lokal, gegen das echte Plugin-Modul)" (chore) — `done/infrastructure-b6kzp-readme-delta-erreicht-die-bullets-dieses-projekts-nicht-und.md`

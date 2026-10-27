@@ -7,7 +7,7 @@ Repository-Implementierung, der Regel-Matcher) bleibt im jeweiligen Context; nur
 projektweit wahr ist, landet hier.
 
 Konkret bei BudgetBuddy:
-- **Stack:** .NET 9 / F# Fullstack; Fable + Vite + Feliz/Elmish (Client), Giraffe (Server).
+- **Stack:** .NET 10 / F# Fullstack; Fable + Vite + Feliz/Elmish (Client), Giraffe (Server).
 - **Persistence:** SQLite via Dapper; AES-256-Verschlüsselung für Secrets (PINs/Tokens).
 - **Transport:** Fable.Remoting (typsichere Client↔Server-Contracts in `src/Shared/Api.fs`).
 - **Orchestrierung:** SyncSession-Lifecycle (`SyncSessionManager`) als prozessübergreifender
