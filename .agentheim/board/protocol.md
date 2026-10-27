@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 19:22 -- Batch started: [infrastructure-eq27s]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
+**Parallel:** scoped: builder named infrastructure-eq27s and ledger-wj6pd; eq27s this wave, wj6pd queued to the next wave (both run Playwright guards, parallel Fable compiles hang this machine)
+
+---
+
 ## 2026-10-27 19:19 -- Modeling / Promoted: ledger-wj6pd - Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
 
 **Type:** Modeling / Promote
