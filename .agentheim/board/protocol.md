@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 20:04 -- Batch started: [ledger-wj6pd]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-wj6pd - Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
+**Parallel:** scoped: second wave of the named set (infrastructure-eq27s integrated first so the guards run on the cheap path)
+
+---
+
 ## 2026-10-27 20:04 -- Task verified and completed: infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
 
 **Type:** Work / Task completion
