@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 19:16 -- Task verified and completed: ledger-rjhwp - Amazon-Link im Kassenbuch
+
+**Type:** Work / Task completion
+**Task:** ledger-rjhwp - Amazon-Link im Kassenbuch
+**Summary:** Das Buchungs-Detail (Sheet und Seitenpanel) zeigt bei Amazon- und PayPal-Buchungen eine Link-Zeile unter dem Memo; die Erkennung läuft textbasiert über dieselbe Regel wie im Sync und kommt als LedgerEntryView.ExternalLinks aus dem Lesepfad.
+**Duration:** 1h39m
+**Verification:** PASS (iteration 1)
+**Files changed:** 25
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-10-27 18:18 -- Modeling / Captured: infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
 
 **Type:** Modeling / Capture

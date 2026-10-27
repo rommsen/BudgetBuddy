@@ -945,6 +945,11 @@ type LedgerEntryView = {
     /// Die Sperren des Split-Schreibwegs (ledger-pafkp). `None`: nichts gesperrt und nichts
     /// offen, auch für Antworten eines älteren Servers, der das Feld nicht kennt.
     SplitLocks: SplitLocks option
+    /// Externe Links der Buchung (ledger-rjhwp): Amazon-Bestellung bzw. Bestellübersicht und
+    /// PayPal-Aktivitäten, im Lesepfad aus Payee und aktuellem Memo erkannt (dieselbe Regel
+    /// wie im Sync). Reines Read-Model-Feld, kein Ereignis, kein Schema. Nur das Buchungs-Detail
+    /// zeigt sie.
+    ExternalLinks: ExternalLink list
 }
 
 // ============================================

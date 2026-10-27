@@ -1,7 +1,7 @@
 ---
 id: ledger-rjhwp
 title: Amazon-Link im Kassenbuch
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-25
@@ -56,3 +56,11 @@ Entscheidungen Roman (2026-10-27):
 Fundstellen: `src/Server/RulesEngine.fs` (Muster, `amazonOrderIdPattern`, `generateAmazonLink`, `detectSpecialTransaction`), Sync-Darstellung in `src/Client/Components/SyncFlow/Views/TransactionRow.fs` (Action-Chip im aufgeklappten Bereich, Symbol in der kompakten Zeile), `LedgerEntryView` in `src/Shared/Domain.fs`, Lesepfad `src/Server/Ledger/QueryHandlers.fs`.
 
 Nach dem Umbau gehört `ExternalLink` auch ins Ledger-README (Glossar-Eintrag Buchungs-Detail ergänzen).
+
+## Outcome
+
+Die textbasierte Erkennung `detectSpecialLinksFromText (payee: string option) (memo: string)` in `src/Server/RulesEngine.fs` ist die eine Regel; `detectSpecialTransaction` (Sync, `BankTransaction`) delegiert dorthin. `LedgerEntryView.ExternalLinks: ExternalLink list` wird in `ReadModel.toEntryView` aus Payee und aktuellem Memo gefüllt (RulesEngine kompiliert vor QueryHandlers). Im Client baut `Detail.externalLinksRow` (DesignSystem) die Feldzeile "Link" (`<a>` mit `target="_blank"`, `rel="noopener noreferrer"`, `Icons.externalLink`, mindestens 44 px hoch); `detailExternalLinks`/`externalLinksField` in `Components/Ledger/View.fs` hängen sie in `detailContent` unter das Memo (Sheet und Panel teilen die Funktion). Leere Liste: keine Zeile. Die Liste (Tabelle, Kompaktliste) liest das Feld nicht. Styleguide-Galerie hat die Karte "Detail: Link-Zeile".
+
+Tests: 15 neue Tests (6 RulesEngine inkl. Gleichheit beider Varianten, 3 toEntryView in LedgerFilterButtonTests, 6 Detail/Quelltext in LedgerDetailTests) plus Playwright-Wächter `scripts/ledger-external-links.test.mjs` (3 Tests: PC-Panel mit Link unter Memo und ohne Link in der Liste, Buchung ohne Treffer, Handy-Sheet mit Trefferfläche mindestens 44 px). Läufe: dotnet build 0 Warnungen, 0 Fehler; dotnet test 2426 bestanden, 7 übersprungen; npm run build und guard:classes grün; serieller Gesamtlauf `node --test --test-concurrency=1 scripts/*.test.mjs` zuletzt 267 Tests, 267 bestanden, 0 rot.
+
+Wichtiger Befund: Das Fable.Remoting-Dekodieren bricht bei einem FEHLENDEN Pflichtfeld im Record ab (Liste bleibt leer, Ladeschleife). Deshalb haben die Playwright-Fixtures (`ledger-filter-bar.mjs`, `ledger-status-column.mjs`) jetzt `ExternalLinks: []`. Im Betrieb kommt das Feld nur vom Server zum Client, beide werden zusammen ausgeliefert; ein Client gegen einen älteren Server ist nicht vorgesehen, die `null`-Abfrage im Client ist nur defensiv. Der Handy-Screenshot der Detail-Sheet-Ansicht liegt im Scratchpad unter .../scratchpad/ledger-rjhwp/mobile.png (Sheet halb geöffnet, Link-Zeile liegt unter dem sichtbaren Teil); das Kriterium [human-eye] (ruhige Stelle, Daumen) bleibt für Roman offen, gemessen ist die Trefferhöhe (mindestens 44 px).

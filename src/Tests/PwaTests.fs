@@ -77,6 +77,7 @@ let private anEntry : Shared.Domain.LedgerEntryView = {
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None
+    ExternalLinks = []
 }
 
 let private noticeToasts (m: State.Model) =

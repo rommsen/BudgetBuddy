@@ -74,6 +74,7 @@ export function buildEntryFixture(accountId, n, overrides = {}) {
     ReviewMarkWriteBackFailure: null,
     LinkedToYnab: true,
     PushToYnabFailure: null,
+    ExternalLinks: [],
     ...overrides,
   };
 }

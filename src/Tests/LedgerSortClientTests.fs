@@ -46,6 +46,7 @@ let private entryOn (n: int) (date: DateTime) (amount: decimal) : LedgerEntryVie
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None
+    ExternalLinks = []
 }
 
 let private baseModel () : Model =

@@ -165,6 +165,7 @@ module ReadModel =
             // Ohne Konten-Abruf und ohne Verknüpfungen: Tracking-Konto und Fremd-`import_id`
             // ergänzen `withImportIdLock` und `withTrackingLock` (ledger-pafkp).
             SplitLocks = Ledger.CommandHandlers.splitLocksOf false None entry
+            ExternalLinks = Server.RulesEngine.detectSpecialLinksFromText entry.Payee (entry.Memo |> Option.defaultValue "")
         }
 
     /// Setzt die Sperren neu, sobald die `import_id` der Buchung bekannt ist (ledger-pafkp):

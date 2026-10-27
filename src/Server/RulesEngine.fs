@@ -41,17 +41,23 @@ let private paypalPatterns = [
 /// Handles optional 2-digit Comdirect line number prefix (e.g., 01305-...)
 let amazonOrderIdPattern = @"(?:(?:^|\s)\d{2})?([A-Z0-9]{3}-\d{7}-\d{7})"
 
-/// Extracts Amazon order ID from transaction text (payee + memo)
-let extractAmazonOrderId (transaction: BankTransaction) : string option =
-    let text =
-        match transaction.Payee with
-        | Some payee -> payee + " " + transaction.Memo
-        | None -> transaction.Memo
+/// Der Suchtext einer Buchung: Payee und Memo, durch ein Leerzeichen getrennt.
+/// Sync (`BankTransaction`) und Kassenbuch (Payee und Memo der Buchung) nutzen denselben Text.
+let private searchText (payee: string option) (memo: string) : string =
+    match payee with
+    | Some payee -> payee + " " + memo
+    | None -> memo
 
+/// Extracts Amazon order ID from transaction text (payee + memo)
+let extractAmazonOrderIdFromPayeeAndMemo (payee: string option) (memo: string) : string option =
     let regex = new Regex(amazonOrderIdPattern, RegexOptions.None)
-    let matchResult = regex.Match(text)
+    let matchResult = regex.Match(searchText payee memo)
     if matchResult.Success then Some matchResult.Groups.[1].Value
     else None
+
+/// Extracts Amazon order ID from transaction text (payee + memo)
+let extractAmazonOrderId (transaction: BankTransaction) : string option =
+    extractAmazonOrderIdFromPayeeAndMemo transaction.Payee transaction.Memo
 
 /// Extracts Amazon order ID from arbitrary text (memo, payee, etc.)
 let extractAmazonOrderIdFromText (text: string) : string option =
@@ -60,8 +66,8 @@ let extractAmazonOrderIdFromText (text: string) : string option =
     if m.Success then Some m.Groups.[1].Value else None
 
 /// Generates Amazon link - deep link to specific order if ID found, else order history
-let private generateAmazonLink (transaction: BankTransaction) : ExternalLink =
-    match extractAmazonOrderId transaction with
+let private generateAmazonLink (payee: string option) (memo: string) : ExternalLink =
+    match extractAmazonOrderIdFromPayeeAndMemo payee memo with
     | Some orderId ->
         {
             Label = $"Bestellung {orderId}"
@@ -75,56 +81,43 @@ let private generateAmazonLink (transaction: BankTransaction) : ExternalLink =
 
 /// Generates a PayPal activity link for transactions.
 /// Purpose: Provides quick access to PayPal activity for transaction lookup.
-let private generatePayPalLink (transaction: BankTransaction) : ExternalLink =
+let private generatePayPalLink () : ExternalLink =
     {
         Label = "PayPal Activity"
         Url = "https://www.paypal.com/activities"
     }
 
+let private matchesAny (patterns: string list) (text: string) : bool =
+    patterns
+    |> List.exists (fun pattern ->
+        let regex = new Regex(pattern, RegexOptions.IgnoreCase)
+        regex.IsMatch(text))
+
 /// Detects if a transaction matches Amazon patterns and generates external link.
 /// Returns: Some link if Amazon transaction detected, None otherwise.
-let private detectAmazon (transaction: BankTransaction) : ExternalLink option =
-    let text =
-        match transaction.Payee with
-        | Some payee -> payee + " " + transaction.Memo
-        | None -> transaction.Memo
-
-    let isAmazon =
-        amazonPatterns
-        |> List.exists (fun pattern ->
-            let regex = new Regex(pattern, RegexOptions.IgnoreCase)
-            regex.IsMatch(text)
-        )
-
-    if isAmazon then Some (generateAmazonLink transaction)
+let private detectAmazon (payee: string option) (memo: string) : ExternalLink option =
+    if matchesAny amazonPatterns (searchText payee memo) then Some (generateAmazonLink payee memo)
     else None
 
 /// Detects if a transaction matches PayPal patterns and generates external link.
 /// Returns: Some link if PayPal transaction detected, None otherwise.
-let private detectPayPal (transaction: BankTransaction) : ExternalLink option =
-    let text =
-        match transaction.Payee with
-        | Some payee -> payee + " " + transaction.Memo
-        | None -> transaction.Memo
-
-    let isPayPal =
-        paypalPatterns
-        |> List.exists (fun pattern ->
-            let regex = new Regex(pattern, RegexOptions.IgnoreCase)
-            regex.IsMatch(text)
-        )
-
-    if isPayPal then Some (generatePayPalLink transaction)
+let private detectPayPal (payee: string option) (memo: string) : ExternalLink option =
+    if matchesAny paypalPatterns (searchText payee memo) then Some (generatePayPalLink ())
     else None
+
+/// Textbasierte Erkennung (Amazon, PayPal) aus Payee und Memo (ledger-rjhwp). Eine Regel für
+/// Sync und Kassenbuch: `detectSpecialTransaction` delegiert hierher.
+let detectSpecialLinksFromText (payee: string option) (memo: string) : ExternalLink list =
+    [
+        detectAmazon payee memo
+        detectPayPal payee memo
+    ]
+    |> List.choose id
 
 /// Detects special transaction patterns (Amazon, PayPal) and returns external links.
 /// Purpose: Provides users with quick access to detailed transaction information.
 let detectSpecialTransaction (transaction: BankTransaction) : ExternalLink list =
-    [
-        detectAmazon transaction
-        detectPayPal transaction
-    ]
-    |> List.choose id
+    detectSpecialLinksFromText transaction.Payee transaction.Memo
 
 // ============================================
 // Rule Compilation

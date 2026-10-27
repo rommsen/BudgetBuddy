@@ -44,6 +44,7 @@ let private view (payee: string option) (categoryId: Guid option) : LedgerEntryV
     LinkedToYnab = true
     PushToYnabFailure = None
     SplitLocks = None
+    ExternalLinks = []
 }
 
 let private split : TransactionSplit =
@@ -169,6 +170,28 @@ let filterButtonTests =
                     ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab
                         { storedEntry with Category = None; Splits = [ split ] }
                 Expect.isNone aufgeteilt.CategoryId "Split"
+            }
+            // ledger-rjhwp: die Links kommen aus Payee und dem AKTUELLEN Memo der Buchung
+            // (ein in BB bearbeitetes Memo ist die Grundlage, nicht das ursprüngliche).
+            test "toEntryView füllt ExternalLinks aus Payee und aktuellem Memo" {
+                let amazon = { storedEntry with Payee = Some "AMAZON PAYMENTS"; Memo = Some "01305-304-1234567-7654321 Lampe" }
+                let view = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab amazon
+                Expect.equal
+                    (view.ExternalLinks |> List.map (fun l -> l.Label))
+                    [ "Bestellung 304-1234567-7654321" ]
+                    "Bestellnummer aus dem Memo"
+                Expect.stringContains view.ExternalLinks.Head.Url "orderID=304-1234567-7654321" "Deep-Link mit Id"
+            }
+            test "toEntryView: ein bearbeitetes Memo ersetzt die Grundlage der Erkennung" {
+                let before = { storedEntry with Payee = Some "AMAZON PAYMENTS"; Memo = Some "304-1234567-7654321" }
+                let after = { before with Memo = Some "Geschenk" }
+                let linksOf e = (ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab e).ExternalLinks |> List.map (fun l -> l.Label)
+                Expect.equal (linksOf before) [ "Bestellung 304-1234567-7654321" ] "vorher: Deep-Link"
+                Expect.equal (linksOf after) [ "Amazon Orders" ] "nachher: nur die Bestellübersicht"
+            }
+            test "toEntryView: Buchung ohne Treffer und ohne Memo hat keine Links" {
+                let view = ReadModel.toEntryView Map.empty Map.empty MirroredFromYnab { storedEntry with Memo = None }
+                Expect.isEmpty view.ExternalLinks "REWE ist weder Amazon noch PayPal"
             }
         ]
 

@@ -1603,6 +1603,20 @@ let private memoField
                     (fun () -> memoActionMsg model entry |> Option.iter dispatch)
             ))
 
+/// Die externen Links des Buchungs-Details als (Beschriftung, Adresse) (ledger-rjhwp). Leer
+/// für eine Buchung ohne Treffer; ein fehlendes Feld (`null`) gilt defensiv als leer. Client und
+/// Server werden zusammen ausgeliefert, das Feld kommt nur vom Server zum Client.
+let detailExternalLinks (entry: LedgerEntryView) : (string * string) list =
+    if isNull (box entry.ExternalLinks) then []
+    else entry.ExternalLinks |> List.map (fun link -> link.Label, link.Url)
+
+/// Die Link-Zeile unter dem Memo: nur wenn es Links gibt, sonst `None`. Sheet und Seitenpanel
+/// teilen sich `detailContent`, damit auch diese Zeile in beiden dieselbe ist.
+let externalLinksField (entry: LedgerEntryView) : ReactElement option =
+    match detailExternalLinks entry with
+    | [] -> None
+    | links -> Some (Detail.externalLinksRow links)
+
 /// Alles unter dem Kopf: Hinweisleiste, Felder, Geprüft-Schalter, Herkunft, Historie.
 let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerEntryView) : ReactElement list =
     let rowState = model.ReviewMarkRows |> Map.tryFind entry.Id
@@ -1655,6 +1669,10 @@ let private detailContent (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
       splitField dispatch entry
 
       memoField dispatch model memoRow entry textColor
+
+      match externalLinksField entry with
+      | Some row -> row
+      | None -> ()
 
       flagField dispatch model flagRow entry
 

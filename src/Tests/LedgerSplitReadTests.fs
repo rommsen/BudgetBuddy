@@ -274,7 +274,8 @@ let trackingLockTests =
           MemoWriteBackFailure = None
           LinkedToYnab = true
           PushToYnabFailure = None
-          SplitLocks = None }
+          SplitLocks = None
+          ExternalLinks = [] }
 
     testList "Ledger Split-Sperren (Tracking-Konten)" [
 

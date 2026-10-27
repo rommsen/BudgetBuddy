@@ -605,7 +605,58 @@ let styleguideTests =
             let gallery = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
             for call in
                 [ "Detail.notice"; "Detail.originRow"; "Detail.timeline"; "Detail.panel"
-                  "Detail.reviewedSwitch"; "Detail.filterButton"; "Detail.fieldRow" ] do
+                  "Detail.reviewedSwitch"; "Detail.filterButton"; "Detail.fieldRow"; "Detail.externalLinksRow" ] do
                 Expect.stringContains gallery call $"Galerie zeigt {call}"
             Expect.stringContains gallery "components-detail" "eigene Galerie-Karte mit Anker"
+    ]
+
+// ============================================
+// Externe Links im Buchungs-Detail (ledger-rjhwp)
+// ============================================
+
+[<Tests>]
+let externalLinksTests =
+    let withLinks (links: ExternalLink list) = { entry 1 with ExternalLinks = links }
+    let amazon : ExternalLink =
+        { Label = "Bestellung 304-1234567-7654321"
+          Url = "https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID=304-1234567-7654321" }
+    let paypal : ExternalLink = { Label = "PayPal Activity"; Url = "https://www.paypal.com/activities" }
+
+    testList "Detail: externe Links (ledger-rjhwp)" [
+        testCase "jeder Eintrag aus ExternalLinks wird zu Beschriftung und Adresse" <| fun () ->
+            Expect.equal
+                (detailExternalLinks (withLinks [ amazon; paypal ]))
+                [ amazon.Label, amazon.Url; paypal.Label, paypal.Url ]
+                "beide Links in Reihenfolge"
+
+        testCase "bei leerer Liste baut das Detail keine Link-Zeile" <| fun () ->
+            Expect.isEmpty (detailExternalLinks (withLinks [])) "keine Links"
+            // Die Zeile selbst baut Feliz-Elemente und lässt sich unter .NET nicht erzeugen
+            // (Fable-Proxy); der Playwright-Wächter ledger-external-links prüft sie am Browser.
+            let body = functionBody (viewSource ()) "let externalLinksField"
+            Expect.stringContains body "| [] -> None" "leere Liste: keine Zeile"
+
+        testCase "die Antwort eines älteren Servers ohne das Feld (null) ergibt keine Zeile" <| fun () ->
+            let old = { entry 1 with ExternalLinks = Unchecked.defaultof<ExternalLink list> }
+            Expect.isEmpty (detailExternalLinks old) "null wird wie leer behandelt"
+
+        testCase "Sheet und Seitenpanel teilen dieselbe Detail-Funktion mit der Zeile unter dem Memo" <| fun () ->
+            let body = functionBody (viewSource ()) "let private detailContent"
+            Expect.stringContains body "externalLinksField entry" "die Zeile steht in der gemeinsamen Detail-Funktion"
+            Expect.isTrue
+                (body.IndexOf "memoField dispatch" < body.IndexOf "externalLinksField entry"
+                 && body.IndexOf "externalLinksField entry" < body.IndexOf "flagField dispatch")
+                "zwischen Memo und Flag"
+
+        testCase "der Link öffnet in neuem Tab, mit rel und Symbol" <| fun () ->
+            let source = readRepo [ "src"; "Client"; "DesignSystem"; "Detail.fs" ]
+            let body = functionBody source "let externalLinksRow"
+            for literal in [ "prop.target \"_blank\""; "noopener noreferrer"; "Icons.externalLink" ] do
+                Expect.stringContains body literal $"Link-Zeile enthält {literal}"
+
+        testCase "die Kassenbuch-Liste (Tabelle und Kompaktliste) zeigt keinen Link" <| fun () ->
+            let source = viewSource ()
+            let occurrences = source.Split("externalLinksField").Length - 1
+            Expect.equal occurrences 2 "nur Definition und ein Aufruf (detailContent)"
+            Expect.equal (source.Split("entry.ExternalLinks").Length - 1) 2 "ExternalLinks nur in detailExternalLinks gelesen"
     ]

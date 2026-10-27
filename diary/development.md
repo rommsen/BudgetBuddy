@@ -4,6 +4,34 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-27 18:15 - Amazon- und PayPal-Link im Buchungs-Detail (ledger-rjhwp)
+
+**What I did:**
+Textbasierte Link-Erkennung in RulesEngine (Sync delegiert), `LedgerEntryView.ExternalLinks` im Lesepfad, Link-Zeile unter dem Memo im Buchungs-Detail, DS-Baustein `Detail.externalLinksRow` samt Styleguide-Karte.
+
+**Files Added:**
+- `scripts/ledger-external-links.test.mjs` - Playwright-Wächter für Panel, Sheet und Liste
+
+**Files Modified:**
+- `src/Server/RulesEngine.fs` - `detectSpecialLinksFromText`, BankTransaction-Variante delegiert
+- `src/Shared/Domain.fs` - `LedgerEntryView.ExternalLinks`
+- `src/Server/Ledger/QueryHandlers.fs` - `toEntryView` füllt das Feld
+- `src/Client/DesignSystem/Detail.fs` - `externalLinksRow`
+- `src/Client/Components/Ledger/View.fs` - `detailExternalLinks`, `externalLinksField`, Einbau in `detailContent`
+- `src/Client/Components/Styleguide/View.fs` - Galerie-Karte
+- `src/Tests/*` - neues Feld in allen LedgerEntryView-Literalen, neue Tests in RulesEngineTests, LedgerFilterButtonTests, LedgerDetailTests
+- `scripts/ledger-filter-bar.mjs`, `scripts/ledger-status-column.mjs` - `ExternalLinks: []` in den Fixtures
+
+**Rationale:**
+Roman will aus dem Buchungs-Detail direkt auf die Amazon-Bestellung (und PayPal-Aktivitäten) kommen, wie im Sync.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: dotnet 2426 bestanden (7 übersprungen); Playwright seriell 267/267
+- Issues: Fixtures ohne das neue Feld ließen die Liste leer (Fable-Dekodierung), behoben
+
+---
+
 ## 2026-10-27 11:30 - Migration von .NET 9 auf .NET 10
 
 **What I did:**

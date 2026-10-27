@@ -1402,6 +1402,11 @@ let private DetailDemo () =
                   Action = Some { Label = "Erneut senden"; Busy = false; OnClick = ignore } }
         ]
 
+        card "components-detail-external-links" "Detail: Link-Zeile" "Externe Links unter dem Memo (Amazon-Bestellung, PayPal-Aktivitäten), öffnen in neuem Tab" [
+            Detail.externalLinksRow
+                [ "Bestellung 304-1234567-7654321", "https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID=304-1234567-7654321"
+                  "PayPal Activity", "https://www.paypal.com/activities" ]
+        ]
         card "components-detail-fields" "Detail: Felder, Filter-Knopf, Schalter, Herkunft" "Feldzeile mit Filter-Knopf, Split, Geprüft-Schalter, Herkunft" [
             Detail.fieldRow
                 "styleguide-detail-category"

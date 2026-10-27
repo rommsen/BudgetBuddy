@@ -591,3 +591,49 @@ let appendReviewStepTests =
 
             Expect.equal withOverride.ReviewSteps.Length 2 "A PayeeOverride-only change is still a new step"
     ]
+
+// ledger-rjhwp: textbasierte Erkennung (Payee und Memo), geteilt von Sync und Kassenbuch.
+[<Tests>]
+let textBasedSpecialLinkTests =
+    let labels links = links |> List.map (fun (l: ExternalLink) -> l.Label)
+
+    testList "detectSpecialLinksFromText (ledger-rjhwp)" [
+        testCase "Amazon mit Bestellnummer ergibt genau einen Deep-Link, auch mit Comdirect-Zeilenpräfix" <| fun () ->
+            let links = detectSpecialLinksFromText (Some "AMAZON PAYMENTS EUROPE") "01305-304-1234567-7654321 Kopfhörer"
+            Expect.equal (labels links) [ "Bestellung 304-1234567-7654321" ] "ein Link, Label wie im Sync"
+            Expect.equal
+                links.Head.Url
+                "https://www.amazon.de/gp/your-account/order-details?ie=UTF8&orderID=304-1234567-7654321"
+                "Deep-Link mit der Id ohne Präfix"
+
+        testCase "Amazon ohne Bestellnummer ergibt den Link zur Bestellübersicht" <| fun () ->
+            let links = detectSpecialLinksFromText (Some "AMZN Mktp DE") "Kauf"
+            Expect.equal (labels links) [ "Amazon Orders" ] "Bestellübersicht"
+            Expect.equal links.Head.Url "https://www.amazon.de/gp/your-account/order-history" "Adresse"
+
+        testCase "PayPal ergibt den Aktivitäten-Link" <| fun () ->
+            let links = detectSpecialLinksFromText (Some "PayPal (Europe) S.a.r.l.") "PP.1234.PP Händler"
+            Expect.equal (labels links) [ "PayPal Activity" ] "PayPal"
+            Expect.equal links.Head.Url "https://www.paypal.com/activities" "Adresse"
+
+        testCase "Text ohne Amazon- oder PayPal-Muster ergibt eine leere Liste" <| fun () ->
+            Expect.isEmpty (detectSpecialLinksFromText (Some "REWE Markt") "Wocheneinkauf") "kein Treffer"
+            Expect.isEmpty (detectSpecialLinksFromText None "") "leer"
+
+        testCase "Payee = None mit Treffer im Memo wird erkannt" <| fun () ->
+            let links = detectSpecialLinksFromText None "AMAZON.DE 028-1111111-2222222"
+            Expect.equal (labels links) [ "Bestellung 028-1111111-2222222" ] "Memo allein reicht"
+
+        testCase "detectSpecialTransaction (BankTransaction) und die Textvariante liefern dasselbe" <| fun () ->
+            for payee, memo in
+                [ Some "AMAZON PAYMENTS", "304-1234567-7654321"
+                  None, "PAYPAL *SHOP"
+                  Some "AMAZON EU", "PAYPAL Sammelzahlung"
+                  Some "REWE", "Einkauf"
+                  None, "" ] do
+                let transaction = createTransaction "TX" payee memo -10.0m
+                Expect.equal
+                    (detectSpecialTransaction transaction)
+                    (detectSpecialLinksFromText payee memo)
+                    $"gleiches Ergebnis für {payee} / {memo}"
+    ]

@@ -263,6 +263,34 @@ let valueText (className: string) (text: string) : ReactElement =
         prop.text text
     ]
 
+/// Die Feldzeile "Link" im Buchungs-Detail (ledger-rjhwp): je externem Link ein Eintrag mit
+/// Symbol, der in einem neuen Tab öffnet. Die Trefferfläche ist mindestens 44 px hoch (Daumen).
+/// `links` sind (Beschriftung, Adresse); eine leere Liste baut keine Zeile (Aufrufer prüft).
+let externalLinksRow (links: (string * string) list) : ReactElement =
+    let value =
+        Html.div [
+            prop.className "flex min-w-0 flex-col items-end"
+            prop.children [
+                for (label, url) in links ->
+                    Html.a [
+                        prop.key url
+                        prop.custom ("data-testid", "detail-external-link")
+                        prop.href url
+                        prop.target "_blank"
+                        prop.rel "noopener noreferrer"
+                        prop.className (
+                            $"inline-flex min-h-11 min-w-0 items-center gap-2 {FontSizes.sm} {Colors.neonTeal} "
+                            + "hover:underline touch-manipulation"
+                        )
+                        prop.children [
+                            Html.span [ prop.className "min-w-0 break-words"; prop.text label ]
+                            Icons.externalLink Icons.SM Icons.NeonTeal
+                        ]
+                    ]
+            ]
+        ]
+    fieldRow "detail-external-links" "Link" value None
+
 /// Die Zeilen eines Splits, je Ziel und Betrag.
 let splitLines (lines: (string * string) list) : ReactElement =
     Html.div [

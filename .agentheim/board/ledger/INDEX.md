@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 7
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 91
+- **Doing:** 0
+- **Done:** 92
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `doing/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `done/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 - **ledger-s8t3s** — "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest" (feature) — `done/ledger-s8t3s-barabhebung-im-split-editor.md`
 - **ledger-d4msf** — "Zuletzt verwendete Kategorien im Kategorie-Picker des Kassenbuchs: beim Ändern der Kategorie und bei Kategorie für die Auswahl stehen die letzten Kategorien einen Tipp entfernt" (feature) — `done/ledger-d4msf-zuletzt-verwendet-im-kategorie-picker.md`
 - **ledger-xa7jf** — "Spike: Quick Add und Import-Seite nach Komfortfunktionen durchsehen, die dem Kassenbuch fehlen; Ergebnis ist eine Liste mit Begründung, aus der Roman die Backlog-Tasks auswählt" (spike) — `done/ledger-xa7jf-quick-add-qol-luecken-pruefen.md`

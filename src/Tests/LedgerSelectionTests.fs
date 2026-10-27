@@ -37,6 +37,7 @@ let entryOf (n: int) (amount: decimal) (needsReview: bool) (deleted: bool) : Led
     LinkedToYnab = false
     PushToYnabFailure = None
     SplitLocks = None
+    ExternalLinks = []
 }
 
 /// Zeile n mit dem Betrag -10 * n.
