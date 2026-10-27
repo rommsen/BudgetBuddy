@@ -1,7 +1,7 @@
 ---
 id: infrastructure-eq27s
 title: Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-10-27

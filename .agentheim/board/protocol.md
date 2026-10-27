@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 19:19 -- Modeling / Promoted: ledger-wj6pd - Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-27 19:19 -- Modeling / Promoted: infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-27 19:19 -- Modeling / Refined: infrastructure-eq27s, ledger-wj6pd - Wächter einmal bauen, Zeilenhöhen-Wächter stabil
 
 **Type:** Modeling / Refine
