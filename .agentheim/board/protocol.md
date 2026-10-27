@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 18:18 -- Modeling / Captured: infrastructure-eq27s - Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Playwright-Wächter bauen den Client je Datei neu (Vite plus Fable); einmal bauen und gegen einen gemeinsamen Preview-Server laufen lassen.
+
+---
+
 ## 2026-10-27 17:31 -- Batch started: [ledger-rjhwp]
 
 **Type:** Work / Batch start
