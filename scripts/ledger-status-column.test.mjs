@@ -251,6 +251,46 @@ async function tableRowByPayee(payeeText) {
   return page.locator("table tbody tr").filter({ has: page.locator("td", { hasText: new RegExp(`^${escaped}$`) }) }).first();
 }
 
+/// Liest die Höhe der Vergleichszeile und der geprüften Zeile ATOMAR in einem
+/// `page.evaluate`, nachdem `waitForFunction` sichergestellt hat, dass beide Zeilen im
+/// DOM stehen, sichtbar sind und eine Höhe größer 0 haben (ledger-wj6pd).
+/// Vermutete Ursache des sporadischen 0 px (nicht einzeln nachgestellt): die Tabelle
+/// rendert nach den Scroll-Tests AC1/AC2 oder einem nachlaufenden Mock-Abruf neu; ein
+/// Locator, der zwischen zwei getrennten `evaluate`-Aufrufen auf eine ersetzte oder
+/// noch nicht ausgelegte Zeile zeigt, liefert dann 0 px für eine der beiden Zeilen.
+async function measureRowHeights(baselinePayee, payee) {
+  const args = { baselinePayee, payee };
+  await page.waitForFunction(
+    ({ baselinePayee, payee }) => {
+      const rowFor = (text) =>
+        [...document.querySelectorAll("table tbody tr")].find((tr) =>
+          [...tr.querySelectorAll("td")].some((td) => td.textContent.replace(/\s+/g, " ").trim() === text)
+        );
+      return [rowFor(baselinePayee), rowFor(payee)].every((tr) => {
+        if (!tr) return false;
+        const r = tr.getBoundingClientRect();
+        const cs = getComputedStyle(tr);
+        return r.height > 0 && r.width > 0 && cs.visibility !== "hidden" && cs.display !== "none";
+      });
+    },
+    args,
+    { polling: 50, timeout: 30000 }
+  );
+  return page.evaluate(
+    ({ baselinePayee, payee }) => {
+      const rowFor = (text) =>
+        [...document.querySelectorAll("table tbody tr")].find((tr) =>
+          [...tr.querySelectorAll("td")].some((td) => td.textContent.replace(/\s+/g, " ").trim() === text)
+        );
+      return {
+        baselineHeight: rowFor(baselinePayee).getBoundingClientRect().height,
+        rowHeight: rowFor(payee).getBoundingClientRect().height,
+      };
+    },
+    args
+  );
+}
+
 test("Die PC-Tabelle zeigt an keiner Stelle den Herkunfts-Text 'YNAB-Spiegel' (AC3)", async () => {
   const tbodyText = await page.locator("table tbody").innerText();
   assert.ok(
@@ -271,8 +311,7 @@ test("Nur Buchungen mit NeedsReview zeigen das Wort 'zu prüfen' in ihrer Zeile 
 // ============================================
 
 test("NeedsReview + Flag 'Rückfrage Lena' stehen nebeneinander, ohne die Zeile zu erhöhen, im gekürzten Wortlaut 'Lena?' mit voller Bedeutung für assistive Technologie (AC5)", async () => {
-  const baselineRow = await tableRowByPayee(SIX_CASE_PAYEES.baseline);
-  const baselineHeight = await baselineRow.evaluate((el) => el.getBoundingClientRect().height);
+  const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, SIX_CASE_PAYEES.needsReviewAskLena);
 
   const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewAskLena);
   const rowText = await row.innerText();
@@ -280,7 +319,6 @@ test("NeedsReview + Flag 'Rückfrage Lena' stehen nebeneinander, ohne die Zeile 
   assert.ok(rowText.includes("Lena?"), "Muss den GEKÜRZTEN Flag-Wortlaut zeigen, nicht 'Rückfrage Lena'");
   assert.ok(!rowText.includes("Rückfrage Lena"), "Der volle Wortlaut darf in der PC-Statusspalte nicht mehr stehen (Überlauf-Risiko)");
 
-  const rowHeight = await row.evaluate((el) => el.getBoundingClientRect().height);
   assert.ok(
     Math.abs(rowHeight - baselineHeight) <= 1,
     `Zwei Kennzeichen dürfen die Zeile nicht höher machen (Baseline ${baselineHeight}px, diese Zeile ${rowHeight}px)`
@@ -313,8 +351,7 @@ test("NeedsReview + Flag 'Rückfrage Lena' stehen nebeneinander, ohne die Zeile 
 });
 
 test("NeedsReview + 'in YNAB gelöscht' stehen nebeneinander, ohne die Zeile zu erhöhen, mit voller Bedeutung für assistive Technologie (AC5, Stand-in für 'nicht in YNAB verknüpft', siehe OUTCOME)", async () => {
-  const baselineRow = await tableRowByPayee(SIX_CASE_PAYEES.baseline);
-  const baselineHeight = await baselineRow.evaluate((el) => el.getBoundingClientRect().height);
+  const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, SIX_CASE_PAYEES.needsReviewDeleted);
 
   const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewDeleted);
   const rowText = await row.innerText();
@@ -324,7 +361,6 @@ test("NeedsReview + 'in YNAB gelöscht' stehen nebeneinander, ohne die Zeile zu 
   const badgeCount = await statusCell.locator(".rounded-full").count();
   assert.equal(badgeCount, 1, "Das Ausnahme-Symbol ist das einzige Badge; 'zu prüfen' ist ein Wort (ADR 0049)");
 
-  const rowHeight = await row.evaluate((el) => el.getBoundingClientRect().height);
   assert.ok(
     Math.abs(rowHeight - baselineHeight) <= 1,
     `Zwei Kennzeichen dürfen die Zeile nicht höher machen (Baseline ${baselineHeight}px, diese Zeile ${rowHeight}px)`
@@ -357,8 +393,7 @@ test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne hö
   // nachgerechnet hat (scrollWidth 131 > clientWidth 128 mit dem vollen Text
   // "Markiert"): jetzt ein Symbol wie `deletedStatusIcon`, mit deutlich mehr
   // Reserve als eine weitere Kürzung des Wortlauts.
-  const baselineRow = await tableRowByPayee(SIX_CASE_PAYEES.baseline);
-  const baselineHeight = await baselineRow.evaluate((el) => el.getBoundingClientRect().height);
+  const { baselineHeight, rowHeight } = await measureRowHeights(SIX_CASE_PAYEES.baseline, SIX_CASE_PAYEES.needsReviewMarked);
 
   const row = await tableRowByPayee(SIX_CASE_PAYEES.needsReviewMarked);
   const rowText = await row.innerText();
@@ -369,7 +404,6 @@ test("NeedsReview + Flag 'Markiert' stehen nebeneinander, ohne Umbruch, ohne hö
   const badgeCount = await statusCell.locator(".rounded-full").count();
   assert.equal(badgeCount, 1, "Das Markiert-Symbol ist das einzige Badge; 'zu prüfen' ist ein Wort (ADR 0049)");
 
-  const rowHeight = await row.evaluate((el) => el.getBoundingClientRect().height);
   assert.ok(
     Math.abs(rowHeight - baselineHeight) <= 1,
     `Zwei Kennzeichen dürfen die Zeile nicht höher machen (Baseline ${baselineHeight}px, diese Zeile ${rowHeight}px)`

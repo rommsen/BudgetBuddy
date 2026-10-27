@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 20:22 -- Task verified and completed: ledger-wj6pd - Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
+
+**Type:** Work / Task completion
+**Task:** ledger-wj6pd - Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
+**Summary:** Die drei Zeilenhöhen-Tests des Wächters ledger-status-column messen Vergleichs- und Prüfzeile jetzt atomar in einem page.evaluate, nachdem waitForFunction beide Zeilen als vorhanden, sichtbar und höher als 0 bestätigt hat.
+**Duration:** 22m
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-27 20:04 -- Batch started: [ledger-wj6pd]
 
 **Type:** Work / Batch start

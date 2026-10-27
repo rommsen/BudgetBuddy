@@ -1,7 +1,7 @@
 ---
 id: ledger-wj6pd
 title: Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
-status: doing
+status: done
 type: bug
 context: ledger
 created: 2026-10-27
@@ -33,3 +33,11 @@ Fix in zwei Schritten:
 
 ## Notes
 Erfasst am 2026-10-27 aus dem Verifier-Bericht zu ledger-rjhwp. Ähnlich gelagert: ledger-vqvq6 (Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms). Unabhängig von infrastructure-eq27s, berührt andere Dateien; nach eq27s ist jeder Wächter-Lauf billiger, die Zehnfach-Prüfung geht dann schneller.
+
+## Outcome
+
+In `scripts/ledger-status-column.test.mjs` gibt es den Helfer `measureRowHeights(baselinePayee, payee)`. Er wartet per `page.waitForFunction` (Polling 50 ms, kein Zeitkonstanten-Warten), bis beide Zeilen im DOM stehen, sichtbar sind und Höhe und Breite größer 0 haben, und liest dann beide Höhen in einem einzigen `page.evaluate`. Die drei AC5-Tests (Lena, in YNAB gelöscht, Markiert) nutzen ihn. Alle fachlichen Zusicherungen (Höhenunterschied höchstens 1 px, Wortlaute, Badge-Zahl, Überlaufprüfung, title/aria-label) sind unverändert.
+
+Ursache: nicht einzeln nachgestellt. Begründete Vermutung (steht als Kommentar am Helfer): Die Tabelle rendert nach den Scroll-Tests AC1/AC2 oder einem nachlaufenden Mock-Abruf neu; ein Locator, der zwischen zwei getrennten evaluate-Aufrufen auf eine ersetzte oder noch nicht ausgelegte Zeile zeigt, liefert 0 px.
+
+Nachweis: Schleife mit `npm run test:scripts -- scripts/ledger-external-links.test.mjs scripts/ledger-status-column.test.mjs` zehnmal, 10/10 grün (je 12 Tests, 0 Fehler). Dazu 3 Einzelläufe der Datei (9/9). `npm run test:scripts` gesamt: 278/278 grün. `guard:tokens` und `guard:classes` grün. `dotnet build`/`dotnet test`/`npm run build` nicht nötig (kein F#- und kein Client-Code geändert). Umlaut-/Gedankenstrich-Selbstcheck ohne Treffer. Ein roter Gegenbeweis ohne Änderung war nicht erzeugbar, weil der Fehler sporadisch ist.

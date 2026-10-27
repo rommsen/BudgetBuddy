@@ -4,6 +4,27 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-27 20:16 - Zeilenhöhen-Wächter ledger-status-column atomar messen
+
+**What I did:**
+Helfer `measureRowHeights` eingeführt, der auf beide Zeilen wartet und beide Höhen in einem `page.evaluate` liest; die drei AC5-Tests nutzen ihn statt getrennter Locator-evaluate-Aufrufe.
+
+**Files Added:**
+- keine
+
+**Files Modified:**
+- `scripts/ledger-status-column.test.mjs` - Helfer ergänzt, drei Tests umgestellt
+
+**Rationale:**
+Der Wächter las sporadisch 0 px (einzeln grün, im Verbund rot). Vermutete Ursache: Neu-Rendern der Tabelle zwischen getrennten Messaufrufen.
+
+**Outcomes:**
+- Build: nicht nötig
+- Tests: Wächter 10/10 Läufe grün im Verbund, test:scripts gesamt 278/278
+- Issues: keine
+
+---
+
 ## 2026-10-27 19:50 - Wächter einmal bauen, statisch ausliefern, parallel laufen lassen
 
 **What I did:**
