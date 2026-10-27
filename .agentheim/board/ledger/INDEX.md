@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
-- **Todo:** 0
+- **Backlog:** 6
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 91
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `todo/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -78,7 +79,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **ledger-vqvq6** — "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms" (chore) — `backlog/ledger-vqvq6-split-cashback-waechter-ohne-festes-warten.md`
-- **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `backlog/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
 - **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`
 - **ledger-hg5m5** — "Regel-Angebot nach einer Kategorie-Änderung im Kassenbuch: Anbieten, aus Payee und neuer Kategorie eine Kategorisierungsregel anzulegen" (feature) — `backlog/ledger-hg5m5-regel-angebot-nach-kategorie-aenderung.md`

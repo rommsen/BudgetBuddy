@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 17:25 -- Modeling / Promoted: ledger-rjhwp - Amazon-Link im Kassenbuch
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-27 17:25 -- Modeling / Refined: ledger-rjhwp - Amazon-Link im Kassenbuch
 
 **Type:** Modeling / Refine
