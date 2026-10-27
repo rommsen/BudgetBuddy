@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 17:25 -- Modeling / Refined: ledger-rjhwp - Amazon-Link im Kassenbuch
+
+**Type:** Modeling / Refine
+**BC:** ledger
+**Status after:** todo
+**Summary:** Link sitzt nur im Buchungs-Detail (Sheet/Panel), Amazon und PayPal wie im Sync, ohne Bestellnummer Link zur Bestellübersicht. Weg: textbasierte Erkennung in RulesEngine, LedgerEntryView.ExternalLinks im Lesepfad, kein Ereignis.
+
+---
+
 ## 2026-10-27 13:01 -- Task completed (verification skipped): infrastructure-r72gd - Migration von .NET 9 auf .NET 10, nachdem brew upgrade die Runtime 9 entfernt hat
 
 **Type:** Work / Task completion
