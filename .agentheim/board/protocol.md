@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 22:04 -- Modeling / Refined: design-system-j6dnj, design-system-y2bdj, design-system-bym4m, ledger-b0b7q
+
+**Type:** Modeling / Refine
+**BC:** design-system, ledger
+**Status after:** todo (alle vier)
+**Summary:** j6dnj: Button.Small wird mobil 48 px hoch, DS-weit (Entscheidung Roman). y2bdj: Styleguide rendert SplitEditor.lineActions, blockiert bym4m wegen gleicher Styleguide-Karte. bym4m: ein Picker für Kategorie und Konto, Kassenbuch und Import in einem Task, Akzeptanzkriterien ergänzt. ledger-b0b7q: Obergrenze 500 €, Vorschauen im Speicher mit 15 min TTL, eigener Actor Bob, 404 für unbekannte /bot/-Pfade vor dem SPA-Fallback.
+**ADRs written:** 0066
+
+---
+
 ## 2026-10-27 20:24 -- Work session ended
 
 **Type:** Work / Session end
