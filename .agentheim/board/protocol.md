@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-27 19:19 -- Modeling / Refined: infrastructure-eq27s, ledger-wj6pd - Wächter einmal bauen, Zeilenhöhen-Wächter stabil
+
+**Type:** Modeling / Refine
+**BC:** infrastructure, ledger
+**Status after:** todo
+**Summary:** eq27s: run-guards.mjs baut einmal, startFrontend liefert bei BB_GUARD_DIST statisch aus (404 für sw.js), Parallelität nach Messung. wj6pd: AC5-Höhen atomar nach waitForFunction messen, Ursache benennen, zehnmal grün.
+
+---
+
 ## 2026-10-27 19:16 -- Work session ended
 
 **Type:** Work / Session end
