@@ -1,7 +1,7 @@
 ---
 id: ledger-wj6pd
 title: Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot
-status: backlog
+status: todo
 type: bug
 context: ledger
 created: 2026-10-27

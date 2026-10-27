@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 7
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 92
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **ledger-wj6pd** — Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot (bug) — `todo/ledger-wj6pd-zeilenhoehe-waechter-flackert.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -78,7 +79,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **ledger-wj6pd** — Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot (bug) — `backlog/ledger-wj6pd-zeilenhoehe-waechter-flackert.md`
 - **ledger-b0b7q** — "Quick Add für Bob: schmale HTTP-API mit Vorschau und Bestätigung" (feature) — `backlog/ledger-b0b7q-quick-add-fuer-bob.md`
 - **ledger-vqvq6** — "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms" (chore) — `backlog/ledger-vqvq6-split-cashback-waechter-ohne-festes-warten.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
