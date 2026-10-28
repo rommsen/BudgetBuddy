@@ -37,16 +37,21 @@ let private categories =
       cat "Inflow: Ready to Assign" internalMasterGroupName false ]
 
 /// Eine Testumgebung mit zählbarem Push und verstellbarer Uhr.
-type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarget, string>, ?token': string option, ?delayMs: int) =
+type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarget, string>, ?token': string option, ?delayMs: int, ?rateLimit: int, ?loadCategories: Async<Result<YnabCategory list, string>>) =
     let mutable now = DateTime(2026, 10, 28, 10, 0, 0, DateTimeKind.Utc)
     let mutable pushes = 0
+    let mutable categoryLoads = 0
+    member _.CategoryLoads = categoryLoads
     member _.Now with get () = now and set v = now <- v
     member _.Pushes = pushes
     member val Deps : BotDeps =
         { Token = fun () -> defaultArg token' (Some token)
           MaxAmountEur = fun () -> 500m
           Now = fun () -> now
-          LoadCategories = fun () -> async.Return (Ok categories)
+          LoadCategories =
+            fun () ->
+                Interlocked.Increment(&categoryLoads) |> ignore
+                defaultArg loadCategories (async.Return (Ok categories))
           ResolveTarget =
             fun () ->
                 async.Return (
@@ -64,7 +69,9 @@ type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarg
                     | None -> return Ok $"ynab-{Guid.NewGuid()}"
                 }
           TriggerMirror = ignore
-          Store = BotPreviewStore() }
+          Store = BotPreviewStore()
+          Limiter = BotRateLimiter(defaultArg rateLimit 100000, rateLimitWindow)
+          Categories = BotCategoryCache() }
 
 /// Ruft den Handler auf. Liefert Status und Rumpf (null, wenn der Handler den Pfad nicht
 /// beansprucht und weitergereicht hat).
@@ -124,6 +131,64 @@ let botApiTests =
 
     testSequenced
     <| testList "Bot-Schnittstelle (Routen)" [
+
+        testCase "zwei Vorschauen und eine Kategorienliste innerhalb von 5 Minuten laden die Kategorien genau einmal, danach erneut" <| fun () ->
+            let env = Env()
+            preview env.Deps (uniquePayee ()) "1.00" "outflow" |> ignore
+            preview env.Deps (uniquePayee ()) "1.00" "outflow" |> ignore
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 "Kategorien"
+            Expect.equal env.CategoryLoads 1 "ein YNAB-Abruf"
+            env.Now <- env.Now.AddMinutes 4.9
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 "noch im Cache"
+            Expect.equal env.CategoryLoads 1 "weiter ein Abruf"
+            env.Now <- env.Now.AddMinutes 0.2
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 "nach Ablauf"
+            Expect.equal env.CategoryLoads 2 "zweiter Abruf nach 5 Minuten"
+
+        testCase "ein YNAB-Fehler ohne Cache bleibt 502 und wird nicht gecacht" <| fun () ->
+            let env = Env(loadCategories = async.Return (Error "YNAB down"))
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 502 "erster Fehler"
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 502 "zweiter Fehler"
+            Expect.equal env.CategoryLoads 2 "Fehler wird erneut abgefragt"
+
+        testCase "die 11. Anfrage innerhalb einer Minute bekommt 429 rate_limited mit Retry-After, danach geht es wieder" <| fun () ->
+            let env = Env(rateLimit = 10)
+            for i in 1..10 do
+                Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 $"Anfrage {i}"
+            let status, json = call env.Deps "GET" "/bot/categories" bearer ""
+            Expect.equal status 429 "11. Anfrage"
+            Expect.equal (str json "error") "rate_limited" "Code"
+            let ctx = DefaultHttpContext()
+            ctx.Request.Path <- PathString "/bot/categories"
+            ctx.Response.Body <- new MemoryStream()
+            let next : Giraffe.Core.HttpFunc = fun c -> Task.FromResult(Some c)
+            (handler env.Deps next ctx).GetAwaiter().GetResult() |> ignore
+            Expect.equal (int (string ctx.Response.Headers["Retry-After"])) 60 "Retry-After in Sekunden"
+            env.Now <- env.Now.AddSeconds 61.0
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 "nach der Minute"
+
+        testCase "Retry-After nennt die Sekunden bis zur nächsten freien Anfrage" <| fun () ->
+            let limiter = BotRateLimiter(1, TimeSpan.FromMinutes 1.0)
+            let t0 = DateTime(2026, 10, 28, 10, 0, 0, DateTimeKind.Utc)
+            Expect.isNone (limiter.TryAcquire t0) "erste erlaubt"
+            Expect.equal (limiter.TryAcquire(t0.AddSeconds 20.0)) (Some 40) "40 Sekunden"
+            Expect.isNone (limiter.TryAcquire(t0.AddSeconds 60.0)) "nach 60 Sekunden frei"
+
+        testCase "falsche Tokens zählen mit: nach 10 Fehlversuchen gibt es 429 auch mit richtigem Token" <| fun () ->
+            let env = Env(rateLimit = 10)
+            for _ in 1..10 do
+                Expect.equal (fst (call env.Deps "GET" "/bot/categories" (Some "Bearer falsch") "")) 401 "Fehlversuch"
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 429 "gedrosselt trotz richtigem Token"
+
+        testCase "parallele Anfragen überschreiten die Grenze nicht" <| fun () ->
+            let limiter = BotRateLimiter(10, TimeSpan.FromMinutes 1.0)
+            let t0 = DateTime(2026, 10, 28, 10, 0, 0, DateTimeKind.Utc)
+            let allowed =
+                [| for _ in 1..200 -> Task.Run(fun () -> (limiter.TryAcquire t0).IsNone) |]
+                |> Array.map (fun t -> t.Result)
+                |> Array.filter id
+                |> Array.length
+            Expect.equal allowed 10 "genau 10 durch"
 
         testCase "ohne Bearer-Token antworten alle /bot/-Routen mit 401" <| fun () ->
             let env = Env()

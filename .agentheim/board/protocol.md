@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:18 -- Task verified and completed: ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
+
+**Type:** Work / Task completion
+**Task:** ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
+**Summary:** Die Bot-Schnittstelle cacht die YNAB-Kategorien 5 Minuten (Vorschau und GET /bot/categories teilen den Cache) und drosselt /bot/ auf 10 Anfragen pro Minute vor der Anmeldung (429 rate_limited mit Retry-After).
+**Duration:** 15m16s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 19:03 -- Batch started: [ledger-bbkgs]
 
 **Type:** Work / Batch start

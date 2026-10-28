@@ -98,6 +98,56 @@ let private loadDailyUsage (now: DateTime) : Async<decimal * int> =
         return (amounts |> List.sumBy (fun m -> abs m.Amount)), amounts.Length
     }
 
+/// Wie lange die YNAB-Kategorien für die Bot-Schnittstelle im Speicher bleiben (ADR 0068, Punkt 4).
+let categoriesTtl = TimeSpan.FromMinutes 5.0
+
+/// Anfragen je Zeitfenster auf `/bot/` (ADR 0068, Punkt 4).
+let rateLimitPerWindow = 10
+
+/// Länge des Drosselfensters.
+let rateLimitWindow = TimeSpan.FromMinutes 1.0
+
+/// Gleitendes Fenster über alle Bot-Anfragen, im Speicher und thread-sicher. Abgewiesene
+/// Anfragen zählen nicht mit, damit ein Aufrufer nach Ablauf des Fensters wieder durchkommt.
+type BotRateLimiter(limit: int, window: TimeSpan) =
+    let gate = obj ()
+    let hits = Collections.Generic.Queue<DateTime>()
+
+    /// `None`: die Anfrage ist erlaubt und gezählt. `Some seconds`: gedrosselt, `seconds` bis
+    /// zur nächsten freien Anfrage (mindestens 1).
+    member _.TryAcquire(now: DateTime) : int option =
+        lock gate (fun () ->
+            while hits.Count > 0 && hits.Peek() + window <= now do
+                hits.Dequeue() |> ignore
+            if hits.Count < limit then
+                hits.Enqueue now
+                None
+            else
+                let wait = hits.Peek() + window - now
+                Some (max 1 (int (Math.Ceiling wait.TotalSeconds))))
+
+/// Kategorien-Cache der Bot-Schnittstelle. Nur Erfolge werden gehalten; ein Fehler ohne
+/// gültigen Cache geht an den Aufrufer.
+type BotCategoryCache() =
+    let gate = new Threading.SemaphoreSlim(1, 1)
+    let mutable cached : (DateTime * YnabCategory list) option = None
+
+    member _.Get(now: DateTime, load: unit -> Async<Result<YnabCategory list, string>>) : Async<Result<YnabCategory list, string>> =
+        async {
+            do! gate.WaitAsync() |> Async.AwaitTask
+            try
+                match cached with
+                | Some (at, categories) when at + categoriesTtl > now -> return Ok categories
+                | _ ->
+                    let! loaded = load ()
+                    match loaded with
+                    | Ok categories -> cached <- Some (now, categories)
+                    | Error _ -> ()
+                    return loaded
+            finally
+                gate.Release() |> ignore
+        }
+
 /// Alles, was von außen kommt.
 type BotDeps = {
     Token: unit -> string option
@@ -108,7 +158,13 @@ type BotDeps = {
     Push: BotPreview -> Async<YnabResult<string>>
     TriggerMirror: unit -> unit
     Store: BotPreviewStore
+    Limiter: BotRateLimiter
+    Categories: BotCategoryCache
 }
+
+/// Kategorien über den Cache; Vorschau und `GET /bot/categories` teilen ihn.
+let private cachedCategories (deps: BotDeps) =
+    deps.Categories.Get(deps.Now(), deps.LoadCategories)
 
 // ============================================
 // Antworten
@@ -216,7 +272,7 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
                         | Error reason ->
                             return! respond 422 (errorBody "no_quick_add_account" reason []) earlyReturn ctx
                         | Ok target ->
-                            let! categories = deps.LoadCategories() |> Async.StartAsTask
+                            let! categories = cachedCategories deps |> Async.StartAsTask
                             match categories with
                             | Error reason ->
                                 return! respond 502 (errorBody "ynab_unavailable" reason []) earlyReturn ctx
@@ -321,7 +377,7 @@ let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
 let private categoriesHandler (deps: BotDeps) : HttpHandler =
     fun _ ctx ->
         task {
-            let! categories = deps.LoadCategories() |> Async.StartAsTask
+            let! categories = cachedCategories deps |> Async.StartAsTask
             match categories with
             | Error reason -> return! respond 502 (errorBody "ynab_unavailable" reason []) earlyReturn ctx
             | Ok categories ->
@@ -341,6 +397,11 @@ let handler (deps: BotDeps) : HttpHandler =
         if not (isBotPath path) then
             next ctx
         else
+          match deps.Limiter.TryAcquire(deps.Now()) with
+          | Some retryAfter ->
+            ctx.Response.Headers["Retry-After"] <- string retryAfter
+            respond 429 (errorBody "rate_limited" "Zu viele Anfragen, bitte später erneut versuchen" [ "retry_after_seconds", Encode.int retryAfter ]) earlyReturn ctx
+          | None ->
             let authorized =
                 match deps.Token() with
                 | None -> false
@@ -420,4 +481,6 @@ let liveDeps () : BotDeps =
                 }
         TriggerMirror = Ledger.CommandHandlers.triggerMirrorInBackground
         Store = BotPreviewStore()
+        Limiter = BotRateLimiter(rateLimitPerWindow, rateLimitWindow)
+        Categories = BotCategoryCache()
     }

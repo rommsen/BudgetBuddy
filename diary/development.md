@@ -4,6 +4,26 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 19:09 - Bot-Kategorien cachen und /bot/ drosseln (ledger-bbkgs)
+
+**What I did:**
+Kategorien-Cache (5 Minuten) und Drosselung (10 Anfragen pro Minute, vor der Anmeldung, 429 rate_limited mit Retry-After) in der Bot-Schnittstelle ergänzt, ADR 0068 Punkt 4.
+
+**Files Modified:**
+- `src/Server/BotApi.fs` - `BotRateLimiter`, `BotCategoryCache`, neue `BotDeps`-Felder, Drosselung im `handler`
+- `src/Tests/BotApiTests.fs` - 6 neue Tests, `Env` mit frischem Limiter und zählbarem Kategorienabruf
+- `docs/bot-api.md` - Abschnitt Kategorien-Cache und Drosselung
+
+**Rationale:**
+Eine Schleife bei Bob verbrauchte das gemeinsame YNAB-Ratenlimit (Security-Review M3).
+
+**Outcomes:**
+- Build: ok (0 Warnungen)
+- Tests: 2498 bestanden, 7 übersprungen; test:scripts 281/281
+- Issues: keine
+
+---
+
 ## 2026-10-28 18:56 - Bobs Tagesgrenze und Datumsfenster (ledger-ssmp3)
 
 **What I did:**

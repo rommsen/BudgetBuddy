@@ -1,7 +1,7 @@
 ---
 id: ledger-bbkgs
 title: "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-28
@@ -35,3 +35,13 @@ Umsetzung von ADR 0068 Punkt 4:
 ## Notes
 Herkunft: Security-Review der Homelab-Sitzung (homelab-58) am 2026-10-28, erfasst per quick-capture, verfeinert mit Roman am 2026-10-28. Befund M3, vierter in der Reihenfolge. ADR 0068 Punkt 4.
 Hängt an ledger-ssmp3, weil beide `BotApi.fs` ändern.
+
+## Outcome
+
+ADR 0068 Punkt 4 umgesetzt in `src/Server/BotApi.fs`. Neu: `BotRateLimiter` (gleitendes Fenster, 10 je Minute, Sperre per `lock`, abgewiesene Anfragen zählen nicht, `Retry-After` = Sekunden bis zur nächsten freien Anfrage, mindestens 1) und `BotCategoryCache` (5 Minuten, nur Erfolge, Abruf unter Semaphore, damit parallele Aufrufe nicht doppelt zu YNAB gehen). Beides sind neue Felder in `BotDeps` (`Limiter`, `Categories`), die Uhr kommt aus `deps.Now`. `liveDeps` erzeugt je eine Instanz. Die Drosselung läuft in `handler` direkt nach `isBotPath`, vor der Anmeldung, also zählen auch 401. 429 antwortet mit `error: rate_limited`, `message`, `retry_after_seconds` und Kopf `Retry-After`. `isBotPath` ist unverändert. Quick Add und Sync rufen YNAB weiter ohne Cache. `docs/bot-api.md` beschreibt Cache, Drosselung und `rate_limited`.
+
+Tests (6 neu in `BotApiTests.fs`): Cache (ein Abruf für zwei Vorschauen und eine Liste, zweiter nach 5 Minuten per Uhr), YNAB-Fehler bleibt 502 und wird nicht gecacht, 11. Anfrage 429 mit Retry-After 60 und danach wieder 200, Retry-After-Rechnung am Limiter, 10 falsche Tokens dann 429 mit richtigem Token, 200 parallele Aufrufe lassen genau 10 durch. Die Test-`Env` bekommt je Test einen frischen Limiter mit hoher Grenze (100000), nur die Drosseltests setzen 10; dadurch bleiben bestehende Tests stabil.
+
+Läufe aus dem Worktree: `dotnet build` 0 Warnungen, `dotnet test` 2498 bestanden, 7 übersprungen, 0 fehlgeschlagen (Bot-Filter: 74), `npm run build` ok, `guard:classes` ok, `guard:tokens` ok, `npm run test:scripts` 281 bestanden, 0 fehlgeschlagen. Der Selbstcheck auf Gedankenstriche und Umschreibungen blieb ohne Treffer. README_DELTA vom Gate geprüft.
+
+Hinweis: Hinter Caddy sieht BB die Anfragen als eine Quelle, die Drosselung ist daher global über alle Aufrufer (gewollt laut Task: "über alle Bot-Anfragen").

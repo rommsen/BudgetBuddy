@@ -30,7 +30,20 @@ unter `/bot/` antworten 404 als JSON.
   (mehrere offene Vorschauen können zusammen darüber liegen). Ein zweiter Aufruf bucht nicht noch einmal und liefert das erste Ergebnis.
   Die Antwort nennt `entry_id`, `pushed_to_ynab` und bei einem Fehlschlag `push_error`.
 - `GET /bot/categories` liefert `id`, `name`, `group` der wählbaren Kategorien (ohne interne und
-  versteckte).
+  versteckte). Vorschau und diese Route teilen einen Kategorien-Cache.
+
+## Kategorien-Cache und Drosselung
+
+Die YNAB-Kategorien für die Bot-Schnittstelle bleiben 5 Minuten im Speicher. Vorschau und
+`GET /bot/categories` teilen den Cache, ein Abruf kostet also höchstens eine YNAB-Anfrage je
+5 Minuten. Schlägt der Abruf ohne gültigen Cache fehl, bleibt es bei 502 `ynab_unavailable`;
+Fehler werden nicht gecacht. Quick Add und Sync nutzen den Cache nicht.
+
+Auf `/bot/` sind höchstens 10 Anfragen pro Minute erlaubt, gezählt über alle Bot-Anfragen vor
+der Anmeldung, auch die mit 401 (so wird das Raten des Tokens gebremst). Darüber antwortet die
+Schnittstelle 429 mit Code `rate_limited` im üblichen JSON-Fehlerformat und dem Kopf
+`Retry-After` in Sekunden. Abgewiesene Anfragen zählen nicht mit. Die Zählung liegt im
+Speicher, ein Neustart setzt sie zurück.
 
 ## Tagesgrenze
 
