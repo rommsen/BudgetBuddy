@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:44 -- Modeling / Promoted: ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-28 18:43 -- Task verified and completed: ledger-ybm5x - "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
 
 **Type:** Work / Task completion

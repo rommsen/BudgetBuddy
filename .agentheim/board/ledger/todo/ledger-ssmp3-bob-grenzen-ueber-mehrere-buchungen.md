@@ -1,7 +1,7 @@
 ---
 id: ledger-ssmp3
 title: "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-28
