@@ -88,6 +88,8 @@ let private call (deps: BotDeps) (meth: string) (path: string) (auth: string opt
 
 let private bearer = Some $"Bearer {token}"
 
+let private uniquePayeeText () = $"Limit-{Guid.NewGuid()}"
+
 let private bodyOf (payee: string) (amount: string) (direction: string) =
     $"""{{"amount": {amount}, "direction": "{direction}", "payee": "{payee}", "category": "Haushaltshilfe", "date": "2026-10-28", "memo": "Test"}}"""
 
@@ -95,6 +97,12 @@ let private preview (deps: BotDeps) (payee: string) (amount: string) (direction:
     match call deps "POST" "/bot/transactions/preview" bearer (bodyOf payee amount direction) with
     | 200, Some json -> Guid.Parse(json.GetProperty("preview_id").GetString())
     | status, json -> failtest $"Vorschau sollte 200 liefern, war {status} {json}"
+
+/// Vorschau mit frei gewähltem Buchungsdatum; liefert Status und Rumpf.
+let private previewOn (deps: BotDeps) (date: string) (amount: string) (direction: string) =
+    let body =
+        $"""{{"amount": {amount}, "direction": "{direction}", "payee": "{uniquePayeeText ()}", "category": "Haushaltshilfe", "date": "{date}"}}"""
+    call deps "POST" "/bot/transactions/preview" bearer body
 
 let private commit (deps: BotDeps) (id: Guid) = call deps "POST" $"/bot/transactions/{id}/commit" bearer ""
 
@@ -282,4 +290,125 @@ let botApiTests =
             Expect.equal (str again "push_error") (str json "push_error") "Wiederholung liefert das erste Ergebnis"
             Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
+        // ---- Tagesgrenze und Datumsfenster (ledger-ssmp3, ADR 0068) ----
+        // Jeder Test nutzt einen eigenen Berliner Kalendertag, weil die In-Memory-Datenbank
+        // über alle Tests geteilt wird und die Zählung aus ihr kommt.
+
+        testCase "Tagesgrenze nach Summe: bei 450 Euro (450000 Milliunits) heute geht 50 Euro, 60 Euro ergibt 422" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 3, 10, 0, 0, DateTimeKind.Utc)
+            commit env.Deps (preview env.Deps (uniquePayee ()) "450" "outflow") |> ignore
+            let status, json = previewOn env.Deps "2026-11-03" "60" "outflow"
+            Expect.equal status 422 "über der Tagessumme"
+            Expect.equal (str json "error") "daily_limit_reached" "Code"
+            Expect.stringContains (str json "message") "450.00 EUR in 1 Buchungen" "nennt Summe und Anzahl des Tages"
+            let status50, _ = previewOn env.Deps "2026-11-03" "50" "outflow"
+            Expect.equal status50 200 "50 Euro passen genau"
+
+        testCase "Tagesgrenze nach Anzahl: nach 10 Commits heute lehnt die 11. Vorschau und der 11. Commit mit 422 ab" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 4, 10, 0, 0, DateTimeKind.Utc)
+            let pending = [ for _ in 1..11 -> preview env.Deps (uniquePayee ()) "1" "outflow" ]
+            for id in pending |> List.take 10 do
+                Expect.equal (fst (commit env.Deps id)) 200 "gebucht"
+            let status, json = commit env.Deps (List.last pending)
+            Expect.equal status 422 "11. Commit abgelehnt"
+            Expect.equal (str json "error") "daily_limit_reached" "Code"
+            let previewStatus, previewJson = previewOn env.Deps "2026-11-04" "1" "outflow"
+            Expect.equal previewStatus 422 "11. Vorschau abgelehnt"
+            Expect.equal (str previewJson "error") "daily_limit_reached" "Code der Vorschau"
+
+        testCase "Einnahmen zählen mit ihrem Betrag ohne Vorzeichen zur Tagessumme" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Utc)
+            commit env.Deps (preview env.Deps (uniquePayee ()) "300" "outflow") |> ignore
+            commit env.Deps (preview env.Deps (uniquePayee ()) "150" "inflow") |> ignore
+            Expect.equal (fst (previewOn env.Deps "2026-11-05" "60" "inflow")) 422 "450 plus 60 über 500, auch als Einnahme"
+            Expect.equal (fst (previewOn env.Deps "2026-11-05" "50" "outflow")) 200 "450 plus 50 passt"
+
+        testCase "gestern und andere Herkunft zählen nicht: Quick Add und Bob von gestern lassen 500 Euro heute zu" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 13, 10, 0, 0, DateTimeKind.Utc)
+            commit env.Deps (preview env.Deps (uniquePayee ()) "400" "outflow") |> ignore
+            env.Now <- DateTime(2026, 11, 14, 10, 0, 0, DateTimeKind.Utc)
+            let quickAdd : LedgerEvent =
+                { EntryId = EntryId (Guid.NewGuid())
+                  OccurredAt = env.Now
+                  Actor = QuickAdd
+                  Body =
+                    CashExpenseAdded
+                        { AccountId = accountId
+                          Date = env.Now
+                          Amount = { Amount = -400m; Currency = "EUR" }
+                          Payee = Some "Quick"
+                          Memo = None
+                          Category = None
+                          Cleared = Uncleared
+                          Approved = false } }
+            appendAndApply [ quickAdd ] |> Async.RunSynchronously
+            Expect.equal (fst (previewOn env.Deps "2026-11-14" "500" "outflow")) 200 "weder gestern noch Quick Add zählen"
+
+        testCase "die Grenze kommt aus dem Kassenbuch: ein neuer BotPreviewStore (Neustart) setzt nichts zurück" <| fun () ->
+            let before = Env()
+            before.Now <- DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc)
+            commit before.Deps (preview before.Deps (uniquePayee ()) "450" "outflow") |> ignore
+            let after = Env()
+            after.Now <- before.Now
+            Expect.equal (fst (previewOn after.Deps "2026-11-07" "60" "outflow")) 422 "Grenze gilt nach Neustart weiter"
+
+        testCase "zwei offene Vorschauen über der Grenze: der erste Commit bucht, der zweite ergibt 422" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 8, 10, 0, 0, DateTimeKind.Utc)
+            let first = preview env.Deps (uniquePayee ()) "300" "outflow"
+            let second = preview env.Deps (uniquePayee ()) "300" "outflow"
+            Expect.equal (fst (commit env.Deps first)) 200 "erster bucht"
+            let status, json = commit env.Deps second
+            Expect.equal status 422 "zweiter abgelehnt"
+            Expect.equal (str json "error") "daily_limit_reached" "Code"
+            Expect.equal env.Pushes 1 "nur ein Push"
+
+        testCase "gleichzeitige Commits verschiedener Vorschauen buchen höchstens bis zur Grenze" <| fun () ->
+            let env = Env(delayMs = 50)
+            env.Now <- DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc)
+            let ids = [ for _ in 1..6 -> preview env.Deps (uniquePayee ()) "150" "outflow" ]
+            let results =
+                ids
+                |> List.map (fun id -> Task.Run(fun () -> commit env.Deps id))
+                |> List.map (fun t -> t.GetAwaiter().GetResult())
+            Expect.equal (results |> List.filter (fun (s, _) -> s = 200) |> List.length) 3 "genau drei mal 150 Euro passen"
+            Expect.equal (results |> List.filter (fun (s, _) -> s = 422) |> List.length) 3 "der Rest wird abgelehnt"
+            Expect.equal env.Pushes 3 "drei Pushes"
+
+        testCase "Wiederholung an der Grenze: derselbe Commit zählt nicht doppelt und liefert das erste Ergebnis" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 10, 10, 0, 0, DateTimeKind.Utc)
+            let id = preview env.Deps (uniquePayee ()) "500" "outflow"
+            let _, first = commit env.Deps id
+            let status, second = commit env.Deps id
+            Expect.equal status 200 "Wiederholung 200 trotz erreichter Grenze"
+            Expect.equal (str second "entry_id") (str first "entry_id") "dasselbe Ergebnis"
+            Expect.equal env.Pushes 1 "ein Push"
+
+        testCase "Datumsfenster: heute und heute minus 31 Tage gehen, minus 32 Tage und morgen ergeben 400 mit Feld date" <| fun () ->
+            let env = Env()
+            env.Now <- DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc)
+            Expect.equal (fst (previewOn env.Deps "2026-11-11" "1" "outflow")) 200 "heute"
+            Expect.equal (fst (previewOn env.Deps "2026-10-11" "1" "outflow")) 200 "heute minus 31 Tage"
+            for date in [ "2026-10-10"; "2026-11-12" ] do
+                let status, json = previewOn env.Deps date "1" "outflow"
+                Expect.equal status 400 $"{date} abgelehnt"
+                Expect.equal (json.Value.GetProperty("fields").[0].GetProperty("field").GetString()) "date" "Feld date"
+
+        testCase "Berliner Tag: kurz nach Mitternacht in Berlin gilt schon der neue Tag, obwohl UTC noch beim Vortag liegt" <| fun () ->
+            let env = Env()
+            // 2026-11-11 23:30 UTC ist 2026-11-12 00:30 in Berlin (Winterzeit).
+            env.Now <- DateTime(2026, 11, 11, 23, 30, 0, DateTimeKind.Utc)
+            Expect.equal (fst (previewOn env.Deps "2026-11-12" "1" "outflow")) 200 "Berliner Tag ist erlaubt, kein Zukunftsdatum"
+            Expect.equal (fst (previewOn env.Deps "2026-11-13" "1" "outflow")) 400 "übermorgen Berlin bleibt Zukunft"
+            // Die Zählung folgt dem Berliner Tag: 450 Euro um 23:30 UTC zählen für den 12., nicht den 11.
+            commit env.Deps (preview env.Deps (uniquePayee ()) "450" "outflow") |> ignore
+            env.Now <- DateTime(2026, 11, 12, 9, 0, 0, DateTimeKind.Utc)
+            Expect.equal (fst (previewOn env.Deps "2026-11-12" "60" "outflow")) 422 "gleicher Berliner Tag"
+            env.Now <- DateTime(2026, 11, 11, 21, 0, 0, DateTimeKind.Utc)
+            Expect.equal (fst (previewOn env.Deps "2026-11-11" "500" "outflow")) 200 "22:00 Berlin am 11. ist ein anderer Tag"
     ]

@@ -19,16 +19,28 @@ unter `/bot/` antworten 404 als JSON.
 
 - `POST /bot/transactions/preview` mit `amount` (Zahl in Euro, positiv, höchstens zwei
   Nachkommastellen), `direction` (`outflow` oder `inflow`), `payee`, `category` (Name oder Id),
-  `date` (`JJJJ-MM-TT`), optional `memo`. Ein Konto-Feld gibt es nicht: gebucht wird immer auf
+  `date` (`JJJJ-MM-TT`, von heute minus 31 Tage bis heute, Europe/Berlin; sonst 400 mit Feld
+  `date`), optional `memo`. Ein Konto-Feld gibt es nicht: gebucht wird immer auf
   das Quick-Add-Konto. Antwort 200 mit `preview_id`, `expires_at` (15 Minuten) und der
   aufgelösten Buchung. Fehler: 400 mit `fields` (Feldnamen), 422 bei Betrag über der Grenze,
-  Betrag 0 oder negativ, fehlendem Quick-Add-Konto sowie keiner oder mehrdeutiger Kategorie
+  Betrag 0 oder negativ, erreichter Tagesgrenze (Code `daily_limit_reached`), fehlendem Quick-Add-Konto sowie keiner oder mehrdeutiger Kategorie
   (mit `candidates`).
 - `POST /bot/transactions/{preview_id}/commit` bucht genau die Vorschau. 404 unbekannt,
-  410 abgelaufen. Ein zweiter Aufruf bucht nicht noch einmal und liefert das erste Ergebnis.
+  410 abgelaufen, 422 mit `daily_limit_reached`, wenn die Tagesgrenze inzwischen erreicht ist
+  (mehrere offene Vorschauen können zusammen darüber liegen). Ein zweiter Aufruf bucht nicht noch einmal und liefert das erste Ergebnis.
   Die Antwort nennt `entry_id`, `pushed_to_ynab` und bei einem Fehlschlag `push_error`.
 - `GET /bot/categories` liefert `id`, `name`, `group` der wählbaren Kategorien (ohne interne und
   versteckte).
+
+## Tagesgrenze
+
+Je Kalendertag (Europe/Berlin) höchstens 500 EUR Summe (Beträge ohne Vorzeichen, Ausgaben und
+Einnahmen zusammen) und höchstens 10 gebuchte Bob-Commits. Gezählt werden die im Kassenbuch
+gespeicherten Buchungen mit Herkunft `Bob` nach dem Zeitpunkt des Commits, ein Neustart setzt
+nichts zurück. Geprüft wird in der Vorschau und noch einmal im Commit, dort unter einer
+Sperre, damit gleichzeitige Commits die Grenze nicht gemeinsam überschreiten. Die Meldung
+nennt Summe und Anzahl des Tages. Die Werte stehen als Konstanten im Code (`Validation.fs`).
+Es gibt keine Benachrichtigung und kein Flag: Bob-Buchungen stehen in YNAB unbestätigt.
 
 Die Herkunft der Buchung ist `Bob`. Es gibt keine Lese-Route für Buchungen oder Salden.
 Vorschauen liegen im Arbeitsspeicher und verfallen beim Neustart.

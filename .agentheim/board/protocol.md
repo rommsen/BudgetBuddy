@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:03 -- Task verified and completed: ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
+
+**Type:** Work / Task completion
+**Task:** ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
+**Summary:** Bobs Buchungen unterliegen jetzt einer Tagesgrenze (500 EUR Summe ohne Vorzeichen, 10 Commits je Berliner Kalendertag, gezählt aus den gespeicherten Bob-Ereignissen) in Vorschau und Commit, der Commit prüft und bucht unter einer Sperre; das Buchungsdatum ist auf heute minus 31 Tage bis heute begrenzt.
+**Duration:** 19m12s
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 17
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 18:45 -- Task verified and completed: infrastructure-z9b5w - "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)"
 
 **Type:** Work / Task completion

@@ -850,6 +850,28 @@ let loadAllEvents () : Async<RecordedLedgerEvent list> =
         return rows |> Seq.map rowToRecordedEvent |> Seq.toList
     }
 
+/// Die Beträge aller von Bob angelegten Buchungen (`CashExpenseAdded`, Actor `Bob`), deren
+/// Ereignis-Zeitpunkt in [fromUtc, toUtc) liegt (ledger-ssmp3, ADR 0068). Für die
+/// Tagesgrenze des Bots: gezählt wird, was gespeichert ist, nicht was im Speicher steht.
+let loadBobBookedAmountsBetween (fromUtc: DateTime) (toUtc: DateTime) : Async<Money list> =
+    async {
+        use conn = Core.getConnection ()
+        let! rows =
+            conn.QueryAsync<EventRow>(
+                "SELECT * FROM ledger_entry_events WHERE actor_kind = 'Bob' AND event_type = 'CashExpenseAdded' AND occurred_at >= @fromAt AND occurred_at < @toAt",
+                {| fromAt = dateToText fromUtc; toAt = dateToText toUtc |}
+            )
+            |> Async.AwaitTask
+        return
+            rows
+            |> Seq.map rowToRecordedEvent
+            |> Seq.choose (fun r ->
+                match r.Event.Body with
+                | CashExpenseAdded p -> Some p.Amount
+                | _ -> None)
+            |> Seq.toList
+    }
+
 /// Der gespeicherte Zustand einer Buchung.
 let loadEntry (entryId: EntryId) : Async<Entry option> =
     async {

@@ -4,6 +4,28 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 18:56 - Bobs Tagesgrenze und Datumsfenster (ledger-ssmp3)
+
+**What I did:**
+Tagesgrenze 500 EUR und 10 Bob-Commits je Berliner Kalendertag, gezählt aus den gespeicherten Bob-Ereignissen, geprüft in Vorschau und (unter Sperre) im Commit. Datumsfenster heute minus 31 Tage bis heute statt fünf Jahre.
+
+**Files Modified:**
+- `src/Server/BotApi.fs` - Tagesgrenze in Vorschau und Commit, Sperre, BotCommitOutcome
+- `src/Server/Validation.fs` - Konstanten, Berliner Tag mit Rückfall, checkBotDailyLimit, Datumsfenster
+- `src/Server/Ledger/Persistence.fs` - loadBobBookedAmountsBetween
+- `src/Tests/BotApiTests.fs`, `src/Tests/BotValidationTests.fs` - 17 neue Tests
+- `docs/bot-api.md` - Tagesgrenze, Datumsfenster, Code daily_limit_reached
+
+**Rationale:**
+Security-Review M1: Bobs Grenzen galten nur je Buchung (ADR 0068 Punkte 2, 3, 5).
+
+**Outcomes:**
+- Build: ok (0 Warnungen)
+- Tests: 2489 grün, test:scripts 281/281
+- Issues: tzdata im Alpine-Image offline nicht prüfbar, Rückfall auf EU-Regeln eingebaut
+
+---
+
 ## 2026-10-28 18:40 - CORS-Policy entfernt (infrastructure-z9b5w)
 
 **What I did:**

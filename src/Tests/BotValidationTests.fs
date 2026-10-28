@@ -70,6 +70,8 @@ let botParseTests =
             let withDate d = $"""{{"amount": 1, "direction": "outflow", "payee": "x", "category": "c", "date": "{d}"}}"""
             Expect.equal (fieldsOf (parseBotPreviewRequest today (withDate "2026-10-29"))) [ "date" ] "Zukunft"
             Expect.equal (fieldsOf (parseBotPreviewRequest today (withDate "2021-10-27"))) [ "date" ] "zu alt"
+            Expect.isOk (parseBotPreviewRequest today (withDate "2026-09-27")) "heute minus 31 Tage ist erlaubt"
+            Expect.equal (fieldsOf (parseBotPreviewRequest today (withDate "2026-09-26"))) [ "date" ] "heute minus 32 Tage"
             Expect.isOk (parseBotPreviewRequest today (withDate "2026-10-28")) "heute ist erlaubt"
 
         testCase "mehr als zwei Nachkommastellen im Betrag werden abgelehnt" <| fun () ->
@@ -202,4 +204,44 @@ let botConfigTests =
             Expect.equal (Ledger.QueryHandlers.ReadModel.originOf Bob) AddedByBob "Herkunft"
             Expect.equal (originLabel AddedByBob) "Bob" "Anzeigename"
             Expect.notEqual (Ledger.QueryHandlers.ReadModel.originOf Bob) (Ledger.QueryHandlers.ReadModel.originOf QuickAdd) "getrennt"
+    ]
+
+[<Tests>]
+let botDailyLimitTests =
+    let utc y m d h mi = DateTime(y, m, d, h, mi, 0, DateTimeKind.Utc)
+    testList "Bot Tagesgrenze und Berliner Tag" [
+
+        testCase "unter der Grenze ok, genau 500 Euro und genau 10 Buchungen sind erlaubt" <| fun () ->
+            Expect.isOk (checkBotDailyLimit 450m 1 50m) "450 plus 50"
+            Expect.isOk (checkBotDailyLimit 0m 9 1m) "die zehnte Buchung"
+
+        testCase "über 500 Euro oder die elfte Buchung wird abgelehnt, die Meldung nennt Summe und Anzahl" <| fun () ->
+            match checkBotDailyLimit 450m 1 60m with
+            | Error msg ->
+                Expect.stringContains msg "450.00 EUR in 1 Buchungen" "Summe und Anzahl"
+                Expect.stringContains msg "500.00 EUR" "Grenze"
+            | Ok () -> failtest "sollte abgelehnt werden"
+            Expect.isError (checkBotDailyLimit 10m 10 1m) "elfte Buchung"
+
+        testCase "Berliner Tag im Winter: 23:30 UTC ist schon der Folgetag, 22:30 UTC noch nicht" <| fun () ->
+            Expect.equal (berlinDayOf (utc 2026 11 11 23 30)) (DateTime(2026, 11, 12)) "00:30 Berlin"
+            Expect.equal (berlinDayOf (utc 2026 11 11 22 30)) (DateTime(2026, 11, 11)) "23:30 Berlin"
+
+        testCase "Berliner Tag im Sommer: 22:30 UTC ist schon der Folgetag (Offset +2)" <| fun () ->
+            Expect.equal (berlinDayOf (utc 2026 7 14 22 30)) (DateTime(2026, 7, 15)) "00:30 Berlin"
+            Expect.equal (berlinDayOf (utc 2026 7 14 21 30)) (DateTime(2026, 7, 14)) "23:30 Berlin"
+
+        testCase "Tagesgrenzen in UTC: Winter 23:00 bis 23:00, Sommer 22:00 bis 22:00" <| fun () ->
+            Expect.equal (berlinDayBoundsUtc (utc 2026 11 12 9 0)) (utc 2026 11 11 23 0, utc 2026 11 12 23 0) "Winter"
+            Expect.equal (berlinDayBoundsUtc (utc 2026 7 15 9 0)) (utc 2026 7 14 22 0, utc 2026 7 15 22 0) "Sommer"
+
+        testCase "Umstellungstage haben 23 und 25 Stunden" <| fun () ->
+            let s1, e1 = berlinDayBoundsUtc (utc 2026 3 29 12 0)
+            Expect.equal (e1 - s1) (TimeSpan.FromHours 23.0) "Frühjahr"
+            let s2, e2 = berlinDayBoundsUtc (utc 2026 10 25 12 0)
+            Expect.equal (e2 - s2) (TimeSpan.FromHours 25.0) "Herbst"
+
+        testCase "der Rückfall nach EU-Regeln liefert dieselben Offsets wie die Zeitzonendatenbank" <| fun () ->
+            for t in [ utc 2026 1 15 12 0; utc 2026 3 29 0 59; utc 2026 3 29 1 0; utc 2026 7 1 0 0; utc 2026 10 25 0 59; utc 2026 10 25 1 0; utc 2026 12 31 23 59 ] do
+                Expect.equal (berlinOffsetByEuRules t) (berlinOffsetAt t) $"Offset bei {t:o}"
     ]

@@ -180,7 +180,61 @@ type BotFieldError = { BotField: string; BotProblem: string }
 /// Felder, die auf ein anderes Konto zielen würden. Wer eins mitschickt, bekommt 400.
 let private botForbiddenAccountFields = [ "account"; "account_id"; "accountId"; "account_name" ]
 
-/// Prüft den JSON-Rumpf der Vorschau. `today` kommt von außen (Uhr injiziert). Sammelt alle
+/// Wie weit das Buchungsdatum einer Bob-Buchung höchstens zurückliegen darf (ADR 0068,
+/// Punkt 3). Das Fenster reicht von heute minus 31 Tage bis heute.
+let botBackdateDays = 31
+
+/// Tagesgrenze je Kalendertag (Europe/Berlin), Summe der Beträge ohne Vorzeichen in Euro
+/// und Anzahl gebuchter Bob-Commits (ADR 0068, Punkt 2). Feste Werte im Code.
+let botDailyMaxSumEur = 500m
+let botDailyMaxCount = 10
+
+/// Der Berliner Offset zu einem UTC-Zeitpunkt nach den EU-Regeln: Sommerzeit (+2) vom
+/// letzten Märzsonntag 01:00 UTC bis zum letzten Oktobersonntag 01:00 UTC, sonst +1.
+/// Rückfall, falls die Zeitzonendatenbank des Containers Europe/Berlin nicht kennt.
+let berlinOffsetByEuRules (utc: DateTime) : TimeSpan =
+    let lastSunday (year: int) (month: int) =
+        let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 1, 0, 0, DateTimeKind.Utc)
+        last.AddDays(-(float (int last.DayOfWeek)))
+    let u = utc.ToUniversalTime()
+    if u >= lastSunday u.Year 3 && u < lastSunday u.Year 10 then TimeSpan.FromHours 2.0
+    else TimeSpan.FromHours 1.0
+
+let private berlinZone : Lazy<TimeZoneInfo option> =
+    lazy (try Some (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin") with _ -> None)
+
+/// Der Berliner Offset zu einem UTC-Zeitpunkt: aus der Zeitzonendatenbank, sonst nach den
+/// EU-Regeln.
+let berlinOffsetAt (utc: DateTime) : TimeSpan =
+    let u = DateTime.SpecifyKind(utc.ToUniversalTime(), DateTimeKind.Utc)
+    match berlinZone.Value with
+    | Some zone -> zone.GetUtcOffset u
+    | None -> berlinOffsetByEuRules u
+
+/// Der Berliner Kalendertag (ohne Uhrzeit) zu einem UTC-Zeitpunkt.
+let berlinDayOf (utc: DateTime) : DateTime =
+    (utc.ToUniversalTime() + berlinOffsetAt utc).Date
+
+/// Beginn (einschließlich) und Ende (ausschließlich) des Berliner Kalendertags, der den
+/// UTC-Zeitpunkt enthält, als UTC-Zeitpunkte.
+let berlinDayBoundsUtc (utc: DateTime) : DateTime * DateTime =
+    let day = berlinDayOf utc
+    let toUtc (localMidnight: DateTime) =
+        let guess = DateTime.SpecifyKind(localMidnight, DateTimeKind.Utc)
+        DateTime.SpecifyKind(localMidnight - berlinOffsetAt (guess.AddHours -1.5), DateTimeKind.Utc)
+    toUtc day, toUtc (day.AddDays 1.0)
+
+/// Prüft die Tagesgrenze: `usedSumEur` und `usedCount` sind die heute schon gebuchten
+/// Bob-Buchungen. Die Meldung nennt Summe und Anzahl des Tages.
+let checkBotDailyLimit (usedSumEur: decimal) (usedCount: int) (amountEur: decimal) : Result<unit, string> =
+    if usedCount + 1 > botDailyMaxCount || usedSumEur + amountEur > botDailyMaxSumEur then
+        let inv (d: decimal) = d.ToString("0.00", Globalization.CultureInfo.InvariantCulture)
+        Error
+            $"Tagesgrenze für Bob erreicht: heute sind schon {inv usedSumEur} EUR in {usedCount} Buchungen gebucht, erlaubt sind höchstens {inv botDailyMaxSumEur} EUR und {botDailyMaxCount} Buchungen je Kalendertag"
+    else Ok ()
+
+/// Prüft den JSON-Rumpf der Vorschau. `today` kommt von außen (Uhr injiziert), sein Datum ist
+/// der Berliner Kalendertag. Sammelt alle
 /// Feldfehler, statt beim ersten aufzuhören.
 let parseBotPreviewRequest (today: DateTime) (json: string) : Result<BotPreviewInput, BotFieldError list> =
     let fail field message = { BotField = field; BotProblem = message }
@@ -240,7 +294,8 @@ let parseBotPreviewRequest (today: DateTime) (json: string) : Result<BotPreviewI
             | Ok text ->
                 match DateTime.TryParseExact(text, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None) with
                 | true, d when d.Date > today.Date -> Error (fail "date" "Das Datum liegt in der Zukunft")
-                | true, d when d.Date < today.Date.AddYears(-5) -> Error (fail "date" "Das Datum liegt zu weit zurück")
+                | true, d when d.Date < today.Date.AddDays(float -botBackdateDays) ->
+                    Error (fail "date" $"Das Datum darf höchstens {botBackdateDays} Tage zurückliegen")
                 | true, d -> Ok (DateTime.SpecifyKind(d.Date, DateTimeKind.Utc))
                 | _ -> Error (fail "date" "Erwartet wird JJJJ-MM-TT")
 

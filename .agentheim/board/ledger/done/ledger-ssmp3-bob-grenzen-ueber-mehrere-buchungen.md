@@ -1,7 +1,7 @@
 ---
 id: ledger-ssmp3
 title: "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
-status: doing
+status: done
 type: feature
 context: ledger
 created: 2026-10-28
@@ -43,3 +43,19 @@ Herkunft: Security-Review der Homelab-Sitzung (homelab-58) am 2026-10-28, erfass
 Entscheidungen Roman (2026-10-28): Tagesgrenze 500 € und 10 Buchungen, Datumsfenster 31 Tage, keine Meldung je Commit (die YNAB-Prüfliste reicht), kein Flag (Flags gehören "Lena fragen", ADR 0056).
 Geprüft bei der Verfeinerung: `YnabClient.buildManualTransactionBodyWithFlag` sendet kein `approved`, YNAB legt die Buchung deshalb unbestätigt an. ADR 0066 und 0067 verweisen in ihren Folgen schon auf ADR 0068.
 Hängt an ledger-ybm5x, weil beide `ServerConfig.fs`/`BotApi.fs` ändern.
+
+## Outcome
+
+ADR 0068 Punkte 2, 3 und 5 umgesetzt (Punkt 4, Drosselung und Kategorien-Cache, bleibt ledger-bbkgs).
+
+- `src/Server/Validation.fs`: Konstanten `botBackdateDays = 31`, `botDailyMaxSumEur = 500m`, `botDailyMaxCount = 10`. Die Fünf-Jahres-Grenze in `parseBotPreviewRequest` ist durch das 31-Tage-Fenster ersetzt (Feld `date`, 400); Quick-Add-Validierung unverändert. Neue reine Funktionen `berlinOffsetAt`, `berlinOffsetByEuRules`, `berlinDayOf`, `berlinDayBoundsUtc`, `checkBotDailyLimit` (Meldung nennt Summe und Anzahl des Tages).
+- `src/Server/Ledger/Persistence.fs`: `loadBobBookedAmountsBetween fromUtc toUtc` liest `CashExpenseAdded` mit Actor `Bob` im Zeitraum aus `ledger_entry_events`. Gezählt wird also, was gespeichert ist; Quick Add, Import und andere Tage zählen nicht.
+- `src/Server/BotApi.fs`: Vorschau prüft `daily_limit_reached` (422) nach der Betragsprüfung, `today` für die Datumsprüfung ist der Berliner Tag. Der Commit prüft erneut und bucht unter einer prozessweiten Sperre (`bookingGate`, SemaphoreSlim), damit gleichzeitige Commits verschiedener Vorschauen die Grenze nicht gemeinsam überschreiten. `CommitOnce` liefert jetzt `BotCommitOutcome` (`BotBooked` oder `BotDailyLimitReached`); eine Wiederholung derselben Vorschau liefert das erste Ergebnis (auch eine Ablehnung), zählt nie doppelt. Der Test für gleichzeitige Commits wurde ohne Sperre kurz rot gesehen.
+- `docs/bot-api.md`: Tagesgrenze, Datumsfenster, Code `daily_limit_reached`.
+- Europe/Berlin im Container: `mcr.microsoft.com/dotnet/aspnet:10.0-alpine` hat keinen `InvariantGlobalization`-Eintrag im Dockerfile (und TimeZoneInfo hängt ohnehin nicht an ICU), ob das Image tzdata enthält, ließ sich offline nicht prüfen. Deshalb fällt `berlinOffsetAt` ohne gefundene Zeitzone auf die EU-Sommerzeitregeln zurück (`berlinOffsetByEuRules`); ein Test vergleicht beide an den Umstellungsgrenzen. Das Dockerfile blieb unangetastet. Wer den Zonenpfad sicher will, kann `tzdata` im Runtime-Stage per `apk add` ergänzen, nötig ist es nicht.
+- Tests (17 neu): 10 in `BotApiTests.fs` (Summe, Anzahl, gemischte Richtungen, gestern und Quick Add, neuer Store, zwei offene Vorschauen, sechs gleichzeitige Commits genau drei gebucht, Wiederholung an der Grenze, Datumsfenster, Berliner Tag nach Mitternacht), 7 in `BotValidationTests.fs` (Grenzwerte, Berliner Tag Winter und Sommer, Tagesgrenzen in UTC, 23 und 25 Stunden an Umstellungstagen, Rückfall gleich Zeitzonendatenbank, 31/32-Tage-Grenze). Jeder API-Test nutzt einen eigenen Berliner Tag, weil die In-Memory-Datenbank über Tests geteilt ist.
+- Läufe aus dem Worktree: `dotnet build` 0 Warnungen, `dotnet test` 2489 grün (7 übersprungen, Integrationstests ohne .env), `npm run build`, `guard:classes`, `guard:tokens` grün, `npm run test:scripts` 281 von 281.
+- Kein Flag und keine Benachrichtigung (Punkt 5): Bob-Buchungen bleiben in YNAB unbestätigt.
+
+### README von Hand
+Die drei Ubiquitous-language-Änderungen (zwei replace, ein append) sind im README_DELTA-Block und gehen durch das Gate (Exit 0). Weitere Stellen mit Bot-Bezug (Zeilen 24, 36, 226, 229, 259, 333, 405) widersprechen der Änderung nicht.

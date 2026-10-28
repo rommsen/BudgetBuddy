@@ -50,12 +50,17 @@ type BotCommitResult = {
     PushError: string option
 }
 
+/// Ausgang eines Commits: gebucht oder wegen der Tagesgrenze abgelehnt (ADR 0068).
+type BotCommitOutcome =
+    | BotBooked of BotCommitResult
+    | BotDailyLimitReached of message: string
+
 /// Vorschau-Speicher im Arbeitsspeicher. Nach einem Neustart verfallen alle Vorschauen
 /// (ADR 0066). Der Commit läuft je Vorschau höchstens einmal: gleichzeitige Aufrufe teilen
 /// sich dieselbe Aufgabe.
 type BotPreviewStore() =
     let previews = ConcurrentDictionary<Guid, BotPreview>()
-    let commits = ConcurrentDictionary<Guid, Lazy<Task<BotCommitResult>>>()
+    let commits = ConcurrentDictionary<Guid, Lazy<Task<BotCommitOutcome>>>()
 
     member _.Add(preview: BotPreview) = previews[preview.Id] <- preview
 
@@ -68,7 +73,7 @@ type BotPreviewStore() =
 
     /// Startet den Commit genau einmal je Vorschau; jeder weitere Aufruf bekommt dieselbe
     /// Aufgabe und damit dasselbe Ergebnis.
-    member _.CommitOnce(id: Guid, work: unit -> Async<BotCommitResult>) : Task<BotCommitResult> =
+    member _.CommitOnce(id: Guid, work: unit -> Async<BotCommitOutcome>) : Task<BotCommitOutcome> =
         let lazyTask = commits.GetOrAdd(id, fun _ -> lazy (Async.StartAsTask(work ())))
         lazyTask.Value
 
@@ -78,6 +83,20 @@ type BotPreviewStore() =
             if p.ExpiresAt + retainExpired < now then
                 previews.TryRemove id |> ignore
                 commits.TryRemove id |> ignore
+
+/// Hält Prüfung der Tagesgrenze und Buchung zusammen: ohne die Sperre könnten zwei
+/// gleichzeitige Commits verschiedener Vorschauen beide unter der Grenze zählen und
+/// zusammen darüber buchen. Prozessweit, weil das Kassenbuch es auch ist.
+let private bookingGate = new Threading.SemaphoreSlim(1, 1)
+
+/// Was Bob heute (Berliner Kalendertag von `now`) schon gebucht hat: Summe der Beträge ohne
+/// Vorzeichen in Euro und Anzahl, aus den gespeicherten Ereignissen.
+let private loadDailyUsage (now: DateTime) : Async<decimal * int> =
+    async {
+        let fromUtc, toUtc = berlinDayBoundsUtc now
+        let! amounts = Ledger.Persistence.loadBobBookedAmountsBetween fromUtc toUtc
+        return (amounts |> List.sumBy (fun m -> abs m.Amount)), amounts.Length
+    }
 
 /// Alles, was von außen kommt.
 type BotDeps = {
@@ -175,7 +194,7 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
         task {
             let now = deps.Now()
             let! body = readBody ctx
-            match parseBotPreviewRequest now body with
+            match parseBotPreviewRequest (berlinDayOf now) body with
             | Error errors ->
                 let fields =
                     errors
@@ -188,67 +207,90 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
                 | Error reason ->
                     return! respond 422 (errorBody "amount_not_allowed" reason []) earlyReturn ctx
                 | Ok () ->
-                    let! target = deps.ResolveTarget() |> Async.StartAsTask
-                    match target with
-                    | Error reason ->
-                        return! respond 422 (errorBody "no_quick_add_account" reason []) earlyReturn ctx
-                    | Ok target ->
-                        let! categories = deps.LoadCategories() |> Async.StartAsTask
-                        match categories with
+                    let! usedSum, usedCount = loadDailyUsage now |> Async.StartAsTask
+                    match checkBotDailyLimit usedSum usedCount input.AmountEur with
+                    | Error reason -> return! respond 422 (errorBody "daily_limit_reached" reason []) earlyReturn ctx
+                    | Ok () ->
+                        let! target = deps.ResolveTarget() |> Async.StartAsTask
+                        match target with
                         | Error reason ->
-                            return! respond 502 (errorBody "ynab_unavailable" reason []) earlyReturn ctx
-                        | Ok categories ->
-                            let unresolved code message (candidates: YnabCategory list) =
-                                respond
-                                    422
-                                    (errorBody code message [ "candidates", Encode.list (candidates |> List.map categoryJson) ])
-                            match resolveBotCategory categories input.Category with
-                            | BotCategoryUnknown candidates ->
-                                return!
-                                    unresolved "category_not_found" $"Keine Kategorie passt zu '{input.Category}'" candidates earlyReturn ctx
-                            | BotCategoryAmbiguous candidates ->
-                                return!
-                                    unresolved "category_ambiguous" $"Mehrere Kategorien passen zu '{input.Category}'" candidates earlyReturn ctx
-                            | BotCategoryResolved category ->
-                                deps.Store.Purge now
-                                let preview = {
-                                    Id = Guid.NewGuid()
-                                    CreatedAt = now
-                                    ExpiresAt = now + previewTtl
-                                    Target = target
-                                    AmountEur = input.AmountEur
-                                    Direction = input.Direction
-                                    Payee = input.Payee
-                                    Category = category
-                                    Date = input.Date
-                                    Memo = input.Memo
-                                }
-                                deps.Store.Add preview
-                                return! respond 200 (previewJson preview) earlyReturn ctx
+                            return! respond 422 (errorBody "no_quick_add_account" reason []) earlyReturn ctx
+                        | Ok target ->
+                            let! categories = deps.LoadCategories() |> Async.StartAsTask
+                            match categories with
+                            | Error reason ->
+                                return! respond 502 (errorBody "ynab_unavailable" reason []) earlyReturn ctx
+                            | Ok categories ->
+                                let unresolved code message (candidates: YnabCategory list) =
+                                    respond
+                                        422
+                                        (errorBody code message [ "candidates", Encode.list (candidates |> List.map categoryJson) ])
+                                match resolveBotCategory categories input.Category with
+                                | BotCategoryUnknown candidates ->
+                                    return!
+                                        unresolved "category_not_found" $"Keine Kategorie passt zu '{input.Category}'" candidates earlyReturn ctx
+                                | BotCategoryAmbiguous candidates ->
+                                    return!
+                                        unresolved "category_ambiguous" $"Mehrere Kategorien passen zu '{input.Category}'" candidates earlyReturn ctx
+                                | BotCategoryResolved category ->
+                                    deps.Store.Purge now
+                                    let preview = {
+                                        Id = Guid.NewGuid()
+                                        CreatedAt = now
+                                        ExpiresAt = now + previewTtl
+                                        Target = target
+                                        AmountEur = input.AmountEur
+                                        Direction = input.Direction
+                                        Payee = input.Payee
+                                        Category = category
+                                        Date = input.Date
+                                        Memo = input.Memo
+                                    }
+                                    deps.Store.Add preview
+                                    return! respond 200 (previewJson preview) earlyReturn ctx
         }
 
-let private bookPreview (deps: BotDeps) (p: BotPreview) : Async<BotCommitResult> =
+let private bookWithinLimit (deps: BotDeps) (p: BotPreview) : Async<BotCommitOutcome> =
     async {
-        let signed = match p.Direction with BotOutflow -> -p.AmountEur | BotInflow -> p.AmountEur
-        let input : Ledger.CommandHandlers.CashExpenseInput = {
-            AccountId = p.Target.LedgerAccountId
-            Date = p.Date
-            Amount = { Amount = signed; Currency = "EUR" }
-            Payee = Some p.Payee
-            Memo = p.Memo
-            Category = Some ({ CategoryId = p.Category.Id; CategoryName = p.Category.Name } : Ledger.Events.CategoryRef)
-        }
-        match!
-            Ledger.CommandHandlers.addCashExpense
-                Ledger.Events.Bob
-                (deps.Now())
-                (fun () -> deps.Push p)
-                deps.TriggerMirror
-                input
-        with
-        | Ok (Ledger.Events.EntryId id) -> return { EntryId = Some id; PushedToYnab = true; PushError = None }
-        | Error err ->
-            return { EntryId = None; PushedToYnab = false; PushError = Some (Ledger.CommandHandlers.describePushFailure err) }
+        let! usedSum, usedCount = loadDailyUsage (deps.Now())
+        match checkBotDailyLimit usedSum usedCount p.AmountEur with
+        | Error reason -> return BotDailyLimitReached reason
+        | Ok () ->
+            let signed = match p.Direction with BotOutflow -> -p.AmountEur | BotInflow -> p.AmountEur
+            let input : Ledger.CommandHandlers.CashExpenseInput = {
+                AccountId = p.Target.LedgerAccountId
+                Date = p.Date
+                Amount = { Amount = signed; Currency = "EUR" }
+                Payee = Some p.Payee
+                Memo = p.Memo
+                Category = Some ({ CategoryId = p.Category.Id; CategoryName = p.Category.Name } : Ledger.Events.CategoryRef)
+            }
+            match!
+                Ledger.CommandHandlers.addCashExpense
+                    Ledger.Events.Bob
+                    (deps.Now())
+                    (fun () -> deps.Push p)
+                    deps.TriggerMirror
+                    input
+            with
+            | Ok (Ledger.Events.EntryId id) ->
+                return BotBooked { EntryId = Some id; PushedToYnab = true; PushError = None }
+            | Error err ->
+                return
+                    BotBooked
+                        { EntryId = None
+                          PushedToYnab = false
+                          PushError = Some (Ledger.CommandHandlers.describePushFailure err) }
+    }
+
+/// Prüfung der Tagesgrenze und Buchung unter einer Sperre (siehe `bookingGate`).
+let private bookPreview (deps: BotDeps) (p: BotPreview) : Async<BotCommitOutcome> =
+    async {
+        do! bookingGate.WaitAsync() |> Async.AwaitTask
+        try
+            return! bookWithinLimit deps p
+        finally
+            bookingGate.Release() |> ignore
     }
 
 let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
@@ -266,8 +308,11 @@ let private commitHandler (deps: BotDeps) (idText: string) : HttpHandler =
                         respond 410 (errorBody "preview_expired" "Die Vorschau ist abgelaufen, bitte neu anlegen" []) earlyReturn ctx
                 | Some preview ->
                     try
-                        let! result = deps.Store.CommitOnce(id, fun () -> bookPreview deps preview)
-                        return! respond 200 (commitJson id result) earlyReturn ctx
+                        let! outcome = deps.Store.CommitOnce(id, fun () -> bookPreview deps preview)
+                        match outcome with
+                        | BotBooked result -> return! respond 200 (commitJson id result) earlyReturn ctx
+                        | BotDailyLimitReached message ->
+                            return! respond 422 (errorBody "daily_limit_reached" message []) earlyReturn ctx
                     with ex ->
                         printfn "[Bot] Commit %O fehlgeschlagen: %s" id ex.Message
                         return! respond 500 (errorBody "commit_failed" "Die Buchung ist fehlgeschlagen" []) earlyReturn ctx
