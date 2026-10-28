@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:18 -- Capture / Captured: infrastructure-z9b5w - "CORS AllowAnyOrigin gilt in Produktion für die ganze API: auf Development beschränken (Security-Review M4)"
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** CORS AllowAnyOrigin auch in Produktion, auf Development beschränken (Security-Review M4)
+
+---
+
 ## 2026-10-28 08:16 -- Work session ended
 
 **Type:** Work / Session end
