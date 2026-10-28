@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:18 -- Modeling / Promoted: ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-28 19:18 -- Task verified and completed: ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
 
 **Type:** Work / Task completion

@@ -1,7 +1,7 @@
 ---
 id: ledger-dtrn2
 title: "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
-status: backlog
+status: todo
 type: chore
 context: ledger
 created: 2026-10-28
