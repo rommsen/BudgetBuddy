@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:36 -- Work session ended
+
+**Type:** Work / Session end
+**Duration:** 67m49s
+**Completed:** 5 (first-try PASS: 5, re-dispatched: 0, skipped: 0)
+**Bounced:** 0
+**Failed:** 0
+**Escalated after verification:** 0
+**Lost-result re-dispatches:** 0
+**Lost-result escalations:** 0
+**Dispatches:** infrastructure-z9b5w: 1, ledger-ybm5x: 1, ledger-ssmp3: 1, ledger-bbkgs: 1, ledger-dtrn2: 1
+**Commits:** 13
+**Vision-conformance:** none — batch aligns with vision
+**Batch mix:** 80% product-facing / 20% harness / 0% bookkeeping (5 tasks)
+**Carry-over:** none — working tree clean
+
+---
+
 ## 2026-10-28 19:32 -- Task verified and completed: ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
 
 **Type:** Work / Task completion
