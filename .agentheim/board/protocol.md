@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:18 -- Batch started: [ledger-dtrn2]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
+**Parallel:** no (1 worker, letztes Glied der Kette)
+
+---
+
 ## 2026-10-28 19:18 -- Modeling / Promoted: ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
 
 **Type:** Modeling / Promote
