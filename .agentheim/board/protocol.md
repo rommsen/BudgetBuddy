@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:54 -- Capture / Captured: infrastructure-b85yv - tzdata im Produktions-Image installieren
+
+**Type:** Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** tzdata im Produktions-Image ergänzen, damit die Bob-Tagesgrenze Europe/Berlin ohne Rückfall findet
+
+---
+
 ## 2026-10-28 19:36 -- Work session ended
 
 **Type:** Work / Session end
