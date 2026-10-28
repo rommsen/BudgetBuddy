@@ -1,7 +1,7 @@
 ---
 id: design-system-y2bdj
 title: "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-10-26

@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 1
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 36
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)" (chore) — `todo/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`
-- **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)" (bug) — `todo/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)" (bug) — `doing/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
+- **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)" (chore) — `doing/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

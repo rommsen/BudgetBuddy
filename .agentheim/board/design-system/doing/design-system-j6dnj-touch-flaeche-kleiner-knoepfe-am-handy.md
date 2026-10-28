@@ -1,7 +1,7 @@
 ---
 id: design-system-j6dnj
 title: "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)"
-status: todo
+status: doing
 type: bug
 context: design-system
 created: 2026-10-26

@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 93
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **ledger-b0b7q** — "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)" (feature) — `todo/ledger-b0b7q-quick-add-fuer-bob.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **ledger-b0b7q** — "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)" (feature) — `doing/ledger-b0b7q-quick-add-fuer-bob.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

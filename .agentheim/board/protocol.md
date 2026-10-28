@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 07:31 -- Batch started: [design-system-y2bdj, design-system-j6dnj, ledger-b0b7q]
+
+**Type:** Work / Batch start
+**Tasks:** design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)", design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)", ledger-b0b7q - "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)"
+**Parallel:** yes (3 workers; y2bdj besitzt SplitEditor.fs und die Styleguide-Karte, j6dnj nur Button.fs, b0b7q Server und Shared; Einfügestellen vorab verteilt)
+
+---
+
 ## 2026-10-27 22:05 -- Modeling / Promoted: ledger-b0b7q - "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)"
 
 **Type:** Modeling / Promote

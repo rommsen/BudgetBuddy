@@ -1,7 +1,7 @@
 ---
 id: ledger-b0b7q
 title: "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)"
-status: todo
+status: doing
 type: feature
 context: ledger
 created: 2026-10-27
