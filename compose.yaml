@@ -29,6 +29,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - DATA_DIR=/app/data
       - BUDGETBUDDY_ENCRYPTION_KEY=${BUDGETBUDDY_ENCRYPTION_KEY}
+      # Bot-Schnittstelle /bot/ (ledger-b0b7q, ADR 0066): ohne Token abgeschaltet
+      - BOT_API_TOKEN=${BOT_API_TOKEN:-}
+      - BOT_MAX_AMOUNT_EUR=${BOT_MAX_AMOUNT_EUR:-}
     # Kachel im Homelab-Dashboard (homelab/docs/neue-stacks-anlegen.md, Dashboard-Labels)
     labels:
       homepage.group: Apps

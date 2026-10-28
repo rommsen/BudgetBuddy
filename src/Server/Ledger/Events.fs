@@ -45,6 +45,10 @@ type Actor =
     | UserInBb
     /// Die Buchung wurde ueber Quick Add erfasst.
     | QuickAdd
+    /// Die Buchung hat Bob angelegt (Hermes-Agent, `/bot/`-Schnittstelle, ADR 0066).
+    /// Eigene Herkunft, keine Ausprägung von `QuickAdd`; additiv, alte Ereignisse
+    /// lesen sich unverändert.
+    | Bob
     /// Eine Kategorie stammt aus dem Order-ID-Abgleich beim Abruf (Vorschlag aus der
     /// YNAB-Historie derselben Amazon-Bestellung, `ReviewActor.ByOrderIdMatch`). Kein
     /// Regel-Treffer und keine Entscheidung Romans für DIESE Buchung (Entscheidung
@@ -1150,6 +1154,7 @@ let actorToColumns (actor: Actor) : string * string option =
     | Rule (RuleId id) -> "Rule", Some (id.ToString())
     | UserInBb -> "UserInBb", None
     | QuickAdd -> "QuickAdd", None
+    | Bob -> "Bob", None
     // Die zweite Spalte ist frei benutzbares Text, kein reiner Guid-Slot: der
     // Order-ID-Abgleich legt hier die Bestell-Id ab statt einer RuleId.
     | OrderIdMatch orderId -> "OrderIdMatch", Some orderId
@@ -1162,6 +1167,7 @@ let actorFromColumns (kind: string) (ruleId: string option) : Result<Actor, stri
     | "Rule", None -> Error "Actor 'Rule' ohne RuleId gespeichert"
     | "UserInBb", _ -> Ok UserInBb
     | "QuickAdd", _ -> Ok QuickAdd
+    | "Bob", _ -> Ok Bob
     | "OrderIdMatch", Some orderId -> Ok (OrderIdMatch orderId)
     | "OrderIdMatch", None -> Error "Actor 'OrderIdMatch' ohne OrderId gespeichert"
     | other, _ -> Error $"Unbekannter Actor: {other}"

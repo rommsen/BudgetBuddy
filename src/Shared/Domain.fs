@@ -792,6 +792,8 @@ type LedgerOrigin =
     | DecidedInBb
     /// Ueber Quick Add erfasst.
     | AddedViaQuickAdd
+    /// Von Bob (Hermes-Agent) über die `/bot/`-Schnittstelle angelegt (ADR 0066).
+    | AddedByBob
     /// Kategorie aus dem Order-ID-Abgleich beim Abruf übernommen (Vorschlag aus der
     /// YNAB-Historie derselben Amazon-Bestellung, weder Regel noch Roman für DIESE
     /// Buchung, Entscheidung Roman 2026-09-11).
@@ -806,6 +808,7 @@ let originLabel (origin: LedgerOrigin) : string =
     | DecidedByRule -> "Regel"
     | DecidedInBb -> "Roman in BB"
     | AddedViaQuickAdd -> "Quick Add"
+    | AddedByBob -> "Bob"
     | MatchedByOrderId -> "Order-ID-Abgleich"
 
 /// Die Art eines Kassenbuch-Kontos (ADR 0016) in der Form, die die Anzeige braucht.

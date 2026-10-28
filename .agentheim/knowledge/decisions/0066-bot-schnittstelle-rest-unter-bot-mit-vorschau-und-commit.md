@@ -7,7 +7,7 @@ date: 2026-10-27
 supersedes: []
 superseded_by: []
 related_tasks: [ledger-b0b7q]
-related_adrs: [0004, 0013]
+related_adrs: [0004, 0013, 0067]
 related_research: []
 ---
 
@@ -32,13 +32,14 @@ für den eigenen Client gebaut und ihr Wire-Format ist ein internes Detail.
    Homelab-Repo (Caddy lässt nur `/bot/*` durch). Das Token liegt nicht in der Datenbank.
 5. **Enge Rechte:** nur Ausgaben aufs Quick-Add-Konto (ADR 0004), Betragsobergrenze per
    Umgebung (Vorgabe 500 €), keine Lese-Route für Buchungen oder Salden, nur Kategorien.
+   Ergänzt durch ADR 0067 (2026-10-28): Bob darf auf dem Quick-Add-Konto auch Einnahmen buchen.
 6. **Eigene Herkunft `Bob`** als neuer Fall des `Actor` (ADR 0013) und der `LedgerOrigin`.
    Additiv: alte Ereignisse lesen sich unverändert, die Payload-Schema-Versionen bleiben.
 
 ## Consequences
 - Bob kann den Kassenbuch-Stand nicht sehen; Rückfragen laufen über Kategorien und die
   eigene Vorschau.
-- Ein kompromittierter Bob kann höchstens Barausgaben bis zur Obergrenze anlegen, sichtbar
+- Ein kompromittierter Bob kann höchstens Barausgaben bis zur Obergrenze anlegen (seit ADR 0067 auch Bareinnahmen), sichtbar
   an der Herkunft `Bob`.
 - Ein Deploy zwischen Vorschau und Commit lässt den Commit mit 404 scheitern; Bob muss die
   Vorschau neu anlegen.

@@ -76,6 +76,8 @@
     <Compile Include="LedgerReviewMarkClientTests.fs" />
     <Compile Include="LedgerPushFailureTests.fs" />
     <Compile Include="LedgerRetryPushTests.fs" />
+    <Compile Include="BotValidationTests.fs" />
+    <Compile Include="BotApiTests.fs" />
     <Compile Include="LedgerMemoTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
     <Compile Include="PushOutcomeClassificationTests.fs" />

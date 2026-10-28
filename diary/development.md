@@ -4,6 +4,39 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 07:50 - Bot-Schnittstelle /bot/ für Bob (ledger-b0b7q)
+
+**What I did:**
+REST-Routen unter `/bot/` nach ADR 0066: Vorschau, Commit (idempotent, auch bei gleichzeitigen Aufrufen), Kategorienliste. Bearer-Token aus `BOT_API_TOKEN`, Obergrenze `BOT_MAX_AMOUNT_EUR` (Vorgabe 500 EUR), eigener Actor `Bob` und Herkunft `AddedByBob`. `addCashExpense` bekommt den Actor als Parameter.
+
+**Files Added:**
+- `src/Server/BotApi.fs` - Handler, Vorschau-Speicher, Live-Verdrahtung
+- `src/Tests/BotApiTests.fs` - Routen-Integrationstests (In-Memory-SQLite)
+- `src/Tests/BotValidationTests.fs` - Unit-Tests der reinen Teile
+- `docs/bot-api.md` - Doku der Routen und Umgebungsvariablen
+
+**Files Modified:**
+- `src/Server/Validation.fs` - Eingabeprüfung, Betragsgrenze, Kategorie-Auflösung
+- `src/Server/ServerConfig.fs` - Token und Obergrenze aus der Umgebung
+- `src/Server/Api.fs` - Bot-Handler vor Fable.Remoting, Actor `QuickAdd` an `addCashExpense`
+- `src/Server/Ledger/CommandHandlers.fs`, `Events.fs`, `QueryHandlers.fs` - Actor-Parameter, `Actor.Bob`, Herkunft
+- `src/Shared/Domain.fs` - `LedgerOrigin.AddedByBob`, Anzeigename "Bob"
+- `src/Client/Components/Ledger/View.fs` - Historienpunkt für Bob
+- `src/Server/Server.fsproj`, `src/Tests/Tests.fsproj` - neue Compile-Zeilen
+- `src/Tests/LedgerTests.fs`, `LedgerPushFailureTests.fs`, `LedgerMirrorTests.fs` - neuer Actor-Parameter
+- `.env.example`, `compose.yaml` - neue Umgebungsvariablen
+
+**Rationale:**
+Bob soll Barbuchungen anlegen können, ohne Lesezugriff und mit enger Obergrenze. Zwei Schritte stellen sicher, dass genau das gebucht wird, was Roman gesehen hat.
+
+**Outcomes:**
+- Build: 0 Warnungen
+- Tests: dotnet test 2463 bestanden, 7 übersprungen (vorher ohne die 48 neuen); test:scripts 278/278
+- Regressionsprobe: ohne die Einmal-Ausführung im Commit werden 3 Bot-Tests rot
+- Issues: keine
+
+---
+
 ## 2026-10-28 07:44 - Touch-Fläche von Button.Small am Handy auf 48 px
 
 **What I did:**

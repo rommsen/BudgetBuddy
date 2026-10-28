@@ -150,3 +150,173 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
 /// Prüft den Monats-Schlüssel der Budget-Seite an der Grenze: "current" oder "next".
 let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
     Shared.Budgeting.parseMonthChoice key
+
+// ============================================
+// Bot-Schnittstelle (ledger-b0b7q, ADR 0066)
+// ============================================
+
+/// Die Richtung einer Bot-Buchung. Kommt allein aus `direction`, nie aus dem Vorzeichen
+/// des Betrags.
+type BotDirection =
+    | BotOutflow
+    | BotInflow
+
+/// Die geprüfte Eingabe der Vorschau. `AmountEur` ist positiv und in Euro (nicht in
+/// YNAB-Milliunits). Es gibt bewusst kein Konto-Feld: das Konto ist immer das Quick-Add-Konto
+/// (ADR 0004).
+type BotPreviewInput = {
+    AmountEur: decimal
+    Direction: BotDirection
+    Payee: string
+    /// Rohtext aus der Anfrage: Id oder Name, aufgelöst durch `resolveBotCategory`.
+    Category: string
+    Date: DateTime
+    Memo: string option
+}
+
+/// Ein Fehler zu einem Feld der Anfrage (Antwort 400 mit Feldnamen).
+type BotFieldError = { BotField: string; BotProblem: string }
+
+/// Felder, die auf ein anderes Konto zielen würden. Wer eins mitschickt, bekommt 400.
+let private botForbiddenAccountFields = [ "account"; "account_id"; "accountId"; "account_name" ]
+
+/// Prüft den JSON-Rumpf der Vorschau. `today` kommt von außen (Uhr injiziert). Sammelt alle
+/// Feldfehler, statt beim ersten aufzuhören.
+let parseBotPreviewRequest (today: DateTime) (json: string) : Result<BotPreviewInput, BotFieldError list> =
+    let fail field message = { BotField = field; BotProblem = message }
+    let parsed =
+        try
+            let doc = System.Text.Json.JsonDocument.Parse(json)
+            if doc.RootElement.ValueKind = System.Text.Json.JsonValueKind.Object then Ok doc
+            else Error [ fail "body" "Der Rumpf muss ein JSON-Objekt sein" ]
+        with _ ->
+            Error [ fail "body" "Der Rumpf ist kein gültiges JSON" ]
+
+    match parsed with
+    | Error errors -> Error errors
+    | Ok doc ->
+        use _doc = doc
+        let root = doc.RootElement
+        let prop name =
+            match root.TryGetProperty(name: string) with
+            | true, v when v.ValueKind <> System.Text.Json.JsonValueKind.Null -> Some v
+            | _ -> None
+
+        let requiredString name =
+            match prop name with
+            | None -> Error (fail name "Pflichtfeld fehlt")
+            | Some v when v.ValueKind <> System.Text.Json.JsonValueKind.String ->
+                Error (fail name "Muss ein Text sein")
+            | Some v ->
+                let text = v.GetString().Trim()
+                if text = "" then Error (fail name "Darf nicht leer sein") else Ok text
+
+        let amount =
+            match prop "amount" with
+            | None -> Error (fail "amount" "Pflichtfeld fehlt")
+            | Some v when v.ValueKind <> System.Text.Json.JsonValueKind.Number ->
+                Error (fail "amount" "Muss eine Zahl in Euro sein")
+            | Some v ->
+                match v.TryGetDecimal() with
+                | true, d when Math.Round(d, 2) = d -> Ok d
+                | true, _ -> Error (fail "amount" "Höchstens zwei Nachkommastellen")
+                | _ -> Error (fail "amount" "Muss eine Zahl in Euro sein")
+
+        let direction =
+            match requiredString "direction" with
+            | Error e -> Error e
+            | Ok "outflow" -> Ok BotOutflow
+            | Ok "inflow" -> Ok BotInflow
+            | Ok _ -> Error (fail "direction" "Erlaubt sind 'outflow' und 'inflow'")
+
+        let payee =
+            match requiredString "payee" with
+            | Ok p when p.Length > 200 -> Error (fail "payee" "Höchstens 200 Zeichen")
+            | other -> other
+
+        let date =
+            match requiredString "date" with
+            | Error e -> Error e
+            | Ok text ->
+                match DateTime.TryParseExact(text, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None) with
+                | true, d when d.Date > today.Date -> Error (fail "date" "Das Datum liegt in der Zukunft")
+                | true, d when d.Date < today.Date.AddYears(-5) -> Error (fail "date" "Das Datum liegt zu weit zurück")
+                | true, d -> Ok (DateTime.SpecifyKind(d.Date, DateTimeKind.Utc))
+                | _ -> Error (fail "date" "Erwartet wird JJJJ-MM-TT")
+
+        let memo =
+            match prop "memo" with
+            | None -> Ok None
+            | Some v when v.ValueKind <> System.Text.Json.JsonValueKind.String -> Error (fail "memo" "Muss ein Text sein")
+            | Some v ->
+                let text = v.GetString().Trim()
+                if text.Length > 500 then Error (fail "memo" "Höchstens 500 Zeichen")
+                elif text = "" then Ok None
+                else Ok (Some text)
+
+        let accountErrors =
+            botForbiddenAccountFields
+            |> List.choose (fun name ->
+                if prop name |> Option.isSome then
+                    Some (fail name "Das Konto ist fest (Quick-Add-Konto), die Anfrage darf keins nennen")
+                else None)
+
+        let errorOf r = match r with Error e -> Some e | Ok _ -> None
+        let category = requiredString "category"
+        let errors =
+            [ amount |> errorOf; direction |> errorOf; payee |> errorOf
+              category |> errorOf; date |> errorOf; memo |> errorOf ]
+            |> List.choose id
+            |> fun own -> own @ accountErrors
+
+        match amount, direction, payee, category, date, memo with
+        | Ok a, Ok dir, Ok p, Ok c, Ok d, Ok m when errors.IsEmpty ->
+            Ok { AmountEur = a; Direction = dir; Payee = p; Category = c; Date = d; Memo = m }
+        | _ -> Error errors
+
+/// Prüft den Betrag gegen die Obergrenze (Euro). Betrag 0 oder negativ ist unzulässig, die
+/// Richtung kommt allein aus `direction`. Die Grenze selbst ist erlaubt.
+let checkBotAmount (maxAmountEur: decimal) (amountEur: decimal) : Result<unit, string> =
+    if amountEur <= 0m then Error "Der Betrag muss größer als 0 sein, die Richtung steht in 'direction'"
+    elif amountEur > maxAmountEur then
+        Error $"Der Betrag {amountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR liegt über der Obergrenze von {maxAmountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR"
+    else Ok ()
+
+/// Kategorien, die Bob wählen darf: nicht die internen YNAB-Kategorien, nicht versteckte.
+let selectableBotCategories (categories: YnabCategory list) : YnabCategory list =
+    categories
+    |> List.filter (fun c -> c.GroupName <> internalMasterGroupName && not c.Hidden)
+
+/// Ergebnis der Kategorie-Auflösung. BB rät nicht: bei keinem oder mehreren Treffern
+/// kommt eine Kandidatenliste statt einer Wahl.
+type BotCategoryResolution =
+    | BotCategoryResolved of YnabCategory
+    | BotCategoryUnknown of candidates: YnabCategory list
+    | BotCategoryAmbiguous of candidates: YnabCategory list
+
+/// Löst `query` (Id oder Name, ohne Beachtung der Groß-/Kleinschreibung) gegen die wählbaren
+/// Kategorien auf. Genau ein Treffer wird übernommen. Ohne Treffer sind die Kandidaten die
+/// Kategorien, deren Name den Suchtext enthält (oder umgekehrt).
+let resolveBotCategory (categories: YnabCategory list) (query: string) : BotCategoryResolution =
+    let selectable = selectableBotCategories categories
+    let q = query.Trim()
+    let byId =
+        match Guid.TryParse q with
+        | true, g -> selectable |> List.filter (fun c -> c.Id = YnabCategoryId g)
+        | _ -> []
+    let byName () =
+        selectable |> List.filter (fun c -> String.Equals(c.Name.Trim(), q, StringComparison.OrdinalIgnoreCase))
+    match byId with
+    | [ one ] -> BotCategoryResolved one
+    | _ ->
+        match byName () with
+        | [ one ] -> BotCategoryResolved one
+        | [] ->
+            let lower = q.ToLowerInvariant()
+            let close =
+                selectable
+                |> List.filter (fun c ->
+                    let name = c.Name.ToLowerInvariant()
+                    lower <> "" && (name.Contains lower || lower.Contains name))
+            BotCategoryUnknown close
+        | many -> BotCategoryAmbiguous many

@@ -1102,7 +1102,8 @@ let historyDotFor (line: LedgerHistoryLine) : Detail.DotColor =
         | MatchedByOrderId -> Detail.DotPurple
         | MirroredFromYnab -> Detail.DotGrey
         | DecidedInBb -> Detail.DotGreen
-        | AddedViaQuickAdd -> Detail.DotOrange
+        | AddedViaQuickAdd
+        | AddedByBob -> Detail.DotOrange
 
 /// Die Zeitleiste aus den Zeilen der Historie, neueste oben.
 let historyTimelineItems (lines: LedgerHistoryLine list) : Detail.TimelineItem list =

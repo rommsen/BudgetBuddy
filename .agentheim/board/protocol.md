@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 08:09 -- Task verified and completed: ledger-b0b7q - "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)"
+
+**Type:** Work / Task completion
+**Task:** ledger-b0b7q - "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)"
+**Summary:** Bob kann über die neuen /bot/-Routen (Vorschau, Commit, Kategorien) mit Bearer-Token und Obergrenze Barbuchungen anlegen, die als eigene Herkunft Bob über denselben Weg wie Quick Add gebucht werden; der Commit ist auch bei gleichzeitigen Aufrufen idempotent.
+**Duration:** 37m55s
+**Verification:** PASS (iteration 2)
+**Files changed:** 19
+**Tests added:** 48
+**ADRs written:** 0067-bob-darf-auch-einnahmen-buchen.md
+
+---
+
+## 2026-10-28 07:57 -- Verification failed: ledger-b0b7q - Quick Add für Bob
+
+**Type:** Work / Verification failure
+**Task:** ledger-b0b7q - Quick Add für Bob: schmale HTTP-API unter /bot/
+**Iteration:** 1 of 3
+**Reasons:** README-Listen Herkunft und Herkunfts-Badge ohne Bob, Actor-Listen in Key events und Key commands unvollständig, Abweichung von ADR 0066 (inflow erlaubt) ohne ADR
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-28 07:51 -- Task verified and completed: design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)"
 
 **Type:** Work / Task completion

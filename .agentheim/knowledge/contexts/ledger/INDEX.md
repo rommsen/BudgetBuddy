@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0067**: Bob darf auf dem Quick-Add-Konto auch Einnahmen buchen (direction inflow), unter derselben Obergrenze, ohne Konto-Feld und ohne Lese-Route; ergänzt ADR 0066 Entscheidung 5 · 2026-10-28 · `../../decisions/0067-bob-darf-auch-einnahmen-buchen.md`
 - **0066**: Bot-Schnittstelle für Bob als REST unter /bot/, getrennt von Fable.Remoting; Vorschau im Speicher (15 min) und idempotenter Commit, Bearer-Token aus der Umgebung, nur Quick-Add-Konto, Obergrenze 500 €, eigener Actor Bob · 2026-10-27 · `../../decisions/0066-bot-schnittstelle-rest-unter-bot-mit-vorschau-und-commit.md`
 - **0062**: Memo-Schreibweg nach dem Muster von ADR 0056: Ereignis EntryMemoChangedInBb mit Alt und Neu, Push mit nur memo, Fehlschlag mit Baseline-Memo, Grenze 500 Zeichen ohne stilles Kürzen · 2026-10-25 · `../../decisions/0062-memo-schreibweg-ereignis-fehlschlag-mit-baseline-grenze-500.md`
 - **0061**: Rückfrage zurücknehmen schreibt kein Flag nur bei Rückfrage Lena, ein fremdes Flag bleibt; die Lena-Farbe läuft über SettingsApi.getLenaFlagSettings und saveLenaFlagColor · 2026-10-25 · `../../decisions/0061-lena-zurueck-nehmen-nur-bei-rueckfrage-und-einstellung-ueber-settingsapi.md`

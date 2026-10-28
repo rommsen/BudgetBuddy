@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 93
+- **Doing:** 0
+- **Done:** 94
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-b0b7q** — "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)" (feature) — `doing/ledger-b0b7q-quick-add-fuer-bob.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-b0b7q** — "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)" (feature) — `done/ledger-b0b7q-quick-add-fuer-bob.md`
 - **ledger-wj6pd** — Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot (bug) — `done/ledger-wj6pd-zeilenhoehe-waechter-flackert.md`
 - **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `done/ledger-rjhwp-amazon-link-im-kassenbuch.md`
 - **ledger-s8t3s** — "Barabhebung im Split-Editor des Kassenbuchs: ein Knopf belegt die erste leere Zeile mit einem Übertrag aufs Bar-Konto (oder hängt eine an), Ausgleich wie im Import über Rest" (feature) — `done/ledger-s8t3s-barabhebung-im-split-editor.md`

@@ -456,6 +456,7 @@ let ynabApi : YnabApi = {
 
                         match!
                             Ledger.CommandHandlers.addCashExpense
+                                Ledger.Events.QuickAdd
                                 DateTime.UtcNow
                                 push
                                 Ledger.CommandHandlers.triggerMirrorInBackground
@@ -1979,7 +1980,12 @@ let private errorHandler (ex: exn) (routeInfo: RouteInfo<'a>) =
     Propagate ex
 
 let webApp() =
+    // Die Bot-Schnittstelle (ADR 0066) steht vor Fable.Remoting; Pfade außerhalb von
+    // /bot/ gibt sie unverändert weiter. Ein Vorschau-Speicher je Prozess.
+    let botDeps = BotApi.liveDeps ()
     choose [
+        BotApi.handler botDeps
+
         Remoting.createApi()
         |> Remoting.withRouteBuilder routeBuilder
         |> Remoting.withErrorHandler errorHandler

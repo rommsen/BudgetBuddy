@@ -316,7 +316,7 @@ let pushFailureCommandTests =
                 Category = None
             }
             let push () : Async<YnabResult<string>> = async.Return (Error (YnabError.NetworkError "Timeout"))
-            match addCashExpense at push noTrigger input |> Async.RunSynchronously with
+            match addCashExpense QuickAdd at push noTrigger input |> Async.RunSynchronously with
             | Error _ -> ()
             | Ok _ -> failtest "der Push-Fehler wird durchgereicht"
             let entry =
@@ -345,7 +345,7 @@ let pushFailureCommandTests =
                 Category = None
             }
             let push () : Async<YnabResult<string>> = async.Return (Ok $"ynab-{Guid.NewGuid()}")
-            match addCashExpense at push noTrigger input |> Async.RunSynchronously with
+            match addCashExpense QuickAdd at push noTrigger input |> Async.RunSynchronously with
             | Ok entryId ->
                 Expect.equal (eventTypesOf entryId) [ "CashExpenseAdded"; "EntryLinkedToYnab" ] "nur Verknüpfung"
             | Error err -> failtest $"sollte gelingen, war {err}"

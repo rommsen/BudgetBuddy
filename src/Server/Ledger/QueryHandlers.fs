@@ -53,6 +53,7 @@ module ReadModel =
         | Rule _ -> DecidedByRule
         | UserInBb -> DecidedInBb
         | QuickAdd -> AddedViaQuickAdd
+        | Bob -> AddedByBob
         | OrderIdMatch _ -> MatchedByOrderId
 
     /// Deutet Farbe und Name eines rohen YNAB-Flags (ADR 0032): der Name "Lena" (nach

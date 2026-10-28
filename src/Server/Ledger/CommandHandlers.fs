@@ -642,7 +642,8 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
     elif result.DuplicateImportIds |> List.contains importId then "YNAB hat die Buchung als Duplikat abgelehnt"
     else "YNAB hat die Buchung nicht angelegt"
 
-/// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `QuickAdd`), ruft
+/// Schreibt zuerst die Kassenbuch-Buchung (`CashExpenseAdded`, Actor `actor`: `QuickAdd`
+/// für die eigene Seite, `Bob` für die `/bot/`-Schnittstelle, ADR 0066), ruft
 /// danach `push` auf und verknüpft bei Erfolg mit `EntryLinkedToYnab` (ADR 0021): `push`
 /// liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts, die einzige Stelle,
 /// an der eine Quick-Add-Buchung ohne ImportId verknüpft werden kann (ADR 0004, ADR
@@ -660,6 +661,7 @@ let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateR
 /// Netz und ohne Spiegel-Lauf testbar ist (Muster wie `MirrorFetchers` beim
 /// Spiegel-Lauf).
 let addCashExpense
+    (actor: Actor)
     (now: DateTime)
     (push: unit -> Async<YnabResult<string>>)
     (triggerMirror: unit -> unit)
@@ -670,7 +672,7 @@ let addCashExpense
         let cashExpenseAdded = {
             EntryId = entryId
             OccurredAt = now
-            Actor = QuickAdd
+            Actor = actor
             Body =
                 CashExpenseAdded {
                     AccountId = input.AccountId
@@ -693,7 +695,7 @@ let addCashExpense
             let linked = {
                 EntryId = entryId
                 OccurredAt = now
-                Actor = QuickAdd
+                Actor = actor
                 Body = EntryLinkedToYnab { YnabTransactionId = ynabTransactionId }
             }
             do! Ledger.Persistence.appendAndApply [ linked ]
@@ -705,7 +707,7 @@ let addCashExpense
                     {
                         EntryId = entryId
                         OccurredAt = now
-                        Actor = QuickAdd
+                        Actor = actor
                         Body = EntryPushToYnabFailed { Reason = describePushFailure err }
                     }
                 ]

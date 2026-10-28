@@ -21,6 +21,7 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
 - **Frau** — liest mit (gemeinsames Konto, keine eigene Identität).
 - **YNAB** — über `ynab-sync`: Quelle des Spiegels und Ziel des Pushs.
 - **Kursquelle** — liefert den Kurs für die Bewertung (monatlich reicht).
+- **Bob** (ledger-b0b7q): Hermes-Agent auf einer Hetzner-VM. Legt über die `/bot/`-Schnittstelle Barbuchungen auf dem Quick-Add-Konto an, ohne Lesezugriff auf Kassenbuch oder Salden (ADR 0066). Eigener Actor `Bob`, Herkunft `AddedByBob`, Anzeigename "Bob".
 
 ## Ubiquitous language
 - **Kassenbuch** (Ledger) — das dauerhafte Buch aller Buchungen über alle Konten.
@@ -32,7 +33,7 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
   Trägt Herkunft und Historie. Entspricht der `SyncTransaction` nach dem Durchlauf und
   der `YnabTransaction` im Spiegel, ist aber BBs eigene, bleibende Form.
 - **Herkunft** — woher eine Buchung oder Änderung stammt: *Comdirect-Import*, *Quick Add*,
-  *Regel* (Auto-Kategorisierung), *Roman in BB*, *YNAB-Spiegel* (dahinter ING-Import,
+  *Bob* (Bot-Schnittstelle, ADR 0066), *Regel* (Auto-Kategorisierung), *Roman in BB*, *YNAB-Spiegel* (dahinter ING-Import,
   Änderung in YNAB, YNABs Transfer-Erkennung). Jede Änderung hat genau eine Herkunft.
 - **Historie** — die vollständige, unveränderliche Folge aller Änderungen an einer Buchung,
   je mit Zeitpunkt und Herkunft. **Auditierbar** heißt: jede Zahl im Kassenbuch lässt sich
@@ -142,7 +143,7 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
     und neuen Namen stehen in der Payload, deshalb braucht der Satz kein Nachschlagen.
   - `getLastMirrorRun` — der **Lauf-Status** (siehe oben).
 - **Herkunfts-Badge** — die Herkunft einer Buchung als Kennzeichen in der Anzeige:
-  *YNAB-Spiegel*, *Comdirect-Import*, *Regel*, *Roman in BB*, *Quick Add*,
+  *YNAB-Spiegel*, *Comdirect-Import*, *Regel*, *Roman in BB*, *Quick Add*, *Bob*,
   *Order-ID-Abgleich* (`Shared.Domain.originLabel`). Die Herkunft einer Buchung ist der
   Actor ihres **ersten** Ereignisses und steht damit fest, sobald die Buchung entsteht.
   Eine in YNAB gelöschte Buchung trägt zusätzlich das Kennzeichen *in YNAB gelöscht*: sie
@@ -222,6 +223,9 @@ Vision-Stufen v1 und v2 spielen fast vollständig hier.
 - **Zuletzt verwendete Kategorien** (ledger-d4msf): eine gemeinsame Liste (`Model.RecentCategories`, höchstens 5, neueste zuerst, je Gerät in localStorage) für den Kategorie-Filter und den Kategorie-Picker. Jede vergebene Kategorie rückt nach vorn: im Filter bei Übernehmen, im Picker bei der Einzelwahl (`StartSetEntryCategory`) und bei Kategorie setzen für die Auswahl (`StartCategoryBatch`), je über `rememberPickedCategory`. Der Picker zeigt sie als Abschnitt Zuletzt verwendet (`CategoryPickerProps.Recent`, `recentCategories`) unter Vorgeschlagen; eine Kategorie darf in beiden stehen, die aktuelle und versteckte fehlen, ohne Einträge und während einer Suche fehlt der Abschnitt. Der Split-Editor führt den Abschnitt nicht und zählt nicht mit.
 - **Barabhebung (Split-Editor)** (ledger-s8t3s): Knopf neben "Zeile hinzufügen" im Split-Editor des Kassenbuchs (`SplitEditor.startCashback`, `Msg.StartSplitCashback`). Er setzt die erste Zeile ohne Ziel auf einen Übertrag aufs Quick-Add-Konto (ADR 0004, `Model.QuickAddAccountId`, geladen beim Öffnen des Editors aus den Einstellungen; Ziel über `SplitEditor.cashbackTarget` aus den wählbaren Übertrag-Zielen) oder hängt eine solche Zeile an. Zeilen, Ziele und Beträge bleiben, die Beträge bleiben leer und der Ausgleich geht über "Rest". Ohne Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl der Zeile geht auf. Gespeichert wird über `setEntrySplits`, ohne neuen Befehl.
 - **Externer Link (ExternalLink)** (ledger-rjhwp): Beschriftung und Adresse zu einer Buchung, im Lesepfad aus Payee und aktuellem Memo erkannt (`Server.RulesEngine.detectSpecialLinksFromText`, dieselbe Regel wie im Sync) und als `LedgerEntryView.ExternalLinks` ausgeliefert. Reines Read-Model-Feld ohne Ereignis und Schema; nur das Buchungs-Detail zeigt es. Ein in BB bearbeitetes Memo ist die Grundlage der Erkennung.
+- **Bot-Schnittstelle** (ledger-b0b7q): Eigene REST-Routen unter `/bot/` (`Server.BotApi`), vor dem SPA-Fallback und getrennt von Fable.Remoting (ADR 0066). `POST /bot/transactions/preview`, `POST /bot/transactions/{preview_id}/commit`, `GET /bot/categories`. Jede Route verlangt ein Bearer-Token aus `BOT_API_TOKEN`; ohne gesetztes Token sind die Routen abgeschaltet (401). Unbekannte Pfade unter `/bot/` antworten 404 als JSON. Es gibt keine Lese-Route für Buchungen oder Salden.
+- **Bot-Vorschau (Preview)** (ledger-b0b7q): Eine geprüfte und aufgelöste, noch nicht gebuchte Bob-Buchung mit `preview_id` und Ablaufzeit (15 Minuten), im Arbeitsspeicher (`BotPreviewStore`) und nach einem Neustart verfallen. Schreibt nichts ins Kassenbuch und nichts nach YNAB. Die Eingabe hat kein Konto-Feld (Konto ist immer das Quick-Add-Konto, ADR 0004), die Richtung kommt allein aus `direction`, Betrag in Euro positiv, Obergrenze `BOT_MAX_AMOUNT_EUR` (Vorgabe 500 EUR). Die Kategorie löst `Validation.resolveBotCategory` genau auf (Id oder Name ohne Groß-/Kleinschreibung), bei keinem oder mehreren Treffern 422 mit Kandidaten; interne und versteckte Kategorien sind nicht wählbar.
+- **Bot-Commit** (ledger-b0b7q): Bucht genau eine Bot-Vorschau über `Ledger.CommandHandlers.addCashExpense` mit Actor `Bob` (derselbe Weg wie Quick Add, dann Push, `EntryPushToYnabFailed` bei Fehlschlag). Idempotent über die `preview_id`: auch gleichzeitige Aufrufe buchen einmal und teilen sich das Ergebnis, auch nach Ablauf der Gültigkeit. Unbekannte Vorschau 404, abgelaufene 410. Die Antwort nennt `pushed_to_ynab` und `push_error`; bei gescheitertem Push fehlt `entry_id`.
 
 ## Aggregates
 - **Konto** — schützt: Art und On-Budget-Eigenschaft; ein Wertpapierkonto hat eine
@@ -241,7 +245,7 @@ Historie-Technik in der Decision-Task des Architekten.
 - *ÜbertragZusammengeführt* — zwei Buchungen als eine Bewegung erkannt (v2).
 - *KontoBewertet* — Bewertungs-Buchung für ein Wertpapierkonto erzeugt.
 - *EntryReviewMarkChangedInBb* / *EntryReviewMarkWriteBackFailed* / *EntryReviewMarkWrittenBackToYnab*: Prüfvermerk in BB gesetzt, entfernt oder wiederhergestellt (ein Typ mit Alt und Neu für `approved` und `cleared`, Actor `UserInBb`, Version 1), Zurückschreiben nach YNAB gescheitert (Payload `Reason`), offener Fehlschlag beendet (ohne Payload, Actor `UserInBb` oder `YnabMirror`). ADR 0050.
-- *EntryPushToYnabFailed*: Push einer Buchung nach YNAB gescheitert (Payload `Reason`, Schema-Version 1, Actor `ComdirectImport`, `QuickAdd` bzw. `UserInBb` (Erneut senden, ledger-cks06); der Zeitpunkt ist der Ereignis-Zeitstempel). Setzt `Entry.PushToYnabFailure`, aufgelöst durch `EntryLinkedToYnab` (ledger-rynk5).
+- *EntryPushToYnabFailed*: Push einer Buchung nach YNAB gescheitert (Payload `Reason`, Schema-Version 1, Actor `ComdirectImport`, `QuickAdd`, `Bob` bzw. `UserInBb` (Erneut senden, ledger-cks06); der Zeitpunkt ist der Ereignis-Zeitstempel). Setzt `Entry.PushToYnabFailure`, aufgelöst durch `EntryLinkedToYnab` (ledger-rynk5).
 - *EntryCategorizationWriteBackFailed* / *EntryCategorizationWrittenBackToYnab*: das Zurückschreiben der Kategorie nach YNAB ist gescheitert (Grund, Baseline-Kategorie, Baseline-Splits) oder angekommen (Actor `UserInBb` nach Erfolg oder erneutem Senden, Actor `YnabMirror`, wenn der Spiegel den BB-Stand sieht). Beide Version 1, ADR 0055. Die Änderung selbst ist `EntryRecategorized` (Actor `UserInBb`, `OldPayee = NewPayee`, Splits leer). Historie: "Kategorie nicht in YNAB: <Grund>" und "Kategorie in YNAB angekommen".
 - *EntryReplacedInYnab*: eine Split-Buchung wurde in YNAB gelöscht und neu angelegt (neue YNAB-Id, neue `import_id`, ADR 0058, ADR 0059). Version 1, Actor `UserInBb`. Die alte YNAB-Id gilt als abgelöst, ihre Lösch-Beobachtung setzt `DeletedInYnab` nicht. Historie: "In YNAB neu angelegt (Split-Buchung ersetzt)".
 - *EntryFlagChangedInBb* / *EntryFlagWriteBackFailed* / *EntryFlagWrittenBackToYnab*: Flag in BB gesetzt, zurückgenommen oder wiederhergestellt (ein Typ mit Alt und Neu), das Zurückschreiben nach YNAB gescheitert (Grund, Baseline-Farbe, Baseline-Name) oder angekommen (ADR 0056, Schema-Version 1).
@@ -250,11 +254,12 @@ Historie-Technik in der Decision-Task des Architekten.
 ## Key commands
 - *SpiegelÜbernehmen* — Ergebnis eines Spiegel-Laufs aus `ynab-sync` einarbeiten.
 - *BuchungÜbernehmen* — aus der Sync-Pipeline (Comdirect + Kategorie) oder Quick Add.
-  Quick Add: `Ledger.CommandHandlers.addCashExpense` schreibt zuerst `CashExpenseAdded`
-  (Actor `QuickAdd`), ruft danach den Push auf (`YnabClient.createManualTransaction`,
+  Quick Add: `Ledger.CommandHandlers.addCashExpense` (Actor als Parameter: `QuickAdd` für die
+  eigene Seite, `Bob` für die Bot-Schnittstelle, ledger-b0b7q) schreibt zuerst `CashExpenseAdded`
+  (mit diesem Actor), ruft danach den Push auf (`YnabClient.createManualTransaction`,
   liefert die YNAB-Transaction-Id aus der Antwort des Einzel-Posts) und verknüpft bei
   Erfolg mit `EntryLinkedToYnab` (ADR 0021, ADR 0015). Scheitert der Push, bleibt die Buchung ohne Verknüpfung stehen, kein Rollback;
-  der Fehlschlag steht danach als `EntryPushToYnabFailed` (Grund, Actor `QuickAdd`) im
+  der Fehlschlag steht danach als `EntryPushToYnabFailed` (Grund, Actor `QuickAdd` bzw. `Bob`) im
   Log und in `Entry.PushToYnabFailure`. Ohne ein gespiegeltes Kassenbuch-Konto
   für das konfigurierte Quick-Add-Konto (Spiegel nie gelaufen) lehnt `Server.Api` mit
   einer Fehlermeldung ab, statt ein zweites "Bar"-Konto zu erfinden (ADR 0016).
@@ -322,8 +327,10 @@ Die Sprache der Historie (ADR 0013). Verbindlicher Katalog, modelliert mit Roman
 **Umschlag:** Buchungs-Id, laufende Nummer je Buchung, Zeitpunkt (UTC), Actor, Ereignistyp,
 Schema-Version, Payload (JSON).
 
-**Actor:** `YnabMirror | ComdirectImport | Rule of RuleId | UserInBb | QuickAdd |
-OrderIdMatch of orderId: string`. Der letzte Fall (ADR 0025) markiert eine Kategorie aus
+**Actor:** `YnabMirror | ComdirectImport | Rule of RuleId | UserInBb | QuickAdd | Bob |
+OrderIdMatch of orderId: string`. `Bob` (ADR 0066, ledger-b0b7q) ist der Urheber der Buchungen
+aus der Bot-Schnittstelle `/bot/`, Anzeigename "Bob" (`Shared.Domain.originLabel AddedByBob`),
+additiv ohne Schema-Änderung. Der Fall `OrderIdMatch` (ADR 0025) markiert eine Kategorie aus
 dem Order-ID-Abgleich beim Abruf (`categorization-gdrx8`, `ReviewActor.ByOrderIdMatch`):
 fachlich eine Umkategorisierung (Ereignis `EntryRecategorized`), nur mit einem anderen
 Urheber als Roman. Anzeigename "Order-ID-Abgleich" (`Shared.Domain.originLabel
@@ -394,11 +401,11 @@ fallen nicht in "Zu prüfen".
   `OrderIdMatch`, ADR 0025): fachlich dieselbe Kategorisierungs-Änderung, nur mit einem
   anderen Urheber. Historien-Satz bei Aufteilung: "In BB umkategorisiert: Aufgeteilt in <Ziel> <Betrag>, ..."
   (Ziel und Betrag je Zeile, ledger-fa1fp).
-- `CashExpenseAdded`: Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`), darf
+- `CashExpenseAdded`: Quick-Add-Buchung angelegt, vor dem Push (Actor `QuickAdd`, bei der Bot-Schnittstelle `Bob`, ADR 0066), darf
   sofort eine Kategorie tragen.
 - `EntryPushToYnabFailed`: der Push der Buchung nach YNAB ist gescheitert (ADR 0021 Punkt
   2, ledger-rynk5). Payload: `Reason`, ein kurzer lesbarer Satz mit der Fehlerart (bei
-  Limit und Zugang mit HTTP-Status). Schema-Version 1, Actor `ComdirectImport`, `QuickAdd` bzw.
+  Limit und Zugang mit HTTP-Status). Schema-Version 1, Actor `ComdirectImport`, `QuickAdd`, `Bob` bzw.
   `UserInBb` (Erneut senden, ledger-cks06). Setzt `Entry.PushToYnabFailure` (Grund und Ereignis-Zeitstempel, ein zweiter
   Fehlschlag ersetzt den ersten); `EntryLinkedToYnab` löst ihn auf, auch mit Actor
   `YnabMirror` oder `UserInBb`. Historien-Satz: "Push nach YNAB gescheitert: <Grund>".
@@ -464,7 +471,7 @@ Summe gleich dem Buchungsbetrag, eine Währung); `apply` prüft das über `mkSpl
 einen Verstoß laut ab.
 
 **Verknüpfung:** `EntryLinkedToYnab` (Payload: YNAB-Transaction-Id). Die YNAB-Id ist
-bekannt geworden, aus der Push-Antwort (Actor `ComdirectImport` bzw. `QuickAdd`, beim erneuten Senden aus dem Detail `UserInBb`) oder vom
+bekannt geworden, aus der Push-Antwort (Actor `ComdirectImport`, `QuickAdd` bzw. `Bob`, beim erneuten Senden aus dem Detail `UserInBb`) oder vom
 Spiegel über die ImportId (Actor `YnabMirror`, ADR 0021). Setzt `Entry.LinkedToYnab` und löst einen offenen `Entry.PushToYnabFailure` auf; die
 Verknüpfung selbst liegt in der Fremd-Id-Tabelle (ADR 0015). Ob ein Aufruf auf eine
 bereits verknüpfte Buchung ein Fehler oder still idempotent ist, entscheidet der Aufrufer
