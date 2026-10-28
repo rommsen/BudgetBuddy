@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:03 -- Batch started: [ledger-bbkgs]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
+**Parallel:** no (1 worker, 3. Glied der Kette, ledger-dtrn2 wartet dahinter)
+
+---
+
 ## 2026-10-28 19:03 -- Modeling / Promoted: ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
 
 **Type:** Modeling / Promote
