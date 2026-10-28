@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:03 -- Modeling / Promoted: ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-28 19:03 -- Task verified and completed: ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
 
 **Type:** Work / Task completion

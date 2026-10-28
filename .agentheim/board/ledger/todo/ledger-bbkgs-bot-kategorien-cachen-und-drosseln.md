@@ -1,7 +1,7 @@
 ---
 id: ledger-bbkgs
 title: "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
-status: backlog
+status: todo
 type: feature
 context: ledger
 created: 2026-10-28
