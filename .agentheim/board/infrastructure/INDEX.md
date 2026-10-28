@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
-- **Todo:** 0
+- **Backlog:** 1
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-z9b5w** — "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)" (bug) — `todo/infrastructure-z9b5w-cors-nur-in-development.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -42,7 +43,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **infrastructure-z9b5w** — "CORS AllowAnyOrigin gilt in Produktion für die ganze API: auf Development beschränken (Security-Review M4)" (bug) — `backlog/infrastructure-z9b5w-cors-nur-in-development.md`
 - **infrastructure-aaryk** — Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (chore) — `backlog/infrastructure-aaryk-playwright-waechter-pwa-wechsel.md`
 <!-- backlog-list:end -->
 
