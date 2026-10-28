@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:18 -- Capture / Captured: ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bob-Grenzen nur pro Buchung; Datumsfenster, Tagesgrenze, Meldung je Commit, ADRs anpassen (M1)
+
+---
+
 ## 2026-10-28 18:18 -- Capture / Captured: ledger-ybm5x - "BOT_MAX_AMOUNT_EUR parst "500,00" als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
 
 **Type:** Capture
