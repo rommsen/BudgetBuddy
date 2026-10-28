@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:18 -- Capture / Captured: ledger-bbkgs - "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)"
+
+**Type:** Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Bot fragt YNAB-Kategorien ohne Cache; cachen und /bot/ drosseln (M3)
+
+---
+
 ## 2026-10-28 18:18 -- Capture / Captured: ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
 
 **Type:** Capture

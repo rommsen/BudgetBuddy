@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
+- **Backlog:** 9
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 94
@@ -80,6 +80,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-bbkgs** — "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)" (feature) — `backlog/ledger-bbkgs-bot-kategorien-cachen-und-drosseln.md`
 - **ledger-ssmp3** — "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)" (feature) — `backlog/ledger-ssmp3-bob-grenzen-ueber-mehrere-buchungen.md`
 - **ledger-ybm5x** — "BOT_MAX_AMOUNT_EUR parst "500,00" als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)" (bug) — `backlog/ledger-ybm5x-bot-obergrenze-parsen-und-deckeln.md`
 - **ledger-vqvq6** — "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms" (chore) — `backlog/ledger-vqvq6-split-cashback-waechter-ohne-festes-warten.md`
