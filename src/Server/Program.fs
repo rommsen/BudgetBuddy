@@ -36,17 +36,6 @@ let main args =
     // Add Giraffe
     builder.Services.AddGiraffe() |> ignore
 
-    // Configure CORS for development
-    builder.Services.AddCors(fun options ->
-        options.AddPolicy("AllowAll", fun policy ->
-            policy
-                .AllowAnyOrigin()
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-            |> ignore
-        )
-    ) |> ignore
-
     let app = builder.Build()
 
     // Initialize database (creates tables if they don't exist)
@@ -58,7 +47,6 @@ let main args =
     if app.Environment.IsDevelopment() then
         app.UseDeveloperExceptionPage() |> ignore
 
-    app.UseCors("AllowAll") |> ignore
     app.UseRouting() |> ignore
 
     // Serve static files from dist/public

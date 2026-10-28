@@ -1,7 +1,7 @@
 ---
 id: infrastructure-z9b5w
 title: "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)"
-status: doing
+status: done
 type: bug
 context: infrastructure
 created: 2026-10-28
@@ -32,3 +32,13 @@ Entscheidung Roman (2026-10-28): Die CORS-Policy entfällt ganz, auch in Develop
 ## Notes
 Herkunft: Security-Review der Homelab-Sitzung (homelab-58) am 2026-10-28, erfasst per quick-capture, verfeinert mit Roman am 2026-10-28. Befund M4, erster in der Reihenfolge M4, M2, M1, M3, N1.
 Nach dem Deploy prüft Roman oder die BB-Sitzung live: `curl -si -X OPTIONS -H 'Origin: https://evil.example' -H 'Access-Control-Request-Method: POST' https://budgetbuddy.elver-algol.ts.net/api/ISettingsApi/getSettings` darf keinen `access-control-allow-origin`-Kopf mehr zeigen.
+
+## Outcome
+
+`AddCors` (Policy "AllowAll" mit AllowAnyOrigin/Method/Header) und `app.UseCors("AllowAll")` sind aus `src/Server/Program.fs` entfernt, in allen Umgebungen. Die Annahme der Entscheidung ist geprüft: `vite.config.js` hat `server.proxy` für `/api` auf das Backend (Port aus BACKEND_PORT, Standard 5081), Development ist also Same-Origin.
+
+Neue Datei `src/Tests/CorsTests.fs` (direkt nach `RoutingTests.fs` in `Tests.fsproj`) mit 3 Tests: Program.fs enthält weder AddCors, UseCors, AllowAnyOrigin noch AllowAll (kommentarbereinigt); kein Server-Quelltext erwähnt Cors; `vite.config.js` enthält den `/api`-Proxy. Die ersten beiden waren vor der Entfernung rot (2 Fehlschläge), danach grün.
+
+Zum Kriterium "Test gegen die echte Middleware-Kette": nicht umgesetzt. Program.fs ist eine EntryPoint-Funktion, die den Host selbst baut und startet (DB-Init, Port aus Umgebung), ein Test-Host bräuchte Umbau und eine neue Abhängigkeit (Microsoft.AspNetCore.TestHost). Beides ist für diese Änderung zu groß, deshalb gilt die Quelltext-Zusicherung als Nachweis, wie vom Task für diesen Fall vorgesehen. Die Live-Prüfung per curl (Notes der Task-Datei) bleibt nach dem Deploy bei Roman.
+
+Läufe im Worktree: dotnet build 0 Warnungen, 0 Fehler; dotnet test 2472 bestanden, 0 fehlgeschlagen, 7 übersprungen (2479 gesamt); npm run build ok; guard:classes ok; guard:tokens ok; npm run test:scripts 281 von 281 bestanden.

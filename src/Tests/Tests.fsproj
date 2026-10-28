@@ -46,6 +46,7 @@
     <Compile Include="ValidationTests.fs" />
     <Compile Include="SyncSessionManagerTests.fs" />
     <Compile Include="RoutingTests.fs" />
+    <Compile Include="CorsTests.fs" />
     <Compile Include="SyncFlowViewTests.fs" />
     <Compile Include="SyncFlowStateTests.fs" />
     <Compile Include="ImportAskLenaClientTests.fs" />

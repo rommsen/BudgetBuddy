@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:45 -- Task verified and completed: infrastructure-z9b5w - "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-z9b5w - "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)"
+**Summary:** Die CORS-Policy AllowAll ist aus dem Server entfernt (auch in Development), BB bietet kein CORS mehr an. Quelltext-Tests sichern das und den Vite-Proxy für /api ab.
+**Duration:** 16m19s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 18:44 -- Batch started: [ledger-ssmp3]
 
 **Type:** Work / Batch start

@@ -4,6 +4,28 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 18:40 - CORS-Policy entfernt (infrastructure-z9b5w)
+
+**What I did:**
+AddCors und UseCors("AllowAll") aus dem Server entfernt, Quelltext-Tests für den Wegfall und den Vite-Proxy ergänzt.
+
+**Files Added:**
+- `src/Tests/CorsTests.fs` - 3 Quelltext-Tests (kein CORS im Server, Vite-Proxy für /api)
+
+**Files Modified:**
+- `src/Server/Program.fs` - CORS-Registrierung und Middleware entfernt
+- `src/Tests/Tests.fsproj` - CorsTests.fs nach RoutingTests.fs eingetragen
+
+**Rationale:**
+Security-Review M4: AllowAnyOrigin galt in Produktion für die ganze API, BB hat keine Anmeldung. Development braucht CORS nicht, weil Vite /api proxyt.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 2472 bestanden, 0 fehlgeschlagen; test:scripts 281/281
+- Issues: Host-Test gegen die Middleware-Kette nicht ohne Umbau möglich, Quelltext-Test als Nachweis
+
+---
+
 ## 2026-10-28 18:35 - Bot-Obergrenze: nur Dezimalpunkt, harter Deckel 500 EUR, Startlog (ledger-ybm5x)
 
 **What I did:**

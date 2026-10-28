@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 1
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 12
+- **Doing:** 0
+- **Done:** 13
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-z9b5w** — "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)" (bug) — `doing/infrastructure-z9b5w-cors-nur-in-development.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-z9b5w** — "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)" (bug) — `done/infrastructure-z9b5w-cors-nur-in-development.md`
 - **infrastructure-eq27s** — Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten (chore) — `done/infrastructure-eq27s-playwright-waechter-einmal-bauen.md`
 - **infrastructure-r72gd** — Migration von .NET 9 auf .NET 10, nachdem brew upgrade die Runtime 9 entfernt hat (chore) — `done/infrastructure-r72gd-migration-auf-dotnet-10.md`
 - **infrastructure-y6atr** — Lesende Start-Abfragen wiederholen sich bei einem Netzwerkfehler (Status 0) ein- bis zweimal, bevor der Fehler erscheint (bug) — `done/infrastructure-y6atr-start-abfragen-bei-netzwerkfehler-wiederholen.md`
