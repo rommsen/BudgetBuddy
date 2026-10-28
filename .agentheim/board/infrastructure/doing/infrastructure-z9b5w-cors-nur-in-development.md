@@ -1,7 +1,7 @@
 ---
 id: infrastructure-z9b5w
 title: "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-10-28

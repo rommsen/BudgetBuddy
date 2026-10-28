@@ -1,7 +1,7 @@
 ---
 id: ledger-ybm5x
 title: "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
-status: todo
+status: doing
 type: bug
 context: ledger
 created: 2026-10-28

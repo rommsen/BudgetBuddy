@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:28 -- Batch started: [infrastructure-z9b5w, ledger-ybm5x]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-z9b5w - "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)", ledger-ybm5x - "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
+**Parallel:** yes (2 workers; z9b5w nimmt CORS aus Program.fs, ybm5x loggt den Deckel in Server/Api.fs statt Program.fs; ledger-ssmp3, ledger-bbkgs, ledger-dtrn2 warten in der Kette hinter ybm5x)
+
+---
+
 ## 2026-10-28 18:25 -- Modeling / Promoted: ledger-ybm5x - "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
 
 **Type:** Modeling / Promote
