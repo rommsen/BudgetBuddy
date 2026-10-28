@@ -185,23 +185,6 @@ let line (props: LineProps) : ReactElement =
 // Zeile hinzufügen und Fußleiste
 // ============================================
 
-/// "Zeile hinzufügen": sekundär, ausgegraut, wenn nichts mehr offen ist (Rest 0,00 €). Die
-/// einzige primäre Aktion des Editors ist "Speichern".
-let addLineButton (enabled: bool) (onClick: unit -> unit) : ReactElement =
-    Html.div [
-        prop.className "px-4 py-3"
-        prop.children [
-            Button.view
-                { Button.defaultProps with
-                    Text = addLineLabel
-                    Variant = Button.Secondary
-                    Size = Button.Small
-                    IsDisabled = not enabled
-                    Icon = Some (Icons.plus Icons.SM Icons.NeonTeal)
-                    OnClick = onClick }
-        ]
-    ]
-
 /// Die Zeile unter den Editor-Zeilen im Kassenbuch: "Zeile hinzufügen" und "Barabhebung" (ledger-s8t3s),
 /// beide sekundär. "Barabhebung" belegt die erste Zeile ohne Ziel mit einem Übertrag aufs Bar-Konto
 /// oder hängt eine an; sie bleibt aktiv, solange nicht gespeichert wird.

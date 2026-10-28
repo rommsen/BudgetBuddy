@@ -1,7 +1,7 @@
 ---
 id: design-system-y2bdj
 title: "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)"
-status: doing
+status: done
 type: chore
 context: design-system
 created: 2026-10-26
@@ -31,3 +31,11 @@ Prüfen, ob `addLineButton` danach noch eine Verwendung hat. Hat es keine mehr, 
 ## Notes
 Herkunft: nicht blockierender Hinweis des Verifiers von ledger-s8t3s. Verfeinert am 2026-10-27.
 Blockiert design-system-bym4m, weil beide die Split-Editor-Karte in `Styleguide/View.fs` ändern und parallel kollidieren würden. y2bdj ist klein und geht zuerst.
+
+## Outcome
+
+Die Galerie-Karte des Split-Editors in `src/Client/Components/Styleguide/View.fs` ruft `SplitEditor.lineActions (not balanced) ignore true ignore` auf. `SplitEditor.addLineButton` hatte keine weitere Verwendung und ist aus `src/Client/DesignSystem/SplitEditor.fs` entfernt. Der bestehende Quelltext-Test in `LedgerSplitEditorClientTests.fs` prüfte "IsDisabled = not enabled" (stammte aus addLineButton) und prüft jetzt "IsDisabled = not addEnabled" in lineActions.
+
+Tests: 2 Expecto-Tests in `SplitEditorTests.fs` (Karte nutzt lineActions, addLineButton entfernt), 1 Playwright-Wächter `scripts/styleguide-split-line-actions.test.mjs` (beide Knopftexte im gerenderten Element `[data-ds-demo="split-editor"]`).
+
+Läufe: dotnet build 0 Warnungen; dotnet test 2428 grün (7 übersprungen); npm run build, guard:classes, guard:tokens grün; npm run test:scripts 279/279 grün.

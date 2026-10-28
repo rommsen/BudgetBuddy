@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 07:48 -- Task verified and completed: design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)"
+
+**Type:** Work / Task completion
+**Task:** design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)"
+**Summary:** Die Split-Editor-Karte im lebenden Styleguide rendert jetzt die echte Knopfzeile SplitEditor.lineActions mit "Zeile hinzufügen" und "Barabhebung". Die danach unbenutzte Funktion addLineButton ist entfernt.
+**Duration:** 16m30s
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 07:31 -- Batch started: [design-system-y2bdj, design-system-j6dnj, ledger-b0b7q]
 
 **Type:** Work / Batch start

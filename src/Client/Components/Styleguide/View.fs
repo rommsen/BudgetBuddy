@@ -1082,7 +1082,7 @@ let private CategoryPickerSingleDemo () =
         ]
     ]
 
-/// Split-Editor (ledger-pafkp): Summe, Zeilen, "Zeile hinzufügen", Fußleisten und die Konto-Auswahl
+/// Split-Editor (ledger-pafkp): Summe, Zeilen, Knopfzeile "Zeile hinzufügen" und "Barabhebung", Fußleisten und die Konto-Auswahl
 /// für das Übertrag-Ziel. Erfundene Beispieldaten, Zustand lokal.
 [<ReactComponent>]
 let private SplitEditorDemo () =
@@ -1157,7 +1157,7 @@ let private SplitEditorDemo () =
                     ]
                 ]
                 SplitEditor.line (lineProps 1 "Kategorie oder Konto wählen" false amountB setAmountB)
-                SplitEditor.addLineButton (not balanced) ignore
+                SplitEditor.lineActions (not balanced) ignore true ignore
                 SplitEditor.footer balanced false ignore ignore
             ]
         ]

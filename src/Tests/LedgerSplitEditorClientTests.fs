@@ -689,7 +689,7 @@ let viewTests =
             Expect.isFalse (sheet.Contains "cancelButton") "Handy: kein Abbrechen"
             Expect.isFalse (sheet.Contains "SplitUi.footer") "Handy: keine Fußleiste mit Abbrechen"
             let ds = readRepo [ "src"; "Client"; "DesignSystem"; "SplitEditor.fs" ]
-            Expect.stringContains ds "IsDisabled = not enabled" "ausgegraut"
+            Expect.stringContains ds "IsDisabled = not addEnabled" "ausgegraut"
             Expect.stringContains ds "IsDisabled = not canSave" "Speichern inaktiv"
 
         testCase "Kategorie je Zeile über den Picker (PC Popover, Handy sheetLayered), Übertrag über die Konto-Auswahl" <| fun () ->

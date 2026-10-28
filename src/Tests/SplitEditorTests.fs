@@ -224,3 +224,23 @@ let formatAmountForEditTests =
         testCase "zero formats as empty string" <| fun () ->
             Expect.equal (formatAmountForEdit 0m) "" "Zero is empty"
     ]
+
+// ============================================
+// Styleguide-Karte des Split-Editors (design-system-y2bdj)
+// ============================================
+
+[<Tests>]
+let y2bdjStyleguideKnopfzeileTests =
+    let root = IO.Directory.GetParent(IO.Directory.GetParent(__SOURCE_DIRECTORY__).FullName).FullName
+    let read (parts: string list) = IO.File.ReadAllText(IO.Path.Combine(Array.ofList (root :: parts)))
+    testList "Styleguide: Knopfzeile des Split-Editors (y2bdj)" [
+        testCase "die Karte rendert SplitEditor.lineActions selbst" <| fun () ->
+            let view = read [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
+            Expect.stringContains view "SplitEditor.lineActions" "Galerie ruft die echte DS-Knopfzeile auf"
+            Expect.isFalse (view.Contains "SplitEditor.addLineButton") "keine einzelne Zeile-hinzufügen-Nachbildung mehr"
+
+        testCase "addLineButton ist entfernt, weil nichts mehr es nutzt" <| fun () ->
+            let ds = read [ "src"; "Client"; "DesignSystem"; "SplitEditor.fs" ]
+            Expect.isFalse (ds.Contains "let addLineButton") "tote DS-Funktion entfällt"
+            Expect.isTrue (ds.Contains "let lineActions") "lineActions bleibt"
+    ]

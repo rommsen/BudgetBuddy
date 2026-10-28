@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 07:42 - Styleguide zeigt Knopfzeile des Split-Editors
+
+**What I did:**
+Styleguide-Karte rendert SplitEditor.lineActions statt addLineButton; addLineButton entfernt.
+
+**Files Added:**
+- `scripts/styleguide-split-line-actions.test.mjs` - Wächter für beide Knöpfe in der Galerie
+
+**Files Modified:**
+- `src/Client/Components/Styleguide/View.fs` - lineActions statt addLineButton
+- `src/Client/DesignSystem/SplitEditor.fs` - addLineButton entfernt
+- `src/Tests/SplitEditorTests.fs` - zwei Quelltext-Tests
+- `src/Tests/LedgerSplitEditorClientTests.fs` - Zusicherung auf lineActions angepasst
+
+**Rationale:**
+Die Galerie soll die echte Knopfzeile des Kassenbuchs zeigen, keine Nachbildung.
+
+**Outcomes:**
+- Build: ok, 0 Warnungen
+- Tests: 2428 bestanden, test:scripts 279/279
+- Issues: keine
+
+---
+
 ## 2026-10-27 20:16 - Zeilenhöhen-Wächter ledger-status-column atomar messen
 
 **What I did:**
