@@ -4,6 +4,33 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 07:44 - Touch-Fläche von Button.Small am Handy auf 48 px
+
+**What I did:**
+`Button.Small` ist mobil mindestens 48 px hoch (ab `md` ohne Mindesthöhe), Icon-only-Small-Knöpfe sind mobil auch 48 px breit. `sizeToClass` ist öffentlich, `iconOnlyClass` neu. Tests ergänzt.
+
+**Files Added:**
+- `src/Tests/ButtonSizeTests.fs` - 4 Expecto-Tests auf die Klassenstrings
+- `scripts/touch-target-small-button.test.mjs` - Playwright-Wächter: 390 px mindestens 48 px, 1440 px unter 44 px, an "Zeile hinzufügen" und "Barabhebung" im Kassenbuch-Split-Editor
+
+**Files Modified:**
+- `src/Client/DesignSystem/Button.fs` - Small `min-h-[48px] md:min-h-0`, `iconOnlyClass`, `sizeToClass` öffentlich
+- `src/Tests/Tests.fsproj` - ButtonSizeTests.fs nach CategoryPickerTests.fs
+
+**Files Deleted:**
+- keine
+
+**Rationale:**
+Der Styleguide verlangt mobil mindestens 48 px für alle Tappables; die Entscheidung (Roman, 2026-10-27) war, die DS-Größe selbst zu korrigieren statt nur den Split-Editor.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 2430/2430 bestanden (7 übersprungen), Playwright-Wächter 280/280
+- Messwerte: Mobil-Test mit altem 36-px-Wert rot, mit 48 px grün; Desktop bleibt unter 44 px
+- Issues: keine
+
+---
+
 ## 2026-10-28 07:42 - Styleguide zeigt Knopfzeile des Split-Editors
 
 **What I did:**

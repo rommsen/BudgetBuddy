@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 07:51 -- Task verified and completed: design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)"
+
+**Type:** Work / Task completion
+**Task:** design-system-j6dnj - "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)"
+**Summary:** Button.Small ist am Handy jetzt mindestens 48 px hoch (ab md unverändert ohne Mindesthöhe), Icon-only-Small-Knöpfe sind mobil auch 48 px breit. Barabhebung und Zeile hinzufügen messen im echten Kassenbuch-Split-Editor bei 390 px mindestens 48 px, am Desktop bleiben sie unter 44 px.
+**Duration:** 19m41s
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 07:48 -- Task verified and completed: design-system-y2bdj - "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)"
 
 **Type:** Work / Task completion

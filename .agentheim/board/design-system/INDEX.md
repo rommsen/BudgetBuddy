@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 1
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 37
+- **Doing:** 0
+- **Done:** 38
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)" (bug) — `doing/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)" (bug) — `done/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
 - **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)" (chore) — `done/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`
 - **design-system-gffps** — "Design-System: Kategorie-Picker mit Einfachauswahl als Popover am PC und BottomSheet am Handy, mit Suche, Vorschlägen zum Payee, Gruppen, Zeile Ohne Kategorie, Available rechts und Stand-Zeile, dazu die Karte Budget nach dem Wechsel" (feature) — `done/design-system-gffps-kategorie-picker-popover-und-sheet.md`
 - **design-system-wfhxj** —  (chore) — `done/design-system-wfhxj-token-waechter-keine-farben-ausserhalb-der-tokens.md`

@@ -60,10 +60,15 @@ let defaultProps = {
 // Button Implementation
 // ============================================
 
-let private sizeToClass = function
-    | Small -> "text-xs px-3 py-1.5 min-h-[36px] md:min-h-0"
+/// Größenklassen je Button-Größe. Small ist mobil 48 px hoch (Touch-Fläche, Styleguide §4), ab `md` ohne Mindesthöhe.
+let sizeToClass = function
+    | Small -> "text-xs px-3 py-1.5 min-h-[48px] md:min-h-0"
     | Medium -> "text-sm px-[18px] py-2.5 min-h-[48px] md:min-h-0"
     | Large -> "text-base px-6 py-3 min-h-[52px] md:min-h-0"
+
+/// Icon-only-Knöpfe (Small ohne Text) sind mobil auch 48 px breit, ab `md` ohne Mindestbreite.
+let iconOnlyClass (size: ButtonSize) (text: string) =
+    if size = Small && System.String.IsNullOrEmpty text then "min-w-[48px] md:min-w-0" else ""
 
 let private variantToClass = function
     | Primary ->
@@ -89,6 +94,7 @@ let callerSetsDisplay (extraClass: string) =
 /// Create a button with the specified props
 let view (props: ButtonProps) =
     let sizeClass = sizeToClass props.Size
+    let iconOnly = iconOnlyClass props.Size props.Text
     let variantClass = variantToClass props.Variant
     let widthClass = if props.FullWidth then "w-full md:w-auto" else ""
     let extraClass = props.ClassName |> Option.defaultValue ""
@@ -96,7 +102,7 @@ let view (props: ButtonProps) =
     let disabledClass = "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:shadow-none disabled:hover:translate-y-0"
 
     Html.button [
-        prop.className $"{displayClass} items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {widthClass} {disabledClass} {extraClass}"
+        prop.className $"{displayClass} items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 {variantClass} {sizeClass} {iconOnly} {widthClass} {disabledClass} {extraClass}"
         prop.disabled (props.IsLoading || props.IsDisabled)
         prop.onClick (fun _ -> props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value
