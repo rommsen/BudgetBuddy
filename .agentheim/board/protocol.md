@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:43 -- Task verified and completed: ledger-ybm5x - "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
+
+**Type:** Work / Task completion
+**Task:** ledger-ybm5x - "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)"
+**Summary:** BOT_MAX_AMOUNT_EUR wird nur noch mit Dezimalpunkt gelesen, ein harter Deckel von 500 EUR im Code begrenzt jeden Wert, und der Server loggt beim Start den wirksamen Wert samt Rohwert bei Deckelung oder Unsinn.
+**Duration:** 14m35s
+**Verification:** PASS (iteration 1)
+**Files changed:** 5
+**Tests added:** 3
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 18:28 -- Batch started: [infrastructure-z9b5w, ledger-ybm5x]
 
 **Type:** Work / Batch start

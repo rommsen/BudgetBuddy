@@ -1983,6 +1983,7 @@ let webApp() =
     // Die Bot-Schnittstelle (ADR 0066) steht vor Fable.Remoting; Pfade außerhalb von
     // /bot/ gibt sie unverändert weiter. Ein Vorschau-Speicher je Prozess.
     let botDeps = BotApi.liveDeps ()
+    printfn "%s" (Server.ServerConfig.botMaxAmountLogLine (System.Environment.GetEnvironmentVariable Server.ServerConfig.botMaxAmountVariable))
     choose [
         BotApi.handler botDeps
 

@@ -165,6 +165,34 @@ let botConfigTests =
             Expect.equal (Server.ServerConfig.resolveBotMaxAmountEur "0") 500m "0 ist keine Grenze"
             Expect.equal (Server.ServerConfig.resolveBotMaxAmountEur "-3") 500m "negativ"
 
+        testCase "Obergrenze: nur Dezimalpunkt, Komma und Tausendertrennzeichen sind ungültig" <| fun () ->
+            // Verhindert den Fehler, dass "500,00" als 50000 gelesen wurde.
+            let r = Server.ServerConfig.resolveBotMaxAmountEur
+            Expect.equal (r "500") 500m "500"
+            Expect.equal (r "500,00") 500m "Komma ist ungültig, Vorgabe"
+            Expect.equal (r "1,000") 500m "Tausendertrennzeichen ist ungültig, Vorgabe"
+            Expect.equal (r "-5") 500m "negativ"
+            Expect.equal (r "") 500m "leer"
+            Expect.equal (r "100,5") 500m "Komma ist ungültig"
+            Expect.equal (r " 120.5 ") 120.5m "Leerraum wird getrimmt"
+
+        testCase "Obergrenze: harter Deckel 500 Euro, die Umgebung darf nur absenken" <| fun () ->
+            Expect.equal Server.ServerConfig.hardBotMaxAmountEur 500m "Konstante"
+            Expect.equal (Server.ServerConfig.resolveBotMaxAmountEur "900") 500m "gedeckelt"
+            Expect.equal (Server.ServerConfig.resolveBotMaxAmountEur "500.01") 500m "knapp darüber"
+            Expect.equal (Server.ServerConfig.resolveBotMaxAmountEur "99999999") 500m "sehr groß"
+            Expect.equal (Server.ServerConfig.resolveBotMaxAmountEur "100") 100m "absenken geht"
+
+        testCase "Startlog nennt den wirksamen Wert und bei Deckelung oder Unsinn den Rohwert" <| fun () ->
+            let l = Server.ServerConfig.botMaxAmountLogLine
+            Expect.stringContains (l null) "500.00 EUR" "Vorgabe"
+            Expect.stringContains (l "250.50") "250.50 EUR" "gültiger Wert"
+            Expect.isFalse ((l "250.50").Contains "BOT_MAX_AMOUNT_EUR=") "gültiger Wert ohne Rohwert-Hinweis"
+            Expect.stringContains (l "900") "BOT_MAX_AMOUNT_EUR=\"900\"" "gedeckelt nennt Rohwert"
+            Expect.stringContains (l "900") "500.00 EUR" "gedeckelt nennt wirksamen Wert"
+            Expect.stringContains (l "500,00") "BOT_MAX_AMOUNT_EUR=\"500,00\"" "ungültig nennt Rohwert"
+            Expect.stringContains (l "500,00") "500.00 EUR" "ungültig nennt wirksamen Wert"
+
         testCase "Actor Bob überlebt die Persistenzform (Codec-Rundlauf)" <| fun () ->
             let kind, rule = actorToColumns Bob
             Expect.equal (kind, rule) ("Bob", None) "Spalten"

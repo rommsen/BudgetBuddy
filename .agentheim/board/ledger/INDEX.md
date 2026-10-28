@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 94
+- **Doing:** 0
+- **Done:** 95
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-ybm5x** — "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)" (bug) — `doing/ledger-ybm5x-bot-obergrenze-parsen-und-deckeln.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-ybm5x** — "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)" (bug) — `done/ledger-ybm5x-bot-obergrenze-parsen-und-deckeln.md`
 - **ledger-b0b7q** — "Quick Add für Bob: schmale HTTP-API unter /bot/ mit Vorschau und Bestätigung, Bearer-Token, Obergrenze 500 € und eigener Herkunft Bob (ADR 0066)" (feature) — `done/ledger-b0b7q-quick-add-fuer-bob.md`
 - **ledger-wj6pd** — Playwright-Wächter ledger-status-column misst Zeilenhöhen zeitweise als 0 px und wird ohne Codeänderung sporadisch rot (bug) — `done/ledger-wj6pd-zeilenhoehe-waechter-flackert.md`
 - **ledger-rjhwp** — Amazon-Link im Kassenbuch (feature) — `done/ledger-rjhwp-amazon-link-im-kassenbuch.md`

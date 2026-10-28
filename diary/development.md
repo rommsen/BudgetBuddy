@@ -4,6 +4,27 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 18:35 - Bot-Obergrenze: nur Dezimalpunkt, harter Deckel 500 EUR, Startlog (ledger-ybm5x)
+
+**What I did:**
+resolveBotMaxAmountEur streng gemacht (AllowDecimalPoint), Konstante hardBotMaxAmountEur eingeführt, reine Funktion botMaxAmountLogLine und Startlog in Api.fs webApp.
+
+**Files Modified:**
+- `src/Server/ServerConfig.fs` - strenges Parsen, Deckel, Logtext
+- `src/Server/Api.fs` - Startlog nach BotApi.liveDeps
+- `src/Tests/BotValidationTests.fs` - 3 neue Testfälle
+- `docs/bot-api.md`, `.env.example` - Dezimalpunkt, Deckel, nur Absenken
+
+**Rationale:**
+Security-Review M2: "500,00" wurde als 50000 gelesen und hob Bobs Obergrenze still an (ADR 0068 Punkt 1).
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 2472 bestanden, 0 fehlgeschlagen; test:scripts 281/281
+- Issues: keine
+
+---
+
 ## 2026-10-28 15:24 - compose.yaml: Hinweis auf den Proxy-Stack bb-bot
 
 **What I did:**
