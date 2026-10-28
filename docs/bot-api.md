@@ -17,9 +17,11 @@ Beide stehen in `.env.example` und werden in `compose.yaml` an den Container dur
 Alle Routen verlangen `Authorization: Bearer <BOT_API_TOKEN>`, sonst 401. Unbekannte Pfade
 unter `/bot/` antworten 404 als JSON.
 
-Pfadregel: Als Bot-Pfad gelten `/bot`, `/bot/…` und `/bot%2f…`, jeweils ohne Groß-/Kleinschreibung
-(wie die Caddy-Regel `^/bot(/|$)`). Sie landen alle im Bot-Handler: ohne gültiges Token 401, mit
-Token 404 JSON, außer bei den bekannten Routen. Die Routen selbst sind exakt kleingeschrieben:
+Pfadregel: Als Bot-Pfad gelten `/bot`, `/bot/…` und `/bot%2f…`, jeweils ohne Groß-/Kleinschreibung.
+Sie landen alle im Bot-Handler: ohne gültiges Token 401, mit Token 404 JSON, außer bei den
+bekannten Routen. Der Caddy-Proxy auf bb-bot ist strenger: er matcht `^/bot(/|$)` mit
+Groß-/Kleinschreibung, `/BOT` und `/Bot` enden dort mit 403 und erreichen BB nicht. Die
+großzügigere Regel in BB greift nur, wenn eine Anfrage auf einem anderen Weg ankommt. Die Routen selbst sind exakt kleingeschrieben:
 `/Bot/categories` mit gültigem Token antwortet 404 JSON, nicht mit den Kategorien. `/botanik` und
 `/api/…` gehören nicht dazu.
 
