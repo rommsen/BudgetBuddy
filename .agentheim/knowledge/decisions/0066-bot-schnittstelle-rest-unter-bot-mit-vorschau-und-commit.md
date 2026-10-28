@@ -7,7 +7,7 @@ date: 2026-10-27
 supersedes: []
 superseded_by: []
 related_tasks: [ledger-b0b7q]
-related_adrs: [0004, 0013, 0067]
+related_adrs: [0004, 0013, 0067, 0068]
 related_research: []
 ---
 
@@ -39,7 +39,7 @@ für den eigenen Client gebaut und ihr Wire-Format ist ein internes Detail.
 ## Consequences
 - Bob kann den Kassenbuch-Stand nicht sehen; Rückfragen laufen über Kategorien und die
   eigene Vorschau.
-- Ein kompromittierter Bob kann höchstens Barausgaben bis zur Obergrenze anlegen (seit ADR 0067 auch Bareinnahmen), sichtbar
+- Ein kompromittierter Bob kann je Buchung höchstens bis zur Obergrenze buchen (seit ADR 0067 auch Bareinnahmen); die Grenzen über den Tag, das Datumsfenster und die Drosselung regelt ADR 0068, sichtbar
   an der Herkunft `Bob`.
 - Ein Deploy zwischen Vorschau und Commit lässt den Commit mit 404 scheitern; Bob muss die
   Vorschau neu anlegen.

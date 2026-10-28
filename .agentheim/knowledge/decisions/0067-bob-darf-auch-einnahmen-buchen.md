@@ -7,7 +7,7 @@ date: 2026-10-28
 supersedes: []
 superseded_by: []
 related_tasks: [ledger-b0b7q]
-related_adrs: [0004, 0066]
+related_adrs: [0004, 0066, 0068]
 related_research: []
 ---
 
@@ -31,6 +31,6 @@ Unverändert eng bleibt:
 4. Jede Buchung trägt die Herkunft `Bob`, Einnahmen wie Ausgaben.
 
 ## Consequences
-- Ein kompromittierter Bob kann Barausgaben und Bareinnahmen bis zur Obergrenze anlegen, beides
-  sichtbar an der Herkunft `Bob`.
+- Ein kompromittierter Bob kann Barausgaben und Bareinnahmen je Buchung bis zur Obergrenze anlegen,
+  beides sichtbar an der Herkunft `Bob`. Tagesgrenze, Datumsfenster und Drosselung regelt ADR 0068.
 - Der Satz "höchstens Barausgaben" in den Folgen von ADR 0066 gilt nicht mehr.

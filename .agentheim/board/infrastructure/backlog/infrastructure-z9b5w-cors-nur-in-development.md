@@ -1,6 +1,6 @@
 ---
 id: infrastructure-z9b5w
-title: "CORS AllowAnyOrigin gilt in Produktion für die ganze API: auf Development beschränken (Security-Review M4)"
+title: "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)"
 status: backlog
 type: bug
 context: infrastructure
@@ -8,22 +8,27 @@ created: 2026-10-28
 completed:
 depends_on: []
 blocks: []
-tags: [captured, security, cors]
+tags: [security, cors]
 related_adrs: []
 related_research: []
 prior_art: []
 ---
 
 ## Why
-BB hat keine Anmeldung. Mit `access-control-allow-origin: *` kann jede Webseite, die im Browser eines Tailnet-Geräts geöffnet ist, die API lesen und schreiben. Unabhängig von Bob, deshalb als erstes.
+BB hat keine Anmeldung. Mit `access-control-allow-origin: *` auf der ganzen API kann jede Webseite, die im Browser eines Tailnet-Geräts geöffnet ist, die API lesen und schreiben (Security-Review M4). Das ist unabhängig von Bob und kommt zuerst.
 
 ## What
-`src/Server/Program.fs` (ca. Zeile 40 bis 61): Die Policy "AllowAll" (`AllowAnyOrigin`, `AllowAnyMethod`, `AllowAnyHeader`) und `app.UseCors("AllowAll")` gelten in jeder Umgebung, obwohl der Kommentar "for development" sagt. Live geprüft von homelab-58: Ein Preflight mit `Origin: https://evil.example` auf `https://budgetbuddy.elver-algol.ts.net/api/ISettingsApi/getSettings` liefert 204 und `access-control-allow-origin: *`.
+`src/Server/Program.fs` registriert die Policy "AllowAll" (`AllowAnyOrigin`, `AllowAnyMethod`, `AllowAnyHeader`) und ruft `app.UseCors("AllowAll")` in jeder Umgebung auf, obwohl der Kommentar "for development" sagt. Live geprüft von homelab-58: Ein Preflight mit `Origin: https://evil.example` auf `https://budgetbuddy.elver-algol.ts.net/api/ISettingsApi/getSettings` lieferte 204 und `access-control-allow-origin: *`.
 
-Vorschlag aus dem Review: CORS nur in Development aktivieren.
+Entscheidung Roman (2026-10-28): Die CORS-Policy entfällt ganz, auch in Development. Der Vite-Dev-Server leitet `/api` per Proxy an das Backend weiter (`vite.config`, `server.proxy`), der Browser sieht dort also nur eine Origin; die PWA im Betrieb wird vom Server selbst ausgeliefert.
 
 ## Acceptance criteria
-- [ ] To be defined during refinement.
+- [ ] `src/Server/Program.fs` ruft weder `AddCors` noch `UseCors` auf; die Policy "AllowAll" ist entfernt (Quelltext-Test nach dem Muster der bestehenden Quelltext-Zusicherungen).
+- [ ] Eine Anfrage an eine `/api/`-Route mit fremdem `Origin`-Kopf bekommt keinen `Access-Control-Allow-Origin`-Kopf zurück (Test gegen die echte Middleware-Kette, z. B. über einen im Test gestarteten Host; falls das im Projekt nicht ohne neue Abhängigkeit geht, im Outcome begründen und den Quelltext-Test als Nachweis nennen).
+- [ ] Die Entwicklung funktioniert weiter: `npm run test:scripts` (Client gegen Backend über den Proxy bzw. den statischen Server) bleibt grün.
+- [ ] Die infrastructure-README hält fest, dass BB kein CORS anbietet und warum (keine Anmeldung, Same-Origin über Vite-Proxy und Auslieferung durch den Server).
+- [ ] `dotnet build`, `dotnet test` und `npm run test:scripts` grün.
 
 ## Notes
-Captured via `quick-capture` on 2026-10-28, raw, unrefined. Needs a `modeling` refine pass before it can be promoted. Quelle: Security-Review der Homelab-Sitzung (homelab-58) zu Bobs `/bot/`-Zugang; laut homelab-58 hat Roman dem Verteilen zugestimmt. Gewünschte Reihenfolge: M4 (infrastructure-z9b5w), M2 (ledger-ybm5x), M1 (ledger-ssmp3), M3 (ledger-bbkgs), dann N1 (ledger-dtrn2). Dieser Fund: M4.
+Herkunft: Security-Review der Homelab-Sitzung (homelab-58) am 2026-10-28, erfasst per quick-capture, verfeinert mit Roman am 2026-10-28. Befund M4, erster in der Reihenfolge M4, M2, M1, M3, N1.
+Nach dem Deploy prüft Roman oder die BB-Sitzung live: `curl -si -X OPTIONS -H 'Origin: https://evil.example' -H 'Access-Control-Request-Method: POST' https://budgetbuddy.elver-algol.ts.net/api/ISettingsApi/getSettings` darf keinen `access-control-allow-origin`-Kopf mehr zeigen.

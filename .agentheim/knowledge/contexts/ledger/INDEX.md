@@ -1,6 +1,7 @@
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0068**: Bob-Grenzen über den Tag (500 € Summe, 10 Commits je Kalendertag), Datumsfenster 31 Tage, harter Deckel 500 € je Buchung, Drosselung 10 Anfragen pro Minute und 5 Minuten Kategorien-Cache; keine eigene Meldung, kein Flag · 2026-10-28 · `../../decisions/0068-bob-tagesgrenze-datumsfenster-und-drosselung.md`
 - **0067**: Bob darf auf dem Quick-Add-Konto auch Einnahmen buchen (direction inflow), unter derselben Obergrenze, ohne Konto-Feld und ohne Lese-Route; ergänzt ADR 0066 Entscheidung 5 · 2026-10-28 · `../../decisions/0067-bob-darf-auch-einnahmen-buchen.md`
 - **0066**: Bot-Schnittstelle für Bob als REST unter /bot/, getrennt von Fable.Remoting; Vorschau im Speicher (15 min) und idempotenter Commit, Bearer-Token aus der Umgebung, nur Quick-Add-Konto, Obergrenze 500 €, eigener Actor Bob · 2026-10-27 · `../../decisions/0066-bot-schnittstelle-rest-unter-bot-mit-vorschau-und-commit.md`
 - **0062**: Memo-Schreibweg nach dem Muster von ADR 0056: Ereignis EntryMemoChangedInBb mit Alt und Neu, Push mit nur memo, Fehlschlag mit Baseline-Memo, Grenze 500 Zeichen ohne stilles Kürzen · 2026-10-25 · `../../decisions/0062-memo-schreibweg-ereignis-fehlschlag-mit-baseline-grenze-500.md`

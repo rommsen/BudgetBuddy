@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:25 -- Modeling / Refined: infrastructure-z9b5w, ledger-ybm5x, ledger-ssmp3, ledger-bbkgs, ledger-dtrn2 - Security-Review Bob-Zugang
+
+**Type:** Modeling / Refine
+**BC:** infrastructure, ledger
+**Status after:** todo (wo die Bereitschaftsprüfung besteht)
+**Summary:** Fünf Funde des Security-Reviews zu Bobs /bot/-Zugang verfeinert. Roman entschied: CORS-Policy ganz entfernen (Vite-Proxy), Tagesgrenze 500 € und 10 Bob-Commits je Kalendertag, Datumsfenster 31 Tage, harter Deckel 500 € je Buchung, Drosselung 10 pro Minute, Kategorien-Cache 5 Minuten, keine Meldung und kein Flag. Kette ybm5x → ssmp3 → bbkgs → dtrn2, weil alle BotApi.fs ändern.
+**ADRs written:** 0068 (0066 und 0067 verweisen in ihren Folgen darauf)
+
+---
+
 ## 2026-10-28 18:18 -- Capture / Captured: ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
 
 **Type:** Capture
