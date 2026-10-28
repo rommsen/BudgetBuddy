@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 18:44 -- Batch started: [ledger-ssmp3]
+
+**Type:** Work / Batch start
+**Tasks:** ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
+**Parallel:** yes (2. Welle, läuft neben dem noch offenen infrastructure-z9b5w; ssmp3 berührt Program.fs nicht)
+
+---
+
 ## 2026-10-28 18:44 -- Modeling / Promoted: ledger-ssmp3 - "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)"
 
 **Type:** Modeling / Promote
