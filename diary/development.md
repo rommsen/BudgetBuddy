@@ -4,6 +4,26 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 19:26 - Bot-Pfadabgleich robust (ledger-dtrn2)
+
+**What I did:**
+isBotPath erkennt /bot ohne Groß-/Kleinschreibung und /bot%2f… zusätzlich zu /bot/…, passend zur Caddy-Regel. Entscheidung: /Bot/categories mit Token antwortet 404 JSON.
+
+**Files Modified:**
+- `src/Server/BotApi.fs` - isBotPath erweitert
+- `src/Tests/BotApiTests.fs` - 2 neue Tests
+- `docs/bot-api.md` - Pfadregel und Entscheidung zur Schreibweise
+
+**Rationale:**
+BB und der Proxy sollen dieselben Pfade als Bot-Pfade ansehen (Security-Review N1).
+
+**Outcomes:**
+- Build: ✅
+- Tests: 2500/2500 passed (7 übersprungen), test:scripts 281/281
+- Issues: Rot-Prüfung per Rückdrehen nicht ausgeführt (sed-Fehler)
+
+---
+
 ## 2026-10-28 19:09 - Bot-Kategorien cachen und /bot/ drosseln (ledger-bbkgs)
 
 **What I did:**

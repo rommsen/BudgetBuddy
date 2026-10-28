@@ -385,8 +385,12 @@ let private categoriesHandler (deps: BotDeps) : HttpHandler =
                 return! respond 200 (Encode.object [ "categories", Encode.list items ]) earlyReturn ctx
         }
 
+/// Wie der Proxy (Caddy `^/bot(/|$)`, ohne Groß-/Kleinschreibung): `/bot`, `/bot/…` und
+/// `/bot%2f…`. Kestrel lässt `%2F` in `Request.Path` unausgepackt, der Handler sieht es so.
 let private isBotPath (path: string) =
-    path = "/bot" || path.StartsWith("/bot/", StringComparison.OrdinalIgnoreCase)
+    path.Equals("/bot", StringComparison.OrdinalIgnoreCase)
+    || path.StartsWith("/bot/", StringComparison.OrdinalIgnoreCase)
+    || path.StartsWith("/bot%2f", StringComparison.OrdinalIgnoreCase)
 
 /// Der Einstieg: alles unter `/bot/` wird hier beantwortet, alles andere geht weiter an
 /// die nächsten Handler. Ohne gültiges Bearer-Token (oder ohne gesetztes Token) 401,

@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-28 19:32 -- Task verified and completed: ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
+
+**Type:** Work / Task completion
+**Task:** ledger-dtrn2 - "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)"
+**Summary:** Der Bot-Handler erkennt jetzt /bot, /BOT, /Bot/... und /bot%2f... (ohne Groß-/Kleinschreibung) als Bot-Pfade: ohne Token 401 JSON, mit Token 404 JSON. Bekannte Routen und /botanik, /api/... bleiben unverändert.
+**Duration:** 13m30s
+**Verification:** PASS (iteration 1)
+**Files changed:** 3
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
 ## 2026-10-28 19:18 -- Batch started: [ledger-dtrn2]
 
 **Type:** Work / Batch start

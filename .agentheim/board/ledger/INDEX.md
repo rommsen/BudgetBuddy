@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 97
+- **Doing:** 0
+- **Done:** 98
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-dtrn2** — "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)" (chore) — `doing/ledger-dtrn2-bot-pfadabgleich-robust.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-dtrn2** — "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)" (chore) — `done/ledger-dtrn2-bot-pfadabgleich-robust.md`
 - **ledger-bbkgs** — "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)" (feature) — `done/ledger-bbkgs-bot-kategorien-cachen-und-drosseln.md`
 - **ledger-ssmp3** — "Bobs Grenzen gelten nur pro Buchung: Datumsfenster, Tagesgrenze nach Summe und Anzahl, Meldung je Bob-Commit (Security-Review M1)" (feature) — `done/ledger-ssmp3-bob-grenzen-ueber-mehrere-buchungen.md`
 - **ledger-ybm5x** — "BOT_MAX_AMOUNT_EUR parst 500,00 als 50000: nur Dezimalpunkt zulassen, harte Obergrenze im Code, Wert beim Start loggen (Security-Review M2)" (bug) — `done/ledger-ybm5x-bot-obergrenze-parsen-und-deckeln.md`

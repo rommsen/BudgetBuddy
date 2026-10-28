@@ -215,6 +215,23 @@ let botApiTests =
             Expect.equal (fst (call env.Deps "GET" "/api/irgendwas" None "")) -1 "kein /bot/-Pfad: weitergereicht"
             Expect.equal (fst (call env.Deps "GET" "/botanik" None "")) -1 "/botanik ist kein /bot/-Pfad"
 
+        testCase "Bot-Pfade ohne Groß-/Kleinschreibung und mit kodiertem Schrägstrich landen im Handler (401 ohne Token)" <| fun () ->
+            let env = Env()
+            for path in [ "/bot"; "/BOT"; "/Bot/categories"; "/bot%2fcategories"; "/BOT%2Fcategories" ] do
+                let status, json = call env.Deps "GET" path None ""
+                Expect.equal status 401 $"{path} ohne Token"
+                Expect.equal (str json "error") "unauthorized" $"{path} als JSON"
+
+        testCase "Mit Token: andere Schreibweisen und kodierte Pfade antworten 404 JSON, nur /bot/categories liefert Kategorien" <| fun () ->
+            let env = Env()
+            for path in [ "/bot"; "/BOT"; "/Bot/categories"; "/bot%2fcategories"; "/BOT%2Fcategories" ] do
+                let status, json = call env.Deps "GET" path bearer ""
+                Expect.equal status 404 $"{path} mit Token"
+                Expect.equal (str json "error") "not_found" $"{path} als JSON"
+            Expect.equal (fst (call env.Deps "GET" "/bot/categories" bearer "")) 200 "kleingeschriebene Route bleibt"
+            Expect.equal (fst (call env.Deps "GET" "/botanik" None "")) -1 "/botanik weiter"
+            Expect.equal (fst (call env.Deps "GET" "/api/bot" None "")) -1 "/api/... weiter"
+
         testCase "GET /bot/categories liefert Name, Gruppe, Id ohne interne und versteckte Kategorien" <| fun () ->
             let env = Env()
             let status, json = call env.Deps "GET" "/bot/categories" bearer ""
