@@ -15,6 +15,13 @@
 # Local dev does NOT use this file: run `dotnet watch run` (src/Server) + `npm run dev`.
 # The former local-testing `docker-compose.yml` (port 5001, build: .) was removed
 # 2026-06-20 to eliminate compose drift — it had diverged from the deployed config.
+#
+# External dependency (ledger-b0b7q, ADR 0066): the homelab proxy stack `bb-bot`
+# joins the network `budgetbuddy_default` as an external network and forwards only
+# `/bot/*` to budgetbuddy-app:5081. Keep the project name `budgetbuddy` and do not
+# define a network of our own here, otherwise the proxy no longer finds the network
+# and the deploy fails with "active endpoints". After a `docker compose down` of this
+# stack, restart `bb-bot` as well (the deploy's `up -d` is fine).
 name: budgetbuddy
 
 services:

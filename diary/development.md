@@ -4,6 +4,23 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-28 15:24 - compose.yaml: Hinweis auf den Proxy-Stack bb-bot
+
+**What I did:**
+Kommentar in `compose.yaml` über `name: budgetbuddy`: Der Homelab-Proxy-Stack `bb-bot` tritt dem Netz `budgetbuddy_default` extern bei. Projektname behalten, kein eigenes Netz definieren, nach `docker compose down` auch `bb-bot` neu starten.
+
+**Files Modified:**
+- `compose.yaml` - Kommentar zur externen Abhängigkeit (keine Konfigurationsänderung)
+
+**Rationale:**
+Wunsch der Homelab-Sitzung, die Bobs Zugang baut (ADR 0066). Ohne den Hinweis könnte eine spätere Umbenennung des Projekts oder ein eigenes Netz den Proxy still abhängen.
+
+**Outcomes:**
+- Build: nicht nötig (nur Kommentar), `docker compose config` geprüft
+- Tests: nicht betroffen
+
+---
+
 ## 2026-10-28 07:50 - Bot-Schnittstelle /bot/ für Bob (ledger-b0b7q)
 
 **What I did:**
