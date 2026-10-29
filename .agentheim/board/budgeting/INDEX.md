@@ -48,7 +48,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 <!-- backlog-list:start -->
 - **budgeting-m1bce** — "Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch" (feature) — `backlog/budgeting-m1bce-kategorie-detail.md`
 - **budgeting-dyn8g** — "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar" (feature) — `backlog/budgeting-dyn8g-budget-historie-ansicht.md`
-- **budgeting-bk6tq** — "Vortrag stimmt ab dem ersten Tag: Aktivität aus dem Kassenbuch statt aus YNAB (Naht ledger/budgeting)" (feature) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
+- **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 - **budgeting-afd8h** — "Geld zwischen Kategorien verschieben, am Handy schnell" (feature) — `backlog/budgeting-afd8h-geld-verschieben.md`
 <!-- backlog-list:end -->
 

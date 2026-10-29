@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 09:20 -- Modeling / Refined: budgeting-bk6tq - Spike Ausgaben am Monatswechsel
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog
+**Summary:** Umgeschnitten von "Aktivität aus dem Kassenbuch" zu einem Spike: Roman meint Einkäufe am 30./31., die erst am 1./2. abgebucht werden und Auffüllen auf einen festen Betrag verfälschen. Spike klärt vorgemerkte Umsätze und Datumsfelder bei Comdirect und ING, Abstände Kauf → Buchung, Optionen fürs Budget. Keine Rückdatierung. Bleibt im Backlog, Roman will das Thema grundsätzlich durchdenken.
+
+---
+
 ## 2026-10-29 08:35 -- Modeling / Promoted: budgeting-rxxb4 - "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC"
 
 **Type:** Modeling / Promote
