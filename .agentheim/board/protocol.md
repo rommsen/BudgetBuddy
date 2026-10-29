@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: design-system-cr1n0 - "BottomSheet.categoryPicker ist eine zweite Kategorieauswahl neben CategoryPicker, ohne Tastatur und ohne Ohne Kategorie"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** BottomSheet.categoryPicker ist eine zweite Kategorieauswahl neben CategoryPicker, ohne Tastatur und ohne Ohne Kategorie
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-qrdh4 - "Speicherzustand des Regel-Formulars im Zuweisungs-Dialog ist ein Bool-Flag"
 
 **Type:** Capture
