@@ -10,14 +10,18 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
-- **Todo:** 1
+- **Backlog:** 10
+- **Todo:** 5
 - **Doing:** 0
 - **Done:** 20
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-r5k2w** — "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden" (bug) — `todo/infrastructure-r5k2w-export-design-system-mjs-auf-erreichbaren-vite-preview-warte.md`
+- **infrastructure-ky2kh** — "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation" (feature) — `todo/infrastructure-ky2kh-waechter-struktur.md`
+- **infrastructure-vc6c3** — "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen" (bug) — `todo/infrastructure-vc6c3-live-tests-nur-hinter-schalter.md`
+- **infrastructure-jy5ca** — "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock" (chore) — `todo/infrastructure-jy5ca-serena-entfernen.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
@@ -52,18 +56,14 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **infrastructure-q7m2k** — "Eingabeprüfung für setDefaultBudget, setDefaultAccount und setQuickAddAccount" (chore) — `backlog/infrastructure-q7m2k-eingabepr-fung-f-r-setdefaultbudget-setdefaultaccount-und-se.md`
-- **infrastructure-r5k2w** — "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden" (bug) — `backlog/infrastructure-r5k2w-export-design-system-mjs-auf-erreichbaren-vite-preview-warte.md`
 - **infrastructure-gfxn4** — "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt" (chore) — `backlog/infrastructure-gfxn4-automode-environment-gliedern.md`
 - **infrastructure-fam9k** — "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review" (chore) — `backlog/infrastructure-fam9k-bestandsreview-command.md`
 - **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `backlog/infrastructure-hdf7j-tests-aufraeumen.md`
 - **infrastructure-a2pcg** — "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen" (chore) — `backlog/infrastructure-a2pcg-claude-md-neu.md`
 - **infrastructure-gwvw1** — "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin" (chore) — `backlog/infrastructure-gwvw1-override-c-und-readme-uebergaben.md`
 - **infrastructure-cbr0r** — "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen" (refactor) — `backlog/infrastructure-cbr0r-rules-standards-review-agents.md`
-- **infrastructure-jy5ca** — "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock" (chore) — `backlog/infrastructure-jy5ca-serena-entfernen.md`
 - **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `backlog/infrastructure-gmx27-learn-global-und-memory-triage.md`
-- **infrastructure-ky2kh** — "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation" (feature) — `backlog/infrastructure-ky2kh-waechter-struktur.md`
 - **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `backlog/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
-- **infrastructure-vc6c3** — "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen" (bug) — `backlog/infrastructure-vc6c3-live-tests-nur-hinter-schalter.md`
 - **infrastructure-aaryk** — Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (chore) — `backlog/infrastructure-aaryk-playwright-waechter-pwa-wechsel.md`
 <!-- backlog-list:end -->
 

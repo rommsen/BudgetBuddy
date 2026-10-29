@@ -1,7 +1,7 @@
 ---
 id: infrastructure-r5k2w
 title: "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden"
-status: backlog
+status: todo
 type: bug
 context: infrastructure
 created: 2026-10-29

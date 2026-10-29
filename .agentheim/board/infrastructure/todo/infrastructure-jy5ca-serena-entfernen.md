@@ -1,7 +1,7 @@
 ---
 id: infrastructure-jy5ca
 title: "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-10-29

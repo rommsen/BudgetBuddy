@@ -5,6 +5,38 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:06 -- Modeling / Promoted: infrastructure-r5k2w - "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 19:06 -- Modeling / Promoted: infrastructure-ky2kh - "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 19:06 -- Modeling / Promoted: infrastructure-vc6c3 - "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 19:06 -- Modeling / Promoted: infrastructure-jy5ca - "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 18:58 -- Work session ended
 
 **Type:** Work / Session end

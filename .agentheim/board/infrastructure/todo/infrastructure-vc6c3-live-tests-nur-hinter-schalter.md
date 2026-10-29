@@ -1,7 +1,7 @@
 ---
 id: infrastructure-vc6c3
 title: "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
-status: backlog
+status: todo
 type: bug
 context: infrastructure
 created: 2026-10-29
