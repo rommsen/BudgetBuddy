@@ -52,8 +52,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 
 WORKDIR /app
 
-# Install curl for healthchecks
-RUN apk add --no-cache curl
+# curl für die Healthchecks, tzdata für Europe/Berlin (Bob-Tagesgrenze, ADR 0068):
+# das aspnet-alpine-Image bringt keine Zeitzonendatenbank mit
+RUN apk add --no-cache curl tzdata
 
 # Copy backend from build stage
 COPY --from=backend-build /app/publish .

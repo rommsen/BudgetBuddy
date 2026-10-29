@@ -241,7 +241,11 @@ let botDailyLimitTests =
             let s2, e2 = berlinDayBoundsUtc (utc 2026 10 25 12 0)
             Expect.equal (e2 - s2) (TimeSpan.FromHours 25.0) "Herbst"
 
-        testCase "der Rückfall nach EU-Regeln liefert dieselben Offsets wie die Zeitzonendatenbank" <| fun () ->
-            for t in [ utc 2026 1 15 12 0; utc 2026 3 29 0 59; utc 2026 3 29 1 0; utc 2026 7 1 0 0; utc 2026 10 25 0 59; utc 2026 10 25 1 0; utc 2026 12 31 23 59 ] do
-                Expect.equal (berlinOffsetByEuRules t) (berlinOffsetAt t) $"Offset bei {t:o}"
+        testCase "die Berliner Zeitzone ist auflösbar und liefert die Offsets +1 und +2" <| fun () ->
+            // Verhindert den stillen Rückfall auf eigene EU-Regeln, wenn tzdata im Image fehlt.
+            match tryResolveBerlinZone () with
+            | Error msg -> failtest msg
+            | Ok _ ->
+                Expect.equal (berlinOffsetAt (utc 2026 1 15 12 0)) (TimeSpan.FromHours 1.0) "Winter"
+                Expect.equal (berlinOffsetAt (utc 2026 7 1 12 0)) (TimeSpan.FromHours 2.0) "Sommer"
     ]

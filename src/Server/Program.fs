@@ -31,6 +31,14 @@ let main args =
     let urls = Server.ServerConfig.resolveUrls (System.Environment.GetEnvironmentVariable("ASPNETCORE_URLS"))
     System.Environment.SetEnvironmentVariable("ASPNETCORE_URLS", urls)
 
+    // Ohne Europe/Berlin (Image ohne tzdata) gäbe es keine verlässliche Bob-Tagesgrenze:
+    // lieber beim Start abbrechen als später falsch rechnen.
+    match Server.Validation.tryResolveBerlinZone () with
+    | Error msg ->
+        eprintfn "❌ %s" msg
+        exit 1
+    | Ok _ -> ()
+
     let builder = WebApplication.CreateBuilder(args)
 
     // Add Giraffe

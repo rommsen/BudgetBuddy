@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:44 -- Task verified and completed: infrastructure-b85yv - tzdata im Produktions-Image installieren
+
+**Type:** Work / Task completion
+**Task:** infrastructure-b85yv - tzdata im Produktions-Image installieren
+**Summary:** tzdata im Produktions-Image, Berliner Offset nur noch aus der Zeitzonendatenbank, Startabbruch ohne Europe/Berlin
+**Duration:** 8m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 6
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 07:35 -- Batch started: [infrastructure-b85yv]
 
 **Type:** Work / Batch start

@@ -1,7 +1,7 @@
 ---
 id: infrastructure-b85yv
 title: tzdata im Produktions-Image installieren
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-10-28
@@ -38,3 +38,7 @@ Captured via `quick-capture` on 2026-10-28, refined am 2026-10-29.
 - Ort für die Startprüfung: dort, wo der Server seine Konfiguration beim Start prüft (`src/Server/Program.fs`), etwa durch erzwungene Auswertung der Zone vor `app.Run`.
 - Nach dem Deploy: im Live-Container `/usr/share/zoneinfo/Europe/Berlin` per `docker exec` prüfen und in den Logs sehen, dass der Start ohne Zonenfehler durchlief. Deploy-Prüfweg siehe Memory "Deploy-Hook und Prüfweg".
 - Kein Frontend-Anteil, kein Styleguide-Gate.
+
+## Outcome
+
+Dockerfile: Runtime-Stage installiert jetzt `curl tzdata`. Validation.fs: `berlinOffsetByEuRules` gelöscht, `berlinZone` nicht mehr optional, neu `tryResolveBerlinZone` (Result mit Hinweis auf Europe/Berlin und tzdata); `berlinOffsetAt`, `berlinDayOf`, `berlinDayBoundsUtc` behalten ihre Signaturen. Program.fs bricht vor dem Builder mit Exit 1 ab, wenn die Zone fehlt. Tests: Vergleichstest Rückfall gegen Zone ersetzt durch Test der Zonenauflösung und der Offsets +1/+2; neuer wächter scripts/dockerfile-tzdata.test.mjs (4 Tests, reine Funktionen runtimeStage und runtimeInstallsTzdata, rot gegen das alte Dockerfile gesehen, grün danach). dotnet test: 2500 bestanden, 7 übersprungen. Image-Prüfung: docker build ok, `test -e /usr/share/zoneinfo/Europe/Berlin` im Image lieferte 0, Image danach entfernt.

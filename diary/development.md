@@ -4,6 +4,30 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-29 07:39 - tzdata im Produktions-Image (infrastructure-b85yv)
+
+**What I did:**
+Das Runtime-Image installiert tzdata. Der Berliner Offset kommt nur noch aus der Zeitzonendatenbank, der Rückfall nach EU-Regeln ist entfernt. Fehlt Europe/Berlin, bricht der Server beim Start mit einer Meldung ab.
+
+**Files Added:**
+- `scripts/dockerfile-tzdata.test.mjs` - Wächter: Stage `AS runtime` muss `apk add ... tzdata` enthalten (4 Tests, inkl. Negativfälle)
+
+**Files Modified:**
+- `Dockerfile` - `apk add --no-cache curl tzdata`, Kommentar angepasst
+- `src/Server/Validation.fs` - `berlinOffsetByEuRules` gelöscht, `berlinZone` nicht mehr optional, neu `tryResolveBerlinZone`
+- `src/Server/Program.fs` - Startprüfung der Zeitzone
+- `src/Tests/BotValidationTests.fs` - Vergleichstest Rückfall gegen Zone ersetzt durch Test der Zonenauflösung
+
+**Rationale:**
+aspnet-alpine bringt keine Zeitzonendatenbank mit. Der stille Rückfall hätte den Fehler versteckt.
+
+**Outcomes:**
+- Build: ✅
+- Tests: 2500 bestanden, 7 übersprungen; Wächter 4/4
+- Docker-Build ok, `test -e /usr/share/zoneinfo/Europe/Berlin` im Image liefert 0, Image entfernt
+
+---
+
 ## 2026-10-28 19:26 - Bot-Pfadabgleich robust (ledger-dtrn2)
 
 **What I did:**

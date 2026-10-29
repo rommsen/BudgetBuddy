@@ -189,27 +189,22 @@ let botBackdateDays = 31
 let botDailyMaxSumEur = 500m
 let botDailyMaxCount = 10
 
-/// Der Berliner Offset zu einem UTC-Zeitpunkt nach den EU-Regeln: Sommerzeit (+2) vom
-/// letzten Märzsonntag 01:00 UTC bis zum letzten Oktobersonntag 01:00 UTC, sonst +1.
-/// Rückfall, falls die Zeitzonendatenbank des Containers Europe/Berlin nicht kennt.
-let berlinOffsetByEuRules (utc: DateTime) : TimeSpan =
-    let lastSunday (year: int) (month: int) =
-        let last = DateTime(year, month, DateTime.DaysInMonth(year, month), 1, 0, 0, DateTimeKind.Utc)
-        last.AddDays(-(float (int last.DayOfWeek)))
-    let u = utc.ToUniversalTime()
-    if u >= lastSunday u.Year 3 && u < lastSunday u.Year 10 then TimeSpan.FromHours 2.0
-    else TimeSpan.FromHours 1.0
+/// Die Zeitzone Europe/Berlin aus der Zeitzonendatenbank des Systems. Fehlt sie (Image ohne
+/// tzdata), ist das ein Fehler mit Hinweis, kein stiller Ersatz durch eigene Regeln.
+let tryResolveBerlinZone () : Result<TimeZoneInfo, string> =
+    try Ok (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+    with e ->
+        Error $"Zeitzone Europe/Berlin nicht gefunden (tzdata im Image installiert?): {e.Message}"
 
-let private berlinZone : Lazy<TimeZoneInfo option> =
-    lazy (try Some (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin") with _ -> None)
+let private berlinZone : Lazy<TimeZoneInfo> =
+    lazy (
+        match tryResolveBerlinZone () with
+        | Ok zone -> zone
+        | Error msg -> failwith msg)
 
-/// Der Berliner Offset zu einem UTC-Zeitpunkt: aus der Zeitzonendatenbank, sonst nach den
-/// EU-Regeln.
+/// Der Berliner Offset zu einem UTC-Zeitpunkt aus der Zeitzonendatenbank.
 let berlinOffsetAt (utc: DateTime) : TimeSpan =
-    let u = DateTime.SpecifyKind(utc.ToUniversalTime(), DateTimeKind.Utc)
-    match berlinZone.Value with
-    | Some zone -> zone.GetUtcOffset u
-    | None -> berlinOffsetByEuRules u
+    berlinZone.Value.GetUtcOffset(DateTime.SpecifyKind(utc.ToUniversalTime(), DateTimeKind.Utc))
 
 /// Der Berliner Kalendertag (ohne Uhrzeit) zu einem UTC-Zeitpunkt.
 let berlinDayOf (utc: DateTime) : DateTime =
