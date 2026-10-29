@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
+- **Backlog:** 10
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-s2cdw** — "Kategorie-Ids in YnabTransaction und OrderIdSuggestion sind nackte Strings statt YnabCategoryId" (refactor) — `backlog/categorization-s2cdw-kategorie-ids-in-ynabtransaction-und-orderidsuggestion-sind.md`
 - **categorization-tg9fw** — "Eine nicht lesbare Kategorie-Id aus der YNAB-Historie lässt den Order-Id-Abgleich und damit confirmTan abbrechen" (bug) — `backlog/categorization-tg9fw-eine-nicht-lesbare-kategorie-id-aus-der.md`
 - **categorization-xn2sb** — "Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet" (bug) — `backlog/categorization-xn2sb-regel-testen-meldet-ein-ungueltiges-muster-als.md`
 - **categorization-a510t** — "Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet" (bug) — `backlog/categorization-a510t-bei-gleicher-prioritaet-ist-offen-welche-regel.md`
