@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:46 -- Batch started: [infrastructure-fam9k]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-fam9k - "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review"
+**Parallel:** no (Conductor-Task, Kern aus Souls 9fad518)
+
+---
+
 ## 2026-10-29 22:46 -- Modeling / Promoted: infrastructure-fam9k - "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review"
 
 **Type:** Modeling / Promote
