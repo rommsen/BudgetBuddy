@@ -1,63 +1,8 @@
-# ⚠️ CRITICAL: SERENA TOOLS ARE MANDATORY ⚠️
-
-**STOP** before using `Read`, `Grep`, or `Glob` on code files (.fs, .fsx, .fsproj).
-
-**USE SERENA INSTEAD** - this is NON-NEGOTIABLE for this project.
-
-| Instead of... | Use Serena... |
-|---------------|---------------|
-| `Read` on .fs files | `get_symbols_overview` or `find_symbol` with `include_body=True` |
-| `Grep` for code search | `search_for_pattern` |
-| `Glob` for finding files | `find_file` or `list_dir` |
-| Manual edits with `Edit` | `replace_symbol_body`, `insert_before_symbol`, `insert_after_symbol` |
-
-**FORBIDDEN for .fs/.fsx files:**
-- ❌ `Read` tool (use `find_symbol` with `include_body=True`)
-- ❌ `Grep` tool (use `search_for_pattern`)
-- ❌ `Edit` tool for symbol changes (use `replace_symbol_body`)
-
-If you catch yourself reaching for Read/Grep/Glob/Edit on F# code, **STOP and use Serena**.
-
----
-
 # F# Full-Stack Blueprint - Claude Code Instructions
 
 ## Your Role
 
 You are developing F# web applications using this blueprint. The codebase uses Elmish.React + Feliz (frontend), Giraffe + Fable.Remoting (backend), SQLite (persistence), and deploys via Docker + Tailscale.
-
-## Tool Priority: Serena First (MANDATORY)
-
-**ALWAYS use Serena's MCP tools when possible.** Serena provides semantic code analysis that is more efficient and accurate than reading entire files.
-
-### When to Use Serena
-
-- **Exploring code**: Use `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`
-- **Searching patterns**: Use `search_for_pattern` instead of Grep
-- **Editing code**: Use `replace_symbol_body`, `insert_before_symbol`, `insert_after_symbol`
-- **Renaming**: Use `rename_symbol` for codebase-wide refactoring
-
-### When NOT to Use Serena
-
-- Reading non-code files (markdown, JSON, config)
-- When you need the entire file context
-- For files Serena doesn't support
-
-### Benefits
-
-- **Token-efficient**: Only reads what's needed, not entire files
-- **Semantic accuracy**: Understands code structure, not just text
-- **Safe refactoring**: `rename_symbol` updates all references correctly
-
-### Example Workflow
-
-```
-1. get_symbols_overview("src/Server/Api.fs")     → See file structure
-2. find_symbol("myFunction", include_body=True)  → Read specific function
-3. replace_symbol_body(...)                       → Edit just that function
-```
-
-**Do NOT read entire files unless absolutely necessary!**
 
 ## Before Implementing Anything
 
