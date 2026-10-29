@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-kwe4r - "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-mq0pf - "Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung"
 
 **Type:** Capture

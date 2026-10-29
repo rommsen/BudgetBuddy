@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 29
+- **Backlog:** 30
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-kwe4r** — "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar" (bug) — `backlog/categorization-kwe4r-das-menue-der-regelseite-oeffnet-nur-ueber.md`
 - **categorization-mq0pf** — "Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung" (bug) — `backlog/categorization-mq0pf-der-overflow-knopf-der-regelseite-ist-32.md`
 - **categorization-hdx88** — "Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart" (chore) — `backlog/categorization-hdx88-tote-nachrichten-im-regel-modul-toggleruleenabled-ruletoggled.md`
 - **categorization-kpsp8** — "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest" (bug) — `backlog/categorization-kpsp8-dieselbe-regeldatei-laesst-sich-kein-zweites-mal.md`
