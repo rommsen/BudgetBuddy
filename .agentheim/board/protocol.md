@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-qjmrm - "Ein Netzwerkfehler beim Regel testen erscheint als ungültiges Muster"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Ein Netzwerkfehler beim Regel testen erscheint als ungültiges Muster
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-mx09q - "Eine späte Antwort von Regel testen zeigt passt für eine inzwischen geänderte Eingabe"
 
 **Type:** Capture
