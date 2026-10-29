@@ -4,6 +4,25 @@ This diary tracks the development progress of BudgetBuddy.
 
 ---
 
+## 2026-10-29 15:30 - Hotfix: Bot-Handler verschluckte alle /api/-Anfragen
+
+**What I did:**
+Produktion lieferte für jeden Fable.Remoting-Aufruf 200 mit leerem Rumpf (Client: "JSON.parse: unexpected end of data", Settings, Konten und Lauf-Status nicht ladbar). Ursache: `BotApi.handler` rief für Pfade außerhalb von /bot `next ctx` auf. Im `choose` von `Api.webApp` steht er vor den Remoting-Handlern, `next ctx` beendete dort die Anfrage. Jetzt `skipPipeline`. Der Fehler steckte seit b4b5cc3 (2026-10-28) im Code; der Testhelfer wertete den Aufruf von `next` als "weitergereicht" und hielt ihn so fest.
+
+**Files Modified:**
+- `src/Server/BotApi.fs` - fremde Pfade geben `skipPipeline` zurück statt `next ctx`
+- `src/Tests/BotApiTests.fs` - Helfer `call` wertet nur noch `None` als "nicht beansprucht"; neuer Regressionstest prüft den Handler in einem echten `choose` (GET/POST /api/... und /botanik erreichen den nächsten Handler)
+
+**Rationale:**
+Ein Handler, der im `choose` einen Pfad nicht beansprucht, muss `None` liefern. Nur so probiert `choose` den nächsten Kandidaten.
+
+**Outcomes:**
+- Build: ✅ (0 Warnungen)
+- Tests: 2502/2502 passed (6 ignored); vor dem Fix scheiterten der neue Test und zwei angepasste Durchreich-Prüfungen
+- Issues: Logs auf docker-host zeigten seit dem Deploy heute früh ausschließlich `200 0 -` für /api/
+
+---
+
 ## 2026-10-29 07:39 - tzdata im Produktions-Image (infrastructure-b85yv)
 
 **What I did:**

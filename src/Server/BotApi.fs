@@ -395,11 +395,13 @@ let private isBotPath (path: string) =
 /// Der Einstieg: alles unter `/bot/` wird hier beantwortet, alles andere geht weiter an
 /// die nächsten Handler. Ohne gültiges Bearer-Token (oder ohne gesetztes Token) 401,
 /// danach Routen, unbekannte Pfade 404 als JSON.
+/// Fremde Pfade: `skipPipeline`, nicht `next ctx`. Im `choose` von Api.webApp hieße
+/// `next ctx` "erledigt", die Remoting-Handler dahinter kämen nie dran.
 let handler (deps: BotDeps) : HttpHandler =
-    fun next ctx ->
+    fun _next ctx ->
         let path = if ctx.Request.Path.HasValue then ctx.Request.Path.Value else ""
         if not (isBotPath path) then
-            next ctx
+            skipPipeline
         else
           match deps.Limiter.TryAcquire(deps.Now()) with
           | Some retryAfter ->

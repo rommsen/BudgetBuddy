@@ -73,8 +73,9 @@ type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarg
           Limiter = BotRateLimiter(defaultArg rateLimit 100000, rateLimitWindow)
           Categories = BotCategoryCache() }
 
-/// Ruft den Handler auf. Liefert Status und Rumpf (null, wenn der Handler den Pfad nicht
-/// beansprucht und weitergereicht hat).
+/// Ruft den Handler auf. Liefert Status und Rumpf, oder -1, wenn der Handler den Pfad nicht
+/// beansprucht (None zurückgibt, damit `choose` den nächsten Handler probiert). Ruft er
+/// dafür `next` auf, wäre die Anfrage im `choose` von Api.webApp erledigt (Fehler 2026-10-29).
 let private call (deps: BotDeps) (meth: string) (path: string) (auth: string option) (body: string) : int * JsonElement option =
     let ctx = DefaultHttpContext()
     ctx.Request.Method <- meth
@@ -83,10 +84,9 @@ let private call (deps: BotDeps) (meth: string) (path: string) (auth: string opt
     ctx.Request.Body <- new MemoryStream(Text.Encoding.UTF8.GetBytes body)
     let responseBody = new MemoryStream()
     ctx.Response.Body <- responseBody
-    let mutable passedOn = false
-    let next : Giraffe.Core.HttpFunc = fun c -> passedOn <- true; Task.FromResult(Some c)
-    (handler deps next ctx).GetAwaiter().GetResult() |> ignore
-    if passedOn then
+    let next : Giraffe.Core.HttpFunc = fun c -> Task.FromResult(Some c)
+    let result = (handler deps next ctx).GetAwaiter().GetResult()
+    if result.IsNone then
         -1, None
     else
         responseBody.Position <- 0L
@@ -214,6 +214,21 @@ let botApiTests =
             Expect.equal (fst (call env.Deps "GET" "/bot/transactions/preview" bearer "")) 404 "falsche Methode"
             Expect.equal (fst (call env.Deps "GET" "/api/irgendwas" None "")) -1 "kein /bot/-Pfad: weitergereicht"
             Expect.equal (fst (call env.Deps "GET" "/botanik" None "")) -1 "/botanik ist kein /bot/-Pfad"
+
+        testCase "im choose vor Fable.Remoting erreichen /api/-Anfragen den nächsten Handler" <| fun () ->
+            // Verhindert die Wiederkehr des Ausfalls vom 2026-10-29: der Bot-Handler rief für
+            // fremde Pfade `next ctx` auf. Im `choose` von Api.webApp beendete das die Anfrage,
+            // jeder API-Aufruf bekam 200 mit leerem Rumpf, der Client scheiterte an JSON.parse.
+            let env = Env()
+            let app = Giraffe.Core.choose [ handler env.Deps; Giraffe.Core.setStatusCode 299 ]
+            for meth, path in [ "GET", "/api/SettingsApi/getSettings"; "POST", "/api/LedgerApi/getLedgerAccounts"; "GET", "/botanik" ] do
+                let ctx = DefaultHttpContext()
+                ctx.Request.Method <- meth
+                ctx.Request.Path <- PathString path
+                let finish : Giraffe.Core.HttpFunc = fun c -> Task.FromResult(Some c)
+                let result = (app finish ctx).GetAwaiter().GetResult()
+                Expect.isSome result $"{meth} {path} beantwortet"
+                Expect.equal ctx.Response.StatusCode 299 $"{meth} {path} landet beim Handler nach dem Bot-Handler"
 
         testCase "Bot-Pfade ohne Groß-/Kleinschreibung und mit kodiertem Schrägstrich landen im Handler (401 ohne Token)" <| fun () ->
             let env = Env()
