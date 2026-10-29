@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 0
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-njams** — "Knöpfe im Split-Sheet des Imports sind schmaler als 48 px und nutzen Textglyphen" (bug) — `backlog/banking-import-njams-knoepfe-im-split-sheet-des-imports-sind.md`
 - **banking-import-m7b58** — "Das Split-Sheet des Imports baut die Split-Bausteine des Design Systems nach" (refactor) — `backlog/banking-import-m7b58-das-split-sheet-des-imports-baut-die.md`
 - **banking-import-e7hna** — "Speichern im Split-Sheet des Imports bleibt während des Aufrufs aktiv, ein Doppeltipp schickt zwei Aufrufe" (bug) — `backlog/banking-import-e7hna-speichern-im-split-sheet-des-imports-bleibt.md`
 - **banking-import-qcx84** — "Welche Import-Buchung den Kategorie-Picker offen hat, liegt außerhalb des Models" (refactor) — `backlog/banking-import-qcx84-welche-import-buchung-den-kategorie-picker-offen.md`

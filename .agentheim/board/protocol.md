@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-njams - "Knöpfe im Split-Sheet des Imports sind schmaler als 48 px und nutzen Textglyphen"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Knöpfe im Split-Sheet des Imports sind schmaler als 48 px und nutzen Textglyphen
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-m7b58 - "Das Split-Sheet des Imports baut die Split-Bausteine des Design Systems nach"
 
 **Type:** Capture
