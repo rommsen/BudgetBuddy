@@ -513,32 +513,13 @@ let additionalEdgeCaseTests =
 // Memo With Reference Tests (Regression tests for memo truncation bug)
 // ============================================
 
-/// Memo limit (must match YnabClient.memoLimit)
+/// YNABs Grenze für das Memo-Feld, bewusst als Literal: der Test soll rot werden, wenn die
+/// Konstante im Produktionscode davon abweicht.
 let private memoLimit = 300
 
-/// Compresses multiple consecutive whitespace characters into a single space
-let private compressWhitespace (text: string) =
-    System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ").Trim()
-
-/// Simulates the memo construction logic from YnabClient.buildMemoWithReference
-/// This duplicates the logic to test the expected behavior without exposing private functions
-let private buildMemoWithReference (memo: string) (reference: string) : string =
-    let compressedMemo = compressWhitespace memo
-    let suffix = $", Ref: {reference}"
-    let fullMemo = $"{compressedMemo}{suffix}"
-
-    if fullMemo.Length <= memoLimit then
-        fullMemo
-    else
-        // Truncate from the beginning, keeping the reference intact
-        // Format: "...<truncated memo>, Ref: <reference>"
-        let availableForMemo = memoLimit - suffix.Length - 3  // -3 for "..."
-        if availableForMemo <= 0 then
-            // Reference alone is too long (unlikely), just truncate the whole thing
-            fullMemo.Substring(fullMemo.Length - memoLimit)
-        else
-            let truncatedMemo = compressedMemo.Substring(compressedMemo.Length - availableForMemo)
-            $"...{truncatedMemo}{suffix}"
+/// Bis infrastructure-hdf7j stand hier eine Kopie der Produktionslogik, die Tests prüften also
+/// die Kopie. Jetzt läuft jeder Fall gegen den echten Memo-Bau aus YnabClient.
+let private buildMemoWithReference = Server.YnabClient.buildMemoWithReference
 
 [<Tests>]
 let memoWithReferenceTests =

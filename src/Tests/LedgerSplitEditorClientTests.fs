@@ -677,21 +677,6 @@ let viewTests =
                     (Components.SyncFlow.Views.SplitSheet.splitAmountClass warn)
                     "gleiche Klasse wie der Import-Editor"
 
-        testCase "Verdrahtung: Zeile hinzufügen nur bei offenem Rest, Speichern nach canSave, am Handy kein Abbrechen" <| fun () ->
-            let source = viewSource ()
-            let body = functionBody source "let private splitEditorBody"
-            Expect.stringContains body "SplitLogic.canAddLine editor" "Zeile hinzufügen folgt dem Rest"
-            let panel = functionBody source "let private detailPanelView"
-            Expect.stringContains panel "SplitLogic.canSave editor" "Speichern im Panel nach canSave"
-            Expect.stringContains panel "SplitUi.footer" "Panel: Abbrechen und Speichern"
-            let sheet = functionBody source "let private detailSheetView"
-            Expect.stringContains sheet "SplitUi.saveButton true" "Handy: Speichern klebend, volle Breite"
-            Expect.isFalse (sheet.Contains "cancelButton") "Handy: kein Abbrechen"
-            Expect.isFalse (sheet.Contains "SplitUi.footer") "Handy: keine Fußleiste mit Abbrechen"
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "SplitEditor.fs" ]
-            Expect.stringContains ds "IsDisabled = not addEnabled" "ausgegraut"
-            Expect.stringContains ds "IsDisabled = not canSave" "Speichern inaktiv"
-
         testCase "Kategorie je Zeile über den Picker (PC Popover, Handy sheetLayered), Übertrag über die Konto-Auswahl" <| fun () ->
             let body = functionBody (viewSource ()) "let private splitEditorBody"
             for needle in [ "CategoryPicker.popoverInPanel"; "CategoryPicker.sheetLayered"; "AccountPicker.popoverInPanel"; "AccountPicker.sheetLayered" ] do

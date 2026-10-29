@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 38
@@ -61,6 +61,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-w3k5d** — "Button.iconOnlyClass erkennt einen Text aus Leerzeichen als Icon-only" (bug) — `backlog/design-system-w3k5d-button-icononlyclass-erkennt-einen-text-aus-leerzeichen-als.md`
 <!-- backlog-list:end -->
 
 

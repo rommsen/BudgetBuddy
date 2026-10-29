@@ -975,79 +975,21 @@ let errorHandlingTests =
 
 
 // ============================================
-// Integration Test Documentation
-// ============================================
-
-[<Tests>]
-let integrationTestDocumentation =
-    testList "Integration Test Documentation" [
-        testCase "documents how to run integration tests" <| fun () ->
-            // This test documents the approach for integration testing
-            // To run real integration tests:
-            // 1. Set environment variable YNAB_TOKEN with a valid Personal Access Token
-            // 2. Uncomment the integration test code below
-            // 3. Run: dotnet test --filter Category=Integration
-
-            // Example integration test (commented out to avoid requiring a real token):
-            (*
-            let token = Environment.GetEnvironmentVariable("YNAB_TOKEN")
-            if String.IsNullOrEmpty(token) then
-                Tests.skiptest "YNAB_TOKEN not set"
-            else
-                async {
-                    let! result = YnabClient.getBudgets token
-                    match result with
-                    | Ok budgets ->
-                        Expect.isGreaterThan budgets.Length 0 "Should have at least one budget"
-                    | Error err ->
-                        failtest $"Integration test failed: {err}"
-                } |> Async.RunSynchronously
-            *)
-
-            // This test always passes and is just for documentation
-            ()
-
-        testCase "documents YNAB API rate limits" <| fun () ->
-            // YNAB API Rate Limits (from documentation):
-            // - 200 requests per hour per token
-            // - Rate limit info in response headers:
-            //   - X-Rate-Limit: 200
-            //   - X-Rate-Limit-Remaining: 150
-            // - When rate limited, returns 429 with Retry-After header
-
-            // Our implementation handles this by:
-            // 1. Returning YnabError.RateLimitExceeded with retry-after seconds
-            // 2. Client code should implement exponential backoff
-
-            ()
-
-        testCase "documents YNAB API response structure" <| fun () ->
-            // All YNAB API responses follow this structure:
-            // Success: { "data": { ... } }
-            // Error: { "error": { "id": "...", "name": "...", "detail": "..." } }
-
-            // Our decoders always expect the "data" wrapper
-            // Error responses are handled by HTTP status codes, not by parsing error JSON
-
-            ()
-    ]
-
-// ============================================
 // Property-Based Tests
 // ============================================
 
 [<Tests>]
 let propertyBasedTests =
     testList "Property-Based YNAB Tests" [
-        testProperty "milliunits conversion roundtrip" <| fun (amount: decimal) ->
-            // Skip extreme values that might overflow
-            if abs amount < 1000000000m then
-                let milliunits = int64 (amount * 1000m)
-                let converted = decimal milliunits / 1000m
-                // Allow for rounding differences due to decimal precision
-                abs (converted - amount) < 0.001m
-            else
-                true
+        testProperty "milliunits conversion roundtrip" <| fun (high: int) (low: int) ->
+            // Milliunits aus YNAB werden beim Lesen zu Euro (geteilt durch 1000) und beim
+            // Senden über Shared.Budgeting.toMilliunits zurückgerechnet. Der Rundlauf darf
+            // keinen Milliunit verlieren. Bis infrastructure-hdf7j rechnete der Test beide
+            // Richtungen selbst und prüfte keinen Produktionscode. `high` streut die Werte
+            // über kleine Centbeträge hinaus bis in fünfstellige Eurobeträge.
+            let milliunits = int64 high * 100000L + int64 low
+            let money : Money = { Amount = decimal milliunits / 1000m; Currency = "EUR" }
+            Shared.Budgeting.toMilliunits money = milliunits
 
         testProperty "import ID uniqueness for different transaction IDs" <| fun (id1: string) (id2: string) ->
             // Test that different transaction IDs produce different import IDs
@@ -1061,26 +1003,15 @@ let propertyBasedTests =
             else
                 true
 
-        testProperty "memo with reference respects 300 char limit" <| fun (memo: string) ->
+        testProperty "memo with reference respects 300 char limit" <| fun (text: string) (repeat: int) ->
+            // Läuft gegen den echten Memo-Bau (bis infrastructure-hdf7j rechnete der Test die
+            // Kürzung selbst nach und prüfte damit nur seine eigene Kopie). Die Wiederholung
+            // sorgt für Memos über der Grenze, die FsCheck allein selten erzeugt.
+            let memo = if isNull text then text else String.replicate ((repeat &&& 0x7fffffff) % 50 + 1) text
             if not (String.IsNullOrEmpty(memo)) then
-                let memoLimit = 300
-                let reference = "REF123"
-                let compressed = System.Text.RegularExpressions.Regex.Replace(memo, @"\s+", " ").Trim()
-                let suffix = $", Ref: {reference}"
-                let fullMemo = $"{compressed}{suffix}"
-
-                let result =
-                    if fullMemo.Length <= memoLimit then
-                        fullMemo
-                    else
-                        let availableForMemo = memoLimit - suffix.Length - 3
-                        if availableForMemo <= 0 then
-                            fullMemo.Substring(fullMemo.Length - memoLimit)
-                        else
-                            let truncatedMemo = compressed.Substring(compressed.Length - availableForMemo)
-                            $"...{truncatedMemo}{suffix}"
-
-                result.Length <= memoLimit && result.EndsWith(suffix)
+                let suffix = ", Ref: REF123"
+                let result = buildMemoWithReference memo "REF123"
+                result.Length <= 300 && result.EndsWith(suffix)
             else
                 true
     ]

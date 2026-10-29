@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 8
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 27
+- **Doing:** 1
+- **Done:** 28
 <!-- task-counts:end -->
 
 ### Todo
@@ -24,11 +24,11 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **infrastructure-a2pcg** — "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen" (chore) — `doing/infrastructure-a2pcg-claude-md-neu.md`
-- **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `doing/infrastructure-hdf7j-tests-aufraeumen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `done/infrastructure-hdf7j-tests-aufraeumen.md`
 - **infrastructure-gwvw1** — "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin" (chore) — `done/infrastructure-gwvw1-override-c-und-readme-uebergaben.md`
 - **infrastructure-cbr0r** — "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen" (refactor) — `done/infrastructure-cbr0r-rules-standards-review-agents.md`
 - **infrastructure-jy5ca** — "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock" (chore) — `done/infrastructure-jy5ca-serena-entfernen.md`
@@ -60,6 +60,8 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-c4r8n** — "CORS-Abwesenheit als Host-Test statt Quelltext-Suche" (refactor) — `backlog/infrastructure-c4r8n-cors-abwesenheit-als-host-test-statt-quelltext-suche.md`
+- **infrastructure-q7v2m** — "Übrige Quelltext-Tests auf View-Verdrahtung durch update- oder Browser-Tests ersetzen" (refactor) — `backlog/infrastructure-q7v2m-quelltext-tests-view-verdrahtung.md`
 - **infrastructure-q7d2m** — "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen" (chore) — `backlog/infrastructure-q7d2m-alte-planungsdokumente-unter-docs-mit-verweisen-auf-gel-scht.md`
 - **infrastructure-q7m2k** — "Eingabeprüfung für setDefaultBudget, setDefaultAccount und setQuickAddAccount" (chore) — `backlog/infrastructure-q7m2k-eingabepr-fung-f-r-setdefaultbudget-setdefaultaccount-und-se.md`
 - **infrastructure-fam9k** — "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review" (chore) — `backlog/infrastructure-fam9k-bestandsreview-command.md`

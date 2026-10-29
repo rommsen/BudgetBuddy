@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:40 -- Task verified and completed: infrastructure-hdf7j - "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-hdf7j - "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage"
+**Summary:** Tautologien aus Bericht D gelöscht oder auf Produktionscode umgestellt, schwache Quelltext-Tests gelöscht, jede Bot-Testumgebung hat einen eigenen Berliner Kalendertag; dotnet 2605 auf 2569
+**Duration:** 2h36m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 13
+**Tests added:** 1
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 20:08 -- Batch started: [infrastructure-a2pcg]
 
 **Type:** Work / Batch start

@@ -266,21 +266,6 @@ let filterButtonTests =
         ]
 
         testList "Oberfläche (Quelltext)" [
-            test "Das Zellmenü ist zurückgebaut" {
-                let view = source "src/Client/Components/Ledger/View.fs"
-                let types = source "src/Client/Components/Ledger/Types.fs"
-                let state = source "src/Client/Components/Ledger/State.fs"
-                for name in [ "CellMenu"; "OpenCellMenu"; "CloseCellMenu"; "cellMenuPopover"; "cellMenuTrigger"; "CellMenuTarget"; "CellMenuKind" ] do
-                    Expect.isFalse (view.Contains name) $"{name} nicht mehr in View.fs"
-                    Expect.isFalse (types.Contains name) $"{name} nicht mehr in Types.fs"
-                    Expect.isFalse (state.Contains name) $"{name} nicht mehr in State.fs"
-            }
-            test "Das alte Historie-Sheet und sein Filter-Block sind zurückgebaut" {
-                let view = source "src/Client/Components/Ledger/View.fs"
-                Expect.isFalse (view.Contains "historySheet") "historySheet weg"
-                Expect.isFalse (view.Contains "row-filter-actions") "Filter-Block weg"
-                Expect.isFalse (view.Contains "OpenHistory") "OpenHistory weg"
-            }
             test "Payee- und Kategorie-Zelle der PC-Zeile sind reiner Text ohne eigenen Auslöser" {
                 let view = source "src/Client/Components/Ledger/View.fs"
                 let slice (from: string) (until: string) =

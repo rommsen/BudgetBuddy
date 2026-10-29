@@ -36,13 +36,33 @@ let private categories =
       cat "Altlast" "Haushalt" true
       cat "Inflow: Ready to Assign" internalMasterGroupName false ]
 
-/// Eine Testumgebung mit zählbarem Push und verstellbarer Uhr.
+/// Die Tagesgrenze zählt alle Bob-Buchungen eines Berliner Kalendertags in der geteilten
+/// In-Memory-Datenbank. Damit kein Test vom Kalendertag eines anderen abhängt, bekommt jede
+/// Testumgebung einen eigenen Tag D aus diesem Zähler. Benutzt werden darf D-1 bis D+2,
+/// deshalb liegen vier Tage zwischen zwei Umgebungen (infrastructure-hdf7j).
+let mutable private lastTestDay = 0
+let private testDayStride = 4
+let private firstTestDay = DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+
+let private nextTestDay () =
+    firstTestDay.AddDays(float (Interlocked.Increment(&lastTestDay) * testDayStride))
+
+/// Eine Testumgebung mit zählbarem Push und verstellbarer Uhr. Die Uhr startet um 10:00 UTC
+/// am eigenen Tag D (in Berlin derselbe Kalendertag).
 type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarget, string>, ?token': string option, ?delayMs: int, ?rateLimit: int, ?loadCategories: Async<Result<YnabCategory list, string>>) =
-    let mutable now = DateTime(2026, 10, 28, 10, 0, 0, DateTimeKind.Utc)
+    let day = nextTestDay ()
+    let mutable now = day.AddHours 10.0
     let mutable pushes = 0
     let mutable categoryLoads = 0
     member _.CategoryLoads = categoryLoads
     member _.Now with get () = now and set v = now <- v
+    /// Der eigene Tag D dieser Umgebung (UTC-Mitternacht).
+    member _.Day = day
+    /// Stellt die Uhr auf D plus `offsetDays`, zur angegebenen UTC-Uhrzeit.
+    member _.SetUtc(offsetDays: int, hour: int, minute: int) =
+        now <- day.AddDays(float offsetDays).AddHours(float hour).AddMinutes(float minute)
+    /// D plus `offsetDays` als Buchungsdatum im Format der Bot-Schnittstelle.
+    member _.DateText(offsetDays: int) = day.AddDays(float offsetDays).ToString("yyyy-MM-dd")
     member _.Pushes = pushes
     member val Deps : BotDeps =
         { Token = fun () -> defaultArg token' (Some token)
@@ -98,11 +118,15 @@ let private bearer = Some $"Bearer {token}"
 
 let private uniquePayeeText () = $"Limit-{Guid.NewGuid()}"
 
-let private bodyOf (payee: string) (amount: string) (direction: string) =
-    $"""{{"amount": {amount}, "direction": "{direction}", "payee": "{payee}", "category": "Haushaltshilfe", "date": "2026-10-28", "memo": "Test"}}"""
+/// Heute als Berliner Kalendertag der injizierten Uhr.
+let private todayText (deps: BotDeps) =
+    (Ledger.Bot.Domain.berlinDayOf deps.BerlinZone (deps.Now())).ToString("yyyy-MM-dd")
+
+let private bodyOf (deps: BotDeps) (payee: string) (amount: string) (direction: string) =
+    $"""{{"amount": {amount}, "direction": "{direction}", "payee": "{payee}", "category": "Haushaltshilfe", "date": "{todayText deps}", "memo": "Test"}}"""
 
 let private preview (deps: BotDeps) (payee: string) (amount: string) (direction: string) : Guid =
-    match call deps "POST" "/bot/transactions/preview" bearer (bodyOf payee amount direction) with
+    match call deps "POST" "/bot/transactions/preview" bearer (bodyOf deps payee amount direction) with
     | 200, Some json -> Guid.Parse(json.GetProperty("preview_id").GetString())
     | status, json -> failtest $"Vorschau sollte 200 liefern, war {status} {json}"
 
@@ -259,7 +283,7 @@ let botApiTests =
         testCase "Vorschau löst auf, schreibt weder ins Kassenbuch noch nach YNAB" <| fun () ->
             let env = Env()
             let payee = uniquePayee ()
-            let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf payee "50" "outflow")
+            let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps payee "50" "outflow")
             Expect.equal status 200 "200"
             Expect.equal (str json "payee") payee "Payee"
             Expect.equal (str json "account") "Bar" "Konto"
@@ -267,18 +291,18 @@ let botApiTests =
             Expect.equal (str json "direction") "outflow" "Richtung"
             Expect.equal (json.Value.GetProperty("category").GetProperty("name").GetString()) "Haushaltshilfe" "Kategorie"
             Expect.equal (json.Value.GetProperty("category").GetProperty("group").GetString()) "Haushalt" "Gruppe"
-            Expect.equal (str json "date") "2026-10-28" "Datum"
+            Expect.equal (str json "date") (env.DateText 0) "Datum"
             Expect.equal (str json "memo") "Test" "Memo"
-            Expect.equal (str json "expires_at") "2026-10-28T10:15:00Z" "15 Minuten"
+            Expect.equal (str json "expires_at") $"{env.DateText 0}T10:15:00Z" "15 Minuten"
             Expect.isEmpty (entriesFor payee) "nichts im Kassenbuch"
             Expect.equal env.Pushes 0 "nichts an YNAB"
 
         testCase "Betrag über der Obergrenze, 0 und negativ werden mit 422 abgelehnt, 500 Euro geht" <| fun () ->
             let env = Env()
-            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf "x" "500.01" "outflow"))) 422 "500,01 Euro"
-            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf "x" "0" "outflow"))) 422 "0 Euro"
-            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf "x" "-20" "outflow"))) 422 "-20 Euro (-20000 Milliunits)"
-            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf "x" "500" "outflow"))) 200 "500 Euro"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "500.01" "outflow"))) 422 "500,01 Euro"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "0" "outflow"))) 422 "0 Euro"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "-20" "outflow"))) 422 "-20 Euro (-20000 Milliunits)"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "500" "outflow"))) 200 "500 Euro"
 
         testCase "ungültige Eingaben ergeben 400 mit Feldnamen" <| fun () ->
             let env = Env()
@@ -286,11 +310,11 @@ let botApiTests =
             Expect.equal status 400 "400"
             let fields = json.Value.GetProperty("fields").EnumerateArray() |> Seq.map (fun f -> f.GetProperty("field").GetString()) |> Seq.sort |> Seq.toList
             Expect.equal fields [ "date"; "direction" ] "Feldnamen"
-            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer """{"amount":5,"direction":"outflow","payee":"x","category":"c","date":"2026-10-28","account":"Giro"}""")) 400 "Konto-Feld abgelehnt"
+            Expect.equal (fst (call env.Deps "POST" "/bot/transactions/preview" bearer $"""{{"amount":5,"direction":"outflow","payee":"x","category":"c","date":"{env.DateText 0}","account":"Giro"}}""")) 400 "Konto-Feld abgelehnt"
 
         testCase "Kategorie: mehrere und keine Treffer ergeben 422 mit Kandidaten, interne Kategorie nicht wählbar" <| fun () ->
             let env = Env()
-            let withCategory c = $"""{{"amount": 5, "direction": "outflow", "payee": "x", "category": "{c}", "date": "2026-10-28"}}"""
+            let withCategory c = $"""{{"amount": 5, "direction": "outflow", "payee": "x", "category": "{c}", "date": "{env.DateText 0}"}}"""
             let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer (withCategory "wäsche")
             Expect.equal status 422 "mehrdeutig"
             Expect.equal (str json "error") "category_ambiguous" "Code"
@@ -303,7 +327,7 @@ let botApiTests =
 
         testCase "ohne eingerichtetes Quick-Add-Konto antwortet die Vorschau mit 422 und Grund" <| fun () ->
             let env = Env(target = Error "Kein Quick-Add-Konto eingerichtet")
-            let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf "x" "5" "outflow")
+            let status, json = call env.Deps "POST" "/bot/transactions/preview" bearer (bodyOf env.Deps "x" "5" "outflow")
             Expect.equal status 422 "422"
             Expect.equal (str json "message") "Kein Quick-Add-Konto eingerichtet" "Grund"
 
@@ -389,46 +413,43 @@ let botApiTests =
             Expect.equal (entriesFor payee).Length 1 "keine zweite Buchung"
             Expect.equal env.Pushes 1 "kein zweiter Push"
         // ---- Tagesgrenze und Datumsfenster (ledger-ssmp3, ADR 0068) ----
-        // Jeder Test nutzt einen eigenen Berliner Kalendertag, weil die In-Memory-Datenbank
-        // über alle Tests geteilt wird und die Zählung aus ihr kommt.
+        // Jeder Test rechnet relativ zum eigenen Tag D seiner Umgebung (`Env`, `nextTestDay`),
+        // kein Test nennt ein festes Datum.
 
         testCase "Tagesgrenze nach Summe: bei 450 Euro (450000 Milliunits) heute geht 50 Euro, 60 Euro ergibt 422" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 3, 10, 0, 0, DateTimeKind.Utc)
             commit env.Deps (preview env.Deps (uniquePayee ()) "450" "outflow") |> ignore
-            let status, json = previewOn env.Deps "2026-11-03" "60" "outflow"
+            let status, json = previewOn env.Deps (env.DateText 0) "60" "outflow"
             Expect.equal status 422 "über der Tagessumme"
             Expect.equal (str json "error") "daily_limit_reached" "Code"
             Expect.stringContains (str json "message") "450.00 EUR in 1 Buchungen" "nennt Summe und Anzahl des Tages"
-            let status50, _ = previewOn env.Deps "2026-11-03" "50" "outflow"
+            let status50, _ = previewOn env.Deps (env.DateText 0) "50" "outflow"
             Expect.equal status50 200 "50 Euro passen genau"
 
         testCase "Tagesgrenze nach Anzahl: nach 10 Commits heute lehnt die 11. Vorschau und der 11. Commit mit 422 ab" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 4, 10, 0, 0, DateTimeKind.Utc)
             let pending = [ for _ in 1..11 -> preview env.Deps (uniquePayee ()) "1" "outflow" ]
             for id in pending |> List.take 10 do
                 Expect.equal (fst (commit env.Deps id)) 200 "gebucht"
             let status, json = commit env.Deps (List.last pending)
             Expect.equal status 422 "11. Commit abgelehnt"
             Expect.equal (str json "error") "daily_limit_reached" "Code"
-            let previewStatus, previewJson = previewOn env.Deps "2026-11-04" "1" "outflow"
+            let previewStatus, previewJson = previewOn env.Deps (env.DateText 0) "1" "outflow"
             Expect.equal previewStatus 422 "11. Vorschau abgelehnt"
             Expect.equal (str previewJson "error") "daily_limit_reached" "Code der Vorschau"
 
         testCase "Einnahmen zählen mit ihrem Betrag ohne Vorzeichen zur Tagessumme" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Utc)
             commit env.Deps (preview env.Deps (uniquePayee ()) "300" "outflow") |> ignore
             commit env.Deps (preview env.Deps (uniquePayee ()) "150" "inflow") |> ignore
-            Expect.equal (fst (previewOn env.Deps "2026-11-05" "60" "inflow")) 422 "450 plus 60 über 500, auch als Einnahme"
-            Expect.equal (fst (previewOn env.Deps "2026-11-05" "50" "outflow")) 200 "450 plus 50 passt"
+            Expect.equal (fst (previewOn env.Deps (env.DateText 0) "60" "inflow")) 422 "450 plus 60 über 500, auch als Einnahme"
+            Expect.equal (fst (previewOn env.Deps (env.DateText 0) "50" "outflow")) 200 "450 plus 50 passt"
 
         testCase "gestern und andere Herkunft zählen nicht: Quick Add und Bob von gestern lassen 500 Euro heute zu" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 13, 10, 0, 0, DateTimeKind.Utc)
+            env.SetUtc(-1, 10, 0)
             commit env.Deps (preview env.Deps (uniquePayee ()) "400" "outflow") |> ignore
-            env.Now <- DateTime(2026, 11, 14, 10, 0, 0, DateTimeKind.Utc)
+            env.SetUtc(0, 10, 0)
             let quickAdd : LedgerEvent =
                 { EntryId = EntryId (Guid.NewGuid())
                   OccurredAt = env.Now
@@ -444,19 +465,17 @@ let botApiTests =
                           Cleared = Uncleared
                           Approved = false } }
             appendAndApply [ quickAdd ] |> Async.RunSynchronously
-            Expect.equal (fst (previewOn env.Deps "2026-11-14" "500" "outflow")) 200 "weder gestern noch Quick Add zählen"
+            Expect.equal (fst (previewOn env.Deps (env.DateText 0) "500" "outflow")) 200 "weder gestern noch Quick Add zählen"
 
         testCase "die Grenze kommt aus dem Kassenbuch: ein neuer BotPreviewStore (Neustart) setzt nichts zurück" <| fun () ->
             let before = Env()
-            before.Now <- DateTime(2026, 11, 7, 10, 0, 0, DateTimeKind.Utc)
             commit before.Deps (preview before.Deps (uniquePayee ()) "450" "outflow") |> ignore
             let after = Env()
             after.Now <- before.Now
-            Expect.equal (fst (previewOn after.Deps "2026-11-07" "60" "outflow")) 422 "Grenze gilt nach Neustart weiter"
+            Expect.equal (fst (previewOn after.Deps (before.DateText 0) "60" "outflow")) 422 "Grenze gilt nach Neustart weiter"
 
         testCase "zwei offene Vorschauen über der Grenze: der erste Commit bucht, der zweite ergibt 422" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 8, 10, 0, 0, DateTimeKind.Utc)
             let first = preview env.Deps (uniquePayee ()) "300" "outflow"
             let second = preview env.Deps (uniquePayee ()) "300" "outflow"
             Expect.equal (fst (commit env.Deps first)) 200 "erster bucht"
@@ -467,7 +486,6 @@ let botApiTests =
 
         testCase "gleichzeitige Commits verschiedener Vorschauen buchen höchstens bis zur Grenze" <| fun () ->
             let env = Env(delayMs = 50)
-            env.Now <- DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc)
             let ids = [ for _ in 1..6 -> preview env.Deps (uniquePayee ()) "150" "outflow" ]
             let results =
                 ids
@@ -479,7 +497,6 @@ let botApiTests =
 
         testCase "Wiederholung an der Grenze: derselbe Commit zählt nicht doppelt und liefert das erste Ergebnis" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 10, 10, 0, 0, DateTimeKind.Utc)
             let id = preview env.Deps (uniquePayee ()) "500" "outflow"
             let _, first = commit env.Deps id
             let status, second = commit env.Deps id
@@ -489,24 +506,23 @@ let botApiTests =
 
         testCase "Datumsfenster: heute und heute minus 31 Tage gehen, minus 32 Tage und morgen ergeben 400 mit Feld date" <| fun () ->
             let env = Env()
-            env.Now <- DateTime(2026, 11, 11, 10, 0, 0, DateTimeKind.Utc)
-            Expect.equal (fst (previewOn env.Deps "2026-11-11" "1" "outflow")) 200 "heute"
-            Expect.equal (fst (previewOn env.Deps "2026-10-11" "1" "outflow")) 200 "heute minus 31 Tage"
-            for date in [ "2026-10-10"; "2026-11-12" ] do
+            Expect.equal (fst (previewOn env.Deps (env.DateText 0) "1" "outflow")) 200 "heute"
+            Expect.equal (fst (previewOn env.Deps (env.DateText -31) "1" "outflow")) 200 "heute minus 31 Tage"
+            for date in [ env.DateText -32; env.DateText 1 ] do
                 let status, json = previewOn env.Deps date "1" "outflow"
                 Expect.equal status 400 $"{date} abgelehnt"
                 Expect.equal (json.Value.GetProperty("fields").[0].GetProperty("field").GetString()) "date" "Feld date"
 
         testCase "Berliner Tag: kurz nach Mitternacht in Berlin gilt schon der neue Tag, obwohl UTC noch beim Vortag liegt" <| fun () ->
             let env = Env()
-            // 2026-11-11 23:30 UTC ist 2026-11-12 00:30 in Berlin (Winterzeit).
-            env.Now <- DateTime(2026, 11, 11, 23, 30, 0, DateTimeKind.Utc)
-            Expect.equal (fst (previewOn env.Deps "2026-11-12" "1" "outflow")) 200 "Berliner Tag ist erlaubt, kein Zukunftsdatum"
-            Expect.equal (fst (previewOn env.Deps "2026-11-13" "1" "outflow")) 400 "übermorgen Berlin bleibt Zukunft"
-            // Die Zählung folgt dem Berliner Tag: 450 Euro um 23:30 UTC zählen für den 12., nicht den 11.
+            // D 23:30 UTC ist in Berlin schon D+1 (00:30 im Winter, 01:30 im Sommer).
+            env.SetUtc(0, 23, 30)
+            Expect.equal (fst (previewOn env.Deps (env.DateText 1) "1" "outflow")) 200 "Berliner Tag ist erlaubt, kein Zukunftsdatum"
+            Expect.equal (fst (previewOn env.Deps (env.DateText 2) "1" "outflow")) 400 "übermorgen Berlin bleibt Zukunft"
+            // Die Zählung folgt dem Berliner Tag: 450 Euro um D 23:30 UTC zählen für D+1, nicht für D.
             commit env.Deps (preview env.Deps (uniquePayee ()) "450" "outflow") |> ignore
-            env.Now <- DateTime(2026, 11, 12, 9, 0, 0, DateTimeKind.Utc)
-            Expect.equal (fst (previewOn env.Deps "2026-11-12" "60" "outflow")) 422 "gleicher Berliner Tag"
-            env.Now <- DateTime(2026, 11, 11, 21, 0, 0, DateTimeKind.Utc)
-            Expect.equal (fst (previewOn env.Deps "2026-11-11" "500" "outflow")) 200 "22:00 Berlin am 11. ist ein anderer Tag"
+            env.SetUtc(1, 9, 0)
+            Expect.equal (fst (previewOn env.Deps (env.DateText 1) "60" "outflow")) 422 "gleicher Berliner Tag"
+            env.SetUtc(0, 21, 0)
+            Expect.equal (fst (previewOn env.Deps (env.DateText 0) "500" "outflow")) 200 "D 21:00 UTC ist in Berlin noch D, ein anderer Tag"
     ]

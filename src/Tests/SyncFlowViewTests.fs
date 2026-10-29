@@ -579,9 +579,6 @@ let ruhigeListeTests =
                 Expect.equal (src.Split("Variant = Button.Primary").Length - 1) 2 "beide Primary"
             testCase "SplitSheet ruft für Gesamt und Rest kein Money.simple" <| fun () ->
                 Expect.isFalse ((Quelltext.views "SplitSheet.fs").Contains "Money.simple") "kein Money.simple"
-            testCase "Styleguide §2 nennt Import prüfen nicht mehr als Vorbild" <| fun () ->
-                let sg = Quelltext.read [ "standards"; "frontend"; "styleguide.md" ]
-                Expect.isFalse (sg.Contains "Vorbild ist die Ansicht") "Satz ersetzt"
         ]
 
         testList "splitAmountClass" [

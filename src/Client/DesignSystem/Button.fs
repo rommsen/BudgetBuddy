@@ -61,7 +61,7 @@ let defaultProps = {
 // ============================================
 
 /// Größenklassen je Button-Größe. Small ist mobil 48 px hoch (Touch-Fläche, Styleguide §4), ab `md` ohne Mindesthöhe.
-let sizeToClass = function
+let private sizeToClass = function
     | Small -> "text-xs px-3 py-1.5 min-h-[48px] md:min-h-0"
     | Medium -> "text-sm px-[18px] py-2.5 min-h-[48px] md:min-h-0"
     | Large -> "text-base px-6 py-3 min-h-[52px] md:min-h-0"

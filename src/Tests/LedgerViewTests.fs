@@ -889,14 +889,6 @@ let private calmListSourceTests =
             Expect.stringContains rowBody "Tokens.ListRoles.mobileLine1" "Zeile 1"
         }
 
-        test "Beide Zeilen der Handy-Zeile haben dieselbe feste Höhe und gleichen Abstand in jeder Zeile" {
-            let l1 = Client.DesignSystem.Tokens.ListRoles.mobileLine1
-            let l2 = Client.DesignSystem.Tokens.ListRoles.mobileLine2
-            Expect.stringContains l1 "h-5" "Zeile 1 fest 20px"
-            Expect.stringContains l2 "h-5" "Zeile 2 fest 20px, auch mit Badge"
-            Expect.stringContains l2 "mt-0.5" "Abstand zwischen den Zeilen"
-        }
-
         test "Beide Viewports zeigen die Tagessumme im Gruppenkopf" {
             let view = readLedgerView ()
             Expect.stringContains (sliceFunctionBody view "let private dateGroupHeader") "daySumText sum" "Handy"
