@@ -48,3 +48,5 @@ Rubrik (je Achse 1 bis 5 plus ein Satz, dann A besser / gleich / B besser):
 
 Ergebnis nach `.agentheim/knowledge/research/harness-audit/baseline.md`: je Task Verdict, Iterationen, Gate, Dauer, Tokens, Worker-Modell, Review-Befunde beider Diffs, Paarurteil; Ablauf und Rubrik wörtlich; Grenzen (ein Lauf pro Task, Streuung unbekannt). Danach kein `.worktrees/replay-*` mehr, `ls node_modules | wc -l` unverändert.
 Vergleichswerte des echten Laufs aus `.agentheim/board/protocol.md` (Dauer, Iterationen); echte Worker liefen auf Sonnet.
+
+Stand 2026-10-29 17:40 (Conductor): Baseline gelaufen, Ergebnis in `.agentheim/knowledge/research/harness-audit/baseline.md`. Alle drei Referenz-Tasks PASS in Iteration 1, Worker laut Transkript `claude-opus-5-5`, blinder Paarvergleich 3 zu 0 für das Opus-Nachspiel. Replay-Worktrees abgeräumt, `node_modules` unverändert (401). Alle ACs erfüllt; die Task kann nach Durchsicht durch den Owner als erledigt geschlossen werden.

@@ -28,3 +28,5 @@ Ein gesetzter, aber ungültiger Wert führt zu einem sicheren Ergebnis: Startabb
 ## Notes
 Migrationsschritt P3. Zielbild: `.agentheim/knowledge/research/harness-audit/zielbild.md`. Promote und work erst nach ausdrücklichem Ja des Owners.
 Refine: Startabbruch gegen niedrigen Fallback abwägen (ADR 0068).
+
+Hinweis aus der Baseline 2026-10-29: ADR 0068 Punkt 1 legt ausdrücklich fest, dass ungültige oder zu hohe Werte auf 500 € zurückfallen. Diese Task widerspricht damit einer ADR-Entscheidung. Im Refine eine Ergänzungs-ADR zu 0068 vorsehen oder die Task verwerfen.
