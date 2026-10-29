@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-cd9t5 - "YnabClientTests rechnet den PayeeOverride im Test nach"
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** YnabClientTests rechnet den PayeeOverride im Test nach
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-gwtm0 - "Kategorie entfernen auf der Quick-Add-Seite ist 42 px breit und eine Textglyphe"
 
 **Type:** Capture
