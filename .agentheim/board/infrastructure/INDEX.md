@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 1
+- **Backlog:** 7
+- **Todo:** 2
 - **Doing:** 1
 - **Done:** 28
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-fam9k** — "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review" (chore) — `todo/infrastructure-fam9k-bestandsreview-command.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
@@ -64,7 +65,6 @@ research touching this BC, and concept synthesis pages.
 - **infrastructure-q7v2m** — "Übrige Quelltext-Tests auf View-Verdrahtung durch update- oder Browser-Tests ersetzen" (refactor) — `backlog/infrastructure-q7v2m-quelltext-tests-view-verdrahtung.md`
 - **infrastructure-q7d2m** — "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen" (chore) — `backlog/infrastructure-q7d2m-alte-planungsdokumente-unter-docs-mit-verweisen-auf-gel-scht.md`
 - **infrastructure-q7m2k** — "Eingabeprüfung für setDefaultBudget, setDefaultAccount und setQuickAddAccount" (chore) — `backlog/infrastructure-q7m2k-eingabepr-fung-f-r-setdefaultbudget-setdefaultaccount-und-se.md`
-- **infrastructure-fam9k** — "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review" (chore) — `backlog/infrastructure-fam9k-bestandsreview-command.md`
 - **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `backlog/infrastructure-gmx27-learn-global-und-memory-triage.md`
 - **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `backlog/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 - **infrastructure-aaryk** — Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (chore) — `backlog/infrastructure-aaryk-playwright-waechter-pwa-wechsel.md`

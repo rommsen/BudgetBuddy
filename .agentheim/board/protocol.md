@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:46 -- Modeling / Promoted: infrastructure-fam9k - "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 22:40 -- Task verified and completed: infrastructure-hdf7j - "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage"
 
 **Type:** Work / Task completion

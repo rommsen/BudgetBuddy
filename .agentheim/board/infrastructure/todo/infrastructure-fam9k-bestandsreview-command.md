@@ -1,7 +1,7 @@
 ---
 id: infrastructure-fam9k
 title: "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-10-29
