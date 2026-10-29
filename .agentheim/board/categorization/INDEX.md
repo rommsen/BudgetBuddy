@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 15
+- **Backlog:** 16
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-h88qx** — "Ablehnung eines kaputten Regex beim Anlegen und Ändern einer Regel ist ungetestet" (chore) — `backlog/categorization-h88qx-ablehnung-eines-kaputten-regex-beim-anlegen-und.md`
 - **categorization-e8e56** — "Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld" (chore) — `backlog/categorization-e8e56-payee-und-memo-regeln-haben-keine-gegenprobe.md`
 - **categorization-jnyk8** — "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests" (chore) — `backlog/categorization-jnyk8-sammel-kategorisieren-aufteilen-und-aufteilung-entfernen-haben.md`
 - **categorization-vzh1m** — "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene" (chore) — `backlog/categorization-vzh1m-manuelles-kategorisieren-im-import-hat-keinen-test.md`

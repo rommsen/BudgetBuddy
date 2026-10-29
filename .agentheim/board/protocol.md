@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-h88qx - "Ablehnung eines kaputten Regex beim Anlegen und Ändern einer Regel ist ungetestet"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Ablehnung eines kaputten Regex beim Anlegen und Ändern einer Regel ist ungetestet
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-e8e56 - "Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld"
 
 **Type:** Capture
