@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:35 -- Batch started: [infrastructure-b85yv]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-b85yv - tzdata im Produktions-Image installieren
+**Parallel:** no (1 worker, einziger bereiter Task)
+
+---
+
 ## 2026-10-29 07:33 -- Modeling / Promoted: infrastructure-b85yv - tzdata im Produktions-Image installieren
 
 **Type:** Modeling / Promote
