@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-m61mq - "Eine deaktivierte Regel ist im Persistenz-Rundlauf nicht abgesichert"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Eine deaktivierte Regel ist im Persistenz-Rundlauf nicht abgesichert
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-h88qx - "Ablehnung eines kaputten Regex beim Anlegen und Ändern einer Regel ist ungetestet"
 
 **Type:** Capture
