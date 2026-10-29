@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 18
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 14
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
 ### Doing

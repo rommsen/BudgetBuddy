@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:18 -- Modeling / Captured: infrastructure-awstw - Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst.
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** todo
+**Summary:** Toast "Failed to load Lena flag colour: Http error (0)" in Firefox. getLenaFlagSettings läuft an drei Stellen ohne Retry.reading; das Ticket umhüllt sie wie y6atr die Start-Abfragen.
+
+---
+
 ## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
 
 **Type:** Modeling / Capture
