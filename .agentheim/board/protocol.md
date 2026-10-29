@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-e71p7 - "YnabClientTests baut den Transaktions-Encoder im Test nach"
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** YnabClientTests baut den Transaktions-Encoder im Test nach
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-cd9t5 - "YnabClientTests rechnet den PayeeOverride im Test nach"
 
 **Type:** Capture
