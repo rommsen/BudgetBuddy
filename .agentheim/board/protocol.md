@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:26 -- Capture / Captured: budgeting-bk6tq - "Vortrag stimmt ab dem ersten Tag: Aktivität aus dem Kassenbuch statt aus YNAB (Naht ledger/budgeting)"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Vortrag stimmt ab dem ersten Tag: Aktivität aus dem Kassenbuch statt aus YNAB (Naht ledger/budgeting)
+
+---
+
 ## 2026-10-29 07:26 -- Capture / Captured: budgeting-afd8h - "Geld zwischen Kategorien verschieben, am Handy schnell"
 
 **Type:** Capture
