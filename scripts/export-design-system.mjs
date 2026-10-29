@@ -25,7 +25,7 @@
 //      auch bei Fehlern.
 
 import { spawn } from "node:child_process";
-import { createServer as createNetServer } from "node:net";
+import { createServer as createNetServer, connect as netConnect } from "node:net";
 import {
   readFile,
   writeFile,
@@ -149,7 +149,7 @@ function log(msg) {
   console.log(`[export-design-system] ${msg}`);
 }
 
-async function getFreePort() {
+export async function getFreePort() {
   return new Promise((resolve, reject) => {
     const srv = createNetServer();
     srv.unref();
@@ -173,13 +173,18 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+/// Großzügige Obergrenze für den Start von `vite preview`. Unter paralleler
+/// Last (mehrere Gate-Läufe gleichzeitig) dauert der Start deutlich länger als
+/// im Leerlauf (infrastructure-r5k2w).
+const PREVIEW_START_TIMEOUT_MS = 60000;
+
 /// Startet `vite preview` gegen einen bereits gebauten outDir auf einem vorab
-/// reservierten (freien) Port. Löst auf, sobald der Server "Local:" loggt, spätestens
-/// nach 5s (defensiv, falls sich das Log-Format ändert).
+/// reservierten (freien) Port und löst erst auf, wenn der Port einen TCP-Connect
+/// annimmt (s. startServerProcess).
 async function startPreviewServer(buildDir, port) {
-  const child = spawn(
-    "npx",
-    [
+  return startServerProcess({
+    command: "npx",
+    args: [
       "vite",
       "preview",
       "--outDir",
@@ -190,36 +195,77 @@ async function startPreviewServer(buildDir, port) {
       "--host",
       "127.0.0.1",
     ],
-    { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] }
-  );
-
-  let resolveReady;
-  const readyPromise = new Promise((resolve, reject) => {
-    resolveReady = resolve;
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      if (code !== null && code !== 0) {
-        reject(new Error(`vite preview beendete sich mit Code ${code}`));
-      }
-    });
+    port,
+    timeoutMs: PREVIEW_START_TIMEOUT_MS,
+    whatFor: "vite preview",
   });
-  let stderrOutput = "";
-  child.stdout.on("data", (buf) => {
-    if (buf.toString().includes("Local:")) resolveReady();
-  });
-  child.stderr.on("data", (buf) => {
-    stderrOutput += buf.toString();
-  });
-
-  const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
-  await Promise.race([readyPromise, timeout]).catch((err) => {
-    throw new Error(`vite preview konnte nicht starten: ${err.message}\n${stderrOutput}`);
-  });
-
-  return child;
 }
 
-async function stopServer(child) {
+/// Startet `command args` und wartet, bis 127.0.0.1:port einen TCP-Connect
+/// annimmt (echter Bereitschafts-Check wie waitForPort in screenshot-route.mjs,
+/// hier dupliziert und um die Beobachtung des Kindprozesses ergänzt). Die
+/// Log-Zeile "Local:" allein reicht nicht: früher ging es danach oder nach
+/// festen 5 Sekunden ungeprüft weiter, unter Last folgte ERR_CONNECTION_REFUSED
+/// (infrastructure-r5k2w). Scheitert laut, wenn der Prozess vor der
+/// Bereitschaft endet (egal mit welchem Code) oder nach `timeoutMs` nicht
+/// erreichbar ist; im Fehlerfall wird der Prozess beendet.
+export async function startServerProcess({ command, args, env, port, timeoutMs, whatFor }) {
+  const child = spawn(command, args, {
+    cwd: ROOT,
+    env: env ?? process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let output = "";
+  child.stdout.on("data", (buf) => {
+    output += buf.toString();
+  });
+  child.stderr.on("data", (buf) => {
+    output += buf.toString();
+  });
+
+  let ended = null;
+  child.on("error", (err) => {
+    ended ??= `${whatFor} konnte nicht gestartet werden: ${err.message}`;
+  });
+  child.on("exit", (code, signal) => {
+    ended ??= `${whatFor} beendete sich vor der Bereitschaft (Code ${code}, Signal ${signal})`;
+  });
+
+  const deadline = Date.now() + timeoutMs;
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (ended) throw new Error(ended);
+      if (await canConnect(port)) {
+        // Prozess könnte zwischen Connect und hier geendet haben (fremder
+        // Lauscher auf dem Port wäre sonst als Erfolg durchgegangen).
+        if (ended) throw new Error(ended);
+        return child;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(`${whatFor} antwortet nach ${timeoutMs}ms nicht auf Port ${port}.`);
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  } catch (err) {
+    await stopServer(child);
+    throw new Error(`${err.message}\n${output}`);
+  }
+}
+
+function canConnect(port) {
+  return new Promise((resolve) => {
+    const socket = netConnect({ port, host: "127.0.0.1" });
+    socket.once("connect", () => {
+      socket.end();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
+
+export async function stopServer(child) {
   if (!child || child.killed || child.exitCode !== null) return;
   child.kill();
   await new Promise((resolve) => {

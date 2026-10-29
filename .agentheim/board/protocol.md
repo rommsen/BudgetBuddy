@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:29 -- Task verified and completed: infrastructure-r5k2w - "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-r5k2w - "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden"
+**Summary:** export-design-system wartet per TCP-Connect auf vite preview, sprechender Fehler bei Timeout und vorzeitigem Ende, vier Regressionstests
+**Duration:** 28m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present · Gate vom Conductor nachgeholt (Verifier-Lauf im falschen Worktree)
+**Files changed:** 2
+**Tests added:** 4
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 19:16 -- Task completed (verification skipped): infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
 
 **Type:** Work / Task completion

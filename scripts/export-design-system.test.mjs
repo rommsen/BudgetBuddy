@@ -24,7 +24,11 @@ import {
   buildDsCardMarker,
   buildThumbnailHtml,
   COMPONENT_CARDS,
+  startServerProcess,
+  stopServer,
+  getFreePort,
 } from "./export-design-system.mjs";
+import { connect as netConnect } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -242,6 +246,98 @@ test("findMissingBundleFiles: eine leere Datei zählt ebenfalls als fehlend", as
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// --- Bereitschaft des Preview-Servers (infrastructure-r5k2w) -------------
+//
+// Diese Tests verhindern die Rückkehr des Fehlers, bei dem
+// startPreviewServer() nach der Log-Zeile "Local:" (oder spätestens nach
+// festen 5 Sekunden) weitermachte, ohne zu prüfen, ob der Port wirklich
+// Verbindungen annimmt. Unter paralleler Last scheiterte
+// export-design-system.test.mjs dann mit ERR_CONNECTION_REFUSED, und ein
+// vorzeitiges Ende von vite preview fiel erst als späterer Verbindungsfehler
+// auf. Statt vite preview startet hier ein kleiner Node-Ersatzprozess, dessen
+// Verhalten der Test steuert.
+
+/// Node-Ersatz für `vite preview`: loggt sofort "Local:" und öffnet den Port
+/// erst nach `delayMs` (oder nie, bei delayMs < 0). Mit `exitCode` beendet er
+/// sich stattdessen sofort, ohne je zu lauschen.
+function fakePreviewArgs({ delayMs = 0, exitCode = null } = {}) {
+  const src = `
+    const net = require("node:net");
+    const port = Number(process.env.FAKE_PORT);
+    console.log("  ➜  Local:   http://127.0.0.1:" + port + "/");
+    if (${JSON.stringify(exitCode)} !== null) process.exit(${JSON.stringify(exitCode)});
+    if (${delayMs} >= 0) {
+      setTimeout(() => net.createServer((s) => s.end()).listen(port, "127.0.0.1"), ${delayMs});
+    }
+    setInterval(() => {}, 1000);
+  `;
+  return ["-e", src];
+}
+
+function canConnect(port) {
+  return new Promise((resolve) => {
+    const socket = netConnect({ port, host: "127.0.0.1" });
+    socket.once("connect", () => {
+      socket.end();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
+
+async function startFake(port, fakeOpts, timeoutMs) {
+  return startServerProcess({
+    command: process.execPath,
+    args: fakePreviewArgs(fakeOpts),
+    env: { ...process.env, FAKE_PORT: String(port) },
+    port,
+    timeoutMs,
+    whatFor: "vite preview (Ersatz)",
+  });
+}
+
+/// Erwartet, dass der Start scheitert. Löst er doch auf (der alte Fehler),
+/// wird der Ersatzprozess beendet, damit der Testlauf nicht hängen bleibt.
+async function expectStartFailure(port, fakeOpts, timeoutMs) {
+  let child;
+  try {
+    child = await startFake(port, fakeOpts, timeoutMs);
+  } catch (err) {
+    return err;
+  }
+  await stopServer(child);
+  assert.fail("Start hätte scheitern müssen, löste aber auf");
+}
+
+test("startServerProcess: wartet trotz früher Local:-Zeile, bis der Port einen TCP-Connect annimmt", async () => {
+  const port = await getFreePort();
+  const child = await startFake(port, { delayMs: 1500 }, 20000);
+  try {
+    assert.equal(await canConnect(port), true, "Port muss nach dem Auflösen erreichbar sein");
+  } finally {
+    await stopServer(child);
+  }
+});
+
+test("startServerProcess: ein Server, der nie lauscht, ergibt nach dem Timeout einen sprechenden Fehler", async () => {
+  const port = await getFreePort();
+  const err = await expectStartFailure(port, { delayMs: -1 }, 1500);
+  assert.match(err.message, /vite preview \(Ersatz\)/);
+  assert.match(err.message, new RegExp(`Port ${port}`));
+  assert.match(err.message, /1500ms/);
+});
+
+for (const exitCode of [1, 0]) {
+  test(`startServerProcess: vorzeitiges Ende mit Code ${exitCode} ist ein Fehler, kein späterer Verbindungsfehler`, async () => {
+    const port = await getFreePort();
+    const started = Date.now();
+    const err = await expectStartFailure(port, { exitCode }, 20000);
+    assert.match(err.message, /beendete sich/);
+    assert.match(err.message, new RegExp(`Code ${exitCode}`));
+    assert.ok(Date.now() - started < 10000, "Fehler muss vor dem Timeout kommen");
+  });
+}
 
 // --- Browser-gebundener Vollauf-Test -----------------------------------
 
