@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-q3960 - "Ein gesetzter PayeeOverride einer Regel lässt sich nicht mehr entfernen"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Ein gesetzter PayeeOverride einer Regel lässt sich nicht mehr entfernen
+
+---
+
 ## 2026-10-29 22:46 -- Batch started: [infrastructure-fam9k]
 
 **Type:** Work / Batch start
