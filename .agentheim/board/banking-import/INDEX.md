@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 0
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-smbe4** — "Ein Fehler beim Laden der Kategorien im Import lässt alle Kategorie-Picker stumm leer" (bug) — `backlog/banking-import-smbe4-ein-fehler-beim-laden-der-kategorien-im.md`
 <!-- backlog-list:end -->
 
 

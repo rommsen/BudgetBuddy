@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-smbe4 - "Ein Fehler beim Laden der Kategorien im Import lässt alle Kategorie-Picker stumm leer"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Ein Fehler beim Laden der Kategorien im Import lässt alle Kategorie-Picker stumm leer
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: categorization-k7vt7 - "Englischer Platzhalter im Regel-Dialog"
 
 **Type:** Capture
