@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:26 -- Capture / Captured: budgeting-m1bce - "Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch
+
+---
+
 ## 2026-10-29 07:26 -- Capture / Captured: budgeting-dyn8g - "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar"
 
 **Type:** Capture

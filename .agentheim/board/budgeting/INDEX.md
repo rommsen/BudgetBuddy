@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 4
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 3
@@ -45,6 +45,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-m1bce** — "Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch" (feature) — `backlog/budgeting-m1bce-kategorie-detail.md`
 - **budgeting-dyn8g** — "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar" (feature) — `backlog/budgeting-dyn8g-budget-historie-ansicht.md`
 - **budgeting-bk6tq** — "Vortrag stimmt ab dem ersten Tag: Aktivität aus dem Kassenbuch statt aus YNAB (Naht ledger/budgeting)" (feature) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 - **budgeting-afd8h** — "Geld zwischen Kategorien verschieben, am Handy schnell" (feature) — `backlog/budgeting-afd8h-geld-verschieben.md`
