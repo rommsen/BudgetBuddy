@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: design-system-nhn83 - "Kontozeilen im Account-Picker sind nicht fokussierbar und kürzen lange Namen nicht"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Kontozeilen im Account-Picker sind nicht fokussierbar und kürzen lange Namen nicht
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: design-system-yw9bs - "Die Chips Vorgeschlagen und Zuletzt verwendet im Kategorie-Sheet sind etwa 33 px hoch"
 
 **Type:** Capture
