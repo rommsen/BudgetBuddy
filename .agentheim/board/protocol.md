@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-e7hna - "Speichern im Split-Sheet des Imports bleibt während des Aufrufs aktiv, ein Doppeltipp schickt zwei Aufrufe"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Speichern im Split-Sheet des Imports bleibt während des Aufrufs aktiv, ein Doppeltipp schickt zwei Aufrufe
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-qcx84 - "Welche Import-Buchung den Kategorie-Picker offen hat, liegt außerhalb des Models"
 
 **Type:** Capture
