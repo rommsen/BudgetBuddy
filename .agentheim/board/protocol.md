@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-xn2sb - "Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-a510t - "Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet"
 
 **Type:** Capture
