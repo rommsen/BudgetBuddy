@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 26
+- **Backlog:** 27
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-kpsp8** — "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest" (bug) — `backlog/categorization-kpsp8-dieselbe-regeldatei-laesst-sich-kein-zweites-mal.md`
 - **categorization-sh0cp** — "Der Regel-Export startet den Download per JS.eval direkt im update" (refactor) — `backlog/categorization-sh0cp-der-regel-export-startet-den-download-per.md`
 - **categorization-xh9rw** — "Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform" (refactor) — `backlog/categorization-xh9rw-der-timeout-der-loesch-bestaetigung-laeuft-ueber.md`
 - **categorization-mnmyg** — "Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist" (bug) — `backlog/categorization-mnmyg-neue-regeln-bekommen-prioritaet-1-wenn-die.md`

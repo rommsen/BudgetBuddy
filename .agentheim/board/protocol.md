@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-kpsp8 - "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-sh0cp - "Der Regel-Export startet den Download per JS.eval direkt im update"
 
 **Type:** Capture
