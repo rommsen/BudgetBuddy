@@ -28,3 +28,5 @@ prior_art: []
 ## Notes
 Migrationsschritt M0. Zielbild: `.agentheim/knowledge/research/harness-audit/zielbild.md`. Promote und work erst nach ausdrücklichem Ja des Owners.
 Conductor-Task: bleibt im Backlog, kein Worker. Der Owner begleitet den Schritt. Die Baseline-Läufe startet der Conductor; das Skript selbst kann ein Worker bauen, falls der Task gesplittet wird.
+
+Stand 2026-10-29 (Conductor): `.claude/settings.json` mit Opus-env und `scripts/baseline-replay.sh` sind angelegt und per `--dry-run` geprüft (ledger-ssmp3: f1862dd -> cfb05ff, design-system-j6dnj: 7b82ca8 -> 897b13c, ledger-ybm5x: db6edad -> a0a8cab; unbekannte Id und Pfad außerhalb `replay-*` brechen mit Exit 1 ab). Offen: die drei Baseline-Läufe. Die env wirkt erst in einer neuen Claude-Code-Session.
