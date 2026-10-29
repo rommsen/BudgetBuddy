@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 18:49 -- Task verified and completed: infrastructure-jcb2m - "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-jcb2m - "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen"
+**Summary:** scripts/worktree-prep.sh und scripts/worktree-teardown.sh: Symlink vor git worktree remove löschen, Pfade außerhalb .worktrees/ verweigert, obj-Reste abgeräumt, baseline-replay.sh nutzt beide
+**Duration:** 22m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 4
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 18:28 -- Batch started: [infrastructure-jcb2m, infrastructure-am805]
 
 **Type:** Work / Batch start

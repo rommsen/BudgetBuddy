@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Nachspiel einer erledigten Task für die Harness-Baseline vorbereiten und danach aufräumen.
-# Vorlage: souls/scripts/baseline-replay.sh. Vorbereitung und Abbau stehen hier inline, bis
-# scripts/worktree-prep.sh und scripts/worktree-teardown.sh existieren (Harness-Migration M4).
+# Vorlage: souls/scripts/baseline-replay.sh. Vorbereitung und Abbau laufen über
+# scripts/worktree-prep.sh und scripts/worktree-teardown.sh (Harness-Migration M4, infrastructure-jcb2m).
 #
 # Usage:
 #   ./scripts/baseline-replay.sh prepare <task-id> [--dry-run]
@@ -14,13 +14,15 @@
 #      dessen Subject mit feature(, bug(, refactor( oder chore( beginnt und weder "batch start",
 #      "capture", "bookkeeping", "promote" noch "refine" enthält.
 #   3. Legt .worktrees/replay-<task-id>-<stamp> detached am Batch-Start an (relativ zum Haupt-Repo).
-#   4. Vorbereitung: Symlink auf das gemeinsame node_modules, Kopie von .env.
+#   4. Vorbereitung über scripts/worktree-prep.sh: Symlink auf das gemeinsame node_modules,
+#      Kopie von .env.
 #   5. Gibt Worktree-Pfad, Task-Datei in doing/, Batch-Start-SHA und Ergebnis-SHA aus.
 #
 # teardown:
-#   Verweigert Pfade außerhalb von .worktrees/replay-*. Entfernt zuerst jeden Symlink im Worktree
-#   (sonst leert "git worktree remove --force" das echte node_modules) und prüft, dass keiner übrig
-#   ist, dann git worktree remove --force und git worktree prune. Jeder Schritt einzeln.
+#   Verweigert Pfade außerhalb von .worktrees/replay-*, dann scripts/worktree-teardown.sh: entfernt
+#   zuerst jeden Symlink im Worktree (sonst leert "git worktree remove --force" das echte
+#   node_modules) und prüft, dass keiner übrig ist, dann git worktree remove --force und
+#   git worktree prune. Jeder Schritt einzeln. Replay-Worktrees sind detached, es gibt keinen Branch.
 #
 # --dry-run: gibt die geplanten Befehle und aufgelösten SHAs aus, ohne etwas zu verändern.
 
@@ -132,9 +134,10 @@ cmd_prepare() {
     echo ""
 
     run git -C "$MAIN_ROOT" worktree add --detach "$wt" "$batch"
-    run ln -s "$MAIN_ROOT/node_modules" "$wt/node_modules"
-    if [ -f "$MAIN_ROOT/.env" ]; then
-        run cp "$MAIN_ROOT/.env" "$wt/.env"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        "$SCRIPT_DIR/worktree-prep.sh" "$wt" --dry-run
+    else
+        "$SCRIPT_DIR/worktree-prep.sh" "$wt"
     fi
 
     echo ""
@@ -172,18 +175,11 @@ cmd_teardown() {
 
     echo "Nachspiel aufräumen: $abs"
 
-    # Symlinks zuerst, ohne ihnen zu folgen.
-    local link
-    while IFS= read -r link; do
-        run rm "$link"
-    done < <(find "$abs" -type l -not -path "*/.git/*")
-    if [ "$DRY_RUN" -eq 0 ]; then
-        if [ -n "$(find "$abs" -type l -not -path "*/.git/*" -print -quit)" ]; then
-            die "Im Worktree sind noch Symlinks übrig, Abbruch vor git worktree remove."
-        fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+        "$SCRIPT_DIR/worktree-teardown.sh" "$abs" --dry-run
+    else
+        "$SCRIPT_DIR/worktree-teardown.sh" "$abs"
     fi
-    run git -C "$MAIN_ROOT" worktree remove --force "$abs"
-    run git -C "$MAIN_ROOT" worktree prune
 }
 
 main() {
