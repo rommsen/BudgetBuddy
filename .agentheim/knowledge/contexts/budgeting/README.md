@@ -80,6 +80,10 @@ Weiterer Kandidat: Geld verschieben.
 - **Customer of:** `design-system`. **Styleguide-Gate:** jede UI-Task in diesem Context
   hängt an `design-system-001` (`depends_on`), gemessen an `standards/frontend/styleguide.md`.
 
+## Test command
+
+`./verify.sh` im Repo-Wurzelverzeichnis. Läuft dotnet build, dotnet test, npm run build, guard:classes, guard:tokens und test:scripts; grün nur bei der Schlusszeile `VERIFY: PASS` und Exit 0. Bei `VERIFY: FAIL` stehen die roten Schritte und die Namen der roten Tests am Ende der Ausgabe.
+
 ## Open questions
 - ~~Liefert die YNAB-API die Targets lesbar und erlaubt sie das Setzen des zugewiesenen
   Betrags pro Kategorie und Monat?~~ Gelöst (`budgeting-r4tkq`): ja, Fehlbetrag inklusive;

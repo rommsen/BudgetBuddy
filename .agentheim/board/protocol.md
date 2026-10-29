@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 18:18 -- Task verified and completed: infrastructure-dvy29 - "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-dvy29 - "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook"
+**Summary:** verify.sh als ein Gate-Kommando mit Namen roter Tests und Lock um test:scripts, git-guard als PreToolUse-Hook, Test command in allen sieben BC-READMEs
+**Duration:** 55m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 7
+**Tests added:** 15
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 17:55 -- Task verified and completed: infrastructure-vm8zz - "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage"
 
 **Type:** Work / Task completion

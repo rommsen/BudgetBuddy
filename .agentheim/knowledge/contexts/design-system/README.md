@@ -283,6 +283,10 @@ zwar in beide Richtungen, sieht aber ausschließlich Projekte vom Typ
 der Umweg über das Bild im Repo, der ohnehin robuster ist: er überlebt Chats, Sessions und
 Werkzeugwechsel.
 
+## Test command
+
+`./verify.sh` im Repo-Wurzelverzeichnis. Läuft dotnet build, dotnet test, npm run build, guard:classes, guard:tokens und test:scripts; grün nur bei der Schlusszeile `VERIFY: PASS` und Exit 0. Bei `VERIFY: FAIL` stehen die roten Schritte und die Namen der roten Tests am Ende der Ausgabe.
+
 ## Open questions
 - Braucht der Styleguide eine *lebende* Komponenten-Galerie (Storybook-artig) oder reicht
   das Markdown-Dokument + CLAUDE.md-Referenz? (offen, erst bei Bedarf)

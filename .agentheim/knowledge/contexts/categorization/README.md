@@ -78,6 +78,10 @@ schwaches Payee-basiertes Auto-Matching.
   Kassenbuch, danach pusht `ynab-sync`.
 - Voller Kontext-Überblick: `../../context-map.md`.
 
+## Test command
+
+`./verify.sh` im Repo-Wurzelverzeichnis. Läuft dotnet build, dotnet test, npm run build, guard:classes, guard:tokens und test:scripts; grün nur bei der Schlusszeile `VERIFY: PASS` und Exit 0. Bei `VERIFY: FAIL` stehen die roten Schritte und die Namen der roten Tests am Ende der Ausgabe.
+
 ## Open questions
 - Sollen Regeln versionierbar/auditierbar sein, oder reicht das aktuelle CRUD-Modell?
 - Order-ID-Matching nur Amazon, oder verallgemeinerbar auf andere Merchant-IDs?
