@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-sh0cp - "Der Regel-Export startet den Download per JS.eval direkt im update"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Der Regel-Export startet den Download per JS.eval direkt im update
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-xh9rw - "Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform"
 
 **Type:** Capture
