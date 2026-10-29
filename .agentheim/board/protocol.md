@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:33 -- Modeling / Promoted: infrastructure-b85yv - tzdata im Produktions-Image installieren
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 07:33 -- Modeling / Refined: infrastructure-b85yv - tzdata im Produktions-Image installieren
 
 **Type:** Modeling / Refine
