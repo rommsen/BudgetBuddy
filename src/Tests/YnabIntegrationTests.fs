@@ -175,6 +175,11 @@ let integrationTests =
                 } |> Async.RunSynchronously
 
         testCase "handles invalid token gracefully" <| fun () ->
+            // Ruft die echte YNAB-API auf, lief bis infrastructure-am805 ohne Schalter bei
+            // jedem Testlauf (Fund des Netz-Wächters, NetworkCallGuardTests.fs).
+            if not (shouldRunIntegrationTests()) then
+                Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
+
             let invalidToken = "invalid-token-12345"
 
             async {

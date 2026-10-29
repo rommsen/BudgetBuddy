@@ -109,6 +109,12 @@ let integrationTests =
                 } |> Async.RunSynchronously
 
         testCase "handles invalid credentials gracefully" <| fun () ->
+            // Ruft die echte Comdirect-API auf, lief bis infrastructure-am805 ohne Schalter,
+            // sobald die API-Schlüssel in .env standen (Fund des Netz-Wächters,
+            // NetworkCallGuardTests.fs).
+            if not (shouldRunIntegrationTests()) then
+                Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
+
             match getApiKeys() with
             | None ->
                 Tests.skiptest "COMDIRECT_CLIENT_ID and COMDIRECT_CLIENT_SECRET not set in .env - skipping test"

@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 18:53 -- Task verified and completed: infrastructure-am805 - "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-am805 - "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
+**Summary:** Security-Wächter: Pipeline-Test über Api.webApp im Testhost, Negativfall-Tabelle für alle 75 Remoting-Endpoints mit Reflection-Abgleich, Netz-Wächter; zwei Integrationstests ohne Schalter hinter RUN_INTEGRATION_TESTS gelegt
+**Duration:** 38m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 6
+**Tests added:** 86
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 18:49 -- Task verified and completed: infrastructure-jcb2m - "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen"
 
 **Type:** Work / Task completion

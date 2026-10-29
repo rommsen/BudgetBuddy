@@ -79,6 +79,9 @@
     <Compile Include="LedgerRetryPushTests.fs" />
     <Compile Include="BotValidationTests.fs" />
     <Compile Include="BotApiTests.fs" />
+    <Compile Include="RemotingPipelineTests.fs" />
+    <Compile Include="RemotingEndpointNegativeTests.fs" />
+    <Compile Include="NetworkCallGuardTests.fs" />
     <Compile Include="LedgerMemoTests.fs" />
     <Compile Include="ForceImportCandidateTests.fs" />
     <Compile Include="PushOutcomeClassificationTests.fs" />
@@ -132,6 +135,8 @@
          intermittent SqliteConnection.RemoveCommand index-out-of-range during
          connection disposal on the first full suite run. -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+    <!-- In-Process-Testhost für den Pipeline-Test über Api.webApp (infrastructure-am805). -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
