@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 18:28 -- Modeling / Promoted: infrastructure-am805 - "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 18:28 -- Modeling / Promoted: infrastructure-jcb2m - "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 18:19 -- Work session ended
 
 **Type:** Work / Session end

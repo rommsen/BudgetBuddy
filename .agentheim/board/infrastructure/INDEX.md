@@ -10,14 +10,16 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 15
-- **Todo:** 1
+- **Backlog:** 13
+- **Todo:** 3
 - **Doing:** 0
 - **Done:** 18
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-am805** — "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter" (feature) — `todo/infrastructure-am805-waechter-security.md`
+- **infrastructure-jcb2m** — "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen" (chore) — `todo/infrastructure-jcb2m-worktree-skripte.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
@@ -59,8 +61,6 @@ research touching this BC, and concept synthesis pages.
 - **infrastructure-jy5ca** — "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock" (chore) — `backlog/infrastructure-jy5ca-serena-entfernen.md`
 - **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `backlog/infrastructure-gmx27-learn-global-und-memory-triage.md`
 - **infrastructure-ky2kh** — "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation" (feature) — `backlog/infrastructure-ky2kh-waechter-struktur.md`
-- **infrastructure-am805** — "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter" (feature) — `backlog/infrastructure-am805-waechter-security.md`
-- **infrastructure-jcb2m** — "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen" (chore) — `backlog/infrastructure-jcb2m-worktree-skripte.md`
 - **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `backlog/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 - **infrastructure-vc6c3** — "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen" (bug) — `backlog/infrastructure-vc6c3-live-tests-nur-hinter-schalter.md`
 - **infrastructure-aaryk** — Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (chore) — `backlog/infrastructure-aaryk-playwright-waechter-pwa-wechsel.md`
