@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:26 -- Capture / Captured: budgeting-rxxb4 - "Kategorie-Suche am Handy auf der Budget-Seite"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Kategorie-Suche am Handy auf der Budget-Seite
+
+---
+
 ## 2026-10-29 07:26 -- Capture / Captured: budgeting-m1bce - "Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch"
 
 **Type:** Capture
