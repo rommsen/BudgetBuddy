@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-tg9fw - "Eine nicht lesbare Kategorie-Id aus der YNAB-Historie lässt den Order-Id-Abgleich und damit confirmTan abbrechen"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Eine nicht lesbare Kategorie-Id aus der YNAB-Historie lässt den Order-Id-Abgleich und damit confirmTan abbrechen
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-xn2sb - "Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet"
 
 **Type:** Capture
