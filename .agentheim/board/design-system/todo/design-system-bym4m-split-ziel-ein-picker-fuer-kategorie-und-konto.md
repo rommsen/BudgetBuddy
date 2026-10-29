@@ -1,7 +1,7 @@
 ---
 id: design-system-bym4m
 title: "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
-status: backlog
+status: todo
 type: feature
 context: design-system
 created: 2026-10-27

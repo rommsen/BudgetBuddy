@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 08:24 -- Modeling / Promoted: design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 07:44 -- Work session ended
 
 **Type:** Work / Session end
