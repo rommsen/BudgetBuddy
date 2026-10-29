@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-w32b3 - "Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-s2cdw - "Kategorie-Ids in YnabTransaction und OrderIdSuggestion sind nackte Strings statt YnabCategoryId"
 
 **Type:** Capture

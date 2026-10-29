@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 11
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-w32b3** — "Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch" (refactor) — `backlog/categorization-w32b3-fehlermeldungen-der-regeln-und-splits-erscheinen-beim.md`
 - **categorization-s2cdw** — "Kategorie-Ids in YnabTransaction und OrderIdSuggestion sind nackte Strings statt YnabCategoryId" (refactor) — `backlog/categorization-s2cdw-kategorie-ids-in-ynabtransaction-und-orderidsuggestion-sind.md`
 - **categorization-tg9fw** — "Eine nicht lesbare Kategorie-Id aus der YNAB-Historie lässt den Order-Id-Abgleich und damit confirmTan abbrechen" (bug) — `backlog/categorization-tg9fw-eine-nicht-lesbare-kategorie-id-aus-der.md`
 - **categorization-xn2sb** — "Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet" (bug) — `backlog/categorization-xn2sb-regel-testen-meldet-ein-ungueltiges-muster-als.md`
