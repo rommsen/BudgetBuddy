@@ -86,26 +86,3 @@ Nach Spec-Implementation **MUSS** `verify-spec-implementation` laufen:
 | Akzeptanzkriterien | Alle ACs in spec.md erfüllt? |
 | Decisions | Alle Decisions aus decision-index.md eingehalten? |
 | Build & Tests | `dotnet build` + `dotnet test` grün? |
-
-### Development Diary
-
-**After completing ANY implementation work, update `diary/development.md`:**
-
-```markdown
-## YYYY-MM-DD - [Brief Title]
-
-### What
-[1-2 sentences describing what was done]
-
-### Files Changed
-- `path/to/file.fs` - [brief description]
-
-### Rationale
-[Why this change was made]
-
-### Verification
-- Build: [PASSED/FAILED]
-- Tests: [X passed, Y skipped]
-```
-
-**Diary Archivierung:** Einträge älter als 7 Tage -> `diary/archive/YYYY-MM.md` (nach Monat gruppiert, chronologisch, älteste zuerst).

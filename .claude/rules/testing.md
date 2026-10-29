@@ -28,7 +28,6 @@ Every bug fix MUST include a regression test:
 5. Verify "intakt"-Szenarien weiterhin funktionieren
 6. Run unit tests (`dotnet test`)
 7. Run full suite with E2E (`RUN_SMOKE_TESTS=true dotnet test`)
-8. Update `diary/development.md`
 
 ## Schwester-Funktionen
 

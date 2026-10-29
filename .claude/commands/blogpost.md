@@ -1,19 +1,20 @@
 ---
-description: Erstellt einen Blogpost über die Arbeit im aktuellen Context Window
+description: Erstellt einen lokalen Blogpost aus protocol.md und git log für ein Zeitfenster
 ---
 
 # BlogPost Command
 
-Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und Arbeit in dieser Conversation) und erstelle einen ausführlichen Blogpost. Wenn dein Context Window sehr leer ist, nehme die nicht committeten Änderungen in diary/development.md und die nicht committeten Dateien als Basis für den Posts.
+Erstelle einen ausführlichen Blogpost über die Arbeit in einem Zeitfenster. Quellen sind die Einträge in `.agentheim/board/protocol.md` und `git log` für dieses Zeitfenster, ergänzt um den aktuellen Context Window. Der Post wird nur lokal unter `diary/_posts/` abgelegt. Es gibt keinen Veröffentlichungsschritt, nichts wird nach außen deployt.
 
 ## Anweisungen
 
 ### Phase 1: Änderungen analysieren und zur Auswahl stellen
 
-1. **Sammle alle Änderungen** aus dem aktuellen Context:
-   - Schau dir den Context Window an (alle Nachrichten, Code-Änderungen)
-   - Lies `diary/development.md` für dokumentierte Änderungen
-   - Führe `git diff --stat` und `git log --oneline -10` aus für nicht-committete und kürzliche Änderungen
+1. **Sammle alle Änderungen** für das Zeitfenster:
+   - Kläre das Zeitfenster: vom User genannt, sonst seit dem letzten Post in `diary/_posts/` (Datum im Dateinamen)
+   - Lies die Einträge in `.agentheim/board/protocol.md`, die in das Zeitfenster fallen (nur den passenden Ausschnitt, nicht die ganze Datei)
+   - Führe `git log --since=<start> --until=<ende> --stat` aus; für einzelne Commits bei Bedarf `git show <sha>`
+   - Schau dir den aktuellen Context Window an, falls er zur Arbeit im Zeitfenster gehört
    - Gruppiere die Änderungen in logische Themenblöcke (z.B. "Feature X", "Bugfix Y", "Refactoring Z")
 
 2. **Präsentiere die Änderungen dem User**:
@@ -71,6 +72,7 @@ Analysiere den aktuellen Context Window (alle Nachrichten, Code-Änderungen, und
    - Beispiel: `2025-11-29-milestone-4-comdirect-integration.md`
 
 7. **Nach dem Schreiben**:
+   - Nichts committen, pushen oder veröffentlichen: der Post bleibt eine lokale Datei
    - Gib eine kurze Zusammenfassung aus
    - Zeige den Dateipfad an
    - Liste die Haupt-Sections auf
