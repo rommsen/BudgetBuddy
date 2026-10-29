@@ -82,6 +82,7 @@
     <Compile Include="LedgerPushFailureTests.fs" />
     <Compile Include="LedgerRetryPushTests.fs" />
     <Compile Include="BotValidationTests.fs" />
+    <Compile Include="BotDomainTests.fs" />
     <Compile Include="BotApiTests.fs" />
     <Compile Include="RemotingPipelineTests.fs" />
     <Compile Include="RemotingEndpointNegativeTests.fs" />

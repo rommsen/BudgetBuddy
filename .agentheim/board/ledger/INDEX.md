@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 99
+- **Doing:** 0
+- **Done:** 100
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **ledger-ct981** — "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)" (refactor) — `doing/ledger-ct981-geschaeftsregeln-aus-validation.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **ledger-ct981** — "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)" (refactor) — `done/ledger-ct981-geschaeftsregeln-aus-validation.md`
 - **ledger-q57rk** — "Hotfix: Bot-Handler beendete im choose jede /api/-Anfrage mit leerem 200, die App lud nichts mehr" (bug) — `done/ledger-q57rk-bot-handler-verschluckt-api-anfragen.md`
 - **ledger-dtrn2** — "isBotPath vergleicht /bot exakt und mit Groß-/Kleinschreibung, Caddy matcht anders: Pfadabgleich in BB robust machen (Security-Review N1, niedrig)" (chore) — `done/ledger-dtrn2-bot-pfadabgleich-robust.md`
 - **ledger-bbkgs** — "Bot-Vorschau und /bot/categories fragen YNAB ohne Cache: Kategorien cachen, /bot/ drosseln (Security-Review M3)" (feature) — `done/ledger-bbkgs-bot-kategorien-cachen-und-drosseln.md`

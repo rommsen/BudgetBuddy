@@ -2,6 +2,7 @@ module Server.Validation
 
 open System
 open Shared.Domain
+open Ledger.Bot.Domain
 
 // ============================================
 // Reusable Validators
@@ -154,25 +155,8 @@ let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoic
 // ============================================
 // Bot-Schnittstelle (ledger-b0b7q, ADR 0066)
 // ============================================
-
-/// Die Richtung einer Bot-Buchung. Kommt allein aus `direction`, nie aus dem Vorzeichen
-/// des Betrags.
-type BotDirection =
-    | BotOutflow
-    | BotInflow
-
-/// Die geprüfte Eingabe der Vorschau. `AmountEur` ist positiv und in Euro (nicht in
-/// YNAB-Milliunits). Es gibt bewusst kein Konto-Feld: das Konto ist immer das Quick-Add-Konto
-/// (ADR 0004).
-type BotPreviewInput = {
-    AmountEur: decimal
-    Direction: BotDirection
-    Payee: string
-    /// Rohtext aus der Anfrage: Id oder Name, aufgelöst durch `resolveBotCategory`.
-    Category: string
-    Date: DateTime
-    Memo: string option
-}
+// Nur die Eingabeprüfung der Anfrage. Die Fachregeln (Datumsfenster, Tagesgrenze, Berliner
+// Kalendertag, Kategorie-Auflösung) stehen rein in `Ledger.Bot.Domain` (ledger-ct981).
 
 /// Ein Fehler zu einem Feld der Anfrage (Antwort 400 mit Feldnamen).
 type BotFieldError = { BotField: string; BotProblem: string }
@@ -180,58 +164,11 @@ type BotFieldError = { BotField: string; BotProblem: string }
 /// Felder, die auf ein anderes Konto zielen würden. Wer eins mitschickt, bekommt 400.
 let private botForbiddenAccountFields = [ "account"; "account_id"; "accountId"; "account_name" ]
 
-/// Wie weit das Buchungsdatum einer Bob-Buchung höchstens zurückliegen darf (ADR 0068,
-/// Punkt 3). Das Fenster reicht von heute minus 31 Tage bis heute.
-let botBackdateDays = 31
-
-/// Tagesgrenze je Kalendertag (Europe/Berlin), Summe der Beträge ohne Vorzeichen in Euro
-/// und Anzahl gebuchter Bob-Commits (ADR 0068, Punkt 2). Feste Werte im Code.
-let botDailyMaxSumEur = 500m
-let botDailyMaxCount = 10
-
-/// Die Zeitzone Europe/Berlin aus der Zeitzonendatenbank des Systems. Fehlt sie (Image ohne
-/// tzdata), ist das ein Fehler mit Hinweis, kein stiller Ersatz durch eigene Regeln.
-let tryResolveBerlinZone () : Result<TimeZoneInfo, string> =
-    try Ok (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
-    with e ->
-        Error $"Zeitzone Europe/Berlin nicht gefunden (tzdata im Image installiert?): {e.Message}"
-
-let private berlinZone : Lazy<TimeZoneInfo> =
-    lazy (
-        match tryResolveBerlinZone () with
-        | Ok zone -> zone
-        | Error msg -> failwith msg)
-
-/// Der Berliner Offset zu einem UTC-Zeitpunkt aus der Zeitzonendatenbank.
-let berlinOffsetAt (utc: DateTime) : TimeSpan =
-    berlinZone.Value.GetUtcOffset(DateTime.SpecifyKind(utc.ToUniversalTime(), DateTimeKind.Utc))
-
-/// Der Berliner Kalendertag (ohne Uhrzeit) zu einem UTC-Zeitpunkt.
-let berlinDayOf (utc: DateTime) : DateTime =
-    (utc.ToUniversalTime() + berlinOffsetAt utc).Date
-
-/// Beginn (einschließlich) und Ende (ausschließlich) des Berliner Kalendertags, der den
-/// UTC-Zeitpunkt enthält, als UTC-Zeitpunkte.
-let berlinDayBoundsUtc (utc: DateTime) : DateTime * DateTime =
-    let day = berlinDayOf utc
-    let toUtc (localMidnight: DateTime) =
-        let guess = DateTime.SpecifyKind(localMidnight, DateTimeKind.Utc)
-        DateTime.SpecifyKind(localMidnight - berlinOffsetAt (guess.AddHours -1.5), DateTimeKind.Utc)
-    toUtc day, toUtc (day.AddDays 1.0)
-
-/// Prüft die Tagesgrenze: `usedSumEur` und `usedCount` sind die heute schon gebuchten
-/// Bob-Buchungen. Die Meldung nennt Summe und Anzahl des Tages.
-let checkBotDailyLimit (usedSumEur: decimal) (usedCount: int) (amountEur: decimal) : Result<unit, string> =
-    if usedCount + 1 > botDailyMaxCount || usedSumEur + amountEur > botDailyMaxSumEur then
-        let inv (d: decimal) = d.ToString("0.00", Globalization.CultureInfo.InvariantCulture)
-        Error
-            $"Tagesgrenze für Bob erreicht: heute sind schon {inv usedSumEur} EUR in {usedCount} Buchungen gebucht, erlaubt sind höchstens {inv botDailyMaxSumEur} EUR und {botDailyMaxCount} Buchungen je Kalendertag"
-    else Ok ()
-
-/// Prüft den JSON-Rumpf der Vorschau. `today` kommt von außen (Uhr injiziert), sein Datum ist
-/// der Berliner Kalendertag. Sammelt alle
-/// Feldfehler, statt beim ersten aufzuhören.
-let parseBotPreviewRequest (today: DateTime) (json: string) : Result<BotPreviewInput, BotFieldError list> =
+/// Prüft den JSON-Rumpf der Vorschau. Sammelt alle Feldfehler, statt beim ersten aufzuhören.
+/// `checkDate` ist die Fachregel für ein lesbares Datum (in der App
+/// `Ledger.Bot.Domain.checkBotBookingDate` mit dem Berliner Kalendertag); ihr Fehler wird zum
+/// Feldfehler `date`, gesammelt mit den übrigen.
+let parseBotPreviewRequest (checkDate: DateTime -> Result<unit, string>) (json: string) : Result<BotPreviewInput, BotFieldError list> =
     let fail field message = { BotField = field; BotProblem = message }
     let parsed =
         try
@@ -288,10 +225,10 @@ let parseBotPreviewRequest (today: DateTime) (json: string) : Result<BotPreviewI
             | Error e -> Error e
             | Ok text ->
                 match DateTime.TryParseExact(text, "yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.None) with
-                | true, d when d.Date > today.Date -> Error (fail "date" "Das Datum liegt in der Zukunft")
-                | true, d when d.Date < today.Date.AddDays(float -botBackdateDays) ->
-                    Error (fail "date" $"Das Datum darf höchstens {botBackdateDays} Tage zurückliegen")
-                | true, d -> Ok (DateTime.SpecifyKind(d.Date, DateTimeKind.Utc))
+                | true, d ->
+                    match checkDate d with
+                    | Error problem -> Error (fail "date" problem)
+                    | Ok () -> Ok (DateTime.SpecifyKind(d.Date, DateTimeKind.Utc))
                 | _ -> Error (fail "date" "Erwartet wird JJJJ-MM-TT")
 
         let memo =
@@ -331,42 +268,3 @@ let checkBotAmount (maxAmountEur: decimal) (amountEur: decimal) : Result<unit, s
     elif amountEur > maxAmountEur then
         Error $"Der Betrag {amountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR liegt über der Obergrenze von {maxAmountEur.ToString(Globalization.CultureInfo.InvariantCulture)} EUR"
     else Ok ()
-
-/// Kategorien, die Bob wählen darf: nicht die internen YNAB-Kategorien, nicht versteckte.
-let selectableBotCategories (categories: YnabCategory list) : YnabCategory list =
-    categories
-    |> List.filter (fun c -> c.GroupName <> internalMasterGroupName && not c.Hidden)
-
-/// Ergebnis der Kategorie-Auflösung. BB rät nicht: bei keinem oder mehreren Treffern
-/// kommt eine Kandidatenliste statt einer Wahl.
-type BotCategoryResolution =
-    | BotCategoryResolved of YnabCategory
-    | BotCategoryUnknown of candidates: YnabCategory list
-    | BotCategoryAmbiguous of candidates: YnabCategory list
-
-/// Löst `query` (Id oder Name, ohne Beachtung der Groß-/Kleinschreibung) gegen die wählbaren
-/// Kategorien auf. Genau ein Treffer wird übernommen. Ohne Treffer sind die Kandidaten die
-/// Kategorien, deren Name den Suchtext enthält (oder umgekehrt).
-let resolveBotCategory (categories: YnabCategory list) (query: string) : BotCategoryResolution =
-    let selectable = selectableBotCategories categories
-    let q = query.Trim()
-    let byId =
-        match Guid.TryParse q with
-        | true, g -> selectable |> List.filter (fun c -> c.Id = YnabCategoryId g)
-        | _ -> []
-    let byName () =
-        selectable |> List.filter (fun c -> String.Equals(c.Name.Trim(), q, StringComparison.OrdinalIgnoreCase))
-    match byId with
-    | [ one ] -> BotCategoryResolved one
-    | _ ->
-        match byName () with
-        | [ one ] -> BotCategoryResolved one
-        | [] ->
-            let lower = q.ToLowerInvariant()
-            let close =
-                selectable
-                |> List.filter (fun c ->
-                    let name = c.Name.ToLowerInvariant()
-                    lower <> "" && (name.Contains lower || lower.Contains name))
-            BotCategoryUnknown close
-        | many -> BotCategoryAmbiguous many

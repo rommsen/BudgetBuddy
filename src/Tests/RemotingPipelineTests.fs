@@ -64,7 +64,7 @@ let private withTestHost (body: HttpClient -> unit) =
     builder.WebHost.UseTestServer() |> ignore
     builder.Services.AddGiraffe() |> ignore
     use app = builder.Build()
-    app.UseGiraffe(Server.Api.webApp())
+    app.UseGiraffe(Server.Api.webApp (System.TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"))
     app.StartAsync().GetAwaiter().GetResult()
     try
         use client = app.GetTestClient()

@@ -1,44 +1,35 @@
 module BotValidationTests
 
 // Reine Teile der Bot-Schnittstelle (ledger-b0b7q, ADR 0066): Eingabeprüfung der Vorschau,
-// Betragsgrenze, Kategorie-Auflösung, Konfiguration, Herkunft Bob. Ohne I/O.
+// Betragsgrenze, Konfiguration, Herkunft Bob. Ohne I/O. Die Fachregeln (Datumsfenster,
+// Tagesgrenze, Berliner Tag, Kategorie-Auflösung) prüft BotDomainTests (ledger-ct981).
 
 open System
 open Expecto
 open Shared.Domain
 open Ledger.Events
+open Ledger.Bot.Domain
 open Server.Validation
 
 let private today = DateTime(2026, 10, 28, 12, 0, 0, DateTimeKind.Utc)
 
-let private category (name: string) (group: string) (hidden: bool) : YnabCategory =
-    { Id = YnabCategoryId (Guid.NewGuid())
-      Name = name
-      GroupName = group
-      Available = None
-      Hidden = hidden }
-
 let private validJson =
     """{"amount": 50, "direction": "outflow", "payee": "Anastasia", "category": "Haushaltshilfe", "date": "2026-10-28", "memo": "Oktober"}"""
+
+/// Die Vorschau-Prüfung wie in der App: mit dem Datumsfenster der Domain zum Tag `today`.
+let private parseAt (json: string) = parseBotPreviewRequest (checkBotBookingDate today) json
 
 let private fieldsOf (result: Result<BotPreviewInput, BotFieldError list>) : string list =
     match result with
     | Error errors -> errors |> List.map (fun e -> e.BotField) |> List.sort
     | Ok _ -> []
 
-let private haushalt = category "Haushaltshilfe" "Haushalt" false
-let private haushaltWaesche = category "Wäsche" "Haushalt" false
-let private waescheZwei = category "wäsche" "Kleidung" false
-let private versteckt = category "Altlast" "Haushalt" true
-let private intern = category "Inflow: Ready to Assign" internalMasterGroupName false
-let private all = [ haushalt; haushaltWaesche; waescheZwei; versteckt; intern ]
-
 [<Tests>]
 let botParseTests =
     testList "Bot Vorschau: Eingabeprüfung" [
 
         testCase "gültige Eingabe wird übernommen, Betrag in Euro, Datum als UTC-Tag" <| fun () ->
-            match parseBotPreviewRequest today validJson with
+            match parseAt validJson with
             | Ok input ->
                 Expect.equal input.AmountEur 50m "50 Euro (entspricht -50000 Milliunits bei Ausgabe)"
                 Expect.equal input.Direction BotOutflow "Richtung"
@@ -50,7 +41,7 @@ let botParseTests =
 
         testCase "Memo ist optional, leeres Memo wird zu None" <| fun () ->
             let json = """{"amount": 1.5, "direction": "inflow", "payee": "x", "category": "c", "date": "2026-10-01", "memo": "  "}"""
-            match parseBotPreviewRequest today json with
+            match parseAt json with
             | Ok input ->
                 Expect.equal input.Memo None "kein Memo"
                 Expect.equal input.Direction BotInflow "inflow"
@@ -58,38 +49,53 @@ let botParseTests =
 
         testCase "fehlende Pflichtfelder nennen ihre Feldnamen" <| fun () ->
             Expect.equal
-                (fieldsOf (parseBotPreviewRequest today "{}"))
+                (fieldsOf (parseAt "{}"))
                 [ "amount"; "category"; "date"; "direction"; "payee" ]
                 "alle fünf Pflichtfelder"
 
         testCase "falsches Datum, unbekannte direction, Betrag als Text ergeben je einen Feldfehler" <| fun () ->
             let json = """{"amount": "50", "direction": "sideways", "payee": "x", "category": "c", "date": "28.10.2026"}"""
-            Expect.equal (fieldsOf (parseBotPreviewRequest today json)) [ "amount"; "date"; "direction" ] "drei Felder"
+            Expect.equal (fieldsOf (parseAt json)) [ "amount"; "date"; "direction" ] "drei Felder"
 
         testCase "Datum in der Zukunft und über fünf Jahre zurück werden abgelehnt" <| fun () ->
             let withDate d = $"""{{"amount": 1, "direction": "outflow", "payee": "x", "category": "c", "date": "{d}"}}"""
-            Expect.equal (fieldsOf (parseBotPreviewRequest today (withDate "2026-10-29"))) [ "date" ] "Zukunft"
-            Expect.equal (fieldsOf (parseBotPreviewRequest today (withDate "2021-10-27"))) [ "date" ] "zu alt"
-            Expect.isOk (parseBotPreviewRequest today (withDate "2026-09-27")) "heute minus 31 Tage ist erlaubt"
-            Expect.equal (fieldsOf (parseBotPreviewRequest today (withDate "2026-09-26"))) [ "date" ] "heute minus 32 Tage"
-            Expect.isOk (parseBotPreviewRequest today (withDate "2026-10-28")) "heute ist erlaubt"
+            Expect.equal (fieldsOf (parseAt (withDate "2026-10-29"))) [ "date" ] "Zukunft"
+            Expect.equal (fieldsOf (parseAt (withDate "2021-10-27"))) [ "date" ] "zu alt"
+            Expect.isOk (parseAt (withDate "2026-09-27")) "heute minus 31 Tage ist erlaubt"
+            Expect.equal (fieldsOf (parseAt (withDate "2026-09-26"))) [ "date" ] "heute minus 32 Tage"
+            Expect.isOk (parseAt (withDate "2026-10-28")) "heute ist erlaubt"
+
+        testCase "die Datumsregel kommt von außen, ihr Fehler wird zum Feldfehler date" <| fun () ->
+            // Validation.fs prüft nur die Form; das Fenster liefert die Domain (ledger-ct981).
+            match parseBotPreviewRequest (fun _ -> Error "Regel sagt nein") validJson with
+            | Error [ e ] ->
+                Expect.equal e.BotField "date" "Feld"
+                Expect.equal e.BotProblem "Regel sagt nein" "Meldung der Regel"
+            | other -> failtest $"erwartet genau einen Feldfehler date, war {other}"
+            let seen = ref None
+            parseBotPreviewRequest (fun d -> seen.Value <- Some d; Ok ()) validJson |> ignore
+            Expect.equal seen.Value (Some (DateTime(2026, 10, 28))) "die Regel bekommt das gelesene Datum"
+
+        testCase "ein Datum außerhalb des Fensters wird mit den übrigen Feldfehlern gesammelt" <| fun () ->
+            let json = """{"amount": "50", "direction": "outflow", "payee": "x", "category": "c", "date": "2026-10-29"}"""
+            Expect.equal (fieldsOf (parseAt json)) [ "amount"; "date" ] "Betrag und Zukunft in einer Antwort"
 
         testCase "mehr als zwei Nachkommastellen im Betrag werden abgelehnt" <| fun () ->
             let json = """{"amount": 10.005, "direction": "outflow", "payee": "x", "category": "c", "date": "2026-10-01"}"""
-            Expect.equal (fieldsOf (parseBotPreviewRequest today json)) [ "amount" ] "amount"
+            Expect.equal (fieldsOf (parseAt json)) [ "amount" ] "amount"
 
         testCase "ein mitgeschicktes Konto wird abgelehnt, das Konto ist fest" <| fun () ->
             let json = """{"amount": 1, "direction": "outflow", "payee": "x", "category": "c", "date": "2026-10-01", "account": "Girokonto"}"""
-            Expect.equal (fieldsOf (parseBotPreviewRequest today json)) [ "account" ] "account"
+            Expect.equal (fieldsOf (parseAt json)) [ "account" ] "account"
 
         testCase "kein JSON und kein Objekt ergeben den Feldnamen body" <| fun () ->
-            Expect.equal (fieldsOf (parseBotPreviewRequest today "nicht json")) [ "body" ] "kein JSON"
-            Expect.equal (fieldsOf (parseBotPreviewRequest today "[1,2]")) [ "body" ] "kein Objekt"
+            Expect.equal (fieldsOf (parseAt "nicht json")) [ "body" ] "kein JSON"
+            Expect.equal (fieldsOf (parseAt "[1,2]")) [ "body" ] "kein Objekt"
 
         testCase "zu langer Payee und zu langes Memo werden abgelehnt" <| fun () ->
             let long n = String('a', n)
             let json = $"""{{"amount": 1, "direction": "outflow", "payee": "{long 201}", "category": "c", "date": "2026-10-01", "memo": "{long 501}"}}"""
-            Expect.equal (fieldsOf (parseBotPreviewRequest today json)) [ "memo"; "payee" ] "beide"
+            Expect.equal (fieldsOf (parseAt json)) [ "memo"; "payee" ] "beide"
     ]
 
 [<Tests>]
@@ -109,45 +115,6 @@ let botAmountTests =
         testCase "die Grenze ist eine Funktion des Arguments, nicht fest 500" <| fun () ->
             Expect.isOk (checkBotAmount 1000m 750m) "750 Euro bei Grenze 1000"
             Expect.isError (checkBotAmount 100m 150m) "150 Euro bei Grenze 100"
-    ]
-
-[<Tests>]
-let botCategoryTests =
-    testList "Bot Vorschau: Kategorie-Auflösung" [
-
-        testCase "genau ein Namenstreffer, ohne Beachtung der Groß-/Kleinschreibung" <| fun () ->
-            match resolveBotCategory all "  haushaltshilfe " with
-            | BotCategoryResolved c -> Expect.equal c.Id haushalt.Id "Haushaltshilfe"
-            | other -> failtest $"{other}"
-
-        testCase "die Id löst auf" <| fun () ->
-            let (YnabCategoryId g) = haushalt.Id
-            match resolveBotCategory all (g.ToString()) with
-            | BotCategoryResolved c -> Expect.equal c.Id haushalt.Id "per Id"
-            | other -> failtest $"{other}"
-
-        testCase "mehrere Namenstreffer ergeben Kandidaten, BB rät nicht" <| fun () ->
-            match resolveBotCategory all "WÄSCHE" with
-            | BotCategoryAmbiguous candidates ->
-                Expect.equal (candidates |> List.map (fun c -> c.GroupName) |> List.sort) [ "Haushalt"; "Kleidung" ] "beide Gruppen"
-            | other -> failtest $"{other}"
-
-        testCase "kein Treffer: Kandidaten sind Kategorien mit ähnlichem Namen" <| fun () ->
-            match resolveBotCategory all "Wäsche waschen" with
-            | BotCategoryUnknown candidates -> Expect.equal (candidates.Length) 2 "beide Wäsche"
-            | other -> failtest $"{other}"
-            match resolveBotCategory all "Gibt es nicht" with
-            | BotCategoryUnknown candidates -> Expect.isEmpty candidates "keine Kandidaten"
-            | other -> failtest $"{other}"
-
-        testCase "interne und versteckte Kategorien sind nicht wählbar" <| fun () ->
-            match resolveBotCategory all "Inflow: Ready to Assign" with
-            | BotCategoryResolved _ -> failtest "interne Kategorie darf nicht wählbar sein"
-            | _ -> ()
-            match resolveBotCategory all "Altlast" with
-            | BotCategoryResolved _ -> failtest "versteckte Kategorie darf nicht wählbar sein"
-            | _ -> ()
-            Expect.equal (selectableBotCategories all |> List.length) 3 "drei wählbare"
     ]
 
 [<Tests>]
@@ -204,48 +171,4 @@ let botConfigTests =
             Expect.equal (Ledger.QueryHandlers.ReadModel.originOf Bob) AddedByBob "Herkunft"
             Expect.equal (originLabel AddedByBob) "Bob" "Anzeigename"
             Expect.notEqual (Ledger.QueryHandlers.ReadModel.originOf Bob) (Ledger.QueryHandlers.ReadModel.originOf QuickAdd) "getrennt"
-    ]
-
-[<Tests>]
-let botDailyLimitTests =
-    let utc y m d h mi = DateTime(y, m, d, h, mi, 0, DateTimeKind.Utc)
-    testList "Bot Tagesgrenze und Berliner Tag" [
-
-        testCase "unter der Grenze ok, genau 500 Euro und genau 10 Buchungen sind erlaubt" <| fun () ->
-            Expect.isOk (checkBotDailyLimit 450m 1 50m) "450 plus 50"
-            Expect.isOk (checkBotDailyLimit 0m 9 1m) "die zehnte Buchung"
-
-        testCase "über 500 Euro oder die elfte Buchung wird abgelehnt, die Meldung nennt Summe und Anzahl" <| fun () ->
-            match checkBotDailyLimit 450m 1 60m with
-            | Error msg ->
-                Expect.stringContains msg "450.00 EUR in 1 Buchungen" "Summe und Anzahl"
-                Expect.stringContains msg "500.00 EUR" "Grenze"
-            | Ok () -> failtest "sollte abgelehnt werden"
-            Expect.isError (checkBotDailyLimit 10m 10 1m) "elfte Buchung"
-
-        testCase "Berliner Tag im Winter: 23:30 UTC ist schon der Folgetag, 22:30 UTC noch nicht" <| fun () ->
-            Expect.equal (berlinDayOf (utc 2026 11 11 23 30)) (DateTime(2026, 11, 12)) "00:30 Berlin"
-            Expect.equal (berlinDayOf (utc 2026 11 11 22 30)) (DateTime(2026, 11, 11)) "23:30 Berlin"
-
-        testCase "Berliner Tag im Sommer: 22:30 UTC ist schon der Folgetag (Offset +2)" <| fun () ->
-            Expect.equal (berlinDayOf (utc 2026 7 14 22 30)) (DateTime(2026, 7, 15)) "00:30 Berlin"
-            Expect.equal (berlinDayOf (utc 2026 7 14 21 30)) (DateTime(2026, 7, 14)) "23:30 Berlin"
-
-        testCase "Tagesgrenzen in UTC: Winter 23:00 bis 23:00, Sommer 22:00 bis 22:00" <| fun () ->
-            Expect.equal (berlinDayBoundsUtc (utc 2026 11 12 9 0)) (utc 2026 11 11 23 0, utc 2026 11 12 23 0) "Winter"
-            Expect.equal (berlinDayBoundsUtc (utc 2026 7 15 9 0)) (utc 2026 7 14 22 0, utc 2026 7 15 22 0) "Sommer"
-
-        testCase "Umstellungstage haben 23 und 25 Stunden" <| fun () ->
-            let s1, e1 = berlinDayBoundsUtc (utc 2026 3 29 12 0)
-            Expect.equal (e1 - s1) (TimeSpan.FromHours 23.0) "Frühjahr"
-            let s2, e2 = berlinDayBoundsUtc (utc 2026 10 25 12 0)
-            Expect.equal (e2 - s2) (TimeSpan.FromHours 25.0) "Herbst"
-
-        testCase "die Berliner Zeitzone ist auflösbar und liefert die Offsets +1 und +2" <| fun () ->
-            // Verhindert den stillen Rückfall auf eigene EU-Regeln, wenn tzdata im Image fehlt.
-            match tryResolveBerlinZone () with
-            | Error msg -> failtest msg
-            | Ok _ ->
-                Expect.equal (berlinOffsetAt (utc 2026 1 15 12 0)) (TimeSpan.FromHours 1.0) "Winter"
-                Expect.equal (berlinOffsetAt (utc 2026 7 1 12 0)) (TimeSpan.FromHours 2.0) "Sommer"
     ]

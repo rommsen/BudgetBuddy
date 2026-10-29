@@ -33,11 +33,13 @@ let main args =
 
     // Ohne Europe/Berlin (Image ohne tzdata) gäbe es keine verlässliche Bob-Tagesgrenze:
     // lieber beim Start abbrechen als später falsch rechnen.
-    match Server.Validation.tryResolveBerlinZone () with
-    | Error msg ->
-        eprintfn "❌ %s" msg
-        exit 1
-    | Ok _ -> ()
+    // Die aufgelöste Zone geht als Abhängigkeit an die Bot-Schnittstelle (ledger-ct981).
+    let berlinZone =
+        match Server.ServerConfig.tryResolveBerlinZone () with
+        | Error msg ->
+            eprintfn "❌ %s" msg
+            exit 1
+        | Ok zone -> zone
 
     let builder = WebApplication.CreateBuilder(args)
 
@@ -78,7 +80,7 @@ let main args =
         printfn $"⚠️ Static files directory not found: {publicPath}"
 
     // API routes
-    app.UseGiraffe(Server.Api.webApp())
+    app.UseGiraffe(Server.Api.webApp berlinZone)
 
     // SPA fallback: serve index.html for non-API routes
     if Directory.Exists(publicPath) then

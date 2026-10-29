@@ -48,6 +48,7 @@ type private Env(?pushResult: Async<YnabResult<string>>, ?target: Result<BotTarg
         { Token = fun () -> defaultArg token' (Some token)
           MaxAmountEur = fun () -> 500m
           Now = fun () -> now
+          BerlinZone = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
           LoadCategories =
             fun () ->
                 Interlocked.Increment(&categoryLoads) |> ignore

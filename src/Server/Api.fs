@@ -1979,10 +1979,11 @@ let private errorHandler (ex: exn) (routeInfo: RouteInfo<'a>) =
     printfn "Stack trace: %s" ex.StackTrace
     Propagate ex
 
-let webApp() =
+/// `berlinZone` ist die beim Start aufgelöste Zeitzone Europe/Berlin (Bob-Tagesgrenze).
+let webApp (berlinZone: System.TimeZoneInfo) =
     // Die Bot-Schnittstelle (ADR 0066) steht vor Fable.Remoting; Pfade außerhalb von
     // /bot/ gibt sie unverändert weiter. Ein Vorschau-Speicher je Prozess.
-    let botDeps = BotApi.liveDeps ()
+    let botDeps = BotApi.liveDeps berlinZone
     printfn "%s" (Server.ServerConfig.botMaxAmountLogLine (System.Environment.GetEnvironmentVariable Server.ServerConfig.botMaxAmountVariable))
     choose [
         BotApi.handler botDeps

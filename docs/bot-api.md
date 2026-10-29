@@ -60,7 +60,7 @@ Einnahmen zusammen) und höchstens 10 gebuchte Bob-Commits. Gezählt werden die 
 gespeicherten Buchungen mit Herkunft `Bob` nach dem Zeitpunkt des Commits, ein Neustart setzt
 nichts zurück. Geprüft wird in der Vorschau und noch einmal im Commit, dort unter einer
 Sperre, damit gleichzeitige Commits die Grenze nicht gemeinsam überschreiten. Die Meldung
-nennt Summe und Anzahl des Tages. Die Werte stehen als Konstanten im Code (`Validation.fs`).
+nennt Summe und Anzahl des Tages. Die Werte stehen als Konstanten im Code (`src/Server/Ledger/Bot/Domain.fs`).
 Es gibt keine Benachrichtigung und kein Flag: Bob-Buchungen stehen in YNAB unbestätigt.
 
 Die Herkunft der Buchung ist `Bob`. Es gibt keine Lese-Route für Buchungen oder Salden.

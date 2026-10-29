@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 20:03 -- Task verified and completed: ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
+
+**Type:** Work / Task completion
+**Task:** ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
+**Summary:** Bob-Fachregeln aus Validation.fs in die reine Ledger.Bot.Domain verschoben, Zeitzone als Abhängigkeit, kein failwith, Verhalten unverändert
+**Duration:** 30m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 13
+**Tests added:** 5
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 20:03 -- Task verified and completed: infrastructure-cbr0r - "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen"
 
 **Type:** Work / Task completion

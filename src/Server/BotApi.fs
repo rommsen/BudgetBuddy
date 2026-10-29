@@ -12,6 +12,7 @@ open Giraffe
 open Thoth.Json.Net
 open Shared.Domain
 open Server.Validation
+open Ledger.Bot.Domain
 
 /// Wie lange eine Vorschau gültig ist (ADR 0066, Punkt 3).
 let previewTtl = TimeSpan.FromMinutes 15.0
@@ -91,9 +92,9 @@ let private bookingGate = new Threading.SemaphoreSlim(1, 1)
 
 /// Was Bob heute (Berliner Kalendertag von `now`) schon gebucht hat: Summe der Beträge ohne
 /// Vorzeichen in Euro und Anzahl, aus den gespeicherten Ereignissen.
-let private loadDailyUsage (now: DateTime) : Async<decimal * int> =
+let private loadDailyUsage (berlinZone: TimeZoneInfo) (now: DateTime) : Async<decimal * int> =
     async {
-        let fromUtc, toUtc = berlinDayBoundsUtc now
+        let fromUtc, toUtc = berlinDayBoundsUtc berlinZone now
         let! amounts = Ledger.Persistence.loadBobBookedAmountsBetween fromUtc toUtc
         return (amounts |> List.sumBy (fun m -> abs m.Amount)), amounts.Length
     }
@@ -153,6 +154,8 @@ type BotDeps = {
     Token: unit -> string option
     MaxAmountEur: unit -> decimal
     Now: unit -> DateTime
+    /// Europe/Berlin, einmal beim Start aufgelöst: Kalendertag für Datumsfenster und Tagesgrenze.
+    BerlinZone: TimeZoneInfo
     LoadCategories: unit -> Async<Result<YnabCategory list, string>>
     ResolveTarget: unit -> Async<Result<BotTarget, string>>
     Push: BotPreview -> Async<YnabResult<string>>
@@ -250,7 +253,7 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
         task {
             let now = deps.Now()
             let! body = readBody ctx
-            match parseBotPreviewRequest (berlinDayOf now) body with
+            match parseBotPreviewRequest (checkBotBookingDate (berlinDayOf deps.BerlinZone now)) body with
             | Error errors ->
                 let fields =
                     errors
@@ -263,7 +266,7 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
                 | Error reason ->
                     return! respond 422 (errorBody "amount_not_allowed" reason []) earlyReturn ctx
                 | Ok () ->
-                    let! usedSum, usedCount = loadDailyUsage now |> Async.StartAsTask
+                    let! usedSum, usedCount = loadDailyUsage deps.BerlinZone now |> Async.StartAsTask
                     match checkBotDailyLimit usedSum usedCount input.AmountEur with
                     | Error reason -> return! respond 422 (errorBody "daily_limit_reached" reason []) earlyReturn ctx
                     | Ok () ->
@@ -308,7 +311,7 @@ let private previewHandler (deps: BotDeps) : HttpHandler =
 
 let private bookWithinLimit (deps: BotDeps) (p: BotPreview) : Async<BotCommitOutcome> =
     async {
-        let! usedSum, usedCount = loadDailyUsage (deps.Now())
+        let! usedSum, usedCount = loadDailyUsage deps.BerlinZone (deps.Now())
         match checkBotDailyLimit usedSum usedCount p.AmountEur with
         | Error reason -> return BotDailyLimitReached reason
         | Ok () ->
@@ -439,12 +442,13 @@ let private ynabContext () : Async<Result<string * YnabBudgetId, string>> =
     }
 
 /// Die Umgebung der laufenden App. Eine Instanz teilt sich einen Vorschau-Speicher.
-let liveDeps () : BotDeps =
+let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
     {
         Token = fun () -> Server.ServerConfig.resolveBotToken (Environment.GetEnvironmentVariable Server.ServerConfig.botApiTokenVariable)
         MaxAmountEur =
             fun () -> Server.ServerConfig.resolveBotMaxAmountEur (Environment.GetEnvironmentVariable Server.ServerConfig.botMaxAmountVariable)
         Now = fun () -> DateTime.UtcNow
+        BerlinZone = berlinZone
         LoadCategories =
             fun () ->
                 async {

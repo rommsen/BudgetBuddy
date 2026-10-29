@@ -72,3 +72,11 @@ let botMaxAmountLogLine (currentValue: string) : string =
             sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR. %s=\"%s\" liegt über dem harten Deckel und wird gedeckelt." eff botMaxAmountVariable raw
         | Some _ ->
             sprintf "Bot-Schnittstelle: Obergrenze je Buchung %s EUR." eff
+
+/// Die Zeitzone Europe/Berlin aus der Zeitzonendatenbank des Systems, einmal beim Start
+/// aufgelöst (`Program.fs`) und als Abhängigkeit an die Bot-Schnittstelle gegeben. Fehlt sie
+/// (Image ohne tzdata), ist das ein Fehler mit Hinweis, kein stiller Ersatz durch eigene Regeln.
+let tryResolveBerlinZone () : Result<System.TimeZoneInfo, string> =
+    try Ok (System.TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+    with e ->
+        Error $"Zeitzone Europe/Berlin nicht gefunden (tzdata im Image installiert?): {e.Message}"
