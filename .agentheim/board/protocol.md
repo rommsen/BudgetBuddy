@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:36 -- Task verified and completed: infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
+**Summary:** Opus-env in .claude/settings.json, scripts/baseline-replay.sh, Baseline gemessen (3 von 3 PASS in Iteration 1, blinder Paarvergleich 3:0 für Opus). Bericht vom Owner abgenommen.
+**Duration:** (unknown)
+**Verification:** Owner-Abnahme des Berichts baseline.md (Conductor-Task, kein Verifier)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 17:36 -- Batch started: [infrastructure-psdcb]
 
 **Type:** Work / Batch start

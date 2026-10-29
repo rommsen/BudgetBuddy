@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 17
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 14
+- **Doing:** 0
+- **Done:** 15
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-psdcb** — "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness" (chore) — `doing/infrastructure-psdcb-worker-opus-baseline.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-psdcb** — "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness" (chore) — `done/infrastructure-psdcb-worker-opus-baseline.md`
 - **infrastructure-b85yv** — tzdata im Produktions-Image installieren (chore) — `done/infrastructure-b85yv-tzdata-im-produktions-image.md`
 - **infrastructure-z9b5w** — "CORS-Policy AllowAll entfernen: sie gilt in Produktion für die ganze API und wird auch in Development nicht gebraucht (Security-Review M4)" (bug) — `done/infrastructure-z9b5w-cors-nur-in-development.md`
 - **infrastructure-eq27s** — Playwright-Wächter in test:scripts bauen den Client einmal und laufen gegen einen gemeinsamen Preview-Server statt je Datei einen eigenen Vite mit Fable-Kompilierung zu starten (chore) — `done/infrastructure-eq27s-playwright-waechter-einmal-bauen.md`

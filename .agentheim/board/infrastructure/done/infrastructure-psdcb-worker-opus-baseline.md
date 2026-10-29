@@ -1,7 +1,7 @@
 ---
 id: infrastructure-psdcb
 title: "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-10-29
