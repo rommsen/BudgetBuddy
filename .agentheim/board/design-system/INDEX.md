@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 38
@@ -61,6 +61,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-zpq7t** — "ADR 0011 nennt positive Available-Beträge grün, Code und Styleguide färben sie neutral" (decision) — `backlog/design-system-zpq7t-adr-0011-nennt-positive-available-betraege-gruen.md`
 - **design-system-nhn83** — "Kontozeilen im Account-Picker sind nicht fokussierbar und kürzen lange Namen nicht" (bug) — `backlog/design-system-nhn83-kontozeilen-im-account-picker-sind-nicht-fokussierbar.md`
 - **design-system-yw9bs** — "Die Chips Vorgeschlagen und Zuletzt verwendet im Kategorie-Sheet sind etwa 33 px hoch" (bug) — `backlog/design-system-yw9bs-die-chips-vorgeschlagen-und-zuletzt-verwendet-im.md`
 - **design-system-qhw6y** — "Der Schließen-Knopf aller Bottom Sheets ist 32 px groß" (bug) — `backlog/design-system-qhw6y-der-schliessen-knopf-aller-bottom-sheets-ist.md`

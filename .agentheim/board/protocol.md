@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: design-system-zpq7t - "ADR 0011 nennt positive Available-Beträge grün, Code und Styleguide färben sie neutral"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** ADR 0011 nennt positive Available-Beträge grün, Code und Styleguide färben sie neutral
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: design-system-nhn83 - "Kontozeilen im Account-Picker sind nicht fokussierbar und kürzen lange Namen nicht"
 
 **Type:** Capture
