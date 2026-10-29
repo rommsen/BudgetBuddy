@@ -60,8 +60,7 @@ Bei jeder Feature-Implementierung oder Bug-Fix MÜSSEN folgende Schritte eingeha
 
 1. **QA Review**: Nach Abschluss den **qa-milestone-reviewer** Agent aufrufen
 2. **Tests**: Alle neuen Features/Fixes müssen Tests haben
-3. **Diary**: Development Diary aktualisieren (`diary/development.md`)
-4. **Build & Test**: `dotnet build` und `dotnet test` müssen erfolgreich sein
+3. **Build & Test**: `dotnet build` und `dotnet test` müssen erfolgreich sein
 
 ### QA Review Process
 
@@ -198,7 +197,6 @@ let update msg model =
 2. **Write a failing test FIRST** that reproduces the bug
 3. **Fix the bug** - Make the test pass
 4. **Verify no regressions** - Run full test suite
-5. **Document in diary** - Include what test was added
 
 ### Test Requirements for Bug Fixes:
 
@@ -263,91 +261,6 @@ Umgehung bei einem per replace nicht erreichbaren Bullet: auf das nächstgelegen
 Diese Aufruf-Regel ("vor dem Integrieren durch das Gate") ist prose-only und nicht mechanisch erzwungen (ADR 0059): die Aufrufstelle liegt im Conductor-Plugin-Code, außerhalb dieses Repos.
 Erzwungen ist nur das Gate selbst (`npm run test:scripts`) und die Kopplung von Skriptpfad und Text in dieser Datei.
 
-## Development Diary
-
-**CRITICAL**: After ANY meaningful code changes (more than a few characters), you MUST update `diary/development.md`.
-
-### When to Write Diary Entries
-
-Write an entry whenever you:
-- Add, modify, or delete files
-- Implement new features or fix bugs
-- Refactor code
-- Add or modify tests
-- Fix build errors or warnings
-- Update dependencies or configuration
-
-### What to Include in Diary Entries
-
-Each entry should contain:
-
-1. **Date and timestamp** (YYYY-MM-DD HH:MM)
-2. **What you did** - Brief summary of the changes
-3. **Files added** - List new files created
-4. **Files modified** - List files changed with brief description of changes
-5. **Files deleted** - List files removed
-6. **Rationale** - Why these changes were necessary
-7. **Outcomes** - Build status, test results, any issues encountered
-
-### Diary Entry Format
-
-```markdown
-## YYYY-MM-DD HH:MM - [Brief Title]
-
-**What I did:**
-[Concise description of the changes]
-
-**Files Added:**
-- `path/to/new/file.fs` - [Purpose of this file]
-
-**Files Modified:**
-- `path/to/modified/file.fs` - [What changed and why]
-
-**Files Deleted:**
-- `path/to/deleted/file.fs` - [Why it was removed]
-
-**Rationale:**
-[Why these changes were necessary]
-
-**Outcomes:**
-- Build: ✅/❌
-- Tests: X/Y passed
-- Issues: [Any problems encountered]
-
----
-```
-
-### Example Entry
-
-```markdown
-## 2025-11-29 14:30 - Fixed Persistence TypeHandler for F# Options
-
-**What I did:**
-Fixed critical bugs in Persistence.fs that prevented Dapper from working with F# option types and added comprehensive test coverage for encryption and type conversions.
-
-**Files Added:**
-- `src/Tests/EncryptionTests.fs` - Tests for AES-256 encryption/decryption
-- `src/Tests/PersistenceTypeConversionTests.fs` - Tests for all type conversions
-
-**Files Modified:**
-- `src/Server/Persistence.fs` - Added OptionHandler<'T> for Dapper, added [<CLIMutable>] to all Row types
-- `src/Tests/Tests.fsproj` - Added new test files to compilation
-- `src/Tests/YnabClientTests.fs` - Removed tautological tests
-
-**Files Deleted:**
-- `src/Tests/MathTests.fs` - Tautological tests with no value
-
-**Rationale:**
-QA review identified critical gaps in test coverage and revealed that Persistence.fs had bugs preventing it from working at all. Dapper couldn't handle F# option types without a custom TypeHandler.
-
-**Outcomes:**
-- Build: ✅
-- Tests: 59/59 passed (was 39/59 before fixes)
-- Issues: None
-
----
-```
-
 ## Verification Checklist
 
 Before marking a feature complete:
@@ -363,7 +276,6 @@ Before marking a feature complete:
 - [ ] Tests written (at minimum: domain + validation)
 - [ ] `dotnet build` succeeds
 - [ ] `dotnet test` passes
-- [ ] **Development diary updated** in `diary/development.md`
 - [ ] **Invoke qa-milestone-reviewer agent** to verify test quality
 - [ ] **Address any missing tests** identified by the reviewer
 
