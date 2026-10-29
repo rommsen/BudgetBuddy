@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-pk04j - "Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-w32b3 - "Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch"
 
 **Type:** Capture
