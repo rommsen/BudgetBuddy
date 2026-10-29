@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-gwtm0 - "Kategorie entfernen auf der Quick-Add-Seite ist 42 px breit und eine Textglyphe"
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Kategorie entfernen auf der Quick-Add-Seite ist 42 px breit und eine Textglyphe
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-x708m - "Die Quick-Add-Seite baut den Formularzustand in der View und schickt ihn ungeprüft ins update"
 
 **Type:** Capture

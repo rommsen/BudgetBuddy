@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 14
@@ -44,6 +44,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-sync-gwtm0** — "Kategorie entfernen auf der Quick-Add-Seite ist 42 px breit und eine Textglyphe" (bug) — `backlog/ynab-sync-gwtm0-kategorie-entfernen-auf-der-quick-add-seite.md`
 - **ynab-sync-x708m** — "Die Quick-Add-Seite baut den Formularzustand in der View und schickt ihn ungeprüft ins update" (refactor) — `backlog/ynab-sync-x708m-die-quick-add-seite-baut-den-formularzustand.md`
 <!-- backlog-list:end -->
 
