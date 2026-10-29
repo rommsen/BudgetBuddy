@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:36 -- Batch started: [infrastructure-psdcb]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
+**Parallel:** no (1 worker)
+
+---
+
 ## 2026-10-29 17:36 -- Modeling / Promoted: infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
 
 **Type:** Modeling / Promote
