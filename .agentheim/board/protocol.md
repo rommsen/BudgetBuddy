@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 08:35 -- Modeling / Promoted: budgeting-rxxb4 - "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 08:35 -- Modeling / Refined: budgeting-rxxb4, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g - Budget Stufe 1 und 2
 
 **Type:** Modeling / Refine

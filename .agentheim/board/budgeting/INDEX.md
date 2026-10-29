@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 3
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-rxxb4** — "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC" (feature) — `todo/budgeting-rxxb4-kategorie-suche-am-handy.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -45,7 +46,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-rxxb4** — "Kategorie-Suche am Handy auf der Budget-Seite" (feature) — `backlog/budgeting-rxxb4-kategorie-suche-am-handy.md`
 - **budgeting-m1bce** — "Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch" (feature) — `backlog/budgeting-m1bce-kategorie-detail.md`
 - **budgeting-dyn8g** — "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar" (feature) — `backlog/budgeting-dyn8g-budget-historie-ansicht.md`
 - **budgeting-bk6tq** — "Vortrag stimmt ab dem ersten Tag: Aktivität aus dem Kassenbuch statt aus YNAB (Naht ledger/budgeting)" (feature) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`

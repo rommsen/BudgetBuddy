@@ -1,7 +1,7 @@
 ---
 id: budgeting-rxxb4
 title: "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-10-29
