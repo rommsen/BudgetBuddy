@@ -81,33 +81,6 @@ You are developing F# web applications using this blueprint. The codebase uses E
 | Tailscale networking | `standards/deployment/tailscale.md` |
 | Architecture overview | `standards/global/architecture.md` |
 
-## Using Skills
-
-Skills orchestrate workflows and reference `standards/` for detailed patterns. Invoke based on the task:
-
-### Core Workflow Skills
-
-| Skill | When to Use | Standards Referenced |
-|-------|-------------|---------------------|
-| `fsharp-feature` | Complete feature implementation (orchestrates all layers) | `standards/global/development-workflow.md` |
-| `fsharp-backend` | Backend implementation (validation, domain, persistence, API) | `standards/backend/*.md` |
-| `fsharp-frontend` | Elmish state and Feliz views | `standards/frontend/*.md` |
-| `fsharp-shared` | Defining types and API contracts in `src/Shared/` | `standards/shared/*.md` |
-| `fsharp-tests` | Writing Expecto tests | `standards/testing/*.md` |
-
-### Specialized Skills
-
-| Skill | When to Use | Standards Referenced |
-|-------|-------------|---------------------|
-| `fsharp-validation` | Input validation patterns | `standards/shared/validation.md` |
-| `fsharp-persistence` | Database tables, file storage | `standards/backend/persistence-*.md` |
-| `fsharp-remotedata` | Async state handling with RemoteData pattern | `standards/frontend/remotedata.md` |
-| `fsharp-routing` | URL routing and navigation | `standards/frontend/routing.md` |
-| `fsharp-error-handling` | Result types and error propagation | `standards/backend/error-handling.md` |
-| `fsharp-property-tests` | FsCheck property-based testing | `standards/testing/property-tests.md` |
-| `fsharp-docker` | Multi-stage Docker builds | `standards/deployment/docker.md` |
-| `tailscale-deploy` | Docker + Tailscale deployment | `standards/deployment/*.md` |
-
 ## Implementing User Specifications
 
 When the user provides a specification file (markdown describing a feature):
@@ -132,12 +105,9 @@ When the user provides a specification file (markdown describing a feature):
 9. src/Tests/               → Tests
 ```
 
-## Milestone & Backlog Tracking
+## Qualitätssicherung
 
-**IMPORTANT**: Die folgenden Qualitätskriterien gelten für ALLE Implementierungen:
-- Milestones aus `/docs/MILESTONE-PLAN.md`
-- Features und Bugs aus `/backlog.md`
-- Jede andere signifikante Code-Änderung
+**IMPORTANT**: Die folgenden Qualitätskriterien gelten für jedes Feature, jeden Bugfix und jede andere signifikante Code-Änderung.
 
 ### Qualitätskriterien (MANDATORY)
 
@@ -147,32 +117,6 @@ Bei jeder Feature-Implementierung oder Bug-Fix MÜSSEN folgende Schritte eingeha
 2. **Tests**: Alle neuen Features/Fixes müssen Tests haben
 3. **Diary**: Development Diary aktualisieren (`diary/development.md`)
 4. **Build & Test**: `dotnet build` und `dotnet test` müssen erfolgreich sein
-5. **Backlog Update**: Erledigte Items in `/backlog.md` abhaken mit Datum
-
-### Milestone-spezifisch
-
-Wenn du Milestones aus `/docs/MILESTONE-PLAN.md` implementierst:
-
-1. **After completing each milestone**, you MUST:
-   a. Invoke the **qa-milestone-reviewer** agent using the Task tool to verify test quality and coverage
-   b. Update `/docs/MILESTONE-PLAN.md` based on the QA review results
-2. Mark the milestone's verification checklist items as complete: `- [x]`
-3. Add a completion section with:
-   - `### ✅ Milestone N Complete (YYYY-MM-DD)`
-   - **Summary of Changes**: List all modifications made
-   - **Test Quality Review**: Summary from qa-milestone-reviewer agent
-   - **Notes**: Any important observations or deviations from the plan
-
-### Backlog-spezifisch
-
-Wenn du Features oder Bugs aus `/backlog.md` implementierst:
-
-1. **Vor der Implementierung**: Lies das Backlog-Item sorgfältig
-2. **Nach der Implementierung**:
-   a. Invoke den **qa-milestone-reviewer** Agent für Test-Coverage
-   b. Markiere das Item als erledigt: `- [x] **Feature Name** ... ✅ (YYYY-MM-DD)`
-   c. Verschiebe abgeschlossene Items in den "Abgeschlossen" Abschnitt
-3. **Diary Entry**: Dokumentiere was implementiert wurde
 
 ### QA Review Process
 
@@ -185,37 +129,6 @@ This agent will:
 - Ensure all important behavior is covered by tests
 - Identify any missing test coverage
 - Define missing tests (implementation done by red-test-fixer agent if needed)
-
-### Beispiel: Milestone Completion
-
-```markdown
-### Verification
-- [x] All verification items completed
-- [x] QA Milestone Reviewer invoked
-
-### ✅ Milestone 0 Complete (2025-11-29)
-
-**Summary of Changes:**
-- Added required NuGet packages
-- Fixed code warnings
-- Verified builds succeed
-
-**Test Quality Review:**
-- All tests verified by qa-milestone-reviewer agent
-- Test coverage is adequate for milestone scope
-- No tautological tests found
-
-**Notes**: Server already had most structure in place.
-```
-
-### Beispiel: Backlog Item Completion
-
-In `/backlog.md`:
-```markdown
-## Abgeschlossen
-
-- [x] **Optionale Comdirect-PIN**: On-Demand PIN-Abfrage implementiert ✅ (2025-12-08)
-```
 
 ## Key Principles
 
@@ -506,10 +419,8 @@ Before marking a feature complete:
 - [ ] `dotnet build` succeeds
 - [ ] `dotnet test` passes
 - [ ] **Development diary updated** in `diary/development.md`
-- [ ] **If working on a milestone:**
-  - [ ] **Invoke qa-milestone-reviewer agent** to verify test quality
-  - [ ] **Address any missing tests** identified by the reviewer
-  - [ ] **Update `/docs/MILESTONE-PLAN.md`** with completion status and QA review summary
+- [ ] **Invoke qa-milestone-reviewer agent** to verify test quality
+- [ ] **Address any missing tests** identified by the reviewer
 
 ## Tech Stack Reference
 

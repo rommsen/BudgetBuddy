@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:55 -- Task verified and completed: infrastructure-vm8zz - "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-vm8zz - "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage"
+**Summary:** Legacy gelöscht (fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage), Wissen mit Zielort gerettet
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 72
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 17:52 -- Task verified and completed: infrastructure-kq13v - "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen"
 
 **Type:** Work / Task completion

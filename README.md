@@ -256,11 +256,8 @@ scripts/
 └── README.md                # Test scripts documentation
 
 docs/
-├── MILESTONE-PLAN.md        # Detailed implementation plan
 ├── banksync-produktspezifikation.md  # Product requirements
 └── *.md                     # Architecture guides
-
-legacy/               # Original CLI implementation (reference)
 ```
 
 ## How the Sync Flow Works
@@ -290,17 +287,12 @@ legacy/               # Original CLI implementation (reference)
 
 | Guide | Purpose |
 |-------|---------|
-| [Milestone Plan](docs/MILESTONE-PLAN.md) | Step-by-step implementation guide |
 | [Architecture](docs/00-ARCHITECTURE.md) | System overview |
 | [Frontend Guide](docs/02-FRONTEND-GUIDE.md) | Elmish + Feliz patterns |
 | [Backend Guide](docs/03-BACKEND-GUIDE.md) | Giraffe + Fable.Remoting |
 | [Persistence](docs/05-PERSISTENCE.md) | SQLite patterns |
 | [Deployment](docs/07-BUILD-DEPLOY.md) | Docker setup |
 | [Tailscale](docs/08-TAILSCALE-INTEGRATION.md) | Private network |
-
-## Roadmap
-
-See [MILESTONE-PLAN.md](docs/MILESTONE-PLAN.md) for the complete implementation roadmap with 16 milestones covering all planned features.
 
 ## Contributing
 

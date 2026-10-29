@@ -1,7 +1,0 @@
-appsettings.json
-.env
-.ionide/
-.vscode/
-bin/
-obj/
-.fake

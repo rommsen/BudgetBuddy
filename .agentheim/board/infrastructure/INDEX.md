@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 14
 - **Todo:** 1
-- **Doing:** 2
-- **Done:** 16
+- **Doing:** 1
+- **Done:** 17
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,12 +23,12 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-vm8zz** — "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage" (chore) — `doing/infrastructure-vm8zz-legacy-loeschen.md`
 - **infrastructure-dvy29** — "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook" (chore) — `doing/infrastructure-dvy29-verify-sh-gate-und-git-guard.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-vm8zz** — "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage" (chore) — `done/infrastructure-vm8zz-legacy-loeschen.md`
 - **infrastructure-kq13v** — "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen" (chore) — `done/infrastructure-kq13v-diary-einfrieren-blog-lokal.md`
 - **infrastructure-psdcb** — "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness" (chore) — `done/infrastructure-psdcb-worker-opus-baseline.md`
 - **infrastructure-b85yv** — tzdata im Produktions-Image installieren (chore) — `done/infrastructure-b85yv-tzdata-im-produktions-image.md`
