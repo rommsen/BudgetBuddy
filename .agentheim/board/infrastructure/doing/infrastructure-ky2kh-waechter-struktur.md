@@ -1,7 +1,7 @@
 ---
 id: infrastructure-ky2kh
 title: "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation"
-status: todo
+status: doing
 type: feature
 context: infrastructure
 created: 2026-10-29

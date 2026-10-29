@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:07 -- Batch started: [infrastructure-ky2kh, infrastructure-r5k2w, infrastructure-jy5ca, infrastructure-vc6c3]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-ky2kh - "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation", infrastructure-r5k2w - "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden", infrastructure-jy5ca - "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock", infrastructure-vc6c3 - "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
+**Parallel:** yes (2 Worker: ky2kh, r5k2w; jy5ca und vc6c3 erledigt der Conductor: M8 Repo-Teil von Hand, P6 durch infrastructure-am805 bereits umgesetzt). Owner-Entscheidung 2026-10-29: Parallelität unbegrenzt, Baseline nur nach M12.
+
+---
+
 ## 2026-10-29 19:06 -- Modeling / Promoted: infrastructure-r5k2w - "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden"
 
 **Type:** Modeling / Promote
