@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-mq0pf - "Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-hdx88 - "Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart"
 
 **Type:** Capture
