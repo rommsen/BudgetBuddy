@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-m856w - "Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-aemz9 - "Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen"
 
 **Type:** Capture
