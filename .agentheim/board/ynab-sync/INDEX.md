@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 14
@@ -44,6 +44,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-sync-x708m** — "Die Quick-Add-Seite baut den Formularzustand in der View und schickt ihn ungeprüft ins update" (refactor) — `backlog/ynab-sync-x708m-die-quick-add-seite-baut-den-formularzustand.md`
 <!-- backlog-list:end -->
 
 

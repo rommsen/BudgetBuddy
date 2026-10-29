@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-x708m - "Die Quick-Add-Seite baut den Formularzustand in der View und schickt ihn ungeprüft ins update"
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Die Quick-Add-Seite baut den Formularzustand in der View und schickt ihn ungeprüft ins update
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: design-system-zpq7t - "ADR 0011 nennt positive Available-Beträge grün, Code und Styleguide färben sie neutral"
 
 **Type:** Capture
