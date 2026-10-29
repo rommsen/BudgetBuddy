@@ -8,7 +8,7 @@ Newest entries on top.
 ## 2026-10-29 18:58 -- Work session ended
 
 **Type:** Work / Session end
-**Duration:** 52m (18:28 bis 19:20)
+**Duration:** 30m (18:28 bis 18:58)
 **Completed:** 2 (first-try PASS: 2, re-dispatched: 0, skipped: 0)
 **Bounced:** 0
 **Failed:** 0
