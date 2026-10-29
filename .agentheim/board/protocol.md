@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 20:04 -- Modeling / Promoted: infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 20:04 -- Modeling / Promoted: infrastructure-hdf7j - "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 20:03 -- Task verified and completed: ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
 
 **Type:** Work / Task completion

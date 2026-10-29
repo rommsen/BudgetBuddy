@@ -1,7 +1,7 @@
 ---
 id: infrastructure-gwvw1
 title: "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-10-29
