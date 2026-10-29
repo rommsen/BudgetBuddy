@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:07 -- Task verified and completed: infrastructure-vc6c3 - "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-vc6c3 - "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
+**Summary:** Beide Live-Tests hinter RUN_INTEGRATION_TESTS, umgesetzt durch infrastructure-am805
+**Duration:** 0m
+**Verification:** PASS (iteration 1, Verifier von infrastructure-am805)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 19:07 -- Batch started: [infrastructure-ky2kh, infrastructure-r5k2w, infrastructure-jy5ca, infrastructure-vc6c3]
 
 **Type:** Work / Batch start

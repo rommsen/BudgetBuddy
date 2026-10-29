@@ -1,7 +1,7 @@
 ---
 id: infrastructure-vc6c3
 title: "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
-status: doing
+status: done
 type: bug
 context: infrastructure
 created: 2026-10-29
@@ -27,3 +27,7 @@ Beide Tests laufen nur mit `RUN_INTEGRATION_TESTS=true`. Ein Wächter verhindert
 ## Notes
 Migrationsschritt P6. Zielbild: `.agentheim/knowledge/research/harness-audit/zielbild.md`. Promote und work erst nach ausdrücklichem Ja des Owners.
 Bug-Fix-Protokoll: Kommentar im Test, welcher Fehler verhindert wird.
+
+## Outcome
+
+Umgesetzt durch infrastructure-am805 (Commit bbf154b), kein eigener Worker-Lauf. `YnabIntegrationTests` "handles invalid token gracefully" und `ComdirectIntegrationTests` "handles invalid credentials gracefully" prüfen jetzt `shouldRunIntegrationTests()` und werden ohne `RUN_INTEGRATION_TESTS=true` übersprungen. Der Verifier von am805 zählte 8 statt 6 übersprungene Tests. Der Netz-Wächter `src/Tests/NetworkCallGuardTests.fs` verhindert neue Netzaufrufe in Tests ohne Schalter. Kommentar im Test zum verhinderten Fehler: siehe beide Testfälle.

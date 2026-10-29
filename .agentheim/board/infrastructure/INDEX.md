@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 10
 - **Todo:** 1
-- **Doing:** 4
-- **Done:** 20
+- **Doing:** 3
+- **Done:** 21
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,7 +23,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-vc6c3** — "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen" (bug) — `doing/infrastructure-vc6c3-live-tests-nur-hinter-schalter.md`
 - **infrastructure-jy5ca** — "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock" (chore) — `doing/infrastructure-jy5ca-serena-entfernen.md`
 - **infrastructure-r5k2w** — "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden" (bug) — `doing/infrastructure-r5k2w-export-design-system-mjs-auf-erreichbaren-vite-preview-warte.md`
 - **infrastructure-ky2kh** — "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation" (feature) — `doing/infrastructure-ky2kh-waechter-struktur.md`
@@ -31,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-vc6c3** — "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen" (bug) — `done/infrastructure-vc6c3-live-tests-nur-hinter-schalter.md`
 - **infrastructure-am805** — "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter" (feature) — `done/infrastructure-am805-waechter-security.md`
 - **infrastructure-jcb2m** — "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen" (chore) — `done/infrastructure-jcb2m-worktree-skripte.md`
 - **infrastructure-dvy29** — "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook" (chore) — `done/infrastructure-dvy29-verify-sh-gate-und-git-guard.md`
