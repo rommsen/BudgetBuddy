@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-bqhd3 - "Der Kategorie-Picker im Import zeigt nie Vorschläge zum Payee"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Der Kategorie-Picker im Import zeigt nie Vorschläge zum Payee
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-njams - "Knöpfe im Split-Sheet des Imports sind schmaler als 48 px und nutzen Textglyphen"
 
 **Type:** Capture
