@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: design-system-g5q09 - "Der Schließen-Knopf der Bottom Sheets ist ein eigenes Inline-SVG"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Der Schließen-Knopf der Bottom Sheets ist ein eigenes Inline-SVG
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: design-system-cr1n0 - "BottomSheet.categoryPicker ist eine zweite Kategorieauswahl neben CategoryPicker, ohne Tastatur und ohne Ohne Kategorie"
 
 **Type:** Capture
