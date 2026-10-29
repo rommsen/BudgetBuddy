@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:49 -- Task completed (verification skipped): infrastructure-jy5ca - "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-jy5ca - "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock"
+**Summary:** Serena entfernt: .serena/, Rule, CLAUDE.md-Pflichtblock, Freigabe, MCP-Eintrag (Owner)
+**Duration:** 25m
+**Verification:** SKIPPED — Conductor-Task mit Owner, Prüfung per grep und Config-Abfrage
+**Files changed:** 11
+
+---
+
 ## 2026-10-29 19:35 -- Batch started: [infrastructure-cbr0r, ledger-ct981]
 
 **Type:** Work / Batch start
