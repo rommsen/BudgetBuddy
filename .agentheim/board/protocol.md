@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 15:38 -- Task completed (verification skipped): ledger-q57rk - "Hotfix: Bot-Handler beendete im choose jede /api/-Anfrage mit leerem 200, die App lud nichts mehr"
+
+**Type:** Work / Task completion
+**Task:** ledger-q57rk - "Hotfix: Bot-Handler beendete im choose jede /api/-Anfrage mit leerem 200, die App lud nichts mehr"
+**Summary:** Hotfix: Bot-Handler gibt fremde Pfade per skipPipeline weiter statt next ctx; vorher endete jede /api/-Anfrage mit leerem 200
+**Duration:** (unknown)
+**Verification:** SKIPPED — nachgetragen ohne work-Lauf: Hotfix in der Hauptsitzung, kein Verifier; dotnet build 0 Warnungen, dotnet test 2502 bestanden, Regressionstest vor dem Fix rot
+**Files changed:** 0
+
+---
+
 ## 2026-10-29 09:20 -- Modeling / Refined: budgeting-bk6tq - Spike Ausgaben am Monatswechsel
 
 **Type:** Modeling / Refine
