@@ -10,7 +10,7 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 3
@@ -45,6 +45,7 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **budgeting-afd8h** — "Geld zwischen Kategorien verschieben, am Handy schnell" (feature) — `backlog/budgeting-afd8h-geld-verschieben.md`
 <!-- backlog-list:end -->
 
 ## Pointers

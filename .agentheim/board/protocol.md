@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:26 -- Capture / Captured: budgeting-afd8h - "Geld zwischen Kategorien verschieben, am Handy schnell"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Geld zwischen Kategorien verschieben, am Handy schnell
+
+---
+
 ## 2026-10-28 19:54 -- Capture / Captured: infrastructure-b85yv - tzdata im Produktions-Image installieren
 
 **Type:** Capture
