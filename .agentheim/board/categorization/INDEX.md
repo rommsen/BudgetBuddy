@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 19
+- **Backlog:** 20
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-g7j7q** — "Speicherzustand des Regel-Dialogs ist ein Bool-Flag" (refactor) — `backlog/categorization-g7j7q-speicherzustand-des-regel-dialogs-ist-ein-bool.md`
 - **categorization-dr3v5** — "Regel-Dialog zeigt bei fehlgeschlagenem Kategorien-Laden oder Deep-Link auf /rules eine leere Liste mit falschem Hinweis" (bug) — `backlog/categorization-dr3v5-regel-dialog-zeigt-bei-fehlgeschlagenem-kategorien-laden.md`
 - **categorization-fbj8w** — "Fehlgeschlagenes Umsortieren der Regeln hat keinen Client-update-Test" (chore) — `backlog/categorization-fbj8w-fehlgeschlagenes-umsortieren-der-regeln-hat-keinen-client.md`
 - **categorization-m61mq** — "Eine deaktivierte Regel ist im Persistenz-Rundlauf nicht abgesichert" (chore) — `backlog/categorization-m61mq-eine-deaktivierte-regel-ist-im-persistenz-rundlauf.md`

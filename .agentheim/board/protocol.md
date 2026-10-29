@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-g7j7q - "Speicherzustand des Regel-Dialogs ist ein Bool-Flag"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Speicherzustand des Regel-Dialogs ist ein Bool-Flag
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-dr3v5 - "Regel-Dialog zeigt bei fehlgeschlagenem Kategorien-Laden oder Deep-Link auf /rules eine leere Liste mit falschem Hinweis"
 
 **Type:** Capture
