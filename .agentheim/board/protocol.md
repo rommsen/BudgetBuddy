@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Bestandsreview: categorization
+
+**Type:** Review / Bestandsreview
+**Befunde:** hoch 3, mittel 49, niedrig 27
+**Tasks:** categorization-q3960, categorization-aemz9, categorization-m856w, categorization-k4xp9, categorization-syy3j, categorization-b2576, categorization-a510t, categorization-xn2sb, categorization-tg9fw, categorization-s2cdw, categorization-w32b3, categorization-pk04j, categorization-vzh1m, categorization-jnyk8, categorization-e8e56, categorization-h88qx, categorization-m61mq, categorization-fbj8w, categorization-dr3v5, categorization-g7j7q, categorization-p7s85, categorization-mx09q, categorization-qjmrm, categorization-mnmyg, categorization-xh9rw, categorization-sh0cp, categorization-kpsp8, categorization-hdx88, categorization-mq0pf, categorization-kwe4r, categorization-b38ze, categorization-k7vt7, banking-import-smbe4, banking-import-qcx84, banking-import-e7hna, banking-import-m7b58, banking-import-njams, banking-import-bqhd3, banking-import-cf7b3, banking-import-e4e1z, banking-import-qrdh4, design-system-cr1n0, design-system-g5q09, design-system-qhw6y, design-system-yw9bs, design-system-nhn83, design-system-zpq7t, ynab-sync-x708m, ynab-sync-gwtm0, ynab-sync-cd9t5, ynab-sync-e71p7, ynab-sync-wsb8m, categorization-p86m3
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: categorization-p86m3 - "Bestandsreview categorization: niedrige Befunde"
 
 **Type:** Capture
