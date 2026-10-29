@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:26 -- Capture / Captured: budgeting-dyn8g - "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar"
+
+**Type:** Capture
+**BC:** budgeting
+**Filed to:** backlog
+**Summary:** Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar
+
+---
+
 ## 2026-10-29 07:26 -- Capture / Captured: budgeting-bk6tq - "Vortrag stimmt ab dem ersten Tag: Aktivität aus dem Kassenbuch statt aus YNAB (Naht ledger/budgeting)"
 
 **Type:** Capture
