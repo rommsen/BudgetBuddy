@@ -8,7 +8,7 @@ You are developing F# web applications using this blueprint. The codebase uses E
 
 **Always read the relevant documentation first:**
 
-1. Check `standards/global/quick-reference.md` for code templates
+1. Check `standards/README.md` for what is documented
 2. Read the specific guide for your task (see Documentation Map below)
 3. Look at existing code to match patterns
 
@@ -16,22 +16,18 @@ You are developing F# web applications using this blueprint. The codebase uses E
 
 | Task | Read This First |
 |------|-----------------|
-| Complete new feature | `standards/global/quick-reference.md` + specific guides below |
-| Domain types/API contracts | `standards/shared/types.md`, `standards/shared/api-contracts.md` |
-| Frontend (UI, state) | `standards/frontend/overview.md`, `standards/frontend/state-management.md` |
-| Backend (API, logic) | `standards/backend/overview.md`, `standards/backend/api-implementation.md` |
-| Database/files | `standards/backend/persistence-sqlite.md`, `standards/backend/persistence-files.md` |
-| Tests | `standards/testing/overview.md`, `standards/testing/domain-tests.md` |
-| Docker/deployment | `standards/deployment/docker.md`, `standards/deployment/production.md` |
-| Tailscale networking | `standards/deployment/tailscale.md` |
-| Architecture overview | `standards/global/architecture.md` |
+| Overview | `standards/README.md` |
+| Frontend (UI, state) | `standards/frontend/overview.md`, `standards/frontend/styleguide.md` |
+| Backend (API, logic, persistence) | `standards/backend/overview.md` |
+| Tests | `.claude/rules/test-doctrine.md` |
+| Docker/deployment | `Dockerfile`, `compose.yaml`, `scripts/deploy.sh` |
 
 ## Implementing User Specifications
 
 When the user provides a specification file (markdown describing a feature):
 
 1. **Read the specification file** thoroughly
-2. **Read `standards/global/quick-reference.md`** for patterns
+2. **Read the guide from the Documentation Map** for patterns
 3. **Plan the implementation** using the development order below
 4. **Implement each layer**, testing as you go
 5. **Verify with build and tests**
@@ -72,7 +68,7 @@ This agent will:
 - Verify tests are meaningful and don't test tautologies
 - Ensure all important behavior is covered by tests
 - Identify any missing test coverage
-- Define missing tests (implementation done by red-test-fixer agent if needed)
+- Define missing tests against `.claude/rules/test-doctrine.md`
 
 ## Key Principles
 

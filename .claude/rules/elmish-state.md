@@ -1,6 +1,6 @@
 ---
 paths:
-  - "src/Client/State/**"
+  - "src/Client/Components/**/State.fs"
   - "src/Client/State.fs"
 ---
 

@@ -1,119 +1,20 @@
-# Frontend Overview
+# Frontend in BudgetBuddy
 
-> Elmish MVU architecture with Feliz for F# web frontends.
+Was der Code nicht von selbst erklärt. Visuelle Regeln: `standards/frontend/styleguide.md`. MVU-Regeln: `.claude/rules/elmish-state.md`.
 
-## Overview
+## Aufbau
 
-The Model-View-Update (MVU) architecture ensures predictable state management through unidirectional data flow. Elmish provides the MVU implementation, and Feliz provides type-safe React bindings.
+- `src/Client/App.fs` startet Elmish, `src/Client/State.fs` und `src/Client/View.fs` sind die Wurzel mit Seitenwechsel.
+- Je Seite ein Ordner `src/Client/Components/<Seite>/` mit `Types.fs` (Model, Msg), `State.fs` (init, update) und `View.fs`.
+- `src/Client/Api.fs`: Fable.Remoting-Proxys, Route `/api/<Interface>/<Methode>` wie im Server.
+- `src/Client/Types.fs`: `RemoteData<'T>` mit Helfern (`map`, `withDefault`, `fromResult`, ...). `src/Client/Retry.fs`: Wiederholung beim Laden.
+- `src/Client/DesignSystem/`: alle UI-Bausteine; Inventar im Styleguide Abschnitt 5, lebend unter der Route `/styleguide`.
 
-## When to Use This
+## Gelerntes
 
-- Understanding MVU architecture
-- Starting a new frontend
-- Managing application state
-- Rendering UI components
-
-## MVU Pattern
-
-```
-┌──────────────────────────────────────┐
-│                                      │
-│  User Interaction                    │
-│         │                            │
-│         ▼                            │
-│    ┌────────┐      ┌──────────┐    │
-│    │  Msg   │─────▶│  Update  │    │
-│    └────────┘      └──────────┘    │
-│         ▲               │           │
-│         │               ▼           │
-│    ┌────────┐      ┌──────────┐    │
-│    │  View  │◀─────│  Model   │    │
-│    └────────┘      └──────────┘    │
-│                                      │
-└──────────────────────────────────────┘
-```
-
-## Core Concepts
-
-### Model
-Application state - single source of truth
-
-```fsharp
-type Model = {
-    Items: RemoteData<Item list>
-    SelectedItem: RemoteData<Item>
-    IsModalOpen: bool
-}
-```
-
-### Messages
-Events that change state
-
-```fsharp
-type Msg =
-    | LoadItems
-    | ItemsLoaded of Result<Item list, string>
-    | OpenModal
-```
-
-### Update
-Pure function: `(Msg, Model) → (Model, Cmd<Msg>)`
-
-```fsharp
-let update msg model =
-    match msg with
-    | LoadItems ->
-        { model with Items = Loading },
-        Cmd.OfAsync.either Api.getItems () (Ok >> ItemsLoaded) (Error >> ItemsLoaded)
-    | ItemsLoaded (Ok items) ->
-        { model with Items = Success items }, Cmd.none
-```
-
-### View
-Pure function: `(Model, Dispatch) → ReactElement`
-
-```fsharp
-let view model dispatch =
-    Html.div [
-        match model.Items with
-        | Loading -> Html.div "Loading..."
-        | Success items -> renderItems items dispatch
-        | Failure err -> Html.div err
-    ]
-```
-
-## Key Principles
-
-1. **Unidirectional Data Flow** - Model → View → Msg → Update → Model
-2. **Pure Functions** - Update and View are pure
-3. **Immutable State** - Model never mutates
-4. **Explicit State** - All state in Model
-5. **Side Effects via Cmd** - No I/O in update or view
-
-## File Structure
-
-```
-src/Client/
-├── App.fs           # Main Elmish app
-├── Types.fs         # Client-only types
-├── State.fs         # Model, Msg, init, update
-├── View.fs          # UI components
-└── Api.fs           # Fable.Remoting client
-```
-
-## Checklist
-
-- [ ] Model defined with all state
-- [ ] Messages for all user actions
-- [ ] Init function returns model + cmd
-- [ ] Update handles all messages
-- [ ] View is pure function
-- [ ] Cmd for side effects
-- [ ] RemoteData for async operations
-
-## See Also
-
-- `styleguide.md` - **The styleguide (das Gate)**: visual language, color semantics, token layer, the 20 DS components, patterns, motion, voice — measured against for all UI work
-- `state-management.md` - Model, Msg, update patterns
-- `view-patterns.md` - Feliz component patterns
-- `remotedata.md` - Async data handling
+- Späte Antworten: wenn Eingaben schnell aufeinander folgen, trägt jede Änderung eine Version, und nur die neueste wird übernommen (`PendingCategoryVersions` in `src/Client/Components/SyncFlow/State.fs`).
+- Lange Listen: teure Ableitungen (etwa Kategorie-Optionen) einmal vor der Schleife berechnen, inaktive Zeilen als schlichten Text statt als volle Auswahlkomponente rendern.
+- Listenelemente mit `prop.key`, sonst rendert React ganze Listen neu.
+- Schaltflächen, die einen Aufruf auslösen, zeigen den Ladezustand und sind solange gesperrt (Doppelklick).
+- Keine Aktion nur per Hover; das Handy ist ein Hauptgerät.
+- Fable-Fallen (Serialisierung, Formatierung): `.claude/rules/fable-pitfalls.md`.

@@ -1,46 +1,14 @@
 ---
-paths: src/Server/Persistence.fs
+paths: src/Server/**
 ---
 
-# Persistence Safety — Dapper/SQLite Pflicht-Patterns
+# Persistence Safety
 
-## Verboten
+Mechanisch geprüft von: `src/Tests/StructureGuardTests.fs` (CLIMutable-Wächter: jeder `*Row`-Record trägt `[<CLIMutable>]`, jeder Dapper-Lesezugriff liest einen einfachen Typ oder einen Row-Record, jedes Option-Feld hat einen registrierten `OptionHandler`), `src/Tests/TestDatabaseGuardTests.fs` (Testlauf auf In-Memory-DB), `src/Tests/ModuleLevelDbInitGuardTests.fs` (keine DB-Initialisierung auf Modulebene).
 
-- Dapper Row Types OHNE `[<CLIMutable>]` — Laufzeit-Crash
-- Direkte `SqliteConnection` ohne Connection-Helper
-- Queries ohne Parameterisierung (SQL Injection)
-- Tests die auf die Produktions-Datenbank schreiben — IMMER `Data Source=:memory:` oder temp DB
+Urteil, das kein Wächter prüft:
 
-## Richtig
-
-```fsharp
-// Jeder Dapper Row Type
-[<CLIMutable>]
-type EntityRow = { Id: string; Name: string; Amount: int64; ... }
-
-// Connection Management
-let withConnectionAsync (f: SqliteConnection -> Async<'T>) : Async<'T> = ...
-
-// Parameterisierte Queries
-let! rows = conn.QueryAsync<Row>("SELECT * FROM rules WHERE pattern = @Pattern", {| Pattern = pattern |})
-```
-
-## SQLite-spezifisch
-
-- `INTEGER` statt `BIGINT` für int64
-- Kein `RETURNING` Clause — verwende `last_insert_rowid()`
-- WAL-Mode für Concurrent Reads: `PRAGMA journal_mode=WAL`
-- F# Option Types brauchen `OptionHandler<'T>` für Dapper
-
-## Grep-Checks
-
-```bash
-# Finde Row Types ohne CLIMutable
-grep -B1 "type.*Row" src/Server/Persistence.fs | grep -v "CLIMutable"
-
-# Finde String-Interpolation in SQL
-grep -n '\$".*SELECT\|\$".*INSERT\|\$".*UPDATE' src/Server/Persistence.fs
-
-# Finde Tests mit Produktions-DB
-grep -rn "DATA_DIR\|budgetbuddy.db" src/Tests/ | grep -v ":memory:"
-```
+- Ein neuer Optionstyp in einem Row-Record (etwa `int option`) braucht eine eigene `OptionHandler`-Registrierung in `src/Server/Persistence.fs`. Der Wächter meldet das Fehlen, die Registrierung schreibst du.
+- Verbindungen kommen aus den vorhandenen Helfern (`getConnection` in `src/Server/Persistence.fs`), keine eigene `SqliteConnection` mit eigenem Connection-String.
+- Schemaänderungen laufen über `initializeDatabase` und müssen auf einer bestehenden Datenbank wiederholbar sein (`CREATE TABLE IF NOT EXISTS`, Spalten nur ergänzen).
+- SQLite: `INTEGER` für `int64`, Beträge als Milliunits (`int64`).

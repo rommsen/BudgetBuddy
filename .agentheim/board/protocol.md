@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 20:03 -- Task verified and completed: infrastructure-cbr0r - "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-cbr0r - "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen"
+**Summary:** Rules konsolidiert, Test-Doktrin angelegt, standards auf vier Dateien eingedampft, Review-Agents repariert, code-reviewer und red-test-fixer gelöscht, Harness-Wächter für Rule-Pfade und Agent-Frontmatter
+**Duration:** 29m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 53
+**Tests added:** 9
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 19:49 -- Task completed (verification skipped): infrastructure-jy5ca - "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock"
 
 **Type:** Work / Task completion

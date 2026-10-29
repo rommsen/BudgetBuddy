@@ -1,6 +1,5 @@
 ---
 paths:
-  - "src/Tests/E2E/**"
   - "src/Shared/Api.fs"
   - "src/Client/**"
   - "src/Server/**"
@@ -27,6 +26,9 @@ paths:
 
 ### prop.max
 - Hat keine String-Overloads — nutze `prop.custom("max", value)`
+
+### sprintf mit Nachkommastellen
+- `sprintf "%.2f"` rundet in Fable anders als in .NET; für Beträge `System.Math.Round(x, 2).ToString("0.00")` nutzen
 
 ## Grep-Checks
 
