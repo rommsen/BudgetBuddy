@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-b2576 - "Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-syy3j - "Regeln mit unbekannter Kategorie werden mit dem Platzhalternamen Unknown gespeichert"
 
 **Type:** Capture

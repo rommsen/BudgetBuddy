@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
+- **Backlog:** 6
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-b2576** — "Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung" (bug) — `backlog/categorization-b2576-regel-import-laeuft-ohne-transaktion-und-ohne.md`
 - **categorization-syy3j** — "Regeln mit unbekannter Kategorie werden mit dem Platzhalternamen Unknown gespeichert" (bug) — `backlog/categorization-syy3j-regeln-mit-unbekannter-kategorie-werden-mit-dem.md`
 - **categorization-k4xp9** — "Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined" (refactor) — `backlog/categorization-k4xp9-unbekannte-patterntype-und-targetfield-werte-aus-der.md`
 - **categorization-m856w** — "Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap" (bug) — `backlog/categorization-m856w-prioritaetspfeile-der-regelliste-sind-am-handy-24.md`
