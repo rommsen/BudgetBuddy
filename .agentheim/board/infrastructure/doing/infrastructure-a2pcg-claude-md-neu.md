@@ -1,7 +1,7 @@
 ---
 id: infrastructure-a2pcg
 title: "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen"
-status: backlog
+status: doing
 type: chore
 context: infrastructure
 created: 2026-10-29

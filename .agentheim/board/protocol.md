@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 20:08 -- Batch started: [infrastructure-a2pcg]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-a2pcg - "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen"
+**Parallel:** yes (läuft parallel zu hdf7j; Conductor-Task, Entwurf durch Worker, Abnahme durch den Owner vor der Integration; Owner-Entscheidung Tempo 2026-10-29)
+
+---
+
+## 2026-10-29 20:08 -- Modeling / Promoted: infrastructure-a2pcg - "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 20:07 -- Task completed (verification skipped): infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
 
 **Type:** Work / Task completion
