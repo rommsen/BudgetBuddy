@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-mx09q - "Eine späte Antwort von Regel testen zeigt passt für eine inzwischen geänderte Eingabe"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Eine späte Antwort von Regel testen zeigt passt für eine inzwischen geänderte Eingabe
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-p7s85 - "Ergebnis von Regel testen ist ein Anzeigetext mit Emoji, den die View wieder zerlegt"
 
 **Type:** Capture
