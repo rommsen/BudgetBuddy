@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-dr3v5 - "Regel-Dialog zeigt bei fehlgeschlagenem Kategorien-Laden oder Deep-Link auf /rules eine leere Liste mit falschem Hinweis"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Regel-Dialog zeigt bei fehlgeschlagenem Kategorien-Laden oder Deep-Link auf /rules eine leere Liste mit falschem Hinweis
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-fbj8w - "Fehlgeschlagenes Umsortieren der Regeln hat keinen Client-update-Test"
 
 **Type:** Capture
