@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-m7b58 - "Das Split-Sheet des Imports baut die Split-Bausteine des Design Systems nach"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Das Split-Sheet des Imports baut die Split-Bausteine des Design Systems nach
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-e7hna - "Speichern im Split-Sheet des Imports bleibt während des Aufrufs aktiv, ein Doppeltipp schickt zwei Aufrufe"
 
 **Type:** Capture
