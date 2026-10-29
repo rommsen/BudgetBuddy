@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: categorization-b38ze - "Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-kwe4r - "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar"
 
 **Type:** Capture
