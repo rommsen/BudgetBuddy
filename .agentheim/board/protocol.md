@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-cf7b3 - "Aufgeteilte Buchungen landen im Import-Filter unter ohne Kategorie"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Aufgeteilte Buchungen landen im Import-Filter unter ohne Kategorie
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-bqhd3 - "Der Kategorie-Picker im Import zeigt nie Vorschläge zum Payee"
 
 **Type:** Capture

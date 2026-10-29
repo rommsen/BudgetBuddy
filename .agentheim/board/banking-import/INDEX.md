@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 0
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-cf7b3** — "Aufgeteilte Buchungen landen im Import-Filter unter ohne Kategorie" (bug) — `backlog/banking-import-cf7b3-aufgeteilte-buchungen-landen-im-import-filter-unter.md`
 - **banking-import-bqhd3** — "Der Kategorie-Picker im Import zeigt nie Vorschläge zum Payee" (bug) — `backlog/banking-import-bqhd3-der-kategorie-picker-im-import-zeigt-nie.md`
 - **banking-import-njams** — "Knöpfe im Split-Sheet des Imports sind schmaler als 48 px und nutzen Textglyphen" (bug) — `backlog/banking-import-njams-knoepfe-im-split-sheet-des-imports-sind.md`
 - **banking-import-m7b58** — "Das Split-Sheet des Imports baut die Split-Bausteine des Design Systems nach" (refactor) — `backlog/banking-import-m7b58-das-split-sheet-des-imports-baut-die.md`
