@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 18:28 -- Batch started: [infrastructure-jcb2m, infrastructure-am805]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-jcb2m - "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen", infrastructure-am805 - "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
+**Parallel:** yes (2 workers; keine Überschneidung: jcb2m nur scripts/worktree-*, am805 nur src/Tests und Wächter; 3 Produkt-Tasks in todo/ nach Owner-Reihenfolge erst Harness nicht dispatcht)
+
+---
+
 ## 2026-10-29 18:28 -- Modeling / Promoted: infrastructure-am805 - "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
 
 **Type:** Modeling / Promote

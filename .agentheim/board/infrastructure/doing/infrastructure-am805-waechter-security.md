@@ -1,7 +1,7 @@
 ---
 id: infrastructure-am805
 title: "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
-status: todo
+status: doing
 type: feature
 context: infrastructure
 created: 2026-10-29

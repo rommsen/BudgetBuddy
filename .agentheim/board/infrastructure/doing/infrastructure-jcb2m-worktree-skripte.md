@@ -1,7 +1,7 @@
 ---
 id: infrastructure-jcb2m
 title: "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-10-29
