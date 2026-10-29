@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-a510t - "Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-b2576 - "Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung"
 
 **Type:** Capture

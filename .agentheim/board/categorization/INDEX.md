@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 7
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-a510t** — "Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet" (bug) — `backlog/categorization-a510t-bei-gleicher-prioritaet-ist-offen-welche-regel.md`
 - **categorization-b2576** — "Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung" (bug) — `backlog/categorization-b2576-regel-import-laeuft-ohne-transaktion-und-ohne.md`
 - **categorization-syy3j** — "Regeln mit unbekannter Kategorie werden mit dem Platzhalternamen Unknown gespeichert" (bug) — `backlog/categorization-syy3j-regeln-mit-unbekannter-kategorie-werden-mit-dem.md`
 - **categorization-k4xp9** — "Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined" (refactor) — `backlog/categorization-k4xp9-unbekannte-patterntype-und-targetfield-werte-aus-der.md`
