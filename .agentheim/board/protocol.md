@@ -5,6 +5,204 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration G aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-fam9k - "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M18 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Harness-Migration M15 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-hdf7j - "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M14 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-kq13v - "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M13 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-a2pcg - "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M12 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M11 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-cbr0r - "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M10 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-vm8zz - "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M9 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-jy5ca - "Serena entfernen: MCP-Eintrag, .serena, Freigaben, Rule und CLAUDE.md-Pflichtblock"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M8 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-gmx27 - "learn-Skill global anlegen, Auto-Memory triagieren und abschalten"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M7 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-ky2kh - "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M6 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-am805 - "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M5 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-jcb2m - "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M4 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-dvy29 - "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M3 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration P7 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-vc6c3 - "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration P6 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: ledger-x2aan - "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Harness-Migration P2 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: ledger-z6c16 - "Bot-Commit, der mit einer Ausnahme endet, bleibt als fehlerhafte Aufgabe gespeichert und liefert bis zum Purge 500"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Harness-Migration P5 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: ledger-z71ka - "Bot-Commit meldet nach gescheitertem YNAB-Push entry_id null, obwohl die Buchung im Kassenbuch steht"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Harness-Migration P4 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: ledger-mj3a9 - "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert"
+
+**Type:** Modeling / Capture
+**BC:** ledger
+**Filed to:** backlog
+**Summary:** Harness-Migration P3 aus dem Zielbild harness-audit, bleibt im Backlog bis zum Ja des Owners.
+
+---
+
+## 2026-10-29 16:08 -- Modeling / Captured: infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Harness-Migration M0.
+
+---
+
 ## 2026-10-29 15:38 -- Task completed (verification skipped): ledger-q57rk - "Hotfix: Bot-Handler beendete im choose jede /api/-Anfrage mit leerem 200, die App lud nichts mehr"
 
 **Type:** Work / Task completion

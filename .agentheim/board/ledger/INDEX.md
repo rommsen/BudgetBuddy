@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 6
+- **Backlog:** 11
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 99
@@ -85,6 +85,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ledger-ct981** — "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)" (refactor) — `backlog/ledger-ct981-geschaeftsregeln-aus-validation.md`
+- **ledger-x2aan** — "Bot-Drossel: globaler Zähler vor der Token-Prüfung erlaubt es Fremden, Bob auszusperren" (decision) — `backlog/ledger-x2aan-bot-drossel-vor-anmeldung.md`
+- **ledger-z6c16** — "Bot-Commit, der mit einer Ausnahme endet, bleibt als fehlerhafte Aufgabe gespeichert und liefert bis zum Purge 500" (bug) — `backlog/ledger-z6c16-bot-fehlgeschlagener-commit-haengt.md`
+- **ledger-z71ka** — "Bot-Commit meldet nach gescheitertem YNAB-Push entry_id null, obwohl die Buchung im Kassenbuch steht" (bug) — `backlog/ledger-z71ka-bot-commit-entry-id-nach-push-fehler.md`
+- **ledger-mj3a9** — "BOT_MAX_AMOUNT_EUR: ungültiger Wert fällt auf das Maximum zurück statt auf einen sicheren Wert" (bug) — `backlog/ledger-mj3a9-bot-betragsdeckel-faellt-sicher.md`
 - **ledger-vqvq6** — "Playwright-Wächter ledger-split-cashback wartet auf die Settings-Antwort statt fest 400 ms" (chore) — `backlog/ledger-vqvq6-split-cashback-waechter-ohne-festes-warten.md`
 - **ledger-g47hp** — "Benachrichtigung für Lena bei neuer Rückfrage" (feature) — `backlog/ledger-g47hp-benachrichtigung-fuer-lena.md`
 - **ledger-ayjzq** — "Sicht 'Für mich' für Lena in BB: alles, was ihr zugewiesen ist" (feature) — `backlog/ledger-ayjzq-sicht-fuer-mich.md`
