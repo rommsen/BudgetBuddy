@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:36 -- Modeling / Promoted: infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 17:18 -- Modeling / Captured: infrastructure-awstw - Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst.
 
 **Type:** Modeling / Capture
