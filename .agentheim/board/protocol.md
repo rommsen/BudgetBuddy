@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-k4xp9 - "Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-m856w - "Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap"
 
 **Type:** Capture
