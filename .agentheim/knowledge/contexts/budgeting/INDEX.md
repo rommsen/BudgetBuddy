@@ -10,6 +10,7 @@ Catalog of ADRs, research, and concept synthesis pages scoped to this bounded co
 ## ADRs scoped to this BC
 
 <!-- adr-local:start -->
+- **0069**: Verschieben und Zuweisen als Budget-Bewegungen (Herkünfte "Verschieben" und "Zuweisen", Gruppen-Id), relativ zum frisch gelesenen Zugewiesen angewendet, erst festhalten dann senden, gleiche Sperre je Monat · 2026-10-29 · `../../decisions/0069-verschieben-und-zuweisen-als-budget-bewegungen.md`
 - **0065**: Budget-Beträge in Stufe 1 live aus YNAB, nicht in BB gespeichert; Targets anwenden hält je Kategorie eine unveränderliche Budget-Bewegung fest, Ergebnisse werden angehängt, dann ein PATCH je Kategorie mit Abbruch bei 429 · 2026-10-26 · `../../decisions/0065-budget-zustand-live-aus-ynab-budget-bewegungen-in-bb.md`
 <!-- adr-local:end -->
 

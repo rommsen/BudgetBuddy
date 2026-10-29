@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-26
 supersedes: []
 superseded_by: []
-related_tasks: [budgeting-k7wmd, budgeting-h2zfn]
+related_tasks: [budgeting-k7wmd, budgeting-h2zfn, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g]
 related_adrs: [0013, 0050, 0055, 0063]
 related_research: [ynab-api-targets-zuweisung-2026-10-25]
 ---

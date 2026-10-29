@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 08:35 -- Modeling / Refined: budgeting-rxxb4, budgeting-afd8h, budgeting-m1bce, budgeting-dyn8g - Budget Stufe 1 und 2
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** backlog (Promote folgt je Task nach Readiness-Check)
+**Summary:** Kategorie-Suche als Suchfeld über der Liste; Verschieben per Tipp auf Verfügbar, Richtung nach Vorzeichen, Zu verteilen als Gegenseite, Quelle darf negativ werden, relativ geschrieben; Kategorie-Detail per Tipp auf den Namen mit Buchungen aus dem Kassenbuch und Sprung per #/ledger/entry/<id>; Historie als #/budget/history plus Abschnitt im Detail. Kette rxxb4 → afd8h → m1bce → dyn8g wegen gemeinsamer Budget/View.fs. budgeting-bk6tq bleibt offen (Klärung im Gespräch).
+**ADRs written:** 0069
+
+---
+
 ## 2026-10-29 08:24 -- Modeling / Promoted: design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
 
 **Type:** Modeling / Promote
