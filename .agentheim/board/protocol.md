@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: categorization-p86m3 - "Bestandsreview categorization: niedrige Befunde"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Bestandsreview categorization: niedrige Befunde
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-wsb8m - "Der Kategorien-Decoder ist im Test kopiert statt aus dem Produktionscode aufgerufen"
 
 **Type:** Capture

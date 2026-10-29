@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 32
+- **Backlog:** 33
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-p86m3** — "Bestandsreview categorization: niedrige Befunde" (chore) — `backlog/categorization-p86m3-bestandsreview-categorization-niedrige-befunde.md`
 - **categorization-k7vt7** — "Englischer Platzhalter im Regel-Dialog" (bug) — `backlog/categorization-k7vt7-englischer-platzhalter-im-regel-dialog.md`
 - **categorization-b38ze** — "Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie" (refactor) — `backlog/categorization-b38ze-der-regel-dialog-laeuft-am-handy-als.md`
 - **categorization-kwe4r** — "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar" (bug) — `backlog/categorization-kwe4r-das-menue-der-regelseite-oeffnet-nur-ueber.md`
