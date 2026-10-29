@@ -1,7 +1,7 @@
 ---
 id: ledger-ct981
 title: "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
-status: backlog
+status: todo
 type: refactor
 context: ledger
 created: 2026-10-29

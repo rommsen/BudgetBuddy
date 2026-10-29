@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 1
+- **Backlog:** 8
+- **Todo:** 2
 - **Doing:** 1
 - **Done:** 24
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-cbr0r** — "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen" (refactor) — `todo/infrastructure-cbr0r-rules-standards-review-agents.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
@@ -61,7 +62,6 @@ research touching this BC, and concept synthesis pages.
 - **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `backlog/infrastructure-hdf7j-tests-aufraeumen.md`
 - **infrastructure-a2pcg** — "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen" (chore) — `backlog/infrastructure-a2pcg-claude-md-neu.md`
 - **infrastructure-gwvw1** — "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin" (chore) — `backlog/infrastructure-gwvw1-override-c-und-readme-uebergaben.md`
-- **infrastructure-cbr0r** — "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen" (refactor) — `backlog/infrastructure-cbr0r-rules-standards-review-agents.md`
 - **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `backlog/infrastructure-gmx27-learn-global-und-memory-triage.md`
 - **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `backlog/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 - **infrastructure-aaryk** — Playwright-Wächter für den PWA-Wechsel mit zwei Builds: alter Stand läuft, neuer Deploy kommt, Zurückholen lädt neu bzw. zeigt den Hinweis (chore) — `backlog/infrastructure-aaryk-playwright-waechter-pwa-wechsel.md`

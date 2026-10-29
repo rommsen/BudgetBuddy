@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:35 -- Modeling / Promoted: ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
+
+**Type:** Modeling / Promote
+**BC:** ledger
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 19:35 -- Modeling / Promoted: infrastructure-cbr0r - "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 19:35 -- Task verified and completed: infrastructure-ky2kh - "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation"
 
 **Type:** Work / Task completion
