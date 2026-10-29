@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: design-system-qhw6y - "Der Schließen-Knopf aller Bottom Sheets ist 32 px groß"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Der Schließen-Knopf aller Bottom Sheets ist 32 px groß
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: design-system-g5q09 - "Der Schließen-Knopf der Bottom Sheets ist ein eigenes Inline-SVG"
 
 **Type:** Capture
