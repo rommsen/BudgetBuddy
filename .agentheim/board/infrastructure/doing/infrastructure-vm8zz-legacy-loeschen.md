@@ -1,7 +1,7 @@
 ---
 id: infrastructure-vm8zz
 title: "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-10-29

@@ -1,7 +1,7 @@
 ---
 id: infrastructure-dvy29
 title: "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-10-29

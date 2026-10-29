@@ -1,7 +1,7 @@
 ---
 id: infrastructure-kq13v
 title: "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-10-29

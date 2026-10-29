@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:38 -- Batch started: [infrastructure-dvy29, infrastructure-vm8zz, infrastructure-kq13v]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-dvy29 - "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook", infrastructure-vm8zz - "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage", infrastructure-kq13v - "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen"
+**Parallel:** yes (3 workers; vm8zz und kq13v berühren beide .claude/rules und .claude/agents, Merge-Reihenfolge kq13v vor vm8zz)
+
+---
+
 ## 2026-10-29 17:36 -- Modeling / Promoted: infrastructure-kq13v - "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen"
 
 **Type:** Modeling / Promote

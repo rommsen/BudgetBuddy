@@ -11,21 +11,21 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 14
-- **Todo:** 4
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 3
 - **Done:** 15
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infrastructure-kq13v** — "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen" (chore) — `todo/infrastructure-kq13v-diary-einfrieren-blog-lokal.md`
-- **infrastructure-vm8zz** — "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage" (chore) — `todo/infrastructure-vm8zz-legacy-loeschen.md`
-- **infrastructure-dvy29** — "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook" (chore) — `todo/infrastructure-dvy29-verify-sh-gate-und-git-guard.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-kq13v** — "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen" (chore) — `doing/infrastructure-kq13v-diary-einfrieren-blog-lokal.md`
+- **infrastructure-vm8zz** — "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage" (chore) — `doing/infrastructure-vm8zz-legacy-loeschen.md`
+- **infrastructure-dvy29** — "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook" (chore) — `doing/infrastructure-dvy29-verify-sh-gate-und-git-guard.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
