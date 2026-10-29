@@ -11,20 +11,20 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 3
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 2
 - **Done:** 26
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infrastructure-gwvw1** — "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin" (chore) — `todo/infrastructure-gwvw1-override-c-und-readme-uebergaben.md`
-- **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `todo/infrastructure-hdf7j-tests-aufraeumen.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-gwvw1** — "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin" (chore) — `doing/infrastructure-gwvw1-override-c-und-readme-uebergaben.md`
+- **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `doing/infrastructure-hdf7j-tests-aufraeumen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

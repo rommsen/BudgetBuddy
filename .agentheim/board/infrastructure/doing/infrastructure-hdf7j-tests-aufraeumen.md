@@ -1,7 +1,7 @@
 ---
 id: infrastructure-hdf7j
 title: "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage"
-status: todo
+status: doing
 type: refactor
 context: infrastructure
 created: 2026-10-29

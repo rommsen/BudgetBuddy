@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 20:04 -- Batch started: [infrastructure-hdf7j, infrastructure-gwvw1]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-hdf7j - "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage", infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
+**Parallel:** yes (1 Worker hdf7j; gwvw1 macht der Conductor; fam9k wartet auf die gemeinsame Vorlage der Souls-Session)
+
+---
+
 ## 2026-10-29 20:04 -- Modeling / Promoted: infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
 
 **Type:** Modeling / Promote
