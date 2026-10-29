@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 17:36 -- Modeling / Promoted: infrastructure-kq13v - "Diary einfrieren, Pages-Deploy abschalten, blogpost auf protocol.md und git log umstellen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 17:36 -- Modeling / Promoted: infrastructure-vm8zz - "Legacy löschen: fsharp-*-Skills, tailscale-deploy, web-animation-design, backlog.md, MILESTONE-PLAN, reviews, template, legacy, next-step, salvage"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
+## 2026-10-29 17:36 -- Modeling / Promoted: infrastructure-dvy29 - "Ein Gate-Kommando verify.sh, Test command in allen BC-READMEs und git-guard als PreToolUse-Hook"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 17:36 -- Task verified and completed: infrastructure-psdcb - "Subagents auf Opus erzwingen und Baseline-Replay der drei Referenz-Tasks mit dem heutigen Harness"
 
 **Type:** Work / Task completion
