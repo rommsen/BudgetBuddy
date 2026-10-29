@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 07:33 -- Modeling / Refined: infrastructure-b85yv - tzdata im Produktions-Image installieren
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Akzeptanzkriterien festgelegt: tzdata in der Runtime-Stufe, Wächter scripts/dockerfile-tzdata.test.mjs, Image-Check per docker run. Builder-Entscheidung: Rückfall berlinOffsetByEuRules entfällt, der Server bricht ohne Europe/Berlin beim Start ab.
+
+---
+
 ## 2026-10-29 07:26 -- Capture / Captured: budgeting-rxxb4 - "Kategorie-Suche am Handy auf der Budget-Seite"
 
 **Type:** Capture
