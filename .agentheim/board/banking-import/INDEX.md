@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 0
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-qcx84** — "Welche Import-Buchung den Kategorie-Picker offen hat, liegt außerhalb des Models" (refactor) — `backlog/banking-import-qcx84-welche-import-buchung-den-kategorie-picker-offen.md`
 - **banking-import-smbe4** — "Ein Fehler beim Laden der Kategorien im Import lässt alle Kategorie-Picker stumm leer" (bug) — `backlog/banking-import-smbe4-ein-fehler-beim-laden-der-kategorien-im.md`
 <!-- backlog-list:end -->
 

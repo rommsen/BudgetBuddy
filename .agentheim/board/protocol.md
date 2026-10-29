@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-qcx84 - "Welche Import-Buchung den Kategorie-Picker offen hat, liegt außerhalb des Models"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Welche Import-Buchung den Kategorie-Picker offen hat, liegt außerhalb des Models
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-smbe4 - "Ein Fehler beim Laden der Kategorien im Import lässt alle Kategorie-Picker stumm leer"
 
 **Type:** Capture
