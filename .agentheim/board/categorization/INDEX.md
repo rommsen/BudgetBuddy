@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-syy3j** — "Regeln mit unbekannter Kategorie werden mit dem Platzhalternamen Unknown gespeichert" (bug) — `backlog/categorization-syy3j-regeln-mit-unbekannter-kategorie-werden-mit-dem.md`
 - **categorization-k4xp9** — "Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined" (refactor) — `backlog/categorization-k4xp9-unbekannte-patterntype-und-targetfield-werte-aus-der.md`
 - **categorization-m856w** — "Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap" (bug) — `backlog/categorization-m856w-prioritaetspfeile-der-regelliste-sind-am-handy-24.md`
 - **categorization-aemz9** — "Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen" (bug) — `backlog/categorization-aemz9-kategoriewechsel-einer-regel-speichert-bei-ynab-fehler.md`
