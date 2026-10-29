@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 14
@@ -44,6 +44,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **ynab-sync-wsb8m** — "Der Kategorien-Decoder ist im Test kopiert statt aus dem Produktionscode aufgerufen" (chore) — `backlog/ynab-sync-wsb8m-der-kategorien-decoder-ist-im-test-kopiert.md`
 - **ynab-sync-e71p7** — "YnabClientTests baut den Transaktions-Encoder im Test nach" (chore) — `backlog/ynab-sync-e71p7-ynabclienttests-baut-den-transaktions-encoder-im-test.md`
 - **ynab-sync-cd9t5** — "YnabClientTests rechnet den PayeeOverride im Test nach" (chore) — `backlog/ynab-sync-cd9t5-ynabclienttests-rechnet-den-payeeoverride-im-test-nach.md`
 - **ynab-sync-gwtm0** — "Kategorie entfernen auf der Quick-Add-Seite ist 42 px breit und eine Textglyphe" (bug) — `backlog/ynab-sync-gwtm0-kategorie-entfernen-auf-der-quick-add-seite.md`

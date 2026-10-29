@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-wsb8m - "Der Kategorien-Decoder ist im Test kopiert statt aus dem Produktionscode aufgerufen"
+
+**Type:** Capture
+**BC:** ynab-sync
+**Filed to:** backlog
+**Summary:** Der Kategorien-Decoder ist im Test kopiert statt aus dem Produktionscode aufgerufen
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: ynab-sync-e71p7 - "YnabClientTests baut den Transaktions-Encoder im Test nach"
 
 **Type:** Capture
