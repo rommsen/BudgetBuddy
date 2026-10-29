@@ -30,7 +30,7 @@ Der Fehler steckte seit b4b5cc3 (2026-10-28, Einführung der Bot-Schnittstelle) 
 - [x] Deployt; Container mit neuem Image healthy.
 
 ## Notes
-Gefunden und behoben in einer Sitzung ohne work-Lauf, auf Romans Meldung hin. Kein README_DELTA (keine neue Sprache). Die Prüfung, ob die `/api/`-Antworten in Produktion wieder einen Body tragen, stand beim Nachtrag noch aus: nach dem Neustart war noch keine Anfrage angekommen.
+Gefunden und behoben in einer Sitzung ohne work-Lauf, auf Romans Meldung hin. Kein README_DELTA (keine neue Sprache). In Produktion bestätigt (2026-10-29, 15:45): nach dem Neuladen antworteten alle `/api/`-Aufrufe (Settings, Konten, Buchungsseite, YNAB-Kategorien, Spiegel-Lauf) mit 200 und `application/json`, kein `Fable.Remoting ERROR`.
 
 ## Outcome
 
