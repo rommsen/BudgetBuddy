@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 23
+- **Backlog:** 24
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-mnmyg** — "Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist" (bug) — `backlog/categorization-mnmyg-neue-regeln-bekommen-prioritaet-1-wenn-die.md`
 - **categorization-qjmrm** — "Ein Netzwerkfehler beim Regel testen erscheint als ungültiges Muster" (bug) — `backlog/categorization-qjmrm-ein-netzwerkfehler-beim-regel-testen-erscheint-als.md`
 - **categorization-mx09q** — "Eine späte Antwort von Regel testen zeigt passt für eine inzwischen geänderte Eingabe" (bug) — `backlog/categorization-mx09q-eine-spaete-antwort-von-regel-testen-zeigt.md`
 - **categorization-p7s85** — "Ergebnis von Regel testen ist ein Anzeigetext mit Emoji, den die View wieder zerlegt" (refactor) — `backlog/categorization-p7s85-ergebnis-von-regel-testen-ist-ein-anzeigetext.md`

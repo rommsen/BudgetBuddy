@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-mnmyg - "Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-qjmrm - "Ein Netzwerkfehler beim Regel testen erscheint als ungültiges Muster"
 
 **Type:** Capture
