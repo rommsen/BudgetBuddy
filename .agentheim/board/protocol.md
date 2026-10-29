@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:35 -- Task verified and completed: infrastructure-ky2kh - "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-ky2kh - "Struktur-Wächter: CLIMutable auf Dapper-Row-Typen, Domain pur, SQL ohne Interpolation"
+**Summary:** Struktur-Wächter: CLIMutable auf Dapper-Row-Typen samt OptionHandler, Domain ohne Uhr/Zufall/I/O, SQL ohne eingesetzte Werte, je mit Gegenbeweis; keine Funde auf main
+**Duration:** 38m
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 2
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
 ## 2026-10-29 19:29 -- Task verified and completed: infrastructure-r5k2w - "export-design-system.mjs: auf erreichbaren vite preview warten statt fester 5 Sekunden"
 
 **Type:** Work / Task completion
