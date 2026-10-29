@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 14
+- **Backlog:** 15
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-e8e56** — "Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld" (chore) — `backlog/categorization-e8e56-payee-und-memo-regeln-haben-keine-gegenprobe.md`
 - **categorization-jnyk8** — "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests" (chore) — `backlog/categorization-jnyk8-sammel-kategorisieren-aufteilen-und-aufteilung-entfernen-haben.md`
 - **categorization-vzh1m** — "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene" (chore) — `backlog/categorization-vzh1m-manuelles-kategorisieren-im-import-hat-keinen-test.md`
 - **categorization-pk04j** — "Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id" (bug) — `backlog/categorization-pk04j-sammel-kategorisierung-uebertraegt-die-kategorie-nicht-auf.md`

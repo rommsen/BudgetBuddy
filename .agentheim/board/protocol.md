@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-e8e56 - "Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-jnyk8 - "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests"
 
 **Type:** Capture
