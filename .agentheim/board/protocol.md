@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: categorization-k7vt7 - "Englischer Platzhalter im Regel-Dialog"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Englischer Platzhalter im Regel-Dialog
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: categorization-b38ze - "Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie"
 
 **Type:** Capture

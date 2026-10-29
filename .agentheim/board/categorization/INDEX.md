@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 31
+- **Backlog:** 32
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-k7vt7** — "Englischer Platzhalter im Regel-Dialog" (bug) — `backlog/categorization-k7vt7-englischer-platzhalter-im-regel-dialog.md`
 - **categorization-b38ze** — "Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie" (refactor) — `backlog/categorization-b38ze-der-regel-dialog-laeuft-am-handy-als.md`
 - **categorization-kwe4r** — "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar" (bug) — `backlog/categorization-kwe4r-das-menue-der-regelseite-oeffnet-nur-ueber.md`
 - **categorization-mq0pf** — "Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung" (bug) — `backlog/categorization-mq0pf-der-overflow-knopf-der-regelseite-ist-32.md`
