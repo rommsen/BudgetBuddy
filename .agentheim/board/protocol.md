@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-fbj8w - "Fehlgeschlagenes Umsortieren der Regeln hat keinen Client-update-Test"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Fehlgeschlagenes Umsortieren der Regeln hat keinen Client-update-Test
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-m61mq - "Eine deaktivierte Regel ist im Persistenz-Rundlauf nicht abgesichert"
 
 **Type:** Capture
