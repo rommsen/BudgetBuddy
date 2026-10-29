@@ -5,6 +5,33 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:16 -- Task completed (verification skipped): infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
+**Summary:** autoMode global gegliedert: Org-wide neutral, Projektblock BudgetBuddy, soft_deny mit Pfadbezug; projektlokales autoMode wird laut Doku nicht gelesen
+**Duration:** 10m
+**Verification:** SKIPPED — Conductor-Task außerhalb des Repos, Owner-Freigabe
+**Files changed:** 0
+
+---
+
+## 2026-10-29 19:16 -- Batch started: [infrastructure-gfxn4]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
+**Parallel:** no (Conductor-Task mit Owner)
+
+---
+
+## 2026-10-29 19:16 -- Modeling / Promoted: infrastructure-gfxn4 - "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-29 19:07 -- Task verified and completed: infrastructure-vc6c3 - "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen"
 
 **Type:** Work / Task completion

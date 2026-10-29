@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 9
 - **Todo:** 1
 - **Doing:** 3
-- **Done:** 21
+- **Done:** 22
 <!-- task-counts:end -->
 
 ### Todo
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-gfxn4** — "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt" (chore) — `done/infrastructure-gfxn4-automode-environment-gliedern.md`
 - **infrastructure-vc6c3** — "Comdirect- und YNAB-Test rufen bei jedem dotnet test echte Dienste auf, ohne RUN_INTEGRATION_TESTS zu prüfen" (bug) — `done/infrastructure-vc6c3-live-tests-nur-hinter-schalter.md`
 - **infrastructure-am805** — "Security-Wächter: Pipeline-Test über Api.webApp, Negativtest je Remoting-Endpoint, Netzaufrufe nur hinter Schalter" (feature) — `done/infrastructure-am805-waechter-security.md`
 - **infrastructure-jcb2m** — "Worktree-Skripte: node_modules-Symlink anlegen und vor git worktree remove wieder löschen" (chore) — `done/infrastructure-jcb2m-worktree-skripte.md`
@@ -56,7 +57,6 @@ research touching this BC, and concept synthesis pages.
 ### Backlog
 <!-- backlog-list:start -->
 - **infrastructure-q7m2k** — "Eingabeprüfung für setDefaultBudget, setDefaultAccount und setQuickAddAccount" (chore) — `backlog/infrastructure-q7m2k-eingabepr-fung-f-r-setdefaultbudget-setdefaultaccount-und-se.md`
-- **infrastructure-gfxn4** — "autoMode in ~/.claude/settings.json gliedern: neutrale Org-Zeilen plus Blöcke je Projekt" (chore) — `backlog/infrastructure-gfxn4-automode-environment-gliedern.md`
 - **infrastructure-fam9k** — "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review" (chore) — `backlog/infrastructure-fam9k-bestandsreview-command.md`
 - **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `backlog/infrastructure-hdf7j-tests-aufraeumen.md`
 - **infrastructure-a2pcg** — "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen" (chore) — `backlog/infrastructure-a2pcg-claude-md-neu.md`
