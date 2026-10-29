@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-xh9rw - "Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-mnmyg - "Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist"
 
 **Type:** Capture
