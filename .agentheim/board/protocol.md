@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-vzh1m - "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-pk04j - "Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id"
 
 **Type:** Capture
