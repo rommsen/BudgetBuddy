@@ -1,7 +1,7 @@
 ---
 id: infrastructure-cbr0r
 title: "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen"
-status: todo
+status: doing
 type: refactor
 context: infrastructure
 created: 2026-10-29

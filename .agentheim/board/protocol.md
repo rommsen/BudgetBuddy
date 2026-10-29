@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 19:35 -- Batch started: [infrastructure-cbr0r, ledger-ct981]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-cbr0r - "Rules konsolidieren, Test-Doktrin anlegen, standards eindampfen, Review-Agents reparieren und kürzen", ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
+**Parallel:** yes (2 workers, Welle B; M10 berührt .claude/rules, .claude/agents, standards/, CLAUDE.md-Doku-Map; M15 berührt src/Server/Validation.fs und Ledger-Domain; keine Überschneidung)
+
+---
+
 ## 2026-10-29 19:35 -- Modeling / Promoted: ledger-ct981 - "Bot-Geschäftsregeln aus Validation.fs in die Ledger-Domain verschieben (Tagesgrenze, Kategorie-Auflösung, Zeitzone)"
 
 **Type:** Modeling / Promote
