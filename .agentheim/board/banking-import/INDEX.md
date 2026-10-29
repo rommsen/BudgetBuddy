@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
+- **Backlog:** 9
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 0
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-qrdh4** — "Speicherzustand des Regel-Formulars im Zuweisungs-Dialog ist ein Bool-Flag" (refactor) — `backlog/banking-import-qrdh4-speicherzustand-des-regel-formulars-im-zuweisungs-dialog.md`
 - **banking-import-e4e1z** — "Die Auswahl aller sichtbaren Import-Zeilen nutzt eine ungetestete Kopie des Filters" (refactor) — `backlog/banking-import-e4e1z-die-auswahl-aller-sichtbaren-import-zeilen-nutzt.md`
 - **banking-import-cf7b3** — "Aufgeteilte Buchungen landen im Import-Filter unter ohne Kategorie" (bug) — `backlog/banking-import-cf7b3-aufgeteilte-buchungen-landen-im-import-filter-unter.md`
 - **banking-import-bqhd3** — "Der Kategorie-Picker im Import zeigt nie Vorschläge zum Payee" (bug) — `backlog/banking-import-bqhd3-der-kategorie-picker-im-import-zeigt-nie.md`

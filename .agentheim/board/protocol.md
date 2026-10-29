@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:57 -- Capture / Captured: banking-import-qrdh4 - "Speicherzustand des Regel-Formulars im Zuweisungs-Dialog ist ein Bool-Flag"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Speicherzustand des Regel-Formulars im Zuweisungs-Dialog ist ein Bool-Flag
+
+---
+
 ## 2026-10-29 22:57 -- Capture / Captured: banking-import-e4e1z - "Die Auswahl aller sichtbaren Import-Zeilen nutzt eine ungetestete Kopie des Filters"
 
 **Type:** Capture
