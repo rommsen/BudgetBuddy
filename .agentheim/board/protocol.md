@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-aemz9 - "Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-q3960 - "Ein gesetzter PayeeOverride einer Regel lässt sich nicht mehr entfernen"
 
 **Type:** Capture

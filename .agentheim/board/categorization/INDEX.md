@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 1
+- **Backlog:** 2
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-aemz9** — "Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen" (bug) — `backlog/categorization-aemz9-kategoriewechsel-einer-regel-speichert-bei-ynab-fehler.md`
 - **categorization-q3960** — "Ein gesetzter PayeeOverride einer Regel lässt sich nicht mehr entfernen" (bug) — `backlog/categorization-q3960-ein-gesetzter-payeeoverride-einer-regel-laesst-sich.md`
 <!-- backlog-list:end -->
 
