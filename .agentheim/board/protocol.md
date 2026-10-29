@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-hdx88 - "Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-kpsp8 - "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest"
 
 **Type:** Capture

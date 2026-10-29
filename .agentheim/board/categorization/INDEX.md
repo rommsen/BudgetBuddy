@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 27
+- **Backlog:** 28
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-hdx88** — "Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart" (chore) — `backlog/categorization-hdx88-tote-nachrichten-im-regel-modul-toggleruleenabled-ruletoggled.md`
 - **categorization-kpsp8** — "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest" (bug) — `backlog/categorization-kpsp8-dieselbe-regeldatei-laesst-sich-kein-zweites-mal.md`
 - **categorization-sh0cp** — "Der Regel-Export startet den Download per JS.eval direkt im update" (refactor) — `backlog/categorization-sh0cp-der-regel-export-startet-den-download-per.md`
 - **categorization-xh9rw** — "Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform" (refactor) — `backlog/categorization-xh9rw-der-timeout-der-loesch-bestaetigung-laeuft-ueber.md`
