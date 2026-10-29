@@ -58,6 +58,10 @@ Bei jeder Feature-Implementierung oder Bug-Fix MÜSSEN folgende Schritte eingeha
 2. **Tests**: Alle neuen Features/Fixes müssen Tests haben
 3. **Build & Test**: `dotnet build` und `dotnet test` müssen erfolgreich sein
 
+### Override (C): Reviews nach einem work-Lauf vorschlagen
+
+Am Ende jedes `/agentheim:work`-Laufs die passenden Review-Agents vorschlagen und im Session-End-Eintrag nennen, nicht automatisch starten: `qa-milestone-reviewer` bei geänderten Tests, `backend-code-quality` bei `src/Server/**`, `frontend-architecture` bei `src/Client/**`, `design-quality` bei sichtbaren UI-Änderungen. Liegen seit dem letzten `Bestandsreview: <bc>` im Protokoll zehn oder mehr erledigte Tasks des BC, zusätzlich `/architecture-review <bc>` vorschlagen.
+
 ### QA Review Process
 
 Nach jeder Implementierung und vor dem Abschluss, ALWAYS use:

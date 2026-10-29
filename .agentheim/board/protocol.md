@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 20:07 -- Task completed (verification skipped): infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-gwvw1 - "Override (C) einführen und BC-README-Übergaben für Bug-Szenarien und Test-Doktrin"
+**Summary:** Override (C) in CLAUDE.md, Szenario-Regel für Bug-Tasks und Verweis auf die Test-Doktrin in allen sieben BC-READMEs
+**Duration:** 10m
+**Verification:** SKIPPED — Conductor-Task (README und CLAUDE.md), geprüft per test:scripts
+**Files changed:** 8
+
+---
+
 ## 2026-10-29 20:04 -- Batch started: [infrastructure-hdf7j, infrastructure-gwvw1]
 
 **Type:** Work / Batch start
