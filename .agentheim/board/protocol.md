@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-29 22:56 -- Capture / Captured: categorization-jnyk8 - "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests
+
+---
+
 ## 2026-10-29 22:56 -- Capture / Captured: categorization-vzh1m - "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene"
 
 **Type:** Capture

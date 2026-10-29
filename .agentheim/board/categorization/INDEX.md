@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 13
+- **Backlog:** 14
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-jnyk8** — "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests" (chore) — `backlog/categorization-jnyk8-sammel-kategorisieren-aufteilen-und-aufteilung-entfernen-haben.md`
 - **categorization-vzh1m** — "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene" (chore) — `backlog/categorization-vzh1m-manuelles-kategorisieren-im-import-hat-keinen-test.md`
 - **categorization-pk04j** — "Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id" (bug) — `backlog/categorization-pk04j-sammel-kategorisierung-uebertraegt-die-kategorie-nicht-auf.md`
 - **categorization-w32b3** — "Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch" (refactor) — `backlog/categorization-w32b3-fehlermeldungen-der-regeln-und-splits-erscheinen-beim.md`
