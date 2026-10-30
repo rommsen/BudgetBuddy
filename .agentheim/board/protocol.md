@@ -5,6 +5,78 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-t4raw - "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Zeitgesteuertes Vorbereiten zur Prüfung, Default aus.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-bftq0 - "Status der Bankverbindung sichtbar, Bank trennen, Web-Push bei Verlust"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Status der Bankverbindung, Bank trennen, Web-Push bei Verlust.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Sync ohne TAN über schmalen Bank-Port, Import-IDs unverändert.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: infrastructure-jsys4 - "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Web-Push-Kanal, zuerst auf echten Geräten bewiesen.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-z4h6p - "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Wiederaufnahme nach Neustart über verschlüsselt gespeichertes Token.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-tshq9 - "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Bankverbindung als Zustandsautomat mit Hintergrund-Refresh.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-p5mcp - "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Live-Beobachtung durch Roman, Go oder Stop für die Folge-Tasks.
+
+---
+
+## 2026-10-30 21:49 -- Modeling / Captured: banking-import-cx4b7 - "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** todo
+**Summary:** Refresh im Client und Sonde für den Live-Beweis, ADR 0071. Filed to todo.
+
+---
+
 ## 2026-10-30 19:17 -- Modeling / Captured: categorization-f955d - "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
 
 **Type:** Modeling / Capture

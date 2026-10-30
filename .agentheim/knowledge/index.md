@@ -23,6 +23,7 @@ For BC-scoped artifacts, see each BC's `INDEX.md`.
 ## Global ADRs (scope: global)
 
 <!-- adr-global:start -->
+- **0071** — Comdirect-Bankverbindung lebt per Refresh-Token im Server, mit schmalem Bank-Port, vorbereitendem Zeitplan und Web-Push bei Verlust; gilt unter Vorbehalt des Live-Beweises — 2026-10-30 — `decisions/0071-comdirect-bankverbindung-per-refresh-token-bank-port-und-web-push.md`
 - **0063** — Das Budget ist die nächste große Fähigkeit vor der ETF-Bewertung, YNAB abschalten wird Richtung, eigener Context budgeting — 2026-10-25 — `knowledge/decisions/0063-budget-ist-die-naechste-faehigkeit-vor-der-etf-bewertung.md`
 - **0012** — BudgetBuddy wird führendes System, YNAB Projektion und Fallback (löst ADR 0001 ab) — 2026-09-06 — `knowledge/decisions/0012-budgetbuddy-leads-ynab-projects.md`
 - **0003** — Quick Add aktiviert Phase 0 der Ersatz-Idee (Amendment zu ADR 0001) — 2026-06-12 — `knowledge/decisions/0003-quick-add-activates-phase-0.md`
