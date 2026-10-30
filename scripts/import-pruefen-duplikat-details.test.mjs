@@ -37,7 +37,7 @@ const txs = [
   tx(2, 0, -12.34, "Verdacht Markt", "Pending", null, { PossibleDuplicate: ["Similar transaction found: Rewe on 2026-10-07 for -12.34", fuzzy] }),
 ];
 const session = { Id: W("SyncSessionId", g(1)), StartedAt: day(0), CompletedAt: null, Status: "ReviewingTransactions", TransactionCount: 2, ImportedCount: 0, SkippedCount: 0 };
-const settings = { Comdirect: null, Ynab: { PersonalAccessToken: "x", DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } };
+const settings = { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } };
 const json = (b) => ({ contentType: "application/json", body: JSON.stringify(b) });
 
 async function mock(page) {

@@ -36,7 +36,7 @@ const tx = (n, amount, payee, status, cat, ask) => ({
   YnabImportStatus: "NotAttempted", Splits: null, SuggestedByOrderId: null, ReviewSteps: [], AskLena: ask,
 });
 const session = { Id: W("SyncSessionId", g(1)), StartedAt: day(0), CompletedAt: null, Status: "ReviewingTransactions", TransactionCount: 2, ImportedCount: 0, SkippedCount: 0 };
-const settings = { Comdirect: null, Ynab: { PersonalAccessToken: "x", DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } };
+const settings = { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } };
 const json = (b) => ({ contentType: "application/json", body: JSON.stringify(b) });
 
 /// Veränderlicher Zustand der Mocks je Test.

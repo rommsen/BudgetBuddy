@@ -28,7 +28,7 @@ raus. Vision: `.agentheim/knowledge/vision.md`.
   höchstens 31 Tage zurück, 10 Anfragen pro Minute auf `/bot/`. Bob-Buchungen bekommen kein Flag.
   Diese Grenzen nicht lockern und nicht konfigurierbar machen.
 - Secrets gehen nie an den Client. `/api` hat keine eigene Anmeldung, Schutz nur über Tailscale.
-  Offener Bug: `getSettings` liefert Token und Passwörter im Klartext (`infrastructure-s1r95`).
+  `getSettings` liefert `AppSettingsView` ohne Secrets, `AppSettings` bleibt auf dem Server.
 - Live-Dienste (YNAB, Comdirect) nur in Integrationstests hinter `RUN_INTEGRATION_TESTS`.
   Ein normaler Testlauf ruft nie echte APIs auf und schreibt nie in eine echte Datenbank
   (`USE_MEMORY_DB` in `src/Tests/Main.fs`).

@@ -25,7 +25,7 @@ let lenaFlagColorPreselection (settings: LenaFlagSettings) : string option =
 
 /// Settings-specific model state
 type Model = {
-    Settings: RemoteData<AppSettings>
+    Settings: RemoteData<AppSettingsView>
     YnabBudgets: RemoteData<YnabBudgetWithAccounts list>
 
     // Form inputs
@@ -53,7 +53,7 @@ type Model = {
 /// Settings-specific messages
 type Msg =
     | LoadSettings
-    | SettingsLoaded of Result<AppSettings, string>
+    | SettingsLoaded of Result<AppSettingsView, string>
     | UpdateYnabTokenInput of string
     | SaveYnabToken
     | YnabTokenSaved of Result<unit, SettingsError>
@@ -93,3 +93,39 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
+
+let private loadedSettings (model: Model) =
+    match model.Settings with
+    | Success settings -> Some settings
+    | _ -> None
+
+/// Ein gesetzter Token muss nicht neu eingegeben werden: der Server gibt ihn nicht heraus.
+let ynabTokenIsSet (model: Model) : bool =
+    loadedSettings model
+    |> Option.bind (fun s -> s.Ynab)
+    |> Option.exists (fun y -> y.HasToken)
+
+let comdirectClientSecretIsSet (model: Model) : bool =
+    loadedSettings model
+    |> Option.bind (fun s -> s.Comdirect)
+    |> Option.exists (fun c -> c.HasClientSecret)
+
+let comdirectPasswordIsSet (model: Model) : bool =
+    loadedSettings model
+    |> Option.bind (fun s -> s.Comdirect)
+    |> Option.exists (fun c -> c.HasPassword)
+
+/// Pflichtfelder des Token-Formulars.
+let ynabRequiredFields (model: Model) : (string * string) list =
+    [ if not (ynabTokenIsSet model) then
+          "Persönlicher Access Token", model.YnabTokenInput ]
+
+/// Pflichtfelder des Comdirect-Formulars. Gesetzte Secrets dürfen leer bleiben, der Server behält sie.
+let comdirectRequiredFields (model: Model) : (string * string) list =
+    [ "Client-ID", model.ComdirectClientIdInput
+      if not (comdirectClientSecretIsSet model) then
+          "Client-Secret", model.ComdirectClientSecretInput
+      "Benutzername", model.ComdirectUsernameInput
+      if not (comdirectPasswordIsSet model) then
+          "PIN", model.ComdirectPasswordInput
+      "Konto-ID", model.ComdirectAccountIdInput ]

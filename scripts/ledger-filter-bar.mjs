@@ -105,14 +105,14 @@ export function buildCategoriesFixture() {
   ];
 }
 
-/// `AppSettings` (Shared/Domain.fs) mit einem konfigurierten YNAB-Budget. Ohne das
+/// `AppSettingsView` (Shared/Domain.fs) mit einem konfigurierten YNAB-Budget. Ohne das
 /// bleibt `Ledger.Types.LoadCategories` im Haupt-`State.fs` folgenlos (kein Budget,
 /// kein Aufruf, siehe `State.fs`).
 export function buildSettingsFixture(budgetId = "fake-budget-id") {
   return {
     Comdirect: null,
     Ynab: {
-      PersonalAccessToken: "fake-token",
+      HasToken: true,
       DefaultBudgetId: { YnabBudgetId: budgetId },
       DefaultAccountId: null,
       QuickAddAccountId: null,

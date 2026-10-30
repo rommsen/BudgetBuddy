@@ -39,7 +39,7 @@ Diese Tests müssen bestehen und werden bei Änderungen am Bereich mitgezogen:
 11. **Endpoint-Negativtabelle:** `src/Tests/RemotingEndpointNegativeTests.fs` hat je Remoting-Endpoint eine Zeile (ungültige Eingabe, unbekannte Id, fehlende Einrichtung). Ein neuer Endpoint braucht eine Zeile, sonst ist der Abgleich rot.
 12. **Live nur hinter Schalter:** Aufrufe gegen YNAB oder Comdirect stehen nur in Testfällen, die `RUN_INTEGRATION_TESTS` prüfen (`shouldRunIntegrationTests`), in Listen "(requires .env)". Nie mit echten Schlüsseln und falschem Passwort anmelden. `src/Tests/NetworkCallGuardTests.fs` meldet Verstöße.
 13. **Bot-Grenzen:** `/bot/` verlangt das Bearer-Token, ist ohne Token abgeschaltet und hält Anfrage-, Betrags- und Tagesgrenzen (`src/Tests/BotApiTests.fs`, `src/Tests/BotValidationTests.fs`). Eine neue Bot-Route bekommt einen 401-Test und, wenn sie bucht, einen Grenztest.
-14. **Keine Secrets an den Client:** YNAB-Token und Comdirect-Zugangsdaten verlassen den Server nicht, auch nicht in Fehlermeldungen. Ein Endpoint, der Einstellungen liefert, bekommt einen Test, der das prüft. Offen: `getSettings` liefert das Token heute noch aus (Backlog `infrastructure-s1r95`).
+14. **Keine Secrets an den Client:** YNAB-Token und Comdirect-Zugangsdaten verlassen den Server nicht, auch nicht in Fehlermeldungen. Ein Endpoint, der Einstellungen liefert, bekommt einen Test, der das prüft. Vorbild: `src/Tests/SettingsSecretsTests.fs`.
 
 ## Testdatenbank und Umgebung
 

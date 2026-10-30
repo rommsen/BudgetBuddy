@@ -59,11 +59,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         let updatedModel = {
             model with
                 Settings = Success settings
-                YnabTokenInput = settings.Ynab |> Option.map (fun y -> y.PersonalAccessToken) |> Option.defaultValue ""
                 ComdirectClientIdInput = settings.Comdirect |> Option.map (fun c -> c.ClientId) |> Option.defaultValue ""
-                ComdirectClientSecretInput = settings.Comdirect |> Option.map (fun c -> c.ClientSecret) |> Option.defaultValue ""
                 ComdirectUsernameInput = settings.Comdirect |> Option.map (fun c -> c.Username) |> Option.defaultValue ""
-                ComdirectPasswordInput = settings.Comdirect |> Option.map (fun c -> c.Password) |> Option.defaultValue ""
                 ComdirectAccountIdInput = settings.Comdirect |> Option.bind (fun c -> c.AccountId) |> Option.defaultValue ""
                 SyncDaysInput = settings.Sync.DaysToFetch
         }
@@ -75,6 +72,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | UpdateYnabTokenInput value ->
         { model with YnabTokenInput = value }, Cmd.none, NoOp
 
+    // Ohne Eingabe bleibt der gesetzte Token, ein Aufruf hätte nichts zu speichern.
+    | SaveYnabToken when String.IsNullOrWhiteSpace model.YnabTokenInput && ynabTokenIsSet model ->
+        { model with EditingSection = None }, Cmd.none, NoOp
+
     | SaveYnabToken ->
         let cmd =
             Cmd.OfAsync.either
@@ -85,19 +86,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | YnabTokenSaved (Ok _) ->
-        // Update local state with the saved token
+        // Der lokale Stand merkt sich nur, dass ein Token gesetzt ist; die Eingabe wird geleert.
         let updatedSettings =
             match model.Settings with
             | Success settings ->
-                let newYnab: YnabSettings = {
-                    PersonalAccessToken = model.YnabTokenInput
+                let newYnab: YnabSettingsView = {
+                    HasToken = true
                     DefaultBudgetId = settings.Ynab |> Option.bind (fun y -> y.DefaultBudgetId)
                     DefaultAccountId = settings.Ynab |> Option.bind (fun y -> y.DefaultAccountId)
                     QuickAddAccountId = settings.Ynab |> Option.bind (fun y -> y.QuickAddAccountId)
                 }
                 Success { settings with Ynab = Some newYnab }
             | other -> other
-        { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("YNAB token saved successfully", ToastSuccess)
+        { model with Settings = updatedSettings; YnabTokenInput = ""; EditingSection = None }, Cmd.none, ShowToast ("YNAB token saved successfully", ToastSuccess)
 
     | YnabTokenSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
@@ -149,20 +150,26 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         model, cmd, NoOp
 
     | ComdirectCredentialsSaved (Ok _) ->
-        // Update local state with the saved credentials
+        // Der lokale Stand merkt sich nur, dass die Secrets gesetzt sind; die Eingaben werden geleert.
         let updatedSettings =
             match model.Settings with
             | Success settings ->
-                let newComdirect: ComdirectSettings = {
+                let newComdirect: ComdirectSettingsView = {
                     ClientId = model.ComdirectClientIdInput
-                    ClientSecret = model.ComdirectClientSecretInput
+                    HasClientSecret = true
                     Username = model.ComdirectUsernameInput
-                    Password = model.ComdirectPasswordInput
+                    HasPassword = true
                     AccountId = if String.IsNullOrWhiteSpace(model.ComdirectAccountIdInput) then None else Some model.ComdirectAccountIdInput
                 }
                 Success { settings with Comdirect = Some newComdirect }
             | other -> other
-        { model with Settings = updatedSettings; EditingSection = None }, Cmd.none, ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
+        { model with
+            Settings = updatedSettings
+            ComdirectClientSecretInput = ""
+            ComdirectPasswordInput = ""
+            EditingSection = None },
+        Cmd.none,
+        ShowToast ("Comdirect credentials saved successfully", ToastSuccess)
 
     | ComdirectCredentialsSaved (Error err) ->
         model, Cmd.none, ShowToast (settingsErrorToString err, ToastError)

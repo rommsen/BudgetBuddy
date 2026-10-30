@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 16:26 -- Task verified and completed: infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
+**Summary:** getSettings liefert nur noch AppSettingsView ohne Token, Client-Secret und PIN; die Settings-Seite zeigt gesetzte Secrets als gesetzt, und Speichern ohne Secret-Eingabe behält die gespeicherten Werte.
+**Duration:** 26m
+**Verification:** PASS (iteration 1)
+**Files changed:** 17
+**Tests added:** 10
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 16:00 -- Batch started: [infrastructure-s1r95, categorization-msep5, budgeting-afd8h]
 
 **Type:** Work / Batch start

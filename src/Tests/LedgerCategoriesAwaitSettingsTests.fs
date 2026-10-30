@@ -36,11 +36,11 @@ let private baseModel (page: Page) : State.Model =
         QuickAddTemplates = NotAsked
     }
 
-let private settingsWithBudget : AppSettings = {
+let private settingsWithBudget : AppSettingsView = {
     Comdirect = None
     Ynab =
         Some {
-            PersonalAccessToken = "fake-token"
+            HasToken = true
             DefaultBudgetId = Some (YnabBudgetId "fake-budget-id")
             DefaultAccountId = None
             QuickAddAccountId = None
@@ -54,7 +54,7 @@ let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
     cmd |> List.iter (fun effect -> effect collected.Add)
     List.ofSeq collected
 
-let private withSettings (settings: RemoteData<AppSettings>) (model: State.Model) =
+let private withSettings (settings: RemoteData<AppSettingsView>) (model: State.Model) =
     { model with Settings = { model.Settings with Settings = settings } }
 
 let private loadSettingsMsg = SettingsMsg Components.Settings.Types.LoadSettings

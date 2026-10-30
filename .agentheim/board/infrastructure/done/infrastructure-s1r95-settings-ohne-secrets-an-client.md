@@ -1,7 +1,7 @@
 ---
 id: infrastructure-s1r95
 title: "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
-status: doing
+status: done
 type: bug
 context: infrastructure
 created: 2026-10-29
@@ -38,3 +38,15 @@ Geprüft gegen den Code. Der kleinste Schnitt:
 - **Speichern ohne Secret-Eingabe.** `saveComdirectCredentials` behandelt leere `ClientSecret` und `Password` als "alten Wert behalten" und validiert nach dem Zusammenführen mit dem gespeicherten Wert. Ist nichts gespeichert, bleibt es beim Validierungsfehler. Der YNAB-Dialog ruft `saveYnabToken` ohne Eingabe gar nicht auf.
 - **Client:** `src/Client/Components/Settings/State.fs` füllt die Secret-Eingaben nicht mehr vor (Zeilen 62, 64, 66), `YnabTokenSaved` setzt `HasToken`. `View.fs:119` zeigt "gesetzt" statt `maskValue`. `Ledger/State.fs` und `SyncFlow/State.fs` lesen nur `DefaultBudgetId` und `QuickAddAccountId`, dort reicht das Mitziehen des Typs.
 - **Fixtures im selben Schritt:** `scripts/import-lena.test.mjs`, `scripts/import-pruefen-duplikat-details.test.mjs`, `scripts/ledger-filter-bar.mjs` (Laufzeitfalle Fable.Remoting), dazu die Tests `LedgerCategoriesAwaitSettingsTests.fs` und `LedgerCategoriesSyncTests.fs`.
+
+## Outcome
+
+`getSettings` liefert jetzt `AppSettingsView` (`src/Shared/Domain.fs`). Token, Client-Secret und PIN existieren in diesem Typ nicht, nur `HasToken`, `HasClientSecret` und `HasPassword`. `startSync` und der Comdirect-Import laden die echten Zugangsdaten über die interne Funktion `loadAppSettingsFrom` in `src/Server/Api.fs`.
+
+`saveComdirectCredentialsWith` führt leere `ClientSecret` und `Password` mit dem gespeicherten Wert zusammen und validiert danach. Ist nichts gespeichert, bleibt es beim Validierungsfehler. Der YNAB-Dialog schließt ohne Eingabe, ohne `saveYnabToken` aufzurufen.
+
+Die Settings-Seite (`src/Client/Components/Settings/`) zeigt Token, Client-Secret und PIN als "gesetzt", füllt die Secret-Felder nicht mehr vor und verlangt gesetzte Secrets nicht als Pflichtfelder. Nach dem Speichern werden die Eingaben geleert.
+
+Tests: `src/Tests/SettingsSecretsTests.fs` (Server über Funktionswerte, Client-`update`; der Antworttest war vor dem Typwechsel rot) und der Browser-Wächter `scripts/settings-secrets.test.mjs`. Über die Refinement-Liste hinaus musste auch die Fixture `scripts/import-split-target.test.mjs` mit. Der offene Hinweis auf diesen Bug ist aus `CLAUDE.md` und `.claude/rules/test-doctrine.md` entfernt.
+
+`ClientId` und `Username` gehen weiter an den Client, weil das Formular sie vorbelegt; die Task nennt nur Token, Secret und Passwort. `AppSettings` und `YnabSettings` liegen weiter in `src/Shared`, der Client benutzt sie aber nicht mehr.

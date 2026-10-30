@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 4
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 32
+- **Doing:** 0
+- **Done:** 33
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `doing/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `done/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `done/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 - **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `done/infrastructure-gmx27-learn-global-und-memory-triage.md`
 - **infrastructure-a2pcg** — "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen" (chore) — `done/infrastructure-a2pcg-claude-md-neu.md`

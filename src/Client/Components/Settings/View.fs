@@ -39,6 +39,11 @@ let private maskValue (value: string) =
     elif value.Length <= 4 then "****"
     else "****..." + value.[value.Length-4..]
 
+let private secretStatus (isSet: bool) =
+    if isSet then "gesetzt" else "\u2014"
+
+let private keepSecretHint = "Gesetzt. Leer lassen, um den Wert zu behalten"
+
 let private settingRow (label: string) (description: string) (value: string) =
     Html.div [
         prop.className "setting-row"
@@ -116,7 +121,7 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             settingRow "Budget" "Aktives YNAB Budget" budgetName
                             settingRow "Konto" "YNAB Konto für Transaktionen" accountName
                             settingRow "Quick-Add-Konto" "Konto für manuell erfasste Transaktionen (z. B. Bar)" quickAddAccountName
-                            settingRow "API Token" "Pers\u00f6nlicher Access Token" (maskValue ynab.PersonalAccessToken)
+                            settingRow "API Token" "Pers\u00f6nlicher Access Token" (secretStatus ynab.HasToken)
 
                             Html.div [
                                 prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
@@ -135,16 +140,19 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 prop.className "space-y-4 p-4"
                 prop.children [
                     // Token input with label
-                    Input.groupRequired "Pers\u00f6nlicher Access Token" (
-                        Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB Personal Access Token eingeben"
-                    )
+                    if ynabTokenIsSet model then
+                        Input.groupSimple "Pers\u00f6nlicher Access Token" (
+                            Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) keepSecretHint)
+                    else
+                        Input.groupRequired "Pers\u00f6nlicher Access Token" (
+                            Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB Personal Access Token eingeben")
 
                     // Save button with validation
                     Form.submitButton
                         "Token speichern"
                         (fun () -> dispatch SaveYnabToken)
                         false
-                        [("Pers\u00f6nlicher Access Token", model.YnabTokenInput)]
+                        (ynabRequiredFields model)
 
                     // Link to YNAB
                     Html.div [
@@ -336,6 +344,8 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         match settings.Comdirect with
                         | Some comdirect ->
                             settingRow "Client-ID" "Comdirect API Client-ID" (maskValue comdirect.ClientId)
+                            settingRow "Client-Secret" "Comdirect API Client-Secret" (secretStatus comdirect.HasClientSecret)
+                            settingRow "PIN" "Comdirect-PIN" (secretStatus comdirect.HasPassword)
                             settingRow "Authentifizierung" "OAuth2 + photoTAN" "\u2014"
 
                             Html.div [
@@ -361,8 +371,12 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             Input.groupRequired "Client-ID" (
                                 Input.textSimple model.ComdirectClientIdInput (UpdateComdirectClientIdInput >> dispatch) "Deine API Client-ID")
 
-                            Input.groupRequired "Client-Secret" (
-                                Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Dein API Client-Secret")
+                            if comdirectClientSecretIsSet model then
+                                Input.groupSimple "Client-Secret" (
+                                    Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) keepSecretHint)
+                            else
+                                Input.groupRequired "Client-Secret" (
+                                    Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Dein API Client-Secret")
                         ]
                     ]
 
@@ -373,8 +387,12 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             Input.groupRequired "Benutzername (Zugangsnummer)" (
                                 Input.textSimple model.ComdirectUsernameInput (UpdateComdirectUsernameInput >> dispatch) "Deine Zugangsnummer")
 
-                            Input.groupRequired "PIN" (
-                                Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Deine Comdirect-PIN")
+                            if comdirectPasswordIsSet model then
+                                Input.groupSimple "PIN" (
+                                    Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) keepSecretHint)
+                            else
+                                Input.groupRequired "PIN" (
+                                    Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Deine Comdirect-PIN")
                         ]
                     ]
 
@@ -388,13 +406,7 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                         "Zugangsdaten speichern"
                         (fun () -> dispatch SaveComdirectCredentials)
                         false
-                        [
-                            ("Client-ID", model.ComdirectClientIdInput)
-                            ("Client-Secret", model.ComdirectClientSecretInput)
-                            ("Benutzername", model.ComdirectUsernameInput)
-                            ("PIN", model.ComdirectPasswordInput)
-                            ("Konto-ID", model.ComdirectAccountIdInput)
-                        ]
+                        (comdirectRequiredFields model)
 
                     // Info tip
                     Html.div [

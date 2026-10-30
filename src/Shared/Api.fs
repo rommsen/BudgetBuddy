@@ -10,9 +10,9 @@ open Domain
 /// API contract for application settings management.
 /// Purpose: Persists encrypted credentials and validates external API connections.
 type SettingsApi = {
-    /// Retrieves current application settings from database.
-    /// Returns: Complete settings object with encrypted secrets decrypted.
-    getSettings: unit -> Async<AppSettings>
+    /// Liest die Einstellungen für den Client.
+    /// Returns: Sicht ohne Secrets, nur ob Token, Client-Secret und PIN gesetzt sind.
+    getSettings: unit -> Async<AppSettingsView>
 
     /// The "Lena" flag colour (ADR 0056, Punkt 1): the saved colour and the suggestion taken
     /// from the most recently mirrored booking whose flag name reads "Lena".
@@ -28,6 +28,7 @@ type SettingsApi = {
     saveYnabToken: string -> Async<SettingsResult<unit>>
 
     /// Encrypts and stores Comdirect OAuth credentials.
+    /// Leere ClientSecret und Password behalten den gespeicherten Wert.
     /// Purpose: Securely persists bank API credentials for automatic syncs.
     /// Returns: Unit on success or SettingsError (EncryptionFailed, DatabaseError).
     saveComdirectCredentials: ComdirectSettings -> Async<SettingsResult<unit>>

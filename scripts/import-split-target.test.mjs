@@ -30,7 +30,7 @@ const row = {
   YnabImportStatus: "NotAttempted", Splits: null, SuggestedByOrderId: null, ReviewSteps: [], AskLena: false,
 };
 const session = { Id: W("SyncSessionId", g(1)), StartedAt: day(), CompletedAt: null, Status: "ReviewingTransactions", TransactionCount: 1, ImportedCount: 0, SkippedCount: 0 };
-const settings = { Comdirect: null, Ynab: { PersonalAccessToken: "x", DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } };
+const settings = { Comdirect: null, Ynab: { HasToken: true, DefaultBudgetId: W("YnabBudgetId", "b1"), DefaultAccountId: null, QuickAddAccountId: null }, Sync: { DaysToFetch: 14 } };
 const budget = { Budget: { Id: W("YnabBudgetId", "b1"), Name: "Haushalt" }, Accounts: accounts, Categories: cats };
 const json = (b) => ({ contentType: "application/json", body: JSON.stringify(b) });
 

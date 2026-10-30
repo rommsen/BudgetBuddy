@@ -574,9 +574,34 @@ type SyncSettings = {
     DaysToFetch: int  // How many days back to fetch
 }
 
+/// Einstellungen samt Secrets. Bleibt auf dem Server, an den Client geht `AppSettingsView`.
 type AppSettings = {
     Comdirect: ComdirectSettings option
     Ynab: YnabSettings option
+    Sync: SyncSettings
+}
+
+/// Client-Sicht auf `YnabSettings`: das Token existiert hier nicht, nur ob es gesetzt ist.
+type YnabSettingsView = {
+    HasToken: bool
+    DefaultBudgetId: YnabBudgetId option
+    DefaultAccountId: YnabAccountId option
+    QuickAddAccountId: YnabAccountId option
+}
+
+/// Client-Sicht auf `ComdirectSettings`: Secret und PIN existieren hier nicht, nur ob sie gesetzt sind.
+type ComdirectSettingsView = {
+    ClientId: string
+    HasClientSecret: bool
+    Username: string
+    HasPassword: bool
+    AccountId: string option
+}
+
+/// Antwort von `getSettings`. Dieser Typ hält Secrets schon laut Compiler vom Client fern.
+type AppSettingsView = {
+    Comdirect: ComdirectSettingsView option
+    Ynab: YnabSettingsView option
     Sync: SyncSettings
 }
 

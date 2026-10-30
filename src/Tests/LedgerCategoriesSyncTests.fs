@@ -44,11 +44,11 @@ let private baseModel (page: Page) : State.Model =
         QuickAddTemplates = NotAsked
     }
 
-let private settingsWithBudget : AppSettings = {
+let private settingsWithBudget : AppSettingsView = {
     Comdirect = None
     Ynab =
         Some {
-            PersonalAccessToken = "fake-token"
+            HasToken = true
             DefaultBudgetId = Some (YnabBudgetId "fake-budget-id")
             DefaultAccountId = None
             QuickAddAccountId = None
@@ -56,7 +56,7 @@ let private settingsWithBudget : AppSettings = {
     Sync = { DaysToFetch = 30 }
 }
 
-let private settingsWithoutBudget : AppSettings = { Comdirect = None; Ynab = None; Sync = { DaysToFetch = 30 } }
+let private settingsWithoutBudget : AppSettingsView = { Comdirect = None; Ynab = None; Sync = { DaysToFetch = 30 } }
 
 /// Führt ein `Cmd` aus und sammelt die abgeschickten Nachrichten ein, nur zulässig
 /// für `Cmd.ofMsg`/`Cmd.batch`/`Cmd.map` (kein `Cmd.OfAsync`, das würde den unter
