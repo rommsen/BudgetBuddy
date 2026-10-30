@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Promoted: infrastructure-q7d2m - "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Refined: infrastructure-q7d2m - Alte Planungsdokumente unter docs/ aufräumen
 
 **Type:** Modeling / Refine
