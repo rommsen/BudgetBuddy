@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Refined: categorization-cgq35 - Regelseite am Handy und per Tastatur
+
+**Type:** Modeling / Refine
+**BC:** categorization
+**Status after:** todo
+**Summary:** Nicht geschnitten, alle Befunde liegen in Rules/View.fs. Kaputt- und Intakt-Szenarien plus Browser-Wächter für 390 px, Abhängigkeit auf design-system-001 ergänzt.
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Promoted: infrastructure-q7d2m - "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
 
 **Type:** Modeling / Promote
