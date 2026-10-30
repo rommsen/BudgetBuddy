@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 14:25 -- Batch started: [infrastructure-awstw, budgeting-rxxb4, design-system-bym4m]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-awstw - Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst., budgeting-rxxb4 - "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC", design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
+**Parallel:** yes (3 workers, Merge-Reihenfolge awstw, rxxb4, bym4m wegen Ledger/State.fs und SyncFlow/State.fs)
+
+---
+
 ## 2026-10-30 14:24 -- Harness-Migration abgeschlossen: Messung nach M12 und learn
 
 **Type:** Work / Messung

@@ -1,7 +1,7 @@
 ---
 id: infrastructure-awstw
 title: Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst.
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-10-29
