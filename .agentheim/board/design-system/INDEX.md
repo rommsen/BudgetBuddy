@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 8
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 38
@@ -61,6 +61,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `backlog/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 - **design-system-zpq7t** — "ADR 0011 nennt positive Available-Beträge grün, Code und Styleguide färben sie neutral" (decision) — `backlog/design-system-zpq7t-adr-0011-nennt-positive-available-betraege-gruen.md`
 - **design-system-nhn83** — "Kontozeilen im Account-Picker sind nicht fokussierbar und kürzen lange Namen nicht" (bug) — `backlog/design-system-nhn83-kontozeilen-im-account-picker-sind-nicht-fokussierbar.md`
 - **design-system-yw9bs** — "Die Chips Vorgeschlagen und Zuletzt verwendet im Kategorie-Sheet sind etwa 33 px hoch" (bug) — `backlog/design-system-yw9bs-die-chips-vorgeschlagen-und-zuletzt-verwendet-im.md`
