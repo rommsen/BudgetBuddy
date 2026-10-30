@@ -1,7 +1,7 @@
 ---
 id: infrastructure-q7d2m
 title: "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
-status: doing
+status: done
 type: chore
 context: infrastructure
 created: 2026-10-29
@@ -36,3 +36,13 @@ Entschieden je Datei:
 
 ## Notes
 Refine am 2026-10-30. Gelöschtes bleibt in der Git-Historie. `README.md` ist englisch und bleibt es.
+
+## Outcome
+
+`docs/MIGRATION-PLAN-SKILLS.md` und `docs/FRONTEND-ARCHITECTURE-MILESTONES.md` sind gelöscht. Vor dem Löschen geprüft: Verweise gab es außerhalb von `.agentheim/` nur noch aus dem eingefrorenen `diary/development.md`, das unverändert bleibt.
+
+`docs/LEARNINGS.md`: Im Abschnitt "Agent Workflows That Work" entfallen `red-test-fixer` und die Übergabe dorthin. In "Milestone-Based Development" heißt es jetzt "in a milestone file" statt `/docs/MILESTONE-PLAN.md`.
+
+`README.md`, Tabelle "Documentation": Die sechs toten Links sind ersetzt durch vier Zeilen auf `standards/README.md`, `standards/frontend/overview.md`, `standards/backend/overview.md` und `docs/bot-api.md`. Persistence, Deployment und Tailscale hatten kein Gegenstück und entfallen.
+
+Prüfung: Der grep aus den Akzeptanzkriterien findet nichts, alle `standards/....md`-Angaben unter `docs/` und in `README.md` sowie alle relativen Links in `README.md` zeigen auf existierende Dateien. `./verify.sh` meldet `VERIFY: PASS` (dotnet 2695 grün, node 329 grün).

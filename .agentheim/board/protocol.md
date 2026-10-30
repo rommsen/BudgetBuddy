@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 17:15 -- Task verified and completed: infrastructure-q7d2m - "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-q7d2m - "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
+**Summary:** Die beiden überholten Planungsdokumente unter docs/ sind gelöscht, docs/LEARNINGS.md verweist nicht mehr auf red-test-fixer und MILESTONE-PLAN, und die Tabelle "Documentation" in README.md zeigt nur noch auf existierende Dateien.
+**Duration:** 15m
+**Verification:** PASS (iteration 1)
+**Files changed:** 4
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 16:59 -- Batch started: [categorization-cgq35, design-system-m65pw, infrastructure-q7d2m]
 
 **Type:** Work / Batch start

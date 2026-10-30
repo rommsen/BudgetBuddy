@@ -246,13 +246,6 @@ Skills are specialized knowledge modules that Claude Code activates based on con
 - Reviews for tautological tests
 - Checks for missing coverage
 - Defines (but doesn't implement) missing tests
-- Hands off to red-test-fixer for implementation
-
-**red-test-fixer**: Fixes failing tests
-- Diagnoses root cause (implementation bug vs test bug)
-- Applies minimal fix
-- Maintains functional programming principles
-- Verifies no regressions
 
 ### CLAUDE.md Best Practices
 
@@ -310,7 +303,7 @@ Useful for testing frontend:
 ### Milestone-Based Development
 
 **Structure:**
-1. Define milestones in `/docs/MILESTONE-PLAN.md`
+1. Define milestones in a milestone file
 2. Each milestone has verification checklist
 3. After completion:
    - Invoke qa-milestone-reviewer agent

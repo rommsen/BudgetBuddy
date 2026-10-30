@@ -287,12 +287,10 @@ docs/
 
 | Guide | Purpose |
 |-------|---------|
-| [Architecture](docs/00-ARCHITECTURE.md) | System overview |
-| [Frontend Guide](docs/02-FRONTEND-GUIDE.md) | Elmish + Feliz patterns |
-| [Backend Guide](docs/03-BACKEND-GUIDE.md) | Giraffe + Fable.Remoting |
-| [Persistence](docs/05-PERSISTENCE.md) | SQLite patterns |
-| [Deployment](docs/07-BUILD-DEPLOY.md) | Docker setup |
-| [Tailscale](docs/08-TAILSCALE-INTEGRATION.md) | Private network |
+| [Standards](standards/README.md) | Index of the project standards |
+| [Frontend Guide](standards/frontend/overview.md) | Frontend structure and conventions |
+| [Backend Guide](standards/backend/overview.md) | Backend structure and conventions |
+| [Bot API](docs/bot-api.md) | REST API for the external agent Bob |
 
 ## Contributing
 
