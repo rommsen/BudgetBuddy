@@ -35,10 +35,10 @@ Nur diese Quellen, nichts sonst (keine alten Reviews, keine Archive):
 3. Jeder Agent bekommt im Prompt diese Vorgabe: „Ändere keinen Code und schreibe keine Datei. Gib deine Befunde als
    Antwort zurück, einen pro Zeile, in der Befundform unten. Was ein Wächter-Test schon prüft, meldest du nicht.“
 4. Synthese: Befunde mit gleicher Fundstelle und gleicher Regel zusammenführen (höhere Schwere gewinnt). Befunde mit
-   derselben Regel und derselben Ursache in einer Datei werden eine Task mit allen Fundstellen. Befunde ohne
-   Fundstelle oder ohne Regel verwerfen. Gegen offene Tasks in `.agentheim/board/<bc>/{backlog,todo,doing}/` abgleichen:
-   was dort schon steht, wird nicht noch einmal angelegt.
-5. Ergebnis anlegen und protokollieren (unten).
+   derselben Regel und derselben Ursache in einer Datei werden ein Befund mit allen Fundstellen. Befunde ohne
+   Fundstelle oder ohne Regel verwerfen. Gegen offene Tasks in `.agentheim/board/*/{backlog,todo,doing}/` abgleichen:
+   was dort schon steht, bekommt die Task-Id als Verweis und wird nicht noch einmal vorgeschlagen.
+5. Gruppen bilden, Bericht schreiben, dem Owner zeigen und protokollieren (unten). Tasks entstehen erst nach seiner Auswahl.
 
 Der Command repariert nichts. Kein Schritt ändert Code, Tests, Rules, standards oder ADRs.
 
@@ -52,29 +52,48 @@ Der Command repariert nichts. Kein Schritt ändert Code, Tests, Rules, standards
 - **mittel:** Verstoß gegen eine Rule, ein standards-Muster, eine Invariante der BC-README oder einen ADR, ohne akuten Schaden.
 - **niedrig:** Lesbarkeit, Benennung, kleine Abweichung vom Muster.
 
-### Ergebnis
+### Gruppen
 
-- Jeder Befund ab `mittel` wird eine Backlog-Task über `agentheim:quick-capture` im betroffenen BC (BC ausdrücklich nennen).
-  Inhalt: Titel (was falsch ist, in Domänensprache), Fundstelle `Datei:Zeile`, verletzte Regel, Vorschlag, Schwere.
-- Alle `niedrig`-Befunde des Laufs zusammen in einer Task (`Bestandsreview <bc oder dimension>: niedrige Befunde`) im BC
-  des Laufs; bei `--dimension` im BC mit den meisten niedrigen Befunden. Keine Befunde dieser Schwere: keine Task.
-- Keine Review Decisions und keine Review-Dateien. Was entschieden ist, steht in einem ADR; was offen ist, wird eine Task.
-- Dem Owner am Ende eine Tabelle zeigen: Schwere, Fundstelle, Task-Id.
+Die Befunde werden thematisch gruppiert, über Dateien und Dimensionen hinweg. Eine Gruppe ist ein Thema in Domänensprache
+mit gemeinsamer Ursache oder gemeinsamer Lösung, etwa „Regel-Dialog: Ladezustand und Fehler werden verschluckt“.
+Höchstens sieben Gruppen je Lauf; was in keine passt, kommt in eine Gruppe „Kleinkram“. `niedrig`-Befunde gehören in die
+Gruppe ihres Themas, nicht in eine eigene.
+
+Je Gruppe: Titel, ein Satz zum Kern, höchste Schwere, Zahl der Befunde, betroffene BCs, Liste der Befunde in Befundform.
+
+### Bericht
+
+Der Lauf schreibt genau eine Datei `.agentheim/knowledge/reviews/<JJJJ-MM-TT>-<bc oder dimension>.md`: Kopf mit Datum,
+Lauf und Befundzahl je Schwere, dann die Gruppen, absteigend nach höchster Schwere. Die Datei ist der Beleg für spätere
+Entscheidungen und wird nach dem Lauf nicht mehr geändert, außer dass hinter einer Gruppe die Task-Id nachgetragen wird.
+
+Dem Owner im Terminal zeigen: eine Tabelle mit einer Zeile je Gruppe (Titel, höchste Schwere, Befunde, BCs) und den Pfad
+zum Bericht. Danach per AskUserQuestion fragen, welche Gruppen jetzt eine Task werden (Mehrfachauswahl, dazu „später
+entscheiden“). Ohne Auswahl entsteht keine Task.
+
+### Tasks
+
+- Je gewählte Gruppe eine Backlog-Task über `agentheim:quick-capture` im BC mit den meisten Befunden der Gruppe (BC
+  ausdrücklich nennen). Titel ist das Gruppenthema; im What stehen alle Befunde der Gruppe in Befundform und der Pfad
+  zum Bericht. Die Task ist bewusst groß; kleiner geschnitten wird im Refinement (`agentheim:modeling`), wenn der
+  Owner das will.
+- Entscheidet der Owner später, liest der Conductor die Gruppen aus dem Bericht und legt die Tasks dann an.
+- Keine Review Decisions. Was entschieden ist, steht in einem ADR; was offen ist, steht im Bericht oder wird eine Task.
 
 ### Protokolleintrag
 
-Nach dem Anlegen genau ein Eintrag über das agentheim-`log`-Verb, aus dem Repo-Root:
+Nach dem Bericht genau ein Eintrag über das agentheim-`log`-Verb, aus dem Repo-Root:
 
 ```bash
 CLI="$(ls -d "$HOME"/.claude/plugins/cache/agentheim/agentheim/*/lib/task-lifecycle-cli.mjs | sort -V | tail -1)"
 node -e "import('$CLI').then(m=>m.main(process.argv.slice(1)))" log \
-  '{"title":"Bestandsreview: <bc oder dimension>","body":"**Type:** Review / Bestandsreview\n**Befunde:** hoch <n>, mittel <n>, niedrig <n>\n**Tasks:** <ids, kommagetrennt, oder keine>"}'
+  '{"title":"Bestandsreview: <bc oder dimension>","body":"**Type:** Review / Bestandsreview\n**Befunde:** hoch <n>, mittel <n>, niedrig <n>\n**Gruppen:** <n>\n**Bericht:** <pfad>\n**Tasks:** <ids, kommagetrennt, oder offen>"}'
 ```
 
 - `title` ist genau `Bestandsreview: <bc>` bzw. `Bestandsreview: <dimension>`, ohne Zusatz; die Zählregel sucht diesen Wortlaut.
 - `body` darf keine Zeile mit `## ` und keine Zeile `---` enthalten (das Verb lehnt sonst ab, `ok:false`).
-- Das Verb schreibt `.agentheim/board/protocol.md` und committet nicht. Danach scoped committen:
-  `git add .agentheim/board/protocol.md && git commit -m "chore(<bc>): Bestandsreview <bc oder dimension>"`.
+- Das Verb schreibt `.agentheim/board/protocol.md` und committet nicht. Danach Bericht und Protokoll scoped committen.
+  Entstehen die Tasks später, bekommen sie eigene Capture-Commits; der Protokolleintrag bleibt, wie er ist.
 
 ### Zählregel
 
@@ -99,7 +118,7 @@ Sprache der Tasks und des Protokolls: Deutsch mit echten Umlauten, ohne Gedanken
 die heute vorhandenen Dateien unter `src/` und `scripts/`, die Commits der erledigten Tasks des BC geändert haben:
 
 ```bash
-for id in $(find .agentheim/board/<bc>/done -name '*.md' -exec grep -h '^id:' {} + | awk '{print $2}'); do
+for id in $(find .agentheim/board/<bc>/done -name '*.md' -exec grep -h '^id:' {} + | awk '{print $ 2}'); do
   git log --name-only --format= -F --grep="[$id]" -- src scripts
 done | sort -u | while read f; do [ -f "$f" ] && echo "$f"; done
 ```
