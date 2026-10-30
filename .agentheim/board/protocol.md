@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Promoted: categorization-cgq35 - "Regelseite am Handy und per Tastatur"
+
+**Type:** Modeling / Promote
+**BC:** categorization
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Refined: categorization-cgq35 - Regelseite am Handy und per Tastatur
 
 **Type:** Modeling / Refine

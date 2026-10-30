@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 5
-- **Todo:** 0
+- **Backlog:** 4
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `todo/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 - **categorization-mznx3** — "Testlücken und nachgebaute Tests" (chore) — `backlog/categorization-mznx3-testluecken-und-nachgebaute-tests.md`
 - **categorization-hz6vj** — "Kategorisieren im Import: Order-Id und Review-Spur" (bug) — `backlog/categorization-hz6vj-kategorisieren-im-import-order-id-und-review.md`
 - **categorization-krscs** — "Regel-Dialog: Ladezustände, Fehler und Seiteneffekte" (refactor) — `backlog/categorization-krscs-regel-dialog-ladezustaende-fehler-und-seiteneffekte.md`
-- **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `backlog/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 - **categorization-msep5** — "Regeln speichern, importieren und sortieren fehlerhaft" (bug) — `backlog/categorization-msep5-regeln-speichern-importieren-und-sortieren-fehlerhaft.md`
 <!-- backlog-list:end -->
 

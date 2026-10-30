@@ -1,7 +1,7 @@
 ---
 id: categorization-cgq35
 title: "Regelseite am Handy und per Tastatur"
-status: backlog
+status: todo
 type: bug
 context: categorization
 created: 2026-10-30
