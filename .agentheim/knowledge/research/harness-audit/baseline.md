@@ -1,3 +1,43 @@
+# Messung nach M12 (Harness-Migration abgeschlossen)
+
+Stand: 2026-10-30, Lauf 07:34 bis etwa 08:20. Harness: main `82698ae` (M0 bis M18 und G, neue CLAUDE.md mit 117 Zeilen). Vergleich: das M0-Nachspiel vom 2026-10-29 mit demselben Worker-Modell (Opus) und denselben Prompts. Damit wird der Harness gemessen und nicht das Modell.
+
+## Ergebnis
+
+| Task | Verdict | Iter. | Gate (`./verify.sh`) | Worker Dauer / Tokens (M0) | Verifier Dauer / Tokens (M0) | Review bereinigt h/m/n/H (M0) | Blinder Paarvergleich neu gegen M0 |
+|---|---|---|---|---|---|---|---|
+| ledger-ssmp3 | PASS | 1 | PASS, dotnet 2493, node 281 | 925 s / 128k (695 s / 124k) | 285 s / 57k (605 s / 87k) | 0/1/6/5 (0/1/5/4) | **neu besser** |
+| design-system-j6dnj | PASS | 1 | PASS, dotnet 2429, node 280 | 585 s / 79k (551 s / 97k) | 354 s / 39k (533 s / 63k) | 0/2/3/3 (0/0/3/5) | **M0 besser** |
+| ledger-ybm5x | PASS | 1 | PASS, dotnet 2473, node 281 | 390 s / 57k (862 s / 72k) | 330 s / 38k (567 s / 59k) | 0/0/3/4 (0/0/2/5) | **neu besser** (knapp) |
+
+Die ssmp3-Workerzeit ist zu hoch: Ein Heredoc ohne Anführungszeichen hat `./verify.sh` versehentlich im Haupt-Repo gestartet, und dessen Lock auf `test:scripts` hat die Gate-Läufe aufgehalten. Bis zur Rückgabe vergingen 925 s, bis der fremde Lauf endete 1124 s.
+
+## Lesart
+
+- Alle drei Tasks: PASS im ersten Durchgang, das volle Gate ist grün, keine hohen Befunde. Die Worker nutzen `./verify.sh` von sich aus. Die Anweisung kommt aus der neuen CLAUDE.md, der Prompt nennt noch die alte Kette.
+- Paarvergleich 2 zu 1 für den neuen Harness:
+  - ssmp3 (neu B): Tagesnutzung im DU, echte Persistenzfunktion im Test, `TimeZoneInfo.CreateCustomTimeZone` statt einer handgebauten Offset-Rechnung. M0 hat den stärkeren Gleichzeitigkeitstest.
+  - ybm5x (neu B, knapp): `Capped` liefert ausdrücklich den Deckel, die Logzeile wird auf den exakten Text getestet.
+  - j6dnj (neu A, verliert): Die Mindestbreite hängt nur an `Button.iconButton`, das außerhalb von Button.fs niemand aufruft. Die Unit-Tests prüfen Klassenstring-Konstanten, `sizeToClass` ist dafür öffentlich gemacht. Das ist genau das Muster, das `.claude/rules/test-doctrine.md` (Kein Test für Punkt 6) ausschließt und das M14 gelöscht hat. M0 leitete Icon-only aus den Props ab und maß die Icon-Knöpfe im Browser.
+- Verifier: in allen drei Fällen schneller (285 bis 354 s statt 533 bis 605 s) und mit weniger Tokens (38k bis 57k statt 59k bis 87k).
+- Worker-Tokens: bei j6dnj und ybm5x niedriger, bei ssmp3 gleich.
+- Reviews: Die Unterschiede liegen im Rahmen der bekannten Streuung (eine Stufe), nur j6dnj hat zwei mittlere Befunde mehr.
+
+## Abbruchkriterium
+
+Zielbild Abschnitt 3: Verschlechtert sich ein Referenz-Task nach M10 oder M12, wird der Schritt zurückgenommen und analysiert. j6dnj hat sich im Paarvergleich und im Review verschlechtert. Analyse: Die Regel, die verletzt wurde, steht im neuen Harness (Test-Doktrin, Punkt 6) und stand im alten nicht in dieser Form. Ursache ist also nicht der Wegfall einer Regel. Die Regel ist Prosa, und ein einzelner Lauf hat sie übergangen. Ein Lauf je Task kann Modellstreuung und Harness-Effekt nicht trennen. Eine Rücknahme von M10 oder M12 würde die Regel entfernen, die hier verletzt wurde. Empfehlung: nicht zurücknehmen, sondern Punkt 6 mechanisch machen (Wächter gegen Tests, die DS-Klassenstrings vergleichen), über den `learn`-Skill.
+
+## Grenzen und Abweichungen
+
+- Ein Lauf je Task, drei Paare. Die Streuung des Paarvergleichs ist unbekannt.
+- Overlay: Die Replay-Worktrees stehen auf dem alten Batch-Start. Der Conductor hat CLAUDE.md, `.claude/`, `standards/`, `verify.sh` und `scripts/verify-lib.sh` von main darübergelegt. Die neuen Wächter-Tests unter `src/Tests` (M5, M6) fehlen im alten Code-Stand, ihr Beitrag ist nicht gemessen.
+- Worker-Prompts sind wortgleich mit M0 (aus den M0-Transkripten), nur Pfade und Sidecar-Namen sind ersetzt. Die Worker bekamen den Prompt als Datei mit der Anweisung, ihn vollständig zu lesen.
+- Reviews: `code-reviewer` gibt es seit M10 nicht mehr. Ein general-purpose-Agent bekam die alte Definition (`review-code.md` aus `da1289d^`) und den M0-Review-Prompt. Er prüft gegen die heutigen Rules, das M0-Review prüfte gegen die alten.
+- Verifier-Gate: `./verify.sh` statt der Kette aus M0, mit eigener Logdatei je Verifier.
+- Paarvergleich: neues Nachspiel gegen M0-Nachspiel (`blind/<task>-{A,B}.diff` vom 2026-10-29), Reihenfolge zufällig, Zuordnung erst nach allen Ergebnissen aufgelöst: ssmp3 A=M0 B=neu, j6dnj A=neu B=M0, ybm5x A=M0 B=neu.
+
+---
+
 # Baseline-Messung BudgetBuddy (Harness-Migration M0)
 
 Stand: 2026-10-29, Lauf 16:56 bis 17:40. Task: `infrastructure-psdcb`. Harness: unverändert bis auf
