@@ -8,6 +8,7 @@ module RetryTests
 // laufen ohne echte Wartezeit.
 
 open System.IO
+open System.Text.RegularExpressions
 open Expecto
 open Fable.Remoting.Client
 open Client
@@ -41,6 +42,12 @@ let private repoRoot =
 
 let private readClient (relative: string) =
     File.ReadAllText(Path.Combine(repoRoot, "src", "Client", relative))
+
+let private wrappedLenaFlagCall =
+    Regex(@"Retry\.reading\s+Api\.settings\.getLenaFlagSettings")
+
+let private unprotectedLenaFlagCalls (source: string) =
+    Regex.Matches(source, @"(?<!Retry\.reading\s+)Api\.settings\.getLenaFlagSettings").Count
 
 [<Tests>]
 let tests =
@@ -108,7 +115,7 @@ let tests =
             Expect.isFalse (Retry.isNetworkError (exn "anders")) "andere Ausnahme"
         }
 
-        test "die vier lesenden Start-Abfragen laufen über den Helfer, kein Schreibaufruf" {
+        test "die lesenden Start-Abfragen laufen über den Helfer, kein Schreibaufruf" {
             let settings = readClient "Components/Settings/State.fs"
             let ledger = readClient "Components/Ledger/State.fs"
             let app = readClient "State.fs"
@@ -118,9 +125,42 @@ let tests =
             Expect.stringContains app "Retry.reading Api.ynab.getCategories" "getCategories im Kassenbuch-Zweig"
             let all = [ settings; ledger; app ] |> String.concat "\n"
             let wrapped =
-                System.Text.RegularExpressions.Regex.Matches(all, @"Retry\.reading\s+Api\.(\w+)\.(\w+)")
+                Regex.Matches(all, @"Retry\.reading\s+Api\.(\w+)\.(\w+)")
                 |> Seq.map (fun m -> m.Groups[2].Value)
                 |> List.ofSeq
-            Expect.equal (List.sort wrapped) (List.sort [ "getSettings"; "getLedgerAccounts"; "getLastMirrorRun"; "getCategories" ]) "genau die vier"
+            let expected =
+                [ "getSettings"; "getLedgerAccounts"; "getLastMirrorRun"; "getCategories"
+                  "getLenaFlagSettings"; "getLenaFlagSettings" ]
+            Expect.equal (List.sort wrapped) (List.sort expected) "genau diese, kein Schreibaufruf"
+        }
+
+        // infrastructure-awstw: Verhindert den Befund vom 2026-10-29 (Firefox, Toast "Failed to
+        // load Lena flag colour: Http error (0)" auf der Settings-Seite). Das ist derselbe
+        // Browser-Abbruch wie in infrastructure-y6atr, nur an einer Abfrage, die y6atr nicht
+        // umhüllt hatte. Der Fable.Remoting-Proxy läuft unter .NET nicht, deshalb prüft der Test
+        // die Verdrahtung im Quelltext.
+        test "die Lena-Flag-Farbe wird an allen Aufrufstellen über den Helfer geladen" {
+            for file in [ "Settings"; "Ledger"; "SyncFlow" ] do
+                let source = readClient $"Components/{file}/State.fs"
+                Expect.isTrue (wrappedLenaFlagCall.IsMatch source) $"{file}: über Retry.reading"
+        }
+
+        test "im Client steht kein Aufruf der Lena-Flag-Farbe ohne den Helfer" {
+            // Gegenbeweis: die Zählung erkennt einen ungeschützten Aufruf und lässt einen
+            // umhüllten durch.
+            Expect.equal (unprotectedLenaFlagCalls "Api.settings.getLenaFlagSettings ()") 1 "ungeschützt zählt"
+            Expect.equal (unprotectedLenaFlagCalls "(Retry.reading\n  Api.settings.getLenaFlagSettings)") 0 "umhüllt zählt nicht"
+
+            let clientRoot = Path.Combine(repoRoot, "src", "Client")
+            let isBuildOutput (path: string) =
+                path.Contains $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"
+                || path.Contains $"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"
+                || path.Contains "fable_modules"
+            let sources =
+                Directory.GetFiles(clientRoot, "*.fs", SearchOption.AllDirectories)
+                |> Array.filter (isBuildOutput >> not)
+            Expect.isNonEmpty sources "Client-Quelltext gefunden"
+            let unprotected = sources |> Array.sumBy (File.ReadAllText >> unprotectedLenaFlagCalls)
+            Expect.equal unprotected 0 "kein Aufruf ohne Retry.reading"
         }
     ]

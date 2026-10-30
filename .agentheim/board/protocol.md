@@ -5,6 +5,42 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 14:54 -- Task verified and completed: infrastructure-awstw - Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst.
+
+**Type:** Work / Task completion
+**Task:** infrastructure-awstw - Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst.
+**Summary:** Die Abfrage der Lena-Flag-Farbe läuft an allen drei Aufrufstellen (Settings, Ledger, SyncFlow) über Retry.reading, ein Firefox-Abbruch mit Status 0 löst also erst nach drei gescheiterten Versuchen einen Fehler aus. Quelltext-Tests sichern die Verdrahtung und zählen ungeschützte Aufrufe im gesamten Client.
+**Duration:** 29m10s
+**Verification:** PASS (iteration 2)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 4
+**Tests added:** 2
+**ADRs written:** none
+
+---
+
+## 2026-10-30 14:52 -- Verification failed: design-system-bym4m - Split-Ziel in einem Picker
+
+**Type:** Work / Verification failure
+**Task:** design-system-bym4m - Split-Ziel in einem Picker
+**Iteration:** 1 of 3
+**Reasons:** README-Bullet Kategorie-Picker beschreibt den alten OnSelect-Vertrag, Ledger-README nennt die entfernte Konto-Auswahl
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-10-30 14:43 -- Verification failed: infrastructure-awstw - Lena-Flag-Farbe über Retry.reading
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-awstw - Lena-Flag-Farbe über Retry.reading
+**Iteration:** 1 of 3
+**Reasons:** README-Definition von Lesende Abfrage mit Wiederholung nennt nur die vier Start-Abfragen, Delta fehlt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-30 14:25 -- Batch started: [infrastructure-awstw, budgeting-rxxb4, design-system-bym4m]
 
 **Type:** Work / Batch start

@@ -1796,7 +1796,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadLenaFlagSettings ->
         let cmd =
             Cmd.OfAsync.either
-                Api.settings.getLenaFlagSettings
+                (Retry.reading Api.settings.getLenaFlagSettings)
                 ()
                 (Ok >> LenaFlagSettingsLoaded)
                 (fun ex -> LenaFlagSettingsLoaded (Error ex.Message))

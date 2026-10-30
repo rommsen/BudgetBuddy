@@ -195,7 +195,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | LoadLenaFlagSettings ->
         let cmd =
             Cmd.OfAsync.either
-                Api.settings.getLenaFlagSettings
+                (Retry.reading Api.settings.getLenaFlagSettings)
                 ()
                 (Ok >> LenaFlagSettingsLoaded)
                 (fun ex -> Error ex.Message |> LenaFlagSettingsLoaded)

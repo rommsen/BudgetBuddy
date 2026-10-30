@@ -372,7 +372,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | LoadLenaFlagColor ->
         let cmd =
             Cmd.OfAsync.either
-                Api.settings.getLenaFlagSettings
+                (Retry.reading Api.settings.getLenaFlagSettings)
                 ()
                 (fun settings -> LenaFlagColorLoaded settings.SavedColor)
                 // Ein Fehler lässt die Farbe unbekannt: die Aktion bleibt gesperrt, kein Toast.
