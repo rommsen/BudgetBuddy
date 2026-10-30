@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Regeln speichern, importieren und sortieren fehlerhaft
+
+---
+
 ## 2026-10-30 07:27 -- Modeling / Dismissed: ynab-sync-wsb8m
 
 **Type:** Modeling / Dismiss
