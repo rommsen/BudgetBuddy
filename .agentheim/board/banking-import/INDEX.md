@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 0
+- **Backlog:** 1
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 0
@@ -30,6 +30,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-wp7js** — "Split im Import" (refactor) — `backlog/banking-import-wp7js-split-im-import.md`
 <!-- backlog-list:end -->
 
 

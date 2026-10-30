@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: banking-import-wp7js - "Split im Import"
+
+**Type:** Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Split im Import
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: design-system-taytp - "Kategorie-Picker vereinheitlichen"
 
 **Type:** Capture
