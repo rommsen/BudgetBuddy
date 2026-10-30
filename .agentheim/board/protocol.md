@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Session end: Harness-Verschlankung M7, M12, M14, M18
+
+**Type:** Work / Session end
+**Erledigt:** infrastructure-hdf7j (M14, Tests aufgeräumt, dotnet 2605 auf 2569), infrastructure-a2pcg (M12, CLAUDE.md 117 statt 677 Zeilen, vom Owner abgenommen), infrastructure-fam9k (M18, /architecture-review mit Souls-Kern, Gruppen statt Einzel-Tasks), infrastructure-gmx27 (M7, Memory-Triage, learn global, Auto-Memory aus)
+**Bestandsreview:** categorization, sieben Gruppen-Tasks (categorization-msep5, -cgq35, -krscs, -hz6vj, -mznx3, design-system-taytp, banking-import-wp7js), 53 Einzel-Tasks verworfen
+**Review-Vorschläge (Override C):** qa-milestone-reviewer für infrastructure-hdf7j (Tests geändert); backend-code-quality, frontend-architecture und design-quality entfallen, kein Produktcode außer Button.sizeToClass private
+**Offen:** Baseline-Messung in einer frischen Session (lädt die neue CLAUDE.md, prüft gmx27 AC 3); gmx27 AC 1 wartet auf das Entfernen der Souls-Kopie von learn
+**Kein Push.**
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: categorization-mznx3 - "Testlücken und nachgebaute Tests"
 
 **Type:** Capture
