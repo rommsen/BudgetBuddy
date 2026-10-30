@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: categorization-krscs - "Regel-Dialog: Ladezustände, Fehler und Seiteneffekte"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Regel-Dialog: Ladezustände, Fehler und Seiteneffekte
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: categorization-cgq35 - "Regelseite am Handy und per Tastatur"
 
 **Type:** Capture
