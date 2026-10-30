@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: categorization-hz6vj - "Kategorisieren im Import: Order-Id und Review-Spur"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Kategorisieren im Import: Order-Id und Review-Spur
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: banking-import-wp7js - "Split im Import"
 
 **Type:** Capture
