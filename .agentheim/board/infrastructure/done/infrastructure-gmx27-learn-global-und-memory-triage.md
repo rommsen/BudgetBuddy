@@ -23,7 +23,7 @@ Souls E8 und fest: Auto-Memory aus. Owner 2026-10-29: learn global. Die Memory-D
 ## Acceptance criteria
 - [x] `learn` ist in beiden Projekten verfügbar, nur eine Kopie existiert.
 - [x] Jeder Memory-Eintrag hat ein Ziel (Wächter, Skript, README, Upstream, entfällt) und ist dort angekommen.
-- [ ] Eine frische Session lädt kein Auto-Memory mehr (`/memory`).
+- [x] Eine frische Session lädt kein Auto-Memory mehr (`/memory`).
 
 ## Notes
 Migrationsschritt M7. Zielbild: `.agentheim/knowledge/research/harness-audit/zielbild.md`. Promote und work erst nach ausdrücklichem Ja des Owners.
@@ -41,3 +41,4 @@ Triage nach `.agentheim/knowledge/research/harness-audit/triage-ergebnis.md`, vo
 
 Nicht geprüft: AC 3 (eine frische Session lädt kein Auto-Memory). Dafür braucht es eine neue Session, die Prüfung gehört in die Baseline-Messung.
 - AC 1 erfüllt am 2026-10-30: Souls hat seine Kopie entfernt (328d4a4), es gibt nur noch `~/.claude/skills/learn/`.
+- AC 3 erfüllt am 2026-10-30: die neu geladene Session meldet `MEMORY.md` als nicht mehr geladene Instruktion.
