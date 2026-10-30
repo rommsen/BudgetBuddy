@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:29 -- Modeling / Promoted: infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 15:08 -- Work session ended
 
 **Type:** Work / Session end
