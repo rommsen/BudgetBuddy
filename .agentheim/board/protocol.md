@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 14:21 -- Capture / Captured: design-system-fpem2 - "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Wächter gegen Tailwind-Größen als Klassenstring in .NET-Tests
+
+---
+
 ## 2026-10-30 07:27 -- Session end: Harness-Verschlankung M7, M12, M14, M18
 
 **Type:** Work / Session end

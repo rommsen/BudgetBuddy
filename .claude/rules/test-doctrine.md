@@ -23,7 +23,7 @@ Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/Remoti
 
 ## Kein Test für
 
-6. Konstanten, Feldkopien, gerade gebaute Records, Framework- oder Sprachverhalten. Gegenprobe: bleibt der Test grün, wenn die getestete Zeile im Produktionscode gelöscht oder vertauscht wird, ist er wertlos. Keine "documents"-Tests; Doku gehört in Kommentare.
+6. Konstanten, Feldkopien, gerade gebaute Records, Framework- oder Sprachverhalten, Tailwind-Größen als Klassenstring (Größe und Trefferfläche misst der Browser-Wächter, Punkt 5). Gegenprobe: bleibt der Test grün, wenn die getestete Zeile im Produktionscode gelöscht oder vertauscht wird, ist er wertlos. Keine "documents"-Tests; Doku gehört in Kommentare.
 7. Strukturtests (Quelltext lesen) nur für repo-weite Invarianten ohne Verhaltenszugang (Netzziele, Middleware, Startcode, DB-Pfad, verbotene Klassen), immer mit eingebautem Gegenbeweis. Keine neue View-Verdrahtung per Teilstring, keine Rückbau-Wächter. Einen Wächter nicht nur für eine gerade gefixte Stelle anlegen; der Regressionstest gehört dann auf die Verhaltensebene.
 
 ## Bugfixes
