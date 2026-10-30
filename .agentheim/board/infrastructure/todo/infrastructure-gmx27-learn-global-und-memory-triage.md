@@ -1,7 +1,7 @@
 ---
 id: infrastructure-gmx27
 title: "learn-Skill global anlegen, Auto-Memory triagieren und abschalten"
-status: backlog
+status: todo
 type: chore
 context: infrastructure
 created: 2026-10-29

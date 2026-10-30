@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:13 -- Modeling / Promoted: infrastructure-gmx27 - "learn-Skill global anlegen, Auto-Memory triagieren und abschalten"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 06:48 -- Task verified and completed: infrastructure-a2pcg - "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen"
 
 **Type:** Work / Task completion
