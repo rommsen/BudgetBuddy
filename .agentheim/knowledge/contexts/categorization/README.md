@@ -19,8 +19,8 @@ schwaches Payee-basiertes Auto-Matching.
   CategoryId, Priority, optionaler **PayeeOverride**, Enabled.
 - **PatternType** — wie das Pattern matcht: `Contains | Exact | Regex`.
 - **TargetField** — worauf das Pattern matcht: `Combined | Memo | Payee`.
-- **Priority** — Reihenfolge der Regel-Anwendung; die erste passende Regel gewinnt.
-- **PayeeOverride** — überschreibt den an YNAB gemeldeten Payee unabhängig von der Kategorie.
+- **Priority** — Reihenfolge der Regel-Anwendung; die erste passende Regel gewinnt. Höhere Zahl steht vorn. Bei gleicher Priority gewinnt die zuerst gespeicherte Regel (`ORDER BY priority DESC, rowid ASC`), beim Import also die frühere in der Datei. Die Priority neuer Regeln vergibt der Server: höchste vorhandene plus 1 (`NewRule` trägt keine).
+- **PayeeOverride** — überschreibt den an YNAB gemeldeten Payee unabhängig von der Kategorie. Eine Regeländerung (`RuleChange`) sagt mit `PayeeOverrideChange` ausdrücklich, was geschieht: behalten, setzen oder entfernen.
 - **AutoCategorized** — TransactionStatus, wenn eine Regel automatisch gegriffen hat
   (vs. **ManualCategorized** für Romans Hand-Zuordnung).
 - **Order-ID-Matching** — eine kategorisierte Transaktion vererbt ihre Kategorie an andere

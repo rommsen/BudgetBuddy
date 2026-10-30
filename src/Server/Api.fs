@@ -15,6 +15,8 @@ open Server.SyncSessionManager
 open Server.DuplicateDetection
 open Thoth.Json.Net
 
+module RuleCommands = Server.Rules.CommandHandlers
+
 // ============================================
 // Helper Functions
 // ============================================
@@ -42,15 +44,6 @@ let private ynabErrorToString (error: YnabError) : string =
     | YnabError.RateLimitExceeded retryAfter -> $"YNAB rate limit exceeded. Retry after {retryAfter} seconds"
     | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
     | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
-
-/// Converts RulesError to string
-let private rulesErrorToString (error: RulesError) : string =
-    match error with
-    | RulesError.RuleNotFound ruleId -> $"Rule not found: {ruleId}"
-    | RulesError.InvalidPattern (pattern, reason) -> $"Invalid pattern '{pattern}': {reason}"
-    | RulesError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | RulesError.DuplicateRule pattern -> $"Duplicate rule pattern: {pattern}"
-    | RulesError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
 /// Converts SyncError to string
 let private syncErrorToString (error: SyncError) : string =
@@ -549,6 +542,16 @@ let ynabApi : YnabApi = {
 // Rules API Implementation
 // ============================================
 
+let private liveCategoryPort : RuleCommands.YnabPort =
+    RuleCommands.ynabPort Persistence.Settings.getSetting YnabClient.getCategories
+
+/// Der Kategoriename für die Sync-Abläufe: ein gescheitertes Nachschlagen ergibt keinen Namen.
+let private categoryNameIfKnown (categoryId: YnabCategoryId) : Async<string option> =
+    async {
+        let! name = RuleCommands.lookupCategoryName liveCategoryPort categoryId
+        return Result.toOption name
+    }
+
 let rulesApi : RulesApi = {
     getAllRules = fun () -> async {
         return! Persistence.Rules.getAllRules()
@@ -565,132 +568,9 @@ let rulesApi : RulesApi = {
             return Error (RulesError.DatabaseError ("get_rule", ex.Message))
     }
 
-    createRule = fun request -> async {
-        // Validate request
-        match validateRuleCreateRequest request with
-        | Error errors -> return Error (RulesError.InvalidPattern (request.Pattern, String.concat "; " errors))
-        | Ok validRequest ->
-            // Validate pattern compiles
-            let testRule = {
-                Id = RuleId Guid.Empty
-                Name = validRequest.Name
-                Pattern = validRequest.Pattern
-                PatternType = validRequest.PatternType
-                TargetField = validRequest.TargetField
-                CategoryId = validRequest.CategoryId
-                CategoryName = "" // Will be fetched
-                PayeeOverride = validRequest.PayeeOverride
-                Priority = validRequest.Priority
-                Enabled = true
-                CreatedAt = DateTime.UtcNow
-                UpdatedAt = DateTime.UtcNow
-            }
+    createRule = fun request -> RuleCommands.createRule liveCategoryPort DateTime.UtcNow request
 
-            match compileRule testRule with
-            | Error err -> return Error (RulesError.InvalidPattern (validRequest.Pattern, err))
-            | Ok _ ->
-                // Fetch category name from YNAB
-                let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-                let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-
-                let! categoryName = async {
-                    match tokenOpt, defaultBudgetIdOpt with
-                    | Some token, Some budgetId ->
-                        match! YnabClient.getCategories token (YnabBudgetId budgetId) with
-                        | Ok categories ->
-                            let matchingCategory =
-                                categories
-                                |> List.tryFind (fun cat -> cat.Id = validRequest.CategoryId)
-                            return matchingCategory |> Option.map (fun cat -> cat.Name) |> Option.defaultValue "Unknown"
-                        | Error _ -> return "Unknown"
-                    | _ -> return "Unknown"
-                }
-
-                // Create rule
-                let newRule = {
-                    Id = RuleId (Guid.NewGuid())
-                    Name = validRequest.Name
-                    Pattern = validRequest.Pattern
-                    PatternType = validRequest.PatternType
-                    TargetField = validRequest.TargetField
-                    CategoryId = validRequest.CategoryId
-                    CategoryName = categoryName
-                    PayeeOverride = validRequest.PayeeOverride
-                    Priority = validRequest.Priority
-                    Enabled = true
-                    CreatedAt = DateTime.UtcNow
-                    UpdatedAt = DateTime.UtcNow
-                }
-
-                try
-                    do! Persistence.Rules.insertRule newRule
-                    return Ok newRule
-                with ex ->
-                    return Error (RulesError.DatabaseError ("create_rule", ex.Message))
-    }
-
-    updateRule = fun request -> async {
-        // Validate request
-        match validateRuleUpdateRequest request with
-        | Error errors -> return Error (RulesError.InvalidPattern ("update", String.concat "; " errors))
-        | Ok validRequest ->
-            // Get existing rule
-            match! Persistence.Rules.getRuleById validRequest.Id with
-            | None ->
-                let (RuleId id) = validRequest.Id
-                return Error (RulesError.RuleNotFound id)
-            | Some existing ->
-                // Apply updates
-                let updated = {
-                    existing with
-                        Name = validRequest.Name |> Option.defaultValue existing.Name
-                        Pattern = validRequest.Pattern |> Option.defaultValue existing.Pattern
-                        PatternType = validRequest.PatternType |> Option.defaultValue existing.PatternType
-                        TargetField = validRequest.TargetField |> Option.defaultValue existing.TargetField
-                        CategoryId = validRequest.CategoryId |> Option.defaultValue existing.CategoryId
-                        PayeeOverride = validRequest.PayeeOverride |> Option.orElse existing.PayeeOverride
-                        Priority = validRequest.Priority |> Option.defaultValue existing.Priority
-                        Enabled = validRequest.Enabled |> Option.defaultValue existing.Enabled
-                        UpdatedAt = DateTime.UtcNow
-                }
-
-                // Validate pattern compiles if pattern changed
-                let patternValidation =
-                    if validRequest.Pattern.IsSome || validRequest.PatternType.IsSome then
-                        compileRule updated |> Result.map (fun _ -> ()) |> Result.mapError (fun err -> RulesError.InvalidPattern (updated.Pattern, err))
-                    else
-                        Ok ()
-
-                match patternValidation with
-                | Error err -> return Error err
-                | Ok () ->
-                    // Update category name if category changed
-                    let! finalUpdated = async {
-                        if validRequest.CategoryId.IsSome then
-                            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-                            let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-
-                            match tokenOpt, defaultBudgetIdOpt with
-                            | Some token, Some budgetId ->
-                                match! YnabClient.getCategories token (YnabBudgetId budgetId) with
-                                | Ok categories ->
-                                    let matchingCategory =
-                                        categories
-                                        |> List.tryFind (fun cat -> cat.Id = updated.CategoryId)
-                                    let categoryName = matchingCategory |> Option.map (fun cat -> cat.Name) |> Option.defaultValue "Unknown"
-                                    return { updated with CategoryName = categoryName }
-                                | Error _ -> return updated
-                            | _ -> return updated
-                        else
-                            return updated
-                    }
-
-                    try
-                        do! Persistence.Rules.updateRule finalUpdated
-                        return Ok finalUpdated
-                    with ex ->
-                        return Error (RulesError.DatabaseError ("update_rule", ex.Message))
-    }
+    updateRule = fun request -> RuleCommands.changeRule liveCategoryPort DateTime.UtcNow request
 
     deleteRule = fun ruleId -> async {
         try
@@ -716,39 +596,7 @@ let rulesApi : RulesApi = {
         return json
     }
 
-    importRules = fun json -> async {
-        try
-            // Parse JSON
-            match Decode.Auto.fromString<Rule list>(json) with
-            | Error err -> return Error (RulesError.InvalidPattern ("import", err))
-            | Ok rules ->
-                // Validate all rules compile
-                let validationResults =
-                    rules
-                    |> List.map (fun rule ->
-                        match compileRule rule with
-                        | Ok _ -> Ok rule
-                        | Error err -> Error (rule, err)
-                    )
-
-                let errors =
-                    validationResults
-                    |> List.choose (function Error (rule, err) -> Some $"{rule.Name}: {err}" | Ok _ -> None)
-
-                if not errors.IsEmpty then
-                    return Error (RulesError.InvalidPattern ("import", String.concat "; " errors))
-                else
-                    // Import all rules with new IDs
-                    let mutable importedCount = 0
-                    for rule in rules do
-                        let newRule = { rule with Id = RuleId (Guid.NewGuid()); CreatedAt = DateTime.UtcNow; UpdatedAt = DateTime.UtcNow }
-                        do! Persistence.Rules.insertRule newRule
-                        importedCount <- importedCount + 1
-
-                    return Ok importedCount
-        with ex ->
-            return Error (RulesError.DatabaseError ("import_rules", ex.Message))
-    }
+    importRules = fun json -> RuleCommands.importRules Guid.NewGuid DateTime.UtcNow json
 
     testRule = fun (pattern, patternType, targetField, testInput) -> async {
         let testRule = {
@@ -767,7 +615,7 @@ let rulesApi : RulesApi = {
         }
 
         match compileRule testRule with
-        | Error _ -> return false
+        | Error reason -> return Error (RulesError.InvalidPattern (pattern, reason))
         | Ok compiled ->
             // Create a test transaction
             let testTransaction = {
@@ -781,8 +629,7 @@ let rulesApi : RulesApi = {
             }
 
             let matchText = getMatchText testTransaction targetField
-            let isMatch = compiled.Regex.IsMatch(matchText)
-            return isMatch
+            return Ok (compiled.Regex.IsMatch(matchText))
     }
 }
 
@@ -1035,20 +882,7 @@ let syncApi : SyncApi = {
                 // Get category name if category ID provided
                 let! categoryName = async {
                     match categoryId with
-                    | Some catId ->
-                        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-                        let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-
-                        match tokenOpt, defaultBudgetIdOpt with
-                        | Some token, Some budgetId ->
-                            match! YnabClient.getCategories token (YnabBudgetId budgetId) with
-                            | Ok categories ->
-                                let matchingCategory =
-                                    categories
-                                    |> List.tryFind (fun cat -> cat.Id = catId)
-                                return matchingCategory |> Option.map (fun cat -> cat.Name)
-                            | Error _ -> return None
-                        | _ -> return None
+                    | Some catId -> return! categoryNameIfKnown catId
                     | None -> return None
                 }
 
@@ -1110,21 +944,7 @@ let syncApi : SyncApi = {
         | Error err -> return Error err
         | Ok _ ->
             // Get category name
-            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-            let! defaultBudgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-
-            let! categoryName = async {
-                match tokenOpt, defaultBudgetIdOpt with
-                | Some token, Some budgetId ->
-                    match! YnabClient.getCategories token (YnabBudgetId budgetId) with
-                    | Ok categories ->
-                        let matchingCategory =
-                            categories
-                            |> List.tryFind (fun cat -> cat.Id = categoryId)
-                        return matchingCategory |> Option.map (fun cat -> cat.Name)
-                    | Error _ -> return None
-                | _ -> return None
-            }
+            let! categoryName = categoryNameIfKnown categoryId
 
             // Update all transactions
             let mutable updatedTransactions = []
@@ -1158,11 +978,11 @@ let syncApi : SyncApi = {
                 // the sign-correct sum (transfer lines included) equals the total.
                 match mkSplits tx.Transaction.Amount splits with
                 | Error (TooFewLines _) ->
-                    return Error (SyncError.InvalidSessionState ("split", "Splits must have at least 2 items"))
+                    return Error (SyncError.InvalidSessionState ("split", "Eine Aufteilung braucht mindestens 2 Positionen"))
                 | Error CurrencyMismatch ->
-                    return Error (SyncError.InvalidSessionState ("split", "All splits must share the transaction currency"))
+                    return Error (SyncError.InvalidSessionState ("split", "Alle Positionen müssen die Währung der Buchung haben"))
                 | Error (SumMismatch (expected, actual)) ->
-                    return Error (SyncError.InvalidSessionState ("split", $"Split amounts ({actual}) must sum to transaction amount ({expected})"))
+                    return Error (SyncError.InvalidSessionState ("split", $"Die Positionen ergeben {actual}, die Buchung beträgt aber {expected}"))
                 | Ok validatedSplits ->
                     let updated =
                         { tx with

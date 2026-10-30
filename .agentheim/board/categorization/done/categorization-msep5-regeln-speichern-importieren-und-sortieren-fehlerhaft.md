@@ -1,7 +1,7 @@
 ---
 id: categorization-msep5
 title: "Regeln speichern, importieren und sortieren fehlerhaft"
-status: doing
+status: done
 type: bug
 context: categorization
 created: 2026-10-30
@@ -80,3 +80,25 @@ Geänderte Remoting-Verträge (`RuleChange`, `NewRule`, `testRule`, `RulesError`
 Regeln, die heute schon "Unknown" als Kategorienamen tragen, werden nicht repariert. Das ist nur der angezeigte Name; ein Wechsel auf eine andere Kategorie korrigiert ihn.
 
 Reihenfolge: läuft vor categorization-cgq35 (Fehler mit Datenverlust zuerst), beide ändern `Rules/State.fs`.
+
+## Merge-conflict note (iteration 1)
+Sibling: infrastructure-s1r95 (getSettings liefert nur noch AppSettingsView ohne Secrets). Neue Basis: 504cb2e. Allow-List: src/Tests/Tests.fsproj. Beide Tasks tragen dort eine neue Testdatei ein, beide Einträge bleiben.
+
+## Outcome
+
+Alle Befunde der Gruppe 1 sind behoben, `./verify.sh` zeigt `VERIFY: PASS` (dotnet 2636 grün, node 323 grün). Das Delta für die README besteht `npm run check:readme-delta`.
+
+- **Handler mit Port:** `src/Server/Rules/CommandHandlers.fs` enthält `createRule`, `changeRule`, `importRules`, `lookupCategoryName` und `ynabPort`. `rulesApi` in `src/Server/Api.fs` delegiert nur noch. Die vier Kategoriename-Stellen laufen über `lookupCategoryName`; die beiden Sync-Stellen behalten über `categoryNameIfKnown` ihr Verhalten (Fehler ergibt `None`).
+- **Verträge in `src/Shared`:** `NewRule` (ohne Priorität), `RuleChange`, `PayeeOverrideChange` (`Keep`, `Set`, `Remove`, wegen Namenskollision mit SyncFlow qualifiziert), `RulesError.CategoryLookupFailed` und `ValidationFailed`, `testRule` liefert `RulesResult<bool>`, `rulesErrorToString` steht einmal in `Shared.Domain`. `DuplicateRule` ist entfernt.
+- **Persistenz:** `Rules.insertRules` schreibt in einer Transaktion, `Rules.nextPriority` vergibt die Priorität, `getAllRules` sortiert mit `rowid ASC` als Gleichstand, unbekannte Werte scheitern per `failwith`. `rowToRule` ist `internal` und wird direkt getestet: eine kaputte Zeile in der geteilten In-Memory-DB würde parallele Tests stören.
+- **Client:** `buildNewRule`, `buildRuleChange` und `toggleEnabledChange` in `src/Client/Components/Rules/Types.fs` sind rein und getestet. Das Inline-Formular zeigt bei einem ungültigen Muster kein Urteil mehr. Der Rest gehört zu categorization-krscs.
+- **Texte:** Die Validierung nutzt deutsche Texte. Weil `validateRequired`, `validateLength` und `validateRange` geteilt sind, sind auch diese drei Grundtexte für Einstellungen und Quick Add deutsch; deren Feldnamen (etwa "YNAB token") bleiben unverändert. Die Split-Texte standen in `Api.fs` statt in `Validation.fs` und sind dort übersetzt, ebenso die Meldung von `compileRule`.
+- **Tests:** `src/Tests/RuleCommandHandlerTests.fs`, dazu Ergänzungen in `ValidationTests.fs` und der Endpoint-Negativtabelle.
+
+Nachweis "vor dem Fix rot": Die Verträge ändern sich mit den Tests, die Tests kompilieren gegen den alten Stand nicht. Deshalb wurde jeder alte Fehler einzeln wieder eingebaut und der Testlauf rot gesehen: Override nicht entfernbar, alter Name bei YNAB-Fehler, YNAB immer gefragt, Platzhalter Unknown, Priorität 1, Import ohne Validierung, Import ohne Transaktion, stille Konverter, `false` beim ungültigen Regex.
+
+Eine Ausnahme: Der Test zur gleichen Priorität ist ohne `rowid ASC` nicht rot. SQLite liefert über `idx_rules_priority` Gleichstände schon in rowid-Reihenfolge, die alte Reihenfolge war also tatsächlich stabil, nur nicht zugesichert. Mit `rowid DESC` werden die Tests rot, sie erkennen eine falsche Reihenfolge also. Der Fix sichert das bisher zufällige Verhalten ab.
+
+Nicht geprüft: Die neuen Server-Meldungen und das Inline-Formular wurden nicht im Browser angesehen. Abgedeckt sind sie nur durch Tests und `npm run build`.
+
+`updatedTransactions` in `Api.fs` bleibt für categorization-hz6vj. `scripts/import-rules.fsx` ist unberührt, schreibt `Contains` und `Combined` und ist mit den strengen Konvertern verträglich.

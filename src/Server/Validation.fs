@@ -10,20 +10,20 @@ open Ledger.Bot.Domain
 
 let validateRequired (fieldName: string) (value: string) =
     if String.IsNullOrWhiteSpace(value) then
-        Some $"{fieldName} is required"
+        Some $"{fieldName} ist erforderlich"
     else
         None
 
 let validateLength (fieldName: string) (minLen: int) (maxLen: int) (value: string) =
     let len = value.Length
     if len < minLen || len > maxLen then
-        Some $"{fieldName} must be between {minLen} and {maxLen} characters"
+        Some $"{fieldName} muss zwischen {minLen} und {maxLen} Zeichen lang sein"
     else
         None
 
 let validateRange (fieldName: string) (min: int) (max: int) (value: int) =
     if value < min || value > max then
-        Some $"{fieldName} must be between {min} and {max}"
+        Some $"{fieldName} muss zwischen {min} und {max} liegen"
     else
         None
 
@@ -76,54 +76,67 @@ let validateLenaFlagColor (color: string option) : Result<string option, string>
 // ============================================
 
 let validateRuleName (name: string) : string option =
-    match validateRequired "Rule name" name with
+    match validateRequired "Regelname" name with
     | Some err -> Some err
-    | None -> validateLength "Rule name" 1 100 name
+    | None -> validateLength "Regelname" 1 100 name
 
 let validatePattern (pattern: string) : string option =
-    match validateRequired "Pattern" pattern with
+    match validateRequired "Muster" pattern with
     | Some err -> Some err
-    | None -> validateLength "Pattern" 1 500 pattern
+    | None -> validateLength "Muster" 1 500 pattern
 
-let validateRuleCreateRequest (request: RuleCreateRequest) : Result<RuleCreateRequest, string list> =
+let validatePayeeOverride (payee: string option) : string option =
+    match payee with
+    | Some p when String.IsNullOrWhiteSpace(p) -> Some "Payee-Override darf nicht leer sein"
+    | Some p -> validateLength "Payee-Override" 1 200 p
+    | None -> None
+
+let private validatePriority (priority: int) : string option =
+    validateRange "Priorität" 0 10000 priority
+
+let validateNewRule (rule: NewRule) : Result<NewRule, string list> =
     let errors =
         [
-            validateRuleName request.Name
-            validatePattern request.Pattern
-            validateRange "Priority" 0 10000 request.Priority
+            validateRuleName rule.Name
+            validatePattern rule.Pattern
+            validatePayeeOverride rule.PayeeOverride
         ]
         |> List.choose id
 
-    if errors.IsEmpty then Ok request else Error errors
+    if errors.IsEmpty then Ok rule else Error errors
 
-let validateRuleUpdateRequest (request: RuleUpdateRequest) : Result<RuleUpdateRequest, string list> =
+let validateRuleChange (change: RuleChange) : Result<RuleChange, string list> =
     let errors =
         [
-            match request.Name with
-            | Some name -> validateRuleName name
-            | None -> None
+            change.Name |> Option.bind validateRuleName
+            change.Pattern |> Option.bind validatePattern
+            change.Priority |> Option.bind validatePriority
 
-            match request.Pattern with
-            | Some pattern -> validatePattern pattern
-            | None -> None
-
-            match request.Priority with
-            | Some priority -> validateRange "Priority" 0 10000 priority
-            | None -> None
+            match change.PayeeOverride with
+            | PayeeOverrideChange.Set payee -> validatePayeeOverride (Some payee)
+            | PayeeOverrideChange.Keep | PayeeOverrideChange.Remove -> None
         ]
         |> List.choose id
 
-    if errors.IsEmpty then Ok request else Error errors
+    if errors.IsEmpty then Ok change else Error errors
+
+/// Eine Regel aus einer Importdatei: dieselben Prüfungen wie beim Anlegen, dazu die Priorität,
+/// die anders als beim Anlegen aus der Datei kommt.
+let validateImportedRule (rule: Rule) : Result<Rule, string list> =
+    let errors =
+        [
+            validateRuleName rule.Name
+            validatePattern rule.Pattern
+            validatePayeeOverride rule.PayeeOverride
+            validatePriority rule.Priority
+        ]
+        |> List.choose id
+
+    if errors.IsEmpty then Ok rule else Error errors
 
 // ============================================
 // Transaction Validation
 // ============================================
-
-let validatePayeeOverride (payee: string option) : string option =
-    match payee with
-    | Some p when String.IsNullOrWhiteSpace(p) -> Some "Payee override cannot be empty"
-    | Some p -> validateLength "Payee override" 1 200 p
-    | None -> None
 
 /// Validates a manually entered transaction (Quick Add) before it is sent to YNAB.
 let validateManualTransaction (request: ManualTransactionRequest) : Result<ManualTransactionRequest, string list> =

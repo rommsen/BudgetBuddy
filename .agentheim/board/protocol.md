@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 16:59 -- Task verified and completed: categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
+
+**Type:** Work / Task completion
+**Task:** categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
+**Summary:** Regeln anlegen, ändern und importieren laufen über einen Handler mit YNAB-Port. PayeeOverride lässt sich entfernen, Kategorienamen werden nicht mehr verfälscht, die Priorität vergibt der Server, der Import ist alles oder nichts, Regel testen meldet ungültige Muster und RulesError hat eine deutsche Übersetzung in Shared. Merge-Konflikt in Tests.fsproj gelöst (beide Compile-Zeilen bleiben), nach dem Merge VERIFY: PASS mit dotnet 2645 und node 324 grün.
+**Duration:** 59m
+**Verification:** PASS (iteration 2)
+**Files changed:** 17
+**Tests added:** 38
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 16:50 -- Task verified and completed: budgeting-afd8h - "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
 
 **Type:** Work / Task completion

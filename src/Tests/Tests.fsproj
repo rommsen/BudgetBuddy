@@ -127,6 +127,7 @@
     <Compile Include="RuhigeListenTests.fs" />
     <Compile Include="AuswahlTests.fs" />
     <Compile Include="RulesListTests.fs" />
+    <Compile Include="RuleCommandHandlerTests.fs" />
     <Compile Include="SettingsSecretsTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>

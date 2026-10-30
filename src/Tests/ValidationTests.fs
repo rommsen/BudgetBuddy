@@ -20,7 +20,7 @@ let reusableValidatorTests =
             test "returns Some error for empty string" {
                 let result = validateRequired "Field" ""
                 Expect.isSome result "Should return error for empty string"
-                Expect.equal result.Value "Field is required" "Error message should be correct"
+                Expect.equal result.Value "Field ist erforderlich" "Error message should be correct"
             }
 
             test "returns Some error for whitespace string" {
@@ -53,7 +53,7 @@ let reusableValidatorTests =
             test "returns Some error when length below minimum" {
                 let result = validateLength "Field" 5 10 "abc"
                 Expect.isSome result "Should return error when length below minimum"
-                Expect.stringContains result.Value "between 5 and 10" "Error message should contain range"
+                Expect.stringContains result.Value "zwischen 5 und 10" "Error message should contain range"
             }
 
             test "returns Some error when length above maximum" {
@@ -81,7 +81,7 @@ let reusableValidatorTests =
             test "returns Some error when value below minimum" {
                 let result = validateRange "Days" 1 90 0
                 Expect.isSome result "Should return error when value below minimum"
-                Expect.stringContains result.Value "between 1 and 90" "Error message should contain range"
+                Expect.stringContains result.Value "zwischen 1 und 90" "Error message should contain range"
             }
 
             test "returns Some error when value above maximum" {
@@ -293,7 +293,7 @@ let rulesValidationTests =
             }
         ]
 
-        testList "validateRuleCreateRequest" [
+        testList "validateNewRule" [
             test "returns Ok for valid request" {
                 let request = {
                     Name = "Test Rule"
@@ -302,9 +302,8 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
-                    Priority = 100
                 }
-                let result = validateRuleCreateRequest request
+                let result = validateNewRule request
                 Expect.isOk result "Should return Ok for valid request"
             }
 
@@ -316,9 +315,8 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
-                    Priority = 100
                 }
-                let result = validateRuleCreateRequest request
+                let result = validateNewRule request
                 Expect.isError result "Should return Error for empty name"
             }
 
@@ -330,24 +328,9 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
-                    Priority = 100
                 }
-                let result = validateRuleCreateRequest request
+                let result = validateNewRule request
                 Expect.isError result "Should return Error for empty pattern"
-            }
-
-            test "returns Error for priority out of range" {
-                let request = {
-                    Name = "Test Rule"
-                    Pattern = ".*test.*"
-                    PatternType = PatternType.Regex
-                    TargetField = Combined
-                    CategoryId = YnabCategoryId (Guid.NewGuid())
-                    PayeeOverride = None
-                    Priority = -1
-                }
-                let result = validateRuleCreateRequest request
-                Expect.isError result "Should return Error for priority out of range"
             }
 
             test "returns multiple errors when multiple fields invalid" {
@@ -358,16 +341,60 @@ let rulesValidationTests =
                     TargetField = Combined
                     CategoryId = YnabCategoryId (Guid.NewGuid())
                     PayeeOverride = None
-                    Priority = 100
                 }
-                let result = validateRuleCreateRequest request
+                let result = validateNewRule request
                 match result with
                 | Error errors -> Expect.isGreaterThan errors.Length 1 "Should have multiple errors"
                 | _ -> failtest "Expected Error"
             }
+
+            test "sammelt alle Fehler auf Deutsch, auch den leeren Payee-Override" {
+                let request = {
+                    Name = ""
+                    Pattern = ""
+                    PatternType = PatternType.Regex
+                    TargetField = Combined
+                    CategoryId = YnabCategoryId (Guid.NewGuid())
+                    PayeeOverride = Some "   "
+                }
+                Expect.equal
+                    (validateNewRule request)
+                    (Error [ "Regelname ist erforderlich"; "Muster ist erforderlich"; "Payee-Override darf nicht leer sein" ])
+                    "alle drei Fehler"
+            }
         ]
 
-        testList "validateRuleUpdateRequest" [
+        testList "validateRuleChange Payee-Override" [
+            let change payeeOverride = {
+                Id = RuleId (Guid.NewGuid())
+                Name = Some ""
+                Pattern = None
+                PatternType = None
+                TargetField = None
+                CategoryId = None
+                PayeeOverride = payeeOverride
+                Priority = Some 50000
+                Enabled = None
+            }
+
+            test "ein leerer neuer Override wird abgelehnt, alle Fehler kommen gesammelt" {
+                Expect.equal
+                    (validateRuleChange (change (PayeeOverrideChange.Set " ")))
+                    (Error [
+                        "Regelname ist erforderlich"
+                        "Priorität muss zwischen 0 und 10000 liegen"
+                        "Payee-Override darf nicht leer sein" ])
+                    "alle drei Fehler"
+            }
+
+            test "Entfernen und Behalten brauchen keinen Wert" {
+                let onlyName payeeOverride = { change payeeOverride with Name = Some "x"; Priority = None }
+                Expect.isOk (validateRuleChange (onlyName PayeeOverrideChange.Remove)) "Entfernen"
+                Expect.isOk (validateRuleChange (onlyName PayeeOverrideChange.Keep)) "Behalten"
+            }
+        ]
+
+        testList "validateRuleChange" [
             test "returns Ok for valid update request" {
                 let request = {
                     Id = RuleId (Guid.NewGuid())
@@ -376,11 +403,11 @@ let rulesValidationTests =
                     PatternType = Some PatternType.Regex
                     TargetField = Some Combined
                     CategoryId = Some (YnabCategoryId (Guid.NewGuid()))
-                    PayeeOverride = None
+                    PayeeOverride = PayeeOverrideChange.Keep
                     Priority = Some 50
                     Enabled = Some true
                 }
-                let result = validateRuleUpdateRequest request
+                let result = validateRuleChange request
                 Expect.isOk result "Should return Ok for valid update request"
             }
 
@@ -392,11 +419,11 @@ let rulesValidationTests =
                     PatternType = None
                     TargetField = None
                     CategoryId = None
-                    PayeeOverride = None
+                    PayeeOverride = PayeeOverrideChange.Keep
                     Priority = None
                     Enabled = None
                 }
-                let result = validateRuleUpdateRequest request
+                let result = validateRuleChange request
                 Expect.isOk result "Should return Ok when all optional fields are None"
             }
 
@@ -408,11 +435,11 @@ let rulesValidationTests =
                     PatternType = None
                     TargetField = None
                     CategoryId = None
-                    PayeeOverride = None
+                    PayeeOverride = PayeeOverrideChange.Keep
                     Priority = None
                     Enabled = None
                 }
-                let result = validateRuleUpdateRequest request
+                let result = validateRuleChange request
                 Expect.isError result "Should return Error when Name is Some empty"
             }
 
@@ -424,11 +451,11 @@ let rulesValidationTests =
                     PatternType = None
                     TargetField = None
                     CategoryId = None
-                    PayeeOverride = None
+                    PayeeOverride = PayeeOverrideChange.Keep
                     Priority = None
                     Enabled = None
                 }
-                let result = validateRuleUpdateRequest request
+                let result = validateRuleChange request
                 Expect.isError result "Should return Error when Pattern is Some empty"
             }
 
@@ -440,11 +467,11 @@ let rulesValidationTests =
                     PatternType = None
                     TargetField = None
                     CategoryId = None
-                    PayeeOverride = None
+                    PayeeOverride = PayeeOverrideChange.Keep
                     Priority = Some 50000
                     Enabled = None
                 }
-                let result = validateRuleUpdateRequest request
+                let result = validateRuleChange request
                 Expect.isError result "Should return Error when Priority is out of range"
             }
         ]

@@ -29,8 +29,9 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                     (fun () ->
                         async {
                             try
-                                let! matches = Api.rules.testRule (formState.Pattern, formState.PatternType, formState.TargetField, formState.TransactionText)
-                                setTestResult (Some matches)
+                                let! result = Api.rules.testRule (formState.Pattern, formState.PatternType, formState.TargetField, formState.TransactionText)
+                                // Ein ungültiges Muster ist kein "passt nicht": ohne Urteil keine Anzeige.
+                                setTestResult (Result.toOption result)
                             with _ ->
                                 setTestResult (Some false)
                             setIsTesting false

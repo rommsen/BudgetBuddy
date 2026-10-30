@@ -172,13 +172,13 @@ let private rows : Row list = [
       Run = fun () ->
         rulesApi.createRule
             { Name = ""; Pattern = ""; PatternType = Contains; TargetField = Payee
-              CategoryId = YnabCategoryId (Guid.NewGuid()); PayeeOverride = None; Priority = 0 }
+              CategoryId = YnabCategoryId (Guid.NewGuid()); PayeeOverride = None }
         |> run |> expectError "Regel anlegen" }
     { Endpoint = "RulesApi.updateRule"; Case = "unbekannte Id wird abgelehnt"
       Run = fun () ->
         rulesApi.updateRule
             { Id = RuleId (Guid.NewGuid()); Name = Some "x"; Pattern = None; PatternType = None; TargetField = None
-              CategoryId = None; PayeeOverride = None; Priority = None; Enabled = None }
+              CategoryId = None; PayeeOverride = PayeeOverrideChange.Keep; Priority = None; Enabled = None }
         |> run |> expectError "Regel ändern" }
     { Endpoint = "RulesApi.deleteRule"; Case = "unbekannte Id ohne Absturz"
       Run = fun () -> rulesApi.deleteRule (RuleId (Guid.NewGuid())) |> run |> ignore }
@@ -190,10 +190,8 @@ let private rows : Row list = [
         Expect.isFalse (String.IsNullOrWhiteSpace json) "Export nicht leer" }
     { Endpoint = "RulesApi.importRules"; Case = "kein JSON wird abgelehnt"
       Run = fun () -> rulesApi.importRules "kein json" |> run |> expectError "Import" }
-    { Endpoint = "RulesApi.testRule"; Case = "ungültiger Regex trifft nicht und stürzt nicht ab"
-      Run = fun () ->
-        let hit = rulesApi.testRule ("(", Regex, Payee, "(irgendwas") |> run
-        Expect.isFalse hit "kein Treffer" }
+    { Endpoint = "RulesApi.testRule"; Case = "ungültiger Regex wird abgelehnt"
+      Run = fun () -> rulesApi.testRule ("(", Regex, Payee, "(irgendwas") |> run |> expectError "Muster" }
 
     // ---------------- SyncApi ----------------
     { Endpoint = "SyncApi.startSync"; Case = "ohne Comdirect-Zugangsdaten Fehler"

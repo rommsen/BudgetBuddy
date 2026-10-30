@@ -46,6 +46,45 @@ module RuleFormState =
         IsSaving = false
     }
 
+/// Die neue Regel aus dem Dialog. Die Priorität vergibt der Server.
+let buildNewRule (form: RuleFormState) (categoryId: YnabCategoryId) : NewRule = {
+    Name = form.Name
+    Pattern = form.Pattern
+    PatternType = form.PatternType
+    TargetField = form.TargetField
+    CategoryId = categoryId
+    PayeeOverride =
+        if System.String.IsNullOrWhiteSpace form.PayeeOverride then None else Some form.PayeeOverride
+}
+
+/// Die Änderung aus dem Dialog: ein geleertes Feld entfernt den PayeeOverride.
+let buildRuleChange (rule: Rule) (form: RuleFormState) (categoryId: YnabCategoryId) : RuleChange = {
+    Id = rule.Id
+    Name = Some form.Name
+    Pattern = Some form.Pattern
+    PatternType = Some form.PatternType
+    TargetField = Some form.TargetField
+    CategoryId = Some categoryId
+    PayeeOverride =
+        if System.String.IsNullOrWhiteSpace form.PayeeOverride then PayeeOverrideChange.Remove
+        else PayeeOverrideChange.Set form.PayeeOverride
+    Priority = None
+    Enabled = Some form.Enabled
+}
+
+/// Schaltet nur Enabled um, alle anderen Felder bleiben unangetastet.
+let toggleEnabledChange (rule: Rule) : RuleChange = {
+    Id = rule.Id
+    Name = None
+    Pattern = None
+    PatternType = None
+    TargetField = None
+    CategoryId = None
+    PayeeOverride = PayeeOverrideChange.Keep
+    Priority = None
+    Enabled = Some (not rule.Enabled)
+}
+
 /// Direction in which a rule is moved within the precedence-ordered list.
 /// "Up" raises a rule's precedence (it then wins earlier); "Down" lowers it.
 type MoveDirection =

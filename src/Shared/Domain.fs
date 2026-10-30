@@ -377,24 +377,33 @@ type Rule = {
     UpdatedAt: DateTime
 }
 
-type RuleCreateRequest = {
+/// Eine neue Regel. Die Priorität vergibt der Server (höchste vorhandene plus 1).
+type NewRule = {
     Name: string
     Pattern: string
     PatternType: PatternType
     TargetField: TargetField
     CategoryId: YnabCategoryId
     PayeeOverride: string option
-    Priority: int
 }
 
-type RuleUpdateRequest = {
+/// Was eine Änderung mit dem PayeeOverride einer Regel macht. Ein eigener Typ, weil `None`
+/// beim Umschalten von Enabled "nicht anfassen" heißt und im Dialog "entfernen".
+[<RequireQualifiedAccess>]
+type PayeeOverrideChange =
+    | Keep
+    | Set of string
+    | Remove
+
+/// Eine Änderung an einer Regel. `None` heißt je Feld: Wert behalten.
+type RuleChange = {
     Id: RuleId
     Name: string option
     Pattern: string option
     PatternType: PatternType option
     TargetField: TargetField option
     CategoryId: YnabCategoryId option
-    PayeeOverride: string option
+    PayeeOverride: PayeeOverrideChange
     Priority: int option
     Enabled: bool option
 }
@@ -644,7 +653,8 @@ type RulesError =
     | RuleNotFound of ruleId: Guid
     | InvalidPattern of pattern: string * reason: string
     | CategoryNotFound of categoryId: Guid
-    | DuplicateRule of pattern: string
+    | CategoryLookupFailed of reason: string
+    | ValidationFailed of errors: string list
     | DatabaseError of operation: string * message: string
 
 /// Errors during sync operations.
@@ -681,6 +691,16 @@ type SettingsResult<'T> = Result<'T, SettingsError>
 type YnabResult<'T> = Result<'T, YnabError>
 type RulesResult<'T> = Result<'T, RulesError>
 type SyncResult<'T> = Result<'T, SyncError>
+
+/// Die eine Übersetzung von `RulesError` in eine Meldung für den Nutzer (Client und Server).
+let rulesErrorToString (error: RulesError) : string =
+    match error with
+    | RulesError.RuleNotFound ruleId -> $"Regel nicht gefunden: {ruleId}"
+    | RulesError.InvalidPattern (pattern, reason) -> $"Ungültiges Muster '{pattern}': {reason}"
+    | RulesError.CategoryNotFound categoryId -> $"Kategorie nicht gefunden: {categoryId}"
+    | RulesError.CategoryLookupFailed reason -> $"Kategorie konnte nicht nachgeschlagen werden: {reason}"
+    | RulesError.ValidationFailed errors -> String.concat "; " errors
+    | RulesError.DatabaseError (operation, message) -> $"Datenbankfehler bei {operation}: {message}"
 
 // ============================================
 // Manual Transaction Entry (Quick Add)

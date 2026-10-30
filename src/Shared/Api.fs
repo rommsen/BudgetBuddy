@@ -121,13 +121,13 @@ type RulesApi = {
 
     /// Creates a new categorization rule after validation.
     /// Purpose: Validates pattern compiles and category exists before persistence.
-    /// Returns: Created rule or RulesError (InvalidPattern, CategoryNotFound, DuplicateRule).
-    createRule: RuleCreateRequest -> Async<RulesResult<Rule>>
+    /// Returns: Created rule or RulesError (ValidationFailed, InvalidPattern, CategoryNotFound, CategoryLookupFailed).
+    createRule: NewRule -> Async<RulesResult<Rule>>
 
     /// Updates an existing rule.
     /// Purpose: Applies partial updates while maintaining rule priority order.
-    /// Returns: Updated rule or RulesError (RuleNotFound, InvalidPattern).
-    updateRule: RuleUpdateRequest -> Async<RulesResult<Rule>>
+    /// Returns: Updated rule or RulesError (RuleNotFound, ValidationFailed, InvalidPattern, CategoryNotFound, CategoryLookupFailed).
+    updateRule: RuleChange -> Async<RulesResult<Rule>>
 
     /// Deletes a rule permanently.
     /// Returns: Unit on success or RulesError (RuleNotFound, DatabaseError).
@@ -143,14 +143,14 @@ type RulesApi = {
     exportRules: unit -> Async<string>
 
     /// Imports rules from JSON, validating and creating them.
-    /// Returns: Count of successfully imported rules or RulesError (parsing/validation errors).
+    /// Returns: Count of imported rules or RulesError (ValidationFailed naming every faulty rule). All or nothing.
     importRules: string -> Async<RulesResult<int>>
 
     /// Tests if a pattern matches input text without persisting.
     /// Purpose: Allows users to validate regex before creating rule.
     /// Parameters: (pattern, patternType, targetField, testInput)
     /// Returns: True if pattern matches test input, false otherwise.
-    testRule: string * PatternType * TargetField * string -> Async<bool>
+    testRule: string * PatternType * TargetField * string -> Async<RulesResult<bool>>
 }
 
 // ============================================

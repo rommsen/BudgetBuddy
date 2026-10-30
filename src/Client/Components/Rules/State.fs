@@ -6,14 +6,6 @@ open Components.Rules.Types
 open Types
 open Shared.Domain
 
-let private rulesErrorToString (error: RulesError) : string =
-    match error with
-    | RulesError.RuleNotFound ruleId -> $"Rule not found: {ruleId}"
-    | RulesError.InvalidPattern (pattern, reason) -> $"Invalid pattern '{pattern}': {reason}"
-    | RulesError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | RulesError.DuplicateRule pattern -> $"Duplicate rule pattern: {pattern}"
-    | RulesError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
-
 let init () : Model * Cmd<Msg> =
     let model = {
         Rules = NotAsked
@@ -123,21 +115,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Success rules ->
             match rules |> List.tryFind (fun r -> r.Id = ruleId) with
             | Some rule ->
-                let updateRequest : RuleUpdateRequest = {
-                    Id = ruleId
-                    Name = None
-                    Pattern = None
-                    PatternType = None
-                    TargetField = None
-                    CategoryId = None
-                    PayeeOverride = None
-                    Priority = None
-                    Enabled = Some (not rule.Enabled)
-                }
                 let cmd =
                     Cmd.OfAsync.either
                         Api.rules.updateRule
-                        updateRequest
+                        (toggleEnabledChange rule)
                         RuleToggled
                         (fun ex -> Error (RulesError.DatabaseError ("toggle", ex.Message)) |> RuleToggled)
                 model, cmd, NoOp
@@ -234,7 +215,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 Cmd.OfAsync.either
                     Api.rules.testRule
                     (model.Form.Pattern, model.Form.PatternType, model.Form.TargetField, model.Form.TestInput)
-                    (Ok >> RulePatternTested)
+                    RulePatternTested
                     (fun ex -> Error (RulesError.InvalidPattern (model.Form.Pattern, ex.Message)) |> RulePatternTested)
             model, cmd, NoOp
 
@@ -255,46 +236,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             elif String.IsNullOrWhiteSpace(model.Form.Pattern) then
                 model, Cmd.none, ShowToast ("Please enter a pattern", ToastWarning)
             else
-                let payeeOverride = if String.IsNullOrWhiteSpace(model.Form.PayeeOverride) then None else Some model.Form.PayeeOverride
                 if model.IsNewRule then
-                    let nextPriority =
-                        match model.Rules with
-                        | Success rules -> (rules |> List.map (fun r -> r.Priority) |> List.fold max 0) + 1
-                        | _ -> 1
-                    let request : RuleCreateRequest = {
-                        Name = model.Form.Name
-                        Pattern = model.Form.Pattern
-                        PatternType = model.Form.PatternType
-                        TargetField = model.Form.TargetField
-                        CategoryId = categoryId
-                        PayeeOverride = payeeOverride
-                        Priority = nextPriority
-                    }
                     let cmd =
                         Cmd.OfAsync.either
                             Api.rules.createRule
-                            request
+                            (buildNewRule model.Form categoryId)
                             RuleSaved
                             (fun ex -> Error (RulesError.DatabaseError ("create", ex.Message)) |> RuleSaved)
                     { model with Form = { model.Form with IsSaving = true } }, cmd, NoOp
                 else
                     match model.EditingRule with
                     | Some rule ->
-                        let request : RuleUpdateRequest = {
-                            Id = rule.Id
-                            Name = Some model.Form.Name
-                            Pattern = Some model.Form.Pattern
-                            PatternType = Some model.Form.PatternType
-                            TargetField = Some model.Form.TargetField
-                            CategoryId = Some categoryId
-                            PayeeOverride = payeeOverride
-                            Priority = None
-                            Enabled = Some model.Form.Enabled
-                        }
                         let cmd =
                             Cmd.OfAsync.either
                                 Api.rules.updateRule
-                                request
+                                (buildRuleChange rule model.Form categoryId)
                                 RuleSaved
                                 (fun ex -> Error (RulesError.DatabaseError ("update", ex.Message)) |> RuleSaved)
                         { model with Form = { model.Form with IsSaving = true } }, cmd, NoOp

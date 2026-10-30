@@ -327,7 +327,7 @@ module Rules =
         | "Regex" -> Regex
         | "Contains" -> Contains
         | "Exact" -> Exact
-        | _ -> Regex
+        | unknown -> failwith $"Unbekannter PatternType: {unknown}"
 
     let private targetFieldToString = function
         | Payee -> "Payee"
@@ -338,9 +338,9 @@ module Rules =
         | "Payee" -> Payee
         | "Memo" -> Memo
         | "Combined" -> Combined
-        | _ -> Combined
+        | unknown -> failwith $"Unbekanntes TargetField: {unknown}"
 
-    let private rowToRule (row: RuleRow) : Rule =
+    let internal rowToRule (row: RuleRow) : Rule =
         let (RuleId ruleId) = RuleId (Guid.Parse row.id)
         let (YnabCategoryId categoryId) = YnabCategoryId (Guid.Parse row.category_id)
         {
@@ -361,7 +361,7 @@ module Rules =
     let getAllRules () : Async<Rule list> =
         async {
             let conn = getConnection()
-            let! rows = conn.QueryAsync<RuleRow>("SELECT * FROM rules ORDER BY priority DESC") |> Async.AwaitTask
+            let! rows = conn.QueryAsync<RuleRow>("SELECT * FROM rules ORDER BY priority DESC, rowid ASC") |> Async.AwaitTask
             return rows |> Seq.map rowToRule |> Seq.toList
         }
 
@@ -376,32 +376,57 @@ module Rules =
             return if isNull (box row) then None else Some (rowToRule row)
         }
 
+    let private insertRuleSql =
+        """INSERT INTO rules
+           (id, name, pattern, pattern_type, target_field, category_id, category_name,
+            payee_override, priority, enabled, created_at, updated_at)
+           VALUES (@id, @name, @pattern, @pattern_type, @target_field, @category_id,
+                   @category_name, @payee_override, @priority, @enabled, @created_at, @updated_at)"""
+
+    let private insertRuleParameters (rule: Rule) =
+        let (RuleId ruleId) = rule.Id
+        let (YnabCategoryId categoryId) = rule.CategoryId
+        {|
+            id = ruleId.ToString()
+            name = rule.Name
+            pattern = rule.Pattern
+            pattern_type = patternTypeToString rule.PatternType
+            target_field = targetFieldToString rule.TargetField
+            category_id = categoryId.ToString()
+            category_name = rule.CategoryName
+            payee_override = rule.PayeeOverride
+            priority = rule.Priority
+            enabled = if rule.Enabled then 1 else 0
+            created_at = rule.CreatedAt.ToString("O")
+            updated_at = rule.UpdatedAt.ToString("O")
+        |}
+
     let insertRule (rule: Rule) : Async<unit> =
         async {
             let conn = getConnection()
-            let (RuleId ruleId) = rule.Id
-            let (YnabCategoryId categoryId) = rule.CategoryId
-            do! (conn.ExecuteAsync(
-                """INSERT INTO rules
-                   (id, name, pattern, pattern_type, target_field, category_id, category_name,
-                    payee_override, priority, enabled, created_at, updated_at)
-                   VALUES (@id, @name, @pattern, @pattern_type, @target_field, @category_id,
-                           @category_name, @payee_override, @priority, @enabled, @created_at, @updated_at)""",
-                {|
-                    id = ruleId.ToString()
-                    name = rule.Name
-                    pattern = rule.Pattern
-                    pattern_type = patternTypeToString rule.PatternType
-                    target_field = targetFieldToString rule.TargetField
-                    category_id = categoryId.ToString()
-                    category_name = rule.CategoryName
-                    payee_override = rule.PayeeOverride
-                    priority = rule.Priority
-                    enabled = if rule.Enabled then 1 else 0
-                    created_at = rule.CreatedAt.ToString("O")
-                    updated_at = rule.UpdatedAt.ToString("O")
-                |}
-            ) |> Async.AwaitTask |> Async.Ignore)
+            do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule) |> Async.AwaitTask |> Async.Ignore)
+        }
+
+    /// Legt alle Regeln in einer Transaktion an: scheitert eine, bleibt keine (Import).
+    /// Die Reihenfolge der Liste ist die rowid-Reihenfolge, also der Gleichstand bei gleicher Priorität.
+    let insertRules (rules: Rule list) : Async<unit> =
+        async {
+            use conn = getConnection()
+            conn.Open()
+            use transaction = conn.BeginTransaction()
+
+            for rule in rules do
+                do! (conn.ExecuteAsync(insertRuleSql, insertRuleParameters rule, transaction)
+                     |> Async.AwaitTask |> Async.Ignore)
+
+            transaction.Commit()
+        }
+
+    /// Die Priorität einer neuen Regel: höchste vorhandene plus 1, sie steht damit ganz vorn.
+    let nextPriority () : Async<int> =
+        async {
+            let conn = getConnection()
+            return! conn.ExecuteScalarAsync<int>("SELECT COALESCE(MAX(priority), 0) + 1 FROM rules") |> Async.AwaitTask
         }
 
     let updateRule (rule: Rule) : Async<unit> =

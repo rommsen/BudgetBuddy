@@ -101,7 +101,7 @@ let patternCompilationTests =
             match result with
             | Ok _ -> failtest "Should fail to compile invalid regex"
             | Error e ->
-                Expect.stringContains e "Failed to compile pattern" "Error should mention compilation failure"
+                Expect.stringContains e "lässt sich nicht übersetzen" "Error should mention compilation failure"
 
         testCase "Pattern matching is case-insensitive" <| fun () ->
             let rule = createRule (Guid.NewGuid()) "Case Rule" "amazon" Contains Memo (Guid.NewGuid()) 1 true
@@ -128,7 +128,7 @@ let patternCompilationTests =
             | Ok _ -> failtest "Should fail when any rule fails to compile"
             | Error errors ->
                 Expect.equal errors.Length 2 "Should have 2 errors"
-                Expect.all errors (fun e -> e.Contains("Failed to compile pattern")) "All errors should be compilation errors"
+                Expect.all errors (fun e -> e.Contains("lässt sich nicht übersetzen")) "All errors should be compilation errors"
 
         testCase "compileRules succeeds with all valid rules" <| fun () ->
             let rules = [

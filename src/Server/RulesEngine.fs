@@ -144,7 +144,7 @@ let compileRule (rule: Rule) : Result<CompiledRule, string> =
 
         Ok { Rule = rule; Regex = regex }
     with
-    | ex -> Error $"Failed to compile pattern '{rule.Pattern}': {ex.Message}"
+    | ex -> Error $"Muster '{rule.Pattern}' lässt sich nicht übersetzen: {ex.Message}"
 
 /// Compiles multiple rules and collects all errors.
 /// Purpose: Validates all rules upfront before use in classification.

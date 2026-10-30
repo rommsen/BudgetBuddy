@@ -30,14 +30,6 @@ let importLenaFlagNote (notSent: int) : string =
 // (ynabErrorToString moved with the Quick Add submit logic to the top-level
 // State, the only place it was used — ynab-q7k3m.)
 
-let private rulesErrorToString (error: RulesError) : string =
-    match error with
-    | RulesError.RuleNotFound ruleId -> $"Rule not found: {ruleId}"
-    | RulesError.InvalidPattern (pattern, reason) -> $"Invalid pattern '{pattern}': {reason}"
-    | RulesError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | RulesError.DuplicateRule pattern -> $"A rule with pattern '{pattern}' already exists"
-    | RulesError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
-
 /// Filter transactions based on the active filter (duplicated from View.fs for state logic)
 let private filterTransactions (filter: TransactionFilter) (transactions: SyncTransaction list) =
     match filter with
@@ -1045,14 +1037,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 if System.String.IsNullOrWhiteSpace form.PayeeOverride then None
                 else Some form.PayeeOverride
 
-            let request : RuleCreateRequest = {
+            let request : NewRule = {
                 Name = form.RuleName
                 Pattern = form.Pattern
                 PatternType = form.PatternType
                 TargetField = form.TargetField
                 CategoryId = form.CategoryId
                 PayeeOverride = payeeOverride
-                Priority = 1  // Highest priority for new rules
             }
 
             let cmd =
