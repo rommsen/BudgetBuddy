@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
-- **Todo:** 0
+- **Backlog:** 3
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 39
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `todo/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -62,7 +63,6 @@ research touching this BC, and concept synthesis pages.
 <!-- backlog-list:start -->
 - **design-system-fpem2** — "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring" (chore) — `backlog/design-system-fpem2-waechter-keine-tailwind-groessen-in-tests.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
-- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `backlog/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 - **design-system-w3k5d** — "Button.iconOnlyClass erkennt einen Text aus Leerzeichen als Icon-only" (bug) — `backlog/design-system-w3k5d-button-icononlyclass-erkennt-einen-text-aus-leerzeichen-als.md`
 <!-- backlog-list:end -->
 

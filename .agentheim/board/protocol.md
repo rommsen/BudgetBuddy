@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Promoted: design-system-m65pw - "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
+
+**Type:** Modeling / Promote
+**BC:** design-system
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Refined: design-system-m65pw - Styleguide-Verweise auf alte CLAUDE.md
 
 **Type:** Modeling / Refine
