@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 32
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
 - **infrastructure-q7d2m** — "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen" (chore) — `todo/infrastructure-q7d2m-alte-planungsdokumente-unter-docs-mit-verweisen-auf-gel-scht.md`
-- **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `todo/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-s1r95** — "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client" (bug) — `doing/infrastructure-s1r95-settings-ohne-secrets-an-client.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)

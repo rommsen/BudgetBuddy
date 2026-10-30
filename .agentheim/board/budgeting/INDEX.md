@@ -11,18 +11,18 @@ Catalog of this bounded context's tasks by status.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 4
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **budgeting-afd8h** — "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest" (feature) — `todo/budgeting-afd8h-geld-verschieben.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **budgeting-afd8h** — "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest" (feature) — `doing/budgeting-afd8h-geld-verschieben.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

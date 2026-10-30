@@ -1,7 +1,7 @@
 ---
 id: infrastructure-s1r95
 title: "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-10-29

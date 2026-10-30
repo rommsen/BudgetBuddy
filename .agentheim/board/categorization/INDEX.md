@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **categorization-msep5** — "Regeln speichern, importieren und sortieren fehlerhaft" (bug) — `todo/categorization-msep5-regeln-speichern-importieren-und-sortieren-fehlerhaft.md`
 - **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `todo/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **categorization-msep5** — "Regeln speichern, importieren und sortieren fehlerhaft" (bug) — `doing/categorization-msep5-regeln-speichern-importieren-und-sortieren-fehlerhaft.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 16:00 -- Batch started: [infrastructure-s1r95, categorization-msep5, budgeting-afd8h]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client", categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft", budgeting-afd8h - "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
+**Parallel:** yes (3 workers, cap 3). design-system-m65pw und infrastructure-q7d2m auf die nächste Welle gehalten (Cap); categorization-cgq35 wartet auf categorization-msep5. Alle drei berühren src/Server/Api.fs und src/Shared/Domain.fs: nacheinander mergen.
+
+---
+
 ## 2026-10-30 15:43 -- Modeling / Promoted: categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
 
 **Type:** Modeling / Promote
