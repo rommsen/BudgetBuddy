@@ -43,11 +43,14 @@ let private retryCmd (applicationId: string) : Cmd<Msg> =
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
+    | PageEntered -> { model with CategorySearch = "" }, Cmd.ofMsg Load
     | Load -> { model with Month = Loading }, loadCmd model.Choice
     | SelectMonth choice ->
         match select choice model with
         | model', true -> model', loadCmd choice
         | model', false -> model', Cmd.none
+    | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none
+    | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none
     | Loaded (choice, result) -> applyLoaded choice result model, Cmd.none
     | OpenTargets ->
         match openTargets model with

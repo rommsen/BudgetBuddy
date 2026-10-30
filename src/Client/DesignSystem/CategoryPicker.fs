@@ -114,12 +114,14 @@ let maxSuggestions = 3
 
 let isSearching (search: string) : bool = not (String.IsNullOrWhiteSpace search)
 
+/// Enthält `text` die Suche? Groß- und Kleinschreibung sowie Leerzeichen außen sind egal,
+/// eine leere Suche trifft alles. Auch die Budget-Seite sucht damit (budgeting-rxxb4).
+let matchesText (search: string) (text: string) : bool =
+    not (isSearching search) || text.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
+
 /// Treffer in Gruppe oder Name, ohne Beachtung der Groß- und Kleinschreibung
 let matchesSearch (search: string) (c: YnabCategory) : bool =
-    if not (isSearching search) then true
-    else
-        let needle = search.Trim().ToLowerInvariant()
-        c.Name.ToLowerInvariant().Contains needle || c.GroupName.ToLowerInvariant().Contains needle
+    matchesText search c.Name || matchesText search c.GroupName
 
 /// Vorschläge: Reihenfolge der Eingabe, ohne Dubletten, ohne unbekannte Ids, ohne die
 /// aktuelle Kategorie, höchstens drei

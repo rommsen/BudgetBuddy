@@ -8,6 +8,7 @@ module Components.Budget.Types
 
 open Shared.Budgeting
 open Types
+open Client.DesignSystem
 
 /// Stand des Dialogs "Targets anwenden" (budgeting-h2zfn).
 type TargetsState =
@@ -33,9 +34,14 @@ type Model = {
     Month: RemoteData<BudgetMonth>
     /// Der Dialog "Targets anwenden".
     Targets: TargetsState
+    /// Suchtext über der Kategorie-Liste (budgeting-rxxb4). Bleibt beim Monatswechsel stehen,
+    /// wird nicht gespeichert.
+    CategorySearch: string
 }
 
 type Msg =
+    /// Die Seite wird betreten: Suche leeren, Monat holen.
+    | PageEntered
     /// Den gewählten Monat (neu) holen: Seitenaufruf und "Wiederholen".
     | Load
     /// Umschalter dieser/nächster Monat.
@@ -54,9 +60,13 @@ type Msg =
     | TargetsRetried of Result<ApplyReport, string>
     /// "Abbrechen" oder "Schließen".
     | CloseTargets
+    /// Eingabe im Suchfeld über der Kategorie-Liste.
+    | CategorySearchChanged of string
+    /// Das ✕ im Suchfeld.
+    | ClearCategorySearch
 
 let init () : Model =
-    { Choice = CurrentMonth; Month = NotAsked; Targets = TargetsClosed }
+    { Choice = CurrentMonth; Month = NotAsked; Targets = TargetsClosed; CategorySearch = "" }
 
 /// Antwort einnehmen. Eine Antwort zu einer inzwischen abgewählten Monatswahl wird
 /// verworfen, damit ein langsamer Aufruf den gerade gezeigten Monat nicht überschreibt.
@@ -92,6 +102,18 @@ let monthLabel (month: string) : string =
 /// Die Kategorien eines Monats als flache Zählung, für die Leer-Anzeige.
 let categoryCount (month: BudgetMonth) : int =
     month.Groups |> List.sumBy (fun g -> g.Categories.Length)
+
+/// Kategorie-Suche (budgeting-rxxb4). Ein Treffer im Gruppennamen zeigt die ganze Gruppe,
+/// sonst bleiben die passenden Kategorien; Gruppen ohne Treffer fallen weg.
+let filterGroups (search: string) (groups: BudgetGroup list) : BudgetGroup list =
+    groups
+    |> List.choose (fun group ->
+        if CategoryPicker.matchesText search group.Name then
+            Some group
+        else
+            match group.Categories |> List.filter (fun c -> CategoryPicker.matchesText search c.Name) with
+            | [] -> None
+            | hits -> Some { group with Categories = hits })
 
 // ============================================
 // Targets anwenden (budgeting-h2zfn)

@@ -208,8 +208,9 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
         ]
     | Budget ->
-        // Der Monat wird bei jedem Betreten live aus YNAB geholt (budgeting-k7wmd).
-        Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.Load)
+        // Der Monat wird bei jedem Betreten live aus YNAB geholt (budgeting-k7wmd), die
+        // Kategorie-Suche beginnt dabei leer (budgeting-rxxb4).
+        Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.PageEntered)
     | QuickAdd ->
         // Open a fresh form and make sure the category picker has data
         // (categories are loaded into SyncFlow at startup; retry in

@@ -2,6 +2,8 @@
 /// als große Zahl und die Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar.
 /// Am Handy zweizeilige Zeilen ohne horizontales Scrollen, ab md eine Tabelle.
 ///
+/// Das Suchfeld über der Liste filtert die Kategorien (budgeting-rxxb4).
+///
 /// Ausschließlich Design-System-Bausteine und Tokens (Styleguide-Gate `design-system-001`).
 /// Ein negatives Zu verteilen erscheint einfach negativ, ohne Hinweis und ohne Sperre.
 module Components.Budget.View
@@ -158,18 +160,49 @@ let private desktopTable (groups: BudgetGroup list) =
         ]
     ]
 
-let private categories (month: BudgetMonth) =
+let private categorySearchField (search: string) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.custom ("data-testid", "budget-category-search")
+        prop.className "relative"
+        prop.children [
+            Input.text
+                { Input.textInputDefaults with
+                    Value = search
+                    OnChange = CategorySearchChanged >> dispatch
+                    Placeholder = "Kategorie suchen…"
+                    Size = Input.Small
+                    ClassName = Some "w-full pr-12" }
+            if search <> "" then
+                Button.view
+                    { Button.defaultProps with
+                        Variant = Button.Ghost
+                        Size = Button.Small
+                        Icon = Some (Icons.x Icons.SM Icons.Default)
+                        OnClick = fun () -> dispatch ClearCategorySearch
+                        Title = Some "Suche leeren"
+                        ClassName = Some "absolute right-0 top-1/2 -translate-y-1/2" }
+        ]
+    ]
+
+let private categories (search: string) (month: BudgetMonth) =
+    let groups = filterGroups search month.Groups
     if categoryCount month = 0 then
         Card.emptyState (Icons.banknotes Icons.XL Icons.Default) "Keine Kategorien" "YNAB liefert für diesen Monat keine sichtbaren Kategorien." None
+    elif List.isEmpty groups then
+        Html.p [
+            prop.custom ("data-testid", "budget-search-empty")
+            prop.className $"{ListRoles.muted} px-4 py-8 text-center"
+            prop.text $"Keine Kategorie passt zu „{search.Trim()}“"
+        ]
     else
         React.fragment [
             Html.div [
                 prop.className "md:hidden"
-                prop.children (month.Groups |> List.map mobileGroup)
+                prop.children (groups |> List.map mobileGroup)
             ]
             Html.div [
                 prop.className "hidden md:block rounded-xl border border-border-subtle bg-surface-card overflow-hidden"
-                prop.children [ desktopTable month.Groups ]
+                prop.children [ desktopTable groups ]
             ]
         ]
 
@@ -456,7 +489,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
             | Success month ->
                 React.fragment [
                     toBeBudgetedCard month.ToBeBudgeted
-                    categories month
+                    categorySearchField model.CategorySearch dispatch
+                    categories model.CategorySearch month
                 ]
         ]
     ]

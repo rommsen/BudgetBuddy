@@ -5,7 +5,7 @@
 // Verfügbar. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte BudgetApi-
 // Antworten: am Handy (390 px) Zeilen ohne horizontales Scrollen, am PC (1440 px) eine
 // Tabelle, negatives Zu verteilen ohne Warnhinweis, Fehler mit Wiederholen, Erreichbarkeit
-// über die Navigation.
+// über die Navigation. Dazu die Kategorie-Suche (`budgeting-rxxb4`).
 //
 // Ausführen: node --test scripts/budget-page.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -45,7 +45,19 @@ const monthFixture = (month, toBeBudgeted) => ({
   ],
 });
 
-async function openPage(width, height, { fail = false, requestedKeys = [] } = {}) {
+// budgeting-rxxb4: "leb" trifft zwei Kategorien in zwei Gruppen und eine ganze Gruppe.
+const searchFixture = (month) => ({
+  Month: month,
+  ToBeBudgeted: eur(10),
+  Groups: [
+    { Name: "Alltag", Categories: [category(1, "Lebensmittel", 100, 0, 100), category(2, "Kino", 10, 0, 10)] },
+    { Name: "Wohnen", Categories: [category(3, "Strom", 50, 0, 50)] },
+    { Name: "Rücklagen", Categories: [category(4, "Urlaub", 50, 0, 50), category(5, "Lebensversicherung", 20, 0, 20)] },
+    { Name: "Beleben", Categories: [category(6, "Sport", 30, 0, 30), category(7, "Musik", 30, 0, 30)] },
+  ],
+});
+
+async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture } = {}) {
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
@@ -61,7 +73,7 @@ async function openPage(width, height, { fail = false, requestedKeys = [] } = {}
       route.fulfill({ contentType: "application/json", body: JSON.stringify({ Error: "YNAB rate limit exceeded. Retry after 60 seconds" }) });
       return;
     }
-    const month = key === "next" ? monthFixture("2026-11-01", -12.34) : monthFixture("2026-10-01", -12.34);
+    const month = key === "next" ? fixture("2026-11-01", -12.34) : fixture("2026-10-01", -12.34);
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: month }) });
   });
   await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -174,6 +186,62 @@ test("Fehler: lesbare Meldung mit Wiederholen, danach erscheint der Monat", asyn
     await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
     assert.match((await page.locator('[data-testid="budget-to-be-budgeted"]').innerText()).replace(/\s+/g, " "), /354,50 €/);
     assert.equal(calls, 2);
+  } finally {
+    await context.close();
+  }
+});
+
+const visibleTexts = (locator) => locator.filter({ visible: true }).allInnerTexts();
+const searchInput = (page) => page.getByPlaceholder("Kategorie suchen…");
+const visibleRows = (page) => page.locator('[data-testid="budget-category-row"]').filter({ visible: true });
+
+test("Handy-Suche: leb zeigt nur Treffer und ihre Gruppen, ✕ leert, Monatswechsel behält", async () => {
+  const { context, page } = await openPage(390, 844, { fixture: searchFixture });
+  try {
+    assert.equal(await visibleRows(page).count(), 7);
+    await searchInput(page).fill("leb");
+    await page.getByText("Kino").waitFor({ state: "hidden" });
+
+    const groups = (await visibleTexts(page.locator('[data-testid="budget-group"] h2'))).map((t) => t.toLowerCase());
+    assert.deepEqual(groups, ["alltag", "rücklagen", "beleben"]);
+    const rows = (await visibleTexts(page.locator('[data-testid="budget-category-row"] span:first-child'))).join(" ");
+    for (const hit of ["Lebensmittel", "Lebensversicherung", "Sport", "Musik"]) assert.match(rows, new RegExp(hit));
+    assert.equal(await visibleRows(page).count(), 4);
+
+    assert.ok(await page.locator('[data-testid="budget-to-be-budgeted"]').isVisible(), "Zu verteilen bleibt");
+    assert.ok(await page.locator('[data-testid="budget-month-switcher"]').isVisible(), "Umschalter bleibt");
+    assert.ok(await page.getByRole("button", { name: "Targets anwenden" }).isVisible(), "Targets anwenden bleibt");
+
+    await page.getByRole("button", { name: "Nächster Monat" }).click();
+    await page.getByText("November 2026").waitFor();
+    assert.equal(await searchInput(page).inputValue(), "leb", "die Suche bleibt beim Monatswechsel");
+    assert.equal(await visibleRows(page).count(), 4, "der neue Monat ist gefiltert");
+
+    const clear = page.getByRole("button", { name: "Suche leeren" });
+    const box = await clear.boundingBox();
+    assert.ok(box.width >= 48 && box.height >= 48, "Trefferfläche des ✕ mindestens 48 px");
+    await clear.click();
+    assert.equal(await searchInput(page).inputValue(), "");
+    assert.equal(await visibleRows(page).count(), 7);
+  } finally {
+    await context.close();
+  }
+});
+
+test("PC-Suche: Feld über der Tabelle, kein Treffer zeigt den Hinweis mit dem Suchtext", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: searchFixture });
+  try {
+    await searchInput(page).fill("strom");
+    await page.getByText("Kino").waitFor({ state: "hidden" });
+    assert.equal(await visibleRows(page).count(), 1);
+    const field = await searchInput(page).boundingBox();
+    const table = await page.locator("table").filter({ visible: true }).boundingBox();
+    assert.ok(field.y + field.height <= table.y, "Suchfeld steht über der Tabelle");
+
+    await searchInput(page).fill("  xyz ");
+    await page.getByText("Keine Kategorie passt zu „xyz“").waitFor();
+    assert.equal(await visibleRows(page).count(), 0);
+    assert.ok(await page.locator('[data-testid="budget-to-be-budgeted"]').isVisible(), "Zu verteilen bleibt");
   } finally {
     await context.close();
   }

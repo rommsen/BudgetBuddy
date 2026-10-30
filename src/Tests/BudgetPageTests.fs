@@ -56,7 +56,7 @@ let private loadedTests =
             | other -> failtestf "Success erwartet, war %A" other
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
-            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed }
+            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = "" }
             let m = applyLoaded CurrentMonth (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
         }
@@ -112,7 +112,7 @@ let private routingTests =
                   SyncFlow = syncFlowModel
                   Rules = rulesModel
                   Ledger = ledgerModel
-                  Budget = { Choice = CurrentMonth; Month = month; Targets = TargetsClosed }
+                  Budget = { Components.Budget.Types.init () with Month = month }
                   QuickAdd = None
                   QuickAddTemplates = NotAsked }
             Expect.isFalse (State.isPageReady (model Loading)) "lädt"
@@ -121,5 +121,89 @@ let private routingTests =
         }
     ]
 
+// budgeting-rxxb4: Kategorie-Suche. Die Filterfunktion ist rein, das Suchfeld hängt am Modell.
+let private rxxb4Money = eur 0m
+
+let private cat (n: int) (name: string) : BudgetCategory =
+    { Id = System.Guid(n, 0s, 0s, 0uy, 0uy, 0uy, 0uy, 0uy, 0uy, 0uy, 0uy)
+      Name = name
+      Assigned = rxxb4Money
+      Activity = rxxb4Money
+      Available = rxxb4Money
+      Underfunded = None
+      Snoozed = false }
+
+let private groupsRxxb4 : BudgetGroup list =
+    [ { Name = "Alltag"; Categories = [ cat 1 "Lebensmittel"; cat 2 "Kino" ] }
+      { Name = "Wohnen"; Categories = [ cat 3 "Strom"; cat 4 "Internet" ] }
+      { Name = "Rücklagen"; Categories = [ cat 5 "Urlaub" ] } ]
+
+let private names (groups: BudgetGroup list) =
+    groups |> List.map (fun g -> g.Name, g.Categories |> List.map (fun c -> c.Name))
+
+let private filterTests =
+    testList "Kategorie-Suche filtert (rxxb4)" [
+        test "Teilstring im Kategorie-Namen: nur die Treffer und ihre Gruppe" {
+            Expect.equal (names (filterGroups "ebens" groupsRxxb4)) [ "Alltag", [ "Lebensmittel" ] ] "Treffer"
+        }
+        test "Treffer im Gruppennamen zeigt die ganze Gruppe" {
+            Expect.equal (names (filterGroups "ohn" groupsRxxb4)) [ "Wohnen", [ "Strom"; "Internet" ] ] "ganze Gruppe"
+        }
+        test "Groß- und Kleinschreibung ist egal, in beide Richtungen" {
+            Expect.equal (names (filterGroups "LEBENS" groupsRxxb4)) [ "Alltag", [ "Lebensmittel" ] ] "groß gesucht"
+            Expect.equal (names (filterGroups "wohnen" groupsRxxb4)) [ "Wohnen", [ "Strom"; "Internet" ] ] "klein gesucht"
+        }
+        test "Führende und folgende Leerzeichen sind egal" {
+            Expect.equal (names (filterGroups "  kino  " groupsRxxb4)) [ "Alltag", [ "Kino" ] ] "getrimmt"
+        }
+        test "Leere Suche und reine Leerzeichen zeigen alles" {
+            Expect.equal (filterGroups "" groupsRxxb4) groupsRxxb4 "leer"
+            Expect.equal (filterGroups "   " groupsRxxb4) groupsRxxb4 "Leerzeichen"
+        }
+        test "Kein Treffer ergibt eine leere Liste" {
+            Expect.isEmpty (filterGroups "xyz" groupsRxxb4) "keine Gruppe"
+        }
+        test "Reihenfolge der Gruppen und Kategorien bleibt" {
+            Expect.equal (names (filterGroups "n" groupsRxxb4))
+                [ "Alltag", [ "Lebensmittel"; "Kino" ]
+                  "Wohnen", [ "Strom"; "Internet" ]
+                  "Rücklagen", [ "Urlaub" ] ]
+                "Treffer in YNAB-Reihenfolge"
+        }
+    ]
+
+let private searchStateTests =
+    testList "Kategorie-Suche im Modell (rxxb4)" [
+        test "Die Seite startet ohne Suche" {
+            Expect.equal (init ()).CategorySearch "" "leer"
+        }
+        test "Tippen setzt die Suche, ✕ leert sie" {
+            let typed, _ = Components.Budget.State.update (CategorySearchChanged "leb") (init ())
+            Expect.equal typed.CategorySearch "leb" "getippt"
+            let cleared, _ = Components.Budget.State.update ClearCategorySearch typed
+            Expect.equal cleared.CategorySearch "" "geleert"
+        }
+        test "Monatswechsel und die Antwort darauf behalten die Suche" {
+            let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
+            let switched, _ = select NextMonth searching
+            Expect.equal switched.CategorySearch "leb" "beim Wechsel"
+            let loaded = applyLoaded NextMonth (Ok monthK7wmd) switched
+            Expect.equal loaded.CategorySearch "leb" "nach der Antwort"
+        }
+        test "Betreten der Seite leert die Suche und holt den Monat" {
+            let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
+            let entered, cmd = Components.Budget.State.update PageEntered searching
+            Expect.equal entered.CategorySearch "" "neuer Seitenaufruf ist leer"
+            let mutable followUps = []
+            cmd |> List.iter (fun sub -> sub (fun msg -> followUps <- msg :: followUps))
+            Expect.equal followUps [ Load ] "der Monat wird weiter geladen"
+        }
+        test "Der Seitenaufruf läuft über das Betreten, nicht direkt über das Laden" {
+            let mutable msgs = []
+            State.pageLoadCmd Budget |> List.iter (fun sub -> sub (fun msg -> msgs <- msg :: msgs))
+            Expect.equal msgs [ State.BudgetMsg PageEntered ] "Suche wird beim Betreten geleert"
+        }
+    ]
+
 [<Tests>]
-let tests = testList "Budget-Seite (k7wmd)" [ selectTests; loadedTests; labelTests; routingTests ]
+let tests = testList "Budget-Seite (k7wmd)" [ selectTests; loadedTests; labelTests; routingTests; filterTests; searchStateTests ]

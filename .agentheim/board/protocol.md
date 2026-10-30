@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:02 -- Task verified and completed: budgeting-rxxb4 - "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC"
+
+**Type:** Work / Task completion
+**Task:** budgeting-rxxb4 - "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC"
+**Summary:** Die Budget-Seite hat über der Kategorie-Liste ein immer sichtbares Suchfeld, das Kategorien nach Kategorie- oder Gruppennamen filtert. Die Suche bleibt beim Monatswechsel stehen und ist beim Betreten der Seite leer.
+**Duration:** 37m14s
+**Verification:** PASS (iteration 1)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 7
+**Tests added:** 14
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 15:00 -- Task verified and completed: design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
 
 **Type:** Work / Task completion
