@@ -16,6 +16,7 @@
 /// Zustand erzeugen.
 module Client.DesignSystem.FilterPopover
 
+open Fable.Core.JsInterop
 open Feliz
 
 type FilterPopoverProps = {
@@ -45,10 +46,22 @@ let panelWidthClass = "ml-4 w-[calc(100%-2rem)]"
 let private belowClass = "top-full left-0 mt-2"
 // `mb-6` (24 px) hebt das Popover über die Leiste: der Auslöser sitzt 14 px unter ihrer Oberkante.
 let private aboveEndClass = "bottom-full right-0 mb-6"
+/// Unter dem Auslöser, rechtsbündig: für einen Auslöser am rechten Seitenrand.
+let private belowEndClass = "top-full right-0 mt-2"
 
 [<ReactComponent>]
-let private FilterPopoverInternal (props: FilterPopoverProps) (positionClass: string) (children: ReactElement list) =
+let private FilterPopoverInternal (props: FilterPopoverProps) (positionClass: string) (reveal: bool) (children: ReactElement list) =
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
+
+    // In einem Scrollbereich rückt das Popover beim Öffnen ganz ins Bild.
+    React.useEffect (
+        (fun () ->
+            if reveal && props.IsOpen then
+                containerRef.current
+                |> Option.iter (fun container ->
+                    container?scrollIntoView (createObj [ "block" ==> "nearest" ]) |> ignore)),
+        [| box props.IsOpen |]
+    )
 
     // Klick außerhalb schließt (dasselbe Muster wie `Input.fs`s `SearchableSelect`).
     React.useEffect (
@@ -102,14 +115,25 @@ let private FilterPopoverInternal (props: FilterPopoverProps) (positionClass: st
 /// Ein Popover unter seinem Chip. `anchor` ist der Chip selbst, der Aufrufer muss
 /// ihn in einen `position:relative`-Wrapper stellen (siehe `ChipBar.chipWithPopover`).
 let view (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
-    FilterPopoverInternal props belowClass children
+    FilterPopoverInternal props belowClass false children
+
+/// Wie `view`, aber rechtsbündig mit dem Auslöser: ein Popover am rechten Seitenrand ragte
+/// sonst aus dem Bild (categorization-cgq35).
+let viewEnd (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
+    FilterPopoverInternal props belowEndClass false children
+
+/// Wie `view`, aber für einen Auslöser in einem Scrollbereich, etwa dem Körper eines `Modal`:
+/// das Popover scrollt sich beim Öffnen ins Bild, statt am Rand abgeschnitten zu werden
+/// (categorization-cgq35).
+let viewRevealed (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
+    FilterPopoverInternal props belowClass true children
 
 /// Wie `view`, aber über dem Auslöser und rechtsbündig mit ihm (`bottom-full right-0`). Für
 /// einen Auslöser in der festen Leiste unten am Bildschirm, wo ein Popover nach unten aus dem
 /// Bildschirm ragte (ledger-w29y6). Der Aufrufer stellt den Auslöser in einen
 /// `position:relative`-Wrapper.
 let viewAbove (props: FilterPopoverProps) (children: ReactElement list) : ReactElement =
-    FilterPopoverInternal props aboveEndClass children
+    FilterPopoverInternal props aboveEndClass false children
 
 let private menuItemWith (autoFocus: bool) (label: string) (onClick: unit -> unit) : ReactElement =
     Html.button [
@@ -118,7 +142,7 @@ let private menuItemWith (autoFocus: bool) (label: string) (onClick: unit -> uni
         prop.title label
         if autoFocus then prop.autoFocus true
         prop.className (
-            "block w-full text-left truncate rounded-lg px-3 py-2 text-text-primary "
+            "block w-full text-left truncate rounded-lg px-3 py-3.5 md:py-2 text-text-primary "
             + Client.DesignSystem.Tokens.ListRoles.primarySize
             + " hover:bg-surface-hover focus:bg-surface-hover focus:outline-none"
         )

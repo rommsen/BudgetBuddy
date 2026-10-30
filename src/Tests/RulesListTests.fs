@@ -32,7 +32,7 @@ let private listSource =
 
 /// Quelltext des Dialogs
 let private modalSource =
-    let a = rulesViewSource.IndexOf "let private ruleEditModal"
+    let a = rulesViewSource.IndexOf "let private categoryField"
     let b = rulesViewSource.IndexOf "// Page Header Actions"
     rulesViewSource.Substring(a, b - a)
 
@@ -91,7 +91,7 @@ let private tests =
                 Expect.isTrue (contains "\"Regel löschen\"" modalSource) "Regel löschen"
                 Expect.isTrue (contains "ConfirmDeleteRule" modalSource) "ConfirmDeleteRule"
                 Expect.isTrue (contains "DeleteRule" modalSource) "DeleteRule"
-                Expect.isTrue (contains "when not isNew" modalSource) "nur im Bearbeiten-Modus"
+                Expect.isTrue (contains "when not model.IsNewRule" modalSource) "nur im Bearbeiten-Modus"
             }
             test "Deutsch: keine englischen Reste, kein Gedankenstrich im Hinweis" {
                 for literal in
@@ -159,6 +159,49 @@ let private tests =
                         Pattern = "p"
                         CategoryId = Some (YnabCategoryId (Guid.NewGuid())) }
                 Expect.isEmpty (requiredFields form) "nichts fehlt"
+            }
+        ]
+        testList "Kategorie-Auswahl im Dialog (categorization-cgq35)" [
+            test "die Wahl einer Kategorie setzt sie im Formular und schließt den Picker" {
+                let model, _ = Components.Rules.State.init ()
+                let opened, _, _ = Components.Rules.State.update OpenRuleCategoryPicker model
+                Expect.isTrue opened.Form.PickerOpen "Picker offen"
+                let categoryId = YnabCategoryId (Guid.NewGuid())
+                let chosen, _, _ =
+                    Components.Rules.State.update (UpdateRuleFormCategoryId (Some categoryId)) opened
+                Expect.equal chosen.Form.CategoryId (Some categoryId) "Kategorie im Formular"
+                Expect.isFalse chosen.Form.PickerOpen "Picker zu"
+            }
+            test "der geschlossene Dialog lässt keinen offenen Picker zurück" {
+                let model, _ = Components.Rules.State.init ()
+                let opened, _, _ = Components.Rules.State.update OpenRuleCategoryPicker model
+                let closed, _, _ = Components.Rules.State.update CloseRuleModal opened
+                Expect.isFalse closed.Form.PickerOpen "Picker zu"
+            }
+            test "der Auslöser zeigt Gruppe und Name der gewählten Kategorie" {
+                let categoryId = YnabCategoryId (Guid.NewGuid())
+                let category : YnabCategory =
+                    { Id = categoryId; Name = "Miete"; GroupName = "Wohnen"; Available = None; Hidden = false }
+                let form = { RuleFormState.empty with CategoryId = Some categoryId }
+                Expect.equal (categoryButtonLabel [ category ] None form) "Wohnen: Miete" "Label"
+            }
+            test "ohne geladene Kategorien zeigt der Auslöser den gespeicherten Namen der Regel" {
+                let rule = makeRule true
+                let form = RuleFormState.fromRule rule
+                Expect.equal (categoryButtonLabel [] (Some rule) form) rule.CategoryName "Name der Regel"
+            }
+            test "ohne Wahl fordert der Auslöser zur Wahl auf" {
+                Expect.equal (categoryButtonLabel [] None RuleFormState.empty) "Kategorie wählen…" "Aufforderung"
+            }
+        ]
+        testList "Menü der Seite (categorization-cgq35)" [
+            test "Öffnen und Schließen stehen im Model" {
+                let model, _ = Components.Rules.State.init ()
+                Expect.isFalse model.MenuOpen "zu beim Start"
+                let opened, _, _ = Components.Rules.State.update OpenRulesMenu model
+                Expect.isTrue opened.MenuOpen "offen"
+                let closed, _, _ = Components.Rules.State.update CloseRulesMenu opened
+                Expect.isFalse closed.MenuOpen "zu"
             }
         ]
         testList "Löschen im Dialog" [

@@ -703,13 +703,17 @@ let private Content (input: ContentProps) =
 // Hüllen
 // ============================================
 
+/// Der Inhalt der Popover mit Haken an der aktuellen Kategorie.
+let private popoverChildren (props: CategoryPickerProps) : ReactElement list =
+    [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = true; FooterHint = Some popoverFooterHint } ]
+
 /// Hülle für den PC: Popover unter dem Auslöser. Der Aufrufer stellt den Auslöser in einen
 /// `position:relative`-Wrapper (siehe `FilterPopover`). Esc oder ein Klick außerhalb
 /// schließen, ohne zu ändern.
 let popoverWithWidth (widthClassName: string) (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     FilterPopover.view
         { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = widthClassName }
-        [ Content { Picker = props; FocusSearch = true; ListClass = "max-h-72 overflow-y-auto"; MarkCurrent = true; FooterHint = Some popoverFooterHint } ]
+        (popoverChildren props)
 
 /// Das Popover für die Auswahl-Leiste (ledger-w29y6): öffnet über dem Auslöser und
 /// rechtsbündig mit ihm (die Leiste sitzt fest am unteren Bildschirmrand) und markiert keine
@@ -722,6 +726,13 @@ let selectionPopover (isOpen: bool) (props: CategoryPickerProps) : ReactElement 
 
 let popover (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
     popoverWithWidth FilterPopover.categoryWidthClass isOpen props
+
+/// Wie `popover`, aber für einen Auslöser im Scrollbereich eines Dialogs: das Popover rückt beim
+/// Öffnen ins Bild (`FilterPopover.viewRevealed`).
+let popoverInDialog (isOpen: bool) (props: CategoryPickerProps) : ReactElement =
+    FilterPopover.viewRevealed
+        { IsOpen = isOpen; OnClose = props.OnClose; WidthClassName = FilterPopover.categoryWidthClass }
+        (popoverChildren props)
 
 /// Wie `popover`, aber für den engen Wrapper des Seitenpanels (`FilterPopover.panelWidthClass`).
 let popoverInPanel (isOpen: bool) (props: CategoryPickerProps) : ReactElement =

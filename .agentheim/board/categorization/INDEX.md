@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 6
+- **Doing:** 0
+- **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `doing/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `done/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 - **categorization-msep5** — "Regeln speichern, importieren und sortieren fehlerhaft" (bug) — `done/categorization-msep5-regeln-speichern-importieren-und-sortieren-fehlerhaft.md`
 - **categorization-wnxd6** — Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten) (feature) — `done/categorization-wnxd6-regeln-seite-als-ruhige-liste.md`
 - **categorization-gdrx8** — "Review-Spur: SyncTransaction hält Kategorisierungs-Schritte mit Zeitpunkt und Herkunft fest" (feature) — `done/categorization-gdrx8-review-spur-in-synctransaction.md`

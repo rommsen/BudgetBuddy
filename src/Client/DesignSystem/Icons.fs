@@ -285,6 +285,16 @@ let chevronDown (size: IconSize) (color: IconColor) =
         ]
     ]
 
+/// Drei Punkte übereinander: Auslöser eines Overflow-Menüs
+let ellipsisVertical (size: IconSize) (color: IconColor) =
+    svgIcon size color [
+        Svg.path [
+            svg.strokeLineCap "round"
+            svg.strokeLineJoin "round"
+            svg.d "M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Zm0 6a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Zm0 6a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
+        ]
+    ]
+
 /// Chevron up
 let chevronUp (size: IconSize) (color: IconColor) =
     svgIcon size color [

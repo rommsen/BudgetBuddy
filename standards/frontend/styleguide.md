@@ -202,6 +202,12 @@ Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 3. Sonst: einzelne **Tokens** kombinieren.
 4. Rohe Tailwind-Klassen oder Hex-Werte sind die Ausnahme und gelten als Drift.
 
+**Lage eines `FilterPopover`** gehört zur Komponente, nicht in Klassen am Aufrufer. Neben
+`view` (unter dem Auslöser, linksbündig) und `viewAbove` gibt es `viewEnd` (rechtsbündig, für
+einen Auslöser am rechten Seitenrand, etwa das Menü der Regelseite) und `viewRevealed` (rückt
+beim Öffnen ins Bild, für einen Auslöser im Scrollbereich eines Dialogs). Der Kategorie-Picker
+nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
+
 ---
 
 ## 4. Typografie- und Spacing-Skala

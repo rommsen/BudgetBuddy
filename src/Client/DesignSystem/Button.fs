@@ -37,6 +37,8 @@ type ButtonProps = {
     IconPosition: IconPosition
     ClassName: string option
     Title: string option  // Tooltip/accessibility title
+    /// Name für Screenreader; Pflicht bei einem Knopf nur mit Icon
+    AriaLabel: string option
 }
 
 and IconPosition = Left | Right
@@ -54,6 +56,7 @@ let defaultProps = {
     IconPosition = Left
     ClassName = None
     Title = None
+    AriaLabel = None
 }
 
 // ============================================
@@ -106,6 +109,7 @@ let view (props: ButtonProps) =
         prop.disabled (props.IsLoading || props.IsDisabled)
         prop.onClick (fun _ -> props.OnClick())
         if props.Title.IsSome then prop.title props.Title.Value
+        if props.AriaLabel.IsSome then prop.ariaLabel props.AriaLabel.Value
         prop.children [
             // Loading spinner
             if props.IsLoading then

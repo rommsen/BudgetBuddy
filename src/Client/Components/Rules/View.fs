@@ -68,6 +68,19 @@ let requiredFieldPairs (form: RuleFormState) : (string * string) list =
 let requiredFields (form: RuleFormState) : string list =
     Form.getMissingFields (requiredFieldPairs form)
 
+/// Beschriftung des Auslösers im Dialog: die gewählte Kategorie wie im Picker. Fehlt sie in den
+/// geladenen Kategorien, gilt der gespeicherte Name der Regel.
+let categoryButtonLabel (categories: YnabCategory list) (editing: Rule option) (form: RuleFormState) =
+    let known =
+        form.CategoryId
+        |> Option.bind (fun id -> categories |> List.tryFind (fun c -> c.Id = id))
+        |> Option.map CategoryPicker.suggestedLabel
+    let saved =
+        editing
+        |> Option.filter (fun rule -> Some rule.CategoryId = form.CategoryId)
+        |> Option.map (fun rule -> rule.CategoryName)
+    known |> Option.orElse saved |> Option.defaultValue "Kategorie wählen…"
+
 /// Prioritätshinweis über der Liste
 let priorityHint =
     "Die Regeln werden von oben nach unten geprüft. Die erste passende, aktive Regel gewinnt."
@@ -87,27 +100,42 @@ let private openOnActivate (dispatch: Msg -> unit) (rule: Rule) =
                 dispatch (EditRule rule.Id))
     ]
 
-/// Kleiner Pfeilknopf ▲/▼; `stopPropagation`, damit die Zeile nicht den Dialog öffnet
-let private moveButton (icon: ReactElement) (title: string) (isDisabled: bool) (onClick: unit -> unit) =
+/// Größe eines Pfeilknopfs: dicht in der Tabelle, Trefferfläche in der Karte am Handy.
+type private MoveButtonSize =
+    | TableSize
+    | TouchSize
+
+/// Pfeilknopf ▲/▼. Klick und Taste laufen mit `stopPropagation`,
+/// damit die Zeile nicht den Dialog öffnet. Ein gesperrter Knopf bleibt Ziel des Klicks
+/// (kein `pointer-events-none`): sonst fiele der Tipp zur Zeile durch.
+let private moveButton (size: MoveButtonSize) (icon: ReactElement) (title: string) (isDisabled: bool) (onClick: unit -> unit) =
     Html.button [
         prop.type'.button
-        prop.className "flex items-center justify-center w-6 h-5 rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated disabled:opacity-30 disabled:pointer-events-none transition-colors touch-manipulation"
+        prop.className (
+            (match size with
+             | TableSize -> "w-6 h-5"
+             | TouchSize -> Tokens.TouchTargets.minSize)
+            + " flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated disabled:opacity-30 transition-colors touch-manipulation"
+        )
         prop.title title
         prop.disabled isDisabled
         prop.onClick (fun e ->
             e.stopPropagation ()
             onClick ())
+        prop.onKeyDown (fun e -> e.stopPropagation ())
         prop.children [ icon ]
     ]
 
-let private moveButtons (index: int) (total: int) (rule: Rule) (dispatch: Msg -> unit) =
+let private moveButtons (size: MoveButtonSize) (index: int) (total: int) (rule: Rule) (dispatch: Msg -> unit) =
     [
         moveButton
+            size
             (Icons.chevronUp XS Icons.Default)
             "Priorität erhöhen"
             (index = 0)
             (fun () -> dispatch (MoveRule (rule.Id, Up)))
         moveButton
+            size
             (Icons.chevronDown XS Icons.Default)
             "Priorität senken"
             (index = total - 1)
@@ -117,6 +145,7 @@ let private moveButtons (index: int) (total: int) (rule: Rule) (dispatch: Msg ->
 let private ruleTableRow (index: int) (total: int) (rule: Rule) (dispatch: Msg -> unit) =
     Html.tr [
         prop.key (string (let (RuleId id) = rule.Id in id))
+        prop.custom ("data-testid", "rule-row")
         prop.className (Table.calmRowClass false + " cursor-pointer")
         yield! openOnActivate dispatch rule
         prop.children [
@@ -124,7 +153,7 @@ let private ruleTableRow (index: int) (total: int) (rule: Rule) (dispatch: Msg -
                 Html.div [
                     prop.className "flex items-center gap-1"
                     prop.children [
-                        yield! moveButtons index total rule dispatch
+                        yield! moveButtons TableSize index total rule dispatch
                         Html.span [
                             prop.className $"ml-1 {Tokens.ListRoles.date}"
                             prop.title "Reihenfolge: #1 gewinnt zuerst"
@@ -208,12 +237,13 @@ let private ruleMobileRow (index: int) (total: int) (rule: Rule) (dispatch: Msg 
     let status = statusLabel rule.Enabled
     Html.div [
         prop.key (string (let (RuleId id) = rule.Id in id))
-        prop.className $"flex items-start gap-2 {Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle cursor-pointer touch-manipulation"
+        prop.custom ("data-testid", "rule-row")
+        prop.className $"flex items-center gap-2 {Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle cursor-pointer touch-manipulation"
         yield! openOnActivate dispatch rule
         prop.children [
             Html.div [
-                prop.className "flex flex-col shrink-0"
-                prop.children (moveButtons index total rule dispatch)
+                prop.className "flex shrink-0"
+                prop.children (moveButtons TouchSize index total rule dispatch)
             ]
             Html.div [
                 prop.className "flex-1 min-w-0"
@@ -283,245 +313,291 @@ let private emptyState (dispatch: Msg -> unit) =
         ))
 
 // ============================================
-// Rule Edit Modal
+// Rule Edit Dialog
 // ============================================
 
-let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
-    let isNew = model.IsNewRule
-    let title = if isNew then "Neue Regel erstellen" else "Regel bearbeiten"
-    let subtitle = if isNew then "Automatische Kategorisierung einrichten" else "Regeleinstellungen anpassen"
-
-    Modal.view {
-        Modal.defaultProps with
-            IsOpen = true
-            OnClose = fun () -> dispatch CloseRuleModal
-            Size = Modal.Large
-            Title = Some title
-            Subtitle = Some subtitle
-    } [
-        Modal.body [
-            Html.div [
-                prop.className "space-y-5"
+/// Auswahl der Kategorie: Auslöser plus Picker in genau einer Hülle (ADR 0043). Der Dialog ist am
+/// Handy selbst ein Sheet, der Picker liegt deshalb eine Ebene darüber.
+let private categoryField (model: Model) (dispatch: Msg -> unit) =
+    let form = model.Form
+    let pickerProps : CategoryPicker.CategoryPickerProps =
+        { Categories = model.Categories
+          Current = form.CategoryId
+          Suggested = []
+          Recent = []
+          Accounts = []
+          CurrentAccount = None
+          OfferWithout = false
+          ToBeBudgeted = None
+          StandLabel = None
+          LoadState = CategoryPicker.PickerReady
+          OnRetry = ignore
+          OnSelect = CategoryPicker.categoryChoice (UpdateRuleFormCategoryId >> dispatch)
+          OnClose = fun () -> dispatch CloseRuleCategoryPicker }
+    Html.div [
+        prop.className "relative"
+        prop.children [
+            Html.span [
+                prop.custom ("data-testid", "rule-category")
+                prop.className "block"
+                // Ohne das wertet das Popover den Mausdruck als Klick außerhalb, und der Klick
+                // öffnete es gleich wieder.
+                prop.onMouseDown (fun e -> e.stopPropagation ())
                 prop.children [
-                    // Name input
-                    Input.groupRequired "Regelname" (
-                        Input.textSimple
-                            model.Form.Name
-                            (UpdateRuleFormName >> dispatch)
-                            "z.B. Amazon Einkäufe"
+                    Button.view {
+                        Button.defaultProps with
+                            Text = categoryButtonLabel model.Categories model.EditingRule form
+                            Variant = Button.Secondary
+                            ClassName = Some "w-full"
+                            OnClick = fun () ->
+                                dispatch (if form.PickerOpen then CloseRuleCategoryPicker else OpenRuleCategoryPicker)
+                    }
+                ]
+            ]
+            if Viewport.isDesktopViewport () then
+                CategoryPicker.popoverInDialog form.PickerOpen pickerProps
+            else
+                CategoryPicker.sheetLayered form.PickerOpen None pickerProps
+        ]
+    ]
+
+/// Der Inhalt des Dialogs, am Handy im Sheet und am PC im Modal
+let private ruleFields (model: Model) (dispatch: Msg -> unit) =
+    let isNew = model.IsNewRule
+    Html.div [
+        prop.custom ("data-testid", "rule-dialog")
+        prop.className "space-y-5"
+        prop.children [
+            // Name input
+            Input.groupRequired "Regelname" (
+                Input.textSimple
+                    model.Form.Name
+                    (UpdateRuleFormName >> dispatch)
+                    "z. B. Amazon Einkäufe"
+            )
+
+            // Pattern type and target field row
+            Html.div [
+                prop.className "grid grid-cols-1 sm:grid-cols-2 gap-4"
+                prop.children [
+                    // Pattern type
+                    Input.groupSimple "Muster-Typ" (
+                        Input.selectSimple
+                            (patternTypeKey model.Form.PatternType)
+                            (fun value -> dispatch (UpdateRuleFormPatternType (patternTypeOfKey value)))
+                            [
+                                ("Contains", "Enthält - Teiltext")
+                                ("Exact", "Exakt - Volltext")
+                                ("Regex", "Regex - Regulärer Ausdruck")
+                            ]
                     )
 
-                    // Pattern type and target field row
-                    Html.div [
-                        prop.className "grid grid-cols-1 sm:grid-cols-2 gap-4"
-                        prop.children [
-                            // Pattern type
-                            Input.groupSimple "Muster-Typ" (
-                                Input.selectSimple
-                                    (patternTypeKey model.Form.PatternType)
-                                    (fun value -> dispatch (UpdateRuleFormPatternType (patternTypeOfKey value)))
-                                    [
-                                        ("Contains", "Enthält - Teiltext")
-                                        ("Exact", "Exakt - Volltext")
-                                        ("Regex", "Regex - Regulärer Ausdruck")
-                                    ]
-                            )
+                    // Target field
+                    Input.groupSimple "Feld" (
+                        Input.selectSimple
+                            (targetFieldText model.Form.TargetField)
+                            (fun value ->
+                                let targetField =
+                                    match value with
+                                    | "Payee" -> Payee
+                                    | "Memo" -> Memo
+                                    | _ -> Combined
+                                dispatch (UpdateRuleFormTargetField targetField))
+                            [
+                                ("Combined", "Kombiniert - Empfänger & Memo")
+                                ("Payee", "Nur Empfänger")
+                                ("Memo", "Nur Memo")
+                            ]
+                    )
+                ]
+            ]
 
-                            // Target field
-                            Input.groupSimple "Feld" (
-                                Input.selectSimple
-                                    (targetFieldText model.Form.TargetField)
-                                    (fun value ->
-                                        let targetField =
-                                            match value with
-                                            | "Payee" -> Payee
-                                            | "Memo" -> Memo
-                                            | _ -> Combined
-                                        dispatch (UpdateRuleFormTargetField targetField))
-                                    [
-                                        ("Combined", "Kombiniert - Empfänger & Memo")
-                                        ("Payee", "Nur Empfänger")
-                                        ("Memo", "Nur Memo")
-                                    ]
-                            )
+            // Pattern input
+            Input.group {
+                Label = "Muster"
+                Required = true
+                Error = None
+                HelpText = Some (
+                    match model.Form.PatternType with
+                    | PatternType.Regex -> "Reguläre Ausdrücke für komplexe Muster"
+                    | Contains -> "Trifft zu wenn der Text diesen Teiltext enthält (Groß-/Kleinschreibung egal)"
+                    | Exact -> "Trifft nur zu wenn der gesamte Text übereinstimmt"
+                )
+                Children =
+                    Input.text {
+                        Input.textInputDefaults with
+                            Value = model.Form.Pattern
+                            OnChange = (UpdateRuleFormPattern >> dispatch)
+                            Placeholder =
+                                match model.Form.PatternType with
+                                | PatternType.Regex -> "z. B. AMAZON\\.DE"
+                                | Contains -> "z. B. amazon"
+                                | Exact -> "z. B. AMAZON MARKETPLACE"
+                            ClassName = Some "font-mono"
+                    }
+            }
+
+            // Kategorie
+            Input.group {
+                Label = "Kategorie"
+                Required = true
+                Error = None
+                HelpText = None
+                Children =
+                    Html.div [
+                        prop.className "space-y-2"
+                        prop.children [
+                            categoryField model dispatch
+
+                            if model.Categories.IsEmpty then
+                                ErrorDisplay.warning "Keine Kategorien geladen. Bitte zuerst YNAB konfigurieren." None
                         ]
                     ]
+            }
 
-                    // Pattern input
-                    Input.group {
-                        Label = "Muster"
-                        Required = true
-                        Error = None
-                        HelpText = Some (
-                            match model.Form.PatternType with
-                            | PatternType.Regex -> "Reguläre Ausdrücke für komplexe Muster"
-                            | Contains -> "Trifft zu wenn der Text diesen Teiltext enthält (Groß-/Kleinschreibung egal)"
-                            | Exact -> "Trifft nur zu wenn der gesamte Text übereinstimmt"
-                        )
-                        Children =
-                            Input.text {
-                                Input.textInputDefaults with
-                                    Value = model.Form.Pattern
-                                    OnChange = (UpdateRuleFormPattern >> dispatch)
-                                    Placeholder =
-                                        match model.Form.PatternType with
-                                        | PatternType.Regex -> "z.B. AMAZON\\.DE"
-                                        | Contains -> "z.B. amazon"
-                                        | Exact -> "z.B. AMAZON MARKETPLACE"
-                                    ClassName = Some "font-mono"
-                            }
-                    }
-
-                    // Category dropdown
-                    Input.group {
-                        Label = "Kategorie"
-                        Required = true
-                        Error = None
-                        HelpText = None
-                        Children =
+            // Payee override (optional)
+            Input.group {
+                Label = "Payee-Override"
+                Required = false
+                Error = None
+                HelpText = Some "Leer lassen für Original-Empfänger"
+                Children =
+                    Html.div [
+                        prop.className "flex items-center gap-2"
+                        prop.children [
                             Html.div [
+                                prop.className "flex-1"
                                 prop.children [
-                                    Input.searchableSelect
-                                        (match model.Form.CategoryId with
-                                         | Some (YnabCategoryId id) -> id.ToString()
-                                         | None -> "")
-                                        (fun value ->
-                                            if System.String.IsNullOrWhiteSpace(value) then
-                                                dispatch (UpdateRuleFormCategoryId None)
-                                            else
-                                                dispatch (UpdateRuleFormCategoryId (Some (YnabCategoryId (System.Guid.Parse value)))))
-                                        "Kategorie wählen..."
-                                        (model.Categories
-                                         |> List.map (fun category ->
-                                             let (YnabCategoryId id) = category.Id
-                                             (id.ToString(), $"{category.GroupName}: {category.Name}")))
-
-                                    if model.Categories.IsEmpty then
-                                        Html.div [
-                                            prop.className "flex items-center gap-2 mt-2 px-3 py-2 bg-neon-orange/10 text-neon-orange rounded-lg text-sm"
-                                            prop.children [
-                                                Icons.warning SM Icons.NeonOrange
-                                                Html.span [ prop.text "Keine Kategorien geladen. Bitte zuerst YNAB konfigurieren." ]
-                                            ]
-                                        ]
+                                    Input.textSimple
+                                        model.Form.PayeeOverride
+                                        (UpdateRuleFormPayeeOverride >> dispatch)
+                                        "Empfänger in YNAB ersetzen"
                                 ]
                             ]
-                    }
+                            Badge.view {
+                                Badge.defaultProps with
+                                    Text = "Optional"
+                                    Variant = Badge.Neutral
+                                    Size = Badge.Small
+                            }
+                        ]
+                    ]
+            }
 
-                    // Payee override (optional)
-                    Input.group {
-                        Label = "Payee-Override"
-                        Required = false
-                        Error = None
-                        HelpText = Some "Leer lassen für Original-Empfänger"
-                        Children =
+            // Enabled toggle (only for editing)
+            if not isNew then
+                Html.div [
+                    prop.className "flex items-center gap-3 p-3 bg-surface-elevated/50 rounded-lg"
+                    prop.children [
+                        Input.toggle model.Form.Enabled (fun checked' -> dispatch (UpdateRuleFormEnabled checked')) (Some "Regel aktiv")
+                    ]
+                ]
+
+            // Test pattern section
+            Html.div [
+                prop.className "pt-4 border-t border-border-default"
+                prop.children [
+                    Html.div [
+                        prop.className "flex items-center gap-2 mb-4"
+                        prop.children [
+                            Icons.search SM Icons.NeonTeal
+                            Html.span [ prop.className "font-medium text-text-primary"; prop.text "Muster testen" ]
+                        ]
+                    ]
+                    Html.div [
+                        prop.className "space-y-3"
+                        prop.children [
                             Html.div [
-                                prop.className "flex items-center gap-2"
+                                prop.className "flex flex-col sm:flex-row gap-2"
                                 prop.children [
                                     Html.div [
                                         prop.className "flex-1"
                                         prop.children [
                                             Input.textSimple
-                                                model.Form.PayeeOverride
-                                                (UpdateRuleFormPayeeOverride >> dispatch)
-                                                "Override payee name in YNAB"
+                                                model.Form.TestInput
+                                                (UpdateRuleFormTestInput >> dispatch)
+                                                "Beispieltext eingeben…"
                                         ]
                                     ]
-                                    Badge.view {
-                                        Badge.defaultProps with
-                                            Text = "Optional"
-                                            Variant = Badge.Neutral
-                                            Size = Badge.Small
-                                    }
+                                    Button.secondary
+                                        "Testen"
+                                        (fun () -> dispatch TestRulePattern)
                                 ]
                             ]
-                    }
-
-                    // Enabled toggle (only for editing)
-                    if not isNew then
-                        Html.div [
-                            prop.className "flex items-center gap-3 p-3 bg-surface-elevated/50 rounded-lg"
-                            prop.children [
-                                Input.toggle model.Form.Enabled (fun checked' -> dispatch (UpdateRuleFormEnabled checked')) (Some "Regel aktiv")
-                            ]
-                        ]
-
-                    // Test pattern section
-                    Html.div [
-                        prop.className "pt-4 border-t border-border-default"
-                        prop.children [
-                            Html.div [
-                                prop.className "flex items-center gap-2 mb-4"
-                                prop.children [
-                                    Icons.search SM Icons.NeonTeal
-                                    Html.span [ prop.className "font-medium text-text-primary"; prop.text "Muster testen" ]
-                                ]
-                            ]
-                            Html.div [
-                                prop.className "space-y-3"
-                                prop.children [
-                                    Html.div [
-                                        prop.className "flex flex-col sm:flex-row gap-2"
-                                        prop.children [
-                                            Html.div [
-                                                prop.className "flex-1"
-                                                prop.children [
-                                                    Input.textSimple
-                                                        model.Form.TestInput
-                                                        (UpdateRuleFormTestInput >> dispatch)
-                                                        "Beispieltext eingeben..."
-                                                ]
-                                            ]
-                                            Button.secondary
-                                                "Test"
-                                                (fun () -> dispatch TestRulePattern)
-                                        ]
+                            match model.Form.TestResult with
+                            | Some result ->
+                                let (bgClass, iconEl) =
+                                    if result.StartsWith("✅") then
+                                        ("bg-neon-green/10 border-neon-green/30 text-neon-green", Icons.checkCircle SM Icons.NeonGreen)
+                                    elif result.StartsWith("❌") then
+                                        ("bg-neon-red/10 border-neon-red/30 text-neon-red", Icons.xCircle SM Icons.NeonRed)
+                                    else
+                                        ("bg-neon-orange/10 border-neon-orange/30 text-neon-orange", Icons.warning SM Icons.NeonOrange)
+                                Html.div [
+                                    prop.className $"flex items-center gap-2 p-3 rounded-lg border {bgClass}"
+                                    prop.children [
+                                        iconEl
+                                        Html.span [ prop.className "text-sm"; prop.text (result.TrimStart([|'✅'; '❌'; '⚠'; ' '|])) ]
                                     ]
-                                    match model.Form.TestResult with
-                                    | Some result ->
-                                        let (bgClass, iconEl) =
-                                            if result.StartsWith("✅") then
-                                                ("bg-neon-green/10 border-neon-green/30 text-neon-green", Icons.checkCircle SM Icons.NeonGreen)
-                                            elif result.StartsWith("❌") then
-                                                ("bg-neon-red/10 border-neon-red/30 text-neon-red", Icons.xCircle SM Icons.NeonRed)
-                                            else
-                                                ("bg-neon-orange/10 border-neon-orange/30 text-neon-orange", Icons.warning SM Icons.NeonOrange)
-                                        Html.div [
-                                            prop.className $"flex items-center gap-2 p-3 rounded-lg border {bgClass}"
-                                            prop.children [
-                                                iconEl
-                                                Html.span [ prop.className "text-sm"; prop.text (result.TrimStart([|'✅'; '❌'; '⚠'; ' '|])) ]
-                                            ]
-                                        ]
-                                    | None -> Html.none
                                 ]
-                            ]
+                            | None -> Html.none
                         ]
                     ]
                 ]
             ]
         ]
-
-        let rightButtons = [
-            Button.ghost "Abbrechen" (fun () -> dispatch CloseRuleModal)
-            Form.submitButton
-                (if isNew then "Regel erstellen" else "Speichern")
-                (fun () -> dispatch SaveRule)
-                model.Form.IsSaving
-                (requiredFieldPairs model.Form)
-        ]
-
-        match model.EditingRule with
-        | Some rule when not isNew ->
-            // Löschen gibt es nur hier, mit der zweistufigen Bestätigung (3 Sekunden)
-            let deleteButton =
-                if model.ConfirmingDeleteRuleId = Some rule.Id then
-                    Button.danger "Wirklich löschen" (fun () -> dispatch (DeleteRule rule.Id))
-                else
-                    Button.ghost "Regel löschen" (fun () -> dispatch (ConfirmDeleteRule rule.Id))
-            Modal.footerWithLeft deleteButton rightButtons
-        | _ -> Modal.footer rightButtons
     ]
+
+/// Abbrechen und Speichern, unten im Dialog
+let private ruleSaveButtons (model: Model) (dispatch: Msg -> unit) =
+    [
+        Button.ghost "Abbrechen" (fun () -> dispatch CloseRuleModal)
+        Form.submitButton
+            (if model.IsNewRule then "Regel erstellen" else "Speichern")
+            (fun () -> dispatch SaveRule)
+            model.Form.IsSaving
+            (requiredFieldPairs model.Form)
+    ]
+
+/// Löschen gibt es nur beim Bearbeiten, mit der zweistufigen Bestätigung (3 Sekunden)
+let private ruleDeleteButton (model: Model) (dispatch: Msg -> unit) =
+    match model.EditingRule with
+    | Some rule when not model.IsNewRule ->
+        if model.ConfirmingDeleteRuleId = Some rule.Id then
+            Some (Button.danger "Wirklich löschen" (fun () -> dispatch (DeleteRule rule.Id)))
+        else
+            Some (Button.ghost "Regel löschen" (fun () -> dispatch (ConfirmDeleteRule rule.Id)))
+    | _ -> None
+
+/// Am Handy `BottomSheet`, am PC `Modal` (ADR 0043), nie beide.
+let private ruleDialog (model: Model) (dispatch: Msg -> unit) =
+    let close = fun () -> dispatch CloseRuleModal
+    let title = if model.IsNewRule then "Neue Regel erstellen" else "Regel bearbeiten"
+    let subtitle = if model.IsNewRule then "Automatische Kategorisierung einrichten" else "Regeleinstellungen anpassen"
+    let fields = ruleFields model dispatch
+    let saveButtons = ruleSaveButtons model dispatch
+    let deleteButton = ruleDeleteButton model dispatch
+
+    if Viewport.isDesktopViewport () then
+        Modal.view
+            { Modal.defaultProps with
+                IsOpen = true
+                OnClose = close
+                Size = Modal.Large
+                Title = Some title
+                Subtitle = Some subtitle }
+            [ Modal.body [ fields ]
+              match deleteButton with
+              | Some button -> Modal.footerWithLeft button saveButtons
+              | None -> Modal.footer saveButtons ]
+    else
+        BottomSheet.view
+            { IsOpen = true
+              OnClose = close
+              Title = title
+              Subtitle = Some subtitle
+              Footer = Some [ yield! Option.toList deleteButton; yield! saveButtons ] }
+            [ fields ]
 
 // ============================================
 // Main View
@@ -532,8 +608,86 @@ let private ruleEditModal (model: Model) (dispatch: Msg -> unit) =
 // Page Header Actions
 // ============================================
 
-let private rulesHeaderActions (dispatch: Msg -> unit) = [
-    // Neu laden: am PC als sekundärer Knopf; am Handy im Menü ⋮ (die Kopfzeile ist dort zu schmal)
+/// Id des versteckten Datei-Inputs. Er steht außerhalb des Menüs: das Menü schließt beim Klick,
+/// das Input muss die Dateiauswahl überleben.
+let private importInputId = "rules-import-input"
+
+/// Das Lesen der Datei bleibt vorerst hier in der View (categorization-krscs verschiebt es).
+let private importInput (dispatch: Msg -> unit) =
+    Html.input [
+        prop.id importInputId
+        prop.type'.file
+        prop.accept ".json"
+        prop.className "hidden"
+        prop.onChange (fun (e: Browser.Types.Event) ->
+            let input = e.target :?> Browser.Types.HTMLInputElement
+            if input.files.length > 0 then
+                let file = input.files.[0]
+                let reader = Browser.Dom.FileReader.Create()
+                reader.onload <- fun _ ->
+                    let content = reader.result :?> string
+                    dispatch (ImportRules content)
+                reader.readAsText(file)
+        )
+    ]
+
+/// Dieselben drei Einträge in beiden Hüllen. Der erste nimmt den Fokus, damit Esc greift und
+/// Tab bei den Einträgen weitergeht. Die Dateiauswahl muss direkt im Klick starten.
+let private rulesMenuItems (dispatch: Msg -> unit) =
+    let closeThen (action: unit -> unit) =
+        fun () ->
+            dispatch CloseRulesMenu
+            action ()
+    // Autofokus nur bei feinem Pointer (ADR 0005): am Handy stünde sonst ein Eintrag beim Öffnen
+    // hervorgehoben da.
+    let firstItem = if Viewport.isFinePointer () then FilterPopover.menuItemAutoFocus else FilterPopover.menuItem
+    [
+        firstItem "Regeln neu laden" (closeThen (fun () -> dispatch LoadRules))
+        FilterPopover.menuItem "Regeln exportieren" (closeThen (fun () -> dispatch ExportRules))
+        FilterPopover.menuItem "Regeln importieren" (closeThen (fun () ->
+            Browser.Dom.document.getElementById(importInputId).click ()))
+    ]
+
+/// Knopf ⋮ mit Menü: am PC `FilterPopover`, am Handy `BottomSheet` (ADR 0043), nie beide.
+let private rulesMenu (model: Model) (dispatch: Msg -> unit) =
+    let close = fun () -> dispatch CloseRulesMenu
+    Html.div [
+        prop.className "relative"
+        // Esc im Sheet: React reicht das Ereignis durch das Portal bis hierher. Das Popover
+        // schließt selbst und hält das Ereignis an.
+        prop.onKeyDown (fun e -> if e.key = "Escape" then close ())
+        prop.children [
+            Html.span [
+                prop.custom ("data-testid", "rules-menu-button")
+                // Ohne das wertet das Popover den Mausdruck als Klick außerhalb, und der Klick
+                // öffnete es gleich wieder.
+                prop.onMouseDown (fun e -> e.stopPropagation ())
+                prop.children [
+                    Button.view {
+                        Button.defaultProps with
+                            Variant = Button.Ghost
+                            Size = Button.Small
+                            Icon = Some (Icons.ellipsisVertical MD Icons.Default)
+                            AriaLabel = Some "Weitere Aktionen"
+                            Title = Some "Weitere Aktionen"
+                            OnClick = fun () -> dispatch (if model.MenuOpen then CloseRulesMenu else OpenRulesMenu)
+                    }
+                ]
+            ]
+            if Viewport.isDesktopViewport () then
+                FilterPopover.viewEnd
+                    { IsOpen = model.MenuOpen; OnClose = close; WidthClassName = FilterPopover.menuWidthClass }
+                    (rulesMenuItems dispatch)
+            else
+                BottomSheet.view
+                    { IsOpen = model.MenuOpen; OnClose = close; Title = "Regeln"; Subtitle = None; Footer = None }
+                    [ if model.MenuOpen then yield! rulesMenuItems dispatch ]
+            importInput dispatch
+        ]
+    ]
+
+let private rulesHeaderActions (model: Model) (dispatch: Msg -> unit) = [
+    // Neu laden: am PC als sekundärer Knopf; am Handy nur im Menü (die Kopfzeile ist dort zu schmal)
     Button.view {
         Button.defaultProps with
             Text = "Neu laden"
@@ -562,72 +716,7 @@ let private rulesHeaderActions (dispatch: Msg -> unit) = [
             ClassName = Some "hidden md:inline-flex"
     }
 
-    // Overflow menu
-    Html.div [
-        prop.className "relative group"
-        prop.children [
-            Html.button [
-                prop.className "flex items-center justify-center w-8 h-8 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors"
-                prop.tabIndex 0
-                prop.children [
-                    Html.span [ prop.className "text-xl"; prop.text "⋮" ]
-                ]
-            ]
-            Html.ul [
-                prop.className "invisible group-focus-within:visible absolute right-0 top-full mt-1 z-50 p-2 shadow-lg bg-surface-card border border-border-default rounded-xl w-52"
-                prop.tabIndex 0
-                prop.children [
-                    Html.li [
-                        prop.className "md:hidden"
-                        prop.children [
-                            Html.a [
-                                prop.className "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
-                                prop.onClick (fun _ -> dispatch LoadRules)
-                                prop.children [
-                                    Icons.sync SM Icons.Default
-                                    Html.span [ prop.text "Regeln neu laden" ]
-                                ]
-                            ]
-                        ]
-                    ]
-                    Html.li [
-                        Html.a [
-                            prop.className "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
-                            prop.onClick (fun _ -> dispatch ExportRules)
-                            prop.children [
-                                Icons.download SM Icons.Default
-                                Html.span [ prop.text "Regeln exportieren" ]
-                            ]
-                        ]
-                    ]
-                    Html.li [
-                        Html.label [
-                            prop.className "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
-                            prop.children [
-                                Icons.upload SM Icons.Default
-                                Html.span [ prop.text "Regeln importieren" ]
-                                Html.input [
-                                    prop.type'.file
-                                    prop.accept ".json"
-                                    prop.className "hidden"
-                                    prop.onChange (fun (e: Browser.Types.Event) ->
-                                        let input = e.target :?> Browser.Types.HTMLInputElement
-                                        if input.files.length > 0 then
-                                            let file = input.files.[0]
-                                            let reader = Browser.Dom.FileReader.Create()
-                                            reader.onload <- fun _ ->
-                                                let content = reader.result :?> string
-                                                dispatch (ImportRules content)
-                                            reader.readAsText(file)
-                                    )
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]
+    rulesMenu model dispatch
 ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
@@ -641,12 +730,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     (match model.Rules with
                      | RemoteData.Success rules when not rules.IsEmpty -> Some (summaryText rules)
                      | _ -> None)
-                    (rulesHeaderActions dispatch)
+                    (rulesHeaderActions model dispatch)
 
                 match model.Rules with
-                | RemoteData.NotAsked ->
-                    Loading.centered "Regeln werden geladen..."
-
+                | RemoteData.NotAsked
                 | RemoteData.Loading ->
                     Loading.tableSkeleton 5 5
 
@@ -675,7 +762,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 // Dialog zum Anlegen und Bearbeiten
                 if model.IsNewRule || model.EditingRule.IsSome then
-                    ruleEditModal model dispatch
+                    ruleDialog model dispatch
             ]
         ]
     ]

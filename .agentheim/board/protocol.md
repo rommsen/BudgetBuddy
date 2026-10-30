@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 18:51 -- Task verified and completed: categorization-cgq35 - "Regelseite am Handy und per Tastatur"
+
+**Type:** Work / Task completion
+**Task:** categorization-cgq35 - "Regelseite am Handy und per Tastatur"
+**Summary:** Die Regelseite ist am Handy und per Tastatur bedienbar: Prioritätspfeile mit 48 px, Overflow-Menü als Button mit Popover am PC und BottomSheet am Handy, Regel-Dialog am Handy als BottomSheet mit CategoryPicker, Texte nach Styleguide §8.
+**Duration:** 111m
+**Verification:** PASS (iteration 3)
+**Files changed:** 10
+**Tests added:** 13
+**ADRs written:** none
+
+---
+
+## 2026-10-30 17:51 -- Verification failed: categorization-cgq35 - Regelseite am Handy und per Tastatur
+
+**Type:** Work / Verification failure
+**Task:** categorization-cgq35 - Regelseite am Handy und per Tastatur
+**Iteration:** 2 of 3
+**Reasons:** instabiler Browser-Test, Timeout auf filechooser unter Last, Ursache nicht belegt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-10-30 17:23 -- Verification failed: categorization-cgq35 - Regelseite am Handy und per Tastatur
+
+**Type:** Work / Verification failure
+**Task:** categorization-cgq35 - Regelseite am Handy und per Tastatur
+**Iteration:** 1 of 3
+**Reasons:** verify.sh rot (Content-Kopie im CategoryPicker, guard:classes in moveButton), Autofokus auch im BottomSheet
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-30 17:20 -- Task verified and completed: design-system-m65pw - "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
 
 **Type:** Work / Task completion

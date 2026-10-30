@@ -15,6 +15,8 @@ type RuleFormState = {
     TestInput: string
     TestResult: string option
     IsSaving: bool
+    /// Ist der Kategorie-Picker im Dialog offen?
+    PickerOpen: bool
 }
 
 module RuleFormState =
@@ -30,6 +32,7 @@ module RuleFormState =
         TestInput = ""
         TestResult = None
         IsSaving = false
+        PickerOpen = false
     }
 
     /// Populate form from an existing rule for editing
@@ -44,6 +47,7 @@ module RuleFormState =
         TestInput = ""
         TestResult = None
         IsSaving = false
+        PickerOpen = false
     }
 
 /// Die neue Regel aus dem Dialog. Die Priorität vergibt der Server.
@@ -130,6 +134,9 @@ type Model = {
 
     // Delete confirmation state
     ConfirmingDeleteRuleId: RuleId option
+
+    /// Ist das Menü der Seite offen (neu laden, exportieren, importieren)?
+    MenuOpen: bool
 }
 
 /// Rules-specific messages
@@ -163,6 +170,10 @@ type Msg =
     | RulePatternTested of Result<bool, RulesError>
     | SaveRule
     | RuleSaved of Result<Rule, RulesError>
+    | OpenRuleCategoryPicker
+    | CloseRuleCategoryPicker
+    | OpenRulesMenu
+    | CloseRulesMenu
     | ExportRules
     | RulesExported of Result<string, RulesError>
     | ImportRulesStart

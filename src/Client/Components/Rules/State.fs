@@ -14,6 +14,7 @@ let init () : Model * Cmd<Msg> =
         Categories = []
         Form = RuleFormState.empty
         ConfirmingDeleteRuleId = None
+        MenuOpen = false
     }
     let cmd = Cmd.batch [
         Cmd.ofMsg LoadRules
@@ -196,7 +197,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with Form = { model.Form with TargetField = value } }, Cmd.none, NoOp
 
     | UpdateRuleFormCategoryId value ->
-        { model with Form = { model.Form with CategoryId = value } }, Cmd.none, NoOp
+        { model with Form = { model.Form with CategoryId = value; PickerOpen = false } }, Cmd.none, NoOp
+
+    | OpenRuleCategoryPicker ->
+        { model with Form = { model.Form with PickerOpen = true } }, Cmd.none, NoOp
+
+    | CloseRuleCategoryPicker ->
+        { model with Form = { model.Form with PickerOpen = false } }, Cmd.none, NoOp
+
+    | OpenRulesMenu ->
+        { model with MenuOpen = true }, Cmd.none, NoOp
+
+    | CloseRulesMenu ->
+        { model with MenuOpen = false }, Cmd.none, NoOp
 
     | UpdateRuleFormPayeeOverride value ->
         { model with Form = { model.Form with PayeeOverride = value } }, Cmd.none, NoOp
