@@ -5,6 +5,17 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 14:24 -- Harness-Migration abgeschlossen: Messung nach M12 und learn
+
+**Type:** Work / Messung
+**Messung:** ledger-ssmp3, design-system-j6dnj, ledger-ybm5x jeweils PASS in Iteration 1, Gate grün, keine hohen Befunde (d0ba9de, baseline.md)
+**Paarvergleich:** 2 zu 1 für den neuen Harness; j6dnj schlechter als M0 (Klassenstring-Tests gegen Test-Doktrin Punkt 6)
+**Entscheidung:** M10 und M12 bleiben. Die verletzte Regel steht im neuen Harness, also keine Rücknahme.
+**learn:** Test-Doktrin Punkt 6 um Tailwind-Größen geschärft, Wächter design-system-fpem2 im Backlog (7462eed)
+**Kein Push.**
+
+---
+
 ## 2026-10-30 14:21 -- Capture / Captured: design-system-fpem2 - "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring"
 
 **Type:** Capture
