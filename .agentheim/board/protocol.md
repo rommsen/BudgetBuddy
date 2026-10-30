@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: categorization-cgq35 - "Regelseite am Handy und per Tastatur"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Regelseite am Handy und per Tastatur
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
 
 **Type:** Capture
