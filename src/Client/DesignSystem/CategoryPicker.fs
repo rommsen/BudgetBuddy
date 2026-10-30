@@ -6,6 +6,11 @@
 /// -Msg: der Aufrufer liefert Kategorien, die aktuelle Kategorie, die Vorschläge zum Payee
 /// und die Beschriftung der Stand-Zeile.
 ///
+/// Der Split-Editor nutzt denselben Picker für das Ziel einer Zeile (design-system-bym4m, ADR 0006):
+/// mit `Accounts` kommt unter den Kategorien der Abschnitt "Übertrag auf Konto" dazu, die Suche
+/// läuft über beides und das Präfix "Konto:" schränkt sie auf die Konten ein. Ohne `Accounts`
+/// bleibt es ein reiner Kategorie-Picker.
+///
 /// Darunter liegt `CategoryChangeCard`, die rein darstellende Karte "Budget nach dem
 /// Wechsel" (Tafel 4.3 des Handoffs Ablauf 4).
 module Client.DesignSystem.CategoryPicker
@@ -28,6 +33,12 @@ type PickerLoadState =
     | PickerLoading
     | PickerFailed
 
+/// Was die Wahl einer Zeile an den Aufrufer meldet
+type PickerChoice =
+    /// `None` ist "Ohne Kategorie"
+    | ChoseCategory of YnabCategoryId option
+    | ChoseAccount of YnabAccountId
+
 type CategoryPickerProps = {
     /// Alle wählbaren Kategorien (interne YNAB-Kategorien filtert der Aufrufer heraus)
     Categories: YnabCategory list
@@ -38,13 +49,20 @@ type CategoryPickerProps = {
     /// Zuletzt vergebene Kategorien, neueste zuerst (der Baustein kürzt auf fünf). Darf sich mit
     /// `Suggested` überschneiden. Leer blendet den Abschnitt "Zuletzt verwendet" aus.
     Recent: YnabCategoryId list
+    /// Wählbare Übertrag-Konten, vom Aufrufer vorgefiltert. Leer zeigt keine Konten: der Picker
+    /// verhält sich dann wie ein reiner Kategorie-Picker.
+    Accounts: YnabAccount list
+    /// Aktuelles Übertrag-Konto der Zeile, `None` ohne Übertrag
+    CurrentAccount: YnabAccountId option
+    /// Steht die Zeile "Ohne Kategorie" zur Wahl? Der Import-Split bietet sie nicht an.
+    OfferWithout: bool
     /// Beschriftung der Fußzeile, zum Beispiel "Stand 14:02". `None` blendet sie aus.
     StandLabel: string option
     /// Ladezustand der Kategorien: statt der Liste ein Ladehinweis oder ein Fehlerhinweis
     LoadState: PickerLoadState
     /// "Erneut versuchen" im Fehlerzustand
     OnRetry: unit -> unit
-    OnSelect: YnabCategoryId option -> unit
+    OnSelect: PickerChoice -> unit
     OnClose: unit -> unit
 }
 
@@ -52,6 +70,7 @@ type CategoryPickerProps = {
 type PickerRow =
     | WithoutCategory
     | Category of YnabCategory
+    | Account of YnabAccount
 
 /// Hinweis, der die Liste ersetzt
 type PickerNotice =
@@ -60,7 +79,8 @@ type PickerNotice =
 
 /// Aufbau der Liste für einen Suchtext
 type Layout = {
-    /// Ist ein Hinweis gesetzt, hat das Layout keine Zeilen
+    /// Ist ein Hinweis gesetzt, hat das Layout keine Kategorie-Zeilen. Konten bleiben wählbar:
+    /// ein Übertrag braucht keine Kategorien.
     Notice: PickerNotice option
     ShowWithout: bool
     Suggested: YnabCategory list
@@ -72,12 +92,14 @@ type Layout = {
     /// Versteckte Kategorien, die zur Suche passen; sie erscheinen nur aufgeklappt
     Hidden: YnabCategory list
     ShowAllHeader: bool
+    /// Abschnitt "Übertrag auf Konto", immer unter den Kategorien
+    Accounts: YnabAccount list
 }
 
 /// Was eine Taste im Picker auslöst
 type KeyAction =
     | MoveTo of int
-    | Choose of YnabCategoryId option
+    | Choose of PickerChoice
     | CloseOnly
     | NoAction
 
@@ -140,6 +162,7 @@ let isCurrentCategory (current: YnabCategoryId option) (c: YnabCategory) : bool 
 let showWithoutRow (search: string) : bool =
     not (isSearching search) || withoutCategoryLabel.ToLowerInvariant().Contains(search.Trim().ToLowerInvariant())
 
+let accountsHeader = "Übertrag auf Konto"
 let loadingText = "Kategorien werden geladen"
 let failedText = "Kategorien konnten nicht geladen werden"
 let retryLabel = "Erneut versuchen"
@@ -151,15 +174,48 @@ let noticeFor (loadState: PickerLoadState) (categories: YnabCategory list) : Pic
     | PickerLoading when List.isEmpty categories -> Some LoadingNotice
     | _ -> None
 
-let layoutForRecent
+/// Das Präfix, das die Suche auf die Konten einschränkt
+let accountPrefix = "konto:"
+
+/// Worauf sich ein Suchtext bezieht
+type SearchScope =
+    | AllTargets of search: string
+    | AccountsOnly of search: string
+
+/// Liest das Präfix "Konto:" aus dem Suchtext, ohne Beachtung von Groß- und Kleinschreibung und
+/// Leerzeichen. Ohne wählbare Konten gibt es kein Präfix: der Text sucht dann in den Kategorien.
+let searchScope (accounts: YnabAccount list) (search: string) : SearchScope =
+    let trimmed = search.Trim()
+    if not accounts.IsEmpty && trimmed.ToLowerInvariant().StartsWith accountPrefix then
+        AccountsOnly (trimmed.Substring(accountPrefix.Length).Trim())
+    else
+        AllTargets search
+
+/// Die Konten, deren Name den Suchtext enthält; leerer Suchtext lässt alle durch
+let filterAccounts (search: string) (accounts: YnabAccount list) : YnabAccount list =
+    if not (isSearching search) then accounts
+    else
+        let needle = search.Trim().ToLowerInvariant()
+        accounts |> List.filter (fun a -> a.Name.ToLowerInvariant().Contains needle)
+
+/// Beschriftung einer Konto-Zeile und des Ziel-Felds nach der Wahl
+let accountLabel (a: YnabAccount) : string = $"→ {a.Name}"
+
+let private buildLayout
+    (offerWithout: bool)
+    (accounts: YnabAccount list)
     (loadState: PickerLoadState)
-    (search: string)
+    (rawSearch: string)
     (current: YnabCategoryId option)
     (suggested: YnabCategoryId list)
     (recent: YnabCategoryId list)
     (categories: YnabCategory list)
     : Layout =
     let notice = noticeFor loadState categories
+    let accountsOnly, search =
+        match searchScope accounts rawSearch with
+        | AccountsOnly s -> true, s
+        | AllTargets s -> false, s
     let searching = isSearching search
     // Während einer Suche steht der Abschnitt Vorgeschlagen nicht da (wie im Sheet bisher)
     let suggestedList = if searching then [] else suggestedCategories categories current suggested
@@ -167,7 +223,7 @@ let layoutForRecent
     let hiddenAll = categories |> List.filter (fun c -> c.Hidden)
     let full = {
         Notice = None
-        ShowWithout = showWithoutRow search
+        ShowWithout = offerWithout && showWithoutRow search
         Suggested = suggestedList
         Recent = recentList
         Groups =
@@ -177,12 +233,10 @@ let layoutForRecent
         HiddenCount = List.length hiddenAll
         Hidden = hiddenAll |> List.filter (matchesSearch search)
         ShowAllHeader = PickerParts.showAllCategoriesHeader (not suggestedList.IsEmpty) (not recentList.IsEmpty) searching
+        Accounts = filterAccounts search accounts
     }
-    match notice with
-    | None -> full
-    | Some n ->
-        { full with
-            Notice = Some n
+    let withoutCategories (l: Layout) =
+        { l with
             ShowWithout = false
             Suggested = []
             Recent = []
@@ -190,6 +244,32 @@ let layoutForRecent
             HiddenCount = 0
             Hidden = []
             ShowAllHeader = false }
+    match notice with
+    | _ when accountsOnly -> withoutCategories full
+    | None -> full
+    | Some n -> { withoutCategories full with Notice = Some n }
+
+let layoutForRecent
+    (loadState: PickerLoadState)
+    (search: string)
+    (current: YnabCategoryId option)
+    (suggested: YnabCategoryId list)
+    (recent: YnabCategoryId list)
+    (categories: YnabCategory list)
+    : Layout =
+    buildLayout true [] loadState search current suggested recent categories
+
+/// Das Layout für die Props eines offenen Pickers
+let layoutForPicker (props: CategoryPickerProps) (search: string) : Layout =
+    buildLayout
+        props.OfferWithout
+        props.Accounts
+        props.LoadState
+        search
+        props.Current
+        props.Suggested
+        props.Recent
+        props.Categories
 
 let layoutFor
     (loadState: PickerLoadState)
@@ -216,13 +296,33 @@ let navigableRows (hiddenExpanded: bool) (l: Layout) : PickerRow list =
       for (_, items) in l.Groups do
           for c in items -> Category c
       if hiddenExpanded then
-          for c in l.Hidden -> Category c ]
+          for c in l.Hidden -> Category c
+      for a in l.Accounts -> Account a ]
 
 /// Was Wählen einer Zeile an den Aufrufer meldet
-let choiceOf (row: PickerRow) : YnabCategoryId option =
+let choiceOf (row: PickerRow) : PickerChoice =
     match row with
-    | WithoutCategory -> None
-    | Category c -> Some c.Id
+    | WithoutCategory -> ChoseCategory None
+    | Category c -> ChoseCategory (Some c.Id)
+    | Account a -> ChoseAccount a.Id
+
+/// Für Aufrufer ohne `Accounts`: die Kategorie-Wahl weiterreichen. Ein Konto kann dort nicht
+/// gewählt werden.
+let categoryChoice (onCategory: YnabCategoryId option -> unit) (choice: PickerChoice) : unit =
+    match choice with
+    | ChoseCategory id -> onCategory id
+    | ChoseAccount _ -> ()
+
+/// Hakt die Zeile "Ohne Kategorie" nur, wenn die Zeile weder Kategorie noch Übertrag trägt
+let isWithoutCurrent (current: YnabCategoryId option) (currentAccount: YnabAccountId option) : bool =
+    current.IsNone && currentAccount.IsNone
+
+/// Suchfeld und Sheet-Titel nennen die Konten nur, wenn es welche zur Wahl gibt
+let searchPlaceholder (accounts: YnabAccount list) : string =
+    if accounts.IsEmpty then "Kategorie suchen…" else "Kategorie oder Konto suchen…"
+
+let sheetTitle (accounts: YnabAccount list) : string =
+    if accounts.IsEmpty then "Kategorie wählen" else "Ziel wählen"
 
 /// Pfeil, Enter und Esc. Enter ohne markierte Zeile wählt bei aktiver Suche den ersten
 /// Treffer. Esc schließt nur den Picker (ADR 0053, Punkt 5).
@@ -275,7 +375,7 @@ let private Content (input: ContentProps) =
     let active, setActive = React.useState<int option> None
     let containerRef = React.useRef<Browser.Types.HTMLElement option> None
 
-    let lay = layoutForRecent props.LoadState search props.Current props.Suggested props.Recent props.Categories
+    let lay = layoutForPicker props search
     let rows = navigableRows hiddenExpanded lay
     let searching = isSearching search
 
@@ -320,7 +420,7 @@ let private Content (input: ContentProps) =
                 prop.onMouseDown (fun e -> e.preventDefault ())
                 prop.onClick (fun e ->
                     e.stopPropagation ()
-                    props.OnSelect (Some c.Id))
+                    props.OnSelect (ChoseCategory (Some c.Id)))
             ]
             (Html.span [
                 prop.className "flex items-center gap-2 min-w-0"
@@ -333,7 +433,7 @@ let private Content (input: ContentProps) =
 
     let withoutRow () =
         let index = nextIndex ()
-        let isCurrent = input.MarkCurrent && props.Current.IsNone
+        let isCurrent = input.MarkCurrent && isWithoutCurrent props.Current props.CurrentAccount
         PickerParts.row
             (rowClassFor (active = Some index))
             [
@@ -344,12 +444,38 @@ let private Content (input: ContentProps) =
                 prop.onMouseDown (fun e -> e.preventDefault ())
                 prop.onClick (fun e ->
                     e.stopPropagation ()
-                    props.OnSelect None)
+                    props.OnSelect (ChoseCategory None))
             ]
             (Html.span [
                 prop.className "flex items-center gap-2 min-w-0"
                 prop.children [
                     PickerParts.name withoutCategoryLabel
+                    if isCurrent then Icons.check Icons.SM Icons.NeonTeal
+                ]
+            ])
+            None
+
+    let accountRow (a: YnabAccount) =
+        let index = nextIndex ()
+        let isCurrent = input.MarkCurrent && props.CurrentAccount = Some a.Id
+        let (YnabAccountId guid) = a.Id
+        PickerParts.row
+            (rowClassFor (active = Some index))
+            [
+                prop.key $"a-{guid}"
+                prop.role "option"
+                prop.custom ("aria-selected", isCurrent)
+                prop.custom ("data-row-index", index)
+                prop.custom ("data-testid", "category-picker-account-row")
+                prop.onMouseDown (fun e -> e.preventDefault ())
+                prop.onClick (fun e ->
+                    e.stopPropagation ()
+                    props.OnSelect (ChoseAccount a.Id))
+            ]
+            (Html.span [
+                prop.className "flex items-center gap-2 min-w-0"
+                prop.children [
+                    PickerParts.name (accountLabel a)
                     if isCurrent then Icons.check Icons.SM Icons.NeonTeal
                 ]
             ])
@@ -363,9 +489,9 @@ let private Content (input: ContentProps) =
             | MoveTo i ->
                 e.preventDefault ()
                 setActive (Some i)
-            | Choose id ->
+            | Choose choice ->
                 e.preventDefault ()
-                props.OnSelect id
+                props.OnSelect choice
             | CloseOnly ->
                 // Esc bleibt im Picker: das Dokument schließt sonst zugleich das Detail.
                 e.stopPropagation ()
@@ -380,7 +506,7 @@ let private Content (input: ContentProps) =
                         (fun v ->
                             setSearch v
                             setActive None)
-                        "Kategorie suchen…"
+                        (searchPlaceholder props.Accounts)
                 ]
             ]
 
@@ -489,6 +615,19 @@ let private Content (input: ContentProps) =
                             ]
                         ]
 
+                    if not lay.Accounts.IsEmpty then
+                        Html.div [
+                            prop.key "accounts"
+                            prop.custom ("data-testid", "category-picker-accounts")
+                            prop.children [
+                                PickerParts.groupHeader accountsHeader
+                                Html.div [
+                                    prop.className "flex flex-col"
+                                    prop.children (lay.Accounts |> List.map accountRow)
+                                ]
+                            ]
+                        ]
+
                     if lay.Notice.IsNone && List.isEmpty rows && lay.HiddenCount = 0 then
                         Html.div [
                             prop.className $"py-2 {ListRoles.muted}"
@@ -561,7 +700,7 @@ let private sheetWith (elevated: bool) (markCurrent: bool) (isOpen: bool) (subti
     let sheetProps : BottomSheet.BottomSheetProps =
         { IsOpen = isOpen
           OnClose = closing.OnClose
-          Title = "Kategorie wählen"
+          Title = sheetTitle props.Accounts
           Subtitle = subtitle
           Footer = None }
     let children =

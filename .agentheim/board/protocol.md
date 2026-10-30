@@ -5,6 +5,20 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:00 -- Task verified and completed: design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
+
+**Type:** Work / Task completion
+**Task:** design-system-bym4m - "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import"
+**Summary:** Das Ziel einer Split-Zeile wird in Kassenbuch und Import in einem einzigen Picker gewählt: Kategorien, darunter "Übertrag auf Konto", Suche über beides und Präfix "Konto:". Der Sync-Knopf und der alte Konto-Picker sind entfernt.
+**Duration:** 34m44s
+**Verification:** PASS (iteration 2)
+**Result source:** sidecar · layout both+sentinel · sidecar present
+**Files changed:** 20
+**Tests added:** 18
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 14:54 -- Task verified and completed: infrastructure-awstw - Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst.
 
 **Type:** Work / Task completion

@@ -1662,8 +1662,7 @@ type Msg =
     | StartSplitCashback of SplitTarget option
     | LoadQuickAddAccount
     | QuickAddAccountLoaded of Result<YnabAccountId option, string>
-    | OpenSplitCategoryPicker of int
-    | OpenSplitAccountPicker of int
+    | OpenSplitTargetPicker of int
     | CloseSplitPicker
     /// Wahl im Kategorie-Picker einer Zeile; `None` ist "Ohne Kategorie".
     | SelectSplitCategory of int * YnabCategoryId option

@@ -1418,10 +1418,13 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
           Current = entry.CategoryId |> Option.map YnabCategoryId
           Suggested = model.CategorySuggestions
           Recent = recentPickerIds model.RecentCategories
+          Accounts = []
+          CurrentAccount = None
+          OfferWithout = true
           StandLabel = categoryStandLabel model DateTime.Now
           LoadState = categoryLoadState model.Categories
           OnRetry = fun () -> dispatch LoadCategories
-          OnSelect = fun choice -> dispatch (StartSetEntryCategory (entry.Id, choice))
+          OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartSetEntryCategory (entry.Id, choice)))
           OnClose = fun () -> dispatch CloseCategoryPicker }
     let sheetSubtitle =
         $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
@@ -1735,10 +1738,17 @@ let private lineCategoryId (line: SplitLogic.SplitDraftLine) : YnabCategoryId op
     | Some (ToCategory (id, _)) -> Some id
     | _ -> None
 
-/// Der Picker einer Zeile: dieselben Props wie im Kategorie-Feld, ohne Vorschläge zum Payee.
-let private splitCategoryPickerProps
+let private lineAccountId (line: SplitLogic.SplitDraftLine) : YnabAccountId option =
+    match line.Target with
+    | Some (ToTransfer (id, _)) -> Some id
+    | _ -> None
+
+/// Der Picker einer Zeile: dieselben Props wie im Kategorie-Feld, ohne Vorschläge zum Payee, dazu
+/// die wählbaren Übertrag-Konten.
+let private splitTargetPickerProps
     (dispatch: Msg -> unit)
     (model: Model)
+    (entry: LedgerEntryView)
     (index: int)
     (line: SplitLogic.SplitDraftLine)
     : CategoryPicker.CategoryPickerProps =
@@ -1746,25 +1756,22 @@ let private splitCategoryPickerProps
       Current = lineCategoryId line
       Suggested = []
       Recent = []
+      Accounts = transferTargetsFor model entry
+      CurrentAccount = lineAccountId line
+      OfferWithout = true
       StandLabel = categoryStandLabel model DateTime.Now
       LoadState = categoryLoadState model.Categories
       OnRetry = fun () -> dispatch LoadCategories
-      OnSelect = fun choice -> dispatch (SelectSplitCategory (index, choice))
-      OnClose = fun () -> dispatch CloseSplitPicker }
-
-let private splitAccountPickerProps
-    (dispatch: Msg -> unit)
-    (model: Model)
-    (entry: LedgerEntryView)
-    (index: int)
-    : AccountPicker.AccountPickerProps =
-    { Accounts = transferTargetsFor model entry
-      OnSelect = fun id -> dispatch (SelectSplitAccount (index, id))
+      OnSelect =
+        fun choice ->
+            match choice with
+            | CategoryPicker.ChoseCategory id -> dispatch (SelectSplitCategory (index, id))
+            | CategoryPicker.ChoseAccount id -> dispatch (SelectSplitAccount (index, id))
       OnClose = fun () -> dispatch CloseSplitPicker }
 
 /// Der Inhalt des Editors, für Panel und Sheet derselbe: Summe, Zeilen, "Zeile hinzufügen". Der
-/// Kategorie-Picker je Zeile ist am PC ein Popover unter der Zeile, am Handy ein zweites Sheet über
-/// dem Detail (ADR 0005); das Übertrag-Ziel läuft genauso über die Konto-Auswahl.
+/// Ziel-Picker je Zeile (Kategorie oder Konto) ist am PC ein Popover unter der Zeile, am Handy ein
+/// zweites Sheet über dem Detail (ADR 0005).
 let private splitEditorBody
     (dispatch: Msg -> unit)
     (model: Model)
@@ -1785,13 +1792,11 @@ let private splitEditorBody
                           { Index = index
                             TargetLabel = SplitLogic.targetLabel line
                             TargetChosen = line.Target.IsSome
-                            IsTransfer = SplitLogic.isTransferLine line
                             AmountText = line.AmountText
                             Memo = line.Memo
                             Disabled = saving
                             CanRemove = lineCount > 1
-                            OnPickCategory = fun () -> dispatch (OpenSplitCategoryPicker index)
-                            OnPickAccount = fun () -> dispatch (OpenSplitAccountPicker index)
+                            OnPickTarget = fun () -> dispatch (OpenSplitTargetPicker index)
                             OnAmount = fun text -> dispatch (SetSplitLineAmount (index, text))
                             OnMemo = fun text -> dispatch (SetSplitLineMemo (index, text))
                             OnRest = fun () -> dispatch (FillSplitLineRest index)
@@ -1799,11 +1804,8 @@ let private splitEditorBody
                       match placement with
                       | PickerPopover ->
                           CategoryPicker.popoverInPanel
-                              (editor.Picker = SplitLogic.SplitCategoryPickerFor index)
-                              (splitCategoryPickerProps dispatch model index line)
-                          AccountPicker.popoverInPanel
-                              (editor.Picker = SplitLogic.SplitAccountPickerFor index)
-                              (splitAccountPickerProps dispatch model entry index)
+                              (editor.Picker = SplitLogic.SplitTargetPickerFor index)
+                              (splitTargetPickerProps dispatch model entry index line)
                       | PickerSheet -> ()
                   ]
               ]
@@ -1820,7 +1822,7 @@ let private splitEditorBody
       | PickerSheet ->
           let pickerIndex =
               match editor.Picker with
-              | SplitLogic.SplitCategoryPickerFor i | SplitLogic.SplitAccountPickerFor i -> i
+              | SplitLogic.SplitTargetPickerFor i -> i
               | SplitLogic.NoSplitPicker -> 0
           match List.tryItem pickerIndex editor.Lines with
           | Some line ->
@@ -1828,13 +1830,9 @@ let private splitEditorBody
                   $"{payeeLabel entry} · {Money.formatAmountText false true entry.Amount.Amount entry.Amount.Currency}"
               yield
                   CategoryPicker.sheetLayered
-                      (editor.Picker = SplitLogic.SplitCategoryPickerFor pickerIndex)
+                      (editor.Picker = SplitLogic.SplitTargetPickerFor pickerIndex)
                       (Some subtitle)
-                      (splitCategoryPickerProps dispatch model pickerIndex line)
-              yield
-                  AccountPicker.sheetLayered
-                      (editor.Picker = SplitLogic.SplitAccountPickerFor pickerIndex)
-                      (splitAccountPickerProps dispatch model entry pickerIndex)
+                      (splitTargetPickerProps dispatch model entry pickerIndex line)
           | None -> ()
       | PickerPopover -> () ]
 
@@ -3022,10 +3020,13 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
           Current = None
           Suggested = []
           Recent = recentPickerIds model.RecentCategories
+          Accounts = []
+          CurrentAccount = None
+          OfferWithout = true
           StandLabel = categoryStandLabel model DateTime.Now
           LoadState = categoryLoadState model.Categories
           OnRetry = fun () -> dispatch LoadCategories
-          OnSelect = fun choice -> dispatch (StartCategoryBatch choice)
+          OnSelect = CategoryPicker.categoryChoice (fun choice -> dispatch (StartCategoryBatch choice))
           OnClose = fun () -> dispatch CloseBatchCategoryPicker }
     // Popover am PC, Sheet am Handy: nie beide, denn das Sheet portalt in den Body (ADR 0043).
     let desktop = Viewport.isDesktopViewport ()

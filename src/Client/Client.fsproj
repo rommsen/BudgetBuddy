@@ -33,7 +33,6 @@
     <Compile Include="DesignSystem/Detail.fs" />
     <Compile Include="DesignSystem/CategoryMultiSelect.fs" />
     <Compile Include="DesignSystem/CategoryPicker.fs" />
-    <Compile Include="DesignSystem/AccountPicker.fs" />
     <Compile Include="DesignSystem/SplitEditor.fs" />
 
     <!-- Utilities -->

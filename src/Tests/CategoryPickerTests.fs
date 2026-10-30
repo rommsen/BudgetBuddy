@@ -37,6 +37,130 @@ let private categories =
 
 let private names (cs: YnabCategory list) = cs |> List.map (fun c -> c.Name)
 
+let private account (n: int) (name: string) : YnabAccount =
+    { Id = YnabAccountId (Guid.Parse $"00000000-0000-0000-0001-{n:D12}")
+      Name = name
+      Balance = { Amount = 0m; Currency = "EUR" }
+      OnBudget = true
+      Closed = false }
+
+let private accounts = [ account 1 "Bar"; account 2 "Tagesgeld" ]
+
+/// Ein Zielname, der auch in einer Kategorie steckt: "Bar" trifft Konto und Kategorie.
+let private withBarCategory = categories @ [ cat 6 "Alltag" "Bar-Auslagen" false ]
+
+let private targetProps : CategoryPickerProps =
+    { Categories = withBarCategory
+      Current = None
+      Suggested = [ idOf 1 ]
+      Recent = [ idOf 2 ]
+      Accounts = accounts
+      CurrentAccount = None
+      OfferWithout = true
+      StandLabel = None
+      LoadState = PickerReady
+      OnRetry = ignore
+      OnSelect = ignore
+      OnClose = ignore }
+
+let private accountNames (l: Layout) = l.Accounts |> List.map (fun a -> a.Name)
+
+let private hasNoCategories (l: Layout) =
+    Expect.isFalse l.ShowWithout "keine Zeile Ohne Kategorie"
+    Expect.isEmpty l.Suggested "keine Vorschläge"
+    Expect.isEmpty l.Recent "nichts unter Zuletzt verwendet"
+    Expect.isEmpty l.Groups "keine Gruppen"
+    Expect.equal l.HiddenCount 0 "kein Abschnitt Versteckt"
+    Expect.isFalse l.ShowAllHeader "kein Kopf Alle Kategorien"
+
+// design-system-bym4m: ein Picker für das Ziel einer Split-Zeile, Kategorie oder Konto.
+let private targetTests =
+    testList "Ziel-Picker: Kategorie oder Konto (bym4m)" [
+        test "ohne Suche stehen die Konten als eigener Abschnitt unter den Kategorien" {
+            let l = layoutForPicker targetProps ""
+            Expect.equal (accountNames l) [ "Bar"; "Tagesgeld" ] "alle Konten"
+            Expect.isNonEmpty l.Groups "Kategorien bleiben"
+            let rows = navigableRows false l
+            Expect.equal (List.rev rows |> List.take 2 |> List.rev) [ Account accounts.[0]; Account accounts.[1] ] "Konten zuletzt"
+        }
+        test "aufgeklappte versteckte Kategorien stehen vor den Konten" {
+            let rows = navigableRows true (layoutForPicker targetProps "")
+            let lastCategory = rows |> List.findIndexBack (function Category _ -> true | _ -> false)
+            let firstAccount = rows |> List.findIndex (function Account _ -> true | _ -> false)
+            Expect.isLessThan lastCategory firstAccount "Reihenfolge wie im Rendern"
+        }
+        test "die Suche nach einem Kontonamen findet das Konto neben passenden Kategorien" {
+            let l = layoutForPicker targetProps "bar"
+            Expect.equal (accountNames l) [ "Bar" ] "Konto"
+            Expect.equal (l.Groups |> List.collect snd |> names) [ "Bar-Auslagen" ] "Kategorie"
+        }
+        test "die Konto-Zeile heißt → Name" {
+            Expect.equal (accountLabel accounts.[0]) "→ Bar" "Übertrag-Zeile"
+        }
+        test "Konto: allein zeigt nur die Konten" {
+            let l = layoutForPicker targetProps "Konto:"
+            Expect.equal (accountNames l) [ "Bar"; "Tagesgeld" ] "alle Konten"
+            hasNoCategories l
+        }
+        test "Konto: mit Suchtext zeigt nur die passenden Konten" {
+            for search in [ "Konto: Bar"; "konto:bar"; "KONTO:   BAR"; "  Konto: bar  " ] do
+                let l = layoutForPicker targetProps search
+                Expect.equal (accountNames l) [ "Bar" ] search
+                hasNoCategories l
+        }
+        test "Konto: ohne passendes Konto lässt keine Zeile übrig" {
+            Expect.isEmpty (navigableRows true (layoutForPicker targetProps "Konto: xyz")) "keine Zeile"
+        }
+        test "Konten erscheinen nie unter Vorgeschlagen oder Zuletzt verwendet" {
+            let l = layoutForPicker targetProps ""
+            Expect.equal (names l.Suggested) [ "Lebensmittel" ] "nur Kategorien"
+            Expect.equal (names l.Recent) [ "Haushalt" ] "nur Kategorien"
+        }
+        test "ohne Konten bleibt es ein reiner Kategorie-Picker, auch mit dem Präfix" {
+            let plain = { targetProps with Accounts = [] }
+            Expect.isEmpty (layoutForPicker plain "").Accounts "keine Konten"
+            Expect.equal (navigableRows false (layoutForPicker plain "")) (navigableRows false (layoutForRecent PickerReady "" None [ idOf 1 ] [ idOf 2 ] withBarCategory)) "wie bisher"
+            Expect.equal (searchScope [] "Konto: Bar") (AllTargets "Konto: Bar") "kein Präfix"
+            let konto = { plain with Categories = [ cat 7 "Banken" "Konto: Gebühren" false ] }
+            Expect.equal ((layoutForPicker konto "konto:").Groups |> List.collect snd |> names) [ "Konto: Gebühren" ] "sucht weiter in Kategorien"
+        }
+        test "ein Ladehinweis nimmt die Kategorien, die Konten bleiben wählbar" {
+            let l = layoutForPicker { targetProps with Categories = []; LoadState = PickerFailed } ""
+            Expect.equal l.Notice (Some FailedNotice) "Hinweis"
+            Expect.equal (accountNames l) [ "Bar"; "Tagesgeld" ] "Konten"
+        }
+        test "ohne OfferWithout fehlt die Zeile Ohne Kategorie" {
+            Expect.isFalse (layoutForPicker { targetProps with OfferWithout = false } "").ShowWithout "Import-Split"
+        }
+        test "die Pfeiltasten erreichen die Konto-Zeilen, Enter wählt das Konto" {
+            let rows = navigableRows false (layoutForPicker targetProps "")
+            let last = List.length rows - 1
+            Expect.equal (keyAction "ArrowUp" rows None false) (MoveTo last) "letzte Zeile ist ein Konto"
+            Expect.equal (keyAction "Enter" rows (Some last) false) (Choose (ChoseAccount accounts.[1].Id)) "Konto"
+            let found = navigableRows false (layoutForPicker targetProps "Konto: tages")
+            Expect.equal (keyAction "Enter" found None true) (Choose (ChoseAccount accounts.[1].Id)) "erster Treffer"
+        }
+        test "ein Übertrag hakt nicht Ohne Kategorie an" {
+            Expect.isTrue (isWithoutCurrent None None) "ohne Ziel"
+            Expect.isFalse (isWithoutCurrent None (Some accounts.[0].Id)) "Übertrag"
+            Expect.isFalse (isWithoutCurrent (Some (idOf 1)) None) "Kategorie"
+        }
+        test "Aufrufer ohne Konten bekommen nur die Kategorie-Wahl" {
+            let mutable got = []
+            let select = categoryChoice (fun id -> got <- id :: got)
+            select (ChoseCategory (Some (idOf 1)))
+            select (ChoseCategory None)
+            select (ChoseAccount accounts.[0].Id)
+            Expect.equal got [ None; Some (idOf 1) ] "Konto kommt nicht an"
+        }
+        test "Suchfeld und Titel nennen Konten nur, wenn es welche gibt" {
+            Expect.equal (searchPlaceholder []) "Kategorie suchen…" "ohne"
+            Expect.equal (searchPlaceholder accounts) "Kategorie oder Konto suchen…" "mit"
+            Expect.equal (sheetTitle []) "Kategorie wählen" "ohne"
+            Expect.equal (sheetTitle accounts) "Ziel wählen" "mit"
+        }
+    ]
+
 let private tests =
     testList "Kategorie-Picker (gffps)" [
         testList "Filtern" [
@@ -115,14 +239,14 @@ let private tests =
                 Expect.isTrue l.ShowWithout "Zeile da"
                 let rows = navigableRows false l
                 Expect.equal (List.head rows) WithoutCategory "erste Zeile"
-                Expect.equal (choiceOf WithoutCategory) None "None"
+                Expect.equal (choiceOf WithoutCategory) (ChoseCategory None) "None"
             }
             test "Bei einer Suche steht die Zeile nur, wenn sie passt" {
                 Expect.isFalse (layout "möbel" None [] categories).ShowWithout "kein Treffer"
                 Expect.isTrue (layout "ohne" None [] categories).ShowWithout "Treffer"
             }
             test "Wählen einer Kategorie meldet genau ihre Id" {
-                Expect.equal (choiceOf (Category categories.[2])) (Some (idOf 3)) "Some id"
+                Expect.equal (choiceOf (Category categories.[2])) (ChoseCategory (Some (idOf 3))) "Some id"
             }
         ]
 
@@ -139,13 +263,13 @@ let private tests =
                 Expect.equal (keyAction "ArrowUp" rows (Some 0) false) (MoveTo 0) "Anfang"
             }
             test "Enter wählt die markierte Zeile, Ohne Kategorie als None" {
-                Expect.equal (keyAction "Enter" rows (Some 0) false) (Choose None) "Ohne Kategorie"
-                Expect.equal (keyAction "Enter" rows (Some 3) false) (Choose (Some (idOf 3))) "Möbel"
+                Expect.equal (keyAction "Enter" rows (Some 0) false) (Choose (ChoseCategory None)) "Ohne Kategorie"
+                Expect.equal (keyAction "Enter" rows (Some 3) false) (Choose (ChoseCategory (Some (idOf 3)))) "Möbel"
             }
             test "Enter ohne Markierung tut nichts, bei aktiver Suche wählt es den ersten Treffer" {
                 Expect.equal (keyAction "Enter" rows None false) NoAction "ohne Suche"
                 let found = navigableRows false (layout "möbel" None [] categories)
-                Expect.equal (keyAction "Enter" found None true) (Choose (Some (idOf 3))) "erster Treffer"
+                Expect.equal (keyAction "Enter" found None true) (Choose (ChoseCategory (Some (idOf 3)))) "erster Treffer"
             }
             test "Esc schließt nur den Picker" {
                 Expect.equal (keyAction "Escape" rows (Some 2) false) CloseOnly "Esc"
@@ -166,8 +290,8 @@ let private tests =
             }
             test "Einfachauswahl: Klick übernimmt sofort, kein Übernehmen-Knopf im Baustein" {
                 let src = readDs "CategoryPicker.fs"
-                Expect.stringContains src "props.OnSelect (Some c.Id)" "Klick meldet Some id"
-                Expect.stringContains src "props.OnSelect None" "Klick meldet None"
+                Expect.stringContains src "props.OnSelect (ChoseCategory (Some c.Id))" "Klick meldet Some id"
+                Expect.stringContains src "props.OnSelect (ChoseCategory None)" "Klick meldet None"
                 Expect.isFalse (src.Contains "applyButton") "kein Übernehmen"
                 Expect.isFalse (src.Contains "PickerParts.footer") "kein Footer mit Übernehmen"
             }
@@ -280,3 +404,6 @@ let private tests =
 
 [<Tests>]
 let categoryPickerTests = tests
+
+[<Tests>]
+let categoryPickerTargetTests = targetTests

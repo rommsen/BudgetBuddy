@@ -2099,7 +2099,10 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | SetSplitLineAmount (index, text) -> editSplit (SplitEditor.setAmountText index text) model, Cmd.none, NoOp
     | SetSplitLineMemo (index, text) -> editSplit (SplitEditor.setMemo index text) model, Cmd.none, NoOp
     | FillSplitLineRest index -> editSplit (SplitEditor.fillRest index) model, Cmd.none, NoOp
-    | StartSplitCashback target -> editSplit (SplitEditor.startCashback target) model, Cmd.none, NoOp
+    | StartSplitCashback target ->
+        // Ohne Ziel geht der Picker auf, der auch die Kategorien zeigt.
+        let cmd = if target.IsNone then Cmd.ofMsg EnsureCategoriesFresh else Cmd.none
+        editSplit (SplitEditor.startCashback target) model, cmd, NoOp
 
     | LoadQuickAddAccount ->
         model,
@@ -2114,11 +2117,8 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Ohne das Konto bleibt das Ziel der Übertrag-Zeile leer und wählbar; ein Fehler ist keinen Toast wert.
     | QuickAddAccountLoaded (Error _) -> model, Cmd.none, NoOp
 
-    | OpenSplitCategoryPicker index ->
-        editSplit (fun e -> { e with Picker = SplitEditor.SplitCategoryPickerFor index }) model, Cmd.ofMsg EnsureCategoriesFresh, NoOp
-
-    | OpenSplitAccountPicker index ->
-        editSplit (fun e -> { e with Picker = SplitEditor.SplitAccountPickerFor index }) model, Cmd.none, NoOp
+    | OpenSplitTargetPicker index ->
+        editSplit (fun e -> { e with Picker = SplitEditor.SplitTargetPickerFor index }) model, Cmd.ofMsg EnsureCategoriesFresh, NoOp
 
     | CloseSplitPicker -> editSplit (fun e -> { e with Picker = SplitEditor.NoSplitPicker }) model, Cmd.none, NoOp
 

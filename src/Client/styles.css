@@ -2648,23 +2648,6 @@ nav a:focus-visible {
   background: var(--sf-bg-card);
   border: 1px solid var(--sf-border);
 }
-.split-target-row { display: flex; gap: 8px; align-items: stretch; }
-.split-transfer-btn {
-  flex-shrink: 0;
-  width: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--sf-radius-md);
-  background: var(--sf-bg-card);
-  border: 1px solid var(--sf-border);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: border-color var(--sf-duration-fast) ease, background var(--sf-duration-fast) ease;
-}
-.split-transfer-btn.active { border-color: var(--color-neon-teal); background: var(--sf-bg-hover); }
-.split-transfer-btn:active { transform: scale(0.96); }
-
 .split-amount-row { display: flex; gap: 8px; align-items: center; }
 .split-amount-input { flex: 1; min-width: 0; text-align: right; }
 .split-currency { color: var(--sf-text-muted); font-size: 15px; }

@@ -19,8 +19,7 @@ type SplitDraftLine = {
 /// Welche Auswahl über dem Editor offen steht und für welche Zeile.
 type SplitPicker =
     | NoSplitPicker
-    | SplitCategoryPickerFor of lineIndex: int
-    | SplitAccountPickerFor of lineIndex: int
+    | SplitTargetPickerFor of lineIndex: int
 
 /// Der Stand der Buchung vor dem Speichern: Grundlage für "Rückgängig".
 type SplitBefore =
@@ -109,7 +108,7 @@ let cashbackTarget (quickAddAccountId: YnabAccountId option) (transferTargets: Y
 /// "Barabhebung" (ledger-s8t3s): die erste Zeile ohne Ziel wird zum Übertrag auf das Bar-Konto;
 /// gibt es keine, kommt eine neue Zeile dazu. Bestehende Zeilen, Ziele und Beträge bleiben,
 /// die Beträge bleiben leer (der Ausgleich geht über "Rest", wie im Import). Ohne Ziel (kein
-/// Quick-Add-Konto) bleibt die Zeile leer und die Konto-Auswahl für sie geht auf.
+/// Quick-Add-Konto) bleibt die Zeile leer und der Ziel-Picker für sie geht auf.
 let startCashback (target: SplitTarget option) (state: SplitEditorState) : SplitEditorState =
     let lines, index =
         match state.Lines |> List.tryFindIndex (fun l -> l.Target.IsNone) with
@@ -120,7 +119,7 @@ let startCashback (target: SplitTarget option) (state: SplitEditorState) : Split
         { state with
             Lines = lines |> List.mapi (fun i l -> if i = index then { l with Target = Some t } else l)
             Picker = NoSplitPicker }
-    | None -> { state with Lines = lines; Picker = SplitAccountPickerFor index }
+    | None -> { state with Lines = lines; Picker = SplitTargetPickerFor index }
 
 let removeLine (index: int) (state: SplitEditorState) : SplitEditorState =
     { state with Lines = state.Lines |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd }
@@ -232,7 +231,6 @@ let targetLabel (line: SplitDraftLine) : string =
     | Some Uncategorized -> "Ohne Kategorie"
     | None -> "Kategorie oder Konto wählen"
 
-let isTransferLine (line: SplitDraftLine) : bool = isTransfer line
 
 /// Der Grund, aus dem "Aufteilen" (unaufgeteilte Buchung) bzw. "Ändern" (aufgeteilte) gesperrt
 /// ist, aus den Sperren der Buchung (`LedgerEntryView.SplitLocks`); `None`, wenn der Knopf wirkt.

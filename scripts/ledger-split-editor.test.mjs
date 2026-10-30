@@ -293,7 +293,7 @@ test("PC: Der Pfeil an der Kategorie einer Split-Buchung öffnet den Editor, Esc
   await context.close();
 });
 
-test("PC: Übertrag-Ziel über die Konto-Auswahl, nur offene Budget-Konten", async () => {
+test("PC: Übertrag-Ziel über den einen Picker, nur offene Budget-Konten, kein Sync-Knopf", async () => {
   resetState();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context);
@@ -302,18 +302,35 @@ test("PC: Übertrag-Ziel über die Konto-Auswahl, nur offene Budget-Konten", asy
   await panel(page).locator('[data-testid="split-summary"]').waitFor();
   for (let i = 0; i < 50 && state.accountCalls === 0; i += 1) await new Promise((r) => setTimeout(r, 40));
   assert.equal(state.accountCalls, 1, "die Kontenliste wird einmal geholt");
-  await line(panel(page), 1).getByRole("button", { name: "Übertrag-Ziel wählen" }).click();
-  const picker = panel(page).locator('[data-testid="account-picker"]');
+  assert.equal(await line(panel(page), 1).getByRole("button", { name: "Übertrag-Ziel wählen" }).count(), 0, "kein Sync-Knopf");
+  await panel(page).locator('[data-testid="split-target-1"]').click();
+  const picker = panel(page).locator('[data-testid="category-picker-accounts"]');
   await picker.waitFor();
-  const names = await picker.locator('[data-testid="account-picker-row"]').allTextContents();
-  assert.deepEqual(names.map((n) => n.trim()), ["Tagesgeld", "Bargeld"], "kein geschlossenes, kein Tracking-Konto");
+  const names = await picker.locator('[data-testid="category-picker-account-row"]').allTextContents();
+  assert.deepEqual(names.map((n) => n.trim()), ["→ Tagesgeld", "→ Bargeld"], "kein geschlossenes, kein Tracking-Konto");
+  // Der Abschnitt steht unter den Kategorien.
+  const order = await page.evaluate(() => {
+    const accounts = document.querySelector('[data-testid="category-picker-accounts"]').getBoundingClientRect();
+    const last = [...document.querySelectorAll('[role="option"]:not([data-testid="category-picker-account-row"])')].pop().getBoundingClientRect();
+    return { accounts: accounts.top, last: last.top };
+  });
+  assert.ok(order.accounts > order.last, "Konten unter den Kategorien");
+  // Suche über Kategorien und Konten, Tastatur erreicht die Konto-Zeile.
+  await panel(page).getByPlaceholder("Kategorie oder Konto suchen…").fill("Bar");
+  await picker.locator('[data-testid="category-picker-account-row"]', { hasText: "→ Bargeld" }).waitFor();
+  await page.keyboard.press("Enter");
+  assert.match(await panel(page).locator('[data-testid="split-target-1"]').textContent(), /→ Bargeld/);
+  await panel(page).locator('[data-testid="split-target-1"]').click();
+  await panel(page).getByPlaceholder("Kategorie oder Konto suchen…").fill("Konto: Tages");
+  await picker.locator('[data-testid="category-picker-account-row"]').waitFor();
+  assert.equal(await panel(page).locator('[role="option"]').count(), 1, "nur das passende Konto");
   const box = await page.evaluate(() => {
     const aside = document.querySelector('[data-testid="ledger-detail-panel"]').getBoundingClientRect();
-    const el = document.querySelector('[data-testid="account-picker"]').closest(".absolute").getBoundingClientRect();
+    const el = document.querySelector('[data-testid="category-picker-accounts"]').closest(".absolute").getBoundingClientRect();
     return { aL: aside.left, aR: aside.right, l: el.left, r: el.right };
   });
   assert.ok(box.l >= box.aL - 0.5 && box.r <= box.aR + 0.5, "Popover liegt im Panel");
-  await picker.locator('[data-testid="account-picker-row"]', { hasText: "Tagesgeld" }).click();
+  await picker.locator('[data-testid="category-picker-account-row"]', { hasText: "Tagesgeld" }).click();
   assert.match(await panel(page).locator('[data-testid="split-target-1"]').textContent(), /→ Tagesgeld/);
   // Übertrag nach dem Speichern: ToTransfer in der Anfrage.
   await panel(page).locator('[data-testid="split-amount-0"]').fill("30");
@@ -415,7 +432,7 @@ test("Handy (390x844): Aufteilen im selben Sheet, Speichern klebt unten, kein Ab
 
   await detailSheet.locator('[data-testid="split-amount-0"]').fill("23,40");
   await detailSheet.locator('[data-testid="split-target-1"]').tap();
-  const pickerSheet = page.locator(".bottom-sheet.layer-2.active", { hasText: "Kategorie wählen" });
+  const pickerSheet = page.locator(".bottom-sheet.layer-2.active", { hasText: "Ziel wählen" });
   await pickerSheet.waitFor();
   assert.equal(await page.locator(".bottom-sheet.active").count(), 2, "zwei Sheets");
   await pickerSheet.locator('[role="option"]', { hasText: "Nebenkosten" }).last().tap();
@@ -423,12 +440,13 @@ test("Handy (390x844): Aufteilen im selben Sheet, Speichern klebt unten, kein Ab
   await page.waitForTimeout(450);
   await line(detailSheet, 1).getByRole("button", { name: "Rest", exact: true }).tap();
   assert.equal(await save(detailSheet).isDisabled(), false);
-  // Übertrag-Ziel am Handy: zweites Sheet mit den Konten.
-  await line(detailSheet, 1).getByRole("button", { name: "Übertrag-Ziel wählen" }).tap();
-  const accountSheet = page.locator(".bottom-sheet.layer-2.active", { hasText: "Übertrag-Ziel wählen" });
-  await accountSheet.waitFor();
-  assert.equal(await accountSheet.locator(".category-item").count(), 2, "zwei offene Budget-Konten");
-  await accountSheet.locator(".category-item", { hasText: "Bargeld" }).tap();
+  // Übertrag-Ziel am Handy: derselbe Picker als zweites Sheet, "Bar" findet das Konto.
+  await detailSheet.locator('[data-testid="split-target-1"]').tap();
+  await pickerSheet.waitFor();
+  const accountRows = pickerSheet.locator('[data-testid="category-picker-account-row"]');
+  assert.equal(await accountRows.count(), 2, "zwei offene Budget-Konten");
+  await pickerSheet.getByPlaceholder("Kategorie oder Konto suchen…").fill("Bar");
+  await accountRows.filter({ hasText: "→ Bargeld" }).tap();
   assert.match(await line(detailSheet, 1).locator('[data-testid="split-target-1"]').textContent(), /→ Bargeld/);
   await page.waitForTimeout(450);
   await save(detailSheet).tap();
@@ -437,7 +455,7 @@ test("Handy (390x844): Aufteilen im selben Sheet, Speichern klebt unten, kein Ab
   await context.close();
 });
 
-test("/styleguide: der Split-Editor und die Konto-Auswahl haben eine Galerie-Karte", async () => {
+test("/styleguide: der Split-Editor zeigt den Picker mit Konto-Abschnitt", async () => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${frontendPort}/#/styleguide`, { waitUntil: "load" });
@@ -445,7 +463,9 @@ test("/styleguide: der Split-Editor und die Konto-Auswahl haben eine Galerie-Kar
   await demo.waitFor();
   assert.equal(await demo.locator('[data-testid^="split-line-"]').count(), 2, "zwei Zeilen");
   assert.equal(await demo.locator('[data-testid="split-summary"]').count(), 1, "Summe");
-  assert.equal(await page.locator('[data-ds-demo="account-picker-sheet-trigger"]').count(), 1, "Konto-Auswahl als Sheet");
+  assert.equal(await page.locator('[data-ds-demo="split-target-picker-sheet-trigger"]').count(), 1, "Ziel-Picker als Sheet");
+  await demo.locator('[data-testid="split-target-0"]').click();
+  await demo.locator('[data-testid="category-picker-accounts"]').getByText("→ Bargeld").waitFor();
   assert.equal(await page.locator('[data-ds-card="components-detail-fields"] [data-testid="detail-split-action"]').count(), 3, "Knöpfe im Feld Split");
   await context.close();
 });

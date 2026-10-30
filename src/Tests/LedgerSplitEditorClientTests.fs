@@ -304,12 +304,12 @@ let transferTargetTests =
             let model = { modelWith [ entryOf 1 ] with TransferTargets = Loading }
             Expect.isEmpty (Components.Ledger.View.transferTargetsFor model (entryOf 1)) "leer"
 
-        testCase "die Konto-Auswahl filtert nach dem Namen ohne Beachtung der Schreibweise" <| fun () ->
+        testCase "der Ziel-Picker filtert Konten nach dem Namen ohne Beachtung der Schreibweise" <| fun () ->
             let accounts = [ account 1 "Tagesgeld" true false; account 2 "Bargeld" true false ]
-            Expect.equal (AccountPicker.filterAccounts "" accounts |> List.length) 2 "leer: alle"
-            Expect.equal (AccountPicker.filterAccounts "GELD" accounts |> List.length) 2 "beide enthalten geld"
-            Expect.equal (AccountPicker.filterAccounts "tages" accounts |> List.map (fun a -> a.Name)) [ "Tagesgeld" ] "Teilwort"
-            Expect.isEmpty (AccountPicker.filterAccounts "xyz" accounts) "kein Treffer"
+            Expect.equal (CategoryPicker.filterAccounts "" accounts |> List.length) 2 "leer: alle"
+            Expect.equal (CategoryPicker.filterAccounts "GELD" accounts |> List.length) 2 "beide enthalten geld"
+            Expect.equal (CategoryPicker.filterAccounts "tages" accounts |> List.map (fun a -> a.Name)) [ "Tagesgeld" ] "Teilwort"
+            Expect.isEmpty (CategoryPicker.filterAccounts "xyz" accounts) "kein Treffer"
     ]
 
 // ============================================
@@ -463,17 +463,15 @@ let reducerTests =
 
         testCase "die Auswahl über dem Editor öffnet und schließt, Wahl schließt sie" <| fun () ->
             let model = opened (entryOf 1)
-            let opened1, _, _ = update (OpenSplitCategoryPicker 1) model
-            Expect.equal (editorOf opened1).Picker (SplitCategoryPickerFor 1) "Kategorie-Picker"
+            let opened1, _, _ = update (OpenSplitTargetPicker 1) model
+            Expect.equal (editorOf opened1).Picker (SplitTargetPickerFor 1) "Ziel-Picker"
             let picked, _, _ = update (SelectSplitCategory (1, Some (catId 2))) opened1
             Expect.equal (editorOf picked).Picker NoSplitPicker "Wahl schließt"
-            let acc, _, _ = update (OpenSplitAccountPicker 0) model
-            Expect.equal (editorOf acc).Picker (SplitAccountPickerFor 0) "Konto-Auswahl"
-            let closed, _, _ = update CloseSplitPicker acc
+            let closed, _, _ = update CloseSplitPicker opened1
             Expect.equal (editorOf closed).Picker NoSplitPicker "zu"
 
         testCase "Esc schließt erst die Auswahl, dann den Editor" <| fun () ->
-            let model, _, _ = update (OpenSplitCategoryPicker 1) (opened (entryOf 1))
+            let model, _, _ = update (OpenSplitTargetPicker 1) (opened (entryOf 1))
             let first, _, _ = update EscapePressed model
             Expect.isSome first.SplitEditor "Editor bleibt"
             Expect.equal (editorOf first).Picker NoSplitPicker "Auswahl zu"
@@ -677,18 +675,15 @@ let viewTests =
                     (Components.SyncFlow.Views.SplitSheet.splitAmountClass warn)
                     "gleiche Klasse wie der Import-Editor"
 
-        testCase "Kategorie je Zeile über den Picker (PC Popover, Handy sheetLayered), Übertrag über die Konto-Auswahl" <| fun () ->
+        testCase "Ziel je Zeile über den einen Picker (PC Popover, Handy sheetLayered)" <| fun () ->
             let body = functionBody (viewSource ()) "let private splitEditorBody"
-            for needle in [ "CategoryPicker.popoverInPanel"; "CategoryPicker.sheetLayered"; "AccountPicker.popoverInPanel"; "AccountPicker.sheetLayered" ] do
+            for needle in [ "CategoryPicker.popoverInPanel"; "CategoryPicker.sheetLayered" ] do
                 Expect.stringContains body needle needle
-            let props = functionBody (viewSource ()) "let private splitCategoryPickerProps"
+            let props = functionBody (viewSource ()) "let private splitTargetPickerProps"
             Expect.stringContains props "LoadState = categoryLoadState model.Categories" "Ladezustand wie im Kategorie-Feld"
             Expect.stringContains props "OnRetry = fun () -> dispatch LoadCategories" "Erneut versuchen"
             let accounts = functionBody (viewSource ()) "let transferTargetsFor"
             Expect.stringContains accounts "openOnBudgetAccounts" "offene Budget-Konten"
-            let ds = readRepo [ "src"; "Client"; "DesignSystem"; "AccountPicker.fs" ]
-            Expect.stringContains ds "BottomSheet.accountPickerLayered" "Handy: zweites Sheet"
-            Expect.stringContains ds "FilterPopover.view" "PC: Popover"
 
         testCase "Rechnung kommt aus Shared.Domain, nicht aus SyncFlow" <| fun () ->
             let logic = readRepo [ "src"; "Client"; "Components"; "Ledger"; "SplitEditor.fs" ]
@@ -709,11 +704,11 @@ let viewTests =
 
         testCase "neue Bausteine stehen in /styleguide" <| fun () ->
             let source = readRepo [ "src"; "Client"; "Components"; "Styleguide"; "View.fs" ]
-            for needle in [ "Split-Editor"; "SplitEditor.line"; "SplitEditor.summary"; "AccountPicker.popoverInPanel"; "AccountPicker.sheetLayered"; "Detail.splitActionButton" ] do
+            for needle in [ "Split-Editor"; "SplitEditor.line"; "SplitEditor.summary"; "CategoryPicker.popoverInPanel"; "Detail.splitActionButton" ] do
                 Expect.stringContains source needle needle
 
         testCase "Optik nur aus Tokens: keine Hex-Werte, keine Standardfarben, kein style.fontSize" <| fun () ->
-            for file in [ "SplitEditor.fs"; "AccountPicker.fs" ] do
+            for file in [ "SplitEditor.fs" ] do
                 let text = readRepo [ "src"; "Client"; "DesignSystem"; file ]
                 Expect.isFalse (System.Text.RegularExpressions.Regex.IsMatch(text, "#[0-9a-fA-F]{3,8}\\b")) $"{file}: kein Hex"
                 Expect.isFalse (text.Contains "style.fontSize") $"{file}: kein style.fontSize"
@@ -762,16 +757,16 @@ let cashbackTests =
                 [ lineWith toMoebel "20,00"; lineWith toHaushalt "61,90"; lineWith toCash "" ]
                 "bestehende Zeilen und Beträge unverändert, neue Zeile hinten"
 
-        testCase "ohne Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl der Zeile geht auf" <| fun () ->
+        testCase "ohne Quick-Add-Konto bleibt das Ziel leer und der Ziel-Picker der Zeile geht auf" <| fun () ->
             let result = startCashback None (startState (entryOf 1))
             Expect.equal result.Lines [ lineWith toHaushalt ""; lineWith None "" ] "Zeile ohne Ziel bleibt"
-            Expect.equal result.Picker (SplitAccountPickerFor 1) "Auswahl für die erste leere Zeile"
+            Expect.equal result.Picker (SplitTargetPickerFor 1) "Auswahl für die erste leere Zeile"
 
         testCase "ohne Quick-Add-Konto und ohne leere Zeile hängt der Knopf eine leere Zeile an" <| fun () ->
             let state = stateOf -10m [ lineWith toMoebel "10,00" ]
             let result = startCashback None state
             Expect.equal result.Lines [ lineWith toMoebel "10,00"; lineWith None "" ] "neue leere Zeile"
-            Expect.equal result.Picker (SplitAccountPickerFor 1) "Auswahl für die neue Zeile"
+            Expect.equal result.Picker (SplitTargetPickerFor 1) "Auswahl für die neue Zeile"
 
         testCase "der Ausgleich geht danach über Rest wie bisher" <| fun () ->
             let state = startState (entryOf 1) |> startCashback toCash
@@ -799,6 +794,13 @@ let cashbackTests =
             let model = opened (entryOf 1)
             let result, _, _ = update (StartSplitCashback toCash) model
             Expect.equal (editorOf result).Lines [ lineWith toHaushalt ""; lineWith toCash "" ] "Übertrag in der zweiten Zeile"
+
+        testCase "Reducer: Barabhebung ohne Ziel frischt die Kategorien auf, denn der Ziel-Picker zeigt sie" <| fun () ->
+            let model = opened (entryOf 1)
+            let _, sent, _ = run (StartSplitCashback None) model
+            Expect.contains sent EnsureCategoriesFresh "Picker geht auf"
+            let _, sentWithTarget, _ = run (StartSplitCashback toCash) model
+            Expect.isEmpty sentWithTarget "mit Ziel kein Picker"
 
         testCase "Reducer: das Öffnen des Editors holt das Quick-Add-Konto, die Antwort landet im Modell" <| fun () ->
             let _, sent, _ = run (OpenSplitEditor (idOf 1)) (modelWith [ entryOf 1; entryOf 2 ])

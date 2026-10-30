@@ -5,7 +5,7 @@ module Components.SyncFlow.Views.SplitSheet
 // case: one category + one transfer to the cash account).
 //
 // Structurally a FORM sheet (explicit Speichern/Abbrechen), like Quick Add.
-// The category/account picker opens as `.layer-2` OVER it — the proven
+// The shared target picker (category or account) opens as `.layer-2` OVER it — the proven
 // "Picker über Quick-Add-Formular" precedent, one level deep (ADR 0005 §4).
 // Click-Commit applies only to the picker ITEMS; a tap in the picker must not
 // commit/close the split form (ADR 0005). All arithmetic/validation flows
@@ -38,12 +38,17 @@ let private targetLabel (line: SplitDraftLine) : string =
     | Some Uncategorized -> "Ohne Kategorie"
     | None -> "Kategorie oder Konto…"
 
-let private isTransfer (line: SplitDraftLine) : bool =
+let private lineCategory (line: SplitDraftLine) : YnabCategoryId option =
     match line.Target with
-    | Some (ToTransfer _) -> true
-    | _ -> false
+    | Some (ToCategory (id, _)) -> Some id
+    | _ -> None
 
-/// One editable split line: target picker buttons, amount, remove.
+let private lineAccount (line: SplitDraftLine) : YnabAccountId option =
+    match line.Target with
+    | Some (ToTransfer (id, _)) -> Some id
+    | _ -> None
+
+/// One editable split line: target field, amount, remove.
 /// `autoAmount` is the live remainder shown (read-only) for an auto-remainder
 /// ("Rest") line — the cashback category line the user does not type into.
 let private splitLineRow (index: int) (line: SplitDraftLine) (dispatch: Msg -> unit) =
@@ -51,27 +56,15 @@ let private splitLineRow (index: int) (line: SplitDraftLine) (dispatch: Msg -> u
         prop.className "split-line"
         prop.key (string index)
         prop.children [
-            // Target chooser: a category button + a transfer button. Tapping
-            // either opens the matching layered picker for THIS line.
-            Html.div [
-                prop.className "split-target-row"
-                prop.children [
-                    Html.button [
-                        prop.className (
-                            match line.Target with
-                            | Some _ -> "qa-cat-field selected"
-                            | None -> "qa-cat-field")
-                        prop.onClick (fun _ -> dispatch (OpenSplitCategoryPicker index))
-                        prop.text (targetLabel line)
-                    ]
-                    Html.button [
-                        prop.className (if isTransfer line then "split-transfer-btn active" else "split-transfer-btn")
-                        prop.title "Transfer-Konto wählen"
-                        prop.ariaLabel "Transfer-Konto wählen"
-                        prop.onClick (fun _ -> dispatch (OpenSplitAccountPicker index))
-                        prop.children [ Icons.sync Icons.SM Icons.NeonTeal ]
-                    ]
-                ]
+            // The one target field: opens the shared picker for THIS line.
+            Html.button [
+                prop.className (
+                    match line.Target with
+                    | Some _ -> "qa-cat-field selected"
+                    | None -> "qa-cat-field")
+                prop.custom ("data-testid", $"import-split-target-{index}")
+                prop.onClick (fun _ -> dispatch (OpenSplitTargetPicker index))
+                prop.text (targetLabel line)
             ]
             // Amount (positive magnitude, editable) + a per-line "Rest" button
             // that fills the leftover so the split balances (ynab-003) + remove.
@@ -126,36 +119,32 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
         let balanced = remainder = 0m
         let saveEnabled = canSaveSplits state
 
-        let categoryOptions : BottomSheet.CategoryPickerOption list =
-            model.Categories
-            |> List.map (fun cat ->
-                let (YnabCategoryId id) = cat.Id
-                { Id = id.ToString()
-                  Label = $"{cat.GroupName}: {cat.Name}"
-                  Available = cat.Available })
-
-        // Transfer-target picker: ONLY open on-budget accounts (AC 4), via the
-        // shared `openOnBudgetAccounts` filter (no client reimplementation).
-        let accountOptions =
-            openOnBudgetAccounts model.Accounts
-            |> List.map (fun acc ->
-                let (YnabAccountId id) = acc.Id
-                (id.ToString(), acc.Name))
-
-        let recentCats =
-            model.RecentlyUsedCategoryIds
-            |> List.map (fun (YnabCategoryId guid) -> guid.ToString())
-
-        // Which line a picker is open for (so the commit targets the right line).
-        let pickerLineIndex =
+        // Which line the picker is open for (so the commit targets the right line).
+        let pickerLine =
             match state.ActivePicker with
-            | CategoryPickerFor i | AccountPickerFor i -> Some i
+            | TargetPickerFor i -> state.Lines |> List.tryItem i |> Option.map (fun line -> i, line)
             | NoPicker -> None
 
-        let categoryPickerOpen =
-            match state.ActivePicker with CategoryPickerFor _ -> true | _ -> false
-        let accountPickerOpen =
-            match state.ActivePicker with AccountPickerFor _ -> true | _ -> false
+        // Transfer targets: ONLY open on-budget accounts (AC 4), via the shared
+        // `openOnBudgetAccounts` filter (no client reimplementation).
+        let pickerProps : CategoryPicker.CategoryPickerProps =
+            { Categories = model.Categories
+              Current = pickerLine |> Option.bind (snd >> lineCategory)
+              Suggested = []
+              Recent = model.RecentlyUsedCategoryIds
+              Accounts = openOnBudgetAccounts model.Accounts
+              CurrentAccount = pickerLine |> Option.bind (snd >> lineAccount)
+              OfferWithout = false
+              StandLabel = None
+              LoadState = CategoryPicker.PickerReady
+              OnRetry = ignore
+              OnSelect =
+                fun choice ->
+                    match pickerLine, choice with
+                    | Some (i, _), CategoryPicker.ChoseCategory (Some id) -> dispatch (SelectSplitCategory (i, id))
+                    | Some (i, _), CategoryPicker.ChoseAccount id -> dispatch (SelectSplitAccount (i, id))
+                    | _ -> dispatch CloseSplitPicker
+              OnClose = fun () -> dispatch CloseSplitPicker }
 
         React.fragment [
             BottomSheet.view
@@ -219,27 +208,6 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
                         ]
                 ]
 
-            // Layered category picker (over the split form, one level deep)
-            BottomSheet.categoryPickerLayered
-                categoryPickerOpen
-                ""
-                categoryOptions
-                []
-                recentCats
-                (fun catId ->
-                    match pickerLineIndex, System.Guid.TryParse catId with
-                    | Some i, (true, guid) -> dispatch (SelectSplitCategory (i, YnabCategoryId guid))
-                    | _ -> dispatch CloseSplitPicker)
-                (fun () -> dispatch CloseSplitPicker)
-
-            // Layered transfer-account picker (open on-budget accounts only)
-            BottomSheet.accountPickerLayered
-                accountPickerOpen
-                "Transfer-Konto wählen"
-                accountOptions
-                (fun accId ->
-                    match pickerLineIndex, System.Guid.TryParse accId with
-                    | Some i, (true, guid) -> dispatch (SelectSplitAccount (i, YnabAccountId guid))
-                    | _ -> dispatch CloseSplitPicker)
-                (fun () -> dispatch CloseSplitPicker)
+            // Layered target picker (over the split form, one level deep)
+            CategoryPicker.sheetLayered pickerLine.IsSome None pickerProps
         ]

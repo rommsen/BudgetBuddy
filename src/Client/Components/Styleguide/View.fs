@@ -961,16 +961,19 @@ let private CategoryPickerSingleDemo () =
           Current = current
           Suggested = [ YnabCategoryId (guidOf 1); YnabCategoryId (guidOf 3); YnabCategoryId (guidOf 2) ]
           Recent = []
+          Accounts = []
+          CurrentAccount = None
+          OfferWithout = true
           StandLabel = Some "Stand 14:02"
           LoadState = CategoryPicker.PickerReady
           OnRetry = ignore
           OnSelect =
-            fun choice ->
+            CategoryPicker.categoryChoice (fun choice ->
                 selectCounter.current <- selectCounter.current + 1
                 setSelectCount selectCounter.current
                 setCurrent choice
                 setChosenText (nameOf choice)
-                close ()
+                close ())
           OnClose = close }
 
     section "26. Kategorie-Picker (Einfachauswahl)" [
@@ -1082,15 +1085,15 @@ let private CategoryPickerSingleDemo () =
         ]
     ]
 
-/// Split-Editor (ledger-pafkp): Summe, Zeilen, Knopfzeile "Zeile hinzufügen" und "Barabhebung", Fußleisten und die Konto-Auswahl
-/// für das Übertrag-Ziel. Erfundene Beispieldaten, Zustand lokal.
+/// Split-Editor (ledger-pafkp): Summe, Zeilen, Knopfzeile "Zeile hinzufügen" und "Barabhebung", Fußleisten und der
+/// gemeinsame Ziel-Picker mit dem Abschnitt "Übertrag auf Konto" (design-system-bym4m). Erfundene Beispieldaten, Zustand lokal.
 [<ReactComponent>]
 let private SplitEditorDemo () =
     let amountA, setAmountA = React.useState "23,40"
     let amountB, setAmountB = React.useState ""
-    let accountPopoverOpen, setAccountPopoverOpen = React.useState false
-    let accountSheetOpen, setAccountSheetOpen = React.useState false
-    let chosenAccount, setChosenAccount = React.useState ""
+    let targetPopoverOpen, setTargetPopoverOpen = React.useState false
+    let targetSheetOpen, setTargetSheetOpen = React.useState false
+    let chosenTarget, setChosenTarget = React.useState ""
 
     let total = 81.90m
     let parse (text: string) =
@@ -1110,11 +1113,38 @@ let private SplitEditorDemo () =
               OnBudget = true
               Closed = false })
 
-    let accountProps (close: unit -> unit) : AccountPicker.AccountPickerProps =
-        { Accounts = accounts
+    let categories : YnabCategory list =
+        [ "Möbel"; "Haushalt"; "Lebensmittel" ]
+        |> List.mapi (fun i name ->
+            { Id = YnabCategoryId (Guid.Parse ("00000000-0000-0000-0000-" + (string (3100 + i)).PadLeft(12, '0')))
+              Name = name
+              GroupName = "Alltag"
+              Available = Some { Amount = 120m; Currency = "EUR" }
+              Hidden = false })
+
+    let targetProps (close: unit -> unit) : CategoryPicker.CategoryPickerProps =
+        { Categories = categories
+          Current = None
+          Suggested = []
+          Recent = []
+          Accounts = accounts
+          CurrentAccount = None
+          OfferWithout = true
+          StandLabel = None
+          LoadState = CategoryPicker.PickerReady
+          OnRetry = ignore
           OnSelect =
-            fun id ->
-                setChosenAccount (accounts |> List.find (fun a -> a.Id = id) |> fun a -> a.Name)
+            fun choice ->
+                match choice with
+                | CategoryPicker.ChoseAccount id ->
+                    accounts
+                    |> List.tryFind (fun a -> a.Id = id)
+                    |> Option.iter (CategoryPicker.accountLabel >> setChosenTarget)
+                | CategoryPicker.ChoseCategory (Some id) ->
+                    categories
+                    |> List.tryFind (fun c -> c.Id = id)
+                    |> Option.iter (fun c -> setChosenTarget c.Name)
+                | CategoryPicker.ChoseCategory None -> setChosenTarget CategoryPicker.withoutCategoryLabel
                 close ()
           OnClose = close }
 
@@ -1122,13 +1152,11 @@ let private SplitEditorDemo () =
         { Index = index
           TargetLabel = label
           TargetChosen = chosen
-          IsTransfer = false
           AmountText = amount
           Memo = ""
           Disabled = false
           CanRemove = true
-          OnPickCategory = ignore
-          OnPickAccount = fun () -> setAccountPopoverOpen (not accountPopoverOpen)
+          OnPickTarget = fun () -> setTargetPopoverOpen (not targetPopoverOpen)
           OnAmount = setAmount
           OnMemo = ignore
           OnRest = fun () -> setAmount (Components.Ledger.SplitEditor.amountText (total - parse amountA - parse amountB + parse amount))
@@ -1138,8 +1166,10 @@ let private SplitEditorDemo () =
         note "Der Editor im Buchungs-Detail (Ablauf 4): Gesamtbetrag und Rest über den Zeilen, je Zeile \
               Kategorie oder Übertrag-Ziel, Betrag mit Rest-Knopf und Memo. Der Rest ist neutral bei \
               0,00 € und rot sonst, Speichern ist erst bei Rest 0,00 € aktiv, Zeile hinzufügen \
-              dann ausgegraut. Genau eine primäre Aktion (Speichern). Das Übertrag-Ziel wählt die \
-              Konto-Auswahl, am PC als Popover, am Handy als zweites Sheet. ADR 0005, ADR 0006, ADR 0049."
+              dann ausgegraut. Genau eine primäre Aktion (Speichern). Das Ziel einer Zeile wählt ein \
+              einziger Picker: Kategorien und darunter der Abschnitt Übertrag auf Konto, die Suche läuft \
+              über beides, das Präfix Konto: zeigt nur Konten. Am PC als Popover, am Handy als zweites \
+              Sheet. ADR 0005, ADR 0006, ADR 0049."
         Html.div [
             prop.custom ("data-ds-demo", "split-editor")
             prop.className "max-w-md rounded-xl border border-border-subtle overflow-hidden"
@@ -1153,7 +1183,7 @@ let private SplitEditorDemo () =
                     prop.className "relative"
                     prop.children [
                         SplitEditor.line (lineProps 0 "Wohnen: Möbel" true amountA setAmountA)
-                        AccountPicker.popoverInPanel accountPopoverOpen (accountProps (fun () -> setAccountPopoverOpen false))
+                        CategoryPicker.popoverInPanel targetPopoverOpen (targetProps (fun () -> setTargetPopoverOpen false))
                     ]
                 ]
                 SplitEditor.line (lineProps 1 "Kategorie oder Konto wählen" false amountB setAmountB)
@@ -1163,12 +1193,12 @@ let private SplitEditorDemo () =
         ]
         row [
             Html.span [
-                prop.custom ("data-ds-demo", "account-picker-sheet-trigger")
-                prop.children [ Button.secondary "Konto-Auswahl als Sheet (Handy)" (fun () -> setAccountSheetOpen true) ]
+                prop.custom ("data-ds-demo", "split-target-picker-sheet-trigger")
+                prop.children [ Button.secondary "Ziel-Picker als Sheet (Handy)" (fun () -> setTargetSheetOpen true) ]
             ]
-            if chosenAccount <> "" then Badge.info chosenAccount
+            if chosenTarget <> "" then Badge.info chosenTarget
         ]
-        AccountPicker.sheetLayered accountSheetOpen (accountProps (fun () -> setAccountSheetOpen false))
+        CategoryPicker.sheetLayered targetSheetOpen None (targetProps (fun () -> setTargetSheetOpen false))
         Html.div [
             prop.custom ("data-ds-demo", "split-editor-mobile-save")
             prop.className "max-w-sm"

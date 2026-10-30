@@ -652,14 +652,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
             { model with SplitEdit = Some { splitEdit with Lines = newLines } }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
-    | OpenSplitCategoryPicker index ->
+    | OpenSplitTargetPicker index ->
         match model.SplitEdit with
-        | Some splitEdit -> { model with SplitEdit = Some { splitEdit with ActivePicker = CategoryPickerFor index } }, Cmd.none, NoOp
-        | None -> model, Cmd.none, NoOp
-
-    | OpenSplitAccountPicker index ->
-        match model.SplitEdit with
-        | Some splitEdit -> { model with SplitEdit = Some { splitEdit with ActivePicker = AccountPickerFor index } }, Cmd.none, NoOp
+        | Some splitEdit -> { model with SplitEdit = Some { splitEdit with ActivePicker = TargetPickerFor index } }, Cmd.none, NoOp
         | None -> model, Cmd.none, NoOp
 
     | CloseSplitPicker ->

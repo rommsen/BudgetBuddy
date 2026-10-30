@@ -1,8 +1,8 @@
 /// Bausteine des Split-Editors im Kassenbuch-Detail (ledger-pafkp, ADR 0006, ADR 0049): die Summe
 /// aus Gesamtbetrag und Rest, die Zeile mit Ziel, Betrag, "Rest" und Memo, "Zeile hinzufügen" und
 /// die Fußleiste. Rein darstellend: Texte und Zustände liefert der Aufrufer, die Rechnung (Rest,
-/// Speichern-Sperre) steht in `Components.Ledger.SplitEditor`. Die optische Vorlage ist der
-/// Import-Split-Editor (`SplitSheet.fs`), der unberührt bleibt.
+/// Speichern-Sperre) steht in `Components.Ledger.SplitEditor`. Das Ziel einer Zeile wählt der
+/// gemeinsame `CategoryPicker` (Kategorie oder Konto, design-system-bym4m).
 module Client.DesignSystem.SplitEditor
 
 open Feliz
@@ -28,7 +28,6 @@ let cashbackTitle = "Zeile für einen Übertrag aufs Bar-Konto"
 let restButtonLabel = "Rest"
 let restButtonTitle = "Restbetrag einsetzen"
 let removeLineLabel = "Zeile entfernen"
-let transferButtonLabel = "Übertrag-Ziel wählen"
 let memoPlaceholder = "Memo"
 let amountPlaceholder = "0,00"
 let saveLabel = "Speichern"
@@ -82,13 +81,11 @@ type LineProps = {
     /// Beschriftung des Ziels (Kategorie, "→ Konto" oder die Aufforderung zu wählen)
     TargetLabel: string
     TargetChosen: bool
-    IsTransfer: bool
     AmountText: string
     Memo: string
     Disabled: bool
     CanRemove: bool
-    OnPickCategory: unit -> unit
-    OnPickAccount: unit -> unit
+    OnPickTarget: unit -> unit
     OnAmount: string -> unit
     OnMemo: string -> unit
     OnRest: unit -> unit
@@ -102,15 +99,15 @@ let private targetButton (props: LineProps) : ReactElement =
         prop.custom ("data-testid", $"split-target-{props.Index}")
         prop.disabled props.Disabled
         prop.className (
-            $"flex min-h-11 min-w-0 flex-1 items-center rounded-lg border {Borders.default'} {Backgrounds.elevated} " +
+            $"flex min-h-11 w-full min-w-0 items-center rounded-lg border {Borders.default'} {Backgrounds.elevated} " +
             $"px-3 py-2 text-left {FontSizes.sm} {color} truncate transition-colors touch-manipulation " +
             "hover:border-neon-teal disabled:opacity-50 disabled:cursor-not-allowed"
         )
-        prop.onClick (fun _ -> props.OnPickCategory ())
+        prop.onClick (fun _ -> props.OnPickTarget ())
         prop.text props.TargetLabel
     ]
 
-/// Eine Zeile: Ziel (Kategorie-Feld und Knopf für den Übertrag), Betrag mit "Rest" und Entfernen,
+/// Eine Zeile: das Ziel-Feld (Kategorie oder Konto), Betrag mit "Rest" und Entfernen,
 /// darunter das Memo.
 let line (props: LineProps) : ReactElement =
     Html.div [
@@ -118,21 +115,7 @@ let line (props: LineProps) : ReactElement =
         prop.custom ("data-testid", $"split-line-{props.Index}")
         prop.className $"flex flex-col gap-2 px-4 py-3 border-b {Borders.subtle}"
         prop.children [
-            Html.div [
-                prop.className "flex items-center gap-2"
-                prop.children [
-                    targetButton props
-                    Button.view
-                        { Button.defaultProps with
-                            Variant = (if props.IsTransfer then Button.Secondary else Button.Ghost)
-                            Size = Button.Small
-                            IsDisabled = props.Disabled
-                            Icon = Some (Icons.sync Icons.SM Icons.NeonTeal)
-                            OnClick = props.OnPickAccount
-                            Title = Some transferButtonLabel
-                            ClassName = Some "shrink-0" }
-                ]
-            ]
+            targetButton props
             Html.div [
                 prop.className "flex items-center gap-2"
                 prop.children [

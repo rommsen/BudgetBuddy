@@ -20,16 +20,14 @@ type SplitDraftLine = {
 }
 
 /// Which picker (if any) is layered over the split form sheet, and for which line.
-/// Only one is open at a time, one level deep (ADR 0005 §4).
+/// One level deep (ADR 0005 §4).
 type SplitPicker =
     | NoPicker
-    /// Category picker open for the draft line at this index.
-    | CategoryPickerFor of lineIndex: int
-    /// Transfer-account picker open for the draft line at this index.
-    | AccountPickerFor of lineIndex: int
+    /// Target picker (category or transfer account) open for the draft line at this index.
+    | TargetPickerFor of lineIndex: int
 
 /// Split editing state for a single transaction. The editor is a FORM (explicit
-/// Save/Cancel), not a click-commit picker — the layered category/account picker
+/// Save/Cancel), not a click-commit picker — the layered target picker
 /// commits on click, but the form persists only on Save (ADR 0005, ynab-002).
 type SplitEditState = {
     TransactionId: TransactionId
@@ -281,9 +279,8 @@ type Msg =
     /// Update the raw amount text of the draft line at index.
     | UpdateSplitAmountText of int * string
     | UpdateSplitMemo of int * string option  // index, memo
-    /// Open/close the layered category or account picker over the split form.
-    | OpenSplitCategoryPicker of int
-    | OpenSplitAccountPicker of int
+    /// Open/close the layered target picker over the split form.
+    | OpenSplitTargetPicker of int
     | CloseSplitPicker
     /// Commit a category target onto the draft line at index (from the picker).
     | SelectSplitCategory of lineIndex: int * YnabCategoryId

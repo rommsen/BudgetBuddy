@@ -125,6 +125,11 @@ sofort, es gibt kein „Übernehmen“. Pfeile bewegen, Enter wählt, Esc schlie
 Ohne Kategorien-Liste ersetzt ein Hinweis die Zeilen (`LoadState`): „Kategorien werden geladen“ mit
 Spinner, nach einem Fehler „Kategorien konnten nicht geladen werden“ mit dem Knopf „Erneut versuchen“.
 Beim Nachladen mit vorhandener Liste bleibt der Picker unverändert.
+Ziel einer Split-Zeile (design-system-bym4m): derselbe Picker mit `Accounts` (Kassenbuch und Import). Unter
+den Kategorien steht der Abschnitt „Übertrag auf Konto“ mit Zeilen „→ Name“, die Suche läuft über beides,
+das Präfix „Konto:“ zeigt nur die Konten. Konten stehen nie unter „Vorgeschlagen“ oder „Zuletzt verwendet“,
+ein Ladehinweis lässt sie wählbar. Ohne `Accounts` zeigt der Picker keine Konten. Es gibt keinen eigenen
+Konto-Picker und kein Sync-Symbol am Ziel-Feld.
 `CategoryPicker.CategoryChangeCard.view` ist die Karte „Budget nach dem Wechsel“ (alter Wert
 durchgestrichen und gedämpft, Pfeil, neuer Wert), eine leere Liste rendert nichts. Beide stehen
 in `/styleguide` unter „26. Kategorie-Picker (Einfachauswahl)“.

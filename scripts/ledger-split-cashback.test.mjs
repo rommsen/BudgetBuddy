@@ -5,7 +5,7 @@
 // (Muster wie `ledger-split-editor.test.mjs`, nie die echte Entwicklungsdatenbank): frisch geöffnet
 // ergibt der Knopf die Kategorie der Buchung plus einen Übertrag aufs Quick-Add-Konto, die Beträge
 // bleiben leer, der Ausgleich geht über "Rest", gespeichert wird über `setEntrySplits`. Ohne
-// Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl geht auf.
+// Quick-Add-Konto bleibt das Ziel leer und der Ziel-Picker geht auf.
 //
 // Ausführen: node --test scripts/ledger-split-cashback.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -113,7 +113,7 @@ async function openEditorAtPc(page) {
 }
 
 // Der Abruf des Quick-Add-Kontos und der Konten läuft beim Öffnen; der Knopf löst das Ziel erst
-// beim Klick auf, deshalb wird hier auf beide Antworten gewartet (Konto-Auswahl zeigt die Liste).
+// beim Klick auf, deshalb wird hier auf beide Antworten gewartet (Ziel-Picker zeigt die Liste).
 async function settle(page) {
   await page.waitForTimeout(400);
 }
@@ -162,7 +162,7 @@ test("PC: Barabhebung belegt die erste Zeile ohne Ziel, eine weitere Betätigung
   await context.close();
 });
 
-test("PC: Ohne Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl geht auf", async () => {
+test("PC: Ohne Quick-Add-Konto bleibt das Ziel leer und der Ziel-Picker geht auf", async () => {
   state.saveCalls.length = 0;
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await open(context, null);
@@ -170,7 +170,7 @@ test("PC: Ohne Quick-Add-Konto bleibt das Ziel leer und die Konto-Auswahl geht a
   await settle(page);
   await panel(page).getByRole("button", { name: "Barabhebung", exact: true }).click();
   assert.match(await panel(page).locator('[data-testid="split-target-1"]').textContent(), /wählen/, "Ziel leer");
-  await panel(page).locator('[data-testid="account-picker"]').waitFor();
+  await panel(page).locator('[data-testid="category-picker-accounts"]').waitFor();
   await context.close();
 });
 
