@@ -5,6 +5,430 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Modeling / Dismissed: ynab-sync-wsb8m
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ynab-sync-wsb8m - "Der Kategorien-Decoder ist im Test kopiert statt aus dem Produktionscode aufgerufen" (ynab-sync)
+
+---
+
+## 2026-10-30 07:27 -- Modeling / Dismissed: ynab-sync-e71p7
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ynab-sync-e71p7 - "YnabClientTests baut den Transaktions-Encoder im Test nach" (ynab-sync)
+
+---
+
+## 2026-10-30 07:27 -- Modeling / Dismissed: ynab-sync-cd9t5
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ynab-sync-cd9t5 - "YnabClientTests rechnet den PayeeOverride im Test nach" (ynab-sync)
+
+---
+
+## 2026-10-30 07:27 -- Modeling / Dismissed: ynab-sync-gwtm0
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ynab-sync-gwtm0 - "Kategorie entfernen auf der Quick-Add-Seite ist 42 px breit und eine Textglyphe" (ynab-sync)
+
+---
+
+## 2026-10-30 07:27 -- Modeling / Dismissed: ynab-sync-x708m
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- ynab-sync-x708m - "Die Quick-Add-Seite baut den Formularzustand in der View und schickt ihn ungeprüft ins update" (ynab-sync)
+
+---
+
+## 2026-10-30 07:27 -- Modeling / Dismissed: design-system-zpq7t
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-zpq7t - "ADR 0011 nennt positive Available-Beträge grün, Code und Styleguide färben sie neutral" (design-system)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: design-system-nhn83
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-nhn83 - "Kontozeilen im Account-Picker sind nicht fokussierbar und kürzen lange Namen nicht" (design-system)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: design-system-yw9bs
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-yw9bs - "Die Chips Vorgeschlagen und Zuletzt verwendet im Kategorie-Sheet sind etwa 33 px hoch" (design-system)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: design-system-qhw6y
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-qhw6y - "Der Schließen-Knopf aller Bottom Sheets ist 32 px groß" (design-system)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: design-system-g5q09
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-g5q09 - "Der Schließen-Knopf der Bottom Sheets ist ein eigenes Inline-SVG" (design-system)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: design-system-cr1n0
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- design-system-cr1n0 - "BottomSheet.categoryPicker ist eine zweite Kategorieauswahl neben CategoryPicker, ohne Tastatur und ohne Ohne Kategorie" (design-system)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-qrdh4
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-qrdh4 - "Speicherzustand des Regel-Formulars im Zuweisungs-Dialog ist ein Bool-Flag" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-e4e1z
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-e4e1z - "Die Auswahl aller sichtbaren Import-Zeilen nutzt eine ungetestete Kopie des Filters" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-cf7b3
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-cf7b3 - "Aufgeteilte Buchungen landen im Import-Filter unter ohne Kategorie" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-bqhd3
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-bqhd3 - "Der Kategorie-Picker im Import zeigt nie Vorschläge zum Payee" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-njams
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-njams - "Knöpfe im Split-Sheet des Imports sind schmaler als 48 px und nutzen Textglyphen" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-m7b58
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-m7b58 - "Das Split-Sheet des Imports baut die Split-Bausteine des Design Systems nach" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-e7hna
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-e7hna - "Speichern im Split-Sheet des Imports bleibt während des Aufrufs aktiv, ein Doppeltipp schickt zwei Aufrufe" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-qcx84
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-qcx84 - "Welche Import-Buchung den Kategorie-Picker offen hat, liegt außerhalb des Models" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: banking-import-smbe4
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-smbe4 - "Ein Fehler beim Laden der Kategorien im Import lässt alle Kategorie-Picker stumm leer" (banking-import)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-k7vt7
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-k7vt7 - "Englischer Platzhalter im Regel-Dialog" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-b38ze
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-b38ze - "Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-kwe4r
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-kwe4r - "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-mq0pf
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-mq0pf - "Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-hdx88
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-hdx88 - "Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-kpsp8
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-kpsp8 - "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-sh0cp
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-sh0cp - "Der Regel-Export startet den Download per JS.eval direkt im update" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-xh9rw
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-xh9rw - "Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-mnmyg
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-mnmyg - "Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-qjmrm
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-qjmrm - "Ein Netzwerkfehler beim Regel testen erscheint als ungültiges Muster" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-mx09q
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-mx09q - "Eine späte Antwort von Regel testen zeigt passt für eine inzwischen geänderte Eingabe" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-p7s85
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-p7s85 - "Ergebnis von Regel testen ist ein Anzeigetext mit Emoji, den die View wieder zerlegt" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-g7j7q
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-g7j7q - "Speicherzustand des Regel-Dialogs ist ein Bool-Flag" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-dr3v5
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-dr3v5 - "Regel-Dialog zeigt bei fehlgeschlagenem Kategorien-Laden oder Deep-Link auf /rules eine leere Liste mit falschem Hinweis" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-fbj8w
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-fbj8w - "Fehlgeschlagenes Umsortieren der Regeln hat keinen Client-update-Test" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-m61mq
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-m61mq - "Eine deaktivierte Regel ist im Persistenz-Rundlauf nicht abgesichert" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-h88qx
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-h88qx - "Ablehnung eines kaputten Regex beim Anlegen und Ändern einer Regel ist ungetestet" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-e8e56
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-e8e56 - "Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-jnyk8
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-jnyk8 - "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-vzh1m
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-vzh1m - "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-pk04j
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-pk04j - "Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-w32b3
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-w32b3 - "Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-s2cdw
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-s2cdw - "Kategorie-Ids in YnabTransaction und OrderIdSuggestion sind nackte Strings statt YnabCategoryId" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-tg9fw
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-tg9fw - "Eine nicht lesbare Kategorie-Id aus der YNAB-Historie lässt den Order-Id-Abgleich und damit confirmTan abbrechen" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-xn2sb
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-xn2sb - "Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-a510t
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-a510t - "Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-b2576
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-b2576 - "Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-syy3j
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-syy3j - "Regeln mit unbekannter Kategorie werden mit dem Platzhalternamen Unknown gespeichert" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-k4xp9
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-k4xp9 - "Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-m856w
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-m856w - "Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-aemz9
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-aemz9 - "Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-q3960
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-q3960 - "Ein gesetzter PayeeOverride einer Regel lässt sich nicht mehr entfernen" (categorization)
+
+---
+
+## 2026-10-30 07:26 -- Modeling / Dismissed: categorization-p86m3
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- categorization-p86m3 - "Bestandsreview categorization: niedrige Befunde" (categorization)
+
+---
+
 ## 2026-10-30 07:13 -- Task completed (verification skipped): infrastructure-gmx27 - "learn-Skill global anlegen, Auto-Memory triagieren und abschalten"
 
 **Type:** Work / Task completion

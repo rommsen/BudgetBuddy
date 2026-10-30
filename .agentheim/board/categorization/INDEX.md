@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 33
+- **Backlog:** 0
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,39 +35,6 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **categorization-p86m3** — "Bestandsreview categorization: niedrige Befunde" (chore) — `backlog/categorization-p86m3-bestandsreview-categorization-niedrige-befunde.md`
-- **categorization-k7vt7** — "Englischer Platzhalter im Regel-Dialog" (bug) — `backlog/categorization-k7vt7-englischer-platzhalter-im-regel-dialog.md`
-- **categorization-b38ze** — "Der Regel-Dialog läuft am Handy als zentriertes Modal mit Dropdown für die Kategorie" (refactor) — `backlog/categorization-b38ze-der-regel-dialog-laeuft-am-handy-als.md`
-- **categorization-kwe4r** — "Das Menü der Regelseite öffnet nur über Fokus und seine Einträge sind nicht per Tastatur bedienbar" (bug) — `backlog/categorization-kwe4r-das-menue-der-regelseite-oeffnet-nur-ueber.md`
-- **categorization-mq0pf** — "Der Overflow-Knopf der Regelseite ist 32 px groß und hat keine Beschriftung" (bug) — `backlog/categorization-mq0pf-der-overflow-knopf-der-regelseite-ist-32.md`
-- **categorization-hdx88** — "Tote Nachrichten im Regel-Modul: ToggleRuleEnabled, RuleToggled und ImportRulesStart" (chore) — `backlog/categorization-hdx88-tote-nachrichten-im-regel-modul-toggleruleenabled-ruletoggled.md`
-- **categorization-kpsp8** — "Dieselbe Regeldatei lässt sich kein zweites Mal importieren, weil die View die Datei selbst liest" (bug) — `backlog/categorization-kpsp8-dieselbe-regeldatei-laesst-sich-kein-zweites-mal.md`
-- **categorization-sh0cp** — "Der Regel-Export startet den Download per JS.eval direkt im update" (refactor) — `backlog/categorization-sh0cp-der-regel-export-startet-den-download-per.md`
-- **categorization-xh9rw** — "Der Timeout der Lösch-Bestätigung läuft über Cmd.OfAsync.perform" (refactor) — `backlog/categorization-xh9rw-der-timeout-der-loesch-bestaetigung-laeuft-ueber.md`
-- **categorization-mnmyg** — "Neue Regeln bekommen Priorität 1, wenn die Regelliste nicht geladen ist" (bug) — `backlog/categorization-mnmyg-neue-regeln-bekommen-prioritaet-1-wenn-die.md`
-- **categorization-qjmrm** — "Ein Netzwerkfehler beim Regel testen erscheint als ungültiges Muster" (bug) — `backlog/categorization-qjmrm-ein-netzwerkfehler-beim-regel-testen-erscheint-als.md`
-- **categorization-mx09q** — "Eine späte Antwort von Regel testen zeigt passt für eine inzwischen geänderte Eingabe" (bug) — `backlog/categorization-mx09q-eine-spaete-antwort-von-regel-testen-zeigt.md`
-- **categorization-p7s85** — "Ergebnis von Regel testen ist ein Anzeigetext mit Emoji, den die View wieder zerlegt" (refactor) — `backlog/categorization-p7s85-ergebnis-von-regel-testen-ist-ein-anzeigetext.md`
-- **categorization-g7j7q** — "Speicherzustand des Regel-Dialogs ist ein Bool-Flag" (refactor) — `backlog/categorization-g7j7q-speicherzustand-des-regel-dialogs-ist-ein-bool.md`
-- **categorization-dr3v5** — "Regel-Dialog zeigt bei fehlgeschlagenem Kategorien-Laden oder Deep-Link auf /rules eine leere Liste mit falschem Hinweis" (bug) — `backlog/categorization-dr3v5-regel-dialog-zeigt-bei-fehlgeschlagenem-kategorien-laden.md`
-- **categorization-fbj8w** — "Fehlgeschlagenes Umsortieren der Regeln hat keinen Client-update-Test" (chore) — `backlog/categorization-fbj8w-fehlgeschlagenes-umsortieren-der-regeln-hat-keinen-client.md`
-- **categorization-m61mq** — "Eine deaktivierte Regel ist im Persistenz-Rundlauf nicht abgesichert" (chore) — `backlog/categorization-m61mq-eine-deaktivierte-regel-ist-im-persistenz-rundlauf.md`
-- **categorization-h88qx** — "Ablehnung eines kaputten Regex beim Anlegen und Ändern einer Regel ist ungetestet" (chore) — `backlog/categorization-h88qx-ablehnung-eines-kaputten-regex-beim-anlegen-und.md`
-- **categorization-e8e56** — "Payee- und Memo-Regeln haben keine Gegenprobe gegen das jeweils andere Feld" (chore) — `backlog/categorization-e8e56-payee-und-memo-regeln-haben-keine-gegenprobe.md`
-- **categorization-jnyk8** — "Sammel-Kategorisieren, Aufteilen und Aufteilung entfernen haben keine API-Adapter-Tests" (chore) — `backlog/categorization-jnyk8-sammel-kategorisieren-aufteilen-und-aufteilung-entfernen-haben.md`
-- **categorization-vzh1m** — "Manuelles Kategorisieren im Import hat keinen Test auf API-Adapter-Ebene" (chore) — `backlog/categorization-vzh1m-manuelles-kategorisieren-im-import-hat-keinen-test.md`
-- **categorization-pk04j** — "Sammel-Kategorisierung überträgt die Kategorie nicht auf Buchungen mit derselben Order-Id" (bug) — `backlog/categorization-pk04j-sammel-kategorisierung-uebertraegt-die-kategorie-nicht-auf.md`
-- **categorization-w32b3** — "Fehlermeldungen der Regeln und Splits erscheinen beim Nutzer auf Englisch" (refactor) — `backlog/categorization-w32b3-fehlermeldungen-der-regeln-und-splits-erscheinen-beim.md`
-- **categorization-s2cdw** — "Kategorie-Ids in YnabTransaction und OrderIdSuggestion sind nackte Strings statt YnabCategoryId" (refactor) — `backlog/categorization-s2cdw-kategorie-ids-in-ynabtransaction-und-orderidsuggestion-sind.md`
-- **categorization-tg9fw** — "Eine nicht lesbare Kategorie-Id aus der YNAB-Historie lässt den Order-Id-Abgleich und damit confirmTan abbrechen" (bug) — `backlog/categorization-tg9fw-eine-nicht-lesbare-kategorie-id-aus-der.md`
-- **categorization-xn2sb** — "Regel testen meldet ein ungültiges Muster als kein Treffer, und der Treffer-Fall ist ungetestet" (bug) — `backlog/categorization-xn2sb-regel-testen-meldet-ein-ungueltiges-muster-als.md`
-- **categorization-a510t** — "Bei gleicher Priorität ist offen, welche Regel gewinnt, und die Reihenfolge ist ungetestet" (bug) — `backlog/categorization-a510t-bei-gleicher-prioritaet-ist-offen-welche-regel.md`
-- **categorization-b2576** — "Regel-Import läuft ohne Transaktion und ohne die Regel-Validierung" (bug) — `backlog/categorization-b2576-regel-import-laeuft-ohne-transaktion-und-ohne.md`
-- **categorization-syy3j** — "Regeln mit unbekannter Kategorie werden mit dem Platzhalternamen Unknown gespeichert" (bug) — `backlog/categorization-syy3j-regeln-mit-unbekannter-kategorie-werden-mit-dem.md`
-- **categorization-k4xp9** — "Unbekannte PatternType- und TargetField-Werte aus der Datenbank werden still zu Regex bzw. Combined" (refactor) — `backlog/categorization-k4xp9-unbekannte-patterntype-und-targetfield-werte-aus-der.md`
-- **categorization-m856w** — "Prioritätspfeile der Regelliste sind am Handy 24 mal 20 px groß und liegen neben dem Zeilen-Tap" (bug) — `backlog/categorization-m856w-prioritaetspfeile-der-regelliste-sind-am-handy-24.md`
-- **categorization-aemz9** — "Kategoriewechsel einer Regel speichert bei YNAB-Fehler den alten Kategorienamen" (bug) — `backlog/categorization-aemz9-kategoriewechsel-einer-regel-speichert-bei-ynab-fehler.md`
-- **categorization-q3960** — "Ein gesetzter PayeeOverride einer Regel lässt sich nicht mehr entfernen" (bug) — `backlog/categorization-q3960-ein-gesetzter-payeeoverride-einer-regel-laesst-sich.md`
 <!-- backlog-list:end -->
 
 
