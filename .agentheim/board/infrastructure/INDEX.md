@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 4
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 34
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **infrastructure-mngfn** — "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar" (bug) — `todo/infrastructure-mngfn-einstellungen-secrets-und-formular.md`
 <!-- todo-list:end -->
 
 ### Doing

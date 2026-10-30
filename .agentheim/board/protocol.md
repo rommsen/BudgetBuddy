@@ -5,6 +5,33 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 19:17 -- Modeling / Captured: categorization-f955d - "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
+
+**Type:** Modeling / Capture
+**BC:** categorization
+**Filed to:** todo
+**Summary:** Sammel-Task aus den Reviews: Inline-Regelformular, BC-Grenze zu budgeting, Bedienbarkeit, Testlücken.
+
+---
+
+## 2026-10-30 19:17 -- Modeling / Captured: infrastructure-mngfn - "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** todo
+**Summary:** Sammel-Task aus den Reviews: Secret-Entwürfe, Has-Flags für Username und ClientId, Lesefehler, Tests.
+
+---
+
+## 2026-10-30 19:17 -- Modeling / Captured: budgeting-nfrds - "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Sammel-Task aus den Reviews: Erneut senden, Sheet-Stand, Monat und Eingaben an der API-Grenze, dazu Dialog und Styleguide.
+
+---
+
 ## 2026-10-30 18:54 -- Work session ended
 
 **Type:** Work / Session end

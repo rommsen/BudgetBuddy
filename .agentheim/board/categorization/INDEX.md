@@ -11,13 +11,14 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 0
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 7
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **categorization-f955d** — "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen" (bug) — `todo/categorization-f955d-regelformular-und-regelseite-nachziehen.md`
 <!-- todo-list:end -->
 
 ### Doing
