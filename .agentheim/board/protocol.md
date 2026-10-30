@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Refined: design-system-m65pw - Styleguide-Verweise auf alte CLAUDE.md
+
+**Type:** Modeling / Refine
+**BC:** design-system
+**Status after:** todo
+**Summary:** Zeilennummern korrigiert, Kriterium gegen jeden CLAUDE.md-Verweis im Styleguide ergänzt.
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Promoted: categorization-cgq35 - "Regelseite am Handy und per Tastatur"
 
 **Type:** Modeling / Promote
