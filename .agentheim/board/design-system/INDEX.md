@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 2
+- **Backlog:** 3
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 38
@@ -61,6 +61,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-taytp** — "Kategorie-Picker vereinheitlichen" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 - **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `backlog/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 - **design-system-w3k5d** — "Button.iconOnlyClass erkennt einen Text aus Leerzeichen als Icon-only" (bug) — `backlog/design-system-w3k5d-button-icononlyclass-erkennt-einen-text-aus-leerzeichen-als.md`
 <!-- backlog-list:end -->

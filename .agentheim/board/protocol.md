@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: design-system-taytp - "Kategorie-Picker vereinheitlichen"
+
+**Type:** Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Kategorie-Picker vereinheitlichen
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: categorization-krscs - "Regel-Dialog: Ladezustände, Fehler und Seiteneffekte"
 
 **Type:** Capture
