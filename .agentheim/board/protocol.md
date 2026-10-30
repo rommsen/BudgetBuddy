@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:27 -- Capture / Captured: categorization-mznx3 - "Testlücken und nachgebaute Tests"
+
+**Type:** Capture
+**BC:** categorization
+**Filed to:** backlog
+**Summary:** Testlücken und nachgebaute Tests
+
+---
+
 ## 2026-10-30 07:27 -- Capture / Captured: categorization-hz6vj - "Kategorisieren im Import: Order-Id und Review-Spur"
 
 **Type:** Capture

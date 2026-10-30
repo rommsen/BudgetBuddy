@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 4
+- **Backlog:** 5
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-mznx3** — "Testlücken und nachgebaute Tests" (chore) — `backlog/categorization-mznx3-testluecken-und-nachgebaute-tests.md`
 - **categorization-hz6vj** — "Kategorisieren im Import: Order-Id und Review-Spur" (bug) — `backlog/categorization-hz6vj-kategorisieren-im-import-order-id-und-review.md`
 - **categorization-krscs** — "Regel-Dialog: Ladezustände, Fehler und Seiteneffekte" (refactor) — `backlog/categorization-krscs-regel-dialog-ladezustaende-fehler-und-seiteneffekte.md`
 - **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `backlog/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
