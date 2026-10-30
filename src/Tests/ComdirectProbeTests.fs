@@ -47,6 +47,8 @@ type private Fake() =
     member val RefreshResult : Fake -> Result<Tokens, RefreshFailure> =
         (fun fake -> Ok (tokensValidFor fake.Now 600.)) with get, set
     member val Encryption = true with get, set
+    member val ConfiguredAccount : string option = None with get, set
+    member val FetchedAccounts = ResizeArray<string>() with get
 
     member this.Ports : ProbePorts =
         { Now = fun () -> this.Now
@@ -57,7 +59,10 @@ type private Fake() =
           FetchAccounts = fun state -> async {
               this.DataRounds.Add((this.Now, state.RequestInfo))
               return Ok [ account ] }
-          FetchTransactions = fun _ _ -> async { return Ok [] }
+          FetchTransactions = fun _ accountId -> async {
+              this.FetchedAccounts.Add accountId
+              return Ok [] }
+          ConfiguredAccountId = this.ConfiguredAccount
           SignalPresent = fun () ->
               match this.SignalAfter with
               | Some after -> this.Now >= startTime + after
@@ -215,6 +220,29 @@ let scheduleTests =
                 { fake.Ports with FetchAccounts = fun _ -> async { return Error ComdirectError.SessionExpired } }
             Expect.equal (run Observe failing |> Async.RunSynchronously) Finished "weiter beobachten"
             Expect.exists fake.Log (fun e -> e.Event = "konten" && e.Status = "403") "Status im Protokoll"
+
+        // Regression: Comdirect antwortete live auf alle Kontenpfade mit einem Fehler, die Sonde
+        // rief dadurch nie Umsätze ab, und das Go-Kriterium blieb unmessbar.
+        testCase "bei gescheitertem Kontenabruf holt die Sonde Umsätze über das konfigurierte Konto" <| fun () ->
+            let fake = Fake(ConfiguredAccount = Some "konfiguriert-kuenstlich")
+            let failing =
+                { fake.Ports with FetchAccounts = fun _ -> async { return Error (ComdirectError.NetworkError (404, "No valid accounts endpoint found")) } }
+            Expect.equal (run Observe failing |> Async.RunSynchronously) Finished "Lauf endet regulär"
+            Expect.exists fake.Log (fun e -> e.Event = "konten" && e.Status = "404") "Fehler bleibt im Protokoll"
+            Expect.exists fake.Log (fun e -> e.Event = "umsaetze" && e.Status = "ok") "Umsätze geholt"
+            Expect.all fake.FetchedAccounts (fun id -> id = "konfiguriert-kuenstlich") "konfiguriertes Konto"
+
+        testCase "ein konfiguriertes Konto geht dem ersten Konto aus dem Abruf vor" <| fun () ->
+            let fake = Fake(ConfiguredAccount = Some "konfiguriert-kuenstlich")
+            runPhase Observe fake |> ignore
+            Expect.isNonEmpty fake.FetchedAccounts "Umsätze geholt"
+            Expect.all fake.FetchedAccounts (fun id -> id = "konfiguriert-kuenstlich") "konfiguriertes Konto"
+
+        testCase "ohne konfiguriertes Konto nimmt die Sonde das erste Konto aus dem Abruf" <| fun () ->
+            let fake = Fake()
+            runPhase Observe fake |> ignore
+            Expect.isNonEmpty fake.FetchedAccounts "Umsätze geholt"
+            Expect.all fake.FetchedAccounts (fun id -> id = account.AccountId) "erstes Konto"
 
         testCase "Phase 2 setzt mit RequestInfo aus der Zustandsdatei fort" <| fun () ->
             let fake = Fake(Stored = Some (storedState ()))

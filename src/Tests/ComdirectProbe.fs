@@ -72,6 +72,8 @@ type ProbePorts = {
     Refresh: Tokens -> Async<Result<Tokens, RefreshFailure>>
     FetchAccounts: ProbeState -> Async<ComdirectResult<ComdirectAccount list>>
     FetchTransactions: ProbeState -> string -> Async<ComdirectResult<BankTransaction list>>
+    /// Konto aus der Konfiguration, wie beim echten Import. Geht dem Kontenabruf vor.
+    ConfiguredAccountId: string option
     /// Lokale Sentinel-Datei, die Roman nach der Freigabe anlegt.
     SignalPresent: unit -> bool
     ClearSignal: unit -> unit
@@ -141,16 +143,22 @@ let private expiresInSeconds (now: DateTimeOffset) (tokens: Tokens) : int option
 
 let private fetchRound (ports: ProbePorts) (state: ProbeState) : Async<unit> =
     async {
-        match! ports.FetchAccounts state with
-        | Error error -> logEvent ports "konten" (errorStatus error) None
-        | Ok accounts ->
-            logEvent ports "konten" "ok" None
-            match accounts with
-            | [] -> ()
-            | account :: _ ->
-                match! ports.FetchTransactions state account.AccountId with
-                | Ok _ -> logEvent ports "umsaetze" "ok" None
-                | Error error -> logEvent ports "umsaetze" (errorStatus error) None
+        let! firstAccountId = async {
+            match! ports.FetchAccounts state with
+            | Error error ->
+                logEvent ports "konten" (errorStatus error) None
+                return None
+            | Ok accounts ->
+                logEvent ports "konten" "ok" None
+                return accounts |> List.tryHead |> Option.map (fun account -> account.AccountId)
+        }
+
+        match ports.ConfiguredAccountId |> Option.orElse firstAccountId with
+        | None -> ()
+        | Some accountId ->
+            match! ports.FetchTransactions state accountId with
+            | Ok _ -> logEvent ports "umsaetze" "ok" None
+            | Error error -> logEvent ports "umsaetze" (errorStatus error) None
     }
 
 /// Speichert vor der ersten Benutzung des neuen Tokens (ADR 0071 Punkt 4).

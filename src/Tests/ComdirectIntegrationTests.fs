@@ -108,6 +108,7 @@ let integrationTests =
                     Refresh = fun tokens -> refreshTokens client apiKeys DateTimeOffset.UtcNow tokens
                     FetchAccounts = fun state -> getAccounts state.RequestInfo state.Tokens
                     FetchTransactions = fun state accountId -> getTransactions state.RequestInfo state.Tokens accountId 7
+                    ConfiguredAccountId = getEnvVar "COMDIRECT_ACCOUNT_ID" |> Option.filter (String.IsNullOrWhiteSpace >> not)
                     SignalPresent = fun () -> File.Exists signalPath
                     ClearSignal = fun () -> File.Delete signalPath
                     EncryptionAvailable =
