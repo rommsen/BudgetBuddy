@@ -43,7 +43,11 @@ verteilen sich aus den Zuweisungen ergibt.
    Scheitert nur das Ziel, ist das Geld vorübergehend in Zu verteilen; die Zeile ist
    fehlgeschlagen und erneut sendbar (idempotent, weil absolut gesetzt wird). Steht YNAB
    beim erneuten Senden weder auf Baseline noch auf Ziel, gewinnt YNAB ("in YNAB
-   geändert").
+   geändert"). Scheitert die Quelle, wird das Ziel nicht gesendet, auch beim erneuten
+   Senden (Ergänzung 2026-10-30, budgeting-afd8h): sonst stiege das Ziel, ohne dass die
+   Quelle sinkt, und das Geld käme still aus Zu verteilen. Beide Zeilen sind dann
+   fehlgeschlagen. Das weicht von Targets anwenden ab, wo die übrigen Zeilen weiterlaufen,
+   weil dort jede Zeile für sich steht.
 4. **Gleiche Sperre je Monat** wie Targets anwenden. Eine Verschiebung und eine Anwendung
    für denselben Monat laufen nicht ineinander.
 5. **Keine Sperre gegen negatives Verfügbar** in der Quelle (wie Zu verteilen, ADR 0065).

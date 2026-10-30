@@ -5,6 +5,16 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Refined: budgeting-afd8h - Geld verschieben am Handy
+
+**Type:** Modeling / Refine
+**BC:** budgeting
+**Status after:** todo
+**Summary:** Gegen den Code geprüft. Dialog am PC als Modal, am Handy als BottomSheet. Scheitert die Quelle, wird das Ziel nicht gesendet (ADR 0069 Punkt 3 ergänzt). Neu: Sperre bei Betrag 0, Probe auf negatives Zugewiesen, Picker-Eintrag Zu verteilen.
+**ADRs written:** 0069 (ergänzt)
+
+---
+
 ## 2026-10-30 15:29 -- Modeling / Promoted: infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
 
 **Type:** Modeling / Promote
