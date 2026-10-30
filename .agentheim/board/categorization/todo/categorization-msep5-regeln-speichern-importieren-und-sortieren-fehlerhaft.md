@@ -1,7 +1,7 @@
 ---
 id: categorization-msep5
 title: "Regeln speichern, importieren und sortieren fehlerhaft"
-status: backlog
+status: todo
 type: bug
 context: categorization
 created: 2026-10-30

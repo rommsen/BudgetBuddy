@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:43 -- Modeling / Promoted: categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
+
+**Type:** Modeling / Promote
+**BC:** categorization
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 15:43 -- Modeling / Refined: categorization-msep5 - Regeln speichern, importieren und sortieren fehlerhaft
 
 **Type:** Modeling / Refine
