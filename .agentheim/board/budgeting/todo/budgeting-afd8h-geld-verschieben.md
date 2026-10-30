@@ -1,7 +1,7 @@
 ---
 id: budgeting-afd8h
 title: "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
-status: backlog
+status: todo
 type: feature
 context: budgeting
 created: 2026-10-29

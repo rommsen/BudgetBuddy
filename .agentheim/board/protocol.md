@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Promoted: budgeting-afd8h - "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Refined: budgeting-afd8h - Geld verschieben am Handy
 
 **Type:** Modeling / Refine
