@@ -1,7 +1,7 @@
 ---
 id: infrastructure-q7d2m
 title: "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
-status: todo
+status: doing
 type: chore
 context: infrastructure
 created: 2026-10-29

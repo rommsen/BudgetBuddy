@@ -1,7 +1,7 @@
 ---
 id: design-system-m65pw
 title: "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
-status: todo
+status: doing
 type: chore
 context: design-system
 created: 2026-10-30

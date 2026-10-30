@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 16:59 -- Batch started: [categorization-cgq35, design-system-m65pw, infrastructure-q7d2m]
+
+**Type:** Work / Batch start
+**Tasks:** categorization-cgq35 - "Regelseite am Handy und per Tastatur", design-system-m65pw - "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components", infrastructure-q7d2m - "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
+**Parallel:** yes (3 workers, cap 3), zweite Welle. Keine Überschneidung in Quell-Dateien.
+
+---
+
 ## 2026-10-30 16:59 -- Task verified and completed: categorization-msep5 - "Regeln speichern, importieren und sortieren fehlerhaft"
 
 **Type:** Work / Task completion

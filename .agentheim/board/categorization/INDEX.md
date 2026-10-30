@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `todo/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `doing/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

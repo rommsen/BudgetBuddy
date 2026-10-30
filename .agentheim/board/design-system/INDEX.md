@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 3
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 39
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `todo/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `doing/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
