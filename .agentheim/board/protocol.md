@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:35 -- Modeling / Refined: infrastructure-q7d2m - Alte Planungsdokumente unter docs/ aufräumen
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** todo
+**Summary:** Je Datei entschieden: zwei Pläne löschen, LEARNINGS kürzen, README-Links auf den heutigen Stand ziehen.
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Promoted: budgeting-afd8h - "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
 
 **Type:** Modeling / Promote

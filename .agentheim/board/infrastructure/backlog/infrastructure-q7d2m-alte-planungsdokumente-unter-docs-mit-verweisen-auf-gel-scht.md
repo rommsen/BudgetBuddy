@@ -5,6 +5,7 @@ status: backlog
 type: chore
 context: infrastructure
 created: 2026-10-29
+completed:
 depends_on: [infrastructure-cbr0r]
 blocks: []
 tags: [harness]
@@ -17,7 +18,21 @@ prior_art: [infrastructure-vm8zz, infrastructure-cbr0r]
 Nach M9 und M10 verweisen `docs/MIGRATION-PLAN-SKILLS.md` (viele `standards/...`-Dateien, Skills), `docs/LEARNINGS.md` (qa-milestone-reviewer mit Übergabe an red-test-fixer, MILESTONE-PLAN) und `docs/FRONTEND-ARCHITECTURE-MILESTONES.md` (Milestone-QA-Ablauf) auf gelöschte Dateien und Agents. Sie lagen außerhalb des Auftrags von M10.
 
 ## What
-Je Datei entscheiden: löschen (historisch, ohne Leser) oder Verweise auf den heutigen Stand ziehen (`.claude/rules/test-doctrine.md`, `standards/README.md`). Auch `README.md` im Repo-Wurzelverzeichnis verlinkt laut infrastructure-vm8zz nicht existierende `docs/`-Dateien.
+Entschieden je Datei:
+
+- `docs/MIGRATION-PLAN-SKILLS.md`: löschen. Plan vom Dezember 2025, abgeschlossen oder überholt, 29 Verweise auf `standards/`-Dateien, kein Verweis von außen.
+- `docs/FRONTEND-ARCHITECTURE-MILESTONES.md`: löschen. Alle Milestones sind von Dezember 2025 und erledigt. Verweise gibt es nur noch aus dem eingefrorenen `diary/development.md`.
+- `docs/LEARNINGS.md`: behalten, Abschnitt "Agent Workflows That Work" kürzen: `red-test-fixer` und die Übergabe dorthin entfallen, der Verweis auf `/docs/MILESTONE-PLAN.md` (Zeile 313) wird zu "in einer Milestone-Datei" oder entfällt.
+- `README.md`, Tabelle "Documentation": die sechs toten Links ersetzen durch das, was es gibt (`standards/README.md`, `standards/frontend/overview.md`, `standards/backend/overview.md`, `docs/bot-api.md`). Zeilen ohne Gegenstück entfallen.
+
+`docs/UI-REFACTORING-MILESTONES.md` bleibt: sein Kopf markiert es schon als historisch, und `diary/development.md` wird nicht angefasst.
 
 ## Acceptance criteria
-- [ ] Kein Verweis unter `docs/` und in `README.md` auf gelöschte `standards/`-Dateien, `red-test-fixer`, `code-reviewer` oder `docs/MILESTONE-PLAN.md` (grep).
+- [ ] `docs/MIGRATION-PLAN-SKILLS.md` und `docs/FRONTEND-ARCHITECTURE-MILESTONES.md` sind gelöscht.
+- [ ] `grep -rnE 'red-test-fixer|code-reviewer|MILESTONE-PLAN' docs README.md` findet nichts.
+- [ ] Jede Pfadangabe `standards/....md` unter `docs/` und in `README.md` zeigt auf eine existierende Datei.
+- [ ] Jeder relative Link in `README.md` zeigt auf eine existierende Datei.
+- [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Notes
+Refine am 2026-10-30. Gelöschtes bleibt in der Git-Historie. `README.md` ist englisch und bleibt es.
