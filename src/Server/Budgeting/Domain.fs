@@ -131,3 +131,85 @@ let decideRetry (baseline: Money) (target: Money) (live: Money) : RetryDecision 
     if toMilliunits live = toMilliunits target then AlreadyAtTarget
     elif toMilliunits live = toMilliunits baseline then SendTarget
     else YnabWins
+
+// ============================================
+// Geld verschieben (budgeting-afd8h, ADR 0069)
+// ============================================
+
+/// Herkunft einer Verschiebung zwischen zwei Kategorien.
+[<Literal>]
+let OriginMove = "Verschieben"
+
+/// Herkunft einer Bewegung, bei der eine Seite Zu verteilen ist.
+[<Literal>]
+let OriginAssign = "Zuweisen"
+
+/// Eine Kategorie einer Verschiebung: neu = alt ∓ Betrag.
+type MoveLine = {
+    CategoryId: Guid
+    CategoryName: string
+    OldAssigned: Money
+    NewAssigned: Money
+}
+
+/// Was aus einem Auftrag wird. `Lines` stehen in Sendereihenfolge: erst die Quelle, dann das Ziel.
+type MovePlan = {
+    Month: string
+    Origin: string
+    Lines: MoveLine list
+}
+
+/// Plant eine Verschiebung relativ zum übergebenen Monat. Zwischen zwei Kategorien entstehen zwei
+/// Zeilen, mit Zu verteilen auf einer Seite eine, denn Zu verteilen ergibt sich aus den
+/// Zuweisungen. Ein negatives neues Zugewiesen ist gültig (die Kategorie lebt vom Vortrag), eine
+/// Sperre gegen negatives Verfügbar gibt es nicht. Abgelehnt werden Betrag kleiner gleich 0,
+/// Beträge neben dem 10-Milliunits-Raster, gleiche Quelle und Ziel und im Monat fehlende
+/// Kategorien; alle Gründe werden gesammelt. Rein, ohne I/O.
+let planMove (month: BudgetMonth) (request: MoveRequest) : Result<MovePlan, string> =
+    let categories = month.Groups |> List.collect (fun g -> g.Categories)
+
+    let resolve side =
+        match side with
+        | ToBeBudgetedSide -> Ok None
+        | CategorySide id ->
+            match categories |> List.tryFind (fun c -> c.Id = id) with
+            | Some c -> Ok (Some c)
+            | None -> Error $"Die Kategorie {id} fehlt im Monat {month.Month}."
+
+    let source = resolve request.Source
+    let target = resolve request.Target
+    let amount = request.Amount.Amount
+
+    let line (sign: decimal) (c: BudgetCategory) : MoveLine =
+        { CategoryId = c.Id
+          CategoryName = c.Name
+          OldAssigned = c.Assigned
+          NewAssigned = { c.Assigned with Amount = c.Assigned.Amount + sign * amount } }
+
+    let lines =
+        match source, target with
+        | Ok s, Ok t ->
+            (s |> Option.map (line -1m) |> Option.toList) @ (t |> Option.map (line 1m) |> Option.toList)
+        | _ -> []
+
+    let errors =
+        [ if amount <= 0m then "Der Betrag muss größer als 0 sein."
+          elif not (isOnTenMilliunits request.Amount) then "Der Betrag muss auf den Cent genau sein."
+          if request.Source = request.Target then "Quelle und Ziel müssen verschieden sein."
+          match source with
+          | Error e -> e
+          | Ok _ -> ()
+          match target with
+          | Error e -> e
+          | Ok _ -> ()
+          for l in lines do
+              if not (isOnTenMilliunits l.NewAssigned) then
+                  $"Der Betrag für {l.CategoryName} liegt nicht auf 10 Milliunits (0,01 €). YNAB würde ihn runden, deshalb wird nichts verschoben." ]
+
+    if List.isEmpty errors then
+        Ok
+            { Month = month.Month
+              Origin = if lines.Length = 2 then OriginMove else OriginAssign
+              Lines = lines }
+    else
+        Error (String.concat " " (List.distinct errors))

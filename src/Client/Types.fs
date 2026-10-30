@@ -212,6 +212,9 @@ type ToastActionKind =
     /// "Rückgängig" nach "Lena fragen" bzw. "Rückfrage zurücknehmen" für eine ganze Auswahl
     /// (ledger-y54gr): ein Klick stellt Farbe und Name jeder geänderten Buchung wieder her.
     | UndoFlagBatch of changes: Shared.Domain.FlagBatchChange list
+    /// "Erneut senden" nach einer teilweise gescheiterten Verschiebung (budgeting-afd8h):
+    /// die Anwendungs-Id kommt aus dem Bericht des Servers.
+    | RetryBudgetMove of applicationId: string
 
 /// Die optionale Aktion eines Toasts: Beschriftung und was der Klick auslöst.
 type ToastAction = {

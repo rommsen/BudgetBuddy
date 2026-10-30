@@ -87,6 +87,11 @@ let private emptyPageQuery (accountId: Guid) : LedgerEntryPageQuery =
       AmountMax = None
       Sort = LedgerSort.defaultSort }
 
+let private emptyMove : Shared.Budgeting.MoveRequest =
+    { Source = Shared.Budgeting.ToBeBudgetedSide
+      Target = Shared.Budgeting.ToBeBudgetedSide
+      Amount = { Amount = 0m; Currency = "EUR" } }
+
 let private emptyPreview : Shared.Budgeting.TargetPreview =
     { Month = "kein-monat"
       Lines = []
@@ -305,6 +310,8 @@ let private rows : Row list = [
       Run = fun () -> budgetApi.previewTargets "kein-monat" |> run |> expectError "Vorschau" }
     { Endpoint = "BudgetApi.applyTargets"; Case = "ungültiger Monat: Fehler"
       Run = fun () -> budgetApi.applyTargets "kein-monat" emptyPreview |> run |> expectError "Anwenden" }
+    { Endpoint = "BudgetApi.moveMoney"; Case = "ungültiger Monat: Fehler"
+      Run = fun () -> budgetApi.moveMoney "kein-monat" emptyMove |> run |> expectError "Verschieben" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budgetApi.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

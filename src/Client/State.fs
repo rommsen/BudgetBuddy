@@ -150,6 +150,8 @@ let toastActionMsg (kind: ToastActionKind) : Msg =
         LedgerMsg (Components.Ledger.Types.StartUndoCategoryBatch changes)
     | UndoFlagBatch changes ->
         LedgerMsg (Components.Ledger.Types.StartUndoFlagBatch changes)
+    | RetryBudgetMove applicationId ->
+        BudgetMsg (Components.Budget.Types.RetryMove applicationId)
 
 let private addToastWithAction
     (message: string)
@@ -635,8 +637,16 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd ]
 
     | BudgetMsg budgetMsg ->
-        let budgetModel', budgetCmd = Components.Budget.State.update budgetMsg model.Budget
-        { model with Budget = budgetModel' }, Cmd.map BudgetMsg budgetCmd
+        let budgetModel', budgetCmd, externalMsg = Components.Budget.State.update budgetMsg model.Budget
+
+        let externalCmd =
+            match externalMsg with
+            | Components.Budget.Types.NoOp -> Cmd.none
+            | Components.Budget.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+            | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
+                Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
+
+        { model with Budget = budgetModel' }, Cmd.batch [ Cmd.map BudgetMsg budgetCmd; externalCmd ]
 
     // ============================================
     // Quick Add (manual transaction entry → YNAB)

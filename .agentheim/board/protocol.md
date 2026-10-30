@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 16:50 -- Task verified and completed: budgeting-afd8h - "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
+
+**Type:** Work / Task completion
+**Task:** budgeting-afd8h - "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
+**Summary:** Geld verschieben steht: Tipp auf Verfügbar öffnet das Sheet (Handy BottomSheet, PC Modal), Gegenseite Kategorie oder Zu verteilen, der Server rechnet relativ zum frischen Monat, hält die Budget-Bewegungen fest und schreibt erst die Quelle, dann das Ziel.
+**Duration:** 50m
+**Verification:** PASS (iteration 2)
+**Files changed:** 25
+**Tests added:** 56
+**ADRs written:** 0070
+
+---
+
+## 2026-10-30 16:34 -- Verification failed: budgeting-afd8h - Geld verschieben am Handy
+
+**Type:** Work / Verification failure
+**Task:** budgeting-afd8h - Geld verschieben am Handy
+**Iteration:** 1 of 3
+**Reasons:** Entscheidung im Code ohne ADR (ungesendetes Ziel als in YNAB geändert geschlossen), Begründung "nie gesunken" gilt nicht bei verlorener Antwort
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-30 16:26 -- Task verified and completed: infrastructure-s1r95 - "getSettings liefert YNAB-Token, Comdirect-Secret und Passwort im Klartext an den Client"
 
 **Type:** Work / Task completion

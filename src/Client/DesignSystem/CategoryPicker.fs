@@ -11,6 +11,9 @@
 /// läuft über beides und das Präfix "Konto:" schränkt sie auf die Konten ein. Ohne `Accounts`
 /// bleibt es ein reiner Kategorie-Picker.
 ///
+/// Die Budget-Seite wählt damit die Gegenseite einer Verschiebung (budgeting-afd8h): mit
+/// `ToBeBudgeted` steht ganz oben der Eintrag "Zu verteilen" samt Betrag. Ohne ihn fehlt die Zeile.
+///
 /// Darunter liegt `CategoryChangeCard`, die rein darstellende Karte "Budget nach dem
 /// Wechsel" (Tafel 4.3 des Handoffs Ablauf 4).
 module Client.DesignSystem.CategoryPicker
@@ -38,6 +41,8 @@ type PickerChoice =
     /// `None` ist "Ohne Kategorie"
     | ChoseCategory of YnabCategoryId option
     | ChoseAccount of YnabAccountId
+    /// Die Zeile "Zu verteilen"
+    | ChoseToBeBudgeted
 
 type CategoryPickerProps = {
     /// Alle wählbaren Kategorien (interne YNAB-Kategorien filtert der Aufrufer heraus)
@@ -56,6 +61,8 @@ type CategoryPickerProps = {
     CurrentAccount: YnabAccountId option
     /// Steht die Zeile "Ohne Kategorie" zur Wahl? Der Import-Split bietet sie nicht an.
     OfferWithout: bool
+    /// Betrag von Zu verteilen. `Some` zeigt ganz oben die Zeile "Zu verteilen", `None` lässt sie weg.
+    ToBeBudgeted: Money option
     /// Beschriftung der Fußzeile, zum Beispiel "Stand 14:02". `None` blendet sie aus.
     StandLabel: string option
     /// Ladezustand der Kategorien: statt der Liste ein Ladehinweis oder ein Fehlerhinweis
@@ -71,6 +78,7 @@ type PickerRow =
     | WithoutCategory
     | Category of YnabCategory
     | Account of YnabAccount
+    | ToBeBudgetedRow
 
 /// Hinweis, der die Liste ersetzt
 type PickerNotice =
@@ -82,6 +90,8 @@ type Layout = {
     /// Ist ein Hinweis gesetzt, hat das Layout keine Kategorie-Zeilen. Konten bleiben wählbar:
     /// ein Übertrag braucht keine Kategorien.
     Notice: PickerNotice option
+    /// Die Zeile "Zu verteilen" mit ihrem Betrag, ganz oben in der Liste
+    ToBeBudgeted: Money option
     ShowWithout: bool
     Suggested: YnabCategory list
     /// Abschnitt "Zuletzt verwendet" (ledger-d4msf)
@@ -108,6 +118,9 @@ type KeyAction =
 // ============================================
 
 let withoutCategoryLabel = "Ohne Kategorie"
+
+/// Die Zeile für Geld, das noch keiner Kategorie gehört (budgeting-afd8h)
+let toBeBudgetedLabel = "Zu verteilen"
 
 /// Höchstzahl der Vorschläge
 let maxSuggestions = 3
@@ -204,6 +217,7 @@ let filterAccounts (search: string) (accounts: YnabAccount list) : YnabAccount l
 let accountLabel (a: YnabAccount) : string = $"→ {a.Name}"
 
 let private buildLayout
+    (toBeBudgeted: Money option)
     (offerWithout: bool)
     (accounts: YnabAccount list)
     (loadState: PickerLoadState)
@@ -225,6 +239,7 @@ let private buildLayout
     let hiddenAll = categories |> List.filter (fun c -> c.Hidden)
     let full = {
         Notice = None
+        ToBeBudgeted = toBeBudgeted |> Option.filter (fun _ -> matchesText search toBeBudgetedLabel)
         ShowWithout = offerWithout && showWithoutRow search
         Suggested = suggestedList
         Recent = recentList
@@ -239,6 +254,7 @@ let private buildLayout
     }
     let withoutCategories (l: Layout) =
         { l with
+            ToBeBudgeted = None
             ShowWithout = false
             Suggested = []
             Recent = []
@@ -259,11 +275,12 @@ let layoutForRecent
     (recent: YnabCategoryId list)
     (categories: YnabCategory list)
     : Layout =
-    buildLayout true [] loadState search current suggested recent categories
+    buildLayout None true [] loadState search current suggested recent categories
 
 /// Das Layout für die Props eines offenen Pickers
 let layoutForPicker (props: CategoryPickerProps) (search: string) : Layout =
     buildLayout
+        props.ToBeBudgeted
         props.OfferWithout
         props.Accounts
         props.LoadState
@@ -292,7 +309,8 @@ let layout
 
 /// Die Zeilen in Anzeigereihenfolge, auf der die Pfeiltasten laufen
 let navigableRows (hiddenExpanded: bool) (l: Layout) : PickerRow list =
-    [ if l.ShowWithout then yield WithoutCategory
+    [ if l.ToBeBudgeted.IsSome then yield ToBeBudgetedRow
+      if l.ShowWithout then yield WithoutCategory
       for c in l.Suggested -> Category c
       for c in l.Recent -> Category c
       for (_, items) in l.Groups do
@@ -307,13 +325,15 @@ let choiceOf (row: PickerRow) : PickerChoice =
     | WithoutCategory -> ChoseCategory None
     | Category c -> ChoseCategory (Some c.Id)
     | Account a -> ChoseAccount a.Id
+    | ToBeBudgetedRow -> ChoseToBeBudgeted
 
-/// Für Aufrufer ohne `Accounts`: die Kategorie-Wahl weiterreichen. Ein Konto kann dort nicht
-/// gewählt werden.
+/// Für Aufrufer ohne `Accounts` und `ToBeBudgeted`: die Kategorie-Wahl weiterreichen. Etwas
+/// anderes kann dort nicht gewählt werden.
 let categoryChoice (onCategory: YnabCategoryId option -> unit) (choice: PickerChoice) : unit =
     match choice with
     | ChoseCategory id -> onCategory id
-    | ChoseAccount _ -> ()
+    | ChoseAccount _
+    | ChoseToBeBudgeted -> ()
 
 /// Hakt die Zeile "Ohne Kategorie" nur, wenn die Zeile weder Kategorie noch Übertrag trägt
 let isWithoutCurrent (current: YnabCategoryId option) (currentAccount: YnabAccountId option) : bool =
@@ -433,6 +453,24 @@ let private Content (input: ContentProps) =
             ])
             (c.Available |> Option.map (fun m -> m.Amount, m.Currency))
 
+    let toBeBudgetedRow (amount: Money) =
+        let index = nextIndex ()
+        PickerParts.row
+            (rowClassFor (active = Some index))
+            [
+                prop.key "to-be-budgeted"
+                prop.role "option"
+                prop.custom ("aria-selected", false)
+                prop.custom ("data-row-index", index)
+                prop.custom ("data-testid", "category-picker-to-be-budgeted")
+                prop.onMouseDown (fun e -> e.preventDefault ())
+                prop.onClick (fun e ->
+                    e.stopPropagation ()
+                    props.OnSelect ChoseToBeBudgeted)
+            ]
+            (PickerParts.name toBeBudgetedLabel)
+            (Some (amount.Amount, amount.Currency))
+
     let withoutRow () =
         let index = nextIndex ()
         let isCurrent = input.MarkCurrent && isWithoutCurrent props.Current props.CurrentAccount
@@ -539,11 +577,15 @@ let private Content (input: ContentProps) =
                         ]
                     | None -> ()
 
-                    if lay.ShowWithout || not lay.Suggested.IsEmpty || not lay.Recent.IsEmpty then
+                    if lay.ToBeBudgeted.IsSome || lay.ShowWithout || not lay.Suggested.IsEmpty || not lay.Recent.IsEmpty then
                         Html.div [
                             prop.key "top"
                             prop.className "flex flex-col"
                             prop.children [
+                                match lay.ToBeBudgeted with
+                                | Some amount -> toBeBudgetedRow amount
+                                | None -> ()
+
                                 if lay.ShowWithout then withoutRow ()
 
                                 if not lay.Suggested.IsEmpty then

@@ -57,6 +57,7 @@ let private targetProps : CategoryPickerProps =
       Accounts = accounts
       CurrentAccount = None
       OfferWithout = true
+      ToBeBudgeted = None
       StandLabel = None
       LoadState = PickerReady
       OnRetry = ignore
@@ -128,6 +129,24 @@ let private targetTests =
             let l = layoutForPicker { targetProps with Categories = []; LoadState = PickerFailed } ""
             Expect.equal l.Notice (Some FailedNotice) "Hinweis"
             Expect.equal (accountNames l) [ "Bar"; "Tagesgeld" ] "Konten"
+        }
+        test "ohne ToBeBudgeted gibt es die Zeile Zu verteilen nicht" {
+            let l = layoutForPicker targetProps ""
+            Expect.isNone l.ToBeBudgeted "keine Zeile"
+            Expect.isFalse (navigableRows false l |> List.contains ToBeBudgetedRow) "nicht navigierbar"
+        }
+        test "mit ToBeBudgeted steht Zu verteilen als erste Zeile und meldet ChoseToBeBudgeted" {
+            let amount = { Amount = 35.45m; Currency = "EUR" }
+            let l = layoutForPicker { targetProps with ToBeBudgeted = Some amount } ""
+            Expect.equal l.ToBeBudgeted (Some amount) "mit Betrag"
+            let rows = navigableRows false l
+            Expect.equal rows.Head ToBeBudgetedRow "ganz oben"
+            Expect.equal (keyAction "Enter" rows (Some 0) false) (Choose ChoseToBeBudgeted) "Enter wählt sie"
+        }
+        test "die Suche filtert Zu verteilen wie jede andere Zeile" {
+            let props = { targetProps with ToBeBudgeted = Some { Amount = 1m; Currency = "EUR" } }
+            Expect.isSome (layoutForPicker props "verteil").ToBeBudgeted "Treffer"
+            Expect.isNone (layoutForPicker props "miete").ToBeBudgeted "kein Treffer"
         }
         test "ohne OfferWithout fehlt die Zeile Ohne Kategorie" {
             Expect.isFalse (layoutForPicker { targetProps with OfferWithout = false } "").ShowWithout "Import-Split"

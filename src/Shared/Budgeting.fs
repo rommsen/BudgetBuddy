@@ -166,3 +166,21 @@ let writtenCount (report: ApplyReport) : int =
 /// Anzahl der Zeilen im Zustand `Failed`.
 let failedCount (report: ApplyReport) : int =
     report.Lines |> List.filter (fun l -> match l.Outcome with Failed _ -> true | _ -> false) |> List.length
+
+// ============================================
+// Geld verschieben (budgeting-afd8h, ADR 0069)
+// ============================================
+
+/// Eine Seite einer Verschiebung: eine Kategorie oder Zu verteilen.
+type MoveSide =
+    | ToBeBudgetedSide
+    | CategorySide of Guid
+
+/// Der Auftrag des Clients. Keine Vorschau: wer 20 € verschiebt, meint 20 €, der Server rechnet
+/// relativ zum frisch gelesenen Monat.
+type MoveRequest = {
+    Source: MoveSide
+    Target: MoveSide
+    /// Positiv, in Euro.
+    Amount: Money
+}

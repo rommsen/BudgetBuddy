@@ -2,7 +2,8 @@
 /// als große Zahl und die Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar.
 /// Am Handy zweizeilige Zeilen ohne horizontales Scrollen, ab md eine Tabelle.
 ///
-/// Das Suchfeld über der Liste filtert die Kategorien (budgeting-rxxb4).
+/// Das Suchfeld über der Liste filtert die Kategorien (budgeting-rxxb4). Ein Tipp auf Verfügbar
+/// öffnet "Verschieben" (budgeting-afd8h), der Kategorie-Name bleibt ohne Wirkung.
 ///
 /// Ausschließlich Design-System-Bausteine und Tokens (Styleguide-Gate `design-system-001`).
 /// Ein negatives Zu verteilen erscheint einfach negativ, ohne Hinweis und ohne Sperre.
@@ -29,6 +30,11 @@ let private plainAmount (m: Money) =
     ]
 
 let private availableAmount (m: Money) = Money.available m.Amount m.Currency
+
+/// Der Verfügbar-Betrag öffnet "Verschieben". `sizeClass` trägt die Trefferfläche der Liste.
+let private availableButton (sizeClass: string) (c: BudgetCategory) (dispatch: Msg -> unit) =
+    Money.availableButton $"{c.Name} verschieben" sizeClass c.Available.Amount c.Available.Currency (fun () ->
+        dispatch (OpenMove c))
 
 // ============================================
 // Zu verteilen
@@ -82,7 +88,7 @@ let private monthSwitcher (model: Model) (dispatch: Msg -> unit) =
 // Kategorien: Handy (Zeilen) und PC (Tabelle)
 // ============================================
 
-let private mobileGroup (group: BudgetGroup) =
+let private mobileGroup (dispatch: Msg -> unit) (group: BudgetGroup) =
     Html.section [
         prop.key group.Name
         prop.custom ("data-testid", "budget-group")
@@ -105,7 +111,8 @@ let private mobileGroup (group: BudgetGroup) =
                                     prop.className $"{ListRoles.primary} truncate min-w-0"
                                     prop.text c.Name
                                 ]
-                                availableAmount c.Available
+                                // -my-3: die 48 px Trefferfläche sollen die Zeile nicht höher machen.
+                                availableButton $"{TouchTargets.minSize} -my-3" c dispatch
                             ]
                         ]
                         Html.div [
@@ -123,7 +130,7 @@ let private mobileGroup (group: BudgetGroup) =
         ]
     ]
 
-let private desktopTable (groups: BudgetGroup list) =
+let private desktopTable (dispatch: Msg -> unit) (groups: BudgetGroup list) =
     Table.view { Table.defaultTableProps with Variant = Table.Default; Responsive = false } [
         Table.thead [
             Table.calmHeaderCell "Kategorie" None
@@ -154,7 +161,7 @@ let private desktopTable (groups: BudgetGroup list) =
                             ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Assigned ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Activity ]
-                            Table.cell { Table.defaultCellProps with Align = Some "right" } [ availableAmount c.Available ]
+                            Table.cell { Table.defaultCellProps with Align = Some "right" } [ availableButton "" c dispatch ]
                         ]
                     ]
         ]
@@ -184,7 +191,7 @@ let private categorySearchField (search: string) (dispatch: Msg -> unit) =
         ]
     ]
 
-let private categories (search: string) (month: BudgetMonth) =
+let private categories (search: string) (month: BudgetMonth) (dispatch: Msg -> unit) =
     let groups = filterGroups search month.Groups
     if categoryCount month = 0 then
         Card.emptyState (Icons.banknotes Icons.XL Icons.Default) "Keine Kategorien" "YNAB liefert für diesen Monat keine sichtbaren Kategorien." None
@@ -198,11 +205,11 @@ let private categories (search: string) (month: BudgetMonth) =
         React.fragment [
             Html.div [
                 prop.className "md:hidden"
-                prop.children (groups |> List.map mobileGroup)
+                prop.children (groups |> List.map (mobileGroup dispatch))
             ]
             Html.div [
                 prop.className "hidden md:block rounded-xl border border-border-subtle bg-surface-card overflow-hidden"
-                prop.children [ desktopTable groups ]
+                prop.children [ desktopTable dispatch groups ]
             ]
         ]
 
@@ -462,6 +469,151 @@ let private targetsDialog (model: Model) (dispatch: Msg -> unit) =
         ]
 
 // ============================================
+// Verschieben (budgeting-afd8h)
+// ============================================
+
+let private moveAfterLine (line: MoveAfterLine) =
+    Html.div [
+        prop.key line.Label
+        prop.custom ("data-testid", "move-after-line")
+        prop.className ListRoles.mobileLine1
+        prop.children [
+            Html.span [ prop.className $"{ListRoles.secondary} truncate min-w-0"; prop.text line.Label ]
+            availableAmount line.After
+        ]
+    ]
+
+/// Der Inhalt, am Handy im Sheet und am PC im Dialog.
+let private moveFields (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> unit) =
+    let pickerProps : CategoryPicker.CategoryPickerProps =
+        { Categories = pickerCategories month form.Category.Id
+          Current = None
+          Suggested = []
+          Recent = []
+          Accounts = []
+          CurrentAccount = None
+          OfferWithout = false
+          ToBeBudgeted = Some month.ToBeBudgeted
+          StandLabel = None
+          LoadState = CategoryPicker.PickerReady
+          OnRetry = ignore
+          OnSelect = fun choice -> counterpartOf choice |> Option.iter (PickMoveCounterpart >> dispatch)
+          OnClose = fun () -> dispatch CloseMovePicker }
+    let counterpartLabel =
+        form.Counterpart |> Option.map (counterpartName month) |> Option.defaultValue "Gegenseite wählen"
+    React.fragment [
+        Html.div [
+            prop.className "flex items-center justify-between gap-3"
+            prop.children [
+                Html.p [
+                    prop.custom ("data-testid", "move-headline")
+                    prop.className $"{ListRoles.primary} min-w-0"
+                    prop.text (moveHeadline month form)
+                ]
+                Html.span [
+                    prop.custom ("data-testid", "move-toggle")
+                    prop.className "shrink-0"
+                    prop.children [ Button.ghost "Richtung tauschen" (fun () -> dispatch ToggleMoveDirection) ]
+                ]
+            ]
+        ]
+        Html.div [
+            prop.className "relative"
+            prop.children [
+                Html.span [
+                    prop.custom ("data-testid", "move-counterpart")
+                    prop.className "block"
+                    prop.children [
+                        Button.secondaryFullWidth counterpartLabel (fun () ->
+                            dispatch (if form.PickerOpen then CloseMovePicker else OpenMovePicker))
+                    ]
+                ]
+                // ADR 0043: zur Renderzeit genau eine Hülle.
+                if Viewport.isDesktopViewport () then
+                    CategoryPicker.popover form.PickerOpen pickerProps
+                else
+                    CategoryPicker.sheetLayered form.PickerOpen None pickerProps
+            ]
+        ]
+        Input.groupSimple "Betrag" (
+            Html.div [
+                prop.custom ("data-testid", "move-amount")
+                prop.children [
+                    Input.text
+                        { Input.textInputDefaults with
+                            Value = form.AmountText
+                            OnChange = MoveAmountChanged >> dispatch
+                            Placeholder = "0,00"
+                            InputMode = Some "decimal"
+                            ClassName = Some "w-full font-mono tabular-nums" }
+                ]
+            ]
+        )
+        Html.div [
+            prop.custom ("data-testid", "move-after")
+            prop.className "flex flex-col gap-1"
+            prop.children [
+                Html.span [ prop.className ListRoles.groupHeader; prop.text "Verfügbar danach" ]
+                yield! moveAfter month form |> List.map moveAfterLine
+            ]
+        ]
+        match form.Error with
+        | Some message ->
+            Html.div [
+                prop.custom ("data-testid", "move-error")
+                prop.children [ ErrorDisplay.cardCompact message None ]
+            ]
+        | None -> ()
+    ]
+
+let private moveButton (form: MoveForm) (dispatch: Msg -> unit) =
+    Html.span [
+        prop.custom ("data-testid", "move-submit")
+        prop.className "block w-full md:w-auto"
+        prop.children [
+            Button.view
+                { Button.defaultProps with
+                    Text = "Verschieben"
+                    IsLoading = form.Sending
+                    IsDisabled = not (canMove form)
+                    FullWidth = true
+                    OnClick = fun () -> dispatch ConfirmMove }
+        ]
+    ]
+
+/// Am Handy `BottomSheet`, am PC `Modal` (ADR 0043), nie beide. Das Popover des Pickers braucht
+/// am PC einen Vorfahren ohne Scrollbereich, deshalb steht der Inhalt nicht in `Modal.body`.
+let private moveDialog (model: Model) (dispatch: Msg -> unit) =
+    match model.Move, model.Month with
+    | Some form, Success month ->
+        let close = fun () -> dispatch CloseMove
+        let fields =
+            Html.div [
+                prop.custom ("data-testid", "move-dialog")
+                prop.className "flex flex-col gap-4"
+                prop.children [ moveFields month form dispatch ]
+            ]
+        if Viewport.isDesktopViewport () then
+            Modal.view
+                { Modal.defaultProps with
+                    IsOpen = true
+                    Title = Some "Verschieben"
+                    Subtitle = Some (monthLabel month.Month)
+                    Size = Modal.Medium
+                    OnClose = close }
+                [ Html.div [ prop.className "p-6"; prop.children [ fields ] ]
+                  Modal.footer [ moveButton form dispatch ] ]
+        else
+            BottomSheet.view
+                { IsOpen = true
+                  OnClose = close
+                  Title = "Verschieben"
+                  Subtitle = Some (monthLabel month.Month)
+                  Footer = Some [ moveButton form dispatch ] }
+                [ fields ]
+    | _ -> Html.none
+
+// ============================================
 // Seite
 // ============================================
 
@@ -481,6 +633,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 | _ -> []
             )
             targetsDialog model dispatch
+            moveDialog model dispatch
             monthSwitcher model dispatch
             match model.Month with
             | NotAsked
@@ -490,7 +643,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 React.fragment [
                     toBeBudgetedCard month.ToBeBudgeted
                     categorySearchField model.CategorySearch dispatch
-                    categories model.CategorySearch month
+                    categories model.CategorySearch month dispatch
                 ]
         ]
     ]

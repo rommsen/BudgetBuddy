@@ -930,6 +930,7 @@ let private CategoryPickerSingleDemo () =
     let failedOpen, setFailedOpen = React.useState false
     let retryCount, setRetryCount = React.useState 0
     let aboveOpen, setAboveOpen = React.useState false
+    let toBeBudgetedOpen, setToBeBudgetedOpen = React.useState false
     let selectionSheetOpen, setSelectionSheetOpen = React.useState false
     // Zählt die OnSelect-Aufrufe, damit "genau einmal pro Klick" an der Galerie prüfbar ist.
     let selectCount, setSelectCount = React.useState 0
@@ -964,6 +965,7 @@ let private CategoryPickerSingleDemo () =
           Accounts = []
           CurrentAccount = None
           OfferWithout = true
+          ToBeBudgeted = None
           StandLabel = Some "Stand 14:02"
           LoadState = CategoryPicker.PickerReady
           OnRetry = ignore
@@ -1036,6 +1038,22 @@ let private CategoryPickerSingleDemo () =
                             Categories = []
                             LoadState = CategoryPicker.PickerFailed
                             OnRetry = fun () -> setRetryCount (retryCount + 1) }
+                ]
+            ]
+            Html.div [
+                prop.className "relative"
+                prop.custom ("data-ds-demo", "category-picker-to-be-budgeted")
+                prop.children [
+                    Html.span [
+                        prop.custom ("data-ds-demo", "category-picker-to-be-budgeted-trigger")
+                        prop.children [ Button.secondary "Popover mit Zu verteilen" (fun () -> setToBeBudgetedOpen (not toBeBudgetedOpen)) ]
+                    ]
+                    CategoryPicker.popover
+                        toBeBudgetedOpen
+                        { pickerProps (fun () -> setToBeBudgetedOpen false) with
+                            OfferWithout = false
+                            ToBeBudgeted = Some { Amount = 35.45m; Currency = "EUR" }
+                            OnSelect = fun _ -> setToBeBudgetedOpen false }
                 ]
             ]
             Html.div [
@@ -1130,6 +1148,7 @@ let private SplitEditorDemo () =
           Accounts = accounts
           CurrentAccount = None
           OfferWithout = true
+          ToBeBudgeted = None
           StandLabel = None
           LoadState = CategoryPicker.PickerReady
           OnRetry = ignore
@@ -1145,6 +1164,7 @@ let private SplitEditorDemo () =
                     |> List.tryFind (fun c -> c.Id = id)
                     |> Option.iter (fun c -> setChosenTarget c.Name)
                 | CategoryPicker.ChoseCategory None -> setChosenTarget CategoryPicker.withoutCategoryLabel
+                | CategoryPicker.ChoseToBeBudgeted -> ()
                 close ()
           OnClose = close }
 

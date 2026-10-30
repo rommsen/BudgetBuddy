@@ -53,6 +53,8 @@ type TextInputProps = {
     State: InputState
     Disabled: bool
     Type: string
+    /// Bildschirmtastatur am Handy, zum Beispiel "decimal" für Beträge. `None` lässt sie offen.
+    InputMode: string option
     ClassName: string option
 }
 
@@ -64,6 +66,7 @@ let textInputDefaults = {
     State = Normal
     Disabled = false
     Type = "text"
+    InputMode = None
     ClassName = None
 }
 
@@ -89,6 +92,9 @@ let text (props: TextInputProps) =
         prop.onChange props.OnChange
         prop.placeholder props.Placeholder
         prop.disabled props.Disabled
+        match props.InputMode with
+        | Some mode -> prop.custom ("inputMode", mode)
+        | None -> ()
         // Prevent iOS zoom on focus (Small regelt das über `text-base md:text-sm`)
         if usesInlineFontSize props.Size then
             prop.style [ style.fontSize 16 ]

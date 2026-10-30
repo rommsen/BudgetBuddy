@@ -1,7 +1,7 @@
 ---
 id: budgeting-afd8h
 title: "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-10-29
@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-001, design-system-bym4m, budgeting-rxxb4]
 blocks: [budgeting-m1bce, budgeting-dyn8g]
 tags: [budget, verschieben, mobile]
-related_adrs: [0065, 0069]
+related_adrs: [0065, 0069, 0070]
 related_research: [ynab-api-targets-zuweisung-2026-10-25]
 prior_art: [budgeting-h2zfn, budgeting-k7wmd]
 ---
@@ -66,3 +66,35 @@ Zweiter Refine am 2026-10-30, gegen den Code geprüft:
 - Der Picker erwartet `YnabCategory`, die Seite hat `BudgetCategory`: abbilden, `Available` aus dem Monat, nicht aus dem Kategorie-Cache. Verschachtelung: `CategoryPicker.sheetLayered` im Sheet.
 
 Für Browser-Wächter: neue Pflichtfelder an geteilten View-Typen brechen Playwright-Fixtures; Fixtures mitziehen.
+
+## Verifier note (iteration 1)
+REASONS:
+- Check 6: `CommandHandlers.fs:312` schließt das ungesendete Ziel als "in YNAB geändert", wenn YNAB beim erneuten Senden an der Quelle gewinnt. ADR 0069 Punkt 3 deckt das nicht, ADRS_WRITTEN ist none. Die Alternative (Ziel bleibt fehlgeschlagen) steht nirgends. budgeting-dyn8g wird diesen Status in der Historie zeigen.
+- Check 6: Kommentar `CommandHandlers.fs:254` und Outcome sagen, die Quelle sei "nie gesunken". Das stimmt nicht, wenn der Quelle-PATCH ankam, die Antwort verloren ging und die Quelle danach erneut geändert wurde (100 auf 70 landet, als fehlgeschlagen gemeldet, dann 70 auf 65). Dann bleibt das Geld in Zu verteilen. Der Test `MoveMoneyTests.fs:290` deckt nur den nie gelandeten Fall.
+- Nicht blockierend: Kein Test belegt das Lesen innerhalb der Sperre (`MoveMoneyTests.fs:301` prüft nur Attempts).
+SUGGESTED_FIX: Ein ADR im ADRS-Block, das ADR 0069 Punkt 3 erweitert, mit Entscheidung, verworfener Alternative und dem Fall der verlorenen Antwort. Kommentar und Outcome korrigieren. FetchMonth-Prüfung im Sperr-Test ergänzen.
+ITERATION_HINT: likely-fixable
+
+## Outcome
+
+Verschieben steht auf der Budget-Seite. Der Verfügbar-Betrag jeder Zeile ist ein Knopf (`Money.availableButton`, 48 px am Handy), der Name bleibt ohne Wirkung. Das Sheet zeigt Richtung nach Vorzeichen mit Umschalter, Gegenseite im `CategoryPicker` (Zu verteilen zuerst, X fehlt), Betrag und "Verfügbar danach" für beide Seiten. Der Server (`moveMoney`) liest den Monat unter der Monatssperre frisch, plant relativ (`planMove`), hält die Bewegungen fest (Herkunft "Verschieben" oder "Zuweisen", gemeinsame `application_id`) und sendet erst die Quelle, dann das Ziel (`sendInOrder`). Danach lädt die Seite den Monat neu, ohne Ladezustand, damit die Liste nicht springt; der Toast nennt Betrag, Quelle und Ziel. Bei fehlgeschlagener Zeile bietet er "Erneut senden" (`RetryBudgetMove`, geht über `retryFailedTargets`). Scheitert das Lesen oder wird der Auftrag abgelehnt, bleibt das Sheet mit Grund offen.
+
+**Nicht ausgeführt: die Live-Probe.** "YNAB nimmt ein negatives Zugewiesen an (Budget Test)" steht in `src/Tests/YnabIntegrationTests.fs` hinter `RUN_INTEGRATION_TESTS` und wurde im normalen Lauf übersprungen; laut Auftrag lief sie nicht gegen den Live-Dienst. Ob YNAB den Wert annimmt, ist also noch nicht belegt. Sie muss einmal mit `RUN_INTEGRATION_TESTS=true` laufen. Lehnt YNAB ab, greift die Bounce-Regel der Task, und Verschieben aus einer Kategorie, die vom Vortrag lebt, schlägt fehl.
+
+Das AC [human-eye] (fühlt sich schneller an als YNAB) bleibt für Roman. Aufnahmen (Fehler-Toasts dort stammen aus ungemockten Settings-Routen):
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/e015858c-a4f0-49ad-bb8b-a3e9cf0a1943/scratchpad/move-handy.png
+- /private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/e015858c-a4f0-49ad-bb8b-a3e9cf0a1943/scratchpad/move-pc-picker.png
+
+Entscheidungen, die die Task offenließ:
+- Gewinnt YNAB beim erneuten Senden an der Quelle, wird das Ziel ungesendet ebenfalls "in YNAB geändert" geschlossen (neues ADR 0070, provisorische Nummer, erweitert ADR 0069 Punkt 3). Ein gesendetes Ziel nähme das Geld aus Zu verteilen. Ob die Quelle gesunken ist, weiß BB dabei nicht: kam ihr PATCH an und nur die Antwort ging verloren, und änderte sie sich danach, bleibt das Geld in Zu verteilen und Roman muss es von Hand verschieben. budgeting-dyn8g muss damit rechnen, dass eine Zeile, die YNAB nie berührt hat, diesen Stand trägt.
+- Bricht der Aufruf selbst ab (kein Server-Ergebnis), schließt das Sheet mit "Ob verschoben wurde, ist unklar" und der Monat lädt neu. Ein zweiter Versuch im offenen Sheet könnte doppelt verschieben, weil der Server relativ rechnet.
+- Der Bericht von `moveMoney` liest Zu verteilen nicht neu (`ActualToBeBudgeted = None`), das spart einen YNAB-Aufruf; der Client lädt den Monat ohnehin.
+- `Budget.State.update` liefert jetzt wie das Kassenbuch zusätzlich eine `ExternalMsg`. `Input.TextInputProps` hat ein optionales `InputMode` bekommen, für die Dezimal-Tastatur.
+- Der rohe Knopf liegt in `Money.fs`, weil ein Test rohe `Html.button` in `Budget/View.fs` verbietet.
+
+Wichtige Stellen: `src/Server/Budgeting/Domain.fs` (`planMove`), `src/Server/Budgeting/CommandHandlers.fs` (`moveMoney`, `sendInOrder`, `retryFailed`), `src/Shared/Budgeting.fs` (`MoveSide`, `MoveRequest`), `src/Client/Components/Budget/{Types,State,View}.fs`, `src/Client/DesignSystem/CategoryPicker.fs` (`ToBeBudgeted`, `ChoseToBeBudgeted`), Styleguide Sektion 26. Der Kommentar in `retryFailed` nennt die Task-Id statt der ADR-Nummer, weil die Nummer erst beim Integrieren feststeht.
+
+Tests: `src/Tests/MoveMoneyTests.fs` (23), `src/Tests/MoveMoneyClientTests.fs` (23), `scripts/move-money.test.mjs` (4), dazu 3 Picker-Tests, 1 Styleguide-Wächter, 1 Endpoint-Zeile, 1 Live-Probe. Die Tests entstanden nach dem Produktionscode, nicht davor. Rot gesehen habe ich sie nur für einen Teil. Iteration 1: ohne Halt in `sendInOrder` und ohne Reihenfolge in `retryFailed` werden 5 Tests rot. Iteration 2: das Lesen vor die Sperre gezogen und das Ziel trotz geschlossener Quelle gesendet, 3 Tests rot (Sperr-Test, verlorene Antwort, YNAB gewinnt an der Quelle). Beide Mutationen sind zurückgesetzt. Danach `./verify.sh`: `VERIFY: PASS` (dotnet 2649 grün, node 328 grün).
+
+### README von Hand
+Das `README_DELTA` hat `check:readme-delta` bestanden (Exit 0). Die Abschnitte Key events und Key commands enden in Fließtext, ein `append` wird dort abgelehnt. Deshalb trägt das Delta die neuen Einträge per `replace` in die bestehenden Bullets ein und streicht die veralteten Kandidaten-Sätze. Bei Bedarf können sie später eigene Bullets werden.

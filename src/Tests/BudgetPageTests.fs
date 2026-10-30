@@ -56,7 +56,7 @@ let private loadedTests =
             | other -> failtestf "Success erwartet, war %A" other
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
-            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = "" }
+            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = ""; Move = None }
             let m = applyLoaded CurrentMonth (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
         }
@@ -178,9 +178,9 @@ let private searchStateTests =
             Expect.equal (init ()).CategorySearch "" "leer"
         }
         test "Tippen setzt die Suche, ✕ leert sie" {
-            let typed, _ = Components.Budget.State.update (CategorySearchChanged "leb") (init ())
+            let typed, _, _ = Components.Budget.State.update (CategorySearchChanged "leb") (init ())
             Expect.equal typed.CategorySearch "leb" "getippt"
-            let cleared, _ = Components.Budget.State.update ClearCategorySearch typed
+            let cleared, _, _ = Components.Budget.State.update ClearCategorySearch typed
             Expect.equal cleared.CategorySearch "" "geleert"
         }
         test "Monatswechsel und die Antwort darauf behalten die Suche" {
@@ -192,7 +192,7 @@ let private searchStateTests =
         }
         test "Betreten der Seite leert die Suche und holt den Monat" {
             let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
-            let entered, cmd = Components.Budget.State.update PageEntered searching
+            let entered, cmd, _ = Components.Budget.State.update PageEntered searching
             Expect.equal entered.CategorySearch "" "neuer Seitenaufruf ist leer"
             let mutable followUps = []
             cmd |> List.iter (fun sub -> sub (fun msg -> followUps <- msg :: followUps))

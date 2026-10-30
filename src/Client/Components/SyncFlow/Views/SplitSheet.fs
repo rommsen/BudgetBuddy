@@ -135,6 +135,7 @@ let splitSheet (model: Model) (dispatch: Msg -> unit) =
               Accounts = openOnBudgetAccounts model.Accounts
               CurrentAccount = pickerLine |> Option.bind (snd >> lineAccount)
               OfferWithout = false
+              ToBeBudgeted = None
               StandLabel = None
               LoadState = CategoryPicker.PickerReady
               OnRetry = ignore

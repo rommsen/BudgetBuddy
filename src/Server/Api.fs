@@ -1977,8 +1977,8 @@ let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
       SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits }
 
-/// Die Budget-Seite: liest den Monat live aus YNAB. Nur "Targets anwenden" schreibt (nach
-/// YNAB und in die Budget-Bewegungen).
+/// Die Budget-Seite: liest den Monat live aus YNAB. Nur "Targets anwenden" und "Verschieben"
+/// schreiben (nach YNAB und in die Budget-Bewegungen).
 let budgetApi : BudgetApi = {
     getBudgetMonth = fun monthKeyText -> async {
         let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
@@ -2017,6 +2017,19 @@ let budgetApi : BudgetApi = {
             return!
                 targetsWith tokenOpt budgetOpt livePort (fun port ->
                     Server.Budgeting.CommandHandlers.retryFailed port DateTime.UtcNow applicationId)
+    }
+
+    moveMoney = fun monthKeyText request -> async {
+        match Validation.validateBudgetMonth monthKeyText with
+        | Error message -> return Error message
+        | Ok choice ->
+            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+            let key = Server.Budgeting.Domain.monthKey DateTime.Today choice
+            let! result =
+                targetsWith tokenOpt budgetOpt livePort (fun port ->
+                    Server.Budgeting.CommandHandlers.moveMoney port DateTime.UtcNow key request)
+            return result |> Result.bind id
     }
 }
 

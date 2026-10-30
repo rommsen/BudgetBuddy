@@ -484,8 +484,8 @@ type LedgerApi = {
 // ============================================
 
 /// Die Budget-Seite (Context `budgeting`): liest den Monat live aus YNAB. Nur "Targets
-/// anwenden" (`applyTargets`, `retryFailedTargets`) schreibt, nach YNAB und in die
-/// Budget-Bewegungen.
+/// anwenden" (`applyTargets`, `retryFailedTargets`) und "Verschieben" (`moveMoney`) schreiben,
+/// nach YNAB und in die Budget-Bewegungen.
 type BudgetApi = {
     /// Holt den Monat mit Zu verteilen und den Kategorien nach Gruppe. Der Schlüssel ist
     /// "current" (laufender Monat) oder "next" (nächster Monat); alles andere lehnt die
@@ -504,4 +504,11 @@ type BudgetApi = {
 
     /// "Fehlgeschlagene erneut senden" für eine Anwendung (Id aus dem `ApplyReport`).
     retryFailedTargets: string -> Async<Result<Shared.Budgeting.ApplyReport, string>>
+
+    /// Geld verschieben oder zuweisen (budgeting-afd8h, ADR 0069) im Monat zum Schlüssel
+    /// ("current"/"next"): der Server liest den Monat frisch, hält die Bewegungen fest und
+    /// schreibt nacheinander nach YNAB. Error heißt: nichts geschrieben (Monat nicht lesbar oder
+    /// Auftrag abgelehnt). Fehlgeschlagene Zeilen stehen im Bericht und gehen über
+    /// `retryFailedTargets` erneut hinaus.
+    moveMoney: string -> Shared.Budgeting.MoveRequest -> Async<Result<Shared.Budgeting.ApplyReport, string>>
 }

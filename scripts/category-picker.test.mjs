@@ -258,3 +258,16 @@ test("PC: Zustand fehlgeschlagen zeigt Fehlertext und Erneut versuchen, der Knop
   assert.equal(await count.textContent(), "1", "OnRetry genau einmal");
   await page.close();
 });
+
+test("Styleguide zeigt die Variante mit Zu verteilen als erstem Eintrag (budgeting-afd8h)", async () => {
+  const page = await openGallery({ viewport: { width: 1280, height: 800 } });
+  try {
+    await page.locator('[data-ds-demo="category-picker-to-be-budgeted-trigger"] button').click();
+    const first = page.locator('[data-ds-demo="category-picker-to-be-budgeted"] [role="option"]').first();
+    await first.waitFor();
+    assert.match(await first.innerText(), /Zu verteilen/);
+    assert.equal(await first.getAttribute("data-testid"), "category-picker-to-be-budgeted");
+  } finally {
+    await page.context().close();
+  }
+});

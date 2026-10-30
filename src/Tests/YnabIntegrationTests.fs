@@ -48,6 +48,46 @@ let private shouldRunIntegrationTests () =
 [<Tests>]
 let integrationTests =
     testList "YNAB Integration Tests (requires .env)" [
+        // budgeting-afd8h, ADR 0069: nimmt YNAB ein negatives Zugewiesen an? Ohne das liefe eine
+        // Kategorie, die vom Vortrag lebt, beim Verschieben auf einen Fehler. Schreibt nur in das
+        // Budget "Test" und stellt den alten Wert wieder her.
+        testCase "YNAB nimmt ein negatives Zugewiesen an (Budget Test)" <| fun () ->
+            if not (shouldRunIntegrationTests()) then
+                Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
+
+            match getEnvVar "YNAB_TOKEN" with
+            | None -> Tests.skiptest "YNAB_TOKEN not set in .env - skipping integration test"
+            | Some token ->
+                let budget =
+                    match getBudgets token |> Async.RunSynchronously with
+                    | Ok budgets ->
+                        match budgets |> List.tryFind (fun b -> b.Name = "Test") with
+                        | Some b -> b.Id
+                        | None -> Tests.skiptest "Budget 'Test' nicht vorhanden - skipping integration test"
+                    | Error e -> failtest $"Budgets nicht lesbar: {e}"
+
+                let month = DateTime.Today.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+                let read () =
+                    match getMonth token budget month |> Async.RunSynchronously with
+                    | Ok m -> m
+                    | Error e -> failtest $"Monat nicht lesbar: {e}"
+
+                let category =
+                    read().Categories
+                    |> List.tryFind (fun c -> not c.Hidden && not c.Deleted && not c.Internal)
+                    |> Option.defaultWith (fun () -> failtest "Keine Kategorie im Budget Test")
+                let original = Shared.Budgeting.toMilliunits category.Assigned
+
+                try
+                    let result = setAssigned token budget month category.Id -50000L |> Async.RunSynchronously
+                    Expect.isOk result "YNAB muss ein negatives Zugewiesen annehmen"
+                    let after = read().Categories |> List.find (fun c -> c.Id = category.Id)
+                    Expect.equal (Shared.Budgeting.toMilliunits after.Assigned) -50000L "YNAB führt den negativen Wert"
+                finally
+                    setAssigned token budget month category.Id original
+                    |> Async.RunSynchronously
+                    |> ignore
+
         testCase "can fetch budgets with real token" <| fun () ->
             if not (shouldRunIntegrationTests()) then
                 Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"

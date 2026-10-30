@@ -1421,6 +1421,7 @@ let private categoryField (dispatch: Msg -> unit) (model: Model) (entry: LedgerE
           Accounts = []
           CurrentAccount = None
           OfferWithout = true
+          ToBeBudgeted = None
           StandLabel = categoryStandLabel model DateTime.Now
           LoadState = categoryLoadState model.Categories
           OnRetry = fun () -> dispatch LoadCategories
@@ -1759,6 +1760,7 @@ let private splitTargetPickerProps
       Accounts = transferTargetsFor model entry
       CurrentAccount = lineAccountId line
       OfferWithout = true
+      ToBeBudgeted = None
       StandLabel = categoryStandLabel model DateTime.Now
       LoadState = categoryLoadState model.Categories
       OnRetry = fun () -> dispatch LoadCategories
@@ -1767,6 +1769,7 @@ let private splitTargetPickerProps
             match choice with
             | CategoryPicker.ChoseCategory id -> dispatch (SelectSplitCategory (index, id))
             | CategoryPicker.ChoseAccount id -> dispatch (SelectSplitAccount (index, id))
+            | CategoryPicker.ChoseToBeBudgeted -> ()
       OnClose = fun () -> dispatch CloseSplitPicker }
 
 /// Der Inhalt des Editors, für Panel und Sheet derselbe: Summe, Zeilen, "Zeile hinzufügen". Der
@@ -3023,6 +3026,7 @@ let selectionBars (dispatch: Msg -> unit) (model: Model) : ReactElement =
           Accounts = []
           CurrentAccount = None
           OfferWithout = true
+          ToBeBudgeted = None
           StandLabel = categoryStandLabel model DateTime.Now
           LoadState = categoryLoadState model.Categories
           OnRetry = fun () -> dispatch LoadCategories
