@@ -7,7 +7,7 @@ Bob legt Barbuchungen in zwei Schritten an: Vorschau, dann Commit.
 
 | Variable | Bedeutung |
 |---|---|
-| `BOT_API_TOKEN` | Bearer-Token aller `/bot/`-Routen. Ohne Wert sind die Routen abgeschaltet (401). Erzeugen mit `openssl rand -hex 32`. |
+| `BOT_API_TOKEN` | Bearer-Token aller `/bot/`-Routen. Ohne Wert sind die Routen abgeschaltet (401). Erzeugen mit `openssl rand -hex 32`. Live gesetzt seit 2026-10-28: nicht neu erzeugen ohne Absprache mit der Homelab-Sitzung, sonst verliert Bob still den Zugang. Prüfen nur auf Vorhandensein (`grep -c '^BOT_API_TOKEN=.'`), nie den Wert ausgeben. |
 | `BOT_MAX_AMOUNT_EUR` | Obergrenze einer Buchung in Euro. Optional, Vorgabe 500. Nur Dezimalpunkt (`250.50`), "500,00" und "1,000" sind ungültig und ergeben die Vorgabe. Der Code deckelt bei 500 EUR, die Umgebung darf nur absenken. Der wirksame Wert steht beim Start im Log. |
 
 Beide stehen in `.env.example` und werden in `compose.yaml` an den Container durchgereicht.

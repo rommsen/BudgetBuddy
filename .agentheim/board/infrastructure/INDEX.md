@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 1
-- **Doing:** 1
-- **Done:** 30
+- **Doing:** 0
+- **Done:** 31
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `doing/infrastructure-gmx27-learn-global-und-memory-triage.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `done/infrastructure-gmx27-learn-global-und-memory-triage.md`
 - **infrastructure-a2pcg** — "Projekt-CLAUDE.md neu schreiben, Ziel 100 bis 130 Zeilen" (chore) — `done/infrastructure-a2pcg-claude-md-neu.md`
 - **infrastructure-fam9k** — "Bestandsreview-Command nach dem umgebauten Souls-/architecture-review" (chore) — `done/infrastructure-fam9k-bestandsreview-command.md`
 - **infrastructure-hdf7j** — "Tests aufräumen nach der Test-Doktrin: Tautologien, schwache Quelltext-Tests, geteilte Kalendertage" (refactor) — `done/infrastructure-hdf7j-tests-aufraeumen.md`

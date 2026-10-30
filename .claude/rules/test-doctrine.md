@@ -15,7 +15,7 @@ Mechanisch geprüft von: `src/Tests/RemotingPipelineTests.fs`, `src/Tests/Remoti
 
 ## Heimat-Ebene
 
-1. Ein Test prüft beobachtbares Verhalten auf der billigsten Ebene, auf der ein Fehler im echten Code ihn rot macht. Ebenen, billig nach teuer: Domain, Decoder und Encoder pur; Validation; Befehls- und Abfrage-Handler mit In-Memory-SQLite; API-Adapter (Record-Feld aus `src/Server/Api.fs` direkt aufrufen); Client-`update` unter .NET; Browser-Wächter in `scripts/*.test.mjs`.
+1. Ein Test prüft beobachtbares Verhalten auf der billigsten Ebene, auf der ein Fehler im echten Code ihn rot macht. Ebenen, billig nach teuer: Domain, Decoder und Encoder pur; Validation; Befehls- und Abfrage-Handler mit In-Memory-SQLite; API-Adapter (Record-Feld aus `src/Server/Api.fs` direkt aufrufen); Client-`update` unter .NET; Browser-Wächter in `scripts/*.test.mjs`. Client-`update` unter .NET nur für Nachrichten, deren Cmd nicht `Client.Api` berührt: der Fable.Remoting-Proxy wirft unter .NET im Typinitialisierer. Mapping-Logik dafür in reine Funktionen ziehen (Vorbild `buildQuickAddRequest`).
 2. Kein zweiter Test auf einer teureren Ebene für dasselbe Verhalten. Eine zweite Ebene nur mit eigener, benannter Aussage.
 3. Handler-Tests nach dem Kassenbuch-Muster: Ports als Funktionswerte (Vorbild `MemoProbe` in `src/Tests/LedgerMemoTests.fs`), Uhr als Parameter, Schema-Initialisierung im Testfall, eindeutige Ids (`freshAccount`). Geprüft werden Ereignisse, gelesener Zustand und ausgehende Aufrufe.
 4. Eine neue Funktion nach dem Vorbild einer bestehenden bekommt Tests für dieselben Verhaltensfälle wie die Vorlage (jede Ablehnungsregel, jede Grenze), keine Feldkopie-Tests.
