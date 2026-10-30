@@ -10,8 +10,9 @@
 > stehen im Code und sind dort autoritativ. Dieses Dokument verlinkt die Quellen und
 > beschreibt Bedeutung und Regeln — es dupliziert keine Details, die veralten.
 >
-> **Verwandt:** [`overview.md`](overview.md) (MVU-Architektur), `CLAUDE.md` →
-> *"Design System Components"* (API-Schnellreferenz mit Codebeispielen).
+> **Verwandt:** [`overview.md`](overview.md) (MVU-Architektur),
+> [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) (Komponenten-API in den
+> Komponenten und ihren Doc-Kommentaren).
 >
 > **Lebendes visuelles Gegenstück:** die In-App-Route **`/styleguide`** (erreichbar in
 > der App, dezenter Link in den Einstellungen) rendert die **echten** DS-Komponenten und
@@ -217,9 +218,9 @@ Module in [`Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs):
 ## 5. Komponenten-Inventar (20 DS-Komponenten)
 
 Alle Komponenten liegen unter
-[`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props/Beispiele
-stehen im Code und in `CLAUDE.md` → *"Design System Components"* — hier steht nur
-**wann welche / wann nicht** (konsistent mit `CLAUDE.md`, keine Widersprüche).
+[`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props stehen dort in den
+Komponenten und ihren Doc-Kommentaren, Live-Beispiele zeigt die Route `/styleguide`. Hier
+steht nur **wann welche / wann nicht**.
 
 > **Drift-Definition:** Inline-Feliz für etwas, das eine dieser Komponenten abdeckt,
 > ist Drift. Erst Komponente suchen, dann bauen.
@@ -386,7 +387,7 @@ Die UI spricht **Deutsch, direkt, knapp, ohne Füllwörter** — wie Roman selbs
 - [`src/Client/DesignSystem/Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs) — Farb-/Glow-/Spacing-/Preset-Tokens.
 - [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 20 Komponenten.
 - [`src/Client/styles.css`](../../src/Client/styles.css) / [`index.html`](../../src/Client/index.html) — Spring-Easing, `prefers-reduced-motion`, visualViewport-Anker, Viewport-Meta.
-- `CLAUDE.md` → *"Design System Components"* — API-Schnellreferenz mit Codebeispielen.
+- Route `/styleguide`: die echten DS-Komponenten als Live-Beispiele, die API steht in deren Doc-Kommentaren.
 - `.claude/rules/design-tokens.md` — die harte Token-only-Regel + Grep-Checks.
 - ADR 0005 (visual-viewport-Sheets + Click-Commit), ADR 0004 (Quick-Add-Picker).
 - Prior art: `categorization/done/2026-06-11-mobile-category-picker-keyboard-ghostclick`,

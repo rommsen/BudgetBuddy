@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 17:20 -- Task verified and completed: design-system-m65pw - "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
+
+**Type:** Work / Task completion
+**Task:** design-system-m65pw - "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
+**Summary:** Der Styleguide verweist an allen drei Stellen nicht mehr auf den entfallenen CLAUDE.md-Abschnitt, sondern auf src/Client/DesignSystem/ und die Route /styleguide.
+**Duration:** 20m
+**Verification:** PASS (iteration 1)
+**Files changed:** 1
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 17:15 -- Task verified and completed: infrastructure-q7d2m - "Alte Planungsdokumente unter docs/ mit Verweisen auf gelöschte Agents und standards aufräumen"
 
 **Type:** Work / Task completion

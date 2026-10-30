@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 39
+- **Doing:** 0
+- **Done:** 40
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `doing/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 <!-- doing-list:end -->
 
 ### Done (current-month entries live; older months archived verbatim under `done-archive/` — kept for prior-art search, ADR-0039 convention)
 <!-- done-list:start -->
+- **design-system-m65pw** — "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components" (chore) — `done/design-system-m65pw-styleguide-verweise-auf-alte-claude-md.md`
 - **design-system-bym4m** — "Split-Ziel in einem Picker: Kategorie oder Konto über dieselbe Suche (\"Bar\" findet das Bar-Konto), Sync-Symbol für den Übertrag entfällt, in Kassenbuch und Import" (feature) — `done/design-system-bym4m-split-ziel-ein-picker-fuer-kategorie-und-konto.md`
 - **design-system-j6dnj** — "Touch-Fläche der kleinen Knöpfe am Handy auf mindestens 48 px bringen: die DS-Größe Button.Small wird mobil 48 px hoch (Split-Editor: Barabhebung, Zeile hinzufügen und alle übrigen Small-Knöpfe)" (bug) — `done/design-system-j6dnj-touch-flaeche-kleiner-knoepfe-am-handy.md`
 - **design-system-y2bdj** — "Lebender Styleguide zeigt die Knopfzeile des Split-Editors mit Barabhebung (SplitEditor.lineActions statt nur addLineButton)" (chore) — `done/design-system-y2bdj-styleguide-split-editor-knopfzeile.md`

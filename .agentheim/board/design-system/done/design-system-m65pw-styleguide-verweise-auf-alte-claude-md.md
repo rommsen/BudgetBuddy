@@ -1,7 +1,7 @@
 ---
 id: design-system-m65pw
 title: "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
-status: doing
+status: done
 type: chore
 context: design-system
 created: 2026-10-30
@@ -28,3 +28,7 @@ Die drei Verweise auf `src/Client/DesignSystem/` (Komponenten und Doc-Kommentare
 
 ## Notes
 Refine am 2026-10-30: Zeilennummern auf den heutigen Stand gezogen. Es sind die einzigen Treffer für `CLAUDE.md` unter `standards/`.
+
+## Outcome
+
+`standards/frontend/styleguide.md` nennt an den drei Stellen (Kopf, Abschnitt 5, Quellenliste) statt des entfallenen CLAUDE.md-Abschnitts `src/Client/DesignSystem/` und die Route `/styleguide`. Der Einschub "konsistent mit CLAUDE.md" ist entfallen. Beide grep-Prüfungen aus den Akzeptanzkriterien finden nichts mehr, `./verify.sh` zeigt `VERIFY: PASS` (dotnet 2695 grün, node 329 grün).
