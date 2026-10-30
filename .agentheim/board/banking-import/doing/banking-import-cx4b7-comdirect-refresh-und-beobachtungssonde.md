@@ -1,7 +1,7 @@
 ---
 id: banking-import-cx4b7
 title: "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS"
-status: todo
+status: doing
 type: spike
 context: banking-import
 created: 2026-10-30

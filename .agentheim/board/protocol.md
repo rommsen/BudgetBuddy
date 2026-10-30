@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 21:56 -- Batch started: [banking-import-cx4b7]
+
+**Type:** Work / Batch start
+**Tasks:** banking-import-cx4b7 - "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS"
+**Parallel:** scoped — builder named banking-import-cx4b7; 3 other ready tasks not dispatched
+
+---
+
 ## 2026-10-30 21:49 -- Modeling / Captured: banking-import-t4raw - "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus"
 
 **Type:** Modeling / Capture

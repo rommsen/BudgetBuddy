@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 0
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **banking-import-cx4b7** — "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS" (spike) — `todo/banking-import-cx4b7-comdirect-refresh-und-beobachtungssonde.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-cx4b7** — "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS" (spike) — `doing/banking-import-cx4b7-comdirect-refresh-und-beobachtungssonde.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
