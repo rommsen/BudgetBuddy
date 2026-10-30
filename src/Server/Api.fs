@@ -57,66 +57,29 @@ let private syncErrorToString (error: SyncError) : string =
     | SyncError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
     | SyncError.AskLenaRejected reason -> reason
 
-/// Parses Comdirect API error JSON and extracts user-friendly message
-/// Comdirect errors have format: {"code":"TAN_UNGUELTIG","messages":[{"message":"TAN-Freigabe..."}]}
-/// This function is internal (not private) to allow testing
-let internal parseComdirectErrorJson (json: string) : string option =
-    try
-        let decoder =
-            Decode.object (fun get ->
-                let code = get.Optional.Field "code" Decode.string
-                let messages =
-                    get.Optional.Field "messages" (Decode.list (
-                        Decode.object (fun msgGet ->
-                            msgGet.Optional.Field "message" Decode.string
-                        )
-                    ))
-                code, messages
-            )
+/// Feste Meldung zu bekannten Comdirect-Fehlercodes. Der Code kommt aus `ComdirectClient`,
+/// der Antwortrumpf erreicht diese Stelle nicht.
+let private knownComdirectCodeMessage (code: string) : string option =
+    match code with
+    | "TAN_UNGUELTIG" -> Some "Please confirm the TAN in your banking app first."
+    | "SESSION_EXPIRED" -> Some "Your session has expired. Please start a new sync."
+    | "UNAUTHORIZED" -> Some "Authorization failed. Please check your credentials."
+    | _ -> None
 
-        match Decode.fromString decoder json with
-        | Ok (codeOpt, messagesOpt) ->
-            // Extract the first message from the messages array
-            let messageText =
-                messagesOpt
-                |> Option.bind (List.tryHead)
-                |> Option.flatten
-
-            // Provide user-friendly messages for known error codes
-            match codeOpt with
-            | Some "TAN_UNGUELTIG" ->
-                // TAN not yet confirmed - give clear instructions
-                messageText
-                |> Option.defaultValue "Please confirm the TAN in your banking app first."
-                |> Some
-            | Some "SESSION_EXPIRED" ->
-                Some "Your session has expired. Please start a new sync."
-            | Some "UNAUTHORIZED" ->
-                Some "Authorization failed. Please check your credentials."
-            | Some code ->
-                // Use the message if available, otherwise show the code
-                messageText
-                |> Option.orElse (Some $"Error: {code}")
-            | None ->
-                messageText
-        | Error _ ->
-            None
-    with _ ->
-        None
-
-/// Converts ComdirectError to string with proper parsing of error JSON
-let private comdirectErrorToString (error: ComdirectError) : string =
+/// Converts ComdirectError to a message for the client: status and error code, never a response body.
+let internal comdirectErrorToString (error: ComdirectError) : string =
     match error with
     | ComdirectError.AuthenticationFailed msg -> $"Authentication failed: {msg}"
     | ComdirectError.TanChallengeExpired -> "TAN challenge expired. Please start a new sync and confirm within the time limit."
     | ComdirectError.TanRejected -> "TAN was rejected. Please try again."
     | ComdirectError.SessionExpired -> "Session expired. Please start a new sync."
     | ComdirectError.InvalidCredentials -> "Invalid credentials. Please check your Comdirect settings."
-    | ComdirectError.NetworkError (status, msg) ->
-        // Try to parse the JSON error response for a user-friendly message
-        match parseComdirectErrorJson msg with
-        | Some userMessage -> userMessage
-        | None -> $"Network error (HTTP {status}): {msg}"
+    | ComdirectError.NetworkError (0, _) -> "Network error: Comdirect did not answer."
+    | ComdirectError.NetworkError (status, code) ->
+        match knownComdirectCodeMessage code with
+        | Some message -> message
+        | None when ComdirectClient.isSafeErrorCode code -> $"Network error (HTTP {status}): {code}"
+        | None -> $"Network error (HTTP {status})"
     | ComdirectError.InvalidResponse msg -> $"Invalid response: {msg}"
 
 // ============================================

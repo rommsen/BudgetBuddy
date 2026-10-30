@@ -38,6 +38,9 @@
     <Compile Include="YnabIntegrationTests.fs" />
     <Compile Include="ComdirectClientTests.fs" />
     <Compile Include="ComdirectDecoderTests.fs" />
+    <Compile Include="ComdirectHttpTests.fs" />
+    <Compile Include="ComdirectProbe.fs" />
+    <Compile Include="ComdirectProbeTests.fs" />
     <Compile Include="ComdirectIntegrationTests.fs" />
     <Compile Include="RulesEngineTests.fs" />
     <Compile Include="DuplicateDetectionTests.fs" />

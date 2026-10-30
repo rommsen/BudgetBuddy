@@ -26,11 +26,14 @@ ein Hauptgrund, warum BudgetBuddy existiert.
 - **Push-TAN** — Comdirects Zwei-Faktor-Bestätigung; während eines Sync wird auf sie
   gewartet (`AwaitingTan`).
 - **ComdirectAccount** — ein Bankkonto bei Comdirect (Iban, Balance, AccountType).
+- **Refresh-Urteil** (`RefreshFailure`): Ergebnis eines gescheiterten Token-Refresh. `ReloginRequired` (400, 401, jedes andere 4xx außer 429) verlangt eine neue TAN, `RetryLater` (Status 0, 429, 5xx, nicht lesbare Antwort) lässt die Verbindung stehen.
+- **Beobachtungssonde**: Testfall hinter `RUN_INTEGRATION_TESTS` und `COMDIRECT_PROBE` (1, 2 oder 3, nur als Prozess-Variable), der die Trageweite der Session mit einer echten TAN misst. Nur dort darf ein Testlauf eine TAN auslösen.
 
 ## Aggregates
 - **BankTransaction** — unveränderliche Repräsentation einer geholten Buchung; Reference
   ist innerhalb einer Quelle eindeutig.
 - **ComdirectAuthSession** — hält den OAuth/Push-TAN-Zustand über einen Abruf hinweg.
+- **Invariante Fehlertexte:** Comdirect-Fehler tragen Status und `error`-Code, nie den Antwortrumpf. Das gilt auch für Decoder-Meldungen, weil Thoth darin den gelesenen Wert zitiert.
 
 ## Key events
 - *TransactionsFetched* — neue BankTransactions liegen vor.

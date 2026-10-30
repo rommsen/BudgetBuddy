@@ -52,6 +52,21 @@ let private shouldRunIntegrationTests () =
     | Some value when value.ToLower() = "true" -> true
     | _ -> false
 
+/// `COMDIRECT_PROBE` zählt nur aus der Prozess-Umgebung, nie aus `.env` (siehe ComdirectProbe.fs).
+let private selectedProbePhase () =
+    ComdirectProbe.selectPhase
+        (shouldRunIntegrationTests ())
+        (Environment.GetEnvironmentVariable "COMDIRECT_PROBE" |> Option.ofObj)
+
+/// Dasselbe Datenverzeichnis wie `Persistence`, darunter ein eigener Ordner.
+let private probeDirectory () =
+    let dataDir =
+        match Environment.GetEnvironmentVariable "DATA_DIR" with
+        | null | "" ->
+            Path.Combine(Environment.GetFolderPath Environment.SpecialFolder.UserProfile, "my_apps", "budgetbuddy-dev")
+        | path -> path
+    Path.Combine(dataDir, "comdirect-probe")
+
 // ============================================
 // Integration Tests (require Comdirect credentials in .env)
 // ============================================
@@ -59,54 +74,54 @@ let private shouldRunIntegrationTests () =
 [<Tests>]
 let integrationTests =
     testList "Comdirect Integration Tests (requires .env)" [
-        testCase "can initiate OAuth flow (up to TAN challenge)" <| fun () ->
+        // Die einzige Stelle, die in einem Testlauf eine Push-TAN auslösen kann. Der frühere
+        // Testfall "can initiate OAuth flow" löste schon mit RUN_INTEGRATION_TESTS allein eine aus
+        // und ist deshalb entfallen (banking-import-cx4b7). Ablauf und Start: ComdirectProbe.fs.
+        testCase "Comdirect-Sonde: Session trägt nur per Refresh" <| fun () ->
             if not (shouldRunIntegrationTests()) then
                 Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
 
-            match getApiKeys(), getCredentials() with
-            | None, _ | _, None ->
+            match selectedProbePhase(), getApiKeys(), getCredentials() with
+            | None, _, _ ->
+                Tests.skiptest "COMDIRECT_PROBE nicht gesetzt: keine Sonde, keine TAN"
+            | _, None, _ | _, _, None ->
                 Tests.skiptest "COMDIRECT credentials not set in .env - skipping integration test"
-            | Some apiKeys, Some (username, password) ->
-                async {
-                    printfn "⚠️  This test will initiate a real Push-TAN - make sure you have your phone ready!"
-
-                    let credentials: ComdirectSettings = {
-                        ClientId = apiKeys.ClientId
-                        ClientSecret = apiKeys.ClientSecret
-                        Username = username
-                        Password = password
-                        AccountId = getEnvVar "COMDIRECT_ACCOUNT_ID"  // Optional
-                    }
-
-                    let! result = startAuthFlow credentials apiKeys
-
-                    match result with
-                    | Ok authSession ->
-                        // Verify we got a session
-                        Expect.isNotEmpty authSession.SessionId "Session ID should not be empty"
-                        Expect.isNotEmpty authSession.RequestInfo.RequestId "Request ID should not be empty"
-                        Expect.isNotEmpty authSession.Tokens.Access "Access token should not be empty"
-                        Expect.isNotEmpty authSession.Tokens.Refresh "Refresh token should not be empty"
-
-                        // Verify we got a TAN challenge
-                        match authSession.Challenge with
-                        | None ->
-                            failtestf "Expected to receive a Push-TAN challenge"
-                        | Some challenge ->
-                            Expect.equal challenge.Type "P_TAN_PUSH" "Challenge type should be P_TAN_PUSH"
-                            Expect.isNotEmpty challenge.Id "Challenge ID should not be empty"
-
-                            printfn $"✅ OAuth flow initiated successfully"
-                            printfn $"   Session ID: {authSession.SessionId}"
-                            printfn $"   Challenge ID: {challenge.Id}"
-                            printfn ""
-                            printfn "⚠️  NOTE: A Push-TAN was sent to your phone."
-                            printfn "   You can ignore it - this was just a test."
-                            printfn "   The TAN will expire automatically."
-
-                    | Error err ->
-                        failtestf "Failed to initiate OAuth flow: %A" err
-                } |> Async.RunSynchronously
+            | Some phase, Some apiKeys, Some (username, password) ->
+                let credentials: ComdirectSettings = {
+                    ClientId = apiKeys.ClientId
+                    ClientSecret = apiKeys.ClientSecret
+                    Username = username
+                    Password = password
+                    AccountId = None
+                }
+                let directory = probeDirectory ()
+                Directory.CreateDirectory directory |> ignore
+                let statePath = Path.Combine(directory, "session.enc")
+                let signalPath = Path.Combine(directory, "tan-bestaetigt")
+                let logPath = Path.Combine(directory, "probe.log")
+                use client = new System.Net.Http.HttpClient()
+                let ports: ComdirectProbe.ProbePorts = {
+                    Now = fun () -> DateTimeOffset.UtcNow
+                    Sleep = fun span -> Async.Sleep span
+                    Login = fun () -> startAuthFlow credentials apiKeys
+                    ConfirmTan = fun session -> completeAuthFlow session apiKeys
+                    Refresh = fun tokens -> refreshTokens client apiKeys DateTimeOffset.UtcNow tokens
+                    FetchAccounts = fun state -> getAccounts state.RequestInfo state.Tokens
+                    FetchTransactions = fun state accountId -> getTransactions state.RequestInfo state.Tokens accountId 7
+                    SignalPresent = fun () -> File.Exists signalPath
+                    ClearSignal = fun () -> File.Delete signalPath
+                    EncryptionAvailable =
+                        not (String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable "BUDGETBUDDY_ENCRYPTION_KEY"))
+                    LoadState = fun () -> ComdirectProbe.loadEncryptedState statePath
+                    SaveState = ComdirectProbe.saveEncryptedState statePath
+                    ClearState = fun () -> File.Delete statePath
+                    Log = fun entry -> File.AppendAllLines(logPath, [ ComdirectProbe.formatLogEntry entry ])
+                }
+                match ComdirectProbe.run phase ports |> Async.RunSynchronously with
+                | ComdirectProbe.Finished -> ()
+                | ComdirectProbe.SessionLost reason when phase = ComdirectProbe.RunToRejection ->
+                    printfn "Refresh abgelehnt, wie von Phase 3 erwartet: %s" reason
+                | outcome -> failtestf "Sonde beendet: %A" outcome
 
         testCase "handles invalid credentials gracefully" <| fun () ->
             // Ruft die echte Comdirect-API auf, lief bis infrastructure-am805 ohne Schalter,
@@ -114,6 +129,10 @@ let integrationTests =
             // NetworkCallGuardTests.fs).
             if not (shouldRunIntegrationTests()) then
                 Tests.skiptest "RUN_INTEGRATION_TESTS not set to 'true' - skipping integration test (set RUN_INTEGRATION_TESTS=true in .env to enable)"
+
+            // Ein paralleler Login könnte die Sitzung der Sonde beenden.
+            if (selectedProbePhase()).IsSome then
+                Tests.skiptest "COMDIRECT_PROBE gesetzt: kein paralleler Login neben der Sonde"
 
             match getApiKeys() with
             | None ->
@@ -128,7 +147,8 @@ let integrationTests =
                         AccountId = None
                     }
 
-                    let! result = startAuthFlow invalidCredentials apiKeys
+                    // Nur Schritt 1: dieser Aufruf kann keine TAN-Challenge starten.
+                    let! result = initOAuth invalidCredentials apiKeys
 
                     match result with
                     | Ok _ ->

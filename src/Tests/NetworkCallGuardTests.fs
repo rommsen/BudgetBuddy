@@ -18,6 +18,11 @@ module NetworkCallGuardTests
 // `shouldRunIntegrationTests` enthält. Ein Netzaufruf außerhalb eines Testfalls
 // (Hilfsfunktion auf Modulebene) ist immer ein Verstoß.
 //
+// TAN-Wächter (banking-import-cx4b7): `RUN_INTEGRATION_TESTS` reicht für eine Push-TAN nicht.
+// Ein Testfall, der eine Challenge startet oder bestätigt, muss zusätzlich hinter
+// `COMDIRECT_PROBE` stehen. Drei falsche Validierungen sperren den Bankzugang, ein normaler
+// Integrationslauf darf deshalb keine auslösen.
+//
 // Bekannte Grenze: ein Netzaufruf in einer Hilfsfunktion, die ihren Namen nicht aus den
 // Client-Modulen hat und auf Modulebene ohne Markierung steht, sieht der Wächter nur über
 // die Markierungen, nicht über den Aufrufgraphen der Testdateien.
@@ -131,21 +136,25 @@ let private hasSwitch (text: string) =
 
 /// Verstöße einer Testdatei: Zeilennummer und Zeile jedes Netzaufrufs, der in keinem
 /// Testfall mit Schalter steht.
-let findViolations (networkFunctions: Map<string, Set<string>>) (source: string) : (int * string) list =
-    let lines = withoutComments source
+let private callPatternsIn (lines: string[]) (functions: Map<string, Set<string>>) : Regex list =
     let opened =
         clientModules
         |> List.filter (fun m -> lines |> Array.exists (fun l -> Regex.IsMatch(l, $@"^\s*open\s+(?:Server\.)?{m}\s*$")))
     let alternation (names: Set<string>) = names |> Seq.map Regex.Escape |> String.concat "|"
     let callPatterns =
-        [ for KeyValue (m, names) in networkFunctions do
+        [ for KeyValue (m, names) in functions do
             if not names.IsEmpty then
                 yield Regex($@"\b{m}\.(?:{alternation names})(?![A-Za-z0-9_'])")
                 if List.contains m opened then
                     yield Regex($@"(?<![A-Za-z0-9_'.])(?:{alternation names})(?![A-Za-z0-9_'])(?!\s*=[^=>])") ]
-    let isNetworkLine (line: string) =
-        directMarker.IsMatch line
-        || (let code = stringLiteral.Replace(line, "\"\"") in callPatterns |> List.exists (fun r -> r.IsMatch code))
+    callPatterns
+
+let private isCallLine (patterns: Regex list) (line: string) =
+    let code = stringLiteral.Replace(line, "\"\"")
+    patterns |> List.exists (fun r -> r.IsMatch code)
+
+/// Zeilen mit `isFinding`, die in keinem Testfall stehen, dessen Text `hasGuard` erfüllt.
+let private findUnguarded (hasGuard: string -> bool) (isFinding: string -> bool) (lines: string[]) : (int * string) list =
     // Segment je Testfall: von der Startzeile bis zur nächsten nicht leeren Zeile mit
     // gleicher oder geringerer Einrückung.
     let segmentOf = Array.create lines.Length -1
@@ -167,12 +176,31 @@ let findViolations (networkFunctions: Map<string, Set<string>>) (source: string)
             i <- i + 1
     let switched =
         [ for s in 0 .. segment - 1 ->
-            s, (lines |> Array.indexed |> Array.filter (fun (k, _) -> segmentOf[k] = s) |> Array.map snd |> String.concat "\n" |> hasSwitch) ]
+            s, (lines |> Array.indexed |> Array.filter (fun (k, _) -> segmentOf[k] = s) |> Array.map snd |> String.concat "\n" |> hasGuard) ]
         |> Map.ofList
     [ for k in 0 .. lines.Length - 1 do
-        if isNetworkLine lines[k] then
+        if isFinding lines[k] then
             let ok = segmentOf[k] >= 0 && switched[segmentOf[k]]
             if not ok then yield k + 1, lines[k].Trim() ]
+
+let findViolations (networkFunctions: Map<string, Set<string>>) (source: string) : (int * string) list =
+    let lines = withoutComments source
+    let patterns = callPatternsIn lines networkFunctions
+    findUnguarded hasSwitch (fun line -> directMarker.IsMatch line || isCallLine patterns line) lines
+
+/// Funktionen, die eine Challenge starten oder bestätigen.
+let private tanFunctions =
+    Map.ofList [
+        "ComdirectClient", Set.ofList [ "requestTanChallenge"; "activateSession"; "startAuthFlow"; "completeAuthFlow" ]
+        "ComdirectAuthSession", Set.ofList [ "startAuth"; "confirmTan" ] ]
+
+let private hasProbeSwitch (text: string) =
+    text.Contains "COMDIRECT_PROBE" || text.Contains "selectedProbePhase"
+
+/// Verstöße einer Testdatei: Aufrufe, die eine TAN auslösen, ohne `COMDIRECT_PROBE`.
+let findTanViolations (source: string) : (int * string) list =
+    let lines = withoutComments source
+    findUnguarded hasProbeSwitch (isCallLine (callPatternsIn lines tanFunctions)) lines
 
 let private liveNetworkFunctions () =
     clientModules
@@ -193,6 +221,8 @@ let networkGuardTests =
             for name in [ "sendReviewMark"; "buildReviewMarkBody"; "getMonthWith"; "assignUrl" ] do
                 Expect.isFalse (ynab.Contains name) $"YnabClient.{name} geht nicht selbst ins Netz"
             Expect.contains comdirect "startAuthFlow" "ComdirectClient.startAuthFlow geht ins Netz"
+            for name in [ "refreshTokens"; "initOAuthWith"; "getAccountsWith" ] do
+                Expect.isFalse (comdirect.Contains name) $"ComdirectClient.{name} nutzt den eingespeisten Client"
             Expect.contains session "startAuth" "ComdirectAuthSession.startAuth geht ins Netz (über startAuthFlow)"
 
         testCase "Gegenbeweis: ein Testfall mit Netzaufruf ohne Schalter wird gemeldet" <| fun () ->
@@ -268,4 +298,32 @@ let networkGuardTests =
                     |> List.map (fun (line, text) -> $"{Path.GetFileName f}:{line}: {text}")
                     |> Array.ofList)
             Expect.isEmpty violations (String.concat "\n  " ("Netzaufrufe ohne RUN_INTEGRATION_TESTS-Schalter:" :: List.ofArray violations))
+
+        testCase "Gegenbeweis: eine TAN-Anfrage nur hinter RUN_INTEGRATION_TESTS wird gemeldet" <| fun () ->
+            let source =
+                String.concat "\n" [
+                    "open Server.ComdirectClient"
+                    "let tests ="
+                    "    testList \"x\" ["
+                    "        testCase \"nur Integrationsschalter\" <| fun () ->"
+                    "            if not (shouldRunIntegrationTests()) then Tests.skiptest \"aus\""
+                    "            startAuthFlow credentials keys |> Async.RunSynchronously |> ignore"
+                    "        testCase \"mit Sonden-Schalter\" <| fun () ->"
+                    "            if selectedProbePhase().IsNone then Tests.skiptest \"aus\""
+                    "            startAuthFlow credentials keys |> Async.RunSynchronously |> ignore"
+                    "    ]" ]
+            Expect.equal (findTanViolations source |> List.map fst) [ 6 ] "nur der Testfall ohne Sonden-Schalter"
+
+        // Gegenprobe zur Sonde: ein Lauf mit RUN_INTEGRATION_TESTS=true ohne COMDIRECT_PROBE
+        // erreicht keine TAN-Anfrage. Der zweite Teil dieser Aussage steht in ComdirectProbeTests.
+        testCase "kein Test unter src/Tests löst ohne COMDIRECT_PROBE eine TAN aus" <| fun () ->
+            let violations =
+                Directory.GetFiles(Path.Combine(repoRoot, "src", "Tests"), "*.fs")
+                |> Array.filter (fun f -> Path.GetFileName f <> ownFileName)
+                |> Array.sort
+                |> Array.collect (fun f ->
+                    findTanViolations (File.ReadAllText f)
+                    |> List.map (fun (line, text) -> $"{Path.GetFileName f}:{line}: {text}")
+                    |> Array.ofList)
+            Expect.isEmpty violations (String.concat "\n  " ("TAN-Aufrufe ohne COMDIRECT_PROBE:" :: List.ofArray violations))
     ]

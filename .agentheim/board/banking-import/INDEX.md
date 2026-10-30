@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 9
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 0
+- **Doing:** 0
+- **Done:** 1
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,15 +22,17 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **banking-import-cx4b7** — "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS" (spike) — `doing/banking-import-cx4b7-comdirect-refresh-und-beobachtungssonde.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **banking-import-cx4b7** — "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS" (spike) — `done/banking-import-cx4b7-comdirect-refresh-und-beobachtungssonde.md`
 <!-- done-list:end -->
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-h2n8q** — "getAccounts meldet 5xx und Verbindungsabbrüche als 404" (bug) — `backlog/banking-import-h2n8q-getaccounts-meldet-5xx-und-verbindungsabbr-che-als-404.md`
+- **banking-import-w7k3m** — "Integrationstest mit echten Schlüsseln und falschem Passwort entfernen" (chore) — `backlog/banking-import-w7k3m-integrationstest-mit-echten-schl-sseln-und-falschem-passwort.md`
 - **banking-import-t4raw** — "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus" (feature) — `backlog/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 - **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen, Web-Push bei Verlust" (feature) — `backlog/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`
 - **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `backlog/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`

@@ -51,3 +51,8 @@ Abbruchwirkung:
 Owner-Task: ein Worker kann ihn nicht ausführen, weil die Push-TAN auf Romans Handy bestätigt wird.
 Nicht per `work` starten. Während der Beobachtung nicht parallel aus einer anderen Umgebung
 anmelden, ob das die Session beendet, ist unbekannt.
+
+Aus der Verifikation von `banking-import-cx4b7` zu beobachten:
+- Eine 200-Antwort auf den Refresh ohne `expires_in` wird als `RetryLater` verworfen. Rotiert Comdirect das Token dabei, ginge der nächste Versuch mit dem alten Token hinaus.
+- Ein vorhandenes `expires_in` in nicht ganzzahliger Form lässt den Login-Pfad jetzt scheitern, vorher wurde das Feld ignoriert.
+- Scheitert die TAN-Bestätigung, ist ein von Hand neu gestarteter Lauf der Phase 1 ein neuer Versuch. Es gibt keinen Zähler, also nach einem Fehlschlag erst die Ursache klären.

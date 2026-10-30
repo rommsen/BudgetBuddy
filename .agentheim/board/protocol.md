@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 22:27 -- Task verified and completed: banking-import-cx4b7 - "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS"
+
+**Type:** Work / Task completion
+**Task:** banking-import-cx4b7 - "Comdirect-Refresh im Client und Beobachtungssonde hinter RUN_INTEGRATION_TESTS"
+**Summary:** Der Comdirect-Client erneuert Tokens per Refresh und urteilt ReloginRequired oder RetryLater, die Beobachtungssonde steht hinter RUN_INTEGRATION_TESTS und COMDIRECT_PROBE bereit, nicht live gelaufen.
+**Duration:** 31m
+**Verification:** PASS (iteration 1)
+**Files changed:** 9
+**Tests added:** 58
+**ADRs written:** none
+
+---
+
 ## 2026-10-30 21:56 -- Batch started: [banking-import-cx4b7]
 
 **Type:** Work / Batch start

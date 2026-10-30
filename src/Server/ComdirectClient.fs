@@ -15,7 +15,17 @@ open Shared.Domain
 type Tokens = {
     Access: string
     Refresh: string
+    /// Ablaufzeit des Access-Tokens. None, wenn Comdirect beim Login kein `expires_in` schickt.
+    ExpiresAt: DateTimeOffset option
 }
+
+/// Urteil über einen gescheiterten Refresh (ADR 0071 Punkt 3). `reason` trägt nur Status und
+/// `error`-Code, nie den Antwortrumpf.
+type RefreshFailure =
+    /// 400, 401 oder ein anderes 4xx: das Refresh-Token ist verbraucht, es braucht eine neue TAN.
+    | ReloginRequired of reason: string
+    /// Status 0, 429, 5xx oder nicht lesbare Antwort: die Verbindung bleibt, später erneut versuchen.
+    | RetryLater of reason: string
 
 /// Push-TAN challenge from Comdirect
 type Challenge = {
@@ -63,10 +73,14 @@ let private endpoint = "https://api.comdirect.de/"
 // JSON Decoders
 // ============================================
 
-let private tokensDecoder: Decoder<Tokens> =
+/// `expires_in` ist relativ, die Uhr kommt deshalb als Parameter.
+let private tokensDecoderAt (now: DateTimeOffset) : Decoder<Tokens> =
     Decode.object (fun get -> {
         Access = get.Required.Field "access_token" Decode.string
         Refresh = get.Required.Field "refresh_token" Decode.string
+        ExpiresAt =
+            get.Optional.Field "expires_in" Decode.int
+            |> Option.map (fun seconds -> now.AddSeconds(float seconds))
     })
 
 let private challengeDecoder: Decoder<Challenge> =
@@ -186,75 +200,147 @@ let private createHttpClient() =
     client.DefaultRequestHeaders.Accept.Add(MediaTypeWithQualityHeaderValue("application/json"))
     client
 
+/// Ein Fehlercode ist ein kurzes Wort aus Buchstaben und Unterstrichen (`invalid_grant`,
+/// `TAN_UNGUELTIG`). Alles andere, etwa ein Wert mit Ziffern, könnte ein Token sein.
+let internal isSafeErrorCode (text: string) : bool =
+    System.Text.RegularExpressions.Regex.IsMatch(text, @"^[A-Za-z_]{1,40}$")
+
+/// Zieht aus einem Fehlerrumpf nur den Code (OAuth `error`, Comdirect-API `code`). Der Rumpf
+/// selbst verlässt diese Funktion nie: er kann Tokens und Kontodaten tragen (ADR 0071 Punkt 3).
+let private errorCodeOf (content: string) : string option =
+    let decoder = Decode.oneOf [ Decode.field "error" Decode.string; Decode.field "code" Decode.string ]
+    match Decode.fromString decoder content with
+    | Ok code when isSafeErrorCode code -> Some code
+    | _ -> None
+
+/// Status und, falls vorhanden, `error`-Code für Meldung und Log.
+let private describeFailure (status: int) (content: string) : string =
+    match errorCodeOf content with
+    | Some code -> sprintf "HTTP %d: %s" status code
+    | None -> sprintf "HTTP %d" status
+
+/// Fester Text statt der Decoder-Meldung: Thoth zitiert darin den gelesenen Wert.
+let private unreadableResponse (status: int) : string =
+    sprintf "HTTP %d: Antwort nicht lesbar" status
+
+/// Ausnahmen tragen nur ihren Typnamen weiter, ihr Text kann die Anfrage-URL enthalten.
+let private transportError (ex: exn) : ComdirectError =
+    ComdirectError.NetworkError (0, ex.GetType().Name)
+
+let private httpError (status: int) (content: string) : ComdirectError =
+    match status with
+    | 401 -> ComdirectError.AuthenticationFailed (describeFailure status content)
+    | 403 -> ComdirectError.SessionExpired
+    | _ -> ComdirectError.NetworkError (status, errorCodeOf content |> Option.defaultValue "")
+
 let private handleResponse<'T> (decoder: Decoder<'T>) (response: HttpResponseMessage) : Async<ComdirectResult<'T>> =
     async {
         let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
+        let status = int response.StatusCode
 
         if response.IsSuccessStatusCode then
             match Decode.fromString decoder content with
             | Ok value -> return Ok value
-            | Error err -> return Error (ComdirectError.InvalidResponse err)
+            | Error _ -> return Error (ComdirectError.InvalidResponse (unreadableResponse status))
         else
-            let statusCode = int response.StatusCode
-
-            // Handle specific error codes
-            match statusCode with
-            | 401 -> return Error (ComdirectError.AuthenticationFailed content)
-            | 403 -> return Error (ComdirectError.SessionExpired)
-            | _ -> return Error (ComdirectError.NetworkError (statusCode, content))
+            return Error (httpError status content)
     }
+
+/// Anfrage an den OAuth-Endpunkt. `FormUrlEncodedContent` kodiert jeden Wert, ein `&` oder `+`
+/// im Passwort bleibt damit Teil des Werts.
+let private tokenRequest (fields: (string * string) list) : HttpRequestMessage =
+    let request = new HttpRequestMessage(HttpMethod.Post, endpoint + "oauth/token")
+    request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue("application/json"))
+    request.Content <-
+        new FormUrlEncodedContent(fields |> List.map System.Collections.Generic.KeyValuePair)
+    request
+
+/// GET mit Sitzungs-Headern je Anfrage: ein eingespeister Client bleibt unverändert und
+/// lässt sich wiederverwenden.
+let private sessionGet (requestInfo: RequestInfo) (tokens: Tokens) (url: string) : HttpRequestMessage =
+    let request = new HttpRequestMessage(HttpMethod.Get, url)
+    request.Headers.Accept.Add(MediaTypeWithQualityHeaderValue("application/json"))
+    request.Headers.Authorization <- AuthenticationHeaderValue("Bearer", tokens.Access)
+    request.Headers.Add("x-http-request-info", requestInfo.Encode())
+    request
 
 // ============================================
 // OAuth Flow Functions
 // ============================================
 
 /// Step 1: Initialize OAuth with client credentials and user credentials
+let initOAuthWith (client: HttpClient) (credentials: ComdirectSettings) (apiKeys: ApiKeys) : Async<ComdirectResult<Tokens>> =
+    async {
+        use request =
+            tokenRequest [
+                "client_id", apiKeys.ClientId
+                "client_secret", apiKeys.ClientSecret
+                "username", credentials.Username
+                "password", credentials.Password
+                "grant_type", "password"
+            ]
+
+        try
+            let! response = client.SendAsync(request) |> Async.AwaitTask
+            return! handleResponse (tokensDecoderAt DateTimeOffset.UtcNow) response
+        with
+        | ex -> return Error (transportError ex)
+    }
+
 let initOAuth (credentials: ComdirectSettings) (apiKeys: ApiKeys) : Async<ComdirectResult<Tokens>> =
     async {
         use client = createHttpClient()
-
-        let body =
-            sprintf "client_id=%s&client_secret=%s&username=%s&password=%s&grant_type=password"
-                apiKeys.ClientId
-                apiKeys.ClientSecret
-                credentials.Username
-                credentials.Password
-
-        use content = new StringContent(body)
-        content.Headers.ContentType <- MediaTypeHeaderValue("application/x-www-form-urlencoded")
-
-        try
-            let! response = client.PostAsync(endpoint + "oauth/token", content) |> Async.AwaitTask
-            return! handleResponse tokensDecoder response
-        with
-        | ex -> return Error (ComdirectError.NetworkError (0, ex.Message))
+        return! initOAuthWith client credentials apiKeys
     }
 
 /// Step 2: Get session identifier
+let getSessionIdentifierWith (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<string>> =
+    async {
+        // Decode the first item in the array and get the identifier field
+        let identifierDecoder = Decode.index 0 (Decode.field "identifier" Decode.string)
+
+        try
+            use request = sessionGet requestInfo tokens (endpoint + "api/session/clients/user/v1/sessions")
+            let! response = client.SendAsync(request) |> Async.AwaitTask
+            return! handleResponse identifierDecoder response
+        with
+        | ex -> return Error (transportError ex)
+    }
+
 let getSessionIdentifier (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<string>> =
     async {
         use client = createHttpClient()
+        return! getSessionIdentifierWith client requestInfo tokens
+    }
 
-        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", tokens.Access)
-        client.DefaultRequestHeaders.Add("x-http-request-info", requestInfo.Encode())
-
+/// Erneuert die Tokens ohne TAN (ADR 0071 Punkt 3). Der Client kommt von außen, die Uhr ebenso.
+/// Eine 200-Antwort ohne `expires_in` gilt als nicht lesbar: ohne Ablaufzeit lässt sich der
+/// nächste Refresh nicht planen.
+let refreshTokens (client: HttpClient) (apiKeys: ApiKeys) (now: DateTimeOffset) (tokens: Tokens) : Async<Result<Tokens, RefreshFailure>> =
+    async {
         try
-            let! response = client.GetAsync(endpoint + "api/session/clients/user/v1/sessions") |> Async.AwaitTask
+            use request =
+                tokenRequest [
+                    "client_id", apiKeys.ClientId
+                    "client_secret", apiKeys.ClientSecret
+                    "grant_type", "refresh_token"
+                    "refresh_token", tokens.Refresh
+                ]
+
+            let! response = client.SendAsync(request) |> Async.AwaitTask
+            let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
+            let status = int response.StatusCode
 
             if response.IsSuccessStatusCode then
-                let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-
-                // Decode the first item in the array and get the identifier field
-                let identifierDecoder = Decode.index 0 (Decode.field "identifier" Decode.string)
-
-                match Decode.fromString identifierDecoder content with
-                | Ok identifier -> return Ok identifier
-                | Error err -> return Error (ComdirectError.InvalidResponse err)
+                match Decode.fromString (tokensDecoderAt now) content with
+                | Ok refreshed when refreshed.ExpiresAt.IsSome -> return Ok refreshed
+                | _ -> return Error (RetryLater (unreadableResponse status))
+            elif status >= 400 && status < 500 && status <> 429 then
+                return Error (ReloginRequired (describeFailure status content))
             else
-                let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-                return Error (ComdirectError.NetworkError (int response.StatusCode, content))
+                return Error (RetryLater (describeFailure status content))
         with
-        | ex -> return Error (ComdirectError.NetworkError (0, ex.Message))
+        | ex -> return Error (RetryLater (sprintf "Status 0: %s" (ex.GetType().Name)))
     }
 
 /// Step 3: Request TAN challenge (Push-TAN)
@@ -289,14 +375,14 @@ let requestTanChallenge (requestInfo: RequestInfo) (tokens: Tokens) (sessionIden
                             return Ok challenge
                         else
                             return Error (ComdirectError.AuthenticationFailed "Only Push-TAN (P_TAN_PUSH) is supported")
-                    | Error err -> return Error (ComdirectError.InvalidResponse err)
+                    | Error _ -> return Error (ComdirectError.InvalidResponse (unreadableResponse (int response.StatusCode)))
                 else
                     return Error (ComdirectError.InvalidResponse (sprintf "Missing %s header" headerName))
             else
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-                return Error (ComdirectError.NetworkError (int response.StatusCode, content))
+                return Error (ComdirectError.NetworkError (int response.StatusCode, errorCodeOf content |> Option.defaultValue ""))
         with
-        | ex -> return Error (ComdirectError.NetworkError (0, ex.Message))
+        | ex -> return Error (transportError ex)
     }
 
 /// Step 4: Activate session after TAN confirmation
@@ -339,30 +425,33 @@ let activateSession (requestInfo: RequestInfo) (tokens: Tokens) (sessionIdentifi
                 match int response.StatusCode with
                 | 403 -> return Error ComdirectError.TanRejected
                 | 408 -> return Error ComdirectError.TanChallengeExpired
-                | code -> return Error (ComdirectError.NetworkError (code, content))
+                | code -> return Error (ComdirectError.NetworkError (code, errorCodeOf content |> Option.defaultValue ""))
         with
-        | ex -> return Error (ComdirectError.NetworkError (0, ex.Message))
+        | ex -> return Error (transportError ex)
     }
 
 /// Step 5: Get extended permissions (needed for transaction access)
+let getExtendedTokensWith (client: HttpClient) (apiKeys: ApiKeys) (tokens: Tokens) : Async<ComdirectResult<Tokens>> =
+    async {
+        use request =
+            tokenRequest [
+                "client_id", apiKeys.ClientId
+                "client_secret", apiKeys.ClientSecret
+                "token", tokens.Access
+                "grant_type", "cd_secondary"
+            ]
+
+        try
+            let! response = client.SendAsync(request) |> Async.AwaitTask
+            return! handleResponse (tokensDecoderAt DateTimeOffset.UtcNow) response
+        with
+        | ex -> return Error (transportError ex)
+    }
+
 let getExtendedTokens (tokens: Tokens) (apiKeys: ApiKeys) : Async<ComdirectResult<Tokens>> =
     async {
         use client = createHttpClient()
-
-        let body =
-            sprintf "client_id=%s&client_secret=%s&token=%s&grant_type=cd_secondary"
-                apiKeys.ClientId
-                apiKeys.ClientSecret
-                tokens.Access
-
-        use content = new StringContent(body)
-        content.Headers.ContentType <- MediaTypeHeaderValue("application/x-www-form-urlencoded")
-
-        try
-            let! response = client.PostAsync(endpoint + "oauth/token", content) |> Async.AwaitTask
-            return! handleResponse tokensDecoder response
-        with
-        | ex -> return Error (ComdirectError.NetworkError (0, ex.Message))
+        return! getExtendedTokensWith client apiKeys tokens
     }
 
 // ============================================
@@ -383,7 +472,7 @@ let private getTransactionsPage (requestInfo: RequestInfo) (tokens: Tokens) (acc
 
             return! handleResponse transactionsDecoder response
         with
-        | ex -> return Error (ComdirectError.NetworkError (0, ex.Message))
+        | ex -> return Error (transportError ex)
     }
 
 /// Fetch all transactions for the last N days
@@ -412,13 +501,8 @@ let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: stri
 // ============================================
 
 /// Fetch all available accounts (requires extended tokens after TAN)
-let getAccounts (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<ComdirectAccount list>> =
+let getAccountsWith (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<ComdirectAccount list>> =
     async {
-        use client = createHttpClient()
-
-        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", tokens.Access)
-        client.DefaultRequestHeaders.Add("x-http-request-info", requestInfo.Encode())
-
         // Try multiple endpoint variants
         let endpoints = [
             "api/banking/v1/accounts"
@@ -432,25 +516,25 @@ let getAccounts (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectRes
                 | [] -> return Error (ComdirectError.NetworkError (404, "No valid accounts endpoint found"))
                 | ep :: rest ->
                     try
-                        let url = sprintf "%s%s" endpoint ep
-                        printfn "Trying accounts endpoint: %s" url
-                        let! response = client.GetAsync(url) |> Async.AwaitTask
-                        let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-                        printfn "Response status: %d, content: %s" (int response.StatusCode) (if content.Length > 200 then content.Substring(0, 200) + "..." else content)
+                        use request = sessionGet requestInfo tokens (endpoint + ep)
+                        let! response = client.SendAsync(request) |> Async.AwaitTask
 
-                        if response.IsSuccessStatusCode then
-                            match Decode.fromString accountsDecoder content with
-                            | Ok value -> return Ok value
-                            | Error err -> return Error (ComdirectError.InvalidResponse err)
-                        else
-                            return! tryEndpoints rest
+                        match int response.StatusCode with
+                        // Anmeldefehler gelten für jeden Pfad, ein weiterer Versuch ändert nichts.
+                        | 401 | 403 -> return! handleResponse accountsDecoder response
+                        | _ when response.IsSuccessStatusCode -> return! handleResponse accountsDecoder response
+                        | _ -> return! tryEndpoints rest
                     with
-                    | ex ->
-                        printfn "Error: %s" ex.Message
-                        return! tryEndpoints rest
+                    | _ -> return! tryEndpoints rest
             }
 
         return! tryEndpoints endpoints
+    }
+
+let getAccounts (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<ComdirectAccount list>> =
+    async {
+        use client = createHttpClient()
+        return! getAccountsWith client requestInfo tokens
     }
 
 // ============================================
