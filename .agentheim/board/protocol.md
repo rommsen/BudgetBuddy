@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 07:13 -- Batch started: [infrastructure-gmx27]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-gmx27 - "learn-Skill global anlegen, Auto-Memory triagieren und abschalten"
+**Parallel:** no (Conductor-Task mit dem Owner)
+
+---
+
 ## 2026-10-30 07:13 -- Modeling / Promoted: infrastructure-gmx27 - "learn-Skill global anlegen, Auto-Memory triagieren und abschalten"
 
 **Type:** Modeling / Promote

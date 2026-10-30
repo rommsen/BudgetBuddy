@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 1
+- **Doing:** 1
 - **Done:** 30
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `todo/infrastructure-gmx27-learn-global-und-memory-triage.md`
 - **infrastructure-awstw** — Die Abfrage der Lena-Flag-Farbe (getLenaFlagSettings) läuft an allen drei Aufrufstellen über Retry.reading, damit ein Firefox-Abbruch mit Http error (0) keinen Fehler-Toast mehr auslöst. (bug) — `todo/infrastructure-awstw-lena-flag-farbe-bei-netzwerkfehler-wiederholen.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **infrastructure-gmx27** — "learn-Skill global anlegen, Auto-Memory triagieren und abschalten" (chore) — `doing/infrastructure-gmx27-learn-global-und-memory-triage.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
