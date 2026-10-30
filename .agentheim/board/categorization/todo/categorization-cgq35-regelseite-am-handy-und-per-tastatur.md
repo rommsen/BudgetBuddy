@@ -6,7 +6,7 @@ type: bug
 context: categorization
 created: 2026-10-30
 completed:
-depends_on: [design-system-001]
+depends_on: [design-system-001, categorization-msep5]
 blocks: []
 tags: [captured, bestandsreview]
 related_adrs: [0005, 0043, 0053]
@@ -49,4 +49,4 @@ Captured via `quick-capture` on 2026-10-30. Refine am 2026-10-30: nicht geschnit
 - Für den Overflow-Knopf gibt es in `Icons.fs` noch kein Icon, also dort ergänzen. Die Glyphe "⋮" fliegt raus.
 - "Regeln importieren" ist heute ein `label` um ein verstecktes `input[file]` und per Tastatur nicht bedienbar. Es wird zu einem Menü-Eintrag, der das Input auslöst. Das Lesen der Datei in der View bleibt hier unangetastet, das verschiebt categorization-krscs (Befund kpsp8).
 - Der Dialog im Sheet braucht `CategoryPicker.sheetLayered`, weil ein Sheet über dem Sheet liegt.
-- categorization-krscs und categorization-msep5 ändern denselben Client-Bereich: nicht im selben Batch wie diese Task laufen lassen, falls sie zugleich in todo liegen.
+- categorization-msep5 läuft vorher (`depends_on`). categorization-krscs ändert denselben Client-Bereich: nicht im selben Batch laufen lassen, falls sie zugleich in todo liegt.

@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-30 15:43 -- Modeling / Refined: categorization-msep5 - Regeln speichern, importieren und sortieren fehlerhaft
+
+**Type:** Modeling / Refine
+**BC:** categorization
+**Status after:** todo
+**Summary:** Nicht geschnitten. Entschieden: PayeeOverride-Änderung mit drei Fällen, Name nur bei echtem Kategoriewechsel, Priorität neuer Regeln vom Server, Gleichstand nach rowid, Import alles oder nichts, eine deutsche Fehlerübersetzung. Neu gefunden: Regeln aus dem Zuweisungs-Dialog landen mit Priorität 1 ganz unten. categorization-cgq35 hängt jetzt an dieser Task.
+
+---
+
 ## 2026-10-30 15:35 -- Modeling / Promoted: design-system-m65pw - "Styleguide verweist auf den entfallenen CLAUDE.md-Abschnitt Design System Components"
 
 **Type:** Modeling / Promote
