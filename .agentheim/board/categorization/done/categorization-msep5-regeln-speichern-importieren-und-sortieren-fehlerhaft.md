@@ -5,7 +5,7 @@ status: done
 type: bug
 context: categorization
 created: 2026-10-30
-completed:
+completed: 2026-10-30
 depends_on: []
 blocks: [categorization-cgq35]
 tags: [captured, bestandsreview]

@@ -5,7 +5,7 @@ status: done
 type: chore
 context: design-system
 created: 2026-10-30
-completed:
+completed: 2026-10-30
 depends_on: []
 blocks: []
 tags: [harness]

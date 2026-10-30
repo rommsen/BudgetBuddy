@@ -5,7 +5,7 @@ status: done
 type: feature
 context: budgeting
 created: 2026-10-29
-completed:
+completed: 2026-10-30
 depends_on: [design-system-001, design-system-bym4m, budgeting-rxxb4]
 blocks: [budgeting-m1bce, budgeting-dyn8g]
 tags: [budget, verschieben, mobile]

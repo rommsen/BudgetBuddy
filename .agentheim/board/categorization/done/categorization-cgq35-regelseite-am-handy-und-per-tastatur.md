@@ -5,7 +5,7 @@ status: done
 type: bug
 context: categorization
 created: 2026-10-30
-completed:
+completed: 2026-10-30
 depends_on: [design-system-001, categorization-msep5]
 blocks: []
 tags: [captured, bestandsreview]

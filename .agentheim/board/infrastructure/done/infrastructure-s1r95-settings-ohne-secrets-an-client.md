@@ -5,7 +5,7 @@ status: done
 type: bug
 context: infrastructure
 created: 2026-10-29
-completed:
+completed: 2026-10-30
 depends_on: []
 blocks: []
 tags: [harness]
