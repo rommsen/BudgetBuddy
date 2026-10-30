@@ -34,7 +34,8 @@ Nur diese Quellen, nichts sonst (keine alten Reviews, keine Archive):
    der Projektteil Dimensionen nennt.
 3. Jeder Agent bekommt im Prompt diese Vorgabe: „Ändere keinen Code und schreibe keine Datei. Gib deine Befunde als
    Antwort zurück, einen pro Zeile, in der Befundform unten. Was ein Wächter-Test schon prüft, meldest du nicht.“
-4. Synthese: Befunde mit gleicher Fundstelle und gleicher Regel zusammenführen (höhere Schwere gewinnt). Befunde ohne
+4. Synthese: Befunde mit gleicher Fundstelle und gleicher Regel zusammenführen (höhere Schwere gewinnt). Befunde mit
+   derselben Regel und derselben Ursache in einer Datei werden eine Task mit allen Fundstellen. Befunde ohne
    Fundstelle oder ohne Regel verwerfen. Gegen offene Tasks in `.agentheim/board/<bc>/{backlog,todo,doing}/` abgleichen:
    was dort schon steht, wird nicht noch einmal angelegt.
 5. Ergebnis anlegen und protokollieren (unten).
@@ -82,8 +83,8 @@ Dieser Eintrag ist der Zeitpunkt, ab dem gezählt wird. Am Session-Ende die erle
 
 ```bash
 cat .agentheim/board/protocol.md $(ls -r .agentheim/board/protocol/*.md) | awk -v bc="<bc>" \
-  '/^## .* -- Bestandsreview: /{ if ($0 ~ ("Bestandsreview: " bc "$")) exit }
-   /^## .* -- Task verified and completed: /{ if (index($0, ": " bc "-")) n++ } END{ print n+0 }'
+  '/^## .* -- Bestandsreview: /{ if ($ 0 ~ ("Bestandsreview: " bc "$")) exit }
+   /^## .* -- .*Task (verified and )?completed( \(verification skipped\))?: /{ if (index($ 0, ": " bc "-")) n++ } END{ print n+0 }'
 ```
 
 Ab zehn den Lauf `/architecture-review <bc>` vorschlagen, nicht selbst starten. Der Owner entscheidet.
