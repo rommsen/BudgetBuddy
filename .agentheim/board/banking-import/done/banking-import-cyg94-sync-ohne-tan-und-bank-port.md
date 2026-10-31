@@ -34,7 +34,7 @@ Das ist das eigentliche Ziel. Der Abruf steckt in `confirmTan`, die TAN-Entschei
 - [ ] GIVEN ein Fake-Port WHEN `fetchForReview` THEN Regeln, Duplikate, Order-ID und Auto-Skip verhalten sich wie bisher.
 - [ ] Browser-Wächter: ein Happy Path ohne TAN-Schritt und ein Pfad mit TAN.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
-- [ ] Ein echter zweiter Sync läuft im Betrieb ohne TAN. [human-eye]
+- [x] Ein echter zweiter Sync läuft im Betrieb ohne TAN. [human-eye]
 
 ## Notes
 Design-System: nichts Neues.
@@ -129,3 +129,5 @@ Der Server entscheidet jetzt über die TAN. `./verify.sh` zeigt `VERIFY: PASS` (
 - `fetchingView` und `loadingView` haben weiter keinen Abbrechen-Knopf. Der Ausweg ist die Frist.
 - Die alte Zeile "Lohnt ein generischer Bank-Source-Port" unter Open questions in der README ist per `replace` nicht erreichbar (kein fetter Kopf). Auch die Umgehung über den Anker `ING` lehnt `check:readme-delta` ab (Exit 1, der Extent endet vor dieser Zeile). Das Delta ergänzt deshalb einen Hinweis, die Zeile selbst muss von Hand weg.
 - Merge mit `banking-import-z4h6p`: `ComdirectAuthSession.fs` ist dort auch in Arbeit. Hier geändert: `startChallengeWhileWith` und `discardPendingChallengeWith`, entfernt die zwei ungenutzten Wrapper. Die Probe in `BankImportTests.fs` braucht dort die neuen `ConnectionPorts`-Felder. Wird `applyRefreshFailure` asynchron, die Reihenfolge prüfen.
+
+**Nachtrag 2026-10-31:** Im Betrieb bestätigt von Roman: Nach dem Deploy lief der zweite Sync ohne TAN.
