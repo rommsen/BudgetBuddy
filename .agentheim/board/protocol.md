@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 09:45 -- Batch started: [banking-import-cyg94, banking-import-z4h6p]
+
+**Type:** Work / Batch start
+**Tasks:** banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port", banking-import-z4h6p - "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
+**Parallel:** yes (2 workers, plus budgeting-nfrds iter 2); cyg94 vor z4h6p mergen, beide berühren ComdirectAuthSession; infrastructure-mngfn wartet auf budgeting-nfrds; categorization-f955d ebenso; infrastructure-jsys4 wartet auf Roman mit dem iPhone
+
+---
+
 ## 2026-10-31 09:45 -- Modeling / Promoted: banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
 
 **Type:** Modeling / Promote

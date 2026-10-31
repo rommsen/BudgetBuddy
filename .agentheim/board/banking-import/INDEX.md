@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 3
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `todo/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
-- **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `todo/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `doing/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
+- **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `doing/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
