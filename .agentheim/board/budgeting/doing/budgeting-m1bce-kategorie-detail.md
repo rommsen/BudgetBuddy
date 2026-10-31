@@ -1,7 +1,7 @@
 ---
 id: budgeting-m1bce
 title: "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-10-29

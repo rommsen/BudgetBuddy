@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 22:32 -- Batch started: [budgeting-m1bce]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-m1bce - "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch"
+**Parallel:** no (1 worker); infrastructure-jsys4 held back: its first step needs Roman with the Android phone, no worker can run it
+**Planning advisory:** current: budgeting-m1bce as next feature (whats-next 21:30 UTC)
+
+---
+
 ## 2026-10-31 22:31 -- Modeling / Promoted: budgeting-m1bce - "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch"
 
 **Type:** Modeling / Promote
