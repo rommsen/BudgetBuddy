@@ -1,7 +1,7 @@
 ---
 id: infrastructure-mngfn
 title: "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-10-30

@@ -11,18 +11,18 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 7
-- **Todo:** 1
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 1
 - **Done:** 2
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **banking-import-tshq9** — "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr" (feature) — `todo/banking-import-tshq9-bankverbindung-als-zustandsautomat.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-tshq9** — "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr" (feature) — `doing/banking-import-tshq9-bankverbindung-als-zustandsautomat.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 09:02 -- Batch started: [banking-import-tshq9, infrastructure-mngfn, budgeting-nfrds]
+
+**Type:** Work / Batch start
+**Tasks:** banking-import-tshq9 - "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr", infrastructure-mngfn - "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar", budgeting-nfrds - "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt"
+**Parallel:** yes (3 workers); categorization-f955d held to next wave by cap 3; infrastructure-jsys4 held back: its first step needs Roman with the iPhone, no worker can run it
+**Planning advisory:** whats-next (stale, 2026-10-27): design-system-bym4m, not in todo
+
+---
+
 ## 2026-10-31 07:53 -- Modeling / Promoted: infrastructure-jsys4 - "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen"
 
 **Type:** Modeling / Promote

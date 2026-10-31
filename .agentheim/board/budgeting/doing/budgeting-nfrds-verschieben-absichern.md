@@ -1,7 +1,7 @@
 ---
 id: budgeting-nfrds
 title: "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt"
-status: todo
+status: doing
 type: bug
 context: budgeting
 created: 2026-10-30
