@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 15:23 -- Batch started: [infrastructure-r3tw7]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-r3tw7 - "Alle übrigen lesenden Abfragen laufen über Retry.reading, damit ein Verbindungsabbruch im Kassenbuch keine Fehlerseite mehr zeigt"
+**Parallel:** Retry.reading außerhalb SyncFlow, neben infrastructure-mngfn und ynab-sync-k3vq8
+
+---
+
 ## 2026-10-31 15:23 -- Batch started: [ynab-sync-k3vq8]
 
 **Type:** Work / Batch start

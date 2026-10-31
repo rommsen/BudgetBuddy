@@ -1,7 +1,7 @@
 ---
 id: infrastructure-r3tw7
 title: "Alle übrigen lesenden Abfragen laufen über Retry.reading, damit ein Verbindungsabbruch im Kassenbuch keine Fehlerseite mehr zeigt"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-10-31
