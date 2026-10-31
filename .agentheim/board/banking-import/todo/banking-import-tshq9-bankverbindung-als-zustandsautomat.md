@@ -1,7 +1,7 @@
 ---
 id: banking-import-tshq9
 title: "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr"
-status: backlog
+status: todo
 type: feature
 context: banking-import
 created: 2026-10-30

@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 07:53 -- Modeling / Promoted: banking-import-tshq9 - "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-31 07:53 -- Task completed (verification skipped): banking-import-p5mcp - "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
 
 **Type:** Work / Task completion
