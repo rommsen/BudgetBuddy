@@ -394,6 +394,12 @@ type LedgerApi = {
     /// in YNAB is pending.
     getLedgerEntry: Guid -> Async<LedgerEntryView option>
 
+    /// Die Buchungen einer Kategorie in einem Monat, für das Kategorie-Detail im Budget
+    /// (budgeting-m1bce, Customer/Supplier ledger an budgeting). Über alle Konten, neueste zuerst,
+    /// ohne in YNAB gelöschte; bei Splits nur der Anteil dieser Kategorie. Liest nur das Kassenbuch,
+    /// keine YNAB-Anfrage. Error nennt eine ungültige Anfrage.
+    getCategoryMonthEntries: CategoryMonthQuery -> Async<Result<CategoryMonthEntry list, string>>
+
     /// Sends the booking's current category to YNAB again ("Erneut senden"). Does nothing
     /// (CategoryNotSent) without an open write-back failure.
     retryCategorizationWriteBack: Guid -> Async<Result<CategoryWriteBack, string>>

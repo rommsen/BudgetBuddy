@@ -56,7 +56,7 @@ let private loadedTests =
             | other -> failtestf "Success erwartet, war %A" other
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
-            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = ""; Move = None; OpenRetries = [] }
+            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = ""; Move = None; OpenRetries = []; Detail = None; DetailGeneration = 0 }
             let m = applyLoaded CurrentMonth (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
         }
@@ -205,5 +205,171 @@ let private searchStateTests =
         }
     ]
 
+// ---------------- Kategorie-Detail (budgeting-m1bce) ----------------
+
+let private categoryId = System.Guid.Parse "00000000-0000-0000-0000-00000000d001"
+let private entryId = System.Guid.Parse "00000000-0000-0000-0000-00000000e001"
+
+let private detailCategoryFixture : BudgetCategory =
+    { Id = categoryId
+      Name = "Lebensmittel"
+      Assigned = eur 100m
+      Activity = eur -30m
+      Available = eur 70m
+      Underfunded = None
+      Snoozed = false }
+
+let private detailMonth : BudgetMonth =
+    { Month = "2026-10-01"
+      ToBeBudgeted = eur 0m
+      Groups = [ { Name = "Alltag"; Categories = [ detailCategoryFixture ] } ] }
+
+let private withMonth = { init () with Month = Success detailMonth }
+
+let private line (amount: decimal) : Shared.Domain.CategoryMonthEntry =
+    { EntryId = entryId
+      AccountId = entryId
+      AccountName = "Giro"
+      Date = System.DateTime(2026, 10, 5)
+      Payee = Some "Rewe"
+      Amount = eur amount
+      IsSplitShare = false }
+
+let private opened = openCategoryDetail categoryId withMonth
+
+let private detailTests =
+    testList "Kategorie-Detail" [
+        test "Tipp auf den Namen öffnet das Detail und holt die Liste des Monats" {
+            let model, month = opened
+            Expect.equal model.Detail (Some { CategoryId = categoryId; Entries = Loading; ReturnPending = false }) "offen"
+            Expect.equal month (Some "2026-10-01") "Monat der Liste"
+        }
+        test "Der Kopf kennt Kategorie und Gruppe aus dem geladenen Monat" {
+            let detail = (fst opened).Detail |> Option.get
+            Expect.equal (detailCategory detailMonth detail) (Some (detailCategoryFixture, "Alltag")) "Beträge von YNAB"
+        }
+        test "Eine unbekannte Kategorie öffnet nichts" {
+            let model, month = openCategoryDetail (System.Guid.NewGuid()) withMonth
+            Expect.isNone model.Detail "zu"
+            Expect.isNone month "keine Abfrage"
+        }
+        test "Ohne geladenen Monat öffnet nichts" {
+            let model, _ = openCategoryDetail categoryId (init ())
+            Expect.isNone model.Detail "zu"
+        }
+        test "Die Antwort zur laufenden Abfrage füllt die Liste" {
+            let model, _ = opened
+            let answered = applyCategoryEntries model.DetailGeneration (Ok [ line -30m ]) model
+            Expect.equal (answered.Detail |> Option.map (fun d -> d.Entries)) (Some (Success [ line -30m ])) "Liste"
+        }
+        test "Ein Fehler der Abfrage steht im Detail" {
+            let model, _ = opened
+            let answered = applyCategoryEntries model.DetailGeneration (Error "kaputt") model
+            Expect.equal (answered.Detail |> Option.map (fun d -> d.Entries)) (Some (Failure "kaputt")) "Fehler"
+        }
+        test "Eine späte Antwort einer älteren Abfrage wird verworfen" {
+            let model, _ = opened
+            let stale = model.DetailGeneration
+            let reloaded, _ = reloadCategoryEntries model
+            let answered = applyCategoryEntries stale (Ok [ line -1m ]) reloaded
+            Expect.equal answered reloaded "ältere Antwort zählt nicht"
+        }
+        test "Eine späte Antwort zu einem geschlossenen Detail wird verworfen" {
+            let model, _ = opened
+            let closed = { model with Detail = None }
+            Expect.equal (applyCategoryEntries model.DetailGeneration (Ok []) closed) closed "bleibt zu"
+        }
+        test "Ein Monatswechsel schließt das Detail" {
+            let model, _ = select NextMonth (fst opened)
+            Expect.isNone model.Detail "zu"
+        }
+        test "Fehlt die Kategorie im neu gelesenen Monat, schließt das Detail" {
+            let model = applyLoaded CurrentMonth (Ok { detailMonth with Groups = [] }) (fst opened)
+            Expect.isNone model.Detail "zu"
+        }
+    ]
+
+let private totalTests =
+    testList "Summe und Abweichung" [
+        test "Die Summe zählt alle Zeilen" {
+            Expect.equal (entriesTotal (eur -30m) [ line -10m; line -20m ]) (eur -30m) "Summe"
+        }
+        test "Eine leere Liste ergibt 0 in der Währung der Kategorie" {
+            Expect.equal (entriesTotal (eur -30m) []) (eur 0m) "leer"
+        }
+        test "Gleiche Beträge ergeben keinen Hinweis" {
+            Expect.isNone (deviationHint (eur -30m) (eur -30m)) "gleich"
+        }
+        test "Ungleiche Beträge nennen beide, ohne Bewertung" {
+            let text (amount: decimal) = Client.DesignSystem.Money.formatAmountText false true amount "EUR"
+            Expect.equal
+                (deviationHint (eur -30m) (eur -35.5m))
+                (Some $"Kassenbuch: {text -30m}, YNAB: {text -35.5m}")
+                "beide Beträge"
+        }
+    ]
+
+let private returnTests =
+    testList "Sprung ins Kassenbuch und zurück" [
+        test "Tipp auf eine Buchung springt, das Detail wartet auf die Rückkehr" {
+            let model, _, external = Components.Budget.State.update (OpenEntryInLedger entryId) (fst opened)
+            Expect.equal external (JumpToEntry entryId) "Sprung"
+            Expect.isTrue (returnPending model) "wartet"
+        }
+        test "Zurück auf der Seite steht das Detail wieder da, die Liste wird neu geholt" {
+            let left = leaveForEntry (fst opened)
+            let model, month = enterPage left
+            Expect.equal (model.Detail |> Option.map (fun d -> d.CategoryId)) (Some categoryId) "wieder offen"
+            Expect.isFalse (returnPending model) "angekommen"
+            Expect.equal (model.Detail |> Option.map (fun d -> d.Entries)) (Some Loading) "lädt neu"
+            Expect.equal month (Some "2026-10-01") "Monat der Liste"
+            Expect.isGreaterThan model.DetailGeneration left.DetailGeneration "neue Abfrage"
+        }
+        test "Ein gewöhnliches Betreten der Seite schließt das Detail" {
+            let model, month = enterPage (fst opened)
+            Expect.isNone model.Detail "zu"
+            Expect.isNone month "keine Abfrage"
+        }
+        test "Die Route einer Buchung wird gelesen und erzeugt" {
+            let page = Routing.parseUrl [ "ledger"; "entry"; string entryId ]
+            Expect.equal page (LedgerEntry entryId) "parse"
+            Expect.equal (Routing.toUrlSegments page) [ "ledger"; "entry"; string entryId ] "toUrl"
+        }
+        test "Eine unlesbare Buchungs-Id führt ins Kassenbuch" {
+            Expect.equal (Routing.parseUrl [ "ledger"; "entry"; "kaputt" ]) Ledger "parse"
+        }
+        test "Die Route zählt als Kassenbuch-Seite" {
+            Expect.isTrue (isLedgerPage (LedgerEntry entryId)) "Route"
+            Expect.isFalse (isLedgerPage Budget) "Budget nicht"
+        }
+        test "Schließen nach dem Sprung geht zurück ins Budget" {
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false true true) State.BackToBudget "zurück"
+        }
+        test "Schließen nach einem Direktaufruf bleibt im Kassenbuch" {
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false true false) State.ToLedgerList "Liste"
+        }
+        test "Ein Kontowechsel schließt das Detail, ohne ins Budget zu springen" {
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false false true) State.ToLedgerList "Liste"
+        }
+        test "Bleibt das Detail offen oder war es zu, bleibt die Route" {
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true true true true) State.StayOnRoute "offen"
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) false false true true) State.StayOnRoute "noch nicht offen"
+        }
+        test "Auf der gewöhnlichen Kassenbuch-Seite gibt es keine Route zu verlassen" {
+            Expect.equal (State.entryRouteExit Ledger true false true true) State.StayOnRoute "Liste"
+        }
+    ]
+
 [<Tests>]
-let tests = testList "Budget-Seite (k7wmd)" [ selectTests; loadedTests; labelTests; routingTests; filterTests; searchStateTests ]
+let tests =
+    testList "Budget-Seite (k7wmd)" [
+        selectTests
+        loadedTests
+        labelTests
+        routingTests
+        filterTests
+        searchStateTests
+        detailTests
+        totalTests
+        returnTests
+    ]

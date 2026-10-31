@@ -66,6 +66,15 @@ type OpenMoveRetry = {
     State: MoveRetryState
 }
 
+/// Das Kategorie-Detail (budgeting-m1bce). Hält nur die Id: Zugewiesen, Aktivität und Verfügbar
+/// kommen aus `Model.Month`, also live aus YNAB. Aus dem Kassenbuch kommt allein die Liste.
+type CategoryDetail = {
+    CategoryId: System.Guid
+    Entries: RemoteData<CategoryMonthEntry list>
+    /// Tipp auf eine Buchung: die Seite ist verlassen, das Detail wartet auf die Rückkehr.
+    ReturnPending: bool
+}
+
 type Model = {
     /// Welcher Monat gewählt ist. Vorgabe: der laufende.
     Choice: BudgetMonthChoice
@@ -80,6 +89,10 @@ type Model = {
     Move: MoveForm option
     /// Verschiebungen, die noch erneut gesendet werden können.
     OpenRetries: OpenMoveRetry list
+    /// Das offene Kategorie-Detail.
+    Detail: CategoryDetail option
+    /// Zählt die Abfragen der Detail-Liste: eine späte Antwort ersetzt keine neuere Liste.
+    DetailGeneration: int
 }
 
 type Msg =
@@ -127,12 +140,22 @@ type Msg =
     /// "Erneut senden" am Toast oder am Hinweis auf der Seite.
     | RetryMove of applicationId: string
     | MoveRetried of applicationId: string * Result<ApplyReport, string>
+    /// Tipp auf den Kategorie-Namen.
+    | OpenCategoryDetail of System.Guid
+    | CloseCategoryDetail
+    /// Die Liste im Detail (neu) holen: "Wiederholen".
+    | LoadCategoryEntries
+    | CategoryEntriesLoaded of generation: int * Result<CategoryMonthEntry list, string>
+    /// Tipp auf eine Buchung im Detail: ins Kassenbuch springen.
+    | OpenEntryInLedger of System.Guid
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
     | ShowToastWithAction of string * ToastType * ToastAction
+    /// Sprung ins Kassenbuch auf diese Buchung.
+    | JumpToEntry of System.Guid
 
 let init () : Model =
     { Choice = CurrentMonth
@@ -140,7 +163,9 @@ let init () : Model =
       Targets = TargetsClosed
       CategorySearch = ""
       Move = None
-      OpenRetries = [] }
+      OpenRetries = []
+      Detail = None
+      DetailGeneration = 0 }
 
 let private categoriesOf (month: BudgetMonth) : BudgetCategory list =
     month.Groups |> List.collect (fun g -> g.Categories)
@@ -161,7 +186,10 @@ let applyLoaded (choice: BudgetMonthChoice) (result: Result<BudgetMonth, string>
             let move =
                 model.Move
                 |> Option.filter (fun form -> form.Submission = Sending || (moveCategory month form).IsSome)
-            { model with Month = Success month; Move = move }
+            let detail =
+                model.Detail
+                |> Option.filter (fun d -> categoriesOf month |> List.exists (fun c -> c.Id = d.CategoryId))
+            { model with Month = Success month; Move = move; Detail = detail }
         | Error message -> { model with Month = Failure message }
 
 /// Das stille Neu-Lesen nach einer Verschiebung. Scheitert es, bleibt die Liste stehen und ein
@@ -182,7 +210,7 @@ let select (choice: BudgetMonthChoice) (model: Model) : Model * bool =
     if choice = model.Choice && model.Month <> NotAsked then
         model, false
     else
-        { model with Choice = choice; Month = Loading }, true
+        { model with Choice = choice; Month = Loading; Detail = None }, true
 
 let private monthNames =
     [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"
@@ -524,3 +552,79 @@ let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string
             model.OpenRetries
             |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryReady } else r)
         { model with OpenRetries = reopened }, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)
+
+// ============================================
+// Kategorie-Detail (budgeting-m1bce)
+// ============================================
+
+/// Kategorie und Gruppenname des Details im Monat.
+let detailCategory (month: BudgetMonth) (detail: CategoryDetail) : (BudgetCategory * string) option =
+    month.Groups
+    |> List.tryPick (fun g ->
+        g.Categories
+        |> List.tryFind (fun c -> c.Id = detail.CategoryId)
+        |> Option.map (fun c -> c, g.Name))
+
+/// Summe der Liste, in der Währung der Kategorie (die Liste darf leer sein).
+let entriesTotal (activity: Money) (entries: CategoryMonthEntry list) : Money =
+    { activity with Amount = entries |> List.sumBy (fun e -> e.Amount.Amount) }
+
+/// Der Hinweis unter der Summe, wenn sie von YNABs Aktivität abweicht, ohne Bewertung.
+let deviationHint (total: Money) (activity: Money) : string option =
+    if total.Amount = activity.Amount then
+        None
+    else
+        let text (m: Money) = Money.formatAmountText false true m.Amount m.Currency
+        Some $"Kassenbuch: {text total}, YNAB: {text activity}"
+
+/// Detail öffnen, nur bei geladenem Monat und bekannter Kategorie. Gibt den Monat zurück, dessen
+/// Liste der Aufrufer holen muss.
+let openCategoryDetail (categoryId: System.Guid) (model: Model) : Model * string option =
+    match model.Month, model.Targets, model.Move with
+    | Success month, TargetsClosed, None when categoriesOf month |> List.exists (fun c -> c.Id = categoryId) ->
+        { model with
+            Detail = Some { CategoryId = categoryId; Entries = Loading; ReturnPending = false }
+            DetailGeneration = model.DetailGeneration + 1 },
+        Some month.Month
+    | _ -> model, None
+
+/// Die Liste neu holen: "Wiederholen" im Detail. Gibt den Monat wie `openCategoryDetail` zurück.
+let reloadCategoryEntries (model: Model) : Model * string option =
+    match model.Detail, model.Month with
+    | Some detail, Success month ->
+        { model with
+            Detail = Some { detail with Entries = Loading }
+            DetailGeneration = model.DetailGeneration + 1 },
+        Some month.Month
+    | _ -> model, None
+
+/// Antwort der Liste. Eine Antwort einer älteren Abfrage oder zu einem geschlossenen Detail fällt weg.
+let applyCategoryEntries (generation: int) (result: Result<CategoryMonthEntry list, string>) (model: Model) : Model =
+    match model.Detail with
+    | Some detail when generation = model.DetailGeneration ->
+        let entries =
+            match result with
+            | Ok entries -> Success entries
+            | Error message -> Failure message
+        { model with Detail = Some { detail with Entries = entries } }
+    | _ -> model
+
+/// Tipp auf eine Buchung: das Detail bleibt stehen und wartet auf die Rückkehr.
+let leaveForEntry (model: Model) : Model =
+    { model with Detail = model.Detail |> Option.map (fun d -> { d with ReturnPending = true }) }
+
+let returnPending (model: Model) : bool =
+    model.Detail |> Option.exists (fun d -> d.ReturnPending)
+
+/// Die Seite wird betreten. Ein Sheet überlebt den Seitenwechsel nicht, das Detail nur, wenn es auf
+/// die Rückkehr aus dem Kassenbuch wartet: dann steht es wieder da, die Liste kommt neu, weil die
+/// Buchung dort geändert worden sein kann.
+let enterPage (model: Model) : Model * string option =
+    let entered = { model with CategorySearch = ""; Move = None }
+    if returnPending model then
+        let reloaded, month = reloadCategoryEntries entered
+        { reloaded with
+            Detail = reloaded.Detail |> Option.map (fun d -> { d with ReturnPending = false }) },
+        month
+    else
+        { entered with Detail = None }, None

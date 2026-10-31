@@ -209,6 +209,28 @@ let private buttonSection =
                     Button.secondary "Abbrechen" ignore
                     Button.primary "Bestätigen" ignore
                 ]
+                subTitle "Knöpfe in Listen"
+                Html.div [
+                    prop.className "max-w-sm space-y-4"
+                    prop.children [
+                        Button.listName "styleguide-list-name" "Lebensmittel, Details" true "Lebensmittel" ignore
+                        Button.listRow "styleguide-list-row" "styleguide-list-row" "Supermarkt, im Kassenbuch öffnen" ignore [
+                            Html.div [
+                                prop.className Tokens.ListRoles.mobileLine1
+                                prop.children [
+                                    Html.span [ prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"; prop.text "Supermarkt" ]
+                                    Money.simple -12.5m "EUR"
+                                ]
+                            ]
+                            Html.div [
+                                prop.className Tokens.ListRoles.mobileLine2
+                                prop.children [
+                                    Html.span [ prop.className $"{Tokens.ListRoles.muted} truncate"; prop.text "12.11.2026 · Girokonto" ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
             ]
         ]
     ]

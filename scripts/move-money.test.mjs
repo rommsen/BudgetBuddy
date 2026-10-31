@@ -128,9 +128,6 @@ test("Handy: Verfügbar antippen, Gegenseite suchen, Betrag ändern, Verschieben
     assert.ok(box && box.height >= 48 && box.width >= 48, "Trefferfläche mindestens 48 px");
     assert.match(await available.getAttribute("aria-label"), /Lebensmittel afd8h verschieben, verfügbar 80,00 €/, "Screenreader hört den Betrag");
 
-    await visibleRow(page, "Lebensmittel afd8h").getByText("Lebensmittel afd8h").click();
-    assert.equal(await page.locator('[data-testid="move-dialog"]').count(), 0, "Tipp auf den Namen öffnet nichts");
-
     await tapAvailable(page, "Lebensmittel afd8h");
     assert.match(await text(page.locator('[data-testid="move-headline"]')), /Von Lebensmittel afd8h nach/);
     assert.equal(await page.locator('[data-testid="move-amount"] input').inputValue(), "80,00");

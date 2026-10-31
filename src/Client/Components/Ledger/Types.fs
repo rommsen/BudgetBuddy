@@ -764,6 +764,9 @@ type Model = {
     /// Die je Gerät gemerkte Sicht (ledger-ybmqc), beim `init` aus dem Gerätespeicher
     /// gelesen. Sie gilt nur für die Vorauswahl beim Öffnen des Kassenbuchs.
     RememberedFilter: AccountFilter option
+    /// Die Buchung der Route `#/ledger/entry/<id>`, die gerade nachgeladen wird
+    /// (budgeting-m1bce). Eine Antwort zählt nur, solange sie hier steht.
+    PendingRouteEntry: Guid option
 
     /// Ist der Konto-Wechsler (BottomSheet am Handy) offen? (ledger-ybmqc)
     AccountSheetOpen: bool
@@ -1046,6 +1049,13 @@ let dateDraftHasError (model: Model) : bool =
 /// Listentasten an (ledger-q1hw2); ein offenes Sheet verdeckt die Liste und sperrt sie.
 let detailPanelOpen (model: Model) : bool =
     model.DetailFor.IsSome && model.DetailForm = DetailPanel
+
+/// Der Konto-Filter, unter dem die Buchung einer Route steht: "Alle Konten" und ihr eigenes Konto
+/// bleiben, sonst ihr Konto.
+let filterForEntry (current: AccountFilter option) (entry: LedgerEntryView) : AccountFilter =
+    match current with
+    | Some AllAccounts -> AllAccounts
+    | _ -> OneAccount entry.AccountId
 
 /// Der aktuelle Stand der Buchung im Detail: die Zeile aus der geladenen Liste, wenn sie
 /// dort steht (Prüfvermerk und Fehlschlag sind dort aktuell), sonst die Momentaufnahme vom
@@ -1685,6 +1695,12 @@ type Msg =
     /// `basis` ist die Zeile beim Start der Abfrage. Hat sie sich seitdem geändert, ist die
     /// Antwort veraltet.
     | EntryRefreshed of Guid * basis: LedgerEntryView option * Result<LedgerEntryView option, string>
+    /// Die Route `#/ledger/entry/<id>` wurde betreten: Buchung holen, auch wenn sie nicht in der
+    /// geladenen Liste steht (budgeting-m1bce).
+    | OpenRouteEntry of Guid
+    | RouteEntryLoaded of Guid * Result<LedgerEntryView option, string>
+    /// Die Route wurde verlassen: die Buchung bleibt beim nächsten Besuch nicht offen.
+    | LeaveRouteEntry
     | RunRetryCategorization of Guid
     | CategorizationRetried of Guid * Result<CategoryWriteBack, string>
 

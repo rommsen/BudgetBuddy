@@ -660,3 +660,80 @@ let externalLinksTests =
             Expect.equal occurrences 2 "nur Definition und ein Aufruf (detailContent)"
             Expect.equal (source.Split("entry.ExternalLinks").Length - 1) 2 "ExternalLinks nur in detailExternalLinks gelesen"
     ]
+
+// ============================================
+// Route einer Buchung (budgeting-m1bce)
+// ============================================
+
+[<Tests>]
+let routeEntryTests =
+    let pending (n: int) (model: Model) = { model with PendingRouteEntry = Some (idOf n) }
+    let answer (n: int) = RouteEntryLoaded (idOf n, Ok (Some (entry n)))
+    let detailId (model: Model) = model.DetailFor |> Option.map (fun e -> e.Id)
+    let otherAccount = Guid.NewGuid()
+
+    testList "Detail: Route einer Buchung" [
+
+        testCase "eine Buchung außerhalb des geladenen Ausschnitts öffnet ihr Detail" <| fun () ->
+            let model, sent = modelWith (rows 1) |> pending 7 |> run (answer 7)
+            Expect.equal (detailId model) (Some (idOf 7)) "Detail dieser Buchung"
+            Expect.isNone model.PendingRouteEntry "nichts mehr offen"
+            Expect.contains sent (LoadHistory (idOf 7)) "Historie wird geholt"
+
+        testCase "fremdes Konto: der Filter springt auf das Konto der Buchung und die Liste lädt neu" <| fun () ->
+            let start = { modelWith (rows 1) with SelectedFilter = Some (OneAccount otherAccount) }
+            let model, sent = start |> pending 7 |> run (answer 7)
+            Expect.equal model.SelectedFilter (Some (OneAccount (entry 7).AccountId)) "Konto der Buchung"
+            Expect.contains sent LoadEntries "Liste lädt"
+            Expect.equal (detailId model) (Some (idOf 7)) "Detail bleibt offen"
+
+        testCase "der Sprung ändert die gemerkte Sicht des Geräts nicht" <| fun () ->
+            let start =
+                { modelWith (rows 1) with
+                    SelectedFilter = Some (OneAccount otherAccount)
+                    RememberedFilter = Some (OneAccount otherAccount) }
+            let model, _ = start |> pending 7 |> run (answer 7)
+            Expect.equal model.RememberedFilter (Some (OneAccount otherAccount)) "bleibt"
+
+        testCase "Alle Konten bleibt stehen, ohne die Liste neu zu laden" <| fun () ->
+            let start = { modelWith (rows 1) with SelectedFilter = Some AllAccounts }
+            let model, sent = start |> pending 7 |> run (answer 7)
+            Expect.equal model.SelectedFilter (Some AllAccounts) "Alle Konten"
+            Expect.isFalse (List.contains LoadEntries sent) "kein Neuladen"
+
+        testCase "das eigene Konto bleibt stehen, ohne die Liste neu zu laden" <| fun () ->
+            let start = { modelWith (rows 1) with SelectedFilter = Some (OneAccount (entry 7).AccountId) }
+            let _, sent = start |> pending 7 |> run (answer 7)
+            Expect.isFalse (List.contains LoadEntries sent) "kein Neuladen"
+
+        testCase "eine laufende Auswahl endet, das Detail bleibt offen" <| fun () ->
+            let start = { modelWith (rows 1) with SelectedFilter = Some AllAccounts; SelectionMode = true }
+            let model, _ = start |> pending 7 |> run (answer 7)
+            Expect.isFalse model.SelectionMode "keine Auswahl"
+            Expect.equal (detailId model) (Some (idOf 7)) "Detail offen"
+
+        testCase "eine unbekannte Buchung meldet sich, ohne ein Detail zu öffnen" <| fun () ->
+            let start = modelWith (rows 1) |> pending 7
+            let model, _, external = Components.Ledger.State.update (RouteEntryLoaded (idOf 7, Ok None)) start
+            Expect.isNone model.DetailFor "kein Detail"
+            Expect.isNone model.PendingRouteEntry "nichts mehr offen"
+            Expect.equal external (ShowToast ("Buchung nicht gefunden", ToastWarning)) "Hinweis"
+
+        testCase "ein Fehler meldet sich, ohne ein Detail zu öffnen" <| fun () ->
+            let start = modelWith (rows 1) |> pending 7
+            let model, _, external = Components.Ledger.State.update (RouteEntryLoaded (idOf 7, Error "weg")) start
+            Expect.isNone model.PendingRouteEntry "nichts mehr offen"
+            Expect.equal external (ShowToast ("Buchung nicht geladen: weg", ToastError)) "Grund"
+
+        testCase "eine späte Antwort nach dem Verlassen der Route öffnet nichts" <| fun () ->
+            let left = modelWith (rows 1) |> pending 7 |> step LeaveRouteEntry
+            Expect.isNone (left |> step (answer 7)).DetailFor "bleibt zu"
+
+        testCase "die Antwort zu einer überholten Route öffnet nichts" <| fun () ->
+            let model = modelWith (rows 1) |> pending 8 |> step (answer 7)
+            Expect.isNone model.DetailFor "Buchung 8 wird erwartet"
+
+        testCase "das Verlassen der Route schließt das Detail" <| fun () ->
+            let model = modelWith (rows 1) |> pending 7 |> step (answer 7) |> step LeaveRouteEntry
+            Expect.isNone model.DetailFor "zu"
+    ]

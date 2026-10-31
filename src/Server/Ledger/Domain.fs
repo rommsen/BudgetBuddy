@@ -222,6 +222,27 @@ let splitCategoryIds (entry: Entry) : Guid list =
         | Uncategorized -> None)
     |> List.distinct
 
+/// Was von einer Buchung auf eine Kategorie fällt (budgeting-m1bce): bei Splits die Summe der Zeilen
+/// dieser Kategorie (`true`: nur ein Anteil), sonst der ganze Betrag. `None`: nichts.
+let categoryShare (categoryId: Guid) (entry: Entry) : (Money * bool) option =
+    match entry.Splits with
+    | [] ->
+        entry.Category
+        |> Option.filter (fun c -> c.CategoryId = YnabCategoryId categoryId)
+        |> Option.map (fun _ -> entry.Amount, false)
+    | splits ->
+        let shares =
+            splits
+            |> List.filter (fun s ->
+                match s.Target with
+                | ToCategory (YnabCategoryId id, _) -> id = categoryId
+                | ToTransfer _
+                | Uncategorized -> false)
+        if List.isEmpty shares then
+            None
+        else
+            Some ({ entry.Amount with Amount = shares |> List.sumBy (fun s -> s.Amount.Amount) }, true)
+
 /// Die verschiedenen Konten, auf die die `ToTransfer`-Zeilen einer Buchung zeigen
 /// (ADR 0048): Schwesterfunktion zu `splitCategoryIds`, entdoppelt. Grundlage der
 /// abgeleiteten Indextabelle `ledger_entry_split_transfers`.

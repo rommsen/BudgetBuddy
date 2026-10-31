@@ -204,7 +204,7 @@ test("Handy-Suche: leb zeigt nur Treffer und ihre Gruppen, ✕ leert, Monatswech
 
     const groups = (await visibleTexts(page.locator('[data-testid="budget-group"] h2'))).map((t) => t.toLowerCase());
     assert.deepEqual(groups, ["alltag", "rücklagen", "beleben"]);
-    const rows = (await visibleTexts(page.locator('[data-testid="budget-category-row"] span:first-child'))).join(" ");
+    const rows = (await visibleTexts(page.locator('[data-testid="budget-category-name"]'))).join(" ");
     for (const hit of ["Lebensmittel", "Lebensversicherung", "Sport", "Musik"]) assert.match(rows, new RegExp(hit));
     assert.equal(await visibleRows(page).count(), 4);
 

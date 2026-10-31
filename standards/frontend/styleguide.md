@@ -235,7 +235,7 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (Teal), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group` | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (Teal), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |

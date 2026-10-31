@@ -229,6 +229,39 @@ let groupMobile (buttons: ReactElement list) =
 
 
 // ============================================
+// Knöpfe in Listen
+// ============================================
+
+/// Der Name in einer Listenzeile als Knopf, der etwas öffnet: sieht aus wie der Name, unterstreicht
+/// beim Überfahren. `touchTarget` gibt am Handy 48 px Trefferfläche, ohne die Zeile höher zu machen.
+let listName (testId: string) (ariaLabel: string) (touchTarget: bool) (name: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className (
+            if touchTarget then
+                $"{ListRoles.primary} {TouchTargets.minSize} -my-3 truncate min-w-0 text-left cursor-pointer touch-manipulation hover:underline"
+            else
+                $"{ListRoles.primary} truncate min-w-0 text-left cursor-pointer touch-manipulation hover:underline"
+        )
+        prop.onClick (fun _ -> onClick ())
+        prop.text name
+    ]
+
+/// Eine ganze zweizeilige Listenzeile als Knopf.
+let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit -> unit) (children: ReactElement list) =
+    Html.button [
+        prop.key key
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className $"block w-full text-left cursor-pointer touch-manipulation hover:bg-surface-hover {ListRoles.mobileRowPadding} border-b border-border-subtle"
+        prop.onClick (fun _ -> onClick ())
+        prop.children children
+    ]
+
+// ============================================
 // Hero Button
 // ============================================
 

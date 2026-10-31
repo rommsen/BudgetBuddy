@@ -149,13 +149,28 @@ type Page =
     /// Das Kassenbuch: Buchungen und Stand je Konto, Historie je Buchung
     /// (ledger-q5w9c).
     | Ledger
+    /// Das Kassenbuch mit offenem Detail genau dieser Buchung (budgeting-m1bce).
+    | LedgerEntry of entryId: System.Guid
     /// Das Budget: Monat, Zu verteilen und Kategorien, live aus YNAB (budgeting-k7wmd).
     | Budget
 
 
+/// Zeigt die Seite das Kassenbuch, mit oder ohne offene Buchung?
+let isLedgerPage (page: Page) : bool =
+    match page with
+    | Ledger
+    | LedgerEntry _ -> true
+    | _ -> false
+
 /// URL routing helpers for hash-based navigation
 module Routing =
     open Feliz.Router
+
+    /// Eine unlesbare Id führt ins Kassenbuch ohne offene Buchung.
+    let private parseEntryRoute (id: string) : Page =
+        match System.Guid.TryParse id with
+        | true, entryId -> LedgerEntry entryId
+        | _ -> Ledger
 
     /// Parse URL segments to Page
     let parseUrl (segments: string list) : Page =
@@ -166,6 +181,7 @@ module Routing =
         | ["styleguide"] -> Styleguide
         | ["quickadd"] -> QuickAdd
         | ["ledger"] -> Ledger
+        | ["ledger"; "entry"; id] -> parseEntryRoute id
         | ["budget"] -> Budget
         | _ -> SyncFlow  // Fallback to SyncFlow for unknown routes
 
@@ -178,6 +194,7 @@ module Routing =
         | Styleguide -> ["styleguide"]
         | QuickAdd -> ["quickadd"]
         | Ledger -> ["ledger"]
+        | LedgerEntry entryId -> ["ledger"; "entry"; string entryId]
         | Budget -> ["budget"]
 
     /// Get current page from URL (for initialization)

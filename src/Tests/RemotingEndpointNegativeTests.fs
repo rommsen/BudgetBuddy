@@ -271,6 +271,11 @@ let private rows : Row list = [
       Run = fun () -> ledgerApi.getBudgetAccounts () |> run |> expectError "Konten" }
     { Endpoint = "LedgerApi.getLedgerEntry"; Case = "unbekannte Buchung: None"
       Run = fun () -> Expect.isNone (ledgerApi.getLedgerEntry (Guid.NewGuid()) |> run) "keine Buchung" }
+    { Endpoint = "LedgerApi.getCategoryMonthEntries"; Case = "ungültiger Monat: Fehler"
+      Run = fun () ->
+        ledgerApi.getCategoryMonthEntries { CategoryId = Guid.NewGuid(); Month = "kein-monat" }
+        |> run
+        |> expectError "Monat" }
     { Endpoint = "LedgerApi.retryCategorizationWriteBack"; Case = "unbekannte Buchung: Fehler"
       Run = fun () -> ledgerApi.retryCategorizationWriteBack (Guid.NewGuid()) |> run |> expectError "Kategorie erneut" }
     { Endpoint = "LedgerApi.retryPushToYnab"; Case = "unbekannte Buchung: Fehler"

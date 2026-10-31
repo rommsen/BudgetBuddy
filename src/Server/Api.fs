@@ -1564,6 +1564,14 @@ let ledgerApi : LedgerApi = {
             return List.tryHead locked
     }
 
+    getCategoryMonthEntries = fun query -> async {
+        match Validation.validateCategoryMonthQuery query with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok firstDay ->
+            let! entries = Ledger.QueryHandlers.getCategoryMonthEntries query.CategoryId firstDay
+            return Ok entries
+    }
+
     // "Erneut senden" gilt für Kategorie und Split (ADR 0058, Punkt 3).
     retryCategorizationWriteBack = fun entryId -> async {
         let! push = categoryPush ()

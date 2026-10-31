@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 23:34 -- Task verified and completed: budgeting-m1bce - "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch"
+
+**Type:** Work / Task completion
+**Task:** budgeting-m1bce - "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch"
+**Summary:** Tipp auf den Kategorie-Namen öffnet das Kategorie-Detail mit Beträgen live aus YNAB, den Buchungen des Monats aus dem Kassenbuch, Summe und Abweichungs-Hinweis. Tipp auf eine Buchung öffnet sie über die neue Route #/ledger/entry/<id>, Zurück und Schließen führen ins Detail zurück.
+**Duration:** 62 min
+**Verification:** PASS (iteration 2)
+**Files changed:** 28
+**Tests added:** 57
+**ADRs written:** none
+
+---
+
+## 2026-10-31 23:10 -- Verification failed: budgeting-m1bce - Kategorie-Detail
+
+**Type:** Work / Verification failure
+**Task:** budgeting-m1bce
+**Iteration:** 1 of 3
+**Reasons:** Bullet Budget-Seite im README widerspricht dem neuen Verhalten, verbotenes git checkout im Worktree offengelegt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 22:32 -- Batch started: [budgeting-m1bce]
 
 **Type:** Work / Batch start

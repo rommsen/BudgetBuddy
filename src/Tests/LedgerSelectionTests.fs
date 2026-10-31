@@ -331,7 +331,7 @@ let viewTests =
 
         testCase "Die Tab-Bar weicht der Handy-Leiste im Auswahl-Modus (Quelltext)" <| fun () ->
             let view = readRepo [ "src"; "Client"; "View.fs" ]
-            Expect.stringContains view "model.CurrentPage = Ledger && model.Ledger.SelectionMode" "Tab-Bar ausgeblendet"
+            Expect.stringContains view "isLedgerPage model.CurrentPage && model.Ledger.SelectionMode" "Tab-Bar ausgeblendet"
             Expect.stringContains view "Components.Ledger.View.selectionBars"
                 "die fixe Leiste steht außerhalb der Seitenhülle mit dem Transform (animate-page-enter)"
 

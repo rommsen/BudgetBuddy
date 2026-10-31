@@ -317,7 +317,7 @@ Historie-Technik in der Decision-Task des Architekten.
 - **Partnership mit:** `ynab-sync` in beide Richtungen (Push BB-geführter Entscheidungen
   hinaus, Spiegel YNAB-geführter Änderungen herein). Abweichung entsteht an dieser Naht.
 - **Anticorruption layer zu:** Kursquelle (extern, klein).
-- **Upstream of (künftig):** `wealth`, Reports, `budgeting`.
+- **Upstream of (künftig):** `wealth`, Reports, `budgeting`. An `budgeting` liefert das Kassenbuch schon heute `getCategoryMonthEntries` (Buchungen und Split-Anteile einer Kategorie im Monat, budgeting-m1bce).
 - **Customer of:** `design-system`. **Styleguide-Gate:** jede UI-Task in diesem Context
   hängt an `design-system-001` (`depends_on`), gemessen an `standards/frontend/styleguide.md`.
 - Voller Kontext-Überblick: `../../context-map.md`.
@@ -541,6 +541,8 @@ Konto lässt alle anderen Filter stehen, eine laufende Auswahl leert er, weil si
 Treffer bezieht. Oben die Kontostände
 (Handy: waagerecht scrollbare Leiste; PC: linke Spalte, "Alle Konten" zuoberst), darunter
 die sticky Filterleiste, darunter die Liste. Erster Chip ist immer "Zu prüfen (n)".
+
+**Route einer Buchung** (budgeting-m1bce). `#/ledger/entry/<id>` öffnet das Detail genau dieser Buchung, auch wenn sie nicht im geladenen Ausschnitt liegt: sie wird über `getLedgerEntry` nachgeladen. Der Konto-Filter bleibt bei Alle Konten und beim eigenen Konto, sonst springt er auf das Konto der Buchung; die gemerkte Sicht des Geräts ändert sich nicht. Kam der Sprung aus dem Kategorie-Detail, führen Zurück, Schließen und Esc dorthin zurück, sonst bleibt die Liste.
 
 **Liste.** Am Handy Datum als Gruppenkopf, je Zeile Payee, Kategorie, Betrag, darunter
 klein Memo und nur die abweichenden Kennzeichen. Am PC eine Tabelle mit Sticky-Kopf

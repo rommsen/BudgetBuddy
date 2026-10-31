@@ -176,6 +176,24 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
 let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
     Shared.Budgeting.parseMonthChoice key
 
+/// Der Monat als Monatserster; eine Anfrage ohne Kategorie ist keine (budgeting-m1bce). Alle Fehler
+/// zugleich, wie an der übrigen API-Grenze.
+let validateCategoryMonthQuery (query: Shared.Domain.CategoryMonthQuery) : Result<DateTime, string list> =
+    let parsed =
+        DateTime.TryParseExact(
+            query.Month,
+            "yyyy-MM-dd",
+            Globalization.CultureInfo.InvariantCulture,
+            Globalization.DateTimeStyles.None
+        )
+    let errors =
+        [ if query.CategoryId = Guid.Empty then
+              "Die Kategorie fehlt."
+          match parsed with
+          | true, date when date.Day = 1 -> ()
+          | _ -> $"Ungültiger Monat: '{query.Month}'. Erwartet wird der Monatserste als JJJJ-MM-01." ]
+    if errors.IsEmpty then Ok (snd parsed) else Error errors
+
 /// Obergrenze einer Verschiebung. Liegt weit über jedem echten Betrag und weit unter dem, was
 /// beim Rechnen in Milliunits überliefe.
 [<Literal>]

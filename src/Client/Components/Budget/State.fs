@@ -4,6 +4,7 @@
 module Components.Budget.State
 
 open Elmish
+open Shared.Domain
 open Shared.Budgeting
 open Components.Budget.Types
 open Types
@@ -66,15 +67,38 @@ let private reloadCmd (choice: BudgetMonthChoice) : Cmd<Msg> =
         (fun result -> Reloaded (choice, result))
         (fun ex -> Reloaded (choice, Error ex.Message))
 
+let private categoryEntriesCmd (categoryId: System.Guid) (month: string) (generation: int) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (Retry.reading Api.ledger.getCategoryMonthEntries)
+        { CategoryId = categoryId; Month = month }
+        (fun result -> CategoryEntriesLoaded (generation, result))
+        (fun ex -> CategoryEntriesLoaded (generation, Error ex.Message))
+
+/// Das Kommando zur Liste, wenn der Übergang eine verlangt.
+let private entriesCmdFor (model: Model, month: string option) : Cmd<Msg> =
+    match model.Detail, month with
+    | Some detail, Some month -> categoryEntriesCmd detail.CategoryId month model.DetailGeneration
+    | _ -> Cmd.none
+
 let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     // Ein offenes Sheet überlebt den Seitenwechsel nicht: es spränge sonst beim Betreten wieder auf.
-    | PageEntered -> { model with CategorySearch = ""; Move = None }, Cmd.ofMsg Load
+    | PageEntered ->
+        let model', month = enterPage model
+        model', Cmd.batch [ Cmd.ofMsg Load; entriesCmdFor (model', month) ]
     | Load -> { model with Month = Loading }, loadCmd model.Choice
     | SelectMonth choice ->
         match select choice model with
         | model', true -> model', loadCmd choice
         | model', false -> model', Cmd.none
+    | OpenCategoryDetail categoryId ->
+        let model', month = openCategoryDetail categoryId model
+        model', entriesCmdFor (model', month)
+    | CloseCategoryDetail -> { model with Detail = None }, Cmd.none
+    | LoadCategoryEntries ->
+        let model', month = reloadCategoryEntries model
+        model', entriesCmdFor (model', month)
+    | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none
     | Loaded (choice, result) -> applyLoaded choice result model, Cmd.none
@@ -101,6 +125,7 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
+    | OpenEntryInLedger entryId -> leaveForEntry model, Cmd.none, JumpToEntry entryId
     | OpenMove categoryId -> openMove categoryId model, Cmd.none, NoOp
     | CloseMove -> closeMove model, Cmd.none, NoOp
     | ToggleMoveDirection -> updateForm toggleDirection model, Cmd.none, NoOp

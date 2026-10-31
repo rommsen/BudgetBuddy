@@ -93,6 +93,7 @@ let init () : Model * Cmd<Msg> =
         Sort = LedgerSort.defaultSort
         SortSheetOpen = false
         NeedsReviewCount = 0
+        PendingRouteEntry = None
         DetailFor = None
         DetailForm = DetailSheet
         MemoEdit = None
@@ -2261,6 +2262,46 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | EntryRefreshed (entryId, basis, Ok (Some view)) when findEntry model entryId = basis ->
         replaceEntry view model, Cmd.none, NoOp
     | EntryRefreshed _ -> model, Cmd.none, NoOp
+
+    // Sprung aus dem Kategorie-Detail (budgeting-m1bce).
+    | OpenRouteEntry entryId ->
+        { model with PendingRouteEntry = Some entryId },
+        Cmd.OfAsync.either
+            (Retry.reading Api.ledger.getLedgerEntry)
+            entryId
+            (fun result -> RouteEntryLoaded (entryId, Ok result))
+            (fun ex -> RouteEntryLoaded (entryId, Error ex.Message)),
+        NoOp
+
+    | RouteEntryLoaded (entryId, Ok (Some entry)) when model.PendingRouteEntry = Some entryId ->
+        let filter = filterForEntry model.SelectedFilter entry
+        let settled =
+            { model with
+                PendingRouteEntry = None
+                Selection = NoSelection
+                SelectionAnchor = None
+                SelectionMode = false }
+        // Nicht über `SelectFilter`: das schließt das Detail und überschreibt die gemerkte Sicht.
+        // Der Sprung ist ein Abstecher, die Liste kann die Buchung ohnehin nachladen.
+        let model', listCmd =
+            if model.SelectedFilter = Some filter then
+                settled, Cmd.none
+            else
+                { (resetEntries settled) with SelectedFilter = Some filter }, Cmd.ofMsg LoadEntries
+        let model'', historyCmd = showDetail entry model'
+        model'', Cmd.batch [ listCmd; historyCmd ], NoOp
+
+    | RouteEntryLoaded (entryId, Ok None) when model.PendingRouteEntry = Some entryId ->
+        { model with PendingRouteEntry = None }, Cmd.none, ShowToast ("Buchung nicht gefunden", ToastWarning)
+
+    | RouteEntryLoaded (entryId, Error message) when model.PendingRouteEntry = Some entryId ->
+        { model with PendingRouteEntry = None }, Cmd.none, ShowToast ($"Buchung nicht geladen: {message}", ToastError)
+
+    // Antwort zu einer inzwischen verlassenen Route.
+    | RouteEntryLoaded _ -> model, Cmd.none, NoOp
+
+    | LeaveRouteEntry ->
+        { model with PendingRouteEntry = None; DetailFor = None; History = NotAsked; MemoEdit = None }, Cmd.none, NoOp
 
     | CategoryCardExpired version ->
         match model.CategoryCard with

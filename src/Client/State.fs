@@ -165,7 +165,7 @@ let private addToast (message: string) (toastType: ToastType) (model: Model) : M
 /// der URL schon in `CurrentPage` schreibt und danach `UrlChanged` fuer genau
 /// dieselbe Seite schickte, lief der Gleichheits-Guard sofort ins `Cmd.none` und
 /// ein Direktaufruf lud nichts (Kassenbuch und Rules waren betroffen).
-let pageLoadCmd (page: Page) : Cmd<Msg> =
+let rec pageLoadCmd (page: Page) : Cmd<Msg> =
     match page with
     | SyncFlow ->
         Cmd.batch [
@@ -198,6 +198,11 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
             // Haupt-`State.fs` abgefangen, nicht hinter dem Ledger-Proxy.
             Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
         ]
+    | LedgerEntry entryId ->
+        Cmd.batch [
+            pageLoadCmd Ledger
+            Cmd.map LedgerMsg (Cmd.ofMsg (Components.Ledger.Types.OpenRouteEntry entryId))
+        ]
     | Budget ->
         // Der Monat wird bei jedem Betreten live aus YNAB geholt (budgeting-k7wmd), die
         // Kategorie-Suche beginnt dabei leer (budgeting-rxxb4).
@@ -223,6 +228,25 @@ let shouldShowLoadFailure (page: Page) (message: string) (toasts: Toast list) : 
         | SyncFlow | QuickAdd -> true
         | _ -> false
     pageUsesData && not (toasts |> List.exists (fun toast -> toast.Message = message && not toast.Exiting))
+
+// ============================================
+// Route einer Buchung (budgeting-m1bce)
+// ============================================
+
+/// Was aus der Route `#/ledger/entry/<id>` wird, wenn ein Schritt im Kassenbuch das Detail schließt.
+type EntryRouteExit =
+    | StayOnRoute
+    /// Schließen nach dem Sprung aus dem Kategorie-Detail: ein Schritt zurück, wie der Browser-Knopf.
+    | BackToBudget
+    /// Direktaufruf, oder das Detail ging mit einem Konto- oder Auswahlwechsel zu: die Liste bleibt.
+    | ToLedgerList
+
+/// `closedByUser`: Schließen-Knopf oder Esc. `returnPending`: das Budget wartet auf die Rückkehr.
+let entryRouteExit (page: Page) (detailWasOpen: bool) (detailIsOpen: bool) (closedByUser: bool) (returnPending: bool) : EntryRouteExit =
+    match page with
+    | LedgerEntry _ when detailWasOpen && not detailIsOpen ->
+        if closedByUser && returnPending then BackToBudget else ToLedgerList
+    | _ -> StayOnRoute
 
 // ============================================
 // Bereitschaftssignal (design-system-yxrxb)
@@ -255,6 +279,12 @@ let isPageReady (model: Model) : bool =
         && notLoading model.Ledger.Balances
         && notLoading model.Ledger.Entries
         && notLoading model.Ledger.Categories
+    | LedgerEntry _ ->
+        notLoading model.Ledger.Accounts
+        && notLoading model.Ledger.Balances
+        && notLoading model.Ledger.Entries
+        && notLoading model.Ledger.Categories
+        && model.Ledger.PendingRouteEntry.IsNone
     | Budget -> notLoading model.Budget.Month
 
 /// Läuft gerade eine Eingabe, die ein Neuladen verlieren würde (infrastructure-bnbdc,
@@ -400,7 +430,13 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         if page = model.CurrentPage then
             model, Cmd.none
         else
-            { model with CurrentPage = page }, pageLoadCmd page
+            // Die Buchung einer Route bleibt beim nächsten Besuch im Kassenbuch nicht offen.
+            let leaveCmd =
+                match model.CurrentPage, page with
+                | LedgerEntry _, LedgerEntry _ -> Cmd.none
+                | LedgerEntry _, _ -> Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LeaveRouteEntry)
+                | _ -> Cmd.none
+            { model with CurrentPage = page }, Cmd.batch [ leaveCmd; pageLoadCmd page ]
 
     // Die PWA kam in den Vordergrund: auf der Kassenbuch-Seite verhält sich das wie
     // ein Seitenaufruf, es wird nur der Lauf-Status neu geladen. Dessen Frische-Prüfung
@@ -409,7 +445,8 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // nennt das Frische-Kriterium für die Kassenbuch-Seite, nicht für die ganze App.
     | VisibilityChanged ->
         match model.CurrentPage with
-        | Ledger ->
+        | Ledger
+        | LedgerEntry _ ->
             model,
             Cmd.batch [
                 Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadMirrorStatus)
@@ -509,7 +546,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     // (`CategoriesAwaitSettings`, ledger-k9tq7), startet es hier
                     // unabhängig von Seite und `Loading`-Zustand.
                     if model.Ledger.CategoriesAwaitSettings
-                       || (model.CurrentPage = Ledger && model.Ledger.Categories = NotAsked) then
+                       || (isLedgerPage model.CurrentPage && model.Ledger.Categories = NotAsked) then
                         Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
                     else
                         Cmd.none
@@ -639,7 +676,26 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.Ledger.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
 
-        { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd ]
+        let closedByUser =
+            match ledgerMsg with
+            | Components.Ledger.Types.CloseDetail
+            | Components.Ledger.Types.EscapePressed -> true
+            | _ -> false
+
+        let routeCmd =
+            match
+                entryRouteExit
+                    model.CurrentPage
+                    model.Ledger.DetailFor.IsSome
+                    ledgerModel'.DetailFor.IsSome
+                    closedByUser
+                    (Components.Budget.Types.returnPending model.Budget)
+            with
+            | StayOnRoute -> Cmd.none
+            | BackToBudget -> Cmd.navigateBack ()
+            | ToLedgerList -> Cmd.ofMsg (NavigateTo Ledger)
+
+        { model with Ledger = ledgerModel' }, Cmd.batch [ Cmd.map LedgerMsg ledgerCmd; externalCmd; routeCmd ]
 
     | BudgetMsg budgetMsg ->
         let budgetModel', budgetCmd, externalMsg = Components.Budget.State.update budgetMsg model.Budget
@@ -650,6 +706,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.Budget.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
             | Components.Budget.Types.ShowToastWithAction (message, toastType, action) ->
                 Cmd.ofMsg (ShowToastWithAction (message, toastType, action))
+            | Components.Budget.Types.JumpToEntry entryId -> Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
 
         { model with Budget = budgetModel' }, Cmd.batch [ Cmd.map BudgetMsg budgetCmd; externalCmd ]
 

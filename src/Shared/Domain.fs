@@ -1403,6 +1403,26 @@ type LedgerEntryPageQuery = {
     Sort: LedgerSort
 }
 
+/// Welche Kategorie in welchem Monat: die Anfrage des Kategorie-Details (budgeting-m1bce).
+type CategoryMonthQuery = {
+    CategoryId: Guid
+    /// Erster des Monats als "YYYY-MM-01".
+    Month: string
+}
+
+/// Eine Zeile im Kategorie-Detail: eine Buchung aus dem Kassenbuch, mit dem Betrag, der auf diese
+/// Kategorie fällt. Bei einem Split ist das nur ihr Anteil (budgeting-m1bce).
+type CategoryMonthEntry = {
+    EntryId: Guid
+    AccountId: Guid
+    AccountName: string
+    Date: DateTime
+    Payee: string option
+    Amount: Money
+    /// Aus einer aufgeteilten Buchung: `Amount` ist nur der Anteil dieser Kategorie.
+    IsSplitShare: bool
+}
+
 /// Eine Seite der Buchungsliste: die Buchungen dieser Seite, die Gesamtzahl der
 /// Treffer und die Summe ueber den **gesamten** Treffer — nicht ueber die Seite
 /// (Akzeptanzkriterium ledger-b1xwe). So kann die Seite waehrend des Nachladens immer

@@ -17,7 +17,8 @@ let private toNavPage (page: Page) : Navigation.NavPage =
     | Rules -> Navigation.Rules
     | Settings -> Navigation.Settings
     | QuickAdd -> Navigation.QuickAdd
-    | Ledger -> Navigation.Ledger
+    | Ledger
+    | LedgerEntry _ -> Navigation.Ledger
     | Budget -> Navigation.Budget
     // Styleguide has no own nav tab; it's reached from Settings, so the
     // Settings tab stays highlighted while viewing the gallery.
@@ -55,13 +56,13 @@ let private toToastItem (t: Types.Toast) : Toast.ToastItem =
 
 let view (model: Model) (dispatch: Msg -> unit) =
     // Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).
-    let hideBottomNav = model.CurrentPage = Ledger && model.Ledger.SelectionMode
+    let hideBottomNav = isLedgerPage model.CurrentPage && model.Ledger.SelectionMode
     // Kassenbuch, Import prüfen und Regeln füllen die Breite (ADR 0049 Punkt 9, ledger-n4vte,
     // ynab-sync-aj5tv): ihr Rahmen trägt keine `container`-Begrenzung (max. 1280px), die
     // Seite setzt ihre Ränder selbst.
     let pageShell =
         match model.CurrentPage with
-        | Ledger | Rules | SyncFlow -> Navigation.pageContentFull
+        | Ledger | LedgerEntry _ | Rules | SyncFlow -> Navigation.pageContentFull
         | _ -> Navigation.pageContent
 
     React.router [
@@ -118,7 +119,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
                                     model.SyncFlow.RecentlyUsedCategoryIds
                                     model.QuickAddTemplates
                                     dispatch
-                            | Ledger ->
+                            | Ledger
+                            | LedgerEntry _ ->
                                 Components.Ledger.View.view
                                     model.Ledger
                                     (LedgerMsg >> dispatch)
@@ -135,7 +137,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
                 // Auswahl-Leiste des Kassenbuchs (ledger-r1d2f): `fixed`, deshalb außerhalb der
                 // Seitenhülle mit der Eintrittsanimation.
-                if model.CurrentPage = Ledger then
+                if isLedgerPage model.CurrentPage then
                     Components.Ledger.View.selectionBars (LedgerMsg >> dispatch) model.Ledger
 
                 // Toast notifications using new Toast component

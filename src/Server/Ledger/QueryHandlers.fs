@@ -507,6 +507,42 @@ let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
                 |> Some
     }
 
+/// Die Zeilen des Kategorie-Details aus den Buchungen: der Anteil dieser Kategorie je Buchung, in der
+/// Reihenfolge der Eingabe. Eine Buchung auf einem unbekannten Konto bleibt drin, ohne Kontonamen.
+let categoryMonthEntries
+    (categoryId: Guid)
+    (accountNames: Map<Guid, string>)
+    (entries: Entry list)
+    : CategoryMonthEntry list =
+    entries
+    |> List.choose (fun entry ->
+        categoryShare categoryId entry
+        |> Option.map (fun (amount, isSplitShare) ->
+            let (EntryId entryId) = entry.Id
+            let (LedgerAccountId accountId) = entry.AccountId
+            { EntryId = entryId
+              AccountId = accountId
+              AccountName = accountNames |> Map.tryFind accountId |> Option.defaultValue ""
+              Date = entry.Date
+              Payee = entry.Payee
+              Amount = amount
+              IsSplitShare = isSplitShare }))
+
+/// Die Buchungen einer Kategorie in dem Monat, der am Tag `firstDay` beginnt (budgeting-m1bce).
+let getCategoryMonthEntries (categoryId: Guid) (firstDay: DateTime) : Async<CategoryMonthEntry list> =
+    async {
+        let lastDay = firstDay.AddMonths(1).AddDays(-1.0)
+        let! entries = Ledger.Persistence.loadCategoryEntries categoryId firstDay lastDay
+        let! accounts = Ledger.Persistence.loadAccounts ()
+        let accountNames =
+            accounts
+            |> List.map (fun a ->
+                let (LedgerAccountId id) = a.Id
+                id, a.Name)
+            |> Map.ofList
+        return categoryMonthEntries categoryId accountNames entries
+    }
+
 /// Baut das `Ledger.Persistence.EntryFilter` aus den Such-Feldern einer
 /// `LedgerEntryPageQuery` (ledger-vgfw3, ADR 0036) — die gemeinsame Grundlage fuer
 /// `getLedgerEntriesPage` und `getLedgerPayeeSuggestions`, damit beide nie

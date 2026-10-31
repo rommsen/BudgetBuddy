@@ -3,7 +3,8 @@
 /// Am Handy zweizeilige Zeilen ohne horizontales Scrollen, ab md eine Tabelle.
 ///
 /// Das Suchfeld über der Liste filtert die Kategorien (budgeting-rxxb4). Ein Tipp auf Verfügbar
-/// öffnet "Verschieben" (budgeting-afd8h), der Kategorie-Name bleibt ohne Wirkung.
+/// öffnet "Verschieben" (budgeting-afd8h), ein Tipp auf den Kategorie-Namen das Kategorie-Detail
+/// (budgeting-m1bce).
 ///
 /// Ausschließlich Design-System-Bausteine und Tokens (Styleguide-Gate `design-system-001`).
 /// Ein negatives Zu verteilen erscheint einfach negativ, ohne Hinweis und ohne Sperre.
@@ -35,6 +36,11 @@ let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 let private availableButton (sizeClass: string) (c: BudgetCategory) (dispatch: Msg -> unit) =
     Money.availableButton $"{c.Name} verschieben" sizeClass c.Available.Amount c.Available.Currency (fun () ->
         dispatch (OpenMove c.Id))
+
+/// Der Kategorie-Name öffnet das Detail.
+let private categoryNameButton (touchTarget: bool) (c: BudgetCategory) (dispatch: Msg -> unit) =
+    Button.listName "budget-category-name" $"{c.Name}, Details" touchTarget c.Name (fun () ->
+        dispatch (OpenCategoryDetail c.Id))
 
 // ============================================
 // Zu verteilen
@@ -107,10 +113,7 @@ let private mobileGroup (dispatch: Msg -> unit) (group: BudgetGroup) =
                         Html.div [
                             prop.className ListRoles.mobileLine1
                             prop.children [
-                                Html.span [
-                                    prop.className $"{ListRoles.primary} truncate min-w-0"
-                                    prop.text c.Name
-                                ]
+                                categoryNameButton true c dispatch
                                 // -my-3: die 48 px Trefferfläche sollen die Zeile nicht höher machen.
                                 availableButton $"{TouchTargets.minSize} -my-3" c dispatch
                             ]
@@ -157,7 +160,7 @@ let private desktopTable (dispatch: Msg -> unit) (groups: BudgetGroup list) =
                         prop.className $"{ListRoles.rowHeight} border-b border-border-subtle"
                         prop.children [
                             Table.cell Table.defaultCellProps [
-                                Html.span [ prop.className ListRoles.primary; prop.text c.Name ]
+                                categoryNameButton false c dispatch
                             ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Assigned ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Activity ]
@@ -648,6 +651,143 @@ let private moveRetries (retries: OpenMoveRetry list) (dispatch: Msg -> unit) =
     )
 
 // ============================================
+// Kategorie-Detail (budgeting-m1bce)
+// ============================================
+
+let private detailFigure (testId: string) (label: string) (value: ReactElement) =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className "flex flex-col gap-1 min-w-0"
+        prop.children [
+            Html.span [ prop.className ListRoles.groupHeader; prop.text label ]
+            value
+        ]
+    ]
+
+let private detailFigures (category: BudgetCategory) =
+    Html.div [
+        prop.className "grid grid-cols-3 gap-3"
+        prop.children [
+            detailFigure "detail-assigned" "Zugewiesen" (plainAmount category.Assigned)
+            detailFigure "detail-activity" "Aktivität" (plainAmount category.Activity)
+            detailFigure "detail-available" "Verfügbar" (availableAmount category.Available)
+        ]
+    ]
+
+let private detailEntryLine (entry: CategoryMonthEntry) (dispatch: Msg -> unit) =
+    let payee = entry.Payee |> Option.defaultValue "Ohne Empfänger"
+    Button.listRow (string entry.EntryId) "detail-entry" $"{payee}, im Kassenbuch öffnen" (fun () -> dispatch (OpenEntryInLedger entry.EntryId)) [
+        Html.div [
+            prop.className ListRoles.mobileLine1
+            prop.children [
+                Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text payee ]
+                plainAmount entry.Amount
+            ]
+        ]
+        Html.div [
+            prop.className ListRoles.mobileLine2
+            prop.children [
+                Html.span [
+                    prop.className $"{ListRoles.muted} truncate"
+                    prop.text $"""{entry.Date.ToString "dd.MM.yyyy"} · {entry.AccountName}"""
+                ]
+                if entry.IsSplitShare then
+                    Badge.neutral "Split"
+            ]
+        ]
+    ]
+
+let private detailTotal (activity: Money) (entries: CategoryMonthEntry list) =
+    let total = entriesTotal activity entries
+    Html.div [
+        prop.className "flex flex-col gap-2 px-4 py-3"
+        prop.children [
+            Html.div [
+                prop.className ListRoles.mobileLine1
+                prop.children [
+                    Html.span [ prop.className ListRoles.groupHeader; prop.text "Summe" ]
+                    Html.span [ prop.custom ("data-testid", "detail-total"); prop.children [ plainAmount total ] ]
+                ]
+            ]
+            match deviationHint total activity with
+            | Some hint ->
+                Html.p [
+                    prop.custom ("data-testid", "detail-deviation")
+                    prop.className ListRoles.muted
+                    prop.text hint
+                ]
+            | None -> ()
+        ]
+    ]
+
+let private detailEntries (category: BudgetCategory) (detail: CategoryDetail) (dispatch: Msg -> unit) =
+    match detail.Entries with
+    | NotAsked
+    | Loading -> Loading.centered "Lade Buchungen ..."
+    | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch LoadCategoryEntries))
+    | Success entries ->
+        React.fragment [
+            if List.isEmpty entries then
+                Html.p [
+                    prop.custom ("data-testid", "detail-empty")
+                    prop.className $"{ListRoles.muted} px-4 py-8 text-center"
+                    prop.text "Keine Buchungen in diesem Monat"
+                ]
+            else
+                Html.div [ prop.children (entries |> List.map (fun e -> detailEntryLine e dispatch)) ]
+            detailTotal category.Activity entries
+        ]
+
+/// Am Handy `BottomSheet`, am PC `Modal` (ADR 0043), wie "Verschieben". Solange "Verschieben" offen
+/// ist, tritt das Detail zurück: zwei Dialoge übereinander gibt es nicht.
+let private categoryDetail (model: Model) (dispatch: Msg -> unit) =
+    match model.Detail, model.Month, model.Move with
+    | Some detail, Success month, None ->
+        match detailCategory month detail with
+        | Some (category, groupName) ->
+            let close = fun () -> dispatch CloseCategoryDetail
+            let subtitle = $"{groupName} · {monthLabel month.Month}"
+            let head =
+                Html.div [
+                    prop.className "flex flex-col gap-4 p-4"
+                    prop.children [
+                        detailFigures category
+                        Html.span [
+                            prop.custom ("data-testid", "detail-move")
+                            prop.children [ Button.secondary "Verschieben" (fun () -> dispatch (OpenMove category.Id)) ]
+                        ]
+                    ]
+                ]
+            let body =
+                Html.div [
+                    prop.custom ("data-testid", "category-detail")
+                    prop.children [
+                        head
+                        Html.h3 [ prop.className $"{ListRoles.groupHeader} px-4 pt-2 pb-1"; prop.text "Buchungen" ]
+                        detailEntries category detail dispatch
+                    ]
+                ]
+            if Viewport.isDesktopViewport () then
+                Modal.view
+                    { Modal.defaultProps with
+                        IsOpen = true
+                        Title = Some category.Name
+                        Subtitle = Some subtitle
+                        Size = Modal.Large
+                        OnClose = close }
+                    [ Modal.bodyNoPadding [ body ] ]
+            else
+                BottomSheet.view
+                    { IsOpen = true
+                      OnClose = close
+                      Title = category.Name
+                      Subtitle = Some subtitle
+                      Footer = None }
+                    [ body ]
+        | None -> Html.none
+    | _ -> Html.none
+
+// ============================================
 // Seite
 // ============================================
 
@@ -667,6 +807,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 | _ -> []
             )
             targetsDialog model dispatch
+            categoryDetail model dispatch
             moveDialog model dispatch
             monthSwitcher model dispatch
             moveRetries model.OpenRetries dispatch
