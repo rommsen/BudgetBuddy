@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 15:12 -- Task verified and completed: banking-import-z4h6p - "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
+
+**Type:** Work / Task completion
+**Task:** banking-import-z4h6p - "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
+**Summary:** Die Bankverbindung übersteht einen Neustart über einen verschlüsselten Wert. Iteration 4 löst den Merge-Konflikt mit banking-import-cyg94, schließt das Fenster nach dem Start (`startSync` und Verbindungstest warten auf die Wiederaufnahme, keine unnötige TAN), belegt alle Live-Anschlüsse dieses Tasks
+**Duration:** 5 h 30 min
+**Verification:** PASS (iteration 4)
+**Files changed:** 7
+**Tests added:** 27
+**ADRs written:** none
+
+---
+
 ## 2026-10-31 12:57 -- Task verified and completed: categorization-f955d - "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
 
 **Type:** Work / Task completion

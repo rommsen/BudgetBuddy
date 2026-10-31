@@ -157,6 +157,12 @@ module Encryption =
         else
             Convert.FromBase64String(keyEnv)
 
+    /// Wahr nur mit gesetztem `BUDGETBUDDY_ENCRYPTION_KEY`. Für Werte, die der Maschinen-Fallback
+    /// nicht schützen darf (ADR 0071 Punkt 4). Leer zählt als nicht gesetzt, dann griffe der
+    /// Fallback. Die Umgebung ist eingespeist, weil Tests sie nicht umstellen dürfen.
+    let hasConfiguredKey (readEnvironment: string -> string) : bool =
+        not (String.IsNullOrWhiteSpace (readEnvironment "BUDGETBUDDY_ENCRYPTION_KEY"))
+
     /// Encrypts a plaintext string using AES-256
     let encrypt (plaintext: string) : Result<string, string> =
         try
@@ -516,6 +522,32 @@ module Settings =
                     | Error _ -> return None
                 else
                     return Some row.value
+        }
+
+    /// Lesen eines verschlüsselten Werts. `getSetting` macht aus einem kaputten Wert `None`, wer ihn
+    /// aufräumen muss, braucht den Unterschied zu "nichts gespeichert".
+    type EncryptedSettingRead =
+        | SettingAbsent
+        | SettingDecrypted of string
+        | SettingUndecryptable
+
+    let readEncryptedSetting (key: string) : Async<EncryptedSettingRead> =
+        async {
+            let conn = getConnection()
+            let! row =
+                conn.QueryFirstOrDefaultAsync<SettingRow>(
+                    "SELECT value, encrypted FROM settings WHERE key = @Key",
+                    {| Key = key |}
+                ) |> Async.AwaitTask
+
+            if isNull (box row) then
+                return SettingAbsent
+            elif row.encrypted <> 1 then
+                return SettingUndecryptable
+            else
+                match Encryption.decrypt row.value with
+                | Ok decrypted -> return SettingDecrypted decrypted
+                | Error _ -> return SettingUndecryptable
         }
 
     let setSetting (key: string) (value: string) (encrypted: bool) : Async<unit> =

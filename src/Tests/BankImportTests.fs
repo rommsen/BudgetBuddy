@@ -9,6 +9,7 @@ open System.Threading.Tasks
 open Expecto
 open Shared.Domain
 open Server.ComdirectClient
+open Server.BankConnectionStore
 open Server.BankConnection
 open Server.ComdirectAuthSession
 open Server.BankPort
@@ -36,6 +37,12 @@ let private authSession (tokens: Tokens) (pending: Challenge option) : AuthSessi
       Tokens = tokens
       SessionIdentifier = "kennung-kuenstlich"
       Challenge = pending }
+
+let private stored : StoredConnection =
+    { RequestInfo = requestInfo
+      SessionId = requestInfo.SessionId
+      SessionIdentifier = "kennung-kuenstlich"
+      Tokens = { validTokens with Access = "gespeichert" } }
 
 let private connected = Connected { Session = authSession validTokens None; Keys = keys; NextRefreshAttempt = None }
 let private pendingChallenge = ChallengePending { Session = authSession validTokens (Some challenge); Keys = keys }
@@ -122,12 +129,16 @@ type private Probe(initial: BankConnectionState) =
     let mutable fetches = 0
     let mutable logins = 0
     let mutable accounts = 0
+    let mutable refreshes = 0
+    let mutable clears = 0
     member val Sessions = SessionsProbe()
     member val Losses = ResizeArray<string>()
     member val FetchAnswer : ComdirectResult<BankTransaction list> = Ok [ bankTransaction "ref-1" "Markt" "Karte" ] with get, set
     member val LoginAnswer : ComdirectResult<AuthSession> = Ok (authSession validTokens (Some challenge)) with get, set
     member val RefreshAnswer : Result<Tokens, RefreshFailure> = Ok validTokens with get, set
     member val ConfirmAnswer : ComdirectResult<Tokens> = Ok validTokens with get, set
+    member val StoredRead : Async<StoredConnectionRead> = async.Return NothingStored with get, set
+    member val DuringRefresh : unit -> Async<unit> = (fun () -> async.Return ()) with get, set
     member val DuringFetch : unit -> Async<unit> = (fun () -> async.Return ()) with get, set
     member val DuringLogin : unit -> Async<unit> = (fun () -> async.Return ()) with get, set
     member val DuringConfirm : unit -> Async<unit> = (fun () -> async.Return ()) with get, set
@@ -135,6 +146,8 @@ type private Probe(initial: BankConnectionState) =
     member _.Fetches = Volatile.Read(&fetches)
     member _.Logins = Volatile.Read(&logins)
     member _.AccountCalls = Volatile.Read(&accounts)
+    member _.Refreshes = Volatile.Read(&refreshes)
+    member _.Clears = Volatile.Read(&clears)
     member val FetchedAccountIds = ResizeArray<string>()
     member val Connection : ConnectionPorts = Unchecked.defaultof<ConnectionPorts> with get, set
     member this.Build() : ImportPorts =
@@ -149,7 +162,10 @@ type private Probe(initial: BankConnectionState) =
               CompleteAuth = fun _ _ -> async {
                   do! this.DuringConfirm ()
                   return this.ConfirmAnswer }
-              Refresh = fun _ _ _ -> async { return this.RefreshAnswer }
+              Refresh = fun _ _ _ -> async {
+                  Interlocked.Increment(&refreshes) |> ignore
+                  do! this.DuringRefresh ()
+                  return this.RefreshAnswer }
               FetchAccounts = fun _ _ -> async {
                   Interlocked.Increment(&accounts) |> ignore
                   return Error (ComdirectError.NetworkError (404, "")) }
@@ -158,7 +174,12 @@ type private Probe(initial: BankConnectionState) =
                   lock this.FetchedAccountIds (fun () -> this.FetchedAccountIds.Add accountId)
                   do! this.DuringFetch ()
                   return this.FetchAnswer }
-              ReportLoss = this.Losses.Add }
+              ReportLoss = this.Losses.Add
+              Store =
+                { Load = fun () -> this.StoredRead
+                  Save = fun _ -> async.Return ()
+                  Clear = fun () -> async { Interlocked.Increment(&clears) |> ignore } }
+              LoadKeys = fun () -> async.Return (Some keys) }
         this.Connection <- connection
         { Gate = new SemaphoreSlim(1, 1)
           Sources =
@@ -423,10 +444,26 @@ let startSyncTests =
 
         testCase "Abbruch, während die Challenge am Gate wartet: nichts geht zur Bank" <| fun () ->
             let probe = Probe(Disconnected)
-            let ports = probe.Build()
+            let built = probe.Build()
+            // Die Wiederaufnahme ist hier vorbei, sonst warteten wir schon an ihrem Gate.
+            let bank = { built.Sources.Bank with Resume = fun () -> async.Return () }
+            let ports = { built with Sources = { built.Sources with Bank = bank } }
             probe.Connection.Cell.Gate.Wait ()
             let start = startSyncWith ports |> Async.StartAsTask
             Expect.isTrue (SpinWait.SpinUntil ((fun () -> probe.Sessions.Status = Some AwaitingTan), hangLimit)) "wartet am Gate"
+            let cancelled = cancelSync probe (startedSessionId probe)
+            Expect.isTrue (cancelled.Wait hangLimit) "abgebrochen"
+            probe.Connection.Cell.Gate.Release () |> ignore
+            Expect.isTrue (start.Wait hangLimit) "der Start endet"
+            expectSessionGone start.Result
+            Expect.equal probe.Logins 0 "keine Challenge"
+
+        testCase "Abbruch, während die Wiederaufnahme am Gate wartet: nichts geht zur Bank" <| fun () ->
+            let probe = Probe(Disconnected)
+            let ports = probe.Build()
+            probe.Connection.Cell.Gate.Wait ()
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isTrue (SpinWait.SpinUntil ((fun () -> probe.Sessions.Started.Count = 1), hangLimit)) "Sitzung läuft"
             let cancelled = cancelSync probe (startedSessionId probe)
             Expect.isTrue (cancelled.Wait hangLimit) "abgebrochen"
             probe.Connection.Cell.Gate.Release () |> ignore
@@ -525,7 +562,8 @@ let confirmTanTests =
     ]
 
 let private fakeBank (transactions: BankTransaction list) : BankPort =
-    { Status = fun () -> BankReady
+    { Resume = fun () -> async.Return ()
+      Status = fun () -> BankReady
       StartAuth = fun _ _ -> failtest "keine Challenge im Abruf"
       CompleteAuth = fun () -> failtest "keine Bestätigung im Abruf"
       FetchAccounts = fun () -> failtest "der Abruf hängt nicht am Kontenabruf"
@@ -623,4 +661,224 @@ let fetchForReviewTests =
             match fetchForReview source request |> run with
             | Error (BankFetchFailed ComdirectError.SessionExpired) -> ()
             | other -> failtestf "BankFetchFailed erwartet: %A" other
+    ]
+
+let private storedProbe () =
+    Probe(Disconnected, StoredRead = async.Return (StoredReadable stored))
+
+/// Ein Fenster aus banking-import-z4h6p: `BankPort.Status` liest die Zelle ohne `Gate`. Direkt nach
+/// dem Start steht dort `Disconnected`, obwohl ein Wert liegt. Der Klick kostete sonst eine TAN und
+/// den Wert.
+[<Tests>]
+let startSyncAfterRestartTests =
+    testList "startSync nach dem Neustart: ein gespeicherter Wert kostet keine TAN" [
+
+        testCase "Klick vor der Wiederaufnahme: ReviewReady, keine Challenge, der Wert bleibt" <| fun () ->
+            let probe = storedProbe ()
+            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.equal probe.Refreshes 1 "per Refresh aufgenommen"
+            Expect.equal probe.Clears 0 "Wert bleibt"
+
+        testCase "Klick während die Wiederaufnahme das Gate hält: er wartet und braucht keine Challenge" <| fun () ->
+            let probe = storedProbe ()
+            let ports = probe.Build()
+            let bank = Barrier()
+            probe.DuringRefresh <- bank.Hold
+            let resume = resumeConnectionWith probe.Connection now |> Async.StartAsTask
+            Expect.isTrue (bank.WaitReached ()) "die Wiederaufnahme hält das Gate"
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isFalse (start.Wait 200) "der Klick wartet hinter dem Refresh"
+            bank.Release ()
+            Expect.isTrue (resume.Wait hangLimit) "Wiederaufnahme fertig"
+            Expect.isTrue (start.Wait hangLimit) "Klick fertig"
+            start.Result |> expectReviewReady |> ignore
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.equal probe.Refreshes 1 "ein Refresh"
+            Expect.equal probe.Clears 0 "Wert bleibt"
+
+        testCase "Klick im Moment vor dem Setzen der Zelle: das Gate ist belegt, die Zelle noch Disconnected" <| fun () ->
+            let probe = storedProbe ()
+            let ports = probe.Build()
+            let loading = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+            let load = TaskCompletionSource<StoredConnectionRead>(TaskCreationOptions.RunContinuationsAsynchronously)
+            probe.StoredRead <- async {
+                loading.TrySetResult () |> ignore
+                return! load.Task |> Async.AwaitTask }
+            let resume = resumeConnectionWith probe.Connection now |> Async.StartAsTask
+            Expect.isTrue (loading.Task.Wait hangLimit) "die Wiederaufnahme liest den Wert"
+            Expect.isTrue (isDisconnected probe.Connection) "die Zelle steht noch auf Disconnected"
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isFalse (start.Wait 200) "der Klick wartet am Gate"
+            load.SetResult (StoredReadable stored)
+            Expect.isTrue (resume.Wait hangLimit) "Wiederaufnahme fertig"
+            Expect.isTrue (start.Wait hangLimit) "Klick fertig"
+            start.Result |> expectReviewReady |> ignore
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.equal probe.Clears 0 "Wert bleibt"
+
+        testCase "Die Bank hängt: cancelSync wartet nicht, der Sync endet ohne Challenge" <| fun () ->
+            let probe = storedProbe ()
+            let ports = probe.Build()
+            let bank = Barrier()
+            probe.DuringRefresh <- bank.Hold
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isTrue (bank.WaitReached ()) "der Klick steht im Refresh"
+            let cancelled = cancelSync probe (startedSessionId probe)
+            Expect.isTrue (cancelled.Wait hangLimit) "der Abbruch wartet nicht auf die Bank"
+            bank.Release ()
+            Expect.isTrue (start.Wait hangLimit) "Sync fertig"
+            expectSessionGone start.Result
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.equal probe.Fetches 0 "kein Abruf"
+            Expect.equal probe.Clears 0 "Wert bleibt"
+
+        testCase "Abbruch, und das Urteil heißt ReloginRequired: keine Challenge" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- Error (ReloginRequired "HTTP 401")
+            let ports = probe.Build()
+            let bank = Barrier()
+            probe.DuringRefresh <- bank.Hold
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isTrue (bank.WaitReached ()) "der Klick steht im Refresh"
+            let cancelled = cancelSync probe (startedSessionId probe)
+            Expect.isTrue (cancelled.Wait hangLimit) "Abbruch fertig"
+            bank.Release ()
+            Expect.isTrue (start.Wait hangLimit) "Sync fertig"
+            expectSessionGone start.Result
+            Expect.equal probe.Logins 0 "keine Challenge"
+
+        testCase "ReloginRequired beim Klick: Wert gelöscht, Romans Klick darf die TAN auslösen" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- Error (ReloginRequired "HTTP 401")
+            startSyncWith (probe.Build()) |> run |> expectTanRequired |> ignore
+            Expect.equal probe.Logins 1 "genau eine Challenge"
+            Expect.equal probe.Fetches 0 "kein Abruf"
+            Expect.equal (List.ofSeq probe.Losses) [ "HTTP 401" ] "der Verlust ist gemeldet"
+            Expect.isGreaterThan probe.Clears 0 "Wert gelöscht"
+
+        testCase "Der Wert ist nicht lesbar, weil das Lesen wirft: der Klick geht in die TAN" <| fun () ->
+            let probe = Probe(Disconnected, StoredRead = async { return failwith "Datenbank gestört" })
+            startSyncWith (probe.Build()) |> run |> expectTanRequired |> ignore
+            Expect.equal probe.Logins 1 "eine Challenge"
+
+        testCase "Nichts gespeichert: kein Refresh vor der Challenge" <| fun () ->
+            let probe = Probe(Disconnected)
+            startSyncWith (probe.Build()) |> run |> expectTanRequired |> ignore
+            Expect.equal probe.Refreshes 0 "kein Refresh"
+
+        testCase "Aktive Verbindung: der Wert löst keinen Refresh aus" <| fun () ->
+            let probe = Probe(connected, StoredRead = async.Return (StoredReadable stored))
+            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            Expect.equal probe.Refreshes 0 "kein Refresh aus dem Wert, das Access-Token gilt noch"
+    ]
+
+/// Nach `RetryLater` gilt weiter `Connected`: `fetchOrRequireTan` darf einen Fehler dann nicht als
+/// gestorbene Verbindung lesen.
+[<Tests>]
+let retryLaterSyncTests =
+    testList "startSync nach RetryLater: die Verbindung lebt, es gibt keine Challenge" [
+
+        testCase "RetryLater beim Klick: der Abruf läuft mit dem alten Token, der Wert bleibt" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- Error (RetryLater "HTTP 503")
+            startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.equal probe.Fetches 1 "Abruf gelaufen"
+            Expect.equal probe.Clears 0 "Wert bleibt"
+            Expect.isEmpty probe.Losses "kein Verlust"
+
+        testCase "RetryLater und die Bank lehnt den Abruf ab: Fehler sichtbar, keine Challenge, der Wert bleibt" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- Error (RetryLater "HTTP 503")
+            probe.FetchAnswer <- Error rejected
+            let ports = probe.Build()
+            match startSyncWith ports |> run with
+            | Error (SyncError.TransactionFetchFailed _) -> ()
+            | other -> failtestf "TransactionFetchFailed erwartet: %A" other
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.isTrue (isConnected probe.Connection) "die Verbindung steht"
+            Expect.equal probe.Clears 0 "Wert bleibt"
+            Expect.isEmpty probe.Losses "kein Verlust"
+            match probe.Sessions.Status with
+            | Some (Failed _) -> ()
+            | other -> failtestf "gescheiterte Sitzung erwartet: %A" other
+
+        testCase "RetryLater und ein Netzfehler im Abruf: keine Challenge" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- Error (RetryLater "HTTP 503")
+            probe.FetchAnswer <- Error (ComdirectError.NetworkError (503, ""))
+            let ports = probe.Build()
+            match startSyncWith ports |> run with
+            | Error (SyncError.TransactionFetchFailed _) -> ()
+            | other -> failtestf "TransactionFetchFailed erwartet: %A" other
+            Expect.equal probe.Logins 0 "keine Challenge"
+            Expect.isTrue (isConnected probe.Connection) "die Verbindung steht"
+
+        testCase "Die Verbindung stirbt im Abruf: TanRequired, der Wert ist weg, einmal gemeldet" <| fun () ->
+            let probe = Probe(connected)
+            probe.FetchAnswer <- Error rejected
+            probe.RefreshAnswer <- Error (ReloginRequired "HTTP 401")
+            startSyncWith (probe.Build()) |> run |> expectTanRequired |> ignore
+            Expect.equal probe.Logins 1 "genau eine Challenge"
+            Expect.isGreaterThan probe.Clears 0 "Wert gelöscht"
+            Expect.equal probe.Losses.Count 1 "einmal gemeldet"
+    ]
+
+/// Die Sync-Wege aus banking-import-cyg94 behandeln den Wert wie `startChallengeWith`.
+[<Tests>]
+let storedValueOnSyncPathsTests =
+    testList "Gespeicherter Wert auf den Sync-Wegen: Challenge und Abbruch" [
+
+        testCase "neue Challenge über den Bank-Port: der Wert der abgelösten Verbindung ist weg" <| fun () ->
+            let probe = Probe(connected)
+            probe.Build() |> ignore
+            startChallengeWhileWith probe.Connection (fun () -> true) credentials |> run |> ignore
+            Expect.isTrue (isChallengePending probe.Connection) "Challenge offen"
+            Expect.equal probe.Clears 1 "gelöscht"
+
+        testCase "die Bedingung gilt nicht mehr: nichts zur Bank, der Wert und die Verbindung bleiben" <| fun () ->
+            let probe = Probe(connected)
+            probe.Build() |> ignore
+            startChallengeWhileWith probe.Connection (fun () -> false) credentials |> run |> ignore
+            Expect.equal probe.Logins 0 "keine Anmeldung"
+            Expect.isTrue (isConnected probe.Connection) "Verbindung steht"
+            Expect.equal probe.Clears 0 "bleibt"
+
+        testCase "gescheiterte Anmeldung über den Bank-Port: der Wert bleibt" <| fun () ->
+            let probe = Probe(connected)
+            probe.LoginAnswer <- Error ComdirectError.InvalidCredentials
+            probe.Build() |> ignore
+            startChallengeWhileWith probe.Connection (fun () -> true) credentials |> run |> ignore
+            Expect.isTrue (isConnected probe.Connection) "Verbindung steht"
+            Expect.equal probe.Clears 0 "bleibt"
+
+        testCase "Abbruch bei aktiver Verbindung und freiem Gate: Verbindung und Wert bleiben" <| fun () ->
+            let probe = Probe(connected)
+            probe.Build() |> ignore
+            discardPendingChallengeWith probe.Connection |> run
+            Expect.isTrue (isConnected probe.Connection) "Verbindung steht"
+            Expect.equal probe.Clears 0 "bleibt"
+
+        testCase "Abbruch bei aktiver Verbindung und belegtem Gate: Verbindung und Wert bleiben" <| fun () ->
+            let probe = Probe(connected)
+            let ports = probe.Build()
+            let bank = Barrier()
+            probe.DuringFetch <- bank.Hold
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isTrue (bank.WaitReached ()) "der Abruf hält das Gate"
+            let cancelled = cancelSync probe (startedSessionId probe)
+            Expect.isTrue (cancelled.Wait hangLimit) "Abbruch fertig"
+            bank.Release ()
+            Expect.isTrue (start.Wait hangLimit) "Sync fertig"
+            discardPendingChallengeWith probe.Connection |> run
+            Expect.isTrue (isConnected probe.Connection) "Verbindung steht"
+            Expect.equal probe.Clears 0 "bleibt"
+
+        testCase "verworfene Challenge: das Verwerfen löscht nichts mehr, der Wert ist schon weg" <| fun () ->
+            let probe = Probe(pendingChallenge)
+            probe.Build() |> ignore
+            discardPendingChallengeWith probe.Connection |> run
+            Expect.isTrue (isDisconnected probe.Connection) "Challenge verworfen"
+            Expect.equal probe.Clears 0 "kein zweites Löschen"
     ]

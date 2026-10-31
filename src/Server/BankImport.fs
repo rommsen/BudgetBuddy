@@ -201,9 +201,13 @@ let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
                     let session = ports.Sessions.StartNew ()
                     return! failingSessionOnException ports "start_sync" (async {
                         do! ports.Sessions.RecordStarted session
-                        match ports.Sources.Bank.Status () with
-                        | BankAuthRequired -> return! requireTan ports credentials session.Id
-                        | BankReady -> return! fetchOrRequireTan ports settings credentials session.Id
+                        do! ports.Sources.Bank.Resume ()
+                        if isCurrent ports session.Id then
+                            match ports.Sources.Bank.Status () with
+                            | BankAuthRequired -> return! requireTan ports credentials session.Id
+                            | BankReady -> return! fetchOrRequireTan ports settings credentials session.Id
+                        else
+                            return Error (sessionNotFound session.Id)
                     })
         with ex ->
             return Error (SyncError.DatabaseError ("start_sync", ex.Message))

@@ -10,10 +10,10 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
+- **Backlog:** 8
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 4
+- **Doing:** 0
+- **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `doing/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `done/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
 - **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `done/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
 - **banking-import-tshq9** — "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr" (feature) — `done/banking-import-tshq9-bankverbindung-als-zustandsautomat.md`
 - **banking-import-p5mcp** — "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop" (spike) — `done/banking-import-p5mcp-session-live-beobachten-go-oder-stop.md`
@@ -35,6 +35,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **banking-import-q7ds2** — "ReportLoss im laufenden Server absichern" (chore) — `backlog/banking-import-q7ds2-reportloss-im-laufenden-server-absichern.md`
 - **banking-import-q7vd2** — "confirmTan: Transportfehler vom fachlichen Fehler trennen und den Serverzustand bis zum Ende nachlesen" (bug) — `backlog/banking-import-q7vd2-confirmtan-transportfehler-vom-fachlichen-fehler-trennen-und.md`
 - **banking-import-v8n3k** — "Verbindungstest bei Connected scheitert vermutlich am Kontenabruf (404)" (bug) — `backlog/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 - **banking-import-h2n8q** — "getAccounts meldet 5xx und Verbindungsabbrüche als 404" (bug) — `backlog/banking-import-h2n8q-getaccounts-meldet-5xx-und-verbindungsabbr-che-als-404.md`

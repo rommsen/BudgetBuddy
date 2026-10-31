@@ -14,6 +14,7 @@ let private run (a: Async<'T>) = Async.RunSynchronously a
 let private token = "ynab-geheimes-token-1234"
 let private clientSecret = "comdirect-geheimes-secret"
 let private password = "geheime-pin-9876"
+let private storedConnection = "gespeicherter-verbindungswert-aus-adr-0071"
 
 let private storedSettings =
     [ "ynab_token", token
@@ -22,7 +23,8 @@ let private storedSettings =
       "comdirect_client_secret", clientSecret
       "comdirect_username", "alter-name"
       "comdirect_password", password
-      "comdirect_account_id", "konto-1" ]
+      "comdirect_account_id", "konto-1"
+      Server.BankConnectionStore.connectionSettingKey, storedConnection ]
 
 /// Port-Paar auf einem Wörterbuch. `writes` hält Schlüssel, Wert und Verschlüsselungs-Flag fest.
 type private SettingsProbe(initial: (string * string) list) =
@@ -51,10 +53,10 @@ let private formWithoutSecrets : ComdirectSettings =
 [<Tests>]
 let settingsSecretsServerTests =
     testList "Einstellungen: Secrets bleiben auf dem Server" [
-        test "Die Antwort an den Client enthält weder Token noch Client-Secret noch PIN" {
+        test "Die Antwort an den Client enthält weder Token noch Client-Secret noch PIN noch den Verbindungswert" {
             let probe = SettingsProbe storedSettings
             let answer = sprintf "%A" (readSettingsForClient probe.Get |> run)
-            for secret in [ token; clientSecret; password ] do
+            for secret in [ token; clientSecret; password; storedConnection ] do
                 Expect.isFalse (answer.Contains secret) $"'{secret}' darf nicht in der Antwort stehen"
         }
 

@@ -46,10 +46,11 @@ let main args =
     // Add Giraffe
     builder.Services.AddGiraffe() |> ignore
 
-    // Erneuert die Bankverbindung. Nur hier registriert, im TestServer (`Api.webApp`) läuft der
+    // Nimmt die Bankverbindung nach dem Start wieder auf und erneuert sie. Nur hier registriert, im TestServer (`Api.webApp`) läuft der
     // Dienst nie (ADR 0071 Punkt 8, Wächter in StructureGuardTests.fs).
     builder.Services.AddHostedService(fun (_: System.IServiceProvider) ->
         new Server.BankConnectionWorker.BankConnectionWorker(
+            Server.ComdirectAuthSession.resumeConnection,
             Server.ComdirectAuthSession.runTick,
             Server.BankConnection.tickPeriod))
     |> ignore

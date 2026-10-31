@@ -2,6 +2,7 @@ module Server.BankConnection
 
 open System
 open Server.ComdirectClient
+open Server.BankConnectionStore
 
 // Bankverbindung als reiner Zustandsautomat (ADR 0071 Punkt 2 und 3). Kein I/O, die Uhr kommt als
 // Parameter. Den Zustand hält `ComdirectAuthSession`, dort liegen auch Semaphor und Bankaufrufe.
@@ -57,6 +58,19 @@ let tanFailed (state: BankConnectionState) : BankConnectionState =
 /// Abbruch eines Syncs: verwirft nur die offene Challenge, `Connected` bleibt.
 let challengeCancelled (state: BankConnectionState) : BankConnectionState =
     tanFailed state
+
+/// Verbindung aus dem gespeicherten Wert (ADR 0071 Punkt 4). Sie gilt ohne Ablaufzeit: so ist der
+/// Refresh auch nach `RetryLater` nach 60 s fällig, egal wie lange das Access-Token noch liefe. Ein
+/// Refresh-Token überlebt nur Minuten, auf den Ablauf des Access-Tokens zu warten kann es kosten.
+let resumedConnection (keys: ApiKeys) (stored: StoredConnection) : ActiveConnection =
+    { Session =
+        { RequestInfo = stored.RequestInfo
+          SessionId = stored.SessionId
+          Tokens = { stored.Tokens with ExpiresAt = None }
+          SessionIdentifier = stored.SessionIdentifier
+          Challenge = None }
+      Keys = keys
+      NextRefreshAttempt = None }
 
 /// Ohne bekannte Ablaufzeit ist der Refresh fällig: erst er liefert eine Ablaufzeit.
 let refreshDue (now: DateTimeOffset) (connection: ActiveConnection) : bool =

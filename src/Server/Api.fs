@@ -176,7 +176,9 @@ let mergeStoredComdirectSecrets (getSetting: string -> Async<string option>) (cr
 
 /// Speichert die Comdirect-Zugangsdaten. Validiert wird nach dem Zusammenführen mit den
 /// gespeicherten Secrets: ist nichts gespeichert, bleibt es beim Validierungsfehler. Geänderte
-/// Zugangsdaten trennen die Bankverbindung (ADR 0071 Punkt 2), eine andere Konto-Id nicht.
+/// Zugangsdaten trennen die Bankverbindung (ADR 0071 Punkt 2), eine andere Konto-Id nicht. Getrennt
+/// wird zuerst: lägen die neuen Daten schon, sähe ein zweiter Versuch keine Änderung mehr, und der
+/// nächste Start nähme den alten Wert mit den neuen Schlüsseln wieder auf.
 let saveComdirectCredentialsWith
     (getSetting: string -> Async<string option>)
     (setSetting: string -> string -> bool -> Async<unit>)
@@ -196,6 +198,8 @@ let saveComdirectCredentialsWith
                 (storedClientId, storedClientSecret, storedUsername, storedPassword)
                 <> (Some valid.ClientId, Some valid.ClientSecret, Some valid.Username, Some valid.Password)
 
+            if credentialsChanged then
+                do! disconnect ()
             do! setSetting "comdirect_client_id" valid.ClientId false
             do! setSetting "comdirect_client_secret" valid.ClientSecret true
             do! setSetting "comdirect_username" valid.Username false
@@ -203,8 +207,6 @@ let saveComdirectCredentialsWith
             match valid.AccountId with
             | Some accountId -> do! setSetting "comdirect_account_id" accountId false
             | None -> ()
-            if credentialsChanged then
-                do! disconnect ()
             return Ok ()
     with ex ->
         return Error (SettingsError.DatabaseError ("save_comdirect_credentials", ex.Message))
@@ -217,6 +219,7 @@ let testComdirectConnectionWith
     (ports: ComdirectAuthSession.ConnectionPorts)
     (now: DateTimeOffset)
     : Async<SettingsResult<ComdirectConnectionTest>> = async {
+    do! ComdirectAuthSession.awaitResumeWith ports now
     match ComdirectAuthSession.connectionState ports with
     | BankConnection.Connected _ ->
         match! ComdirectAuthSession.fetchAccountsWith ports now with

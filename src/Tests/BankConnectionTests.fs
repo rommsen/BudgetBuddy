@@ -9,6 +9,7 @@ open System.Threading.Tasks
 open Expecto
 open Shared.Domain
 open Server.ComdirectClient
+open Server.BankConnectionStore
 open Server.BankConnection
 open Server.ComdirectAuthSession
 open Server.BankConnectionWorker
@@ -62,6 +63,19 @@ type private Probe(initial: BankConnectionState) =
         Ok (tokensValidFor 598.0 "bestaetigt") with get, set
     member val BeforeRefresh : unit -> Async<unit> = (fun () -> async.Return ()) with get, set
     member val Ports : ConnectionPorts option = None with get, set
+    member val StoredRead = NothingStored with get, set
+    member val SaveFails = false with get, set
+    member val ClearFails = false with get, set
+    member val Saves = ResizeArray<StoredConnection>()
+    /// Das Access-Token in der Zelle im Moment des Speicherns.
+    member val AccessInCellAtSave = ResizeArray<string>()
+    member val Clears = ref 0
+    /// War die Zelle schon getrennt, als gelöscht und gemeldet wurde?
+    member val DisconnectedAtClear = ResizeArray<bool>()
+    member val DisconnectedAtLoss = ResizeArray<bool>()
+    member val Keys = Some keys with get, set
+    /// Speichern und Bankabruf in ihrer Reihenfolge.
+    member val Events = ResizeArray<string>()
     member this.Build() =
         let cell = newConnectionCell ()
         cell.State.Value <- initial
@@ -81,8 +95,25 @@ type private Probe(initial: BankConnectionState) =
               return this.FetchAnswer tokens |> Result.map (fun _ -> []) }
           FetchTransactions = fun _ tokens _ _ _ -> async {
               lock this.Fetches (fun () -> this.Fetches.Add tokens)
+              this.Events.Add $"abruf:{tokens.Access}"
               return this.FetchAnswer tokens }
-          ReportLoss = this.Losses.Add }
+          ReportLoss = fun reason ->
+              this.DisconnectedAtLoss.Add (cell.State.Value = Disconnected)
+              this.Losses.Add reason
+          Store =
+            { Load = fun () -> async.Return this.StoredRead
+              Save = fun stored -> async {
+                  if this.SaveFails then failwith "Speichern scheitert"
+                  this.Saves.Add stored
+                  this.Events.Add $"speichern:{stored.Tokens.Access}"
+                  match cell.State.Value with
+                  | Connected connection -> this.AccessInCellAtSave.Add connection.Session.Tokens.Access
+                  | _ -> this.AccessInCellAtSave.Add "keine Verbindung" }
+              Clear = fun () -> async {
+                  this.DisconnectedAtClear.Add (cell.State.Value = Disconnected)
+                  if this.ClearFails then failwith "Löschen scheitert"
+                  Interlocked.Increment(this.Clears) |> ignore } }
+          LoadKeys = fun () -> async.Return this.Keys }
 
 let private isDisconnected (ports: ConnectionPorts) =
     match connectionState ports with
@@ -436,6 +467,397 @@ let adapterTests =
             Expect.equal updated.ComdirectConnectionValid (Types.Success ()) "Erfolg"
     ]
 
+/// Gespeicherter Wert mit einem Access-Token, das noch lange gilt.
+let private stored : StoredConnection =
+    { RequestInfo = requestInfo
+      SessionId = requestInfo.SessionId
+      SessionIdentifier = "kennung-kuenstlich"
+      Tokens = tokensValidFor 500.0 "gespeichert" }
+
+let private storedProbe () =
+    Probe(Disconnected, StoredRead = StoredReadable stored)
+
+let private expectNoBankLogin (probe: Probe) =
+    Expect.equal probe.Logins.Value 0 "kein Passwort-Login, keine Challenge"
+    Expect.equal probe.Confirmations.Value 0 "keine TAN-Bestätigung"
+
+[<Tests>]
+let persistingTests =
+    testList "Bankverbindung: gespeicherter Wert" [
+        testCase "Refresh erfolgreich: der Wert enthält das neue Token, bevor es in Verwendung ist" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 10.0 "alt"))
+            let ports = probe.Build()
+            tick ports now |> run
+            Expect.equal (probe.Saves |> Seq.map (fun s -> s.Tokens) |> List.ofSeq) [ tokensValidFor 598.0 "neu" ] "gespeichert"
+            Expect.equal (List.ofSeq probe.AccessInCellAtSave) [ "alt" ] "die Zelle trägt noch das alte Token"
+            Expect.equal (activeConnection ports).Session.Tokens.Access "neu" "danach in Verwendung"
+
+        testCase "der Wert trägt RequestInfo und Sitzungskennung der Verbindung" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 10.0 "alt"))
+            tick (probe.Build()) now |> run
+            let saved = probe.Saves |> Seq.exactlyOne
+            Expect.equal saved.RequestInfo requestInfo "RequestInfo"
+            Expect.equal saved.SessionId requestInfo.SessionId "Session-Id"
+            Expect.equal saved.SessionIdentifier "kennung-kuenstlich" "Kennung"
+
+        testCase "Refresh nach 401: erst speichern, dann der Wiederholversuch" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            probe.FetchAnswer <- fun tokens -> if tokens.Access = "alt" then Error rejected else Ok []
+            fetch (probe.Build()) |> ignore
+            Expect.equal (List.ofSeq probe.Events) [ "abruf:alt"; "speichern:neu"; "abruf:neu" ] "Reihenfolge"
+
+        testCase "TAN bestätigt: der Wert liegt schon vor dem ersten Refresh" <| fun () ->
+            let probe = Probe(pending)
+            let ports = probe.Build()
+            confirmChallengeWith ports |> run |> ignore
+            Expect.equal (probe.Saves |> Seq.map (fun s -> s.Tokens.Access) |> List.ofSeq) [ "bestaetigt" ] "gespeichert"
+            Expect.equal (activeConnection ports).Session.Tokens.Access "bestaetigt" "verbunden"
+
+        testCase "gescheiterte TAN speichert nichts" <| fun () ->
+            let probe = Probe(pending)
+            probe.ConfirmAnswer <- Error ComdirectError.TanRejected
+            confirmChallengeWith (probe.Build()) |> run |> ignore
+            Expect.isEmpty probe.Saves "nichts gespeichert"
+
+        testCase "Speichern scheitert: das neue Token ist trotzdem in Verwendung" <| fun () ->
+            // Das alte Token ist bei der Bank verbraucht. Bliebe es in der Zelle, beendete der
+            // nächste Refresh die Verbindung.
+            let probe = Probe(connected (tokensValidFor 10.0 "alt"), SaveFails = true)
+            let ports = probe.Build()
+            tick ports now |> run
+            Expect.equal (activeConnection ports).Session.Tokens.Access "neu" "neues Token"
+            Expect.isEmpty probe.Losses "kein Verlust"
+
+        testCase "RetryLater: der Wert bleibt unverändert" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 10.0 "alt"))
+            probe.RefreshAnswer <- fun _ -> Error (RetryLater "HTTP 503")
+            tick (probe.Build()) now |> run
+            Expect.isEmpty probe.Saves "nichts gespeichert"
+            Expect.equal probe.Clears.Value 0 "nichts gelöscht"
+
+        testCase "ReloginRequired im Takt: Wert gelöscht" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 10.0 "alt"))
+            probe.RefreshAnswer <- fun _ -> Error (ReloginRequired "HTTP 401")
+            tick (probe.Build()) now |> run
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+
+        testCase "Löschen scheitert beim Verlust: Disconnected, der Verlust ist gemeldet" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 10.0 "alt"), ClearFails = true)
+            probe.RefreshAnswer <- fun _ -> Error (ReloginRequired "HTTP 401")
+            let ports = probe.Build()
+            tick ports now |> run
+            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal probe.Losses.Count 1 "gemeldet"
+
+        testCase "401 auch nach dem Refresh: Wert gelöscht" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            probe.FetchAnswer <- fun _ -> Error rejected
+            fetch (probe.Build()) |> ignore
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+
+        testCase "Trennen: Wert gelöscht" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            disconnectWith (probe.Build()) |> run
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+
+        testCase "Trennen löscht auch ohne aktive Verbindung" <| fun () ->
+            let probe = Probe(Disconnected)
+            disconnectWith (probe.Build()) |> run
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+
+        testCase "Trennen und Löschen scheitert: getrennt, der Fehler kommt an" <| fun () ->
+            // Ein stilles Scheitern ließe ein Token liegen, das der nächste Start wieder aufnimmt.
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"), ClearFails = true)
+            let ports = probe.Build()
+            Expect.throws (fun () -> disconnectWith ports |> run) "der Fehler kommt an"
+            Expect.isTrue (isDisconnected ports) "getrennt"
+
+        testCase "Zugangsdaten geändert: Wert gelöscht" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            saveCredentials (probe.Build()) { savedForm with Username = "anderer-name" } |> ignore
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+
+        testCase "Zugangsdaten geändert und Löschen scheitert: nichts geschrieben, der zweite Versuch löscht" <| fun () ->
+            // Bug: die Zugangsdaten lagen schon, bevor das Trennen scheiterte. Der zweite Versuch sah
+            // keine Änderung mehr, und der nächste Start nahm den alten Wert mit den neuen Schlüsseln auf.
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"), ClearFails = true)
+            let ports = probe.Build()
+            let settings = System.Collections.Generic.Dictionary<string, string>(dict storedCredentials)
+            let read key = async.Return (match settings.TryGetValue key with | true, value -> Some value | _ -> None)
+            let write key value (_: bool) = async { settings[key] <- value }
+            let save () =
+                Server.Api.saveComdirectCredentialsWith read write (fun () -> disconnectWith ports) { savedForm with Username = "anderer-name" }
+                |> run
+            match save () with
+            | Error (SettingsError.DatabaseError _) -> ()
+            | other -> failtestf "DatabaseError erwartet, bekam %A" other
+            Expect.equal settings["comdirect_username"] "name" "die neuen Daten liegen noch nicht"
+            probe.ClearFails <- false
+            Expect.isOk (save ()) "der zweite Versuch gelingt"
+            Expect.equal probe.Clears.Value 1 "der zweite Versuch löscht den Wert"
+            Expect.equal settings["comdirect_username"] "anderer-name" "die neuen Daten liegen"
+
+        testCase "nur die Konto-Id geändert: der Wert bleibt" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            saveCredentials (probe.Build()) { savedForm with AccountId = Some "anderes-konto" } |> ignore
+            Expect.equal probe.Clears.Value 0 "bleibt"
+
+        testCase "neue Challenge: der Wert der abgelösten Verbindung ist weg" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            startChallengeWith (probe.Build()) credentials |> run |> ignore
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+
+        testCase "gescheiterte Anmeldung: der Wert bleibt" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            let ports =
+                { probe.Build() with Login = fun _ _ -> async.Return (Error ComdirectError.InvalidCredentials) }
+            startChallengeWith ports credentials |> run |> ignore
+            Expect.equal probe.Clears.Value 0 "bleibt"
+
+        testCase "Verbindungstest vor der Wiederaufnahme: keine Challenge, der Wert bleibt" <| fun () ->
+            let probe = Probe(Disconnected, StoredRead = StoredReadable stored)
+            let ports = probe.Build()
+            Expect.equal (testConnection ports) (Ok BankConnectionActive) "aktiv"
+            Expect.equal probe.Logins.Value 0 "keine Challenge"
+            Expect.equal probe.Clears.Value 0 "bleibt"
+
+        testCase "401 und ReloginRequired im Abruf: erst die Zelle, dann Löschen und Meldung" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            probe.FetchAnswer <- fun _ -> Error rejected
+            probe.RefreshAnswer <- fun _ -> Error (ReloginRequired "HTTP 401")
+            let ports = probe.Build()
+            Expect.equal (fetch ports) (Error rejected) "Ablehnung kommt an"
+            Expect.equal (List.ofSeq probe.DisconnectedAtClear) [ true ] "beim Löschen schon getrennt"
+            Expect.equal (List.ofSeq probe.DisconnectedAtLoss) [ true ] "bei der Meldung schon getrennt"
+
+        testCase "zweite Ablehnung nach gelungenem Refresh: erst die Zelle, dann Löschen und Meldung" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            probe.FetchAnswer <- fun _ -> Error rejected
+            let ports = probe.Build()
+            fetch ports |> ignore
+            Expect.equal (List.ofSeq probe.DisconnectedAtClear) [ true ] "beim Löschen schon getrennt"
+            Expect.equal (List.ofSeq probe.DisconnectedAtLoss) [ true ] "bei der Meldung schon getrennt"
+
+        testCase "cancelSync bei Connected: der Wert bleibt" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            cancel (probe.Build()) |> ignore
+            Expect.equal probe.Clears.Value 0 "bleibt"
+    ]
+
+[<Tests>]
+let resumeTests =
+    testList "Bankverbindung: Wiederaufnahme beim Start" [
+        testCase "gespeicherter Wert und Refresh gelingt: Connected, keine Challenge" <| fun () ->
+            let probe = storedProbe ()
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            let connection = activeConnection ports
+            Expect.equal connection.Session.Tokens.Access "neu" "neues Token"
+            Expect.equal connection.Session.RequestInfo requestInfo "RequestInfo aus dem Wert"
+            Expect.equal connection.Session.SessionIdentifier "kennung-kuenstlich" "Kennung aus dem Wert"
+            Expect.equal connection.Keys keys "Schlüssel aus den Einstellungen"
+            Expect.equal (probe.Refreshes |> Seq.map (fun t -> t.Refresh) |> List.ofSeq) [ "gespeichert-refresh" ] "mit dem gespeicherten Refresh-Token"
+            Expect.equal (probe.Saves |> Seq.map (fun s -> s.Tokens.Access) |> List.ofSeq) [ "neu" ] "neues Token gespeichert"
+            expectNoBankLogin probe
+
+        testCase "ReloginRequired: Wert gelöscht, Disconnected, keine Challenge" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- fun _ -> Error (ReloginRequired "HTTP 401: invalid_token")
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+            Expect.equal (List.ofSeq probe.Losses) [ "HTTP 401: invalid_token" ] "einmal gemeldet"
+            expectNoBankLogin probe
+
+        testCase "nicht entschlüsselbarer Wert: gelöscht, Disconnected, kein Bankzugriff" <| fun () ->
+            let probe = Probe(Disconnected, StoredRead = StoredUnreadable)
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+            Expect.equal probe.Refreshes.Count 0 "kein Refresh"
+            Expect.equal (List.ofSeq probe.Losses) [ "Gespeicherte Bankverbindung nicht lesbar" ] "einmal gemeldet"
+            expectNoBankLogin probe
+
+        testCase "Zugangsdaten nicht mehr lesbar: Wert gelöscht, kein Bankzugriff" <| fun () ->
+            let probe = Probe(Disconnected, StoredRead = StoredReadable stored, Keys = None)
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+            Expect.equal probe.Refreshes.Count 0 "kein Refresh"
+            Expect.equal (List.ofSeq probe.Losses) [ "Gespeicherte Bankverbindung nicht lesbar" ] "einmal gemeldet"
+
+        testCase "RetryLater: der Wert bleibt, nächster Versuch nach 60 s trotz gültigem Access-Token" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- fun _ -> Error (RetryLater "HTTP 503")
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            Expect.equal probe.Clears.Value 0 "nichts gelöscht"
+            Expect.isEmpty probe.Losses "kein Verlust"
+            Expect.equal (activeConnection ports).Session.Tokens.Access "gespeichert" "Verbindung steht"
+            tick ports (now.AddSeconds 59.0) |> run
+            Expect.equal probe.Refreshes.Count 1 "vor Ablauf der 60 s kein Versuch"
+            probe.RefreshAnswer <- fun _ -> Ok (tokensValidFor 658.0 "neu")
+            tick ports (now.AddSeconds 60.0) |> run
+            Expect.equal probe.Refreshes.Count 2 "nach 60 s der nächste Versuch"
+            Expect.equal (activeConnection ports).Session.Tokens.Access "neu" "wieder aufgenommen"
+            expectNoBankLogin probe
+
+        testCase "RetryLater, dann ReloginRequired im Takt: Wert gelöscht" <| fun () ->
+            let probe = storedProbe ()
+            probe.RefreshAnswer <- fun _ -> Error (RetryLater "HTTP 503")
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            probe.RefreshAnswer <- fun _ -> Error (ReloginRequired "HTTP 401")
+            tick ports (now.AddSeconds 60.0) |> run
+            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal probe.Clears.Value 1 "gelöscht"
+            expectNoBankLogin probe
+
+        testCase "nichts gespeichert: Disconnected, kein Bankzugriff" <| fun () ->
+            let probe = Probe(Disconnected)
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal probe.Refreshes.Count 0 "kein Refresh"
+            Expect.equal probe.Clears.Value 0 "nichts zu löschen"
+            Expect.isEmpty probe.Losses "nichts verloren"
+            expectNoBankLogin probe
+
+        testCase "Roman war schneller: eine offene Challenge bleibt unberührt" <| fun () ->
+            let probe = Probe(pending, StoredRead = StoredReadable stored)
+            let ports = probe.Build()
+            resumeConnectionWith ports now |> run
+            Expect.equal (connectionState ports) pending "Challenge bleibt offen"
+            Expect.equal probe.Refreshes.Count 0 "kein Refresh"
+
+        testCase "Wiederaufnahme und Tick gleichzeitig: ein Aufruf" <| fun () ->
+            let probe = storedProbe ()
+            let ports = probe.Build()
+            withRefreshHeld probe (resumeConnectionWith ports now)
+                (fun () -> tick ports now |> Async.StartImmediateAsTask)
+                (fun second ->
+                    Expect.isFalse second.IsCompleted "der Tick wartet auf die Wiederaufnahme"
+                    Expect.equal probe.Refreshes.Count 1 "kein zweiter Refresh, solange der erste läuft")
+            |> ignore
+            Expect.equal probe.Refreshes.Count 1 "ein Refresh"
+    ]
+
+let private withDatabase (test: unit -> unit) = fun () ->
+    Persistence.initializeDatabase ()
+    test ()
+
+/// Eigener Schlüssel je Testfall: die In-Memory-DB ist für alle Listen geteilt.
+let private freshSettingKey () = $"test_bankverbindung_{Guid.NewGuid():N}"
+
+let private withKey = fun () -> true
+let private withoutKey = fun () -> false
+
+let private storedAccess = "zugriff-unverwechselbar"
+let private storedRefresh = "erneuerung-unverwechselbar"
+
+let private valueToStore : StoredConnection =
+    { stored with Tokens = { Access = storedAccess; Refresh = storedRefresh; ExpiresAt = Some now } }
+
+let private rawRow (settingKey: string) =
+    use connection = global.Persistence.getConnection ()
+    connection.Open()
+    use command = connection.CreateCommand()
+    command.CommandText <- "SELECT value, encrypted FROM settings WHERE key = $key"
+    command.Parameters.AddWithValue("$key", settingKey) |> ignore
+    use reader = command.ExecuteReader()
+    if reader.Read() then Some (reader.GetString 0, reader.GetInt32 1) else None
+
+[<Tests>]
+let storeTests =
+    testList "Bankverbindung: Speicher in den Einstellungen" [
+        testCase "Rundlauf: gespeichert wird verschlüsselt, gelesen der gleiche Wert" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            let store = settingsConnectionStore withKey settingKey
+            store.Save valueToStore |> run
+            let value, encrypted = rawRow settingKey |> Option.get
+            Expect.equal encrypted 1 "als verschlüsselt markiert"
+            Expect.isFalse (value.Contains storedAccess) "kein Access-Token im Klartext"
+            Expect.isFalse (value.Contains storedRefresh) "kein Refresh-Token im Klartext"
+            Expect.equal (store.Load () |> run) (StoredReadable valueToStore) "Rundlauf")
+
+        testCase "ohne Schlüssel wird nichts gespeichert" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            let store = settingsConnectionStore withoutKey settingKey
+            store.Save valueToStore |> run
+            Expect.isNone (rawRow settingKey) "keine Zeile"
+            Expect.equal (store.Load () |> run) NothingStored "nichts da")
+
+        testCase "ohne Schlüssel überschreibt Speichern auch einen alten Wert nicht" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            (settingsConnectionStore withKey settingKey).Save valueToStore |> run
+            let before = rawRow settingKey
+            (settingsConnectionStore withoutKey settingKey).Save { valueToStore with SessionId = "anders" } |> run
+            Expect.equal (rawRow settingKey) before "unverändert")
+
+        testCase "ohne Schlüssel gilt ein vorhandener Wert als unlesbar" <| withDatabase (fun () ->
+            // Der Maschinen-Fallback gilt für diesen Wert nicht, auch nicht beim Lesen.
+            let settingKey = freshSettingKey ()
+            (settingsConnectionStore withKey settingKey).Save valueToStore |> run
+            Expect.equal ((settingsConnectionStore withoutKey settingKey).Load () |> run) StoredUnreadable "unlesbar")
+
+        testCase "nicht entschlüsselbar: unlesbar, die Zeile bleibt bis zum Löschen" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            Persistence.Settings.setSetting settingKey "kein-base64!" false |> run
+            use connection = global.Persistence.getConnection ()
+            connection.Open()
+            use command = connection.CreateCommand()
+            command.CommandText <- "UPDATE settings SET encrypted = 1 WHERE key = $key"
+            command.Parameters.AddWithValue("$key", settingKey) |> ignore
+            command.ExecuteNonQuery() |> ignore
+            let store = settingsConnectionStore withKey settingKey
+            Expect.equal (store.Load () |> run) StoredUnreadable "unlesbar"
+            Expect.isSome (rawRow settingKey) "Lesen löscht nicht")
+
+        testCase "unverschlüsselt abgelegter Wert: unlesbar" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            // Gültiges JSON: nur die fehlende Verschlüsselung macht ihn unlesbar.
+            Persistence.Settings.setSetting settingKey (Thoth.Json.Net.Encode.Auto.toString (0, valueToStore)) false |> run
+            Expect.equal ((settingsConnectionStore withKey settingKey).Load () |> run) StoredUnreadable "unlesbar")
+
+        for name, json in [ "kein JSON", "kein json"; "Felder fehlen", "{}" ] do
+            testCase $"entschlüsselbar, aber {name}: unlesbar" <| withDatabase (fun () ->
+                let settingKey = freshSettingKey ()
+                Persistence.Settings.setSetting settingKey json true |> run
+                Expect.equal ((settingsConnectionStore withKey settingKey).Load () |> run) StoredUnreadable "unlesbar")
+
+        testCase "Löschen entfernt den Wert, auch ohne Schlüssel" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            (settingsConnectionStore withKey settingKey).Save valueToStore |> run
+            (settingsConnectionStore withoutKey settingKey).Clear () |> run
+            Expect.isNone (rawRow settingKey) "weg")
+
+        testCase "der Speicher des Servers mit gesetztem Schlüssel: der Wert wird gespeichert und gelesen" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            let store = connectionStoreFor (fun _ -> "c2NobHVlc3NlbA==") settingKey
+            store.Save valueToStore |> run
+            Expect.equal (rawRow settingKey |> Option.map snd) (Some 1) "verschlüsselt gespeichert"
+            Expect.equal (store.Load () |> run) (StoredReadable valueToStore) "gelesen")
+
+        testCase "der Speicher des Servers ohne Schlüssel: nichts gespeichert" <| withDatabase (fun () ->
+            let settingKey = freshSettingKey ()
+            let store = connectionStoreFor (fun _ -> null) settingKey
+            store.Save valueToStore |> run
+            Expect.isNone (rawRow settingKey) "keine Zeile")
+
+        testCase "Schlüssel für den Refresh kommen aus den Einstellungen" <| fun () ->
+            let found = loadApiKeysFrom (settingsFrom storedCredentials) |> run
+            Expect.equal found (Some { ClientId = "id"; ClientSecret = "secret" }) "beide gelesen"
+
+        testCase "fehlt das Client-Secret, gibt es keine Schlüssel" <| fun () ->
+            let found = loadApiKeysFrom (settingsFrom [ "comdirect_client_id", "id" ]) |> run
+            Expect.isNone found "keine Schlüssel"
+    ]
+
+let private noResume (_: DateTimeOffset) = async.Return ()
+
 [<Tests>]
 let workerTests =
     testList "Bankverbindung: Hintergrunddienst" [
@@ -447,8 +869,59 @@ let workerTests =
                     secondCall.TrySetResult () |> ignore
                 failwith "Takt scheitert"
             }
-            use worker = new BankConnectionWorker(failingTick, TimeSpan.FromMilliseconds 1.0)
+            use worker = new BankConnectionWorker(noResume, failingTick, TimeSpan.FromMilliseconds 1.0)
             worker.StartAsync(CancellationToken.None).Wait()
             Expect.isTrue (secondCall.Task.Wait(TimeSpan.FromSeconds 10.0)) "der zweite Takt läuft"
             worker.StopAsync(CancellationToken.None).Wait()
+
+        testCase "die Wiederaufnahme läuft einmal und vor dem ersten Takt" <| fun () ->
+            let order = System.Collections.Concurrent.ConcurrentQueue<string>()
+            let ticked = TaskCompletionSource<unit>()
+            let resume (_: DateTimeOffset) = async { order.Enqueue "wiederaufnahme" }
+            let countTick (_: DateTimeOffset) = async {
+                order.Enqueue "takt"
+                if order.Count >= 3 then ticked.TrySetResult () |> ignore
+            }
+            use worker = new BankConnectionWorker(resume, countTick, TimeSpan.FromMilliseconds 1.0)
+            worker.StartAsync(CancellationToken.None).Wait()
+            Expect.isTrue (ticked.Task.Wait(TimeSpan.FromSeconds 10.0)) "die Takte laufen"
+            worker.StopAsync(CancellationToken.None).Wait()
+            Expect.equal (order |> Seq.take 3 |> List.ofSeq) [ "wiederaufnahme"; "takt"; "takt" ] "Reihenfolge"
+
+        testCase "eine scheiternde Wiederaufnahme beendet den Dienst nicht" <| fun () ->
+            let ticked = TaskCompletionSource<unit>()
+            let failingResume (_: DateTimeOffset) : Async<unit> = async { return failwith "Wiederaufnahme scheitert" }
+            let noteTick (_: DateTimeOffset) = async { ticked.TrySetResult () |> ignore }
+            use worker = new BankConnectionWorker(failingResume, noteTick, TimeSpan.FromMilliseconds 1.0)
+            worker.StartAsync(CancellationToken.None).Wait()
+            Expect.isTrue (ticked.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Takt läuft"
+            worker.StopAsync(CancellationToken.None).Wait()
+
+        testCase "eine hängende Bank blockiert weder den Start noch das Beenden" <| fun () ->
+            let reached = TaskCompletionSource<unit>()
+            let never = TaskCompletionSource<unit>()
+            let hangingResume (_: DateTimeOffset) = async {
+                reached.TrySetResult () |> ignore
+                do! never.Task |> Async.AwaitTask
+            }
+            use worker = new BankConnectionWorker(hangingResume, (fun _ -> async.Return ()), TimeSpan.FromMilliseconds 1.0)
+            Expect.isTrue (worker.StartAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "der Start kehrt zurück"
+            Expect.isTrue (reached.Task.Wait(TimeSpan.FromSeconds 10.0)) "die Wiederaufnahme läuft"
+            Expect.isTrue (worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "das Beenden kehrt zurück"
+            never.TrySetResult () |> ignore
+
+        testCase "ein hängender Takt blockiert das Beenden nicht" <| fun () ->
+            // Bug: nur die Wiederaufnahme war an `stopping` gebunden. Ein Takt, der an der Bank oder am
+            // Semaphor hing, hielt das Beenden auf.
+            let reached = TaskCompletionSource<unit>()
+            let never = TaskCompletionSource<unit>()
+            let hangingTick (_: DateTimeOffset) = async {
+                reached.TrySetResult () |> ignore
+                do! never.Task |> Async.AwaitTask
+            }
+            use worker = new BankConnectionWorker(noResume, hangingTick, TimeSpan.FromMilliseconds 1.0)
+            worker.StartAsync(CancellationToken.None).Wait()
+            Expect.isTrue (reached.Task.Wait(TimeSpan.FromSeconds 10.0)) "der Takt läuft"
+            Expect.isTrue (worker.StopAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds 10.0)) "das Beenden kehrt zurück"
+            never.TrySetResult () |> ignore
     ]

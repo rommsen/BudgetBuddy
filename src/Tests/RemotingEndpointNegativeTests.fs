@@ -344,6 +344,42 @@ let negativeTests =
             let withoutOne = rows |> List.tail |> List.map (fun r -> r.Endpoint) |> Set.ofList
             Expect.equal (Set.difference reflected withoutOne) (Set.singleton (List.head rows).Endpoint) "fehlende Zeile"
 
+        // Die echten Settings-Schlüssel: hier in der sequenziellen Liste, weil `setup` sie zwischen den
+        // Fällen frei verlangt. Ohne Benutzername und Passwort erreicht damit nichts die Bank.
+        testCase "der laufende Server liest die Schlüssel für den Refresh aus den Einstellungen" <| fun () ->
+            setup ()
+            restoringSetting "comdirect_client_id" (fun () ->
+                restoringSetting "comdirect_client_secret" (fun () ->
+                    Persistence.Settings.setSetting "comdirect_client_id" "id-kuenstlich" false |> run
+                    Persistence.Settings.setSetting "comdirect_client_secret" "secret-kuenstlich" true |> run
+                    let found = Server.BankConnectionStore.loadLiveApiKeys () |> run
+                    Expect.equal found (Some { ClientId = "id-kuenstlich"; ClientSecret = "secret-kuenstlich" }) "beide gelesen"))
+
+        // Prüft das Speichern nur in der Richtung der aktuellen Prozessumgebung, im Gate also nur "ohne
+        // Schlüssel". Der Anschluss an die echte Umgebung liegt im Strukturwächter (StructureGuardTests.fs).
+        testCase "der laufende Server liest und löscht unter dem festen Schlüssel und speichert passend zur aktuellen Prozessumgebung" <| fun () ->
+            setup ()
+            let store = Server.BankConnectionStore.liveConnectionStore
+            let settingKey = Server.BankConnectionStore.connectionSettingKey
+            let value : Server.BankConnectionStore.StoredConnection =
+                { RequestInfo = { RequestId = "123456789"; SessionId = "sitzung-kuenstlich" }
+                  SessionId = "sitzung-kuenstlich"
+                  SessionIdentifier = "kennung-kuenstlich"
+                  Tokens = { Access = "zugriff-kuenstlich"; Refresh = "erneuerung-kuenstlich"; ExpiresAt = None } }
+            try
+                Persistence.Settings.setSetting settingKey "{}" true |> run
+                Expect.equal (store.Load () |> run) Server.BankConnectionStore.StoredUnreadable "liest diesen Schlüssel"
+                store.Clear () |> run
+                Expect.equal (store.Load () |> run) Server.BankConnectionStore.NothingStored "löscht diesen Schlüssel"
+                store.Save value |> run
+                let expected =
+                    if Persistence.Encryption.hasConfiguredKey System.Environment.GetEnvironmentVariable
+                    then Server.BankConnectionStore.StoredReadable value
+                    else Server.BankConnectionStore.NothingStored
+                Expect.equal (store.Load () |> run) expected "Speichern passt zur aktuellen Prozessumgebung"
+            finally
+                store.Clear () |> run
+
         testList "Negativfälle" [
             for row in rows ->
                 testCase $"{row.Endpoint}: {row.Case}" <| fun () ->

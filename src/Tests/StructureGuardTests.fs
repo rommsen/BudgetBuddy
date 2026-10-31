@@ -534,15 +534,181 @@ let findHostedServiceRegistrations (sources: (string * string) list) : string li
     |> List.filter (fun (path, source) -> path <> "Program.fs" && (fst (lex source)).Contains "AddHostedService")
     |> List.map fst
 
+/// Der Dienst der Bankverbindung bekommt Wiederaufnahme und Takt der laufenden Verbindung. Beide haben
+/// denselben Typ, der Compiler sähe eine Vertauschung oder einen leeren Ersatz nicht.
+let isBankWorkerWired (program: string) : bool =
+    Regex.IsMatch(
+        fst (lex program),
+        @"AddHostedService[\s\S]*?BankConnectionWorker\(\s*Server\.ComdirectAuthSession\.resumeConnection\s*,\s*Server\.ComdirectAuthSession\.runTick\s*,\s*Server\.BankConnection\.tickPeriod\b")
+
+/// `livePorts` trägt die Netzports, Tests dürfen ihn nicht anfassen (`NetworkCallGuardTests.fs`). Das
+/// Verhalten von Speicher und Schlüsseln prüfen die Tests direkt, hier bleibt nur der Anschluss.
+let isLivePortsStorageWired (session: string) : bool =
+    Regex.IsMatch(
+        fst (lex session),
+        @"let livePorts\b[\s\S]*?\bRefresh = refreshTokensLive\b[\s\S]*?\bStore = liveConnectionStore\b[\s\S]*?\bLoadKeys = loadLiveApiKeys\b")
+
+/// `name` ist auf Modulebene gebunden und besteht aus genau dem Ausdruck `body`, ohne Zusatz davor oder dahinter.
+let private isBoundExactlyTo (name: string) (body: string) (source: string) : bool =
+    Regex.IsMatch(
+        fst (lex source),
+        $@"^let {name}\b[^=\n]*=\s*{body}[ \t]*(?:\n(?=[ \t]*\n|\S)|\n?\z)",
+        RegexOptions.Multiline)
+
+/// Der Gate-Lauf hat keinen `BUDGETBUDDY_ENCRYPTION_KEY`, und Tests dürfen die Prozessumgebung nicht
+/// umstellen. Ein Verhaltenstest sieht deshalb nur eine Richtung, ein Speicher ohne echte Umgebung
+/// bliebe grün. `connectionStoreFor` ist mit eingespeister Umgebung in beiden Richtungen getestet, hier
+/// bleibt nur der Anschluss an die echte Umgebung.
+let isLiveStoreOnRealEnvironment (store: string) : bool =
+    isBoundExactlyTo
+        "liveConnectionStore"
+        @"connectionStoreFor\s+System\.Environment\.GetEnvironmentVariable\s+connectionSettingKey"
+        store
+
+/// Die Wiederaufnahme des laufenden Servers kann kein Test ausführen, sie läuft über `livePorts`.
+let isResumeOnLivePorts (session: string) : bool =
+    isBoundExactlyTo "resumeConnection" @"resumeConnectionWith\s+livePorts\s+now" session
+
+/// Takt, Trennen, TAN-Bestätigung und Verwerfen laufen im Server über `livePorts`, kein Test darf sie
+/// ausführen (`NetworkCallGuardTests.fs`). Getestet sind die `*With`-Funktionen, hier bleibt der Anschluss.
+let isSessionBoundToLivePorts (session: string) : bool =
+    [ "runTick", @"tick\s+livePorts\s+now"
+      "disconnect", @"disconnectWith\s+livePorts"
+      "confirmTan", @"confirmChallengeWith\s+livePorts"
+      "discardPendingChallenge", @"discardPendingChallengeWith\s+livePorts" ]
+    |> List.forall (fun (name, body) -> isBoundExactlyTo name body session)
+
+/// Die Endpoints sind Record-Felder in `Api.fs` und reichen Funktionswerte gleichen Typs durch. Ein
+/// leerer Ersatz kompilierte, und der laufende Server ließe etwa bei geänderten Zugangsdaten den
+/// gespeicherten Wert liegen. Jeder Eintrag ist die ganze Verdrahtung eines Felds.
+let private apiWirings =
+    [ @"\bsaveComdirectCredentials\s*=\s*saveComdirectCredentialsWith\s+Persistence\.Settings\.getSetting\s+Persistence\.Settings\.setSetting\s+ComdirectAuthSession\.disconnect\b"
+      @"\btestComdirectConnection\s*=\s*fun\s*\(\)\s*->\s*testComdirectConnectionWith\s+Persistence\.Settings\.getSetting\s+ComdirectAuthSession\.livePorts\b"
+      @"\bBank\s*=\s*BankPort\.comdirectBankPort\s+ComdirectAuthSession\.livePorts\b"
+      @"\bstartSync\s*=\s*fun\s*\(\)\s*->\s*BankImport\.startSyncWith\s+liveImportPorts\b"
+      @"\bconfirmTan\s*=\s*BankImport\.confirmTanWith\s+liveImportPorts\b"
+      @"\bcancelSync\s*=\s*cancelSyncWith\s+SyncSessionManager\.validateSession\s+ComdirectAuthSession\.discardPendingChallenge\s+SyncSessionManager\.clearSession\b" ]
+
+/// Die Muster aus `apiWirings`, die im Quelltext fehlen.
+let findMissingApiWirings (api: string) : string list =
+    let code = fst (lex api)
+    apiWirings |> List.filter (fun pattern -> not (Regex.IsMatch(code, pattern)))
+
 [<Tests>]
 let hostedServiceGuardTests =
     testList "Struktur-Wächter: Hintergrunddienste nur in Program.fs (banking-import-tshq9)" [
         testCase "kein Server-Modul außer Program.fs registriert einen Hintergrunddienst" <| fun () ->
             Expect.isEmpty (findHostedServiceRegistrations (serverSources "*.fs")) "Registrierung nur in Program.fs"
 
-        testCase "Program.fs registriert den Dienst der Bankverbindung" <| fun () ->
+        testCase "Program.fs registriert den Dienst mit Wiederaufnahme und Takt" <| fun () ->
             let program = serverSources "Program.fs" |> List.exactlyOne |> snd
-            Expect.stringContains (fst (lex program)) "AddHostedService" "sonst erneuert niemand die Tokens"
+            Expect.isTrue (isBankWorkerWired program) "sonst nimmt niemand die Verbindung wieder auf und erneuert die Tokens"
+
+        testCase "die Ports des Servers nutzen den echten Speicher und die echten Schlüssel" <| fun () ->
+            let session = serverSources "ComdirectAuthSession.fs" |> List.exactlyOne |> snd
+            Expect.isTrue (isLivePortsStorageWired session) "sonst wird nichts gespeichert oder jeder Wert beim Start gelöscht"
+
+        testCase "der Speicher des Servers hängt an der echten Umgebung" <| fun () ->
+            let store = serverSources "BankConnectionStore.fs" |> List.exactlyOne |> snd
+            Expect.isTrue (isLiveStoreOnRealEnvironment store) "sonst speichert der Server nie oder auch ohne Schlüssel"
+
+        testCase "die Wiederaufnahme des Servers läuft über die Ports des Servers" <| fun () ->
+            let session = serverSources "ComdirectAuthSession.fs" |> List.exactlyOne |> snd
+            Expect.isTrue (isResumeOnLivePorts session) "sonst bleibt der Dienst angeschlossen, nimmt aber nichts wieder auf"
+
+        testCase "Takt, Trennen, TAN und Verwerfen des Servers laufen über die Ports des Servers" <| fun () ->
+            let session = serverSources "ComdirectAuthSession.fs" |> List.exactlyOne |> snd
+            Expect.isTrue (isSessionBoundToLivePorts session) "sonst bleibt der Name angeschlossen und tut nichts"
+
+        testCase "die Endpoints hängen an der echten Verbindung und an den echten Einstellungen" <| fun () ->
+            let api = serverSources "Api.fs" |> List.exactlyOne |> snd
+            Expect.isEmpty (findMissingApiWirings api) "sonst bleibt etwa der gespeicherte Wert bei geänderten Zugangsdaten liegen"
+
+        testCase "Gegenbeweis: Takt, Trennen, TAN und Verwerfen ohne die Ports des Servers werden gemeldet" <| fun () ->
+            let source (runTick: string) (disconnect: string) (confirm: string) (discard: string) =
+                $"let confirmTan () : Async<ComdirectResult<unit>> =\n    {confirm}\n\n"
+                + $"let discardPendingChallenge () : Async<unit> =\n    {discard}\n\n"
+                + $"let disconnect () : Async<unit> =\n    {disconnect}\n\n"
+                + $"let runTick (now: DateTimeOffset) : Async<unit> =\n    {runTick}\n"
+            let tick = "tick livePorts now"
+            let disconnect = "disconnectWith livePorts"
+            let confirm = "confirmChallengeWith livePorts"
+            let discard = "discardPendingChallengeWith livePorts"
+            let empty = "async.Return ()"
+            Expect.isTrue (isSessionBoundToLivePorts (source tick disconnect confirm discard)) "richtig"
+            Expect.isFalse (isSessionBoundToLivePorts (source empty disconnect confirm discard)) "leerer Takt"
+            Expect.isFalse (isSessionBoundToLivePorts (source "tick emptyPorts now" disconnect confirm discard)) "Takt mit anderen Ports"
+            Expect.isFalse (isSessionBoundToLivePorts (source tick empty confirm discard)) "leeres Trennen"
+            Expect.isFalse (isSessionBoundToLivePorts (source tick "disconnectWith emptyPorts" confirm discard)) "Trennen mit anderen Ports"
+            Expect.isFalse (isSessionBoundToLivePorts (source tick disconnect "async.Return (Ok ())" discard)) "leere TAN"
+            Expect.isFalse (isSessionBoundToLivePorts (source tick disconnect confirm empty)) "leeres Verwerfen"
+            Expect.isFalse (isSessionBoundToLivePorts (source $"{tick}\n    |> Async.Ignore" disconnect confirm discard)) "Zusatz in der Folgezeile"
+            Expect.isFalse (isSessionBoundToLivePorts $"// {source tick disconnect confirm discard}") "nur im Kommentar"
+
+        testCase "Gegenbeweis: ein Ersatz in den Endpoints wird gemeldet" <| fun () ->
+            let real =
+                [ "saveComdirectCredentials =\n    saveComdirectCredentialsWith\n        Persistence.Settings.getSetting\n        Persistence.Settings.setSetting\n        ComdirectAuthSession.disconnect\n"
+                  "testComdirectConnection = fun () ->\n    testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        ComdirectAuthSession.livePorts\n"
+                  "Bank = BankPort.comdirectBankPort ComdirectAuthSession.livePorts clock\n"
+                  "startSync = fun () -> BankImport.startSyncWith liveImportPorts\n"
+                  "confirmTan = BankImport.confirmTanWith liveImportPorts\n"
+                  "cancelSync =\n    cancelSyncWith\n        SyncSessionManager.validateSession\n        ComdirectAuthSession.discardPendingChallenge\n        SyncSessionManager.clearSession\n" ]
+                |> String.concat "\n"
+            let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
+            Expect.isEmpty (findMissingApiWirings real) "richtig"
+            for original, replacement, label in
+                [ "ComdirectAuthSession.disconnect", "(fun () -> async.Return ())", "leeres Trennen"
+                  "saveComdirectCredentialsWith\n        Persistence.Settings.getSetting", "saveComdirectCredentialsWith\n        (fun _ -> async.Return None)", "keine alten Zugangsdaten"
+                  "Persistence.Settings.setSetting", "(fun _ _ _ -> async.Return ())", "nichts geschrieben"
+                  "testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        ComdirectAuthSession.livePorts", "testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        emptyPorts", "Test mit anderen Ports"
+                  "comdirectBankPort ComdirectAuthSession.livePorts", "comdirectBankPort emptyPorts", "Bank-Port mit anderen Ports"
+                  "BankImport.startSyncWith liveImportPorts", "async.Return (Error fehler)", "leerer Start"
+                  "BankImport.confirmTanWith liveImportPorts", "(fun _ -> async.Return (Ok ()))", "leere Bestätigung"
+                  "ComdirectAuthSession.discardPendingChallenge", "(fun () -> async.Return ())", "Abbruch verwirft nichts" ] do
+                Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
+            Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
+
+        testCase "Gegenbeweis: ein Speicher ohne echte Umgebung wird gemeldet" <| fun () ->
+            let bound (body: string) = $"let liveConnectionStore: ConnectionStore =\n    {body}\n\nlet weiter = 1\n"
+            let real = "connectionStoreFor System.Environment.GetEnvironmentVariable connectionSettingKey"
+            Expect.isTrue (isLiveStoreOnRealEnvironment (bound real)) "richtig"
+            Expect.isFalse (isLiveStoreOnRealEnvironment (bound "connectionStoreFor (fun _ -> null) connectionSettingKey")) "leere Umgebung"
+            Expect.isFalse (isLiveStoreOnRealEnvironment (bound "connectionStoreFor (fun _ -> \"x\") connectionSettingKey")) "erfundene Umgebung"
+            Expect.isFalse (isLiveStoreOnRealEnvironment (bound "settingsConnectionStore (fun () -> false) connectionSettingKey")) "speichert nie"
+            Expect.isFalse (isLiveStoreOnRealEnvironment (bound "connectionStoreFor System.Environment.GetEnvironmentVariable \"anderer\"")) "anderer Schlüssel"
+            Expect.isFalse (isLiveStoreOnRealEnvironment (bound $"{real} |> nurLesend")) "Zusatz in der Zeile"
+            Expect.isFalse (isLiveStoreOnRealEnvironment (bound $"{real}\n    |> nurLesend")) "Zusatz in der Folgezeile"
+            Expect.isFalse (isLiveStoreOnRealEnvironment $"// {bound real}") "nur im Kommentar"
+
+        testCase "Gegenbeweis: eine Wiederaufnahme ohne die Ports des Servers wird gemeldet" <| fun () ->
+            let bound (body: string) = $"let resumeConnection (now: DateTimeOffset) : Async<unit> =\n    {body}\n\nlet weiter = 1\n"
+            let real = "resumeConnectionWith livePorts now"
+            Expect.isTrue (isResumeOnLivePorts (bound real)) "richtig"
+            Expect.isFalse (isResumeOnLivePorts (bound "async.Return ()")) "tut nichts"
+            Expect.isFalse (isResumeOnLivePorts (bound "resumeConnectionWith emptyPorts now")) "andere Ports"
+            Expect.isFalse (isResumeOnLivePorts (bound "tick livePorts now")) "anderer Ablauf"
+            Expect.isFalse (isResumeOnLivePorts (bound $"{real}\n    |> Async.Ignore")) "Zusatz in der Folgezeile"
+            Expect.isFalse (isResumeOnLivePorts $"// {bound real}") "nur im Kommentar"
+
+        testCase "Gegenbeweis: ein Ersatz für Speicher oder Schlüssel wird gemeldet" <| fun () ->
+            let portsWith (refresh: string) (store: string) (keys: string) =
+                $"let livePorts: ConnectionPorts = {{\n    Refresh = {refresh}\n    Store = {store}\n    LoadKeys = {keys}\n}}"
+            let ports = portsWith "refreshTokensLive"
+            Expect.isTrue (isLivePortsStorageWired (ports "liveConnectionStore" "loadLiveApiKeys")) "richtig"
+            Expect.isFalse (isLivePortsStorageWired (portsWith "(fun _ _ tokens -> async.Return (Ok tokens))" "liveConnectionStore" "loadLiveApiKeys")) "kein Refresh"
+            Expect.isFalse (isLivePortsStorageWired (ports "emptyStore" "loadLiveApiKeys")) "anderer Speicher"
+            Expect.isFalse (isLivePortsStorageWired (ports "liveConnectionStore" "(fun () -> async.Return None)")) "keine Schlüssel"
+
+        testCase "Gegenbeweis: leerer Ersatz, Vertauschung und Kommentar zählen nicht als Verdrahtung" <| fun () ->
+            let registered (resume: string) (tick: string) =
+                $"builder.Services.AddHostedService(fun _ ->\n    new Server.BankConnectionWorker.BankConnectionWorker(\n        {resume},\n        {tick},\n        Server.BankConnection.tickPeriod))"
+            let resume = "Server.ComdirectAuthSession.resumeConnection"
+            let runTick = "Server.ComdirectAuthSession.runTick"
+            Expect.isTrue (isBankWorkerWired (registered resume runTick)) "richtig verdrahtet"
+            Expect.isFalse (isBankWorkerWired (registered "(fun _ -> async.Return ())" runTick)) "leere Wiederaufnahme"
+            Expect.isFalse (isBankWorkerWired (registered resume "(fun _ -> async.Return ())")) "leerer Takt"
+            Expect.isFalse (isBankWorkerWired (registered runTick resume)) "vertauscht"
+            Expect.isFalse (isBankWorkerWired $"// {registered resume runTick}") "nur im Kommentar"
 
         testCase "Gegenbeweis: eine Registrierung außerhalb von Program.fs wird gemeldet, ein Kommentar nicht" <| fun () ->
             let sources =

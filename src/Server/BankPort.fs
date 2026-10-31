@@ -15,6 +15,9 @@ type BankLinkStatus =
     | BankAuthRequired
 
 type BankPort = {
+    /// Nimmt eine gespeicherte Verbindung auf, falls keine aktiv ist. Läuft vor `Status`, wenn ein
+    /// Sync startet. Nie eine Challenge.
+    Resume: unit -> Async<unit>
     Status: unit -> BankLinkStatus
     /// Startet eine Challenge, solange die Bedingung gilt, sonst `Ok None` ohne Bankkontakt. Geprüft
     /// wird direkt vor der Anmeldung. Nur eine Handlung von Roman ruft das auf.
@@ -26,7 +29,8 @@ type BankPort = {
 }
 
 let comdirectBankPort (ports: ConnectionPorts) (clock: unit -> DateTimeOffset) : BankPort =
-    { Status = fun () ->
+    { Resume = fun () -> awaitResumeWith ports (clock ())
+      Status = fun () ->
         match connectionState ports with
         | Connected _ -> BankReady
         | Disconnected

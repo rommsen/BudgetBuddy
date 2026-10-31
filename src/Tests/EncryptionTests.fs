@@ -6,6 +6,16 @@ open Persistence.Encryption
 [<Tests>]
 let encryptionTests =
     testList "Encryption" [
+        // Ein leerer Schlüssel fällt auf den Maschinen-Fallback zurück und zählt deshalb nicht.
+        test "Nur ein nicht leerer BUDGETBUDDY_ENCRYPTION_KEY gilt als gesetzt" {
+            let environmentWith (value: string) (name: string) =
+                if name = "BUDGETBUDDY_ENCRYPTION_KEY" then value else null
+            for blank in [ null; ""; "   " ] do
+                Expect.isFalse (hasConfiguredKey (environmentWith blank)) "leer"
+            Expect.isTrue (hasConfiguredKey (environmentWith "c2NobHVlc3NlbA==")) "gesetzt"
+            Expect.isFalse (hasConfiguredKey (fun name -> if name = "BUDGETBUDDY_ENCRYPTION_KEY" then null else "anderer-wert")) "nur diese Variable zählt"
+        }
+
         testCase "encrypt and decrypt roundtrip for simple text" <| fun () ->
             let plaintext = "Hello, World!"
             match encrypt plaintext with
