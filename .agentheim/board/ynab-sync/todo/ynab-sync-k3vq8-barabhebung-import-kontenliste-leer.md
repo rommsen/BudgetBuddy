@@ -28,6 +28,8 @@ Der Ladeweg `LoadAccounts` (`src/Client/Components/SyncFlow/State.fs:841`) hat d
 - Jeder Fehler wird zu `AccountsLoaded ([], ...)` und verschwindet ohne Meldung. Auch wenn der Abruf von Einstellungen scheitert, geht zusätzlich die Quick-Add-Id verloren.
 - Er läuft nur einmal in `init`, nicht in `pageLoadCmd` (`src/Client/State.fs:183`). Ein Fehler beim App-Start bleibt bis zum Neuladen bestehen.
 
+**Hauptursache, Stand 2026-10-31:** Firefox bricht lesende Abfragen beim Laden mit "Http error (0)" ab (Befund 2026-10-24, `src/Client/Retry.fs`). Das Kassenbuch ist seit 05536fd über `Retry.reading` geschützt, der SyncFlow nicht. Alle lesenden Aufrufe in `SyncFlow/State.fs` (`getCurrentSession`, `getTransactions`, die drei `getSettings`, `getCategories`, `getPayees`, der Konten-Abruf) laufen über `Retry.reading`. `getSettings` steht vor Kategorien, Konten und Payees: Scheitert es, fehlen die Daten dahinter.
+
 Der Import zieht auf denselben Weg wie das Kassenbuch um: `Api.ledger.getBudgetAccounts` (`GET /budgets/{id}/accounts`, 5 Minuten serverseitig gecacht, Fehlertext statt Schweigen). `getSettings` bleibt für die Quick-Add-Id.
 
 Der Import lädt die Konten beim Seitenaufruf und erneut beim Öffnen des Split-Sheets, solange sie nicht geladen sind (Vorbild `Ledger/State.fs:2068`). Ein Fehlschlag erscheint als Toast mit dem Fehlertext. Kommt die Liste erst nach dem Tipp auf "Barabhebung" an, belegt sie die noch leere Übertrag-Zeile nachträglich. Eine vom Nutzer gesetzte Zeile bleibt unangetastet.
@@ -37,6 +39,9 @@ Der Import lädt die Konten beim Seitenaufruf und erneut beim Öffnen des Split-
 - [ ] Kaputt-Szenario, GIVEN `getBudgetDetails` scheitert und `getBudgetAccounts` liefert die Konten, WHEN der Chip "Barabhebung" getippt wird, THEN zeigt Zeile 2 "→ Bar" (Quick-Add-Konto). Der Browser-Wächter ist vor dem Fix rot und nennt im Kommentar diesen Bug.
 - [ ] Das Sheet zeigt im Picker den Abschnitt "Übertrag auf Konto", die Suche "Bar" findet "→ Bar", die Wahl setzt den Übertrag (Wächter `scripts/import-split-target.test.mjs` auf `getBudgetAccounts` umgestellt).
 - [ ] Intakt-Szenario: Ohne Quick-Add-Konto bleibt Zeile 2 leer und das Konto ist im Picker wählbar.
+- [ ] Kaputt-Szenario Abbruch, GIVEN der erste `getSettings`- oder `getTransactions`-Aufruf bricht ab (`route.abort`, Status 0), WHEN die Seite lädt, THEN erscheinen Buchungen, Kategorien und Konten ohne Neuladen und ohne Fehlerbanner. Der Browser-Wächter ist vor dem Fix rot.
+- [ ] Alle lesenden Aufrufe in `SyncFlow/State.fs` laufen über `Retry.reading`, schreibende nicht.
+- [ ] Scheitert das Laden der Kategorien auch nach den Wiederholungen, erscheint ein Toast, statt dass der Picker still leer bleibt.
 - [ ] Der Client ruft `getBudgetDetails` im SyncFlow nicht mehr auf.
 - [ ] Scheitert `getBudgetAccounts`, erscheint ein Toast mit dem Fehlertext; die Quick-Add-Id bleibt erhalten, wenn nur die Konten scheitern.
 - [ ] Scheitert der erste Abruf, lädt das Öffnen des Split-Sheets die Konten neu, ohne dass die App neu geladen werden muss (`update` unter .NET, Mapping als reine Funktion, soweit `Client.Api` im Weg ist).
@@ -45,9 +50,9 @@ Der Import lädt die Konten beim Seitenaufruf und erneut beim Öffnen des Split-
 
 ## Notes
 
-**Nicht bewiesen:** warum der Abruf in Produktion scheitert. Der Ladeweg ist seit ynab-002 (2026-06-13) unverändert, `budgetDetailDecoder` ebenfalls; die Kassenbuch-Umstellung hat diese Stelle nicht angefasst. Der Browser-Wächter aus design-system-bym4m ist grün, weil er `getBudgetDetails` mockt. Kandidaten sind Laufzeit oder Rate-Limit des vollen Budget-Abrufs, der mit dem Datenbestand wächst, oder ein anderer dauerhafter Fehler dieses Abrufs. Lokal lief kein Server, und gegen die Produktion wurde nichts abgefragt. Der Umstieg auf `/accounts` entfernt alle diese Kandidaten außer einem echten YNAB-Ausfall, und der wird durch den Toast sichtbar. Falls der Fehler nach dem Fix bleibt, nennt der Toast die Ursache.
+**Belege (Roman, 2026-10-31):** Im Kassenbuch funktioniert die Barabhebung. Im Import kommt nach Reloads wiederholt "Http error (0)" bei `getTransactions`, die Seite lädt erst nach mehreren Versuchen, und dann fehlen je nach Lauf Konten oder Kategorien und Konten. Der Browser ist Firefox. Das passt zu einzelnen Abbrüchen je Abfrage. Eine frühere Notiz hatte den Startfehler verworfen, weil ein Reload gelang: Das war falsch, jede Abfrage kann unabhängig scheitern.
 
-**Beobachtung Roman, 2026-10-31:** Beim Neuladen scheiterte `getTransactions` einmal mit "Http error (0)" (keine Antwort vom Server), beim nächsten Neuladen lud die Seite wieder. Die Konten blieben auch danach leer. Der Kandidat "einmaliger Fehlschlag beim App-Start" ist damit als Ursache verworfen, der Abruf scheitert bei jedem Laden. Ob der Aussetzer damit zusammenhängt, ist offen; die Produktion wurde nicht geprüft.
+**Nicht bewiesen:** warum Firefox abbricht. Ob auch ein Fehler speziell in `GET /budgets/{id}` mitspielt, ist offen. `Retry.reading` wiederholt nur zweimal über 1,6 Sekunden; reicht das nicht, ist die Ursache des Abbruchs ein eigener Task. Die Produktion wurde nicht geprüft.
 
 Die Meldung nennt diesen Fall "Database error during load", obwohl keine Antwort kam. Das ist irreführend, aber nicht Teil dieses Tasks.
 

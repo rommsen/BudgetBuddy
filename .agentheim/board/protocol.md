@@ -5,6 +5,37 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 11:17 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Hauptursache eingegrenzt: Firefox-Abbrüche mit Status 0 treffen den SyncFlow, weil seine lesenden Abfragen kein Retry.reading nutzen. Umfang um alle lesenden SyncFlow-Aufrufe erweitert.
+
+---
+
+## 2026-10-31 11:10 -- Verification failed: banking-import-z4h6p - Bankverbindung übersteht Neustart
+
+**Type:** Work / Verification failure
+**Task:** banking-import-z4h6p
+**Iteration:** 2 of 3
+**Reasons:** liveConnectionStore ohne Prüfung in beiden Richtungen, Anschluss von resumeConnection nicht belegt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-10-31 10:41 -- Verification failed: banking-import-cyg94 - Sync ohne TAN und Bank-Port
+
+**Type:** Work / Verification failure
+**Task:** banking-import-cyg94
+**Iteration:** 1 of 3
+**Reasons:** Automatischer Neustart im Nachlesen bleibt ungetestet, Nachlesen ohne Obergrenze, cancelSync wartet im Live-Weg am Gate
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 10:38 -- Batch started: [categorization-f955d]
 
 **Type:** Work / Batch start
