@@ -89,5 +89,4 @@ Ein Lauf mit genau einer Push-TAN, Protokoll der Beobachtungssonde. Einzelne Mes
 
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter oder Generalisierung des Comdirect-Musters?
-- Lohnt ein generischer "Bank-Source"-Port, sobald >1 Quelle existiert?
-- **Bank-Source-Port**: durch ADR 0071 Punkt 5 beantwortet (siehe **Bank-Port**). Die Frage in der Zeile darüber ist damit erledigt, offen bleibt der ING-Adapter.
+- **Bank-Source-Port**: durch ADR 0071 Punkt 5 beantwortet (siehe **Bank-Port**). Offen bleibt der ING-Adapter.
