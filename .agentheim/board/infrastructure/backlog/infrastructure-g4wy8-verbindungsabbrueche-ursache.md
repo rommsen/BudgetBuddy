@@ -28,6 +28,7 @@ Befunde bisher:
 
 - Die App läuft stabil und antwortet mit 200. `tailscale_budgetbuddy` protokolliert zu den Reloads `http2: received GOAWAY` und `http: proxy error: context canceled`. Der GOAWAY kommt am HTTP/2-Server des Proxys an, also von der Client-Seite.
 - infrastructure-y6atr: Mit Cmd+Shift+R (am Service Worker vorbei) ging es. Das ist die stärkste Spur. Der Worker läuft im Modus `prompt` (`vite.config.js`, `src/Client/Pwa.fs`, ADR 0057).
+- Roman, 2026-10-31: Nach Cmd+Shift+R laden im Import Konten und Kategorien wieder. Das bestätigt die Spur Service Worker, ist aber eine einzelne Beobachtung. Ein Vergleich über mehrere Reloads steht noch aus.
 - Der Befund vom 2026-10-24 entstand nach einem Deploy. Zu klären ist, ob ein wartender Worker oder ein Neuladen durch `updateSW` laufende Anfragen abbricht.
 - Firefox-Konsole: "Lokaler Netzwerkzugriff erkannt" je Anfrage, `auto_allow`. Ein Zusammenhang ist nicht belegt.
 - `tailscale_budgetbuddy` läuft als `latest` (1.102.3), die meisten anderen Tailscale-Container auf 1.104.1.

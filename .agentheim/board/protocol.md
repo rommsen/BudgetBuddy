@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 11:25 -- Modeling / Refined: infrastructure-g4wy8 - Spike Verbindungsabbrüche
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** backlog
+**Summary:** Beobachtung ergänzt: Nach Cmd+Shift+R laden Konten und Kategorien im Import wieder. Spur Service Worker bestätigt, Vergleich über mehrere Reloads steht aus.
+
+---
+
 ## 2026-10-31 11:23 -- Modeling / Captured: infrastructure-g4wy8 - "Spike: Warum brechen Anfragen zwischen Browser und Tailscale-Proxy mit Http error (0) ab?"
 
 **Type:** Modeling / Capture
