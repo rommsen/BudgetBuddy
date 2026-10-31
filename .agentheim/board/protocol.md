@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 07:53 -- Modeling / Promoted: banking-import-p5mcp - "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-31 02:06 -- Modeling / Refined: banking-import-p5mcp - Live-Beobachtung abgeschlossen
 
 **Type:** Modeling / Refine

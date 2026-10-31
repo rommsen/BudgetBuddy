@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
-- **Todo:** 0
+- **Backlog:** 8
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 1
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **banking-import-p5mcp** — "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop" (spike) — `todo/banking-import-p5mcp-session-live-beobachten-go-oder-stop.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 - **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `backlog/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
 - **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `backlog/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
 - **banking-import-tshq9** — "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr" (feature) — `backlog/banking-import-tshq9-bankverbindung-als-zustandsautomat.md`
-- **banking-import-p5mcp** — "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop" (spike) — `backlog/banking-import-p5mcp-session-live-beobachten-go-oder-stop.md`
 - **banking-import-wp7js** — "Split im Import" (refactor) — `backlog/banking-import-wp7js-split-im-import.md`
 <!-- backlog-list:end -->
 

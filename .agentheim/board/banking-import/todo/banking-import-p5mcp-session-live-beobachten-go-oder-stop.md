@@ -1,7 +1,7 @@
 ---
 id: banking-import-p5mcp
 title: "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
-status: backlog
+status: todo
 type: spike
 context: banking-import
 created: 2026-10-30
@@ -57,7 +57,11 @@ Aus der Verifikation von `banking-import-cx4b7` zu beobachten:
 - Ein vorhandenes `expires_in` in nicht ganzzahliger Form lässt den Login-Pfad jetzt scheitern, vorher wurde das Feld ignoriert.
 - Scheitert die TAN-Bestätigung, ist ein von Hand neu gestarteter Lauf der Phase 1 ein neuer Versuch. Es gibt keinen Zähler, also nach einem Fehlschlag erst die Ursache klären.
 
-## Beobachtung 2026-10-30 (Go oder Stop steht noch aus)
+## Outcome
+
+**Go**, entschieden von Roman am 2026-10-31. Die Lücke beim stündlichen Umsatzabruf in den ersten zwei Stunden nimmt er in Kauf. `banking-import-z4h6p` bleibt im Plan.
+
+## Beobachtung 2026-10-30
 Alle drei Phasen sind gelaufen, der Befund steht in der README von `banking-import`, das Protokoll unter `<DATA_DIR>/comdirect-probe/probe.log`.
 
 Abgleich mit dem Go-Kriterium: Die Session trug 3 h 07 min ohne weitere TAN. Der erste Umsatzabruf gelang aber erst 2 h 01 min nach der TAN, weil die Sonde davor am Kontenabruf hing. "Mindestens ein Umsatzabruf je Stunde" ist in den ersten zwei Stunden also nicht gemessen.
