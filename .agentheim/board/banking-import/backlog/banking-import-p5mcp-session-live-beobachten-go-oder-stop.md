@@ -56,3 +56,10 @@ Aus der Verifikation von `banking-import-cx4b7` zu beobachten:
 - Eine 200-Antwort auf den Refresh ohne `expires_in` wird als `RetryLater` verworfen. Rotiert Comdirect das Token dabei, ginge der nächste Versuch mit dem alten Token hinaus.
 - Ein vorhandenes `expires_in` in nicht ganzzahliger Form lässt den Login-Pfad jetzt scheitern, vorher wurde das Feld ignoriert.
 - Scheitert die TAN-Bestätigung, ist ein von Hand neu gestarteter Lauf der Phase 1 ein neuer Versuch. Es gibt keinen Zähler, also nach einem Fehlschlag erst die Ursache klären.
+
+## Beobachtung 2026-10-30 (Go oder Stop steht noch aus)
+Alle drei Phasen sind gelaufen, der Befund steht in der README von `banking-import`, das Protokoll unter `<DATA_DIR>/comdirect-probe/probe.log`.
+
+Abgleich mit dem Go-Kriterium: Die Session trug 3 h 07 min ohne weitere TAN. Der erste Umsatzabruf gelang aber erst 2 h 01 min nach der TAN, weil die Sonde davor am Kontenabruf hing. "Mindestens ein Umsatzabruf je Stunde" ist in den ersten zwei Stunden also nicht gemessen.
+
+Vorschlag: Go. Der Sinn des Kriteriums ist belegt, denn nach über 2 h kamen Umsätze nur per Refresh, sogar aus einem neuen Prozess. `banking-import-z4h6p` bleibt im Plan. Roman entscheidet.

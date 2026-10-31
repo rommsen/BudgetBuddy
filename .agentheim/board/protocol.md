@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 02:06 -- Modeling / Refined: banking-import-p5mcp - Live-Beobachtung abgeschlossen
+
+**Type:** Modeling / Refine
+**BC:** banking-import
+**Status after:** backlog
+**Summary:** Sonde mit einer TAN gelaufen: 3 h 07 min, 20 Refreshs, Wiederaufnahme im neuen Prozess, Umsätze nach über 2 h. Refresh-Token lebt mehr als 15 und höchstens 20 min. Go oder Stop entscheidet Roman.
+
+---
+
 ## 2026-10-30 22:28 -- Work session ended
 
 **Type:** Work / Session end

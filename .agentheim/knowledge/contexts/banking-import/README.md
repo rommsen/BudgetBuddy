@@ -58,6 +58,19 @@ ein Hauptgrund, warum BudgetBuddy existiert.
 
 `./verify.sh` im Repo-Wurzelverzeichnis. Läuft dotnet build, dotnet test, npm run build, guard:classes, guard:tokens und test:scripts; grün nur bei der Schlusszeile `VERIFY: PASS` und Exit 0. Bei `VERIFY: FAIL` stehen die roten Schritte und die Namen der roten Tests am Ende der Ausgabe.
 
+## Live-Befund comdirect-Session (2026-10-30, `banking-import-p5mcp`)
+
+Ein Lauf mit genau einer Push-TAN, Protokoll der Beobachtungssonde. Einzelne Messung, kein Dauerbetrieb.
+
+- **Trageweite:** 3 h 07 min nur per Refresh, 20 erfolgreiche Refreshs ohne weitere TAN. Beendet wurde die Session absichtlich. Eine Maximaldauer ist nicht aufgetreten, über 3 h hinaus ist sie unbekannt.
+- **Access-Token:** `expires_in` 597 bis 598 s, nach jedem Refresh wieder gleich hoch.
+- **Refresh-Token:** nach 15 min noch gültig, nach 20 min abgelehnt, also lebt es länger als 15 und höchstens 20 min. Ein abgelaufenes Access-Token verhindert den Refresh nicht.
+- **Fehlerform bei Ablauf:** HTTP 401 mit `invalid_token`, wird als `ReloginRequired` eingestuft.
+- **Session-ID:** `RequestInfo` blieb unverändert gültig, Umsätze kamen auch über 2 h nach der TAN.
+- **Wiederaufnahme:** Ein neuer Prozess setzte aus der verschlüsselten Datei fort, ohne TAN. Der Stolperstein aus comdirect-api-simple Issue #16 trat nicht auf.
+- **Umsatzabruf:** erfolgreich 2 h 01 min und 2 h 31 min nach der TAN. Davor fehlt die Messung, weil die Sonde bis dahin am Kontenabruf hing.
+- **Kontenabruf:** `getAccounts` lieferte in allen sechs Runden 404. Die Ursache ist offen, weil der Code jeden Fehlschlag als 404 meldet (`banking-import-h2n8q`). Der Import nutzt diesen Weg nicht.
+
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter oder Generalisierung des Comdirect-Musters?
 - Lohnt ein generischer "Bank-Source"-Port, sobald >1 Quelle existiert?
