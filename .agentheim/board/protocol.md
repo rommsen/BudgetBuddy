@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 22:31 -- Modeling / Promoted: budgeting-m1bce - "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-31 17:38 -- Work session ended
 
 **Type:** Work / Session end

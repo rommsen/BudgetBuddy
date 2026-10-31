@@ -10,14 +10,15 @@ Catalog of this bounded context's tasks by status.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
-- **Todo:** 0
+- **Backlog:** 2
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **budgeting-m1bce** — "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch" (feature) — `todo/budgeting-m1bce-kategorie-detail.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -48,7 +49,6 @@ prior-art matcher additionally checks `done-archive/` when present.
 
 ### Backlog
 <!-- backlog-list:start -->
-- **budgeting-m1bce** — "Kategorie-Detail: Ausgaben des Monats mit Sprung zur Buchung im Kassenbuch" (feature) — `backlog/budgeting-m1bce-kategorie-detail.md`
 - **budgeting-dyn8g** — "Budget-Historie als Ansicht, allgemein und pro Kategorie, nach Art filterbar" (feature) — `backlog/budgeting-dyn8g-budget-historie-ansicht.md`
 - **budgeting-bk6tq** — "Spike: Ausgaben am Monatswechsel. Wann kommen Buchungen bei Comdirect und ING an (vorgemerkt, gebucht, welches Datum), und was heißt das für Auffüllen auf einen festen Betrag am Monatsersten?" (spike) — `backlog/budgeting-bk6tq-vortrag-ab-dem-ersten-tag.md`
 <!-- backlog-list:end -->
