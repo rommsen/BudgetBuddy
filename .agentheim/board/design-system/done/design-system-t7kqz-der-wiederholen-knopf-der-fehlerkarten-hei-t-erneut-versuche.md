@@ -1,7 +1,7 @@
 ---
 id: design-system-t7kqz
 title: "Der Wiederholen-Knopf der Fehlerkarten heißt Erneut versuchen statt Try Again"
-status: backlog
+status: done
 type: bug
 context: design-system
 created: 2026-10-31
@@ -27,3 +27,6 @@ Prüfen, welche Varianten in `ErrorDisplay.fs` "Try Again" zeigen, und sie einhe
 - [ ] Keine Fehlerkarte im Client zeigt mehr "Try Again".
 - [ ] Die Wächter suchen den neuen Text.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+## Outcome
+
+Mit den Review-Fixes zu budgeting-m1bce erledigt (Commit 66a7c32): alle Varianten in `ErrorDisplay.fs` zeigen "Fehler" und "Erneut versuchen", die Wächter suchen den neuen Text. `./verify.sh` PASS. Ein eigener Verifier-Lauf fand nicht statt, geprüft hat das Gate.
