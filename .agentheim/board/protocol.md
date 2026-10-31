@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 11:28 -- Modeling / Refined: infrastructure-g4wy8 - Spike Verbindungsabbrüche
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** backlog
+**Summary:** Fehler ist verschwunden. Hypothese ergänzt: Pwa.decide lädt nach einem Deploy sofort neu und bricht laufende Anfragen ab, dazu altes Client-Bundle aus dem Precache. Nicht bewiesen, Gegenprobe beim nächsten Deploy.
+
+---
+
 ## 2026-10-31 11:25 -- Modeling / Refined: infrastructure-g4wy8 - Spike Verbindungsabbrüche
 
 **Type:** Modeling / Refine
