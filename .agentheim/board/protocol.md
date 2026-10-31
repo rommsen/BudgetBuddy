@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 10:13 -- Modeling / Captured: ynab-sync-k3vq8 - "Barabhebung in Import prüfen: Kontenliste bleibt still leer, das Bar-Konto ist nicht vorbelegt und im Picker gibt es keine Konten"
+
+**Type:** Modeling / Capture
+**BC:** ynab-sync
+**Filed to:** todo
+**Summary:** Barabhebung im Import: Kontenliste bleibt still leer. Der Import zieht auf getBudgetAccounts um, lädt nach und meldet Fehler.
+
+---
+
 ## 2026-10-31 09:45 -- Batch started: [banking-import-cyg94, banking-import-z4h6p]
 
 **Type:** Work / Batch start
