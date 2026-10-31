@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 11:18 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Produktions-Logs eingetragen: App stabil, Abbrüche zwischen Browser und Tailscale-Proxy (GOAWAY, context canceled), getBudgetDetails braucht 3 bis 17 Sekunden, getBudgetAccounts 3 ms.
+
+---
+
 ## 2026-10-31 11:17 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
 
 **Type:** Modeling / Refine

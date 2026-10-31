@@ -52,7 +52,15 @@ Der Import lädt die Konten beim Seitenaufruf und erneut beim Öffnen des Split-
 
 **Belege (Roman, 2026-10-31):** Im Kassenbuch funktioniert die Barabhebung. Im Import kommt nach Reloads wiederholt "Http error (0)" bei `getTransactions`, die Seite lädt erst nach mehreren Versuchen, und dann fehlen je nach Lauf Konten oder Kategorien und Konten. Der Browser ist Firefox. Das passt zu einzelnen Abbrüchen je Abfrage. Eine frühere Notiz hatte den Startfehler verworfen, weil ein Reload gelang: Das war falsch, jede Abfrage kann unabhängig scheitern.
 
-**Nicht bewiesen:** warum Firefox abbricht. Ob auch ein Fehler speziell in `GET /budgets/{id}` mitspielt, ist offen. `Retry.reading` wiederholt nur zweimal über 1,6 Sekunden; reicht das nicht, ist die Ursache des Abbruchs ein eigener Task. Die Produktion wurde nicht geprüft.
+**Befund Produktion (Logs docker-host, 2026-10-31, 09:14 bis 10:16 UTC):**
+
+- `budgetbuddy-app` läuft seit 7 Stunden ohne Neustart und ohne OOM, Speicher 590 MiB. Ein Server-Absturz ist ausgeschlossen.
+- `tailscale_budgetbuddy` (Proxy vor der App) protokolliert in Schüben zu den Reloads `http2: received GOAWAY` und `http: proxy error: context canceled`, 147 Zeilen seit 09:14. Der GOAWAY kommt am HTTP/2-Server des Proxys an, also von der Client-Seite. Die Anfragen werden demnach zwischen Browser und Proxy abgebrochen.
+- Die App beantwortet ihre Anfragen meist mit 200. `getCategories` scheiterte zweimal mit 500 "Unexpected end of request content", der Rumpf kam nicht vollständig an.
+- `getBudgetDetails` braucht 3 bis 17 Sekunden, `getBudgetAccounts` aus dem Cache 3 ms. Der langsame Abruf bleibt also lange genug offen, um von einem Abbruch oder Reload getroffen zu werden. `Retry.reading` allein reicht deshalb nicht, der Umstieg auf `getBudgetAccounts` bleibt nötig.
+- Status 200 sagt bei Remoting nichts über ein fachliches `Error` im Rumpf. Ob `getBudgetDetails` zusätzlich inhaltlich scheitert, ist offen.
+
+**Nicht bewiesen:** warum die Client-Seite die Verbindungen schließt (Firefox, Mac, Tailscale-Client). Bleibt das nach dem Fix störend, ist das ein eigener Task im BC infrastructure. Der Container nutzt `tailscale/tailscale:latest` (1.102.3), die übrigen Tailscale-Container 1.104.1.
 
 Die Meldung nennt diesen Fall "Database error during load", obwohl keine Antwort kam. Das ist irreführend, aber nicht Teil dieses Tasks.
 
