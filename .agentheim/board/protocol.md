@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 07:53 -- Batch started: [banking-import-p5mcp]
+
+**Type:** Work / Batch start
+**Tasks:** banking-import-p5mcp - "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
+**Parallel:** Owner-Task, Roman hat die Sonde beobachtet und Go gegeben, kein Worker
+
+---
+
 ## 2026-10-31 07:53 -- Modeling / Promoted: banking-import-p5mcp - "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
 
 **Type:** Modeling / Promote
