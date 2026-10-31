@@ -34,15 +34,18 @@ let private sectionHeader (title: string) (isConfigured: bool) =
 // Read-Only Display Helpers
 // ============================================
 
-let private maskValue (value: string) =
-    if System.String.IsNullOrEmpty value then "\u2014"
-    elif value.Length <= 4 then "****"
-    else "****..." + value.[value.Length-4..]
-
 let private secretStatus (isSet: bool) =
     if isSet then "gesetzt" else "\u2014"
 
-let private keepSecretHint = "Gesetzt. Leer lassen, um den Wert zu behalten"
+/// Feld für einen Wert, den der Client nicht kennt: ist er gesetzt, darf es leer bleiben.
+let private credentialGroup (label: string) (isSet: bool) (input: ReactElement) =
+    Input.group {
+        Label = label
+        Required = not isSet
+        Error = None
+        HelpText = if isSet then Some "Gesetzt. Leer lassen, um den Wert zu behalten" else None
+        Children = input
+    }
 
 let private settingRow (label: string) (description: string) (value: string) =
     Html.div [
@@ -140,12 +143,8 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
                 prop.className "space-y-4 p-4"
                 prop.children [
                     // Token input with label
-                    if ynabTokenIsSet model then
-                        Input.groupSimple "Pers\u00f6nlicher Access Token" (
-                            Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) keepSecretHint)
-                    else
-                        Input.groupRequired "Pers\u00f6nlicher Access Token" (
-                            Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB Personal Access Token eingeben")
+                    credentialGroup "Pers\u00f6nlicher Access Token" (ynabTokenIsSet model) (
+                        Input.password model.YnabTokenInput (UpdateYnabTokenInput >> dispatch) "YNAB Personal Access Token eingeben")
 
                     // Save button with validation
                     Form.submitButton
@@ -343,8 +342,9 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     | Success settings ->
                         match settings.Comdirect with
                         | Some comdirect ->
-                            settingRow "Client-ID" "Comdirect API Client-ID" (maskValue comdirect.ClientId)
+                            settingRow "Client-ID" "Comdirect API Client-ID" (secretStatus comdirect.HasClientId)
                             settingRow "Client-Secret" "Comdirect API Client-Secret" (secretStatus comdirect.HasClientSecret)
+                            settingRow "Benutzername" "Comdirect-Zugangsnummer" (secretStatus comdirect.HasUsername)
                             settingRow "PIN" "Comdirect-PIN" (secretStatus comdirect.HasPassword)
                             settingRow "Authentifizierung" "OAuth2 + photoTAN" "\u2014"
 
@@ -368,15 +368,11 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "grid gap-4 sm:grid-cols-2"
                         prop.children [
-                            Input.groupRequired "Client-ID" (
+                            credentialGroup "Client-ID" (comdirectClientIdIsSet model) (
                                 Input.textSimple model.ComdirectClientIdInput (UpdateComdirectClientIdInput >> dispatch) "Deine API Client-ID")
 
-                            if comdirectClientSecretIsSet model then
-                                Input.groupSimple "Client-Secret" (
-                                    Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) keepSecretHint)
-                            else
-                                Input.groupRequired "Client-Secret" (
-                                    Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Dein API Client-Secret")
+                            credentialGroup "Client-Secret" (comdirectClientSecretIsSet model) (
+                                Input.password model.ComdirectClientSecretInput (UpdateComdirectClientSecretInput >> dispatch) "Dein API Client-Secret")
                         ]
                     ]
 
@@ -384,15 +380,11 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "grid gap-4 sm:grid-cols-2"
                         prop.children [
-                            Input.groupRequired "Benutzername (Zugangsnummer)" (
+                            credentialGroup "Benutzername (Zugangsnummer)" (comdirectUsernameIsSet model) (
                                 Input.textSimple model.ComdirectUsernameInput (UpdateComdirectUsernameInput >> dispatch) "Deine Zugangsnummer")
 
-                            if comdirectPasswordIsSet model then
-                                Input.groupSimple "PIN" (
-                                    Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) keepSecretHint)
-                            else
-                                Input.groupRequired "PIN" (
-                                    Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Deine Comdirect-PIN")
+                            credentialGroup "PIN" (comdirectPasswordIsSet model) (
+                                Input.password model.ComdirectPasswordInput (UpdateComdirectPasswordInput >> dispatch) "Deine Comdirect-PIN")
                         ]
                     ]
 

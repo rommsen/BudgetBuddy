@@ -77,66 +77,58 @@ let internal comdirectErrorToString (error: ComdirectError) : string =
 
 /// Lädt die Einstellungen samt Secrets. Nur für den Server: startSync und der Comdirect-Import
 /// brauchen die echten Zugangsdaten. An den Client geht ausschließlich `readSettingsForClient`.
+/// Ein Lesefehler läuft zum Aufrufer durch: er darf nicht wie "nichts gesetzt" aussehen.
 let loadAppSettingsFrom (getSetting: string -> Async<string option>) : Async<AppSettings> = async {
-    try
-        // Load all settings from database
-        let! ynabToken = getSetting "ynab_token"
-        let! ynabDefaultBudgetId = getSetting "ynab_default_budget_id"
-        let! ynabDefaultAccountId = getSetting "ynab_default_account_id"
-        let! ynabQuickAddAccountId = getSetting "ynab_quickadd_account_id"
-        let! comdirectClientId = getSetting "comdirect_client_id"
-        let! comdirectClientSecret = getSetting "comdirect_client_secret"
-        let! comdirectUsername = getSetting "comdirect_username"
-        let! comdirectPassword = getSetting "comdirect_password"
-        let! comdirectAccountId = getSetting "comdirect_account_id"
-        let! syncDaysToFetch = getSetting "sync_days_to_fetch"
+    // Load all settings from database
+    let! ynabToken = getSetting "ynab_token"
+    let! ynabDefaultBudgetId = getSetting "ynab_default_budget_id"
+    let! ynabDefaultAccountId = getSetting "ynab_default_account_id"
+    let! ynabQuickAddAccountId = getSetting "ynab_quickadd_account_id"
+    let! comdirectClientId = getSetting "comdirect_client_id"
+    let! comdirectClientSecret = getSetting "comdirect_client_secret"
+    let! comdirectUsername = getSetting "comdirect_username"
+    let! comdirectPassword = getSetting "comdirect_password"
+    let! comdirectAccountId = getSetting "comdirect_account_id"
+    let! syncDaysToFetch = getSetting "sync_days_to_fetch"
 
-        let ynabSettings =
-            match ynabToken with
-            | Some token ->
-                Some {
-                    PersonalAccessToken = token
-                    DefaultBudgetId = ynabDefaultBudgetId |> Option.map YnabBudgetId
-                    DefaultAccountId = ynabDefaultAccountId |> Option.bind (fun id -> match Guid.TryParse(id: string) with | true, g -> Some (YnabAccountId g) | _ -> None)
-                    QuickAddAccountId = ynabQuickAddAccountId |> Option.bind (fun id -> match Guid.TryParse(id: string) with | true, g -> Some (YnabAccountId g) | _ -> None)
-                }
-            | None -> None
+    let ynabSettings =
+        match ynabToken with
+        | Some token ->
+            Some {
+                PersonalAccessToken = token
+                DefaultBudgetId = ynabDefaultBudgetId |> Option.map YnabBudgetId
+                DefaultAccountId = ynabDefaultAccountId |> Option.bind (fun id -> match Guid.TryParse(id: string) with | true, g -> Some (YnabAccountId g) | _ -> None)
+                QuickAddAccountId = ynabQuickAddAccountId |> Option.bind (fun id -> match Guid.TryParse(id: string) with | true, g -> Some (YnabAccountId g) | _ -> None)
+            }
+        | None -> None
 
-        let comdirectSettings =
-            match comdirectClientId, comdirectClientSecret, comdirectUsername, comdirectPassword with
-            | Some clientId, Some clientSecret, Some username, Some password ->
-                Some {
-                    ClientId = clientId
-                    ClientSecret = clientSecret
-                    Username = username
-                    Password = password
-                    AccountId = comdirectAccountId
-                }
-            | _ -> None
+    let comdirectSettings =
+        match comdirectClientId, comdirectClientSecret, comdirectUsername, comdirectPassword with
+        | Some clientId, Some clientSecret, Some username, Some password ->
+            Some {
+                ClientId = clientId
+                ClientSecret = clientSecret
+                Username = username
+                Password = password
+                AccountId = comdirectAccountId
+            }
+        | _ -> None
 
-        let syncSettings = {
-            DaysToFetch = syncDaysToFetch |> Option.bind (fun s -> match Int32.TryParse(s: string) with | true, i -> Some i | _ -> None) |> Option.defaultValue 30
-        }
+    let syncSettings = {
+        DaysToFetch = syncDaysToFetch |> Option.bind (fun s -> match Int32.TryParse(s: string) with | true, i -> Some i | _ -> None) |> Option.defaultValue 30
+    }
 
-        return {
-            Ynab = ynabSettings
-            Comdirect = comdirectSettings
-            Sync = syncSettings
-        }
-    with ex ->
-        printfn "Error loading settings: %s" ex.Message
-        // Return empty settings on error
-        return {
-            Ynab = None
-            Comdirect = None
-            Sync = { DaysToFetch = 30 }
-        }
+    return {
+        Ynab = ynabSettings
+        Comdirect = comdirectSettings
+        Sync = syncSettings
+    }
 }
 
 let private loadAppSettings () = loadAppSettingsFrom Persistence.Settings.getSetting
 
 /// Die Sicht für den Client: kein Secret, nur ob es gesetzt ist.
-let private toSettingsView (settings: AppSettings) : AppSettingsView =
+let toSettingsView (settings: AppSettings) : AppSettingsView =
     { Ynab =
         settings.Ynab
         |> Option.map (fun ynab ->
@@ -147,9 +139,9 @@ let private toSettingsView (settings: AppSettings) : AppSettingsView =
       Comdirect =
         settings.Comdirect
         |> Option.map (fun comdirect ->
-            { ClientId = comdirect.ClientId
+            { HasClientId = not (String.IsNullOrEmpty comdirect.ClientId)
               HasClientSecret = not (String.IsNullOrEmpty comdirect.ClientSecret)
-              Username = comdirect.Username
+              HasUsername = not (String.IsNullOrEmpty comdirect.Username)
               HasPassword = not (String.IsNullOrEmpty comdirect.Password)
               AccountId = comdirect.AccountId })
       Sync = settings.Sync }
@@ -159,9 +151,9 @@ let readSettingsForClient (getSetting: string -> Async<string option>) : Async<A
     return toSettingsView settings
 }
 
-/// Leere Secret-Felder bedeuten "alten Wert behalten" (infrastructure-s1r95): der Client kennt die
-/// gespeicherten Secrets nicht und schickt sie deshalb ohne neue Eingabe leer.
-let mergeStoredComdirectSecrets (getSetting: string -> Async<string option>) (credentials: ComdirectSettings) : Async<ComdirectSettings> = async {
+/// Leere Felder bedeuten "alten Wert behalten" (infrastructure-s1r95, infrastructure-mngfn): der
+/// Client kennt die gespeicherten Zugangsdaten nicht und schickt sie ohne neue Eingabe leer.
+let mergeStoredComdirectCredentials (getSetting: string -> Async<string option>) (credentials: ComdirectSettings) : Async<ComdirectSettings> = async {
     let keepStored key (entered: string) = async {
         if String.IsNullOrWhiteSpace entered then
             let! stored = getSetting key
@@ -169,13 +161,15 @@ let mergeStoredComdirectSecrets (getSetting: string -> Async<string option>) (cr
         else
             return entered
     }
+    let! clientId = keepStored "comdirect_client_id" credentials.ClientId
     let! clientSecret = keepStored "comdirect_client_secret" credentials.ClientSecret
+    let! username = keepStored "comdirect_username" credentials.Username
     let! password = keepStored "comdirect_password" credentials.Password
-    return { credentials with ClientSecret = clientSecret; Password = password }
+    return { credentials with ClientId = clientId; ClientSecret = clientSecret; Username = username; Password = password }
 }
 
 /// Speichert die Comdirect-Zugangsdaten. Validiert wird nach dem Zusammenführen mit den
-/// gespeicherten Secrets: ist nichts gespeichert, bleibt es beim Validierungsfehler. Geänderte
+/// gespeicherten Werten: ist nichts gespeichert, bleibt es beim Validierungsfehler. Geänderte
 /// Zugangsdaten trennen die Bankverbindung (ADR 0071 Punkt 2), eine andere Konto-Id nicht. Getrennt
 /// wird zuerst: lägen die neuen Daten schon, sähe ein zweiter Versuch keine Änderung mehr, und der
 /// nächste Start nähme den alten Wert mit den neuen Schlüsseln wieder auf.
@@ -186,7 +180,7 @@ let saveComdirectCredentialsWith
     (credentials: ComdirectSettings)
     : Async<SettingsResult<unit>> = async {
     try
-        let! merged = mergeStoredComdirectSecrets getSetting credentials
+        let! merged = mergeStoredComdirectCredentials getSetting credentials
         match validateComdirectSettings merged with
         | Error errors -> return Error (SettingsError.ComdirectCredentialsInvalid ("general", String.concat "; " errors))
         | Ok valid ->

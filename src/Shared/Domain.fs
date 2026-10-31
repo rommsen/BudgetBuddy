@@ -603,11 +603,11 @@ type YnabSettingsView = {
     QuickAddAccountId: YnabAccountId option
 }
 
-/// Client-Sicht auf `ComdirectSettings`: Secret und PIN existieren hier nicht, nur ob sie gesetzt sind.
+/// Client-Sicht auf `ComdirectSettings`: die Zugangsdaten existieren hier nicht, nur ob sie gesetzt sind.
 type ComdirectSettingsView = {
-    ClientId: string
+    HasClientId: bool
     HasClientSecret: bool
-    Username: string
+    HasUsername: bool
     HasPassword: bool
     AccountId: string option
 }

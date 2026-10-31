@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 16:24 -- Task verified and completed: infrastructure-mngfn - "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-mngfn - "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar"
+**Summary:** Abbrechen leert die Eingaben für Zugangsdaten, `getSettings` liefert für Username und ClientId nur noch Has-Flags, ein leeres Feld behält den gespeicherten Wert, und ein Lesefehler in `loadAppSettingsFrom` erreicht den Aufrufer. Die langen Platzhalter sind jetzt HelpText.
+**Duration:** 75 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 8
+**Tests added:** 12
+**ADRs written:** none
+
+---
+
+## 2026-10-31 15:48 -- Verification failed: infrastructure-r3tw7 - Lesende Abfragen wiederholen
+
+**Type:** Work / Verification failure
+**Task:** infrastructure-r3tw7
+**Iteration:** 1 of 3
+**Reasons:** Verspätete Wiederholung überschreibt neuere Buchungsliste, Inventartest liest Kommentare
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 15:23 -- Batch started: [infrastructure-r3tw7]
 
 **Type:** Work / Batch start

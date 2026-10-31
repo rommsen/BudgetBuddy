@@ -582,7 +582,8 @@ let isSessionBoundToLivePorts (session: string) : bool =
 /// leerer Ersatz kompilierte, und der laufende Server ließe etwa bei geänderten Zugangsdaten den
 /// gespeicherten Wert liegen. Jeder Eintrag ist die ganze Verdrahtung eines Felds.
 let private apiWirings =
-    [ @"\bsaveComdirectCredentials\s*=\s*saveComdirectCredentialsWith\s+Persistence\.Settings\.getSetting\s+Persistence\.Settings\.setSetting\s+ComdirectAuthSession\.disconnect\b"
+    [ @"\bgetSettings\s*=\s*fun\s*\(\)\s*->\s*readSettingsForClient\s+Persistence\.Settings\.getSetting\b"
+      @"\bsaveComdirectCredentials\s*=\s*saveComdirectCredentialsWith\s+Persistence\.Settings\.getSetting\s+Persistence\.Settings\.setSetting\s+ComdirectAuthSession\.disconnect\b"
       @"\btestComdirectConnection\s*=\s*fun\s*\(\)\s*->\s*testComdirectConnectionWith\s+Persistence\.Settings\.getSetting\s+ComdirectAuthSession\.livePorts\b"
       @"\bBank\s*=\s*BankPort\.comdirectBankPort\s+ComdirectAuthSession\.livePorts\b"
       @"\bstartSync\s*=\s*fun\s*\(\)\s*->\s*BankImport\.startSyncWith\s+liveImportPorts\b"
@@ -647,7 +648,8 @@ let hostedServiceGuardTests =
 
         testCase "Gegenbeweis: ein Ersatz in den Endpoints wird gemeldet" <| fun () ->
             let real =
-                [ "saveComdirectCredentials =\n    saveComdirectCredentialsWith\n        Persistence.Settings.getSetting\n        Persistence.Settings.setSetting\n        ComdirectAuthSession.disconnect\n"
+                [ "getSettings = fun () -> readSettingsForClient Persistence.Settings.getSetting\n"
+                  "saveComdirectCredentials =\n    saveComdirectCredentialsWith\n        Persistence.Settings.getSetting\n        Persistence.Settings.setSetting\n        ComdirectAuthSession.disconnect\n"
                   "testComdirectConnection = fun () ->\n    testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        ComdirectAuthSession.livePorts\n"
                   "Bank = BankPort.comdirectBankPort ComdirectAuthSession.livePorts clock\n"
                   "startSync = fun () -> BankImport.startSyncWith liveImportPorts\n"
@@ -657,7 +659,8 @@ let hostedServiceGuardTests =
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
             Expect.isEmpty (findMissingApiWirings real) "richtig"
             for original, replacement, label in
-                [ "ComdirectAuthSession.disconnect", "(fun () -> async.Return ())", "leeres Trennen"
+                [ "readSettingsForClient Persistence.Settings.getSetting", "readSettingsForClient (fun _ -> async.Return None)", "Einstellungen aus leerem Speicher"
+                  "ComdirectAuthSession.disconnect", "(fun () -> async.Return ())", "leeres Trennen"
                   "saveComdirectCredentialsWith\n        Persistence.Settings.getSetting", "saveComdirectCredentialsWith\n        (fun _ -> async.Return None)", "keine alten Zugangsdaten"
                   "Persistence.Settings.setSetting", "(fun _ _ _ -> async.Return ())", "nichts geschrieben"
                   "testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        ComdirectAuthSession.livePorts", "testComdirectConnectionWith\n        Persistence.Settings.getSetting\n        emptyPorts", "Test mit anderen Ports"

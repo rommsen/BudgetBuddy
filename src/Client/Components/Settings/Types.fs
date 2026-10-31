@@ -105,27 +105,47 @@ let ynabTokenIsSet (model: Model) : bool =
     |> Option.bind (fun s -> s.Ynab)
     |> Option.exists (fun y -> y.HasToken)
 
+let comdirectClientIdIsSet (model: Model) : bool =
+    loadedSettings model
+    |> Option.bind (fun s -> s.Comdirect)
+    |> Option.exists (fun c -> c.HasClientId)
+
 let comdirectClientSecretIsSet (model: Model) : bool =
     loadedSettings model
     |> Option.bind (fun s -> s.Comdirect)
     |> Option.exists (fun c -> c.HasClientSecret)
+
+let comdirectUsernameIsSet (model: Model) : bool =
+    loadedSettings model
+    |> Option.bind (fun s -> s.Comdirect)
+    |> Option.exists (fun c -> c.HasUsername)
 
 let comdirectPasswordIsSet (model: Model) : bool =
     loadedSettings model
     |> Option.bind (fun s -> s.Comdirect)
     |> Option.exists (fun c -> c.HasPassword)
 
+/// Was das Comdirect-Formular an den Server schickt. Rein, testbar ohne Proxy.
+let comdirectCredentialsFromForm (model: Model) : ComdirectSettings =
+    { ClientId = model.ComdirectClientIdInput
+      ClientSecret = model.ComdirectClientSecretInput
+      Username = model.ComdirectUsernameInput
+      Password = model.ComdirectPasswordInput
+      AccountId = if System.String.IsNullOrWhiteSpace model.ComdirectAccountIdInput then None else Some model.ComdirectAccountIdInput }
+
 /// Pflichtfelder des Token-Formulars.
 let ynabRequiredFields (model: Model) : (string * string) list =
     [ if not (ynabTokenIsSet model) then
           "Persönlicher Access Token", model.YnabTokenInput ]
 
-/// Pflichtfelder des Comdirect-Formulars. Gesetzte Secrets dürfen leer bleiben, der Server behält sie.
+/// Pflichtfelder des Comdirect-Formulars. Gesetzte Zugangsdaten dürfen leer bleiben, der Server behält sie.
 let comdirectRequiredFields (model: Model) : (string * string) list =
-    [ "Client-ID", model.ComdirectClientIdInput
+    [ if not (comdirectClientIdIsSet model) then
+          "Client-ID", model.ComdirectClientIdInput
       if not (comdirectClientSecretIsSet model) then
           "Client-Secret", model.ComdirectClientSecretInput
-      "Benutzername", model.ComdirectUsernameInput
+      if not (comdirectUsernameIsSet model) then
+          "Benutzername", model.ComdirectUsernameInput
       if not (comdirectPasswordIsSet model) then
           "PIN", model.ComdirectPasswordInput
       "Konto-ID", model.ComdirectAccountIdInput ]

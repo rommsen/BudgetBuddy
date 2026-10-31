@@ -49,8 +49,6 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         let updatedModel = {
             model with
                 Settings = Success settings
-                ComdirectClientIdInput = settings.Comdirect |> Option.map (fun c -> c.ClientId) |> Option.defaultValue ""
-                ComdirectUsernameInput = settings.Comdirect |> Option.map (fun c -> c.Username) |> Option.defaultValue ""
                 ComdirectAccountIdInput = settings.Comdirect |> Option.bind (fun c -> c.AccountId) |> Option.defaultValue ""
                 SyncDaysInput = settings.Sync.DaysToFetch
         }
@@ -124,38 +122,33 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with ComdirectAccountIdInput = value }, Cmd.none, NoOp
 
     | SaveComdirectCredentials ->
-        let credentials : ComdirectSettings = {
-            ClientId = model.ComdirectClientIdInput
-            ClientSecret = model.ComdirectClientSecretInput
-            Username = model.ComdirectUsernameInput
-            Password = model.ComdirectPasswordInput
-            AccountId = if String.IsNullOrWhiteSpace(model.ComdirectAccountIdInput) then None else Some model.ComdirectAccountIdInput
-        }
         let cmd =
             Cmd.OfAsync.either
                 Api.settings.saveComdirectCredentials
-                credentials
+                (comdirectCredentialsFromForm model)
                 ComdirectCredentialsSaved
                 (fun ex -> Error (SettingsError.DatabaseError ("save", ex.Message)) |> ComdirectCredentialsSaved)
         model, cmd, NoOp
 
     | ComdirectCredentialsSaved (Ok _) ->
-        // Der lokale Stand merkt sich nur, dass die Secrets gesetzt sind; die Eingaben werden geleert.
+        // Der lokale Stand merkt sich nur, dass die Zugangsdaten gesetzt sind; die Eingaben werden geleert.
         let updatedSettings =
             match model.Settings with
             | Success settings ->
                 let newComdirect: ComdirectSettingsView = {
-                    ClientId = model.ComdirectClientIdInput
+                    HasClientId = true
                     HasClientSecret = true
-                    Username = model.ComdirectUsernameInput
+                    HasUsername = true
                     HasPassword = true
-                    AccountId = if String.IsNullOrWhiteSpace(model.ComdirectAccountIdInput) then None else Some model.ComdirectAccountIdInput
+                    AccountId = (comdirectCredentialsFromForm model).AccountId
                 }
                 Success { settings with Comdirect = Some newComdirect }
             | other -> other
         { model with
             Settings = updatedSettings
+            ComdirectClientIdInput = ""
             ComdirectClientSecretInput = ""
+            ComdirectUsernameInput = ""
             ComdirectPasswordInput = ""
             EditingSection = None },
         Cmd.none,
@@ -349,9 +342,15 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with EditingSection = Some section }, Cmd.none, NoOp
 
     | CancelEditing ->
-        // Ein verworfener Entwurf der Lena-Farbe fällt auf den geladenen Stand zurück.
+        // Ein verworfener Entwurf der Lena-Farbe fällt auf den geladenen Stand zurück. Verworfene
+        // Zugangsdaten verschwinden ganz: blieben sie stehen, gingen sie beim nächsten Speichern mit.
         { model with
             EditingSection = None
+            YnabTokenInput = ""
+            ComdirectClientIdInput = ""
+            ComdirectClientSecretInput = ""
+            ComdirectUsernameInput = ""
+            ComdirectPasswordInput = ""
             LenaFlagColorInput = lenaFlagColorPreselection model.LenaFlag |> Option.defaultValue "" },
         Cmd.none,
         NoOp

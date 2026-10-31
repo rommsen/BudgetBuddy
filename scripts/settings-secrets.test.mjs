@@ -1,7 +1,7 @@
 // scripts/settings-secrets.test.mjs
 //
 // Gerenderter Beleg für `infrastructure-s1r95`: die Settings-Seite zeigt gesetzte Secrets als
-// "gesetzt" und speichert die Comdirect-Felder ohne neue Secret-Eingabe. Echter Vite-Client
+// "gesetzt" und speichert die Comdirect-Felder ohne neue Eingabe. Echter Vite-Client
 // gegen gemockte Settings-API (erfundene Werte). Dass der Server die leeren Felder als "alten
 // Wert behalten" liest, belegt `src/Tests/SettingsSecretsTests.fs`.
 //
@@ -14,7 +14,7 @@ import { chromium } from "playwright";
 import { getFreePort, startFrontend, stopServer } from "./screenshot-route.mjs";
 
 const settings = {
-  Comdirect: { ClientId: "client-id-1234", HasClientSecret: true, Username: "alter-name", HasPassword: true, AccountId: "konto-1" },
+  Comdirect: { HasClientId: true, HasClientSecret: true, HasUsername: true, HasPassword: true, AccountId: "konto-1" },
   Ynab: { HasToken: true, DefaultBudgetId: null, DefaultAccountId: null, QuickAddAccountId: null },
   Sync: { DaysToFetch: 30 },
 };
@@ -31,7 +31,7 @@ after(async () => {
   await stopServer(frontend);
 });
 
-test("Speichern ohne Secret-Eingabe schickt geänderte Felder und leere Secrets", async () => {
+test("Speichern schickt den neuen Benutzernamen und lässt die übrigen Zugangsdaten leer", async () => {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.setDefaultTimeout(30000);
   const saved = [];
@@ -46,9 +46,14 @@ test("Speichern ohne Secret-Eingabe schickt geänderte Felder und leere Secrets"
   await page.goto(`http://localhost:${port}/#/settings`);
   const card = page.getByRole("heading", { name: "Comdirect Verbindung" }).locator("xpath=ancestor::div[2]");
   await card.getByText("Client-Secret", { exact: true }).waitFor();
-  assert.equal(await card.getByText("gesetzt", { exact: true }).count(), 2, "Client-Secret und PIN stehen als gesetzt da");
+  assert.equal(await card.getByText("gesetzt", { exact: true }).count(), 4, "alle vier Zugangsdaten stehen als gesetzt da");
 
   await card.getByRole("button", { name: "Bearbeiten" }).click();
+  await card.getByPlaceholder("Deine Zugangsnummer").waitFor();
+  // Der Hinweis steht unter dem Feld, das leere Feld zeigt keinen gespeicherten Wert.
+  assert.equal(await card.getByText("Gesetzt. Leer lassen, um den Wert zu behalten").count(), 4);
+  assert.equal(await card.getByPlaceholder("Deine Zugangsnummer").inputValue(), "");
+  assert.equal(await card.getByPlaceholder("Deine API Client-ID").inputValue(), "");
   await card.getByPlaceholder("Deine Zugangsnummer").fill("neuer-name");
   await card.getByRole("button", { name: "Zugangsdaten speichern" }).click();
 
@@ -56,8 +61,9 @@ test("Speichern ohne Secret-Eingabe schickt geänderte Felder und leere Secrets"
   // Fable.Remoting schickt die Argumente als Array.
   const [credentials] = saved[0];
   assert.equal(credentials.Username, "neuer-name");
+  assert.equal(credentials.ClientId, "");
   assert.equal(credentials.ClientSecret, "");
   assert.equal(credentials.Password, "");
-  assert.equal(await card.getByText("gesetzt", { exact: true }).count(), 2, "nach dem Speichern weiter gesetzt");
+  assert.equal(await card.getByText("gesetzt", { exact: true }).count(), 4, "nach dem Speichern weiter gesetzt");
   await page.close();
 });
