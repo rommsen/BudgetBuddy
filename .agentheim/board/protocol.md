@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 11:23 -- Modeling / Captured: infrastructure-g4wy8 - "Spike: Warum brechen Anfragen zwischen Browser und Tailscale-Proxy mit Http error (0) ab?"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Ursache der Verbindungsabbrüche klären, stärkste Spur ist der Service Worker.
+
+---
+
+## 2026-10-31 11:23 -- Modeling / Captured: infrastructure-r3tw7 - "Alle übrigen lesenden Abfragen laufen über Retry.reading, damit ein Verbindungsabbruch im Kassenbuch keine Fehlerseite mehr zeigt"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** todo
+**Summary:** Fehlerseiten im Kassenbuch: alle übrigen lesenden Abfragen laufen über Retry.reading.
+
+---
+
 ## 2026-10-31 11:20 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
 
 **Type:** Modeling / Refine
