@@ -1,7 +1,7 @@
 ---
 id: banking-import-p5mcp
 title: "Roman beobachtet die comdirect-Session live über mindestens 2 Stunden und entscheidet Go oder Stop"
-status: doing
+status: done
 type: spike
 context: banking-import
 created: 2026-10-30
