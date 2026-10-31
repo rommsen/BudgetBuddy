@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 15:23 -- Batch started: [ynab-sync-k3vq8]
+
+**Type:** Work / Batch start
+**Tasks:** ynab-sync-k3vq8 - "Barabhebung in Import prüfen: Kontenliste bleibt still leer, das Bar-Konto ist nicht vorbelegt und im Picker gibt es keine Konten"
+**Parallel:** SyncFlow-Ladeweg, neben infrastructure-mngfn und infrastructure-r3tw7
+
+---
+
 ## 2026-10-31 15:12 -- Task verified and completed: banking-import-z4h6p - "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
 
 **Type:** Work / Task completion

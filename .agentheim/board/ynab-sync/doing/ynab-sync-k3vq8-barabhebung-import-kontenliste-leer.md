@@ -1,7 +1,7 @@
 ---
 id: ynab-sync-k3vq8
 title: "Barabhebung in Import prüfen: Kontenliste bleibt still leer, das Bar-Konto ist nicht vorbelegt und im Picker gibt es keine Konten"
-status: todo
+status: doing
 type: bug
 context: ynab-sync
 created: 2026-10-31
