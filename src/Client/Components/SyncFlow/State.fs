@@ -83,6 +83,26 @@ let private matchesRule (rule: Rule) (tx: BankTransaction) : bool =
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase)
         with _ -> false
 
+/// Pause zwischen zwei Lesevorgängen, solange der Server nach verlorener Antwort noch abruft.
+let private interruptedStartPollMs = 3000
+
+/// Frist für das Nachlesen: 40 Pausen sind 2 Minuten. Ein normaler Abruf endet weit davor.
+let interruptedStartReadLimit = 40
+
+/// Fehlertext, wenn nach verlorener Antwort von `startSync` keine neue Sitzung auf dem Server liegt.
+let interruptedStartMessage (reason: string) : string =
+    $"Die Verbindung zum Server brach ab ({reason}). Bitte starte den Sync erneut."
+
+/// Fehlertext, wenn der Server bis zum Ablauf der Frist kein Ergebnis hat.
+let interruptedStartTimeoutMessage (reason: string) : string =
+    $"Die Verbindung zum Server brach ab ({reason}), und der Server hat auch nach 2 Minuten kein Ergebnis. Bitte starte den Sync erneut."
+
+/// Stand vor dem Lesen der Sitzung. Beim Warten auf einen laufenden Abruf bleibt der Fortschritt stehen.
+let markSessionLoading (model: Model) : Model =
+    match model.InterruptedStart with
+    | Some _ -> model
+    | None -> { model with CurrentSession = Loading }
+
 let init () : Model * Cmd<Msg> =
     let model = {
         CurrentSession = NotAsked
@@ -94,6 +114,7 @@ let init () : Model * Cmd<Msg> =
         SplitEdit = None
         DuplicateTransactionIds = []
         IsTanConfirming = false
+        InterruptedStart = None
         ExpandedTransactionIds = Set.empty
         InlineRuleForm = None
         ManuallyCategorizedIds = Set.empty
@@ -115,18 +136,44 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadCurrentSession ->
         let cmd =
-            Cmd.OfAsync.perform
-                Api.sync.getCurrentSession
+            Cmd.OfAsync.either
+                (Retry.reading Api.sync.getCurrentSession)
                 ()
                 CurrentSessionLoaded
-        { model with CurrentSession = Loading }, cmd, NoOp
+                (fun ex -> CurrentSessionLoadFailed ex.Message)
+        markSessionLoading model, cmd, NoOp
 
     | CurrentSessionLoaded session ->
         let updatedModel = { model with CurrentSession = Success session }
-        match session with
-        | Some s when s.Status = ReviewingTransactions ->
-            updatedModel, Cmd.ofMsg LoadTransactions, NoOp
-        | _ -> updatedModel, Cmd.none, NoOp
+        match model.InterruptedStart, session with
+        | Some recovery, (None | Some { Status = Completed }) ->
+            // Der Start kam nie an oder die Sitzung stammt aus einem früheren Sync.
+            let message = interruptedStartMessage recovery.Reason
+            { model with CurrentSession = Failure message; InterruptedStart = None }, Cmd.none, ShowToast (message, ToastError)
+        | Some recovery, Some { Status = (AwaitingBankAuth | FetchingTransactions) } ->
+            // Der Server arbeitet noch. Nur lesen, nie neu starten (ADR 0071: keine Challenge ohne Roman).
+            if recovery.ReadPlanned then
+                // Dieses Lesen kam von außen (Routenwechsel), die Kette läuft schon.
+                updatedModel, Cmd.none, NoOp
+            elif recovery.ReadsLeft <= 0 then
+                let message = interruptedStartTimeoutMessage recovery.Reason
+                { model with CurrentSession = Failure message; InterruptedStart = None }, Cmd.none, ShowToast (message, ToastError)
+            else
+                let readsLeft = recovery.ReadsLeft - 1
+                { updatedModel with InterruptedStart = Some { recovery with ReadsLeft = readsLeft; ReadPlanned = true } },
+                Debounce.delayed interruptedStartPollMs (InterruptedStartReadDue readsLeft),
+                NoOp
+        | _, Some s when s.Status = ReviewingTransactions ->
+            { updatedModel with InterruptedStart = None }, Cmd.ofMsg LoadTransactions, NoOp
+        | _ -> { updatedModel with InterruptedStart = None }, Cmd.none, NoOp
+
+    | CurrentSessionLoadFailed reason ->
+        let message =
+            model.InterruptedStart
+            |> Option.map (fun recovery -> recovery.Reason)
+            |> Option.defaultValue reason
+            |> interruptedStartMessage
+        { model with CurrentSession = Failure message; InterruptedStart = None }, Cmd.none, ShowToast (message, ToastError)
 
     | StartSync ->
         let cmd =
@@ -134,33 +181,28 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 Api.sync.startSync
                 ()
                 SyncStarted
-                (fun ex -> Error (SyncError.DatabaseError ("start", ex.Message)) |> SyncStarted)
-        { model with CurrentSession = Loading }, cmd, NoOp
+                (fun ex -> SyncStartInterrupted ex.Message)
+        { model with CurrentSession = Loading; InterruptedStart = None }, cmd, NoOp
 
-    | SyncStarted (Ok session) ->
-        let model' = { model with CurrentSession = Success (Some session) }
-        model', Cmd.ofMsg InitiateComdirectAuth, NoOp
+    | SyncStarted (Ok (TanRequired session)) ->
+        { model with CurrentSession = Success (Some session) }, Cmd.none, ShowToast ("Bitte bestätige die TAN auf deinem Handy", ToastInfo)
+
+    | SyncStarted (Ok (ReviewReady session)) ->
+        { model with CurrentSession = Success (Some session) }, Cmd.ofMsg LoadTransactions, ShowToast ("Umsätze bereit zur Prüfung", ToastSuccess)
 
     | SyncStarted (Error err) ->
         { model with CurrentSession = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
-    | InitiateComdirectAuth ->
-        match model.CurrentSession with
-        | Success (Some session) ->
-            let cmd =
-                Cmd.OfAsync.either
-                    Api.sync.initiateComdirectAuth
-                    session.Id
-                    ComdirectAuthInitiated
-                    (fun ex -> Error (SyncError.ComdirectAuthFailed ex.Message) |> ComdirectAuthInitiated)
-            model, cmd, NoOp
+    | SyncStartInterrupted reason ->
+        let recovery = { Reason = reason; ReadsLeft = interruptedStartReadLimit; ReadPlanned = false }
+        { model with InterruptedStart = Some recovery }, Cmd.ofMsg LoadCurrentSession, NoOp
+
+    | InterruptedStartReadDue readsLeft ->
+        match model.InterruptedStart with
+        | Some recovery when recovery.ReadPlanned && recovery.ReadsLeft = readsLeft ->
+            { model with InterruptedStart = Some { recovery with ReadPlanned = false } }, Cmd.ofMsg LoadCurrentSession, NoOp
+        // Das Nachlesen endete inzwischen, oder der Takt gehört zu einem früheren Abbruch.
         | _ -> model, Cmd.none, NoOp
-
-    | ComdirectAuthInitiated (Ok _challengeId) ->
-        model, Cmd.ofMsg LoadCurrentSession, ShowToast ("Please confirm the TAN on your phone", ToastInfo)
-
-    | ComdirectAuthInitiated (Error err) ->
-        { model with CurrentSession = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | ConfirmTan ->
         // Prevent double-clicks: ignore if already confirming

@@ -181,10 +181,11 @@ type SyncApi = {
     // Session management
     // ============================================
 
-    /// Initiates a new sync session.
-    /// Purpose: Creates session record and begins Comdirect OAuth flow.
-    /// Returns: New session or SyncError (ComdirectAuthFailed, DatabaseError).
-    startSync: unit -> Async<SyncResult<SyncSession>>
+    /// Startet einen Sync, der Server entscheidet über die TAN (ADR 0071 Punkt 6).
+    /// Purpose: Bei aktiver Bankverbindung läuft der Abruf in diesem Aufruf (`ReviewReady`), sonst startet
+    /// die Push-TAN (`TanRequired`). Eine offene Prüfung kommt unverändert als `ReviewReady` zurück.
+    /// Returns: SyncStart or SyncError (ComdirectAuthFailed, TransactionFetchFailed, DatabaseError).
+    startSync: unit -> Async<SyncResult<SyncStart>>
 
     /// Retrieves the currently active sync session if one exists.
     /// Purpose: Allows UI to resume interrupted sync or show progress.
@@ -198,11 +199,6 @@ type SyncApi = {
     // ============================================
     // Comdirect auth flow
     // ============================================
-
-    /// Starts Comdirect OAuth and requests Push-TAN challenge.
-    /// Purpose: Initiates async TAN confirmation on user's phone.
-    /// Returns: Challenge ID/info to display to user or SyncError (ComdirectAuthFailed).
-    initiateComdirectAuth: SyncSessionId -> Async<SyncResult<string>>
 
     /// Completes TAN flow after user confirms on phone.
     /// Purpose: Fetches transactions and applies rules engine after auth succeeds.

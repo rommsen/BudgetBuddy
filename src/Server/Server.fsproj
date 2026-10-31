@@ -32,6 +32,7 @@
     <Compile Include="ComdirectClient.fs" />
     <Compile Include="BankConnection.fs" />
     <Compile Include="ComdirectAuthSession.fs" />
+    <Compile Include="BankPort.fs" />
     <Compile Include="BankConnectionWorker.fs" />
     <Compile Include="RulesEngine.fs" />
     <Compile Include="DuplicateDetection.fs" />
@@ -39,6 +40,7 @@
     <Compile Include="Validation.fs" />
     <Compile Include="SyncSessionManager.fs" />
     <Compile Include="ImportAskLena.fs" />
+    <Compile Include="BankImport.fs" />
     <Compile Include="Ledger/CommandHandlers.fs" />
     <Compile Include="Ledger/QueryHandlers.fs" />
     <Compile Include="Budgeting/Domain.fs" />

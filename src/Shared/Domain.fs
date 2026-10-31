@@ -540,6 +540,11 @@ type SyncSession = {
     SkippedCount: int
 }
 
+/// Antwort von `startSync`: der Server entscheidet über die TAN (ADR 0071 Punkt 6).
+type SyncStart =
+    | TanRequired of SyncSession
+    | ReviewReady of SyncSession
+
 type SyncSessionSummary = {
     Session: SyncSession
     Transactions: SyncTransaction list

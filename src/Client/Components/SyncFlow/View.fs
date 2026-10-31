@@ -86,7 +86,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     startSyncView dispatch
 
                 | Loading ->
-                    loadingView "Starting sync..."
+                    loadingView "Bank wird abgefragt..."
 
                 | Success (Some session) ->
                     match session.Status with

@@ -8,8 +8,8 @@ open Server.BankConnection
 
 // Hält die Bankverbindung des Servers (Single-User) und serialisiert jeden Bankzugriff
 // (ADR 0071 Punkt 3): ein zweiter Refresh mit demselben Token würde die Verbindung fälschlich
-// beenden. Nur `startChallengeWith` startet eine Challenge und meldet sich mit Passwort an, und
-// nur Handlungen von Roman rufen diese Funktion auf. `tick` kennt ausschließlich den Refresh.
+// beenden. Nur `startChallengeWith` und `startChallengeWhileWith` starten eine Challenge und melden
+// sich mit Passwort an, und nur Handlungen von Roman rufen diese Funktionen auf. `tick` kennt ausschließlich den Refresh.
 
 /// Zustand samt Semaphor. Geschrieben wird nur bei gehaltenem `Gate`.
 type ConnectionCell = {
@@ -20,8 +20,8 @@ type ConnectionCell = {
 let newConnectionCell () : ConnectionCell =
     { State = ref Disconnected; Gate = new SemaphoreSlim(1, 1) }
 
-/// Alles, was den Server verlässt, als Funktionswert. Der Bank-Port aus ADR 0071 Punkt 5 ist ein
-/// eigener Task.
+/// Alles, was den Server verlässt, als Funktionswert. Der Bank-Port aus ADR 0071 Punkt 5 liegt
+/// darüber in `BankPort.fs`.
 type ConnectionPorts = {
     Cell: ConnectionCell
     Login: ComdirectSettings -> ApiKeys -> Async<ComdirectResult<AuthSession>>
@@ -108,10 +108,9 @@ let private withConnection (ports: ConnectionPorts) (now: DateTimeOffset) (call:
         | _ -> return Error ComdirectError.SessionExpired
     })
 
-/// Startet eine Challenge. Eine Handlung von Roman, nie aus dem Hintergrund aufrufen. Scheitert die
-/// Anmeldung, bleibt der Zustand unverändert.
-let startChallengeWith (ports: ConnectionPorts) (credentials: ComdirectSettings) : Async<ComdirectResult<Challenge>> =
-    locked ports (async {
+/// Nur bei gehaltenem `Gate` aufrufen.
+let private startChallenge (ports: ConnectionPorts) (credentials: ComdirectSettings) : Async<ComdirectResult<Challenge>> =
+    async {
         let keys = { ClientId = credentials.ClientId; ClientSecret = credentials.ClientSecret }
         match! ports.Login credentials keys with
         | Error error -> return Error error
@@ -121,6 +120,23 @@ let startChallengeWith (ports: ConnectionPorts) (credentials: ComdirectSettings)
             | Some challenge ->
                 ports.Cell.State.Value <- challengeStarted keys session
                 return Ok challenge
+    }
+
+/// Startet eine Challenge. Eine Handlung von Roman, nie aus dem Hintergrund aufrufen. Scheitert die
+/// Anmeldung, bleibt der Zustand unverändert.
+let startChallengeWith (ports: ConnectionPorts) (credentials: ComdirectSettings) : Async<ComdirectResult<Challenge>> =
+    locked ports (startChallenge ports credentials)
+
+/// Wie `startChallengeWith` für den Sync, der abgebrochen werden kann. `stillWanted` läuft bei
+/// gehaltenem `Gate`: Antwortet es `false`, geht nichts zur Bank (`Ok None`). Kommt der Abbruch erst
+/// danach, läuft sein `discardPendingChallengeWith` hinter dieser Anmeldung und verwirft die Challenge.
+let startChallengeWhileWith (ports: ConnectionPorts) (stillWanted: unit -> bool) (credentials: ComdirectSettings) : Async<ComdirectResult<Challenge option>> =
+    locked ports (async {
+        if stillWanted () then
+            let! started = startChallenge ports credentials
+            return started |> Result.map Some
+        else
+            return Ok None
     })
 
 /// Bestätigt die offene Challenge. Bei `Connected` geht nichts mehr zur Bank: eine weitere
@@ -140,11 +156,20 @@ let confirmChallengeWith (ports: ConnectionPorts) : Async<ComdirectResult<unit>>
                 return Error error
     })
 
-/// Abbruch eines Syncs: eine offene Challenge verfällt, eine aktive Verbindung bleibt.
+/// Abbruch eines Syncs: eine offene Challenge verfällt, eine aktive Verbindung bleibt. Wartet nie auf
+/// das `Gate`, das hält ein laufender Abruf bis zu seinem Ende. Ist es belegt, läuft das Verwerfen
+/// dahinter im Hintergrund. Das `Gate` bedient Wartende der Reihe nach, ein späterer Start kommt danach.
 let discardPendingChallengeWith (ports: ConnectionPorts) : Async<unit> =
-    locked ports (async {
-        ports.Cell.State.Value <- challengeCancelled ports.Cell.State.Value
-    })
+    async {
+        let discard () = ports.Cell.State.Value <- challengeCancelled ports.Cell.State.Value
+        if ports.Cell.Gate.Wait 0 then
+            try
+                discard ()
+            finally
+                ports.Cell.Gate.Release() |> ignore
+        else
+            Async.Start (locked ports (async { discard () }))
+    }
 
 /// Trennt die Verbindung auf Wunsch. Kein Verlust, deshalb keine Meldung.
 let disconnectWith (ports: ConnectionPorts) : Async<unit> =
@@ -174,9 +199,6 @@ let livePorts: ConnectionPorts = {
     ReportLoss = fun reason -> eprintfn "Bankverbindung verloren: %s" reason
 }
 
-let startAuth (credentials: ComdirectSettings) : Async<ComdirectResult<Challenge>> =
-    startChallengeWith livePorts credentials
-
 let confirmTan () : Async<ComdirectResult<unit>> =
     confirmChallengeWith livePorts
 
@@ -185,9 +207,6 @@ let discardPendingChallenge () : Async<unit> =
 
 let disconnect () : Async<unit> =
     disconnectWith livePorts
-
-let fetchTransactions (accountId: string) (days: int) (today: DateTime) : Async<ComdirectResult<BankTransaction list>> =
-    fetchTransactionsWith livePorts DateTimeOffset.UtcNow accountId days today
 
 let runTick (now: DateTimeOffset) : Async<unit> =
     tick livePorts now

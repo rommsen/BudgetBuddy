@@ -38,7 +38,7 @@ let private ownFileName = "NetworkCallGuardTests.fs"
 
 /// Client-Module, deren Funktionen ins Netz gehen können.
 let private clientModules =
-    [ "YnabClient"; "ComdirectClient"; "BankConnection"; "ComdirectAuthSession"; "BankConnectionWorker" ]
+    [ "YnabClient"; "ComdirectClient"; "BankConnection"; "ComdirectAuthSession"; "BankConnectionWorker"; "BankPort"; "BankImport" ]
 
 let private directMarker =
     Regex(
@@ -192,7 +192,7 @@ let findViolations (networkFunctions: Map<string, Set<string>>) (source: string)
 let private tanFunctions =
     Map.ofList [
         "ComdirectClient", Set.ofList [ "requestTanChallenge"; "activateSession"; "startAuthFlow"; "completeAuthFlow" ]
-        "ComdirectAuthSession", Set.ofList [ "startAuth"; "confirmTan" ] ]
+        "ComdirectAuthSession", Set.ofList [ "confirmTan" ] ]
 
 let private hasProbeSwitch (text: string) =
     text.Contains "COMDIRECT_PROBE" || text.Contains "selectedProbePhase"
@@ -223,7 +223,7 @@ let networkGuardTests =
             Expect.contains comdirect "startAuthFlow" "ComdirectClient.startAuthFlow geht ins Netz"
             for name in [ "refreshTokens"; "initOAuthWith"; "getAccountsWith" ] do
                 Expect.isFalse (comdirect.Contains name) $"ComdirectClient.{name} nutzt den eingespeisten Client"
-            Expect.contains session "startAuth" "ComdirectAuthSession.startAuth geht ins Netz (über livePorts)"
+            Expect.contains session "confirmTan" "ComdirectAuthSession.confirmTan geht ins Netz (über livePorts)"
             for name in [ "tick"; "startChallengeWith"; "fetchTransactionsWith" ] do
                 Expect.isFalse (session.Contains name) $"ComdirectAuthSession.{name} nutzt eingespeiste Ports"
 

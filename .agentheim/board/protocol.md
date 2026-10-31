@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 12:23 -- Task verified and completed: banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
+
+**Type:** Work / Task completion
+**Task:** banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
+**Summary:** Der Server entscheidet über die TAN: `startSync` liefert `TanRequired` oder `ReviewReady`, bei aktiver Bankverbindung läuft der Abruf ohne Challenge über den Bank-Port und `fetchForReview`. Abbruch wartet nicht mehr auf die Bank, das Nachlesen ist befristet, Ausnahmen beenden die Sitzung, das Blätte
+**Duration:** 170 min
+**Verification:** PASS (iteration 3)
+**Files changed:** 18
+**Tests added:** 69
+**ADRs written:** none
+
+---
+
+## 2026-10-31 11:43 -- Verification failed: banking-import-cyg94 - Sync ohne TAN und Bank-Port
+
+**Type:** Work / Verification failure
+**Task:** banking-import-cyg94
+**Iteration:** 2 of 3
+**Reasons:** Intakt-Test für Datenende per leerer Seite fehlt, Mutant überlebt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 11:28 -- Modeling / Refined: infrastructure-g4wy8 - Spike Verbindungsabbrüche
 
 **Type:** Modeling / Refine

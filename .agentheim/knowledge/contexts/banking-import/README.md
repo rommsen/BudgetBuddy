@@ -32,6 +32,10 @@ ein Hauptgrund, warum BudgetBuddy existiert.
 - **Tick**: ein Schritt des Hintergrunddiensts (`tick ports now`). Erneuert fällige Tokens etwa 60 s vor Ablauf und tut sonst nichts.
 - **Verlust**: Übergang von `Connected` nach `Disconnected` ohne Handlung von Roman (Refresh-Urteil `ReloginRequired` oder 401/403 auch nach Refresh). Wird einmal gemeldet. Gescheiterte TAN, Trennen und geänderte Zugangsdaten sind kein Verlust.
 - **Verbindungstest** (`ComdirectConnectionTest`): Ergebnis von `testComdirectConnection`. `BankConnectionActive` heißt, die Verbindung lebt und die Konten waren lesbar, es ist keine TAN nötig. `TanChallengeStarted` trägt die Challenge-Id, es wartet eine Push-TAN.
+- **Bank-Port** (`BankPort`): schmaler Record aus Funktionswerten in `src/Server/BankPort.fs` (Status, Auth starten, Auth abschließen, Konten, Umsätze). Nur Comdirect implementiert ihn, die `Comdirect*`-Typen bleiben. `BankLinkStatus` kennt `BankReady` und `BankAuthRequired`, eine offene Challenge zählt als `BankAuthRequired`. `StartAuth` nimmt eine Bedingung, die direkt vor der Anmeldung bei gehaltenem Bank-Gate geprüft wird.
+- **Sync-Start** (`SyncStart`): Antwort von `startSync`. `ReviewReady` heißt, die Prüfung ist offen, `TanRequired` heißt, eine Push-TAN wartet. Der Server entscheidet, der Client folgt.
+- **fetchForReview**: die eine Stelle für den Abruf (`src/Server/BankImport.fs`): Umsätze über die konfigurierte Konto-Id, Regeln, Duplikate, Order-ID-Vorschläge, Auto-Skip. Fasst die Sitzung nicht an und hängt nicht am Kontenabruf.
+- **Nachlesen** (`StartRecovery`): Der Client liest nach verlorener Antwort von `startSync` den Serverzustand neu. Eine Kette, Pause 3 s, Frist 40 Pausen (2 Minuten).
 
 ## Aggregates
 - **BankTransaction** — unveränderliche Repräsentation einer geholten Buchung; Reference
@@ -39,7 +43,13 @@ ein Hauptgrund, warum BudgetBuddy existiert.
 - **ComdirectAuthSession** — hält die Bankverbindung des Servers und serialisiert per Semaphor jeden Refresh und Bankzugriff (ADR 0071 Punkt 3).
 - **Invariante Fehlertexte:** Comdirect-Fehler tragen Status und `error`-Code, nie den Antwortrumpf. Das gilt auch für Decoder-Meldungen, weil Thoth darin den gelesenen Wert zitiert.
 - **Invariante Challenge:** Nur eine Handlung von Roman (Sync-Start, Verbindungstest) startet eine Challenge oder einen Passwort-Login. Tick, Hintergrunddienst und Neustart tun das nie, auch nicht bei `Disconnected`.
-- **Invariante Abbruch:** `cancelSync` verwirft nur `ChallengePending`, ein Verbindungstest bei `Connected` liest die Konten ohne Challenge. Geänderte Zugangsdaten (nicht die Konto-Id) trennen die Verbindung.
+- **Invariante Abbruch:** `cancelSync` verwirft nur `ChallengePending`, eine aktive Verbindung bleibt stehen. Er wartet nicht auf den Abruf: Er löscht zuerst die Sitzung, ab dann verfällt ein laufendes Ergebnis, und es startet keine neue Challenge mehr. Eine Challenge, die schon unterwegs ist oder offen liegt, wird verworfen, bei belegtem Bank-Gate im Hintergrund, sobald es frei wird. `ChallengePending` bleibt ohne Sitzung nicht liegen. Ein Verbindungstest bei `Connected` liest die Konten ohne Challenge. Geänderte Zugangsdaten (nicht die Konto-Id) trennen die Verbindung.
+- **Invariante Sync-Start:** Bei `Connected` startet `startSync` keine Challenge. Stirbt die Verbindung im Abruf, startet der Server genau eine, außer der Sync wurde abgebrochen. Ein anderer Bankfehler bei lebender Verbindung startet keine.
+- **Invariante offene Prüfung:** `startSync` gibt eine Sitzung in `ReviewingTransactions` unverändert zurück, ohne Bankzugriff. `startSync` und `confirmTan` laufen nacheinander, ein zweiter Start während des Abrufs bekommt dieselbe Prüfung.
+- **Invariante Sitzungsende:** Eine Ausnahme in `startSync` nach `StartNew` oder in `confirmTan` markiert die Sitzung als gescheitert, sie bleibt nie in `FetchingTransactions` stehen. Eine Ausnahme vor `StartNew` lässt eine ältere Sitzung unberührt.
+- **Invariante Umsatzabruf:** Das Blättern endet immer. Eine vollständig im Zeitraum liegende Seite ohne neue Reference, die kürzer ist als die erste Seite, gilt als Datenende: Sie fällt weg, der Abruf liefert `Ok` mit den bisher gesammelten Buchungen. Ist eine solche Seite nicht kürzer oder sind es mehr als 100 Seiten, endet der Abruf mit `InvalidResponse`, nie mit einem still unvollständigen Ergebnis. Das ist keine Ablehnung, die Bankverbindung bleibt, es entsteht kein Verlust und keine Challenge.
+- **Invariante Importschlüssel:** `TransactionId` ist die Comdirect-Reference, `import_id` ist `BB:` plus Reference ohne Bindestriche. Ein Regressionstest mit festen Werten hält das fest (`src/Tests/ComdirectHttpTests.fs`), weil jede Änderung gebuchte Umsätze doppelt nach YNAB bringt.
+- **Invariante verlorene Antwort:** Geht die Antwort von `startSync` auf dem Transportweg verloren, liest der Client nur den Serverzustand neu und startet nie selbst neu. Liegt keine neue Sitzung vor oder läuft die Frist ab, bleibt ein Fehler sichtbar. Ein neuer Start entsteht nur durch Romans Klick.
 
 ## Key events
 - *TransactionsFetched* — neue BankTransactions liegen vor.
@@ -80,3 +90,4 @@ Ein Lauf mit genau einer Push-TAN, Protokoll der Beobachtungssonde. Einzelne Mes
 ## Open questions
 - **ING** als zweite Quelle: eigener Adapter oder Generalisierung des Comdirect-Musters?
 - Lohnt ein generischer "Bank-Source"-Port, sobald >1 Quelle existiert?
+- **Bank-Source-Port**: durch ADR 0071 Punkt 5 beantwortet (siehe **Bank-Port**). Die Frage in der Zeile darüber ist damit erledigt, offen bleibt der ING-Adapter.

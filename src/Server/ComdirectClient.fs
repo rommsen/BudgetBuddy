@@ -477,26 +477,43 @@ let private getTransactionsPage (client: HttpClient) (requestInfo: RequestInfo) 
         | ex -> return Error (transportError ex)
     }
 
-/// Fetch all transactions for the last N days, gezählt ab `today`.
+/// Obergrenze je Abruf. Die Schleife hält das Bank-Gate, ein Abruf ohne Ende sperrte jeden Sync.
+let [<Literal>] MaxTransactionPages = 100
+
+/// Fetch all transactions for the last N days, gezählt ab `today`. Eine vollständig im Zeitraum
+/// liegende Seite ohne neue Reference, die kürzer ist als die erste Seite, ist das Datenende: Sie
+/// fällt weg, das bisher Gesammelte ist das Ergebnis. Ist sie nicht kürzer, ist das ein Fehler, ebenso
+/// das Erreichen der Obergrenze: Der Zeitraum wäre sonst still unvollständig. Beide Fehler zählen
+/// nicht als Ablehnung, die Bankverbindung bleibt also unberührt.
 let getTransactionsWith (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (days: int) (today: DateTime) : Async<ComdirectResult<BankTransaction list>> =
     let dateCutoff = today.AddDays(float -days)
 
-    let rec fetchWithPaging offset (accumulated: BankTransaction list) =
+    let rec fetchWithPaging pageNumber firstPageLength offset (accumulated: BankTransaction list) =
         asyncResult {
             let! transactions = getTransactionsPage client requestInfo tokens accountId offset
 
             // Take transactions that are within the date range
             let txInRange = transactions |> List.filter (fun tx -> tx.BookingDate >= dateCutoff)
+            let firstPageLength = if pageNumber = 1 then List.length transactions else firstPageLength
 
             // If we got a full page and all transactions are within range, fetch more
             if not (List.isEmpty transactions) && List.length transactions = List.length txInRange then
-                return! fetchWithPaging (offset + List.length transactions) (accumulated @ txInRange)
+                let known = accumulated |> List.map (fun tx -> tx.Reference) |> Set.ofList
+                if txInRange |> List.forall (fun tx -> known.Contains tx.Reference) then
+                    if List.length transactions < firstPageLength then
+                        return accumulated
+                    else
+                        return! Error (ComdirectError.InvalidResponse "Die Bank liefert dieselbe Umsatzseite erneut, der Abruf wäre unvollständig.")
+                elif pageNumber >= MaxTransactionPages then
+                    return! Error (ComdirectError.InvalidResponse "Der Zeitraum umfasst zu viele Umsatzseiten, der Abruf wäre unvollständig.")
+                else
+                    return! fetchWithPaging (pageNumber + 1) firstPageLength (offset + List.length transactions) (accumulated @ txInRange)
             else
                 // We've reached transactions outside our range, stop
                 return accumulated @ txInRange
         }
 
-    fetchWithPaging 0 []
+    fetchWithPaging 1 0 0 []
 
 let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (days: int) (today: DateTime) : Async<ComdirectResult<BankTransaction list>> =
     async {

@@ -49,9 +49,37 @@ let private refreshWith (bank: FakeBank) =
     use client = new HttpClient(bank, disposeHandler = false)
     refreshTokens client keys now oldTokens |> run
 
+let private pagingToday = DateTime(2026, 1, 14)
+
+/// Eine Umsatzseite aus (Buchungsdatum, Reference).
+let private pageOf (bookings: (string * string) list) : string =
+    let booking (date: string, reference: string) =
+        $"""{{"bookingDate":"{date}","amount":{{"value":"-1.00","unit":"EUR"}},"reference":"{reference}","remittanceInfo":"01Text"}}"""
+    let values = bookings |> List.map booking |> String.concat ","
+    $"""{{"values":[{values}]}}"""
+
 let private withClient (bank: FakeBank) (call: HttpClient -> Async<'T>) =
     use client = new HttpClient(bank, disposeHandler = false)
     call client |> run
+
+/// Eine Bank, die die Seiten der Reihe nach ausliefert.
+let private bankWithPages (pages: string list) =
+    let remaining = Collections.Generic.Queue pages
+    new FakeBank(fun () ->
+        new HttpResponseMessage(HttpStatusCode.OK, Content = new StringContent(remaining.Dequeue ())))
+
+let private fetchPaged (bank: FakeBank) =
+    withClient bank (fun c -> getTransactionsWith c requestInfo oldTokens "konto" 7 pagingToday)
+
+let private expectReferences (bank: FakeBank) (expected: string list) =
+    match fetchPaged bank with
+    | Ok transactions -> Expect.equal (transactions |> List.map (fun t -> t.Reference)) expected "Buchungen im Zeitraum"
+    | other -> failtestf "Buchungen erwartet: %A" other
+
+let private expectInvalidResponse (bank: FakeBank) =
+    match fetchPaged bank with
+    | Error (ComdirectError.InvalidResponse _) -> ()
+    | other -> failtestf "InvalidResponse erwartet: %A" other
 
 [<Tests>]
 let refreshTests =
@@ -230,6 +258,19 @@ let errorTextTests =
                 Expect.equal (comdirectErrorToString err) "Please confirm the TAN in your banking app first." "feste Meldung zum Code"
             | other -> failtestf "Fehler erwartet: %A" other
 
+        // ADR 0071 Punkt 5 und banking-import-cyg94: feste Werte. Wer Decoder oder `generateImportId`
+        // ändert, importiert bereits gebuchte Umsätze doppelt nach YNAB.
+        testCase "TransactionId und import_id bleiben für eine feste Reference exakt gleich" <| fun () ->
+            let page =
+                """{"values":[{"bookingDate":"2026-01-10","amount":{"value":"-48.12","unit":"EUR"},"reference":"3F2A-91C0-XK7Z","remittanceInfo":"01Text"},{"bookingDate":"2025-12-01","amount":{"value":"-1.00","unit":"EUR"},"reference":"zu-alt","remittanceInfo":"01Text"}]}"""
+            use bank = bankAnswering 200 page
+            match withClient bank (fun c -> getTransactionsWith c requestInfo oldTokens "konto" 7 (DateTime(2026, 1, 14))) with
+            | Ok [ transaction ] ->
+                Expect.equal transaction.Id (TransactionId "3F2A-91C0-XK7Z") "TransactionId ist die Reference, unverändert"
+                Expect.equal transaction.Reference "3F2A-91C0-XK7Z" "Reference unverändert"
+                Expect.equal (generateImportId transaction.Id) "BB:3F2A91C0XK7Z" "Präfix BB, Bindestriche entfernt"
+            | other -> failtestf "eine Buchung erwartet: %A" other
+
         testCase "der Abruf zählt die Tage ab dem übergebenen Datum" <| fun () ->
             let booking (date: string) (reference: string) =
                 $"""{{"bookingDate":"{date}","amount":{{"value":"-1.00","unit":"EUR"}},"reference":"{reference}","remittanceInfo":"01Text"}}"""
@@ -241,4 +282,99 @@ let errorTextTests =
                 Expect.equal (transactions |> List.map (fun t -> t.Reference)) [ "innen"; "grenze" ] "nur Buchungen im Zeitraum"
                 Expect.equal bank.Calls.Count 1 "eine Seite, ältere Buchungen beenden das Blättern"
             | other -> failtestf "Buchungen erwartet: %A" other
+
+        // Bug: liefert die Bank immer dieselbe Seite im Zeitraum, blätterte die Schleife ohne Ende und
+        // hielt das Bank-Gate, bis das Token ablief und ein falscher Verlust samt Challenge entstand.
+        testCase "Kaputt: die Bank liefert immer dieselbe Seite: der Abruf endet mit einem Fehler ohne Ablehnung" <| fun () ->
+            use bank = bankAnswering 200 (pageOf [ "2026-01-10", "gleich-1"; "2026-01-09", "gleich-2" ])
+            match withClient bank (fun c -> getTransactionsWith c requestInfo oldTokens "konto" 7 pagingToday) with
+            | Error (ComdirectError.InvalidResponse _) -> ()
+            | other -> failtestf "InvalidResponse erwartet: %A" other
+            Expect.equal bank.Calls.Count 2 "die zweite gleiche Seite beendet den Abruf"
+
+        testCase "Kaputt: die Bank liefert ohne Ende neue Seiten: der Abruf endet an der Obergrenze" <| fun () ->
+            let served = ref 0
+            use bank =
+                new FakeBank(fun () ->
+                    served.Value <- served.Value + 1
+                    let body = pageOf [ "2026-01-10", $"neu-{served.Value}" ]
+                    new HttpResponseMessage(HttpStatusCode.OK, Content = new StringContent(body)))
+            match withClient bank (fun c -> getTransactionsWith c requestInfo oldTokens "konto" 7 pagingToday) with
+            | Error (ComdirectError.InvalidResponse _) -> ()
+            | other -> failtestf "InvalidResponse erwartet: %A" other
+            Expect.equal bank.Calls.Count MaxTransactionPages "Obergrenze"
+
+        testCase "Intakt: mehrere echte Seiten kommen vollständig an" <| fun () ->
+            let pages =
+                Collections.Generic.Queue [
+                    pageOf [ "2026-01-13", "a"; "2026-01-12", "b" ]
+                    pageOf [ "2026-01-11", "c"; "2026-01-10", "d" ]
+                    pageOf [ "2026-01-09", "e"; "2025-12-01", "zu-alt" ] ]
+            use bank =
+                new FakeBank(fun () ->
+                    new HttpResponseMessage(HttpStatusCode.OK, Content = new StringContent(pages.Dequeue ())))
+            match withClient bank (fun c -> getTransactionsWith c requestInfo oldTokens "konto" 7 pagingToday) with
+            | Ok transactions ->
+                Expect.equal (transactions |> List.map (fun t -> t.Reference)) [ "a"; "b"; "c"; "d"; "e" ] "alle Buchungen im Zeitraum"
+            | other -> failtestf "Buchungen erwartet: %A" other
+
+        // Datenende: Das träfe jedes Konto, dessen Daten im Zeitraum enden, bei jedem Sync.
+        testCase "Intakt: eine leere Folgeseite beendet den Abruf mit allen Buchungen" <| fun () ->
+            use bank = bankWithPages [ pageOf [ "2026-01-13", "a"; "2026-01-12", "b" ]; """{"values":[]}""" ]
+            expectReferences bank [ "a"; "b" ]
+            Expect.equal bank.Calls.Count 2 "die leere Seite ist die letzte"
+
+        testCase "Intakt: ein Konto ohne Buchungen liefert ein leeres Ergebnis" <| fun () ->
+            use bank = bankWithPages [ """{"values":[]}""" ]
+            expectReferences bank []
+            Expect.equal bank.Calls.Count 1 "eine leere erste Seite beendet das Blättern"
+
+        // Fehlalarm: Eine neue Buchung verschiebt zwischen zwei Abrufen die letzte Buchung auf die
+        // nächste Seite, die Bank liefert dort nur noch Bekanntes.
+        testCase "Intakt: eine kürzere Seite ohne neue Reference ist das Datenende, ohne Dopplung" <| fun () ->
+            use bank = bankWithPages [ pageOf [ "2026-01-13", "a"; "2026-01-12", "b" ]; pageOf [ "2026-01-12", "b" ] ]
+            expectReferences bank [ "a"; "b" ]
+            Expect.equal bank.Calls.Count 2 "die kürzere Seite ist die letzte"
+
+        testCase "Intakt: das Datenende misst die Länge an der ersten Seite, nicht an der vorigen" <| fun () ->
+            let shortPage = pageOf [ "2026-01-11", "d"; "2026-01-10", "e" ]
+            use bank =
+                bankWithPages [
+                    pageOf [ "2026-01-13", "a"; "2026-01-12", "b"; "2026-01-12", "c" ]
+                    shortPage
+                    shortPage ]
+            expectReferences bank [ "a"; "b"; "c"; "d"; "e" ]
+
+        testCase "Intakt: eine kürzere Seite mit neuer Reference ist kein Datenende, die Buchung kommt an" <| fun () ->
+            use bank =
+                bankWithPages [
+                    pageOf [ "2026-01-13", "a"; "2026-01-12", "b"; "2026-01-12", "c" ]
+                    pageOf [ "2026-01-12", "c"; "2026-01-11", "d" ]
+                    """{"values":[]}""" ]
+            match fetchPaged bank with
+            | Ok transactions ->
+                Expect.contains (transactions |> List.map (fun t -> t.Reference)) "d" "die neue Buchung fehlt nicht"
+            | other -> failtestf "Buchungen erwartet: %A" other
+            Expect.equal bank.Calls.Count 3 "es wird weitergeblättert"
+
+        testCase "Intakt: eine doppelte Reference innerhalb einer Seite bleibt am Datenende erhalten" <| fun () ->
+            use bank =
+                bankWithPages [
+                    pageOf [ "2026-01-13", "a"; "2026-01-13", "a"; "2026-01-12", "b" ]
+                    pageOf [ "2026-01-12", "b" ] ]
+            expectReferences bank [ "a"; "a"; "b" ]
+
+        testCase "Kaputt: eine gleich lange Seite ohne neue Reference bleibt ein Fehler" <| fun () ->
+            use bank =
+                bankWithPages [
+                    pageOf [ "2026-01-13", "a"; "2026-01-12", "b" ]
+                    pageOf [ "2026-01-12", "b"; "2026-01-13", "a" ] ]
+            expectInvalidResponse bank
+
+        testCase "Kaputt: eine längere Seite ohne neue Reference bleibt ein Fehler" <| fun () ->
+            use bank =
+                bankWithPages [
+                    pageOf [ "2026-01-13", "a"; "2026-01-12", "b" ]
+                    pageOf [ "2026-01-13", "a"; "2026-01-12", "b"; "2026-01-12", "b" ] ]
+            expectInvalidResponse bank
     ]

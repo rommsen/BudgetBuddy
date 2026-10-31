@@ -195,13 +195,15 @@ let private rows : Row list = [
 
     // ---------------- SyncApi ----------------
     { Endpoint = "SyncApi.startSync"; Case = "ohne Comdirect-Zugangsdaten Fehler"
-      Run = fun () -> syncApi.startSync () |> run |> expectError "Start" }
+      // Eigene leere Sitzung: Expecto läuft parallel, und eine offene Prüfung aus einer anderen Liste
+      // käme unverändert zurück, ohne dass die Zugangsdaten gelesen werden.
+      Run = fun () ->
+          let noSession = { liveImportPorts.Sessions with Current = fun () -> None }
+          Server.BankImport.startSyncWith { liveImportPorts with Sessions = noSession } |> run |> expectError "Start" }
     { Endpoint = "SyncApi.getCurrentSession"; Case = "schwach: Abfrage ohne Absturz"
       Run = fun () -> syncApi.getCurrentSession () |> run |> ignore }
     { Endpoint = "SyncApi.cancelSync"; Case = "unbekannte Sitzung: Fehler"
       Run = fun () -> syncApi.cancelSync (unknownSession ()) |> run |> expectError "Abbruch" }
-    { Endpoint = "SyncApi.initiateComdirectAuth"; Case = "unbekannte Sitzung: Fehler"
-      Run = fun () -> syncApi.initiateComdirectAuth (unknownSession ()) |> run |> expectError "Anmeldung" }
     { Endpoint = "SyncApi.confirmTan"; Case = "unbekannte Sitzung: Fehler"
       Run = fun () -> syncApi.confirmTan (unknownSession ()) |> run |> expectError "TAN" }
     { Endpoint = "SyncApi.getTransactions"; Case = "unbekannte Sitzung: Fehler"

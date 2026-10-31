@@ -199,6 +199,14 @@ let askLenaActionFor (lenaColor: string option) (tx: SyncTransaction) : AskLenaA
                 DisabledReason = if validColor.IsSome then None else Some askLenaNoColorReason
             }
 
+/// Nachlesen nach verlorener Antwort von `startSync`. Es endet spätestens, wenn `ReadsLeft` aufgebraucht ist.
+type StartRecovery = {
+    Reason: string
+    ReadsLeft: int
+    /// Ein Lesen ist schon geplant. Ein Lesen von außen (Routenwechsel) startet dann keine zweite Kette.
+    ReadPlanned: bool
+}
+
 /// SyncFlow-specific model state
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
@@ -218,6 +226,8 @@ type Model = {
     DuplicateTransactionIds: TransactionId list
     /// Whether TAN confirmation is in progress (prevents double-clicks)
     IsTanConfirming: bool
+    /// Gesetzt, wenn die Antwort von `startSync` verloren ging und der Serverzustand neu gelesen wird.
+    InterruptedStart: StartRecovery option
     /// Transaction IDs with expanded details (showing memo)
     ExpandedTransactionIds: Set<TransactionId>
     /// Active inline rule creation form (None when not creating rule)
@@ -242,10 +252,13 @@ type Model = {
 type Msg =
     | LoadCurrentSession
     | CurrentSessionLoaded of SyncSession option
+    | CurrentSessionLoadFailed of string
     | StartSync
-    | SyncStarted of Result<SyncSession, SyncError>
-    | InitiateComdirectAuth
-    | ComdirectAuthInitiated of Result<string, SyncError>
+    | SyncStarted of Result<SyncStart, SyncError>
+    /// Die Antwort von `startSync` ging auf dem Transportweg verloren. Der Server kann trotzdem weit sein.
+    | SyncStartInterrupted of string
+    /// Die Pause vor dem nächsten Lesen ist um. Trägt den Stand von `ReadsLeft` beim Planen.
+    | InterruptedStartReadDue of int
     | ConfirmTan
     | TanConfirmed of Result<unit, SyncError>
     | LoadTransactions

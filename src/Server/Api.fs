@@ -676,8 +676,9 @@ let buildComdirectImportCandidates
 // Sync API Implementation
 // ============================================
 
-/// Bricht den Sync ab. Eine offene Challenge verfällt, eine aktive Bankverbindung bleibt stehen
-/// (ADR 0071 Punkt 2).
+/// Bricht den Sync ab, auch während eines laufenden Abrufs, ohne auf ihn zu warten. Die Sitzung geht
+/// zuerst: Ab dann startet der Ablauf keine Challenge mehr, das Verwerfen danach fängt eine Challenge
+/// ab, die schon unterwegs ist. Eine aktive Bankverbindung bleibt stehen (ADR 0071 Punkt 2).
 let cancelSyncWith
     (validateSession: SyncSessionId -> Result<'Session, SyncError>)
     (discardPendingChallenge: unit -> Async<unit>)
@@ -688,11 +689,58 @@ let cancelSyncWith
     | Error err -> return Error err
     | Ok _ ->
         try
-            do! discardPendingChallenge ()
             clearSyncSession ()
+            do! discardPendingChallenge ()
             return Ok ()
         with ex ->
             return Error (SyncError.DatabaseError ("cancel_sync", ex.Message))
+}
+
+/// YNAB-Buchungen für Duplikate und Order-ID-Vorschläge. Ohne Einrichtung oder bei einem Fehler
+/// läuft der Abruf ohne diesen Abgleich weiter.
+let private loadYnabTransactionsForReview (days: int) : Async<YnabTransaction list option> = async {
+    let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+    let! budgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+    let! accountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
+
+    match tokenOpt, budgetIdOpt, accountIdOpt with
+    | Some token, Some budgetId, Some accountIdStr ->
+        match Guid.TryParse(accountIdStr: string) with
+        | true, accountIdGuid ->
+            match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) days with
+            | Ok ynabTransactions -> return Some ynabTransactions
+            | Error _ -> return None
+        | false, _ -> return None
+    | _ -> return None
+}
+
+let private liveImportSessions : BankImport.SyncSessions = {
+    Current = SyncSessionManager.getCurrentSession
+    StartNew = SyncSessionManager.startNewSession
+    SetStatus = SyncSessionManager.updateSessionStatus
+    Fail = SyncSessionManager.failSession
+    AddTransactions = SyncSessionManager.addTransactions
+    ValidateAwaitingTan = fun sessionId ->
+        SyncSessionManager.validateSessionStatus sessionId AwaitingTan |> Result.map ignore
+    RecordStarted = Persistence.SyncSessions.createSession
+    RecordChanged = Persistence.SyncSessions.updateSession
+}
+
+let internal liveImportPorts : BankImport.ImportPorts = {
+    Gate = new System.Threading.SemaphoreSlim(1, 1)
+    Sources = {
+        Bank = BankPort.comdirectBankPort ComdirectAuthSession.livePorts (fun () -> DateTimeOffset.UtcNow)
+        LoadRules = Persistence.Rules.getAllRules
+        LoadYnabTransactions = loadYnabTransactionsForReview
+    }
+    Sessions = liveImportSessions
+    LoadSettings = fun () -> async {
+        let! settings = loadAppSettings ()
+        return { Comdirect = settings.Comdirect; DaysToFetch = settings.Sync.DaysToFetch }
+    }
+    DescribeBankError = comdirectErrorToString
+    Clock = fun () -> DateTime.UtcNow
+    Today = fun () -> DateTime.Today
 }
 
 let syncApi : SyncApi = {
@@ -700,24 +748,7 @@ let syncApi : SyncApi = {
     // Session management
     // ============================================
 
-    startSync = fun () -> async {
-        try
-            // First check if Comdirect credentials are configured
-            let! settings = loadAppSettings ()
-            match settings.Comdirect with
-            | None ->
-                return Error (SyncError.ComdirectAuthFailed "Comdirect credentials not configured. Please configure them in Settings first.")
-            | Some _ ->
-                // Create new session
-                let session = SyncSessionManager.startNewSession()
-
-                // Persist session to database
-                do! Persistence.SyncSessions.createSession session
-
-                return Ok session
-        with ex ->
-            return Error (SyncError.DatabaseError ("start_sync", ex.Message))
-    }
+    startSync = fun () -> BankImport.startSyncWith liveImportPorts
 
     getCurrentSession = fun () -> async {
         return SyncSessionManager.getCurrentSession()
@@ -733,120 +764,7 @@ let syncApi : SyncApi = {
     // Comdirect auth flow
     // ============================================
 
-    initiateComdirectAuth = fun sessionId -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            // Get Comdirect credentials from settings
-            let! settings = loadAppSettings ()
-
-            match settings.Comdirect with
-            | None ->
-                return Error (SyncError.ComdirectAuthFailed "Comdirect credentials not configured")
-            | Some credentials ->
-                // Update session status
-                SyncSessionManager.updateSessionStatus AwaitingTan
-
-                // Start auth flow
-                match! ComdirectAuthSession.startAuth credentials with
-                | Error comdirectError ->
-                    let errorMsg = comdirectErrorToString comdirectError
-                    SyncSessionManager.failSession errorMsg
-                    return Error (SyncError.ComdirectAuthFailed errorMsg)
-                | Ok challenge ->
-                    // Return challenge info
-                    return Ok challenge.Id
-    }
-
-    confirmTan = fun sessionId -> async {
-        match SyncSessionManager.validateSessionStatus sessionId AwaitingTan with
-        | Error err -> return Error err
-        | Ok _ ->
-            // Complete TAN flow
-            match! ComdirectAuthSession.confirmTan() with
-            | Error comdirectError ->
-                let errorMsg = comdirectErrorToString comdirectError
-                SyncSessionManager.failSession errorMsg
-                return Error (SyncError.ComdirectAuthFailed errorMsg)
-            | Ok _ ->
-                // Update session status
-                SyncSessionManager.updateSessionStatus FetchingTransactions
-
-                // Get sync settings
-                let! settings = loadAppSettings ()
-
-                // Get account ID from settings
-                let accountId =
-                    settings.Comdirect
-                    |> Option.bind (fun c -> c.AccountId)
-                    |> Option.defaultValue ""
-
-                // Fetch transactions
-                match! ComdirectAuthSession.fetchTransactions accountId settings.Sync.DaysToFetch DateTime.Today with
-                | Error comdirectError ->
-                    let errorMsg = comdirectErrorToString comdirectError
-                    SyncSessionManager.failSession errorMsg
-                    return Error (SyncError.TransactionFetchFailed errorMsg)
-                | Ok bankTransactions ->
-                    // Apply rules engine
-                    let! allRules = Persistence.Rules.getAllRules()
-                    match classifyTransactions DateTime.UtcNow allRules bankTransactions with
-                    | Error errors ->
-                        let errorMsg = String.concat "; " errors
-                        SyncSessionManager.failSession errorMsg
-                        return Error (SyncError.TransactionFetchFailed errorMsg)
-                    | Ok syncTransactions ->
-                        // Detect duplicates and apply Order-ID suggestions by fetching existing YNAB transactions
-                        let! syncTransactionsWithDuplicatesAndSuggestions = async {
-                            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-                            let! budgetIdOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-                            let! accountIdOpt = Persistence.Settings.getSetting "ynab_default_account_id"
-
-                            match tokenOpt, budgetIdOpt, accountIdOpt with
-                            | Some token, Some budgetId, Some accountIdStr ->
-                                match Guid.TryParse(accountIdStr: string) with
-                                | true, accountIdGuid ->
-                                    // Fetch existing YNAB transactions for duplicate detection
-                                    match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (settings.Sync.DaysToFetch + 7) with
-                                    | Ok ynabTransactions ->
-                                        // Mark duplicates
-                                        let withDuplicates = DuplicateDetection.markDuplicates ynabTransactions syncTransactions
-                                        // Apply Order-ID based category suggestions from YNAB history
-                                        let orderIdMap = OrderIdMatcher.buildYnabOrderIdMap ynabTransactions
-                                        return OrderIdMatcher.applySuggestions DateTime.UtcNow orderIdMap withDuplicates
-                                    | Error _ ->
-                                        // If we can't fetch YNAB transactions, proceed without duplicate detection
-                                        return syncTransactions
-                                | false, _ ->
-                                    return syncTransactions
-                            | _ ->
-                                // YNAB not configured, proceed without duplicate detection
-                                return syncTransactions
-                        }
-
-                        // Auto-skip confirmed duplicates
-                        let syncTransactionsWithAutoSkip =
-                            syncTransactionsWithDuplicatesAndSuggestions
-                            |> List.map (fun tx ->
-                                match tx.DuplicateStatus with
-                                | ConfirmedDuplicate _ -> { tx with Status = Skipped }
-                                | _ -> tx
-                            )
-
-                        // Add transactions to session
-                        SyncSessionManager.addTransactions syncTransactionsWithAutoSkip
-
-                        // Update session status
-                        SyncSessionManager.updateSessionStatus ReviewingTransactions
-
-                        // Update session in database
-                        match SyncSessionManager.getCurrentSession() with
-                        | Some session ->
-                            do! Persistence.SyncSessions.updateSession session
-                            return Ok ()
-                        | None ->
-                            return Error (SyncError.SessionNotFound (let (SyncSessionId id) = sessionId in id))
-    }
+    confirmTan = BankImport.confirmTanWith liveImportPorts
 
     // ============================================
     // Transaction operations
