@@ -1,7 +1,7 @@
 ---
 id: categorization-f955d
 title: "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
-status: todo
+status: doing
 type: bug
 context: categorization
 created: 2026-10-30

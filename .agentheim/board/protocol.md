@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 10:38 -- Batch started: [categorization-f955d]
+
+**Type:** Work / Batch start
+**Tasks:** categorization-f955d - "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
+**Parallel:** Regelseite, keine Überschneidung mit banking-import-cyg94 und banking-import-z4h6p
+
+---
+
 ## 2026-10-31 10:37 -- Task verified and completed: budgeting-nfrds - "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt"
 
 **Type:** Work / Task completion
