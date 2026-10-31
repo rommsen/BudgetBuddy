@@ -62,6 +62,8 @@ Der Import lädt die Konten beim Seitenaufruf und erneut beim Öffnen des Split-
 
 **Nicht bewiesen:** warum die Client-Seite die Verbindungen schließt (Firefox, Mac, Tailscale-Client). Bleibt das nach dem Fix störend, ist das ein eigener Task im BC infrastructure. Der Container nutzt `tailscale/tailscale:latest` (1.102.3), die übrigen Tailscale-Container 1.104.1.
 
+**Spur Firefox:** Die Konsole zeigt je Anfrage die Info "Lokaler Netzwerkzugriff erkannt" (Tailscale-Adresse 100.85.140.42, `auto_allow`). Firefox stuft die Tailscale-Adresse also als lokal ein, blockiert aber nicht und fragt nicht nach. Ein Zusammenhang mit den Abbrüchen ist nicht belegt. Gegenprobe: gleicher Reload in einem anderen Browser.
+
 Die Meldung nennt diesen Fall "Database error during load", obwohl keine Antwort kam. Das ist irreführend, aber nicht Teil dieses Tasks.
 
 `YnabApi.getBudgetDetails` bleibt als Endpoint bestehen, Aufräumen ist nicht Teil dieses Tasks. `YnabClient.getBudgetWithAccounts` nutzt der Verbindungstest weiter.

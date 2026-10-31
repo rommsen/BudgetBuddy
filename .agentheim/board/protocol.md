@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 11:20 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Firefox-Konsole als Spur ergänzt: Lokaler Netzwerkzugriff erkannt, auto_allow. Zusammenhang mit den Abbrüchen nicht belegt.
+
+---
+
 ## 2026-10-31 11:18 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
 
 **Type:** Modeling / Refine
