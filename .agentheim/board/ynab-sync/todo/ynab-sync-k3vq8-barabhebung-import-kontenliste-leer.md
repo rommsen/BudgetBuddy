@@ -47,6 +47,10 @@ Der Import lädt die Konten beim Seitenaufruf und erneut beim Öffnen des Split-
 
 **Nicht bewiesen:** warum der Abruf in Produktion scheitert. Der Ladeweg ist seit ynab-002 (2026-06-13) unverändert, `budgetDetailDecoder` ebenfalls; die Kassenbuch-Umstellung hat diese Stelle nicht angefasst. Der Browser-Wächter aus design-system-bym4m ist grün, weil er `getBudgetDetails` mockt. Kandidaten sind Laufzeit oder Rate-Limit des vollen Budget-Abrufs, der mit dem Datenbestand wächst, oder ein Fehlschlag beim App-Start. Lokal lief kein Server, und gegen die Produktion wurde nichts abgefragt. Der Umstieg auf `/accounts` entfernt alle diese Kandidaten außer einem echten YNAB-Ausfall, und der wird durch den Toast sichtbar. Falls der Fehler nach dem Fix bleibt, nennt der Toast die Ursache.
 
+**Beobachtung Roman, 2026-10-31:** Beim Neuladen scheiterte `getTransactions` mit "Http error (0)" (keine Antwort vom Server), beim nächsten Neuladen ging es wieder. Das stützt den Kandidaten "Fehlschlag beim App-Start": Ein kurzer Aussetzer beim Start lässt die Kontenliste bis zum nächsten Neuladen leer. Der Grund des Aussetzers ist offen (Server-Neustart, Tailscale oder Netz); die Produktion wurde nicht geprüft.
+
+Die Meldung nennt diesen Fall "Database error during load", obwohl keine Antwort kam. Das ist irreführend, aber nicht Teil dieses Tasks.
+
 `YnabApi.getBudgetDetails` bleibt als Endpoint bestehen, Aufräumen ist nicht Teil dieses Tasks. `YnabClient.getBudgetWithAccounts` nutzt der Verbindungstest weiter.
 
 Fable.Remoting-Fixtures mitziehen. Die Fixture mockt heute alle unbekannten `/api/**` mit 500, `LedgerApi/getBudgetAccounts` braucht also einen eigenen Mock.

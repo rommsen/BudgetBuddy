@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 10:16 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Beobachtung ergänzt: kurzer Http-0-Aussetzer beim Neuladen, danach geht es wieder. Stützt den Kandidaten Fehlschlag beim App-Start.
+
+---
+
 ## 2026-10-31 10:13 -- Modeling / Captured: ynab-sync-k3vq8 - "Barabhebung in Import prüfen: Kontenliste bleibt still leer, das Bar-Konto ist nicht vorbelegt und im Picker gibt es keine Konten"
 
 **Type:** Modeling / Capture
