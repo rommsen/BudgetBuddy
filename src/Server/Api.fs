@@ -890,12 +890,8 @@ let syncApi : SyncApi = {
                 // shared smart-constructor (ADR 0006): >= 2 lines, one currency, and
                 // the sign-correct sum (transfer lines included) equals the total.
                 match mkSplits tx.Transaction.Amount splits with
-                | Error (TooFewLines _) ->
-                    return Error (SyncError.InvalidSessionState ("split", "Eine Aufteilung braucht mindestens 2 Positionen"))
-                | Error CurrencyMismatch ->
-                    return Error (SyncError.InvalidSessionState ("split", "Alle Positionen müssen die Währung der Buchung haben"))
-                | Error (SumMismatch (expected, actual)) ->
-                    return Error (SyncError.InvalidSessionState ("split", $"Die Positionen ergeben {actual}, die Buchung beträgt aber {expected}"))
+                | Error splitError ->
+                    return Error (SyncError.InvalidSessionState ("split", splitErrorText splitError))
                 | Ok validatedSplits ->
                     let updated =
                         { tx with

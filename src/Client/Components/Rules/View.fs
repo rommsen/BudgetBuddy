@@ -89,13 +89,15 @@ let priorityHint =
 // Rule List (ruhige Liste, ADR 0049)
 // ============================================
 
-/// Klick und Enter auf einer Zeile öffnen den Dialog "Regel bearbeiten"
+/// Klick, Enter und Leertaste auf einer Zeile öffnen den Dialog "Regel bearbeiten"
 let private openOnActivate (dispatch: Msg -> unit) (rule: Rule) =
     [
         prop.tabIndex 0
+        prop.role "button"
+        prop.ariaLabel $"Regel bearbeiten: {rule.Name}"
         prop.onClick (fun _ -> dispatch (EditRule rule.Id))
         prop.onKeyDown (fun e ->
-            if e.key = "Enter" then
+            if e.key = "Enter" || e.key = " " then
                 e.preventDefault ()
                 dispatch (EditRule rule.Id))
     ]
@@ -118,6 +120,7 @@ let private moveButton (size: MoveButtonSize) (icon: ReactElement) (title: strin
             + " flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-surface-elevated disabled:opacity-30 transition-colors touch-manipulation"
         )
         prop.title title
+        prop.ariaLabel title
         prop.disabled isDisabled
         prop.onClick (fun e ->
             e.stopPropagation ()
@@ -633,11 +636,14 @@ let private importInput (dispatch: Msg -> unit) =
 
 /// Dieselben drei Einträge in beiden Hüllen. Der erste nimmt den Fokus, damit Esc greift und
 /// Tab bei den Einträgen weitergeht. Die Dateiauswahl muss direkt im Klick starten.
-let private rulesMenuItems (dispatch: Msg -> unit) =
+/// Im Sheet schützt der Click-Swallow-Guard die Liste dahinter vor dem Ghost-Click (ADR 0005). Er
+/// steht hinter der Aktion, sonst schluckt er den `click()` auf das Datei-Input.
+let private rulesMenuItems (inSheet: bool) (dispatch: Msg -> unit) =
     let closeThen (action: unit -> unit) =
         fun () ->
             dispatch CloseRulesMenu
             action ()
+            if inSheet then Viewport.swallowNextClick 350
     // Autofokus nur bei feinem Pointer (ADR 0005): am Handy stünde sonst ein Eintrag beim Öffnen
     // hervorgehoben da.
     let firstItem = if Viewport.isFinePointer () then FilterPopover.menuItemAutoFocus else FilterPopover.menuItem
@@ -677,11 +683,11 @@ let private rulesMenu (model: Model) (dispatch: Msg -> unit) =
             if Viewport.isDesktopViewport () then
                 FilterPopover.viewEnd
                     { IsOpen = model.MenuOpen; OnClose = close; WidthClassName = FilterPopover.menuWidthClass }
-                    (rulesMenuItems dispatch)
+                    (rulesMenuItems false dispatch)
             else
                 BottomSheet.view
                     { IsOpen = model.MenuOpen; OnClose = close; Title = "Regeln"; Subtitle = None; Footer = None }
-                    [ if model.MenuOpen then yield! rulesMenuItems dispatch ]
+                    [ if model.MenuOpen then yield! rulesMenuItems true dispatch ]
             importInput dispatch
         ]
     ]
@@ -704,6 +710,7 @@ let private rulesHeaderActions (model: Model) (dispatch: Msg -> unit) = [
             OnClick = fun () -> dispatch OpenNewRuleModal
             Variant = Button.Primary
             Icon = Some (Icons.plus SM Icons.IconColor.Primary)
+            AriaLabel = Some "Neue Regel"
             Title = Some "Neue Regel"
             ClassName = Some "md:hidden"
     }

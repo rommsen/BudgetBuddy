@@ -117,6 +117,7 @@ let init () : Model * Cmd<Msg> =
         InterruptedStart = None
         ExpandedTransactionIds = Set.empty
         InlineRuleForm = None
+        InlineRuleTestVersion = 0
         ManuallyCategorizedIds = Set.empty
         ActiveFilter = AllTransactions
         PendingCategoryVersions = Map.empty
@@ -131,6 +132,31 @@ let init () : Model * Cmd<Msg> =
         Cmd.ofMsg LoadAccounts
     ]
     model, cmd
+
+/// Wartezeit nach der letzten Eingabe, bis das Formular das Muster gegen die Buchung testet.
+[<Literal>]
+let private InlineRuleTestDelayMs = 300
+
+/// Übernimmt das geänderte Formular und startet den Muster-Test neu. Ohne Muster gibt es nichts
+/// zu testen, der Stand zählt trotzdem hoch, damit eine laufende Antwort verfällt.
+let private restartInlineRuleTest (model: Model) (form: InlineRuleFormState) =
+    let version = model.InlineRuleTestVersion + 1
+    if System.String.IsNullOrWhiteSpace form.Pattern then
+        { model with InlineRuleForm = Some { form with InlineRuleTest = NotAsked }; InlineRuleTestVersion = version },
+        Cmd.none,
+        NoOp
+    else
+        { model with InlineRuleForm = Some { form with InlineRuleTest = Loading }; InlineRuleTestVersion = version },
+        Debounce.delayed InlineRuleTestDelayMs (InlineRuleTestDue version),
+        NoOp
+
+/// Trägt das Testergebnis ein, wenn es zum aktuellen Stand gehört. Spätere Antworten älterer
+/// Anfragen ändern nichts.
+let private settleInlineRuleTest (model: Model) (version: int) (test: RemoteData<bool>) =
+    match model.InlineRuleForm with
+    | Some form when version = model.InlineRuleTestVersion ->
+        { model with InlineRuleForm = Some { form with InlineRuleTest = test } }
+    | _ -> model
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
@@ -1034,30 +1060,31 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     RuleName = ruleName
                     IsSaving = false
                     TransactionText = transactionText
+                    InlineRuleTest = NotAsked
                 }
-                { model with InlineRuleForm = Some formState }, Cmd.none, NoOp
+                restartInlineRuleTest model formState
             | _ -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
     | CloseInlineRuleForm ->
-        { model with InlineRuleForm = None }, Cmd.none, NoOp
+        { model with InlineRuleForm = None; InlineRuleTestVersion = model.InlineRuleTestVersion + 1 }, Cmd.none, NoOp
 
     | UpdateInlineRulePattern value ->
         match model.InlineRuleForm with
         | Some form ->
-            { model with InlineRuleForm = Some { form with Pattern = value } }, Cmd.none, NoOp
+            restartInlineRuleTest model { form with Pattern = value }
         | None -> model, Cmd.none, NoOp
 
     | UpdateInlineRulePatternType patternType ->
         match model.InlineRuleForm with
         | Some form ->
-            { model with InlineRuleForm = Some { form with PatternType = patternType } }, Cmd.none, NoOp
+            restartInlineRuleTest model { form with PatternType = patternType }
         | None -> model, Cmd.none, NoOp
 
     | UpdateInlineRuleTargetField targetField ->
         match model.InlineRuleForm with
         | Some form ->
-            { model with InlineRuleForm = Some { form with TargetField = targetField } }, Cmd.none, NoOp
+            restartInlineRuleTest model { form with TargetField = targetField }
         | None -> model, Cmd.none, NoOp
 
     | UpdateInlineRulePayeeOverride value ->
@@ -1099,9 +1126,31 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Some _ -> model, Cmd.none, ShowToast ("Please enter a pattern", ToastWarning)
         | None -> model, Cmd.none, NoOp
 
+    | InlineRuleTestDue version ->
+        match model.InlineRuleForm with
+        | Some form when version = model.InlineRuleTestVersion ->
+            let cmd =
+                Cmd.OfAsync.either
+                    Api.rules.testRule
+                    (form.Pattern, form.PatternType, form.TargetField, form.TransactionText)
+                    (fun result -> InlineRuleTested (version, result))
+                    (fun _ -> InlineRuleTestLost version)
+            model, cmd, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | InlineRuleTested (version, result) ->
+        let test =
+            match result with
+            | Ok matches -> Success matches
+            | Error err -> RemoteData.Failure (rulesErrorToString err)
+        settleInlineRuleTest model version test, Cmd.none, NoOp
+
+    | InlineRuleTestLost version ->
+        settleInlineRuleTest model version (RemoteData.Failure ruleTestLostText), Cmd.none, NoOp
+
     | InlineRuleSaved (Ok rule) ->
         // Close form and apply rule to pending transactions
-        { model with InlineRuleForm = None },
+        { model with InlineRuleForm = None; InlineRuleTestVersion = model.InlineRuleTestVersion + 1 },
         Cmd.ofMsg (ApplyNewRuleToTransactions rule),
         ShowToast ($"Rule '{rule.Name}' created!", ToastSuccess)
 

@@ -70,6 +70,9 @@ type InlineRuleFormState = {
     IsSaving: bool
     /// Transaction text (payee + memo) for auto-testing pattern match
     TransactionText: string
+    /// Ergebnis des automatischen Muster-Tests: `Failure` trägt die Meldung für ungültiges
+    /// Muster und Netzfehler, "passt nicht" ist `Success false`.
+    InlineRuleTest: RemoteData<bool>
 }
 
 // Quick Add form state (`QuickAddFormState`) and its pure helpers
@@ -232,6 +235,9 @@ type Model = {
     ExpandedTransactionIds: Set<TransactionId>
     /// Active inline rule creation form (None when not creating rule)
     InlineRuleForm: InlineRuleFormState option
+    /// Stand des Muster-Tests. Jede Änderung am Muster und jedes Schließen zählt hoch: fällige
+    /// Timer und Antworten mit älterem Stand werden verworfen, auch über Formulare hinweg.
+    InlineRuleTestVersion: int
     /// Set of transaction IDs that have been manually categorized (show "Create Rule" button)
     ManuallyCategorizedIds: Set<TransactionId>
     /// Active filter for the transaction list
@@ -341,6 +347,11 @@ type Msg =
     | UpdateInlineRuleName of string
     | SaveInlineRule
     | InlineRuleSaved of Result<Rule, RulesError>
+    /// Die Entprellung ist abgelaufen: der Muster-Test mit diesem Stand läuft los.
+    | InlineRuleTestDue of version: int
+    | InlineRuleTested of version: int * Result<bool, RulesError>
+    /// Der Server hat nicht geantwortet (Netzfehler).
+    | InlineRuleTestLost of version: int
     | ApplyNewRuleToTransactions of Rule
     | TransactionsUpdatedByRule of Result<SyncTransaction list, SyncError>
 

@@ -54,6 +54,7 @@ schwaches Payee-basiertes Auto-Matching.
   Kategorien-Load, kein Live-Refresh pro Zeile. **Ausnahme "Inflow: Ready to Assign":** deren
   eigenes `balance` ist ein interner Akkumulator (Fantasiewert); stattdessen zeigt sie den
   echten Ready-to-Assign des Monats (`to_be_budgeted`), via `applyReadyToAssign` (ADR 0011).
+- **Muster-Test**: prüft ein Muster gegen einen Text, ohne eine Regel zu speichern (`testRule`). Drei getrennte Ausgänge: passt, passt nicht, kein Urteil. Kein Urteil gibt es bei ungültigem Muster (nennt den Grund) und bei Netzfehler (eigene Meldung), beides ist nie „passt nicht“. Im Regelformular an der Importzeile läuft er entprellt von selbst: `InlineRuleTest: RemoteData<bool>` hält das Ergebnis, `InlineRuleTestVersion` verwirft fällige Timer und späte Antworten.
 
 ## Aggregates
 - **Rule** — eine Regel; Invariante: gültiges Pattern (bei Regex kompilierbar), eindeutige

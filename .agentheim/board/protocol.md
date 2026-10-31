@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 12:57 -- Task verified and completed: categorization-f955d - "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
+
+**Type:** Work / Task completion
+**Task:** categorization-f955d - "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen"
+**Summary:** Der Muster-Test im Regelformular läuft jetzt in Elmish mit Stand und wirksamer Entprellung, ungültiges Muster und Netzfehler melden je einen eigenen Text. Regelzeilen sind per Tastatur bedienbar, das Menü im Sheet schützt vor dem Ghost-Click, die Split-Texte liegen geprüft in Validation.fs.
+**Duration:** 60 min
+**Verification:** PASS (iteration 1)
+**Files changed:** 16
+**Tests added:** 32
+**ADRs written:** none
+
+---
+
+## 2026-10-31 12:56 -- Verification failed: banking-import-z4h6p - Bankverbindung übersteht Neustart
+
+**Type:** Work / Verification failure
+**Task:** banking-import-z4h6p
+**Iteration:** 3 of 3
+**Reasons:** Anschluss von disconnect und runTick im laufenden Server unbelegt, zwei Kriterien betroffen
+**Iteration hint:** likely-fixable
+**Next:** escalated to user
+
+---
+
 ## 2026-10-31 12:23 -- Task verified and completed: banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
 
 **Type:** Work / Task completion

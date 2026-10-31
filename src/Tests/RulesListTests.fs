@@ -231,3 +231,25 @@ let private tests =
 
 [<Tests>]
 let allTests = tests
+
+[<Tests>]
+let patternTestFeedbackTests =
+    let form (msg: Components.Rules.Types.Msg) =
+        let initial, _ = Components.Rules.State.init ()
+        let next, _, _ = Components.Rules.State.update msg initial
+        next.Form.TestResult
+    testList "Muster testen im Regel-Dialog" [
+        testCase "kein Treffer heißt passt nicht" <| fun () ->
+            Expect.equal (form (RulePatternTested (Ok false))) (Some "❌ Muster passt nicht") "Text"
+
+        testCase "ein Treffer heißt passt" <| fun () ->
+            Expect.equal (form (RulePatternTested (Ok true))) (Some "✅ Muster passt") "Text"
+
+        testCase "ein ungültiges Muster nennt den Grund" <| fun () ->
+            let result = form (RulePatternTested (Error (RulesError.InvalidPattern ("(", "Klammer fehlt"))))
+            Expect.equal result (Some "⚠️ Ungültiges Muster '(': Klammer fehlt") "Text"
+
+        // Bug categorization-f955d: ein Netzfehler wurde als ungültiges Muster gemeldet.
+        testCase "ein Netzfehler ist kein Urteil über das Muster" <| fun () ->
+            Expect.equal (form RulePatternTestLost) (Some $"⚠️ {ruleTestLostText}") "Text"
+    ]

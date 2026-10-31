@@ -168,6 +168,8 @@ type Msg =
     | UpdateRuleFormTestInput of string
     | TestRulePattern
     | RulePatternTested of Result<bool, RulesError>
+    /// Der Server hat nicht geantwortet (Netzfehler): kein Urteil über das Muster.
+    | RulePatternTestLost
     | SaveRule
     | RuleSaved of Result<Rule, RulesError>
     | OpenRuleCategoryPicker

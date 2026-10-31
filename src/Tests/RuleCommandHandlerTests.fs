@@ -272,7 +272,7 @@ let tieBreakTests =
             let transaction =
                 { Id = TransactionId "tie"; BookingDate = now; Amount = { Amount = -1m; Currency = "EUR" }
                   Payee = Some payee; Memo = ""; Reference = "tie"; RawData = "" }
-            compiled |> List.tryFind (fun rule -> rule.Regex.IsMatch(getMatchText transaction rule.Rule.TargetField))
+            classify compiled transaction |> Option.map fst
 
         // Bug: die Reihenfolge bei gleicher Priorität war offen. Beide Id-Reihenfolgen, damit
         // nicht zufällig die Id entscheidet.
@@ -294,7 +294,7 @@ let tieBreakTests =
                 let rules = rulesNamed prefix
 
                 Expect.equal (rules |> List.map (fun rule -> rule.Id)) [ first.Id; second.Id ] "Speicherreihenfolge"
-                let winner = classifyFirst rules "REWE" |> Option.map (fun rule -> rule.Rule.Id)
+                let winner = classifyFirst rules "REWE" |> Option.map (fun rule -> rule.Id)
                 Expect.equal winner (Some first.Id) "die erste gewinnt"
     ]
 

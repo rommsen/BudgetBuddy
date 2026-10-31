@@ -512,6 +512,16 @@ let transactionValidationTests =
         ]
     ]
 
+let splitErrorTextTests =
+    testList "splitErrorText" [
+        testCase "zu wenige Positionen nennt die Mindestzahl" <| fun () ->
+            Expect.equal (splitErrorText (TooFewLines 1)) "Eine Aufteilung braucht mindestens 2 Positionen" "Text"
+        testCase "falsche Währung nennt die Buchung" <| fun () ->
+            Expect.equal (splitErrorText CurrencyMismatch) "Alle Positionen müssen die Währung der Buchung haben" "Text"
+        testCase "falsche Summe nennt Ist und Soll in dieser Reihenfolge" <| fun () ->
+            Expect.equal (splitErrorText (SumMismatch (50m, 40m))) "Die Positionen ergeben 40, die Buchung beträgt aber 50" "Text"
+    ]
+
 // ============================================
 // All Tests
 // ============================================
@@ -523,4 +533,5 @@ let tests =
         settingsValidationTests
         rulesValidationTests
         transactionValidationTests
+        splitErrorTextTests
     ]

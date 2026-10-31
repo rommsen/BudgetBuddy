@@ -1,9 +1,9 @@
 module Components.SyncFlow.Views.InlineRuleForm
 
 open Feliz
-open Fable.Core.JsInterop
 open Components.SyncFlow.Types
 open Shared.Domain
+open Types
 open Client.DesignSystem
 open Client.DesignSystem.Icons
 
@@ -11,39 +11,7 @@ open Client.DesignSystem.Icons
 // Inline Rule Form Component
 // ============================================
 
-[<ReactComponent>]
 let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
-    // Auto-test: check if pattern matches the transaction
-    let testResult, setTestResult = React.useState<bool option>(None)
-    let isTesting, setIsTesting = React.useState(false)
-
-    // Debounced auto-test effect
-    React.useEffect(
-        (fun () ->
-            if System.String.IsNullOrWhiteSpace formState.Pattern then
-                setTestResult None
-                setIsTesting false
-            else
-                setIsTesting true
-                let timer = Browser.Dom.window.setTimeout(
-                    (fun () ->
-                        async {
-                            try
-                                let! result = Api.rules.testRule (formState.Pattern, formState.PatternType, formState.TargetField, formState.TransactionText)
-                                // Ein ungültiges Muster ist kein "passt nicht": ohne Urteil keine Anzeige.
-                                setTestResult (Result.toOption result)
-                            with _ ->
-                                setTestResult (Some false)
-                            setIsTesting false
-                        } |> Async.StartImmediate
-                    ), 300)
-                { new System.IDisposable with member _.Dispose() = Browser.Dom.window.clearTimeout timer }
-                |> Some
-                |> Option.iter ignore
-        ),
-        [| box formState.Pattern; box formState.PatternType; box formState.TargetField |]
-    )
-
     let displayPayee =
         if System.String.IsNullOrWhiteSpace formState.Pattern then "..."
         else formState.Pattern
@@ -96,8 +64,8 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                 prop.onChange (fun (v: string) -> dispatch (UpdateInlineRulePattern v))
                             ]
                             // Auto-test result
-                            match isTesting, testResult with
-                            | true, _ ->
+                            match formState.InlineRuleTest with
+                            | RemoteData.Loading ->
                                 Html.div [
                                     prop.className "test-result"
                                     prop.style [ style.marginTop 6 ]
@@ -105,7 +73,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                         Html.span [ prop.className "text-text-muted text-xs"; prop.text "Teste\u2026" ]
                                     ]
                                 ]
-                            | false, Some true ->
+                            | RemoteData.Success true ->
                                 Html.div [
                                     prop.className "test-result match"
                                     prop.style [ style.marginTop 6 ]
@@ -114,7 +82,7 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                         Html.span [ prop.text "Passt auf diese Transaktion" ]
                                     ]
                                 ]
-                            | false, Some false ->
+                            | RemoteData.Success false ->
                                 Html.div [
                                     prop.className "test-result no-match"
                                     prop.style [ style.marginTop 6 ]
@@ -123,7 +91,16 @@ let inlineRuleForm (formState: InlineRuleFormState) (dispatch: Msg -> unit) =
                                         Html.span [ prop.text "Passt nicht auf diese Transaktion" ]
                                     ]
                                 ]
-                            | false, None -> ()
+                            | RemoteData.Failure message ->
+                                Html.div [
+                                    prop.className "test-result text-neon-orange"
+                                    prop.style [ style.marginTop 6 ]
+                                    prop.children [
+                                        warning XS NeonOrange
+                                        Html.span [ prop.text message ]
+                                    ]
+                                ]
+                            | RemoteData.NotAsked -> ()
                         ]
                     ]
 

@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 7
+- **Doing:** 0
+- **Done:** 8
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ research touching this BC, and concept synthesis pages.
 
 ### Doing
 <!-- doing-list:start -->
-- **categorization-f955d** — "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen" (bug) — `doing/categorization-f955d-regelformular-und-regelseite-nachziehen.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **categorization-f955d** — "Regeln: Inline-Formular nach Elmish, Abhängigkeit von budgeting lösen, Menü und Zeilen bedienbar, Testlücken schließen" (bug) — `done/categorization-f955d-regelformular-und-regelseite-nachziehen.md`
 - **categorization-cgq35** — "Regelseite am Handy und per Tastatur" (bug) — `done/categorization-cgq35-regelseite-am-handy-und-per-tastatur.md`
 - **categorization-msep5** — "Regeln speichern, importieren und sortieren fehlerhaft" (bug) — `done/categorization-msep5-regeln-speichern-importieren-und-sortieren-fehlerhaft.md`
 - **categorization-wnxd6** — Regeln-Seite als ruhige Liste (schlanker Kopf, volle Breite, Tabelle statt Karten) (feature) — `done/categorization-wnxd6-regeln-seite-als-ruhige-liste.md`

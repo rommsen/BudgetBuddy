@@ -229,15 +229,18 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     Api.rules.testRule
                     (model.Form.Pattern, model.Form.PatternType, model.Form.TargetField, model.Form.TestInput)
                     RulePatternTested
-                    (fun ex -> Error (RulesError.InvalidPattern (model.Form.Pattern, ex.Message)) |> RulePatternTested)
+                    (fun _ -> RulePatternTestLost)
             model, cmd, NoOp
 
     | RulePatternTested (Ok matches) ->
-        let resultText = if matches then "✅ Pattern matches!" else "❌ Pattern does not match"
+        let resultText = if matches then "✅ Muster passt" else "❌ Muster passt nicht"
         { model with Form = { model.Form with TestResult = Some resultText } }, Cmd.none, NoOp
 
     | RulePatternTested (Error err) ->
         { model with Form = { model.Form with TestResult = Some $"⚠️ {rulesErrorToString err}" } }, Cmd.none, NoOp
+
+    | RulePatternTestLost ->
+        { model with Form = { model.Form with TestResult = Some $"⚠️ {ruleTestLostText}" } }, Cmd.none, NoOp
 
     | SaveRule ->
         match model.Form.CategoryId with

@@ -9,6 +9,9 @@ type RemoteData<'T> =
     | Success of 'T
     | Failure of string
 
+/// Meldung, wenn der Muster-Test den Server nicht erreicht hat. Das ist kein Urteil über das Muster.
+let ruleTestLostText = "Muster konnte nicht geprüft werden, keine Verbindung zum Server"
+
 /// Utility functions for working with RemoteData values
 [<RequireQualifiedAccess>]
 module RemoteData =

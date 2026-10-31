@@ -144,7 +144,7 @@ let private menuItemWith (autoFocus: bool) (label: string) (onClick: unit -> uni
         prop.className (
             "block w-full text-left truncate rounded-lg px-3 py-3.5 md:py-2 text-text-primary "
             + Client.DesignSystem.Tokens.ListRoles.primarySize
-            + " hover:bg-surface-hover focus:bg-surface-hover focus:outline-none"
+            + " hover:bg-surface-hover focus:bg-surface-hover"
         )
         prop.text label
         prop.onClick (fun e ->

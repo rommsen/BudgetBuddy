@@ -135,6 +135,17 @@ let validateImportedRule (rule: Rule) : Result<Rule, string list> =
     if errors.IsEmpty then Ok rule else Error errors
 
 // ============================================
+// Aufteilungen
+// ============================================
+
+/// Grund für eine abgelehnte Aufteilung als deutscher Satz für den Nutzer (ADR 0006).
+let splitErrorText (error: SplitError) : string =
+    match error with
+    | TooFewLines _ -> "Eine Aufteilung braucht mindestens 2 Positionen"
+    | CurrencyMismatch -> "Alle Positionen müssen die Währung der Buchung haben"
+    | SumMismatch (expected, actual) -> $"Die Positionen ergeben {actual}, die Buchung beträgt aber {expected}"
+
+// ============================================
 // Transaction Validation
 // ============================================
 

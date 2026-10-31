@@ -193,3 +193,88 @@ let syncFlowStateTests =
                 "Der Erfolgspfad lädt die Session weiterhin neu"
         }
     ]
+
+/// Formular an einem gegebenen Teststand, wie es nach dem Tippen im Model steht.
+let private withInlineForm (version: int) (test: RemoteData<bool>) (pattern: string) : Model =
+    { freshModel () with
+        InlineRuleTestVersion = version
+        InlineRuleForm =
+            Some {
+                TransactionId = TransactionId "f955d"
+                Pattern = pattern
+                PatternType = Shared.Domain.Contains
+                TargetField = Combined
+                CategoryId = YnabCategoryId (System.Guid.Empty)
+                CategoryName = "Lebensmittel"
+                PayeeOverride = ""
+                RuleName = "Auto: Test"
+                IsSaving = false
+                TransactionText = "REWE Kartenzahlung"
+                InlineRuleTest = test
+            } }
+
+let private inlineTest (model: Model) =
+    model.InlineRuleForm |> Option.map (fun form -> form.InlineRuleTest)
+
+let private step (msg: Msg) (model: Model) =
+    let next, _, _ = update msg model
+    next
+
+[<Tests>]
+let inlineRuleTestTests =
+    testList "Muster-Test im Regelformular" [
+        // Bug categorization-f955d: die Antworten liefen ohne Stand in die View, die letzte Antwort
+        // gewann, auch wenn sie zu einem älteren Muster gehörte.
+        testCase "die späte Antwort einer älteren Anfrage überschreibt das neuere Ergebnis nicht" <| fun () ->
+            let model =
+                withInlineForm 2 Loading "rewe"
+                |> step (InlineRuleTested (2, Ok true))
+                |> step (InlineRuleTested (1, Ok false))
+            Expect.equal (inlineTest model) (Some (Success true)) "das neuere Ergebnis bleibt"
+
+        testCase "eine späte Antwort ohne Verbindung überschreibt das neuere Ergebnis nicht" <| fun () ->
+            let model =
+                withInlineForm 2 (Success true) "rewe"
+                |> step (InlineRuleTestLost 1)
+            Expect.equal (inlineTest model) (Some (Success true)) "das neuere Ergebnis bleibt"
+
+        testCase "die Antwort zum aktuellen Stand wird übernommen" <| fun () ->
+            let model = withInlineForm 2 Loading "rewe" |> step (InlineRuleTested (2, Ok false))
+            Expect.equal (inlineTest model) (Some (Success false)) "passt nicht"
+
+        testCase "eine Antwort aus einem geschlossenen Formular gilt nicht für das nächste" <| fun () ->
+            let closed = withInlineForm 2 Loading "rewe" |> step CloseInlineRuleForm
+            let reopened = { closed with InlineRuleForm = (withInlineForm 0 Loading "edeka").InlineRuleForm }
+            Expect.equal (inlineTest (step (InlineRuleTested (2, Ok true)) reopened)) (Some Loading) "Antwort verworfen"
+
+        // Bug categorization-f955d: der Timer im useEffect wurde nie abgebrochen, jeder Tastendruck
+        // löste eine Anfrage aus.
+        testCase "jede Änderung am Muster macht den wartenden Test ungültig" <| fun () ->
+            let model = withInlineForm 2 (Success true) "rewe"
+            for change in [ UpdateInlineRulePattern "rewe m"
+                            UpdateInlineRulePatternType Exact
+                            UpdateInlineRuleTargetField Payee ] do
+                let next, cmd, _ = update change model
+                Expect.equal next.InlineRuleTestVersion 3 "Stand zählt hoch"
+                Expect.equal (inlineTest next) (Some Loading) "läuft"
+                Expect.isFalse cmd.IsEmpty "der Timer startet"
+                let _, staleCmd, _ = update (InlineRuleTestDue 2) next
+                Expect.isTrue staleCmd.IsEmpty "der alte Timer verfällt"
+
+        testCase "ohne Muster gibt es keinen Test und die laufende Antwort verfällt" <| fun () ->
+            let next, cmd, _ = update (UpdateInlineRulePattern "  ") (withInlineForm 2 Loading "rewe")
+            Expect.equal (inlineTest next) (Some NotAsked) "kein Test"
+            Expect.isTrue cmd.IsEmpty "kein Timer"
+            Expect.equal (inlineTest (step (InlineRuleTested (2, Ok true)) next)) (Some NotAsked) "Antwort verworfen"
+
+        // Bug categorization-f955d: ein Netzfehler erschien als "passt nicht", ein ungültiges
+        // Muster gar nicht.
+        testCase "ungültiges Muster und Netzfehler melden je einen eigenen Text und sind kein passt nicht" <| fun () ->
+            let invalid =
+                withInlineForm 2 Loading "("
+                |> step (InlineRuleTested (2, Error (RulesError.InvalidPattern ("(", "Klammer fehlt"))))
+            let lost = withInlineForm 2 Loading "(" |> step (InlineRuleTestLost 2)
+            Expect.equal (inlineTest invalid) (Some (RemoteData.Failure "Ungültiges Muster '(': Klammer fehlt")) "ungültig"
+            Expect.equal (inlineTest lost) (Some (RemoteData.Failure ruleTestLostText)) "Netz"
+            Expect.notEqual (inlineTest invalid) (inlineTest lost) "verschieden"
+    ]
