@@ -171,6 +171,8 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
         Cmd.batch [
             Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCurrentSession)
             Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadAccounts)
+            Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadQuickAddAccount)
         ]
     | Rules ->
         Cmd.batch [
@@ -210,6 +212,17 @@ let pageLoadCmd (page: Page) : Cmd<Msg> =
             Cmd.ofMsg LoadQuickAddTemplates
             Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadCategories)
         ]
+
+/// Soll ein Ladefehler des SyncFlow erscheinen? Die Kategorien laden beim App-Start auf jeder
+/// Seite, ihr Fehler gehört aber nur dorthin, wo sie gebraucht werden. Das Betreten dieser
+/// Seiten lädt neu und meldet es dann. Ein noch sichtbarer gleicher Toast reicht, sonst stapelt
+/// schnelles Wechseln bei dauerhaftem Fehler je Besuch einen weiteren (ynab-sync-k3vq8).
+let shouldShowLoadFailure (page: Page) (message: string) (toasts: Toast list) : bool =
+    let pageUsesData =
+        match page with
+        | SyncFlow | QuickAdd -> true
+        | _ -> false
+    pageUsesData && not (toasts |> List.exists (fun toast -> toast.Message = message && not toast.Exiting))
 
 // ============================================
 // Bereitschaftssignal (design-system-yxrxb)
@@ -526,6 +539,11 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             match externalMsg with
             | Components.SyncFlow.Types.NoOp -> Cmd.none
             | Components.SyncFlow.Types.ShowToast (message, toastType) -> Cmd.ofMsg (ShowToast (message, toastType))
+            | Components.SyncFlow.Types.ShowLoadFailure message ->
+                if shouldShowLoadFailure model.CurrentPage message model.Toasts then
+                    Cmd.ofMsg (ShowToast (message, ToastError))
+                else
+                    Cmd.none
 
         { model with SyncFlow = syncFlowModel' }, Cmd.batch [ Cmd.map SyncFlowMsg syncFlowCmd; externalCmd ]
 

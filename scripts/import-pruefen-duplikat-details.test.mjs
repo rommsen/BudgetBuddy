@@ -47,7 +47,7 @@ async function mock(page) {
   await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));
   await page.route("**/api/YnabApi/getCategories", (r) => r.fulfill(json({ Ok: cats })));
   await page.route("**/api/YnabApi/getPayees", (r) => r.fulfill(json({ Ok: [] })));
-  await page.route("**/api/YnabApi/getBudgetDetails", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/LedgerApi/getBudgetAccounts", (r) => r.fulfill(json({ Ok: [] })));
 }
 
 let frontend, port, browser;

@@ -41,7 +41,7 @@ after(async () => {
   await stopServer(frontend, port);
 });
 
-async function open(startAnswer, lost) {
+async function open(startAnswer, lost, { confirmAborts = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   page.setDefaultTimeout(15000);
@@ -74,6 +74,7 @@ async function open(startAnswer, lost) {
   });
   await page.route("**/api/SyncApi/confirmTan", (r) => {
     calls.confirm += 1;
+    if (confirmAborts) return r.abort("connectionreset");
     current = session("ReviewingTransactions");
     return r.fulfill(json({ Ok: [] }));
   });
@@ -102,6 +103,16 @@ test("ohne Bankverbindung: erst der TAN-Schritt, dann die Prüfung", async () =>
   await page.locator(".tx-row", { hasText: "Erfundener Markt" }).waitFor();
   assert.equal(calls.confirm, 1, "eine Bestätigung");
   assert.ok(!calls.unknown.some((p) => p.includes("initiateComdirectAuth")), "kein alter Auth-Aufruf");
+  await ctx.close();
+});
+
+// ynab-sync-k3vq8: `confirmTan` schreibt. Ein abgebrochener Aufruf kann beim Server angekommen sein,
+// eine Wiederholung liefe am Abbruch vorbei und entstünde ohne Romans Klick (ADR 0071).
+test("Bricht die TAN-Bestätigung ab, bleibt es bei genau einem Versuch", async () => {
+  const { ctx, page, calls } = await open(["TanRequired", "AwaitingTan"], undefined, { confirmAborts: true });
+  await page.getByRole("button", { name: "Ich habe bestätigt" }).click();
+  await page.locator(".animate-toast-in").filter({ hasText: "TAN confirmation timed out" }).waitFor();
+  assert.equal(calls.confirm, 1, "genau ein Versuch");
   await ctx.close();
 });
 

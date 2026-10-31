@@ -259,7 +259,8 @@ let inputActiveTests =
                   Total = { Amount = -10m; Currency = "EUR" }
                   Lines = []
                   Currency = "EUR"
-                  ActivePicker = Components.SyncFlow.Types.NoPicker }
+                  ActivePicker = Components.SyncFlow.Types.NoPicker
+                  AwaitedCashbackLine = None }
             { m with SyncFlow = { m.SyncFlow with SplitEdit = Some split } })
         active "Regeln: EditingRule" (fun m ->
             let rule : Shared.Domain.Rule =

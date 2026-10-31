@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 17:32 -- Task verified and completed: ynab-sync-k3vq8 - "Barabhebung in Import prüfen: Kontenliste bleibt still leer, das Bar-Konto ist nicht vorbelegt und im Picker gibt es keine Konten"
+
+**Type:** Work / Task completion
+**Task:** ynab-sync-k3vq8 - "Barabhebung in Import prüfen: Kontenliste bleibt still leer, das Bar-Konto ist nicht vorbelegt und im Picker gibt es keine Konten"
+**Summary:** Import prüfen lädt die Konten über getBudgetAccounts beim Seitenaufruf und beim Öffnen des Split-Sheets und trägt das Bar-Konto in die leere Barabhebungs-Zeile nach. Alle Lesewege im SyncFlow überstehen Abbrüche über Retry.reading, veraltete Antworten werden verworfen. Ladefehler erscheinen als Toas
+**Duration:** 2 h
+**Verification:** PASS (iteration 2)
+**Files changed:** 12
+**Tests added:** 60
+**ADRs written:** none
+
+---
+
 ## 2026-10-31 17:02 -- Task verified and completed: infrastructure-r3tw7 - "Alle übrigen lesenden Abfragen laufen über Retry.reading, damit ein Verbindungsabbruch im Kassenbuch keine Fehlerseite mehr zeigt"
 
 **Type:** Work / Task completion

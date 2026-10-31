@@ -113,6 +113,21 @@ test("Netzfehler zeigt eine eigene Meldung und nicht passt nicht", async () => {
   }
 });
 
+// ynab-sync-k3vq8: der Mustertest liest nur, ein einzelner Abbruch heilt sich wie jeder Lesevorgang im Import.
+test("Ein einzelner Abbruch des Mustertests wird wiederholt", async () => {
+  let attempts = 0;
+  const { context, page } = await openForm((r) => {
+    attempts += 1;
+    return attempts === 1 ? r.abort("connectionreset") : r.fulfill(json({ Ok: true }));
+  });
+  try {
+    await page.getByText("Passt auf diese Transaktion").waitFor();
+    assert.equal(await page.getByText("Muster konnte nicht geprüft werden").count(), 0);
+  } finally {
+    await context.close();
+  }
+});
+
 // Bug categorization-f955d: ein ungültiges Muster zeigte gar keine Rückmeldung.
 test("Ungültiges Muster zeigt eine eigene Meldung und nicht passt nicht", async () => {
   const { context, page } = await openForm((r) => r.fulfill(json({ Error: { InvalidPattern: ["(", "Klammer fehlt"] } })));

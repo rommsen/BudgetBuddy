@@ -35,7 +35,8 @@ let private mkState (total: decimal) (lines: SplitDraftLine list) : SplitEditSta
       Total = eur total
       Lines = lines
       Currency = "EUR"
-      ActivePicker = NoPicker }
+      ActivePicker = NoPicker
+      AwaitedCashbackLine = None }
 
 // ============================================
 // parseSplitAmount

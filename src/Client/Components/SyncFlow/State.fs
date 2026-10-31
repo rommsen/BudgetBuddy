@@ -103,12 +103,92 @@ let markSessionLoading (model: Model) : Model =
     | Some _ -> model
     | None -> { model with CurrentSession = Loading }
 
+/// Erklärt laufende Sitzungs-Lesevorgänge für veraltet: ein später eintreffender Stand von vor
+/// dem Start oder Abbruch darf das Ergebnis nicht überschreiben.
+let supersedeSessionRead (model: Model) : Model =
+    { model with SessionReadVersion = model.SessionReadVersion + 1 }
+
+/// Beginn eines Sitzungs-Lesevorgangs. Ältere laufende Lesevorgänge verfallen.
+let beginSessionRead (model: Model) : Model =
+    markSessionLoading (supersedeSessionRead model)
+
+/// Beginn eines Buchungs-Lesevorgangs. Ältere laufende Lesevorgänge verfallen.
+let beginTransactionsRead (model: Model) : Model =
+    { model with
+        SyncTransactions = Loading
+        TransactionsReadVersion = model.TransactionsReadVersion + 1 }
+
+/// Die laufende Buchungsabfrage gehört zu einer beendeten Sitzung: ihre Antwort verfällt.
+let abandonTransactionsRead (model: Model) : Model =
+    { model with
+        SyncTransactions = (if RemoteData.isLoading model.SyncTransactions then NotAsked else model.SyncTransactions)
+        TransactionsReadVersion = model.TransactionsReadVersion + 1 }
+
+/// Roman startet den Sync. Lesevorgänge von davor gelten nicht mehr.
+let beginSyncStart (model: Model) : Model =
+    { abandonTransactionsRead (supersedeSessionRead model) with CurrentSession = Loading; InterruptedStart = None }
+
+/// Roman bestätigt die TAN: die Sitzung zeigt sofort den Abruf, ein Lesen von davor gilt nicht mehr.
+let beginTanConfirm (session: SyncSession) (model: Model) : Model =
+    { supersedeSessionRead model with
+        IsTanConfirming = true
+        CurrentSession = Success (Some { session with Status = FetchingTransactions }) }
+
+/// Beginn eines Konten-Abrufs. Eine schon geladene Liste bleibt beim Auffrischen sichtbar.
+let beginAccountsRead (model: Model) : Model =
+    { model with
+        Accounts = (match model.Accounts with Success _ as loaded -> loaded | _ -> Loading)
+        AccountsReadVersion = model.AccountsReadVersion + 1 }
+
+/// Beginn eines Abrufs der Quick-Add-Id.
+let beginQuickAddRead (model: Model) : Model =
+    { model with QuickAddReadVersion = model.QuickAddReadVersion + 1 }
+
+/// Das Quick-Add-Konto als Übertrag-Ziel (ADR 0004). Nur offene Budget-Konten kommen infrage.
+let private quickAddTransferTarget (model: Model) : SplitTarget option =
+    model.QuickAddAccountId
+    |> Option.bind (fun id -> openOnBudgetAccounts (knownAccounts model) |> List.tryFind (fun a -> a.Id = id))
+    |> Option.map (fun a -> ToTransfer (a.Id, a.Name))
+
+/// Trägt das Quick-Add-Konto in die wartende Barabhebungs-Zeile ein, sobald es bekannt ist.
+/// Eine Zeile, die Roman inzwischen selbst gesetzt hat, bleibt unverändert.
+let private fillAwaitedCashbackLine (model: Model) : Model =
+    match model.SplitEdit, quickAddTransferTarget model with
+    | Some ({ AwaitedCashbackLine = Some index } as edit), Some target ->
+        let lines =
+            edit.Lines
+            |> List.mapi (fun i line ->
+                if i = index && line.Target.IsNone then { line with Target = Some target } else line)
+        { model with SplitEdit = Some { edit with Lines = lines; AwaitedCashbackLine = None } }
+    | _ -> model
+
+/// Lädt beim Öffnen des Split-Sheets nach, was beim Seitenaufruf nicht ankam.
+let private reloadForSplitSheet (model: Model) : Cmd<Msg> =
+    Cmd.batch [
+        match model.Accounts with
+        | Success _ | Loading -> ()
+        | NotAsked | Failure _ -> Cmd.ofMsg LoadAccounts
+        if model.QuickAddAccountId.IsNone then Cmd.ofMsg LoadQuickAddAccount
+    ]
+
+/// Der Fehlertext für den Toast. `Unauthorized` trägt hier auch "nicht eingerichtet" aus dem
+/// Ladeweg, die allgemeine Übersetzung nennte das einen ungültigen Token.
+let private categoriesErrorText (error: YnabError) : string =
+    match error with
+    | YnabError.Unauthorized message -> message
+    | other -> ynabErrorText other
+
 let init () : Model * Cmd<Msg> =
     let model = {
         CurrentSession = NotAsked
         SyncTransactions = NotAsked
+        SessionReadVersion = 0
+        TransactionsReadVersion = 0
+        AccountsReadVersion = 0
+        QuickAddReadVersion = 0
         Categories = []
-        Accounts = []
+        CategoriesLoad = NotAsked
+        Accounts = NotAsked
         QuickAddAccountId = None
         Payees = []
         SplitEdit = None
@@ -129,7 +209,6 @@ let init () : Model * Cmd<Msg> =
         Cmd.ofMsg LoadCurrentSession
         Cmd.ofMsg LoadCategories
         Cmd.ofMsg LoadPayees
-        Cmd.ofMsg LoadAccounts
     ]
     model, cmd
 
@@ -161,13 +240,23 @@ let private settleInlineRuleTest (model: Model) (version: int) (test: RemoteData
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
     | LoadCurrentSession ->
+        let reading = beginSessionRead model
+        let version = reading.SessionReadVersion
         let cmd =
             Cmd.OfAsync.either
                 (Retry.reading Api.sync.getCurrentSession)
                 ()
-                CurrentSessionLoaded
-                (fun ex -> CurrentSessionLoadFailed ex.Message)
-        markSessionLoading model, cmd, NoOp
+                (fun session -> SessionReadAnswered (version, Ok session))
+                (fun ex -> SessionReadAnswered (version, Error ex.Message))
+        reading, cmd, NoOp
+
+    | SessionReadAnswered (version, _) when version <> model.SessionReadVersion ->
+        // Inzwischen läuft ein neuerer Lesevorgang, oder Start und Abbruch haben den Stand überholt.
+        model, Cmd.none, NoOp
+
+    | SessionReadAnswered (_, Ok session) -> model, Cmd.ofMsg (CurrentSessionLoaded session), NoOp
+
+    | SessionReadAnswered (_, Error reason) -> model, Cmd.ofMsg (CurrentSessionLoadFailed reason), NoOp
 
     | CurrentSessionLoaded session ->
         let updatedModel = { model with CurrentSession = Success session }
@@ -208,16 +297,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 ()
                 SyncStarted
                 (fun ex -> SyncStartInterrupted ex.Message)
-        { model with CurrentSession = Loading; InterruptedStart = None }, cmd, NoOp
+        beginSyncStart model, cmd, NoOp
 
     | SyncStarted (Ok (TanRequired session)) ->
-        { model with CurrentSession = Success (Some session) }, Cmd.none, ShowToast ("Bitte bestätige die TAN auf deinem Handy", ToastInfo)
+        { supersedeSessionRead model with CurrentSession = Success (Some session) }, Cmd.none, ShowToast ("Bitte bestätige die TAN auf deinem Handy", ToastInfo)
 
     | SyncStarted (Ok (ReviewReady session)) ->
-        { model with CurrentSession = Success (Some session) }, Cmd.ofMsg LoadTransactions, ShowToast ("Umsätze bereit zur Prüfung", ToastSuccess)
+        { supersedeSessionRead model with CurrentSession = Success (Some session) }, Cmd.ofMsg LoadTransactions, ShowToast ("Umsätze bereit zur Prüfung", ToastSuccess)
 
     | SyncStarted (Error err) ->
-        { model with CurrentSession = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
+        { supersedeSessionRead model with CurrentSession = Failure (syncErrorToString err) }, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
     | SyncStartInterrupted reason ->
         let recovery = { Reason = reason; ReadsLeft = interruptedStartReadLimit; ReadPlanned = false }
@@ -240,16 +329,13 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 // Optimistic UI: Show FetchingTransactions immediately while API call runs
                 // The API call does: TAN confirmation + fetch transactions + apply rules
                 // This can take a while, so we show the fetching state right away
-                let updatedSession = { session with Status = FetchingTransactions }
                 let cmd =
                     Cmd.OfAsync.either
                         Api.sync.confirmTan
                         session.Id
                         TanConfirmed
                         (fun _ -> Error SyncError.TanTimeout |> TanConfirmed)
-                { model with
-                    IsTanConfirming = true
-                    CurrentSession = Success (Some updatedSession) }, cmd, NoOp
+                beginTanConfirm session model, cmd, NoOp
             | _ -> model, Cmd.none, NoOp
 
     | TanConfirmed (Ok _) ->
@@ -261,15 +347,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | LoadTransactions ->
         match model.CurrentSession with
         | Success (Some session) ->
+            let reading = beginTransactionsRead model
+            let version = reading.TransactionsReadVersion
             let cmd =
                 Cmd.OfAsync.either
-                    Api.sync.getTransactions
+                    (Retry.reading Api.sync.getTransactions)
                     session.Id
-                    TransactionsLoaded
-                    (fun ex -> Error (SyncError.DatabaseError ("load", ex.Message)) |> TransactionsLoaded)
+                    (fun result -> TransactionsReadAnswered (version, result))
+                    (fun ex -> TransactionsReadAnswered (version, Error (SyncError.DatabaseError ("load", ex.Message))))
             // Die Lena-Farbe frisch mitladen: Roman kann sie in den Settings geändert haben.
-            { model with SyncTransactions = Loading }, Cmd.batch [ cmd; Cmd.ofMsg LoadLenaFlagColor ], NoOp
+            reading, Cmd.batch [ cmd; Cmd.ofMsg LoadLenaFlagColor ], NoOp
         | _ -> model, Cmd.none, NoOp
+
+    | TransactionsReadAnswered (version, _) when version <> model.TransactionsReadVersion ->
+        // Die Antwort gehört zu einem überholten Abruf oder zu einer beendeten Sitzung.
+        model, Cmd.none, NoOp
+
+    | TransactionsReadAnswered (_, result) -> model, Cmd.ofMsg (TransactionsLoaded result), NoOp
 
     | TransactionsLoaded (Ok transactions) ->
         { model with SyncTransactions = Success transactions }, Cmd.none, NoOp
@@ -611,8 +705,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     Lines = seededLines
                     Currency = tx.Transaction.Amount.Currency
                     ActivePicker = NoPicker
+                    AwaitedCashbackLine = None
                 }
-                { model with SplitEdit = Some splitEdit }, Cmd.none, NoOp
+                { model with SplitEdit = Some splitEdit }, reloadForSplitSheet model, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -638,12 +733,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     | None -> None
                 // Transfer target = the configured Quick-Add account (ADR 0004),
                 // overridable in the picker. Unset → no default, manual selection.
-                let transferTarget =
-                    model.QuickAddAccountId
-                    |> Option.bind (fun aid ->
-                        openOnBudgetAccounts model.Accounts
-                        |> List.tryFind (fun a -> a.Id = aid))
-                    |> Option.map (fun a -> ToTransfer (a.Id, a.Name))
+                // Fehlt es noch, trägt `fillAwaitedCashbackLine` es beim Eintreffen nach.
+                let transferTarget = quickAddTransferTarget model
                 // Cashback shape: pre-select the category + the cash transfer
                 // target; both amounts are editable. The user types the cash
                 // withdrawal amount and taps "Rest" on the category (or vice
@@ -657,8 +748,9 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                     Lines = lines
                     Currency = total.Currency
                     ActivePicker = NoPicker
+                    AwaitedCashbackLine = if transferTarget.IsNone then Some 1 else None
                 }
-                { model with SplitEdit = Some splitEdit }, Cmd.none, NoOp
+                { model with SplitEdit = Some splitEdit }, reloadForSplitSheet model, NoOp
             | None -> model, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -689,7 +781,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model.SplitEdit with
         | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
             let newLines = splitEdit.Lines |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd
-            let updated = { splitEdit with Lines = newLines }
+            // Die wartende Zeile rückt mit; ist sie selbst weg, wartet nichts mehr.
+            let awaited =
+                splitEdit.AwaitedCashbackLine
+                |> Option.bind (fun line ->
+                    if line = index then None
+                    elif index < line then Some (line - 1)
+                    else Some line)
+            let updated = { splitEdit with Lines = newLines; AwaitedCashbackLine = awaited }
             { model with SplitEdit = Some updated }, Cmd.none, NoOp
         | _ -> model, Cmd.none, NoOp
 
@@ -740,7 +839,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         match model.SplitEdit with
         | Some splitEdit when index >= 0 && index < splitEdit.Lines.Length ->
             let name =
-                model.Accounts
+                knownAccounts model
                 |> List.tryFind (fun a -> a.Id = accountId)
                 |> Option.map (fun a -> a.Name)
                 |> Option.defaultValue "Konto"
@@ -871,7 +970,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | SyncCancelled (Ok _) ->
         let model' = {
-            model with
+            abandonTransactionsRead (supersedeSessionRead model) with
                 CurrentSession = Success None
                 SyncTransactions = NotAsked
         }
@@ -880,17 +979,21 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | SyncCancelled (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)
 
+    | LoadCategories when RemoteData.isLoading model.CategoriesLoad ->
+        // Der laufende Abruf liefert dasselbe.
+        model, Cmd.none, NoOp
+
     | LoadCategories ->
         // Load categories by first getting settings to obtain budget ID
         let loadCategoriesAsync () = async {
-            let! settings = Api.settings.getSettings()
+            let! settings = Retry.reading Api.settings.getSettings ()
             match settings.Ynab with
             | Some ynab ->
                 match ynab.DefaultBudgetId with
                 | Some budgetId ->
-                    return! Api.ynab.getCategories budgetId
-                | None -> return Error (YnabError.Unauthorized "No default budget configured")
-            | None -> return Error (YnabError.Unauthorized "YNAB not configured")
+                    return! Retry.reading Api.ynab.getCategories budgetId
+                | None -> return Error (YnabError.Unauthorized "Kein Standard-Budget eingerichtet")
+            | None -> return Error (YnabError.Unauthorized "YNAB ist nicht eingerichtet")
         }
         let cmd =
             Cmd.OfAsync.either
@@ -898,49 +1001,82 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 ()
                 CategoriesLoaded
                 (fun ex -> CategoriesLoaded (Error (YnabError.NetworkError ex.Message)))
-        model, cmd, NoOp
+        { model with CategoriesLoad = Loading }, cmd, NoOp
 
     | CategoriesLoaded (Ok categories) ->
-        { model with Categories = categories }, Cmd.none, NoOp
+        { model with Categories = categories; CategoriesLoad = Success () }, Cmd.none, NoOp
 
-    | CategoriesLoaded (Error _) ->
+    | CategoriesLoaded (Error error) ->
+        let text = categoriesErrorText error
+        { model with CategoriesLoad = Failure text },
+        Cmd.none,
+        ShowLoadFailure $"Kategorien konnten nicht geladen werden: {text}"
+
+    | LoadAccounts when RemoteData.isLoading model.Accounts ->
+        // Der laufende Abruf liefert dasselbe, und ein Fehlschlag gibt nur einen Toast.
         model, Cmd.none, NoOp
 
     | LoadAccounts ->
-        // Load YNAB accounts (for the split transfer-target picker) plus the
-        // configured Quick-Add account id (default cashback transfer target).
-        let loadAccountsAsync () = async {
-            let! settings = Api.settings.getSettings()
-            match settings.Ynab with
-            | Some ynab ->
-                match ynab.DefaultBudgetId with
-                | Some budgetId ->
-                    match! Api.ynab.getBudgetDetails budgetId with
-                    | Ok bwa -> return (bwa.Accounts, ynab.QuickAddAccountId)
-                    | Error _ -> return ([], ynab.QuickAddAccountId)
-                | None -> return ([], ynab.QuickAddAccountId)
-            | None -> return ([], None)
-        }
+        // Die Konten für den Übertrag-Picker, serverseitig gecacht (`LedgerApi`, wie das
+        // Kassenbuch). Nicht `getBudgetDetails`: der holt das ganze Budget, 3 bis 17 Sekunden.
+        let reading = beginAccountsRead model
+        let version = reading.AccountsReadVersion
         let cmd =
             Cmd.OfAsync.either
-                loadAccountsAsync
+                (Retry.reading Api.ledger.getBudgetAccounts)
                 ()
-                AccountsLoaded
-                (fun _ -> AccountsLoaded ([], None))
-        model, cmd, NoOp
+                (fun result -> AccountsLoaded (version, result))
+                (fun ex -> AccountsLoaded (version, Error ex.Message))
+        reading, cmd, NoOp
 
-    | AccountsLoaded (accounts, quickAddAccountId) ->
-        { model with Accounts = accounts; QuickAddAccountId = quickAddAccountId }, Cmd.none, NoOp
+    | AccountsLoaded (version, _) when version <> model.AccountsReadVersion ->
+        // Ein überholtes Auffrischen: kein Fehler-Toast über die neuere Antwort.
+        model, Cmd.none, NoOp
+
+    | AccountsLoaded (_, Ok accounts) ->
+        fillAwaitedCashbackLine { model with Accounts = Success accounts }, Cmd.none, NoOp
+
+    | AccountsLoaded (_, Error message) ->
+        let accounts =
+            match model.Accounts with
+            | Success _ as loaded -> loaded
+            | _ -> Failure message
+        { model with Accounts = accounts },
+        Cmd.none,
+        ShowLoadFailure $"Konten konnten nicht geladen werden: {message}"
+
+    | LoadQuickAddAccount ->
+        let reading = beginQuickAddRead model
+        let version = reading.QuickAddReadVersion
+        let cmd =
+            Cmd.OfAsync.either
+                (Retry.reading Api.settings.getSettings)
+                ()
+                (fun settings -> QuickAddAccountLoaded (version, Ok (settings.Ynab |> Option.bind (fun ynab -> ynab.QuickAddAccountId))))
+                (fun ex -> QuickAddAccountLoaded (version, Error ex.Message))
+        reading, cmd, NoOp
+
+    | QuickAddAccountLoaded (version, _) when version <> model.QuickAddReadVersion ->
+        // Roman kann das Konto in den Settings geändert haben, die neuere Antwort gilt.
+        model, Cmd.none, NoOp
+
+    | QuickAddAccountLoaded (_, Ok accountId) ->
+        fillAwaitedCashbackLine { model with QuickAddAccountId = accountId }, Cmd.none, NoOp
+
+    // Ohne die Id bleibt die Übertrag-Zeile leer und wählbar, wie im Kassenbuch ohne Toast.
+    // Eine schon bekannte Id bleibt stehen, das Öffnen des Sheets versucht es sonst erneut.
+    | QuickAddAccountLoaded (_, Error _) ->
+        model, Cmd.none, NoOp
 
     | LoadPayees ->
         // Load payees by first getting settings to obtain budget ID
         let loadPayeesAsync () = async {
-            let! settings = Api.settings.getSettings()
+            let! settings = Retry.reading Api.settings.getSettings ()
             match settings.Ynab with
             | Some ynab ->
                 match ynab.DefaultBudgetId with
                 | Some budgetId ->
-                    return! Api.ynab.getPayees budgetId
+                    return! Retry.reading Api.ynab.getPayees budgetId
                 | None -> return Error (YnabError.Unauthorized "No default budget configured")
             | None -> return Error (YnabError.Unauthorized "YNAB not configured")
         }
@@ -1131,7 +1267,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | Some form when version = model.InlineRuleTestVersion ->
             let cmd =
                 Cmd.OfAsync.either
-                    Api.rules.testRule
+                    (Retry.reading Api.rules.testRule)
                     (form.Pattern, form.PatternType, form.TargetField, form.TransactionText)
                     (fun result -> InlineRuleTested (version, result))
                     (fun _ -> InlineRuleTestLost version)

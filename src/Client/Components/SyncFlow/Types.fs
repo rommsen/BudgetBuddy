@@ -38,6 +38,10 @@ type SplitEditState = {
     Currency: string
     /// The layered picker currently open over the form, if any.
     ActivePicker: SplitPicker
+    /// Zeile der Barabhebung, die noch auf ihr Quick-Add-Konto wartet: Konten oder
+    /// Einstellungen kamen erst nach dem Tipp an (ynab-sync-k3vq8). `None` im normalen
+    /// Editor und sobald nichts mehr nachzutragen ist.
+    AwaitedCashbackLine: int option
 }
 
 /// Filter options for transaction list
@@ -214,10 +218,19 @@ type StartRecovery = {
 type Model = {
     CurrentSession: RemoteData<SyncSession option>
     SyncTransactions: RemoteData<SyncTransaction list>
+    /// Stände der lesenden Abrufe. `Retry.reading` hält eine Antwort bis zu 1,6 Sekunden zurück,
+    /// nur die Antwort zum aktuellen Stand zählt (ynab-sync-k3vq8).
+    SessionReadVersion: int
+    TransactionsReadVersion: int
+    AccountsReadVersion: int
+    QuickAddReadVersion: int
     Categories: YnabCategory list
+    /// Stand des letzten Kategorie-Abrufs. Der Import fordert sie beim Start doppelt an; ohne
+    /// diesen Stand gäbe ein Fehlschlag zwei gleiche Toasts (ynab-sync-k3vq8).
+    CategoriesLoad: RemoteData<unit>
     /// YNAB accounts (for the split transfer-target picker, filtered to open
     /// on-budget via `openOnBudgetAccounts`).
-    Accounts: YnabAccount list
+    Accounts: RemoteData<YnabAccount list>
     /// The configured Quick-Add account id (`ynab_quickadd_account_id`, ADR 0004),
     /// reused as the default transfer target for the cashback shortcut (ynab-002).
     QuickAddAccountId: YnabAccountId option
@@ -254,9 +267,18 @@ type Model = {
     LenaFlagColor: string option
 }
 
+/// Die zuletzt geladenen Konten, leer solange keine da sind.
+let knownAccounts (model: Model) : YnabAccount list =
+    match model.Accounts with
+    | Success accounts -> accounts
+    | _ -> []
+
 /// SyncFlow-specific messages
 type Msg =
     | LoadCurrentSession
+    /// Antwort eines Lesevorgangs mit dessen Stand. Nur der aktuelle Stand wird zu
+    /// `CurrentSessionLoaded` oder `CurrentSessionLoadFailed`.
+    | SessionReadAnswered of version: int * Result<SyncSession option, string>
     | CurrentSessionLoaded of SyncSession option
     | CurrentSessionLoadFailed of string
     | StartSync
@@ -268,6 +290,8 @@ type Msg =
     | ConfirmTan
     | TanConfirmed of Result<unit, SyncError>
     | LoadTransactions
+    /// Antwort eines Lesevorgangs mit dessen Stand. Nur der aktuelle Stand wird zu `TransactionsLoaded`.
+    | TransactionsReadAnswered of version: int * Result<SyncTransaction list, SyncError>
     | TransactionsLoaded of Result<SyncTransaction list, SyncError>
     | CategorizeTransaction of TransactionId * YnabCategoryId option
     | TransactionCategorized of Result<SyncTransaction list, SyncError>
@@ -316,7 +340,9 @@ type Msg =
     | AskLenaSet of Result<SyncTransaction, SyncError>
     // Account loading (for the transfer-target picker + cashback default)
     | LoadAccounts
-    | AccountsLoaded of YnabAccount list * YnabAccountId option
+    | AccountsLoaded of version: int * Result<YnabAccount list, string>
+    | LoadQuickAddAccount
+    | QuickAddAccountLoaded of version: int * Result<YnabAccountId option, string>
     // Import
     | ImportToYnab
     | ImportCompleted of Result<ImportResult, SyncError>
@@ -359,3 +385,6 @@ type Msg =
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType
+    /// Konten oder Kategorien kamen nicht an. Geladen wird auch im Hintergrund, deshalb
+    /// entscheidet der Root anhand der Seite und der sichtbaren Toasts, ob das erscheint.
+    | ShowLoadFailure of string
