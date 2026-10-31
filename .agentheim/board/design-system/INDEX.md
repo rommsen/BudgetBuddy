@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 4
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 40
@@ -58,6 +58,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **design-system-t7kqz** — "Der Wiederholen-Knopf der Fehlerkarten heißt Erneut versuchen statt Try Again" (bug) — `backlog/design-system-t7kqz-der-wiederholen-knopf-der-fehlerkarten-hei-t-erneut-versuche.md`
 - **design-system-fpem2** — "Wächter: .NET-Tests prüfen keine Tailwind-Größen per Klassenstring" (chore) — `backlog/design-system-fpem2-waechter-keine-tailwind-groessen-in-tests.md`
 - **design-system-taytp** — "Kategorie-Picker vereinheitlichen" (refactor) — `backlog/design-system-taytp-kategorie-picker-vereinheitlichen.md`
 - **design-system-w3k5d** — "Button.iconOnlyClass erkennt einen Text aus Leerzeichen als Icon-only" (bug) — `backlog/design-system-w3k5d-button-icononlyclass-erkennt-einen-text-aus-leerzeichen-als.md`

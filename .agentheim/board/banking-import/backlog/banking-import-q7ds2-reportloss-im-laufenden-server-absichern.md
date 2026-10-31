@@ -29,3 +29,5 @@ Den Mutanten rot machen oder festhalten, dass die Zeile bis `banking-import-bftq
 Die Mutante steht als `L-report` in `mut.py` der Iteration 4 von banking-import-z4h6p.
 
 Zusatz des Verifiers: Der Mutant `X-bankClock` überlebt ebenfalls (die Uhr `fun () -> DateTimeOffset.UtcNow` in `liveImportPorts` auf `MinValue`). Dieselbe Lücke ist beim `DateTimeOffset.UtcNow` in `testComdirectConnection` zu vermuten, dort lief kein Mutant.
+
+Zusatz aus infrastructure-mngfn: Der Anschluss von `loadAppSettings` in `liveImportPorts.LoadSettings` hat keinen Wächter. Ein eingefügtes `try/with`, das leere Einstellungen liefert, bleibt grün (Mutant `live-loadsettings-swallow`).
