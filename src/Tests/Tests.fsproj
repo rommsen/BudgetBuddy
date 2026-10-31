@@ -39,6 +39,7 @@
     <Compile Include="ComdirectClientTests.fs" />
     <Compile Include="ComdirectDecoderTests.fs" />
     <Compile Include="ComdirectHttpTests.fs" />
+    <Compile Include="BankConnectionTests.fs" />
     <Compile Include="ComdirectProbe.fs" />
     <Compile Include="ComdirectProbeTests.fs" />
     <Compile Include="ComdirectIntegrationTests.fs" />

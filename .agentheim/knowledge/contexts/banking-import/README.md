@@ -28,12 +28,18 @@ ein Hauptgrund, warum BudgetBuddy existiert.
 - **ComdirectAccount** — ein Bankkonto bei Comdirect (Iban, Balance, AccountType).
 - **Refresh-Urteil** (`RefreshFailure`): Ergebnis eines gescheiterten Token-Refresh. `ReloginRequired` (400, 401, jedes andere 4xx außer 429) verlangt eine neue TAN, `RetryLater` (Status 0, 429, 5xx, nicht lesbare Antwort) lässt die Verbindung stehen.
 - **Beobachtungssonde**: Testfall hinter `RUN_INTEGRATION_TESTS` und `COMDIRECT_PROBE` (1, 2 oder 3, nur als Prozess-Variable), der die Trageweite der Session mit einer echten TAN misst. Nur dort darf ein Testlauf eine TAN auslösen.
+- **Bankverbindung** (`BankConnectionState`): reiner Zustandsautomat `Disconnected | ChallengePending | Connected` in `src/Server/BankConnection.fs`. Eine offene Push-TAN ist `ChallengePending` und gibt keine Daten frei, Daten fließen nur aus `Connected`.
+- **Tick**: ein Schritt des Hintergrunddiensts (`tick ports now`). Erneuert fällige Tokens etwa 60 s vor Ablauf und tut sonst nichts.
+- **Verlust**: Übergang von `Connected` nach `Disconnected` ohne Handlung von Roman (Refresh-Urteil `ReloginRequired` oder 401/403 auch nach Refresh). Wird einmal gemeldet. Gescheiterte TAN, Trennen und geänderte Zugangsdaten sind kein Verlust.
+- **Verbindungstest** (`ComdirectConnectionTest`): Ergebnis von `testComdirectConnection`. `BankConnectionActive` heißt, die Verbindung lebt und die Konten waren lesbar, es ist keine TAN nötig. `TanChallengeStarted` trägt die Challenge-Id, es wartet eine Push-TAN.
 
 ## Aggregates
 - **BankTransaction** — unveränderliche Repräsentation einer geholten Buchung; Reference
   ist innerhalb einer Quelle eindeutig.
-- **ComdirectAuthSession** — hält den OAuth/Push-TAN-Zustand über einen Abruf hinweg.
+- **ComdirectAuthSession** — hält die Bankverbindung des Servers und serialisiert per Semaphor jeden Refresh und Bankzugriff (ADR 0071 Punkt 3).
 - **Invariante Fehlertexte:** Comdirect-Fehler tragen Status und `error`-Code, nie den Antwortrumpf. Das gilt auch für Decoder-Meldungen, weil Thoth darin den gelesenen Wert zitiert.
+- **Invariante Challenge:** Nur eine Handlung von Roman (Sync-Start, Verbindungstest) startet eine Challenge oder einen Passwort-Login. Tick, Hintergrunddienst und Neustart tun das nie, auch nicht bei `Disconnected`.
+- **Invariante Abbruch:** `cancelSync` verwirft nur `ChallengePending`, ein Verbindungstest bei `Connected` liest die Konten ohne Challenge. Geänderte Zugangsdaten (nicht die Konto-Id) trennen die Verbindung.
 
 ## Key events
 - *TransactionsFetched* — neue BankTransactions liegen vor.

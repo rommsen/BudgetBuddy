@@ -229,4 +229,16 @@ let errorTextTests =
             | Error err ->
                 Expect.equal (comdirectErrorToString err) "Please confirm the TAN in your banking app first." "feste Meldung zum Code"
             | other -> failtestf "Fehler erwartet: %A" other
+
+        testCase "der Abruf zählt die Tage ab dem übergebenen Datum" <| fun () ->
+            let booking (date: string) (reference: string) =
+                $"""{{"bookingDate":"{date}","amount":{{"value":"-1.00","unit":"EUR"}},"reference":"{reference}","remittanceInfo":"01Text"}}"""
+            let page = $"""{{"values":[{booking "2026-01-10" "innen"},{booking "2026-01-07" "grenze"},{booking "2026-01-06" "aussen"}]}}"""
+            use bank = bankAnswering 200 page
+            let today = DateTime(2026, 1, 14)
+            match withClient bank (fun c -> getTransactionsWith c requestInfo oldTokens "konto" 7 today) with
+            | Ok transactions ->
+                Expect.equal (transactions |> List.map (fun t -> t.Reference)) [ "innen"; "grenze" ] "nur Buchungen im Zeitraum"
+                Expect.equal bank.Calls.Count 1 "eine Seite, ältere Buchungen beenden das Blättern"
+            | other -> failtestf "Buchungen erwartet: %A" other
     ]

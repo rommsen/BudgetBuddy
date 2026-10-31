@@ -186,10 +186,12 @@ let mergeStoredComdirectSecrets (getSetting: string -> Async<string option>) (cr
 }
 
 /// Speichert die Comdirect-Zugangsdaten. Validiert wird nach dem Zusammenführen mit den
-/// gespeicherten Secrets: ist nichts gespeichert, bleibt es beim Validierungsfehler.
+/// gespeicherten Secrets: ist nichts gespeichert, bleibt es beim Validierungsfehler. Geänderte
+/// Zugangsdaten trennen die Bankverbindung (ADR 0071 Punkt 2), eine andere Konto-Id nicht.
 let saveComdirectCredentialsWith
     (getSetting: string -> Async<string option>)
     (setSetting: string -> string -> bool -> Async<unit>)
+    (disconnect: unit -> Async<unit>)
     (credentials: ComdirectSettings)
     : Async<SettingsResult<unit>> = async {
     try
@@ -197,6 +199,14 @@ let saveComdirectCredentialsWith
         match validateComdirectSettings merged with
         | Error errors -> return Error (SettingsError.ComdirectCredentialsInvalid ("general", String.concat "; " errors))
         | Ok valid ->
+            let! storedClientId = getSetting "comdirect_client_id"
+            let! storedClientSecret = getSetting "comdirect_client_secret"
+            let! storedUsername = getSetting "comdirect_username"
+            let! storedPassword = getSetting "comdirect_password"
+            let credentialsChanged =
+                (storedClientId, storedClientSecret, storedUsername, storedPassword)
+                <> (Some valid.ClientId, Some valid.ClientSecret, Some valid.Username, Some valid.Password)
+
             do! setSetting "comdirect_client_id" valid.ClientId false
             do! setSetting "comdirect_client_secret" valid.ClientSecret true
             do! setSetting "comdirect_username" valid.Username false
@@ -204,9 +214,51 @@ let saveComdirectCredentialsWith
             match valid.AccountId with
             | Some accountId -> do! setSetting "comdirect_account_id" accountId false
             | None -> ()
+            if credentialsChanged then
+                do! disconnect ()
             return Ok ()
     with ex ->
         return Error (SettingsError.DatabaseError ("save_comdirect_credentials", ex.Message))
+}
+
+/// Verbindungstest (ADR 0071 Punkt 2): bei `Connected` liest er die Konten ohne Challenge, sonst
+/// startet er als Handlung von Roman eine Push-TAN.
+let testComdirectConnectionWith
+    (getSetting: string -> Async<string option>)
+    (ports: ComdirectAuthSession.ConnectionPorts)
+    (now: DateTimeOffset)
+    : Async<SettingsResult<ComdirectConnectionTest>> = async {
+    match ComdirectAuthSession.connectionState ports with
+    | BankConnection.Connected _ ->
+        match! ComdirectAuthSession.fetchAccountsWith ports now with
+        | Ok _ -> return Ok BankConnectionActive
+        | Error comdirectError ->
+            return Error (SettingsError.ComdirectCredentialsInvalid ("accounts", comdirectErrorToString comdirectError))
+    | BankConnection.Disconnected
+    | BankConnection.ChallengePending _ ->
+        // Get Comdirect credentials from settings
+        let! clientId = getSetting "comdirect_client_id"
+        let! clientSecret = getSetting "comdirect_client_secret"
+        let! username = getSetting "comdirect_username"
+        let! password = getSetting "comdirect_password"
+        let! accountId = getSetting "comdirect_account_id"
+
+        match clientId, clientSecret, username, password with
+        | Some cid, Some cs, Some un, Some pw ->
+            let credentials: ComdirectSettings = {
+                ClientId = cid
+                ClientSecret = cs
+                Username = un
+                Password = pw
+                AccountId = accountId
+            }
+            match! ComdirectAuthSession.startChallengeWith ports credentials with
+            | Error comdirectError ->
+                return Error (SettingsError.ComdirectCredentialsInvalid ("auth", comdirectErrorToString comdirectError))
+            | Ok challenge ->
+                return Ok (TanChallengeStarted challenge.Id)
+        | _ ->
+            return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect credentials not configured"))
 }
 
 let settingsApi : SettingsApi = {
@@ -242,7 +294,10 @@ let settingsApi : SettingsApi = {
     }
 
     saveComdirectCredentials =
-        saveComdirectCredentialsWith Persistence.Settings.getSetting Persistence.Settings.setSetting
+        saveComdirectCredentialsWith
+            Persistence.Settings.getSetting
+            Persistence.Settings.setSetting
+            ComdirectAuthSession.disconnect
 
     saveSyncSettings = fun settings -> async {
         // Validate
@@ -282,32 +337,11 @@ let settingsApi : SettingsApi = {
                 return Ok budgetsWithDetails
     }
 
-    testComdirectConnection = fun () -> async {
-        // Get Comdirect credentials from settings
-        let! clientId = Persistence.Settings.getSetting "comdirect_client_id"
-        let! clientSecret = Persistence.Settings.getSetting "comdirect_client_secret"
-        let! username = Persistence.Settings.getSetting "comdirect_username"
-        let! password = Persistence.Settings.getSetting "comdirect_password"
-        let! accountId = Persistence.Settings.getSetting "comdirect_account_id"
-
-        match clientId, clientSecret, username, password with
-        | Some cid, Some cs, Some un, Some pw ->
-            let credentials: ComdirectSettings = {
-                ClientId = cid
-                ClientSecret = cs
-                Username = un
-                Password = pw
-                AccountId = accountId
-            }
-            // Start auth flow
-            match! ComdirectAuthSession.startAuth credentials with
-            | Error comdirectError ->
-                return Error (SettingsError.ComdirectCredentialsInvalid ("auth", comdirectErrorToString comdirectError))
-            | Ok challenge ->
-                return Ok challenge.Id
-        | _ ->
-            return Error (SettingsError.ComdirectCredentialsInvalid ("credentials", "Comdirect credentials not configured"))
-    }
+    testComdirectConnection = fun () ->
+        testComdirectConnectionWith
+            Persistence.Settings.getSetting
+            ComdirectAuthSession.livePorts
+            DateTimeOffset.UtcNow
 
     confirmComdirectTan = fun () -> async {
         // Complete TAN flow
@@ -653,6 +687,25 @@ let buildComdirectImportCandidates
 // Sync API Implementation
 // ============================================
 
+/// Bricht den Sync ab. Eine offene Challenge verfällt, eine aktive Bankverbindung bleibt stehen
+/// (ADR 0071 Punkt 2).
+let cancelSyncWith
+    (validateSession: SyncSessionId -> Result<'Session, SyncError>)
+    (discardPendingChallenge: unit -> Async<unit>)
+    (clearSyncSession: unit -> unit)
+    (sessionId: SyncSessionId)
+    : Async<SyncResult<unit>> = async {
+    match validateSession sessionId with
+    | Error err -> return Error err
+    | Ok _ ->
+        try
+            do! discardPendingChallenge ()
+            clearSyncSession ()
+            return Ok ()
+        with ex ->
+            return Error (SyncError.DatabaseError ("cancel_sync", ex.Message))
+}
+
 let syncApi : SyncApi = {
     // ============================================
     // Session management
@@ -681,21 +734,11 @@ let syncApi : SyncApi = {
         return SyncSessionManager.getCurrentSession()
     }
 
-    cancelSync = fun sessionId -> async {
-        match SyncSessionManager.validateSession sessionId with
-        | Error err -> return Error err
-        | Ok _ ->
-            try
-                // Clear auth session
-                ComdirectAuthSession.clearSession()
-
-                // Clear sync session
-                SyncSessionManager.clearSession()
-
-                return Ok ()
-            with ex ->
-                return Error (SyncError.DatabaseError ("cancel_sync", ex.Message))
-    }
+    cancelSync =
+        cancelSyncWith
+            SyncSessionManager.validateSession
+            ComdirectAuthSession.discardPendingChallenge
+            SyncSessionManager.clearSession
 
     // ============================================
     // Comdirect auth flow
@@ -750,7 +793,7 @@ let syncApi : SyncApi = {
                     |> Option.defaultValue ""
 
                 // Fetch transactions
-                match! ComdirectAuthSession.fetchTransactions accountId settings.Sync.DaysToFetch with
+                match! ComdirectAuthSession.fetchTransactions accountId settings.Sync.DaysToFetch DateTime.Today with
                 | Error comdirectError ->
                     let errorMsg = comdirectErrorToString comdirectError
                     SyncSessionManager.failSession errorMsg

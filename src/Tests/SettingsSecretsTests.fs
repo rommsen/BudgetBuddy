@@ -39,7 +39,7 @@ type private SettingsProbe(initial: (string * string) list) =
     member _.Stored(key: string) = values[key]
 
 let private save (probe: SettingsProbe) credentials =
-    saveComdirectCredentialsWith probe.Get probe.Set credentials |> run
+    saveComdirectCredentialsWith probe.Get probe.Set (fun () -> async.Return ()) credentials |> run
 
 let private formWithoutSecrets : ComdirectSettings =
     { ClientId = "client-id"

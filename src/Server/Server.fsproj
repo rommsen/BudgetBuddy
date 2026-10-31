@@ -30,7 +30,9 @@
     <Compile Include="Ledger/Persistence.fs" />
     <Compile Include="YnabClient.fs" />
     <Compile Include="ComdirectClient.fs" />
+    <Compile Include="BankConnection.fs" />
     <Compile Include="ComdirectAuthSession.fs" />
+    <Compile Include="BankConnectionWorker.fs" />
     <Compile Include="RulesEngine.fs" />
     <Compile Include="DuplicateDetection.fs" />
     <Compile Include="OrderIdMatcher.fs" />

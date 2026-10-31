@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 09:45 -- Task verified and completed: banking-import-tshq9 - "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr"
+
+**Type:** Work / Task completion
+**Task:** banking-import-tshq9 - "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr"
+**Summary:** Die Bankverbindung ist ein reiner Zustandsautomat Disconnected, ChallengePending, Connected mit Semaphor um Refresh und Bankzugriff und einem Hintergrunddienst, der nur erneuert. cancelSync und Verbindungstest beenden eine aktive Verbindung nicht mehr, geänderte Zugangsdaten trennen sie, und die Neb
+**Duration:** 1h05m
+**Verification:** PASS (iteration 2)
+**Files changed:** 18
+**Tests added:** 41
+**ADRs written:** none
+
+---
+
+## 2026-10-31 09:40 -- Verification failed: budgeting-nfrds - Verschieben absichern
+
+**Type:** Work / Verification failure
+**Task:** budgeting-nfrds - Verschieben absichern
+**Iteration:** 1 of 3
+**Reasons:** Negativer Betrag wirft Ausnahme, Popover-Wächter bleibt ohne Fix grün, drei YnabError-Übersetzungen im Ledger
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-10-31 09:24 -- Verification failed: banking-import-tshq9 - Bankverbindung als Zustandsautomat
+
+**Type:** Work / Verification failure
+**Task:** banking-import-tshq9 - Bankverbindung als Zustandsautomat
+**Iteration:** 1 of 3
+**Reasons:** Nebenläufigkeitstests bleiben ohne Semaphor grün
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 09:02 -- Batch started: [banking-import-tshq9, infrastructure-mngfn, budgeting-nfrds]
 
 **Type:** Work / Batch start

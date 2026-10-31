@@ -683,6 +683,13 @@ type ComdirectError =
     | NetworkError of httpStatus: int * message: string
     | InvalidResponse of message: string
 
+/// Ergebnis eines Verbindungstests (ADR 0071 Punkt 2).
+type ComdirectConnectionTest =
+    /// Keine Verbindung: eine Push-TAN wartet auf Bestätigung.
+    | TanChallengeStarted of challengeId: string
+    /// Die Verbindung lebt, die Konten waren lesbar. Keine TAN nötig.
+    | BankConnectionActive
+
 // ============================================
 // Result Type Aliases
 // ============================================

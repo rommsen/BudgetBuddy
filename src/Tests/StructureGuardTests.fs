@@ -521,3 +521,33 @@ let sqlInterpolationGuardTests =
             let withoutAllow = findSqlInjections Set.empty source
             Expect.equal withoutAllow [ 4, "whereSql", "Interpolation" ] "ohne Erlaubnis wird auch der Baustein gemeldet"
     ]
+
+// ============================================================================
+// Hintergrunddienste: nur Program.fs registriert sie (ADR 0071 Punkt 8)
+// ============================================================================
+
+/// Ein Dienst, der in `Api.webApp` oder darunter registriert wird, liefe auch im TestServer und
+/// könnte dort die Bank erreichen. Ergebnis: Pfade außerhalb von `Program.fs`, die einen
+/// Hintergrunddienst registrieren. Kommentare und String-Literale zählen nicht.
+let findHostedServiceRegistrations (sources: (string * string) list) : string list =
+    sources
+    |> List.filter (fun (path, source) -> path <> "Program.fs" && (fst (lex source)).Contains "AddHostedService")
+    |> List.map fst
+
+[<Tests>]
+let hostedServiceGuardTests =
+    testList "Struktur-Wächter: Hintergrunddienste nur in Program.fs (banking-import-tshq9)" [
+        testCase "kein Server-Modul außer Program.fs registriert einen Hintergrunddienst" <| fun () ->
+            Expect.isEmpty (findHostedServiceRegistrations (serverSources "*.fs")) "Registrierung nur in Program.fs"
+
+        testCase "Program.fs registriert den Dienst der Bankverbindung" <| fun () ->
+            let program = serverSources "Program.fs" |> List.exactlyOne |> snd
+            Expect.stringContains (fst (lex program)) "AddHostedService" "sonst erneuert niemand die Tokens"
+
+        testCase "Gegenbeweis: eine Registrierung außerhalb von Program.fs wird gemeldet, ein Kommentar nicht" <| fun () ->
+            let sources =
+                [ "Program.fs", "builder.Services.AddHostedService(worker)"
+                  "Api.fs", "services.AddHostedService(worker)"
+                  "Doku.fs", "// AddHostedService bleibt in Program.fs" ]
+            Expect.equal (findHostedServiceRegistrations sources) [ "Api.fs" ] "nur der echte Aufruf"
+    ]

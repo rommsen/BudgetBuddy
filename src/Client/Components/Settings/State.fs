@@ -322,7 +322,11 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 (fun ex -> Error (SettingsError.ComdirectCredentialsInvalid ("network", ex.Message)) |> ComdirectAuthStarted)
         { model with ComdirectConnectionValid = Loading }, cmd, NoOp
 
-    | ComdirectAuthStarted (Ok _challengeId) ->
+    | ComdirectAuthStarted (Ok BankConnectionActive) ->
+        // Die Verbindung lebt, es gibt nichts zu bestätigen.
+        { model with ComdirectConnectionValid = Success (); ComdirectAuthPending = false }, Cmd.none, ShowToast ("Comdirect connection is active", ToastSuccess)
+
+    | ComdirectAuthStarted (Ok (TanChallengeStarted _)) ->
         // TAN challenge started - show waiting UI
         { model with ComdirectAuthPending = true; ComdirectConnectionValid = NotAsked }, Cmd.none, ShowToast ("Please confirm the TAN on your phone", ToastInfo)
 

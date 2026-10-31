@@ -82,7 +82,7 @@ type Msg =
     | QuickAddAccountSet of YnabAccountId * Result<unit, YnabError>
     // Comdirect connection test
     | TestComdirectConnection
-    | ComdirectAuthStarted of Result<string, SettingsError>
+    | ComdirectAuthStarted of Result<ComdirectConnectionTest, SettingsError>
     | ConfirmComdirectTan
     | ComdirectTanConfirmed of Result<unit, SettingsError>
     // Edit mode toggling

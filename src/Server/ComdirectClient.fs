@@ -343,6 +343,12 @@ let refreshTokens (client: HttpClient) (apiKeys: ApiKeys) (now: DateTimeOffset) 
         | ex -> return Error (RetryLater (sprintf "Status 0: %s" (ex.GetType().Name)))
     }
 
+let refreshTokensLive (apiKeys: ApiKeys) (now: DateTimeOffset) (tokens: Tokens) : Async<Result<Tokens, RefreshFailure>> =
+    async {
+        use client = createHttpClient()
+        return! refreshTokens client apiKeys now tokens
+    }
+
 /// Step 3: Request TAN challenge (Push-TAN)
 let requestTanChallenge (requestInfo: RequestInfo) (tokens: Tokens) (sessionIdentifier: string) : Async<ComdirectResult<Challenge>> =
     async {
@@ -459,29 +465,25 @@ let getExtendedTokens (tokens: Tokens) (apiKeys: ApiKeys) : Async<ComdirectResul
 // ============================================
 
 /// Fetch transactions for an account starting at a specific offset
-let private getTransactionsPage (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (offset: int) : Async<ComdirectResult<BankTransaction list>> =
+let private getTransactionsPage (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (offset: int) : Async<ComdirectResult<BankTransaction list>> =
     async {
-        use client = createHttpClient()
-
-        client.DefaultRequestHeaders.Authorization <- AuthenticationHeaderValue("Bearer", tokens.Access)
-        client.DefaultRequestHeaders.Add("x-http-request-info", requestInfo.Encode())
-
         try
             let url = sprintf "%sapi/banking/v1/accounts/%s/transactions?transactionState=BOOKED&paging-first=%d" endpoint accountId offset
-            let! response = client.GetAsync(url) |> Async.AwaitTask
+            use request = sessionGet requestInfo tokens url
+            let! response = client.SendAsync(request) |> Async.AwaitTask
 
             return! handleResponse transactionsDecoder response
         with
         | ex -> return Error (transportError ex)
     }
 
-/// Fetch all transactions for the last N days
-let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (days: int) : Async<ComdirectResult<BankTransaction list>> =
-    let dateCutoff = DateTime.Today.AddDays(float -days)
+/// Fetch all transactions for the last N days, gezählt ab `today`.
+let getTransactionsWith (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (days: int) (today: DateTime) : Async<ComdirectResult<BankTransaction list>> =
+    let dateCutoff = today.AddDays(float -days)
 
     let rec fetchWithPaging offset (accumulated: BankTransaction list) =
         asyncResult {
-            let! transactions = getTransactionsPage requestInfo tokens accountId offset
+            let! transactions = getTransactionsPage client requestInfo tokens accountId offset
 
             // Take transactions that are within the date range
             let txInRange = transactions |> List.filter (fun tx -> tx.BookingDate >= dateCutoff)
@@ -495,6 +497,12 @@ let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: stri
         }
 
     fetchWithPaging 0 []
+
+let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) (days: int) (today: DateTime) : Async<ComdirectResult<BankTransaction list>> =
+    async {
+        use client = createHttpClient()
+        return! getTransactionsWith client requestInfo tokens accountId days today
+    }
 
 // ============================================
 // Account Fetching

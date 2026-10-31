@@ -8,8 +8,7 @@ module NetworkCallGuardTests
 //     `HttpClientHandler`/`SocketsHttpHandler`, `Request.sendAsync` (FsHttp),
 //   * die echten Hosts von YNAB und Comdirect als Text,
 //   * ein Aufruf einer Client-Funktion, die selbst ins Netz geht. Diese Menge wird aus
-//     den Quellen von `YnabClient.fs`, `ComdirectClient.fs` und `ComdirectAuthSession.fs`
-//     abgeleitet: eine Funktion geht ins Netz, wenn ihr Rumpf eine der Markierungen oben
+//     den Quellen der Module aus `clientModules` abgeleitet: eine Funktion geht ins Netz, wenn ihr Rumpf eine der Markierungen oben
 //     enthält oder eine solche Funktion aufruft (transitiv). Funktionen mit eingespeistem
 //     `HttpClient` (z. B. `sendReviewMark`) gehen damit nicht ins Netz.
 //
@@ -38,7 +37,8 @@ let private repoRoot =
 let private ownFileName = "NetworkCallGuardTests.fs"
 
 /// Client-Module, deren Funktionen ins Netz gehen können.
-let private clientModules = [ "YnabClient"; "ComdirectClient"; "ComdirectAuthSession" ]
+let private clientModules =
+    [ "YnabClient"; "ComdirectClient"; "BankConnection"; "ComdirectAuthSession"; "BankConnectionWorker" ]
 
 let private directMarker =
     Regex(
@@ -223,7 +223,9 @@ let networkGuardTests =
             Expect.contains comdirect "startAuthFlow" "ComdirectClient.startAuthFlow geht ins Netz"
             for name in [ "refreshTokens"; "initOAuthWith"; "getAccountsWith" ] do
                 Expect.isFalse (comdirect.Contains name) $"ComdirectClient.{name} nutzt den eingespeisten Client"
-            Expect.contains session "startAuth" "ComdirectAuthSession.startAuth geht ins Netz (über startAuthFlow)"
+            Expect.contains session "startAuth" "ComdirectAuthSession.startAuth geht ins Netz (über livePorts)"
+            for name in [ "tick"; "startChallengeWith"; "fetchTransactionsWith" ] do
+                Expect.isFalse (session.Contains name) $"ComdirectAuthSession.{name} nutzt eingespeiste Ports"
 
         testCase "Gegenbeweis: ein Testfall mit Netzaufruf ohne Schalter wird gemeldet" <| fun () ->
             let net = Map.ofList [ "YnabClient", Set.ofList [ "getBudgets" ] ]
