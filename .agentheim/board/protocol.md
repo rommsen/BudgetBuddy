@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 09:45 -- Modeling / Promoted: banking-import-cyg94 - "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-31 09:45 -- Modeling / Promoted: banking-import-z4h6p - "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
 
 **Type:** Modeling / Promote

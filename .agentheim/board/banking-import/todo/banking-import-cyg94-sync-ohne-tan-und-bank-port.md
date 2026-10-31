@@ -1,7 +1,7 @@
 ---
 id: banking-import-cyg94
 title: "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port"
-status: backlog
+status: todo
 type: feature
 context: banking-import
 created: 2026-10-30

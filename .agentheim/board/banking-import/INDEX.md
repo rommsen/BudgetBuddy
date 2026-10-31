@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 7
-- **Todo:** 1
+- **Backlog:** 6
+- **Todo:** 2
 - **Doing:** 0
 - **Done:** 3
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `todo/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
 - **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `todo/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
 <!-- todo-list:end -->
 
@@ -39,7 +40,6 @@ research touching this BC, and concept synthesis pages.
 - **banking-import-w7k3m** — "Integrationstest mit echten Schlüsseln und falschem Passwort entfernen" (chore) — `backlog/banking-import-w7k3m-integrationstest-mit-echten-schl-sseln-und-falschem-passwort.md`
 - **banking-import-t4raw** — "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus" (feature) — `backlog/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 - **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen, Web-Push bei Verlust" (feature) — `backlog/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`
-- **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `backlog/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
 - **banking-import-wp7js** — "Split im Import" (refactor) — `backlog/banking-import-wp7js-split-im-import.md`
 <!-- backlog-list:end -->
 
