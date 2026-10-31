@@ -109,6 +109,8 @@ Gemeinsame Bausteine in `DesignSystem/PickerParts.fs`, benutzt von `CategoryMult
 | Zeile | einzeilig, Name `ListRoles.primary` (15px Handy, 14px PC, 500) mit `truncate`, Betrag rechts in fester Breite |
 | Gruppenkopf | `ListRoles.groupHeader`; „Alle Kategorien“ steht im Sheet nur über „Vorgeschlagen“ oder „Zuletzt verwendet“, nicht bei Suche |
 | Verfügbar-Betrag | `Money.available`: Mono 500, `tabular-nums`, kein Glow; positiv `text-primary`, 0 `text-muted`, negativ Red |
+| Verfügbar als Knopf | `Money.availableButton`: `Money.available` mit gestrichelter Linie (`border-border-default`), damit er am Handy antippbar aussieht, am PC zusätzlich `hover:bg-surface-hover`. `aria-label` nennt Aktion und Betrag, die Trefferfläche kommt vom Aufrufer (`sizeClass`, Handy 48 px) |
+| Zu verteilen | Optional erste Zeile im Kategorie-Picker (`ToBeBudgeted`), mit Betrag rechts in `Money.available`; die Suche findet sie. Gewählt liefert sie `ChoseToBeBudgeted`. Wer die Prop nicht setzt, sieht die Zeile nicht |
 | Suchfeld | `Input.Small`: 16px unterhalb `md`, 14px ab `md`, 36px hoch, ein Fokusrand |
 | Footer | „Zurücksetzen“ Ghost, „Übernehmen“ kompakt ohne Glow, einzeilig; Zahl nur bei Auswahl („Übernehmen (3)“) |
 
@@ -240,7 +242,7 @@ steht nur **wann welche / wann nicht**.
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger`, `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten) | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
-| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
+| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` und `availableButton` (Auswahl, §2), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
 | **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning` | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |

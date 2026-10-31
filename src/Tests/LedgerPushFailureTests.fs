@@ -164,9 +164,9 @@ let pushFailureDomainTests =
                 "Satz"
 
         testCase "Gründe nennen die Fehlerart" <| fun () ->
-            Expect.stringContains (describePushFailure (YnabError.NetworkError "Timeout")) "Netzwerkfehler" "Netz"
-            Expect.stringContains (describePushFailure (YnabError.RateLimitExceeded 30)) "429" "Limit"
-            Expect.stringContains (describePushFailure (YnabError.Unauthorized "x")) "401" "Zugang"
+            Expect.stringContains (ynabErrorText (YnabError.NetworkError "Timeout")) "Netzwerkfehler" "Netz"
+            Expect.stringContains (ynabErrorText (YnabError.RateLimitExceeded 30)) "429" "Limit"
+            Expect.stringContains (ynabErrorText (YnabError.Unauthorized "x")) "401" "Zugang"
     ]
 
 // ============================================
@@ -332,7 +332,7 @@ let pushFailureCommandTests =
             Expect.equal (recorded |> List.map (fun r -> r.Event.Actor)) [ QuickAdd; QuickAdd ] "Actor Quick Add"
             Expect.equal
                 entry.PushToYnabFailure
-                (Some { Reason = describePushFailure (YnabError.NetworkError "Timeout"); FailedAt = at })
+                (Some { Reason = ynabErrorText (YnabError.NetworkError "Timeout"); FailedAt = at })
                 "Grund und Zeitpunkt"
 
         testCase "addCashExpense mit gelingendem Push schreibt kein Fehlschlag-Ereignis" <| fun () ->

@@ -308,8 +308,10 @@ let private rows : Row list = [
       Run = fun () -> budgetApi.previewTargets "kein-monat" |> run |> expectError "Vorschau" }
     { Endpoint = "BudgetApi.applyTargets"; Case = "ungültiger Monat: Fehler"
       Run = fun () -> budgetApi.applyTargets "kein-monat" emptyPreview |> run |> expectError "Anwenden" }
-    { Endpoint = "BudgetApi.moveMoney"; Case = "ungültiger Monat: Fehler"
-      Run = fun () -> budgetApi.moveMoney "kein-monat" emptyMove |> run |> expectError "Verschieben" }
+    { Endpoint = "BudgetApi.moveMoney"; Case = "negativer Betrag am Rand von decimal: Fehler statt Ausnahme"
+      Run = fun () ->
+          let negative = { emptyMove with Amount = { emptyMove.Amount with Amount = -Decimal.MaxValue } }
+          budgetApi.moveMoney "2026-11-01" negative |> run |> expectError "Verschieben" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
       Run = fun () -> budgetApi.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]

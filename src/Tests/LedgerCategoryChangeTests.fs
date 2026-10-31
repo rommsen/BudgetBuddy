@@ -428,7 +428,7 @@ let categoryCommandTests =
 
         testCase "ein gescheiterter Push (Netz, 400, 429) hinterlässt den Fehlschlag und lässt die Kategorie in BB" <| fun () ->
             let cases = [
-                YnabError.NetworkError "Timeout", "Verbindung"
+                YnabError.NetworkError "Timeout", "Netzwerkfehler"
                 YnabError.InvalidResponse "Bad request: x", "abgelehnt"
                 YnabError.RateLimitExceeded 60, "Limit"
             ]

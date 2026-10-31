@@ -425,9 +425,9 @@ let reviewMarkCommandTests =
 
         testCase "ein gescheiterter Push (401, 429, Netz) hinterlässt den Fehlschlag und lässt den Vermerk in BB" <| fun () ->
             let cases = [
-                YnabError.Unauthorized "Invalid YNAB token", "Zugang"
+                YnabError.Unauthorized "Invalid YNAB token", "401"
                 YnabError.RateLimitExceeded 60, "Limit"
-                YnabError.NetworkError "Timeout", "Verbindung"
+                YnabError.NetworkError "Timeout", "Netzwerkfehler"
             ]
             for error, marker in cases do
                 let entryId, _ = seedLinked false Uncleared

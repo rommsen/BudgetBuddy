@@ -92,9 +92,10 @@ let toMilliunits (money: Money) : int64 =
     int64 (Math.Round(money.Amount * 1000m, MidpointRounding.AwayFromZero))
 
 /// YNAB nimmt Zuweisungen nur auf 10 Milliunits genau an (12345 wurde 12350). Ein Betrag
-/// dazwischen wäre eine stille Rundung und wird deshalb abgelehnt.
+/// dazwischen wäre eine stille Rundung und wird deshalb abgelehnt. Rechnet ohne Multiplikation,
+/// damit ein zu großer Betrag nicht überläuft (budgeting-nfrds).
 let isOnTenMilliunits (money: Money) : bool =
-    money.Amount * 1000m = decimal (toMilliunits money) && (toMilliunits money) % 10L = 0L
+    money.Amount % 0.01m = 0m
 
 /// Eine Kategorie der Vorschau: neu = altes Zugewiesen + Fehlbetrag.
 type TargetLine = {

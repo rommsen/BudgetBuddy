@@ -161,7 +161,7 @@ let private apiTests =
     testList "Weg von Targets anwenden im Api (h2zfn)" [
         test "Fehlender Token wird gemeldet, ohne YNAB zu fragen" {
             match call None (Some "b") with
-            | Error msg -> Expect.stringContains msg "token" "Token fehlt"
+            | Error msg -> Expect.stringContains msg "YNAB-Token" "Token fehlt"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Fehlendes Standard-Budget wird gemeldet" {
@@ -171,14 +171,14 @@ let private apiTests =
         }
         test "429 beim Lesen kommt als lesbare Meldung an" {
             match call (Some "t") (Some "b") with
-            | Error msg -> Expect.stringContains msg "rate limit" "lesbar"
+            | Error msg -> Expect.equal msg "Rate-Limit (HTTP 429), erneut in 60 Sekunden" "deutsch"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Gründe fehlgeschlagener Zeilen sind lesbar, 429 heißt Rate-Limit" {
-            Expect.equal (failureReason (YnabError.RateLimitExceeded 60)) "Rate-Limit" "429"
-            Expect.stringContains (failureReason (YnabError.Unauthorized "x")) "Token" "401"
-            Expect.stringContains (failureReason (YnabError.NetworkError "weg")) "weg" "Netz"
-            Expect.stringContains (failureReason (YnabError.InvalidResponse "404")) "404" "404"
+            Expect.equal (ynabErrorText (YnabError.RateLimitExceeded 60)) "Rate-Limit (HTTP 429), erneut in 60 Sekunden" "429"
+            Expect.stringContains (ynabErrorText (YnabError.Unauthorized "x")) "Token" "401"
+            Expect.stringContains (ynabErrorText (YnabError.NetworkError "weg")) "weg" "Netz"
+            Expect.stringContains (ynabErrorText (YnabError.InvalidResponse "404")) "404" "404"
         }
     ]
 
@@ -345,7 +345,7 @@ let private flowTests =
             let report = applyOk f (previewOf f)
             Expect.equal (outcomeOf report a) Written "bereits Geschriebenes bleibt"
             Expect.equal f.Assigned[a] 50000L "A in YNAB unberührt"
-            Expect.equal (outcomeOf report b) (Failed "Rate-Limit") "B"
+            Expect.equal (outcomeOf report b) (Failed "Rate-Limit (HTTP 429), erneut in 60 Sekunden") "B"
             Expect.equal (outcomeOf report e) (Failed "Rate-Limit") "E"
             Expect.equal (attemptsFor f e) 0 "E wurde gar nicht erst gesendet"
 
@@ -417,7 +417,7 @@ let private flowTests =
             f.Failures[a] <- YnabError.RateLimitExceeded 60
             let before = attemptsFor f b
             let retried = match run (retryFailed f.Port now (Guid.Parse report.ApplicationId)) with Ok r -> r | Error x -> failtest $"{x}"
-            Expect.equal (outcomeOf retried a) (Failed "Rate-Limit") "A"
+            Expect.equal (outcomeOf retried a) (Failed "Rate-Limit (HTTP 429), erneut in 60 Sekunden") "A"
             Expect.equal (outcomeOf retried b) (Failed "Rate-Limit") "B"
             Expect.equal (attemptsFor f b) before "B nicht erneut gesendet"
 
@@ -437,6 +437,11 @@ let private flowTests =
             Expect.equal f.Attempts.Count 3 "jede Kategorie genau einmal"
     ]
 
+let private loadedOk (applicationId: Guid) =
+    match Budgeting.Persistence.loadApplication applicationId |> run with
+    | Ok states -> states
+    | Error e -> failtest $"Zeilen erwartet: {e}"
+
 let private persistenceTests =
     let testCase name body =
         testCase name (fun () ->
@@ -447,7 +452,7 @@ let private persistenceTests =
         { Id = Guid.NewGuid()
           ApplicationId = Guid.NewGuid()
           OccurredAt = now
-          Origin = Budgeting.Persistence.OriginTargets
+          Origin = Server.Budgeting.Domain.TargetsApplied
           Month = monthKey
           CategoryId = Guid.NewGuid()
           CategoryName = "Essen"
@@ -466,7 +471,7 @@ let private persistenceTests =
         testCase "Eine Bewegung trägt Zeitpunkt, Herkunft, Monat, Kategorie, altes und neues Zugewiesen" <| fun () ->
             let m = movement ()
             Budgeting.Persistence.appendMovements [ m ] |> run
-            let loaded = Budgeting.Persistence.loadApplication m.ApplicationId |> run
+            let loaded = loadedOk m.ApplicationId
             Expect.equal (loaded |> List.map (fun s -> s.Movement)) [ m ] "unverändert gelesen"
             Expect.equal loaded.Head.Latest None "noch kein Ergebnis"
 
@@ -475,14 +480,14 @@ let private persistenceTests =
             Budgeting.Persistence.appendMovements [ m ] |> run
             Expect.isSome (tryExec $"UPDATE budget_movements SET new_assigned = 1 WHERE id = '{m.Id}'") "UPDATE abgewiesen"
             Expect.isSome (tryExec $"DELETE FROM budget_movements WHERE id = '{m.Id}'") "DELETE abgewiesen"
-            Expect.equal (Budgeting.Persistence.loadApplication m.ApplicationId |> run |> List.map (fun s -> s.Movement)) [ m ] "unverändert"
+            Expect.equal (loadedOk m.ApplicationId |> List.map (fun s -> s.Movement)) [ m ] "unverändert"
 
         testCase "Ergebnisse werden nur angehängt, das jüngste ist der Stand" <| fun () ->
             let m = movement ()
             Budgeting.Persistence.appendMovements [ m ] |> run
             Budgeting.Persistence.appendResult m.Id now (Failed "boom") |> run
             Budgeting.Persistence.appendResult m.Id now Written |> run
-            let state = Budgeting.Persistence.loadApplication m.ApplicationId |> run |> List.head
+            let state = loadedOk m.ApplicationId |> List.head
             Expect.equal state.Latest (Some Written) "jüngstes Ergebnis"
             use conn = global.Persistence.getConnection ()
             let rows = Dapper.SqlMapper.ExecuteScalar<int>(conn, $"SELECT COUNT(*) FROM budget_movement_results WHERE movement_id = '{m.Id}'")
@@ -495,8 +500,8 @@ let private persistenceTests =
             Budgeting.Persistence.appendMovements [ m1; m2 ] |> run
             Budgeting.Persistence.appendResult m1.Id now (Failed "Rate-Limit") |> run
             Budgeting.Persistence.appendResult m2.Id now ChangedInYnab |> run
-            let l1 = Budgeting.Persistence.loadApplication m1.ApplicationId |> run |> List.head
-            let l2 = Budgeting.Persistence.loadApplication m2.ApplicationId |> run |> List.head
+            let l1 = loadedOk m1.ApplicationId |> List.head
+            let l2 = loadedOk m2.ApplicationId |> List.head
             Expect.equal l1.Latest (Some (Failed "Rate-Limit")) "Grund"
             Expect.equal l2.Latest (Some ChangedInYnab) "in YNAB geändert"
     ]

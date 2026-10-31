@@ -42,9 +42,9 @@ let private retryCmd (applicationId: string) : Cmd<Msg> =
         (fun ex -> TargetsRetried (Error ex.Message))
 
 // Wie `applyCmd` nie über `Retry`; der Server rechnet relativ, ein zweiter Lauf verschöbe doppelt.
-let private moveCmd (choice: BudgetMonthChoice) (request: MoveRequest) : Cmd<Msg> =
+let private moveCmd (monthKey: string) (request: MoveRequest) : Cmd<Msg> =
     Cmd.OfAsync.either
-        (fun () -> Api.budget.moveMoney (monthChoiceKey choice) request)
+        (fun () -> Api.budget.moveMoney monthKey request)
         ()
         MoveAnswered
         (fun ex -> MoveCallLost ex.Message)
@@ -53,17 +53,23 @@ let private retryMoveCmd (applicationId: string) : Cmd<Msg> =
     Cmd.OfAsync.either
         Api.budget.retryFailedTargets
         applicationId
-        MoveRetried
-        (fun ex -> MoveRetried (Error ex.Message))
+        (fun result -> MoveRetried (applicationId, result))
+        (fun ex -> MoveRetried (applicationId, Error ex.Message))
 
 /// Nach einer Verschiebung: Monat neu lesen, ohne `Loading`. Die Liste bleibt stehen, die Zeilen
-/// springen nicht nach oben, und die neuen Beträge erscheinen, sobald sie da sind.
-let private reloadCmd (reload: bool) (model: Model) : Cmd<Msg> =
-    if reload then loadCmd model.Choice else Cmd.none
+/// springen nicht nach oben, und die neuen Beträge erscheinen, sobald sie da sind. Scheitert es,
+/// bleibt die Liste auch stehen (`applyReloaded`).
+let private reloadCmd (choice: BudgetMonthChoice) : Cmd<Msg> =
+    Cmd.OfAsync.either
+        (Retry.reading Api.budget.getBudgetMonth)
+        (monthChoiceKey choice)
+        (fun result -> Reloaded (choice, result))
+        (fun ex -> Reloaded (choice, Error ex.Message))
 
 let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
-    | PageEntered -> { model with CategorySearch = "" }, Cmd.ofMsg Load
+    // Ein offenes Sheet überlebt den Seitenwechsel nicht: es spränge sonst beim Betreten wieder auf.
+    | PageEntered -> { model with CategorySearch = ""; Move = None }, Cmd.ofMsg Load
     | Load -> { model with Month = Loading }, loadCmd model.Choice
     | SelectMonth choice ->
         match select choice model with
@@ -95,27 +101,34 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     match msg with
-    | OpenMove category -> openMove category model, Cmd.none, NoOp
+    | OpenMove categoryId -> openMove categoryId model, Cmd.none, NoOp
     | CloseMove -> closeMove model, Cmd.none, NoOp
     | ToggleMoveDirection -> updateForm toggleDirection model, Cmd.none, NoOp
-    | MoveAmountChanged text -> updateForm (fun f -> { f with AmountText = text }) model, Cmd.none, NoOp
+    | MoveAmountChanged text -> updateForm (fun f -> { f with AmountInput = Some text }) model, Cmd.none, NoOp
     | OpenMovePicker -> updateForm (fun f -> { f with PickerOpen = true }) model, Cmd.none, NoOp
     | CloseMovePicker -> updateForm (fun f -> { f with PickerOpen = false }) model, Cmd.none, NoOp
     | PickMoveCounterpart side ->
         updateForm (fun f -> { f with Counterpart = Some side; PickerOpen = false }) model, Cmd.none, NoOp
     | ConfirmMove ->
         match confirmMove model with
-        | model', Some request -> model', moveCmd model'.Choice request, NoOp
+        | model', Some (monthKey, request) -> model', moveCmd monthKey request, NoOp
         | model', None -> model', Cmd.none, NoOp
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
-        model', reloadCmd reload model', external
+        model', (if reload then reloadCmd model'.Choice else Cmd.none), external
     | MoveCallLost message ->
         let model', external = applyMoveCallLost message model
-        model', loadCmd model'.Choice, external
-    | RetryMove applicationId -> model, retryMoveCmd applicationId, NoOp
-    | MoveRetried (Ok report) -> model, loadCmd model.Choice, moveToast report
-    | MoveRetried (Error message) -> model, Cmd.none, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)
+        model', reloadCmd model'.Choice, external
+    | RetryMove applicationId ->
+        match startMoveRetry applicationId model with
+        | model', true -> model', retryMoveCmd applicationId, NoOp
+        | model', false -> model', Cmd.none, NoOp
+    | MoveRetried (applicationId, result) ->
+        let model', external = applyMoveRetried applicationId result model
+        model', reloadCmd model'.Choice, external
+    | Reloaded (choice, result) ->
+        let model', external = applyReloaded choice result model
+        model', Cmd.none, external
     | _ ->
         let model', cmd = updatePage msg model
         model', cmd, NoOp

@@ -116,6 +116,43 @@ let previewsMatch (shown: TargetPreview) (fresh: TargetPreview) : bool =
         p.Lines |> List.map (fun l -> l.CategoryId, l.OldAssigned, l.NewAssigned)
     shown.Month = fresh.Month && shown.ToBeBudgeted = fresh.ToBeBudgeted && key shown = key fresh
 
+/// Woher eine Budget-Bewegung stammt (ADR 0065, ADR 0069).
+type MovementOrigin =
+    | TargetsApplied
+    /// Zwischen zwei Kategorien.
+    | MoneyMoved
+    /// Eine Seite ist Zu verteilen.
+    | MoneyAssigned
+
+/// Der Text in `budget_movements.origin`. Geschrieben stehen diese Wörter in der Datenbank.
+let originText (origin: MovementOrigin) : string =
+    match origin with
+    | TargetsApplied -> "Targets anwenden"
+    | MoneyMoved -> "Verschieben"
+    | MoneyAssigned -> "Zuweisen"
+
+/// Liest die Spalte. Ein unbekannter Text wird gemeldet, nicht auf eine Herkunft abgebildet.
+let originOfText (text: string) : Result<MovementOrigin, string> =
+    match [ TargetsApplied; MoneyMoved; MoneyAssigned ] |> List.tryFind (fun o -> originText o = text) with
+    | Some origin -> Ok origin
+    | None -> Error $"Unbekannte Herkunft einer Budget-Bewegung: {text}"
+
+/// Hängen die Zeilen eines Durchlaufs aneinander? Nur bei der Verschiebung: Quelle vor Ziel
+/// (ADR 0069 Punkt 3). Bei Targets anwenden steht jede Zeile für sich.
+let sendsInOrder (origin: MovementOrigin) : bool =
+    match origin with
+    | MoneyMoved -> true
+    | TargetsApplied
+    | MoneyAssigned -> false
+
+/// Steht die Zeile noch aus? Fehlgeschlagen oder ohne Stand (der Lauf brach vor ihr ab).
+let isOpenLine (latest: LineOutcome option) : bool =
+    match latest with
+    | None
+    | Some (Failed _) -> true
+    | Some Written
+    | Some ChangedInYnab -> false
+
 /// Was beim erneuten Senden einer fehlgeschlagenen Zeile mit dem Live-Wert zu tun ist.
 type RetryDecision =
     /// YNAB steht auf dem alten Wert: den Zielwert (erneut) setzen.
@@ -136,13 +173,6 @@ let decideRetry (baseline: Money) (target: Money) (live: Money) : RetryDecision 
 // Geld verschieben (budgeting-afd8h, ADR 0069)
 // ============================================
 
-/// Herkunft einer Verschiebung zwischen zwei Kategorien.
-[<Literal>]
-let OriginMove = "Verschieben"
-
-/// Herkunft einer Bewegung, bei der eine Seite Zu verteilen ist.
-[<Literal>]
-let OriginAssign = "Zuweisen"
 
 /// Eine Kategorie einer Verschiebung: neu = alt ∓ Betrag.
 type MoveLine = {
@@ -154,8 +184,7 @@ type MoveLine = {
 
 /// Was aus einem Auftrag wird. `Lines` stehen in Sendereihenfolge: erst die Quelle, dann das Ziel.
 type MovePlan = {
-    Month: string
-    Origin: string
+    Origin: MovementOrigin
     Lines: MoveLine list
 }
 
@@ -208,8 +237,7 @@ let planMove (month: BudgetMonth) (request: MoveRequest) : Result<MovePlan, stri
 
     if List.isEmpty errors then
         Ok
-            { Month = month.Month
-              Origin = if lines.Length = 2 then OriginMove else OriginAssign
+            { Origin = if lines.Length = 2 then MoneyMoved else MoneyAssigned
               Lines = lines }
     else
         Error (String.concat " " (List.distinct errors))

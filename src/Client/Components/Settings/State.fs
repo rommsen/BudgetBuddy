@@ -15,16 +15,6 @@ let private settingsErrorToString (error: SettingsError) : string =
     | SettingsError.EncryptionFailed msg -> $"Encryption failed: {msg}"
     | SettingsError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
-let private ynabErrorToString (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized msg -> $"YNAB authorization failed: {msg}"
-    | YnabError.BudgetNotFound budgetId -> $"Budget not found: {budgetId}"
-    | YnabError.AccountNotFound accountId -> $"Account not found: {accountId}"
-    | YnabError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | YnabError.RateLimitExceeded retryAfter -> $"YNAB rate limit exceeded. Retry after {retryAfter} seconds"
-    | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
-    | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
-
 let init () : Model * Cmd<Msg> =
     let model = {
         Settings = NotAsked
@@ -263,7 +253,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default budget set", ToastSuccess)
 
     | DefaultBudgetSet (_, Error err) ->
-        model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
+        model, Cmd.none, ShowToast (ynabErrorText err, ToastError)
 
     | SetDefaultAccount accountId ->
         let cmd =
@@ -287,7 +277,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Default account set", ToastSuccess)
 
     | DefaultAccountSet (_, Error err) ->
-        model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
+        model, Cmd.none, ShowToast (ynabErrorText err, ToastError)
 
     | SetQuickAddAccount accountId ->
         let cmd =
@@ -310,7 +300,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with Settings = updatedSettings }, Cmd.none, ShowToast ("Quick-Add-Konto gespeichert", ToastSuccess)
 
     | QuickAddAccountSet (_, Error err) ->
-        model, Cmd.none, ShowToast (ynabErrorToString err, ToastError)
+        model, Cmd.none, ShowToast (ynabErrorText err, ToastError)
 
     // Comdirect connection test
     | TestComdirectConnection ->

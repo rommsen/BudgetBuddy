@@ -1041,6 +1041,23 @@ let private CategoryPickerSingleDemo () =
                 ]
             ]
             Html.div [
+                prop.custom ("data-ds-demo", "money-available")
+                prop.className "flex items-center gap-4"
+                prop.children [
+                    Money.available 35.45m "EUR"
+                    Money.available -12.5m "EUR"
+                    Money.available 0m "EUR"
+                ]
+            ]
+            Html.div [
+                prop.custom ("data-ds-demo", "money-available-button")
+                prop.className "flex items-center gap-4"
+                prop.children [
+                    Money.availableButton "Lebensmittel verschieben" Tokens.TouchTargets.minSize 35.45m "EUR" ignore
+                    Money.availableButton "Urlaub verschieben" Tokens.TouchTargets.minSize -12.5m "EUR" ignore
+                ]
+            ]
+            Html.div [
                 prop.className "relative"
                 prop.custom ("data-ds-demo", "category-picker-to-be-budgeted")
                 prop.children [

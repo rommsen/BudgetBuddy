@@ -87,7 +87,7 @@ let retryPushTests =
             let entryId = newEntry "fail"
             append entryId (EntryPushToYnabFailed { Reason = "alter Grund" })
             let _, push = countingPush (Error (YnabError.NetworkError "Timeout"))
-            let expected = describePushFailure (YnabError.NetworkError "Timeout")
+            let expected = ynabErrorText (YnabError.NetworkError "Timeout")
             Expect.equal (retry push entryId) (Ok (PushToYnabFailed expected)) "Fehlschlag gemeldet"
             let entry = loadEntry entryId |> Async.RunSynchronously |> Option.get
             Expect.isFalse entry.LinkedToYnab "nicht verknüpft"

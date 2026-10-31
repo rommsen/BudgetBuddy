@@ -27,7 +27,7 @@ let ynabPort
         match token, budgetId with
         | Some token, Some budgetId ->
             let! categories = getCategories token (YnabBudgetId budgetId)
-            return categories |> Result.mapError Server.Budgeting.CommandHandlers.failureReason
+            return categories |> Result.mapError ynabErrorText
         | _ -> return Error "YNAB ist nicht eingerichtet (Token oder Budget fehlt)"
       } }
 

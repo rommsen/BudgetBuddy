@@ -647,6 +647,19 @@ type YnabError =
     | NetworkError of message: string
     | InvalidResponse of message: string
 
+/// Der YNAB-Fehler als deutscher Satz. Die einzige Übersetzung, Server und Client nutzen sie. Der
+/// Text landet auch im Ereignis-Log und in der Antwort an Bob (`push_error`), deshalb stehen keine
+/// YNAB-Ids darin. Er ist nur zum Lesen da, kein Code wertet ihn aus.
+let ynabErrorText (error: YnabError) : string =
+    match error with
+    | RateLimitExceeded seconds -> $"Rate-Limit (HTTP 429), erneut in {seconds} Sekunden"
+    | Unauthorized _ -> "YNAB-Token ungültig (HTTP 401)"
+    | NetworkError message -> $"Netzwerkfehler: {message}"
+    | InvalidResponse message -> $"YNAB hat abgelehnt: {message}"
+    | BudgetNotFound _ -> "Budget in YNAB nicht gefunden"
+    | AccountNotFound _ -> "Konto in YNAB nicht gefunden"
+    | CategoryNotFound _ -> "Kategorie in YNAB nicht gefunden"
+
 /// Errors during rules operations.
 /// Purpose: Provides clear feedback for rule validation and compilation failures.
 type RulesError =

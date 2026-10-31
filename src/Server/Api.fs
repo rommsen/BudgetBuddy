@@ -34,17 +34,6 @@ let private settingsErrorToString (error: SettingsError) : string =
     | SettingsError.EncryptionFailed msg -> $"Encryption failed: {msg}"
     | SettingsError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
-/// Converts YnabError to string
-let private ynabErrorToString (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized msg -> $"YNAB authorization failed: {msg}"
-    | YnabError.BudgetNotFound budgetId -> $"Budget not found: {budgetId}"
-    | YnabError.AccountNotFound accountId -> $"Account not found: {accountId}"
-    | YnabError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | YnabError.RateLimitExceeded retryAfter -> $"YNAB rate limit exceeded. Retry after {retryAfter} seconds"
-    | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
-    | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
-
 /// Converts SyncError to string
 let private syncErrorToString (error: SyncError) : string =
     match error with
@@ -283,7 +272,7 @@ let settingsApi : SettingsApi = {
             // Test token by fetching budgets
             match! YnabClient.getBudgets validToken with
             | Error ynabError ->
-                return Error (SettingsError.YnabConnectionFailed (0, ynabErrorToString ynabError))
+                return Error (SettingsError.YnabConnectionFailed (0, ynabErrorText ynabError))
             | Ok _ ->
                 // Token is valid, save it
                 try
@@ -321,7 +310,7 @@ let settingsApi : SettingsApi = {
             // Get all budgets with details
             match! YnabClient.getBudgets token with
             | Error ynabError ->
-                return Error (SettingsError.YnabConnectionFailed (0, ynabErrorToString ynabError))
+                return Error (SettingsError.YnabConnectionFailed (0, ynabErrorText ynabError))
             | Ok budgets ->
                 // Fetch details for each budget
                 let! budgetsWithDetails = async {
@@ -1088,7 +1077,7 @@ let syncApi : SyncApi = {
                     | Some ledgerAccount ->
                         match! resolveTransferPayees token (YnabBudgetId budgetId) toImport with
                         | Error ynabError ->
-                            return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorToString ynabError))
+                            return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorText ynabError))
                         | Ok transferPayees ->
                             let today = DateTime.Today
                             let prepared0 =
@@ -1132,7 +1121,7 @@ let syncApi : SyncApi = {
                                 // Kassenbuch-Buchungen bleiben unverändert und unverknüpft
                                 // stehen; der API-Aufruf meldet den Push-Fehler trotzdem.
                                 return
-                                    Error (SyncError.YnabImportFailed (candidates.Length, ynabErrorToString ynabError))
+                                    Error (SyncError.YnabImportFailed (candidates.Length, ynabErrorText ynabError))
                             | _ ->
                                 // Outcome-Klassifikation (welche Buchung importiert,
                                 // Duplikat oder gescheitert ist, und ob die Session
@@ -1238,7 +1227,7 @@ let syncApi : SyncApi = {
                     | Some ledgerAccount ->
                         match! resolveTransferPayees token (YnabBudgetId budgetId) transactionsToForce with
                         | Error ynabError ->
-                            return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorToString ynabError))
+                            return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorText ynabError))
                         | Ok transferPayees ->
                             let today = DateTime.Today
                             // Force import with NEW import_ids (forceNewImportId = true):
@@ -1276,7 +1265,7 @@ let syncApi : SyncApi = {
                                 // unverknüpft stehen; der API-Aufruf meldet den
                                 // Push-Fehler trotzdem.
                                 return
-                                    Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorToString ynabError))
+                                    Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorText ynabError))
                             | _ ->
                                 // Dieselbe Outcome-Klassifikation wie beim normalen
                                 // Import-Push (`Server.PushOutcomeClassification`,
@@ -1756,6 +1745,9 @@ let ledgerApi : LedgerApi = {
 // Budget (budgeting-k7wmd)
 // ============================================
 
+[<Literal>]
+let private NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
+
 /// Der Weg der Budget-Seite ohne Settings und Netz: Schlüssel prüfen, Token und Budget
 /// verlangen, Monat holen (`fetchMonth token budgetId monthKey`), Fehler lesbar machen.
 let budgetMonthFor
@@ -1770,18 +1762,18 @@ let budgetMonthFor
         | Error message -> return Error message
         | Ok choice ->
             match tokenOpt, budgetOpt with
-            | None, _ -> return Error (ynabErrorToString (YnabError.Unauthorized "No YNAB token configured"))
+            | None, _ -> return Error NoYnabToken
             | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
             | Some token, Some budgetId ->
                 let key = Server.Budgeting.Domain.monthKey today choice
                 match! fetchMonth token (YnabBudgetId budgetId) key with
-                | Error e -> return Error (ynabErrorToString e)
+                | Error e -> return Error (ynabErrorText e)
                 | Ok month -> return Ok (Server.Budgeting.Domain.toBudgetMonth month)
     }
 
 /// Der Weg von "Targets anwenden" ohne Settings und Netz: Token und Budget verlangen, den
 /// YNAB-Port bauen (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden
-/// lesbar (`ynabErrorToString`).
+/// lesbar (`ynabErrorText`).
 let targetsWith
     (tokenOpt: string option)
     (budgetOpt: string option)
@@ -1790,12 +1782,34 @@ let targetsWith
     : Async<Result<'a, string>> =
     async {
         match tokenOpt, budgetOpt with
-        | None, _ -> return Error (ynabErrorToString (YnabError.Unauthorized "No YNAB token configured"))
+        | None, _ -> return Error NoYnabToken
         | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
         | Some token, Some budgetId ->
             match! run (portFor token (YnabBudgetId budgetId)) with
             | Ok value -> return Ok value
-            | Error e -> return Error (ynabErrorToString e)
+            | Error e -> return Error (ynabErrorText e)
+    }
+
+/// Der Weg von "Verschieben" ohne Settings und Netz. Der Monat kommt vom Client (`BudgetMonth.Month`,
+/// budgeting-nfrds): der Server löst ihn nicht über die Uhr auf, sonst schriebe ein Sheet, das über
+/// den Monatswechsel offen stand, in einen anderen Monat, als es zeigt. Geprüft wird vor allem
+/// anderen: was hier scheitert, liest YNAB nicht und hält nichts fest.
+let moveMoneyWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (now: DateTime)
+    (monthKeyText: string)
+    (request: Shared.Budgeting.MoveRequest)
+    : Async<Result<Shared.Budgeting.ApplyReport, string>> =
+    async {
+        match Validation.validateMoveRequest monthKeyText request with
+        | Error errors -> return Error (String.concat " " errors)
+        | Ok () ->
+            let! result =
+                targetsWith tokenOpt budgetOpt portFor (fun port ->
+                    Server.Budgeting.CommandHandlers.moveMoney port now monthKeyText request)
+            return result |> Result.bind id
     }
 
 /// Der YNAB-Port der Server-Abläufe: echter Client für Lesen und Zuweisen.
@@ -1846,16 +1860,9 @@ let budgetApi : BudgetApi = {
     }
 
     moveMoney = fun monthKeyText request -> async {
-        match Validation.validateBudgetMonth monthKeyText with
-        | Error message -> return Error message
-        | Ok choice ->
-            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-            let key = Server.Budgeting.Domain.monthKey DateTime.Today choice
-            let! result =
-                targetsWith tokenOpt budgetOpt livePort (fun port ->
-                    Server.Budgeting.CommandHandlers.moveMoney port DateTime.UtcNow key request)
-            return result |> Result.bind id
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+        return! moveMoneyWith tokenOpt budgetOpt livePort DateTime.UtcNow monthKeyText request
     }
 }
 

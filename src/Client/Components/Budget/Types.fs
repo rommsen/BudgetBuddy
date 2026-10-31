@@ -28,21 +28,42 @@ type TargetsState =
     /// `retryError` wenn dieser Aufruf scheiterte.
     | ApplyDone of preview: TargetPreview * report: ApplyReport * retrying: bool * retryError: string option
 
-/// Das Sheet "Verschieben" zu einer Kategorie X (budgeting-afd8h).
+/// Wo der Auftrag im Sheet steht.
+type Submission =
+    | Editing
+    /// Der Aufruf läuft: der Knopf ist gesperrt und zeigt den Ladezustand.
+    | Sending
+    /// Nichts geschrieben (Monat nicht lesbar, Auftrag abgelehnt), mit Grund.
+    | Rejected of string
+
+/// Das Sheet "Verschieben" zu einer Kategorie X (budgeting-afd8h). Es hält nur X' Id: Beträge
+/// kommen aus `Model.Month`, damit eine neu gelesene Liste auch ein offenes Sheet erreicht.
 type MoveForm = {
     /// X, die Kategorie, an deren Verfügbar-Betrag getippt wurde.
-    Category: BudgetCategory
+    CategoryId: System.Guid
     /// Ist X die Quelle? Sonst das Ziel.
     IsSource: bool
     /// Die Gegenseite; `None`, solange keine gewählt ist.
     Counterpart: MoveSide option
-    /// Eingabe im Betragsfeld.
-    AmountText: string
+    /// Eingabe im Betragsfeld; `None`, solange nichts getippt wurde: dann gilt die Vorbelegung
+    /// aus dem aktuellen Monat.
+    AmountInput: string option
     PickerOpen: bool
-    /// Der Aufruf läuft: der Knopf ist gesperrt und zeigt den Ladezustand.
-    Sending: bool
-    /// Warum nichts geschrieben wurde (Monat nicht lesbar, Auftrag abgelehnt).
-    Error: string option
+    Submission: Submission
+}
+
+/// Läuft "Erneut senden" für eine Verschiebung gerade?
+type MoveRetryState =
+    | RetryReady
+    | RetryRunning
+
+/// Eine Verschiebung mit fehlgeschlagener Zeile. Bleibt auf der Seite sichtbar, wenn der Toast weg
+/// ist, bis nichts mehr offen ist.
+type OpenMoveRetry = {
+    ApplicationId: string
+    Summary: string
+    Reason: string
+    State: MoveRetryState
 }
 
 type Model = {
@@ -57,6 +78,8 @@ type Model = {
     CategorySearch: string
     /// Das offene Sheet "Verschieben".
     Move: MoveForm option
+    /// Verschiebungen, die noch erneut gesendet werden können.
+    OpenRetries: OpenMoveRetry list
 }
 
 type Msg =
@@ -68,6 +91,8 @@ type Msg =
     | SelectMonth of BudgetMonthChoice
     /// Antwort des Servers, mit der Wahl, zu der sie gehört.
     | Loaded of BudgetMonthChoice * Result<BudgetMonth, string>
+    /// Antwort des stillen Neu-Lesens nach einer Verschiebung.
+    | Reloaded of BudgetMonthChoice * Result<BudgetMonth, string>
     /// Knopf "Targets anwenden": Vorschau öffnen.
     | OpenTargets
     /// Antwort der Vorschau, mit der Monatswahl, zu der sie gehört.
@@ -85,7 +110,7 @@ type Msg =
     /// Das ✕ im Suchfeld.
     | ClearCategorySearch
     /// Tipp auf den Verfügbar-Betrag einer Kategorie.
-    | OpenMove of BudgetCategory
+    | OpenMove of System.Guid
     | CloseMove
     /// Der Umschalter: Quelle und Ziel tauschen, der Betrag bleibt.
     | ToggleMoveDirection
@@ -99,9 +124,9 @@ type Msg =
     | MoveAnswered of Result<ApplyReport, string>
     /// Der Aufruf selbst brach ab: ob etwas geschrieben wurde, ist unbekannt.
     | MoveCallLost of string
-    /// "Erneut senden" am Toast.
+    /// "Erneut senden" am Toast oder am Hinweis auf der Seite.
     | RetryMove of applicationId: string
-    | MoveRetried of Result<ApplyReport, string>
+    | MoveRetried of applicationId: string * Result<ApplyReport, string>
 
 /// Was die Seite an die App meldet (wie im Kassenbuch).
 type ExternalMsg =
@@ -110,17 +135,46 @@ type ExternalMsg =
     | ShowToastWithAction of string * ToastType * ToastAction
 
 let init () : Model =
-    { Choice = CurrentMonth; Month = NotAsked; Targets = TargetsClosed; CategorySearch = ""; Move = None }
+    { Choice = CurrentMonth
+      Month = NotAsked
+      Targets = TargetsClosed
+      CategorySearch = ""
+      Move = None
+      OpenRetries = [] }
+
+let private categoriesOf (month: BudgetMonth) : BudgetCategory list =
+    month.Groups |> List.collect (fun g -> g.Categories)
+
+/// Kategorie X des Sheets im Monat.
+let moveCategory (month: BudgetMonth) (form: MoveForm) : BudgetCategory option =
+    categoriesOf month |> List.tryFind (fun c -> c.Id = form.CategoryId)
 
 /// Antwort einnehmen. Eine Antwort zu einer inzwischen abgewählten Monatswahl wird
-/// verworfen, damit ein langsamer Aufruf den gerade gezeigten Monat nicht überschreibt.
+/// verworfen, damit ein langsamer Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt X im
+/// neuen Stand, schließt ein offenes Sheet, außer während des Aufrufs.
 let applyLoaded (choice: BudgetMonthChoice) (result: Result<BudgetMonth, string>) (model: Model) : Model =
     if choice <> model.Choice then
         model
     else
         match result with
-        | Ok month -> { model with Month = Success month }
+        | Ok month ->
+            let move =
+                model.Move
+                |> Option.filter (fun form -> form.Submission = Sending || (moveCategory month form).IsSome)
+            { model with Month = Success month; Move = move }
         | Error message -> { model with Month = Failure message }
+
+/// Das stille Neu-Lesen nach einer Verschiebung. Scheitert es, bleibt die Liste stehen und ein
+/// Hinweis nennt den Grund: die Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel.
+let applyReloaded
+    (choice: BudgetMonthChoice)
+    (result: Result<BudgetMonth, string>)
+    (model: Model)
+    : Model * ExternalMsg =
+    match model.Month, result with
+    | Success _, Error message when choice = model.Choice ->
+        model, ShowToast ($"Beträge nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning)
+    | _ -> applyLoaded choice result model, NoOp
 
 /// Monat wählen. Dieselbe Wahl noch einmal ändert nichts (`false`); eine andere setzt den
 /// Monat auf `Loading` (`true` heißt: der Aufrufer muss laden).
@@ -245,40 +299,47 @@ let actualCheck (preview: TargetPreview) (report: ApplyReport) : ActualCheck =
 // Verschieben (budgeting-afd8h, ADR 0069)
 // ============================================
 
-/// Der Zustand beim Öffnen. Verfügbar negativ: X wird gedeckt, ist also das Ziel, Betrag ist der
-/// Fehlbetrag. Sonst ist X die Quelle, Betrag ist Verfügbar.
+/// Der Zustand beim Öffnen. Verfügbar negativ: X wird gedeckt, ist also das Ziel. Sonst ist X die
+/// Quelle.
 let openMoveForm (category: BudgetCategory) : MoveForm =
-    { Category = category
+    { CategoryId = category.Id
       IsSource = category.Available.Amount >= 0m
       Counterpart = None
-      AmountText = formatAmountForInput category.Available.Amount
+      AmountInput = None
       PickerOpen = false
-      Sending = false
-      Error = None }
+      Submission = Editing }
 
 /// Der Umschalter dreht Quelle und Ziel, der Betrag bleibt.
 let toggleDirection (form: MoveForm) : MoveForm =
     { form with IsSource = not form.IsSource }
 
+/// Der Text im Betragsfeld: die Eingabe, sonst die Vorbelegung aus dem aktuellen Monat (Verfügbar
+/// beziehungsweise bei negativem Verfügbar der Fehlbetrag).
+let moveAmountText (month: BudgetMonth) (form: MoveForm) : string =
+    match form.AmountInput, moveCategory month form with
+    | Some text, _ -> text
+    | None, Some category -> formatAmountForInput category.Available.Amount
+    | None, None -> ""
+
 /// Der Betrag der Eingabe; leer, unlesbar und 0 sind keiner.
-let moveAmount (form: MoveForm) : decimal option =
-    parseAmountInput form.AmountText |> Option.filter (fun amount -> amount > 0m)
+let moveAmount (month: BudgetMonth) (form: MoveForm) : decimal option =
+    parseAmountInput (moveAmountText month form) |> Option.filter (fun amount -> amount > 0m)
 
 /// Darf "Verschieben" gedrückt werden?
-let canMove (form: MoveForm) : bool =
-    not form.Sending && form.Counterpart.IsSome && (moveAmount form).IsSome
+let canMove (month: BudgetMonth) (form: MoveForm) : bool =
+    form.Submission <> Sending
+    && form.Counterpart.IsSome
+    && (moveCategory month form).IsSome
+    && (moveAmount month form).IsSome
 
 /// Der Auftrag an den Server; `None`, solange etwas fehlt.
-let moveRequest (form: MoveForm) : MoveRequest option =
-    match form.Counterpart, moveAmount form with
-    | Some counterpart, Some amount ->
-        let x = CategorySide form.Category.Id
+let moveRequest (month: BudgetMonth) (form: MoveForm) : MoveRequest option =
+    match form.Counterpart, moveAmount month form, moveCategory month form with
+    | Some counterpart, Some amount, Some category ->
+        let x = CategorySide form.CategoryId
         let source, target = if form.IsSource then x, counterpart else counterpart, x
-        Some { Source = source; Target = target; Amount = { Amount = amount; Currency = form.Category.Available.Currency } }
+        Some { Source = source; Target = target; Amount = { Amount = amount; Currency = category.Available.Currency } }
     | _ -> None
-
-let private categoriesOf (month: BudgetMonth) : BudgetCategory list =
-    month.Groups |> List.collect (fun g -> g.Categories)
 
 /// Name der Gegenseite.
 let counterpartName (month: BudgetMonth) (side: MoveSide) : string =
@@ -293,10 +354,10 @@ let counterpartName (month: BudgetMonth) (side: MoveSide) : string =
 /// Eine Zeile "Verfügbar danach".
 type MoveAfterLine = { Label: string; After: Money }
 
-/// "Verfügbar danach" für X und, sobald gewählt, die Gegenseite. Ohne gültigen Betrag bleiben die
-/// heutigen Werte stehen. Ein negatives Ergebnis ist gültig.
+/// "Verfügbar danach" für X und, sobald gewählt, die Gegenseite, aus dem aktuellen Monat. Ohne
+/// gültigen Betrag bleiben die heutigen Werte stehen. Ein negatives Ergebnis ist gültig.
 let moveAfter (month: BudgetMonth) (form: MoveForm) : MoveAfterLine list =
-    let amount = moveAmount form |> Option.defaultValue 0m
+    let amount = moveAmount month form |> Option.defaultValue 0m
     let change = if form.IsSource then -amount else amount
     let shifted (m: Money) (delta: decimal) = { m with Amount = m.Amount + delta }
     let counterpart =
@@ -305,7 +366,9 @@ let moveAfter (month: BudgetMonth) (form: MoveForm) : MoveAfterLine list =
         | Some ToBeBudgetedSide -> Some month.ToBeBudgeted
         | Some (CategorySide id) ->
             categoriesOf month |> List.tryFind (fun c -> c.Id = id) |> Option.map (fun c -> c.Available)
-    [ { Label = form.Category.Name; After = shifted form.Category.Available change }
+    [ match moveCategory month form with
+      | Some category -> { Label = category.Name; After = shifted category.Available change }
+      | None -> ()
       match form.Counterpart, counterpart with
       | Some side, Some available -> { Label = counterpartName month side; After = shifted available -change }
       | _ -> () ]
@@ -333,34 +396,40 @@ let counterpartOf (choice: CategoryPicker.PickerChoice) : MoveSide option =
 
 /// Die Überschrift im Sheet.
 let moveHeadline (month: BudgetMonth) (form: MoveForm) : string =
+    let name = moveCategory month form |> Option.map (fun c -> c.Name) |> Option.defaultValue ""
     let other = form.Counterpart |> Option.map (counterpartName month) |> Option.defaultValue "…"
-    if form.IsSource then $"Von {form.Category.Name} nach {other}"
-    else $"{form.Category.Name} decken aus {other}"
+    if form.IsSource then $"Von {name} nach {other}"
+    else $"{name} decken aus {other}"
 
-/// Sheet öffnen, nur bei geladenem Monat und ohne offenen Dialog.
-let openMove (category: BudgetCategory) (model: Model) : Model =
+/// Sheet öffnen, nur bei geladenem Monat, bekannter Kategorie und ohne offenen Dialog.
+let openMove (categoryId: System.Guid) (model: Model) : Model =
     match model.Month, model.Targets, model.Move with
-    | Success _, TargetsClosed, None -> { model with Move = Some (openMoveForm category) }
+    | Success month, TargetsClosed, None ->
+        match categoriesOf month |> List.tryFind (fun c -> c.Id = categoryId) with
+        | Some category -> { model with Move = Some (openMoveForm category) }
+        | None -> model
     | _ -> model
 
 /// Sheet schließen. Während des Aufrufs bleibt es offen.
 let closeMove (model: Model) : Model =
     match model.Move with
-    | Some form when form.Sending -> model
+    | Some form when form.Submission = Sending -> model
     | _ -> { model with Move = None }
 
 /// Ändert das offene Formular, außer während des Aufrufs.
 let updateForm (change: MoveForm -> MoveForm) (model: Model) : Model =
     match model.Move with
-    | Some form when not form.Sending -> { model with Move = Some (change form) }
+    | Some form when form.Submission <> Sending -> { model with Move = Some (change form) }
     | _ -> model
 
 /// "Verschieben". Gibt den Auftrag zurück; ist der Knopf gesperrt oder läuft schon ein Aufruf,
 /// geschieht nichts. Sonst ginge beim Doppeltipp das Geld zweimal, denn der Server rechnet relativ.
-let confirmMove (model: Model) : Model * MoveRequest option =
-    match model.Move with
-    | Some form when canMove form ->
-        { model with Move = Some { form with Sending = true; Error = None } }, moveRequest form
+/// Mit dem Auftrag kommt der Monat, den die Seite zeigt: dorthin schreibt der Server.
+let confirmMove (model: Model) : Model * (string * MoveRequest) option =
+    match model.Move, model.Month with
+    | Some form, Success month when canMove month form ->
+        { model with Move = Some { form with Submission = Sending } },
+        moveRequest month form |> Option.map (fun request -> month.Month, request)
     | _ -> model, None
 
 /// "20,00 € von Lebensmittel nach Urlaub", aus dem Bericht des Servers. Die Zeilen stehen in
@@ -398,16 +467,60 @@ let moveToast (report: ApplyReport) : ExternalMsg =
         ShowToast ("In YNAB geändert, nichts überschrieben", ToastWarning)
     | None -> ShowToast (moveSummaryText report, ToastSuccess)
 
+/// Merkt sich eine Verschiebung mit fehlgeschlagener Zeile; ist nichts mehr offen, verschwindet
+/// sie. Der Hinweis auf der Seite hängt daran, der Toast läuft nach fünf Sekunden ab.
+let noteMoveReport (report: ApplyReport) (model: Model) : Model =
+    let others = model.OpenRetries |> List.filter (fun r -> r.ApplicationId <> report.ApplicationId)
+    let reason =
+        report.Lines
+        |> List.tryPick (fun l ->
+            match l.Outcome with
+            | Failed reason -> Some reason
+            | _ -> None)
+    match reason with
+    | Some reason ->
+        let entry =
+            { ApplicationId = report.ApplicationId
+              Summary = moveSummaryText report
+              Reason = reason
+              State = RetryReady }
+        { model with OpenRetries = others @ [ entry ] }
+    | None -> { model with OpenRetries = others }
+
 /// Antwort auf "Verschieben". `Error` heißt: nichts geschrieben, das Sheet bleibt offen und nennt
-/// den Grund. Mit Bericht schließt es, der Monat wird neu gelesen (`true`).
+/// den Grund. Ist es inzwischen zu (Seitenwechsel), nennt ein Toast den Grund. Mit Bericht schließt
+/// es, der Monat wird neu gelesen (`true`).
 let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg * bool =
-    match result with
-    | Ok report -> { model with Move = None }, moveToast report, true
-    | Error message ->
-        let form = model.Move |> Option.map (fun f -> { f with Sending = false; Error = Some message })
-        { model with Move = form }, NoOp, false
+    match result, model.Move with
+    | Ok report, _ -> noteMoveReport report { model with Move = None }, moveToast report, true
+    | Error message, Some form -> { model with Move = Some { form with Submission = Rejected message } }, NoOp, false
+    | Error message, None -> model, ShowToast ($"Nicht verschoben: {message}", ToastError), false
 
 /// Der Aufruf brach ab. Weil der Server relativ rechnet, wäre ein zweiter Versuch im offenen Sheet
 /// gefährlich: es schließt, und der Monat wird neu gelesen.
 let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
     { model with Move = None }, ShowToast ($"Ob verschoben wurde, ist unklar: {message}", ToastError)
+
+/// "Erneut senden". `true` heißt: der Aufrufer muss senden. Läuft es schon oder ist die Verschiebung
+/// nicht mehr offen, geschieht nichts.
+let startMoveRetry (applicationId: string) (model: Model) : Model * bool =
+    match model.OpenRetries |> List.tryFind (fun r -> r.ApplicationId = applicationId) with
+    | Some { State = RetryReady } ->
+        { model with
+            OpenRetries =
+                model.OpenRetries
+                |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryRunning } else r) },
+        true
+    | _ -> model, false
+
+/// Antwort auf "Erneut senden". Scheitert der Aufruf, bleibt die Verschiebung offen und sendbar,
+/// ein Toast nennt den Grund. In beiden Fällen liest der Aufrufer den Monat neu, denn der Lauf kann
+/// YNAB erreicht haben.
+let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg =
+    match result with
+    | Ok report -> noteMoveReport report model, moveToast report
+    | Error message ->
+        let reopened =
+            model.OpenRetries
+            |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryReady } else r)
+        { model with OpenRetries = reopened }, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)

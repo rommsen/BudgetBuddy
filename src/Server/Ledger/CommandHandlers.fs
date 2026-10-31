@@ -137,17 +137,6 @@ let private saveLastMirrorRun (status: MirrorRunStatus) : Async<unit> =
 // Der Lauf
 // ============================================
 
-let private describeYnabError (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized message -> $"YNAB-Token abgelehnt: {message}"
-    | YnabError.BudgetNotFound budgetId -> $"Budget {budgetId} in YNAB nicht gefunden"
-    | YnabError.AccountNotFound accountId -> $"Konto {accountId} in YNAB nicht gefunden"
-    | YnabError.CategoryNotFound categoryId -> $"Kategorie {categoryId} in YNAB nicht gefunden"
-    | YnabError.RateLimitExceeded seconds ->
-        $"YNAB-Rate-Limit erreicht, Lauf abgebrochen (fruehestens in {seconds}s erneut)"
-    | YnabError.NetworkError message -> $"YNAB nicht erreichbar: {message}"
-    | YnabError.InvalidResponse message -> $"YNAB-Antwort nicht lesbar: {message}"
-
 /// Legt die gespiegelten Konten an oder zieht Name und Status nach und liefert die
 /// Auflösung YNAB-Konto -> Kassenbuch-Konto. Ein in YNAB geloeschtes Konto gilt als
 /// geschlossen; das Kassenbuch loescht auch hier nichts.
@@ -193,7 +182,7 @@ let private refreshCategories
             match! fetchCategories () with
             | Ok categories -> do! Ledger.Persistence.upsertCategories categories
             | Error e ->
-                printfn "Kategorie-Spiegel übersprungen (bestes Bemühen, ADR 0039 Punkt 4): %s" (describeYnabError e)
+                printfn "Kategorie-Spiegel übersprungen (bestes Bemühen, ADR 0039 Punkt 4): %s" (ynabErrorText e)
         with ex ->
             printfn "Kategorie-Spiegel übersprungen (bestes Bemühen, ADR 0039 Punkt 4): %s" ex.Message
     }
@@ -425,12 +414,12 @@ let runMirror
             // genau so ein Konto zeigen. Der Request kostet gleich viel (ADR 0014,
             // Rate-Limit-Rechnung: ein Lauf = zwei Requests).
             match! fetchers.FetchAccounts None with
-            | Error error -> return! finish (Error (describeYnabError error))
+            | Error error -> return! finish (Error (ynabErrorText error))
             | Ok accountBatch ->
                 let! resolution = syncAccounts accountBatch.Accounts
 
                 match! fetchers.FetchTransactions knowledge with
-                | Error error -> return! finish (Error (describeYnabError error))
+                | Error error -> return! finish (Error (ynabErrorText error))
                 | Ok batch ->
                     let mutable newEntries = 0
                     let mutable changedEntries = 0
@@ -623,18 +612,6 @@ type CashExpenseInput = {
     Category: CategoryRef option
 }
 
-/// Der Grund für `EntryPushToYnabFailed` (ledger-rynk5): ein kurzer, lesbarer Satz mit
-/// der Fehlerart, bei Limit und Zugang mit dem HTTP-Status.
-let describePushFailure (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized _ -> "YNAB hat den Zugang abgelehnt (HTTP 401)"
-    | YnabError.BudgetNotFound _ -> "Das Budget wurde in YNAB nicht gefunden (HTTP 404)"
-    | YnabError.AccountNotFound _ -> "Das Konto wurde in YNAB nicht gefunden (HTTP 404)"
-    | YnabError.CategoryNotFound _ -> "Die Kategorie wurde in YNAB nicht gefunden (HTTP 404)"
-    | YnabError.RateLimitExceeded seconds -> $"YNAB bremst gerade (HTTP 429, erneut in {seconds} Sekunden)"
-    | YnabError.NetworkError msg -> $"Netzwerkfehler: {msg}"
-    | YnabError.InvalidResponse msg -> $"YNAB hat die Buchung abgelehnt: {msg}"
-
 /// Der Grund, wenn YNAB den Versand beantwortet hat, die Buchung aber nicht in der
 /// Antwort angelegt war: nicht auswertbare Antwort, Duplikat oder sonst nicht angelegt.
 let describeNotCreatedReason (importId: string) (result: Ynab.TransactionCreateResult) : string =
@@ -708,7 +685,7 @@ let addCashExpense
                         EntryId = entryId
                         OccurredAt = now
                         Actor = actor
-                        Body = EntryPushToYnabFailed { Reason = describePushFailure err }
+                        Body = EntryPushToYnabFailed { Reason = ynabErrorText err }
                     }
                 ]
             return Error err
@@ -764,7 +741,7 @@ let retryPushToYnab
                 triggerMirror ()
                 return Ok PushToYnabSent
             | Error err ->
-                let reason = describePushFailure err
+                let reason = ynabErrorText err
                 do!
                     Ledger.Persistence.appendAndApply [
                         {
@@ -996,7 +973,7 @@ let pushComdirectImports
                         // bleibt unverknüpft stehen (ADR 0021 Punkt 2, ledger-rynk5).
                         let reason =
                             match sendResult with
-                            | Error err -> describePushFailure err
+                            | Error err -> ynabErrorText err
                             | Ok result ->
                                 let importId =
                                     Map.tryFind txId preparedByTxId
@@ -1129,17 +1106,6 @@ let private fromReviewClearedState (c: ReviewClearedState) : ClearedState =
 let private toReviewMarkState (approved: bool, cleared: ClearedState) : ReviewMarkState =
     { IsApproved = approved; ClearedState = toReviewClearedState cleared }
 
-/// Der Grund-Text für den Hinweis "Prüfvermerk nicht in YNAB".
-let describeReviewMarkPushError (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized msg -> $"YNAB hat den Zugang abgelehnt: {msg}"
-    | YnabError.BudgetNotFound _ -> "Das Budget wurde in YNAB nicht gefunden"
-    | YnabError.AccountNotFound _ -> "Das Konto wurde in YNAB nicht gefunden"
-    | YnabError.CategoryNotFound _ -> "Die Kategorie wurde in YNAB nicht gefunden"
-    | YnabError.RateLimitExceeded seconds -> $"YNAB bremst gerade (Limit erreicht), bitte in {seconds} Sekunden erneut senden"
-    | YnabError.NetworkError msg -> $"Keine Verbindung zu YNAB: {msg}"
-    | YnabError.InvalidResponse msg -> $"YNAB hat die Änderung abgelehnt: {msg}"
-
 /// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0050, Punkt 12).
 let reviewMarkNotLinkedReason = "noch nicht in YNAB verknüpft"
 
@@ -1197,7 +1163,7 @@ let private sendReviewMark
         | Some ynabTransactionId ->
             match! push ynabTransactionId approved cleared with
             | Ok () -> return ReviewMarkSent
-            | Error err -> return! fail (describeReviewMarkPushError err)
+            | Error err -> return! fail (ynabErrorText err)
     }
 
 /// Gemeinsamer Ablauf für `setReviewMark` und `restoreReviewMark`: lädt die Buchung,
@@ -1309,7 +1275,7 @@ let retryReviewMarkWriteBack
                         ]
                     return Ok ReviewMarkSent
                 | Error err ->
-                    let reason = describeReviewMarkPushError err
+                    let reason = ynabErrorText err
                     do!
                         Ledger.Persistence.appendAndApply [
                             reviewMarkEvent entryId now UserInBb (EntryReviewMarkWriteBackFailed { Reason = reason })
@@ -1425,7 +1391,7 @@ let private changeReviewMarkBatch
                 match pushed with
                 | Ok notSaved when notSaved |> List.contains c.YnabTransactionId -> Some reviewMarkNotSavedReason
                 | Ok _ -> None
-                | Error err -> Some (describeReviewMarkPushError err)
+                | Error err -> Some (ynabErrorText err)
 
             let writeBacks = changed |> List.map (fun c -> c, reasonOf c)
 
@@ -1487,11 +1453,11 @@ let restoreReviewMarkBatch
 type CategoryPush = string -> YnabCategoryId option -> Async<YnabResult<unit>>
 
 /// Der Grund-Text für den Hinweis "Kategorie nicht in YNAB". Wie
-/// `describeReviewMarkPushError`, nur die Ablehnung nennt die Kategorie.
+/// `ynabErrorText`, nur die Ablehnung nennt die Kategorie.
 let describeCategoryPushError (error: YnabError) : string =
     match error with
     | YnabError.InvalidResponse msg -> $"YNAB hat die Kategorie abgelehnt: {msg}"
-    | other -> describeReviewMarkPushError other
+    | other -> ynabErrorText other
 
 /// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0055, Punkt 4).
 let categoryNotLinkedReason = reviewMarkNotLinkedReason
@@ -1982,7 +1948,7 @@ let splitLocksOf (isTracking: bool) (importId: string option) (entry: Entry) : S
 let describeSplitPushError (error: YnabError) : string =
     match error with
     | YnabError.InvalidResponse msg -> $"YNAB hat die Aufteilung abgelehnt: {msg}"
-    | other -> describeReviewMarkPushError other
+    | other -> ynabErrorText other
 
 let private clearedToYnab (cleared: ClearedState) : string =
     match cleared with
@@ -2241,12 +2207,12 @@ let retryCategorizationOrSplitWriteBack
 /// (`Ynab.updateFlag`).
 type FlagPush = string -> string option -> Async<YnabResult<unit>>
 
-/// Der Grund-Text für den Hinweis "Flag nicht in YNAB". Wie `describeReviewMarkPushError`,
+/// Der Grund-Text für den Hinweis "Flag nicht in YNAB". Wie `ynabErrorText`,
 /// nur die Ablehnung nennt das Flag.
 let describeFlagPushError (error: YnabError) : string =
     match error with
     | YnabError.InvalidResponse msg -> $"YNAB hat das Flag abgelehnt: {msg}"
-    | other -> describeReviewMarkPushError other
+    | other -> ynabErrorText other
 
 /// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0056, Punkt 5).
 let flagNotLinkedReason = reviewMarkNotLinkedReason
@@ -2428,7 +2394,7 @@ type MemoPush = string -> string option -> Async<YnabResult<unit>>
 let describeMemoPushError (error: YnabError) : string =
     match error with
     | YnabError.InvalidResponse msg -> $"YNAB hat das Memo abgelehnt: {msg}"
-    | other -> describeReviewMarkPushError other
+    | other -> ynabErrorText other
 
 /// Der Grund, wenn die Buchung noch keine YNAB-Verknüpfung hat (ADR 0062).
 let memoNotLinkedReason = reviewMarkNotLinkedReason

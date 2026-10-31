@@ -235,13 +235,13 @@ let private apiPathTests =
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
             match call (Some "t") (Some "b") "current" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
-            | Error msg -> Expect.stringContains msg "rate limit" "lesbar"
+            | Error msg -> Expect.equal msg "Rate-Limit (HTTP 429), erneut in 60 Sekunden" "deutsch"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Fehlender Token wird gemeldet, ohne YNAB zu fragen" {
             let fetch = fun _ _ _ -> async { return failwith "darf nicht aufgerufen werden" }
             match call None (Some "b") "current" fetch with
-            | Error msg -> Expect.stringContains msg "token" "Token fehlt"
+            | Error msg -> Expect.stringContains msg "YNAB-Token" "Token fehlt"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Fehlendes Standard-Budget wird gemeldet" {

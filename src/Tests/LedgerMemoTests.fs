@@ -379,9 +379,9 @@ let commandTests =
             setMemo failing.Push entryId "neu" |> unwrap |> ignore
             let loaded = entryOf entryId
             Expect.equal loaded.MemoWriteBackFailure.Value.BaselineMemo (Some "alt") "Baseline aus der Datenbank"
-            Expect.equal (loaded.MemoWriteBackFailure |> Option.map (fun f -> f.Reason)) (Some "Keine Verbindung zu YNAB: weg") "Grund"
+            Expect.equal (loaded.MemoWriteBackFailure |> Option.map (fun f -> f.Reason)) (Some "Netzwerkfehler: weg") "Grund"
             let view = ReadModel.toEntryView Map.empty Map.empty DecidedInBb loaded
-            Expect.equal view.MemoWriteBackFailure (Some "Keine Verbindung zu YNAB: weg") "die Sicht trägt den Grund"
+            Expect.equal view.MemoWriteBackFailure (Some "Netzwerkfehler: weg") "die Sicht trägt den Grund"
     ]
 
 // ============================================
@@ -529,7 +529,7 @@ let historyTests =
             setMemo failing.Push entryId "Notiz" |> unwrap |> ignore
             let (EntryId guid) = entryId
             let lines = getEntryHistory guid |> Async.RunSynchronously |> List.map (fun l -> l.Description)
-            Expect.equal (lines |> List.skip 1) [ "Memo gesetzt: Notiz"; "Memo nicht in YNAB: Keine Verbindung zu YNAB: weg" ] "Memo-Zeilen"
+            Expect.equal (lines |> List.skip 1) [ "Memo gesetzt: Notiz"; "Memo nicht in YNAB: Netzwerkfehler: weg" ] "Memo-Zeilen"
     ]
 
 // ============================================

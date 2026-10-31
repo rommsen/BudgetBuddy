@@ -19,18 +19,6 @@ type YnabPort = {
     SetAssigned: string -> Guid -> int64 -> Async<YnabResult<unit>>
 }
 
-/// Der Grund einer fehlgeschlagenen Zeile in einem Satz. Das Rate-Limit heißt immer
-/// "Rate-Limit", damit Seite und Test es erkennen.
-let failureReason (error: YnabError) : string =
-    match error with
-    | YnabError.RateLimitExceeded _ -> "Rate-Limit"
-    | YnabError.Unauthorized _ -> "YNAB-Token ungültig"
-    | YnabError.NetworkError message -> $"Netzwerkfehler: {message}"
-    | YnabError.InvalidResponse message -> $"YNAB hat abgelehnt: {message}"
-    | YnabError.BudgetNotFound _ -> "Budget nicht gefunden"
-    | YnabError.AccountNotFound _ -> "Konto nicht gefunden"
-    | YnabError.CategoryNotFound _ -> "Kategorie nicht gefunden"
-
 let private isRateLimit (error: YnabError) =
     match error with
     | YnabError.RateLimitExceeded _ -> true
@@ -81,25 +69,33 @@ let preview (port: YnabPort) (monthKey: string) : Async<Result<TargetPreview, Yn
 // Berichte
 // ============================================
 
-let private reportWith (applicationId: Guid) (monthKey: string) (actual: Money option) : Async<ApplyReport> =
+/// Die Zeilen einer Anwendung, mit `YnabError` wie die übrigen Fehler dieser Abläufe.
+let private loadStates (applicationId: Guid) : Async<Result<MovementState list, YnabError>> =
     async {
         let! states = loadApplication applicationId
-        let lines =
-            states
-            |> List.map (fun s ->
-                { CategoryId = s.Movement.CategoryId
-                  CategoryName = s.Movement.CategoryName
-                  OldAssigned = euro s.Movement.OldAssigned
-                  NewAssigned = euro s.Movement.NewAssigned
-                  Outcome = s.Latest |> Option.defaultValue (Failed "nicht gesendet") })
-        return
-            { ApplicationId = string applicationId
-              Month = monthKey
-              Lines = lines
-              ActualToBeBudgeted = actual }
+        return states |> Result.mapError YnabError.InvalidResponse
     }
 
-let private reportOf (port: YnabPort) (applicationId: Guid) (monthKey: string) : Async<ApplyReport> =
+let private reportWith (applicationId: Guid) (monthKey: string) (actual: Money option) : Async<Result<ApplyReport, YnabError>> =
+    async {
+        let! states = loadStates applicationId
+        return
+            states
+            |> Result.map (fun states ->
+                { ApplicationId = string applicationId
+                  Month = monthKey
+                  Lines =
+                    states
+                    |> List.map (fun s ->
+                        { CategoryId = s.Movement.CategoryId
+                          CategoryName = s.Movement.CategoryName
+                          OldAssigned = euro s.Movement.OldAssigned
+                          NewAssigned = euro s.Movement.NewAssigned
+                          Outcome = s.Latest |> Option.defaultValue (Failed "nicht gesendet") })
+                  ActualToBeBudgeted = actual })
+    }
+
+let private reportOf (port: YnabPort) (applicationId: Guid) (monthKey: string) : Async<Result<ApplyReport, YnabError>> =
     async {
         let! actual =
             async {
@@ -129,7 +125,7 @@ let private sendAll
                 | Ok () -> do! appendResult movementId now Written
                 | Error e ->
                     if isRateLimit e then rateLimited.Value <- true
-                    do! appendResult movementId now (Failed (failureReason e))
+                    do! appendResult movementId now (Failed (ynabErrorText e))
     }
 
 // ============================================
@@ -159,7 +155,7 @@ let apply
                     { Id = Guid.NewGuid()
                       ApplicationId = applicationId
                       OccurredAt = now
-                      Origin = OriginTargets
+                      Origin = TargetsApplied
                       Month = fresh.Month
                       CategoryId = l.CategoryId
                       CategoryName = l.CategoryName
@@ -169,7 +165,7 @@ let apply
             do!
                 sendAll port now fresh.Month (movements |> List.map (fun m -> m.Id, m.CategoryId, m.NewAssigned))
             let! report = reportOf port applicationId fresh.Month
-            return Ok (Applied report)
+            return report |> Result.map Applied
     })
 
 // ============================================
@@ -179,6 +175,10 @@ let apply
 /// Grund der Ziel-Zeile, wenn die Quelle nicht geschrieben wurde.
 [<Literal>]
 let TargetHeldBack = "Quelle nicht geschrieben, Ziel nicht gesendet"
+
+/// Grund der Quell-Zeile, wenn das Ziel im Monat fehlt.
+[<Literal>]
+let SourceHeldBack = "Ziel in YNAB nicht gefunden, Quelle nicht gesendet"
 
 /// Sendet die Zeilen nacheinander und hält beim ersten Fehler an: stiege das Ziel, ohne dass die
 /// Quelle sinkt, käme das Geld still aus Zu verteilen (ADR 0069 Punkt 3). Die übrigen Zeilen
@@ -199,7 +199,7 @@ let private sendInOrder
                 | Ok () -> do! appendResult m.Id now Written
                 | Error e ->
                     stopped.Value <- true
-                    do! appendResult m.Id now (Failed (failureReason e))
+                    do! appendResult m.Id now (Failed (ynabErrorText e))
     }
 
 /// Verschieben oder Zuweisen. Unter der Monats-Sperre: den Monat frisch lesen und relativ dazu
@@ -236,89 +236,102 @@ let moveMoney
                 do! appendMovements movements
                 do! sendInOrder port now monthKey movements
                 let! report = reportWith applicationId monthKey None
-                return Ok (Ok report)
+                return report |> Result.map Ok
     })
 
 // ============================================
 // Fehlgeschlagene erneut senden
 // ============================================
 
-/// Sendet die Zeilen einer Anwendung erneut, deren jüngstes Ergebnis "fehlgeschlagen" ist.
-/// Der Zielwert ist absolut, ein zweites Senden ändert nichts. Der Live-Wert entscheidet
-/// (`decideRetry`): steht YNAB schon auf dem Ziel, wird nichts gesendet und die Zeile als
-/// geschrieben festgehalten; steht es weder auf dem alten noch auf dem Zielwert, gewinnt
-/// YNAB (ADR 0055) und die Zeile wird als "in YNAB geändert" geschlossen.
+/// Sendet die offenen Zeilen einer Anwendung erneut: fehlgeschlagene und solche ohne Stand (der
+/// Lauf brach vor ihnen ab). Der Zielwert ist absolut, ein zweites Senden ändert nichts. Der
+/// Live-Wert entscheidet (`decideRetry`): steht YNAB schon auf dem Ziel, wird nichts gesendet und
+/// die Zeile als geschrieben festgehalten; steht es weder auf dem alten noch auf dem Zielwert,
+/// gewinnt YNAB (ADR 0055) und die Zeile wird als "in YNAB geändert" geschlossen.
 ///
-/// Bei einer Verschiebung bleibt die Reihenfolge verbindlich (ADR 0069 Punkt 3): solange die
-/// Quelle nicht geschrieben ist, geht das Ziel nicht hinaus. Scheitert sie wieder, bleibt das
-/// Ziel unberührt fehlgeschlagen. Hat YNAB bei der Quelle gewonnen, wird das Ziel ungesendet
-/// ebenso als "in YNAB geändert" geschlossen: die Quelle gehört dann YNAB, und ein gesendetes Ziel
-/// nähme das Geld aus Zu verteilen. Offen ist dabei, ob die Quelle je gesunken ist. Kam ihr PATCH
-/// an und nur die Antwort ging verloren, und änderte sie sich danach, bleibt das Geld in Zu
-/// verteilen und Roman verschiebt es von Hand (Erweiterung von ADR 0069 Punkt 3, budgeting-afd8h).
+/// Bei einer Verschiebung bleibt die Reihenfolge verbindlich (ADR 0069 Punkt 3). Maßgeblich ist der
+/// Stand der Vorgänger-Zeile, auch aus einem früheren Lauf: solange die Quelle nicht geschrieben
+/// ist, geht das Ziel nicht hinaus. Scheitert sie wieder, bleibt das Ziel unberührt. Hat YNAB bei
+/// der Quelle gewonnen, wird das Ziel ungesendet ebenso als "in YNAB geändert" geschlossen: die
+/// Quelle gehört dann YNAB, und ein gesendetes Ziel nähme das Geld aus Zu verteilen. Offen ist
+/// dabei, ob die Quelle je gesunken ist. Kam ihr PATCH an und nur die Antwort ging verloren, und
+/// änderte sie sich danach, bleibt das Geld in Zu verteilen und Roman verschiebt es von Hand.
+///
+/// Vor dem ersten Senden werden beide Stände geprüft (ADR 0070, Nachtrag). Ist das Ziel schon
+/// verloren, geht die Quelle nicht hinaus und schließt mit ihm: sonst läge das Geld in Zu verteilen.
+/// Fehlt das Ziel im Monat, bleibt die Quelle ungesendet fehlgeschlagen.
 let retryFailed
     (port: YnabPort)
     (now: DateTime)
     (applicationId: Guid)
     : Async<Result<ApplyReport, YnabError>> =
     async {
-        let! states = loadApplication applicationId
-        match states with
-        | [] -> return Error (YnabError.InvalidResponse "Unbekannte Anwendung")
-        | first :: _ ->
+        match! loadStates applicationId with
+        | Error e -> return Error e
+        | Ok [] -> return Error (YnabError.InvalidResponse "Unbekannte Anwendung")
+        | Ok (first :: _) ->
             let monthKey = first.Movement.Month
             return!
                 MonthGuard.exclusive monthKey (async {
                     match! port.FetchMonth monthKey with
                     | Error e -> return Error e
                     | Ok live ->
-                        let! states = loadApplication applicationId
-                        let liveAssigned =
-                            live.Categories |> List.map (fun c -> c.Id, c.Assigned) |> Map.ofList
-                        let rateLimited = ref false
-                        let inOrder = first.Movement.Origin = OriginMove
-                        // Was die folgenden Zeilen einer Verschiebung aufhält.
-                        let held = ref None
-                        let retryLine (m: Movement) =
-                            async {
-                                match Map.tryFind m.CategoryId liveAssigned with
-                                | None ->
-                                    let outcome = Failed "Kategorie in YNAB nicht gefunden"
-                                    do! appendResult m.Id now outcome
-                                    return outcome
-                                | Some current ->
-                                    match decideRetry (euro m.OldAssigned) (euro m.NewAssigned) current with
-                                    | AlreadyAtTarget ->
-                                        do! appendResult m.Id now Written
-                                        return Written
-                                    | YnabWins ->
-                                        do! appendResult m.Id now ChangedInYnab
-                                        return ChangedInYnab
-                                    | SendTarget ->
-                                        if rateLimited.Value then
-                                            let outcome = Failed "Rate-Limit"
+                        match! loadStates applicationId with
+                        | Error e -> return Error e
+                        | Ok states ->
+                            let liveAssigned =
+                                live.Categories |> List.map (fun c -> c.Id, c.Assigned) |> Map.ofList
+                            let decisionFor (m: Movement) =
+                                Map.tryFind m.CategoryId liveAssigned
+                                |> Option.map (decideRetry (euro m.OldAssigned) (euro m.NewAssigned))
+                            let inOrder = sendsInOrder first.Movement.Origin
+                            // Ist das Ziel verloren, wäre ein Senden der Quelle das Geld in Zu verteilen.
+                            let sourceBlocked =
+                                match inOrder, states with
+                                | true, [ _; target ] when isOpenLine target.Latest ->
+                                    match decisionFor target.Movement with
+                                    | Some YnabWins -> Some ChangedInYnab
+                                    | None -> Some (Failed SourceHeldBack)
+                                    | Some _ -> None
+                                | _ -> None
+                            let rateLimited = ref false
+                            let retryLine (m: Movement) =
+                                async {
+                                    let close outcome =
+                                        async {
                                             do! appendResult m.Id now outcome
                                             return outcome
-                                        else
+                                        }
+                                    match decisionFor m with
+                                    | None -> return! close (Failed "Kategorie in YNAB nicht gefunden")
+                                    | Some AlreadyAtTarget -> return! close Written
+                                    | Some YnabWins -> return! close ChangedInYnab
+                                    | Some SendTarget ->
+                                        match sourceBlocked with
+                                        | Some outcome -> return! close outcome
+                                        | None when rateLimited.Value -> return! close (Failed "Rate-Limit")
+                                        | None ->
                                             match! port.SetAssigned monthKey m.CategoryId m.NewAssigned with
-                                            | Ok () ->
-                                                do! appendResult m.Id now Written
-                                                return Written
+                                            | Ok () -> return! close Written
                                             | Error e ->
                                                 if isRateLimit e then rateLimited.Value <- true
-                                                let outcome = Failed (failureReason e)
-                                                do! appendResult m.Id now outcome
-                                                return outcome
-                            }
-                        for s in states do
-                            match s.Latest, held.Value with
-                            | Some (Failed _), Some ChangedInYnab -> do! appendResult s.Movement.Id now ChangedInYnab
-                            | Some (Failed _), Some _ -> ()
-                            | Some (Failed _), None ->
-                                let! outcome = retryLine s.Movement
-                                if inOrder && outcome <> Written then held.Value <- Some outcome
-                            | _ -> ()
-                        let! report = reportOf port applicationId monthKey
-                        return Ok report
+                                                return! close (Failed (ynabErrorText e))
+                                }
+                            // Der Stand der Vorgänger-Zeile nach diesem Lauf.
+                            let previous = ref None
+                            for s in states do
+                                if not (isOpenLine s.Latest) then
+                                    previous.Value <- s.Latest
+                                else
+                                    match (if inOrder then previous.Value else None) with
+                                    | Some ChangedInYnab ->
+                                        do! appendResult s.Movement.Id now ChangedInYnab
+                                        previous.Value <- Some ChangedInYnab
+                                    | Some (Failed _) -> ()
+                                    | Some Written
+                                    | None ->
+                                        let! outcome = retryLine s.Movement
+                                        previous.Value <- Some outcome
+                            return! reportOf port applicationId monthKey
                 })
     }

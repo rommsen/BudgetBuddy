@@ -101,19 +101,6 @@ let private autoDismissAfterMs = 5000
 let private delayed (ms: int) (msg: Msg) : Cmd<Msg> =
     Cmd.OfAsync.perform (fun () -> async { do! Async.Sleep ms }) () (fun _ -> msg)
 
-/// Human-readable rendering of a YNAB error for the Quick Add submit path.
-/// Moved here with the Quick Add submit logic (ynab-q7k3m) — it was previously
-/// the only consumer in the SyncFlow component.
-let private ynabErrorToString (error: YnabError) : string =
-    match error with
-    | YnabError.Unauthorized msg -> $"YNAB authorization failed: {msg}"
-    | YnabError.BudgetNotFound budgetId -> $"Budget not found: {budgetId}"
-    | YnabError.AccountNotFound accountId -> $"Account not found: {accountId}"
-    | YnabError.CategoryNotFound categoryId -> $"Category not found: {categoryId}"
-    | YnabError.RateLimitExceeded retryAfter -> $"YNAB rate limit exceeded. Retry after {retryAfter} seconds"
-    | YnabError.NetworkError msg -> $"YNAB network error: {msg}"
-    | YnabError.InvalidResponse msg -> $"Invalid YNAB response: {msg}"
-
 /// A blank Quick Add form dated today. Used when first opening the page and to
 /// reset the form after a successful save so another entry can follow at once.
 let private freshQuickAddForm () : QuickAddFormState =
@@ -605,7 +592,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                         Cmd.OfAsync.either
                             (Retry.reading Api.ynab.getCategories)
                             budgetId
-                            (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorToString)))
+                            (fun result -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (result |> Result.mapError ynabErrorText)))
                             (fun ex -> LedgerMsg (Components.Ledger.Types.CategoriesLoaded (Error ex.Message)))
                     // Ein vorhandener Stand bleibt sichtbar, bis der neue da ist (ledger-kwwxz).
                     let categories =
@@ -675,7 +662,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     Cmd.OfAsync.either
                         Api.ynab.addManualTransaction
                         request
-                        (fun result -> QuickAddSaved (result |> Result.mapError ynabErrorToString))
+                        (fun result -> QuickAddSaved (result |> Result.mapError ynabErrorText))
                         (fun ex -> QuickAddSaved (Error ex.Message))
                 { model with QuickAdd = Some { form with IsSaving = true; Error = None } }, cmd
 
@@ -703,7 +690,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             Cmd.OfAsync.either
                 Api.ynab.getRecentQuickAddTemplates
                 ()
-                (fun result -> QuickAddTemplatesLoaded (result |> Result.mapError ynabErrorToString))
+                (fun result -> QuickAddTemplatesLoaded (result |> Result.mapError ynabErrorText))
                 (fun ex -> QuickAddTemplatesLoaded (Error ex.Message))
         { model with QuickAddTemplates = Loading }, cmd
 

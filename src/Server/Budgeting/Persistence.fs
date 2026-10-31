@@ -13,19 +13,16 @@ open System.Globalization
 open Microsoft.Data.Sqlite
 open Dapper
 open Shared.Budgeting
+open Server.Budgeting.Domain
 
 module Core = global.Persistence
-
-/// Herkunft der Bewegungen, die "Targets anwenden" festhält.
-[<Literal>]
-let OriginTargets = "Targets anwenden"
 
 /// Eine festgehaltene Budget-Bewegung. Beträge in Milliunits.
 type Movement = {
     Id: Guid
     ApplicationId: Guid
     OccurredAt: DateTime
-    Origin: string
+    Origin: MovementOrigin
     /// "YYYY-MM-01".
     Month: string
     CategoryId: Guid
@@ -127,7 +124,7 @@ let appendMovements (movements: Movement list) : Async<unit> =
                 {| id = string m.Id
                    application_id = string m.ApplicationId
                    occurred_at = dateToText m.OccurredAt
-                   origin = m.Origin
+                   origin = originText m.Origin
                    month = m.Month
                    category_id = string m.CategoryId
                    category_name = m.CategoryName
@@ -152,8 +149,8 @@ let appendResult (movementId: Guid) (at: DateTime) (outcome: LineOutcome) : Asyn
     }
 
 /// Alle Bewegungen einer Anwendung (in der Reihenfolge des Festhaltens) mit ihrem jüngsten
-/// Ergebnis.
-let loadApplication (applicationId: Guid) : Async<MovementState list> =
+/// Ergebnis. `Error` nennt eine Zeile mit unbekannter Herkunft.
+let loadApplication (applicationId: Guid) : Async<Result<MovementState list, string>> =
     async {
         use conn = Core.getConnection ()
         let rows =
@@ -168,18 +165,27 @@ let loadApplication (applicationId: Guid) : Async<MovementState list> =
                 {| application_id = string applicationId |}
             )
             |> Seq.toList
-        return
-            rows
-            |> List.map (fun r ->
+        let toState (r: MovementRow) : Result<MovementState, string> =
+            originOfText r.origin
+            |> Result.map (fun origin ->
                 { Movement =
                     { Id = Guid.Parse r.id
                       ApplicationId = Guid.Parse r.application_id
                       OccurredAt = dateFromText r.occurred_at
-                      Origin = r.origin
+                      Origin = origin
                       Month = r.month
                       CategoryId = Guid.Parse r.category_id
                       CategoryName = r.category_name
                       OldAssigned = r.old_assigned
                       NewAssigned = r.new_assigned }
                   Latest = statusFromText r.status r.reason })
+        return
+            List.foldBack
+                (fun row states ->
+                    match toState row, states with
+                    | Ok state, Ok rest -> Ok (state :: rest)
+                    | Error e, _
+                    | _, Error e -> Error e)
+                rows
+                (Ok [])
     }

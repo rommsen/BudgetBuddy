@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 10:37 -- Task verified and completed: budgeting-nfrds - "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt"
+
+**Type:** Work / Task completion
+**Task:** budgeting-nfrds - "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt"
+**Summary:** Verschieben ist abgesichert: Erneut senden hält die Reihenfolge über Läufe hinweg ein und prüft beide Stände vor dem ersten Senden, das Sheet rechnet aus dem aktuellen Monat, Monat und Betrag werden beidseitig an der API-Grenze festgelegt, es gibt eine einzige deutsche YnabError-Übersetzung auch im 
+**Duration:** 90 min
+**Verification:** PASS (iteration 2)
+**Files changed:** 31
+**Tests added:** 46
+**ADRs written:** none
+
+---
+
+## 2026-10-31 10:30 -- Verification failed: banking-import-z4h6p - Bankverbindung übersteht Neustart
+
+**Type:** Work / Verification failure
+**Task:** banking-import-z4h6p
+**Iteration:** 1 of 3
+**Reasons:** Takt hält das Beenden auf, Verdrahtung Store/LoadKeys/resumeConnection/hasConfiguredKey ungetestet, ReportLoss ungeprüft, Reihenfolge beim Speichern der Zugangsdaten
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 10:17 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
 
 **Type:** Modeling / Refine

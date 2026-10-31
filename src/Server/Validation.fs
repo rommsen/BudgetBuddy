@@ -165,6 +165,40 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
 let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
     Shared.Budgeting.parseMonthChoice key
 
+/// Obergrenze einer Verschiebung. Liegt weit über jedem echten Betrag und weit unter dem, was
+/// beim Rechnen in Milliunits überliefe.
+[<Literal>]
+let MaxMoveAmount = 1000000m
+
+/// Der Monat einer Verschiebung: der Erste des Monats als "YYYY-MM-01".
+let private isMonthKey (key: string) : bool =
+    match
+        DateTime.TryParseExact(
+            key,
+            "yyyy-MM-dd",
+            Globalization.CultureInfo.InvariantCulture,
+            Globalization.DateTimeStyles.None
+        )
+    with
+    | true, date -> date.Day = 1
+    | _ -> false
+
+/// Prüft Monat und Auftrag an der Grenze, bevor YNAB gelesen oder etwas festgehalten wird. Alle
+/// Fehler werden gesammelt. Der Betrag wird beidseitig begrenzt: `planMove` rechnet mit ihm, bevor
+/// es ihn prüft, ein großer negativer Betrag liefe dort über. Raster und Kategorien prüft `planMove`.
+let validateMoveRequest (monthKey: string) (request: Shared.Budgeting.MoveRequest) : Result<unit, string list> =
+    let errors =
+        [ if not (isMonthKey monthKey) then
+              $"Ungültiger Monat: '{monthKey}'. Erwartet wird der Monatserste als JJJJ-MM-01."
+          if request.Amount.Currency <> "EUR" then
+              $"Verschoben wird nur in EUR, nicht in '{request.Amount.Currency}'."
+          if request.Amount.Amount <= 0m then
+              "Der Betrag muss größer als 0 sein."
+          elif request.Amount.Amount > MaxMoveAmount then
+              "Der Betrag ist zu groß, höchstens 1.000.000,00 € gehen." ]
+
+    if errors.IsEmpty then Ok () else Error errors
+
 // ============================================
 // Bot-Schnittstelle (ledger-b0b7q, ADR 0066)
 // ============================================

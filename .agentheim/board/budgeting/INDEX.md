@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 3
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 5
+- **Doing:** 0
+- **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-nfrds** — "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt" (bug) — `doing/budgeting-nfrds-verschieben-absichern.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-nfrds** — "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt" (bug) — `done/budgeting-nfrds-verschieben-absichern.md`
 - **budgeting-afd8h** — "Geld verschieben am Handy: Tipp auf Verfügbar öffnet ein Sheet, Richtung nach Vorzeichen, Gegenseite Kategorie oder Zu verteilen, schreibt nach YNAB und hält Budget-Bewegungen fest" (feature) — `done/budgeting-afd8h-geld-verschieben.md`
 - **budgeting-rxxb4** — "Kategorie-Suche auf der Budget-Seite: Suchfeld über der Liste filtert Kategorien nach Namen, am Handy und am PC" (feature) — `done/budgeting-rxxb4-kategorie-suche-am-handy.md`
 - **budgeting-h2zfn** — "Targets anwenden: Vorschau mit Summe und Zu verteilen danach, Übernehmen schreibt die Zuweisungen nach YNAB, Budget-Bewegungen werden in BB festgehalten, Fehlgeschlagene erneut sendbar" (feature) — `done/budgeting-h2zfn-targets-anwenden.md`

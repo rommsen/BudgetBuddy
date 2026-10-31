@@ -34,7 +34,7 @@ let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 /// Der Verfügbar-Betrag öffnet "Verschieben". `sizeClass` trägt die Trefferfläche der Liste.
 let private availableButton (sizeClass: string) (c: BudgetCategory) (dispatch: Msg -> unit) =
     Money.availableButton $"{c.Name} verschieben" sizeClass c.Available.Amount c.Available.Currency (fun () ->
-        dispatch (OpenMove c))
+        dispatch (OpenMove c.Id))
 
 // ============================================
 // Zu verteilen
@@ -187,6 +187,7 @@ let private categorySearchField (search: string) (dispatch: Msg -> unit) =
                         Icon = Some (Icons.x Icons.SM Icons.Default)
                         OnClick = fun () -> dispatch ClearCategorySearch
                         Title = Some "Suche leeren"
+                        AriaLabel = Some "Suche leeren"
                         ClassName = Some "absolute right-0 top-1/2 -translate-y-1/2" }
         ]
     ]
@@ -486,7 +487,7 @@ let private moveAfterLine (line: MoveAfterLine) =
 /// Der Inhalt, am Handy im Sheet und am PC im Dialog.
 let private moveFields (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> unit) =
     let pickerProps : CategoryPicker.CategoryPickerProps =
-        { Categories = pickerCategories month form.Category.Id
+        { Categories = pickerCategories month form.CategoryId
           Current = None
           Suggested = []
           Recent = []
@@ -523,6 +524,9 @@ let private moveFields (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> u
                 Html.span [
                     prop.custom ("data-testid", "move-counterpart")
                     prop.className "block"
+                    // Das Popover schließt beim Mausdruck außerhalb, der Klick öffnete es sonst
+                    // gleich wieder. So bleibt der Auslöser ein Umschalter.
+                    prop.onMouseDown (fun e -> e.stopPropagation ())
                     prop.children [
                         Button.secondaryFullWidth counterpartLabel (fun () ->
                             dispatch (if form.PickerOpen then CloseMovePicker else OpenMovePicker))
@@ -530,7 +534,7 @@ let private moveFields (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> u
                 ]
                 // ADR 0043: zur Renderzeit genau eine Hülle.
                 if Viewport.isDesktopViewport () then
-                    CategoryPicker.popover form.PickerOpen pickerProps
+                    CategoryPicker.popoverInDialog form.PickerOpen pickerProps
                 else
                     CategoryPicker.sheetLayered form.PickerOpen None pickerProps
             ]
@@ -541,7 +545,7 @@ let private moveFields (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> u
                 prop.children [
                     Input.text
                         { Input.textInputDefaults with
-                            Value = form.AmountText
+                            Value = moveAmountText month form
                             OnChange = MoveAmountChanged >> dispatch
                             Placeholder = "0,00"
                             InputMode = Some "decimal"
@@ -557,16 +561,17 @@ let private moveFields (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> u
                 yield! moveAfter month form |> List.map moveAfterLine
             ]
         ]
-        match form.Error with
-        | Some message ->
+        match form.Submission with
+        | Rejected message ->
             Html.div [
                 prop.custom ("data-testid", "move-error")
                 prop.children [ ErrorDisplay.cardCompact message None ]
             ]
-        | None -> ()
+        | Editing
+        | Sending -> ()
     ]
 
-let private moveButton (form: MoveForm) (dispatch: Msg -> unit) =
+let private moveButton (month: BudgetMonth) (form: MoveForm) (dispatch: Msg -> unit) =
     Html.span [
         prop.custom ("data-testid", "move-submit")
         prop.className "block w-full md:w-auto"
@@ -574,15 +579,16 @@ let private moveButton (form: MoveForm) (dispatch: Msg -> unit) =
             Button.view
                 { Button.defaultProps with
                     Text = "Verschieben"
-                    IsLoading = form.Sending
-                    IsDisabled = not (canMove form)
+                    IsLoading = (form.Submission = Sending)
+                    IsDisabled = not (canMove month form)
                     FullWidth = true
                     OnClick = fun () -> dispatch ConfirmMove }
         ]
     ]
 
-/// Am Handy `BottomSheet`, am PC `Modal` (ADR 0043), nie beide. Das Popover des Pickers braucht
-/// am PC einen Vorfahren ohne Scrollbereich, deshalb steht der Inhalt nicht in `Modal.body`.
+/// Am Handy `BottomSheet`, am PC `Modal` (ADR 0043), nie beide. Am PC steht der Inhalt in
+/// `Modal.body`, das Popover rückt beim Öffnen ins Bild (`popoverInDialog`) und passt in die Breite
+/// von `Modal.Large`.
 let private moveDialog (model: Model) (dispatch: Msg -> unit) =
     match model.Move, model.Month with
     | Some form, Success month ->
@@ -599,19 +605,47 @@ let private moveDialog (model: Model) (dispatch: Msg -> unit) =
                     IsOpen = true
                     Title = Some "Verschieben"
                     Subtitle = Some (monthLabel month.Month)
-                    Size = Modal.Medium
+                    Size = Modal.Large
                     OnClose = close }
-                [ Html.div [ prop.className "p-6"; prop.children [ fields ] ]
-                  Modal.footer [ moveButton form dispatch ] ]
+                [ Modal.body [ fields ]
+                  Modal.footer [ moveButton month form dispatch ] ]
         else
             BottomSheet.view
                 { IsOpen = true
                   OnClose = close
                   Title = "Verschieben"
                   Subtitle = Some (monthLabel month.Month)
-                  Footer = Some [ moveButton form dispatch ] }
+                  Footer = Some [ moveButton month form dispatch ] }
                 [ fields ]
     | _ -> Html.none
+
+/// Verschiebungen mit fehlgeschlagener Zeile. Der Toast läuft ab, dieser Hinweis nicht.
+let private moveRetries (retries: OpenMoveRetry list) (dispatch: Msg -> unit) =
+    React.fragment (
+        retries
+        |> List.map (fun retry ->
+            Html.div [
+                prop.key retry.ApplicationId
+                prop.custom ("data-testid", "move-retry")
+                prop.className "flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-card p-4"
+                prop.children [
+                    Html.div [
+                        prop.className "flex flex-col gap-1 min-w-0"
+                        prop.children [
+                            Html.span [ prop.className ListRoles.primary; prop.text $"Nicht vollständig verschoben: {retry.Summary}" ]
+                            Html.span [ prop.className ListRoles.muted; prop.text retry.Reason ]
+                        ]
+                    ]
+                    Html.span [
+                        prop.className "shrink-0"
+                        prop.children [
+                            Button.secondaryLoading retryMoveLabel (retry.State = RetryRunning) (fun () ->
+                                dispatch (RetryMove retry.ApplicationId))
+                        ]
+                    ]
+                ]
+            ])
+    )
 
 // ============================================
 // Seite
@@ -635,6 +669,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             targetsDialog model dispatch
             moveDialog model dispatch
             monthSwitcher model dispatch
+            moveRetries model.OpenRetries dispatch
             match model.Month with
             | NotAsked
             | Loading -> Loading.centered "Lade Budget ..."

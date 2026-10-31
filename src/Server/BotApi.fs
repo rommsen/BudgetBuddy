@@ -339,7 +339,7 @@ let private bookWithinLimit (deps: BotDeps) (p: BotPreview) : Async<BotCommitOut
                     BotBooked
                         { EntryId = None
                           PushedToYnab = false
-                          PushError = Some (Ledger.CommandHandlers.describePushFailure err) }
+                          PushError = Some (ynabErrorText err) }
     }
 
 /// Prüfung der Tagesgrenze und Buchung unter einer Sperre (siehe `bookingGate`).
@@ -457,7 +457,7 @@ let liveDeps (berlinZone: TimeZoneInfo) : BotDeps =
                     | Ok (token, budgetId) ->
                         match! Server.YnabClient.getCategories token budgetId with
                         | Ok categories -> return Ok categories
-                        | Error err -> return Error (Ledger.CommandHandlers.describePushFailure err)
+                        | Error err -> return Error (ynabErrorText err)
                 }
         ResolveTarget =
             fun () ->

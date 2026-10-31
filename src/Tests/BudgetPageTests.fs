@@ -56,7 +56,7 @@ let private loadedTests =
             | other -> failtestf "Success erwartet, war %A" other
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
-            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = ""; Move = None }
+            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = ""; Move = None; OpenRetries = [] }
             let m = applyLoaded CurrentMonth (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
         }
