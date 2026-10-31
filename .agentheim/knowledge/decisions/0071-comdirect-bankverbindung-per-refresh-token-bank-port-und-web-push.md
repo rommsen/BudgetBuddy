@@ -153,3 +153,7 @@ ADR ersetzt, und Punkte 2 bis 9 werden nicht gebaut.
 - comdirect REST-API (Community-Fakten); comdirect-api-simple Issue #16; Rust-Library
   `comdirect_rest_api` (`try_restore`)
 - ADR 0010 (PWA nur Shell), ADR 0057 (PWA-Update), ADR 0066 und 0068 (Bob)
+
+## Nachtrag 2026-10-31 (banking-import-z4h6p)
+
+Punkt 4 gilt mit zwei Präzisierungen. "Scheitert er, wird der Wert gelöscht" gilt für `ReloginRequired` und einen unbrauchbaren Wert. Bei `RetryLater` bleiben Wert und `Connected` stehen, der nächste Versuch folgt nach 60 s. "Beim Start ein Versuch" gilt für den Hintergrunddienst. Zusätzlich warten `startSync` und der Verbindungstest bei `Disconnected` auf die Wiederaufnahme, bevor sie über die TAN entscheiden, damit ein Klick direkt nach dem Start keine TAN kostet. Eine Challenge entsteht dabei weiter nur aus Romans Handlung.

@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 3
+- **Backlog:** 4
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 8
@@ -38,6 +38,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **categorization-m7tq3** — "Muster-Test: Hochzählen des Stands beim Öffnen des Formulars absichern" (chore) — `backlog/categorization-m7tq3-muster-test-hochz-hlen-des-stands-beim-ffnen-des-formulars-a.md`
 - **categorization-mznx3** — "Testlücken und nachgebaute Tests" (chore) — `backlog/categorization-mznx3-testluecken-und-nachgebaute-tests.md`
 - **categorization-hz6vj** — "Kategorisieren im Import: Order-Id und Review-Spur" (bug) — `backlog/categorization-hz6vj-kategorisieren-im-import-order-id-und-review.md`
 - **categorization-krscs** — "Regel-Dialog: Ladezustände, Fehler und Seiteneffekte" (refactor) — `backlog/categorization-krscs-regel-dialog-ladezustaende-fehler-und-seiteneffekte.md`
