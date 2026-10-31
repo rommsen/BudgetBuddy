@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 10:17 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
+
+**Type:** Modeling / Refine
+**BC:** ynab-sync
+**Status after:** todo
+**Summary:** Korrektur: Konten bleiben auch nach erfolgreichem Neuladen leer. Der Kandidat einmaliger Fehlschlag beim App-Start ist verworfen, der Abruf scheitert dauerhaft.
+
+---
+
 ## 2026-10-31 10:16 -- Modeling / Refined: ynab-sync-k3vq8 - Barabhebung in Import prüfen
 
 **Type:** Modeling / Refine
