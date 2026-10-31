@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 07:53 -- Modeling / Promoted: infrastructure-jsys4 - "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen"
+
+**Type:** Modeling / Promote
+**BC:** infrastructure
+**From → To:** backlog → todo
+
+---
+
 ## 2026-10-31 07:53 -- Modeling / Promoted: banking-import-tshq9 - "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr"
 
 **Type:** Modeling / Promote

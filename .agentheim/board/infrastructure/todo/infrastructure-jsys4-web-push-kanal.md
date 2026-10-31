@@ -1,7 +1,7 @@
 ---
 id: infrastructure-jsys4
 title: "Web-Push-Kanal mit Abo in den Einstellungen, zuerst auf echten Geräten bewiesen"
-status: backlog
+status: todo
 type: feature
 context: infrastructure
 created: 2026-10-30
