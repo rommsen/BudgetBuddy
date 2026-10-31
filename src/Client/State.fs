@@ -545,7 +545,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                     | Some budgetId ->
                         let cmd =
                             Cmd.OfAsync.either
-                                Api.ynab.getCategories
+                                (Retry.reading Api.ynab.getCategories)
                                 budgetId
                                 (fun result -> RulesMsg (Components.Rules.Types.CategoriesLoaded result))
                                 (fun ex -> RulesMsg (Components.Rules.Types.CategoriesLoaded (Error (YnabError.NetworkError ex.Message))))
@@ -688,7 +688,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | LoadQuickAddTemplates ->
         let cmd =
             Cmd.OfAsync.either
-                Api.ynab.getRecentQuickAddTemplates
+                (Retry.reading Api.ynab.getRecentQuickAddTemplates)
                 ()
                 (fun result -> QuickAddTemplatesLoaded (result |> Result.mapError ynabErrorText))
                 (fun ex -> QuickAddTemplatesLoaded (Error ex.Message))
@@ -698,7 +698,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         { model with QuickAddTemplates = Success templates }, Cmd.none
 
     | QuickAddTemplatesLoaded (Error message) ->
-        { model with QuickAddTemplates = Failure message }, Cmd.none
+        { model with QuickAddTemplates = RemoteData.lateFailure message model.QuickAddTemplates }, Cmd.none
 
     | PrefillQuickAdd template ->
         // Fill every field from the template; the date stays today (form default).

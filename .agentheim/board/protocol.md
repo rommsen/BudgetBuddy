@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-10-31 17:02 -- Task verified and completed: infrastructure-r3tw7 - "Alle übrigen lesenden Abfragen laufen über Retry.reading, damit ein Verbindungsabbruch im Kassenbuch keine Fehlerseite mehr zeigt"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-r3tw7 - "Alle übrigen lesenden Abfragen laufen über Retry.reading, damit ein Verbindungsabbruch im Kassenbuch keine Fehlerseite mehr zeigt"
+**Summary:** Alle in der Task genannten lesenden Abfragen laufen über Retry.reading. Ein Verbindungsabbruch im Kassenbuch zeigt die Liste ohne Fehlerseite, nach drei gescheiterten Versuchen erscheint die Fehlerseite wie bisher. Verspätete Antworten ersetzen keine neueren Daten mehr: Generationszähler für Liste, 
+**Duration:** 90 min
+**Verification:** PASS (iteration 2)
+**Files changed:** 15
+**Tests added:** 33
+**ADRs written:** none
+
+---
+
+## 2026-10-31 16:32 -- Verification failed: ynab-sync-k3vq8 - Barabhebung in Import prüfen
+
+**Type:** Work / Verification failure
+**Task:** ynab-sync-k3vq8
+**Iteration:** 1 of 3
+**Reasons:** Kategorie-Toast auf fremden Seiten, verdeckt durch Mocks, confirmTan-Mutant überlebt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-10-31 16:24 -- Task verified and completed: infrastructure-mngfn - "Einstellungen: Abbrechen leert Secret-Entwürfe, Username und ClientId gehen als Has-Flags an den Client, Lesefehler werden sichtbar"
 
 **Type:** Work / Task completion

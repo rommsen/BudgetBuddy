@@ -624,7 +624,7 @@ let reducerTests =
 
         test "Geladene erste Seite ersetzt die Liste und behaelt geloeschte Eintraege" {
             let entries = [ entryView 1 -42.5m false; entryView 2 -10m true ]
-            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok (page entries 2))) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok (page entries 2))) (freshModel ())
             match updated.Entries with
             | Success loaded ->
                 Expect.equal (List.length loaded) 2 "Nichts wird herausgefiltert"
@@ -638,10 +638,10 @@ let reducerTests =
         test "Eine zweite Seite wird an die erste angehaengt, nicht ersetzt" {
             let first, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 3)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 3)))
                     (freshModel ())
             let second, _, _ =
-                Components.Ledger.State.update (EntriesPageLoaded (1, Ok (page [ entryView 2 -2m false ] 3))) first
+                Components.Ledger.State.update (EntriesPageLoaded (0, 1, Ok (page [ entryView 2 -2m false ] 3))) first
             match second.Entries with
             | Success loaded -> Expect.equal (loaded |> List.map (fun e -> e.Id)) [ entryGuid 1; entryGuid 2 ] "Beide Seiten stehen in Ladereihenfolge"
             | other -> failtestf "Erwartet Success, war %A" other
@@ -661,7 +661,7 @@ let reducerTests =
             // soll (`Ledger.Persistence`, ADR 0017: die Summe rechnet der Server über
             // den gesamten Treffer, nie über den geladenen Ausschnitt).
             let serverPage = { page [ entryView 1 -1m false ] 250 with TotalAmount = eur -5000m }
-            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok serverPage)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok serverPage)) (freshModel ())
             Expect.equal updated.TotalAmount (eur -5000m) "Die Summenzeile zeigt die Summe über alle 250 Treffer, nicht über die eine geladene Buchung"
             Expect.equal updated.TotalCount 250 "Die Trefferzahl ist ebenfalls die des ganzen Treffers"
         }
@@ -669,23 +669,23 @@ let reducerTests =
         test "Ein Filterwechsel setzt TotalAmount vorübergehend auf Null zurück, bis die neue Seite antwortet" {
             let withTotal, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok { page [ entryView 1 -1m false ] 250 with TotalAmount = eur -5000m }))
+                    (EntriesPageLoaded (0, 0, Ok { page [ entryView 1 -1m false ] 250 with TotalAmount = eur -5000m }))
                     (freshModel ())
             let reset, _, _ = Components.Ledger.State.update (SelectFilter AllAccounts) withTotal
             Expect.equal reset.TotalAmount.Amount 0m "Kein stehender alter Wert, während die neue Summe noch nicht da ist"
         }
 
         test "Fehlgeschlagene erste Seite wird als Fehler gezeigt" {
-            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Error "kaputt")) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, 0, Error "kaputt")) (freshModel ())
             Expect.equal updated.Entries (Failure "kaputt") "Der Fehler bleibt sichtbar"
         }
 
         test "Fehlgeschlagenes Nachladen loescht die sichtbare Liste nicht, sondern zeigt einen Toast" {
             let loaded, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
-            let updated, _, external = Components.Ledger.State.update (EntriesPageLoaded (1, Error "Netzwerkfehler")) loaded
+            let updated, _, external = Components.Ledger.State.update (EntriesPageLoaded (0, 1, Error "Netzwerkfehler")) loaded
             Expect.equal updated.Entries loaded.Entries "Die bereits geladene Liste bleibt stehen"
             Expect.isFalse updated.LoadingMore "Das Nachladen ist beendet, auch bei einem Fehler"
             match external with
@@ -696,7 +696,7 @@ let reducerTests =
         test "Nachladen am Listenende laedt die naechste Seite" {
             let loaded, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
             let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries loaded
             Expect.isTrue updated.LoadingMore "Das Nachladen laeuft"
@@ -707,7 +707,7 @@ let reducerTests =
         test "Nachladen tut nichts, waehrend schon nachgeladen wird" {
             let loaded, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
             let alreadyLoading = { loaded with LoadingMore = true }
             let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries alreadyLoading
@@ -718,7 +718,7 @@ let reducerTests =
         test "Nachladen tut nichts, wenn es keine weitere Seite gibt" {
             let loaded, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 1)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 1)))
                     (freshModel ())
             Expect.isFalse loaded.HasMoreEntries "Ein Treffer, eine Seite: nichts mehr zu laden"
             let updated, cmd, _ = Components.Ledger.State.update LoadMoreEntries loaded
@@ -735,14 +735,14 @@ let reducerTests =
             // auf einer Seite ohnehin nicht, wenn gelöschte Buchungen ausgeblendet
             // sind); er übernimmt genau den Server-Wert (AC2).
             let serverPage = { page [ entryView 1 -1m false ] 1 with DeletedCount = 3 }
-            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok serverPage)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok serverPage)) (freshModel ())
             Expect.equal updated.DeletedCount 3 "Der Server-Wert steht im Modell"
         }
 
         test "Der Schalter kippt IncludeDeleted und lädt die Liste ab Seite 0 neu" {
             let withEntries, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
             Expect.isFalse withEntries.IncludeDeleted "Standardmäßig ausgeblendet"
 
@@ -762,14 +762,14 @@ let reducerTests =
 
         test "Geladene Seite übernimmt die vom Server gemeldete Zahl zu prüfender Buchungen" {
             let serverPage = { page [ entryView 1 -1m false ] 1 with NeedsReviewCount = 5 }
-            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok serverPage)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok serverPage)) (freshModel ())
             Expect.equal updated.NeedsReviewCount 5 "Der Server-Wert steht im Modell"
         }
 
         test "Der Chip kippt OnlyNeedsReview und lädt die Liste ab Seite 0 neu (AC16)" {
             let withEntries, _, _ =
                 Components.Ledger.State.update
-                    (EntriesPageLoaded (0, Ok (page [ entryView 1 -1m false ] 5)))
+                    (EntriesPageLoaded (0, 0, Ok (page [ entryView 1 -1m false ] 5)))
                     (freshModel ())
             Expect.isFalse withEntries.OnlyNeedsReview "Standardmäßig aus"
 
@@ -787,7 +787,7 @@ let reducerTests =
             // ADR 0014: Roman wartet nie auf den Spiegel — die Seite zeigt den
             // bestehenden Stand weiter, waehrend der Lauf laeuft.
             let entries = [ entryView 1 -42.5m false ]
-            let loaded, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, Ok (page entries 1))) (freshModel ())
+            let loaded, _, _ = Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok (page entries 1))) (freshModel ())
             let running, _, _ = Components.Ledger.State.update StartMirror loaded
             Expect.isTrue running.MirrorRunning "Der Hinweis 'Spiegel laeuft' steht"
             Expect.equal running.Entries (Success entries) "Die Liste bleibt unveraendert stehen"
@@ -856,7 +856,7 @@ let reducerTests =
             }
             let entries = [ entryView 1 -42.5m false ]
             let withEntries, _, _ =
-                Components.Ledger.State.update (EntriesPageLoaded (0, Ok (page entries 1))) (freshModel ())
+                Components.Ledger.State.update (EntriesPageLoaded (0, 0, Ok (page entries 1))) (freshModel ())
             let updated, cmd, _ = Components.Ledger.State.update (MirrorStatusLoaded (Ok (Some staleStatus))) withEntries
             Expect.isTrue updated.MirrorRunning "der Hintergrund-Lauf ist gestartet"
             Expect.contains (dispatched cmd) RunMirror "genau ein Auslöser für den Hintergrund-Lauf"
@@ -1096,7 +1096,7 @@ let reducerTests =
 
         test "Geladene Payee-Vorschläge stehen im Modell" {
             let suggestions = [ { Payee = "Café Lotte"; Count = 9 }; { Payee = "REWE Mitte"; Count = 78 } ]
-            let updated, _, _ = Components.Ledger.State.update (PayeeSuggestionsLoaded (Ok suggestions)) (freshModel ())
+            let updated, _, _ = Components.Ledger.State.update (PayeeSuggestionsLoaded (0, Ok suggestions)) (freshModel ())
             match updated.PayeeSuggestions with
             | Success loaded -> Expect.equal loaded suggestions "Die Vorschläge stehen unverändert im Modell"
             | other -> failtestf "Erwartet Success, war %A" other
@@ -3175,6 +3175,192 @@ let private isTransferTests =
         }
     ]
 
+// ============================================
+// Verspätete Antworten (infrastructure-r3tw7)
+// ============================================
+
+// Verhindert die Regression aus dem ersten Anlauf von infrastructure-r3tw7: `Retry.reading`
+// verlängert das Fenster, in dem eine Antwort unterwegs ist, auf bis zu 1,6 Sekunden. Eine
+// verspätete Wiederholung der alten Abfrage ersetzte die neuere Liste, ihr endgültiges
+// Scheitern zeigte über der fertigen Liste die Fehlerseite. Der Browser-Fall steht in
+// `scripts/ledger-read-retry.test.mjs`.
+let private staleAnswerTests =
+    let update msg model =
+        let updated, _, _ = Components.Ledger.State.update msg model
+        updated
+
+    /// Eine geladene Liste, der gerade ein Filterwechsel die Generation weitergedreht hat.
+    let loaded () =
+        { freshModel () with
+            Entries = Success [ entryView 1 -1m false ]
+            NextPage = 1
+            TotalCount = 3
+            HasMoreEntries = true }
+
+    let rebuilt model = update ToggleIncludeDeleted model
+
+    let oldPage = page [ entryView 7 -7m false ] 99
+    let newPage = page [ entryView 2 -2m false; entryView 3 -3m false ] 3
+
+    let idsOf (model: Model) =
+        model.Entries |> RemoteData.withDefault [] |> List.map (fun e -> e.Id)
+
+    let staleAfterRebuild msg =
+        let before = rebuilt (loaded ())
+        before, Components.Ledger.State.update (msg (before.EntriesGeneration - 1)) before
+
+    let withDetail (model: Model) = { model with DetailFor = Some (entryView 1 -1m false) }
+
+    testList "Verspätete Antworten" [
+
+        testCase "Die Ok-Antwort einer alten Liste zu Seite 0 ersetzt nichts, die aktuelle Antwort kommt durch" <| fun () ->
+            let before, (after, _, _) = staleAfterRebuild (fun g -> EntriesPageLoaded (g, 0, Ok oldPage))
+            Expect.equal after.Entries Loading "die neue Liste lädt weiter"
+            Expect.equal after.TotalCount 0 "Treffer der alten Liste kommen nicht an"
+            let current = update (EntriesPageLoaded (before.EntriesGeneration, 0, Ok newPage)) after
+            Expect.hasLength (idsOf current) 2 "die aktuelle Antwort steht in der Liste"
+            Expect.equal current.NextPage 1 "Seite 1 ist die nächste"
+
+        testCase "Das Scheitern einer alten Liste zu Seite 0 zeigt keine Fehlerseite" <| fun () ->
+            let before, (after, _, external) = staleAfterRebuild (fun g -> EntriesPageLoaded (g, 0, Error "Http error (0)"))
+            Expect.equal after.Entries Loading "kein Failure, die neue Liste lädt weiter"
+            Expect.equal external NoOp "kein Hinweis"
+            let current = update (EntriesPageLoaded (before.EntriesGeneration, 0, Ok newPage)) after
+            Expect.isTrue (RemoteData.isSuccess current.Entries) "der aktuelle Lauf bleibt nicht hängen"
+
+        testCase "Eine verspätete Nachlade-Seite wird nicht an die neue Liste gehängt" <| fun () ->
+            let shown = update (EntriesPageLoaded ((rebuilt (loaded ())).EntriesGeneration, 0, Ok newPage)) (rebuilt (loaded ()))
+            let after = update (EntriesPageLoaded (shown.EntriesGeneration - 1, 1, Ok oldPage)) shown
+            Expect.hasLength (idsOf after) 2 "nichts angehängt"
+            Expect.equal after.NextPage 1 "NextPage unverändert"
+            Expect.equal after.TotalCount 3 "TotalCount unverändert"
+
+        testCase "Das Scheitern einer alten Nachlade-Seite meldet nichts und lässt das laufende Nachladen stehen" <| fun () ->
+            let shown = update (EntriesPageLoaded ((rebuilt (loaded ())).EntriesGeneration, 0, Ok newPage)) (rebuilt (loaded ()))
+            let running = { shown with LoadingMore = true }
+            let after, _, external =
+                Components.Ledger.State.update (EntriesPageLoaded (shown.EntriesGeneration - 1, 1, Error "Http error (0)")) running
+            Expect.equal external NoOp "kein Toast"
+            Expect.isTrue after.LoadingMore "die aktuelle Nachlade-Seite läuft noch"
+
+        testCase "Nach einem Neuaufbau mit laufendem Nachladen hängt kein Ladezustand, das Nachladen geht weiter" <| fun () ->
+            let running = update LoadMoreEntries (loaded ())
+            Expect.isTrue running.LoadingMore "Nachladen läuft"
+            let next = rebuilt running
+            let shown = update (EntriesPageLoaded (next.EntriesGeneration, 0, Ok { newPage with TotalCount = 9 })) next
+            let after = update (EntriesPageLoaded (running.EntriesGeneration, 1, Ok oldPage)) shown
+            Expect.isFalse after.LoadingMore "kein Spinner"
+            let again, cmd, _ = Components.Ledger.State.update LoadMoreEntries after
+            Expect.isTrue again.LoadingMore "die nächste Seite startet"
+            Expect.equal (dispatched cmd) [ RunLoadEntriesPage 1 ] "ab Seite 1 der neuen Liste"
+
+        testCase "Die Antwort der aktuellen Generation gilt weiter, Erfolg und Scheitern" <| fun () ->
+            let before = rebuilt (loaded ())
+            let failed = update (EntriesPageLoaded (before.EntriesGeneration, 0, Error "kaputt")) before
+            Expect.equal failed.Entries (Failure "kaputt") "Fehlerseite wie bisher"
+            let shown = update (EntriesPageLoaded (before.EntriesGeneration, 0, Ok newPage)) before
+            let more = update (EntriesPageLoaded (before.EntriesGeneration, 1, Ok (page [ entryView 4 -4m false ] 3))) shown
+            Expect.hasLength (idsOf more) 3 "die Nachlade-Seite wird angehängt"
+
+        testCase "Jeder Neuaufbau dreht die Generation weiter, auch der Wechsel auf gar keine Liste" <| fun () ->
+            let start = loaded ()
+            Expect.isGreaterThan (rebuilt start).EntriesGeneration start.EntriesGeneration "Filterwechsel"
+            Expect.isGreaterThan (update (SetSort SortByAmount) start).EntriesGeneration start.EntriesGeneration "Sortierung"
+            let empty = { Accounts = []; DefaultAccountId = None }
+            let gone = update (AccountsLoaded (Ok empty)) { start with LoadingMore = true }
+            Expect.isGreaterThan gone.EntriesGeneration start.EntriesGeneration "kein Konto mehr"
+            Expect.equal gone.Entries NotAsked "keine Liste"
+            Expect.isFalse gone.LoadingMore "kein Spinner"
+
+        testCase "Summen einer alten Liste erreichen die neue Liste nicht, auch wenn sie veraltet ist" <| fun () ->
+            let before = { rebuilt (loaded ()) with OrderStale = true; TotalCount = 5 }
+            let after = update (TotalsRefreshed (before.EntriesGeneration - 1, Ok oldPage)) before
+            Expect.equal after.TotalCount 5 "alte Summe verworfen"
+            let current = update (Components.Ledger.State.totalsRefreshAnswer before (Ok oldPage)) before
+            Expect.equal current.TotalCount 99 "die Summe der aktuellen Liste gilt"
+            let late = Components.Ledger.State.totalsRefreshAnswer before (Ok oldPage)
+            Expect.equal (update late (rebuilt before)).TotalCount 0 "die Abfrage bleibt an ihre Liste gebunden"
+
+        testCase "Vorschläge einer alten Liste werden verworfen, Erfolg und Scheitern" <| fun () ->
+            for answer in [ Ok [ { Payee = "Alt"; Count = 1 } ]; Error "Http error (0)" ] do
+                let before = { rebuilt (loaded ()) with PayeeSuggestions = Success [ { Payee = "Neu"; Count = 2 } ] }
+                let after = update (PayeeSuggestionsLoaded (before.EntriesGeneration - 1, answer)) before
+                Expect.equal after.PayeeSuggestions before.PayeeSuggestions "die neueren Vorschläge bleiben"
+
+        testCase "Wartet das offene Popover nur noch auf eine alte Antwort, lädt es neu statt für immer zu drehen" <| fun () ->
+            for answer in [ Ok []; Error "Http error (0)" ] do
+                let before = { rebuilt (loaded ()) with PayeeSuggestions = Loading; OpenPopover = Some PayeeChip }
+                let after, cmd, _ =
+                    Components.Ledger.State.update (PayeeSuggestionsLoaded (before.EntriesGeneration - 1, answer)) before
+                Expect.equal (dispatched cmd) [ LoadPayeeSuggestions ] "frische Abfrage für den aktuellen Filter"
+                Expect.equal after.PayeeSuggestions Loading "lädt"
+
+        testCase "Ist das Popover zu, endet ein Warten auf eine alte Antwort ohne neue Abfrage" <| fun () ->
+            for answer in [ Ok []; Error "Http error (0)" ] do
+                let before = { rebuilt (loaded ()) with PayeeSuggestions = Loading; OpenPopover = None }
+                let after, cmd, _ =
+                    Components.Ledger.State.update (PayeeSuggestionsLoaded (before.EntriesGeneration - 1, answer)) before
+                Expect.isEmpty (dispatched cmd) "keine Abfrage"
+                Expect.equal after.PayeeSuggestions NotAsked "kein Ladezustand bleibt zurück"
+
+        testCase "Ein spätes Scheitern ersetzt fertige Vorschläge derselben Liste nicht" <| fun () ->
+            let shown = { freshModel () with PayeeSuggestions = Success [ { Payee = "Neu"; Count = 2 } ] }
+            let after = update (PayeeSuggestionsLoaded (0, Error "Http error (0)")) shown
+            Expect.equal after.PayeeSuggestions shown.PayeeSuggestions "Vorschläge bleiben"
+            let failed = update (PayeeSuggestionsLoaded (0, Error "kaputt")) { shown with PayeeSuggestions = Loading }
+            Expect.equal failed.PayeeSuggestions (Failure "kaputt") "ohne Stand gilt der Fehler"
+
+        testCase "Eine Neuholung nach einer Änderung der Zeile wird verworfen" <| fun () ->
+            let basis = entryView 1 -1m false
+            let changed = { basis with Payee = Some "Jetzt anders" }
+            let server = { basis with Payee = Some "Stand vom Abruf" }
+            let started = { freshModel () with Entries = Success [ basis ] }
+            let answer = Components.Ledger.State.entryRefreshAnswer started basis.Id (Ok (Some server))
+            let model = { started with Entries = Success [ changed ] }
+            let after = update answer model
+            Expect.equal after.Entries model.Entries "die neuere Zeile bleibt"
+
+        testCase "Eine Neuholung ersetzt die unveränderte Zeile" <| fun () ->
+            let basis = entryView 1 -1m false
+            let server = { basis with Payee = Some "Stand vom Abruf" }
+            let model = { freshModel () with Entries = Success [ basis ] }
+            let after = update (Components.Ledger.State.entryRefreshAnswer model basis.Id (Ok (Some server))) model
+            Expect.equal after.Entries (Success [ server ]) "der Abruf gilt"
+
+        testCase "Ein spätes Scheitern ersetzt fertige Kontostände nicht" <| fun () ->
+            let shown = { freshModel () with Balances = Success [] }
+            Expect.equal (update (BalancesLoaded (Error "x")) shown).Balances (Success []) "bleibt"
+            Expect.equal (update (BalancesLoaded (Error "x")) { shown with Balances = Loading }).Balances (Failure "x") "ohne Stand gilt der Fehler"
+
+        testCase "Ein spätes Scheitern ersetzt die fertige Historie derselben Buchung nicht" <| fun () ->
+            let shown = withDetail { freshModel () with History = Success [] }
+            let id = (entryView 1 -1m false).Id
+            Expect.equal (update (HistoryLoaded (id, Error "x")) shown).History (Success []) "bleibt"
+            Expect.equal (update (HistoryLoaded (id, Error "x")) { shown with History = Loading }).History (Failure "x") "ohne Stand gilt der Fehler"
+
+        testCase "Ein spätes Scheitern ersetzt fertige Überweisungsziele nicht" <| fun () ->
+            let shown = { freshModel () with TransferTargets = Success [] }
+            Expect.equal (update (TransferTargetsLoaded (Error "x")) shown).TransferTargets (Success []) "bleibt"
+            Expect.equal (update (TransferTargetsLoaded (Error "x")) { shown with TransferTargets = Loading }).TransferTargets (Failure "x") "ohne Stand gilt der Fehler"
+
+        testCase "Ein spätes Scheitern ersetzt die fertige Regel-Liste nicht und meldet nichts" <| fun () ->
+            let model, _ = Components.Rules.State.init ()
+            let shown = { model with Rules = Success [] }
+            let after, _, external = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (Error "x")) shown
+            Expect.equal after.Rules (Success []) "bleibt"
+            Expect.equal external Components.Rules.Types.NoOp "kein Toast"
+            let failed, _, toast = Components.Rules.State.update (Components.Rules.Types.RulesLoaded (Error "x")) { shown with Rules = Loading }
+            Expect.equal failed.Rules (Failure "x") "ohne Stand gilt der Fehler"
+            Expect.notEqual toast Components.Rules.Types.NoOp "und der Toast wie bisher"
+
+        testCase "Ein spätes Scheitern ersetzt fertige Quick-Add-Vorlagen nicht" <| fun () ->
+            let shown = { rootModel Types.Page.Ledger with QuickAddTemplates = Success [] }
+            let kept, _ = State.update (State.QuickAddTemplatesLoaded (Error "x")) shown
+            Expect.equal kept.QuickAddTemplates (Success []) "bleiben"
+            let failed, _ = State.update (State.QuickAddTemplatesLoaded (Error "x")) { shown with QuickAddTemplates = Loading }
+            Expect.equal failed.QuickAddTemplates (Failure "x") "ohne Stand gilt der Fehler"
+    ]
+
 [<Tests>]
 let ledgerPageTests =
     testList
@@ -3186,4 +3372,5 @@ let ledgerPageTests =
           erstlaufTests
           freshnessTests
           visibilityTests
+          staleAnswerTests
           isTransferTests ]

@@ -306,7 +306,7 @@ let lenaReducerTests =
         testCase "die geladene Seite setzt den Zähler AskLenaCount" <| fun () ->
             let page : LedgerEntryPage =
                 { Entries = [ lenaEntry 1 ]; TotalCount = 1; TotalAmount = eur -10m; DeletedCount = 0; NeedsReviewCount = 0; AskLenaCount = 4 }
-            let model, _, _ = run (EntriesPageLoaded (0, Ok page)) (modelWith [])
+            let model, _, _ = run (EntriesPageLoaded (0, 0, Ok page)) (modelWith [])
             Expect.equal model.AskLenaCount 4 "Zähler vom Server"
 
         testCase "LenaFlagSettingsLoaded übernimmt die gespeicherte Farbe" <| fun () ->

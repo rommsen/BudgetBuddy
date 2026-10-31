@@ -32,6 +32,14 @@ module RemoteData =
         | NotAsked -> NotAsked
         | Failure err -> Failure err
 
+    /// Der Zustand nach einer gescheiterten Abfrage. Jede Abfrage setzt vorher `Loading`:
+    /// steht schon ein `Success`, hat eine neuere Abfrage geliefert, und das späte Scheitern
+    /// der älteren ersetzt ihn nicht (infrastructure-r3tw7).
+    let lateFailure (message: string) (rd: RemoteData<'a>) : RemoteData<'a> =
+        match rd with
+        | Success _ -> rd
+        | _ -> Failure message
+
     /// Check if the value is Loading
     let isLoading (rd: RemoteData<'a>) : bool =
         match rd with

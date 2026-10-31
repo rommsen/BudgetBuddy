@@ -2,6 +2,7 @@ module Components.Rules.State
 
 open System
 open Elmish
+open Client
 open Components.Rules.Types
 open Types
 open Shared.Domain
@@ -36,7 +37,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     | LoadRules ->
         let cmd =
             Cmd.OfAsync.either
-                Api.rules.getAllRules
+                (Retry.reading Api.rules.getAllRules)
                 ()
                 (Ok >> RulesLoaded)
                 (fun ex -> Error ex.Message |> RulesLoaded)
@@ -44,6 +45,10 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | RulesLoaded (Ok rules) ->
         { model with Rules = Success rules }, Cmd.none, NoOp
+
+    // Eine neuere Abfrage hat schon geliefert: das späte Scheitern der älteren meldet nichts
+    // (infrastructure-r3tw7).
+    | RulesLoaded (Error _) when RemoteData.isSuccess model.Rules -> model, Cmd.none, NoOp
 
     | RulesLoaded (Error err) ->
         { model with Rules = Failure err }, Cmd.none, ShowToast ($"Failed to load rules: {err}", ToastError)

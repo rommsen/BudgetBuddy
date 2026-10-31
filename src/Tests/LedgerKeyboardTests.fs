@@ -162,7 +162,7 @@ let reconcileTests =
             let page2 : LedgerEntryPage =
                 { Entries = [ entry 4 true ]; TotalCount = 4; TotalAmount = { Amount = 0m; Currency = "EUR" }
                   DeletedCount = 0; NeedsReviewCount = 4; AskLenaCount = 0 }
-            let model = { (modelWith (rows 3) |> focusOn 2) with NextPage = 1 } |> step (EntriesPageLoaded (1, Ok page2))
+            let model = { (modelWith (rows 3) |> focusOn 2) with NextPage = 1 } |> step (EntriesPageLoaded (0, 1, Ok page2))
             Expect.equal model.FocusedRow (Some (idOf 2)) "Fokus bleibt"
 
         testCase "fällt die Fokuszeile nach einem Filterwechsel aus der Liste, springt er auf die erste Zeile" <| fun () ->
@@ -172,7 +172,7 @@ let reconcileTests =
             let model =
                 modelWith (rows 3) |> focusOn 2
                 |> step ToggleOnlyNeedsReview
-                |> step (EntriesPageLoaded (0, Ok page))
+                |> (fun m -> m |> step (EntriesPageLoaded (m.EntriesGeneration, 0, Ok page)))
             Expect.equal model.FocusedRow (Some (idOf 7)) "erste Zeile der neuen Liste"
 
         testCase "ohne Fokus setzt das Laden keinen" <| fun () ->

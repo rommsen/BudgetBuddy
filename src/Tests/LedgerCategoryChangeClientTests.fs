@@ -502,11 +502,11 @@ let listTests =
             let page : LedgerEntryPage =
                 { Entries = []; TotalCount = 7; TotalAmount = eur -70m; DeletedCount = 1; NeedsReviewCount = 2; AskLenaCount = 0 }
             let stale = { defaultModel () with OrderStale = true }
-            let model, _, _ = update (TotalsRefreshed (Ok page)) stale
+            let model, _, _ = update (TotalsRefreshed (0, Ok page)) stale
             Expect.equal model.TotalCount 7 "Treffer"
             Expect.equal model.TotalAmount (eur -70m) "Summe"
             Expect.hasLength (entriesOf model) 2 "Zeilen unverändert"
-            let fresh, _, _ = update (TotalsRefreshed (Ok page)) (defaultModel ())
+            let fresh, _, _ = update (TotalsRefreshed (0, Ok page)) (defaultModel ())
             Expect.equal fresh.TotalCount 2 "ohne Stale kein Eingriff"
 
         testCase "Die ausgegraute Zeile ist von Alle auswählen ausgenommen und nicht wählbar" <| fun () ->

@@ -25,6 +25,16 @@ let remoteDataTests =
                 Expect.equal result (Failure "error") "Should preserve Failure with message"
         ]
 
+        testList "lateFailure" [
+            testCase "behält einen geladenen Stand" <| fun () ->
+                Expect.equal (RemoteData.lateFailure "x" (Success 5)) (Success 5) "Stand bleibt"
+
+            testCase "wird ohne Stand zum Fehler" <| fun () ->
+                Expect.equal (RemoteData.lateFailure "x" (Loading: RemoteData<int>)) (Failure "x") "aus Loading"
+                Expect.equal (RemoteData.lateFailure "x" (NotAsked: RemoteData<int>)) (Failure "x") "aus NotAsked"
+                Expect.equal (RemoteData.lateFailure "x" (Failure "alt": RemoteData<int>)) (Failure "x") "die neue Meldung gilt"
+        ]
+
         testList "bind" [
             testCase "binds over Success value" <| fun () ->
                 let result = RemoteData.bind (fun x -> Success (x * 2)) (Success 5)

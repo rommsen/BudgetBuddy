@@ -145,6 +145,7 @@ let init () : Model * Cmd<Msg> =
         CategoryCardVersion = 0
         FilteredOut = Set.empty
         OrderStale = false
+        EntriesGeneration = 0
     }
     model, Cmd.none
 
@@ -169,6 +170,9 @@ let private resetEntries (model: Model) : Model = {
         // Reihenfolge (ledger-sfab0).
         FilteredOut = Set.empty
         OrderStale = false
+        // Laufende Abfragen der alten Liste verlieren hier ihre Gültigkeit (infrastructure-r3tw7).
+        // `LoadingMore` endet oben mit ihnen, die Antwort der neuen Liste läuft unabhängig davon.
+        EntriesGeneration = model.EntriesGeneration + 1
 }
 
 /// Die Startrichtung beim Wechsel auf ein anderes Sortierfeld (ADR 0051 Punkt 9): Datum
@@ -416,6 +420,17 @@ let private categoryFailureOf (outcome: CategoryChangeOutcome) (entry: LedgerEnt
     | CategorySendFailed reason -> Some reason
     | CategorySent -> None
     | CategoryNotSent -> if outcome.Change = CategoryUnchanged then entry.CategorizationWriteBackFailure else None
+
+/// Die Antwort einer Neuholung, gebunden an die Zeile beim Start der Abfrage. Rein, weil der
+/// Abfrage-Zweig unter .NET nicht läuft (infrastructure-r3tw7).
+let entryRefreshAnswer (model: Model) (entryId: Guid) : Result<LedgerEntryView option, string> -> Msg =
+    let basis = findEntry model entryId
+    fun result -> EntryRefreshed (entryId, basis, result)
+
+/// Die Antwort einer Summen-Abfrage, gebunden an die Liste beim Start der Abfrage.
+let totalsRefreshAnswer (model: Model) : Result<LedgerEntryPage, string> -> Msg =
+    let generation = model.EntriesGeneration
+    fun result -> TotalsRefreshed (generation, result)
 
 /// Ersetzt die Buchung in der geladenen Liste und im offenen Detail.
 let private replaceEntry (updated: LedgerEntryView) (model: Model) : Model =
@@ -948,7 +963,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         let model' = { model with Accounts = Success accounts; SelectedFilter = filter }
         match filter with
         | Some _ -> resetEntries model', Cmd.ofMsg LoadEntries, NoOp
-        | None -> { model' with Entries = NotAsked }, Cmd.none, NoOp
+        | None -> { resetEntries model' with Entries = NotAsked }, Cmd.none, NoOp
 
     | AccountsLoaded (Error message) ->
         { model with Accounts = Failure message }, Cmd.none, NoOp
@@ -959,7 +974,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadBalances ->
         let cmd =
             Cmd.OfAsync.either
-                Api.ledger.getLedgerAccountBalances
+                (Retry.reading Api.ledger.getLedgerAccountBalances)
                 ()
                 (Ok >> BalancesLoaded)
                 (fun ex -> BalancesLoaded (Error ex.Message))
@@ -969,7 +984,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with Balances = Success balances }, Cmd.none, NoOp
 
     | BalancesLoaded (Error message) ->
-        { model with Balances = Failure message }, Cmd.none, NoOp
+        { model with Balances = RemoteData.lateFailure message model.Balances }, Cmd.none, NoOp
 
     // ============================================
     // Konto-Filter
@@ -1018,13 +1033,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             let query = buildPageQuery model accountId page
             let cmd =
                 Cmd.OfAsync.either
-                    Api.ledger.getLedgerEntriesPage
+                    (Retry.reading Api.ledger.getLedgerEntriesPage)
                     query
-                    (fun result -> EntriesPageLoaded (page, Ok result))
-                    (fun ex -> EntriesPageLoaded (page, Error ex.Message))
+                    (fun result -> EntriesPageLoaded (model.EntriesGeneration, page, Ok result))
+                    (fun ex -> EntriesPageLoaded (model.EntriesGeneration, page, Error ex.Message))
             model, cmd, NoOp
 
-    | EntriesPageLoaded (page, Ok entryPage) ->
+    // Die Antwort auf eine Liste, die es nicht mehr gibt (Filter oder Sortierung haben gewechselt,
+    // die Wiederholung kam zu spät): verwerfen, auch ihr Scheitern. Die aktuelle Abfrage läuft
+    // unabhängig davon weiter und beendet den Ladezustand selbst (infrastructure-r3tw7).
+    | EntriesPageLoaded (generation, _, _) when generation <> model.EntriesGeneration ->
+        model, Cmd.none, NoOp
+
+    | EntriesPageLoaded (_, page, Ok entryPage) ->
         let entries =
             if page = 0 then
                 entryPage.Entries
@@ -1053,12 +1074,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         Cmd.none,
         NoOp
 
-    | EntriesPageLoaded (0, Error message) ->
+    | EntriesPageLoaded (_, 0, Error message) ->
         // Der Fehler bleibt an der Liste stehen (ErrorDisplay), statt als Toast
         // wegzublenden — die Seite waere sonst still leer.
         { model with Entries = Failure message; LoadingMore = false }, Cmd.none, NoOp
 
-    | EntriesPageLoaded (_, Error message) ->
+    | EntriesPageLoaded (_, _, Error message) ->
         // Ein Fehler beim Nachladen loescht die bereits sichtbare Liste nicht: sie
         // bleibt stehen, nur der Hinweis erscheint als Toast.
         { model with LoadingMore = false },
@@ -1123,7 +1144,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadHistory entryId ->
         let cmd =
             Cmd.OfAsync.either
-                Api.ledger.getEntryHistory
+                (Retry.reading Api.ledger.getEntryHistory)
                 entryId
                 (fun lines -> HistoryLoaded (entryId, Ok lines))
                 (fun ex -> HistoryLoaded (entryId, Error ex.Message))
@@ -1133,7 +1154,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         { model with History = Success lines }, Cmd.none, NoOp
 
     | HistoryLoaded (entryId, Error message) when model.DetailFor |> Option.exists (fun e -> e.Id = entryId) ->
-        { model with History = Failure message }, Cmd.none, NoOp
+        { model with History = RemoteData.lateFailure message model.History }, Cmd.none, NoOp
 
     // Die Historie einer Buchung, die nicht mehr im Detail steht (schnelles Weiterspringen,
     // geschlossenes Detail): verwerfen.
@@ -1386,17 +1407,25 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
             }
             let cmd =
                 Cmd.OfAsync.either
-                    Api.ledger.getLedgerPayeeSuggestions
+                    (Retry.reading Api.ledger.getLedgerPayeeSuggestions)
                     query
-                    (Ok >> PayeeSuggestionsLoaded)
-                    (fun ex -> PayeeSuggestionsLoaded (Error ex.Message))
+                    (fun suggestions -> PayeeSuggestionsLoaded (model.EntriesGeneration, Ok suggestions))
+                    (fun ex -> PayeeSuggestionsLoaded (model.EntriesGeneration, Error ex.Message))
             { model with PayeeSuggestions = Loading }, cmd, NoOp
 
-    | PayeeSuggestionsLoaded (Ok suggestions) ->
+    // Die Vorschläge einer Liste, die es nicht mehr gibt. Wartet das Popover nur noch auf diese
+    // Antwort, käme nichts mehr: es fragt neu, ein geschlossenes lädt beim nächsten Öffnen selbst.
+    | PayeeSuggestionsLoaded (generation, _) when generation <> model.EntriesGeneration ->
+        match model.PayeeSuggestions, model.OpenPopover with
+        | Loading, Some PayeeChip -> model, Cmd.ofMsg LoadPayeeSuggestions, NoOp
+        | Loading, _ -> { model with PayeeSuggestions = NotAsked }, Cmd.none, NoOp
+        | _ -> model, Cmd.none, NoOp
+
+    | PayeeSuggestionsLoaded (_, Ok suggestions) ->
         { model with PayeeSuggestions = Success suggestions }, Cmd.none, NoOp
 
-    | PayeeSuggestionsLoaded (Error message) ->
-        { model with PayeeSuggestions = Failure message }, Cmd.none, NoOp
+    | PayeeSuggestionsLoaded (_, Error message) ->
+        { model with PayeeSuggestions = RemoteData.lateFailure message model.PayeeSuggestions }, Cmd.none, NoOp
 
     | SelectPayeeFilter payee ->
         let filters = { model.Filters with Payee = Some payee }
@@ -1657,7 +1686,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | RunLoadCategorySuggestions (entryId, payee, current) ->
         let cmd =
             Cmd.OfAsync.either
-                (Api.ledger.getPayeeCategorySuggestions payee)
+                (Retry.reading (Api.ledger.getPayeeCategorySuggestions payee))
                 current
                 (fun ids -> CategorySuggestionsLoaded (entryId, Ok ids))
                 (fun ex -> CategorySuggestionsLoaded (entryId, Error ex.Message))
@@ -2085,14 +2114,15 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | RunLoadTransferTargets ->
         { model with TransferTargets = Loading },
         Cmd.OfAsync.either
-            Api.ledger.getBudgetAccounts
+            (Retry.reading Api.ledger.getBudgetAccounts)
             ()
             (fun result -> TransferTargetsLoaded result)
             (fun ex -> TransferTargetsLoaded (Error ex.Message)),
         NoOp
 
     | TransferTargetsLoaded (Ok accounts) -> { model with TransferTargets = Success accounts }, Cmd.none, NoOp
-    | TransferTargetsLoaded (Error message) -> { model with TransferTargets = Failure message }, Cmd.none, NoOp
+    | TransferTargetsLoaded (Error message) ->
+        { model with TransferTargets = RemoteData.lateFailure message model.TransferTargets }, Cmd.none, NoOp
 
     | AddSplitLine -> editSplit SplitEditor.addLine model, Cmd.none, NoOp
     | RemoveSplitLine index -> editSplit (SplitEditor.removeLine index) model, Cmd.none, NoOp
@@ -2107,7 +2137,7 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     | LoadQuickAddAccount ->
         model,
         Cmd.OfAsync.either
-            Api.settings.getSettings
+            (Retry.reading Api.settings.getSettings)
             ()
             (fun settings -> QuickAddAccountLoaded (Ok (settings.Ynab |> Option.bind (fun y -> y.QuickAddAccountId))))
             (fun ex -> QuickAddAccountLoaded (Error ex.Message)),
@@ -2217,15 +2247,19 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         ShowToast ($"Rückgängig nicht möglich: {message}", ToastError)
 
     | RunRefreshEntry entryId ->
+        let answer = entryRefreshAnswer model entryId
         model,
         Cmd.OfAsync.either
-            Api.ledger.getLedgerEntry
+            (Retry.reading Api.ledger.getLedgerEntry)
             entryId
-            (fun result -> EntryRefreshed (entryId, Ok result))
-            (fun ex -> EntryRefreshed (entryId, Error ex.Message)),
+            (Ok >> answer)
+            (fun ex -> answer (Error ex.Message)),
         NoOp
 
-    | EntryRefreshed (_, Ok (Some view)) -> replaceEntry view model, Cmd.none, NoOp
+    // Hat sich die Zeile seit dem Start der Abfrage geändert, ist die Antwort veraltet
+    // (`Retry.reading` verlängert das Fenster, infrastructure-r3tw7).
+    | EntryRefreshed (entryId, basis, Ok (Some view)) when findEntry model entryId = basis ->
+        replaceEntry view model, Cmd.none, NoOp
     | EntryRefreshed _ -> model, Cmd.none, NoOp
 
     | CategoryCardExpired version ->
@@ -2239,15 +2273,16 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
         | Some filter ->
             let accountId = match filter with AllAccounts -> None | OneAccount id -> Some id
             let query = { buildPageQuery model accountId 0 with LocallyRemoved = 0 }
+            let answer = totalsRefreshAnswer model
             let cmd =
                 Cmd.OfAsync.either
-                    Api.ledger.getLedgerEntriesPage
+                    (Retry.reading Api.ledger.getLedgerEntriesPage)
                     query
-                    (fun page -> TotalsRefreshed (Ok page))
-                    (fun ex -> TotalsRefreshed (Error ex.Message))
+                    (Ok >> answer)
+                    (fun ex -> answer (Error ex.Message))
             model, cmd, NoOp
 
-    | TotalsRefreshed (Ok page) when model.OrderStale ->
+    | TotalsRefreshed (generation, Ok page) when generation = model.EntriesGeneration && model.OrderStale ->
         // Nur Trefferzahl und Summe: die Zeilen bleiben, wie sie sind, bis "Neu laden".
         { model with
             TotalCount = page.TotalCount

@@ -583,7 +583,7 @@ let reducerTests =
             | ShowToastWithAction (text, ToastWarning, _) -> Expect.stringContains text "HTTP 500" "Grund im Toast"
             | other -> failtestf "Warnung erwartet: %A" other
             let refreshed = { rowOf 1 after with SplitLocks = Some { CannotSplitReason = None; CannotChangeReason = None; ReplacementPending = true } }
-            let final, _, _ = update (EntryRefreshed (idOf 1, Ok (Some refreshed))) after
+            let final, _, _ = update (EntryRefreshed (idOf 1, Some (rowOf 1 after), Ok (Some refreshed))) after
             Expect.equal (rowOf 1 final).SplitLocks refreshed.SplitLocks "Neuanlage offen sichtbar"
 
         testCase "Befehlsfehler: der Editor bleibt offen, Toast Aufteilung nicht gespeichert" <| fun () ->

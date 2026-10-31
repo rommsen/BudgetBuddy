@@ -158,7 +158,7 @@ let reducerTests =
                 NeedsReviewCount = 0
                 AskLenaCount = 0
             }
-            let loaded = first |> step (EntriesPageLoaded (1, Ok page))
+            let loaded = first |> step (EntriesPageLoaded (0, 1, Ok page))
             Expect.isTrue (isSelected loaded.Selection (idOf 5)) "eine nachgeladene Zeile gilt als gewählt"
             Expect.equal (countOf loaded) 6 "alle sechs"
             let deselected = loaded |> step (ToggleRowSelected (idOf 5))

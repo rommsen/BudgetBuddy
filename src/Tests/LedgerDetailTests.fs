@@ -226,7 +226,7 @@ let sortTests =
                   DeletedCount = 0
                   NeedsReviewCount = 2
                   AskLenaCount = 0 }
-            let model = opened |> step (SetSort SortByAmount) |> step (EntriesPageLoaded (0, Ok page))
+            let model = opened |> step (SetSort SortByAmount) |> (fun m -> m |> step (EntriesPageLoaded (m.EntriesGeneration, 0, Ok page)))
             Expect.equal (model.DetailFor |> Option.map (fun e -> e.Id)) (Some (idOf 2)) "Panel zeigt weiter seine Buchung"
             Expect.isNone model.FocusedRow "keine Zeile markiert"
 
@@ -239,7 +239,7 @@ let sortTests =
                   DeletedCount = 0
                   NeedsReviewCount = 3
                   AskLenaCount = 0 }
-            let model = opened |> step (SetSort SortByAmount) |> step (EntriesPageLoaded (0, Ok page))
+            let model = opened |> step (SetSort SortByAmount) |> (fun m -> m |> step (EntriesPageLoaded (m.EntriesGeneration, 0, Ok page)))
             Expect.equal model.FocusedRow (Some (idOf 2)) "die Markierung ist die Buchung im Panel"
 
         testCase "der Geprüft-Schalter und das Panel zeigen den neuen Stand, auch wenn die Zeile den Chip verlässt" <| fun () ->

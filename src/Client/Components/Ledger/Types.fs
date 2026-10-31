@@ -1030,6 +1030,11 @@ type Model = {
     /// Hat eine Änderung den Sortierschlüssel verschoben (`SortByCategory`)? Dann ruht das
     /// Nachladen, bis "Neu laden" die Liste ab Seite 1 neu aufsetzt.
     OrderStale: bool
+
+    /// Zählt jeden Neuaufbau der Buchungsliste (infrastructure-r3tw7). Listenabfragen tragen
+    /// die Generation ihres Starts mit. Eine Antwort einer älteren Generation gehört zu einem
+    /// Filter oder einer Sortierung, die nicht mehr gilt, und wird verworfen.
+    EntriesGeneration: int
 }
 
 /// Ist Von oder Bis des Zeitraum-Entwurfs ungültig eingegeben? Dann ist "Übernehmen"
@@ -1458,7 +1463,7 @@ type Msg =
     // Buchungen, seitenweise
     | LoadEntries
     | RunLoadEntriesPage of page: int
-    | EntriesPageLoaded of page: int * Result<LedgerEntryPage, string>
+    | EntriesPageLoaded of generation: int * page: int * Result<LedgerEntryPage, string>
     /// Der Beobachter am Listenende ist sichtbar geworden: naechste Seite nachladen,
     /// wenn gerade keine laeuft und es noch etwas zu holen gibt.
     | LoadMoreEntries
@@ -1563,7 +1568,7 @@ type Msg =
 
     | SetPayeeSearch of string
     | LoadPayeeSuggestions
-    | PayeeSuggestionsLoaded of Result<LedgerPayeeSuggestion list, string>
+    | PayeeSuggestionsLoaded of generation: int * Result<LedgerPayeeSuggestion list, string>
     /// Einzelauswahl: filtert sofort (kein „Übernehmen").
     | SelectPayeeFilter of string
     | RemovePayeeFilter
@@ -1677,7 +1682,9 @@ type Msg =
     | SplitsRestored of Guid * TransactionSplit list * Result<CategoryChangeOutcome, string>
     /// Holt eine Buchung neu (nach einem gescheiterten Split-Versand), um die offene Neuanlage zu sehen.
     | RunRefreshEntry of Guid
-    | EntryRefreshed of Guid * Result<LedgerEntryView option, string>
+    /// `basis` ist die Zeile beim Start der Abfrage. Hat sie sich seitdem geändert, ist die
+    /// Antwort veraltet.
+    | EntryRefreshed of Guid * basis: LedgerEntryView option * Result<LedgerEntryView option, string>
     | RunRetryCategorization of Guid
     | CategorizationRetried of Guid * Result<CategoryWriteBack, string>
 
@@ -1718,7 +1725,7 @@ type Msg =
     | CategoryCardExpired of version: int
     /// Trefferzahl und Summe neu holen, solange die Reihenfolge veraltet ist.
     | RunRefreshTotals
-    | TotalsRefreshed of Result<LedgerEntryPage, string>
+    | TotalsRefreshed of generation: int * Result<LedgerEntryPage, string>
 
     // ============================================
     // Auswahl mit Summe (ledger-r1d2f)

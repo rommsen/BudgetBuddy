@@ -43,6 +43,16 @@ let private repoRoot =
 let private readClient (relative: string) =
     File.ReadAllText(Path.Combine(repoRoot, "src", "Client", relative))
 
+/// Quelltext ohne Kommentare, damit ein auskommentierter Aufruf nicht als Beleg zählt.
+let private withoutComments (source: string) =
+    Regex.Replace(Regex.Replace(source, @"\(\*[\s\S]*?\*\)", " "), @"//[^\n]*", " ")
+
+/// Namen aller Abfragen, die im Quelltext über `Retry.reading` laufen, auch teilweise angewendet.
+let private wrappedCalls (source: string) =
+    Regex.Matches(withoutComments source, @"Retry\.reading\s+\(?Api\.\w+\.(\w+)")
+    |> Seq.map (fun m -> m.Groups[1].Value)
+    |> List.ofSeq
+
 let private wrappedLenaFlagCall =
     Regex(@"Retry\.reading\s+Api\.settings\.getLenaFlagSettings")
 
@@ -115,23 +125,33 @@ let tests =
             Expect.isFalse (Retry.isNetworkError (exn "anders")) "andere Ausnahme"
         }
 
-        test "die lesenden Start-Abfragen laufen über den Helfer, kein Schreibaufruf" {
-            let settings = readClient "Components/Settings/State.fs"
-            let ledger = readClient "Components/Ledger/State.fs"
-            let app = readClient "State.fs"
-            Expect.stringContains settings "Retry.reading Api.settings.getSettings" "getSettings"
-            Expect.stringContains ledger "Retry.reading Api.ledger.getLedgerAccounts" "getLedgerAccounts"
-            Expect.stringContains ledger "Retry.reading Api.ledger.getLastMirrorRun" "getLastMirrorRun"
-            Expect.stringContains app "Retry.reading Api.ynab.getCategories" "getCategories im Kassenbuch-Zweig"
-            let all = [ settings; ledger; app ] |> String.concat "\n"
-            let wrapped =
-                Regex.Matches(all, @"Retry\.reading\s+Api\.(\w+)\.(\w+)")
-                |> Seq.map (fun m -> m.Groups[2].Value)
-                |> List.ofSeq
-            let expected =
-                [ "getSettings"; "getLedgerAccounts"; "getLastMirrorRun"; "getCategories"
-                  "getLenaFlagSettings"; "getLenaFlagSettings" ]
-            Expect.equal (List.sort wrapped) (List.sort expected) "genau diese, kein Schreibaufruf"
+        // infrastructure-r3tw7: Verhindert den Befund vom 2026-10-31 (Fehlerseite im Kassenbuch
+        // nach einem Verbindungsabbruch, die Buchungsliste war nicht geschützt). Der
+        // Fable.Remoting-Proxy läuft unter .NET nicht, deshalb hält der Test das Inventar je
+        // Datei im Quelltext fest. Die Listen sind vollständig: fehlt `Retry.reading` an einer
+        // Aufrufstelle oder kommt ein Schreibaufruf dazu, weicht die Datei ab.
+        test "die Inventare der lesenden Abfragen laufen über den Helfer, kein Schreibaufruf" {
+            // Gegenbeweis: der Abgleich erkennt beide Schreibweisen und lässt rohe Aufrufe aus.
+            Expect.equal (wrappedCalls "(Retry.reading\n  Api.ledger.a)") [ "a" ] "direkt umhüllt"
+            Expect.equal (wrappedCalls "(Retry.reading (Api.ledger.b payee))") [ "b" ] "teilweise angewendet"
+            Expect.equal (wrappedCalls "Cmd.OfAsync.either Api.ledger.c") [] "ungeschützt zählt nicht"
+            Expect.equal (wrappedCalls "(* Retry.reading Api.ledger.d *) Api.ledger.d") [] "Blockkommentar zählt nicht"
+            Expect.equal (wrappedCalls "// Retry.reading Api.ledger.e\nApi.ledger.e") [] "Zeilenkommentar zählt nicht"
+
+            let inventory =
+                [ "Components/Settings/State.fs", [ "getSettings"; "getLenaFlagSettings" ]
+                  "Components/Rules/State.fs", [ "getAllRules" ]
+                  "State.fs", [ "getCategories"; "getCategories"; "getRecentQuickAddTemplates" ]
+                  "Components/Ledger/State.fs",
+                  [ "getLedgerAccounts"; "getLastMirrorRun"; "getLenaFlagSettings"
+                    "getLedgerAccountBalances"; "getLedgerEntriesPage"; "getLedgerEntriesPage"
+                    "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
+                    "getBudgetAccounts"; "getSettings"; "getLedgerEntry" ] ]
+            for file, expected in inventory do
+                Expect.equal
+                    (List.sort (wrappedCalls (readClient file)))
+                    (List.sort expected)
+                    $"{file}: genau diese, kein Schreibaufruf"
         }
 
         // infrastructure-awstw: Verhindert den Befund vom 2026-10-29 (Firefox, Toast "Failed to
