@@ -68,3 +68,15 @@ fehlgeschlagen. Nur der Stand "in YNAB geändert" an der Quelle schließt das Zi
 - ADR 0055 (YNAB gewinnt)
 - Tests in `src/Tests/MoveMoneyTests.fs`: "Hat YNAB bei der Quelle gewonnen ...", "GIVEN die
   Quelle landete, die Antwort ging verloren ..."
+
+## Nachtrag 2026-10-31 (budgeting-nfrds, Entscheidung des Owners)
+
+Vor dem erneuten Senden einer Verschiebung werden beide Stände geprüft. Ist das Ziel schon verloren (YNAB steht dort weder auf Baseline noch auf Zielwert), wird die Quelle nicht gesendet: sonst sänke sie, das Ziel bekäme nichts, und das Geld läge in Zu verteilen. Beide Zeilen schließen als "in YNAB geändert", die Verschiebung ist erledigt. Steht die Quelle schon auf ihrem Zielwert (Antwort ging verloren), bleibt sie geschrieben, das Ziel schließt.
+
+Maßgeblich ist der Stand der Vorgänger-Zeile, auch aus einem früheren Lauf. Eine Zeile ohne Stand zählt wie fehlgeschlagen: ein Abbruch nach der Quelle lässt das Ziel nicht ewig offen, und eine geschlossene Quelle schließt ein Ziel ohne Stand.
+
+Fehlt das Ziel im Monat, bleibt die Quelle ungesendet fehlgeschlagen und erneut sendbar. Das ist die Wahl des Workers, nicht des Owners.
+
+Folge für budgeting-dyn8g: auch eine Quelle, die YNAB nie berührt hat, kann jetzt "in YNAB geändert" tragen.
+
+Tests in `src/Tests/MoveMoneyTests.fs`: "GIVEN beide Zeilen fehlgeschlagen, Ziel in YNAB geändert ...", "GIVEN Quelle in YNAB geändert, Ziel ohne Stand ...", "GIVEN Quelle geschrieben, Ziel ohne Stand ...".
