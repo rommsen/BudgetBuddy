@@ -1,7 +1,7 @@
 ---
 id: banking-import-z4h6p
 title: "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token"
-status: backlog
+status: todo
 type: feature
 context: banking-import
 created: 2026-10-30
