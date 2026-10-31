@@ -1215,16 +1215,8 @@ let private loadAllMatching (accountId: LedgerAccountId option) (filter: EntryFi
 
 /// Die Buchungen einer Kategorie (eigene oder als Split-Zeile) zwischen zwei Kalendertagen, beide
 /// einschließlich, ohne in YNAB gelöschte, neueste zuerst (budgeting-m1bce).
-let loadCategoryEntries (categoryId: Guid) (firstDay: DateTime) (lastDay: DateTime) : Async<Entry list> =
-    async {
-        use conn = Core.getConnection ()
-        let filter = { noFilter with CategoryIds = [ categoryId ]; DateFrom = Some firstDay; DateTo = Some lastDay }
-        let whereSql, ps = buildFilterClause None filter
-        let! rows =
-            conn.QueryAsync<EntryRow>($"SELECT * FROM ledger_entries WHERE {whereSql} ORDER BY date DESC, id DESC", ps)
-            |> Async.AwaitTask
-        return rows |> Seq.map rowToEntry |> Seq.toList
-    }
+let loadCategoryEntries (YnabCategoryId categoryId) (firstDay: DateTime) (lastDay: DateTime) : Async<Entry list> =
+    loadAllMatching None { noFilter with CategoryIds = [ categoryId ]; DateFrom = Some firstDay; DateTo = Some lastDay }
 
 let private safePage (offset: int) (pageSize: int) (xs: Entry list) : Entry list =
     if offset >= List.length xs then [] else xs |> List.skip offset |> List.truncate pageSize

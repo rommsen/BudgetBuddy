@@ -215,17 +215,18 @@ let private buttonSection =
                     prop.children [
                         Button.listName "styleguide-list-name" "Lebensmittel, Details" true "Lebensmittel" ignore
                         Button.listRow "styleguide-list-row" "styleguide-list-row" "Supermarkt, im Kassenbuch öffnen" ignore [
-                            Html.div [
+                            Html.span [
                                 prop.className Tokens.ListRoles.mobileLine1
                                 prop.children [
                                     Html.span [ prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"; prop.text "Supermarkt" ]
-                                    Money.simple -12.5m "EUR"
+                                    Money.listAmount -12.5m "EUR"
                                 ]
                             ]
-                            Html.div [
+                            Html.span [
                                 prop.className Tokens.ListRoles.mobileLine2
                                 prop.children [
-                                    Html.span [ prop.className $"{Tokens.ListRoles.muted} truncate"; prop.text "12.11.2026 · Girokonto" ]
+                                    Html.span [ prop.className Tokens.ListRoles.date; prop.text "12.11.2026" ]
+                                    Html.span [ prop.className $"{Tokens.ListRoles.secondary} truncate"; prop.text "· Girokonto" ]
                                 ]
                             ]
                         ]

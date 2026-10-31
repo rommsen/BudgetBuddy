@@ -1415,7 +1415,8 @@ type CategoryMonthQuery = {
 type CategoryMonthEntry = {
     EntryId: Guid
     AccountId: Guid
-    AccountName: string
+    /// `None`: das Konto ist im Kassenbuch nicht bekannt.
+    AccountName: string option
     Date: DateTime
     Payee: string option
     Amount: Money

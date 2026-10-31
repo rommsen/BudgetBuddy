@@ -143,6 +143,8 @@ type Msg =
     /// Tipp auf den Kategorie-Namen.
     | OpenCategoryDetail of System.Guid
     | CloseCategoryDetail
+    /// Die Route der Buchung wurde nicht per Zurück verlassen: das Detail wartet nicht mehr.
+    | ReturnAbandoned
     /// Die Liste im Detail (neu) holen: "Wiederholen".
     | LoadCategoryEntries
     | CategoryEntriesLoaded of generation: int * Result<CategoryMonthEntry list, string>

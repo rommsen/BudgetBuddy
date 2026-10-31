@@ -55,7 +55,7 @@ module ErrorDisplay =
                         ]
                         Html.span [
                             prop.className "font-semibold text-neon-red"
-                            prop.text "Error"
+                            prop.text "Fehler"
                         ]
                     ]
                 ]
@@ -72,7 +72,7 @@ module ErrorDisplay =
                             Html.div [
                                 prop.className "mt-4"
                                 prop.children [
-                                    Button.secondary "Try Again" retry
+                                    Button.secondary "Erneut versuchen" retry
                                 ]
                             ]
                         | None -> ()
@@ -114,7 +114,7 @@ module ErrorDisplay =
                             Html.div [
                                 prop.className "mt-4"
                                 prop.children [
-                                    Button.secondary "Try Again" retry
+                                    Button.secondary "Erneut versuchen" retry
                                 ]
                             ]
                         | None -> ()
@@ -142,7 +142,7 @@ module ErrorDisplay =
                             Html.button [
                                 prop.className "text-neon-red hover:text-neon-red/80 text-sm font-medium mt-2 underline"
                                 prop.onClick (fun _ -> retry())
-                                prop.text "Try again"
+                                prop.text "Erneut versuchen"
                             ]
                         | None -> ()
                     ]
@@ -223,7 +223,7 @@ module ErrorDisplay =
                                     prop.className "text-text-secondary mb-4"
                                     prop.text message
                                 ]
-                                Button.primary "Try Again" onRetry
+                                Button.primary "Erneut versuchen" onRetry
                             ]
                         ]
                     ]
@@ -260,7 +260,7 @@ module ErrorDisplay =
                         ]
                         match onRetry with
                         | Some retry ->
-                            Button.primary "Try Again" retry
+                            Button.primary "Erneut versuchen" retry
                         | None -> ()
                     ]
                 ]

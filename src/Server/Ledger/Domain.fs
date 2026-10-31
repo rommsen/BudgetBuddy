@@ -222,26 +222,32 @@ let splitCategoryIds (entry: Entry) : Guid list =
         | Uncategorized -> None)
     |> List.distinct
 
-/// Was von einer Buchung auf eine Kategorie fällt (budgeting-m1bce): bei Splits die Summe der Zeilen
-/// dieser Kategorie (`true`: nur ein Anteil), sonst der ganze Betrag. `None`: nichts.
-let categoryShare (categoryId: Guid) (entry: Entry) : (Money * bool) option =
+/// Was von einer Buchung auf eine Kategorie fällt (budgeting-m1bce).
+type CategoryShare =
+    /// Die Buchung gehört ganz zur Kategorie.
+    | WholeEntry of Money
+    /// Summe der Split-Zeilen dieser Kategorie, nur ein Teil der Buchung.
+    | SplitShare of Money
+
+/// Der Anteil einer Buchung an einer Kategorie. `None`: nichts.
+let categoryShare (categoryId: YnabCategoryId) (entry: Entry) : CategoryShare option =
     match entry.Splits with
     | [] ->
         entry.Category
-        |> Option.filter (fun c -> c.CategoryId = YnabCategoryId categoryId)
-        |> Option.map (fun _ -> entry.Amount, false)
+        |> Option.filter (fun c -> c.CategoryId = categoryId)
+        |> Option.map (fun _ -> WholeEntry entry.Amount)
     | splits ->
         let shares =
             splits
             |> List.filter (fun s ->
                 match s.Target with
-                | ToCategory (YnabCategoryId id, _) -> id = categoryId
+                | ToCategory (id, _) -> id = categoryId
                 | ToTransfer _
                 | Uncategorized -> false)
         if List.isEmpty shares then
             None
         else
-            Some ({ entry.Amount with Amount = shares |> List.sumBy (fun s -> s.Amount.Amount) }, true)
+            Some (SplitShare { entry.Amount with Amount = shares |> List.sumBy (fun s -> s.Amount.Amount) })
 
 /// Die verschiedenen Konten, auf die die `ToTransfer`-Zeilen einer Buchung zeigen
 /// (ADR 0048): Schwesterfunktion zu `splitCategoryIds`, entdoppelt. Grundlage der

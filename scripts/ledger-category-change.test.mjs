@@ -27,7 +27,9 @@ let frontend;
 let frontendPort;
 let browser;
 
-const TODAY = new Date().toISOString().slice(0, 10) + "T00:00:00.0000000";
+// Berliner Kalendertag: mit dem UTC-Tag lag die Buchung in der ersten Stunde eines Monats im Vormonat,
+// und die Karte zeigte keine Beträge.
+const TODAY = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) + "T00:00:00.0000000";
 
 /// Veränderlicher Server-Zustand der Mocks, damit die Tests Antworten umschalten können.
 const state = {

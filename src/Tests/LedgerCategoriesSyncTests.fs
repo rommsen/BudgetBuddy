@@ -87,6 +87,12 @@ let ledgerCategoriesSyncTests =
             Expect.equal updated.CurrentPage Ledger "Die Seite bleibt unverändert"
         }
 
+        test "Die Route einer Buchung holt die Kategorien ebenfalls nach" {
+            let model = baseModel (LedgerEntry (System.Guid.NewGuid()))
+            let _, cmd = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithBudget))) model
+            Expect.contains (dispatched cmd) (LedgerMsg Components.Ledger.Types.LoadCategories) "wie die Liste"
+        }
+
         test "Ohne konfiguriertes Budget wird nichts nachgeholt" {
             let model = baseModel Ledger
             let _, cmd = State.update (SettingsMsg (Components.Settings.Types.SettingsLoaded (Ok settingsWithoutBudget))) model

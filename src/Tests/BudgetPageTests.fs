@@ -229,7 +229,7 @@ let private withMonth = { init () with Month = Success detailMonth }
 let private line (amount: decimal) : Shared.Domain.CategoryMonthEntry =
     { EntryId = entryId
       AccountId = entryId
-      AccountName = "Giro"
+      AccountName = Some "Giro"
       Date = System.DateTime(2026, 10, 5)
       Payee = Some "Rewe"
       Amount = eur amount
@@ -283,6 +283,10 @@ let private detailTests =
             let model, _ = select NextMonth (fst opened)
             Expect.isNone model.Detail "zu"
         }
+        test "Schließen schließt das Detail" {
+            let model, _, _ = Components.Budget.State.update CloseCategoryDetail (fst opened)
+            Expect.isNone model.Detail "zu"
+        }
         test "Fehlt die Kategorie im neu gelesenen Monat, schließt das Detail" {
             let model = applyLoaded CurrentMonth (Ok { detailMonth with Groups = [] }) (fst opened)
             Expect.isNone model.Detail "zu"
@@ -330,6 +334,35 @@ let private returnTests =
             Expect.isNone model.Detail "zu"
             Expect.isNone month "keine Abfrage"
         }
+        // F2: Nach einem Umweg über die Tab-Leiste ging das Detail wieder auf.
+        test "Ist die Rückkehr hinfällig, bleibt das Detail beim nächsten Betreten zu" {
+            let left = leaveForEntry (fst opened)
+            let abandoned, _, _ = Components.Budget.State.update ReturnAbandoned left
+            let model, month = enterPage abandoned
+            Expect.isNone model.Detail "zu"
+            Expect.isNone month "keine Abfrage"
+        }
+        test "Wer die Route auf eine andere Seite verlässt, gibt die Rückkehr auf" {
+            for target in [ Budget; Settings; Ledger ] do
+                Expect.isTrue (State.routeNavigation (LedgerEntry entryId) target).AbandonsReturn $"{target}"
+        }
+        test "Auf anderen Seiten und beim Wechsel der Buchung wartet die Rückkehr weiter" {
+            Expect.isFalse (State.routeNavigation Ledger Budget).AbandonsReturn "keine Route"
+            Expect.isFalse (State.routeNavigation (LedgerEntry entryId) (LedgerEntry categoryId)).AbandonsReturn "Route bleibt"
+        }
+        // F5: Der Eintrag der Route blieb in der Historie, Browser-Zurück öffnete die Buchung erneut.
+        test "Von der Route in die Liste ersetzt den Eintrag der Historie" {
+            Expect.isTrue (State.routeNavigation (LedgerEntry entryId) Ledger).ReplacesHistory "Liste"
+            Expect.isTrue (State.routeNavigation (LedgerEntry entryId) (LedgerEntry categoryId)).ReplacesHistory "Panel-Wechsel"
+        }
+        test "Der Sprung und der Weg über die Tab-Leiste legen einen Eintrag an" {
+            Expect.isFalse (State.routeNavigation Budget (LedgerEntry entryId)).ReplacesHistory "Sprung"
+            Expect.isFalse (State.routeNavigation (LedgerEntry entryId) Budget).ReplacesHistory "Tab"
+        }
+        test "Liste und Route sind dieselbe Seite für React" {
+            Expect.equal (pageKey (LedgerEntry entryId)) (pageKey Ledger) "gleicher Schlüssel"
+            Expect.notEqual (pageKey Budget) (pageKey Ledger) "andere Seite"
+        }
         test "Die Route einer Buchung wird gelesen und erzeugt" {
             let page = Routing.parseUrl [ "ledger"; "entry"; string entryId ]
             Expect.equal page (LedgerEntry entryId) "parse"
@@ -343,20 +376,38 @@ let private returnTests =
             Expect.isFalse (isLedgerPage Budget) "Budget nicht"
         }
         test "Schließen nach dem Sprung geht zurück ins Budget" {
-            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false true true) State.BackToBudget "zurück"
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false true true false) State.BackToBudget "zurück"
         }
         test "Schließen nach einem Direktaufruf bleibt im Kassenbuch" {
-            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false true false) State.ToLedgerList "Liste"
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false true false false) State.ToLedgerList "Liste"
         }
         test "Ein Kontowechsel schließt das Detail, ohne ins Budget zu springen" {
-            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false false true) State.ToLedgerList "Liste"
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false false true false) State.ToLedgerList "Liste"
         }
         test "Bleibt das Detail offen oder war es zu, bleibt die Route" {
-            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true true true true) State.StayOnRoute "offen"
-            Expect.equal (State.entryRouteExit (LedgerEntry entryId) false false true true) State.StayOnRoute "noch nicht offen"
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true true true true false) State.StayOnRoute "offen"
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) false false true true false) State.StayOnRoute "noch nicht offen"
+        }
+        // F6: Nach einem Ladefehler blieb die URL auf der Route, und Schließen griff nicht.
+        test "Scheitert das Laden nach dem Sprung, geht es zurück ins Budget" {
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false false true true) State.BackToBudget "zurück"
+        }
+        test "Scheitert das Laden nach einem Direktaufruf, bleibt die Liste" {
+            Expect.equal (State.entryRouteExit (LedgerEntry entryId) true false false false true) State.ToLedgerList "Liste"
+        }
+        // F8: Am PC wechselte das Panel, die URL blieb auf der ersten Buchung.
+        test "Wechselt das Panel die Buchung, folgt die URL" {
+            Expect.equal (State.entryRouteFollow (LedgerEntry entryId) (Some entryId) (Some categoryId) None) (Some categoryId) "folgt"
+        }
+        test "Ohne Wechsel, außerhalb der Route und bei laufender Abfrage bleibt die URL" {
+            let follow = State.entryRouteFollow
+            Expect.isNone (follow (LedgerEntry entryId) (Some entryId) (Some entryId) None) "gleiche Buchung"
+            Expect.isNone (follow Ledger (Some entryId) (Some categoryId) None) "keine Route"
+            Expect.isNone (follow (LedgerEntry entryId) (Some entryId) (Some categoryId) (Some entryId)) "Abfrage läuft"
+            Expect.isNone (follow (LedgerEntry categoryId) (Some entryId) (Some categoryId) None) "URL stimmt schon"
         }
         test "Auf der gewöhnlichen Kassenbuch-Seite gibt es keine Route zu verlassen" {
-            Expect.equal (State.entryRouteExit Ledger true false true true) State.StayOnRoute "Liste"
+            Expect.equal (State.entryRouteExit Ledger true false true true false) State.StayOnRoute "Liste"
         }
     ]
 

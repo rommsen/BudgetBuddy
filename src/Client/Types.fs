@@ -162,6 +162,11 @@ let isLedgerPage (page: Page) : bool =
     | LedgerEntry _ -> true
     | _ -> false
 
+/// React-Schlüssel der Seite. Liste und Route einer Buchung sind dieselbe Kassenbuch-Seite: ein
+/// eigener Schlüssel würde sie beim Wechsel neu aufbauen.
+let pageKey (page: Page) : string =
+    if isLedgerPage page then "Ledger" else page.ToString()
+
 /// URL routing helpers for hash-based navigation
 module Routing =
     open Feliz.Router

@@ -94,7 +94,8 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | OpenCategoryDetail categoryId ->
         let model', month = openCategoryDetail categoryId model
         model', entriesCmdFor (model', month)
-    | CloseCategoryDetail -> { model with Detail = None }, Cmd.none
+    | CloseCategoryDetail
+    | ReturnAbandoned -> { model with Detail = None }, Cmd.none
     | LoadCategoryEntries ->
         let model', month = reloadCategoryEntries model
         model', entriesCmdFor (model', month)

@@ -176,31 +176,8 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
 let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
     Shared.Budgeting.parseMonthChoice key
 
-/// Der Monat als Monatserster; eine Anfrage ohne Kategorie ist keine (budgeting-m1bce). Alle Fehler
-/// zugleich, wie an der übrigen API-Grenze.
-let validateCategoryMonthQuery (query: Shared.Domain.CategoryMonthQuery) : Result<DateTime, string list> =
-    let parsed =
-        DateTime.TryParseExact(
-            query.Month,
-            "yyyy-MM-dd",
-            Globalization.CultureInfo.InvariantCulture,
-            Globalization.DateTimeStyles.None
-        )
-    let errors =
-        [ if query.CategoryId = Guid.Empty then
-              "Die Kategorie fehlt."
-          match parsed with
-          | true, date when date.Day = 1 -> ()
-          | _ -> $"Ungültiger Monat: '{query.Month}'. Erwartet wird der Monatserste als JJJJ-MM-01." ]
-    if errors.IsEmpty then Ok (snd parsed) else Error errors
-
-/// Obergrenze einer Verschiebung. Liegt weit über jedem echten Betrag und weit unter dem, was
-/// beim Rechnen in Milliunits überliefe.
-[<Literal>]
-let MaxMoveAmount = 1000000m
-
-/// Der Monat einer Verschiebung: der Erste des Monats als "YYYY-MM-01".
-let private isMonthKey (key: string) : bool =
+/// Ein Monat an der Grenze ist sein Erster als "JJJJ-MM-01".
+let private tryParseMonthKey (key: string) : DateTime option =
     match
         DateTime.TryParseExact(
             key,
@@ -209,16 +186,37 @@ let private isMonthKey (key: string) : bool =
             Globalization.DateTimeStyles.None
         )
     with
-    | true, date -> date.Day = 1
-    | _ -> false
+    | true, date when date.Day = 1 -> Some date
+    | _ -> None
+
+let private monthKeyError (key: string) : string =
+    $"Ungültiger Monat: '{key}'. Erwartet wird der Monatserste als JJJJ-MM-01."
+
+/// Der Monat als Monatserster; eine Anfrage ohne Kategorie ist keine (budgeting-m1bce). Alle Fehler
+/// zugleich, wie an der übrigen API-Grenze.
+let validateCategoryMonthQuery (query: Shared.Domain.CategoryMonthQuery) : Result<DateTime, string list> =
+    let month = tryParseMonthKey query.Month
+    let errors =
+        [ if query.CategoryId = Guid.Empty then
+              "Die Kategorie fehlt."
+          if month.IsNone then
+              monthKeyError query.Month ]
+    match month with
+    | Some firstDay when errors.IsEmpty -> Ok firstDay
+    | _ -> Error errors
+
+/// Obergrenze einer Verschiebung. Liegt weit über jedem echten Betrag und weit unter dem, was
+/// beim Rechnen in Milliunits überliefe.
+[<Literal>]
+let MaxMoveAmount = 1000000m
 
 /// Prüft Monat und Auftrag an der Grenze, bevor YNAB gelesen oder etwas festgehalten wird. Alle
 /// Fehler werden gesammelt. Der Betrag wird beidseitig begrenzt: `planMove` rechnet mit ihm, bevor
 /// es ihn prüft, ein großer negativer Betrag liefe dort über. Raster und Kategorien prüft `planMove`.
 let validateMoveRequest (monthKey: string) (request: Shared.Budgeting.MoveRequest) : Result<unit, string list> =
     let errors =
-        [ if not (isMonthKey monthKey) then
-              $"Ungültiger Monat: '{monthKey}'. Erwartet wird der Monatserste als JJJJ-MM-01."
+        [ if (tryParseMonthKey monthKey).IsNone then
+              monthKeyError monthKey
           if request.Amount.Currency <> "EUR" then
               $"Verschoben wird nur in EUR, nicht in '{request.Amount.Currency}'."
           if request.Amount.Amount <= 0m then

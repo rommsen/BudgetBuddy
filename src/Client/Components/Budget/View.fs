@@ -32,6 +32,13 @@ let private plainAmount (m: Money) =
 
 let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 
+/// Kopfzahl im Kategorie-Detail: ruhig, ohne Warnfarbe und Glow.
+let private detailAmount (m: Money) =
+    Html.span [
+        prop.className $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textPrimary}"
+        prop.text (Money.formatAmountText false true m.Amount m.Currency)
+    ]
+
 /// Der Verfügbar-Betrag öffnet "Verschieben". `sizeClass` trägt die Trefferfläche der Liste.
 let private availableButton (sizeClass: string) (c: BudgetCategory) (dispatch: Msg -> unit) =
     Money.availableButton $"{c.Name} verschieben" sizeClass c.Available.Amount c.Available.Currency (fun () ->
@@ -668,29 +675,32 @@ let private detailFigures (category: BudgetCategory) =
     Html.div [
         prop.className "grid grid-cols-3 gap-3"
         prop.children [
-            detailFigure "detail-assigned" "Zugewiesen" (plainAmount category.Assigned)
-            detailFigure "detail-activity" "Aktivität" (plainAmount category.Activity)
+            detailFigure "detail-assigned" "Zugewiesen" (detailAmount category.Assigned)
+            detailFigure "detail-activity" "Aktivität" (detailAmount category.Activity)
             detailFigure "detail-available" "Verfügbar" (availableAmount category.Available)
         ]
     ]
 
 let private detailEntryLine (entry: CategoryMonthEntry) (dispatch: Msg -> unit) =
     let payee = entry.Payee |> Option.defaultValue "Ohne Empfänger"
-    Button.listRow (string entry.EntryId) "detail-entry" $"{payee}, im Kassenbuch öffnen" (fun () -> dispatch (OpenEntryInLedger entry.EntryId)) [
-        Html.div [
+    let date = entry.Date.ToString "dd.MM.yyyy"
+    let label = $"{payee}, {amountText entry.Amount}, {date}, im Kassenbuch öffnen"
+    Button.listRow (string entry.EntryId) "detail-entry" label (fun () -> dispatch (OpenEntryInLedger entry.EntryId)) [
+        Html.span [
             prop.className ListRoles.mobileLine1
             prop.children [
                 Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text payee ]
-                plainAmount entry.Amount
+                Money.listAmount entry.Amount.Amount entry.Amount.Currency
             ]
         ]
-        Html.div [
+        Html.span [
             prop.className ListRoles.mobileLine2
             prop.children [
-                Html.span [
-                    prop.className $"{ListRoles.muted} truncate"
-                    prop.text $"""{entry.Date.ToString "dd.MM.yyyy"} · {entry.AccountName}"""
-                ]
+                Html.span [ prop.className ListRoles.date; prop.text date ]
+                match entry.AccountName with
+                | Some account ->
+                    Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.text $"· {account}" ]
+                | None -> ()
                 if entry.IsSplitShare then
                     Badge.neutral "Split"
             ]
@@ -706,14 +716,14 @@ let private detailTotal (activity: Money) (entries: CategoryMonthEntry list) =
                 prop.className ListRoles.mobileLine1
                 prop.children [
                     Html.span [ prop.className ListRoles.groupHeader; prop.text "Summe" ]
-                    Html.span [ prop.custom ("data-testid", "detail-total"); prop.children [ plainAmount total ] ]
+                    Html.span [ prop.custom ("data-testid", "detail-total"); prop.children [ Money.listAmount total.Amount total.Currency ] ]
                 ]
             ]
             match deviationHint total activity with
             | Some hint ->
                 Html.p [
                     prop.custom ("data-testid", "detail-deviation")
-                    prop.className ListRoles.muted
+                    prop.className ListRoles.secondary
                     prop.text hint
                 ]
             | None -> ()
@@ -723,8 +733,12 @@ let private detailTotal (activity: Money) (entries: CategoryMonthEntry list) =
 let private detailEntries (category: BudgetCategory) (detail: CategoryDetail) (dispatch: Msg -> unit) =
     match detail.Entries with
     | NotAsked
-    | Loading -> Loading.centered "Lade Buchungen ..."
-    | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch LoadCategoryEntries))
+    | Loading -> Loading.txListSkeleton 3
+    | Failure message ->
+        Html.div [
+            prop.className "px-4"
+            prop.children [ ErrorDisplay.card message (Some (fun () -> dispatch LoadCategoryEntries)) ]
+        ]
     | Success entries ->
         React.fragment [
             if List.isEmpty entries then
@@ -758,9 +772,11 @@ let private categoryDetail (model: Model) (dispatch: Msg -> unit) =
                         ]
                     ]
                 ]
-            let body =
+            // Die Zeilen tragen ihren Rand selbst (`px-4`), `-mx-5` hebt den von `.sheet-body` auf.
+            let body (inSheet: bool) =
                 Html.div [
                     prop.custom ("data-testid", "category-detail")
+                    prop.className (if inSheet then "-mx-5" else "")
                     prop.children [
                         head
                         Html.h3 [ prop.className $"{ListRoles.groupHeader} px-4 pt-2 pb-1"; prop.text "Buchungen" ]
@@ -775,7 +791,7 @@ let private categoryDetail (model: Model) (dispatch: Msg -> unit) =
                         Subtitle = Some subtitle
                         Size = Modal.Large
                         OnClose = close }
-                    [ Modal.bodyNoPadding [ body ] ]
+                    [ Modal.bodyNoPadding [ body false ] ]
             else
                 BottomSheet.view
                     { IsOpen = true
@@ -783,7 +799,7 @@ let private categoryDetail (model: Model) (dispatch: Msg -> unit) =
                       Title = category.Name
                       Subtitle = Some subtitle
                       Footer = None }
-                    [ body ]
+                    [ body true ]
         | None -> Html.none
     | _ -> Html.none
 

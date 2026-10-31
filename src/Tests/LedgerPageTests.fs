@@ -1361,11 +1361,114 @@ let private visibilityTests =
             Expect.contains (dispatched cmd) (State.LedgerMsg LoadMirrorStatus) "der Lauf-Status wird neu geladen"
         }
 
+        test "Auf der Route einer Buchung lädt der Vordergrund-Wechsel den Lauf-Status ebenfalls" {
+            let _, cmd = State.update State.VisibilityChanged (rootModel (Types.Page.LedgerEntry Guid.Empty))
+            Expect.contains (dispatched cmd) (State.LedgerMsg LoadMirrorStatus) "wie die Liste"
+        }
+
         test "Auf jeder anderen Seite tut der Vordergrund-Wechsel nichts" {
             let onSettings = rootModel Types.Page.Settings
             let updated, cmd = State.update State.VisibilityChanged onSettings
             Expect.equal updated onSettings "kein Zustandswechsel"
             Expect.isEmpty (dispatched cmd) "kein Kommando außerhalb des Kassenbuchs"
+        }
+    ]
+
+// Route einer Buchung im Root-State (budgeting-m1bce). Das Budget wartet hier auf die Rückkehr, wenn
+// `returnPending` gesetzt ist.
+let private routeTests =
+    let shown = entryView 1 -10m false
+    let other = entryView 2 -20m false
+    let route = Types.Page.LedgerEntry shown.Id
+    let onRoute (returnPending: bool) : State.Model =
+        let root = rootModel route
+        let budget =
+            if returnPending then
+                { root.Budget with
+                    Detail = Some { Components.Budget.Types.CategoryDetail.CategoryId = Guid.NewGuid(); Entries = NotAsked; ReturnPending = true } }
+            else
+                root.Budget
+        { root with Budget = budget; Ledger = { root.Ledger with DetailFor = Some shown; DetailForm = DetailPanel } }
+    let pending (root: State.Model) =
+        { root with Ledger = { root.Ledger with DetailFor = None; PendingRouteEntry = Some shown.Id } }
+    let leaving (target: RouteLeftFor) = State.LedgerMsg (LeaveRouteEntry target)
+    let sent (msg: State.Msg) (root: State.Model) = State.update msg root |> snd |> dispatched
+    let toList = State.NavigateTo Types.Page.Ledger
+
+    testList "Route einer Buchung (Root-State)" [
+
+        test "Der Weg ins Budget verlässt die Route" {
+            Expect.contains (sent (State.UrlChanged [ "budget" ]) (onRoute false)) (leaving OtherPage) "Route verlassen"
+        }
+
+        test "Von der Liste ins Budget gibt es nichts zu verlassen" {
+            let messages = sent (State.UrlChanged [ "budget" ]) (rootModel Types.Page.Ledger)
+            Expect.isFalse (messages |> List.exists (function State.LedgerMsg (LeaveRouteEntry _) -> true | _ -> false)) "nichts"
+        }
+
+        // F1: Der Schritt in die Liste lud die Seite neu und leerte eine begonnene Auswahl.
+        test "Von der Route in die Liste lädt nichts neu" {
+            Expect.equal (sent (State.UrlChanged [ "ledger" ]) (onRoute false)) [ leaving LedgerList ] "nur verlassen"
+        }
+
+        test "Aus einer anderen Seite in die Liste lädt die Seite" {
+            Expect.contains (sent (State.UrlChanged [ "ledger" ]) (rootModel Types.Page.Budget)) (State.LedgerMsg LoadAccounts) "lädt"
+        }
+
+        test "Ein Kontowechsel auf der Route führt in die Liste, auch wenn das Budget wartet" {
+            let root = onRoute true
+            Expect.contains (sent (State.LedgerMsg (SelectFilter AllAccounts)) root) toList "Liste"
+        }
+
+        test "Schließen ohne wartendes Budget führt in die Liste" {
+            Expect.contains (sent (State.LedgerMsg CloseDetail) (onRoute false)) toList "Liste"
+        }
+
+        // F3: Überholt eine Eingabe die laufende Abfrage, gibt es nichts mehr zu zeigen.
+        test "Eine überholte Abfrage verlässt die Route" {
+            let root = onRoute false |> pending
+            Expect.contains (sent (State.LedgerMsg (SelectFilter AllAccounts)) root) toList "Liste"
+        }
+
+        test "Solange die Buchung geholt wird, bleibt die Route" {
+            let root = onRoute false |> pending
+            Expect.isEmpty (sent (State.LedgerMsg CloseAccountSheet) root) "wartet"
+        }
+
+        // F6: Bei `Ok None` und `Error` blieb die URL auf der Route.
+        test "Scheitert das Laden nach einem Direktaufruf, führt die Route in die Liste" {
+            let root = onRoute false |> pending
+            Expect.contains (sent (State.LedgerMsg (RouteEntryLoaded (shown.Id, Ok None))) root) toList "unbekannt"
+            Expect.contains (sent (State.LedgerMsg (RouteEntryLoaded (shown.Id, Error "weg"))) root) toList "Fehler"
+        }
+
+        // F8: Die URL blieb auf der ersten Buchung.
+        test "Wechselt das Panel die Buchung, zieht die URL nach" {
+            let messages = sent (State.LedgerMsg (OpenDetail other)) (onRoute false)
+            Expect.contains messages (State.NavigateTo (Types.Page.LedgerEntry other.Id)) "URL folgt"
+        }
+
+        test "Zieht die URL dem Panel nach, lädt nichts neu" {
+            let root = { onRoute false with Ledger = { (onRoute false).Ledger with DetailFor = Some other } }
+            let model, cmd = State.update (State.UrlChanged [ "ledger"; "entry"; string other.Id ]) root
+            Expect.equal model.CurrentPage (Types.Page.LedgerEntry other.Id) "Seite folgt"
+            Expect.isEmpty (dispatched cmd) "kein Neuladen, keine Schleife"
+        }
+
+        test "Eine andere Buchung per URL wird geholt" {
+            let messages = sent (State.UrlChanged [ "ledger"; "entry"; string other.Id ]) (onRoute false)
+            Expect.contains messages (State.LedgerMsg (OpenRouteEntry other.Id)) "holt"
+        }
+
+        // Stand vorher: `isLedgerPage ... && SelectionMode` stand in View.fs und war nur als Teilstring geprüft.
+        test "Der Auswahl-Modus blendet die Tab-Bar aus, auch auf der Route" {
+            let selecting (page: Types.Page) =
+                let root = rootModel page
+                { root with Ledger = { root.Ledger with SelectionMode = true } }
+            Expect.isTrue (State.hideBottomNav (selecting Types.Page.Ledger)) "Liste"
+            Expect.isTrue (State.hideBottomNav (selecting route)) "Route"
+            Expect.isFalse (State.hideBottomNav (selecting Types.Page.Budget)) "andere Seite"
+            Expect.isFalse (State.hideBottomNav (rootModel Types.Page.Ledger)) "ohne Auswahl"
         }
     ]
 
@@ -2755,7 +2858,7 @@ let ledgerPagingTests =
                 (plan |> List.exists (fun line -> line.Contains "CORRELATED"))
                 $"keine korrelierte Unterabfrage (Plan: {planText})"
 
-        testCase "AC13: Persistence.fs hat weiterhin genau fünf Aufrufe von loadAllMatching und fünf hasAmountFilter-Gabelungen" <| fun () ->
+        testCase "AC13: Persistence.fs hat fünf hasAmountFilter-Gabelungen, dazu `loadCategoryEntries` als sechsten Aufruf von loadAllMatching" <| fun () ->
             // Quelltext-Zusicherung nach dem Muster von FontFaceRegressionTests.fs und
             // BackendPortGuardTests.fs: hält fest, dass diese Aufgabe keine sechste
             // Gabelung der `hasAmountFilter`-Verzweigung einführt (ledger-r7dm2 Punkt 1
@@ -2767,7 +2870,8 @@ let ledgerPagingTests =
 
             let loadAllMatchingOccurrences = Regex.Matches(text, @"\bloadAllMatching\b").Count
             // Minus 1 für die Definition selbst ("let private loadAllMatching ...").
-            Expect.equal (loadAllMatchingOccurrences - 1) 5 "fünf Aufrufe von loadAllMatching, ohne die Definition mitzuzählen"
+            // Der sechste Aufruf ist `loadCategoryEntries` (budgeting-m1bce), ohne Gabelung.
+            Expect.equal (loadAllMatchingOccurrences - 1) 6 "sechs Aufrufe von loadAllMatching, ohne die Definition mitzuzählen"
 
             let hasAmountFilterGuards = Regex.Matches(text, @"if hasAmountFilter filter then").Count
             Expect.equal hasAmountFilterGuards 5 "fünf Vorkommen der hasAmountFilter-Gabelung"
@@ -3372,5 +3476,6 @@ let ledgerPageTests =
           erstlaufTests
           freshnessTests
           visibilityTests
+          routeTests
           staleAnswerTests
           isTransferTests ]

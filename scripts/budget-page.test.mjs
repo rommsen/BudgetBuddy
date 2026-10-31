@@ -182,7 +182,7 @@ test("Fehler: lesbare Meldung mit Wiederholen, danach erscheint der Monat", asyn
     await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
     await page.getByRole("alert").waitFor();
     assert.match(await page.getByRole("alert").innerText(), /rate limit/);
-    await page.getByRole("button", { name: "Try Again" }).click();
+    await page.getByRole("button", { name: "Erneut versuchen" }).click();
     await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
     assert.match((await page.locator('[data-testid="budget-to-be-budgeted"]').innerText()).replace(/\s+/g, " "), /354,50 €/);
     assert.equal(calls, 2);

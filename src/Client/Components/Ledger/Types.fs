@@ -1050,6 +1050,13 @@ let dateDraftHasError (model: Model) : bool =
 let detailPanelOpen (model: Model) : bool =
     model.DetailFor.IsSome && model.DetailForm = DetailPanel
 
+/// Wohin die Route `#/ledger/entry/<id>` verlassen wurde (budgeting-m1bce).
+type RouteLeftFor =
+    /// Die Liste bleibt sichtbar und mit ihr der Konto-Filter.
+    | LedgerList
+    /// Das Kassenbuch ist verlassen: der Filter des Sprungs war nur ein Abstecher.
+    | OtherPage
+
 /// Der Konto-Filter, unter dem die Buchung einer Route steht: "Alle Konten" und ihr eigenes Konto
 /// bleiben, sonst ihr Konto.
 let filterForEntry (current: AccountFilter option) (entry: LedgerEntryView) : AccountFilter =
@@ -1700,7 +1707,7 @@ type Msg =
     | OpenRouteEntry of Guid
     | RouteEntryLoaded of Guid * Result<LedgerEntryView option, string>
     /// Die Route wurde verlassen: die Buchung bleibt beim nächsten Besuch nicht offen.
-    | LeaveRouteEntry
+    | LeaveRouteEntry of RouteLeftFor
     | RunRetryCategorization of Guid
     | CategorizationRetried of Guid * Result<CategoryWriteBack, string>
 
@@ -1839,6 +1846,13 @@ let keyCommandFor
         | _ -> None
 
 /// Was die Seite nach oben meldet.
+/// Scheiterte mit dieser Nachricht die laufende Abfrage der Route `#/ledger/entry/<id>`?
+let routeEntryLoadFailed (pendingRoute: Guid option) (msg: Msg) : bool =
+    match msg with
+    | RouteEntryLoaded (entryId, Ok None)
+    | RouteEntryLoaded (entryId, Error _) -> pendingRoute = Some entryId
+    | _ -> false
+
 type ExternalMsg =
     | NoOp
     | ShowToast of string * ToastType

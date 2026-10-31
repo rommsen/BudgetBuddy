@@ -1568,7 +1568,7 @@ let ledgerApi : LedgerApi = {
         match Validation.validateCategoryMonthQuery query with
         | Error errors -> return Error (String.concat " " errors)
         | Ok firstDay ->
-            let! entries = Ledger.QueryHandlers.getCategoryMonthEntries query.CategoryId firstDay
+            let! entries = Ledger.QueryHandlers.getCategoryMonthEntries (YnabCategoryId query.CategoryId) firstDay
             return Ok entries
     }
 

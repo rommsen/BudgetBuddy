@@ -671,6 +671,11 @@ let routeEntryTests =
     let answer (n: int) = RouteEntryLoaded (idOf n, Ok (Some (entry n)))
     let detailId (model: Model) = model.DetailFor |> Option.map (fun e -> e.Id)
     let otherAccount = Guid.NewGuid()
+    let accountView (id: Guid) (name: string) : LedgerAccountView =
+        { Id = id; Name = name; Kind = LedgerBankAccount; YnabAccountId = None; Closed = false }
+    let accounts : LedgerAccountsView =
+        { Accounts = [ accountView (entry 7).AccountId "Konto A"; accountView otherAccount "Konto B" ]
+          DefaultAccountId = Some otherAccount }
 
     testList "Detail: Route einer Buchung" [
 
@@ -726,7 +731,7 @@ let routeEntryTests =
             Expect.equal external (ShowToast ("Buchung nicht geladen: weg", ToastError)) "Grund"
 
         testCase "eine späte Antwort nach dem Verlassen der Route öffnet nichts" <| fun () ->
-            let left = modelWith (rows 1) |> pending 7 |> step LeaveRouteEntry
+            let left = modelWith (rows 1) |> pending 7 |> step (LeaveRouteEntry OtherPage)
             Expect.isNone (left |> step (answer 7)).DetailFor "bleibt zu"
 
         testCase "die Antwort zu einer überholten Route öffnet nichts" <| fun () ->
@@ -734,6 +739,57 @@ let routeEntryTests =
             Expect.isNone model.DetailFor "Buchung 8 wird erwartet"
 
         testCase "das Verlassen der Route schließt das Detail" <| fun () ->
-            let model = modelWith (rows 1) |> pending 7 |> step (answer 7) |> step LeaveRouteEntry
+            let model = modelWith (rows 1) |> pending 7 |> step (answer 7) |> step (LeaveRouteEntry OtherPage)
             Expect.isNone model.DetailFor "zu"
+
+        // F3: Die späte Antwort warf neuere Eingaben weg.
+        testCase "Ein Kontowechsel überholt die Route: die späte Antwort ändert nichts mehr" <| fun () ->
+            let chosen = modelWith (rows 1) |> pending 7 |> step (SelectFilter (OneAccount otherAccount))
+            let model = chosen |> step (answer 7)
+            Expect.equal model.SelectedFilter (Some (OneAccount otherAccount)) "der gewählte Filter bleibt"
+            Expect.isNone model.DetailFor "die Buchung geht nicht auf"
+
+        testCase "Ein offenes Detail überholt die Route: es bleibt bei der gewählten Buchung" <| fun () ->
+            let model = modelWith (rows 2) |> pending 7 |> step (OpenDetail (entry 2)) |> step (answer 7)
+            Expect.equal (detailId model) (Some (idOf 2)) "gewählte Buchung"
+
+        testCase "Enter auf einer Zeile überholt die Route" <| fun () ->
+            let start = { (modelWith (rows 2) |> pending 7) with FocusedRow = Some (idOf 2) }
+            let model = start |> step OpenFocusedDetail |> step (answer 7)
+            Expect.equal (detailId model) (Some (idOf 2)) "gewählte Buchung"
+
+        testCase "Eine beginnende Auswahl überholt die Route: sie bleibt bestehen" <| fun () ->
+            let model = modelWith (rows 2) |> pending 7 |> step (StartSelectionMode (idOf 2)) |> step (answer 7)
+            Expect.isTrue model.SelectionMode "Auswahl läuft"
+            Expect.isNone model.DetailFor "die Buchung geht nicht auf"
+
+        // F4: Der Filter blieb nach dem Sprung auf dem Konto der Buchung, die gemerkte Sicht fehlte.
+        testCase "Wer das Kassenbuch verlässt, lässt den Filter des Sprungs zurück" <| fun () ->
+            let jumped = { modelWith (rows 1) with RememberedFilter = Some AllAccounts } |> pending 7 |> step (answer 7)
+            let back = jumped |> step (LeaveRouteEntry OtherPage) |> step (AccountsLoaded (Ok accounts))
+            Expect.equal back.SelectedFilter (Some AllAccounts) "die gemerkte Sicht gilt wieder"
+
+        testCase "Von der Route in die Liste bleibt der Filter" <| fun () ->
+            let jumped = modelWith (rows 1) |> pending 7 |> step (answer 7)
+            let model = jumped |> step (LeaveRouteEntry LedgerList)
+            Expect.equal model.SelectedFilter jumped.SelectedFilter "bleibt"
+            Expect.isNone model.DetailFor "Detail zu"
+
+        testCase "Die Antwort der Route kommt vor den Konten: Filter und Detail stehen" <| fun () ->
+            let model = modelWith (rows 1) |> pending 7 |> step (answer 7) |> step (AccountsLoaded (Ok accounts))
+            Expect.equal model.SelectedFilter (Some (OneAccount (entry 7).AccountId)) "Konto der Buchung"
+            Expect.equal (detailId model) (Some (idOf 7)) "Detail offen"
+
+        testCase "Die Konten kommen vor der Antwort der Route: Filter und Detail stehen" <| fun () ->
+            let start = { modelWith (rows 1) with RememberedFilter = Some (OneAccount otherAccount) }
+            let model = start |> pending 7 |> step (AccountsLoaded (Ok accounts)) |> step (answer 7)
+            Expect.equal model.SelectedFilter (Some (OneAccount (entry 7).AccountId)) "Konto der Buchung"
+            Expect.equal (detailId model) (Some (idOf 7)) "Detail offen"
+
+        testCase "Nur eine gescheiterte Antwort der laufenden Abfrage zählt als Ladefehler" <| fun () ->
+            let id = idOf 7
+            Expect.isTrue (routeEntryLoadFailed (Some id) (RouteEntryLoaded (id, Ok None))) "unbekannt"
+            Expect.isTrue (routeEntryLoadFailed (Some id) (RouteEntryLoaded (id, Error "weg"))) "Fehler"
+            Expect.isFalse (routeEntryLoadFailed None (RouteEntryLoaded (id, Error "weg"))) "verlassen"
+            Expect.isFalse (routeEntryLoadFailed (Some id) (answer 7)) "geladen"
     ]

@@ -233,7 +233,8 @@ let groupMobile (buttons: ReactElement list) =
 // ============================================
 
 /// Der Name in einer Listenzeile als Knopf, der etwas öffnet: sieht aus wie der Name, unterstreicht
-/// beim Überfahren. `touchTarget` gibt am Handy 48 px Trefferfläche, ohne die Zeile höher zu machen.
+/// beim Überfahren. `touchTarget` gibt am Handy 48 px Trefferfläche, ohne die Zeile höher zu machen;
+/// `relative` hebt den Knopf über die zweite Zeile, deren Text sonst die unteren 8 px überdeckt.
 let listName (testId: string) (ariaLabel: string) (touchTarget: bool) (name: string) (onClick: unit -> unit) =
     Html.button [
         prop.type' "button"
@@ -241,7 +242,7 @@ let listName (testId: string) (ariaLabel: string) (touchTarget: bool) (name: str
         prop.ariaLabel ariaLabel
         prop.className (
             if touchTarget then
-                $"{ListRoles.primary} {TouchTargets.minSize} -my-3 truncate min-w-0 text-left cursor-pointer touch-manipulation hover:underline"
+                $"{ListRoles.primary} {TouchTargets.minSize} relative -my-3 truncate min-w-0 text-left cursor-pointer touch-manipulation hover:underline"
             else
                 $"{ListRoles.primary} truncate min-w-0 text-left cursor-pointer touch-manipulation hover:underline"
         )
@@ -249,7 +250,8 @@ let listName (testId: string) (ariaLabel: string) (touchTarget: bool) (name: str
         prop.text name
     ]
 
-/// Eine ganze zweizeilige Listenzeile als Knopf.
+/// Eine ganze zweizeilige Listenzeile als Knopf. In einem `button` sind nur Inline-Elemente erlaubt:
+/// die Kinder sind `Html.span`.
 let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit -> unit) (children: ReactElement list) =
     Html.button [
         prop.key key

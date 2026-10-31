@@ -329,9 +329,8 @@ let viewTests =
             for word in [ "\"Kategorie ändern\""; "\"Flag\""; "\"Ungeprüft\"" ] do
                 Expect.isFalse (barView.Contains word) $"{word} wird in der Leiste nicht gesetzt"
 
-        testCase "Die Tab-Bar weicht der Handy-Leiste im Auswahl-Modus (Quelltext)" <| fun () ->
+        testCase "Die Auswahl-Leiste steht außerhalb der Seitenhülle (Quelltext)" <| fun () ->
             let view = readRepo [ "src"; "Client"; "View.fs" ]
-            Expect.stringContains view "isLedgerPage model.CurrentPage && model.Ledger.SelectionMode" "Tab-Bar ausgeblendet"
             Expect.stringContains view "Components.Ledger.View.selectionBars"
                 "die fixe Leiste steht außerhalb der Seitenhülle mit dem Transform (animate-page-enter)"
 

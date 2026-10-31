@@ -241,12 +241,63 @@ type EntryRouteExit =
     /// Direktaufruf, oder das Detail ging mit einem Konto- oder Auswahlwechsel zu: die Liste bleibt.
     | ToLedgerList
 
+/// `routeWasOpen`, `routeIsOpen`: Das Detail steht offen oder die Buchung wird noch geholt.
 /// `closedByUser`: Schließen-Knopf oder Esc. `returnPending`: das Budget wartet auf die Rückkehr.
-let entryRouteExit (page: Page) (detailWasOpen: bool) (detailIsOpen: bool) (closedByUser: bool) (returnPending: bool) : EntryRouteExit =
+/// `loadFailed`: die Buchung kam nicht, die Route hat nichts zu zeigen, und Schließen gäbe es nicht.
+let entryRouteExit
+    (page: Page)
+    (routeWasOpen: bool)
+    (routeIsOpen: bool)
+    (closedByUser: bool)
+    (returnPending: bool)
+    (loadFailed: bool)
+    : EntryRouteExit =
     match page with
-    | LedgerEntry _ when detailWasOpen && not detailIsOpen ->
-        if closedByUser && returnPending then BackToBudget else ToLedgerList
+    | LedgerEntry _ when loadFailed || (routeWasOpen && not routeIsOpen) ->
+        if (closedByUser || loadFailed) && returnPending then BackToBudget else ToLedgerList
     | _ -> StayOnRoute
+
+/// Die Buchung, der die URL folgen muss: das Panel am PC wechselt mit Klick und Pfeiltaste die
+/// Buchung, die Route soll dieselbe zeigen. Solange eine Route-Abfrage läuft, wartet die URL auf
+/// deren Antwort.
+let entryRouteFollow
+    (page: Page)
+    (detailBefore: System.Guid option)
+    (detailAfter: System.Guid option)
+    (pendingRoute: System.Guid option)
+    : System.Guid option =
+    match page, detailAfter with
+    | LedgerEntry routeId, Some shown when shown <> routeId && detailBefore <> detailAfter && pendingRoute.IsNone ->
+        Some shown
+    | _ -> None
+
+/// Wie ein Seitenwechsel in der Browser-Historie landet.
+type RouteNavigation = {
+    /// Die Route ersetzt sich selbst: sonst öffnet Browser-Zurück die Buchung ein zweites Mal.
+    ReplacesHistory: bool
+    /// Die Rückkehr ins Kategorie-Detail ist hinfällig: `#/ledger/entry/<id>` ist verlassen.
+    AbandonsReturn: bool
+}
+
+let routeNavigation (current: Page) (target: Page) : RouteNavigation =
+    match current, target with
+    | LedgerEntry _, LedgerEntry _ -> { ReplacesHistory = true; AbandonsReturn = false }
+    | LedgerEntry _, Ledger -> { ReplacesHistory = true; AbandonsReturn = true }
+    | LedgerEntry _, _ -> { ReplacesHistory = false; AbandonsReturn = true }
+    | _ -> { ReplacesHistory = false; AbandonsReturn = false }
+
+/// Was das Betreten von `page` lädt. Zwischen Buchung und Liste bleibt die geladene Seite stehen,
+/// sonst leert das Neuladen eine begonnene Auswahl.
+let urlChangedCmd (ledger: Components.Ledger.Types.Model) (current: Page) (page: Page) : Cmd<Msg> =
+    let leave (target: Components.Ledger.Types.RouteLeftFor) =
+        Cmd.map LedgerMsg (Cmd.ofMsg (Components.Ledger.Types.LeaveRouteEntry target))
+    match current, page with
+    // Die URL zieht dem Panel nach: die Buchung steht schon da.
+    | LedgerEntry _, LedgerEntry target when ledger.DetailFor |> Option.exists (fun d -> d.Id = target) -> Cmd.none
+    | LedgerEntry _, LedgerEntry _ -> pageLoadCmd page
+    | LedgerEntry _, Ledger -> leave Components.Ledger.Types.LedgerList
+    | LedgerEntry _, _ -> Cmd.batch [ leave Components.Ledger.Types.OtherPage; pageLoadCmd page ]
+    | _ -> pageLoadCmd page
 
 // ============================================
 // Bereitschaftssignal (design-system-yxrxb)
@@ -266,6 +317,11 @@ let entryRouteExit (page: Page) (detailWasOpen: bool) (detailIsOpen: bool) (clos
 /// `View.fs` rendert dieses Ergebnis als DOM-Attribut, das Skript wartet darauf.
 let isPageReady (model: Model) : bool =
     let notLoading (rd: RemoteData<'a>) = not (RemoteData.isLoading rd)
+    let ledgerReady () =
+        notLoading model.Ledger.Accounts
+        && notLoading model.Ledger.Balances
+        && notLoading model.Ledger.Entries
+        && notLoading model.Ledger.Categories
     match model.CurrentPage with
     | Styleguide -> true
     | SyncFlow ->
@@ -274,18 +330,13 @@ let isPageReady (model: Model) : bool =
     | Rules -> notLoading model.Rules.Rules
     | Settings -> notLoading model.Settings.Settings
     | QuickAdd -> notLoading model.QuickAddTemplates
-    | Ledger ->
-        notLoading model.Ledger.Accounts
-        && notLoading model.Ledger.Balances
-        && notLoading model.Ledger.Entries
-        && notLoading model.Ledger.Categories
-    | LedgerEntry _ ->
-        notLoading model.Ledger.Accounts
-        && notLoading model.Ledger.Balances
-        && notLoading model.Ledger.Entries
-        && notLoading model.Ledger.Categories
-        && model.Ledger.PendingRouteEntry.IsNone
+    | Ledger -> ledgerReady ()
+    | LedgerEntry _ -> ledgerReady () && model.Ledger.PendingRouteEntry.IsNone
     | Budget -> notLoading model.Budget.Month
+
+/// Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).
+let hideBottomNav (model: Model) : bool =
+    isLedgerPage model.CurrentPage && model.Ledger.SelectionMode
 
 /// Läuft gerade eine Eingabe, die ein Neuladen verlieren würde (infrastructure-bnbdc,
 /// ADR 0057)? Reiner Schnappschuss des Modells. Nicht erfasst ist ein Textfeld mit Fokus,
@@ -421,7 +472,21 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // NavigateTo now only triggers URL change - UrlChanged handles actual state change
     | NavigateTo page ->
         let segments = Routing.toUrlSegments page
-        model, Cmd.navigate(segments |> List.toArray)
+        let navigation = routeNavigation model.CurrentPage page
+        // Der führende Schrägstrich hält die Segmente zusammen: `Cmd.navigate` mit `HistoryMode`
+        // nimmt nur einen Pfad und kodierte sie sonst als einen Teil.
+        let navigate =
+            if navigation.ReplacesHistory then
+                Cmd.navigate("/" + String.concat "/" segments, HistoryMode.ReplaceState)
+            else
+                Cmd.navigate(segments |> List.toArray)
+        // Zuerst der Abbruch: `PageEntered` der Budget-Seite darf das Detail nicht mehr vorfinden.
+        model,
+        Cmd.batch [
+            if navigation.AbandonsReturn then
+                Cmd.map BudgetMsg (Cmd.ofMsg Components.Budget.Types.ReturnAbandoned)
+            navigate
+        ]
 
     // UrlChanged is the single place where page state actually changes
     | UrlChanged segments ->
@@ -430,13 +495,7 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         if page = model.CurrentPage then
             model, Cmd.none
         else
-            // Die Buchung einer Route bleibt beim nächsten Besuch im Kassenbuch nicht offen.
-            let leaveCmd =
-                match model.CurrentPage, page with
-                | LedgerEntry _, LedgerEntry _ -> Cmd.none
-                | LedgerEntry _, _ -> Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LeaveRouteEntry)
-                | _ -> Cmd.none
-            { model with CurrentPage = page }, Cmd.batch [ leaveCmd; pageLoadCmd page ]
+            { model with CurrentPage = page }, urlChangedCmd model.Ledger model.CurrentPage page
 
     // Die PWA kam in den Vordergrund: auf der Kassenbuch-Seite verhält sich das wie
     // ein Seitenaufruf, es wird nur der Lauf-Status neu geladen. Dessen Frische-Prüfung
@@ -682,16 +741,26 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             | Components.Ledger.Types.EscapePressed -> true
             | _ -> false
 
+        let routeOpen (ledger: Components.Ledger.Types.Model) =
+            ledger.DetailFor.IsSome || ledger.PendingRouteEntry.IsSome
+        let detailId (ledger: Components.Ledger.Types.Model) = ledger.DetailFor |> Option.map (fun d -> d.Id)
+
         let routeCmd =
             match
                 entryRouteExit
                     model.CurrentPage
-                    model.Ledger.DetailFor.IsSome
-                    ledgerModel'.DetailFor.IsSome
+                    (routeOpen model.Ledger)
+                    (routeOpen ledgerModel')
                     closedByUser
                     (Components.Budget.Types.returnPending model.Budget)
+                    (Components.Ledger.Types.routeEntryLoadFailed model.Ledger.PendingRouteEntry ledgerMsg)
             with
-            | StayOnRoute -> Cmd.none
+            | StayOnRoute ->
+                match
+                    entryRouteFollow model.CurrentPage (detailId model.Ledger) (detailId ledgerModel') ledgerModel'.PendingRouteEntry
+                with
+                | Some entryId -> Cmd.ofMsg (NavigateTo (LedgerEntry entryId))
+                | None -> Cmd.none
             | BackToBudget -> Cmd.navigateBack ()
             | ToLedgerList -> Cmd.ofMsg (NavigateTo Ledger)
 

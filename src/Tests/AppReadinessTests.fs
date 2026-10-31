@@ -87,6 +87,18 @@ let appReadinessTests =
                             Categories = Success [] } }
             Expect.isTrue (State.isPageReady model) "Alle vier Datenstränge sind fertig"
 
+        testCase "Die Route einer Buchung ist nicht bereit, solange die Buchung noch geholt wird" <| fun () ->
+            let page = LedgerEntry (System.Guid.NewGuid())
+            let ready =
+                { (baseModel page).Ledger with
+                    Accounts = Success { Accounts = []; DefaultAccountId = None }
+                    Balances = Success []
+                    Entries = Success []
+                    Categories = Success [] }
+            let waiting = { baseModel page with Ledger = { ready with PendingRouteEntry = Some (System.Guid.NewGuid()) } }
+            Expect.isFalse (State.isPageReady waiting) "Buchung fehlt noch"
+            Expect.isTrue (State.isPageReady { waiting with Ledger = ready }) "Buchung ist da"
+
         testCase "Ledger ist bereit, auch wenn ein Datenstrang fehlgeschlagen ist (kein Skeleton mehr, aber kein Laden mehr)" <| fun () ->
             let model =
                 { baseModel Ledger with

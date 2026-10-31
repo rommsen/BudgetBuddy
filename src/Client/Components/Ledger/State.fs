@@ -2300,8 +2300,12 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
     // Antwort zu einer inzwischen verlassenen Route.
     | RouteEntryLoaded _ -> model, Cmd.none, NoOp
 
-    | LeaveRouteEntry ->
-        { model with PendingRouteEntry = None; DetailFor = None; History = NotAsked; MemoEdit = None }, Cmd.none, NoOp
+    | LeaveRouteEntry leftFor ->
+        let left = { model with PendingRouteEntry = None; DetailFor = None; History = NotAsked; MemoEdit = None }
+        match leftFor with
+        | LedgerList -> left, Cmd.none, NoOp
+        // Ohne Filter zieht `resolveInitialFilter` beim nächsten Besuch die gemerkte Sicht.
+        | OtherPage -> { left with SelectedFilter = None }, Cmd.none, NoOp
 
     | CategoryCardExpired version ->
         match model.CategoryCard with
@@ -2733,11 +2737,20 @@ let rec private updateCore (msg: Msg) (model: Model) : Model * Cmd<Msg> * Extern
 /// Drücken am Handy.
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
     let model', cmd, external = updateCore msg model
+    let selectionBegan = not (hasSelection model) && hasSelection model'
     let model' =
-        if model'.DetailFor.IsSome && not (hasSelection model) && hasSelection model' then
+        if model'.DetailFor.IsSome && selectionBegan then
             { model' with DetailFor = None; History = NotAsked; MemoEdit = None }
         else
             model'
+    // Eine neuere Eingabe überholt den Sprung: die späte Antwort der Route darf sie nicht überschreiben.
+    let routeOvertaken =
+        match msg with
+        | SelectFilter _
+        | OpenDetail _
+        | OpenFocusedDetail -> true
+        | _ -> selectionBegan
+    let model' = if routeOvertaken then { model' with PendingRouteEntry = None } else model'
     // Der Picker der Auswahl gehört zur Auswahl: endet sie (Aufheben, Esc, Konto- oder
     // Filterwechsel), endet er mit ihr (ledger-w29y6).
     let model' =

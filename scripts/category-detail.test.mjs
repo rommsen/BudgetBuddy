@@ -49,14 +49,14 @@ const month = {
 
 const detailLines = [
   { EntryId: jumpedEntry.Id, AccountId: SECOND_ACCOUNT, AccountName: "Testkonto 2", Date: "2026-11-20T00:00:00.0000000", Payee: "Sprung m1bce", Amount: eur(-30), IsSplitShare: false },
-  { EntryId: guid(9), AccountId: accounts.DefaultAccountId, AccountName: "Testkonto 1", Date: "2026-11-02T00:00:00.0000000", Payee: "Split m1bce", Amount: eur(-10), IsSplitShare: true },
+  { EntryId: guid(9), AccountId: accounts.DefaultAccountId, AccountName: null, Date: "2026-11-02T00:00:00.0000000", Payee: "Rewe m1bce", Amount: eur(-10), IsSplitShare: true },
 ];
 
-async function openPage(width, height) {
+async function openPage(width, height, { lines = detailLines, entry = () => jumpedEntry } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: width < 768 });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
-  const calls = { lists: [] };
+  const calls = { lists: [], accounts: 0 };
   const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
@@ -66,12 +66,16 @@ async function openPage(width, height) {
     balancesFixture: buildBalancesFixture(accounts.Accounts),
     resolveEntries: () => [buildEntryFixture(accounts.DefaultAccountId, 1, { LinkedToYnab: true })],
   });
+  await page.route("**/api/LedgerApi/getLedgerAccounts", (route) => {
+    calls.accounts += 1;
+    return route.fallback();
+  });
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => json(route, { Ok: month }));
   await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) => {
     calls.lists.push(route.request().postDataJSON()[0]);
-    return json(route, { Ok: detailLines });
+    return json(route, { Ok: lines });
   });
-  await page.route("**/api/LedgerApi/getLedgerEntry", (route) => json(route, jumpedEntry));
+  await page.route("**/api/LedgerApi/getLedgerEntry", (route) => json(route, entry()));
   await page.route("**/api/LedgerApi/getEntryHistory", (route) => json(route, []));
   await page.route("**/api/LedgerApi/mirrorYnabBudget", () => {});
   await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -114,8 +118,17 @@ test("Handy: Namen tippen, Buchung tippen, Kassenbuch-Detail ist offen, zurück 
     assert.deepEqual(calls.lists, [{ CategoryId: CATEGORY, Month: "2026-11-01" }]);
     const detail = await text(page.locator('[data-testid="category-detail"]'));
     assert.match(detail, /Sprung m1bce/);
-    assert.match(detail, /Split/);
     assert.match(detail, /Testkonto 2/);
+    assert.equal(
+      await page.locator('[data-testid="detail-entry"]').first().getAttribute("aria-label"),
+      await page.evaluate(() => `Sprung m1bce, ${document.querySelector('[data-testid="detail-entry"] .font-mono').textContent}, 20.11.2026, im Kassenbuch öffnen`)
+    );
+
+    // Die zweite Zeile ist ein Split-Anteil auf einem unbekannten Konto: kein Trenner ohne Namen.
+    const shareLine = await text(page.locator('[data-testid="detail-entry"]').nth(1));
+    assert.match(shareLine, /Split/);
+    assert.match(shareLine, /10,00/);
+    assert.doesNotMatch(shareLine, /·/);
 
     // Summe -40, YNAB meldet -50: der Hinweis nennt beide.
     assert.match(await text(page.locator('[data-testid="detail-deviation"]')), /^Kassenbuch: .*40,00.*, YNAB: .*50,00/);
@@ -185,11 +198,132 @@ test("PC: das Detail steht im Dialog, der Sprung geht zum Panel im Kassenbuch un
     assert.match(await text(page.locator('[data-testid="detail-assigned"]')), /^Zugewiesen 100,00/i);
     assert.match(await text(page.locator('[data-testid="detail-activity"]')), /^Aktivität -50,00/i);
     assert.match(await text(page.locator('[data-testid="detail-available"]')), /^Verfügbar 50,00/i);
+    assert.match(await text(page.locator('[data-testid="detail-total"]')), /-40,00/);
+    await page.locator(".font-display", { hasText: "Lebensmittel m1bce" }).waitFor();
+    await page.getByText(/Alltag m1bce · .*2026/).waitFor();
     await page.locator('[data-testid="detail-entry"]').first().click();
     await page.waitForURL(/#\/ledger\/entry\//);
     await page.getByLabel("Detail Sprung m1bce").waitFor();
     await page.keyboard.press("Escape");
     await expectBackInDetail(page);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Handy: der Rand im Sheet ist einfach, ein großer Betrag überlappt bei 360 px nicht", async () => {
+  const lines = [{ ...detailLines[0], Payee: "Ein sehr langer Empfängername, der abgeschnitten wird", Amount: eur(-11234.56) }];
+  const { context, page } = await openPage(360, 740, { lines });
+  try {
+    await openDetail(page);
+    const row = page.locator('[data-testid="detail-entry"]').first();
+    const measured = await row.evaluate((el) => {
+      const [payee, amount] = el.querySelector("span").children;
+      const box = (n) => n.getBoundingClientRect();
+      return {
+        rowLeft: box(el).left,
+        rowRight: box(el).right,
+        payeeLeft: box(payee).left,
+        payeeRight: box(payee).right,
+        amountLeft: box(amount).left,
+        amountRight: box(amount).right,
+        width: window.innerWidth,
+      };
+    });
+    assert.equal(measured.rowLeft, 0, "die Zeile reicht bis an den Rand");
+    assert.equal(measured.rowRight, measured.width);
+    assert.equal(measured.payeeLeft, 16, "ein Rand von 16 px");
+    assert.ok(measured.payeeRight <= measured.amountLeft, "Empfänger und Betrag überlappen nicht");
+    assert.ok(measured.amountRight <= measured.width - 16, "der Betrag bleibt im Rand");
+    assert.match(await text(row), /-11\.234,56/);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Handy: auch der untere Rand des Kategorie-Namens gehört dem Knopf", async () => {
+  const { context, page } = await openPage(390, 844);
+  try {
+    const name = nameButton(page, "Lebensmittel m1bce");
+    const box = await name.boundingBox();
+    const hit = await name.evaluate(
+      (el, { x, y }) => document.elementFromPoint(x, y) === el,
+      { x: box.x + box.width / 2, y: box.y + box.height - 2 }
+    );
+    assert.ok(hit, "die zweite Zeile überdeckt den Knopf nicht");
+  } finally {
+    await context.close();
+  }
+});
+
+const jumpToPanel = async (page) => {
+  await openDetail(page);
+  await page.locator('[data-testid="detail-entry"]').first().click();
+  await page.waitForURL(/#\/ledger\/entry\//);
+  await page.getByLabel("Detail Sprung m1bce").waitFor();
+};
+
+test("Tab-Leiste nach dem Sprung: das Budget zeigt das Detail nicht wieder", async () => {
+  const { context, page } = await openPage(1440, 900);
+  try {
+    await jumpToPanel(page);
+    await page.locator("nav").getByText("Budget", { exact: true }).filter({ visible: true }).click();
+    await page.waitForURL(/#\/budget$/);
+    await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
+    assert.equal(await page.locator('[data-testid="category-detail"]').count(), 0);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Kontowechsel auf der Route: die Liste lädt nicht neu, Browser-Zurück öffnet die Buchung nicht erneut", async () => {
+  const { context, page, calls } = await openPage(1440, 900);
+  try {
+    await jumpToPanel(page);
+    const accountLoads = calls.accounts;
+    await page.locator(".ledger-account-strip").getByText("Alle Konten").filter({ visible: true }).first().click();
+    await page.waitForURL(/#\/ledger$/);
+    assert.equal(calls.accounts, accountLoads, "der Schritt in die Liste lädt die Seite nicht neu");
+    await page.goBack();
+    await page.waitForURL(/#\/budget$/);
+  } finally {
+    await context.close();
+  }
+});
+
+test("PC: wechselt das Panel die Buchung, zieht die URL nach, ohne die Seite neu zu laden", async () => {
+  const { context, page, calls } = await openPage(1440, 900);
+  try {
+    await jumpToPanel(page);
+    const accountLoads = calls.accounts;
+    const shown = buildEntryFixture(accounts.DefaultAccountId, 1, { LinkedToYnab: true });
+    await page.locator("table tbody tr", { hasText: shown.Payee }).first().click();
+    await page.getByLabel(`Detail ${shown.Payee}`).waitFor();
+    await page.waitForURL(new RegExp(`#/ledger/entry/${shown.Id}$`));
+    assert.equal(calls.accounts, accountLoads, "keine Schleife, kein Neuladen");
+    await page.getByLabel(`Detail ${shown.Payee}`).waitFor();
+  } finally {
+    await context.close();
+  }
+});
+
+test("Unbekannte Buchung nach dem Sprung: zurück im Kategorie-Detail", async () => {
+  const { context, page } = await openPage(390, 844, { entry: () => null });
+  try {
+    await openDetail(page);
+    await page.locator('[data-testid="detail-entry"]').first().click();
+    await expectBackInDetail(page);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Unbekannte Buchung per Direktaufruf: die Route führt in die Liste", async () => {
+  const { context, page } = await openPage(390, 844, { entry: () => null });
+  try {
+    await page.goto(`http://127.0.0.1:${frontendPort}/#/ledger/entry/${jumpedEntry.Id}`);
+    await page.reload();
+    await page.waitForURL(/#\/ledger$/);
   } finally {
     await context.close();
   }

@@ -55,8 +55,7 @@ let private toToastItem (t: Types.Toast) : Toast.ToastItem =
 // ============================================
 
 let view (model: Model) (dispatch: Msg -> unit) =
-    // Die Auswahl-Leiste des Kassenbuchs ersetzt am Handy die Tab-Bar (ledger-r1d2f).
-    let hideBottomNav = isLedgerPage model.CurrentPage && model.Ledger.SelectionMode
+    let bottomNavHidden = hideBottomNav model
     // Kassenbuch, Import prüfen und Regeln füllen die Breite (ADR 0049 Punkt 9, ledger-n4vte,
     // ynab-sync-aj5tv): ihr Rahmen trägt keine `container`-Begrenzung (max. 1280px), die
     // Seite setzt ihre Ränder selbst.
@@ -87,13 +86,13 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Navigation.navigation
                     (toNavPage model.CurrentPage)
                     (fun navPage -> dispatch (NavigateTo (fromNavPage navPage)))
-                    hideBottomNav
+                    bottomNavHidden
 
                 // Main content with padding for fixed navbar
                 pageShell [
                     // Each page has enter animation using key for re-triggering on page change
                     Html.div [
-                        prop.key (model.CurrentPage.ToString())
+                        prop.key (pageKey model.CurrentPage)
                         prop.className "animate-page-enter"
                         prop.children [
                             match model.CurrentPage with

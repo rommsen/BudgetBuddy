@@ -110,7 +110,7 @@ test("Scheitern alle drei Versuche, erscheint die Fehlerseite, und ihr Knopf lä
     assert.equal(calls.entries, 3, "ein Versuch und zwei Wiederholungen");
 
     online = true;
-    await page.getByRole("button", { name: "Try Again" }).filter({ visible: true }).first().click();
+    await page.getByRole("button", { name: "Erneut versuchen" }).filter({ visible: true }).first().click();
     await visibleText(page, PAYEE).waitFor();
     assert.equal(await page.getByText(ERROR_TITLE).count(), 0, "Fehlerseite ist weg");
   } finally {
@@ -233,12 +233,25 @@ for (const { route: path, api, method, answer, act, abortWindowMs = 0 } of CALL_
     // Beleg ist nur ein Aufruf nach der Pause des Helfers, ein zweiter Start-Aufruf zählt nicht.
     let abortedAt = null;
     let retried;
+    let rejectRetry;
+    let retryTimer;
+    let firstCall;
+    let firstCallTimer;
     const retry = new Promise((resolve, reject) => {
       retried = resolve;
-      setTimeout(() => reject(new Error(`${method}: keine Wiederholung`)), 5000);
+      rejectRetry = reject;
+    });
+    const called = new Promise((resolve, reject) => {
+      firstCall = resolve;
+      firstCallTimer = setTimeout(() => reject(new Error(`${method}: kein erster Aufruf`)), 30000);
     });
     await page.route(`**/api/${api}/${method}`, async (route) => {
-      abortedAt ??= Date.now();
+      if (abortedAt === null) {
+        abortedAt = Date.now();
+        // Die 5 Sekunden gelten der Wiederholung und laufen erst ab dem ersten Aufruf.
+        retryTimer = setTimeout(() => rejectRetry(new Error(`${method}: keine Wiederholung`)), 5000);
+        firstCall();
+      }
       if (Date.now() - abortedAt <= abortWindowMs) return route.abort("connectionreset");
       await json(route, answer(accounts));
       if (Date.now() - abortedAt >= RETRY_PAUSE_MS) retried();
@@ -249,8 +262,11 @@ for (const { route: path, api, method, answer, act, abortWindowMs = 0 } of CALL_
         await waitForPageLoaded(page, path);
         await act(page);
       }
+      await called;
       await retry;
     } finally {
+      clearTimeout(firstCallTimer);
+      clearTimeout(retryTimer);
       await context.close();
     }
   });

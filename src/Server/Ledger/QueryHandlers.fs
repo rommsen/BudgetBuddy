@@ -510,28 +510,33 @@ let getLedgerEntry (entryGuid: Guid) : Async<LedgerEntryView option> =
 /// Die Zeilen des Kategorie-Details aus den Buchungen: der Anteil dieser Kategorie je Buchung, in der
 /// Reihenfolge der Eingabe. Eine Buchung auf einem unbekannten Konto bleibt drin, ohne Kontonamen.
 let categoryMonthEntries
-    (categoryId: Guid)
+    (categoryId: YnabCategoryId)
     (accountNames: Map<Guid, string>)
     (entries: Entry list)
     : CategoryMonthEntry list =
     entries
     |> List.choose (fun entry ->
         categoryShare categoryId entry
-        |> Option.map (fun (amount, isSplitShare) ->
+        |> Option.map (fun share ->
+            let amount, isSplitShare =
+                match share with
+                | WholeEntry amount -> amount, false
+                | SplitShare amount -> amount, true
             let (EntryId entryId) = entry.Id
             let (LedgerAccountId accountId) = entry.AccountId
             { EntryId = entryId
               AccountId = accountId
-              AccountName = accountNames |> Map.tryFind accountId |> Option.defaultValue ""
+              AccountName = accountNames |> Map.tryFind accountId
               Date = entry.Date
               Payee = entry.Payee
               Amount = amount
               IsSplitShare = isSplitShare }))
 
 /// Die Buchungen einer Kategorie in dem Monat, der am Tag `firstDay` beginnt (budgeting-m1bce).
-let getCategoryMonthEntries (categoryId: Guid) (firstDay: DateTime) : Async<CategoryMonthEntry list> =
+let getCategoryMonthEntries (categoryId: YnabCategoryId) (firstDay: DateTime) : Async<CategoryMonthEntry list> =
     async {
-        let lastDay = firstDay.AddMonths(1).AddDays(-1.0)
+        // Nicht `AddMonths(1)`: für den Dezember 9999 gibt es keinen Folgemonat.
+        let lastDay = DateTime(firstDay.Year, firstDay.Month, DateTime.DaysInMonth(firstDay.Year, firstDay.Month))
         let! entries = Ledger.Persistence.loadCategoryEntries categoryId firstDay lastDay
         let! accounts = Ledger.Persistence.loadAccounts ()
         let accountNames =
