@@ -20,8 +20,8 @@ Bankverbindung eine Nachricht aufs Handy. `ledger-g47hp` (Benachrichtigung für 
 denselben Kanal, deshalb liegt er in `infrastructure`.
 
 ## What
-- Schritt 1: Geräte-Beweis mit einem Wegwerf-Push auf Romans iPhone. Empfängt die installierte PWA
-  Push, und geht das ohne aktives Tailscale? Scheitert das auf iOS: Befund notieren, Kanal stoppen,
+- Schritt 1: Geräte-Beweis mit einem Wegwerf-Push auf Romans Android-Handy. Empfängt die installierte PWA
+  Push, und geht das ohne aktives Tailscale? Scheitert das auf Android: Befund notieren, Kanal stoppen,
   `banking-import-bftq0` meldet dann nur im UI.
 - `notify`, VAPID, Abos und Handler per `importScripts`, `Cache-Control: no-cache`, Allowlist nach
   ADR 0071 Punkt 9.
@@ -38,12 +38,12 @@ denselben Kanal, deshalb liegt er in `infrastructure`.
 - [ ] Build-Prüfung: `sw.js` importiert den Handler, `runtimeCaching` bleibt leer, der Handler hat keinen `fetch`-Listener.
 - [ ] Browser-Wächter: ein Happy Path für den Abo-Knopf, API gemockt.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
-- [ ] Eine Testnachricht kommt auf dem iPhone an, ein Tipp öffnet die App. [human-eye]
+- [ ] Eine Testnachricht kommt auf dem Android-Handy an, ein Tipp öffnet die App. [human-eye]
 
 ## Notes
 Design-System: nichts Neues, vorhandener Button und Styleguide §8 für Text.
 
-iOS-Eignung und Empfang ohne Tailscale sind Annahmen ohne Beleg, deshalb Schritt 1. Der Inhalt
+Android-Eignung und Empfang ohne Tailscale sind Annahmen ohne Beleg, deshalb Schritt 1. Der Inhalt
 der Nachricht braucht Tailscale erst beim Öffnen der App.
 
 Promotion erst nach Go in `banking-import-p5mcp`.
