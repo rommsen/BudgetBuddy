@@ -5,6 +5,24 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 11:13 -- Modeling / Captured: budgeting-kjsht - "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Budget-Seite und Vorschau zeigen den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag.
+
+---
+
+## 2026-11-01 11:13 -- Modeling / Captured: budgeting-et7z8 - "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht"
+
+**Type:** Modeling / Capture
+**BC:** budgeting
+**Filed to:** todo
+**Summary:** Dritter Knopf Letzter Monat auf der Budget-Seite. Verschieben geht dort, Targets anwenden nicht (Rückfrage an Roman).
+
+---
+
 ## 2026-11-01 00:20 -- Task completed (verification skipped): design-system-t7kqz - "Der Wiederholen-Knopf der Fehlerkarten heißt Erneut versuchen statt Try Again"
 
 **Type:** Work / Task completion
