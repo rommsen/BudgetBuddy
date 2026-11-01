@@ -10,14 +10,15 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 8
-- **Todo:** 0
+- **Backlog:** 7
+- **Todo:** 1
 - **Doing:** 0
 - **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
+- **banking-import-v8n3k** — "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus" (bug) — `todo/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 <!-- todo-list:end -->
 
 ### Doing
@@ -38,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 - **banking-import-r9tfx** — "Verlust der Bankverbindung per Web-Push melden" (feature) — `backlog/banking-import-r9tfx-verlust-der-bankverbindung-per-web-push-melden.md`
 - **banking-import-q7ds2** — "ReportLoss im laufenden Server absichern" (chore) — `backlog/banking-import-q7ds2-reportloss-im-laufenden-server-absichern.md`
 - **banking-import-q7vd2** — "confirmTan: Transportfehler vom fachlichen Fehler trennen und den Serverzustand bis zum Ende nachlesen" (bug) — `backlog/banking-import-q7vd2-confirmtan-transportfehler-vom-fachlichen-fehler-trennen-und.md`
-- **banking-import-v8n3k** — "Verbindungstest bei Connected scheitert vermutlich am Kontenabruf (404)" (bug) — `backlog/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 - **banking-import-w7k3m** — "Integrationstest mit echten Schlüsseln und falschem Passwort entfernen" (chore) — `backlog/banking-import-w7k3m-integrationstest-mit-echten-schl-sseln-und-falschem-passwort.md`
 - **banking-import-t4raw** — "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus" (feature) — `backlog/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 - **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen, Web-Push bei Verlust" (feature) — `backlog/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`

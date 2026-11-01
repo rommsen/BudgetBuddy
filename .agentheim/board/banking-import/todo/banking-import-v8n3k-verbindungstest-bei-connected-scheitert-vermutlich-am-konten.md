@@ -1,7 +1,7 @@
 ---
 id: banking-import-v8n3k
 title: "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus"
-status: backlog
+status: todo
 type: bug
 context: banking-import
 created: 2026-10-31
