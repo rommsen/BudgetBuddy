@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 9
+- **Backlog:** 8
 - **Todo:** 0
 - **Doing:** 0
 - **Done:** 5
@@ -39,7 +39,6 @@ research touching this BC, and concept synthesis pages.
 - **banking-import-q7ds2** — "ReportLoss im laufenden Server absichern" (chore) — `backlog/banking-import-q7ds2-reportloss-im-laufenden-server-absichern.md`
 - **banking-import-q7vd2** — "confirmTan: Transportfehler vom fachlichen Fehler trennen und den Serverzustand bis zum Ende nachlesen" (bug) — `backlog/banking-import-q7vd2-confirmtan-transportfehler-vom-fachlichen-fehler-trennen-und.md`
 - **banking-import-v8n3k** — "Verbindungstest bei Connected scheitert vermutlich am Kontenabruf (404)" (bug) — `backlog/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
-- **banking-import-h2n8q** — "getAccounts meldet 5xx und Verbindungsabbrüche als 404" (bug) — `backlog/banking-import-h2n8q-getaccounts-meldet-5xx-und-verbindungsabbr-che-als-404.md`
 - **banking-import-w7k3m** — "Integrationstest mit echten Schlüsseln und falschem Passwort entfernen" (chore) — `backlog/banking-import-w7k3m-integrationstest-mit-echten-schl-sseln-und-falschem-passwort.md`
 - **banking-import-t4raw** — "Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus" (feature) — `backlog/banking-import-t4raw-zeitgesteuertes-vorbereiten-zur-pruefung.md`
 - **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen, Web-Push bei Verlust" (feature) — `backlog/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`

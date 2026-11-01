@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 19:29 -- Modeling / Dismissed: banking-import-h2n8q
+
+**Type:** Modeling / Dismiss
+**Dismissed:**
+- banking-import-h2n8q - "getAccounts meldet 5xx und Verbindungsabbrüche als 404" (banking-import)
+
+---
+
 ## 2026-11-01 19:29 -- Modeling / Refined: infrastructure-g4wy8 - Spike: Warum brechen Anfragen zwischen Browser und Tailscale-Proxy mit Http error (0) ab?
 
 **Type:** Modeling / Refine
