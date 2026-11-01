@@ -128,7 +128,6 @@ type private SessionsProbe() =
 type private Probe(initial: BankConnectionState) =
     let mutable fetches = 0
     let mutable logins = 0
-    let mutable accounts = 0
     let mutable refreshes = 0
     let mutable clears = 0
     member val Sessions = SessionsProbe()
@@ -145,7 +144,6 @@ type private Probe(initial: BankConnectionState) =
     member val Settings = { Comdirect = Some credentials; DaysToFetch = 14 } with get, set
     member _.Fetches = Volatile.Read(&fetches)
     member _.Logins = Volatile.Read(&logins)
-    member _.AccountCalls = Volatile.Read(&accounts)
     member _.Refreshes = Volatile.Read(&refreshes)
     member _.Clears = Volatile.Read(&clears)
     member val FetchedAccountIds = ResizeArray<string>()
@@ -166,14 +164,12 @@ type private Probe(initial: BankConnectionState) =
                   Interlocked.Increment(&refreshes) |> ignore
                   do! this.DuringRefresh ()
                   return this.RefreshAnswer }
-              FetchAccounts = fun _ _ -> async {
-                  Interlocked.Increment(&accounts) |> ignore
-                  return Error (ComdirectError.NetworkError (404, "")) }
               FetchTransactions = fun _ _ accountId _ _ -> async {
                   Interlocked.Increment(&fetches) |> ignore
                   lock this.FetchedAccountIds (fun () -> this.FetchedAccountIds.Add accountId)
                   do! this.DuringFetch ()
                   return this.FetchAnswer }
+              FetchFirstTransactionsPage = fun _ _ _ -> failtest "der Abruf holt keine einzelne Seite"
               ReportLoss = this.Losses.Add
               Store =
                 { Load = fun () -> this.StoredRead
@@ -258,12 +254,10 @@ let startSyncTests =
             Expect.equal probe.Sessions.Started.Count 1 "Sitzung gespeichert"
             Expect.equal (probe.Sessions.Changed |> Seq.map (fun s -> s.Status) |> List.ofSeq) [ ReviewingTransactions ] "Endstand gespeichert"
 
-        // Live-Befund banking-import-p5mcp: Konten 404, Umsätze über die konfigurierte Konto-Id.
-        testCase "der Abruf nutzt die konfigurierte Konto-Id und ruft keine Konten ab" <| fun () ->
+        testCase "der Abruf nutzt die konfigurierte Konto-Id" <| fun () ->
             let probe = Probe(connected)
             startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
             Expect.equal (List.ofSeq probe.FetchedAccountIds) [ "konfiguriertes-konto" ] "Konto aus den Einstellungen"
-            Expect.equal probe.AccountCalls 0 "kein Kontenabruf"
 
         testCase "keine Verbindung: TanRequired, genau eine Challenge, kein Abruf" <| fun () ->
             let probe = Probe(Disconnected)
@@ -566,7 +560,6 @@ let private fakeBank (transactions: BankTransaction list) : BankPort =
       Status = fun () -> BankReady
       StartAuth = fun _ _ -> failtest "keine Challenge im Abruf"
       CompleteAuth = fun () -> failtest "keine Bestätigung im Abruf"
-      FetchAccounts = fun () -> failtest "der Abruf hängt nicht am Kontenabruf"
       FetchTransactions = fun _ _ _ -> async.Return (Ok transactions) }
 
 let private sources (bank: BankPort) (rules: Rule list) (ynab: YnabTransaction list option) : ReviewSources =

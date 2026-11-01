@@ -70,9 +70,8 @@ type ProbePorts = {
     /// Zählt bei Comdirect als Validierung, läuft deshalb höchstens einmal.
     ConfirmTan: AuthSession -> Async<ComdirectResult<Tokens>>
     Refresh: Tokens -> Async<Result<Tokens, RefreshFailure>>
-    FetchAccounts: ProbeState -> Async<ComdirectResult<ComdirectAccount list>>
     FetchTransactions: ProbeState -> string -> Async<ComdirectResult<BankTransaction list>>
-    /// Konto aus der Konfiguration, wie beim echten Import. Geht dem Kontenabruf vor.
+    /// Konto aus der Konfiguration, wie beim echten Import.
     ConfiguredAccountId: string option
     /// Lokale Sentinel-Datei, die Roman nach der Freigabe anlegt.
     SignalPresent: unit -> bool
@@ -143,18 +142,8 @@ let private expiresInSeconds (now: DateTimeOffset) (tokens: Tokens) : int option
 
 let private fetchRound (ports: ProbePorts) (state: ProbeState) : Async<unit> =
     async {
-        let! firstAccountId = async {
-            match! ports.FetchAccounts state with
-            | Error error ->
-                logEvent ports "konten" (errorStatus error) None
-                return None
-            | Ok accounts ->
-                logEvent ports "konten" "ok" None
-                return accounts |> List.tryHead |> Option.map (fun account -> account.AccountId)
-        }
-
-        match ports.ConfiguredAccountId |> Option.orElse firstAccountId with
-        | None -> ()
+        match ports.ConfiguredAccountId with
+        | None -> logEvent ports "umsaetze" "keine-konto-id" None
         | Some accountId ->
             match! ports.FetchTransactions state accountId with
             | Ok _ -> logEvent ports "umsaetze" "ok" None

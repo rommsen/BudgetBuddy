@@ -168,29 +168,6 @@ let private transactionDecoder: Decoder<BankTransaction> =
 let private transactionsDecoder: Decoder<BankTransaction list> =
     Decode.field "values" (Decode.list transactionDecoder)
 
-// Account decoder for Comdirect accounts endpoint
-let private accountDecoder: Decoder<ComdirectAccount> =
-    Decode.object (fun get ->
-        let accountId = get.Required.Field "accountId" Decode.string
-        let iban = get.Optional.Field "iban" Decode.string |> Option.defaultValue ""
-        let accountDisplayId = get.Optional.Field "accountDisplayId" Decode.string |> Option.defaultValue accountId
-        let accountType = get.Optional.At ["accountType"; "text"] Decode.string |> Option.defaultValue "UNKNOWN"
-        let currency = get.Optional.At ["balance"; "unit"] Decode.string |> Option.defaultValue "EUR"
-        let balanceAmount = get.Optional.At ["balance"; "value"] Decode.decimal
-
-        {
-            AccountId = accountId
-            Iban = iban
-            AccountDisplayId = accountDisplayId
-            AccountType = accountType
-            Currency = currency
-            Balance = balanceAmount |> Option.map (fun amt -> { Amount = amt; Currency = currency })
-        }
-    )
-
-let private accountsDecoder: Decoder<ComdirectAccount list> =
-    Decode.field "values" (Decode.list accountDecoder)
-
 // ============================================
 // HTTP Helper Functions
 // ============================================
@@ -477,6 +454,17 @@ let private getTransactionsPage (client: HttpClient) (requestInfo: RequestInfo) 
         | ex -> return Error (transportError ex)
     }
 
+/// Nur die erste Seite, ohne Blättern: dieselbe Anfrage, mit der auch der Import beginnt. Reicht dem
+/// Verbindungstest als Beweis, dass die Verbindung Daten liefert.
+let getFirstTransactionsPageWith (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) : Async<ComdirectResult<BankTransaction list>> =
+    getTransactionsPage client requestInfo tokens accountId 0
+
+let getFirstTransactionsPage (requestInfo: RequestInfo) (tokens: Tokens) (accountId: string) : Async<ComdirectResult<BankTransaction list>> =
+    async {
+        use client = createHttpClient()
+        return! getFirstTransactionsPageWith client requestInfo tokens accountId
+    }
+
 /// Obergrenze je Abruf. Die Schleife hält das Bank-Gate, ein Abruf ohne Ende sperrte jeden Sync.
 let [<Literal>] MaxTransactionPages = 100
 
@@ -519,47 +507,6 @@ let getTransactions (requestInfo: RequestInfo) (tokens: Tokens) (accountId: stri
     async {
         use client = createHttpClient()
         return! getTransactionsWith client requestInfo tokens accountId days today
-    }
-
-// ============================================
-// Account Fetching
-// ============================================
-
-/// Fetch all available accounts (requires extended tokens after TAN)
-let getAccountsWith (client: HttpClient) (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<ComdirectAccount list>> =
-    async {
-        // Try multiple endpoint variants
-        let endpoints = [
-            "api/banking/v1/accounts"
-            "api/banking/clients/user/v1/accounts"
-            "banking/v1/accounts"
-        ]
-
-        let rec tryEndpoints (eps: string list) =
-            async {
-                match eps with
-                | [] -> return Error (ComdirectError.NetworkError (404, "No valid accounts endpoint found"))
-                | ep :: rest ->
-                    try
-                        use request = sessionGet requestInfo tokens (endpoint + ep)
-                        let! response = client.SendAsync(request) |> Async.AwaitTask
-
-                        match int response.StatusCode with
-                        // Anmeldefehler gelten für jeden Pfad, ein weiterer Versuch ändert nichts.
-                        | 401 | 403 -> return! handleResponse accountsDecoder response
-                        | _ when response.IsSuccessStatusCode -> return! handleResponse accountsDecoder response
-                        | _ -> return! tryEndpoints rest
-                    with
-                    | _ -> return! tryEndpoints rest
-            }
-
-        return! tryEndpoints endpoints
-    }
-
-let getAccounts (requestInfo: RequestInfo) (tokens: Tokens) : Async<ComdirectResult<ComdirectAccount list>> =
-    async {
-        use client = createHttpClient()
-        return! getAccountsWith client requestInfo tokens
     }
 
 // ============================================

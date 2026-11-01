@@ -38,8 +38,7 @@ let private skipConfirmedDuplicate (tx: SyncTransaction) : SyncTransaction =
     | _ -> tx
 
 /// Holt die Umsätze und bereitet sie zur Prüfung auf: Regeln, Duplikate, Order-ID-Vorschläge,
-/// Auto-Skip. Hängt nur an der konfigurierten Konto-Id, nicht am Kontenabruf (Live-Befund
-/// `banking-import-p5mcp`: Konten lieferten 404, Umsätze kamen). Fasst die Sitzung nicht an.
+/// Auto-Skip. Hängt nur an der konfigurierten Konto-Id. Fasst die Sitzung nicht an.
 let fetchForReview (sources: ReviewSources) (request: ReviewRequest) : Async<Result<SyncTransaction list, ReviewFetchFailure>> =
     async {
         match! sources.Bank.FetchTransactions request.AccountId request.DaysToFetch request.Today with

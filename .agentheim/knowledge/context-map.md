@@ -16,7 +16,7 @@ Zuweisungen über `ynab-sync` nach YNAB.
   perspektivisch ING) und *vor* dem Push beurteilen, ob sie Duplikate sind.
 - **Core language:** BankTransaction, Reference (Comdirect-Dedup-Schlüssel),
   DuplicateStatus, DuplicateDetectionDetails (Fuzzy-Match Amount/Date/Payee),
-  Push-TAN, ComdirectAccount.
+  Push-TAN.
 - **Classification:** core — der zuverlässige Comdirect-Import ist ein Hauptgrund für
   die Existenz des Tools.
 - **Key actors:** Roman (löst Sync aus, bestätigt TAN), Comdirect (externe Quelle).

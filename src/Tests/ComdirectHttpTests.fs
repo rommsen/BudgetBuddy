@@ -14,12 +14,14 @@ open Shared.Domain
 type private FakeBank(respond: unit -> HttpResponseMessage) =
     inherit HttpMessageHandler()
     member val Calls = ResizeArray<string * string>()
+    member val Queries = ResizeArray<string>()
     override this.SendAsync(request: HttpRequestMessage, _ct: Threading.CancellationToken) =
         task {
             let! body =
                 if isNull request.Content then Threading.Tasks.Task.FromResult ""
                 else request.Content.ReadAsStringAsync()
             this.Calls.Add((request.RequestUri.AbsolutePath, body))
+            this.Queries.Add request.RequestUri.Query
             return respond ()
         }
 
@@ -170,27 +172,6 @@ let formTests =
 [<Tests>]
 let statusTests =
     testList "Comdirect-Client gegen Fake-Bank: Status beim Lesen" [
-        // Bug: getAccounts probierte bei 401 und 403 alle Pfade durch und meldete am Ende 404.
-        testCase "Konten: 401 ist eine gescheiterte Anmeldung, kein 404" <| fun () ->
-            use bank = bankAnswering 401 bodyWithToken
-            match withClient bank (fun c -> getAccountsWith c requestInfo oldTokens) with
-            | Error (ComdirectError.AuthenticationFailed _) -> ()
-            | other -> failtestf "AuthenticationFailed erwartet: %A" other
-            Expect.equal bank.Calls.Count 1 "kein weiterer Pfad nach 401"
-
-        testCase "Konten: 403 ist eine abgelaufene Sitzung, kein 404" <| fun () ->
-            use bank = bankAnswering 403 bodyWithToken
-            match withClient bank (fun c -> getAccountsWith c requestInfo oldTokens) with
-            | Error ComdirectError.SessionExpired -> ()
-            | other -> failtestf "SessionExpired erwartet: %A" other
-
-        testCase "Konten: 404 probiert weiter den nächsten Pfad" <| fun () ->
-            use bank = bankAnswering 404 ""
-            match withClient bank (fun c -> getAccountsWith c requestInfo oldTokens) with
-            | Error (ComdirectError.NetworkError (404, _)) -> ()
-            | other -> failtestf "404 erwartet: %A" other
-            Expect.equal bank.Calls.Count 3 "alle drei Pfade probiert"
-
         // Bug: getSessionIdentifier meldete 401 und 403 als NetworkError.
         testCase "Sitzungskennung: 401 ist eine gescheiterte Anmeldung" <| fun () ->
             use bank = bankAnswering 401 bodyWithToken
@@ -220,7 +201,7 @@ let errorTextTests =
                     Console.SetOut console
                     let results =
                         try
-                            [ sprintf "%A" (withClient bank (fun c -> getAccountsWith c requestInfo oldTokens))
+                            [ sprintf "%A" (withClient bank (fun c -> getFirstTransactionsPageWith c requestInfo oldTokens "konto"))
                               sprintf "%A" (withClient bank (fun c -> getSessionIdentifierWith c requestInfo oldTokens))
                               sprintf "%A" (withClient bank (fun c -> initOAuthWith c (credentials "abc") keys)) ]
                         finally
@@ -282,6 +263,16 @@ let errorTextTests =
                 Expect.equal (transactions |> List.map (fun t -> t.Reference)) [ "innen"; "grenze" ] "nur Buchungen im Zeitraum"
                 Expect.equal bank.Calls.Count 1 "eine Seite, ältere Buchungen beenden das Blättern"
             | other -> failtestf "Buchungen erwartet: %A" other
+
+        // ADR 0071, Nachtrag 2026-11-01: die Seite liegt ganz im Zeitraum, der Import würde weiterblättern.
+        testCase "erste Umsatzseite: genau eine Anfrage, dieselbe wie zu Beginn des Imports" <| fun () ->
+            use bank = bankWithPages [ pageOf [ "2026-01-10", "neu-1"; "2026-01-09", "neu-2" ] ]
+            match withClient bank (fun c -> getFirstTransactionsPageWith c requestInfo oldTokens "konto") with
+            | Ok transactions -> Expect.equal transactions.Length 2 "die Seite kommt an"
+            | other -> failtestf "Buchungen erwartet: %A" other
+            Expect.equal bank.Calls.Count 1 "kein Blättern"
+            Expect.equal (fst bank.Calls[0]) "/api/banking/v1/accounts/konto/transactions" "Umsatzpfad"
+            Expect.equal bank.Queries[0] "?transactionState=BOOKED&paging-first=0" "Offset 0, ohne paging-count"
 
         // Bug: liefert die Bank immer dieselbe Seite im Zeitraum, blätterte die Schleife ohne Ende und
         // hielt das Bank-Gate, bis das Token ablief und ein falscher Verlust samt Challenge entstand.

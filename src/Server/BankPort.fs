@@ -23,7 +23,6 @@ type BankPort = {
     /// wird direkt vor der Anmeldung. Nur eine Handlung von Roman ruft das auf.
     StartAuth: (unit -> bool) -> ComdirectSettings -> Async<ComdirectResult<Challenge option>>
     CompleteAuth: unit -> Async<ComdirectResult<unit>>
-    FetchAccounts: unit -> Async<ComdirectResult<ComdirectAccount list>>
     /// Konto-Id, Tage, heutiger Kalendertag.
     FetchTransactions: string -> int -> DateTime -> Async<ComdirectResult<BankTransaction list>>
 }
@@ -37,5 +36,4 @@ let comdirectBankPort (ports: ConnectionPorts) (clock: unit -> DateTimeOffset) :
         | ChallengePending _ -> BankAuthRequired
       StartAuth = startChallengeWhileWith ports
       CompleteAuth = fun () -> confirmChallengeWith ports
-      FetchAccounts = fun () -> fetchAccountsWith ports (clock ())
       FetchTransactions = fun accountId days today -> fetchTransactionsWith ports (clock ()) accountId days today }

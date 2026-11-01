@@ -12,8 +12,8 @@ research touching this BC, and concept synthesis pages.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 2
-- **Done:** 5
+- **Doing:** 1
+- **Done:** 6
 <!-- task-counts:end -->
 
 ### Todo
@@ -23,11 +23,11 @@ research touching this BC, and concept synthesis pages.
 ### Doing
 <!-- doing-list:start -->
 - **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen" (feature) — `doing/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`
-- **banking-import-v8n3k** — "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus" (bug) — `doing/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **banking-import-v8n3k** — "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus" (bug) — `done/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 - **banking-import-z4h6p** — "Bankverbindung übersteht einen Neustart über verschlüsselt gespeichertes Refresh-Token" (feature) — `done/banking-import-z4h6p-bankverbindung-uebersteht-neustart.md`
 - **banking-import-cyg94** — "Sync ohne TAN bei aktiver Bankverbindung, über einen schmalen Bank-Port" (feature) — `done/banking-import-cyg94-sync-ohne-tan-und-bank-port.md`
 - **banking-import-tshq9** — "Bankverbindung als Zustandsautomat mit Erneuern im Hintergrund. Abbruch und Verbindungstest beenden sie nicht mehr" (feature) — `done/banking-import-tshq9-bankverbindung-als-zustandsautomat.md`

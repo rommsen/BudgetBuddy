@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 20:26 -- Task verified and completed: banking-import-v8n3k - "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus"
+
+**Type:** Work / Task completion
+**Task:** banking-import-v8n3k - "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus"
+**Summary:** Der Verbindungstest bei Connected liest die erste Umsatzseite der konfigurierten Konto-Id, der Kontenabruf ist entfernt.
+**Duration:** 43m
+**Verification:** PASS (iteration 2)
+**Files changed:** 14
+**Tests added:** 6
+**ADRs written:** none
+
+---
+
+## 2026-11-01 20:20 -- Verification failed: banking-import-bftq0 - Status der Bankverbindung sichtbar, Bank trennen
+
+**Type:** Work / Verification failure
+**Task:** banking-import-bftq0 - Status der Bankverbindung sichtbar, Bank trennen
+**Iteration:** 1 of 3
+**Reasons:** Das Warten von disconnectBankWith am ImportPorts.Gate hat keinen Test, ein Mutant bleibt grün, obwohl das Kriterium zu AwaitingBankAuth davon abhängt
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-01 20:04 -- Task verified and completed: infrastructure-p747v - "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today"
 
 **Type:** Work / Task completion

@@ -54,6 +54,8 @@ type private Probe(initial: BankConnectionState) =
     member val Logins = ref 0
     member val Confirmations = ref 0
     member val Fetches = ResizeArray<Tokens>()
+    /// Nur der Verbindungstest: je erste Seite die Konto-Id. `Fetches` zählt beide Abrufwege.
+    member val FirstPageAccounts = ResizeArray<string>()
     member val Losses = ResizeArray<string>()
     member val RefreshAnswer : Tokens -> Result<Tokens, RefreshFailure> =
         (fun _ -> Ok (tokensValidFor 598.0 "neu")) with get, set
@@ -90,12 +92,13 @@ type private Probe(initial: BankConnectionState) =
               lock this.Refreshes (fun () -> this.Refreshes.Add tokens)
               do! this.BeforeRefresh ()
               return this.RefreshAnswer tokens }
-          FetchAccounts = fun _ tokens -> async {
-              lock this.Fetches (fun () -> this.Fetches.Add tokens)
-              return this.FetchAnswer tokens |> Result.map (fun _ -> []) }
           FetchTransactions = fun _ tokens _ _ _ -> async {
               lock this.Fetches (fun () -> this.Fetches.Add tokens)
               this.Events.Add $"abruf:{tokens.Access}"
+              return this.FetchAnswer tokens }
+          FetchFirstTransactionsPage = fun _ tokens accountId -> async {
+              lock this.Fetches (fun () -> this.Fetches.Add tokens)
+              lock this.FirstPageAccounts (fun () -> this.FirstPageAccounts.Add accountId)
               return this.FetchAnswer tokens }
           ReportLoss = fun reason ->
               this.DisconnectedAtLoss.Add (cell.State.Value = Disconnected)
@@ -383,8 +386,11 @@ let private cancel (ports: ConnectionPorts) =
         |> run
     result, cleared.Value
 
+let private testConnectionWith (settings: (string * string) list) (ports: ConnectionPorts) =
+    Server.Api.testComdirectConnectionWith (settingsFrom settings) ports now |> run
+
 let private testConnection (ports: ConnectionPorts) =
-    Server.Api.testComdirectConnectionWith (settingsFrom storedCredentials) ports now |> run
+    testConnectionWith (("comdirect_account_id", "konto") :: storedCredentials) ports
 
 let private saveCredentials (ports: ConnectionPorts) (form: ComdirectSettings) =
     Server.Api.saveComdirectCredentialsWith
@@ -412,22 +418,48 @@ let adapterTests =
             cancel ports |> ignore
             Expect.isTrue (isDisconnected ports) "Challenge verworfen"
 
-        // Bug: ein Verbindungstest startete eine Challenge und ersetzte die aktive Verbindung.
+        // Bug: ein Verbindungstest startete eine Challenge und ersetzte die aktive Verbindung. Danach
+        // las er die Konten, die live 404 lieferten, und meldete bei lebender Verbindung einen Fehler.
         testCase "Kaputt: Connected, testComdirectConnection: keine Challenge, Verbindung unverändert" <| fun () ->
             let probe = Probe(connected (tokensValidFor 600.0 "alt"))
             let ports = probe.Build()
             Expect.equal (testConnection ports) (Ok BankConnectionActive) "Verbindung lebt"
             Expect.equal probe.Logins.Value 0 "kein Login, keine Challenge"
-            Expect.equal probe.Fetches.Count 1 "die Konten wurden gelesen"
+            Expect.equal (List.ofSeq probe.FirstPageAccounts) [ "konto" ] "eine Seite der konfigurierten Konto-Id"
+            Expect.equal probe.Fetches.Count 1 "kein weiterer Abruf"
             Expect.equal (activeConnection ports).Session.Tokens.Access "alt" "Verbindung unverändert"
 
-        testCase "Connected, Konten nicht lesbar: Fehler ohne Challenge, Verbindung bleibt" <| fun () ->
+        testCase "Intakt: Connected, die Bank lehnt auch nach dem Refresh ab: Fehler ohne Challenge" <| fun () ->
             let probe = Probe(connected (tokensValidFor 600.0 "alt"))
-            probe.FetchAnswer <- fun _ -> Error (ComdirectError.NetworkError (404, ""))
+            probe.FetchAnswer <- fun _ -> Error rejected
+            let ports = probe.Build()
+            Expect.isError (testConnection ports) "der Fehler kommt an"
+            Expect.equal probe.Refreshes.Count 1 "ein Refresh"
+            Expect.equal probe.Fetches.Count 2 "ein Wiederholversuch"
+            Expect.equal probe.Logins.Value 0 "keine Challenge"
+            Expect.isTrue (isDisconnected ports) "die Verbindung ist verloren"
+
+        testCase "Intakt: Connected, die Bank antwortet 503: Fehler ohne Challenge, Verbindung bleibt" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            probe.FetchAnswer <- fun _ -> Error (ComdirectError.NetworkError (503, ""))
             let ports = probe.Build()
             Expect.isError (testConnection ports) "der Fehler kommt an"
             Expect.equal probe.Logins.Value 0 "keine Challenge"
             Expect.equal (activeConnection ports).Session.Tokens.Access "alt" "Verbindung steht"
+
+        for label, settings in
+            [ "fehlt", storedCredentials
+              "ist leer", ("comdirect_account_id", "  ") :: storedCredentials ] do
+            testCase $"Connected, Konto-Id {label}: konkrete Meldung, kein Bankzugriff, keine Challenge" <| fun () ->
+                let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+                let ports = probe.Build()
+                match testConnectionWith settings ports with
+                | Error (SettingsError.ComdirectCredentialsInvalid (_, reason)) ->
+                    Expect.stringContains reason "Konto-Id" "die Meldung nennt, was fehlt"
+                | other -> failtestf "Fehler erwartet: %A" other
+                Expect.equal probe.Fetches.Count 0 "kein Bankzugriff"
+                Expect.equal probe.Logins.Value 0 "keine Challenge"
+                Expect.equal (activeConnection ports).Session.Tokens.Access "alt" "Verbindung steht"
 
         testCase "Intakt: Disconnected, testComdirectConnection: Challenge wie bisher" <| fun () ->
             let probe = Probe(Disconnected)

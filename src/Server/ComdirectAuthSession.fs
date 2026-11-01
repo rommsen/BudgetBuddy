@@ -28,8 +28,8 @@ type ConnectionPorts = {
     Login: ComdirectSettings -> ApiKeys -> Async<ComdirectResult<AuthSession>>
     CompleteAuth: AuthSession -> ApiKeys -> Async<ComdirectResult<Tokens>>
     Refresh: ApiKeys -> DateTimeOffset -> Tokens -> Async<Result<Tokens, RefreshFailure>>
-    FetchAccounts: RequestInfo -> Tokens -> Async<ComdirectResult<ComdirectAccount list>>
     FetchTransactions: RequestInfo -> Tokens -> string -> int -> DateTime -> Async<ComdirectResult<BankTransaction list>>
+    FetchFirstTransactionsPage: RequestInfo -> Tokens -> string -> Async<ComdirectResult<BankTransaction list>>
     /// Der Grund trägt Status und `error`-Code, nie Tokens.
     ReportLoss: string -> unit
     /// Der gespeicherte Wert aus ADR 0071 Punkt 4.
@@ -270,9 +270,9 @@ let fetchTransactionsWith (ports: ConnectionPorts) (now: DateTimeOffset) (accoun
     withConnection ports now (fun connection ->
         ports.FetchTransactions connection.Session.RequestInfo connection.Session.Tokens accountId days today)
 
-let fetchAccountsWith (ports: ConnectionPorts) (now: DateTimeOffset) : Async<ComdirectResult<ComdirectAccount list>> =
+let fetchFirstTransactionsPageWith (ports: ConnectionPorts) (now: DateTimeOffset) (accountId: string) : Async<ComdirectResult<BankTransaction list>> =
     withConnection ports now (fun connection ->
-        ports.FetchAccounts connection.Session.RequestInfo connection.Session.Tokens)
+        ports.FetchFirstTransactionsPage connection.Session.RequestInfo connection.Session.Tokens accountId)
 
 // ============================================
 // Die Verbindung des laufenden Servers
@@ -283,8 +283,8 @@ let livePorts: ConnectionPorts = {
     Login = startAuthFlow
     CompleteAuth = completeAuthFlow
     Refresh = refreshTokensLive
-    FetchAccounts = getAccounts
     FetchTransactions = getTransactions
+    FetchFirstTransactionsPage = getFirstTransactionsPage
     ReportLoss = fun reason -> eprintfn "Bankverbindung verloren: %s" reason
     Store = liveConnectionStore
     LoadKeys = loadLiveApiKeys

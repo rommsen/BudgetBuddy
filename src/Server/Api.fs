@@ -219,8 +219,9 @@ let saveComdirectCredentialsWith
         return Error (SettingsError.DatabaseError ("save_comdirect_credentials", ex.Message))
 }
 
-/// Verbindungstest (ADR 0071 Punkt 2): bei `Connected` liest er die Konten ohne Challenge, sonst
-/// startet er als Handlung von Roman eine Push-TAN.
+/// Verbindungstest (ADR 0071 Punkt 2): bei `Connected` liest er die erste Umsatzseite der
+/// konfigurierten Konto-Id ohne Challenge (Nachtrag 2026-11-01), sonst startet er als Handlung von
+/// Roman eine Push-TAN.
 let testComdirectConnectionWith
     (getSetting: string -> Async<string option>)
     (ports: ComdirectAuthSession.ConnectionPorts)
@@ -229,10 +230,15 @@ let testComdirectConnectionWith
     do! ComdirectAuthSession.awaitResumeWith ports now
     match ComdirectAuthSession.connectionState ports with
     | BankConnection.Connected _ ->
-        match! ComdirectAuthSession.fetchAccountsWith ports now with
-        | Ok _ -> return Ok BankConnectionActive
-        | Error comdirectError ->
-            return Error (SettingsError.ComdirectCredentialsInvalid ("accounts", comdirectErrorToString comdirectError))
+        let! accountId = getSetting "comdirect_account_id"
+        match accountId |> Option.filter (String.IsNullOrWhiteSpace >> not) with
+        | None ->
+            return Error (SettingsError.ComdirectCredentialsInvalid ("account_id", "Keine Comdirect-Konto-Id eingetragen. Der Verbindungstest liest die Umsätze dieses Kontos."))
+        | Some configuredId ->
+            match! ComdirectAuthSession.fetchFirstTransactionsPageWith ports now configuredId with
+            | Ok _ -> return Ok BankConnectionActive
+            | Error comdirectError ->
+                return Error (SettingsError.ComdirectCredentialsInvalid ("transactions", comdirectErrorToString comdirectError))
     | BankConnection.Disconnected
     | BankConnection.ChallengePending _ ->
         // Get Comdirect credentials from settings

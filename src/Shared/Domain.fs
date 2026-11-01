@@ -562,16 +562,6 @@ type ComdirectSettings = {
     AccountId: string option  // Optional: only needed for fetching transactions
 }
 
-/// Comdirect bank account information retrieved from API
-type ComdirectAccount = {
-    AccountId: string
-    Iban: string
-    AccountDisplayId: string  // Masked account number for display
-    AccountType: string       // e.g., "GIRO", "DEPOT", "TAGESGELD"
-    Currency: string
-    Balance: Money option
-}
-
 /// Type-safe wrapper for Comdirect Account ID
 type ComdirectAccountId = ComdirectAccountId of string
 
@@ -705,7 +695,7 @@ type ComdirectError =
 type ComdirectConnectionTest =
     /// Keine Verbindung: eine Push-TAN wartet auf Bestätigung.
     | TanChallengeStarted of challengeId: string
-    /// Die Verbindung lebt, die Konten waren lesbar. Keine TAN nötig.
+    /// Die Verbindung lebt, die erste Umsatzseite des konfigurierten Kontos war lesbar. Keine TAN nötig.
     | BankConnectionActive
 
 // ============================================

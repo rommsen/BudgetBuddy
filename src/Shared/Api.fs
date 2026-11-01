@@ -43,7 +43,8 @@ type SettingsApi = {
     testYnabConnection: unit -> Async<SettingsResult<YnabBudgetWithAccounts list>>
 
     /// Tests the Comdirect connection (ADR 0071 Punkt 2).
-    /// Purpose: Reads the accounts of an active connection, otherwise starts the OAuth + TAN flow.
+    /// Purpose: Reads the first transactions page of the configured account on an active connection,
+    /// otherwise starts the OAuth + TAN flow.
     /// Returns: BankConnectionActive (no TAN needed), TanChallengeStarted with the challenge ID
     /// for TAN confirmation, or SettingsError.
     testComdirectConnection: unit -> Async<SettingsResult<ComdirectConnectionTest>>

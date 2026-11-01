@@ -106,7 +106,6 @@ let integrationTests =
                     Login = fun () -> startAuthFlow credentials apiKeys
                     ConfirmTan = fun session -> completeAuthFlow session apiKeys
                     Refresh = fun tokens -> refreshTokens client apiKeys DateTimeOffset.UtcNow tokens
-                    FetchAccounts = fun state -> getAccounts state.RequestInfo state.Tokens
                     FetchTransactions = fun state accountId -> getTransactions state.RequestInfo state.Tokens accountId 7 DateTime.Today
                     ConfiguredAccountId = getEnvVar "COMDIRECT_ACCOUNT_ID" |> Option.filter (String.IsNullOrWhiteSpace >> not)
                     SignalPresent = fun () -> File.Exists signalPath
