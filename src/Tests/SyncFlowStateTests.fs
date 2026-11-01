@@ -47,6 +47,19 @@ let private interrupted () : Model =
 let syncFlowStateTests =
     testList "SyncFlow-Reduzierer" [
 
+        // Bug (B7): `cancelSync` verwirft eine offene TAN, das Badge zeigte sie weiter als offen.
+        testCase "nach dem Abbruch wird der Stand der Bank neu gelesen" <| fun () ->
+            let _, cmd, _ = update (SyncCancelled (Ok ())) (freshModel ())
+            Expect.contains (dispatched cmd) LoadBankStatus "die offene TAN ist weg"
+
+        // Bug (B4): `Retry.reading` hält Antworten zurück, eine alte überschrieb den neueren Stand.
+        testCase "eine überholte Antwort ändert den Stand der Bank nicht" <| fun () ->
+            let older = beginBankStatusRead (freshModel ())
+            let newer = beginBankStatusRead older
+            let answered, _, _ = update (BankStatusLoaded (newer.BankStatusReadVersion, Ok BankDisconnected)) newer
+            let late, _, _ = update (BankStatusLoaded (older.BankStatusReadVersion, Ok BankConnected)) answered
+            Expect.equal late.BankStatus (Success BankDisconnected) "der neuere Stand bleibt"
+
         // banking-import-cyg94: der Server entscheidet über die TAN, der Client folgt nur.
         test "ReviewReady lädt die Transaktionen direkt, ohne TAN-Schritt" {
             let session = sessionWith ReviewingTransactions

@@ -221,6 +221,7 @@ let networkGuardTests =
             for name in [ "sendReviewMark"; "buildReviewMarkBody"; "getMonthWith"; "assignUrl" ] do
                 Expect.isFalse (ynab.Contains name) $"YnabClient.{name} geht nicht selbst ins Netz"
             Expect.contains comdirect "startAuthFlow" "ComdirectClient.startAuthFlow geht ins Netz"
+            Expect.contains comdirect "getFirstTransactionsPage" "ComdirectClient.getFirstTransactionsPage geht ins Netz"
             for name in [ "refreshTokens"; "initOAuthWith"; "getFirstTransactionsPageWith" ] do
                 Expect.isFalse (comdirect.Contains name) $"ComdirectClient.{name} nutzt den eingespeisten Client"
             Expect.contains session "confirmTan" "ComdirectAuthSession.confirmTan geht ins Netz (über livePorts)"

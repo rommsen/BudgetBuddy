@@ -171,8 +171,7 @@ test("PC (1440): Pfeil öffnet den Picker im Panel, Auswahl ändert, Karte und T
   const listbox = panel(page).locator('[role="listbox"]');
   await listbox.waitFor();
   // Vorschläge: genau ein Aufruf mit Payee und aktueller Kategorie.
-  await page.waitForFunction(() => true);
-  for (let i = 0; i < 50 && state.suggestionCalls.length === 0; i += 1) await new Promise((r) => setTimeout(r, 40));
+  await listbox.getByText(/Vorgeschlagen/i).first().waitFor();
   assert.equal(state.suggestionCalls.length, 1, "ein Aufruf je Öffnung");
   assert.deepEqual(state.suggestionCalls[0], ["REWE Mitte", { YnabCategoryId: CAT.lebensmittel.id }]);
   assert.match(await listbox.textContent(), /Vorgeschlagen/i, "Abschnitt VORGESCHLAGEN");

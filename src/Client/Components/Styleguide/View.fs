@@ -209,6 +209,16 @@ let private buttonSection =
                     Button.secondary "Abbrechen" ignore
                     Button.primary "Bestätigen" ignore
                 ]
+                subTitle "Rückfrage in zwei Stufen"
+                note "Für folgenreiche Aktionen ohne Dialog. Stufe 1 zeigt die Aktion. Stufe 2 setzt Abbrechen an deren Stelle, \
+                      damit ein Doppeltipp den harmlosen Knopf trifft, und fällt nach drei Sekunden zurück."
+                row [
+                    Button.danger "Bank trennen" ignore
+                ]
+                row [
+                    Button.ghost "Abbrechen" ignore
+                    Button.danger "Wirklich trennen" ignore
+                ]
                 subTitle "Knöpfe in Listen"
                 Html.div [
                     prop.className "max-w-sm space-y-4"
@@ -300,6 +310,17 @@ let private badgeSection =
                     Badge.autoCategorized ()
                     Badge.uncategorized ()
                     Badge.count 5
+                ]
+                note "Neutral trägt einen Stand ohne Wertung."
+                row [
+                    Badge.neutral "Neutral"
+                ]
+                note "Stand der Bankverbindung (BankConnectionBadge), in Einstellungen und SyncFlow."
+                row [
+                    Components.BankConnectionBadge.view BankConnected
+                    Components.BankConnectionBadge.view BankChallengePending
+                    Components.BankConnectionBadge.view BankDisconnected
+                    Components.BankConnectionBadge.unreadable ()
                 ]
             ]
         ]

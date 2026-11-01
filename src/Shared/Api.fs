@@ -202,8 +202,9 @@ type SyncApi = {
     getBankConnectionStatus: unit -> Async<BankConnectionStatus>
 
     /// Trennt die Bankverbindung und löscht den gespeicherten Wert. Eine offene Prüfung bleibt.
-    /// Returns: Unit oder eine Meldung für Roman, wenn der gespeicherte Wert liegen geblieben ist.
-    disconnectBank: unit -> Async<Result<unit, string>>
+    /// Returns: Unit oder `DatabaseError`, wenn der gespeicherte Wert liegen geblieben ist. Dann bleiben
+    /// Verbindung und Sitzung unverändert.
+    disconnectBank: unit -> Async<SyncResult<unit>>
 
     // ============================================
     // Comdirect auth flow

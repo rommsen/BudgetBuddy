@@ -263,12 +263,13 @@ let discardPendingChallengeWith (ports: ConnectionPorts) : Async<unit> =
             Async.Start (locked ports (async { discard () }))
     }
 
-/// Trennt die Verbindung auf Wunsch. Kein Verlust, deshalb keine Meldung. Scheitert das Löschen,
-/// kommt der Fehler an: sonst läge ein Token, das der nächste Start wieder aufnimmt.
+/// Trennt die Verbindung auf Wunsch. Kein Verlust, deshalb keine Meldung. Erst löschen, dann den
+/// Zustand setzen: Scheitert das Löschen, kommt der Fehler an und der Zustand bleibt, auch eine offene
+/// Challenge. Sonst zeigte der Stand "getrennt", und der nächste Start nähme den liegenden Wert wieder auf.
 let disconnectWith (ports: ConnectionPorts) : Async<unit> =
     locked ports (async {
-        ports.Cell.State.Value <- Disconnected
         do! ports.Store.Clear ()
+        ports.Cell.State.Value <- Disconnected
     })
 
 let fetchTransactionsWith (ports: ConnectionPorts) (now: DateTimeOffset) (accountId: string) (days: int) (today: DateTime) : Async<ComdirectResult<BankTransaction list>> =

@@ -147,6 +147,8 @@ type private Probe(initial: BankConnectionState) =
     member _.Refreshes = Volatile.Read(&refreshes)
     member _.Clears = Volatile.Read(&clears)
     member val FetchedAccountIds = ResizeArray<string>()
+    /// Der Kalendertag, den die Bank für den Abruf bekommt.
+    member val FetchedDays = ResizeArray<DateTime>()
     member val Connection : ConnectionPorts = Unchecked.defaultof<ConnectionPorts> with get, set
     member this.Build() : ImportPorts =
         let cell = newConnectionCell ()
@@ -164,9 +166,10 @@ type private Probe(initial: BankConnectionState) =
                   Interlocked.Increment(&refreshes) |> ignore
                   do! this.DuringRefresh ()
                   return this.RefreshAnswer }
-              FetchTransactions = fun _ _ accountId _ _ -> async {
+              FetchTransactions = fun _ _ accountId _ day -> async {
                   Interlocked.Increment(&fetches) |> ignore
                   lock this.FetchedAccountIds (fun () -> this.FetchedAccountIds.Add accountId)
+                  lock this.FetchedDays (fun () -> this.FetchedDays.Add day)
                   do! this.DuringFetch ()
                   return this.FetchAnswer }
               FetchFirstTransactionsPage = fun _ _ _ -> failtest "der Abruf holt keine einzelne Seite"
@@ -258,6 +261,29 @@ let startSyncTests =
             let probe = Probe(connected)
             startSyncWith (probe.Build()) |> run |> expectReviewReady |> ignore
             Expect.equal (List.ofSeq probe.FetchedAccountIds) [ "konfiguriertes-konto" ] "Konto aus den Einstellungen"
+
+        // infrastructure-p747v: abends um 23:30 UTC ist in Berlin schon der nächste Tag.
+        testCase "der Abruf nutzt den Kalendertag aus `Today`, auch wenn die Uhr noch den Vortag zeigt" <| fun () ->
+            let probe = Probe(connected)
+            let ports =
+                { probe.Build() with
+                    Clock = fun () -> DateTime(2026, 11, 1, 23, 30, 0, DateTimeKind.Utc)
+                    Today = fun () -> DateTime(2026, 11, 2) }
+            startSyncWith ports |> run |> expectReviewReady |> ignore
+            Expect.equal (List.ofSeq probe.FetchedDays) [ DateTime(2026, 11, 2) ] "der 2. November kommt an"
+
+        // Bug: Ohne Konto-Id ging ein leerer Wert an die Bank, die Antwort sagte nichts über die Ursache.
+        for label, accountId in [ "fehlt", None; "ist leer", Some "  " ] do
+            for connection, state in [ "aktive Verbindung", connected; "keine Verbindung", Disconnected ] do
+                testCase $"Konto-Id {label}, {connection}: konkrete Meldung, nichts geht zur Bank, keine Sitzung" <| fun () ->
+                    let probe = Probe(state)
+                    probe.Settings <- { probe.Settings with Comdirect = Some { credentials with AccountId = accountId } }
+                    match startSyncWith (probe.Build()) |> run with
+                    | Error (SyncError.TransactionFetchFailed reason) -> Expect.stringContains reason "Konto-Id" "die Meldung nennt, was fehlt"
+                    | other -> failtestf "TransactionFetchFailed erwartet: %A" other
+                    Expect.equal probe.Fetches 0 "kein Abruf"
+                    Expect.equal probe.Logins 0 "keine Challenge"
+                    Expect.equal probe.Sessions.Started.Count 0 "keine Sitzung"
 
         testCase "keine Verbindung: TanRequired, genau eine Challenge, kein Abruf" <| fun () ->
             let probe = Probe(Disconnected)
@@ -544,6 +570,19 @@ let confirmTanTests =
             | Error (SyncError.DatabaseError ("confirm_tan", _)) -> ()
             | other -> failtestf "DatabaseError erwartet: %A" other
             Expect.equal probe.Sessions.Status (Some (Failed "kaputt")) "Sitzung gescheitert"
+
+        testCase "die Konto-Id fehlt nach der TAN: konkrete Meldung, kein leerer Abruf" <| fun () ->
+            let probe = Probe(pendingChallenge)
+            probe.Settings <- { probe.Settings with Comdirect = Some { credentials with AccountId = None } }
+            let ports = probe.Build()
+            let session = probe.Sessions.Open AwaitingTan []
+            match confirmTanWith ports session.Id |> run with
+            | Error (SyncError.TransactionFetchFailed reason) -> Expect.stringContains reason "Konto-Id" "die Meldung nennt, was fehlt"
+            | other -> failtestf "TransactionFetchFailed erwartet: %A" other
+            Expect.equal probe.Fetches 0 "kein Abruf"
+            match probe.Sessions.Status with
+            | Some (Failed _) -> ()
+            | other -> failtestf "Sitzung gescheitert erwartet: %A" other
 
         testCase "Abbruch während der TAN-Bestätigung: kein Abruf, die Verbindung bleibt" <| fun () ->
             let probe = Probe(pendingChallenge)
@@ -877,7 +916,7 @@ let storedValueOnSyncPathsTests =
     ]
 
 // "Bank trennen": die Bankverbindung endet, die Sitzung bleibt nur, wenn sie ohne Bank auskommt.
-let private disconnectBank (ports: ImportPorts) (probe: Probe) : Result<unit, string> =
+let private disconnectBank (ports: ImportPorts) (probe: Probe) : SyncResult<unit> =
     disconnectBankWith ports (fun () -> disconnectWith probe.Connection) |> run
 
 [<Tests>]
@@ -926,8 +965,9 @@ let disconnectBankTests =
             Expect.equal probe.Sessions.Status (Some ReviewingTransactions) "Prüfung offen"
             Expect.equal (connectionState probe.Connection) Disconnected "danach getrennt"
 
-        // banking-import-bftq0: Ohne `ImportPorts.Gate` überschreibt der Start das `Failed` mit
-        // `AwaitingTan` und löst nach dem Trennen eine Challenge aus.
+        // banking-import-bftq0: Ohne `ImportPorts.Gate` startet der Start nach dem Trennen eine Challenge.
+        // Dann gibt es zwei Ausgänge: Er überschreibt das `Failed` mit `AwaitingTan`, oder das Trennen
+        // kommt später und die Sitzung steht auf `Failed`. Die Challenge bleibt in beiden offen.
         testCase "ein Start, der noch auf die Wiederaufnahme wartet, kann das Trennen nicht überholen" <| fun () ->
             let probe = Probe(Disconnected)
             let bank = Barrier()
@@ -938,22 +978,28 @@ let disconnectBankTests =
             let start = startSyncWith ports |> Async.StartAsTask
             Expect.isTrue (bank.WaitReached ()) "der Start hängt in der Wiederaufnahme"
             Expect.equal probe.Sessions.Status (Some AwaitingBankAuth) "die Sitzung wartet auf die Bank"
-            let disconnected = disconnectBankWith ports (fun () -> disconnectWith probe.Connection) |> Async.StartAsTask
-            // Ohne diese Pause gäbe der Test die Reihenfolge nicht her: das Trennen muss schon warten.
-            Thread.Sleep 100
-            Expect.isFalse disconnected.IsCompleted "das Trennen wartet"
+            use entered = new ManualResetEventSlim(false)
+            let endConnection () = async {
+                entered.Set ()
+                do! disconnectWith probe.Connection }
+            let disconnected = disconnectBankWith ports endConnection |> Async.StartAsTask
+            // Das Trennen hält auch `Cell.Gate` auf, Maßstab ist deshalb sein Eintritt, nicht sein Ende.
+            Expect.isFalse (entered.Wait 100) "das Trennen wartet, bis der Start vorbei ist"
             bank.Release ()
             Expect.isTrue (disconnected.Wait hangLimit) "das Trennen endet"
             Expect.isTrue (start.Wait hangLimit) "der Start endet"
             Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "die Sitzung endet sichtbar"
             Expect.equal (connectionState probe.Connection) Disconnected "keine Challenge nach dem Trennen"
 
-        testCase "scheitert das Löschen, kommt der Fehler an, nennt den Wert nicht und beendet die Sitzung trotzdem" <| fun () ->
+        // Bug: Die Sitzung endete, obwohl die Verbindung weiterlebte. Die offene TAN war damit verloren.
+        testCase "scheitert das Löschen, kommt der Fehler an, nennt den Wert nicht und lässt die Sitzung stehen" <| fun () ->
             let probe = Probe(Disconnected)
             let ports = probe.Build()
             startSyncWith ports |> run |> expectTanRequired |> ignore
             match disconnectBankWith ports (fun () -> async { failwith "wert-aus-der-ausnahme" }) |> run with
-            | Error message -> Expect.isFalse (message.Contains "wert-aus-der-ausnahme") "nur der Typ"
-            | Ok () -> failtest "Fehler erwartet"
-            Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "beendet"
+            | Error (SyncError.DatabaseError ("disconnect_bank", message)) ->
+                Expect.isFalse (message.Contains "wert-aus-der-ausnahme") "nur der Typ"
+                Expect.stringContains message "Exception" "der Typname reicht zur Einordnung"
+            | other -> failtestf "DatabaseError erwartet: %A" other
+            Expect.equal probe.Sessions.Status (Some AwaitingTan) "die Sitzung wartet weiter auf die TAN"
     ]

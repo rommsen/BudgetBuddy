@@ -184,6 +184,19 @@ let statusTests =
             match withClient bank (fun c -> getSessionIdentifierWith c requestInfo oldTokens) with
             | Error ComdirectError.SessionExpired -> ()
             | other -> failtestf "SessionExpired erwartet: %A" other
+
+        // Auf diese Fälle stützt sich `isAuthRejection`: nur sie lösen Refresh und Wiederholung aus.
+        testCase "erste Umsatzseite: 401 ist eine gescheiterte Anmeldung" <| fun () ->
+            use bank = bankAnswering 401 bodyWithToken
+            match withClient bank (fun c -> getFirstTransactionsPageWith c requestInfo oldTokens "konto") with
+            | Error (ComdirectError.AuthenticationFailed _) -> ()
+            | other -> failtestf "AuthenticationFailed erwartet: %A" other
+
+        testCase "erste Umsatzseite: 403 ist eine abgelaufene Sitzung" <| fun () ->
+            use bank = bankAnswering 403 bodyWithToken
+            match withClient bank (fun c -> getFirstTransactionsPageWith c requestInfo oldTokens "konto") with
+            | Error ComdirectError.SessionExpired -> ()
+            | other -> failtestf "SessionExpired erwartet: %A" other
     ]
 
 [<Tests>]

@@ -1366,11 +1366,11 @@ let private visibilityTests =
             Expect.contains (dispatched cmd) (State.LedgerMsg LoadMirrorStatus) "wie die Liste"
         }
 
-        test "Auf jeder anderen Seite tut der Vordergrund-Wechsel nichts" {
-            let onSettings = rootModel Types.Page.Settings
-            let updated, cmd = State.update State.VisibilityChanged onSettings
-            Expect.equal updated onSettings "kein Zustandswechsel"
-            Expect.isEmpty (dispatched cmd) "kein Kommando außerhalb des Kassenbuchs"
+        test "Auf den übrigen Seiten tut der Vordergrund-Wechsel nichts" {
+            let onRules = rootModel Types.Page.Rules
+            let updated, cmd = State.update State.VisibilityChanged onRules
+            Expect.equal updated onRules "kein Zustandswechsel"
+            Expect.isEmpty (dispatched cmd) "kein Kommando außerhalb von Kassenbuch, Sync und Einstellungen"
         }
     ]
 

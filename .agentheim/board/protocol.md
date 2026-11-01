@@ -5,6 +5,43 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 21:39 -- Review-Findings zu p747v, v8n3k und bftq0 behoben
+
+**Type:** Work / Review-Fixes
+**Reviews:** qa-milestone-reviewer, backend-code-quality, frontend-architecture, design-quality
+**Summary:** Bank trennen löscht zuerst den Wert, ein gescheitertes Löschen lässt Zustand und Sitzung stehen. Verbindungstest meldet Bankfehler mit eigenem Fehlerfall, leere Konto-Id geht nie zur Bank. Stand-Anzeige, TAN-Block und Rückfrage nachgebessert, Live-Anschlüsse per Wächter belegt.
+**Verification:** VERIFY: PASS (dotnet 3270, node 429)
+**Follow-ups:** banking-import-m4xrt, infrastructure-v3tqk, design-system-p8kvn
+
+---
+
+## 2026-11-01 21:38 -- Modeling / Captured: design-system-p8kvn - "Badge.neutral und setting-description liegen bei 12 px knapp unter 4,5:1 Kontrast"
+
+**Type:** Modeling / Capture
+**BC:** design-system
+**Filed to:** backlog
+**Summary:** Kontrast-Follow-up aus dem Design-Review zu banking-import-bftq0
+
+---
+
+## 2026-11-01 21:38 -- Modeling / Captured: infrastructure-v3tqk - "Wächter ledger-read-retry flackert bei getLedgerPayeeSuggestions unter Last"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** backlog
+**Summary:** Flackernder Browser-Wächter aus dem Gate-Lauf der Review-Fixes
+
+---
+
+## 2026-11-01 21:38 -- Modeling / Captured: banking-import-m4xrt - "Live messen, wie Comdirect auf eine falsche Konto-Id antwortet"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Live-Messung aus dem Backend-Review zu banking-import-v8n3k
+
+---
+
 ## 2026-11-01 20:46 -- Work session ended
 
 **Type:** Work / Session end

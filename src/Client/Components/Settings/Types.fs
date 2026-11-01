@@ -46,12 +46,14 @@ type Model = {
     ComdirectConnectionValid: RemoteData<unit>
     ComdirectAuthPending: bool
 
-    // Bankverbindung (ADR 0071): "Bank trennen" fragt einmal nach. Eine Meldung bleibt stehen, bis
-    // das Trennen gelungen ist, sonst läge ein Token ohne sichtbaren Hinweis.
+    // Bankverbindung (ADR 0071): "Bank trennen" fragt einmal nach. Scheitert das Löschen, bleibt die
+    // Verbindung bestehen und `BankStatus` zeigt das. Die Meldung erklärt nur, warum das Trennen nicht
+    // geklappt hat, und darf beim nächsten Versuch verschwinden.
     BankStatus: RemoteData<BankConnectionStatus>
+    /// `Retry.reading` hält eine Antwort zurück, nur die zum aktuellen Stand zählt.
+    BankStatusReadVersion: int
     ConfirmingBankDisconnect: bool
-    IsDisconnectingBank: bool
-    BankDisconnectError: string option
+    BankDisconnect: RemoteData<unit>
 
     // Edit mode: None = read-only, Some X = editing that section
     EditingSection: SettingsSection option
@@ -94,11 +96,11 @@ type Msg =
     | ComdirectTanConfirmed of Result<unit, SettingsError>
     // Bankverbindung
     | LoadBankStatus
-    | BankStatusLoaded of Result<BankConnectionStatus, string>
+    | BankStatusLoaded of version: int * Result<BankConnectionStatus, string>
     | RequestBankDisconnect
     | AbortBankDisconnect
     | ConfirmBankDisconnect
-    | BankDisconnectFinished of Result<unit, string>
+    | BankDisconnectFinished of SyncResult<unit>
     // Edit mode toggling
     | StartEditing of SettingsSection
     | CancelEditing
@@ -139,12 +141,30 @@ let comdirectPasswordIsSet (model: Model) : bool =
     |> Option.bind (fun s -> s.Comdirect)
     |> Option.exists (fun c -> c.HasPassword)
 
-/// "Bank trennen" fehlt nur, wenn es nichts zu trennen gibt. Nach einem gescheiterten Löschen zeigt der
-/// Stand schon `BankDisconnected`, der Wert liegt aber noch: dann bleibt der Knopf für den zweiten Versuch.
+/// Beginn eines Lesevorgangs. Ältere Antworten verfallen, ein bekannter Stand bleibt sichtbar.
+let beginBankStatusRead (model: Model) : Model =
+    { model with
+        BankStatus = (match model.BankStatus with NotAsked -> Loading | known -> known)
+        BankStatusReadVersion = model.BankStatusReadVersion + 1 }
+
+/// Der Text zur Anzeige. Der Server liefert hier nur `DatabaseError` mit fertiger Meldung.
+let bankDisconnectErrorText (error: SyncError) : string =
+    match error with
+    | SyncError.DatabaseError (_, message) -> message
+    | _ -> "Bank trennen gescheitert. Stand prüfen oder wiederholen."
+
+/// "Bank trennen" fehlt nur, wenn es nichts zu trennen gibt. Auch aus `Disconnected` kann ein Wert
+/// liegen, den das Löschen nicht erreicht hat: dann bleibt der Knopf für den zweiten Versuch.
 let canDisconnectBank (model: Model) : bool =
-    match model.BankStatus with
-    | Success (BankConnected | BankChallengePending) -> true
-    | _ -> model.BankDisconnectError.IsSome
+    match model.BankStatus, model.BankDisconnect with
+    | Success (BankConnected | BankChallengePending), _
+    | Failure _, _ -> true
+    | _, (Failure _ | Loading) -> true
+    | _ -> false
+
+/// Sichtbar ist, was die Bank wirklich erwartet, auch nach einem Neuladen oder aus einem Sync.
+let isTanPending (model: Model) : bool =
+    model.ComdirectAuthPending || model.BankStatus = Success BankChallengePending
 
 /// Was das Comdirect-Formular an den Server schickt. Rein, testbar ohne Proxy.
 let comdirectCredentialsFromForm (model: Model) : ComdirectSettings =

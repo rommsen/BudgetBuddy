@@ -302,7 +302,9 @@ let cliMutableGuardTests =
 // Kalendertag-Wächter (infrastructure-p747v)
 // ============================================================================
 
-let private serverZoneDay = Regex(@"\bDateTime\s*\.\s*(?:Today|Now)\b")
+// `UtcNow.Date` ist der UTC-Tag: am späten Abend in Berlin schon der falsche, nur anders geschrieben.
+let private serverZoneDay =
+    Regex(@"\bDateTime\s*\.\s*(?:Today|Now)\b|\bDateTime(?:Offset)?\s*\.\s*UtcNow\s*\.\s*Date\b")
 
 /// Stellen, die den Kalendertag aus der Zeitzone des Prozesses nehmen. Kommentare und
 /// String-Literale zählen nicht.
@@ -332,8 +334,10 @@ let serverZoneDayGuardTests =
                 "module Probe\n"
                 + "let a = DateTime.Today\n"
                 + "let b = DateTime.Now\n"
+                + "let c = DateTime.UtcNow.Date\n"
+                + "let d = DateTimeOffset.UtcNow.Date\n"
             let found = findServerZoneDays source
-            Expect.equal (found |> List.map (fun v -> v.Split(':')[0])) [ "2"; "3" ] "jede Zeile wird gemeldet"
+            Expect.equal (found |> List.map (fun v -> v.Split(':')[0])) [ "2"; "3"; "4"; "5" ] "jede Zeile wird gemeldet"
 
         testCase "Gegenbeweis: Kommentare, String-Literale und UtcNow zählen nicht" <| fun () ->
             let source =
@@ -592,7 +596,7 @@ let isBankWorkerWired (program: string) : bool =
 let isLivePortsStorageWired (session: string) : bool =
     Regex.IsMatch(
         fst (lex session),
-        @"let livePorts\b[\s\S]*?\bRefresh = refreshTokensLive\b[\s\S]*?\bStore = liveConnectionStore\b[\s\S]*?\bLoadKeys = loadLiveApiKeys\b")
+        @"let livePorts\b[\s\S]*?\bRefresh = refreshTokensLive\b[\s\S]*?\bFetchTransactions = getTransactions\b[\s\S]*?\bFetchFirstTransactionsPage = getFirstTransactionsPage\b[\s\S]*?\bStore = liveConnectionStore\b[\s\S]*?\bLoadKeys = loadLiveApiKeys\b")
 
 /// `name` ist auf Modulebene gebunden und besteht aus genau dem Ausdruck `body`, ohne Zusatz davor oder dahinter.
 let private isBoundExactlyTo (name: string) (body: string) (source: string) : bool =
@@ -637,7 +641,16 @@ let private apiWirings =
       @"\bconfirmTan\s*=\s*BankImport\.confirmTanWith\s+liveImportPorts\b"
       @"\bcancelSync\s*=\s*cancelSyncWith\s+SyncSessionManager\.validateSession\s+ComdirectAuthSession\.discardPendingChallenge\s+SyncSessionManager\.clearSession\b"
       @"\bgetBankConnectionStatus\s*=\s*fun\s*\(\)\s*->\s*async\.Return\s+\(ComdirectAuthSession\.connectionStatus\s+\(\)\)"
-      @"\bdisconnectBank\s*=\s*fun\s*\(\)\s*->\s*BankImport\.disconnectBankWith\s+liveImportPorts\s+ComdirectAuthSession\.disconnect\b" ]
+      @"\bdisconnectBank\s*=\s*fun\s*\(\)\s*->\s*BankImport\.disconnectBankWith\s+liveImportPorts\s+ComdirectAuthSession\.disconnect\b"
+      // Der Berliner Kalendertag (infrastructure-p747v): ein Prozess-Tag oder ein fester Tag kompilierte
+      // an jeder dieser Stellen, und der Testlauf steht selbst auf Europe/Berlin.
+      @"\bliveBerlinDay\s*\(\)\s*:\s*DateTime\s*=\s*Ledger\.Bot\.Domain\.berlinDayOf\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s*(?:\n\s*\n|\z)"
+      @"\bValidation\.validateManualTransaction\s+\(liveBerlinDay\s*\(\)\)\s+request\b"
+      @"\bgetAccountTransactions\s+token\s+\(YnabBudgetId\s+budgetId\)\s+\(YnabAccountId\s+accountGuid\)\s+\(liveBerlinDay\s*\(\)\)\s+90\b"
+      @"\bgetAccountTransactions\s+token\s+\(YnabBudgetId\s+budgetId\)\s+\(YnabAccountId\s+accountIdGuid\)\s+\(liveBerlinDay\s*\(\)\)\s+days\b"
+      @"\bToday\s*=\s*liveBerlinDay\b"
+      @"\bprepareForImport\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s+ynabAccountId\s+transferPayees\s+false\s+toImport\b"
+      @"\bprepareForImport\s+liveBerlinZone\.Value\s+DateTime\.UtcNow\s+ynabAccountId\s+transferPayees\s+true\s+transactionsToForce\b" ]
 
 /// Die Muster aus `apiWirings`, die im Quelltext fehlen.
 let findMissingApiWirings (api: string) : string list =
@@ -707,7 +720,14 @@ let hostedServiceGuardTests =
                   "confirmTan = BankImport.confirmTanWith liveImportPorts\n"
                   "cancelSync =\n    cancelSyncWith\n        SyncSessionManager.validateSession\n        ComdirectAuthSession.discardPendingChallenge\n        SyncSessionManager.clearSession\n"
                   "getBankConnectionStatus = fun () -> async.Return (ComdirectAuthSession.connectionStatus ())\n"
-                  "disconnectBank = fun () -> BankImport.disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect\n" ]
+                  "disconnectBank = fun () -> BankImport.disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect\n"
+                  "let private liveBerlinDay () : DateTime =\n    Ledger.Bot.Domain.berlinDayOf liveBerlinZone.Value DateTime.UtcNow\n\n"
+                  "Validation.validateManualTransaction (liveBerlinDay ()) request\n"
+                  "YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountGuid) (liveBerlinDay ()) 90\n"
+                  "YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (liveBerlinDay ()) days\n"
+                  "Today = liveBerlinDay\n"
+                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false toImport\n"
+                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true transactionsToForce\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
             Expect.isEmpty (findMissingApiWirings real) "richtig"
@@ -722,7 +742,15 @@ let hostedServiceGuardTests =
                   "BankImport.confirmTanWith liveImportPorts", "(fun _ -> async.Return (Ok ()))", "leere Bestätigung"
                   "ComdirectAuthSession.discardPendingChallenge", "(fun () -> async.Return ())", "Abbruch verwirft nichts"
                   "async.Return (ComdirectAuthSession.connectionStatus ())", "async.Return BankConnected", "erfundener Stand"
-                  "disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect", "disconnectBankWith liveImportPorts (fun () -> async.Return ())", "Trennen löscht nichts" ] do
+                  "disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect", "disconnectBankWith liveImportPorts (fun () -> async.Return ())", "Trennen löscht nichts"
+                  "berlinDayOf liveBerlinZone.Value DateTime.UtcNow", "berlinDayOf TimeZoneInfo.Utc DateTime.UtcNow", "Tag in UTC"
+                  "Ledger.Bot.Domain.berlinDayOf liveBerlinZone.Value DateTime.UtcNow", "DateTime.UtcNow.Date", "Tag ohne Zone"
+                  "validateManualTransaction (liveBerlinDay ())", "validateManualTransaction DateTime.Today", "Quick Add auf dem Prozess-Tag"
+                  "(YnabAccountId accountGuid) (liveBerlinDay ()) 90", "(YnabAccountId accountGuid) DateTime.Today 90", "Vorlagen auf dem Prozess-Tag"
+                  "(YnabAccountId accountIdGuid) (liveBerlinDay ()) days", "(YnabAccountId accountIdGuid) DateTime.Today days", "YNAB-Abgleich auf dem Prozess-Tag"
+                  "Today = liveBerlinDay", "Today = fun () -> DateTime.Today", "Bank-Import auf dem Prozess-Tag"
+                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false", "prepareForImport TimeZoneInfo.Utc DateTime.UtcNow ynabAccountId transferPayees false", "Import in UTC"
+                  "prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true", "prepareForImport TimeZoneInfo.Utc DateTime.UtcNow ynabAccountId transferPayees true", "erzwungener Import in UTC" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
 
@@ -749,13 +777,19 @@ let hostedServiceGuardTests =
             Expect.isFalse (isResumeOnLivePorts $"// {bound real}") "nur im Kommentar"
 
         testCase "Gegenbeweis: ein Ersatz für Speicher oder Schlüssel wird gemeldet" <| fun () ->
-            let portsWith (refresh: string) (store: string) (keys: string) =
-                $"let livePorts: ConnectionPorts = {{\n    Refresh = {refresh}\n    Store = {store}\n    LoadKeys = {keys}\n}}"
+            let portsFull (refresh: string) (fetch: string) (firstPage: string) (store: string) (keys: string) =
+                $"let livePorts: ConnectionPorts = {{\n    Refresh = {refresh}\n    FetchTransactions = {fetch}\n    FetchFirstTransactionsPage = {firstPage}\n    Store = {store}\n    LoadKeys = {keys}\n}}"
+            let portsWith (refresh: string) = portsFull refresh "getTransactions" "getFirstTransactionsPage"
             let ports = portsWith "refreshTokensLive"
             Expect.isTrue (isLivePortsStorageWired (ports "liveConnectionStore" "loadLiveApiKeys")) "richtig"
             Expect.isFalse (isLivePortsStorageWired (portsWith "(fun _ _ tokens -> async.Return (Ok tokens))" "liveConnectionStore" "loadLiveApiKeys")) "kein Refresh"
             Expect.isFalse (isLivePortsStorageWired (ports "emptyStore" "loadLiveApiKeys")) "anderer Speicher"
             Expect.isFalse (isLivePortsStorageWired (ports "liveConnectionStore" "(fun () -> async.Return None)")) "keine Schlüssel"
+            let emptyFetch = "(fun _ _ _ _ _ -> async.Return (Ok []))"
+            let emptyPage = "(fun _ _ _ -> async.Return (Ok []))"
+            Expect.isFalse (isLivePortsStorageWired (portsFull "refreshTokensLive" emptyFetch "getFirstTransactionsPage" "liveConnectionStore" "loadLiveApiKeys")) "Abruf ohne Bank"
+            Expect.isFalse (isLivePortsStorageWired (portsFull "refreshTokensLive" "getTransactions" emptyPage "liveConnectionStore" "loadLiveApiKeys")) "Verbindungstest ohne Bank"
+            Expect.isFalse (isLivePortsStorageWired (portsFull "refreshTokensLive" "getTransactionsWith client" "getFirstTransactionsPage" "liveConnectionStore" "loadLiveApiKeys")) "anderer Abruf"
 
         testCase "Gegenbeweis: leerer Ersatz, Vertauschung und Kommentar zählen nicht als Verdrahtung" <| fun () ->
             let registered (resume: string) (tick: string) =

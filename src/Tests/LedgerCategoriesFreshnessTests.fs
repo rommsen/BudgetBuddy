@@ -114,7 +114,7 @@ let tests =
                 Expect.isFalse (List.contains load (dispatched cmd)) "kein Abruf"
             }
             test "Vordergrund auf einer anderen Seite lädt nichts" {
-                let _, cmd = State.update State.VisibilityChanged (rootModel None Page.Settings)
+                let _, cmd = State.update State.VisibilityChanged (rootModel None Page.Rules)
                 Expect.isEmpty (dispatched cmd) "nichts"
             }
             test "EnsureCategoriesFresh bei jungem Stand tut nichts" {

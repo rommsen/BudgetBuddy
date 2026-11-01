@@ -117,3 +117,20 @@ let ledgerCategoriesSyncTests =
             Expect.isEmpty (dispatched cmd) "Kein zweiter Auslöser während einer laufenden Abfrage"
         }
     ]
+
+// Bug (B8): Beim Zurückholen der PWA blieb der Stand der Bankverbindung auf dem Stand von vor dem
+// Wegschalten, die Verbindung kann in der Zwischenzeit verfallen sein.
+[<Tests>]
+let bankStatusOnForegroundTests =
+    testList "State: die PWA kommt in den Vordergrund" [
+
+        test "Auf der Sync-Seite wird der Stand der Bank neu gelesen" {
+            let _, cmd = State.update VisibilityChanged (baseModel SyncFlow)
+            Expect.contains (dispatched cmd) (SyncFlowMsg Components.SyncFlow.Types.LoadBankStatus) "der Stand folgt"
+        }
+
+        test "Auf den Einstellungen wird der Stand der Bank neu gelesen" {
+            let _, cmd = State.update VisibilityChanged (baseModel Settings)
+            Expect.contains (dispatched cmd) (SettingsMsg Components.Settings.Types.LoadBankStatus) "der Stand folgt"
+        }
+    ]

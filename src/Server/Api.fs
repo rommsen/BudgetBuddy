@@ -44,6 +44,7 @@ let private settingsErrorToString (error: SettingsError) : string =
     | SettingsError.YnabTokenInvalid msg -> $"Invalid YNAB token: {msg}"
     | SettingsError.YnabConnectionFailed (status, msg) -> $"YNAB connection failed (HTTP {status}): {msg}"
     | SettingsError.ComdirectCredentialsInvalid (field, reason) -> $"Invalid Comdirect credentials ({field}): {reason}"
+    | SettingsError.ComdirectConnectionTestFailed reason -> $"Verbindungstest gescheitert: {reason}"
     | SettingsError.EncryptionFailed msg -> $"Encryption failed: {msg}"
     | SettingsError.DatabaseError (op, msg) -> $"Database error during {op}: {msg}"
 
@@ -233,12 +234,12 @@ let testComdirectConnectionWith
         let! accountId = getSetting "comdirect_account_id"
         match accountId |> Option.filter (String.IsNullOrWhiteSpace >> not) with
         | None ->
-            return Error (SettingsError.ComdirectCredentialsInvalid ("account_id", "Keine Comdirect-Konto-Id eingetragen. Der Verbindungstest liest die Umsätze dieses Kontos."))
+            return Error (SettingsError.ComdirectConnectionTestFailed BankImport.missingAccountIdMessage)
         | Some configuredId ->
             match! ComdirectAuthSession.fetchFirstTransactionsPageWith ports now configuredId with
             | Ok _ -> return Ok BankConnectionActive
             | Error comdirectError ->
-                return Error (SettingsError.ComdirectCredentialsInvalid ("transactions", comdirectErrorToString comdirectError))
+                return Error (SettingsError.ComdirectConnectionTestFailed (comdirectErrorToString comdirectError))
     | BankConnection.Disconnected
     | BankConnection.ChallengePending _ ->
         // Get Comdirect credentials from settings
@@ -259,7 +260,7 @@ let testComdirectConnectionWith
             }
             match! ComdirectAuthSession.startChallengeWith ports credentials with
             | Error comdirectError ->
-                return Error (SettingsError.ComdirectCredentialsInvalid ("auth", comdirectErrorToString comdirectError))
+                return Error (SettingsError.ComdirectConnectionTestFailed (comdirectErrorToString comdirectError))
             | Ok challenge ->
                 return Ok (TanChallengeStarted challenge.Id)
         | _ ->

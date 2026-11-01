@@ -14,7 +14,17 @@ open Server.BankConnection
 open Server.ComdirectAuthSession
 open Server.BankConnectionWorker
 
+module SettingsTypes = Components.Settings.Types
+module SettingsState = Components.Settings.State
+
 let private run (work: Async<'T>) = Async.RunSynchronously work
+
+/// Führt ein `Cmd` aus und sammelt die Nachrichten ein, nur für `Cmd.ofMsg` und `Cmd.batch`: ein
+/// `Cmd.OfAsync` fasste unter .NET den Fable.Remoting-Proxy an.
+let private dispatched (cmd: Elmish.Cmd<'msg>) : 'msg list =
+    let collected = ResizeArray<'msg>()
+    cmd |> List.iter (fun effect -> effect collected.Add)
+    List.ofSeq collected
 
 let private now = DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero)
 let private today = DateTime(2026, 10, 31)
@@ -443,9 +453,19 @@ let adapterTests =
             let probe = Probe(connected (tokensValidFor 600.0 "alt"))
             probe.FetchAnswer <- fun _ -> Error (ComdirectError.NetworkError (503, ""))
             let ports = probe.Build()
-            Expect.isError (testConnection ports) "der Fehler kommt an"
+            // Bug: ein Bankfehler hieß "Invalid Comdirect credentials", die Zugangsdaten stimmen aber.
+            match testConnection ports with
+            | Error (SettingsError.ComdirectConnectionTestFailed _) -> ()
+            | other -> failtestf "ComdirectConnectionTestFailed erwartet: %A" other
             Expect.equal probe.Logins.Value 0 "keine Challenge"
             Expect.equal (activeConnection ports).Session.Tokens.Access "alt" "Verbindung steht"
+
+        testCase "Disconnected, die Bank antwortet bei der Anmeldung 503: kein Vorwurf an die Zugangsdaten" <| fun () ->
+            let probe = Probe(Disconnected)
+            let ports = { probe.Build() with Login = fun _ _ -> async.Return (Error (ComdirectError.NetworkError (503, ""))) }
+            match testConnection ports with
+            | Error (SettingsError.ComdirectConnectionTestFailed _) -> ()
+            | other -> failtestf "ComdirectConnectionTestFailed erwartet: %A" other
 
         for label, settings in
             [ "fehlt", storedCredentials
@@ -454,7 +474,7 @@ let adapterTests =
                 let probe = Probe(connected (tokensValidFor 600.0 "alt"))
                 let ports = probe.Build()
                 match testConnectionWith settings ports with
-                | Error (SettingsError.ComdirectCredentialsInvalid (_, reason)) ->
+                | Error (SettingsError.ComdirectConnectionTestFailed reason) ->
                     Expect.stringContains reason "Konto-Id" "die Meldung nennt, was fehlt"
                 | other -> failtestf "Fehler erwartet: %A" other
                 Expect.equal probe.Fetches.Count 0 "kein Bankzugriff"
@@ -528,7 +548,10 @@ let bankStatusTests =
             let ports = Probe(connected (tokensValidFor 600.0 "alt")).Build()
             ports.Cell.Gate.Wait()
             try
-                Expect.equal (connectionStatusWith ports) Shared.Domain.BankConnected "antwortet bei belegtem Gate"
+                // Eine eigene Aufgabe mit Frist: wartete der Stand am Gate, wäre der Test rot statt hängend.
+                let status = Task.Run(fun () -> connectionStatusWith ports)
+                Expect.isTrue (status.Wait (TimeSpan.FromSeconds 5.0)) "antwortet bei belegtem Gate"
+                Expect.equal status.Result Shared.Domain.BankConnected "der Stand der Zelle"
             finally
                 ports.Cell.Gate.Release() |> ignore
 
@@ -540,25 +563,17 @@ let bankStatusTests =
                 for secret in tokenTexts do
                     Expect.isFalse (sent.Contains secret) $"{secret} darf nicht hinaus"
 
-        testCase "Bank trennen ist kein Verlust" <| fun () ->
-            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
-            let ports = probe.Build()
-            disconnectWith ports |> run
-            Expect.equal (connectionStatusWith ports) Shared.Domain.BankDisconnected "getrennt"
-            Expect.isEmpty probe.Losses "keine Meldung"
-            Expect.equal probe.Clears.Value 1 "Wert gelöscht"
-
         testCase "Einstellungen: nach gescheitertem Löschen bleibt die Meldung und der zweite Versuch" <| fun () ->
             let model, _ = Components.Settings.State.init ()
             let settled, _, _ =
                 Components.Settings.State.update
-                    (Components.Settings.Types.BankDisconnectFinished (Error "Wert liegt noch"))
-                    { model with BankStatus = Types.Success Shared.Domain.BankDisconnected; IsDisconnectingBank = true }
-            Expect.equal settled.BankDisconnectError (Some "Wert liegt noch") "Meldung steht"
+                    (Components.Settings.Types.BankDisconnectFinished (Error (SyncError.DatabaseError ("disconnect_bank", "Wert liegt noch"))))
+                    { model with BankStatus = Types.Success Shared.Domain.BankDisconnected; BankDisconnect = Types.Loading }
+            Expect.equal settled.BankDisconnect (Types.Failure "Wert liegt noch") "Meldung steht"
             Expect.isTrue (Components.Settings.Types.canDisconnectBank settled) "Knopf bleibt"
             let retried, _, _ =
                 Components.Settings.State.update (Components.Settings.Types.BankDisconnectFinished (Ok ())) settled
-            Expect.isNone retried.BankDisconnectError "Meldung weg"
+            Expect.equal retried.BankDisconnect Types.NotAsked "Meldung weg"
             Expect.isFalse (Components.Settings.Types.canDisconnectBank retried) "nichts mehr zu trennen"
 
         testCase "Einstellungen: eine offene TAN lässt sich trennen und der Wartezustand endet" <| fun () ->
@@ -567,6 +582,88 @@ let bankStatusTests =
             Expect.isTrue (Components.Settings.Types.canDisconnectBank waiting) "offene TAN ist trennbar"
             let finished, _, _ = Components.Settings.State.update (Components.Settings.Types.BankDisconnectFinished (Ok ())) waiting
             Expect.isFalse finished.ComdirectAuthPending "kein TAN-Knopf mehr"
+    ]
+
+let private settingsModel () : SettingsTypes.Model = fst (SettingsState.init ())
+
+let private settingsAfter (msg: SettingsTypes.Msg) (model: SettingsTypes.Model) : SettingsTypes.Model =
+    let updated, _, _ = SettingsState.update msg model
+    updated
+
+[<Tests>]
+let settingsBankClientTests =
+    let disconnectFailed = Types.Failure "Wert liegt noch"
+    testList "Einstellungen: Stand, Trennen und Rückfrage im Client" [
+
+        // Ohne Nachlesen zeigte das Badge nach einem Trennen oder einer TAN den alten Stand.
+        for label, msg in
+            [ "gelungenes Trennen", SettingsTypes.BankDisconnectFinished (Ok ())
+              "gescheitertes Trennen", SettingsTypes.BankDisconnectFinished (Error (SyncError.DatabaseError ("disconnect_bank", "x")))
+              "bestätigte TAN", SettingsTypes.ComdirectTanConfirmed (Ok ())
+              "gescheiterte TAN", SettingsTypes.ComdirectTanConfirmed (Error (SettingsError.ComdirectCredentialsInvalid ("tan", "x")))
+              "lebende Verbindung", SettingsTypes.ComdirectAuthStarted (Ok BankConnectionActive)
+              "gestartete TAN", SettingsTypes.ComdirectAuthStarted (Ok (TanChallengeStarted "c"))
+              "gescheiterter Test", SettingsTypes.ComdirectAuthStarted (Error (SettingsError.ComdirectConnectionTestFailed "x")) ] do
+            testCase $"{label}: der Stand der Bank wird neu gelesen" <| fun () ->
+                let _, cmd, _ = SettingsState.update msg (settingsModel ())
+                Expect.contains (dispatched cmd) SettingsTypes.LoadBankStatus "der Stand folgt"
+
+        // Bug (B6): die Meldung eines alten Trennens stand neben einer lebenden Verbindung.
+        for label, msg in
+            [ "bestätigte TAN", SettingsTypes.ComdirectTanConfirmed (Ok ())
+              "lebende Verbindung", SettingsTypes.ComdirectAuthStarted (Ok BankConnectionActive) ] do
+            testCase $"{label}: die Meldung eines gescheiterten Trennens verschwindet" <| fun () ->
+                let updated = settingsAfter msg { settingsModel () with BankDisconnect = disconnectFailed }
+                Expect.equal updated.BankDisconnect Types.NotAsked "die Verbindung steht neu, die Meldung gilt nicht mehr"
+
+        testCase "ein gescheiterter Verbindungstest lässt die Meldung des Trennens stehen" <| fun () ->
+            let msg = SettingsTypes.ComdirectAuthStarted (Error (SettingsError.ComdirectConnectionTestFailed "x"))
+            let updated = settingsAfter msg { settingsModel () with BankDisconnect = disconnectFailed }
+            Expect.equal updated.BankDisconnect disconnectFailed "nichts hat sich gelöst"
+
+        testCase "Abbrechen nimmt die Scharfstellung zurück" <| fun () ->
+            let updated = settingsAfter SettingsTypes.AbortBankDisconnect { settingsModel () with ConfirmingBankDisconnect = true }
+            Expect.isFalse updated.ConfirmingBankDisconnect "nicht mehr scharf"
+
+        testCase "bestätigen während des Trennens löst nichts aus" <| fun () ->
+            let busy = { settingsModel () with BankDisconnect = Types.Loading; ConfirmingBankDisconnect = true }
+            let updated, cmd, _ = SettingsState.update SettingsTypes.ConfirmBankDisconnect busy
+            Expect.isEmpty cmd "kein zweiter Aufruf"
+            Expect.equal updated busy "nichts ändert sich"
+
+        // Bug (B9): die Rückfrage stand beim Wechsel in die Bearbeitung weiter scharf.
+        testCase "Bearbeiten löscht die Scharfstellung" <| fun () ->
+            let updated =
+                settingsAfter (SettingsTypes.StartEditing SettingsTypes.ComdirectSection) { settingsModel () with ConfirmingBankDisconnect = true }
+            Expect.isFalse updated.ConfirmingBankDisconnect "nicht mehr scharf"
+
+        // Bug (B3): ohne Stand verschwand der Knopf, gerade wenn der Stand am wenigsten klar ist.
+        testCase "Stand nicht lesbar: Bank trennen bleibt möglich" <| fun () ->
+            let model = { settingsModel () with BankStatus = Types.Failure "weg" }
+            Expect.isTrue (SettingsTypes.canDisconnectBank model) "Trennen braucht den Stand nicht"
+
+        testCase "getrennt und nichts offen: es gibt nichts zu trennen" <| fun () ->
+            let model = { settingsModel () with BankStatus = Types.Success BankDisconnected }
+            Expect.isFalse (SettingsTypes.canDisconnectBank model) "kein Knopf"
+
+        // Bug (B2): eine offene TAN aus dem Sync oder von vor dem Neuladen zeigte keinen Weg, sie zu bestätigen.
+        for label, model in
+            [ "offene TAN laut Server", { settingsModel () with BankStatus = Types.Success BankChallengePending }
+              "soeben gestartet", { settingsModel () with ComdirectAuthPending = true } ] do
+            testCase $"{label}: der TAN-Block erscheint" <| fun () ->
+                Expect.isTrue (SettingsTypes.isTanPending model) "TAN offen"
+
+        testCase "verbunden: kein TAN-Block" <| fun () ->
+            let model = { settingsModel () with BankStatus = Types.Success BankConnected }
+            Expect.isFalse (SettingsTypes.isTanPending model) "nichts offen"
+
+        // Bug (B4): `Retry.reading` hält Antworten zurück, eine alte überschrieb den neueren Stand.
+        testCase "eine überholte Antwort ändert den Stand nicht" <| fun () ->
+            let older = SettingsTypes.beginBankStatusRead (settingsModel ())
+            let newer = SettingsTypes.beginBankStatusRead older
+            let answered = settingsAfter (SettingsTypes.BankStatusLoaded (newer.BankStatusReadVersion, Ok BankDisconnected)) newer
+            let late = settingsAfter (SettingsTypes.BankStatusLoaded (older.BankStatusReadVersion, Ok BankConnected)) answered
+            Expect.equal late.BankStatus (Types.Success BankDisconnected) "der neuere Stand bleibt"
     ]
 
 /// Gespeicherter Wert mit einem Access-Token, das noch lange gilt.
@@ -667,12 +764,29 @@ let persistingTests =
             disconnectWith (probe.Build()) |> run
             Expect.equal probe.Clears.Value 1 "gelöscht"
 
-        testCase "Trennen und Löschen scheitert: getrennt, der Fehler kommt an" <| fun () ->
-            // Ein stilles Scheitern ließe ein Token liegen, das der nächste Start wieder aufnimmt.
+        // Bug: Der Zustand zeigte `Disconnected`, der Wert lag aber noch und der nächste Start nahm die
+        // Verbindung wieder auf. Roman hätte sie für getrennt gehalten.
+        testCase "Trennen und Löschen scheitert: die Verbindung bleibt, der Fehler kommt an" <| fun () ->
             let probe = Probe(connected (tokensValidFor 600.0 "alt"), ClearFails = true)
             let ports = probe.Build()
             Expect.throws (fun () -> disconnectWith ports |> run) "der Fehler kommt an"
-            Expect.isTrue (isDisconnected ports) "getrennt"
+            Expect.equal (activeConnection ports).Session.Tokens.Access "alt" "der Zustand ist unverändert"
+
+        testCase "Trennen einer offenen TAN und Löschen scheitert: die TAN bleibt offen" <| fun () ->
+            let probe = Probe(pending, ClearFails = true)
+            let ports = probe.Build()
+            Expect.throws (fun () -> disconnectWith ports |> run) "der Fehler kommt an"
+            Expect.equal (connectionStatusWith ports) Shared.Domain.BankChallengePending "der Zustand ist unverändert"
+
+        testCase "Löschen scheitert, der zweite Versuch gelingt: der Stand folgt in beiden Schritten" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"), ClearFails = true)
+            let ports = probe.Build()
+            Expect.throws (fun () -> disconnectWith ports |> run) "erster Versuch"
+            Expect.equal (connectionStatusWith ports) Shared.Domain.BankConnected "noch verbunden"
+            probe.ClearFails <- false
+            disconnectWith ports |> run
+            Expect.equal (connectionStatusWith ports) Shared.Domain.BankDisconnected "jetzt getrennt"
+            Expect.equal probe.Clears.Value 1 "gelöscht"
 
         testCase "Zugangsdaten geändert: Wert gelöscht" <| fun () ->
             let probe = Probe(connected (tokensValidFor 600.0 "alt"))

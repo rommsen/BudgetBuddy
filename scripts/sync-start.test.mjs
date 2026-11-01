@@ -97,6 +97,41 @@ test("die Startansicht nennt den Stand der Bankverbindung", async () => {
   await ctx.close();
 });
 
+test("die Zeile zum Stand der Bank nimmt beim Laden schon ihre Höhe ein", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(15000);
+  const { promise: released, resolve: answer } = Promise.withResolvers();
+  await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(null)));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", async (r) => {
+    await released;
+    await r.fulfill(json("BankConnected"));
+  });
+  await page.goto(`http://localhost:${port}/#/`);
+  const start = page.getByRole("button", { name: "Sync starten" });
+  await start.waitFor();
+  // Die Einblendung der Ansicht verschiebt den Knopf selbst, gemessen wird danach.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  const before = (await start.boundingBox()).y;
+  answer();
+  await page.getByText("Nächster Sync ohne TAN").waitFor();
+  assert.equal((await start.boundingBox()).y, before, "kein Layout-Sprung");
+  await ctx.close();
+});
+
+test("Stand nicht lesbar: die Startansicht sagt das, der Sync bleibt möglich", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(15000);
+  await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(null)));
+  await page.goto(`http://localhost:${port}/#/`);
+  await page.getByText("Stand der Bankverbindung nicht lesbar").waitFor();
+  await page.getByRole("button", { name: "Sync starten" }).waitFor();
+  await ctx.close();
+});
+
 test("aktive Bankverbindung: die Prüfung erscheint ohne TAN-Schritt", async () => {
   const { ctx, page, calls } = await open(["ReviewReady", "ReviewingTransactions"]);
   await page.locator(".tx-row", { hasText: "Erfundener Markt" }).waitFor();

@@ -75,7 +75,8 @@ for (const [name, viewport] of [["PC", { width: 1440, height: 900 }], ["Handy", 
     const page = await browser.newPage({ viewport });
     page.setDefaultTimeout(30000);
     let status = "BankConnected";
-    let answers = [{ Error: "Gespeicherte Bankverbindung nicht gelöscht (SqliteException). Bank trennen wiederholen." }, { Ok: null }];
+    const failed = { Error: { DatabaseError: ["disconnect_bank", "Gespeicherte Bankverbindung nicht gelöscht (SqliteException). Bank trennen wiederholen."] } };
+    let answers = [failed, { Ok: null }];
     let calls = 0;
     await page.route("**/api/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked"}' }));
     await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));
@@ -83,8 +84,10 @@ for (const [name, viewport] of [["PC", { width: 1440, height: 900 }], ["Handy", 
     await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill(json(status)));
     await page.route("**/api/SyncApi/disconnectBank", (r) => {
       calls += 1;
-      status = "BankDisconnected";
-      r.fulfill(json(answers.shift()));
+      const answer = answers.shift();
+      // Wie der Server: scheitert das Löschen, bleibt die Verbindung bestehen.
+      if (answer.Ok !== undefined) status = "BankDisconnected";
+      r.fulfill(json(answer));
     });
 
     await page.goto(`http://localhost:${port}/#/settings`);
@@ -96,6 +99,7 @@ for (const [name, viewport] of [["PC", { width: 1440, height: 900 }], ["Handy", 
     assert.equal(calls, 0, "erst nach der Rückfrage");
     await card.getByRole("button", { name: "Wirklich trennen" }).click();
     await card.getByText("Gespeicherte Bankverbindung nicht gelöscht", { exact: false }).first().waitFor();
+    await card.getByText("Verbunden", { exact: true }).waitFor();
 
     await card.getByRole("button", { name: "Bank trennen" }).click();
     await card.getByRole("button", { name: "Wirklich trennen" }).click();
@@ -107,3 +111,81 @@ for (const [name, viewport] of [["PC", { width: 1440, height: 900 }], ["Handy", 
     await page.close();
   });
 }
+
+/** Einstellungen mit gemockter API. `answerStatus` antwortet auf getBankConnectionStatus. */
+async function openSettings(answerStatus, viewport = { width: 1440, height: 900 }) {
+  const page = await browser.newPage({ viewport });
+  page.setDefaultTimeout(30000);
+  await page.route("**/api/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked"}' }));
+  await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));
+  await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => r.fulfill(json({ SavedColor: null, SuggestedColor: null })));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", answerStatus);
+  await page.goto(`http://localhost:${port}/#/settings`);
+  const card = page.getByRole("heading", { name: "Comdirect Verbindung" }).locator("xpath=ancestor::div[2]");
+  return { page, card };
+}
+
+test("Rückfrage beim Trennen: Abbrechen steht vorn und die Rückfrage fällt nach drei Sekunden zurück", async () => {
+  const { page, card } = await openSettings((r) => r.fulfill(json("BankConnected")));
+  await card.getByRole("button", { name: "Bank trennen" }).click();
+  const confirm = card.getByRole("button", { name: "Wirklich trennen" });
+  await confirm.waitFor();
+  const cancelBox = await card.getByRole("button", { name: "Abbrechen" }).boundingBox();
+  const confirmBox = await confirm.boundingBox();
+  assert.ok(cancelBox.x < confirmBox.x, "der Doppeltipp trifft den harmlosen Knopf");
+  await confirm.waitFor({ state: "detached", timeout: 6000 });
+  await card.getByRole("button", { name: "Bank trennen" }).waitFor();
+  await page.close();
+});
+
+test("während des Trennens sind Bearbeiten und Verbindung testen gesperrt", async () => {
+  const { page, card } = await openSettings((r) => r.fulfill(json("BankConnected")));
+  // Die Schranke steht vor dem Klick: die Ansicht kann schneller sein als die abgefangene Anfrage.
+  const { promise: released, resolve: finish } = Promise.withResolvers();
+  await page.route("**/api/SyncApi/disconnectBank", async (r) => {
+    await released;
+    await r.fulfill(json({ Ok: null }));
+  });
+  await card.getByRole("button", { name: "Bank trennen" }).click();
+  await card.getByRole("button", { name: "Wirklich trennen" }).click();
+  await card.getByText("Bank wird getrennt", { exact: false }).waitFor();
+  assert.ok(await card.getByRole("button", { name: "Bearbeiten" }).isDisabled(), "Bearbeiten gesperrt");
+  assert.ok(await card.getByRole("button", { name: "Verbindung testen" }).isDisabled(), "Verbindung testen gesperrt");
+  const answered = page.waitForResponse("**/api/SyncApi/disconnectBank");
+  finish();
+  await answered;
+  await page.close();
+});
+
+test("geht die Antwort auf das Trennen verloren, steht ein fester Hinweis statt des technischen Fehlers", async () => {
+  const { page, card } = await openSettings((r) => r.fulfill(json("BankConnected")));
+  await page.route("**/api/SyncApi/disconnectBank", (r) => r.abort("connectionreset"));
+  await card.getByRole("button", { name: "Bank trennen" }).click();
+  await card.getByRole("button", { name: "Wirklich trennen" }).click();
+  await card.getByRole("alert").getByText("Antwort auf das Trennen fehlt. Stand prüfen oder wiederholen.").waitFor();
+  await page.close();
+});
+
+test("offene TAN laut Server: der TAN-Block steht auch in der Leseansicht und in der Bearbeitung einmal", async () => {
+  const { page, card } = await openSettings((r) => r.fulfill(json("BankChallengePending")));
+  const button = card.getByRole("button", { name: "TAN bestätigt" });
+  await button.waitFor();
+  await card.getByRole("button", { name: "Bearbeiten" }).click();
+  await card.getByPlaceholder("Deine Zugangsnummer").waitFor();
+  assert.equal(await button.count(), 1, "genau ein TAN-Block");
+  await page.close();
+});
+
+test("Stand nicht lesbar: Hinweis, Wiederholen und Bank trennen", async () => {
+  let readable = false;
+  const { page, card } = await openSettings((r) =>
+    readable ? r.fulfill(json("BankConnected")) : r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"x"}' }));
+  await card.getByText("Stand unbekannt", { exact: true }).waitFor();
+  await card.getByText("Stand der Bankverbindung nicht lesbar").waitFor();
+  await card.getByRole("button", { name: "Bank trennen" }).waitFor();
+  readable = true;
+  await card.getByRole("button", { name: "Wiederholen" }).click();
+  await card.getByText("Verbunden", { exact: true }).waitFor();
+  assert.equal(await card.getByText("Stand unbekannt", { exact: true }).count(), 0);
+  await page.close();
+});

@@ -140,6 +140,12 @@ let beginAccountsRead (model: Model) : Model =
         Accounts = (match model.Accounts with Success _ as loaded -> loaded | _ -> Loading)
         AccountsReadVersion = model.AccountsReadVersion + 1 }
 
+/// Beginn eines Lesens der Bankverbindung. Ältere Antworten verfallen, ein bekannter Stand bleibt sichtbar.
+let beginBankStatusRead (model: Model) : Model =
+    { model with
+        BankStatus = (match model.BankStatus with NotAsked -> Loading | known -> known)
+        BankStatusReadVersion = model.BankStatusReadVersion + 1 }
+
 /// Beginn eines Abrufs der Quick-Add-Id.
 let beginQuickAddRead (model: Model) : Model =
     { model with QuickAddReadVersion = model.QuickAddReadVersion + 1 }
@@ -195,6 +201,7 @@ let init () : Model * Cmd<Msg> =
         DuplicateTransactionIds = []
         IsTanConfirming = false
         BankStatus = NotAsked
+        BankStatusReadVersion = 0
         InterruptedStart = None
         ExpandedTransactionIds = Set.empty
         InlineRuleForm = None
@@ -252,19 +259,17 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         reading, Cmd.batch [ cmd; Cmd.ofMsg LoadBankStatus ], NoOp
 
     | LoadBankStatus ->
-        let cmd =
-            Cmd.OfAsync.either
-                Api.sync.getBankConnectionStatus
-                ()
-                (Ok >> BankStatusLoaded)
-                (fun ex -> Error ex.Message |> BankStatusLoaded)
-        model, cmd, NoOp
+        let reading = beginBankStatusRead model
+        let version = reading.BankStatusReadVersion
+        reading, Components.BankConnectionBadge.load (fun answer -> BankStatusLoaded (version, answer)), NoOp
 
-    | BankStatusLoaded (Ok status) ->
+    | BankStatusLoaded (version, _) when version <> model.BankStatusReadVersion ->
+        model, Cmd.none, NoOp
+
+    | BankStatusLoaded (_, Ok status) ->
         { model with BankStatus = Success status }, Cmd.none, NoOp
 
-    // Ein gescheitertes Lesen hält keinen Sync auf, es fehlt nur die Anzeige.
-    | BankStatusLoaded (Error reason) ->
+    | BankStatusLoaded (_, Error reason) ->
         { model with BankStatus = Failure reason }, Cmd.none, NoOp
 
     | SessionReadAnswered (version, _) when version <> model.SessionReadVersion ->
@@ -991,7 +996,8 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 CurrentSession = Success None
                 SyncTransactions = NotAsked
         }
-        model', Cmd.none, ShowToast ("Sync cancelled", ToastInfo)
+        // Der Abbruch verwirft eine offene TAN, das Badge muss das zeigen.
+        model', Cmd.ofMsg LoadBankStatus, ShowToast ("Sync cancelled", ToastInfo)
 
     | SyncCancelled (Error err) ->
         model, Cmd.none, ShowToast (syncErrorToString err, ToastError)

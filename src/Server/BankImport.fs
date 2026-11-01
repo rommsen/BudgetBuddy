@@ -31,6 +31,11 @@ type ReviewRequest = {
 type ReviewFetchFailure =
     | BankFetchFailed of ComdirectError
     | RulesInvalid of string
+    | AccountIdMissing
+
+/// Dieselbe Meldung für Sync und Verbindungstest.
+let missingAccountIdMessage =
+    "Keine Comdirect-Konto-Id eingetragen. Ohne sie lassen sich die Umsätze nicht lesen."
 
 let private skipConfirmedDuplicate (tx: SyncTransaction) : SyncTransaction =
     match tx.DuplicateStatus with
@@ -101,6 +106,12 @@ let private serialized (ports: ImportPorts) (work: Async<'T>) : Async<'T> =
             ports.Gate.Release() |> ignore
     }
 
+/// Die Konto-Id, an die der Abruf geht. Ein leerer Wert ginge sonst bis zur Bank.
+let private configuredAccountId (settings: ImportSettings) : string option =
+    settings.Comdirect
+    |> Option.bind (fun c -> c.AccountId)
+    |> Option.filter (String.IsNullOrWhiteSpace >> not)
+
 let private sessionNotFound (SyncSessionId id) : SyncError = SyncError.SessionNotFound id
 
 /// `cancelSync` löscht die Sitzung, ohne auf den Abruf zu warten. Danach darf der Ablauf sie nicht
@@ -125,23 +136,26 @@ type private FetchOutcome =
 
 let private fetchIntoSession (ports: ImportPorts) (settings: ImportSettings) (sessionId: SyncSessionId) : Async<FetchOutcome> =
     async {
-        let request = {
-            AccountId = settings.Comdirect |> Option.bind (fun c -> c.AccountId) |> Option.defaultValue ""
-            DaysToFetch = settings.DaysToFetch
-            Now = ports.Clock ()
-            Today = ports.Today ()
-        }
-        match! fetchForReview ports.Sources request with
-        | Error failure -> return FetchFailed failure
-        | Ok _ when not (isCurrent ports sessionId) -> return SessionGone
-        | Ok transactions ->
-            ports.Sessions.AddTransactions transactions
-            ports.Sessions.SetStatus ReviewingTransactions
-            match ports.Sessions.Current () with
-            | Some session ->
-                do! ports.Sessions.RecordChanged session
-                return ReviewInstalled session
-            | None -> return SessionGone
+        match configuredAccountId settings with
+        | None -> return FetchFailed AccountIdMissing
+        | Some accountId ->
+            let request = {
+                AccountId = accountId
+                DaysToFetch = settings.DaysToFetch
+                Now = ports.Clock ()
+                Today = ports.Today ()
+            }
+            match! fetchForReview ports.Sources request with
+            | Error failure -> return FetchFailed failure
+            | Ok _ when not (isCurrent ports sessionId) -> return SessionGone
+            | Ok transactions ->
+                ports.Sessions.AddTransactions transactions
+                ports.Sessions.SetStatus ReviewingTransactions
+                match ports.Sessions.Current () with
+                | Some session ->
+                    do! ports.Sessions.RecordChanged session
+                    return ReviewInstalled session
+                | None -> return SessionGone
     }
 
 let private failFetch (ports: ImportPorts) (failure: ReviewFetchFailure) : SyncError =
@@ -149,6 +163,7 @@ let private failFetch (ports: ImportPorts) (failure: ReviewFetchFailure) : SyncE
         match failure with
         | BankFetchFailed error -> ports.DescribeBankError error
         | RulesInvalid reason -> reason
+        | AccountIdMissing -> missingAccountIdMessage
     ports.Sessions.Fail message
     SyncError.TransactionFetchFailed message
 
@@ -196,6 +211,9 @@ let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
                 match settings.Comdirect with
                 | None ->
                     return Error (SyncError.ComdirectAuthFailed "Comdirect credentials not configured. Please configure them in Settings first.")
+                // Vor der Sitzung und vor einer Challenge: eine TAN brächte hier nichts.
+                | Some _ when (configuredAccountId settings).IsNone ->
+                    return Error (SyncError.TransactionFetchFailed missingAccountIdMessage)
                 | Some credentials ->
                     let session = ports.Sessions.StartNew ()
                     return! failingSessionOnException ports "start_sync" (async {
@@ -215,19 +233,19 @@ let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
 /// "Bank trennen" (ADR 0071). Läuft nach einem Start oder einer TAN-Bestätigung, ihr Ende ist also
 /// bekannt. Eine Sitzung, die noch auf die Bank wartet, verliert hier ihre Grundlage und endet
 /// sichtbar. Eine offene Prüfung bleibt, ihre Buchungen liegen schon im Speicher. Scheitert das
-/// Löschen, gilt das auch: im Speicher ist die Verbindung schon weg. Die Meldung nennt nur den Typ,
-/// der Text der Ausnahme könnte den gespeicherten Wert zitieren.
-let disconnectBankWith (ports: ImportPorts) (endConnection: unit -> Async<unit>) : Async<Result<unit, string>> =
+/// Löschen, bleibt die Verbindung bestehen und die Sitzung deshalb unberührt. Die Meldung nennt nur
+/// den Typ, der Text der Ausnahme könnte den gespeicherten Wert zitieren.
+let disconnectBankWith (ports: ImportPorts) (endConnection: unit -> Async<unit>) : Async<SyncResult<unit>> =
     serialized ports (async {
         let! outcome = async {
             try
                 do! endConnection ()
                 return Ok ()
             with ex ->
-                return Error $"Gespeicherte Bankverbindung nicht gelöscht ({ex.GetType().Name}). Bank trennen wiederholen."
+                return Error (SyncError.DatabaseError ("disconnect_bank", $"Gespeicherte Bankverbindung nicht gelöscht ({ex.GetType().Name}). Bank trennen wiederholen."))
         }
-        match ports.Sessions.Current () with
-        | Some { Status = (AwaitingBankAuth | AwaitingTan) } -> ports.Sessions.Fail "Bank getrennt. Sync neu starten."
+        match outcome, ports.Sessions.Current () with
+        | Ok (), Some { Status = (AwaitingBankAuth | AwaitingTan) } -> ports.Sessions.Fail "Bank getrennt. Sync neu starten."
         | _ -> ()
         return outcome
     })

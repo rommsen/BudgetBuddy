@@ -340,6 +340,73 @@ let private ynabSettingsCard (model: Model) (dispatch: Msg -> unit) =
 // Comdirect Settings Card
 // ============================================
 
+let private tanWaitingBlock (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-3"
+        prop.children [
+            Html.div [
+                prop.className "flex items-center gap-3 p-4 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
+                prop.children [
+                    Loading.spinner Loading.MD Loading.Orange
+                    Html.div [
+                        prop.className "flex-1"
+                        prop.children [
+                            Html.p [
+                                prop.className "text-sm font-medium text-neon-orange"
+                                prop.text "Warte auf TAN-Best\u00e4tigung..."
+                            ]
+                            Html.p [
+                                prop.className "text-xs text-text-muted"
+                                prop.text "Bitte best\u00e4tige die Push-TAN in deiner Comdirect App"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            Button.primary "TAN best\u00e4tigt" (fun () -> dispatch ConfirmComdirectTan)
+        ]
+    ]
+
+/// Stand, Meldung und TAN-Schritt. Steht über Lesen und Bearbeiten: eine offene TAN und eine
+/// gescheiterte Trennung gelten in beiden Ansichten.
+let private bankConnectionBlock (model: Model) (dispatch: Msg -> unit) =
+    Html.div [
+        prop.className "space-y-3 px-4 pt-4"
+        prop.children [
+            match model.BankStatus with
+            | Success status ->
+                settingElementRow "Bankverbindung" (Components.BankConnectionBadge.nextSyncHint status) (Components.BankConnectionBadge.view status)
+            | Failure _ ->
+                settingElementRow "Bankverbindung" Components.BankConnectionBadge.unreadableHint (
+                    Html.div [
+                        prop.className "flex items-center gap-2"
+                        prop.children [
+                            Components.BankConnectionBadge.unreadable ()
+                            Button.ghost "Wiederholen" (fun () -> dispatch LoadBankStatus)
+                        ]
+                    ])
+            | NotAsked
+            | Loading -> ()
+
+            match model.BankDisconnect with
+            | Failure reason -> ErrorDisplay.cardCompact reason None
+            | _ -> ()
+
+            if isTanPending model then
+                tanWaitingBlock dispatch
+        ]
+    ]
+
+/// Sekundärer Knopf, der während des Trennens gesperrt ist.
+let private lockableButton (isLocked: bool) (text: string) (onClick: unit -> unit) =
+    Button.view {
+        Button.defaultProps with
+            Text = text
+            OnClick = onClick
+            Variant = Button.Secondary
+            IsDisabled = isLocked
+    }
+
 let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
     let isConfigured =
         match model.Settings with
@@ -347,10 +414,14 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
         | _ -> false
 
     let isEditing = model.EditingSection = Some ComdirectSection
+    let isDisconnecting = RemoteData.isLoading model.BankDisconnect
 
     Card.standard [
-        // Gesetzte Zugangsdaten sind noch keine Bankverbindung, den Stand zeigt das Badge unten.
+        // Gesetzte Zugangsdaten sind noch keine Bankverbindung, den Stand zeigt das Badge darunter.
         sectionHeaderLabeled "Eingerichtet" "Comdirect Verbindung" isConfigured
+
+        if isConfigured then
+            bankConnectionBlock model dispatch
 
         if isConfigured && not isEditing then
             // READ-ONLY DISPLAY
@@ -365,27 +436,20 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             settingRow "Client-Secret" "Comdirect API Client-Secret" (secretStatus comdirect.HasClientSecret)
                             settingRow "Benutzername" "Comdirect-Zugangsnummer" (secretStatus comdirect.HasUsername)
                             settingRow "PIN" "Comdirect-PIN" (secretStatus comdirect.HasPassword)
-                            settingRow "Authentifizierung" "OAuth2 + photoTAN" "\u2014"
-                            match model.BankStatus with
-                            | Success status ->
-                                settingElementRow "Bankverbindung" (Components.BankConnectionBadge.nextSyncHint status) (Components.BankConnectionBadge.view status)
-                            | _ -> ()
-
-                            match model.BankDisconnectError with
-                            | Some reason -> ErrorDisplay.cardCompact reason None
-                            | None -> ()
+                            settingRow "Authentifizierung" "OAuth2 + Push-TAN" "\u2014"
 
                             Html.div [
                                 prop.className "flex flex-wrap gap-2 pt-4 mt-2 border-t border-border-subtle"
                                 prop.children [
-                                    Button.secondary "Bearbeiten" (fun () -> dispatch (StartEditing ComdirectSection))
-                                    Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
+                                    lockableButton isDisconnecting "Bearbeiten" (fun () -> dispatch (StartEditing ComdirectSection))
+                                    lockableButton isDisconnecting "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
                                     if canDisconnectBank model then
-                                        if model.IsDisconnectingBank then
+                                        if isDisconnecting then
                                             Loading.inlineWithText "Bank wird getrennt..."
                                         elif model.ConfirmingBankDisconnect then
-                                            Button.danger "Wirklich trennen" (fun () -> dispatch ConfirmBankDisconnect)
+                                            // "Abbrechen" steht dort, wo eben "Bank trennen" stand: ein Doppeltipp trifft ihn.
                                             Button.ghost "Abbrechen" (fun () -> dispatch AbortBankDisconnect)
+                                            Button.danger "Wirklich trennen" (fun () -> dispatch ConfirmBankDisconnect)
                                         else
                                             Button.danger "Bank trennen" (fun () -> dispatch RequestBankDisconnect)
                                 ]
@@ -468,60 +532,33 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                                 | Success s -> s.Comdirect.IsSome
                                 | _ -> false
 
-                            if hasCredentials then
-                                if model.ComdirectAuthPending then
-                                    // Waiting for TAN confirmation
+                            // Bei offener TAN steht der Wartezustand schon über dem Formular.
+                            if hasCredentials && not (isTanPending model) then
+                                match model.ComdirectConnectionValid with
+                                | Loading ->
+                                    Loading.inlineWithText "Verbindung wird getestet..."
+                                | Success _ ->
+                                    // Connection verified successfully
+                                    Html.div [
+                                        prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
+                                        prop.children [
+                                            Icons.checkCircle Icons.SM Icons.NeonGreen
+                                            Html.span [
+                                                prop.className "text-sm text-neon-green"
+                                                prop.text "Zugangsdaten erfolgreich verifiziert!"
+                                            ]
+                                        ]
+                                    ]
+                                | Failure error ->
                                     Html.div [
                                         prop.className "space-y-3"
                                         prop.children [
-                                            Html.div [
-                                                prop.className "flex items-center gap-3 p-4 rounded-lg bg-neon-orange/10 border border-neon-orange/30"
-                                                prop.children [
-                                                    Loading.spinner Loading.MD Loading.Orange
-                                                    Html.div [
-                                                        prop.className "flex-1"
-                                                        prop.children [
-                                                            Html.p [
-                                                                prop.className "text-sm font-medium text-neon-orange"
-                                                                prop.text "Warte auf TAN-Best\u00e4tigung..."
-                                                            ]
-                                                            Html.p [
-                                                                prop.className "text-xs text-text-muted"
-                                                                prop.text "Bitte best\u00e4tige die Push-TAN in deiner Comdirect App"
-                                                            ]
-                                                        ]
-                                                    ]
-                                                ]
-                                            ]
-                                            Button.primary "TAN best\u00e4tigt" (fun () -> dispatch ConfirmComdirectTan)
+                                            ErrorDisplay.cardCompact error None
+                                            Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
                                         ]
                                     ]
-                                else
-                                    match model.ComdirectConnectionValid with
-                                    | Loading ->
-                                        Loading.inlineWithText "Verbindung wird getestet..."
-                                    | Success _ ->
-                                        // Connection verified successfully
-                                        Html.div [
-                                            prop.className "flex items-center gap-2 p-3 rounded-lg bg-neon-green/10 border border-neon-green/30"
-                                            prop.children [
-                                                Icons.checkCircle Icons.SM Icons.NeonGreen
-                                                Html.span [
-                                                    prop.className "text-sm text-neon-green"
-                                                    prop.text "Zugangsdaten erfolgreich verifiziert!"
-                                                ]
-                                            ]
-                                        ]
-                                    | Failure error ->
-                                        Html.div [
-                                            prop.className "space-y-3"
-                                            prop.children [
-                                                ErrorDisplay.cardCompact error None
-                                                Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
-                                            ]
-                                        ]
-                                    | NotAsked ->
-                                        Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
+                                | NotAsked ->
+                                    Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
                         ]
                     ]
 

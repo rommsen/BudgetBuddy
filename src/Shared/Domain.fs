@@ -559,11 +559,10 @@ type ComdirectSettings = {
     ClientSecret: string
     Username: string
     Password: string
-    AccountId: string option  // Optional: only needed for fetching transactions
+    /// Darf im Speicher fehlen. Dann melden `startSync` und der Verbindungstest das konkret, an die
+    /// Bank geht kein leerer Wert.
+    AccountId: string option
 }
-
-/// Type-safe wrapper for Comdirect Account ID
-type ComdirectAccountId = ComdirectAccountId of string
 
 type YnabSettings = {
     PersonalAccessToken: string
@@ -628,6 +627,9 @@ type SettingsError =
     | YnabTokenInvalid of message: string
     | YnabConnectionFailed of httpStatus: int * message: string
     | ComdirectCredentialsInvalid of field: string * reason: string
+    /// Der Verbindungstest kam nicht durch: Bankfehler oder fehlende Konto-Id. Die Zugangsdaten sind
+    /// damit nicht widerlegt.
+    | ComdirectConnectionTestFailed of reason: string
     | EncryptionFailed of message: string
     | DatabaseError of operation: string * message: string
 

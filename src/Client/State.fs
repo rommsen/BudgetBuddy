@@ -500,8 +500,9 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     // Die PWA kam in den Vordergrund: auf der Kassenbuch-Seite verhält sich das wie
     // ein Seitenaufruf, es wird nur der Lauf-Status neu geladen. Dessen Frische-Prüfung
     // (`MirrorStatusLoaded`, `Components.Ledger.State`) entscheidet, ob ein
-    // Hintergrund-Lauf nötig ist. Auf jeder anderen Seite passiert nichts: ADR 0014
-    // nennt das Frische-Kriterium für die Kassenbuch-Seite, nicht für die ganze App.
+    // Hintergrund-Lauf nötig ist. ADR 0014 nennt das Frische-Kriterium nur für die
+    // Kassenbuch-Seite. Sync und Einstellungen lesen den Stand der Bankverbindung nach,
+    // sie kann im Hintergrund verfallen sein. Auf jeder anderen Seite passiert nichts.
     | VisibilityChanged ->
         match model.CurrentPage with
         | Ledger
@@ -513,6 +514,8 @@ let rec update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
                 if Components.Ledger.Types.categoriesReloadDue model.Ledger DateTime.Now then
                     Cmd.map LedgerMsg (Cmd.ofMsg Components.Ledger.Types.LoadCategories)
             ]
+        | SyncFlow -> model, Cmd.map SyncFlowMsg (Cmd.ofMsg Components.SyncFlow.Types.LoadBankStatus)
+        | Settings -> model, Cmd.map SettingsMsg (Cmd.ofMsg Components.Settings.Types.LoadBankStatus)
         | _ -> model, Cmd.none
 
     // Installierte PWA übernimmt einen neuen Deploy (ADR 0057). Geprüft wird höchstens

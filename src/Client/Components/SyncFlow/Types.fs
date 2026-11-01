@@ -244,6 +244,7 @@ type Model = {
     IsTanConfirming: bool
     /// Stand der Bankverbindung für die Startansicht.
     BankStatus: RemoteData<BankConnectionStatus>
+    BankStatusReadVersion: int
     /// Gesetzt, wenn die Antwort von `startSync` verloren ging und der Serverzustand neu gelesen wird.
     InterruptedStart: StartRecovery option
     /// Transaction IDs with expanded details (showing memo)
@@ -279,7 +280,8 @@ let knownAccounts (model: Model) : YnabAccount list =
 type Msg =
     | LoadCurrentSession
     | LoadBankStatus
-    | BankStatusLoaded of Result<BankConnectionStatus, string>
+    /// Antwort mit dem Stand ihres Lesevorgangs, wie `SessionReadAnswered`.
+    | BankStatusLoaded of version: int * Result<BankConnectionStatus, string>
     /// Antwort eines Lesevorgangs mit dessen Stand. Nur der aktuelle Stand wird zu
     /// `CurrentSessionLoaded` oder `CurrentSessionLoadFailed`.
     | SessionReadAnswered of version: int * Result<SyncSession option, string>

@@ -294,17 +294,23 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
 // Start Sync View
 // ============================================
 
+/// Die Zeile hält ihre Höhe in jedem Stand, die Antwort verschiebt den Knopf darunter nicht.
 let private bankStatusRow (status: Types.RemoteData<BankConnectionStatus>) =
+    let row (children: ReactElement list) =
+        Html.div [
+            prop.className "flex items-center justify-between gap-3 min-h-6 mb-4"
+            prop.children children
+        ]
+    let hint (text: string) = Html.p [ prop.className "text-sm text-text-secondary"; prop.text text ]
     match status with
     | Types.Success current ->
-        Html.div [
-            prop.className "flex items-center justify-between gap-3 mb-4"
-            prop.children [
-                Html.p [ prop.className "text-sm text-text-muted"; prop.text (Components.BankConnectionBadge.nextSyncHint current) ]
-                Components.BankConnectionBadge.view current
-            ]
+        row [
+            hint (Components.BankConnectionBadge.nextSyncHint current)
+            Components.BankConnectionBadge.view current
         ]
-    | _ -> Html.none
+    | Types.Failure _ -> row [ hint Components.BankConnectionBadge.unreadableHint ]
+    | Types.NotAsked
+    | Types.Loading -> row []
 
 let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch: Msg -> unit) =
     Html.div [
