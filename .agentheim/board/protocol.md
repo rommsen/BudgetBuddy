@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 19:29 -- Modeling / Promoted: banking-import-bftq0 - "Status der Bankverbindung sichtbar, Bank trennen"
+
+**Type:** Modeling / Promote
+**BC:** banking-import
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-01 19:29 -- Modeling / Promoted: banking-import-v8n3k - "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus"
 
 **Type:** Modeling / Promote

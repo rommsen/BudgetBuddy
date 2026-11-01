@@ -1,7 +1,7 @@
 ---
 id: banking-import-bftq0
 title: "Status der Bankverbindung sichtbar, Bank trennen"
-status: backlog
+status: todo
 type: feature
 context: banking-import
 created: 2026-10-30
