@@ -11,19 +11,19 @@ research touching this BC, and concept synthesis pages.
 
 <!-- task-counts:start -->
 - **Backlog:** 6
-- **Todo:** 2
-- **Doing:** 0
+- **Todo:** 0
+- **Doing:** 2
 - **Done:** 5
 <!-- task-counts:end -->
 
 ### Todo
 <!-- todo-list:start -->
-- **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen" (feature) — `todo/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`
-- **banking-import-v8n3k** — "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus" (bug) — `todo/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 <!-- todo-list:end -->
 
 ### Doing
 <!-- doing-list:start -->
+- **banking-import-bftq0** — "Status der Bankverbindung sichtbar, Bank trennen" (feature) — `doing/banking-import-bftq0-status-bankverbindung-und-verlustmeldung.md`
+- **banking-import-v8n3k** — "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus" (bug) — `doing/banking-import-v8n3k-verbindungstest-bei-connected-scheitert-vermutlich-am-konten.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)

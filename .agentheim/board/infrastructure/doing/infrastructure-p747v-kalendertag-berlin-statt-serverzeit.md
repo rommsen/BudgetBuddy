@@ -1,7 +1,7 @@
 ---
 id: infrastructure-p747v
 title: "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-11-01

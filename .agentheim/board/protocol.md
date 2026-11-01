@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 19:36 -- Batch started: [infrastructure-p747v, banking-import-v8n3k, banking-import-bftq0]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-p747v - "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today", banking-import-v8n3k - "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus", banking-import-bftq0 - "Status der Bankverbindung sichtbar, Bank trennen"
+**Parallel:** yes (3 workers); merge-order: p747v, v8n3k, bftq0, alle fassen src/Server/Api.fs an; infrastructure-jsys4 zurückgehalten, sein erster Schritt braucht Roman mit dem Android-Handy
+
+---
+
 ## 2026-11-01 19:29 -- Modeling / Promoted: banking-import-bftq0 - "Status der Bankverbindung sichtbar, Bank trennen"
 
 **Type:** Modeling / Promote
