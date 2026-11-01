@@ -25,6 +25,7 @@ let private budgetCategory name (assigned: int64) : BudgetCategory =
       Activity = eur 0L
       Available = eur assigned
       Underfunded = None
+      Target = None
       Snoozed = false }
 
 let private monthWith (cats: BudgetCategory list) : BudgetMonth =
@@ -145,6 +146,7 @@ type private FakeYnab(categories: (Guid * string * int64) list) =
                                           Activity = eur 0L
                                           Available = eur assigned[id]
                                           Underfunded = None
+                                          Target = None
                                           Snoozed = false
                                           Hidden = false
                                           Deleted = false

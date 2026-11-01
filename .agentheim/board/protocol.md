@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 11:44 -- Task verified and completed: budgeting-kjsht - "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag"
+
+**Type:** Work / Task completion
+**Task:** budgeting-kjsht - "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag"
+**Summary:** Budget-Seite und Vorschau zeigen je Kategorie das Target mit Rhythmus aus YNAB; die Budget-Seite nennt dazu pausiert, fehlt oder erfüllt, am Handy als dritte Zeile und am PC in der Spalte Target.
+**Duration:** 21m
+**Verification:** PASS (iteration 1)
+**Files changed:** 15
+**Tests added:** 29
+**ADRs written:** none
+
+---
+
 ## 2026-11-01 11:35 -- Task verified and completed: budgeting-et7z8 - "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht"
 
 **Type:** Work / Task completion

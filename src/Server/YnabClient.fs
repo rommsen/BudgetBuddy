@@ -63,6 +63,31 @@ module Decoders =
     let private milliunitsMoney (milliunits: int64) : Money =
         { Amount = decimal milliunits / 1000m; Currency = "EUR" }
 
+    /// Liest YNABs Kadenz (Research ynab-api-targets, Abschnitt 1): 1 monatlich, 2 wöchentlich,
+    /// 13 jährlich, jeweils mal Häufigkeit; 3 bis 12 alle 2 bis 11 Monate; 14 alle 2 Jahre.
+    /// Kadenz 0 heißt keine, nur ältere Monatsziele (`MF`) sind trotzdem monatlich.
+    let targetRhythm (goalType: string) (cadence: int) (frequency: int) : Shared.Budgeting.TargetRhythm =
+        let every = max 1 frequency
+        match cadence with
+        | 1 -> Shared.Budgeting.Months every
+        | 2 -> Shared.Budgeting.Weeks every
+        | 13 -> Shared.Budgeting.Years every
+        | 14 -> Shared.Budgeting.Years 2
+        | 0 when goalType = "MF" -> Shared.Budgeting.Months 1
+        | c when c >= 3 && c <= 12 -> Shared.Budgeting.Months (c - 1)
+        | _ -> Shared.Budgeting.NoRhythm
+
+    /// Das Target aus den `goal_*`-Feldern: ohne `goal_type` oder `goal_target` keins.
+    /// Fehlende Kadenz-Felder zählen wie Kadenz 0.
+    let private monthTarget (get: Decode.IGetters) : Shared.Budgeting.Target option =
+        let number name = get.Optional.Field name Decode.int |> Option.defaultValue 0
+        match get.Optional.Field "goal_type" Decode.string, get.Optional.Field "goal_target" Decode.int64 with
+        | Some goalType, Some amount ->
+            Some
+                { Amount = milliunitsMoney amount
+                  Rhythm = targetRhythm goalType (number "goal_cadence") (number "goal_cadence_frequency") }
+        | _ -> None
+
     /// Eine Kategorie aus `GET /budgets/{id}/months/{month}` (budgeting-k7wmd).
     /// `goal_under_funded` ist `null` ohne Target (dann `None`), sonst der Fehlbetrag;
     /// `goal_snoozed_at` gesetzt heißt pausiert. Fehlende Flags gelten als `false`.
@@ -79,6 +104,7 @@ module Decoders =
                Available = get.Required.Field "balance" Decode.int64 |> milliunitsMoney
                Underfunded =
                    get.Optional.Field "goal_under_funded" Decode.int64 |> Option.map milliunitsMoney
+               Target = monthTarget get
                Snoozed =
                    get.Optional.Field "goal_snoozed_at" Decode.string |> Option.isSome
                Hidden = flag "hidden"

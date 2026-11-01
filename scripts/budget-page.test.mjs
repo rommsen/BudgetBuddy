@@ -27,6 +27,7 @@ const category = (n, name, assigned, activity, available) => ({
   Activity: eur(activity),
   Available: eur(available),
   Underfunded: null,
+  Target: null,
   Snoozed: false,
 });
 
@@ -42,6 +43,36 @@ const monthFixture = (month, toBeBudgeted) => ({
       ],
     },
     { Name: "Rücklagen k7wmd", Categories: [category(3, "Urlaub k7wmd", 550, 0, 2921.6)] },
+  ],
+});
+
+// budgeting-kjsht: je eine Kategorie mit fehlendem, erfülltem und pausiertem Target, dazu eine
+// ohne Target und eine mit dem längsten Text, den die Zeile am Handy tragen muss.
+const withTarget = (base, target, underfunded, snoozed = false) => ({
+  ...base,
+  Target: target,
+  Underfunded: eur(underfunded),
+  Snoozed: snoozed,
+});
+const monthly = { Amount: eur(1600), Rhythm: { Months: 1 } };
+const targetFixture = (month) => ({
+  Month: month,
+  ToBeBudgeted: eur(10),
+  Groups: [
+    {
+      Name: "Alltag",
+      Categories: [
+        withTarget(category(1, "Essen", 0, 0, 0), monthly, 1600),
+        withTarget(category(2, "Kleidung", 1600, 0, 1600), monthly, 0),
+        withTarget(category(3, "Reise", 0, 0, 0), monthly, 1600, true),
+        category(4, "Macbook", 10, 0, 10),
+        withTarget(
+          category(5, "Eine Kategorie mit langem Namen und langem Target", 0, 0, 0),
+          { Amount: eur(121600), Rhythm: { Months: 11 } },
+          121600
+        ),
+      ],
+    },
   ],
 });
 
@@ -138,15 +169,71 @@ test("PC: Tabelle mit Spaltenköpfen Zugewiesen, Aktivität, Verfügbar", async 
     assert.equal(await table.count(), 1);
     const head = (await table.locator("thead").innerText()).replace(/\s+/g, " ").toLowerCase();
     assert.equal(await table.locator("thead tr").count(), 1, "genau eine Kopfzeile, keine verschachtelte");
-    assert.equal(await table.locator("thead tr th").count(), 4, "vier Spaltenköpfe in der einen Zeile");
+    assert.equal(await table.locator("thead tr th").count(), 5, "fünf Spaltenköpfe in der einen Zeile");
     for (const h of ["kategorie", "zugewiesen", "aktivität", "verfügbar"]) assert.ok(head.includes(h), `Spaltenkopf ${h}`);
     const rows = page.locator('[data-testid="budget-category-row"]').filter({ visible: true });
     assert.equal(await rows.count(), 3);
     const cells = await rows.first().locator("td").allInnerTexts();
-    assert.deepEqual(cells.map((c) => c.replace(/\s+/g, " ").trim()), ["Essen k7wmd", "1.600,00 €", "-921,10 €", "1.120,09 €"]);
+    assert.deepEqual(cells.map((c) => c.replace(/\s+/g, " ").trim()), ["Essen k7wmd", "", "1.600,00 €", "-921,10 €", "1.120,09 €"]);
   } finally {
     await context.close();
   }
+});
+
+const targetTexts = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="budget-category-row"]')]
+      .filter((row) => row.offsetParent !== null)
+      .map((row) => row.querySelector('[data-testid="budget-target"]')?.innerText.replace(/\s*\n\s*/g, " · ") ?? null)
+  );
+
+test("Handy: dritte Zeile nur mit Target, mit fehlt, erfüllt und pausiert, ohne horizontales Scrollen", async () => {
+  const { page, context } = await openPage(390, 844, { fixture: targetFixture });
+  await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+  assert.deepEqual(await targetTexts(page), [
+    "Target 1.600,00 €/Monat · fehlt 1.600,00 €",
+    "Target 1.600,00 €/Monat · erfüllt",
+    "Target 1.600,00 €/Monat · pausiert",
+    null,
+    "Target 121.600,00 € alle 11 Monate · fehlt 121.600,00 €",
+  ]);
+  const clipped = await page.evaluate(() => {
+    const lines = [...document.querySelectorAll('[data-testid="budget-target"]')].filter((el) => el.offsetParent !== null);
+    return lines.filter((el) => el.scrollWidth > el.clientWidth).map((el) => el.innerText);
+  });
+  assert.deepEqual(clipped, [], "keine Target-Zeile wird abgeschnitten");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  assert.equal(overflow, false, "kein horizontales Scrollen");
+  await context.close();
+});
+
+test("PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenzeile spannt alle Spalten", async () => {
+  const { page, context } = await openPage(1440, 900, { fixture: targetFixture });
+  await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+  const headers = await page.locator("table thead th").allInnerTexts();
+  assert.equal(headers[1].toLowerCase(), "target");
+  assert.equal(headers.length, 5);
+  assert.deepEqual(await targetTexts(page), [
+    "1.600,00 €/Monat · fehlt 1.600,00 €",
+    "1.600,00 €/Monat · erfüllt",
+    "1.600,00 €/Monat · pausiert",
+    null,
+    "121.600,00 € alle 11 Monate · fehlt 121.600,00 €",
+  ]);
+  assert.equal(await page.locator("table tbody tr td[colspan='5']").count(), 1);
+  await context.close();
+});
+
+test("Schmalster PC (768 px): die Tabelle mit Spalte Target läuft nicht aus ihrer Karte", async () => {
+  const { page, context } = await openPage(768, 900, { fixture: targetFixture });
+  await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+  const clipped = await page.evaluate(() => {
+    const table = document.querySelector("table");
+    const card = table.closest(".overflow-hidden");
+    return table.getBoundingClientRect().right > card.getBoundingClientRect().right + 0.5;
+  });
+  assert.equal(clipped, false, "die Spalte Verfügbar bleibt sichtbar");
+  await context.close();
 });
 
 test("Umschalter: Nächster Monat lädt den nächsten Monat und zeigt ihn", async () => {

@@ -227,6 +227,42 @@ let monthLabel (month: string) : string =
         | _ -> month
     | _ -> month
 
+let private moneyText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
+
+/// Betrag und Rhythmus eines Targets: "1.600,00 €/Monat", "120,00 € alle 3 Monate" (budgeting-kjsht).
+let targetText (target: Target) : string =
+    let amount = moneyText target.Amount
+    match target.Rhythm with
+    | Weeks 1 -> $"{amount}/Woche"
+    | Months 1 -> $"{amount}/Monat"
+    | Years 1 -> $"{amount}/Jahr"
+    | Weeks n -> $"{amount} alle {n} Wochen"
+    | Months n -> $"{amount} alle {n} Monate"
+    | Years n -> $"{amount} alle {n} Jahre"
+    | NoRhythm -> amount
+
+/// Der Zusatz zum Target: pausiert, fehlt oder erfüllt. Pausiert geht vor, weil der Fehlbetrag
+/// dann nicht zählt. Liefert YNAB keinen Fehlbetrag, gibt es keinen Zusatz.
+let targetStatusText (category: BudgetCategory) : string option =
+    match category.Snoozed, category.Underfunded with
+    | true, _ -> Some "pausiert"
+    | false, Some under when under.Amount > 0m -> Some $"fehlt {moneyText under}"
+    | false, Some _ -> Some "erfüllt"
+    | false, None -> None
+
+/// Die Zeile am Handy: "Target 1.600,00 €/Monat · fehlt 1.600,00 €".
+let targetLineText (category: BudgetCategory) (target: Target) : string =
+    match targetStatusText category with
+    | Some status -> $"Target {targetText target} · {status}"
+    | None -> $"Target {targetText target}"
+
+/// Die Zeile unter dem neuen Betrag in der Vorschau.
+let previewDetailText (line: TargetLine) : string =
+    let amounts = $"Zugewiesen {moneyText line.OldAssigned}, Fehlbetrag {moneyText line.Underfunded}"
+    match line.Target with
+    | Some target -> $"Target {targetText target}, {amounts}"
+    | None -> amounts
+
 /// Die Kategorien eines Monats als flache Zählung, für die Leer-Anzeige.
 let categoryCount (month: BudgetMonth) : int =
     month.Groups |> List.sumBy (fun g -> g.Categories.Length)

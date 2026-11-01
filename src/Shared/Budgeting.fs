@@ -36,6 +36,22 @@ let parseMonthChoice (key: string) : Result<BudgetMonthChoice, string> =
     | "next" -> Ok NextMonth
     | other -> Error $"Ungültiger Monat: '{other}'. Erlaubt sind 'last', 'current' und 'next'."
 
+/// In welchem Abstand ein Target wiederkehrt, in YNABs Kadenz gelesen (budgeting-kjsht).
+/// Die Zahl ist der Abstand: `Months 1` ist monatlich, `Months 3` alle 3 Monate.
+type TargetRhythm =
+    | Weeks of every: int
+    | Months of every: int
+    | Years of every: int
+    /// Keine Kadenz: nur der Betrag wird gezeigt.
+    | NoRhythm
+
+/// Das Target einer Kategorie, wie YNAB es liefert (`goal_target` und Kadenz). BB zeigt es nur
+/// an und rechnet nicht damit (ADR 0065): was fehlt, sagt der Fehlbetrag von YNAB.
+type Target = {
+    Amount: Money
+    Rhythm: TargetRhythm
+}
+
 /// Eine Kategorie so, wie YNABs Monats-Endpunkt sie liefert (vor dem Gruppieren).
 /// Ausgeblendete, gelöschte und interne Kategorien (Inflow: Ready to Assign) sind hier noch
 /// enthalten und werden erst von `Server.Budgeting.Domain.toBudgetMonth` weggelassen.
@@ -51,6 +67,8 @@ type YnabMonthCategory = {
     Available: Money
     /// Fehlbetrag (YNAB `goal_under_funded`): `None` ohne Target, `Some 0` wenn erfüllt.
     Underfunded: Money option
+    /// Das Target: `None`, wenn YNAB keins liefert.
+    Target: Target option
     /// Pausiert (YNAB `goal_snoozed_at` gesetzt): der Fehlbetrag zählt in diesem Monat nicht.
     Snoozed: bool
     Hidden: bool
@@ -69,7 +87,7 @@ type YnabMonth = {
 
 /// Eine angezeigte Kategorie. Felder wie `YnabMonthCategory`, ohne die Filter-Flags.
 /// `Underfunded` (Fehlbetrag) und `Snoozed` (Pausiert) braucht "Targets anwenden"
-/// (budgeting-h2zfn); die Seite zeigt sie nicht.
+/// (budgeting-h2zfn); die Seite zeigt sie zusammen mit dem Target an (budgeting-kjsht).
 type BudgetCategory = {
     Id: Guid
     Name: string
@@ -77,6 +95,7 @@ type BudgetCategory = {
     Activity: Money
     Available: Money
     Underfunded: Money option
+    Target: Target option
     Snoozed: bool
 }
 
@@ -117,6 +136,8 @@ type TargetLine = {
     OldAssigned: Money
     Underfunded: Money
     NewAssigned: Money
+    /// Nur zur Anzeige; zählt nicht beim Vergleich der Vorschau (`previewsMatch`).
+    Target: Target option
 }
 
 /// Eine Kategorie, deren Target pausiert ist: wird nicht angewendet, aber ausgewiesen.

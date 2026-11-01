@@ -19,6 +19,7 @@ let private category name (available: decimal) : BudgetCategory =
       Activity = eur 0m
       Available = eur available
       Underfunded = None
+      Target = None
       Snoozed = false }
 
 let private food = category "Lebensmittel" 80m

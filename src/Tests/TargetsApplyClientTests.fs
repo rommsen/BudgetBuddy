@@ -19,7 +19,8 @@ let private line name (oldA: decimal) (under: decimal) : TargetLine =
       GroupName = "Alltag"
       OldAssigned = eur oldA
       Underfunded = eur under
-      NewAssigned = eur (oldA + under) }
+      NewAssigned = eur (oldA + under)
+      Target = None }
 
 let private previewOf (after: decimal) (lines: TargetLine list) : TargetPreview =
     { Month = "2026-11-01"

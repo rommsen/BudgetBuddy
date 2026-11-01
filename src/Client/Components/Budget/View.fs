@@ -1,6 +1,7 @@
 /// Die Budget-Seite (budgeting-k7wmd): Monat, Umschalter letzter/dieser/nächster Monat, Zu verteilen
 /// als große Zahl und die Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar.
-/// Am Handy zweizeilige Zeilen ohne horizontales Scrollen, ab md eine Tabelle.
+/// Am Handy zwei Zeilen ohne horizontales Scrollen, mit Target eine dritte; ab md eine Tabelle
+/// mit der Spalte Target (budgeting-kjsht).
 ///
 /// Das Suchfeld über der Liste filtert die Kategorien (budgeting-rxxb4). Ein Tipp auf Verfügbar
 /// öffnet "Verschieben" (budgeting-afd8h), ein Tipp auf den Kategorie-Namen das Kategorie-Detail
@@ -24,11 +25,14 @@ open Client.DesignSystem.Tokens
 
 /// Ein Betrag in Listenschrift, neutral eingefärbt: Zugewiesen und Aktivität sind keine
 /// Warnsignale, nur Verfügbar färbt ein Minus (`Money.available`).
-let private plainAmount (m: Money) =
+let private plainText (text: string) =
     Html.span [
         prop.className $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textSecondary}"
-        prop.text (Money.formatAmountText false true m.Amount m.Currency)
+        prop.text text
     ]
+
+let private plainAmount (m: Money) =
+    plainText (Money.formatAmountText false true m.Amount m.Currency)
 
 let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 
@@ -136,15 +140,45 @@ let private mobileGroup (dispatch: Msg -> unit) (group: BudgetGroup) =
                                 ]
                             ]
                         ]
+                        match c.Target with
+                        | Some target ->
+                            Html.div [
+                                prop.className ListRoles.mobileLine2
+                                prop.children [
+                                    Html.span [
+                                        prop.custom ("data-testid", "budget-target")
+                                        prop.className $"{ListRoles.muted} truncate"
+                                        prop.text (targetLineText c target)
+                                    ]
+                                ]
+                            ]
+                        | None -> ()
                     ]
                 ]
         ]
     ]
 
+/// Target am PC: Betrag mit Rhythmus, darunter pausiert, fehlt oder erfüllt.
+let private targetCell (c: BudgetCategory) =
+    match c.Target with
+    | None -> Html.none
+    | Some target ->
+        Html.div [
+            prop.custom ("data-testid", "budget-target")
+            prop.className "flex flex-col items-end"
+            prop.children [
+                plainText (targetText target)
+                match targetStatusText c with
+                | Some status -> Html.span [ prop.className $"{ListRoles.muted} whitespace-nowrap"; prop.text status ]
+                | None -> ()
+            ]
+        ]
+
 let private desktopTable (dispatch: Msg -> unit) (groups: BudgetGroup list) =
     Table.view { Table.defaultTableProps with Variant = Table.Default; Responsive = false } [
         Table.thead [
             Table.calmHeaderCell "Kategorie" None
+            Table.calmHeaderCell "Target" (Some "right")
             Table.calmHeaderCell "Zugewiesen" (Some "right")
             Table.calmHeaderCell "Aktivität" (Some "right")
             Table.calmHeaderCell "Verfügbar" (Some "right")
@@ -155,7 +189,7 @@ let private desktopTable (dispatch: Msg -> unit) (groups: BudgetGroup list) =
                     prop.key $"group-{group.Name}"
                     prop.children [
                         Html.td [
-                            prop.colSpan 4
+                            prop.colSpan 5
                             prop.className $"{ListRoles.cellPaddingX} pt-4 pb-1 {ListRoles.groupHeader}"
                             prop.text group.Name
                         ]
@@ -167,9 +201,15 @@ let private desktopTable (dispatch: Msg -> unit) (groups: BudgetGroup list) =
                         prop.custom ("data-testid", "budget-category-row")
                         prop.className $"{ListRoles.rowHeight} border-b border-border-subtle"
                         prop.children [
-                            Table.cell Table.defaultCellProps [
-                                categoryNameButton false c dispatch
+                            // max-w-0 und w-full: der Name nimmt den Restplatz und kürzt, statt die
+                            // Tabelle aus der Karte zu drücken (sonst fehlt Verfügbar bei 768 px).
+                            Table.cell { Table.defaultCellProps with ClassName = Some "w-full max-w-0" } [
+                                Html.div [
+                                    prop.className "flex min-w-0"
+                                    prop.children [ categoryNameButton false c dispatch ]
+                                ]
                             ]
+                            Table.cell { Table.defaultCellProps with Align = Some "right" } [ targetCell c ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Assigned ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ plainAmount c.Activity ]
                             Table.cell { Table.defaultCellProps with Align = Some "right" } [ availableButton "" c dispatch ]
@@ -285,14 +325,11 @@ let private previewLine (l: TargetLine) =
                     ]
                 ]
             ]
-            Html.div [
-                prop.className ListRoles.mobileLine2
-                prop.children [
-                    Html.span [
-                        prop.className $"{ListRoles.muted} truncate"
-                        prop.text $"Zugewiesen {amountText l.OldAssigned}, Fehlbetrag {amountText l.Underfunded}"
-                    ]
-                ]
+            // Bricht um statt abzuschneiden: mit Target passt die Zeile am Handy nicht in eine Zeile.
+            Html.p [
+                prop.custom ("data-testid", "targets-line-detail")
+                prop.className $"{ListRoles.muted} mt-0.5"
+                prop.text (previewDetailText l)
             ]
         ]
     ]

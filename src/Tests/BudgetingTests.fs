@@ -40,6 +40,14 @@ let private decoded : YnabMonth =
     | Ok m -> m
     | Error e -> failwith e
 
+let private decodeCategory (goalFields: string) : YnabMonthCategory =
+    let separator = if goalFields = "" then "" else ","
+    let json =
+        $"""{{ "id": "55555555-5555-5555-5555-555555555555", "name": "x", "budgeted": 0, "activity": 0, "balance": 0 {separator} {goalFields} }}"""
+    match Thoth.Json.Net.Decode.fromString Server.YnabClient.Decoders.monthCategoryDecoder json with
+    | Ok c -> c
+    | Error e -> failwith e
+
 let private category groupName name hidden deleted internal' : YnabMonthCategory =
     { Id = Guid.NewGuid()
       Name = name
@@ -48,6 +56,7 @@ let private category groupName name hidden deleted internal' : YnabMonthCategory
       Activity = eur -500L
       Available = eur 500L
       Underfunded = None
+      Target = None
       Snoozed = false
       Hidden = hidden
       Deleted = deleted
@@ -74,6 +83,26 @@ let private decoderTests =
             Expect.equal decoded.Categories.[0].Underfunded (Some (eur 0L)) "0 bleibt Some 0"
             Expect.equal decoded.Categories.[1].Underfunded (Some (eur 25500L)) "positiv"
             Expect.equal decoded.Categories.[2].Underfunded None "null"
+        }
+        // budgeting-kjsht
+        test "goal_target mit Kadenz und Häufigkeit ergibt das Target" {
+            let c = decodeCategory """ "goal_type": "NEED", "goal_target": 120000, "goal_cadence": 1, "goal_cadence_frequency": 3 """
+            let expected : Target = { Amount = { Amount = 120m; Currency = "EUR" }; Rhythm = Months 3 }
+            Expect.equal c.Target (Some expected) "Betrag und Rhythmus"
+        }
+        test "goal_target null oder goal_type null ergibt kein Target" {
+            let noAmount = decodeCategory """ "goal_type": "NEED", "goal_target": null, "goal_cadence": 1 """
+            Expect.equal noAmount.Target None "goal_target null"
+            let noType = decodeCategory """ "goal_type": null, "goal_target": 120000, "goal_cadence": 1 """
+            Expect.equal noType.Target None "goal_type null"
+            let nothing = decodeCategory ""
+            Expect.equal nothing.Target None "keine goal-Felder"
+        }
+        test "Fehlende Kadenz-Felder lassen die Kategorie nicht scheitern" {
+            let c = decodeCategory """ "goal_type": "NEED", "goal_target": 120000 """
+            Expect.equal (c.Target |> Option.map (fun t -> t.Rhythm)) (Some NoRhythm) "nur der Betrag"
+            let nulls = decodeCategory """ "goal_type": "MF", "goal_target": 120000, "goal_cadence": null, "goal_cadence_frequency": null """
+            Expect.equal (nulls.Target |> Option.map (fun t -> t.Rhythm)) (Some (Months 1)) "MF ohne Kadenz"
         }
         test "goal_snoozed_at gesetzt ist pausiert, null nicht" {
             Expect.isTrue decoded.Categories.[1].Snoozed "gesetzt"
@@ -128,6 +157,13 @@ let private groupingTests =
                     category "Voll" "da" false false false
                 ]
             Expect.equal ((Domain.toBudgetMonth month).Groups |> List.map (fun g -> g.Name)) [ "Voll" ] "leere Gruppe fehlt"
+        }
+        // budgeting-kjsht
+        test "Das Target gelangt in die angezeigte Kategorie" {
+            let target : Target = { Amount = eur 50000L; Rhythm = Weeks 1 }
+            let month = monthOf [ { category "Alltag" "Essen" false false false with Target = Some target } ]
+            let shown = (Domain.toBudgetMonth month).Groups.Head.Categories.Head
+            Expect.equal shown.Target (Some target) "Target"
         }
         test "Ein Monat ohne Kategorien hat keine Gruppen und behält Zu verteilen" {
             let result = Domain.toBudgetMonth { monthOf [] with ToBeBudgeted = eur -5000L }

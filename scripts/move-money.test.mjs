@@ -29,6 +29,7 @@ const category = (n, name, available) => ({
   Activity: eur(0),
   Available: eur(available),
   Underfunded: null,
+  Target: null,
   Snoozed: false,
 });
 

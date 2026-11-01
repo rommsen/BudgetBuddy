@@ -26,6 +26,7 @@ let private category name (assigned: int64) (under: int64 option) (snoozed: bool
       Activity = eur 0L
       Available = eur assigned
       Underfunded = under |> Option.map eur
+      Target = None
       Snoozed = snoozed }
 
 let private monthOf (tbb: int64) (cats: BudgetCategory list) : BudgetMonth =
@@ -95,6 +96,19 @@ let private planTests =
             Expect.isFalse (Domain.previewsMatch p moved) "anderes Zugewiesen"
             let other = planOk (monthOf 49000L [ a ])
             Expect.isFalse (Domain.previewsMatch p other) "anderes Zu verteilen"
+        }
+        // budgeting-kjsht
+        test "Das Target der Kategorie steht in der Zeile der Vorschau" {
+            let target : Target = { Amount = eur 1600000L; Rhythm = Months 1 }
+            let p = planOk (monthOf 50000L [ { category "A" 0L (Some 10000L) false with Target = Some target } ])
+            Expect.equal p.Lines.Head.Target (Some target) "Target übernommen"
+        }
+        test "Ein geändertes Target allein löst kein Stand hat sich geändert aus" {
+            let a = category "A" 0L (Some 10000L) false
+            let before = planOk (monthOf 50000L [ { a with Target = Some { Amount = eur 10000L; Rhythm = Months 1 } } ])
+            let after = planOk (monthOf 50000L [ { a with Target = Some { Amount = eur 99000L; Rhythm = Weeks 1 } } ])
+            Expect.notEqual before.Lines.Head.Target after.Lines.Head.Target "Target weicht ab"
+            Expect.isTrue (Domain.previewsMatch before after) "Vorschau gilt weiter"
         }
         test "decideRetry: Ziel, Baseline, sonst gewinnt YNAB" {
             let baseline, target = eur 0L, eur 10000L
@@ -227,6 +241,7 @@ type private FakeYnab(initial: (Guid * string * int64 * int64 * bool) list, tbb0
                                           Activity = eur 0L
                                           Available = eur assigned[id]
                                           Underfunded = Some (eur (max 0L (target - assigned[id])))
+                                          Target = None
                                           Snoozed = snoozed
                                           Hidden = false
                                           Deleted = false

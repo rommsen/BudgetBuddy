@@ -28,7 +28,7 @@ const monthFixture = () => ({
     {
       Name: "Alltag h2zfn",
       Categories: [
-        { Id: guid(1), Name: "Essen h2zfn", Assigned: eur(0), Activity: eur(0), Available: eur(0), Underfunded: eur(300), Snoozed: false },
+        { Id: guid(1), Name: "Essen h2zfn", Assigned: eur(0), Activity: eur(0), Available: eur(0), Underfunded: eur(300), Target: { Amount: eur(300), Rhythm: { Months: 1 } }, Snoozed: false },
       ],
     },
   ],
@@ -41,6 +41,7 @@ const line = (n, name, oldA, under) => ({
   OldAssigned: eur(oldA),
   Underfunded: eur(under),
   NewAssigned: eur(oldA + under),
+  Target: { Amount: eur(1600), Rhythm: { Months: 1 } },
 });
 
 const previewFixture = (count, toBeBudgeted = 5000) => {
@@ -138,6 +139,21 @@ test("Handy: Summe und Zu verteilen danach sichtbar, Übernehmen ohne Scrollen e
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
     assert.ok(overflow, "kein horizontales Scrollen");
     assert.equal(calls.apply.length, 0, "die Vorschau schreibt nicht");
+  } finally {
+    await context.close();
+  }
+});
+
+// budgeting-kjsht: die Zeile ist am Handy länger als die Breite, sie muss umbrechen und darf nicht abgeschnitten werden.
+test("Handy: eine Vorschau-Zeile zeigt Target, Zugewiesen und Fehlbetrag vollständig", async () => {
+  const preview = previewFixture(1);
+  const { context, page } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
+  try {
+    await open(page);
+    const detail = page.locator('[data-testid="targets-line-detail"]');
+    assert.equal(await text(detail), "Target 1.600,00 €/Monat, Zugewiesen 0,00 €, Fehlbetrag 10,00 €");
+    const clipped = await detail.evaluate((el) => el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
+    assert.equal(clipped, false, "die Zeile bleibt ganz lesbar");
   } finally {
     await context.close();
   }

@@ -30,6 +30,7 @@ let private toBudgetCategory (c: YnabMonthCategory) : BudgetCategory =
       Activity = c.Activity
       Available = c.Available
       Underfunded = c.Underfunded
+      Target = c.Target
       Snoozed = c.Snoozed }
 
 /// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Gruppen und Kategorien behalten
@@ -84,7 +85,8 @@ let planTargetApplication (month: BudgetMonth) : Result<TargetPreview, string> =
                               GroupName = groupName
                               OldAssigned = c.Assigned
                               Underfunded = under
-                              NewAssigned = { Amount = c.Assigned.Amount + under.Amount; Currency = c.Assigned.Currency } }
+                              NewAssigned = { Amount = c.Assigned.Amount + under.Amount; Currency = c.Assigned.Currency }
+                              Target = c.Target }
                         line :: lines, skipped
                 | _ -> lines, skipped)
             ([], [])

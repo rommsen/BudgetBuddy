@@ -40,8 +40,8 @@ const month = {
     {
       Name: "Alltag m1bce",
       Categories: [
-        { Id: CATEGORY, Name: "Lebensmittel m1bce", Assigned: eur(100), Activity: eur(-50), Available: eur(50), Underfunded: null, Snoozed: false },
-        { Id: guid(2), Name: "Urlaub m1bce", Assigned: eur(10), Activity: eur(0), Available: eur(10), Underfunded: null, Snoozed: false },
+        { Id: CATEGORY, Name: "Lebensmittel m1bce", Assigned: eur(100), Activity: eur(-50), Available: eur(50), Underfunded: null, Target: null, Snoozed: false },
+        { Id: guid(2), Name: "Urlaub m1bce", Assigned: eur(10), Activity: eur(0), Available: eur(10), Underfunded: null, Target: null, Snoozed: false },
       ],
     },
   ],

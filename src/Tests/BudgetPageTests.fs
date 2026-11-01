@@ -88,7 +88,7 @@ let private labelTests =
         test "Kategorien werden über alle Gruppen gezählt" {
             let cat n : BudgetCategory =
                 { Id = System.Guid.NewGuid(); Name = n; Assigned = eur 0m; Activity = eur 0m
-                  Available = eur 0m; Underfunded = None; Snoozed = false }
+                  Available = eur 0m; Underfunded = None; Target = None; Snoozed = false }
             let month =
                 { monthK7wmd with
                     Groups = [ { Name = "A"; Categories = [ cat "a"; cat "b" ] }; { Name = "B"; Categories = [ cat "c" ] } ] }
@@ -138,6 +138,7 @@ let private cat (n: int) (name: string) : BudgetCategory =
       Activity = rxxb4Money
       Available = rxxb4Money
       Underfunded = None
+      Target = None
       Snoozed = false }
 
 let private groupsRxxb4 : BudgetGroup list =
@@ -231,6 +232,7 @@ let private detailCategoryFixture : BudgetCategory =
       Activity = eur -30m
       Available = eur 70m
       Underfunded = None
+      Target = None
       Snoozed = false }
 
 let private detailMonth : BudgetMonth =
@@ -425,9 +427,84 @@ let private returnTests =
         }
     ]
 
+// ---------------- Targets sichtbar (budgeting-kjsht) ----------------
+
+let private rhythmOf = Server.YnabClient.Decoders.targetRhythm
+let private targetOf (amount: decimal) rhythm : Target = { Amount = eur amount; Rhythm = rhythm }
+
+let private targetCategory (target: Target) (under: decimal option) (snoozed: bool) : BudgetCategory =
+    { detailCategoryFixture with
+        Target = Some target
+        Underfunded = under |> Option.map eur
+        Snoozed = snoozed }
+
+let private targetTextTests =
+    testList "Rhythmus-Text (kjsht)" [
+        for name, amount, goalType, cadence, frequency, expected in
+            [ "wöchentlich", 50m, "NEED", 2, 1, "50,00 €/Woche"
+              "alle 2 Wochen", 50m, "NEED", 2, 2, "50,00 € alle 2 Wochen"
+              "monatlich", 1600m, "NEED", 1, 1, "1.600,00 €/Monat"
+              "Häufigkeit 0 zählt wie 1", 1600m, "NEED", 1, 0, "1.600,00 €/Monat"
+              "monatlich mal Häufigkeit", 120m, "NEED", 1, 3, "120,00 € alle 3 Monate"
+              "jährlich", 330m, "NEED", 13, 1, "330,00 €/Jahr"
+              "jährlich mal Häufigkeit", 120m, "NEED", 13, 2, "120,00 € alle 2 Jahre"
+              "Kadenz 3 ist alle 2 Monate", 120m, "NEED", 3, 1, "120,00 € alle 2 Monate"
+              "Kadenz 4 ist alle 3 Monate", 120m, "NEED", 4, 1, "120,00 € alle 3 Monate"
+              "Kadenz 12 ist alle 11 Monate", 120m, "NEED", 12, 1, "120,00 € alle 11 Monate"
+              "Kadenz 14 ist alle 2 Jahre", 120m, "NEED", 14, 1, "120,00 € alle 2 Jahre"
+              "Kadenz 0 bei MF ist monatlich", 100m, "MF", 0, 0, "100,00 €/Monat"
+              "Kadenz 0 ohne MF ist nur der Betrag", 100m, "TB", 0, 1, "100,00 €"
+              "unbekannte Kadenz ist nur der Betrag", 100m, "NEED", 15, 1, "100,00 €" ] do
+            test name {
+                Expect.equal (targetText (targetOf amount (rhythmOf goalType cadence frequency))) expected name
+            }
+    ]
+
+let private targetStatusTests =
+    let target = targetOf 1600m (Months 1)
+    testList "Zusatz zum Target (kjsht)" [
+        test "Fehlbetrag größer 0 zeigt fehlt" {
+            let c = targetCategory target (Some 1600m) false
+            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat · fehlt 1.600,00 €" "Zeile"
+        }
+        test "Fehlbetrag 0 zeigt erfüllt" {
+            let c = targetCategory target (Some 0m) false
+            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat · erfüllt" "Zeile"
+        }
+        test "Pausiert geht vor, auch mit Fehlbetrag" {
+            let c = targetCategory target (Some 1600m) true
+            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat · pausiert" "Zeile"
+        }
+        test "Ohne Fehlbetrag von YNAB gibt es keinen Zusatz" {
+            let c = targetCategory target None false
+            Expect.equal (targetStatusText c) None "kein Zusatz"
+            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat" "nur das Target"
+        }
+        test "Vorschau nennt Target, Zugewiesen und Fehlbetrag" {
+            let line : TargetLine =
+                { CategoryId = categoryId
+                  CategoryName = "Essen"
+                  GroupName = "Alltag"
+                  OldAssigned = eur 0m
+                  Underfunded = eur 1600m
+                  NewAssigned = eur 1600m
+                  Target = Some target }
+            Expect.equal
+                (previewDetailText line)
+                "Target 1.600,00 €/Monat, Zugewiesen 0,00 €, Fehlbetrag 1.600,00 €"
+                "mit Target"
+            Expect.equal
+                (previewDetailText { line with Target = None })
+                "Zugewiesen 0,00 €, Fehlbetrag 1.600,00 €"
+                "ohne Target"
+        }
+    ]
+
 [<Tests>]
 let tests =
     testList "Budget-Seite (k7wmd)" [
+        targetTextTests
+        targetStatusTests
         selectTests
         loadedTests
         labelTests

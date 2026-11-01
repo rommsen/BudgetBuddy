@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 2
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 8
+- **Doing:** 0
+- **Done:** 9
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-kjsht** — "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag" (feature) — `doing/budgeting-kjsht-targets-sichtbar.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-kjsht** — "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag" (feature) — `done/budgeting-kjsht-targets-sichtbar.md`
 - **budgeting-et7z8** — "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht" (feature) — `done/budgeting-et7z8-letzter-monat.md`
 - **budgeting-m1bce** — "Kategorie-Detail: Tipp auf den Namen zeigt Zugewiesen, Aktivität, Verfügbar und die Buchungen des Monats aus dem Kassenbuch; Tipp auf eine Buchung öffnet sie im Kassenbuch" (feature) — `done/budgeting-m1bce-kategorie-detail.md`
 - **budgeting-nfrds** — "Verschieben absichern: Erneut senden hält die Reihenfolge ein, das Sheet rechnet mit dem aktuellen Stand, Monat und Eingaben werden an der API-Grenze festgelegt" (bug) — `done/budgeting-nfrds-verschieben-absichern.md`
