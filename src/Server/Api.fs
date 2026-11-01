@@ -21,6 +21,19 @@ module RuleCommands = Server.Rules.CommandHandlers
 // Helper Functions
 // ============================================
 
+/// Die Zone Europe/Berlin der laufenden App für die Werte dieses Moduls, die ohne Parameter
+/// leben (`ynabApi`, `syncApi`). `Program.fs` bricht schon beim Start ab, wenn sie fehlt.
+let private liveBerlinZone =
+    lazy
+        match Server.ServerConfig.tryResolveBerlinZone () with
+        | Ok zone -> zone
+        | Error message -> failwith message
+
+/// Der Kalendertag der laufenden App. Der Produktions-Container läuft auf UTC, die Zeitzone des
+/// Prozesses ist also kein Berliner Tag (infrastructure-p747v).
+let private liveBerlinDay () : DateTime =
+    Ledger.Bot.Domain.berlinDayOf liveBerlinZone.Value DateTime.UtcNow
+
 /// Converts Result<'T, 'E list> to Result<'T, string>
 let inline private combineErrors (result: Result<'T, string list>) : Result<'T, string> =
     result |> Result.mapError (String.concat "; ")
@@ -411,7 +424,7 @@ let ynabApi : YnabApi = {
     }
 
     addManualTransaction = fun request -> async {
-        match Validation.validateManualTransaction request with
+        match Validation.validateManualTransaction (liveBerlinDay ()) request with
         | Error errors ->
             return Error (YnabError.InvalidResponse (String.concat ", " errors))
         | Ok validRequest ->
@@ -510,7 +523,7 @@ let ynabApi : YnabApi = {
                 // One read per page visit; ~90 days back is plenty of history for
                 // recurring cash bookings while staying well within YNAB's rate
                 // limit (~200 req/h). The dedup/projection is pure (Domain).
-                match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountGuid) 90 with
+                match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountGuid) (liveBerlinDay ()) 90 with
                 | Ok transactions -> return Ok (recentQuickAddTemplates 5 transactions)
                 | Error err -> return Error err
         | _ ->
@@ -620,6 +633,18 @@ let rulesApi : RulesApi = {
 // Comdirect-Import-Kandidaten (ledger-w6tbq)
 // ============================================
 
+/// `prepareTransactions` für den Import. Zukunft heißt: nach dem Berliner Kalendertag von
+/// `utcNow` (infrastructure-p747v). Das gilt für den normalen wie für den erzwungenen Import.
+let internal prepareForImport
+    (berlinZone: TimeZoneInfo)
+    (utcNow: DateTime)
+    (accountId: YnabAccountId)
+    (transferPayees: Map<YnabAccountId, YnabPayeeId>)
+    (forceNewImportId: bool)
+    (transactions: SyncTransaction list)
+    : PrepareResult =
+    prepareTransactions (Ledger.Bot.Domain.berlinDayOf berlinZone utcNow) accountId transferPayees forceNewImportId transactions
+
 /// Baut aus einem `prepareTransactions`-Ergebnis die Kassenbuch-Kandidaten für einen
 /// Comdirect-Import-Push. Einzige Stelle, die `ExistingEntryImportId` setzt: vorher
 /// stand dieser gut 20-zeilige Block doppelt im normalen Import-Push und in
@@ -704,7 +729,7 @@ let private loadYnabTransactionsForReview (days: int) : Async<YnabTransaction li
     | Some token, Some budgetId, Some accountIdStr ->
         match Guid.TryParse(accountIdStr: string) with
         | true, accountIdGuid ->
-            match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) days with
+            match! YnabClient.getAccountTransactions token (YnabBudgetId budgetId) (YnabAccountId accountIdGuid) (liveBerlinDay ()) days with
             | Ok ynabTransactions -> return Some ynabTransactions
             | Error _ -> return None
         | false, _ -> return None
@@ -737,7 +762,7 @@ let internal liveImportPorts : BankImport.ImportPorts = {
     }
     DescribeBankError = comdirectErrorToString
     Clock = fun () -> DateTime.UtcNow
-    Today = fun () -> DateTime.Today
+    Today = liveBerlinDay
 }
 
 let syncApi : SyncApi = {
@@ -990,9 +1015,8 @@ let syncApi : SyncApi = {
                         | Error ynabError ->
                             return Error (SyncError.YnabImportFailed (toImport.Length, ynabErrorText ynabError))
                         | Ok transferPayees ->
-                            let today = DateTime.Today
                             let prepared0 =
-                                prepareTransactions today ynabAccountId transferPayees false toImport
+                                prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees false toImport
 
                             // Rückfrage Lena (ynab-sync-d9e51): die Farbe wird erst jetzt aus
                             // den Settings gelesen, nicht beim Setzen der Rückfrage. Fehlt sie
@@ -1140,13 +1164,12 @@ let syncApi : SyncApi = {
                         | Error ynabError ->
                             return Error (SyncError.YnabImportFailed (transactionsToForce.Length, ynabErrorText ynabError))
                         | Ok transferPayees ->
-                            let today = DateTime.Today
                             // Force import with NEW import_ids (forceNewImportId = true):
                             // nur für YNABs Dedup. Die Kassenbuch-Suche läuft über die
                             // alte, deterministische ImportId
                             // (`buildComdirectImportCandidates true`, ledger-w6tbq), nicht
                             // über diese neue (ledger-fq3kd).
-                            let prepared0 = prepareTransactions today ynabAccountId transferPayees true transactionsToForce
+                            let prepared0 = prepareForImport liveBerlinZone.Value DateTime.UtcNow ynabAccountId transferPayees true transactionsToForce
                             // Eine erzwungene Buchung mit Rückfrage Lena geht wieder mit der Flag-Farbe
                             // (ynab-sync-d9e51); die Zahl der ohne Flag gesendeten ist hier nicht Teil
                             // des Ergebnisses.

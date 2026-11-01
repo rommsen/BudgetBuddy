@@ -299,6 +299,52 @@ let cliMutableGuardTests =
     ]
 
 // ============================================================================
+// Kalendertag-Wächter (infrastructure-p747v)
+// ============================================================================
+
+let private serverZoneDay = Regex(@"\bDateTime\s*\.\s*(?:Today|Now)\b")
+
+/// Stellen, die den Kalendertag aus der Zeitzone des Prozesses nehmen. Kommentare und
+/// String-Literale zählen nicht.
+let findServerZoneDays (source: string) : string list =
+    let code, _ = lex source
+    code.Split('\n')
+    |> Array.toList
+    |> List.indexed
+    |> List.filter (fun (_, l) -> serverZoneDay.IsMatch l)
+    |> List.map (fun (k, l) -> $"{k + 1}: {l.Trim()}")
+
+/// Der Testlauf steht selbst auf Europe/Berlin (`test.runsettings`) und der Produktions-Container
+/// auf UTC. Eine zurückgekehrte Serverzeit zeigt kein Verhaltenstest, deshalb dieser Wächter.
+[<Tests>]
+let serverZoneDayGuardTests =
+    testList "Struktur-Wächter: Server-Code nimmt den Kalendertag nie aus der Prozess-Zeitzone (infrastructure-p747v)" [
+        testCase "kein Server-Code liest DateTime.Today oder DateTime.Now" <| fun () ->
+            let sources = serverSources "*.fs"
+            Expect.isGreaterThan sources.Length 20 "der Server-Code wird gefunden"
+            let found =
+                [ for file, source in sources do
+                    for v in findServerZoneDays source -> $"{file}:{v}" ]
+            Expect.isEmpty found "Der Kalendertag kommt als Parameter (`Ledger.Bot.Domain.berlinDayOf`)"
+
+        testCase "Gegenbeweis: DateTime.Today und DateTime.Now werden gemeldet" <| fun () ->
+            let source =
+                "module Probe\n"
+                + "let a = DateTime.Today\n"
+                + "let b = DateTime.Now\n"
+            let found = findServerZoneDays source
+            Expect.equal (found |> List.map (fun v -> v.Split(':')[0])) [ "2"; "3" ] "jede Zeile wird gemeldet"
+
+        testCase "Gegenbeweis: Kommentare, String-Literale und UtcNow zählen nicht" <| fun () ->
+            let source =
+                "module Probe\n"
+                + "// DateTime.Today steht nur im Kommentar\n"
+                + "let text = \"DateTime.Now im Text\"\n"
+                + "let stamp () = DateTime.UtcNow\n"
+            Expect.isEmpty (findServerZoneDays source) "nur echter Code zählt"
+    ]
+
+// ============================================================================
 // 2. Domain-Wächter
 // ============================================================================
 

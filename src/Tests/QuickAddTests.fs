@@ -83,76 +83,104 @@ let milliunitTests =
 // validateManualTransaction
 // ============================================
 
+/// 2026-11-02 00:30 Uhr in Berlin, in UTC noch der 1. November.
+let private berlinDayAtHalfPastMidnight =
+    Ledger.Bot.Domain.berlinDayOf
+        (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+        (DateTime(2026, 11, 1, 23, 30, 0, DateTimeKind.Utc))
+
 let validationTests =
+    let today = validRequest.Date
     testList "validateManualTransaction" [
         test "accepts a valid request" {
-            let result = validateManualTransaction validRequest
+            let result = validateManualTransaction today validRequest
             Expect.isOk result "Valid request should pass validation"
         }
 
         test "rejects zero amount" {
-            let result = validateManualTransaction { validRequest with Amount = 0m }
+            let result = validateManualTransaction today { validRequest with Amount = 0m }
             Expect.isError result "Zero amount must be rejected"
         }
 
         test "rejects negative amount" {
             // The sign comes from IsOutflow; raw negative input indicates a client bug
-            let result = validateManualTransaction { validRequest with Amount = -5m }
+            let result = validateManualTransaction today { validRequest with Amount = -5m }
             Expect.isError result "Negative amount must be rejected"
         }
 
         test "rejects unreasonably large amount" {
-            let result = validateManualTransaction { validRequest with Amount = 2_000_000m }
+            let result = validateManualTransaction today { validRequest with Amount = 2_000_000m }
             Expect.isError result "Amounts above 1 million must be rejected"
         }
 
         test "accepts empty payee" {
             // Payee is optional — YNAB allows payee-less transactions
-            let result = validateManualTransaction { validRequest with PayeeName = "" }
+            let result = validateManualTransaction today { validRequest with PayeeName = "" }
             Expect.isOk result "Empty payee must be accepted"
         }
 
         test "accepts whitespace payee" {
-            let result = validateManualTransaction { validRequest with PayeeName = "   " }
+            let result = validateManualTransaction today { validRequest with PayeeName = "   " }
             Expect.isOk result "Whitespace payee must be accepted (treated as no payee)"
         }
 
         test "rejects overlong payee" {
-            let result = validateManualTransaction { validRequest with PayeeName = String('x', 201) }
+            let result = validateManualTransaction today { validRequest with PayeeName = String('x', 201) }
             Expect.isError result "Payee > 200 chars must be rejected"
         }
 
         test "rejects future date" {
             // YNAB rejects future-dated transactions; we catch this at the API boundary
-            let result = validateManualTransaction { validRequest with Date = DateTime.Today.AddDays(1.0) }
+            let result = validateManualTransaction today { validRequest with Date = today.AddDays(1.0) }
             Expect.isError result "Future date must be rejected"
         }
 
         test "accepts today" {
-            let result = validateManualTransaction { validRequest with Date = DateTime.Today }
+            let result = validateManualTransaction today { validRequest with Date = today }
             Expect.isOk result "Today must be accepted"
         }
 
         test "rejects date older than five years" {
-            let result = validateManualTransaction { validRequest with Date = DateTime.Today.AddYears(-6) }
+            let result = validateManualTransaction today { validRequest with Date = today.AddYears(-6) }
             Expect.isError result "Very old dates must be rejected"
         }
 
         test "rejects memo longer than 500 characters" {
-            let result = validateManualTransaction { validRequest with Memo = Some (String('x', 501)) }
+            let result = validateManualTransaction today { validRequest with Memo = Some (String('x', 501)) }
             Expect.isError result "Memo > 500 chars must be rejected"
         }
 
         test "accepts memo of exactly 500 characters" {
-            let result = validateManualTransaction { validRequest with Memo = Some (String('x', 500)) }
+            let result = validateManualTransaction today { validRequest with Memo = Some (String('x', 500)) }
             Expect.isOk result "Memo of 500 chars must be accepted"
         }
 
         test "collects multiple errors" {
-            let result = validateManualTransaction { validRequest with Amount = 0m; Memo = Some (String('x', 501)) }
+            let result = validateManualTransaction today { validRequest with Amount = 0m; Memo = Some (String('x', 501)) }
             match result with
             | Error errors -> Expect.equal errors.Length 2 "Both amount and memo errors should be reported"
             | Ok _ -> failtest "Expected validation errors"
+        }
+
+        // Bug infrastructure-p747v: die Prüfung las `DateTime.Today`. Im UTC-Container war um
+        // 00:30 Uhr Berliner Zeit noch der Vortag, eine Buchung von heute galt als Zukunft.
+        test "kurz nach Mitternacht in Berlin gilt der Berliner Tag, auch wenn UTC noch im Vortag liegt" {
+            let result =
+                validateManualTransaction berlinDayAtHalfPastMidnight { validRequest with Date = DateTime(2026, 11, 2) }
+            Expect.isOk result "Eine Buchung von heute ist keine Zukunft"
+        }
+
+        test "kurz nach Mitternacht in Berlin bleibt der Folgetag Zukunft" {
+            let result =
+                validateManualTransaction berlinDayAtHalfPastMidnight { validRequest with Date = DateTime(2026, 11, 3) }
+            Expect.equal result (Error [ "Date cannot be in the future" ]) "Morgen bleibt abgelehnt"
+        }
+
+        test "die Grenze von fünf Jahren zählt ab dem Berliner Tag" {
+            let boundary = DateTime(2021, 11, 2)
+            Expect.isOk (validateManualTransaction berlinDayAtHalfPastMidnight { validRequest with Date = boundary }) "genau fünf Jahre"
+            let result = validateManualTransaction berlinDayAtHalfPastMidnight { validRequest with Date = boundary.AddDays -1.0 }
+            Expect.equal result (Error [ "Date is too far in the past" ]) "ein Tag mehr"
         }
     ]
 

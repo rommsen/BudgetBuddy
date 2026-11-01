@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 20:04 -- Task verified and completed: infrastructure-p747v - "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-p747v - "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today"
+**Summary:** Quick Add, Bank-Import und die YNAB-Kontoabfrage rechnen mit dem Berliner Kalendertag statt mit der Prozess-Zeitzone.
+**Duration:** 22m
+**Verification:** PASS (iteration 1)
+**Files changed:** 6
+**Tests added:** 9
+**ADRs written:** none
+
+---
+
+## 2026-11-01 19:57 -- Verification failed: banking-import-v8n3k - Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus
+
+**Type:** Work / Verification failure
+**Task:** banking-import-v8n3k - Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus
+**Iteration:** 1 of 3
+**Reasons:** ComdirectAccount bleibt in README und context-map stehen, Kommentar an BankConnectionActive nennt noch die Konten
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-01 19:36 -- Batch started: [infrastructure-p747v, banking-import-v8n3k, banking-import-bftq0]
 
 **Type:** Work / Batch start

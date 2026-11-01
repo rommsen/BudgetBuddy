@@ -1028,12 +1028,12 @@ let createTransactions
     (accountId: YnabAccountId)
     (transactions: SyncTransaction list)
     (forceNewImportId: bool)
+    (today: DateTime)
     : Async<YnabResult<TransactionCreateResult>> =
     async {
         match! resolveTransferPayees token budgetId transactions with
         | Error err -> return Error err
         | Ok transferPayees ->
-            let today = DateTime.Today
             let prepared = prepareTransactions today accountId transferPayees forceNewImportId transactions
 
             for txId in prepared.FutureDatedTransactionIds do
@@ -2067,20 +2067,27 @@ let validateToken (token: string) : Async<YnabResult<unit>> =
         return result |> Result.map (fun _ -> ())
     }
 
+/// Die Abfrage-Parameter von `getAccountTransactions`: `sinceDays` Tage vor `today`, dem
+/// Berliner Kalendertag. YNAB-Buchungsdaten sind Kalendertage, der Decoder liest sie seit
+/// ynab-r9k4t als solche, das Fenster rechnet also im selben Kalender.
+let accountTransactionsQuery (today: DateTime) (sinceDays: int) =
+    let sinceDate = today.AddDays(float -sinceDays).ToString("yyyy-MM-dd")
+    $"?since_date={sinceDate}"
+
 /// Fetches recent transactions from a specific account
 /// Used for duplicate detection before importing
 let getAccountTransactions
     (token: string)
     (YnabBudgetId budgetId: YnabBudgetId)
     (YnabAccountId accountId: YnabAccountId)
+    (today: DateTime)
     (sinceDays: int)
     : Async<YnabResult<YnabTransaction list>> =
     async {
         try
-            let sinceDate = DateTime.Today.AddDays(float -sinceDays).ToString("yyyy-MM-dd")
             let! response =
                 http {
-                    GET $"{baseUrl}/budgets/{budgetId}/accounts/{accountId}/transactions?since_date={sinceDate}"
+                    GET $"{baseUrl}/budgets/{budgetId}/accounts/{accountId}/transactions{accountTransactionsQuery today sinceDays}"
                     Authorization $"Bearer {token}"
                 }
                 |> Request.sendAsync

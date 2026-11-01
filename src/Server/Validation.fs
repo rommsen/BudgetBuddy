@@ -150,7 +150,8 @@ let splitErrorText (error: SplitError) : string =
 // ============================================
 
 /// Validates a manually entered transaction (Quick Add) before it is sent to YNAB.
-let validateManualTransaction (request: ManualTransactionRequest) : Result<ManualTransactionRequest, string list> =
+/// `today` ist der Berliner Kalendertag (infrastructure-p747v): der Container läuft auf UTC.
+let validateManualTransaction (today: DateTime) (request: ManualTransactionRequest) : Result<ManualTransactionRequest, string list> =
     let errors =
         [
             (if request.Amount <= 0m then Some "Amount must be greater than zero" else None)
@@ -158,8 +159,8 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
             // Payee is optional (YNAB allows payee-less transactions); only cap the length
             (if String.IsNullOrWhiteSpace request.PayeeName then None
              else validateLength "Payee" 1 200 request.PayeeName)
-            (if request.Date.Date > DateTime.Today then Some "Date cannot be in the future" else None)
-            (if request.Date.Date < DateTime.Today.AddYears(-5) then Some "Date is too far in the past" else None)
+            (if request.Date.Date > today then Some "Date cannot be in the future" else None)
+            (if request.Date.Date < today.AddYears(-5) then Some "Date is too far in the past" else None)
             (match request.Memo with
              | Some m -> validateLength "Memo" 0 500 m
              | None -> None)
