@@ -5,6 +5,15 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 13:51 -- Modeling / Captured: infrastructure-p747v - "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today"
+
+**Type:** Modeling / Capture
+**BC:** infrastructure
+**Filed to:** todo
+**Summary:** Restliche DateTime.Today-Stellen rechnen auf dem UTC-Container bis 02:00 Uhr mit dem Vortag; sie bekommen den Berliner Kalendertag als Parameter.
+
+---
+
 ## 2026-11-01 11:44 -- Work session ended
 
 **Type:** Work / Session end
