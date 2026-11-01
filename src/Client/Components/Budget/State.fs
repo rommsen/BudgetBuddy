@@ -12,12 +12,13 @@ open Client
 
 let init () : Model = Components.Budget.Types.init ()
 
-let private loadCmd (choice: BudgetMonthChoice) : Cmd<Msg> =
+let private loadCmd (model: Model) : Cmd<Msg> =
+    let generation = model.MonthGeneration
     Cmd.OfAsync.either
         (Retry.reading Api.budget.getBudgetMonth)
-        (monthChoiceKey choice)
-        (fun result -> Loaded (choice, result))
-        (fun ex -> Loaded (choice, Error ex.Message))
+        (monthChoiceKey model.Choice)
+        (fun result -> Loaded (generation, result))
+        (fun ex -> Loaded (generation, Error ex.Message))
 
 let private previewCmd (choice: BudgetMonthChoice) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -60,12 +61,13 @@ let private retryMoveCmd (applicationId: string) : Cmd<Msg> =
 /// Nach einer Verschiebung: Monat neu lesen, ohne `Loading`. Die Liste bleibt stehen, die Zeilen
 /// springen nicht nach oben, und die neuen Beträge erscheinen, sobald sie da sind. Scheitert es,
 /// bleibt die Liste auch stehen (`applyReloaded`).
-let private reloadCmd (choice: BudgetMonthChoice) : Cmd<Msg> =
+let private reloadCmd (model: Model) : Cmd<Msg> =
+    let generation = model.MonthGeneration
     Cmd.OfAsync.either
         (Retry.reading Api.budget.getBudgetMonth)
-        (monthChoiceKey choice)
-        (fun result -> Reloaded (choice, result))
-        (fun ex -> Reloaded (choice, Error ex.Message))
+        (monthChoiceKey model.Choice)
+        (fun result -> Reloaded (generation, result))
+        (fun ex -> Reloaded (generation, Error ex.Message))
 
 let private categoryEntriesCmd (categoryId: System.Guid) (month: string) (generation: int) : Cmd<Msg> =
     Cmd.OfAsync.either
@@ -86,10 +88,12 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | PageEntered ->
         let model', month = enterPage model
         model', Cmd.batch [ Cmd.ofMsg Load; entriesCmdFor (model', month) ]
-    | Load -> { model with Month = Loading }, loadCmd model.Choice
+    | Load ->
+        let model' = requestMonth { model with Month = Loading }
+        model', loadCmd model'
     | SelectMonth choice ->
         match select choice model with
-        | model', true -> model', loadCmd choice
+        | model', true -> model', loadCmd model'
         | model', false -> model', Cmd.none
     | OpenCategoryDetail categoryId ->
         let model', month = openCategoryDetail categoryId model
@@ -102,7 +106,7 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | CategoryEntriesLoaded (generation, result) -> applyCategoryEntries generation result model, Cmd.none
     | CategorySearchChanged search -> { model with CategorySearch = search }, Cmd.none
     | ClearCategorySearch -> { model with CategorySearch = "" }, Cmd.none
-    | Loaded (choice, result) -> applyLoaded choice result model, Cmd.none
+    | Loaded (generation, result) -> applyLoaded generation result model, Cmd.none
     | OpenTargets ->
         match openTargets model with
         | model', true -> model', previewCmd model'.Choice
@@ -120,7 +124,9 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     | TargetsRetried result -> applyRetried result model, Cmd.none
     | CloseTargets ->
         match closeTargets model with
-        | model', true -> { model' with Month = Loading }, loadCmd model'.Choice
+        | model', true ->
+            let reloading = { model' with Month = Loading }
+            reloading, loadCmd reloading
         | model', false -> model', Cmd.none
     | _ -> model, Cmd.none
 
@@ -141,19 +147,19 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | model', None -> model', Cmd.none, NoOp
     | MoveAnswered result ->
         let model', external, reload = applyMoveAnswered result model
-        model', (if reload then reloadCmd model'.Choice else Cmd.none), external
+        model', (if reload then reloadCmd model' else Cmd.none), external
     | MoveCallLost message ->
         let model', external = applyMoveCallLost message model
-        model', reloadCmd model'.Choice, external
+        model', reloadCmd model', external
     | RetryMove applicationId ->
         match startMoveRetry applicationId model with
         | model', true -> model', retryMoveCmd applicationId, NoOp
         | model', false -> model', Cmd.none, NoOp
     | MoveRetried (applicationId, result) ->
         let model', external = applyMoveRetried applicationId result model
-        model', reloadCmd model'.Choice, external
-    | Reloaded (choice, result) ->
-        let model', external = applyReloaded choice result model
+        model', reloadCmd model', external
+    | Reloaded (generation, result) ->
+        let model', external = applyReloaded generation result model
         model', Cmd.none, external
     | _ ->
         let model', cmd = updatePage msg model

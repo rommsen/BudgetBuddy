@@ -98,6 +98,17 @@ Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zusta
 | Zeilenhöhe | 44px | zweizeilig, `padding:11px 16px` |
 | Kontostand | `text-primary` (aktiv) oder `text-secondary`; negativ Red | gleich |
 
+Zwei Ausnahmen von Handy zweizeilig und PC einzeilig, beide nur für die Budget-Seite und nur an
+Zeilen mit Target:
+
+- **Dritte Zeile am Handy:** Die Kategorie-Zeile trägt das Target als dritte Zeile. Sie hat dieselbe
+  Klasse wie die zweite (`ListRoles.mobileLine2`) und fehlt, wenn es kein Target gibt. Das Target
+  steht in `truncate min-w-0`, der Status (fehlt, erfüllt, pausiert) in `shrink-0 whitespace-nowrap`:
+  wird es eng, kürzt das Target und nie der Status. Beide in `ListRoles.secondary`.
+- **Zweizeilige Zelle am PC:** Die Spalte Target zeigt oben Betrag und Rhythmus, darunter den Status
+  in `ListRoles.secondary`. Der Betrag steht in Mono, der Rhythmus als eigener Span in Inter. Die
+  Zeilenhöhe von 44px ist dann eine Mindesthöhe, die übrigen Zellen bleiben einzeilig.
+
 #### Auswahl (Picker, `searchableSelect`)
 
 Auswahllisten sind wiederkehrende Zeilen und folgen derselben Ruhe (design-system-zahv9).

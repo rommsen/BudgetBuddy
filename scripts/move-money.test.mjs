@@ -63,7 +63,7 @@ async function openPage(width, height, handlers) {
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
   const state = { food: 80, trip: -30 };
-  const calls = { move: [], retry: [], month: 0 };
+  const calls = { move: [], retry: [], month: 0, monthKeys: [] };
   const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
@@ -71,6 +71,7 @@ async function openPage(width, height, handlers) {
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     calls.month += 1;
     const [key] = JSON.parse(route.request().postData() ?? "[]");
+    calls.monthKeys.push(key);
     json(route, { Ok: monthFixture(state.food, state.trip, key === "last" ? "2026-10-01" : "2026-11-01") });
   });
   await page.route("**/api/BudgetApi/moveMoney", (route) => {
@@ -178,11 +179,14 @@ test("Im letzten Monat geht der Auftrag mit dem Vormonat hinaus", async () => {
     await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
     await page.locator('[data-testid="move-amount"] input').fill("20");
     await afterPicker(page);
+    const reload = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
     await page.locator('[data-testid="move-submit"] button').click();
     await page.locator('[data-testid="move-dialog"]').waitFor({ state: "detached" });
     assert.equal(calls.move.length, 1);
     assert.ok(calls.move[0].includes("2026-10-01"), "der Vormonat steht im Auftrag");
     assert.ok(!calls.move[0].includes("2026-11-01"), "nicht der laufende Monat");
+    await reload;
+    assert.deepEqual(calls.monthKeys, ["current", "last", "last"], "Neu-Lesen bleibt im letzten Monat");
   } finally {
     await context.close();
   }
@@ -236,6 +240,7 @@ const failMove = async (page) => {
   await afterPicker(page);
   await page.locator('[data-testid="move-submit"] button').click();
   await page.locator('[data-testid="move-retry"]').waitFor();
+  assert.match(await text(page.locator('[data-testid="move-retry"]')), /Nicht vollständig verschoben \(November 2026\)/, "der Hinweis nennt seinen Monat");
 };
 
 test("Erneut senden scheitert: ein Toast nennt den Grund, der Monat lädt neu, der Hinweis bleibt", async () => {
@@ -245,11 +250,12 @@ test("Erneut senden scheitert: ein Toast nennt den Grund, der Monat lädt neu, d
   });
   try {
     await failMove(page);
+    const reload = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
     await page.locator('[data-testid="move-retry"] button').click();
     await page.getByText(/Erneut senden gescheitert: YNAB antwortet nicht nfrds/).first().waitFor();
-    const loaded = calls.month;
+    await reload;
     await page.waitForFunction(() => document.querySelector('[data-testid="move-retry"] button:not([disabled])'));
-    assert.ok(loaded >= 3, `Monat neu gelesen: Seite, nach Verschieben, nach Erneut senden (${loaded})`);
+    assert.ok(calls.month >= 3, `Monat neu gelesen: Seite, nach Verschieben, nach Erneut senden (${calls.month})`);
     assert.equal(await page.locator('[data-testid="move-retry"]').count(), 1, "bleibt sendbar");
   } finally {
     await context.close();

@@ -20,16 +20,15 @@ type ChipProps = {
 }
 
 let private chipContainerClassName (isActive: bool) : string =
-    let baseClasses =
-        "inline-flex items-center gap-1.5 shrink-0 rounded-full whitespace-nowrap "
-        + "min-h-[44px] md:min-h-0 px-1"
+    let baseClasses = "inline-flex items-center gap-1.5 shrink-0 rounded-full whitespace-nowrap px-1"
     if isActive then
         $"{baseClasses} bg-neon-teal/10 border border-neon-teal"
     else
         $"{baseClasses} {Backgrounds.dark} border {Borders.default'}"
 
 let private chipLabelClassName (isActive: bool) : string =
-    let baseClasses = "px-2.5 py-2 md:py-1.5 text-xs font-semibold text-left"
+    // Die Mindesthöhe sitzt hier, am Knopf: nur er nimmt den Klick an.
+    let baseClasses = $"inline-flex items-center {TouchTargets.minHeight} px-2.5 md:py-1.5 text-xs font-semibold text-left"
     if isActive then $"{baseClasses} {Colors.neonTeal}" else $"{baseClasses} {Colors.textSecondary}"
 
 /// Ein einzelner Chip.
@@ -40,6 +39,7 @@ let chip (props: ChipProps) : ReactElement =
             Html.button [
                 prop.type' "button"
                 prop.className (chipLabelClassName props.IsActive)
+                prop.ariaPressed props.IsActive
                 prop.onClick (fun _ -> props.OnClick ())
                 prop.text props.Label
             ]
@@ -48,7 +48,7 @@ let chip (props: ChipProps) : ReactElement =
                 Html.button [
                     prop.type' "button"
                     prop.ariaLabel $"{props.Label} entfernen"
-                    prop.className $"pr-2.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
+                    prop.className $"inline-flex items-center self-stretch pr-2.5 pl-0.5 {Colors.neonTeal} text-xs font-bold"
                     prop.onClick (fun e ->
                         e.stopPropagation ()
                         onRemove ())
@@ -68,6 +68,9 @@ let clearAllButton (onClick: unit -> unit) : ReactElement =
         prop.onClick (fun _ -> onClick ())
         prop.text "Alle Filter löschen"
     ]
+
+let private barClassName =
+    "ledger-filter-bar flex items-center gap-2 overflow-x-auto md:flex-wrap md:overflow-visible py-1 -mx-1 px-1"
 
 /// Die Leiste selbst: sticky auf beiden Geräten (Styleguide 7.3, Aufgaben-
 /// `## What`: "auf beiden Geräten"), am Handy waagerecht scrollbar, am PC
@@ -91,10 +94,19 @@ let clearAllButton (onClick: unit -> unit) : ReactElement =
 /// ein Callback-Ref dagegen wird bei jedem Wechsel erneut aufgerufen.
 let bar (elementRef: (Browser.Types.Element -> unit) option) (children: ReactElement list) : ReactElement =
     Html.div [
-        prop.className "ledger-filter-bar flex items-center gap-2 overflow-x-auto md:flex-wrap md:overflow-visible py-1 -mx-1 px-1"
+        prop.className barClassName
         match elementRef with
         | Some r -> prop.ref r
         | None -> ()
+        prop.children children
+    ]
+
+/// Die Leiste mit einer Test-Kennung direkt am Element. Ein Wrapper darum wäre genau so hoch wie
+/// sie, `position:sticky` hätte keinen Laufweg, und die Leiste liefe nicht mit.
+let barWithTestId (testId: string) (children: ReactElement list) : ReactElement =
+    Html.div [
+        prop.custom ("data-testid", testId)
+        prop.className barClassName
         prop.children children
     ]
 

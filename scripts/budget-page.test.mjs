@@ -54,7 +54,7 @@ const withTarget = (base, target, underfunded, snoozed = false) => ({
   Underfunded: eur(underfunded),
   Snoozed: snoozed,
 });
-const monthly = { Amount: eur(1600), Rhythm: { Months: 1 } };
+const monthly = { Goal: eur(1600), Rhythm: { Months: 1 } };
 const targetFixture = (month) => ({
   Month: month,
   ToBeBudgeted: eur(10),
@@ -68,12 +68,19 @@ const targetFixture = (month) => ({
         category(4, "Macbook", 10, 0, 10),
         withTarget(
           category(5, "Eine Kategorie mit langem Namen und langem Target", 0, 0, 0),
-          { Amount: eur(121600), Rhythm: { Months: 11 } },
+          { Goal: eur(121600), Rhythm: { Months: 11 } },
           121600
         ),
       ],
     },
   ],
+});
+
+// Genug Zeilen, damit die Seite am Handy scrollt.
+const longFixture = (month) => ({
+  Month: month,
+  ToBeBudgeted: eur(10),
+  Groups: [{ Name: "Alltag", Categories: Array.from({ length: 40 }, (_, i) => category(i + 1, `Kategorie ${i + 1}`, 10, 0, 10)) }],
 });
 
 // budgeting-rxxb4: "leb" trifft zwei Kategorien in zwei Gruppen und eine ganze Gruppe.
@@ -180,11 +187,14 @@ test("PC: Tabelle mit Spaltenköpfen Zugewiesen, Aktivität, Verfügbar", async 
   }
 });
 
+// Darunter ist der Name auch gekürzt nicht mehr zu erkennen.
+const MIN_NAME_WIDTH = 80;
+
 const targetTexts = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll('[data-testid="budget-category-row"]')]
       .filter((row) => row.offsetParent !== null)
-      .map((row) => row.querySelector('[data-testid="budget-target"]')?.innerText.replace(/\s*\n\s*/g, " · ") ?? null)
+      .map((row) => row.querySelector('[data-testid="budget-target"]')?.innerText.replace(/\s*\n\s*(·\s*)?/g, " · ") ?? null)
   );
 
 test("Handy: dritte Zeile nur mit Target, mit fehlt, erfüllt und pausiert, ohne horizontales Scrollen", async () => {
@@ -199,11 +209,26 @@ test("Handy: dritte Zeile nur mit Target, mit fehlt, erfüllt und pausiert, ohne
   ]);
   const clipped = await page.evaluate(() => {
     const lines = [...document.querySelectorAll('[data-testid="budget-target"]')].filter((el) => el.offsetParent !== null);
-    return lines.filter((el) => el.scrollWidth > el.clientWidth).map((el) => el.innerText);
+    const spans = lines.flatMap((el) => [...el.querySelectorAll("span")]);
+    return spans.filter((el) => el.scrollWidth > el.clientWidth).map((el) => el.innerText);
   });
   assert.deepEqual(clipped, [], "keine Target-Zeile wird abgeschnitten");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   assert.equal(overflow, false, "kein horizontales Scrollen");
+  await context.close();
+});
+
+// Bug F3: `truncate` auf der ganzen Zeile schnitt zuerst "fehlt …" ab, also genau die Aussage.
+test("Schmales Handy (320 px): bei langem Target bleibt der Status vollständig sichtbar", async () => {
+  const { page, context } = await openPage(320, 700, { fixture: targetFixture });
+  await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+  const status = await page.evaluate(() => {
+    const line = [...document.querySelectorAll('[data-testid="budget-target"]')].filter((el) => el.offsetParent !== null).at(-1);
+    const carrier = [...line.parentElement.querySelectorAll("span")].find((el) => !el.children.length && el.innerText.includes("fehlt"));
+    return { clipped: carrier.scrollWidth > carrier.clientWidth, right: carrier.getBoundingClientRect().right, width: window.innerWidth };
+  });
+  assert.equal(status.clipped, false, "der Status wird nicht abgeschnitten");
+  assert.ok(status.right <= status.width, `der Status liegt im Viewport (${JSON.stringify(status)})`);
   await context.close();
 });
 
@@ -221,18 +246,28 @@ test("PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenz
     "121.600,00 € alle 11 Monate · fehlt 121.600,00 €",
   ]);
   assert.equal(await page.locator("table tbody tr td[colspan='5']").count(), 1);
+  const fonts = await page.locator('[data-testid="budget-target"]:visible').first().evaluate((cell) => {
+    const [amount, rhythm] = cell.querySelectorAll("span span");
+    return [amount, rhythm].map((el) => getComputedStyle(el).fontFamily.toLowerCase());
+  });
+  assert.match(fonts[0], /mono/, "der Betrag steht in Mono");
+  assert.doesNotMatch(fonts[1], /mono/, "der Rhythmus steht nicht in Mono");
   await context.close();
 });
 
-test("Schmalster PC (768 px): die Tabelle mit Spalte Target läuft nicht aus ihrer Karte", async () => {
+test("Schmalster PC (768 px): die Tabelle mit Spalte Target läuft nicht aus ihrer Karte, der Name bleibt lesbar", async () => {
   const { page, context } = await openPage(768, 900, { fixture: targetFixture });
   await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
-  const clipped = await page.evaluate(() => {
+  const measured = await page.evaluate(() => {
     const table = document.querySelector("table");
-    const card = table.closest(".overflow-hidden");
-    return table.getBoundingClientRect().right > card.getBoundingClientRect().right + 0.5;
+    const card = table.closest(".overflow-hidden").getBoundingClientRect();
+    const lastCell = table.querySelector("tbody tr[data-testid='budget-category-row'] td:last-child").getBoundingClientRect();
+    const names = [...table.querySelectorAll('[data-testid="budget-category-name"]')].map((el) => el.getBoundingClientRect().width);
+    return { tableRight: table.getBoundingClientRect().right, cardRight: card.right, lastCellRight: lastCell.right, longName: Math.max(...names) };
   });
-  assert.equal(clipped, false, "die Spalte Verfügbar bleibt sichtbar");
+  assert.ok(measured.tableRight <= measured.cardRight + 0.5, `die Tabelle bleibt in der Karte (${JSON.stringify(measured)})`);
+  assert.ok(measured.lastCellRight <= measured.cardRight + 0.5, `die Spalte Verfügbar bleibt sichtbar (${JSON.stringify(measured)})`);
+  assert.ok(measured.longName >= MIN_NAME_WIDTH, `der lange Name behält mindestens ${MIN_NAME_WIDTH} px (${JSON.stringify(measured)})`);
   await context.close();
 });
 
@@ -281,6 +316,34 @@ test("Handy: die drei Monatsknöpfe stehen in zeitlicher Folge vollständig im V
       client: document.documentElement.clientWidth,
     }));
     assert.ok(overflow.scroll <= overflow.client, `kein horizontales Scrollen (scrollWidth ${overflow.scroll} > clientWidth ${overflow.client})`);
+  } finally {
+    await context.close();
+  }
+});
+
+// Bug D1: die Mindesthöhe saß am Rahmen, der Klick am inneren Knopf, die Trefferfläche war 32 px.
+test("Handy: jeder Monatsknopf hat 48 px Trefferfläche und meldet, ob er aktiv ist", async () => {
+  const { context, page } = await openPage(390, 844);
+  try {
+    const buttons = page.locator('[data-testid="budget-month-switcher"]').getByRole("button");
+    for (const button of await buttons.all()) {
+      const box = await button.boundingBox();
+      assert.ok(box.height >= 48, `Trefferfläche mindestens 48 px (${box.height})`);
+    }
+    assert.deepEqual(await buttons.evaluateAll((all) => all.map((b) => b.getAttribute("aria-pressed"))), ["false", "true", "false"]);
+  } finally {
+    await context.close();
+  }
+});
+
+// Bug D3: die Leiste ist sticky, ihr Wrapper aber genau so hoch, also lief sie nicht mit.
+test("Handy: nach dem Scrollen bleibt der Monatsumschalter unter der Navbar sichtbar", async () => {
+  const { context, page } = await openPage(390, 844, { fixture: longFixture });
+  try {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForFunction(() => window.scrollY > 300);
+    const box = await page.locator('[data-testid="budget-month-switcher"]').getByRole("button").first().boundingBox();
+    assert.ok(box.y >= 0 && box.y < 150, `Umschalter im Viewport (y ${box.y})`);
   } finally {
     await context.close();
   }

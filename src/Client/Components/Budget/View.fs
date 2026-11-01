@@ -23,16 +23,13 @@ open Client.DesignSystem.Tokens
 // Beträge
 // ============================================
 
-/// Ein Betrag in Listenschrift, neutral eingefärbt: Zugewiesen und Aktivität sind keine
-/// Warnsignale, nur Verfügbar färbt ein Minus (`Money.available`).
-let private plainText (text: string) =
+/// Ein Betrag in Listenschrift, neutral eingefärbt: Zugewiesen, Aktivität, Target und der neue
+/// Betrag der Vorschau sind keine Warnsignale, nur Verfügbar färbt ein Minus (`Money.available`).
+let private plainAmount (m: Money) =
     Html.span [
         prop.className $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textSecondary}"
-        prop.text text
+        prop.text (moneyText m)
     ]
-
-let private plainAmount (m: Money) =
-    plainText (Money.formatAmountText false true m.Amount m.Currency)
 
 let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 
@@ -40,7 +37,7 @@ let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 let private detailAmount (m: Money) =
     Html.span [
         prop.className $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textPrimary}"
-        prop.text (Money.formatAmountText false true m.Amount m.Currency)
+        prop.text (moneyText m)
     ]
 
 /// Der Verfügbar-Betrag öffnet "Verschieben". `sizeClass` trägt die Trefferfläche der Liste.
@@ -91,15 +88,10 @@ let private monthSwitcher (model: Model) (dispatch: Msg -> unit) =
               IsActive = (model.Choice = choice)
               OnClick = fun () -> dispatch (SelectMonth choice)
               OnRemove = None }
-    Html.div [
-        prop.custom ("data-testid", "budget-month-switcher")
-        prop.children [
-            ChipBar.bar None [
-                chip "Letzter Monat" LastMonth
-                chip "Dieser Monat" CurrentMonth
-                chip "Nächster Monat" NextMonth
-            ]
-        ]
+    ChipBar.barWithTestId "budget-month-switcher" [
+        chip "Letzter Monat" LastMonth
+        chip "Dieser Monat" CurrentMonth
+        chip "Nächster Monat" NextMonth
     ]
 
 // ============================================
@@ -136,20 +128,28 @@ let private mobileGroup (dispatch: Msg -> unit) (group: BudgetGroup) =
                                 Html.span [
                                     prop.className $"{ListRoles.muted} truncate"
                                     prop.text
-                                        $"Zugewiesen {Money.formatAmountText false true c.Assigned.Amount c.Assigned.Currency} · Aktivität {Money.formatAmountText false true c.Activity.Amount c.Activity.Currency}"
+                                        $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
                                 ]
                             ]
                         ]
                         match c.Target with
                         | Some target ->
+                            // Wird es eng, kürzt das Target, nie der Status: er ist die Aussage der Zeile.
                             Html.div [
+                                prop.custom ("data-testid", "budget-target")
                                 prop.className ListRoles.mobileLine2
                                 prop.children [
                                     Html.span [
-                                        prop.custom ("data-testid", "budget-target")
-                                        prop.className $"{ListRoles.muted} truncate"
-                                        prop.text (targetLineText c target)
+                                        prop.className $"{ListRoles.secondary} truncate min-w-0"
+                                        prop.text $"Target {targetText target}"
                                     ]
+                                    match targetStatusText c with
+                                    | Some status ->
+                                        Html.span [
+                                            prop.className $"{ListRoles.secondary} shrink-0 whitespace-nowrap"
+                                            prop.text $"· {status}"
+                                        ]
+                                    | None -> ()
                                 ]
                             ]
                         | None -> ()
@@ -158,7 +158,7 @@ let private mobileGroup (dispatch: Msg -> unit) (group: BudgetGroup) =
         ]
     ]
 
-/// Target am PC: Betrag mit Rhythmus, darunter pausiert, fehlt oder erfüllt.
+/// Target am PC: Betrag in Mono, Rhythmus in Inter, darunter pausiert, fehlt oder erfüllt.
 let private targetCell (c: BudgetCategory) =
     match c.Target with
     | None -> Html.none
@@ -167,9 +167,18 @@ let private targetCell (c: BudgetCategory) =
             prop.custom ("data-testid", "budget-target")
             prop.className "flex flex-col items-end"
             prop.children [
-                plainText (targetText target)
+                Html.span [
+                    prop.className "whitespace-nowrap"
+                    prop.children [
+                        plainAmount target.Goal
+                        Html.span [
+                            prop.className $"font-sans {ListRoles.primarySize} {Colors.textSecondary}"
+                            prop.text (rhythmText target.Rhythm)
+                        ]
+                    ]
+                ]
                 match targetStatusText c with
-                | Some status -> Html.span [ prop.className $"{ListRoles.muted} whitespace-nowrap"; prop.text status ]
+                | Some status -> Html.span [ prop.className $"{ListRoles.secondary} whitespace-nowrap"; prop.text status ]
                 | None -> ()
             ]
         ]
@@ -269,8 +278,6 @@ let private categories (search: string) (month: BudgetMonth) (dispatch: Msg -> u
 // Targets anwenden (budgeting-h2zfn)
 // ============================================
 
-let private amountText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
-
 /// Summe und Zu verteilen danach stehen oben im Dialog, außerhalb des scrollenden Teils.
 let private summary (preview: TargetPreview) =
     Html.div [
@@ -284,7 +291,7 @@ let private summary (preview: TargetPreview) =
                     Html.span [
                         prop.custom ("data-testid", "targets-total")
                         prop.className "font-mono font-medium tabular-nums text-text-primary"
-                        prop.text (amountText preview.Total)
+                        prop.text (moneyText preview.Total)
                     ]
                 ]
             ]
@@ -319,16 +326,13 @@ let private previewLine (l: TargetLine) =
                 prop.className ListRoles.mobileLine1
                 prop.children [
                     Html.span [ prop.className $"{ListRoles.primary} truncate min-w-0"; prop.text l.CategoryName ]
-                    Html.span [
-                        prop.className $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textSecondary}"
-                        prop.text (amountText l.NewAssigned)
-                    ]
+                    plainAmount l.NewAssigned
                 ]
             ]
             // Bricht um statt abzuschneiden: mit Target passt die Zeile am Handy nicht in eine Zeile.
             Html.p [
                 prop.custom ("data-testid", "targets-line-detail")
-                prop.className $"{ListRoles.muted} mt-0.5"
+                prop.className $"{ListRoles.secondary} mt-0.5"
                 prop.text (previewDetailText l)
             ]
         ]
@@ -386,7 +390,7 @@ let private previewBody (preview: TargetPreview) (changed: bool) =
 let private outcomeLine (l: ApplyLineResult) =
     let detail, badge =
         match l.Outcome with
-        | Written -> $"{amountText l.OldAssigned} auf {amountText l.NewAssigned}", Badge.success "geschrieben"
+        | Written -> $"{moneyText l.OldAssigned} auf {moneyText l.NewAssigned}", Badge.success "geschrieben"
         | Failed reason -> reason, Badge.error "fehlgeschlagen"
         | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", Badge.warning "in YNAB geändert"
     Html.div [
@@ -449,7 +453,7 @@ let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError:
                     Html.div [
                         prop.custom ("data-testid", "targets-differs")
                         prop.children [
-                            ErrorDisplay.warning $"Zu verteilen weicht von der Vorschau ab (Vorschau: {amountText preview.ToBeBudgetedAfter})." None
+                            ErrorDisplay.warning $"Zu verteilen weicht von der Vorschau ab (Vorschau: {moneyText preview.ToBeBudgetedAfter})." None
                         ]
                     ]
                 | _ -> ()
@@ -680,7 +684,7 @@ let private moveRetries (retries: OpenMoveRetry list) (dispatch: Msg -> unit) =
                     Html.div [
                         prop.className "flex flex-col gap-1 min-w-0"
                         prop.children [
-                            Html.span [ prop.className ListRoles.primary; prop.text $"Nicht vollständig verschoben: {retry.Summary}" ]
+                            Html.span [ prop.className ListRoles.primary; prop.text $"Nicht vollständig verschoben ({retry.MonthLabel}): {retry.Summary}" ]
                             Html.span [ prop.className ListRoles.muted; prop.text retry.Reason ]
                         ]
                     ]
@@ -722,7 +726,7 @@ let private detailFigures (category: BudgetCategory) =
 let private detailEntryLine (entry: CategoryMonthEntry) (dispatch: Msg -> unit) =
     let payee = entry.Payee |> Option.defaultValue "Ohne Empfänger"
     let date = entry.Date.ToString "dd.MM.yyyy"
-    let label = $"{payee}, {amountText entry.Amount}, {date}, im Kassenbuch öffnen"
+    let label = $"{payee}, {moneyText entry.Amount}, {date}, im Kassenbuch öffnen"
     Button.listRow (string entry.EntryId) "detail-entry" label (fun () -> dispatch (OpenEntryInLedger entry.EntryId)) [
         Html.span [
             prop.className ListRoles.mobileLine1

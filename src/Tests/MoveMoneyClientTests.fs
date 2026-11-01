@@ -203,7 +203,7 @@ let private currentMonthTests =
     let foodAt (available: decimal) =
         { month with Groups = [ { Name = "Alltag"; Categories = [ { food with Available = eur available }; trip ] } ] }
     let afterFirstMove = foodAt 50m
-    let reloaded model m = applyLoaded CurrentMonth (Ok m) model
+    let reloaded (model: Model) m = applyLoaded model.MonthGeneration (Ok m) model
     testList "Aktueller Monat" [
         test "Zwei Verschiebungen kurz hintereinander: das zweite Sheet zeigt Vorbelegung und Verfügbar danach aus dem aktuellen Monat" {
             let second = openMove food.Id loaded
@@ -253,7 +253,7 @@ let private reloadTests =
     testList "Stilles Neu-Lesen" [
         // budgeting-nfrds: ein gescheiterter Reload setzte `Failure` und nahm die Liste weg.
         test "Scheitert es, bleibt die Liste stehen und ein Hinweis erscheint" {
-            let model, external = applyReloaded CurrentMonth (Error "Timeout") loaded
+            let model, external = applyReloaded loaded.MonthGeneration (Error "Timeout") loaded
             Expect.equal model.Month (Success month) "Liste bleibt"
             match external with
             | ShowToast (text, ToastWarning) -> Expect.stringContains text "Timeout" "Grund"
@@ -261,17 +261,17 @@ let private reloadTests =
         }
         test "Gelingt es, kommt der neue Stand ohne Hinweis" {
             let fresh = { month with ToBeBudgeted = eur 5m }
-            let model, external = applyReloaded CurrentMonth (Ok fresh) loaded
+            let model, external = applyReloaded loaded.MonthGeneration (Ok fresh) loaded
             Expect.equal model.Month (Success fresh) "neu"
             Expect.equal external NoOp "still"
         }
         test "Eine Antwort zur abgewählten Monatswahl ändert nichts" {
-            let model, external = applyReloaded NextMonth (Error "Timeout") loaded
+            let model, external = applyReloaded (loaded.MonthGeneration - 1) (Error "Timeout") loaded
             Expect.equal model loaded "verworfen"
             Expect.equal external NoOp "still"
         }
         test "Ohne geladene Liste zeigt ein Fehler wie sonst den Fehlerzustand" {
-            let model, _ = applyReloaded CurrentMonth (Error "Timeout") (init ())
+            let model, _ = applyReloaded 0 (Error "Timeout") (init ())
             Expect.equal model.Month (Failure "Timeout") "nichts zu erhalten"
         }
     ]
@@ -279,7 +279,7 @@ let private reloadTests =
 let private retryTests =
     let failing = report [ "Lebensmittel", 80m, 60m, Written; "Urlaub", 0m, 20m, Failed "Rate-Limit" ]
     let done' = report [ "Lebensmittel", 80m, 60m, Written; "Urlaub", 0m, 20m, Written ]
-    let afterFailure = noteMoveReport failing loaded
+    let afterFailure = noteMoveReport "2026-11-01" failing loaded
     testList "Erneut senden bleibt erreichbar" [
         // budgeting-nfrds: nur der Toast trug die Aktion. Nach fünf Sekunden war sie weg.
         test "Eine fehlgeschlagene Verschiebung bleibt ohne Toast im Modell" {
@@ -288,11 +288,15 @@ let private retryTests =
                 (model.OpenRetries |> List.map (fun r -> r.ApplicationId, r.Reason, r.State))
                 [ "app-1", "Rate-Limit", RetryReady ] "offen"
         }
+        test "Der offene Hinweis nennt den Monat der Verschiebung" {
+            let model = noteMoveReport "2026-10-01" failing loaded
+            Expect.equal (model.OpenRetries |> List.map (fun r -> r.MonthLabel)) [ "Oktober 2026" ] "Monat"
+        }
         test "Eine gelungene Verschiebung hinterlässt nichts" {
-            Expect.isEmpty (noteMoveReport done' loaded).OpenRetries "nichts offen"
+            Expect.isEmpty (noteMoveReport "2026-11-01" done' loaded).OpenRetries "nichts offen"
         }
         test "Zwei fehlgeschlagene Verschiebungen verdrängen einander nicht" {
-            let model = noteMoveReport { failing with ApplicationId = "app-2" } afterFailure
+            let model = noteMoveReport "2026-11-01" { failing with ApplicationId = "app-2" } afterFailure
             Expect.equal (model.OpenRetries |> List.map (fun r -> r.ApplicationId)) [ "app-1"; "app-2" ] "beide"
         }
         test "Ein zweiter Klick während des Laufs sendet nicht noch einmal" {

@@ -28,20 +28,14 @@ let private selectTests =
             let _, load = select CurrentMonth (init ())
             Expect.isTrue load "NotAsked muss laden"
         }
-        test "Wechsel auf den nächsten Monat setzt Loading und verlangt das Laden" {
-            let loaded = { init () with Month = Success monthK7wmd }
-            let m, load = select NextMonth loaded
-            Expect.equal m.Choice NextMonth "Wahl"
-            Expect.equal m.Month Loading "Loading"
-            Expect.isTrue load "laden"
-        }
-        test "Wechsel auf den letzten Monat setzt Loading und verlangt das Laden" {
-            let loaded = { init () with Month = Success monthK7wmd }
-            let m, load = select LastMonth loaded
-            Expect.equal m.Choice LastMonth "Wahl"
-            Expect.equal m.Month Loading "Loading"
-            Expect.isTrue load "laden"
-        }
+        for choice in [ LastMonth; NextMonth ] do
+            test $"Wechsel auf {choice} setzt Loading und verlangt das Laden" {
+                let loaded = { init () with Month = Success monthK7wmd }
+                let m, load = select choice loaded
+                Expect.equal m.Choice choice "Wahl"
+                Expect.equal m.Month Loading "Loading"
+                Expect.isTrue load "laden"
+            }
         test "Dieselbe Wahl bei geladenem Monat ändert nichts" {
             let loaded = { init () with Month = Success monthK7wmd }
             let m, load = select CurrentMonth loaded
@@ -53,23 +47,53 @@ let private selectTests =
 let private loadedTests =
     testList "Antwort einnehmen (k7wmd)" [
         test "Eine Antwort zur gewählten Wahl wird gezeigt" {
-            let m = applyLoaded CurrentMonth (Ok monthK7wmd) { init () with Month = Loading }
+            let m = applyLoaded 0 (Ok monthK7wmd) { init () with Month = Loading }
             Expect.equal m.Month (Success monthK7wmd) "Success"
         }
         test "Ein negatives Zu verteilen bleibt negativ, ohne Sonderzustand" {
-            let m = applyLoaded CurrentMonth (Ok monthK7wmd) { init () with Month = Loading }
+            let m = applyLoaded 0 (Ok monthK7wmd) { init () with Month = Loading }
             match m.Month with
             | Success month -> Expect.equal month.ToBeBudgeted.Amount -12.34m "negativ wie geliefert"
             | other -> failtestf "Success erwartet, war %A" other
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
-            let waiting = { Choice = NextMonth; Month = Loading; Targets = TargetsClosed; CategorySearch = ""; Move = None; OpenRetries = []; Detail = None; DetailGeneration = 0 }
-            let m = applyLoaded CurrentMonth (Ok monthK7wmd) waiting
+            let shown = { init () with Month = Success monthK7wmd }
+            let waiting, _ = select NextMonth shown
+            let m = applyLoaded shown.MonthGeneration (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
+        }
+        // Bug F2: die Prüfung kannte nur die Monatswahl. Von zwei Reloads nach schnellen
+        // Verschiebungen konnte der ältere den neueren Stand überschreiben.
+        test "Von zwei Verschiebungen zählt der Reload der zweiten, auch wenn der erste später ankommt" {
+            let report : ApplyReport = { ApplicationId = "a"; Month = "2026-10-01"; Lines = []; ActualToBeBudgeted = None }
+            let first, _, _ = applyMoveAnswered (Ok report) { init () with Month = Success monthK7wmd }
+            let second, _, _ = applyMoveAnswered (Ok report) first
+            let newest = { monthK7wmd with ToBeBudgeted = eur 5m }
+            let answered, _ = applyReloaded second.MonthGeneration (Ok newest) second
+            let late, external = applyReloaded first.MonthGeneration (Ok monthK7wmd) answered
+            Expect.equal late.Month (Success newest) "der neuere Stand bleibt"
+            Expect.equal external NoOp "kein Hinweis"
+        }
+        test "Ein später Fehler eines älteren Reloads meldet nichts" {
+            let older = requestMonth { init () with Month = Success monthK7wmd }
+            let newer = requestMonth older
+            let late, external = applyReloaded older.MonthGeneration (Error "Timeout") newer
+            Expect.equal late newer "unverändert"
+            Expect.equal external NoOp "kein Hinweis"
+        }
+        // Bug F2: nach dem Wechsel A, B, A stimmte die Wahl wieder, die späte Fehler-Antwort des
+        // ersten A ersetzte den gezeigten Monat durch die Fehlerkarte.
+        test "Wechsel A, B, A: eine späte Fehler-Antwort des ersten A lässt den Monat stehen" {
+            let firstA, _ = select NextMonth { init () with Month = Success monthK7wmd }
+            let b, _ = select CurrentMonth firstA
+            let secondA, _ = select NextMonth b
+            let shown = applyLoaded secondA.MonthGeneration (Ok monthK7wmd) secondA
+            let late = applyLoaded firstA.MonthGeneration (Error "Timeout") shown
+            Expect.equal late.Month (Success monthK7wmd) "der Monat bleibt"
         }
         test "Ein YNAB-Fehler (auch 429) wird als lesbare Meldung zu Failure" {
             let message = "YNAB rate limit exceeded. Retry after 60 seconds"
-            let m = applyLoaded CurrentMonth (Error message) { init () with Month = Loading }
+            let m = applyLoaded 0 (Error message) { init () with Month = Loading }
             Expect.equal m.Month (Failure message) "Meldung bleibt erhalten"
         }
     ]
@@ -191,18 +215,12 @@ let private searchStateTests =
             let cleared, _, _ = Components.Budget.State.update ClearCategorySearch typed
             Expect.equal cleared.CategorySearch "" "geleert"
         }
-        test "Monatswechsel und die Antwort darauf behalten die Suche" {
+        for choice in [ LastMonth; NextMonth ] do
+          test $"Wechsel auf {choice} und die Antwort darauf behalten die Suche" {
             let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
-            let switched, _ = select NextMonth searching
+            let switched, _ = select choice searching
             Expect.equal switched.CategorySearch "leb" "beim Wechsel"
-            let loaded = applyLoaded NextMonth (Ok monthK7wmd) switched
-            Expect.equal loaded.CategorySearch "leb" "nach der Antwort"
-        }
-        test "Der Wechsel auf den letzten Monat behält die Suche" {
-            let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
-            let switched, _ = select LastMonth searching
-            Expect.equal switched.CategorySearch "leb" "beim Wechsel"
-            let loaded = applyLoaded LastMonth (Ok monthK7wmd) switched
+            let loaded = applyLoaded switched.MonthGeneration (Ok monthK7wmd) switched
             Expect.equal loaded.CategorySearch "leb" "nach der Antwort"
         }
         test "Betreten der Seite leert die Suche und holt den Monat" {
@@ -304,7 +322,7 @@ let private detailTests =
             Expect.isNone model.Detail "zu"
         }
         test "Fehlt die Kategorie im neu gelesenen Monat, schließt das Detail" {
-            let model = applyLoaded CurrentMonth (Ok { detailMonth with Groups = [] }) (fst opened)
+            let model = applyLoaded 0 (Ok { detailMonth with Groups = [] }) (fst opened)
             Expect.isNone model.Detail "zu"
         }
     ]
@@ -429,8 +447,7 @@ let private returnTests =
 
 // ---------------- Targets sichtbar (budgeting-kjsht) ----------------
 
-let private rhythmOf = Server.YnabClient.Decoders.targetRhythm
-let private targetOf (amount: decimal) rhythm : Target = { Amount = eur amount; Rhythm = rhythm }
+let private targetOf (amount: decimal) rhythm : Target = { Goal = eur amount; Rhythm = rhythm }
 
 let private targetCategory (target: Target) (under: decimal option) (snoozed: bool) : BudgetCategory =
     { detailCategoryFixture with
@@ -440,23 +457,16 @@ let private targetCategory (target: Target) (under: decimal option) (snoozed: bo
 
 let private targetTextTests =
     testList "Rhythmus-Text (kjsht)" [
-        for name, amount, goalType, cadence, frequency, expected in
-            [ "wöchentlich", 50m, "NEED", 2, 1, "50,00 €/Woche"
-              "alle 2 Wochen", 50m, "NEED", 2, 2, "50,00 € alle 2 Wochen"
-              "monatlich", 1600m, "NEED", 1, 1, "1.600,00 €/Monat"
-              "Häufigkeit 0 zählt wie 1", 1600m, "NEED", 1, 0, "1.600,00 €/Monat"
-              "monatlich mal Häufigkeit", 120m, "NEED", 1, 3, "120,00 € alle 3 Monate"
-              "jährlich", 330m, "NEED", 13, 1, "330,00 €/Jahr"
-              "jährlich mal Häufigkeit", 120m, "NEED", 13, 2, "120,00 € alle 2 Jahre"
-              "Kadenz 3 ist alle 2 Monate", 120m, "NEED", 3, 1, "120,00 € alle 2 Monate"
-              "Kadenz 4 ist alle 3 Monate", 120m, "NEED", 4, 1, "120,00 € alle 3 Monate"
-              "Kadenz 12 ist alle 11 Monate", 120m, "NEED", 12, 1, "120,00 € alle 11 Monate"
-              "Kadenz 14 ist alle 2 Jahre", 120m, "NEED", 14, 1, "120,00 € alle 2 Jahre"
-              "Kadenz 0 bei MF ist monatlich", 100m, "MF", 0, 0, "100,00 €/Monat"
-              "Kadenz 0 ohne MF ist nur der Betrag", 100m, "TB", 0, 1, "100,00 €"
-              "unbekannte Kadenz ist nur der Betrag", 100m, "NEED", 15, 1, "100,00 €" ] do
+        for name, amount, rhythm, expected in
+            [ "wöchentlich", 50m, Weeks 1, "50,00 €/Woche"
+              "alle 2 Wochen", 50m, Weeks 2, "50,00 € alle 2 Wochen"
+              "monatlich", 1600m, Months 1, "1.600,00 €/Monat"
+              "alle 3 Monate", 120m, Months 3, "120,00 € alle 3 Monate"
+              "jährlich", 330m, Years 1, "330,00 €/Jahr"
+              "alle 2 Jahre", 120m, Years 2, "120,00 € alle 2 Jahre"
+              "ohne Rhythmus nur der Betrag", 100m, NoRhythm, "100,00 €" ] do
             test name {
-                Expect.equal (targetText (targetOf amount (rhythmOf goalType cadence frequency))) expected name
+                Expect.equal (targetText (targetOf amount rhythm)) expected name
             }
     ]
 
@@ -464,21 +474,19 @@ let private targetStatusTests =
     let target = targetOf 1600m (Months 1)
     testList "Zusatz zum Target (kjsht)" [
         test "Fehlbetrag größer 0 zeigt fehlt" {
-            let c = targetCategory target (Some 1600m) false
-            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat · fehlt 1.600,00 €" "Zeile"
+            Expect.equal (targetStatusText (targetCategory target (Some 1600m) false)) (Some "fehlt 1.600,00 €") "Zusatz"
         }
         test "Fehlbetrag 0 zeigt erfüllt" {
-            let c = targetCategory target (Some 0m) false
-            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat · erfüllt" "Zeile"
+            Expect.equal (targetStatusText (targetCategory target (Some 0m) false)) (Some "erfüllt") "Zusatz"
         }
         test "Pausiert geht vor, auch mit Fehlbetrag" {
-            let c = targetCategory target (Some 1600m) true
-            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat · pausiert" "Zeile"
+            Expect.equal (targetStatusText (targetCategory target (Some 1600m) true)) (Some "pausiert") "Zusatz"
+        }
+        test "Pausiert gilt auch ohne Fehlbetrag von YNAB" {
+            Expect.equal (targetStatusText (targetCategory target None true)) (Some "pausiert") "Zusatz"
         }
         test "Ohne Fehlbetrag von YNAB gibt es keinen Zusatz" {
-            let c = targetCategory target None false
-            Expect.equal (targetStatusText c) None "kein Zusatz"
-            Expect.equal (targetLineText c target) "Target 1.600,00 €/Monat" "nur das Target"
+            Expect.equal (targetStatusText (targetCategory target None false)) None "kein Zusatz"
         }
         test "Vorschau nennt Target, Zugewiesen und Fehlbetrag" {
             let line : TargetLine =

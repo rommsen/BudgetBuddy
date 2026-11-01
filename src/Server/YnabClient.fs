@@ -84,7 +84,7 @@ module Decoders =
         match get.Optional.Field "goal_type" Decode.string, get.Optional.Field "goal_target" Decode.int64 with
         | Some goalType, Some amount ->
             Some
-                { Amount = milliunitsMoney amount
+                { Goal = milliunitsMoney amount
                   Rhythm = targetRhythm goalType (number "goal_cadence") (number "goal_cadence_frequency") }
         | _ -> None
 

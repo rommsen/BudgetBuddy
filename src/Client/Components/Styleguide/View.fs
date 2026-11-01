@@ -465,6 +465,49 @@ let private calmListSection =
                         Table.calmSortableHeaderCell "Payee ohne Sortierung" None Table.Unsorted ignore
                     ])
                 ]
+                note "Ausnahmen der Budget-Seite an Zeilen mit Target: am Handy eine dritte Zeile, in der das Target kürzt und nie der Status; am PC eine zweizeilige Zelle mit Betrag in Mono und Rhythmus in Inter."
+                Html.div [
+                    prop.className $"{Tokens.ListRoles.mobileRowPadding} border-b border-border-subtle max-w-sm"
+                    prop.children [
+                        Html.div [
+                            prop.className Tokens.ListRoles.mobileLine1
+                            prop.children [
+                                Html.span [ prop.className Tokens.ListRoles.primary; prop.text "Lebensmittel" ]
+                                Money.listAmount 120m "EUR"
+                            ]
+                        ]
+                        Html.div [
+                            prop.className Tokens.ListRoles.mobileLine2
+                            prop.children [ Html.span [ prop.className $"{Tokens.ListRoles.muted} truncate"; prop.text "Zugewiesen 400,00 € · Aktivität -280,00 €" ] ]
+                        ]
+                        Html.div [
+                            prop.className Tokens.ListRoles.mobileLine2
+                            prop.children [
+                                Html.span [ prop.className $"{Tokens.ListRoles.secondary} truncate min-w-0"; prop.text "Target 600,00 €/Monat" ]
+                                Html.span [ prop.className $"{Tokens.ListRoles.secondary} shrink-0 whitespace-nowrap"; prop.text "· fehlt 200,00 €" ]
+                            ]
+                        ]
+                    ]
+                ]
+                Html.div [
+                    prop.className "flex flex-col items-end w-fit"
+                    prop.children [
+                        Html.span [
+                            prop.className "whitespace-nowrap"
+                            prop.children [
+                                Html.span [
+                                    prop.className $"font-mono font-medium tabular-nums {Tokens.ListRoles.primarySize} {Tokens.Colors.textSecondary}"
+                                    prop.text "600,00 €"
+                                ]
+                                Html.span [
+                                    prop.className $"font-sans {Tokens.ListRoles.primarySize} {Tokens.Colors.textSecondary}"
+                                    prop.text "/Monat"
+                                ]
+                            ]
+                        ]
+                        Html.span [ prop.className $"{Tokens.ListRoles.secondary} whitespace-nowrap"; prop.text "fehlt 200,00 €" ]
+                    ]
+                ]
                 Table.view { Table.defaultTableProps with Variant = Table.Hover } [
                     Table.thead (keyed [
                         Table.calmHeaderCell "Datum" None

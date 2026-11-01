@@ -102,6 +102,8 @@ let private emptyPreview : Shared.Budgeting.TargetPreview =
 
 let private reviewState = { IsApproved = true; ClearedState = ReviewCleared }
 
+let private budget = budgetApi (TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin")
+
 let private rows : Row list = [
     // ---------------- SettingsApi ----------------
     { Endpoint = "SettingsApi.getSettings"; Case = "ohne Einrichtung kein YNAB und kein Comdirect"
@@ -310,23 +312,23 @@ let private rows : Row list = [
 
     // ---------------- BudgetApi ----------------
     { Endpoint = "BudgetApi.getBudgetMonth"; Case = "ungültiger Monat: Fehler"
-      Run = fun () -> budgetApi.getBudgetMonth "kein-monat" |> run |> expectError "Monat" }
+      Run = fun () -> budget.getBudgetMonth "kein-monat" |> run |> expectError "Monat" }
     { Endpoint = "BudgetApi.previewTargets"; Case = "letzter Monat: abgelehnt mit Grund, auch ohne Einrichtung"
       Run = fun () ->
-        match budgetApi.previewTargets "last" |> run with
+        match budget.previewTargets "last" |> run with
         | Error message -> Expect.stringContains message "letzten Monat" "Grund"
         | Ok _ -> failtest "Vorschau hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.applyTargets"; Case = "letzter Monat: abgelehnt mit Grund, auch ohne Einrichtung"
       Run = fun () ->
-        match budgetApi.applyTargets "last" emptyPreview |> run with
+        match budget.applyTargets "last" emptyPreview |> run with
         | Error message -> Expect.stringContains message "letzten Monat" "Grund"
         | Ok _ -> failtest "Anwenden hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.moveMoney"; Case = "negativer Betrag am Rand von decimal: Fehler statt Ausnahme"
       Run = fun () ->
           let negative = { emptyMove with Amount = { emptyMove.Amount with Amount = -Decimal.MaxValue } }
-          budgetApi.moveMoney "2026-11-01" negative |> run |> expectError "Verschieben" }
+          budget.moveMoney "2026-11-01" negative |> run |> expectError "Verschieben" }
     { Endpoint = "BudgetApi.retryFailedTargets"; Case = "keine gültige Anwendungs-Id: Fehler"
-      Run = fun () -> budgetApi.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
+      Run = fun () -> budget.retryFailedTargets "keine-guid" |> run |> expectError "Wiederholen" }
 ]
 
 /// Endpoints aus der Reflection, als "Interface.methode".

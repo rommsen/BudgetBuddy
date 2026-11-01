@@ -68,6 +68,20 @@ let private openTests =
             Expect.equal m lastMonth "unverändert"
             Expect.isFalse load "keine Vorschau"
         }
+        // Bug F1: "Wiederholen" im Fehlerdialog schickte OpenTargets, das nur bei geschlossenem
+        // Dialog griff. Der Knopf tat nichts.
+        test "Wiederholen nach gescheiterter Vorschau holt die Vorschau neu" {
+            let failed = { loaded with Targets = PreviewFailed "kaputt" }
+            let m, load = openTargets failed
+            Expect.equal m.Targets PreviewLoading "lädt"
+            Expect.isTrue load "Vorschau holen"
+        }
+        test "Im letzten Monat holt auch Wiederholen keine Vorschau" {
+            let failed = { loaded with Choice = LastMonth; Targets = PreviewFailed "kaputt" }
+            let m, load = openTargets failed
+            Expect.equal m failed "unverändert"
+            Expect.isFalse load "keine Vorschau"
+        }
         test "Die Vorschau wird eingenommen, eine späte Antwort zu anderer Wahl oder geschlossenem Dialog nicht" {
             let waiting = { loaded with Targets = PreviewLoading }
             Expect.equal (applyPreviewLoaded CurrentMonth (Ok preview) waiting).Targets (PreviewReady (preview, false)) "eingenommen"

@@ -9,7 +9,8 @@ open Shared.Budgeting
 
 /// "YYYY-MM-01" des gewählten Monats, bezogen auf `today`. Der nächste Monat nach Dezember
 /// ist der Januar des Folgejahres, der letzte Monat vor Januar der Dezember des Vorjahres.
-let monthKey (today: DateTime) (choice: BudgetMonthChoice) : string =
+/// `today` ist ein Kalendertag ohne Uhrzeit, in Berlin zu bestimmen (`Server.Api.berlinToday`).
+let monthKey (today: DateOnly) (choice: BudgetMonthChoice) : string =
     let first = DateTime(today.Year, today.Month, 1)
     let month =
         match choice with

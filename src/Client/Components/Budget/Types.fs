@@ -61,6 +61,8 @@ type MoveRetryState =
 /// ist, bis nichts mehr offen ist.
 type OpenMoveRetry = {
     ApplicationId: string
+    /// Der Monat der Verschiebung, etwa "Oktober 2026": der Hinweis steht auch in anderen Monaten da.
+    MonthLabel: string
     Summary: string
     Reason: string
     State: MoveRetryState
@@ -93,6 +95,9 @@ type Model = {
     Detail: CategoryDetail option
     /// Zählt die Abfragen der Detail-Liste: eine späte Antwort ersetzt keine neuere Liste.
     DetailGeneration: int
+    /// Zählt die Abfragen des Monats: eine späte Antwort ersetzt keinen neueren Stand, auch nicht
+    /// bei gleicher Monatswahl (zwei Reloads nach schnellen Verschiebungen, Wechsel A, B, A).
+    MonthGeneration: int
 }
 
 type Msg =
@@ -100,12 +105,12 @@ type Msg =
     | PageEntered
     /// Den gewählten Monat (neu) holen: Seitenaufruf und "Wiederholen".
     | Load
-    /// Umschalter dieser/nächster Monat.
+    /// Umschalter letzter/dieser/nächster Monat.
     | SelectMonth of BudgetMonthChoice
-    /// Antwort des Servers, mit der Wahl, zu der sie gehört.
-    | Loaded of BudgetMonthChoice * Result<BudgetMonth, string>
+    /// Antwort des Servers, mit der Abfrage, zu der sie gehört.
+    | Loaded of generation: int * Result<BudgetMonth, string>
     /// Antwort des stillen Neu-Lesens nach einer Verschiebung.
-    | Reloaded of BudgetMonthChoice * Result<BudgetMonth, string>
+    | Reloaded of generation: int * Result<BudgetMonth, string>
     /// Knopf "Targets anwenden": Vorschau öffnen.
     | OpenTargets
     /// Antwort der Vorschau, mit der Monatswahl, zu der sie gehört.
@@ -167,7 +172,8 @@ let init () : Model =
       Move = None
       OpenRetries = []
       Detail = None
-      DetailGeneration = 0 }
+      DetailGeneration = 0
+      MonthGeneration = 0 }
 
 let private categoriesOf (month: BudgetMonth) : BudgetCategory list =
     month.Groups |> List.collect (fun g -> g.Categories)
@@ -176,11 +182,15 @@ let private categoriesOf (month: BudgetMonth) : BudgetCategory list =
 let moveCategory (month: BudgetMonth) (form: MoveForm) : BudgetCategory option =
     categoriesOf month |> List.tryFind (fun c -> c.Id = form.CategoryId)
 
-/// Antwort einnehmen. Eine Antwort zu einer inzwischen abgewählten Monatswahl wird
-/// verworfen, damit ein langsamer Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt X im
-/// neuen Stand, schließt ein offenes Sheet, außer während des Aufrufs.
-let applyLoaded (choice: BudgetMonthChoice) (result: Result<BudgetMonth, string>) (model: Model) : Model =
-    if choice <> model.Choice then
+/// Eine neue Abfrage des Monats beginnt: ältere Antworten zählen ab jetzt nicht mehr.
+let requestMonth (model: Model) : Model =
+    { model with MonthGeneration = model.MonthGeneration + 1 }
+
+/// Antwort einnehmen. Eine Antwort einer älteren Abfrage wird verworfen, damit ein langsamer
+/// Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt X im neuen Stand, schließt ein
+/// offenes Sheet, außer während des Aufrufs.
+let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: Model) : Model =
+    if generation <> model.MonthGeneration then
         model
     else
         match result with
@@ -197,14 +207,14 @@ let applyLoaded (choice: BudgetMonthChoice) (result: Result<BudgetMonth, string>
 /// Das stille Neu-Lesen nach einer Verschiebung. Scheitert es, bleibt die Liste stehen und ein
 /// Hinweis nennt den Grund: die Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel.
 let applyReloaded
-    (choice: BudgetMonthChoice)
+    (generation: int)
     (result: Result<BudgetMonth, string>)
     (model: Model)
     : Model * ExternalMsg =
     match model.Month, result with
-    | Success _, Error message when choice = model.Choice ->
+    | Success _, Error message when generation = model.MonthGeneration ->
         model, ShowToast ($"Beträge nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning)
-    | _ -> applyLoaded choice result model, NoOp
+    | _ -> applyLoaded generation result model, NoOp
 
 /// Monat wählen. Dieselbe Wahl noch einmal ändert nichts (`false`); eine andere setzt den
 /// Monat auf `Loading` (`true` heißt: der Aufrufer muss laden).
@@ -212,7 +222,7 @@ let select (choice: BudgetMonthChoice) (model: Model) : Model * bool =
     if choice = model.Choice && model.Month <> NotAsked then
         model, false
     else
-        { model with Choice = choice; Month = Loading; Detail = None }, true
+        requestMonth { model with Choice = choice; Month = Loading; Detail = None }, true
 
 let private monthNames =
     [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"
@@ -227,19 +237,23 @@ let monthLabel (month: string) : string =
         | _ -> month
     | _ -> month
 
-let private moneyText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
+/// Ein Betrag als Text: "1.600,00 €".
+let moneyText (m: Money) = Money.formatAmountText false true m.Amount m.Currency
 
-/// Betrag und Rhythmus eines Targets: "1.600,00 €/Monat", "120,00 € alle 3 Monate" (budgeting-kjsht).
+/// Der Rhythmus hinter dem Betrag: "/Monat", " alle 3 Monate", ohne Rhythmus nichts (budgeting-kjsht).
+let rhythmText (rhythm: TargetRhythm) : string =
+    match rhythm with
+    | Weeks 1 -> "/Woche"
+    | Months 1 -> "/Monat"
+    | Years 1 -> "/Jahr"
+    | Weeks n -> $" alle {n} Wochen"
+    | Months n -> $" alle {n} Monate"
+    | Years n -> $" alle {n} Jahre"
+    | NoRhythm -> ""
+
+/// Betrag und Rhythmus eines Targets: "1.600,00 €/Monat", "120,00 € alle 3 Monate".
 let targetText (target: Target) : string =
-    let amount = moneyText target.Amount
-    match target.Rhythm with
-    | Weeks 1 -> $"{amount}/Woche"
-    | Months 1 -> $"{amount}/Monat"
-    | Years 1 -> $"{amount}/Jahr"
-    | Weeks n -> $"{amount} alle {n} Wochen"
-    | Months n -> $"{amount} alle {n} Monate"
-    | Years n -> $"{amount} alle {n} Jahre"
-    | NoRhythm -> amount
+    moneyText target.Goal + rhythmText target.Rhythm
 
 /// Der Zusatz zum Target: pausiert, fehlt oder erfüllt. Pausiert geht vor, weil der Fehlbetrag
 /// dann nicht zählt. Liefert YNAB keinen Fehlbetrag, gibt es keinen Zusatz.
@@ -249,12 +263,6 @@ let targetStatusText (category: BudgetCategory) : string option =
     | false, Some under when under.Amount > 0m -> Some $"fehlt {moneyText under}"
     | false, Some _ -> Some "erfüllt"
     | false, None -> None
-
-/// Die Zeile am Handy: "Target 1.600,00 €/Monat · fehlt 1.600,00 €".
-let targetLineText (category: BudgetCategory) (target: Target) : string =
-    match targetStatusText category with
-    | Some status -> $"Target {targetText target} · {status}"
-    | None -> $"Target {targetText target}"
 
 /// Die Zeile unter dem neuen Betrag in der Vorschau.
 let previewDetailText (line: TargetLine) : string =
@@ -283,11 +291,12 @@ let filterGroups (search: string) (groups: BudgetGroup list) : BudgetGroup list 
 // Targets anwenden (budgeting-h2zfn)
 // ============================================
 
-/// Dialog öffnen. Nur bei geladenem Monat und nur, wenn der Dialog zu ist; `true` heißt: der
-/// Aufrufer muss die Vorschau holen.
+/// Dialog öffnen oder nach gescheiterter Vorschau "Wiederholen". Nur bei geladenem Monat und nur,
+/// wenn der Dialog zu ist oder an der Vorschau scheiterte; `true` heißt: der Aufrufer muss die
+/// Vorschau holen.
 let openTargets (model: Model) : Model * bool =
     match model.Month, model.Targets with
-    | Success _, TargetsClosed when targetsAllowed model.Choice -> { model with Targets = PreviewLoading }, true
+    | Success _, (TargetsClosed | PreviewFailed _) when targetsAllowed model.Choice -> { model with Targets = PreviewLoading }, true
     | _ -> model, false
 
 /// Antwort der Vorschau einnehmen. Eine Antwort zu einer abgewählten Monatswahl oder zu
@@ -344,7 +353,7 @@ let closeTargets (model: Model) : Model * bool =
     | Applying _
     | ApplyDone (_, _, true, _) -> model, false
     | ApplyDone _
-    | ApplyFailed _ -> { model with Targets = TargetsClosed }, true
+    | ApplyFailed _ -> requestMonth { model with Targets = TargetsClosed }, true
     | _ -> { model with Targets = TargetsClosed }, false
 
 /// Wie sich Zu verteilen nach dem Lauf zur Vorschau verhält.
@@ -535,7 +544,7 @@ let moveToast (report: ApplyReport) : ExternalMsg =
 
 /// Merkt sich eine Verschiebung mit fehlgeschlagener Zeile; ist nichts mehr offen, verschwindet
 /// sie. Der Hinweis auf der Seite hängt daran, der Toast läuft nach fünf Sekunden ab.
-let noteMoveReport (report: ApplyReport) (model: Model) : Model =
+let noteMoveReport (month: string) (report: ApplyReport) (model: Model) : Model =
     let others = model.OpenRetries |> List.filter (fun r -> r.ApplicationId <> report.ApplicationId)
     let reason =
         report.Lines
@@ -547,6 +556,7 @@ let noteMoveReport (report: ApplyReport) (model: Model) : Model =
     | Some reason ->
         let entry =
             { ApplicationId = report.ApplicationId
+              MonthLabel = monthLabel month
               Summary = moveSummaryText report
               Reason = reason
               State = RetryReady }
@@ -558,14 +568,14 @@ let noteMoveReport (report: ApplyReport) (model: Model) : Model =
 /// es, der Monat wird neu gelesen (`true`).
 let applyMoveAnswered (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg * bool =
     match result, model.Move with
-    | Ok report, _ -> noteMoveReport report { model with Move = None }, moveToast report, true
+    | Ok report, _ -> requestMonth (noteMoveReport report.Month report { model with Move = None }), moveToast report, true
     | Error message, Some form -> { model with Move = Some { form with Submission = Rejected message } }, NoOp, false
     | Error message, None -> model, ShowToast ($"Nicht verschoben: {message}", ToastError), false
 
 /// Der Aufruf brach ab. Weil der Server relativ rechnet, wäre ein zweiter Versuch im offenen Sheet
 /// gefährlich: es schließt, und der Monat wird neu gelesen.
 let applyMoveCallLost (message: string) (model: Model) : Model * ExternalMsg =
-    { model with Move = None }, ShowToast ($"Ob verschoben wurde, ist unklar: {message}", ToastError)
+    requestMonth { model with Move = None }, ShowToast ($"Ob verschoben wurde, ist unklar: {message}", ToastError)
 
 /// "Erneut senden". `true` heißt: der Aufrufer muss senden. Läuft es schon oder ist die Verschiebung
 /// nicht mehr offen, geschieht nichts.
@@ -584,12 +594,12 @@ let startMoveRetry (applicationId: string) (model: Model) : Model * bool =
 /// YNAB erreicht haben.
 let applyMoveRetried (applicationId: string) (result: Result<ApplyReport, string>) (model: Model) : Model * ExternalMsg =
     match result with
-    | Ok report -> noteMoveReport report model, moveToast report
+    | Ok report -> requestMonth (noteMoveReport report.Month report model), moveToast report
     | Error message ->
         let reopened =
             model.OpenRetries
             |> List.map (fun r -> if r.ApplicationId = applicationId then { r with State = RetryReady } else r)
-        { model with OpenRetries = reopened }, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)
+        requestMonth { model with OpenRetries = reopened }, ShowToast ($"Erneut senden gescheitert: {message}", ToastError)
 
 // ============================================
 // Kategorie-Detail (budgeting-m1bce)
@@ -612,8 +622,7 @@ let deviationHint (total: Money) (activity: Money) : string option =
     if total.Amount = activity.Amount then
         None
     else
-        let text (m: Money) = Money.formatAmountText false true m.Amount m.Currency
-        Some $"Kassenbuch: {text total}, YNAB: {text activity}"
+        Some $"Kassenbuch: {moneyText total}, YNAB: {moneyText activity}"
 
 /// Detail öffnen, nur bei geladenem Monat und bekannter Kategorie. Gibt den Monat zurück, dessen
 /// Liste der Aufrufer holen muss.

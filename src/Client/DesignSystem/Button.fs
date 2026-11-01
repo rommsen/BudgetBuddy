@@ -240,6 +240,7 @@ let listName (testId: string) (ariaLabel: string) (touchTarget: bool) (name: str
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaLabel ariaLabel
+        prop.title name
         prop.className (
             if touchTarget then
                 $"{ListRoles.primary} {TouchTargets.minSize} relative -my-3 truncate min-w-0 text-left cursor-pointer touch-manipulation hover:underline"

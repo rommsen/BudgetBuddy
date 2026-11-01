@@ -99,14 +99,14 @@ let private planTests =
         }
         // budgeting-kjsht
         test "Das Target der Kategorie steht in der Zeile der Vorschau" {
-            let target : Target = { Amount = eur 1600000L; Rhythm = Months 1 }
+            let target : Target = { Goal = eur 1600000L; Rhythm = Months 1 }
             let p = planOk (monthOf 50000L [ { category "A" 0L (Some 10000L) false with Target = Some target } ])
             Expect.equal p.Lines.Head.Target (Some target) "Target übernommen"
         }
         test "Ein geändertes Target allein löst kein Stand hat sich geändert aus" {
             let a = category "A" 0L (Some 10000L) false
-            let before = planOk (monthOf 50000L [ { a with Target = Some { Amount = eur 10000L; Rhythm = Months 1 } } ])
-            let after = planOk (monthOf 50000L [ { a with Target = Some { Amount = eur 99000L; Rhythm = Weeks 1 } } ])
+            let before = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 10000L; Rhythm = Months 1 } } ])
+            let after = planOk (monthOf 50000L [ { a with Target = Some { Goal = eur 99000L; Rhythm = Weeks 1 } } ])
             Expect.notEqual before.Lines.Head.Target after.Lines.Head.Target "Target weicht ab"
             Expect.isTrue (Domain.previewsMatch before after) "Vorschau gilt weiter"
         }
@@ -521,14 +521,14 @@ let private persistenceTests =
             Expect.equal l2.Latest (Some ChangedInYnab) "in YNAB geändert"
     ]
 
-// budgeting-et7z8: im letzten Monat kein Targets anwenden. Der Port zählt jeden YNAB-Zugriff,
-// die Ablehnung muss also vor dem ersten Lesen fallen.
+// budgeting-et7z8: im letzten Monat kein Targets anwenden. Der Port zählt jedes Lesen
+// (`FetchMonth`), die Ablehnung muss also davor fallen; das Schreiben prüft `f.Attempts`.
 let private lastMonthTests =
     let testCase name body =
         testCase name (fun () ->
             Budgeting.Persistence.initializeBudgetingSchema ()
             body ())
-    let today = DateTime(2026, 11, 1)
+    let today = DateOnly(2026, 11, 1)
     let countingPort (f: FakeYnab) =
         let reads = ResizeArray<string>()
         let port =
@@ -574,10 +574,83 @@ let private lastMonthTests =
                 | Ok p -> p
                 | Error e -> failtest e
             match applyVia f.Port "current" shown with
-            | Ok (Applied report) -> Expect.equal report.Month "2026-11-01" "Monat"
+            | Ok (Applied report) ->
+                Expect.equal report.Month "2026-11-01" "Monat"
+                let states = loadedOk (Guid.Parse report.ApplicationId)
+                Expect.isNonEmpty states "Bewegungen festgehalten"
+                for state in states do
+                    Expect.equal state.Movement.OccurredAt now "Zeitstempel ist die Uhr, nicht der Kalendertag"
             | other -> failtest $"Applied erwartet: {other}"
+    ]
+
+// Die Verdrahtung der BudgetApi: Settings, Port und Uhr sind die einzigen Stellen, an denen
+// `budgetApi` etwas anderes tut als `budgetApiWith`.
+let private wiringTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+    let berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+    // In Berlin schon der 1. Dezember, in UTC noch der 30. November.
+    let lateUtc = DateTime(2026, 11, 30, 23, 30, 0, DateTimeKind.Utc)
+    let apiFor (f: FakeYnab) =
+        let seen = ResizeArray<string * string>()
+        let reads = ResizeArray<string>()
+        let settings key =
+            async {
+                return
+                    match key with
+                    | "ynab_token" -> Some "das-token"
+                    | "ynab_default_budget_id" -> Some "das-budget"
+                    | _ -> None
+            }
+        let portFor token (YnabBudgetId budget) =
+            seen.Add((token, budget))
+            { f.Port with
+                FetchMonth =
+                    fun key ->
+                        reads.Add key
+                        f.Port.FetchMonth key }
+        Server.Api.budgetApiWith settings portFor (fun () -> lateUtc) berlin, seen, reads
+    testList "Verdrahtung der BudgetApi" [
+        // Bug B1 am Endpunkt: siehe "Kurz nach Mitternacht" in BudgetingTests.
+        testCase "Lesen und Vorschau lösen den Monat nach dem Berliner Tag auf" <| fun () ->
+            let f, _ = fake 500000L
+            let api, _, reads = apiFor f
+            Expect.isOk (api.getBudgetMonth "current" |> run) "Monat"
+            Expect.isOk (api.previewTargets "current" |> run) "Vorschau"
+            Expect.equal (List.ofSeq reads) [ "2026-12-01"; "2026-12-01" ] "Dezember"
+
+        testCase "Übernehmen schreibt in den Berliner Monat und stempelt mit der Uhr" <| fun () ->
+            let f, _ = fake 500000L
+            let api, _, _ = apiFor f
+            let shown =
+                match api.previewTargets "current" |> run with
+                | Ok p -> p
+                | Error e -> failtest e
+            match api.applyTargets "current" shown |> run with
+            | Ok (Applied report) ->
+                Expect.equal report.Month "2026-12-01" "Monat"
+                for state in loadedOk (Guid.Parse report.ApplicationId) do
+                    Expect.equal state.Movement.OccurredAt lateUtc "Uhr"
+            | other -> failtest $"Applied erwartet: {other}"
+
+        testCase "Jeder Endpunkt reicht Token und Budget in dieser Reihenfolge an den Port" <| fun () ->
+            let f, _ = fake 500000L
+            let shown = previewOf f
+            let move : MoveRequest = { Source = ToBeBudgetedSide; Target = CategorySide (Guid.NewGuid()); Amount = eur 1000L }
+            let calls : (string * (Shared.Api.BudgetApi -> unit)) list =
+                [ "getBudgetMonth", fun api -> api.getBudgetMonth "current" |> run |> ignore
+                  "previewTargets", fun api -> api.previewTargets "current" |> run |> ignore
+                  "applyTargets", fun api -> api.applyTargets "current" shown |> run |> ignore
+                  "retryFailedTargets", fun api -> api.retryFailedTargets (string (Guid.NewGuid())) |> run |> ignore
+                  "moveMoney", fun api -> api.moveMoney "2026-12-01" move |> run |> ignore ]
+            for name, call in calls do
+                let api, seen, _ = apiFor f
+                call api
+                Expect.equal (List.ofSeq seen |> List.distinct) [ "das-token", "das-budget" ] name
     ]
 
 [<Tests>]
 let tests =
-    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests ]
+    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests; wiringTests ]

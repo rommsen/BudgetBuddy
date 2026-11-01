@@ -48,7 +48,7 @@ type TargetRhythm =
 /// Das Target einer Kategorie, wie YNAB es liefert (`goal_target` und Kadenz). BB zeigt es nur
 /// an und rechnet nicht damit (ADR 0065): was fehlt, sagt der Fehlbetrag von YNAB.
 type Target = {
-    Amount: Money
+    Goal: Money
     Rhythm: TargetRhythm
 }
 

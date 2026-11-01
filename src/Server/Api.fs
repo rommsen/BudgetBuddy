@@ -1667,12 +1667,17 @@ let ledgerApi : LedgerApi = {
 [<Literal>]
 let private NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
 
+/// Der Kalendertag, auf den sich "dieser Monat" bezieht. Der Server läuft nicht zwingend in
+/// Berliner Zeit: mit `DateTime.Today` wäre am Monatsersten bis 02:00 Uhr noch der Vormonat "dieser Monat".
+let berlinToday (berlinZone: TimeZoneInfo) (utcNow: DateTime) : DateOnly =
+    DateOnly.FromDateTime(Ledger.Bot.Domain.berlinDayOf berlinZone utcNow)
+
 /// Der Weg der Budget-Seite ohne Settings und Netz: Schlüssel prüfen, Token und Budget
 /// verlangen, Monat holen (`fetchMonth token budgetId monthKey`), Fehler lesbar machen.
 let budgetMonthFor
     (tokenOpt: string option)
     (budgetOpt: string option)
-    (today: DateTime)
+    (today: DateOnly)
     (monthKeyText: string)
     (fetchMonth: string -> YnabBudgetId -> string -> Async<YnabResult<Shared.Budgeting.YnabMonth>>)
     : Async<Result<Shared.Budgeting.BudgetMonth, string>> =
@@ -1709,38 +1714,42 @@ let targetsWith
             | Error e -> return Error (ynabErrorText e)
     }
 
+/// Prüft den Monats-Schlüssel von "Targets anwenden" und löst ihn gegen `today` auf.
+let private targetsMonthKey (today: DateOnly) (monthKeyText: string) : Result<string, string> =
+    Validation.validateTargetsMonth monthKeyText
+    |> Result.map (Server.Budgeting.Domain.monthKey today)
+
 /// Vorschau von "Targets anwenden" ohne Settings und Netz. Der Monats-Schlüssel wird zuerst
 /// geprüft: ein abgelehnter Monat fragt YNAB nicht.
 let previewTargetsWith
     (tokenOpt: string option)
     (budgetOpt: string option)
     (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
-    (today: DateTime)
+    (today: DateOnly)
     (monthKeyText: string)
     : Async<Result<Shared.Budgeting.TargetPreview, string>> =
     async {
-        match Validation.validateTargetsMonth monthKeyText with
+        match targetsMonthKey today monthKeyText with
         | Error message -> return Error message
-        | Ok choice ->
-            let key = Server.Budgeting.Domain.monthKey today choice
+        | Ok key ->
             return! targetsWith tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port key)
     }
 
 /// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith`.
+/// `today` löst den Monat auf (Kalendertag in Berlin), `now` stempelt die Bewegung (UTC).
 let applyTargetsWith
     (tokenOpt: string option)
     (budgetOpt: string option)
     (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
-    (today: DateTime)
+    (today: DateOnly)
     (now: DateTime)
     (monthKeyText: string)
     (shown: Shared.Budgeting.TargetPreview)
     : Async<Result<Shared.Budgeting.ApplyResult, string>> =
     async {
-        match Validation.validateTargetsMonth monthKeyText with
+        match targetsMonthKey today monthKeyText with
         | Error message -> return Error message
-        | Ok choice ->
-            let key = Server.Budgeting.Domain.monthKey today choice
+        | Ok key ->
             return!
                 targetsWith tokenOpt budgetOpt portFor (fun port ->
                     Server.Budgeting.CommandHandlers.apply port now key shown)
@@ -1773,44 +1782,56 @@ let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
       SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits }
 
-/// Die Budget-Seite: liest den Monat live aus YNAB. Nur "Targets anwenden" und "Verschieben"
-/// schreiben (nach YNAB und in die Budget-Bewegungen).
-let budgetApi : BudgetApi = {
-    getBudgetMonth = fun monthKeyText -> async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-        return! budgetMonthFor tokenOpt budgetOpt DateTime.Today monthKeyText YnabClient.getMonth
-    }
+/// Die Budget-Seite ohne Settings, Netz und Uhr: liest den Monat live aus YNAB. Nur "Targets
+/// anwenden" und "Verschieben" schreiben (nach YNAB und in die Budget-Bewegungen). "Verschieben"
+/// braucht keinen Berliner Tag: der Monat kommt vom Client, die Uhr stempelt nur die Bewegung.
+let budgetApiWith
+    (setting: string -> Async<string option>)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (utcNow: unit -> DateTime)
+    (berlinZone: TimeZoneInfo)
+    : BudgetApi =
+    let ynabSettings () =
+        async {
+            let! tokenOpt = setting "ynab_token"
+            let! budgetOpt = setting "ynab_default_budget_id"
+            return tokenOpt, budgetOpt
+        }
+    let today () = berlinToday berlinZone (utcNow ())
+    { getBudgetMonth = fun monthKeyText -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        let fetchMonth token budgetId monthKey = (portFor token budgetId).FetchMonth monthKey
+        return! budgetMonthFor tokenOpt budgetOpt (today ()) monthKeyText fetchMonth
+      }
 
-    previewTargets = fun monthKeyText -> async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-        return! previewTargetsWith tokenOpt budgetOpt livePort DateTime.Today monthKeyText
-    }
+      previewTargets = fun monthKeyText -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! previewTargetsWith tokenOpt budgetOpt portFor (today ()) monthKeyText
+      }
 
-    applyTargets = fun monthKeyText shown -> async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-        return! applyTargetsWith tokenOpt budgetOpt livePort DateTime.Today DateTime.UtcNow monthKeyText shown
-    }
+      applyTargets = fun monthKeyText shown -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! applyTargetsWith tokenOpt budgetOpt portFor (today ()) (utcNow ()) monthKeyText shown
+      }
 
-    retryFailedTargets = fun applicationIdText -> async {
+      retryFailedTargets = fun applicationIdText -> async {
         match Guid.TryParse applicationIdText with
         | false, _ -> return Error $"Ungültige Anwendung: '{applicationIdText}'"
         | true, applicationId ->
-            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+            let! tokenOpt, budgetOpt = ynabSettings ()
             return!
-                targetsWith tokenOpt budgetOpt livePort (fun port ->
-                    Server.Budgeting.CommandHandlers.retryFailed port DateTime.UtcNow applicationId)
-    }
+                targetsWith tokenOpt budgetOpt portFor (fun port ->
+                    Server.Budgeting.CommandHandlers.retryFailed port (utcNow ()) applicationId)
+      }
 
-    moveMoney = fun monthKeyText request -> async {
-        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-        return! moveMoneyWith tokenOpt budgetOpt livePort DateTime.UtcNow monthKeyText request
-    }
-}
+      moveMoney = fun monthKeyText request -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! moveMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
+      } }
+
+/// Die Budget-Seite der laufenden App. `berlinZone` wie in `webApp`.
+let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =
+    budgetApiWith Persistence.Settings.getSetting livePort (fun () -> DateTime.UtcNow) berlinZone
 
 // ============================================
 // HTTP Handler
@@ -1867,6 +1888,6 @@ let webApp (berlinZone: System.TimeZoneInfo) =
         Remoting.createApi()
         |> Remoting.withRouteBuilder routeBuilder
         |> Remoting.withErrorHandler errorHandler
-        |> Remoting.fromValue budgetApi
+        |> Remoting.fromValue (budgetApi berlinZone)
         |> Remoting.buildHttpHandler
     ]

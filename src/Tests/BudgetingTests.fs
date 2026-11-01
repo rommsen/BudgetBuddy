@@ -87,7 +87,7 @@ let private decoderTests =
         // budgeting-kjsht
         test "goal_target mit Kadenz und Häufigkeit ergibt das Target" {
             let c = decodeCategory """ "goal_type": "NEED", "goal_target": 120000, "goal_cadence": 1, "goal_cadence_frequency": 3 """
-            let expected : Target = { Amount = { Amount = 120m; Currency = "EUR" }; Rhythm = Months 3 }
+            let expected : Target = { Goal = { Amount = 120m; Currency = "EUR" }; Rhythm = Months 3 }
             Expect.equal c.Target (Some expected) "Betrag und Rhythmus"
         }
         test "goal_target null oder goal_type null ergibt kein Target" {
@@ -126,6 +126,27 @@ let private decoderTests =
         }
     ]
 
+let private rhythmTests =
+    let rhythmOf = Server.YnabClient.Decoders.targetRhythm
+    testList "Rhythmus aus YNABs Kadenz (kjsht)" [
+        for name, goalType, cadence, frequency, expected in
+            [ "wöchentlich", "NEED", 2, 1, Weeks 1
+              "alle 2 Wochen", "NEED", 2, 2, Weeks 2
+              "monatlich", "NEED", 1, 1, Months 1
+              "Häufigkeit 0 zählt wie 1", "NEED", 1, 0, Months 1
+              "monatlich mal Häufigkeit", "NEED", 1, 3, Months 3
+              "jährlich", "NEED", 13, 1, Years 1
+              "jährlich mal Häufigkeit", "NEED", 13, 2, Years 2
+              "Kadenz 3 ist alle 2 Monate", "NEED", 3, 1, Months 2
+              "Kadenz 4 ist alle 3 Monate", "NEED", 4, 1, Months 3
+              "Kadenz 12 ist alle 11 Monate", "NEED", 12, 1, Months 11
+              "Kadenz 14 ist alle 2 Jahre", "NEED", 14, 1, Years 2
+              "Kadenz 0 bei MF ist monatlich", "MF", 0, 0, Months 1
+              "Kadenz 0 ohne MF hat keinen Rhythmus", "TB", 0, 1, NoRhythm
+              "unbekannte Kadenz hat keinen Rhythmus", "NEED", 15, 1, NoRhythm ] do
+            test name { Expect.equal (rhythmOf goalType cadence frequency) expected name }
+    ]
+
 let private groupingTests =
     testList "Gruppieren (k7wmd)" [
         test "Gruppen und Kategorien behalten YNABs Reihenfolge" {
@@ -160,7 +181,7 @@ let private groupingTests =
         }
         // budgeting-kjsht
         test "Das Target gelangt in die angezeigte Kategorie" {
-            let target : Target = { Amount = eur 50000L; Rhythm = Weeks 1 }
+            let target : Target = { Goal = eur 50000L; Rhythm = Weeks 1 }
             let month = monthOf [ { category "Alltag" "Essen" false false false with Target = Some target } ]
             let shown = (Domain.toBudgetMonth month).Groups.Head.Categories.Head
             Expect.equal shown.Target (Some target) "Target"
@@ -182,25 +203,39 @@ let private groupingTests =
         }
     ]
 
+let private berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
+
 let private monthKeyTests =
     testList "Monatsumrechnung (k7wmd)" [
         test "Dieser Monat ist der Erste des laufenden Monats" {
-            Expect.equal (Domain.monthKey (DateTime(2026, 10, 26)) CurrentMonth) "2026-10-01" "dieser"
+            Expect.equal (Domain.monthKey (DateOnly(2026, 10, 26)) CurrentMonth) "2026-10-01" "dieser"
         }
         test "Nächster Monat ist der Erste des Folgemonats" {
-            Expect.equal (Domain.monthKey (DateTime(2026, 10, 30)) NextMonth) "2026-11-01" "nächster"
+            Expect.equal (Domain.monthKey (DateOnly(2026, 10, 30)) NextMonth) "2026-11-01" "nächster"
         }
         test "Von Dezember geht es in den Januar des Folgejahres" {
-            Expect.equal (Domain.monthKey (DateTime(2026, 12, 15)) NextMonth) "2027-01-01" "Jahreswechsel"
+            Expect.equal (Domain.monthKey (DateOnly(2026, 12, 15)) NextMonth) "2027-01-01" "Jahreswechsel"
         }
         test "Am Monatsletzten bleibt der Schlüssel im selben Monat" {
-            Expect.equal (Domain.monthKey (DateTime(2026, 1, 31)) NextMonth) "2026-02-01" "31. Januar"
+            Expect.equal (Domain.monthKey (DateOnly(2026, 1, 31)) NextMonth) "2026-02-01" "31. Januar"
         }
         test "Letzter Monat ist der Erste des Vormonats" {
-            Expect.equal (Domain.monthKey (DateTime(2026, 11, 1)) LastMonth) "2026-10-01" "letzter"
+            Expect.equal (Domain.monthKey (DateOnly(2026, 11, 1)) LastMonth) "2026-10-01" "letzter"
         }
         test "Von Januar geht es in den Dezember des Vorjahres" {
-            Expect.equal (Domain.monthKey (DateTime(2026, 1, 15)) LastMonth) "2025-12-01" "Jahreswechsel"
+            Expect.equal (Domain.monthKey (DateOnly(2026, 1, 15)) LastMonth) "2025-12-01" "Jahreswechsel"
+        }
+        // Bug B1: der Monat hing an `DateTime.Today`. Im UTC-Container war am Monatsersten bis
+        // 02:00 Uhr Berliner Zeit noch der Vormonat "dieser Monat", Targets anwenden schrieb dorthin.
+        test "Kurz nach Mitternacht in Berlin gilt schon der neue Monat, auch wenn UTC noch im alten liegt" {
+            let utc = DateTime(2026, 11, 30, 23, 30, 0, DateTimeKind.Utc)
+            let today = Server.Api.berlinToday berlin utc
+            Expect.equal today (DateOnly(2026, 12, 1)) "Berliner Tag"
+            Expect.equal (Domain.monthKey today CurrentMonth) "2026-12-01" "dieser Monat"
+        }
+        test "Kurz vor Mitternacht in Berlin bleibt es beim alten Monat" {
+            let today = Server.Api.berlinToday berlin (DateTime(2026, 11, 30, 22, 30, 0, DateTimeKind.Utc))
+            Expect.equal today (DateOnly(2026, 11, 30)) "Berliner Tag"
         }
     ]
 
@@ -209,9 +244,6 @@ let private validationTests =
         test "current und next sind gültig" {
             Expect.equal (Server.Validation.validateBudgetMonth "current") (Ok CurrentMonth) "current"
             Expect.equal (Server.Validation.validateBudgetMonth "next") (Ok NextMonth) "next"
-        }
-        test "last ist zum Lesen gültig" {
-            Expect.equal (Server.Validation.validateBudgetMonth "last") (Ok LastMonth) "last"
         }
         test "Die Fehlermeldung nennt alle drei Schlüssel" {
             match parseMonthChoice "gestern" with
@@ -233,6 +265,15 @@ let private validationTests =
         test "Targets anwenden nimmt current und next an" {
             Expect.equal (Server.Validation.validateTargetsMonth "current") (Ok CurrentMonth) "current"
             Expect.equal (Server.Validation.validateTargetsMonth "next") (Ok NextMonth) "next"
+        }
+        test "Ein ungültiger Schlüssel an Targets anwenden nennt nur current und next" {
+            match Server.Validation.validateTargetsMonth "gestern" with
+            | Error msg ->
+                Expect.stringContains msg "'gestern'" "nennt die Eingabe"
+                Expect.stringContains msg "'current'" "current"
+                Expect.stringContains msg "'next'" "next"
+                Expect.isFalse (msg.Contains "'last'") "last ist hier nicht erlaubt"
+            | Ok _ -> failtest "gestern hätte abgelehnt werden müssen"
         }
         test "Targets anwenden lehnt last ab und nennt den Grund" {
             match Server.Validation.validateTargetsMonth "last" with
@@ -297,7 +338,7 @@ let private errorMappingTests =
 let private apiPathTests =
     let fetchWith result = fun (_: string) (_: Shared.Domain.YnabBudgetId) (_: string) -> async { return result }
     let call token budget key fetch =
-        Server.Api.budgetMonthFor token budget (DateTime(2026, 10, 26)) key fetch |> Async.RunSynchronously
+        Server.Api.budgetMonthFor token budget (DateOnly(2026, 10, 26)) key fetch |> Async.RunSynchronously
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
             match call (Some "t") (Some "b") "current" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
@@ -341,4 +382,4 @@ let private apiPathTests =
 
 [<Tests>]
 let tests =
-    testList "Budgeting (k7wmd)" [ decoderTests; groupingTests; monthKeyTests; validationTests; errorMappingTests; apiPathTests ]
+    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKeyTests; validationTests; errorMappingTests; apiPathTests ]

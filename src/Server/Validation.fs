@@ -179,12 +179,10 @@ let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoic
 /// Prüft den Monats-Schlüssel für "Targets anwenden". Strenger als das Lesen: der letzte
 /// Monat ist lesbar, aber dort werden keine Targets angewendet (budgeting-et7z8).
 let validateTargetsMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
-    validateBudgetMonth key
-    |> Result.bind (fun choice ->
-        if Shared.Budgeting.targetsAllowed choice then
-            Ok choice
-        else
-            Error "Targets anwenden geht im letzten Monat nicht.")
+    match validateBudgetMonth key with
+    | Ok choice when Shared.Budgeting.targetsAllowed choice -> Ok choice
+    | Ok _ -> Error "Targets anwenden geht im letzten Monat nicht."
+    | Error _ -> Error $"Ungültiger Monat: '{key}'. Erlaubt sind 'current' und 'next'."
 
 /// Ein Monat an der Grenze ist sein Erster als "JJJJ-MM-01".
 let private tryParseMonthKey (key: string) : DateTime option =
