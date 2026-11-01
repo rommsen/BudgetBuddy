@@ -6,7 +6,7 @@ status: accepted
 date: 2026-10-30
 supersedes: []
 superseded_by: []
-related_tasks: [banking-import-cx4b7, banking-import-p5mcp, banking-import-tshq9, banking-import-z4h6p, banking-import-cyg94, banking-import-bftq0, banking-import-t4raw, infrastructure-jsys4]
+related_tasks: [banking-import-cx4b7, banking-import-p5mcp, banking-import-tshq9, banking-import-z4h6p, banking-import-cyg94, banking-import-bftq0, banking-import-r9tfx, banking-import-t4raw, banking-import-v8n3k, infrastructure-jsys4]
 related_adrs: [0010, 0057, 0066, 0068]
 related_research: []
 ---
@@ -157,3 +157,7 @@ ADR ersetzt, und Punkte 2 bis 9 werden nicht gebaut.
 ## Nachtrag 2026-10-31 (banking-import-z4h6p)
 
 Punkt 4 gilt mit zwei Präzisierungen. "Scheitert er, wird der Wert gelöscht" gilt für `ReloginRequired` und einen unbrauchbaren Wert. Bei `RetryLater` bleiben Wert und `Connected` stehen, der nächste Versuch folgt nach 60 s. "Beim Start ein Versuch" gilt für den Hintergrunddienst. Zusätzlich warten `startSync` und der Verbindungstest bei `Disconnected` auf die Wiederaufnahme, bevor sie über die TAN entscheiden, damit ein Klick direkt nach dem Start keine TAN kostet. Eine Challenge entsteht dabei weiter nur aus Romans Handlung.
+
+## Nachtrag 2026-11-01 (banking-import-v8n3k)
+
+Punkt 2 gilt mit einer Änderung. Ein Verbindungstest bei `Connected` liest die erste Umsatzseite der konfigurierten Konto-Id statt der Konten. Der Kontenabruf lieferte im Live-Befund (`banking-import-p5mcp`) in allen sechs Runden 404, der Umsatzabruf kam durch, und der Test war der einzige Nutzer des Kontenabrufs. Der Bank-Port aus Punkt 5 verliert deshalb die Konten.

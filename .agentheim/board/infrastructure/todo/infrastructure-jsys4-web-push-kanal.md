@@ -7,7 +7,7 @@ context: infrastructure
 created: 2026-10-30
 completed:
 depends_on: [banking-import-p5mcp]
-blocks: [banking-import-bftq0]
+blocks: [banking-import-r9tfx]
 tags: [backend, frontend, pwa, web-push, benachrichtigung, secrets]
 related_adrs: [0071, 0010, 0057]
 related_research: []
@@ -22,7 +22,7 @@ denselben Kanal, deshalb liegt er in `infrastructure`.
 ## What
 - Schritt 1: Geräte-Beweis mit einem Wegwerf-Push auf Romans Android-Handy. Empfängt die installierte PWA
   Push, und geht das ohne aktives Tailscale? Scheitert das auf Android: Befund notieren, Kanal stoppen,
-  `banking-import-bftq0` meldet dann nur im UI.
+  `banking-import-r9tfx` entfällt dann, die Anzeige aus `banking-import-bftq0` bleibt.
 - `notify`, VAPID, Abos und Handler per `importScripts`, `Cache-Control: no-cache`, Allowlist nach
   ADR 0071 Punkt 9.
 - Knopf "Benachrichtigungen aktivieren" in den Einstellungen (Nutzer-Geste).

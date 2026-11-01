@@ -5,6 +5,52 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 19:29 -- Modeling / Refined: infrastructure-g4wy8 - Spike: Warum brechen Anfragen zwischen Browser und Tailscale-Proxy mit Http error (0) ab?
+
+**Type:** Modeling / Refine
+**BC:** infrastructure
+**Status after:** backlog
+**Summary:** Ruht, Roman hat den Fehler seit den harten Reloads nicht mehr gesehen. Offene Punkte für die Gegenprobe stehen in den Notes.
+
+---
+
+## 2026-11-01 19:29 -- Modeling / Refined: banking-import-v8n3k - Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus
+
+**Type:** Modeling / Refine
+**BC:** banking-import
+**Status after:** backlog
+**Summary:** Roman entscheidet: Der Test läuft über die erste Umsatzseite, der Kontenabruf wird entfernt. ADR 0071 hat dazu einen Nachtrag, die Abhängigkeit von banking-import-h2n8q entfällt.
+
+---
+
+## 2026-11-01 19:29 -- Modeling / Refined: banking-import-t4raw - Zeitgesteuertes Vorbereiten zur Prüfung, per Setting an und aus, Default aus
+
+**Type:** Modeling / Refine
+**BC:** banking-import
+**Status after:** backlog
+**Summary:** Intervall 60 bis 1440 Minuten (Roman), Voreinstellung 360. Eigener BackgroundService statt tick, weil tick vor BankImport.fs kompiliert und den Refresh-Takt nicht halten darf. Fälligkeit und Identitätsprüfung in tryInstallPrepared festgelegt.
+
+---
+
+## 2026-11-01 19:29 -- Modeling / Refined: banking-import-bftq0 - Status der Bankverbindung sichtbar, Bank trennen
+
+**Type:** Modeling / Refine
+**BC:** banking-import
+**Status after:** backlog
+**Summary:** Geteilt: Status und Trennen hängen nicht mehr an infrastructure-jsys4, die Verlustmeldung ist ein eigener Task. Zustände, Trennen bei offener TAN und Löschfehler sind als Szenarien ergänzt.
+**Split into:** banking-import-r9tfx
+
+---
+
+## 2026-11-01 19:29 -- Modeling / Captured: banking-import-r9tfx - "Verlust der Bankverbindung per Web-Push melden"
+
+**Type:** Modeling / Capture
+**BC:** banking-import
+**Filed to:** backlog
+**Summary:** Aus banking-import-bftq0 herausgelöst: Verlust der Bankverbindung per notify melden, wartet auf den Web-Push-Kanal.
+
+---
+
 ## 2026-11-01 13:51 -- Modeling / Captured: infrastructure-p747v - "Serverzeit: Quick Add, Import und YNAB-Abfragen rechnen mit dem Berliner Kalendertag statt mit DateTime.Today"
 
 **Type:** Modeling / Capture

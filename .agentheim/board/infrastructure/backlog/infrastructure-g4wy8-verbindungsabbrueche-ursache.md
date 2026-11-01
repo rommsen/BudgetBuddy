@@ -44,3 +44,7 @@ Befunde bisher:
 ## Notes
 
 Liegt im Backlog, weil die Gegenproben Roman im echten Browser und Zugriff auf die Produktion brauchen. Ein Worker im Worktree kann das nicht.
+
+Ruht seit 2026-11-01: Roman hat den Fehler seit den harten Reloads nicht mehr gesehen. Der Spike wird erst wieder aufgenommen, wenn er zurückkehrt, und das Retry bleibt stehen. Kommt er zurück, zuerst die Gegenprobe beim nächsten Deploy.
+
+Offen für diese Gegenprobe: `checkForUpdate` läuft nicht nur beim Laden, sondern höchstens alle fünf Minuten beim Wechsel in den Vordergrund. Ein Neuladen kann also auch mitten in der Nutzung kommen. Es erklärt außerdem nur einen kurzen Abbruch, denn die abgebrochene Seite ist danach weg. Dass Konten und Kategorien dauerhaft leer blieben, bis Roman hart neu lud, braucht eine zweite Erklärung, etwa das alte Bundle aus dem Precache.
