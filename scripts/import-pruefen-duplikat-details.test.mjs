@@ -42,6 +42,7 @@ const json = (b) => ({ contentType: "application/json", body: JSON.stringify(b) 
 
 async function mock(page) {
   await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify("BankConnected") }));
   await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(session)));
   await page.route("**/api/SyncApi/getTransactions", (r) => r.fulfill(json({ Ok: txs })));
   await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));

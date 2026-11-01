@@ -212,6 +212,26 @@ let startSyncWith (ports: ImportPorts) : Async<SyncResult<SyncStart>> =
             return Error (SyncError.DatabaseError ("start_sync", ex.Message))
     })
 
+/// "Bank trennen" (ADR 0071). Läuft nach einem Start oder einer TAN-Bestätigung, ihr Ende ist also
+/// bekannt. Eine Sitzung, die noch auf die Bank wartet, verliert hier ihre Grundlage und endet
+/// sichtbar. Eine offene Prüfung bleibt, ihre Buchungen liegen schon im Speicher. Scheitert das
+/// Löschen, gilt das auch: im Speicher ist die Verbindung schon weg. Die Meldung nennt nur den Typ,
+/// der Text der Ausnahme könnte den gespeicherten Wert zitieren.
+let disconnectBankWith (ports: ImportPorts) (endConnection: unit -> Async<unit>) : Async<Result<unit, string>> =
+    serialized ports (async {
+        let! outcome = async {
+            try
+                do! endConnection ()
+                return Ok ()
+            with ex ->
+                return Error $"Gespeicherte Bankverbindung nicht gelöscht ({ex.GetType().Name}). Bank trennen wiederholen."
+        }
+        match ports.Sessions.Current () with
+        | Some { Status = (AwaitingBankAuth | AwaitingTan) } -> ports.Sessions.Fail "Bank getrennt. Sync neu starten."
+        | _ -> ()
+        return outcome
+    })
+
 /// Schließt die Push-TAN ab und holt die Umsätze.
 let confirmTanWith (ports: ImportPorts) (sessionId: SyncSessionId) : Async<SyncResult<unit>> =
     serialized ports (failingSessionOnException ports "confirm_tan" (async {

@@ -66,6 +66,7 @@ async function open(viewport, { appSettings = settings, abort = {}, accounts: ac
     return respond(r, calls[name]);
   };
   await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify("BankConnected") }));
   await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(session)));
   await page.route("**/api/SyncApi/getTransactions", answer("getTransactions", (r) => r.fulfill(json({ Ok: [row] }))));
   await page.route("**/api/SyncApi/skipTransaction", answer("skipTransaction", (r) => r.fulfill(json({ Ok: row }))));

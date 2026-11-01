@@ -242,6 +242,8 @@ type Model = {
     DuplicateTransactionIds: TransactionId list
     /// Whether TAN confirmation is in progress (prevents double-clicks)
     IsTanConfirming: bool
+    /// Stand der Bankverbindung für die Startansicht.
+    BankStatus: RemoteData<BankConnectionStatus>
     /// Gesetzt, wenn die Antwort von `startSync` verloren ging und der Serverzustand neu gelesen wird.
     InterruptedStart: StartRecovery option
     /// Transaction IDs with expanded details (showing memo)
@@ -276,6 +278,8 @@ let knownAccounts (model: Model) : YnabAccount list =
 /// SyncFlow-specific messages
 type Msg =
     | LoadCurrentSession
+    | LoadBankStatus
+    | BankStatusLoaded of Result<BankConnectionStatus, string>
     /// Antwort eines Lesevorgangs mit dessen Stand. Nur der aktuelle Stand wird zu
     /// `CurrentSessionLoaded` oder `CurrentSessionLoadFailed`.
     | SessionReadAnswered of version: int * Result<SyncSession option, string>

@@ -698,6 +698,13 @@ type ComdirectConnectionTest =
     /// Die Verbindung lebt, die erste Umsatzseite des konfigurierten Kontos war lesbar. Keine TAN nötig.
     | BankConnectionActive
 
+/// Stand der Bankverbindung für die Anzeige. Enthält bewusst nur den Fall, nie Tokens.
+type BankConnectionStatus =
+    | BankDisconnected
+    /// Eine Push-TAN wartet auf Bestätigung. Zählt nicht als verbunden.
+    | BankChallengePending
+    | BankConnected
+
 // ============================================
 // Result Type Aliases
 // ============================================

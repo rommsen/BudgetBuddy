@@ -620,6 +620,7 @@ let isResumeOnLivePorts (session: string) : bool =
 let isSessionBoundToLivePorts (session: string) : bool =
     [ "runTick", @"tick\s+livePorts\s+now"
       "disconnect", @"disconnectWith\s+livePorts"
+      "connectionStatus", @"connectionStatusWith\s+livePorts"
       "confirmTan", @"confirmChallengeWith\s+livePorts"
       "discardPendingChallenge", @"discardPendingChallengeWith\s+livePorts" ]
     |> List.forall (fun (name, body) -> isBoundExactlyTo name body session)
@@ -634,7 +635,9 @@ let private apiWirings =
       @"\bBank\s*=\s*BankPort\.comdirectBankPort\s+ComdirectAuthSession\.livePorts\b"
       @"\bstartSync\s*=\s*fun\s*\(\)\s*->\s*BankImport\.startSyncWith\s+liveImportPorts\b"
       @"\bconfirmTan\s*=\s*BankImport\.confirmTanWith\s+liveImportPorts\b"
-      @"\bcancelSync\s*=\s*cancelSyncWith\s+SyncSessionManager\.validateSession\s+ComdirectAuthSession\.discardPendingChallenge\s+SyncSessionManager\.clearSession\b" ]
+      @"\bcancelSync\s*=\s*cancelSyncWith\s+SyncSessionManager\.validateSession\s+ComdirectAuthSession\.discardPendingChallenge\s+SyncSessionManager\.clearSession\b"
+      @"\bgetBankConnectionStatus\s*=\s*fun\s*\(\)\s*->\s*async\.Return\s+\(ComdirectAuthSession\.connectionStatus\s+\(\)\)"
+      @"\bdisconnectBank\s*=\s*fun\s*\(\)\s*->\s*BankImport\.disconnectBankWith\s+liveImportPorts\s+ComdirectAuthSession\.disconnect\b" ]
 
 /// Die Muster aus `apiWirings`, die im Quelltext fehlen.
 let findMissingApiWirings (api: string) : string list =
@@ -676,6 +679,7 @@ let hostedServiceGuardTests =
                 $"let confirmTan () : Async<ComdirectResult<unit>> =\n    {confirm}\n\n"
                 + $"let discardPendingChallenge () : Async<unit> =\n    {discard}\n\n"
                 + $"let disconnect () : Async<unit> =\n    {disconnect}\n\n"
+                + "let connectionStatus () : BankConnectionStatus =\n    connectionStatusWith livePorts\n\n"
                 + $"let runTick (now: DateTimeOffset) : Async<unit> =\n    {runTick}\n"
             let tick = "tick livePorts now"
             let disconnect = "disconnectWith livePorts"
@@ -687,6 +691,7 @@ let hostedServiceGuardTests =
             Expect.isFalse (isSessionBoundToLivePorts (source "tick emptyPorts now" disconnect confirm discard)) "Takt mit anderen Ports"
             Expect.isFalse (isSessionBoundToLivePorts (source tick empty confirm discard)) "leeres Trennen"
             Expect.isFalse (isSessionBoundToLivePorts (source tick "disconnectWith emptyPorts" confirm discard)) "Trennen mit anderen Ports"
+            Expect.isFalse (isSessionBoundToLivePorts ((source tick disconnect confirm discard).Replace("connectionStatusWith livePorts", "connectionStatusWith emptyPorts"))) "Stand mit anderen Ports"
             Expect.isFalse (isSessionBoundToLivePorts (source tick disconnect "async.Return (Ok ())" discard)) "leere TAN"
             Expect.isFalse (isSessionBoundToLivePorts (source tick disconnect confirm empty)) "leeres Verwerfen"
             Expect.isFalse (isSessionBoundToLivePorts (source $"{tick}\n    |> Async.Ignore" disconnect confirm discard)) "Zusatz in der Folgezeile"
@@ -700,7 +705,9 @@ let hostedServiceGuardTests =
                   "Bank = BankPort.comdirectBankPort ComdirectAuthSession.livePorts clock\n"
                   "startSync = fun () -> BankImport.startSyncWith liveImportPorts\n"
                   "confirmTan = BankImport.confirmTanWith liveImportPorts\n"
-                  "cancelSync =\n    cancelSyncWith\n        SyncSessionManager.validateSession\n        ComdirectAuthSession.discardPendingChallenge\n        SyncSessionManager.clearSession\n" ]
+                  "cancelSync =\n    cancelSyncWith\n        SyncSessionManager.validateSession\n        ComdirectAuthSession.discardPendingChallenge\n        SyncSessionManager.clearSession\n"
+                  "getBankConnectionStatus = fun () -> async.Return (ComdirectAuthSession.connectionStatus ())\n"
+                  "disconnectBank = fun () -> BankImport.disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect\n" ]
                 |> String.concat "\n"
             let replaced (original: string) (replacement: string) = real.Replace(original, replacement)
             Expect.isEmpty (findMissingApiWirings real) "richtig"
@@ -713,7 +720,9 @@ let hostedServiceGuardTests =
                   "comdirectBankPort ComdirectAuthSession.livePorts", "comdirectBankPort emptyPorts", "Bank-Port mit anderen Ports"
                   "BankImport.startSyncWith liveImportPorts", "async.Return (Error fehler)", "leerer Start"
                   "BankImport.confirmTanWith liveImportPorts", "(fun _ -> async.Return (Ok ()))", "leere Bestätigung"
-                  "ComdirectAuthSession.discardPendingChallenge", "(fun () -> async.Return ())", "Abbruch verwirft nichts" ] do
+                  "ComdirectAuthSession.discardPendingChallenge", "(fun () -> async.Return ())", "Abbruch verwirft nichts"
+                  "async.Return (ComdirectAuthSession.connectionStatus ())", "async.Return BankConnected", "erfundener Stand"
+                  "disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect", "disconnectBankWith liveImportPorts (fun () -> async.Return ())", "Trennen löscht nichts" ] do
                 Expect.isNonEmpty (findMissingApiWirings (replaced original replacement)) label
             Expect.isNonEmpty (findMissingApiWirings $"// {real}") "nur im Kommentar"
 

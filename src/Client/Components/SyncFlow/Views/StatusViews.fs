@@ -294,7 +294,19 @@ let completedView (session: SyncSession) (dispatch: Msg -> unit) =
 // Start Sync View
 // ============================================
 
-let startSyncView (dispatch: Msg -> unit) =
+let private bankStatusRow (status: Types.RemoteData<BankConnectionStatus>) =
+    match status with
+    | Types.Success current ->
+        Html.div [
+            prop.className "flex items-center justify-between gap-3 mb-4"
+            prop.children [
+                Html.p [ prop.className "text-sm text-text-muted"; prop.text (Components.BankConnectionBadge.nextSyncHint current) ]
+                Components.BankConnectionBadge.view current
+            ]
+        ]
+    | _ -> Html.none
+
+let startSyncView (bankStatus: Types.RemoteData<BankConnectionStatus>) (dispatch: Msg -> unit) =
     Html.div [
         prop.className "max-w-lg mx-auto px-4 animate-fade-in"
         prop.children [
@@ -374,6 +386,8 @@ let startSyncView (dispatch: Msg -> unit) =
                                     ]
                                 ]
                             ]
+
+                            bankStatusRow bankStatus
 
                             Button.view {
                                 Button.defaultProps with

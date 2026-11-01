@@ -197,6 +197,14 @@ type SyncApi = {
     /// Returns: Unit on success or SyncError (SessionNotFound).
     cancelSync: SyncSessionId -> Async<SyncResult<unit>>
 
+    /// Liest den Stand der Bankverbindung, ohne Bankzugriff und ohne Wiederaufnahme.
+    /// Direkt nach einem Neustart kann er kurz `BankDisconnected` zeigen.
+    getBankConnectionStatus: unit -> Async<BankConnectionStatus>
+
+    /// Trennt die Bankverbindung und löscht den gespeicherten Wert. Eine offene Prüfung bleibt.
+    /// Returns: Unit oder eine Meldung für Roman, wenn der gespeicherte Wert liegen geblieben ist.
+    disconnectBank: unit -> Async<Result<unit, string>>
+
     // ============================================
     // Comdirect auth flow
     // ============================================

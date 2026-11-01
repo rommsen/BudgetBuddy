@@ -206,6 +206,18 @@ let private rows : Row list = [
       Run = fun () -> syncApi.getCurrentSession () |> run |> ignore }
     { Endpoint = "SyncApi.cancelSync"; Case = "unbekannte Sitzung: Fehler"
       Run = fun () -> syncApi.cancelSync (unknownSession ()) |> run |> expectError "Abbruch" }
+    { Endpoint = "SyncApi.getBankConnectionStatus"; Case = "ohne Verbindung getrennt"
+      Run = fun () -> Expect.equal (syncApi.getBankConnectionStatus () |> run) BankDisconnected "kein Bankzugriff, kein Fehler" }
+    // Über den Ablauf statt das Feld: das Feld beendet die laufende Sitzung des Prozesses, und die
+    // gehört parallel laufenden Tests. Sein Anschluss steht im Strukturwächter.
+    { Endpoint = "SyncApi.disconnectBank"; Case = "Löschen scheitert: Fehler"
+      Run = fun () ->
+        let ports =
+            { liveImportPorts with
+                Gate = new System.Threading.SemaphoreSlim(1, 1)
+                Sessions = { liveImportPorts.Sessions with Current = fun () -> None } }
+        Server.BankImport.disconnectBankWith ports (fun () -> async { failwith "Speicher nicht erreichbar" })
+        |> run |> expectError "Trennen" }
     { Endpoint = "SyncApi.confirmTan"; Case = "unbekannte Sitzung: Fehler"
       Run = fun () -> syncApi.confirmTan (unknownSession ()) |> run |> expectError "TAN" }
     { Endpoint = "SyncApi.getTransactions"; Case = "unbekannte Sitzung: Fehler"

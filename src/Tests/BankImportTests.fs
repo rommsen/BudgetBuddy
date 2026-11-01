@@ -875,3 +875,85 @@ let storedValueOnSyncPathsTests =
             Expect.isTrue (isDisconnected probe.Connection) "Challenge verworfen"
             Expect.equal probe.Clears 0 "kein zweites Löschen"
     ]
+
+// "Bank trennen": die Bankverbindung endet, die Sitzung bleibt nur, wenn sie ohne Bank auskommt.
+let private disconnectBank (ports: ImportPorts) (probe: Probe) : Result<unit, string> =
+    disconnectBankWith ports (fun () -> disconnectWith probe.Connection) |> run
+
+[<Tests>]
+let disconnectBankTests =
+    testList "Bank trennen: die Sync-Sitzung" [
+
+        testCase "eine Sitzung beim TAN-Schritt endet sichtbar, confirmTan scheitert ohne Bankzugriff" <| fun () ->
+            let probe = Probe(Disconnected)
+            let ports = probe.Build()
+            let session = startSyncWith ports |> run |> expectTanRequired
+            Expect.equal (disconnectBank ports probe) (Ok ()) "getrennt"
+            Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "die Sitzung sagt, was los ist"
+            match confirmTanWith ports session.Id |> run with
+            | Error _ -> ()
+            | Ok () -> failtest "confirmTan muss scheitern"
+            Expect.equal probe.Fetches 0 "kein Abruf"
+
+        testCase "eine Sitzung in AwaitingBankAuth bleibt dort nicht stehen" <| fun () ->
+            let probe = Probe(connected)
+            let ports = probe.Build()
+            let session = probe.Sessions.Open AwaitingBankAuth []
+            disconnectBank ports probe |> ignore
+            Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "beendet"
+            Expect.isError (confirmTanWith ports session.Id |> run) "confirmTan scheitert"
+
+        testCase "eine offene Prüfung bleibt offen, ihre Buchungen auch" <| fun () ->
+            let probe = Probe(connected)
+            let ports = probe.Build()
+            startSyncWith ports |> run |> expectReviewReady |> ignore
+            Expect.equal (disconnectBank ports probe) (Ok ()) "getrennt"
+            Expect.equal probe.Sessions.Status (Some ReviewingTransactions) "Prüfung offen"
+            Expect.equal probe.Sessions.Transactions.Length 1 "Buchung liegt noch"
+            Expect.equal (connectionState probe.Connection) Disconnected "Verbindung weg"
+
+        testCase "ein laufender Abruf endet zuerst und landet in der Prüfung" <| fun () ->
+            let probe = Probe(connected)
+            let bank = Barrier()
+            probe.DuringFetch <- bank.Hold
+            let ports = probe.Build()
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isTrue (bank.WaitReached ()) "der Abruf läuft"
+            let disconnected = disconnectBankWith ports (fun () -> disconnectWith probe.Connection) |> Async.StartAsTask
+            bank.Release ()
+            Expect.isTrue (disconnected.Wait hangLimit) "das Trennen endet"
+            Expect.isTrue (start.Wait hangLimit) "der Start endet"
+            Expect.equal probe.Sessions.Status (Some ReviewingTransactions) "Prüfung offen"
+            Expect.equal (connectionState probe.Connection) Disconnected "danach getrennt"
+
+        // banking-import-bftq0: Ohne `ImportPorts.Gate` überschreibt der Start das `Failed` mit
+        // `AwaitingTan` und löst nach dem Trennen eine Challenge aus.
+        testCase "ein Start, der noch auf die Wiederaufnahme wartet, kann das Trennen nicht überholen" <| fun () ->
+            let probe = Probe(Disconnected)
+            let bank = Barrier()
+            probe.StoredRead <- async {
+                do! bank.Hold ()
+                return NothingStored }
+            let ports = probe.Build()
+            let start = startSyncWith ports |> Async.StartAsTask
+            Expect.isTrue (bank.WaitReached ()) "der Start hängt in der Wiederaufnahme"
+            Expect.equal probe.Sessions.Status (Some AwaitingBankAuth) "die Sitzung wartet auf die Bank"
+            let disconnected = disconnectBankWith ports (fun () -> disconnectWith probe.Connection) |> Async.StartAsTask
+            // Ohne diese Pause gäbe der Test die Reihenfolge nicht her: das Trennen muss schon warten.
+            Thread.Sleep 100
+            Expect.isFalse disconnected.IsCompleted "das Trennen wartet"
+            bank.Release ()
+            Expect.isTrue (disconnected.Wait hangLimit) "das Trennen endet"
+            Expect.isTrue (start.Wait hangLimit) "der Start endet"
+            Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "die Sitzung endet sichtbar"
+            Expect.equal (connectionState probe.Connection) Disconnected "keine Challenge nach dem Trennen"
+
+        testCase "scheitert das Löschen, kommt der Fehler an, nennt den Wert nicht und beendet die Sitzung trotzdem" <| fun () ->
+            let probe = Probe(Disconnected)
+            let ports = probe.Build()
+            startSyncWith ports |> run |> expectTanRequired |> ignore
+            match disconnectBankWith ports (fun () -> async { failwith "wert-aus-der-ausnahme" }) |> run with
+            | Error message -> Expect.isFalse (message.Contains "wert-aus-der-ausnahme") "nur der Typ"
+            | Ok () -> failtest "Fehler erwartet"
+            Expect.equal probe.Sessions.Status (Some (Failed "Bank getrennt. Sync neu starten.")) "beendet"
+    ]

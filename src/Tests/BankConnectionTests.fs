@@ -499,6 +499,76 @@ let adapterTests =
             Expect.equal updated.ComdirectConnectionValid (Types.Success ()) "Erfolg"
     ]
 
+[<Tests>]
+let bankStatusTests =
+    let tokenTexts = [ "geheim-zugriff"; "geheim-zugriff-refresh"; keys.ClientSecret; keys.ClientId; requestInfo.SessionId ]
+    let client (state: BankConnectionState) = connectionStatusWith (Probe(state).Build())
+    testList "Bankverbindung: Stand für die Anzeige" [
+
+        testCase "Connected: verbunden, kein Bankzugriff" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 10.0 "fast-abgelaufen"))
+            let ports = probe.Build()
+            Expect.equal (connectionStatusWith ports) Shared.Domain.BankConnected "verbunden"
+            Expect.isEmpty probe.Refreshes "kein Refresh, auch nicht fällig"
+            Expect.isEmpty probe.Fetches "kein Abruf"
+
+        testCase "ChallengePending: die offene TAN zählt nicht als verbunden" <| fun () ->
+            let status = client pending
+            Expect.equal status Shared.Domain.BankChallengePending "offene TAN"
+            Expect.stringContains (Components.BankConnectionBadge.label status) "TAN" "die Anzeige nennt sie"
+            Expect.isFalse ((Components.BankConnectionBadge.label status).Contains "Verbunden") "nicht verbunden"
+
+        testCase "Disconnected: kein Versuch der Wiederaufnahme" <| fun () ->
+            let probe = Probe(Disconnected)
+            probe.StoredRead <- StoredReadable { RequestInfo = requestInfo; SessionId = requestInfo.SessionId; SessionIdentifier = "kennung-kuenstlich"; Tokens = tokensValidFor 500.0 "gespeichert" }
+            Expect.equal (connectionStatusWith (probe.Build())) Shared.Domain.BankDisconnected "getrennt"
+            Expect.isEmpty probe.Refreshes "die Wiederaufnahme bleibt beim Hintergrunddienst"
+
+        testCase "der Stand wartet nicht am Gate" <| fun () ->
+            let ports = Probe(connected (tokensValidFor 600.0 "alt")).Build()
+            ports.Cell.Gate.Wait()
+            try
+                Expect.equal (connectionStatusWith ports) Shared.Domain.BankConnected "antwortet bei belegtem Gate"
+            finally
+                ports.Cell.Gate.Release() |> ignore
+
+        // Vorbild SettingsSecretsTests: die Zustände tragen die Geheimnisse, der Stand darf keins davon zeigen.
+        testCase "der Stand enthält keine Tokens" <| fun () ->
+            let withSecrets = tokensValidFor 600.0 "geheim-zugriff"
+            for state in [ connected withSecrets; ChallengePending { Session = sessionWith withSecrets (Some challenge); Keys = keys } ] do
+                let sent = sprintf "%A" (client state)
+                for secret in tokenTexts do
+                    Expect.isFalse (sent.Contains secret) $"{secret} darf nicht hinaus"
+
+        testCase "Bank trennen ist kein Verlust" <| fun () ->
+            let probe = Probe(connected (tokensValidFor 600.0 "alt"))
+            let ports = probe.Build()
+            disconnectWith ports |> run
+            Expect.equal (connectionStatusWith ports) Shared.Domain.BankDisconnected "getrennt"
+            Expect.isEmpty probe.Losses "keine Meldung"
+            Expect.equal probe.Clears.Value 1 "Wert gelöscht"
+
+        testCase "Einstellungen: nach gescheitertem Löschen bleibt die Meldung und der zweite Versuch" <| fun () ->
+            let model, _ = Components.Settings.State.init ()
+            let settled, _, _ =
+                Components.Settings.State.update
+                    (Components.Settings.Types.BankDisconnectFinished (Error "Wert liegt noch"))
+                    { model with BankStatus = Types.Success Shared.Domain.BankDisconnected; IsDisconnectingBank = true }
+            Expect.equal settled.BankDisconnectError (Some "Wert liegt noch") "Meldung steht"
+            Expect.isTrue (Components.Settings.Types.canDisconnectBank settled) "Knopf bleibt"
+            let retried, _, _ =
+                Components.Settings.State.update (Components.Settings.Types.BankDisconnectFinished (Ok ())) settled
+            Expect.isNone retried.BankDisconnectError "Meldung weg"
+            Expect.isFalse (Components.Settings.Types.canDisconnectBank retried) "nichts mehr zu trennen"
+
+        testCase "Einstellungen: eine offene TAN lässt sich trennen und der Wartezustand endet" <| fun () ->
+            let model, _ = Components.Settings.State.init ()
+            let waiting = { model with ComdirectAuthPending = true; BankStatus = Types.Success Shared.Domain.BankChallengePending }
+            Expect.isTrue (Components.Settings.Types.canDisconnectBank waiting) "offene TAN ist trennbar"
+            let finished, _, _ = Components.Settings.State.update (Components.Settings.Types.BankDisconnectFinished (Ok ())) waiting
+            Expect.isFalse finished.ComdirectAuthPending "kein TAN-Knopf mehr"
+    ]
+
 /// Gespeicherter Wert mit einem Access-Token, das noch lange gilt.
 let private stored : StoredConnection =
     { RequestInfo = requestInfo

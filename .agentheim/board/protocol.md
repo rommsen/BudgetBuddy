@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 20:45 -- Task verified and completed: banking-import-bftq0 - "Status der Bankverbindung sichtbar, Bank trennen"
+
+**Type:** Work / Task completion
+**Task:** banking-import-bftq0 - "Status der Bankverbindung sichtbar, Bank trennen"
+**Summary:** Der Stand der Bankverbindung ist in Einstellungen und SyncFlow sichtbar, Bank trennen beendet wartende Sitzungen und lässt eine offene Prüfung stehen.
+**Duration:** 1h20m
+**Verification:** PASS (iteration 2)
+**Files changed:** 25
+**Tests added:** 19
+**ADRs written:** none
+
+---
+
 ## 2026-11-01 20:26 -- Task verified and completed: banking-import-v8n3k - "Verbindungstest bei Connected prüft über den Umsatzabruf, der Kontenabruf fliegt raus"
 
 **Type:** Work / Task completion

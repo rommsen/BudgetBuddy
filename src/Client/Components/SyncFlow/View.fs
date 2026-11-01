@@ -83,7 +83,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 // Show appropriate content based on session status
                 match model.CurrentSession with
                 | NotAsked ->
-                    startSyncView dispatch
+                    startSyncView model.BankStatus dispatch
 
                 | Loading ->
                     loadingView "Bank wird abgefragt..."
@@ -113,7 +113,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                         errorView error dispatch
 
                 | Success None ->
-                    startSyncView dispatch
+                    startSyncView model.BankStatus dispatch
 
                 | Failure error ->
                     errorView error dispatch

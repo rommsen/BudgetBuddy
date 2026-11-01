@@ -52,6 +52,7 @@ const reset = (lenaColor) => {
 
 async function mock(page) {
   await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify("BankConnected") }));
   await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(session)));
   await page.route("**/api/SyncApi/getTransactions", (r) => r.fulfill(json({ Ok: state.rows })));
   await page.route("**/api/SyncApi/setAskLena", (r) => {

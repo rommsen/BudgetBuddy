@@ -45,6 +45,7 @@
     <Compile Include="Pwa.fs" />
 
     <!-- Component: Settings -->
+    <Compile Include="Components/BankConnectionBadge.fs" />
     <Compile Include="Components/Settings/Types.fs" />
     <Compile Include="Components/Settings/State.fs" />
     <Compile Include="Components/Settings/View.fs" />

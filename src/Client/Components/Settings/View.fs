@@ -10,7 +10,7 @@ open Client.DesignSystem
 // Settings Section Header
 // ============================================
 
-let private sectionHeader (title: string) (isConfigured: bool) =
+let private sectionHeaderLabeled (configuredLabel: string) (title: string) (isConfigured: bool) =
     Html.div [
         prop.className "flex items-center justify-between p-4 border-b border-border-subtle"
         prop.children [
@@ -24,11 +24,13 @@ let private sectionHeader (title: string) (isConfigured: bool) =
                     Html.span [
                         prop.className (if isConfigured then "status-dot connected" else "status-dot disconnected")
                     ]
-                    Html.text (if isConfigured then "Verbunden" else "Nicht konfiguriert")
+                    Html.text (if isConfigured then configuredLabel else "Nicht konfiguriert")
                 ]
             ]
         ]
     ]
+
+let private sectionHeader = sectionHeaderLabeled "Verbunden"
 
 // ============================================
 // Read-Only Display Helpers
@@ -46,6 +48,22 @@ let private credentialGroup (label: string) (isSet: bool) (input: ReactElement) 
         HelpText = if isSet then Some "Gesetzt. Leer lassen, um den Wert zu behalten" else None
         Children = input
     }
+
+/// Zeile wie `settingRow`, der Wert ist ein Element.
+let private settingElementRow (label: string) (description: string) (value: ReactElement) =
+    Html.div [
+        prop.className "setting-row"
+        prop.children [
+            Html.div [
+                prop.className "setting-info"
+                prop.children [
+                    Html.div [ prop.className "setting-label"; prop.text label ]
+                    Html.div [ prop.className "setting-description"; prop.text description ]
+                ]
+            ]
+            value
+        ]
+    ]
 
 let private settingRow (label: string) (description: string) (value: string) =
     Html.div [
@@ -331,7 +349,8 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
     let isEditing = model.EditingSection = Some ComdirectSection
 
     Card.standard [
-        sectionHeader "Comdirect Verbindung" isConfigured
+        // Gesetzte Zugangsdaten sind noch keine Bankverbindung, den Stand zeigt das Badge unten.
+        sectionHeaderLabeled "Eingerichtet" "Comdirect Verbindung" isConfigured
 
         if isConfigured && not isEditing then
             // READ-ONLY DISPLAY
@@ -347,12 +366,28 @@ let private comdirectSettingsCard (model: Model) (dispatch: Msg -> unit) =
                             settingRow "Benutzername" "Comdirect-Zugangsnummer" (secretStatus comdirect.HasUsername)
                             settingRow "PIN" "Comdirect-PIN" (secretStatus comdirect.HasPassword)
                             settingRow "Authentifizierung" "OAuth2 + photoTAN" "\u2014"
+                            match model.BankStatus with
+                            | Success status ->
+                                settingElementRow "Bankverbindung" (Components.BankConnectionBadge.nextSyncHint status) (Components.BankConnectionBadge.view status)
+                            | _ -> ()
+
+                            match model.BankDisconnectError with
+                            | Some reason -> ErrorDisplay.cardCompact reason None
+                            | None -> ()
 
                             Html.div [
-                                prop.className "flex gap-2 pt-4 mt-2 border-t border-border-subtle"
+                                prop.className "flex flex-wrap gap-2 pt-4 mt-2 border-t border-border-subtle"
                                 prop.children [
                                     Button.secondary "Bearbeiten" (fun () -> dispatch (StartEditing ComdirectSection))
                                     Button.secondary "Verbindung testen" (fun () -> dispatch TestComdirectConnection)
+                                    if canDisconnectBank model then
+                                        if model.IsDisconnectingBank then
+                                            Loading.inlineWithText "Bank wird getrennt..."
+                                        elif model.ConfirmingBankDisconnect then
+                                            Button.danger "Wirklich trennen" (fun () -> dispatch ConfirmBankDisconnect)
+                                            Button.ghost "Abbrechen" (fun () -> dispatch AbortBankDisconnect)
+                                        else
+                                            Button.danger "Bank trennen" (fun () -> dispatch RequestBankDisconnect)
                                 ]
                             ]
                         | None -> ()

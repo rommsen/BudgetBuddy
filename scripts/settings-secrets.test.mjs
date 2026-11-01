@@ -38,6 +38,7 @@ test("Speichern schickt den neuen Benutzernamen und lässt die übrigen Zugangsd
   await page.route("**/api/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked"}' }));
   await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));
   await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => r.fulfill(json({ SavedColor: null, SuggestedColor: null })));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill(json("BankDisconnected")));
   await page.route("**/api/SettingsApi/saveComdirectCredentials", (r) => {
     saved.push(r.request().postDataJSON());
     r.fulfill(json({ Ok: null }));
@@ -67,3 +68,42 @@ test("Speichern schickt den neuen Benutzernamen und lässt die übrigen Zugangsd
   assert.equal(await card.getByText("gesetzt", { exact: true }).count(), 4, "nach dem Speichern weiter gesetzt");
   await page.close();
 });
+
+// banking-import-bftq0: Das Badge zeigt den Stand, "Bank trennen" fragt einmal nach, ein Fehler bleibt stehen.
+for (const [name, viewport] of [["PC", { width: 1440, height: 900 }], ["Handy", { width: 390, height: 844 }]]) {
+  test(`Bank trennen (${name}): erst scheitert das Löschen sichtbar, der zweite Versuch trennt`, async () => {
+    const page = await browser.newPage({ viewport });
+    page.setDefaultTimeout(30000);
+    let status = "BankConnected";
+    let answers = [{ Error: "Gespeicherte Bankverbindung nicht gelöscht (SqliteException). Bank trennen wiederholen." }, { Ok: null }];
+    let calls = 0;
+    await page.route("**/api/**", (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked"}' }));
+    await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));
+    await page.route("**/api/SettingsApi/getLenaFlagSettings", (r) => r.fulfill(json({ SavedColor: null, SuggestedColor: null })));
+    await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill(json(status)));
+    await page.route("**/api/SyncApi/disconnectBank", (r) => {
+      calls += 1;
+      status = "BankDisconnected";
+      r.fulfill(json(answers.shift()));
+    });
+
+    await page.goto(`http://localhost:${port}/#/settings`);
+    const card = page.getByRole("heading", { name: "Comdirect Verbindung" }).locator("xpath=ancestor::div[2]");
+    await card.getByText("Verbunden", { exact: true }).waitFor();
+    await card.getByText("Nächster Sync ohne TAN").waitFor();
+
+    await card.getByRole("button", { name: "Bank trennen" }).click();
+    assert.equal(calls, 0, "erst nach der Rückfrage");
+    await card.getByRole("button", { name: "Wirklich trennen" }).click();
+    await card.getByText("Gespeicherte Bankverbindung nicht gelöscht", { exact: false }).first().waitFor();
+
+    await card.getByRole("button", { name: "Bank trennen" }).click();
+    await card.getByRole("button", { name: "Wirklich trennen" }).click();
+    await card.getByRole("alert").waitFor({ state: "detached" });
+    await card.getByText("Nicht verbunden", { exact: true }).waitFor();
+    assert.equal(await card.getByRole("button", { name: "Bank trennen" }).count(), 0, "nichts mehr zu trennen");
+    assert.equal(calls, 2);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "kein seitliches Scrollen");
+    await page.close();
+  });
+}

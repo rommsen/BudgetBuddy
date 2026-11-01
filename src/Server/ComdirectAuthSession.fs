@@ -41,6 +41,11 @@ type ConnectionPorts = {
 let connectionState (ports: ConnectionPorts) : BankConnectionState =
     ports.Cell.State.Value
 
+/// Liest nur den Zustand: kein Bankzugriff, kein Warten am `Gate`, keine Wiederaufnahme. Die könnte
+/// bis zu 100 s an der Bank hängen.
+let connectionStatusWith (ports: ConnectionPorts) : BankConnectionStatus =
+    connectionStatusOf ports.Cell.State.Value
+
 let private locked (ports: ConnectionPorts) (work: Async<'T>) : Async<'T> =
     async {
         do! ports.Cell.Gate.WaitAsync() |> Async.AwaitTask
@@ -301,6 +306,9 @@ let discardPendingChallenge () : Async<unit> =
 
 let disconnect () : Async<unit> =
     disconnectWith livePorts
+
+let connectionStatus () : BankConnectionStatus =
+    connectionStatusWith livePorts
 
 let runTick (now: DateTimeOffset) : Async<unit> =
     tick livePorts now

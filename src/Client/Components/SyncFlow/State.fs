@@ -194,6 +194,7 @@ let init () : Model * Cmd<Msg> =
         SplitEdit = None
         DuplicateTransactionIds = []
         IsTanConfirming = false
+        BankStatus = NotAsked
         InterruptedStart = None
         ExpandedTransactionIds = Set.empty
         InlineRuleForm = None
@@ -248,7 +249,23 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 ()
                 (fun session -> SessionReadAnswered (version, Ok session))
                 (fun ex -> SessionReadAnswered (version, Error ex.Message))
-        reading, cmd, NoOp
+        reading, Cmd.batch [ cmd; Cmd.ofMsg LoadBankStatus ], NoOp
+
+    | LoadBankStatus ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.sync.getBankConnectionStatus
+                ()
+                (Ok >> BankStatusLoaded)
+                (fun ex -> Error ex.Message |> BankStatusLoaded)
+        model, cmd, NoOp
+
+    | BankStatusLoaded (Ok status) ->
+        { model with BankStatus = Success status }, Cmd.none, NoOp
+
+    // Ein gescheitertes Lesen hält keinen Sync auf, es fehlt nur die Anzeige.
+    | BankStatusLoaded (Error reason) ->
+        { model with BankStatus = Failure reason }, Cmd.none, NoOp
 
     | SessionReadAnswered (version, _) when version <> model.SessionReadVersion ->
         // Inzwischen läuft ein neuerer Lesevorgang, oder Start und Abbruch haben den Stand überholt.

@@ -788,6 +788,10 @@ let syncApi : SyncApi = {
             ComdirectAuthSession.discardPendingChallenge
             SyncSessionManager.clearSession
 
+    getBankConnectionStatus = fun () -> async.Return (ComdirectAuthSession.connectionStatus ())
+
+    disconnectBank = fun () -> BankImport.disconnectBankWith liveImportPorts ComdirectAuthSession.disconnect
+
     // ============================================
     // Comdirect auth flow
     // ============================================

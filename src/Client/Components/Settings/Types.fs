@@ -46,6 +46,13 @@ type Model = {
     ComdirectConnectionValid: RemoteData<unit>
     ComdirectAuthPending: bool
 
+    // Bankverbindung (ADR 0071): "Bank trennen" fragt einmal nach. Eine Meldung bleibt stehen, bis
+    // das Trennen gelungen ist, sonst läge ein Token ohne sichtbaren Hinweis.
+    BankStatus: RemoteData<BankConnectionStatus>
+    ConfirmingBankDisconnect: bool
+    IsDisconnectingBank: bool
+    BankDisconnectError: string option
+
     // Edit mode: None = read-only, Some X = editing that section
     EditingSection: SettingsSection option
 }
@@ -85,6 +92,13 @@ type Msg =
     | ComdirectAuthStarted of Result<ComdirectConnectionTest, SettingsError>
     | ConfirmComdirectTan
     | ComdirectTanConfirmed of Result<unit, SettingsError>
+    // Bankverbindung
+    | LoadBankStatus
+    | BankStatusLoaded of Result<BankConnectionStatus, string>
+    | RequestBankDisconnect
+    | AbortBankDisconnect
+    | ConfirmBankDisconnect
+    | BankDisconnectFinished of Result<unit, string>
     // Edit mode toggling
     | StartEditing of SettingsSection
     | CancelEditing
@@ -124,6 +138,13 @@ let comdirectPasswordIsSet (model: Model) : bool =
     loadedSettings model
     |> Option.bind (fun s -> s.Comdirect)
     |> Option.exists (fun c -> c.HasPassword)
+
+/// "Bank trennen" fehlt nur, wenn es nichts zu trennen gibt. Nach einem gescheiterten Löschen zeigt der
+/// Stand schon `BankDisconnected`, der Wert liegt aber noch: dann bleibt der Knopf für den zweiten Versuch.
+let canDisconnectBank (model: Model) : bool =
+    match model.BankStatus with
+    | Success (BankConnected | BankChallengePending) -> true
+    | _ -> model.BankDisconnectError.IsSome
 
 /// Was das Comdirect-Formular an den Server schickt. Rein, testbar ohne Proxy.
 let comdirectCredentialsFromForm (model: Model) : ComdirectSettings =

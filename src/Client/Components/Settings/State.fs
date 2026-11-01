@@ -30,6 +30,10 @@ let init () : Model * Cmd<Msg> =
         LenaFlag = { SavedColor = None; SuggestedColor = None }
         ComdirectConnectionValid = NotAsked
         ComdirectAuthPending = false
+        BankStatus = NotAsked
+        ConfirmingBankDisconnect = false
+        IsDisconnectingBank = false
+        BankDisconnectError = None
         EditingSection = None
     }
     model, Cmd.batch [ Cmd.ofMsg LoadSettings; Cmd.ofMsg LoadLenaFlagSettings ]
@@ -43,7 +47,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
                 ()
                 (Ok >> SettingsLoaded)
                 (fun ex -> Error ex.Message |> SettingsLoaded)
-        { model with Settings = Loading }, cmd, NoOp
+        { model with Settings = Loading }, Cmd.batch [ cmd; Cmd.ofMsg LoadBankStatus ], NoOp
 
     | SettingsLoaded (Ok settings) ->
         let updatedModel = {
@@ -307,14 +311,14 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
 
     | ComdirectAuthStarted (Ok BankConnectionActive) ->
         // Die Verbindung lebt, es gibt nichts zu bestätigen.
-        { model with ComdirectConnectionValid = Success (); ComdirectAuthPending = false }, Cmd.none, ShowToast ("Comdirect connection is active", ToastSuccess)
+        { model with ComdirectConnectionValid = Success (); ComdirectAuthPending = false }, Cmd.ofMsg LoadBankStatus, ShowToast ("Comdirect connection is active", ToastSuccess)
 
     | ComdirectAuthStarted (Ok (TanChallengeStarted _)) ->
         // TAN challenge started - show waiting UI
-        { model with ComdirectAuthPending = true; ComdirectConnectionValid = NotAsked }, Cmd.none, ShowToast ("Please confirm the TAN on your phone", ToastInfo)
+        { model with ComdirectAuthPending = true; ComdirectConnectionValid = NotAsked }, Cmd.ofMsg LoadBankStatus, ShowToast ("Please confirm the TAN on your phone", ToastInfo)
 
     | ComdirectAuthStarted (Error err) ->
-        { model with ComdirectConnectionValid = Failure (settingsErrorToString err); ComdirectAuthPending = false }, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        { model with ComdirectConnectionValid = Failure (settingsErrorToString err); ComdirectAuthPending = false }, Cmd.ofMsg LoadBankStatus, ShowToast (settingsErrorToString err, ToastError)
 
     | ConfirmComdirectTan ->
         let cmd =
@@ -329,13 +333,60 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         { model with
             ComdirectConnectionValid = Success ()
             ComdirectAuthPending = false
-        }, Cmd.none, ShowToast ("Comdirect credentials verified successfully!", ToastSuccess)
+        }, Cmd.ofMsg LoadBankStatus, ShowToast ("Comdirect credentials verified successfully!", ToastSuccess)
 
     | ComdirectTanConfirmed (Error err) ->
         { model with
             ComdirectConnectionValid = Failure (settingsErrorToString err)
             ComdirectAuthPending = false
-        }, Cmd.none, ShowToast (settingsErrorToString err, ToastError)
+        }, Cmd.ofMsg LoadBankStatus, ShowToast (settingsErrorToString err, ToastError)
+
+    | LoadBankStatus ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.sync.getBankConnectionStatus
+                ()
+                (Ok >> BankStatusLoaded)
+                (fun ex -> Error ex.Message |> BankStatusLoaded)
+        model, cmd, NoOp
+
+    | BankStatusLoaded (Ok status) ->
+        { model with BankStatus = Success status }, Cmd.none, NoOp
+
+    // Kein Toast: ohne Antwort bleibt das Badge weg, die übrige Seite funktioniert weiter.
+    | BankStatusLoaded (Error reason) ->
+        { model with BankStatus = Failure reason }, Cmd.none, NoOp
+
+    | RequestBankDisconnect ->
+        { model with ConfirmingBankDisconnect = true }, Cmd.none, NoOp
+
+    | AbortBankDisconnect ->
+        { model with ConfirmingBankDisconnect = false }, Cmd.none, NoOp
+
+    | ConfirmBankDisconnect when model.IsDisconnectingBank ->
+        model, Cmd.none, NoOp
+
+    | ConfirmBankDisconnect ->
+        let cmd =
+            Cmd.OfAsync.either
+                Api.sync.disconnectBank
+                ()
+                BankDisconnectFinished
+                (fun ex -> Error ex.Message |> BankDisconnectFinished)
+        { model with ConfirmingBankDisconnect = false; IsDisconnectingBank = true }, cmd, NoOp
+
+    | BankDisconnectFinished (Ok ()) ->
+        { model with
+            IsDisconnectingBank = false
+            BankDisconnectError = None
+            ComdirectAuthPending = false
+            ComdirectConnectionValid = NotAsked
+        }, Cmd.ofMsg LoadBankStatus, ShowToast ("Bank getrennt", ToastSuccess)
+
+    | BankDisconnectFinished (Error reason) ->
+        { model with IsDisconnectingBank = false; BankDisconnectError = Some reason },
+        Cmd.ofMsg LoadBankStatus,
+        ShowToast (reason, ToastError)
 
     // Edit mode toggling
     | StartEditing section ->

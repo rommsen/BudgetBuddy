@@ -51,6 +51,7 @@ async function open(startAnswer, lost, { confirmAborts = false } = {}) {
     calls.unknown.push(new URL(r.request().url()).pathname);
     return r.fulfill({ status: 500, body: "x" });
   });
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify("BankDisconnected") }));
   await page.route("**/api/SyncApi/getCurrentSession", (r) => {
     // Nach dem Start antwortet der Server der Reihe nach aus `lost.reads`.
     if (calls.start > 0 && lost?.reads?.length) {
@@ -82,6 +83,19 @@ async function open(startAnswer, lost, { confirmAborts = false } = {}) {
   await page.getByRole("button", { name: "Sync starten" }).click();
   return { ctx, page, calls };
 }
+
+test("die Startansicht nennt den Stand der Bankverbindung", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(15000);
+  await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(null)));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill(json("BankDisconnected")));
+  await page.goto(`http://localhost:${port}/#/`);
+  await page.getByText("Nächster Sync braucht eine TAN").waitFor();
+  await page.getByText("Nicht verbunden", { exact: true }).waitFor();
+  await ctx.close();
+});
 
 test("aktive Bankverbindung: die Prüfung erscheint ohne TAN-Schritt", async () => {
   const { ctx, page, calls } = await open(["ReviewReady", "ReviewingTransactions"]);

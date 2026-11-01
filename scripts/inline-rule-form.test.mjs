@@ -46,6 +46,7 @@ async function openForm(answer) {
   page.setDefaultTimeout(15000);
   const patterns = [];
   await page.route("**/api/**", (r) => r.fulfill({ status: 500, body: "x" }));
+  await page.route("**/api/SyncApi/getBankConnectionStatus", (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify("BankConnected") }));
   await page.route("**/api/SyncApi/getCurrentSession", (r) => r.fulfill(json(session)));
   await page.route("**/api/SyncApi/getTransactions", (r) => r.fulfill(json({ Ok: [row] })));
   await page.route("**/api/SettingsApi/getSettings", (r) => r.fulfill(json(settings)));

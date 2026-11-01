@@ -35,6 +35,13 @@ type BankConnectionState =
     | ChallengePending of PendingChallenge
     | Connected of ActiveConnection
 
+/// Der Stand für die Anzeige. Nur der Fall verlässt den Server, nie Tokens oder Schlüssel.
+let connectionStatusOf (state: BankConnectionState) : Shared.Domain.BankConnectionStatus =
+    match state with
+    | Disconnected -> Shared.Domain.BankDisconnected
+    | ChallengePending _ -> Shared.Domain.BankChallengePending
+    | Connected _ -> Shared.Domain.BankConnected
+
 let challengeStarted (keys: ApiKeys) (session: AuthSession) : BankConnectionState =
     ChallengePending { Session = session; Keys = keys }
 
