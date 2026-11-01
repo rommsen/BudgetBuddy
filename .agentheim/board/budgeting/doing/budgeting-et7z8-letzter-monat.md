@@ -1,7 +1,7 @@
 ---
 id: budgeting-et7z8
 title: "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-01

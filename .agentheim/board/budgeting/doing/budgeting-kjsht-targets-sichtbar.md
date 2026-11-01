@@ -1,7 +1,7 @@
 ---
 id: budgeting-kjsht
 title: "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag"
-status: todo
+status: doing
 type: feature
 context: budgeting
 created: 2026-11-01

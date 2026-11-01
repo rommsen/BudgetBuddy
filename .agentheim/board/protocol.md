@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 11:15 -- Batch started: [budgeting-et7z8, budgeting-kjsht]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-et7z8 - "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht", budgeting-kjsht - "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag"
+**Parallel:** yes (2 workers); merge-order: et7z8 vor kjsht, beide fassen Budget/View.fs an; infrastructure-jsys4 zurückgehalten, sein erster Schritt braucht Roman mit dem Android-Handy
+
+---
+
 ## 2026-11-01 11:13 -- Modeling / Captured: budgeting-kjsht - "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag"
 
 **Type:** Modeling / Capture
