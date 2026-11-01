@@ -1,4 +1,4 @@
-/// Die Budget-Seite (budgeting-k7wmd): Monat, Umschalter dieser/nächster Monat, Zu verteilen
+/// Die Budget-Seite (budgeting-k7wmd): Monat, Umschalter letzter/dieser/nächster Monat, Zu verteilen
 /// als große Zahl und die Kategorien nach Gruppe mit Zugewiesen, Aktivität und Verfügbar.
 /// Am Handy zweizeilige Zeilen ohne horizontales Scrollen, ab md eine Tabelle.
 ///
@@ -91,6 +91,7 @@ let private monthSwitcher (model: Model) (dispatch: Msg -> unit) =
         prop.custom ("data-testid", "budget-month-switcher")
         prop.children [
             ChipBar.bar None [
+                chip "Letzter Monat" LastMonth
                 chip "Dieser Monat" CurrentMonth
                 chip "Nächster Monat" NextMonth
             ]
@@ -819,7 +820,8 @@ let view (model: Model) (dispatch: Msg -> unit) =
         prop.children [
             PageHeader.calm "Budget" subtitle (
                 match model.Month with
-                | Success _ -> [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
+                | Success _ when targetsAllowed model.Choice ->
+                    [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
                 | _ -> []
             )
             targetsDialog model dispatch

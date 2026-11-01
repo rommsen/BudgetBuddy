@@ -1709,6 +1709,43 @@ let targetsWith
             | Error e -> return Error (ynabErrorText e)
     }
 
+/// Vorschau von "Targets anwenden" ohne Settings und Netz. Der Monats-Schlüssel wird zuerst
+/// geprüft: ein abgelehnter Monat fragt YNAB nicht.
+let previewTargetsWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (today: DateTime)
+    (monthKeyText: string)
+    : Async<Result<Shared.Budgeting.TargetPreview, string>> =
+    async {
+        match Validation.validateTargetsMonth monthKeyText with
+        | Error message -> return Error message
+        | Ok choice ->
+            let key = Server.Budgeting.Domain.monthKey today choice
+            return! targetsWith tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port key)
+    }
+
+/// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith`.
+let applyTargetsWith
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (today: DateTime)
+    (now: DateTime)
+    (monthKeyText: string)
+    (shown: Shared.Budgeting.TargetPreview)
+    : Async<Result<Shared.Budgeting.ApplyResult, string>> =
+    async {
+        match Validation.validateTargetsMonth monthKeyText with
+        | Error message -> return Error message
+        | Ok choice ->
+            let key = Server.Budgeting.Domain.monthKey today choice
+            return!
+                targetsWith tokenOpt budgetOpt portFor (fun port ->
+                    Server.Budgeting.CommandHandlers.apply port now key shown)
+    }
+
 /// Der Weg von "Verschieben" ohne Settings und Netz. Der Monat kommt vom Client (`BudgetMonth.Month`,
 /// budgeting-nfrds): der Server löst ihn nicht über die Uhr auf, sonst schriebe ein Sheet, das über
 /// den Monatswechsel offen stand, in einen anderen Monat, als es zeigt. Geprüft wird vor allem
@@ -1746,25 +1783,15 @@ let budgetApi : BudgetApi = {
     }
 
     previewTargets = fun monthKeyText -> async {
-        match Validation.validateBudgetMonth monthKeyText with
-        | Error message -> return Error message
-        | Ok choice ->
-            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-            let key = Server.Budgeting.Domain.monthKey DateTime.Today choice
-            return! targetsWith tokenOpt budgetOpt livePort (fun port -> Server.Budgeting.CommandHandlers.preview port key)
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+        return! previewTargetsWith tokenOpt budgetOpt livePort DateTime.Today monthKeyText
     }
 
     applyTargets = fun monthKeyText shown -> async {
-        match Validation.validateBudgetMonth monthKeyText with
-        | Error message -> return Error message
-        | Ok choice ->
-            let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
-            let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
-            let key = Server.Budgeting.Domain.monthKey DateTime.Today choice
-            return!
-                targetsWith tokenOpt budgetOpt livePort (fun port ->
-                    Server.Budgeting.CommandHandlers.apply port DateTime.UtcNow key shown)
+        let! tokenOpt = Persistence.Settings.getSetting "ynab_token"
+        let! budgetOpt = Persistence.Settings.getSetting "ynab_default_budget_id"
+        return! applyTargetsWith tokenOpt budgetOpt livePort DateTime.Today DateTime.UtcNow monthKeyText shown
     }
 
     retryFailedTargets = fun applicationIdText -> async {

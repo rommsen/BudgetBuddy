@@ -1,5 +1,5 @@
 /// Reine Regeln des Budgets (Context `budgeting`, budgeting-k7wmd): welcher YNAB-Monat zu
-/// "dieser" oder "nächster" gehört und wie die rohen Kategorien eines Monats zu Gruppen
+/// "letzter", "dieser" oder "nächster" gehört und wie die rohen Kategorien eines Monats zu Gruppen
 /// werden. Kein I/O.
 module Server.Budgeting.Domain
 
@@ -8,11 +8,12 @@ open Shared.Domain
 open Shared.Budgeting
 
 /// "YYYY-MM-01" des gewählten Monats, bezogen auf `today`. Der nächste Monat nach Dezember
-/// ist der Januar des Folgejahres.
+/// ist der Januar des Folgejahres, der letzte Monat vor Januar der Dezember des Vorjahres.
 let monthKey (today: DateTime) (choice: BudgetMonthChoice) : string =
     let first = DateTime(today.Year, today.Month, 1)
     let month =
         match choice with
+        | LastMonth -> first.AddMonths -1
         | CurrentMonth -> first
         | NextMonth -> first.AddMonths 1
     month.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)

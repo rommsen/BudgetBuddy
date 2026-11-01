@@ -61,6 +61,12 @@ let private openTests =
             Expect.equal m open' "unverändert"
             Expect.isFalse load2 "kein zweites Laden"
         }
+        test "Im letzten Monat öffnet der Dialog nicht und holt keine Vorschau" {
+            let lastMonth = { loaded with Choice = LastMonth }
+            let m, load = openTargets lastMonth
+            Expect.equal m lastMonth "unverändert"
+            Expect.isFalse load "keine Vorschau"
+        }
         test "Die Vorschau wird eingenommen, eine späte Antwort zu anderer Wahl oder geschlossenem Dialog nicht" {
             let waiting = { loaded with Targets = PreviewLoading }
             Expect.equal (applyPreviewLoaded CurrentMonth (Ok preview) waiting).Targets (PreviewReady (preview, false)) "eingenommen"

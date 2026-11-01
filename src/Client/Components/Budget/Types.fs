@@ -251,7 +251,7 @@ let filterGroups (search: string) (groups: BudgetGroup list) : BudgetGroup list 
 /// Aufrufer muss die Vorschau holen.
 let openTargets (model: Model) : Model * bool =
     match model.Month, model.Targets with
-    | Success _, TargetsClosed -> { model with Targets = PreviewLoading }, true
+    | Success _, TargetsClosed when targetsAllowed model.Choice -> { model with Targets = PreviewLoading }, true
     | _ -> model, false
 
 /// Antwort der Vorschau einnehmen. Eine Antwort zu einer abgewählten Monatswahl oder zu

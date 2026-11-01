@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-01 11:35 -- Task verified and completed: budgeting-et7z8 - "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht"
+
+**Type:** Work / Task completion
+**Task:** budgeting-et7z8 - "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht"
+**Summary:** Die Budget-Seite hat den dritten Knopf Letzter Monat (Schlüssel "last"). Verschieben und Kategorie-Detail gehen dort, Targets anwenden fehlt im Client und wird an der API-Grenze ohne YNAB-Anfrage abgelehnt.
+**Duration:** 19m
+**Verification:** PASS (iteration 1)
+**Files changed:** 14
+**Tests added:** 18
+**ADRs written:** none
+
+---
+
 ## 2026-11-01 11:15 -- Batch started: [budgeting-et7z8, budgeting-kjsht]
 
 **Type:** Work / Batch start

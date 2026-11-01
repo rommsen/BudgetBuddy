@@ -506,6 +506,63 @@ let private persistenceTests =
             Expect.equal l2.Latest (Some ChangedInYnab) "in YNAB geändert"
     ]
 
+// budgeting-et7z8: im letzten Monat kein Targets anwenden. Der Port zählt jeden YNAB-Zugriff,
+// die Ablehnung muss also vor dem ersten Lesen fallen.
+let private lastMonthTests =
+    let testCase name body =
+        testCase name (fun () ->
+            Budgeting.Persistence.initializeBudgetingSchema ()
+            body ())
+    let today = DateTime(2026, 11, 1)
+    let countingPort (f: FakeYnab) =
+        let reads = ResizeArray<string>()
+        let port =
+            { f.Port with
+                FetchMonth =
+                    fun key ->
+                        reads.Add key
+                        f.Port.FetchMonth key }
+        port, reads
+    let previewVia port key =
+        Server.Api.previewTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today key |> run
+    let applyVia port key shown =
+        Server.Api.applyTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today now key shown |> run
+    testList "Targets anwenden im letzten Monat (et7z8)" [
+        testCase "Die Vorschau lehnt last ab, ohne YNAB zu fragen" <| fun () ->
+            let f, _ = fake 500000L
+            let port, reads = countingPort f
+            match previewVia port "last" with
+            | Error msg -> Expect.stringContains msg "letzten Monat" "Grund"
+            | Ok _ -> failtest "Fehler erwartet"
+            Expect.isEmpty reads "kein Lesen"
+
+        testCase "Übernehmen lehnt last ab, liest und schreibt nichts" <| fun () ->
+            let f, _ = fake 500000L
+            let shown = previewOf f
+            let port, reads = countingPort f
+            match applyVia port "last" shown with
+            | Error msg -> Expect.stringContains msg "letzten Monat" "Grund"
+            | Ok _ -> failtest "Fehler erwartet"
+            Expect.isEmpty reads "kein Lesen"
+            Expect.isEmpty f.Attempts "kein Schreiben"
+
+        testCase "Die Vorschau für den nächsten Monat liest dessen Ersten" <| fun () ->
+            let f, _ = fake 500000L
+            let port, reads = countingPort f
+            Expect.isOk (previewVia port "next") "Vorschau"
+            Expect.equal (List.ofSeq reads) [ "2026-12-01" ] "Monat"
+
+        testCase "Übernehmen für diesen Monat schreibt in den laufenden Monat" <| fun () ->
+            let f, _ = fake 500000L
+            let shown =
+                match previewVia f.Port "current" with
+                | Ok p -> p
+                | Error e -> failtest e
+            match applyVia f.Port "current" shown with
+            | Ok (Applied report) -> Expect.equal report.Month "2026-11-01" "Monat"
+            | other -> failtest $"Applied erwartet: {other}"
+    ]
+
 [<Tests>]
 let tests =
-    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests ]
+    testList "Targets anwenden (budgeting-h2zfn)" [ planTests; ynabTests; apiTests; flowTests; persistenceTests; lastMonthTests ]

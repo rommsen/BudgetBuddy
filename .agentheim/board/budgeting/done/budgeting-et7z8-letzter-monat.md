@@ -1,7 +1,7 @@
 ---
 id: budgeting-et7z8
 title: "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-01
@@ -41,3 +41,20 @@ Am Monatsersten will Roman vor dem Verteilen auf den abgelaufenen Monat schauen 
 - Der Server rechnet "heute" in `Api.fs` mit `DateTime.Today`; das bleibt.
 - `ChipBar.bar` ist die vorhandene Komponente, keine neue bauen. Bricht sie am Handy um, ist das in Ordnung, solange die Seite nicht seitlich scrollt.
 - Offene Verschiebung und Erneut senden tragen den Monat in den Bewegungen und brauchen keine Änderung.
+
+## Outcome
+
+Die Budget-Seite zeigt drei Monatsknöpfe in zeitlicher Folge: Letzter Monat, Dieser Monat, Nächster Monat. Vorgabe bleibt Dieser Monat. Bei 390 px passen alle drei in den Viewport, die Seite scrollt nicht seitlich (Browser-Wächter). `./verify.sh` zeigt `VERIFY: PASS` (dotnet 3168, node 412). `check:readme-delta` ist grün.
+
+Wichtige Stellen:
+- Shared: `src/Shared/Budgeting.fs` (`LastMonth`, Schlüssel "last", `targetsAllowed` als gemeinsame Regel für API-Grenze und Client), Kommentare in `src/Shared/Api.fs`.
+- Server: `monthKey` rechnet den Vormonat auch über den Jahreswechsel (`src/Server/Budgeting/Domain.fs`). `validateTargetsMonth` in `src/Server/Validation.fs` lehnt "last" ab, `validateBudgetMonth` bleibt fürs Lesen.
+- `src/Server/Api.fs`: die Logik von `previewTargets` und `applyTargets` steht jetzt in `previewTargetsWith` und `applyTargetsWith`, damit sie mit Fake-Port testbar ist. Live angeschlossen sind sie nur in `budgetApi` (`livePort`, `DateTime.Today`, `DateTime.UtcNow`). Diese Verdrahtung belegen die Zeilen der Negativtabelle: ohne Prüfung käme dort "Kein YNAB-Token" statt des Grunds.
+- Client: `src/Client/Components/Budget/View.fs` (nur Umschalter und Knopf "Targets anwenden"), `src/Client/Components/Budget/Types.fs`.
+
+Abweichungen und Einschränkungen:
+- Die Negativtabelle verlangt genau eine Zeile je Endpoint. Die Zeilen von `previewTargets` und `applyTargets` prüfen deshalb jetzt "last" statt "kein-monat". Der ungültige Schlüssel ist nur noch im Unit-Test von `validateTargetsMonth` abgedeckt.
+- Über die Aufgabe hinaus verweigert auch der reine Übergang `openTargets` im letzten Monat das Öffnen (Client-Test). So löst keine Nachricht eine Vorschau aus, die der Server ablehnen müsste.
+- Das Lesen der Settings läuft bei `previewTargets` und `applyTargets` jetzt vor der Monatsprüfung, wie schon bei `moveMoney`. Beobachtbar ändert sich dadurch nichts.
+- Rot gesehen habe ich die .NET-Tests. Die drei neuen Browser-Wächter liefen nur gegen den fertigen Code, ihre Gegenprobe steht aus.
+- Keine ADR: die Entscheidung stammt von Roman, sie steht in der Task und im README-Delta.

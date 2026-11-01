@@ -172,9 +172,19 @@ let validateManualTransaction (request: ManualTransactionRequest) : Result<Manua
 // Budget (budgeting-k7wmd)
 // ============================================
 
-/// Prüft den Monats-Schlüssel der Budget-Seite an der Grenze: "current" oder "next".
+/// Prüft den Monats-Schlüssel der Budget-Seite an der Grenze: "last", "current" oder "next".
 let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
     Shared.Budgeting.parseMonthChoice key
+
+/// Prüft den Monats-Schlüssel für "Targets anwenden". Strenger als das Lesen: der letzte
+/// Monat ist lesbar, aber dort werden keine Targets angewendet (budgeting-et7z8).
+let validateTargetsMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
+    validateBudgetMonth key
+    |> Result.bind (fun choice ->
+        if Shared.Budgeting.targetsAllowed choice then
+            Ok choice
+        else
+            Error "Targets anwenden geht im letzten Monat nicht.")
 
 /// Ein Monat an der Grenze ist sein Erster als "JJJJ-MM-01".
 let private tryParseMonthKey (key: string) : DateTime option =

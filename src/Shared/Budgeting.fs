@@ -6,23 +6,35 @@ module Shared.Budgeting
 open System
 open Shared.Domain
 
-/// Welcher Monat gezeigt wird: der laufende oder der nächste (Budgetieren am 30. für den 1.).
-/// Auf dem Draht ein Schlüssel: "current" oder "next" (`monthChoiceKey`, `parseMonthChoice`).
+/// Welcher Monat gezeigt wird: der abgelaufene (Rückblick am Monatsersten, budgeting-et7z8),
+/// der laufende oder der nächste (Budgetieren am 30. für den 1.).
+/// Auf dem Draht ein Schlüssel: "last", "current" oder "next" (`monthChoiceKey`, `parseMonthChoice`).
 type BudgetMonthChoice =
+    | LastMonth
     | CurrentMonth
     | NextMonth
 
 let monthChoiceKey (choice: BudgetMonthChoice) : string =
     match choice with
+    | LastMonth -> "last"
     | CurrentMonth -> "current"
     | NextMonth -> "next"
 
-/// Liest den Schlüssel vom Draht. Alles andere als "current" und "next" ist ungültig.
+/// Geht "Targets anwenden" in diesem Monat? Im letzten Monat nicht (Romans Entscheidung vom
+/// 2026-11-01): dort wird korrigiert, nicht mehr verteilt. Gilt an der API-Grenze und für den Knopf.
+let targetsAllowed (choice: BudgetMonthChoice) : bool =
+    match choice with
+    | LastMonth -> false
+    | CurrentMonth
+    | NextMonth -> true
+
+/// Liest den Schlüssel vom Draht. Alles andere als "last", "current" und "next" ist ungültig.
 let parseMonthChoice (key: string) : Result<BudgetMonthChoice, string> =
     match key with
+    | "last" -> Ok LastMonth
     | "current" -> Ok CurrentMonth
     | "next" -> Ok NextMonth
-    | other -> Error $"Ungültiger Monat: '{other}'. Erlaubt sind 'current' und 'next'."
+    | other -> Error $"Ungültiger Monat: '{other}'. Erlaubt sind 'last', 'current' und 'next'."
 
 /// Eine Kategorie so, wie YNABs Monats-Endpunkt sie liefert (vor dem Gruppieren).
 /// Ausgeblendete, gelöschte und interne Kategorien (Inflow: Ready to Assign) sind hier noch

@@ -32,8 +32,8 @@ const category = (n, name, available) => ({
   Snoozed: false,
 });
 
-const monthFixture = (food, trip) => ({
-  Month: "2026-11-01",
+const monthFixture = (food, trip, month = "2026-11-01") => ({
+  Month: month,
   ToBeBudgeted: eur(35.45),
   Groups: [
     {
@@ -69,7 +69,8 @@ async function openPage(width, height, handlers) {
   );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     calls.month += 1;
-    json(route, { Ok: monthFixture(state.food, state.trip) });
+    const [key] = JSON.parse(route.request().postData() ?? "[]");
+    json(route, { Ok: monthFixture(state.food, state.trip, key === "last" ? "2026-10-01" : "2026-11-01") });
   });
   await page.route("**/api/BudgetApi/moveMoney", (route) => {
     calls.move.push(route.request().postData());
@@ -160,6 +161,27 @@ test("Handy: Verfügbar antippen, Gegenseite suchen, Betrag ändern, Verschieben
     assert.equal(calls.move.length, 1);
     assert.ok(calls.move[0].includes(guid(1)) && calls.move[0].includes(guid(2)), "Quelle und Ziel im Auftrag");
     assert.ok(calls.move[0].includes("2026-11-01"), "der Client schickt den gezeigten Monat");
+  } finally {
+    await context.close();
+  }
+});
+
+test("Im letzten Monat geht der Auftrag mit dem Vormonat hinaus", async () => {
+  const handlers = { move: () => ({ Ok: report("Written") }), retry: () => ({ Error: "nicht erwartet" }) };
+  const { context, page, calls } = await openPage(390, 844, handlers);
+  try {
+    await page.getByRole("button", { name: "Letzter Monat" }).click();
+    await page.getByText("Oktober 2026").waitFor();
+    await tapAvailable(page, "Lebensmittel afd8h");
+    await page.locator('[data-testid="move-counterpart"] button').click();
+    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
+    await page.locator('[data-testid="move-amount"] input').fill("20");
+    await afterPicker(page);
+    await page.locator('[data-testid="move-submit"] button').click();
+    await page.locator('[data-testid="move-dialog"]').waitFor({ state: "detached" });
+    assert.equal(calls.move.length, 1);
+    assert.ok(calls.move[0].includes("2026-10-01"), "der Vormonat steht im Auftrag");
+    assert.ok(!calls.move[0].includes("2026-11-01"), "nicht der laufende Monat");
   } finally {
     await context.close();
   }

@@ -160,6 +160,12 @@ let private monthKeyTests =
         test "Am Monatsletzten bleibt der Schlüssel im selben Monat" {
             Expect.equal (Domain.monthKey (DateTime(2026, 1, 31)) NextMonth) "2026-02-01" "31. Januar"
         }
+        test "Letzter Monat ist der Erste des Vormonats" {
+            Expect.equal (Domain.monthKey (DateTime(2026, 11, 1)) LastMonth) "2026-10-01" "letzter"
+        }
+        test "Von Januar geht es in den Dezember des Vorjahres" {
+            Expect.equal (Domain.monthKey (DateTime(2026, 1, 15)) LastMonth) "2025-12-01" "Jahreswechsel"
+        }
     ]
 
 let private validationTests =
@@ -168,6 +174,16 @@ let private validationTests =
             Expect.equal (Server.Validation.validateBudgetMonth "current") (Ok CurrentMonth) "current"
             Expect.equal (Server.Validation.validateBudgetMonth "next") (Ok NextMonth) "next"
         }
+        test "last ist zum Lesen gültig" {
+            Expect.equal (Server.Validation.validateBudgetMonth "last") (Ok LastMonth) "last"
+        }
+        test "Die Fehlermeldung nennt alle drei Schlüssel" {
+            match parseMonthChoice "gestern" with
+            | Error msg ->
+                for key in [ "last"; "current"; "next" ] do
+                    Expect.stringContains msg $"'{key}'" key
+            | Ok _ -> failtest "Fehler erwartet"
+        }
         test "Alles andere wird abgelehnt" {
             for bad in [ ""; "2026-10-01"; "previous"; "Current"; " next" ] do
                 match Server.Validation.validateBudgetMonth bad with
@@ -175,8 +191,22 @@ let private validationTests =
                 | Ok _ -> failtest $"'{bad}' hätte abgelehnt werden müssen"
         }
         test "Der Schlüssel einer Wahl liest sich wieder zur Wahl" {
-            for choice in [ CurrentMonth; NextMonth ] do
+            for choice in [ LastMonth; CurrentMonth; NextMonth ] do
                 Expect.equal (parseMonthChoice (monthChoiceKey choice)) (Ok choice) "Rundlauf"
+        }
+        test "Targets anwenden nimmt current und next an" {
+            Expect.equal (Server.Validation.validateTargetsMonth "current") (Ok CurrentMonth) "current"
+            Expect.equal (Server.Validation.validateTargetsMonth "next") (Ok NextMonth) "next"
+        }
+        test "Targets anwenden lehnt last ab und nennt den Grund" {
+            match Server.Validation.validateTargetsMonth "last" with
+            | Error msg -> Expect.stringContains msg "letzten Monat" "Grund"
+            | Ok _ -> failtest "last hätte abgelehnt werden müssen"
+        }
+        test "Targets anwenden lehnt ungültige Schlüssel ab" {
+            match Server.Validation.validateTargetsMonth "kein-monat" with
+            | Error msg -> Expect.stringContains msg "Ungültiger Monat" "Grenze"
+            | Ok _ -> failtest "Fehler erwartet"
         }
     ]
 
@@ -262,6 +292,14 @@ let private apiPathTests =
             | Ok m -> Expect.equal m.Groups.Length 2 "gruppiert"
             | Error e -> failtest e
             Expect.equal seen "2026-11-01" "Schlüssel"
+        }
+        test "Der letzte Monat fragt YNAB mit dem Ersten des Vormonats" {
+            let mutable seen = ""
+            let fetch = fun _ _ key -> async { seen <- key; return Ok decoded }
+            match call (Some "t") (Some "b") "last" fetch with
+            | Ok m -> Expect.equal m.Groups.Length 2 "gruppiert"
+            | Error e -> failtest e
+            Expect.equal seen "2026-09-01" "Schlüssel"
         }
     ]
 

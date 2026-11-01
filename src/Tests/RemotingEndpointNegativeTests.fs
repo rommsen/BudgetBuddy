@@ -311,10 +311,16 @@ let private rows : Row list = [
     // ---------------- BudgetApi ----------------
     { Endpoint = "BudgetApi.getBudgetMonth"; Case = "ungültiger Monat: Fehler"
       Run = fun () -> budgetApi.getBudgetMonth "kein-monat" |> run |> expectError "Monat" }
-    { Endpoint = "BudgetApi.previewTargets"; Case = "ungültiger Monat: Fehler"
-      Run = fun () -> budgetApi.previewTargets "kein-monat" |> run |> expectError "Vorschau" }
-    { Endpoint = "BudgetApi.applyTargets"; Case = "ungültiger Monat: Fehler"
-      Run = fun () -> budgetApi.applyTargets "kein-monat" emptyPreview |> run |> expectError "Anwenden" }
+    { Endpoint = "BudgetApi.previewTargets"; Case = "letzter Monat: abgelehnt mit Grund, auch ohne Einrichtung"
+      Run = fun () ->
+        match budgetApi.previewTargets "last" |> run with
+        | Error message -> Expect.stringContains message "letzten Monat" "Grund"
+        | Ok _ -> failtest "Vorschau hätte abgelehnt werden müssen" }
+    { Endpoint = "BudgetApi.applyTargets"; Case = "letzter Monat: abgelehnt mit Grund, auch ohne Einrichtung"
+      Run = fun () ->
+        match budgetApi.applyTargets "last" emptyPreview |> run with
+        | Error message -> Expect.stringContains message "letzten Monat" "Grund"
+        | Ok _ -> failtest "Anwenden hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.moveMoney"; Case = "negativer Betrag am Rand von decimal: Fehler statt Ausnahme"
       Run = fun () ->
           let negative = { emptyMove with Amount = { emptyMove.Amount with Amount = -Decimal.MaxValue } }

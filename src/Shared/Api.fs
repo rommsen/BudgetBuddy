@@ -491,16 +491,18 @@ type LedgerApi = {
 /// nach YNAB und in die Budget-Bewegungen.
 type BudgetApi = {
     /// Holt den Monat mit Zu verteilen und den Kategorien nach Gruppe. Der Schlüssel ist
-    /// "current" (laufender Monat) oder "next" (nächster Monat); alles andere lehnt die
-    /// Grenze ab. Error mit lesbarer Meldung bei fehlendem Token oder Budget, bei YNAB-Fehlern
+    /// "last" (Vormonat), "current" (laufender Monat) oder "next" (nächster Monat); alles
+    /// andere lehnt die Grenze ab. Error mit lesbarer Meldung bei fehlendem Token oder Budget, bei YNAB-Fehlern
     /// (auch 429) und bei ungültigem Monat.
     getBudgetMonth: string -> Async<Result<Shared.Budgeting.BudgetMonth, string>>
 
     /// Vorschau von "Targets anwenden" für den Monatsschlüssel ("current"/"next"): liest den
-    /// Monat live, schreibt weder nach YNAB noch in die Datenbank.
+    /// Monat live, schreibt weder nach YNAB noch in die Datenbank. "last" lehnt die Grenze ab,
+    /// ohne YNAB zu fragen.
     previewTargets: string -> Async<Result<Shared.Budgeting.TargetPreview, string>>
 
-    /// "Übernehmen": liest den Monat neu und vergleicht mit der übergebenen Vorschau. Weicht
+    /// "Übernehmen" (Monatsschlüssel wie bei `previewTargets`, "last" wird abgelehnt): liest
+    /// den Monat neu und vergleicht mit der übergebenen Vorschau. Weicht
     /// etwas ab, wird nichts geschrieben und die neue Vorschau kommt zurück. Sonst werden die
     /// Budget-Bewegungen festgehalten und die Zuweisungen nacheinander nach YNAB geschrieben.
     applyTargets: string -> Shared.Budgeting.TargetPreview -> Async<Result<Shared.Budgeting.ApplyResult, string>>

@@ -35,6 +35,13 @@ let private selectTests =
             Expect.equal m.Month Loading "Loading"
             Expect.isTrue load "laden"
         }
+        test "Wechsel auf den letzten Monat setzt Loading und verlangt das Laden" {
+            let loaded = { init () with Month = Success monthK7wmd }
+            let m, load = select LastMonth loaded
+            Expect.equal m.Choice LastMonth "Wahl"
+            Expect.equal m.Month Loading "Loading"
+            Expect.isTrue load "laden"
+        }
         test "Dieselbe Wahl bei geladenem Monat ändert nichts" {
             let loaded = { init () with Month = Success monthK7wmd }
             let m, load = select CurrentMonth loaded
@@ -188,6 +195,13 @@ let private searchStateTests =
             let switched, _ = select NextMonth searching
             Expect.equal switched.CategorySearch "leb" "beim Wechsel"
             let loaded = applyLoaded NextMonth (Ok monthK7wmd) switched
+            Expect.equal loaded.CategorySearch "leb" "nach der Antwort"
+        }
+        test "Der Wechsel auf den letzten Monat behält die Suche" {
+            let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
+            let switched, _ = select LastMonth searching
+            Expect.equal switched.CategorySearch "leb" "beim Wechsel"
+            let loaded = applyLoaded LastMonth (Ok monthK7wmd) switched
             Expect.equal loaded.CategorySearch "leb" "nach der Antwort"
         }
         test "Betreten der Seite leert die Suche und holt den Monat" {

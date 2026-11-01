@@ -73,7 +73,8 @@ async function openPage(width, height, { fail = false, requestedKeys = [], fixtu
       route.fulfill({ contentType: "application/json", body: JSON.stringify({ Error: "YNAB rate limit exceeded. Retry after 60 seconds" }) });
       return;
     }
-    const month = key === "next" ? fixture("2026-11-01", -12.34) : fixture("2026-10-01", -12.34);
+    const firstOfMonth = { last: "2026-09-01", current: "2026-10-01", next: "2026-11-01" }[key];
+    const month = fixture(firstOfMonth, -12.34);
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: month }) });
   });
   await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -157,6 +158,42 @@ test("Umschalter: Nächster Monat lädt den nächsten Monat und zeigt ihn", asyn
     await page.getByRole("button", { name: "Dieser Monat" }).click();
     await page.getByText("Oktober 2026").waitFor();
     assert.deepEqual(requestedKeys, ["current", "next", "current"]);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Letzter Monat: fordert 'last' an, Targets anwenden fehlt dort und kommt beim Zurückwechseln wieder", async () => {
+  const { context, page, requestedKeys } = await openPage(1440, 900);
+  const targets = page.getByRole("button", { name: "Targets anwenden" });
+  try {
+    await targets.waitFor();
+    await page.getByRole("button", { name: "Letzter Monat" }).click();
+    await page.getByText("September 2026").waitFor();
+    assert.deepEqual(requestedKeys, ["current", "last"]);
+    assert.equal(await targets.count(), 0, "im letzten Monat kein Targets anwenden");
+    await page.getByRole("button", { name: "Dieser Monat" }).click();
+    await page.getByText("Oktober 2026").waitFor();
+    await targets.waitFor();
+  } finally {
+    await context.close();
+  }
+});
+
+test("Handy: die drei Monatsknöpfe stehen in zeitlicher Folge vollständig im Viewport, die Seite scrollt nicht seitlich", async () => {
+  const { context, page } = await openPage(390, 844);
+  try {
+    const switcher = page.locator('[data-testid="budget-month-switcher"]');
+    assert.deepEqual(await switcher.getByRole("button").allInnerTexts(), ["Letzter Monat", "Dieser Monat", "Nächster Monat"]);
+    for (const button of await switcher.getByRole("button").all()) {
+      const box = await button.boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 390, `Knopf liegt im Viewport (${JSON.stringify(box)})`);
+    }
+    const overflow = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    assert.ok(overflow.scroll <= overflow.client, `kein horizontales Scrollen (scrollWidth ${overflow.scroll} > clientWidth ${overflow.client})`);
   } finally {
     await context.close();
   }
