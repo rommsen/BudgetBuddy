@@ -1,23 +1,22 @@
-/// Reine Regeln des Budgets (Context `budgeting`, budgeting-k7wmd): welcher YNAB-Monat zu
-/// "letzter", "dieser" oder "nächster" gehört und wie die rohen Kategorien eines Monats zu Gruppen
-/// werden. Kein I/O.
+/// Reine Regeln des Budgets (Context `budgeting`, budgeting-k7wmd): der laufende Monat, der Rahmen
+/// der Seite und wie die rohen Kategorien eines Monats zu Gruppen werden. Kein I/O.
 module Server.Budgeting.Domain
 
 open System
 open Shared.Domain
 open Shared.Budgeting
 
-/// "YYYY-MM-01" des gewählten Monats, bezogen auf `today`. Der nächste Monat nach Dezember
-/// ist der Januar des Folgejahres, der letzte Monat vor Januar der Dezember des Vorjahres.
-/// `today` ist ein Kalendertag ohne Uhrzeit, in Berlin zu bestimmen (`Server.Api.berlinToday`).
-let monthKey (today: DateOnly) (choice: BudgetMonthChoice) : string =
-    let first = DateTime(today.Year, today.Month, 1)
-    let month =
-        match choice with
-        | LastMonth -> first.AddMonths -1
-        | CurrentMonth -> first
-        | NextMonth -> first.AddMonths 1
-    month.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+/// Der laufende Monat als "YYYY-MM-01". `today` ist ein Kalendertag ohne Uhrzeit, in Berlin zu
+/// bestimmen (`Server.Api.berlinToday`).
+let currentMonthKey (today: DateOnly) : string =
+    today.ToString("yyyy-MM-01", Globalization.CultureInfo.InvariantCulture)
+
+/// Der Rahmen der Budget-Seite. Die Antwort von `GET /months` trägt keine verlässliche Folge,
+/// deshalb wird aufsteigend sortiert.
+let toBudgetFrame (today: DateOnly) (months: string list) (order: Guid list) : BudgetFrame =
+    { CurrentMonth = currentMonthKey today
+      Months = List.sort months
+      CategoryOrder = order }
 
 /// Soll die Kategorie angezeigt werden? Ausgeblendete, gelöschte und interne Kategorien
 /// (Inflow: Ready to Assign) fallen weg.
@@ -34,9 +33,9 @@ let private toBudgetCategory (c: YnabMonthCategory) : BudgetCategory =
       Target = c.Target
       Snoozed = c.Snoozed }
 
-/// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Gruppen und Kategorien behalten
-/// YNABs Reihenfolge (die Gruppe steht dort, wo ihre erste sichtbare Kategorie steht). Eine
-/// Gruppe ohne sichtbare Kategorie erscheint nicht.
+/// Gruppiert die sichtbaren Kategorien nach Kategoriegruppe. Die Folge ist die der Monatsantwort
+/// und damit ungeordnet (ADR 0074 Punkt 6): `toBudgetMonth` dient den Server-Abläufen, die Seite
+/// ordnet mit `orderGroups`. Eine Gruppe ohne sichtbare Kategorie erscheint nicht.
 let toBudgetMonth (month: YnabMonth) : BudgetMonth =
     let groups =
         month.Categories

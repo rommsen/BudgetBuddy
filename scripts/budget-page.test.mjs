@@ -1,10 +1,10 @@
 // scripts/budget-page.test.mjs
 //
-// Wächter für `budgeting-k7wmd`: die Budget-Seite (#/budget) zeigt Monat, Umschalter dieser/
-// nächster Monat, Zu verteilen und die Kategorien nach Gruppe mit Zugewiesen, Aktivität und
-// Verfügbar. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte BudgetApi-
-// Antworten: am Handy (390 px) Zeilen ohne horizontales Scrollen, am PC (1440 px) eine
-// Tabelle, negatives Zu verteilen ohne Warnhinweis, Fehler mit Wiederholen, Erreichbarkeit
+// Wächter für `budgeting-k7wmd` und `budgeting-g8s3w`: die Budget-Seite (#/budget) zeigt Monat,
+// Zu verteilen und die Kategorien nach Gruppe, eine Zeile wählt die Kategorie für den Inspektor.
+// Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte BudgetApi-Antworten: am Handy
+// (390 px) Zeilen ohne horizontales Scrollen, am PC (1440 px) eine Tabelle neben dem Panel,
+// `‹ Monat ›`, Filter, feste Höhen, Tastatur, Trefferflächen, Fehler mit Wiederholen, Erreichbarkeit
 // über die Navigation. Dazu die Kategorie-Suche (`budgeting-rxxb4`).
 //
 // Ausführen: node --test scripts/budget-page.test.mjs
@@ -95,7 +95,22 @@ const searchFixture = (month) => ({
   ],
 });
 
-async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture } = {}) {
+const CURRENT = "2026-10-01";
+const WINDOW = ["2026-09-01", CURRENT, "2026-11-01"];
+
+/// Der Rahmen zu einer Fixture: `CategoryOrder` nicht leer, sonst sortierte die Seite nach Name.
+const frameFor = (fixture, months = WINDOW) => ({
+  CurrentMonth: CURRENT,
+  Months: months,
+  CategoryOrder: fixture(CURRENT, 0).Groups.flatMap((g) => g.Categories.map((c) => c.Id)),
+});
+
+const mockFrame = (page, frame) =>
+  page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: frame }) })
+  );
+
+async function openPage(width, height, { fail = false, requestedKeys = [], fixture = monthFixture, months = WINDOW } = {}) {
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
@@ -103,6 +118,10 @@ async function openPage(width, height, { fail = false, requestedKeys = [], fixtu
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
+  await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: [] }) })
+  );
+  await mockFrame(page, frameFor(fixture, months));
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     const [key] = JSON.parse(route.request().postData() ?? "[]");
     requestedKeys.push(key);
@@ -111,8 +130,7 @@ async function openPage(width, height, { fail = false, requestedKeys = [], fixtu
       route.fulfill({ contentType: "application/json", body: JSON.stringify({ Error: "YNAB rate limit exceeded. Retry after 60 seconds" }) });
       return;
     }
-    const firstOfMonth = { last: "2026-09-01", current: "2026-10-01", next: "2026-11-01" }[key];
-    const month = fixture(firstOfMonth, -12.34);
+    const month = fixture(key, -12.34);
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: month }) });
   });
   await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
@@ -135,7 +153,7 @@ after(async () => {
 test("Handy: Zu verteilen negativ ohne Warnhinweis, Gruppen mit Zeilen, kein horizontales Scrollen", async () => {
   const { context, page, requestedKeys } = await openPage(390, 844);
   try {
-    assert.deepEqual(requestedKeys, ["current"], "der laufende Monat ist die Vorgabe");
+    assert.deepEqual(requestedKeys, [CURRENT], "der laufende Monat ist die Vorgabe");
     const box = page.locator('[data-testid="budget-to-be-budgeted"]');
     const text = (await box.innerText()).replace(/\s+/g, " ");
     assert.match(text, /Zu verteilen/i);
@@ -197,7 +215,7 @@ const targetTexts = (page) =>
       .map((row) => row.querySelector('[data-testid="budget-target"]')?.innerText.replace(/\s*\n\s*(·\s*)?/g, " · ") ?? null)
   );
 
-test("Handy: dritte Zeile nur mit Target, mit fehlt, erfüllt und pausiert, ohne horizontales Scrollen", async () => {
+test("Handy: dritte Zeile mit Target oder fehlt, mit fehlt, erfüllt und pausiert, ohne horizontales Scrollen", async () => {
   const { page, context } = await openPage(390, 844, { fixture: targetFixture });
   await page.locator('[data-testid="budget-target"]:visible').first().waitFor();
   assert.deepEqual(await targetTexts(page), [
@@ -239,11 +257,11 @@ test("PC: Spalte Target direkt hinter Kategorie zeigt denselben Inhalt, Gruppenz
   assert.equal(headers[1].toLowerCase(), "target");
   assert.equal(headers.length, 5);
   assert.deepEqual(await targetTexts(page), [
-    "1.600,00 €/Monat · fehlt 1.600,00 €",
+    "1.600,00 €/Monat",
     "1.600,00 €/Monat · erfüllt",
     "1.600,00 €/Monat · pausiert",
     null,
-    "121.600,00 € alle 11 Monate · fehlt 121.600,00 €",
+    "121.600,00 € alle 11 Monate",
   ]);
   assert.equal(await page.locator("table tbody tr td[colspan='5']").count(), 1);
   const fonts = await page.locator('[data-testid="budget-target"]:visible').first().evaluate((cell) => {
@@ -271,81 +289,321 @@ test("Schmalster PC (768 px): die Tabelle mit Spalte Target läuft nicht aus ihr
   await context.close();
 });
 
-test("Umschalter: Nächster Monat lädt den nächsten Monat und zeigt ihn", async () => {
-  const { context, page, requestedKeys } = await openPage(390, 844);
-  try {
-    await page.getByRole("button", { name: "Nächster Monat" }).click();
-    await page.getByText("November 2026").waitFor();
-    assert.deepEqual(requestedKeys, ["current", "next"]);
-    await page.getByRole("button", { name: "Dieser Monat" }).click();
-    await page.getByText("Oktober 2026").waitFor();
-    assert.deepEqual(requestedKeys, ["current", "next", "current"]);
-  } finally {
-    await context.close();
-  }
-});
+/// Der berechnete Wert eines Farb-Tokens, zum Vergleich mit `getComputedStyle(...).color`.
+const tokenColor = (page, token) =>
+  page.evaluate((name) => {
+    const probe = document.createElement("span");
+    probe.style.color = `var(${name})`;
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  }, token);
 
-test("Letzter Monat: fordert 'last' an, Targets anwenden fehlt dort und kommt beim Zurückwechseln wieder", async () => {
+const monthName = (page) => page.locator('[data-testid="budget-month-name"]');
+const previousArrow = (page) => page.locator('[data-testid="budget-month-previous"]');
+const nextArrow = (page) => page.locator('[data-testid="budget-month-next"]');
+
+test("Monate: bis zum Rand blättern, der Pfeil fehlt, der Name bleibt stehen und ist teal, der Name führt zurück", async () => {
   const { context, page, requestedKeys } = await openPage(1440, 900);
   const targets = page.getByRole("button", { name: "Targets anwenden" });
   try {
     await targets.waitFor();
-    await page.getByRole("button", { name: "Letzter Monat" }).click();
-    await page.getByText("September 2026").waitFor();
-    assert.deepEqual(requestedKeys, ["current", "last"]);
-    assert.equal(await targets.count(), 0, "im letzten Monat kein Targets anwenden");
-    await page.getByRole("button", { name: "Dieser Monat" }).click();
-    await page.getByText("Oktober 2026").waitFor();
+    const atStart = await monthName(page).boundingBox();
+    const teal = await tokenColor(page, "--color-neon-teal");
+    const colorOf = () => monthName(page).evaluate((el) => getComputedStyle(el).color);
+    assert.notEqual(await colorOf(), teal, "im laufenden Monat ist der Name nicht teal");
+
+    // Der Name steht sofort da, die Anfrage folgt: auf die Antwort warten.
+    const previous = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
+    await previousArrow(page).click();
+    await monthName(page).getByText("September 2026").waitFor();
+    await previous;
+    assert.deepEqual(requestedKeys, [CURRENT, "2026-09-01"]);
+    assert.equal(await previousArrow(page).count(), 0, "am Rand fehlt der Pfeil");
+    const atEdge = await monthName(page).boundingBox();
+    assert.equal(Math.round(atEdge.x), Math.round(atStart.x), "der Name springt nicht");
+    assert.equal(await targets.count(), 0, "im vergangenen Monat kein Targets anwenden");
+    assert.equal(await colorOf(), teal, "der Name ist teal, solange ein anderer Monat gezeigt wird");
+
+    const back = page.waitForResponse("**/api/BudgetApi/getBudgetMonth");
+    await monthName(page).click();
+    await monthName(page).getByText("Oktober 2026").waitFor();
+    await back;
+    await targets.waitFor();
+    assert.deepEqual(requestedKeys, [CURRENT, "2026-09-01", CURRENT]);
+
+    await nextArrow(page).click();
+    await monthName(page).getByText("November 2026").waitFor();
+    assert.equal(await nextArrow(page).count(), 0, "am anderen Rand auch");
     await targets.waitFor();
   } finally {
     await context.close();
   }
 });
 
-test("Handy: die drei Monatsknöpfe stehen in zeitlicher Folge vollständig im Viewport, die Seite scrollt nicht seitlich", async () => {
-  const { context, page } = await openPage(390, 844);
+test("Monat nicht offen: die Meldung steht da, die Pfeile bleiben, der Vormonat lädt", async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(30000);
+  await page.route("**/api/**", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
+  );
+  await mockFrame(page, frameFor(monthFixture, ["2026-08-01", "2026-09-01"]));
+  await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
+    const [key] = JSON.parse(route.request().postData() ?? "[]");
+    const body = key === CURRENT ? { Error: "Monat nicht offen" } : { Ok: monthFixture(key, 10) };
+    route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+  });
   try {
-    const switcher = page.locator('[data-testid="budget-month-switcher"]');
-    assert.deepEqual(await switcher.getByRole("button").allInnerTexts(), ["Letzter Monat", "Dieser Monat", "Nächster Monat"]);
-    for (const button of await switcher.getByRole("button").all()) {
-      const box = await button.boundingBox();
-      assert.ok(box && box.x >= 0 && box.x + box.width <= 390, `Knopf liegt im Viewport (${JSON.stringify(box)})`);
-    }
-    const overflow = await page.evaluate(() => ({
-      scroll: document.documentElement.scrollWidth,
-      client: document.documentElement.clientWidth,
-    }));
-    assert.ok(overflow.scroll <= overflow.client, `kein horizontales Scrollen (scrollWidth ${overflow.scroll} > clientWidth ${overflow.client})`);
-  } finally {
-    await context.close();
-  }
-});
-
-// Bug D1: die Mindesthöhe saß am Rahmen, der Klick am inneren Knopf, die Trefferfläche war 32 px.
-test("Handy: jeder Monatsknopf hat 48 px Trefferfläche und meldet, ob er aktiv ist", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    const buttons = page.locator('[data-testid="budget-month-switcher"]').getByRole("button");
-    for (const button of await buttons.all()) {
-      const box = await button.boundingBox();
-      assert.ok(box.height >= 48, `Trefferfläche mindestens 48 px (${box.height})`);
-    }
-    assert.deepEqual(await buttons.evaluateAll((all) => all.map((b) => b.getAttribute("aria-pressed"))), ["false", "true", "false"]);
+    await page.goto(`http://127.0.0.1:${frontendPort}/#/budget`, { waitUntil: "load" });
+    await page.getByRole("alert").waitFor();
+    assert.match(await page.getByRole("alert").innerText(), /Monat nicht offen/);
+    await previousArrow(page).click();
+    await monthName(page).getByText("September 2026").waitFor();
+    await page.locator('[data-testid="budget-to-be-budgeted"]').waitFor();
   } finally {
     await context.close();
   }
 });
 
 // Bug D3: die Leiste ist sticky, ihr Wrapper aber genau so hoch, also lief sie nicht mit.
-test("Handy: nach dem Scrollen bleibt der Monatsumschalter unter der Navbar sichtbar", async () => {
+test("Handy: nach dem Scrollen bleibt die Monatsleiste unter der Navbar sichtbar", async () => {
   const { context, page } = await openPage(390, 844, { fixture: longFixture });
   try {
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.waitForFunction(() => window.scrollY > 300);
-    const box = await page.locator('[data-testid="budget-month-switcher"]').getByRole("button").first().boundingBox();
-    assert.ok(box.y >= 0 && box.y < 150, `Umschalter im Viewport (y ${box.y})`);
+    // Die nicht gemockten Routen melden Fehler-Toasts, die oben liegen und nicht zur Leiste gehören.
+    await page.addStyleTag({ content: ".toast-layer { display: none; }" });
+    const measured = await page.evaluate(() => {
+      const header = [...document.querySelectorAll("header")].find((el) => el.getBoundingClientRect().height > 0);
+      const name = document.querySelector('[data-testid="budget-month-name"]');
+      const box = name.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return {
+        headerBottom: header.getBoundingClientRect().bottom,
+        barTop: document.querySelector('[data-testid="budget-month-switcher"]').getBoundingClientRect().top,
+        nameOnTop: name === hit || name.contains(hit),
+      };
+    });
+    assert.ok(measured.headerBottom > 0, `die Navbar steht im Bild (${JSON.stringify(measured)})`);
+    assert.ok(measured.barTop >= measured.headerBottom - 0.5, `die Leiste liegt unter der Navbar (${JSON.stringify(measured)})`);
+    assert.ok(measured.nameOnTop, `nichts verdeckt den Monat (${JSON.stringify(measured)})`);
   } finally {
     await context.close();
+  }
+});
+
+// budgeting-g8s3w: eine Zeile mit Rot und Gelb, eine nur mit fehlt, eine ohne alles.
+const filterFixture = (month) => ({
+  Month: month,
+  ToBeBudgeted: eur(10),
+  Groups: [
+    {
+      Name: "Alltag",
+      Categories: [
+        withTarget(category(1, "Essen", 0, -30, -30), monthly, 1600),
+        withTarget(category(2, "Kleidung", 0, 0, 0), monthly, 50),
+        category(3, "Macbook", 10, 0, 10),
+      ],
+    },
+    { Name: "Rücklagen", Categories: [category(4, "Urlaub", 10, 0, 10)] },
+  ],
+});
+
+test("Filter: Rot zeigt nur rote Zeilen, eine Zeile mit Rot und Gelb zeigt beides, die Zahlen bleiben", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const chips = page.locator('[data-testid="budget-filter"]').getByRole("button");
+    assert.deepEqual(await chips.allInnerTexts(), ["Alle", "Fehlt (2)", "Rot (1)"]);
+    await chips.nth(2).click();
+    await page.getByText("Macbook").waitFor({ state: "hidden" });
+    assert.equal(await visibleRows(page).count(), 1);
+    const colors = await visibleRows(page).first().evaluate((row) => ({
+      missing: getComputedStyle(row.querySelector('[data-testid="budget-missing"]')).color,
+      available: getComputedStyle(row.querySelector('[data-testid="budget-available"] span')).color,
+    }));
+    const yellow = await tokenColor(page, "--color-calm-yellow");
+    const red = await tokenColor(page, "--color-neon-red");
+    assert.equal(colors.missing, yellow, "fehlt steht in Gelb");
+    assert.equal(colors.available, red, "Verfügbar im Minus steht in Rot");
+
+    await searchInput(page).fill("xyz");
+    await page.getByText("Keine Kategorie passt zu „xyz“").waitFor();
+    assert.deepEqual(await chips.allInnerTexts(), ["Alle", "Fehlt (2)", "Rot (1)"], "die Suche ändert die Zahlen nicht");
+    await searchInput(page).fill("");
+    await chips.nth(1).click();
+    await visibleRows(page).filter({ hasText: "Kleidung" }).waitFor();
+    assert.equal(await visibleRows(page).count(), 2);
+  } finally {
+    await context.close();
+  }
+});
+
+const tabsOf = (scope) => scope.locator('[data-testid="inspector-tabs"]').getByRole("tab");
+
+const pickRow = (page, name) => visibleRows(page).filter({ has: page.getByText(name, { exact: true }) }).click();
+
+test("Inspektor am PC: gleiche Höhe in allen vier Tabs, die gewählte Zeile ist markiert", async () => {
+  const { context, page } = await openPage(1440, 900, { fixture: filterFixture });
+  try {
+    const panel = page.locator('[data-testid="budget-inspector"]');
+    assert.match(await panel.innerText(), /Kategorie wählen/);
+    const empty = await panel.boundingBox();
+    await pickRow(page, "Essen");
+    await panel.getByRole("heading", { name: "Essen" }).waitFor();
+    assert.equal(await visibleRows(page).filter({ hasText: "Essen" }).getAttribute("aria-selected"), "true");
+    const heights = [empty.height];
+    for (const tab of await tabsOf(panel).all()) {
+      await tab.click();
+      heights.push((await panel.boundingBox()).height);
+    }
+    const rounded = heights.map(Math.round);
+    assert.equal(new Set(rounded).size, 1, `gleiche Höhe (${rounded})`);
+    assert.equal(rounded[0], 640, "feste Höhe");
+    assert.equal((await panel.boundingBox()).width, 340, "feste Breite");
+    assert.match(await page.locator('[data-testid="inspector-target"]').innerText(), /Fehlbetrag/i);
+  } finally {
+    await context.close();
+  }
+});
+
+const sheet = (page) => page.locator(".bottom-sheet.fixed-height");
+
+test("Sheet am Handy: 500 px hoch in allen vier Tabs, 48 px Tabs", async () => {
+  const { context, page } = await openPage(390, 844, { fixture: filterFixture });
+  try {
+    await pickRow(page, "Essen");
+    await page.locator('[data-testid="budget-inspector"]').waitFor();
+    for (const tab of await tabsOf(sheet(page)).all()) {
+      await tab.click();
+      const box = await sheet(page).boundingBox();
+      assert.equal(box.height, 500, "feste Höhe");
+      assert.ok((await tab.boundingBox()).height >= 48, "Trefferfläche");
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test("Sheet: ‹ › wechselt ohne Schließen, Kopf und Tabs bleiben beim Scrollen stehen, mit kleinerem --vvh schrumpft es", async () => {
+  const { context, page } = await openPage(390, 844, { fixture: longFixture });
+  try {
+    await pickRow(page, "Kategorie 2");
+    await sheet(page).getByRole("heading", { name: "Kategorie 2", exact: true }).waitFor();
+    await page.locator('[data-testid="inspector-next"]').click();
+    await sheet(page).getByRole("heading", { name: "Kategorie 3", exact: true }).waitFor();
+    await page.locator('[data-testid="inspector-previous"]').click();
+    await page.locator('[data-testid="inspector-previous"]').click();
+    await sheet(page).getByRole("heading", { name: "Kategorie 1", exact: true }).waitFor();
+    assert.equal(await page.locator('[data-testid="inspector-previous"]').count(), 0, "am Rand fehlt der Pfeil");
+
+    const scrolled = await sheet(page).evaluate((el) => {
+      const body = el.querySelector(".sheet-body");
+      const tops = () => ({
+        head: el.querySelector(".sheet-header").getBoundingClientRect().top,
+        tabs: el.querySelector('[role="tablist"]').getBoundingClientRect().top,
+      });
+      const filler = document.createElement("div");
+      filler.style.height = "2000px";
+      body.append(filler);
+      const before = tops();
+      body.scrollTop = 500;
+      const after = tops();
+      const scrollTop = body.scrollTop;
+      filler.remove();
+      return { before, after, scrollTop };
+    });
+    assert.ok(scrolled.scrollTop > 0, `der Inhalt ist wirklich gescrollt (${scrolled.scrollTop})`);
+    assert.equal(scrolled.after.head, scrolled.before.head, "der Kopf steht fest");
+    assert.equal(scrolled.after.tabs, scrolled.before.tabs, "die Tabs stehen fest");
+
+    await page.evaluate(() => document.documentElement.style.setProperty("--vvh", "412px"));
+    await page.waitForFunction(() => document.querySelector(".bottom-sheet.fixed-height").getBoundingClientRect().height === 400);
+  } finally {
+    await context.close();
+  }
+});
+
+test("Tastatur am PC: Pfeil runter wechselt die Kategorie und die Liste scrollt mit, im Suchfeld passiert nichts", async () => {
+  const { context, page } = await openPage(1440, 700, { fixture: longFixture });
+  try {
+    const panel = page.locator('[data-testid="budget-inspector"]');
+    await pickRow(page, "Kategorie 1");
+    await panel.getByRole("heading", { name: "Kategorie 1", exact: true }).waitFor();
+    await page.locator('[aria-label="Kategorien"]').focus();
+    for (let i = 2; i <= 30; i += 1) {
+      await page.keyboard.press("ArrowDown");
+      await panel.getByRole("heading", { name: `Kategorie ${i}`, exact: true }).waitFor();
+    }
+    await page.waitForFunction(() => {
+      const row = document.querySelector("tr[aria-selected='true']").getBoundingClientRect();
+      return row.top >= 0 && row.bottom <= window.innerHeight;
+    });
+    assert.ok((await page.evaluate(() => window.scrollY)) > 0, "die Seite ist mitgescrollt");
+
+    await searchInput(page).focus();
+    await page.keyboard.press("ArrowDown");
+    await panel.getByRole("heading", { name: "Kategorie 30", exact: true }).waitFor();
+  } finally {
+    await context.close();
+  }
+});
+
+test("Trefferflächen am Handy: Monatspfeile, Filter und ‹ › messen 48 px, bei 320 px kein seitliches Scrollen", async () => {
+  const { context, page } = await openPage(320, 700, { fixture: longFixture });
+  try {
+    const targets = [
+      previousArrow(page),
+      nextArrow(page),
+      ...(await page.locator('[data-testid="budget-filter"]').getByRole("button").all()),
+    ];
+    for (const target of targets) {
+      const box = await target.boundingBox();
+      assert.ok(box.height >= 48, `48 px hoch (${box.height})`);
+    }
+    for (const arrow of [previousArrow(page), nextArrow(page)]) {
+      assert.ok((await arrow.boundingBox()).width >= 48, "48 px breit");
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    assert.equal(overflow, false, "kein horizontales Scrollen");
+
+    await pickRow(page, "Kategorie 2");
+    await page.locator('[data-testid="inspector-next"]').waitFor();
+    for (const id of ["inspector-previous", "inspector-next"]) {
+      const box = await page.locator(`[data-testid="${id}"]`).boundingBox();
+      assert.ok(box.height >= 48 && box.width >= 48, `${id} 48 px`);
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test("Breite: bei 1024 px läuft die Tabelle neben dem Panel nicht aus der Karte, bei 768 px öffnet das Sheet", async () => {
+  const wide = await openPage(1024, 900, { fixture: targetFixture });
+  try {
+    await wide.page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+    assert.ok(await wide.page.locator('aside[data-testid="budget-inspector"]').isVisible(), "Panel");
+    const measured = await wide.page.evaluate(() => {
+      const table = document.querySelector("table");
+      const card = table.closest(".overflow-hidden").getBoundingClientRect();
+      const last = table.querySelector("tbody tr[data-testid='budget-category-row'] td:last-child").getBoundingClientRect();
+      return { tableRight: table.getBoundingClientRect().right, lastRight: last.right, cardRight: card.right };
+    });
+    assert.ok(measured.tableRight <= measured.cardRight + 0.5, `Tabelle in der Karte (${JSON.stringify(measured)})`);
+    assert.ok(measured.lastRight <= measured.cardRight + 0.5, `Verfügbar sichtbar (${JSON.stringify(measured)})`);
+  } finally {
+    await wide.context.close();
+  }
+
+  const tablet = await openPage(768, 900, { fixture: targetFixture });
+  try {
+    await tablet.page.locator('[data-testid="budget-target"]:visible').first().waitFor();
+    assert.equal(await tablet.page.locator("aside[data-testid='budget-inspector']").count(), 0, "kein Panel");
+    await pickRow(tablet.page, "Macbook");
+    await sheet(tablet.page).getByRole("heading", { name: "Macbook" }).waitFor();
+  } finally {
+    await tablet.context.close();
   }
 });
 
@@ -357,6 +615,7 @@ test("Fehler: lesbare Meldung mit Wiederholen, danach erscheint der Monat", asyn
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
+  await mockFrame(page, frameFor(monthFixture));
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     calls += 1;
     if (calls === 1) {
@@ -396,11 +655,11 @@ test("Handy-Suche: leb zeigt nur Treffer und ihre Gruppen, ✕ leert, Monatswech
     assert.equal(await visibleRows(page).count(), 4);
 
     assert.ok(await page.locator('[data-testid="budget-to-be-budgeted"]').isVisible(), "Zu verteilen bleibt");
-    assert.ok(await page.locator('[data-testid="budget-month-switcher"]').isVisible(), "Umschalter bleibt");
+    assert.ok(await page.locator('[data-testid="budget-month-switcher"]').isVisible(), "Monatsleiste bleibt");
     assert.ok(await page.getByRole("button", { name: "Targets anwenden" }).isVisible(), "Targets anwenden bleibt");
 
-    await page.getByRole("button", { name: "Nächster Monat" }).click();
-    await page.getByText("November 2026").waitFor();
+    await nextArrow(page).click();
+    await monthName(page).getByText("November 2026").waitFor();
     assert.equal(await searchInput(page).inputValue(), "leb", "die Suche bleibt beim Monatswechsel");
     assert.equal(await visibleRows(page).count(), 4, "der neue Monat ist gefiltert");
 
@@ -441,6 +700,7 @@ test("Navigation: die Budget-Seite ist über die Tab-Leiste am Handy erreichbar"
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
+  await mockFrame(page, frameFor(monthFixture));
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: monthFixture("2026-10-01", 10) }) })
   );

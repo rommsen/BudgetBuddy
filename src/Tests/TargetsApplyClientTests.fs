@@ -31,7 +31,9 @@ let private previewOf (after: decimal) (lines: TargetLine list) : TargetPreview 
       ToBeBudgetedAfter = eur after }
 
 let private month : BudgetMonth = { Month = "2026-11-01"; ToBeBudgeted = eur 100m; Groups = [] }
-let private loaded = { init () with Month = Success month }
+let private frame : BudgetFrame =
+    { CurrentMonth = "2026-11-01"; Months = [ "2026-10-01"; "2026-11-01" ]; CategoryOrder = [] }
+let private loaded = { init () with Frame = Success frame; Month = Success month }
 let private preview = previewOf 50m [ line "Essen" 0m 30m; line "Kleidung" 20m 20m ]
 
 let private reportOf (outcomes: LineOutcome list) (actual: Money option) : ApplyReport =
@@ -62,8 +64,8 @@ let private openTests =
             Expect.equal m open' "unverändert"
             Expect.isFalse load2 "kein zweites Laden"
         }
-        test "Im letzten Monat öffnet der Dialog nicht und holt keine Vorschau" {
-            let lastMonth = { loaded with Choice = LastMonth }
+        test "In einem vergangenen Monat öffnet der Dialog nicht und holt keine Vorschau" {
+            let lastMonth = { loaded with ChosenMonth = Some "2026-10-01" }
             let m, load = openTargets lastMonth
             Expect.equal m lastMonth "unverändert"
             Expect.isFalse load "keine Vorschau"
@@ -76,18 +78,18 @@ let private openTests =
             Expect.equal m.Targets PreviewLoading "lädt"
             Expect.isTrue load "Vorschau holen"
         }
-        test "Im letzten Monat holt auch Wiederholen keine Vorschau" {
-            let failed = { loaded with Choice = LastMonth; Targets = PreviewFailed "kaputt" }
+        test "In einem vergangenen Monat holt auch Wiederholen keine Vorschau" {
+            let failed = { loaded with ChosenMonth = Some "2026-10-01"; Targets = PreviewFailed "kaputt" }
             let m, load = openTargets failed
             Expect.equal m failed "unverändert"
             Expect.isFalse load "keine Vorschau"
         }
-        test "Die Vorschau wird eingenommen, eine späte Antwort zu anderer Wahl oder geschlossenem Dialog nicht" {
+        test "Die Vorschau wird eingenommen, eine späte Antwort zu anderem Monat oder geschlossenem Dialog nicht" {
             let waiting = { loaded with Targets = PreviewLoading }
-            Expect.equal (applyPreviewLoaded CurrentMonth (Ok preview) waiting).Targets (PreviewReady (preview, false)) "eingenommen"
-            Expect.equal (applyPreviewLoaded NextMonth (Ok preview) waiting) waiting "andere Monatswahl"
-            Expect.equal (applyPreviewLoaded CurrentMonth (Ok preview) loaded) loaded "Dialog geschlossen"
-            Expect.equal (applyPreviewLoaded CurrentMonth (Error "kaputt") waiting).Targets (PreviewFailed "kaputt") "Fehler"
+            Expect.equal (applyPreviewLoaded "2026-11-01" (Ok preview) waiting).Targets (PreviewReady (preview, false)) "eingenommen"
+            Expect.equal (applyPreviewLoaded "2026-12-01" (Ok preview) waiting) waiting "anderer Monat"
+            Expect.equal (applyPreviewLoaded "2026-11-01" (Ok preview) loaded) loaded "Dialog geschlossen"
+            Expect.equal (applyPreviewLoaded "2026-11-01" (Error "kaputt") waiting).Targets (PreviewFailed "kaputt") "Fehler"
         }
     ]
 

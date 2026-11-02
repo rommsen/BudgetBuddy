@@ -238,12 +238,12 @@ let private pageChangeTests =
     testList "Seitenwechsel" [
         // budgeting-nfrds: das Formular blieb im Modell und sprang beim Zurückkehren wieder auf.
         test "Ein offenes Sheet überlebt das Betreten der Seite nicht" {
-            let model, _ = update PageEntered (withForm ready)
+            let model, _ = enterPage (withForm ready)
             Expect.isNone model.Move "zu"
         }
         test "Kommt die Absage erst nach dem Seitenwechsel, nennt ein Toast den Grund" {
             let sending = fst (confirmMove (withForm ready))
-            let model, _ = update PageEntered sending
+            let model, _ = enterPage sending
             let _, external, _ = applyMoveAnswered (Error "abgelehnt") model
             Expect.equal external (ShowToast ("Nicht verschoben: abgelehnt", ToastError)) "sichtbar"
         }

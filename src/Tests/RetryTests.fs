@@ -148,7 +148,7 @@ let tests =
                     "getEntryHistory"; "getLedgerPayeeSuggestions"; "getPayeeCategorySuggestions"
                     "getBudgetAccounts"; "getSettings"; "getLedgerEntry"; "getLedgerEntry" ]
                   "Components/Budget/State.fs",
-                  [ "getCategoryMonthEntries"; "getBudgetMonth"; "getBudgetMonth"; "previewTargets" ] ]
+                  [ "getBudgetFrame"; "getBudgetFrame"; "getBudgetMonth"; "previewTargets"; "getCategoryMonthEntries" ] ]
             for file, expected in inventory do
                 Expect.equal
                     (List.sort (wrappedCalls (readClient file)))

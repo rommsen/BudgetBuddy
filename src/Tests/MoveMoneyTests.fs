@@ -518,6 +518,30 @@ let private boundaryTests =
                 Expect.equal ((movementsOf report).Head.Movement.Month) "2031-02-01" "Bewegung"
             | Error e -> failtest $"Bericht erwartet: {e}"
 
+        testCase "Antwortet der Monat 404, kommt der Fehler zurück und nichts wird festgehalten" <| fun () ->
+            let f, a, b = fake ()
+            let port : YnabPort =
+                { f.Port with FetchMonth = fun key -> async { return Error (YnabError.MonthNotOpen key) } }
+            match
+                Server.Api.moveMoneyWith (Some "t") (Some "b") (fun _ _ -> port) now "2031-02-01" (request (CategorySide a) (CategorySide b) 30000L)
+                |> run
+            with
+            | Error message -> Expect.equal message "Monat nicht offen" "Grund"
+            | Ok _ -> failtest "Fehler erwartet"
+            Expect.isEmpty f.Attempts "nichts gesendet"
+            Expect.equal (movementRows [ a; b ]) 0 "keine Bewegung"
+
+        testCase "Antwortet der PATCH der Quelle 404, hält die Folgezeile an und nichts geht ans Ziel" <| fun () ->
+            let f, a, b = fake ()
+            f.Failures[a] <- YnabError.MonthNotOpen monthKey
+            match moveWith f monthKey (request (CategorySide a) (CategorySide b) 30000L) with
+            | Ok report ->
+                let outcomeOf id = report.Lines |> List.find (fun l -> l.CategoryId = id) |> fun l -> l.Outcome
+                Expect.equal (outcomeOf a) (Failed "Monat nicht offen") "Quelle"
+                Expect.equal (outcomeOf b) (Failed TargetHeldBack) "Ziel"
+                Expect.equal (f.Attempts |> Seq.map fst |> List.ofSeq) [ a ] "nur die Quelle gesendet"
+            | Error e -> failtest $"Bericht erwartet: {e}"
+
         testCase "Ungültige Monate werden an der Grenze abgelehnt" <| fun () ->
             for key in [ "current"; "2026-11-02"; "2026-13-01"; "" ] do
                 let f, a, b = fake ()

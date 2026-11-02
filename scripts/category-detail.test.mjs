@@ -1,9 +1,9 @@
 // scripts/category-detail.test.mjs
 //
-// Wächter für `budgeting-m1bce`: das Kategorie-Detail auf der Budget-Seite. Gemessen am echten, per
-// Vite gestarteten Fable-Client gegen gemockte BudgetApi und LedgerApi: am Handy vom Tipp auf den
-// Kategorie-Namen über die Buchung ins Kassenbuch-Detail und zurück, per Browser-Knopf und per
-// Schließen; dazu Tipp auf Verfügbar, "Verschieben" aus dem Detail, Trefferfläche, Dialog am PC.
+// Wächter für `budgeting-m1bce` und `budgeting-g8s3w`: das Kategorie-Detail lebt im Tab Buchungen
+// des Inspektors. Gemessen am echten, per Vite gestarteten Fable-Client gegen gemockte BudgetApi und
+// LedgerApi: am Handy von der Zeile über den Tab und die Buchung ins Kassenbuch-Detail und zurück,
+// per Browser-Knopf und per Schließen; dazu "Verschieben" aus dem Tab Geld, Panel am PC.
 //
 // Ausführen: node --test scripts/category-detail.test.mjs
 // (Teil von `npm run test:scripts`.)
@@ -70,6 +70,9 @@ async function openPage(width, height, { lines = detailLines, entry = () => jump
     calls.accounts += 1;
     return route.fallback();
   });
+  await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
+    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [CATEGORY, guid(2)] } })
+  );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => json(route, { Ok: month }));
   await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) => {
     calls.lists.push(route.request().postDataJSON()[0]);
@@ -84,11 +87,14 @@ async function openPage(width, height, { lines = detailLines, entry = () => jump
   return { context, page, calls };
 }
 
-const nameButton = (page, name) =>
-  page.locator('[data-testid="budget-category-row"]:visible').filter({ hasText: name }).locator('[data-testid="budget-category-name"]');
+const row = (page, name) => page.locator('[data-testid="budget-category-row"]:visible').filter({ hasText: name });
 
+const openTab = (page, name) => page.locator('[data-testid="inspector-tabs"]').getByRole("tab", { name }).click();
+
+/// Zeile wählen, Tab Buchungen öffnen.
 const openDetail = async (page) => {
-  await nameButton(page, "Lebensmittel m1bce").click();
+  await row(page, "Lebensmittel m1bce").click();
+  await openTab(page, "Buchungen");
   await page.locator('[data-testid="detail-entry"]').first().waitFor();
 };
 
@@ -111,7 +117,7 @@ after(async () => {
   if (frontend) await stopServer(frontend);
 });
 
-test("Handy: Namen tippen, Buchung tippen, Kassenbuch-Detail ist offen, zurück zeigt das Kategorie-Detail", async () => {
+test("Handy: Zeile tippen, Tab Buchungen, Buchung tippen, Kassenbuch-Detail ist offen, zurück steht der Tab wieder", async () => {
   const { context, page, calls } = await openPage(390, 844);
   try {
     await openDetail(page);
@@ -159,47 +165,50 @@ test("Handy: Schließen im Kassenbuch-Detail führt ebenfalls zurück ins Katego
   }
 });
 
-test("Handy: Kategorie-Name hat 48 px Trefferfläche, Verfügbar öffnet weiter das Verschieben-Sheet", async () => {
-  const { context, page } = await openPage(390, 844);
+test("Buchungen kommen erst im Tab: die Auswahl allein fragt das Kassenbuch nicht", async () => {
+  const { context, page, calls } = await openPage(390, 844);
   try {
-    const box = await nameButton(page, "Lebensmittel m1bce").boundingBox();
-    assert.ok(box.height >= 48, `Höhe ${box.height}`);
-    await page
-      .locator('[data-testid="budget-category-row"]:visible')
-      .filter({ hasText: "Lebensmittel m1bce" })
-      .locator('[data-testid="budget-available"]')
-      .click();
-    await page.locator('[data-testid="move-dialog"]').waitFor();
-    assert.equal(await page.locator('[data-testid="category-detail"]').count(), 0);
+    await row(page, "Lebensmittel m1bce").click();
+    await page.locator('[data-testid="inspector-money"]').waitFor();
+    assert.equal(calls.lists.length, 0, "noch keine Abfrage");
+    await openTab(page, "Buchungen");
+    await page.locator('[data-testid="detail-entry"]').first().waitFor();
+    assert.equal(calls.lists.length, 1, "genau eine Abfrage");
   } finally {
     await context.close();
   }
 });
 
-test("Handy: 'Verschieben' im Detail öffnet das Sheet dieser Kategorie, danach steht das Detail wieder da", async () => {
+test("Handy: 'Verschieben' im Tab Geld öffnet das Sheet dieser Kategorie, danach steht der Inspektor im selben Tab", async () => {
   const { context, page } = await openPage(390, 844);
   try {
-    await openDetail(page);
+    await row(page, "Lebensmittel m1bce").click();
     await page.locator('[data-testid="detail-move"] button').click();
     await page.locator('[data-testid="move-dialog"]').waitFor();
     assert.match(await text(page.locator('[data-testid="move-headline"]')), /Lebensmittel m1bce/);
     await page.locator(".bottom-sheet.active .sheet-close").click();
-    await page.locator('[data-testid="detail-entry"]').first().waitFor();
+    await page.locator('[data-testid="inspector-money"]').waitFor();
+    assert.equal(
+      await page.locator('[data-testid="inspector-tabs"]').getByRole("tab", { selected: true }).innerText(),
+      "Geld"
+    );
   } finally {
     await context.close();
   }
 });
 
-test("PC: das Detail steht im Dialog, der Sprung geht zum Panel im Kassenbuch und zurück", async () => {
+test("PC: der Inspektor steht als Panel, der Sprung geht zum Panel im Kassenbuch und zurück", async () => {
   const { context, page } = await openPage(1440, 900);
   try {
-    await openDetail(page);
+    await row(page, "Lebensmittel m1bce").click();
     // Fixture: Zugewiesen 100, Aktivität -50, Verfügbar 50. Jeder Betrag steht unter seinem Titel.
     assert.match(await text(page.locator('[data-testid="detail-assigned"]')), /^Zugewiesen 100,00/i);
     assert.match(await text(page.locator('[data-testid="detail-activity"]')), /^Aktivität -50,00/i);
     assert.match(await text(page.locator('[data-testid="detail-available"]')), /^Verfügbar 50,00/i);
+    await openTab(page, "Buchungen");
+    await page.locator('[data-testid="detail-entry"]').first().waitFor();
     assert.match(await text(page.locator('[data-testid="detail-total"]')), /-40,00/);
-    await page.locator(".font-display", { hasText: "Lebensmittel m1bce" }).waitFor();
+    await page.locator("aside").getByRole("heading", { name: "Lebensmittel m1bce" }).waitFor();
     await page.getByText(/Alltag m1bce · .*2026/).waitFor();
     await page.locator('[data-testid="detail-entry"]').first().click();
     await page.waitForURL(/#\/ledger\/entry\//);
@@ -236,21 +245,6 @@ test("Handy: der Rand im Sheet ist einfach, ein großer Betrag überlappt bei 36
     assert.ok(measured.payeeRight <= measured.amountLeft, "Empfänger und Betrag überlappen nicht");
     assert.ok(measured.amountRight <= measured.width - 16, "der Betrag bleibt im Rand");
     assert.match(await text(row), /-11\.234,56/);
-  } finally {
-    await context.close();
-  }
-});
-
-test("Handy: auch der untere Rand des Kategorie-Namens gehört dem Knopf", async () => {
-  const { context, page } = await openPage(390, 844);
-  try {
-    const name = nameButton(page, "Lebensmittel m1bce");
-    const box = await name.boundingBox();
-    const hit = await name.evaluate(
-      (el, { x, y }) => document.elementFromPoint(x, y) === el,
-      { x: box.x + box.width / 2, y: box.y + box.height - 2 }
-    );
-    assert.ok(hit, "die zweite Zeile überdeckt den Knopf nicht");
   } finally {
     await context.close();
   }

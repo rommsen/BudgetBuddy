@@ -142,7 +142,9 @@ let private ynabTests =
             Expect.equal (map 200) (Ok ()) "200"
             Expect.equal (map 429) (Error (YnabError.RateLimitExceeded 60)) "429"
             match map 401 with Error (YnabError.Unauthorized _) -> () | other -> failtest $"401: {other}"
-            match map 404 with Error (YnabError.InvalidResponse m) -> Expect.stringContains m "2026-11-01" "404 nennt den Monat" | other -> failtest $"404: {other}"
+            match map 404 with
+            | Error ((YnabError.MonthNotOpen _) as e) -> Expect.equal (ynabErrorText e) "Monat nicht offen" "ADR 0074 Punkt 3"
+            | other -> failtest $"404: {other}"
             match map 400 with Error (YnabError.InvalidResponse _) -> () | other -> failtest $"400: {other}"
             match map 503 with Error (YnabError.NetworkError m) -> Expect.stringContains m "503" "503" | other -> failtest $"503: {other}"
         }
@@ -542,38 +544,38 @@ let private lastMonthTests =
         Server.Api.previewTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today key |> run
     let applyVia port key shown =
         Server.Api.applyTargetsWith (Some "t") (Some "b") (fun _ _ -> port) today now key shown |> run
-    testList "Targets anwenden im letzten Monat (et7z8)" [
-        testCase "Die Vorschau lehnt last ab, ohne YNAB zu fragen" <| fun () ->
+    testList "Targets anwenden in vergangenen Monaten (ADR 0074)" [
+        testCase "Die Vorschau lehnt einen vergangenen Monat ab, ohne YNAB zu fragen" <| fun () ->
             let f, _ = fake 500000L
             let port, reads = countingPort f
-            match previewVia port "last" with
-            | Error msg -> Expect.stringContains msg "letzten Monat" "Grund"
+            match previewVia port "2026-10-01" with
+            | Error msg -> Expect.stringContains msg "vergangenen Monaten" "Grund"
             | Ok _ -> failtest "Fehler erwartet"
             Expect.isEmpty reads "kein Lesen"
 
-        testCase "Übernehmen lehnt last ab, liest und schreibt nichts" <| fun () ->
+        testCase "Übernehmen lehnt einen vergangenen Monat ab, liest und schreibt nichts" <| fun () ->
             let f, _ = fake 500000L
             let shown = previewOf f
             let port, reads = countingPort f
-            match applyVia port "last" shown with
-            | Error msg -> Expect.stringContains msg "letzten Monat" "Grund"
+            match applyVia port "2026-10-01" shown with
+            | Error msg -> Expect.stringContains msg "vergangenen Monaten" "Grund"
             | Ok _ -> failtest "Fehler erwartet"
             Expect.isEmpty reads "kein Lesen"
             Expect.isEmpty f.Attempts "kein Schreiben"
 
-        testCase "Die Vorschau für den nächsten Monat liest dessen Ersten" <| fun () ->
+        testCase "Die Vorschau für einen künftigen Monat liest genau diesen Monat" <| fun () ->
             let f, _ = fake 500000L
             let port, reads = countingPort f
-            Expect.isOk (previewVia port "next") "Vorschau"
+            Expect.isOk (previewVia port "2026-12-01") "Vorschau"
             Expect.equal (List.ofSeq reads) [ "2026-12-01" ] "Monat"
 
         testCase "Übernehmen für diesen Monat schreibt in den laufenden Monat" <| fun () ->
             let f, _ = fake 500000L
             let shown =
-                match previewVia f.Port "current" with
+                match previewVia f.Port "2026-11-01" with
                 | Ok p -> p
                 | Error e -> failtest e
-            match applyVia f.Port "current" shown with
+            match applyVia f.Port "2026-11-01" shown with
             | Ok (Applied report) ->
                 Expect.equal report.Month "2026-11-01" "Monat"
                 let states = loadedOk (Guid.Parse report.ApplicationId)
@@ -611,24 +613,44 @@ let private wiringTests =
                     fun key ->
                         reads.Add key
                         f.Port.FetchMonth key }
-        Server.Api.budgetApiWith settings portFor (fun () -> lateUtc) berlin, seen, reads
+        let framePortFor token (YnabBudgetId budget) : Server.Budgeting.QueryHandlers.BudgetFramePort =
+            seen.Add((token, budget))
+            { FetchMonths = fun () -> async { return Ok [ "2026-12-01"; "2026-11-01" ] }
+              FetchCategoryOrder = fun () -> async { return Ok [] } }
+        Server.Api.budgetApiWith settings portFor framePortFor (fun () -> lateUtc) berlin, seen, reads
     testList "Verdrahtung der BudgetApi" [
         // Bug B1 am Endpunkt: siehe "Kurz nach Mitternacht" in BudgetingTests.
-        testCase "Lesen und Vorschau lösen den Monat nach dem Berliner Tag auf" <| fun () ->
+        testCase "Der Rahmen nennt den Berliner Monat, auch wenn UTC noch im alten liegt" <| fun () ->
+            let f, _ = fake 500000L
+            let api, _, _ = apiFor f
+            match api.getBudgetFrame () |> run with
+            | Ok frame ->
+                Expect.equal frame.CurrentMonth "2026-12-01" "Dezember"
+                Expect.equal frame.Months [ "2026-11-01"; "2026-12-01" ] "aufsteigend"
+            | Error e -> failtest e
+
+        testCase "Der November ist in Berlin schon vergangen, Targets anwenden lehnt ihn ab" <| fun () ->
             let f, _ = fake 500000L
             let api, _, reads = apiFor f
-            Expect.isOk (api.getBudgetMonth "current" |> run) "Monat"
-            Expect.isOk (api.previewTargets "current" |> run) "Vorschau"
-            Expect.equal (List.ofSeq reads) [ "2026-12-01"; "2026-12-01" ] "Dezember"
+            match api.previewTargets "2026-11-01" |> run with
+            | Error msg -> Expect.stringContains msg "vergangenen Monaten" "Grund"
+            | Ok _ -> failtest "Fehler erwartet"
+            Expect.isEmpty reads "kein Lesen"
 
-        testCase "Übernehmen schreibt in den Berliner Monat und stempelt mit der Uhr" <| fun () ->
+        testCase "Lesen liest genau den übergebenen Monat" <| fun () ->
+            let f, _ = fake 500000L
+            let api, _, reads = apiFor f
+            Expect.isOk (api.getBudgetMonth "2019-03-01" |> run) "Monat"
+            Expect.equal (List.ofSeq reads) [ "2019-03-01" ] "2019"
+
+        testCase "Übernehmen schreibt in den übergebenen Monat und stempelt mit der Uhr" <| fun () ->
             let f, _ = fake 500000L
             let api, _, _ = apiFor f
             let shown =
-                match api.previewTargets "current" |> run with
+                match api.previewTargets "2026-12-01" |> run with
                 | Ok p -> p
                 | Error e -> failtest e
-            match api.applyTargets "current" shown |> run with
+            match api.applyTargets "2026-12-01" shown |> run with
             | Ok (Applied report) ->
                 Expect.equal report.Month "2026-12-01" "Monat"
                 for state in loadedOk (Guid.Parse report.ApplicationId) do
@@ -640,9 +662,10 @@ let private wiringTests =
             let shown = previewOf f
             let move : MoveRequest = { Source = ToBeBudgetedSide; Target = CategorySide (Guid.NewGuid()); Amount = eur 1000L }
             let calls : (string * (Shared.Api.BudgetApi -> unit)) list =
-                [ "getBudgetMonth", fun api -> api.getBudgetMonth "current" |> run |> ignore
-                  "previewTargets", fun api -> api.previewTargets "current" |> run |> ignore
-                  "applyTargets", fun api -> api.applyTargets "current" shown |> run |> ignore
+                [ "getBudgetFrame", fun api -> api.getBudgetFrame () |> run |> ignore
+                  "getBudgetMonth", fun api -> api.getBudgetMonth "2026-12-01" |> run |> ignore
+                  "previewTargets", fun api -> api.previewTargets "2026-12-01" |> run |> ignore
+                  "applyTargets", fun api -> api.applyTargets "2026-12-01" shown |> run |> ignore
                   "retryFailedTargets", fun api -> api.retryFailedTargets (string (Guid.NewGuid())) |> run |> ignore
                   "moveMoney", fun api -> api.moveMoney "2026-12-01" move |> run |> ignore ]
             for name, call in calls do

@@ -83,6 +83,7 @@ export const COMPONENT_CARDS = [
   { id: "components-primitives", group: "Components" },
   { id: "components-swipe", group: "Components" },
   { id: "components-chipbar", group: "Components" },
+  { id: "components-tabs", group: "Components" },
   { id: "components-filterpopover", group: "Components" },
   { id: "components-categorymultiselect", group: "Components" },
   { id: "components-loading", group: "Feedback" },
@@ -826,14 +827,16 @@ Inter, große Header optional in Space Grotesk.
 | Farbe | Bedeutung |
 |---|---|
 | Orange (\`--color-neon-orange\`) | primär / CTA / Action |
-| Teal (\`--color-neon-teal\`) | sekundär / aktiv / Navigation / Info |
+| Teal (\`--color-neon-teal\`) | Ausgewähltes / Navigation |
 | Green (\`--color-neon-green\`) | Erfolg / positiv |
 | Red (\`--color-neon-red\`) | Fehler / negativ |
 | Purple (\`--color-neon-purple\`) | Akzent / Kategorie |
 | Pink (\`--color-neon-pink\`) | Akzent / attention |
+| Gelb (\`--color-calm-yellow\`) | offen, kein Fehler |
 
 Geld: positiv immer Green (mit Glow), negativ immer Red. Primäre Aktion pro Screen:
-höchstens eine, Orange. Sekundär/Abbrechen/Navigation: Teal. Löschen/Zerstörendes: Red.
+höchstens eine, Orange. Sekundär/Abbrechen: neutral mit grauem Rand. Ausgewähltes und
+Navigation: Teal. Löschen/Zerstörendes: Red.
 
 ## Tokens
 

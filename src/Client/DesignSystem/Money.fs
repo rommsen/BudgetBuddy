@@ -237,25 +237,6 @@ let available (amount: decimal) (currency: string) =
         prop.text (formatAmountText false true amount currency)
     ]
 
-/// Verfügbar als Knopf: die Budget-Seite öffnet damit "Verschieben" (budgeting-afd8h). `label`
-/// benennt die Aktion, der Screenreader hört dazu den Betrag. `sizeClass` trägt die Trefferfläche
-/// der jeweiligen Liste. Die gestrichelte Linie zeigt am Handy, dass der Betrag antippbar ist, am PC
-/// kommt die Hover-Fläche dazu.
-let availableButton (label: string) (sizeClass: string) (amount: decimal) (currency: string) (onClick: unit -> unit) =
-    Html.button [
-        prop.type' "button"
-        prop.custom ("data-testid", "budget-available")
-        prop.ariaLabel $"{label}, verfügbar {formatAmountText false true amount currency}"
-        prop.className $"inline-flex items-center justify-end shrink-0 cursor-pointer touch-manipulation rounded-md hover:bg-surface-hover transition-colors {sizeClass}"
-        prop.onClick (fun _ -> onClick ())
-        prop.children [
-            Html.span [
-                prop.className "border-b border-dashed border-border-default"
-                prop.children [ available amount currency ]
-            ]
-        ]
-    ]
-
 /// Money display from domain Money type with glow control
 let moneyWithGlow (m: Money) showGlow =
     fromMoney m (if showGlow then GlowPositive else NoGlow)

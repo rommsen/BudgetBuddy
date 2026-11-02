@@ -28,6 +28,10 @@ type private BottomSheetInternalProps = {
     Children: ReactElement list
     /// Overlay und Sheet auf der erhöhten Ebene, damit das Sheet über einem anderen liegt
     Elevated: bool
+    /// Feste Höhe (`.fixed-height`), damit das Sheet beim Wechsel des Inhalts nicht springt.
+    FixedHeight: bool
+    /// Fester Bereich zwischen Kopf und scrollendem Inhalt.
+    Pinned: ReactElement list
 }
 
 /// One selectable category in the picker.
@@ -141,6 +145,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 
     let activeClass = if props.IsOpen then " active" else ""
     let layerClass = if input.Elevated then " layer-2" else ""
+    let heightClass = if input.FixedHeight then " fixed-height" else ""
 
     useBodyScrollLock props.IsOpen
 
@@ -158,7 +163,7 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 
                 // Bottom sheet container
                 Html.div [
-                    prop.className ("bottom-sheet" + layerClass + activeClass)
+                    prop.className ("bottom-sheet" + layerClass + heightClass + activeClass)
                     prop.onClick (fun e -> e.stopPropagation())
                     prop.children [
                         // Drag handle
@@ -192,6 +197,12 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                             ]
                         ]
 
+                        if not (List.isEmpty input.Pinned) then
+                            Html.div [
+                                prop.className "sheet-pinned"
+                                prop.children input.Pinned
+                            ]
+
                         // Scrollable body
                         Html.div [
                             prop.className "sheet-body"
@@ -215,12 +226,17 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 /// Renders a bottom sheet with overlay, drag handle, header and scrollable body.
 /// The sheet and overlay are always in the DOM; visibility is toggled via the `.active` CSS class.
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = false }
+    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; Pinned = [] }
+
+/// Das Sheet für den Inspektor (budgeting-g8s3w): feste Höhe, `pinned` steht fest zwischen Kopf und
+/// Inhalt, nur `children` scrollt. Mit offener Tastatur wird es kleiner (ADR 0005).
+let inspector (props: BottomSheetProps) (pinned: ReactElement list) (children: ReactElement list) : ReactElement =
+    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = true; Pinned = pinned }
 
 /// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
 /// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.
 let viewLayered (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = true }
+    BottomSheetInternal { Props = props; Children = children; Elevated = true; FixedHeight = false; Pinned = [] }
 
 // ---------------------------------------------------------------------------
 // Category Picker (specialised bottom sheet)

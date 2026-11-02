@@ -11,7 +11,7 @@ open Client.DesignSystem.Icons
 /// Button visual variants
 type ButtonVariant =
     | Primary    // Neon orange gradient with glow
-    | Secondary  // Neon teal outline
+    | Secondary  // Neutral mit grauem Rand (ADR 0075)
     | Ghost      // Transparent background
     | Danger     // Neon red for destructive actions
 
@@ -77,7 +77,7 @@ let private variantToClass = function
     | Primary ->
         "bg-gradient-to-br from-neon-orange to-[#e55a1f] border-none text-white shadow-glow-orange hover:shadow-[0_0_25px_rgba(255,107,44,0.5),0_0_50px_rgba(255,107,44,0.3)] hover:-translate-y-0.5 active:scale-[0.98]"
     | Secondary ->
-        "bg-surface-elevated border border-border-default text-text-primary hover:border-neon-teal hover:bg-neon-teal/10 active:scale-[0.98]"
+        "bg-surface-elevated border border-border-default text-text-primary hover:bg-surface-hover active:scale-[0.98]"
     | Ghost ->
         "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
     | Danger ->
@@ -149,7 +149,7 @@ let primaryLoading text isLoading onClick =
 let primaryWithIcon text icon onClick =
     view { defaultProps with Text = text; OnClick = onClick; Variant = Primary; Icon = Some icon }
 
-/// Secondary button (teal outline)
+/// Secondary button: der neutrale Standard-Knopf (ADR 0075)
 let secondary text onClick =
     view { defaultProps with Text = text; OnClick = onClick; Variant = Secondary }
 
@@ -251,6 +251,9 @@ let listName (testId: string) (ariaLabel: string) (touchTarget: bool) (name: str
         prop.text name
     ]
 
+let private listRowClass =
+    $"block w-full text-left cursor-pointer touch-manipulation {ListRoles.mobileRowPadding} border-b border-border-subtle"
+
 /// Eine ganze zweizeilige Listenzeile als Knopf. In einem `button` sind nur Inline-Elemente erlaubt:
 /// die Kinder sind `Html.span`.
 let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit -> unit) (children: ReactElement list) =
@@ -259,9 +262,52 @@ let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit ->
         prop.type' "button"
         prop.custom ("data-testid", testId)
         prop.ariaLabel ariaLabel
-        prop.className $"block w-full text-left cursor-pointer touch-manipulation hover:bg-surface-hover {ListRoles.mobileRowPadding} border-b border-border-subtle"
+        prop.className $"{listRowClass} hover:bg-surface-hover"
         prop.onClick (fun _ -> onClick ())
         prop.children children
+    ]
+
+/// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-selected` und Teal (ADR 0075).
+let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSelected: bool) (onClick: unit -> unit) (children: ReactElement list) =
+    Html.button [
+        prop.key key
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.custom ("aria-selected", isSelected)
+        prop.ariaLabel ariaLabel
+        prop.className $"""{listRowClass} {if isSelected then Backgrounds.tealSubtle else "hover:bg-surface-hover"}"""
+        prop.onClick (fun _ -> onClick ())
+        prop.children children
+    ]
+
+/// Ein Pfeil zum Blättern (`‹ ›`): schlichter Knopf mit 48 px Trefferfläche am Handy.
+let stepArrow (testId: string) (ariaLabel: string) (arrow: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className $"inline-flex items-center justify-center {TouchTargets.minSize} md:min-h-[36px] md:min-w-[36px] rounded-md text-lg {Colors.textSecondary} cursor-pointer touch-manipulation hover:bg-surface-hover hover:text-text-primary"
+        prop.onClick (fun _ -> onClick ())
+        prop.text arrow
+    ]
+
+/// Der Platz eines fehlenden Pfeils: bleibt frei, damit daneben nichts springt.
+let stepArrowGap () : ReactElement =
+    Html.span [
+        prop.custom ("aria-hidden", true)
+        prop.className $"inline-block {TouchTargets.minSize} md:min-h-[36px] md:min-w-[36px]"
+    ]
+
+/// Der Name einer Stelle als Knopf zurück nach Hause, etwa der Monat. `away` heißt: gerade woanders,
+/// dann ist er teal (ADR 0075: Navigation). Die feste Breite hält die Pfeile daneben an ihrem Platz.
+let homeLabel (testId: string) (ariaLabel: string) (away: bool) (text: string) (onClick: unit -> unit) =
+    Html.button [
+        prop.type' "button"
+        prop.custom ("data-testid", testId)
+        prop.ariaLabel ariaLabel
+        prop.className $"""inline-flex items-center justify-center w-36 {TouchTargets.minHeight} md:min-h-[36px] text-sm font-semibold whitespace-nowrap cursor-pointer touch-manipulation rounded-md hover:bg-surface-hover {if away then Colors.neonTeal else Colors.textPrimary}"""
+        prop.onClick (fun _ -> onClick ())
+        prop.text text
     ]
 
 // ============================================

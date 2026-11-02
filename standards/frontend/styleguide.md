@@ -57,11 +57,12 @@ sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows
 | Farbe | Bedeutung | Token-Beispiele (`Tokens.fs`) |
 |-------|-----------|-------------------------------|
 | **Orange** | primär / CTA / Action / Energie | `Colors.neonOrange`, `Glows.orangeLg` (Hero-CTAs), `Borders.orange` |
-| **Teal** | sekundär / aktiv / Navigation / interaktiv / Info | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
+| **Teal** | Ausgewähltes und Navigation (ADR 0075) | `Colors.neonTeal`, `Glows.teal`, `Presets.glowCard` (teal-Border) |
 | **Green** | Erfolg / positiv / Wachstum | `Colors.neonGreen`, `Glows.green`, `Presets.moneyPositive` |
 | **Red** | Fehler / Gefahr / negativ | `Colors.neonRed`, `Presets.moneyNegative`, `Borders.red` |
 | **Purple** | Akzent / "special/premium"; Kategorie nur außerhalb von Listen (ADR 0049) | `Colors.neonPurple`, `Backgrounds.purpleSubtle` |
-| **Pink** | Akzent / "attention needed" | `Colors.neonPink`, `Backgrounds.pinkSubtle` |
+| **Pink** | Akzent / "attention needed", nicht auf der Budget-Seite (ADR 0075) | `Colors.neonPink`, `Backgrounds.pinkSubtle` |
+| **Gelb** | offen, kein Fehler: `fehlt` und "Passt das Target noch?" (ADR 0075). Kein Neon, kontrastiert 9,03:1 auf `bg-card`, 8,23:1 auf `bg-elevated`, 7,84:1 auf `bg-hover` | `Colors.calmYellow` |
 
 Die Token-Kommentare in `Tokens.fs` sind die kanonische Begründung (z. B. *"Primary:
 Neon Green — Success, Growth, Positive"*, *"Accent: Cyber Teal — Info, Navigation,
@@ -75,7 +76,8 @@ Interactive"*).
 - Geld **in Listen und Tabellen**: neutral, siehe „Ruhige Listen“ unten (ADR 0049).
 - Primäre Aktion eines Screens: Orange (`Button.primary` / `Button.hero`). Pro
   Screen-Kontext höchstens eine primäre Aktion.
-- Sekundär/Abbrechen/Navigation: Teal (`Button.secondary`, aktiver Nav-Tab).
+- Sekundär/Abbrechen: neutral mit grauem Rand (`Button.secondary`, ADR 0075), auch im Hover.
+- Navigation und Ausgewähltes: Teal (aktiver Nav-Tab, aktiver Tab, gewählte Zeile).
 - Löschen/Zerstörendes: Red (`Button.danger`, `Modal.confirmDanger`).
 - Text-Tonwerte über `Colors.textPrimary/Secondary/Muted` — nicht über Neon-Farben.
 
@@ -84,6 +86,9 @@ Interactive"*).
 Gilt für Listen und Tabellen mit wiederkehrenden Zeilen (Kassenbuch, Import, Regeln).
 Vorbilder sind das Kassenbuch und der Abschnitt 8a in `/styleguide`. In jeder Zeile ist Farbe ein Signal, keine
 Dekoration: höchstens ein farbiger Akzent pro Zeile, und der meldet einen Zustand.
+
+**Ausnahme Budget-Seite (ADR 0075 Punkt 4):** Rot und Gelb dürfen in einer Budget-Zeile
+zusammenstehen, Rot am Verfügbar-Betrag im Minus, `fehlt` in Gelb. Die Ausnahme gilt nur dort.
 
 | Element | PC | Handy |
 |---------|----|-------|
@@ -120,7 +125,6 @@ Gemeinsame Bausteine in `DesignSystem/PickerParts.fs`, benutzt von `CategoryMult
 | Zeile | einzeilig, Name `ListRoles.primary` (15px Handy, 14px PC, 500) mit `truncate`, Betrag rechts in fester Breite |
 | Gruppenkopf | `ListRoles.groupHeader`; „Alle Kategorien“ steht im Sheet nur über „Vorgeschlagen“ oder „Zuletzt verwendet“, nicht bei Suche |
 | Verfügbar-Betrag | `Money.available`: Mono 500, `tabular-nums`, kein Glow; positiv `text-primary`, 0 `text-muted`, negativ Red |
-| Verfügbar als Knopf | `Money.availableButton`: `Money.available` mit gestrichelter Linie (`border-border-default`), damit er am Handy antippbar aussieht, am PC zusätzlich `hover:bg-surface-hover`. `aria-label` nennt Aktion und Betrag, die Trefferfläche kommt vom Aufrufer (`sizeClass`, Handy 48 px) |
 | Zu verteilen | Optional erste Zeile im Kategorie-Picker (`ToBeBudgeted`), mit Betrag rechts in `Money.available`; die Suche findet sie. Gewählt liefert sie `ChoseToBeBudgeted`. Wer die Prop nicht setzt, sieht die Zeile nicht |
 | Suchfeld | `Input.Small`: 16px unterhalb `md`, 14px ab `md`, 36px hoch, ein Fokusrand |
 | Footer | „Zurücksetzen“ Ghost, „Übernehmen“ kompakt ohne Glow, einzeilig; Zahl nur bei Auswahl („Übernehmen (3)“) |
@@ -246,14 +250,14 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (Teal), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-selected` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
 | **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger`, `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
 | **Stats** | KPI-/Kennzahl-Kacheln: `withIcon`, `withTrend`, `transactionCount`, `syncCount`, `grid*`, `withAccent` (Akzentfarbe wählen, inkl. `NoAccent` für gar keinen Streifen, z. B. Kontostände-Karten) | Vollständige Tabellen → `Table`; einzelner Betrag im Fließtext → `Money` |
-| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` und `availableButton` (Auswahl, §2), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
+| **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
 | **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning` | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
@@ -263,7 +267,8 @@ steht nur **wann welche / wann nicht**.
 | **Primitives** | Layout-Bausteine: `Container`, `Stack`/`HStack`, `Grid`, `Spacer`, responsive Sichtbarkeit (`mobileOnly`/`desktopOnly`) | Visuell gestylte Blöcke → `Card`; Token-Klassen reichen für Spacing |
 | **Tokens** | Quelle aller Klassen-Konstanten (§3) — überall referenzieren | Niemals umgehen: rohe Tailwind-/Hex-Klassen sind Drift |
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
-| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
+| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
+| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche: `bar` | Filter über einer Liste → `ChipBar` |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |
 | **Viewport** | Infrastruktur für mobile Sheets (visualViewport→CSS-Vars, Scroll-Lock, Click-Swallow, Haptik) — von `BottomSheet` genutzt | Direkt nur, wenn du ein **neues** Sheet/Overlay baust (dann die Muster aus §7 erben) |
 

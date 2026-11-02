@@ -17,30 +17,104 @@ let private monthK7wmd : BudgetMonth =
       ToBeBudgeted = eur -12.34m
       Groups = [] }
 
+let private frameK7wmd : BudgetFrame =
+    { CurrentMonth = "2026-10-01"
+      Months = [ "2026-09-01"; "2026-10-01"; "2026-11-01" ]
+      CategoryOrder = [] }
+
+/// Der Rahmen ist gelesen, der laufende Monat geladen.
+let private framed = { init () with Frame = Success frameK7wmd; Month = Success monthK7wmd }
+
 let private selectTests =
-    testList "Monat wählen (k7wmd)" [
-        test "Die Seite startet mit dem laufenden Monat und lädt noch nichts" {
+    testList "Monat wählen" [
+        test "Die Seite startet ohne Monat und lädt noch nichts" {
             let m = init ()
-            Expect.equal m.Choice CurrentMonth "Vorgabe: dieser Monat"
+            Expect.isNone (shownMonth m) "ohne Rahmen kein Monat"
             Expect.equal m.Month NotAsked "noch nichts angefordert"
         }
-        test "Erste Wahl des laufenden Monats lädt (Seite war noch leer)" {
-            let _, load = select CurrentMonth (init ())
-            Expect.isTrue load "NotAsked muss laden"
+        test "Ohne Wahl zeigt die Seite den laufenden Monat des Rahmens, ein offener Tab springt so mit" {
+            Expect.equal (shownMonth framed) (Some "2026-10-01") "laufend"
+            let nextDay = { framed with Frame = Success { frameK7wmd with CurrentMonth = "2026-11-01" } }
+            Expect.equal (shownMonth nextDay) (Some "2026-11-01") "am Monatsersten"
         }
-        for choice in [ LastMonth; NextMonth ] do
-            test $"Wechsel auf {choice} setzt Loading und verlangt das Laden" {
-                let loaded = { init () with Month = Success monthK7wmd }
-                let m, load = select choice loaded
-                Expect.equal m.Choice choice "Wahl"
-                Expect.equal m.Month Loading "Loading"
-                Expect.isTrue load "laden"
-            }
-        test "Dieselbe Wahl bei geladenem Monat ändert nichts" {
-            let loaded = { init () with Month = Success monthK7wmd }
-            let m, load = select CurrentMonth loaded
-            Expect.equal m loaded "unverändert"
+        test "Wechsel setzt Loading und verlangt das Laden" {
+            let m, load = select "2026-09-01" framed
+            Expect.equal m.ChosenMonth (Some "2026-09-01") "Wahl"
+            Expect.equal m.Month Loading "Loading"
+            Expect.isTrue load "laden"
+        }
+        test "Der laufende Monat wird zu keiner Wahl" {
+            let elsewhere = { framed with ChosenMonth = Some "2026-09-01" }
+            let m, load = select "2026-10-01" elsewhere
+            Expect.isNone m.ChosenMonth "keine Wahl"
+            Expect.isTrue load "laden"
+        }
+        test "Derselbe Monat bei geladenem Monat ändert nichts" {
+            let m, load = select "2026-10-01" framed
+            Expect.equal m framed "unverändert"
             Expect.isFalse load "kein Laden"
+        }
+        test "Blättern arbeitet per Vergleich, auch über den Jahreswechsel" {
+            let months = [ "2025-11-01"; "2025-12-01"; "2026-01-01"; "2026-02-01" ]
+            Expect.equal (previousMonth months "2026-01-01") (Some "2025-12-01") "zurück über Silvester"
+            Expect.equal (nextMonth months "2025-12-01") (Some "2026-01-01") "vor über Silvester"
+        }
+        test "Am Rand gibt es keinen Monat mehr" {
+            let months = [ "2026-09-01"; "2026-10-01" ]
+            Expect.isNone (previousMonth months "2026-09-01") "vorn"
+            Expect.isNone (nextMonth months "2026-10-01") "hinten"
+        }
+        test "Ein Monat außerhalb des Fensters blättert ins Fenster zurück" {
+            let months = [ "2026-09-01"; "2026-10-01" ]
+            Expect.equal (previousMonth months "2026-12-01") (Some "2026-10-01") "dahinter"
+            Expect.isNone (nextMonth months "2026-12-01") "nichts weiter"
+            Expect.equal (nextMonth months "2026-01-01") (Some "2026-09-01") "davor"
+        }
+        // ADR 0074: Fehlt der laufende Monat im Fenster, bleibt die Navigation trotzdem da.
+        test "Monat nicht offen: der Pfeil lädt den Vormonat, auch außerhalb des Fensters" {
+            let outside = { CurrentMonth = "2026-12-01"; Months = [ "2026-09-01"; "2026-10-01" ]; CategoryOrder = [] }
+            let failed = { init () with Frame = Success outside; Month = Failure "Monat nicht offen" }
+            let target = shownMonth failed |> Option.bind (previousMonth outside.Months)
+            Expect.equal target (Some "2026-10-01") "Pfeil bleibt"
+            let m, load = select "2026-10-01" failed
+            Expect.isTrue load "lädt"
+            Expect.equal (shownMonth m) (Some "2026-10-01") "Vormonat"
+        }
+    ]
+
+let private frameLoadTests =
+    testList "Rahmen lesen" [
+        test "Erst der Rahmen, dann der Monat: die Antwort verlangt das Laden und setzt die Reihenfolge" {
+            let m, external, loadMonth = applyFrameLoaded (Ok frameK7wmd) (beginLoad (init ()))
+            Expect.equal m.Frame (Success frameK7wmd) "Rahmen"
+            Expect.equal m.Month Loading "Monat lädt"
+            Expect.isTrue loadMonth "Monat holen"
+            Expect.equal external NoOp "still"
+        }
+        test "Der erste Rahmen-Fehler zeigt die Fehlerkarte und lädt keinen Monat" {
+            let m, external, loadMonth = applyFrameLoaded (Error "kaputt") (beginLoad (init ()))
+            Expect.equal m.Month (Failure "kaputt") "Karte"
+            Expect.isFalse loadMonth "kein Monat"
+            Expect.equal external NoOp "kein Toast"
+        }
+        test "Gibt es schon einen Rahmen, bleibt er stehen, ein Toast nennt den Grund, der Monat kommt" {
+            let m, external, loadMonth = applyFrameLoaded (Error "kaputt") (beginLoad framed)
+            Expect.equal m.Frame framed.Frame "bleibt"
+            Expect.isTrue loadMonth "Monat holen"
+            match external with
+            | ShowToast (text, _) -> Expect.stringContains text "kaputt" "Grund"
+            | other -> failtestf "Toast erwartet: %A" other
+        }
+        test "Scheitert das stille Nachlesen, bleibt das alte Fenster ohne Meldung" {
+            Expect.equal (applyFrameRefreshed (Error "kaputt") framed) framed "unverändert"
+        }
+        test "Das stille Nachlesen übernimmt das gewachsene Fenster" {
+            let grown = { frameK7wmd with Months = frameK7wmd.Months @ [ "2026-12-01" ] }
+            Expect.equal (applyFrameRefreshed (Ok grown) framed).Frame (Success grown) "gewachsen"
+        }
+        test "Ein abgebrochener Aufruf liest den Rahmen nur nach, wenn der gezeigte Monat der letzte ist" {
+            Expect.isFalse (frameDueAfterLostCall framed) "Oktober ist nicht der letzte"
+            Expect.isTrue (frameDueAfterLostCall { framed with ChosenMonth = Some "2026-11-01" }) "November schon"
         }
     ]
 
@@ -58,7 +132,7 @@ let private loadedTests =
         }
         test "Eine späte Antwort zu einem abgewählten Monat wird verworfen" {
             let shown = { init () with Month = Success monthK7wmd }
-            let waiting, _ = select NextMonth shown
+            let waiting, _ = select "2026-11-01" { shown with Frame = Success frameK7wmd }
             let m = applyLoaded shown.MonthGeneration (Ok monthK7wmd) waiting
             Expect.equal m waiting "bleibt Loading für den nächsten Monat"
         }
@@ -84,9 +158,9 @@ let private loadedTests =
         // Bug F2: nach dem Wechsel A, B, A stimmte die Wahl wieder, die späte Fehler-Antwort des
         // ersten A ersetzte den gezeigten Monat durch die Fehlerkarte.
         test "Wechsel A, B, A: eine späte Fehler-Antwort des ersten A lässt den Monat stehen" {
-            let firstA, _ = select NextMonth { init () with Month = Success monthK7wmd }
-            let b, _ = select CurrentMonth firstA
-            let secondA, _ = select NextMonth b
+            let firstA, _ = select "2026-11-01" framed
+            let b, _ = select "2026-10-01" firstA
+            let secondA, _ = select "2026-11-01" b
             let shown = applyLoaded secondA.MonthGeneration (Ok monthK7wmd) secondA
             let late = applyLoaded firstA.MonthGeneration (Error "Timeout") shown
             Expect.equal late.Month (Success monthK7wmd) "der Monat bleibt"
@@ -215,21 +289,17 @@ let private searchStateTests =
             let cleared, _, _ = Components.Budget.State.update ClearCategorySearch typed
             Expect.equal cleared.CategorySearch "" "geleert"
         }
-        for choice in [ LastMonth; NextMonth ] do
-          test $"Wechsel auf {choice} und die Antwort darauf behalten die Suche" {
-            let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
-            let switched, _ = select choice searching
+        test "Monatswechsel und die Antwort darauf behalten die Suche" {
+            let searching = { framed with CategorySearch = "leb" }
+            let switched, _ = select "2026-09-01" searching
             Expect.equal switched.CategorySearch "leb" "beim Wechsel"
             let loaded = applyLoaded switched.MonthGeneration (Ok monthK7wmd) switched
             Expect.equal loaded.CategorySearch "leb" "nach der Antwort"
         }
-        test "Betreten der Seite leert die Suche und holt den Monat" {
-            let searching = { init () with Month = Success monthK7wmd; CategorySearch = "leb" }
-            let entered, cmd, _ = Components.Budget.State.update PageEntered searching
+        test "Betreten der Seite leert die Suche" {
+            let entered, how = enterPage { framed with CategorySearch = "leb" }
             Expect.equal entered.CategorySearch "" "neuer Seitenaufruf ist leer"
-            let mutable followUps = []
-            cmd |> List.iter (fun sub -> sub (fun msg -> followUps <- msg :: followUps))
-            Expect.equal followUps [ Load ] "der Monat wird weiter geladen"
+            Expect.equal how FreshEntry "Rahmen und Monat"
         }
         test "Der Seitenaufruf läuft über das Betreten, nicht direkt über das Laden" {
             let mutable msgs = []
@@ -269,61 +339,181 @@ let private line (amount: decimal) : Shared.Domain.CategoryMonthEntry =
       Amount = eur amount
       IsSplitShare = false }
 
-let private opened = openCategoryDetail categoryId withMonth
+let private selectedOf (model: Model) = model.Selected |> Option.get
+let private entriesOf (model: Model) = (selectedOf model).Entries
+let private opened = selectCategory categoryId { withMonth with Frame = Success frameK7wmd }
+let private onEntries = { opened with Tab = EntriesTab }
 
-let private detailTests =
-    testList "Kategorie-Detail" [
-        test "Tipp auf den Namen öffnet das Detail und holt die Liste des Monats" {
-            let model, month = opened
-            Expect.equal model.Detail (Some { CategoryId = categoryId; Entries = Loading; ReturnPending = false }) "offen"
-            Expect.equal month (Some "2026-10-01") "Monat der Liste"
+let private selectionTests =
+    testList "Auswahl und Inspektor" [
+        test "Eine Zeile wählt die Kategorie, die Buchungen sind noch nicht gefragt" {
+            Expect.equal opened.Selected (Some { CategoryId = categoryId; Entries = NotAsked; ReturnPending = false }) "gewählt"
         }
-        test "Der Kopf kennt Kategorie und Gruppe aus dem geladenen Monat" {
-            let detail = (fst opened).Detail |> Option.get
-            Expect.equal (detailCategory detailMonth detail) (Some (detailCategoryFixture, "Alltag")) "Beträge von YNAB"
+        test "Dieselbe Kategorie noch einmal ändert nichts" {
+            let loaded = { opened with Selected = Some { selectedOf opened with Entries = Success [ line -1m ] } }
+            Expect.equal (selectCategory categoryId loaded) loaded "idempotent"
         }
-        test "Eine unbekannte Kategorie öffnet nichts" {
-            let model, month = openCategoryDetail (System.Guid.NewGuid()) withMonth
-            Expect.isNone model.Detail "zu"
-            Expect.isNone month "keine Abfrage"
+        test "Der Inspektor kennt Kategorie und Gruppe aus dem geladenen Monat" {
+            Expect.equal (selectedCategory detailMonth (selectedOf opened)) (Some (detailCategoryFixture, "Alltag")) "Beträge von YNAB"
         }
-        test "Ohne geladenen Monat öffnet nichts" {
-            let model, _ = openCategoryDetail categoryId (init ())
-            Expect.isNone model.Detail "zu"
+        test "Eine unbekannte Kategorie wählt nichts" {
+            Expect.isNone (selectCategory (System.Guid.NewGuid()) withMonth).Selected "keine Auswahl"
+        }
+        test "Ohne geladenen Monat wählt nichts" {
+            Expect.isNone (selectCategory categoryId (init ())).Selected "keine Auswahl"
+        }
+        test "Bei offenem Verschieben oder laufender Vorschau ändert die Wahl nichts" {
+            let moving = { withMonth with Move = Some (openMoveForm detailCategoryFixture) }
+            Expect.isNone (selectCategory categoryId moving).Selected "Verschieben"
+            let previewing = { withMonth with Targets = PreviewLoading }
+            Expect.isNone (selectCategory categoryId previewing).Selected "Vorschau"
+        }
+        test "Schließen beendet die Auswahl" {
+            let model, _, _ = Components.Budget.State.update CloseInspector opened
+            Expect.isNone model.Selected "keine Auswahl"
+        }
+        test "Monatswechsel: Id und Tab bleiben, die Buchungen sind wieder ungefragt" {
+            let shownEntries = { onEntries with Selected = Some { selectedOf onEntries with Entries = Success [ line -1m ] } }
+            let model, _ = select "2026-09-01" shownEntries
+            Expect.equal (selectedOf model).CategoryId categoryId "Id"
+            Expect.equal model.Tab EntriesTab "Tab"
+            Expect.equal (entriesOf model) NotAsked "Buchungen"
+        }
+        test "Fehlt die Kategorie im neuen Monat, endet die Auswahl" {
+            let model = applyLoaded 0 (Ok { detailMonth with Groups = [] }) opened
+            Expect.isNone model.Selected "keine Auswahl"
+        }
+        test "Fällt die gewählte Kategorie aus dem Filter, bleibt sie gewählt" {
+            let model, _, _ = Components.Budget.State.update (SelectFilter RedOnly) opened
+            Expect.equal model.Selected opened.Selected "bleibt"
+            let searched, _, _ = Components.Budget.State.update (CategorySearchChanged "xyz") opened
+            Expect.equal searched.Selected opened.Selected "bleibt auch bei der Suche"
+        }
+        test "Ein vergangener Monat sperrt Targets anwenden" {
+            let past = { opened with ChosenMonth = Some "2026-09-01" }
+            let model, load = openTargets past
+            Expect.equal model past "nichts passiert"
+            Expect.isFalse load "keine Vorschau"
+        }
+    ]
+
+let private stepTests =
+    let a, b, c, d = System.Guid.NewGuid(), System.Guid.NewGuid(), System.Guid.NewGuid(), System.Guid.NewGuid()
+    let all = [ a; b; c; d ]
+    testList "Kategorie wechseln" [
+        test "Die nächste sichtbare Zeile, sichtbar hat Vorrang vor der direkten Nachbarin" {
+            Expect.equal (stepCategory Next all [ a; c ] a) (Some c) "b ist ausgefiltert"
+            Expect.equal (stepCategory Previous all [ a; c ] c) (Some a) "zurück"
+        }
+        test "Am Rand gibt es keinen Schritt" {
+            Expect.isNone (stepCategory Next all all d) "unten"
+            Expect.isNone (stepCategory Previous all all a) "oben"
+            Expect.isNone (stepCategory Next all [ a; b ] b) "letzte sichtbare"
+        }
+        test "Eine herausgefallene Kategorie läuft ab ihrer Position" {
+            Expect.equal (stepCategory Next all [ a; d ] b) (Some d) "vor"
+            Expect.equal (stepCategory Previous all [ a; d ] c) (Some a) "zurück"
+        }
+    ]
+
+let private entriesDueTests =
+    testList "Buchungen im Inspektor" [
+        test "Fällig nur im Tab Buchungen, bei geladenem Monat und NotAsked" {
+            Expect.equal (entriesDue onEntries) (Some (categoryId, "2026-10-01")) "fällig"
+            Expect.isNone (entriesDue opened) "anderer Tab"
+            Expect.isNone (entriesDue { onEntries with Month = Loading }) "Monat lädt"
+            let requested, _ = requestEntries onEntries
+            Expect.isNone (entriesDue requested) "läuft schon"
         }
         test "Die Antwort zur laufenden Abfrage füllt die Liste" {
-            let model, _ = opened
-            let answered = applyCategoryEntries model.DetailGeneration (Ok [ line -30m ]) model
-            Expect.equal (answered.Detail |> Option.map (fun d -> d.Entries)) (Some (Success [ line -30m ])) "Liste"
+            let model, _ = requestEntries onEntries
+            let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -30m ]) model
+            Expect.equal (entriesOf answered) (Success [ line -30m ]) "Liste"
         }
-        test "Ein Fehler der Abfrage steht im Detail" {
-            let model, _ = opened
-            let answered = applyCategoryEntries model.DetailGeneration (Error "kaputt") model
-            Expect.equal (answered.Detail |> Option.map (fun d -> d.Entries)) (Some (Failure "kaputt")) "Fehler"
+        test "Ein Fehler der Abfrage steht im Tab" {
+            let model, _ = requestEntries onEntries
+            let answered = applyCategoryEntries model.EntriesGeneration (Error "kaputt") model
+            Expect.equal (entriesOf answered) (Failure "kaputt") "Fehler"
         }
         test "Eine späte Antwort einer älteren Abfrage wird verworfen" {
-            let model, _ = opened
-            let stale = model.DetailGeneration
-            let reloaded, _ = reloadCategoryEntries model
-            let answered = applyCategoryEntries stale (Ok [ line -1m ]) reloaded
+            let model, _ = requestEntries onEntries
+            let reloaded = reloadCategoryEntries model
+            let answered = applyCategoryEntries model.EntriesGeneration (Ok [ line -1m ]) reloaded
             Expect.equal answered reloaded "ältere Antwort zählt nicht"
         }
-        test "Eine späte Antwort zu einem geschlossenen Detail wird verworfen" {
-            let model, _ = opened
-            let closed = { model with Detail = None }
-            Expect.equal (applyCategoryEntries model.DetailGeneration (Ok []) closed) closed "bleibt zu"
+        test "Eine späte Antwort ohne Auswahl wird verworfen" {
+            let model, _ = requestEntries onEntries
+            let closed = { model with Selected = None }
+            Expect.equal (applyCategoryEntries model.EntriesGeneration (Ok []) closed) closed "bleibt zu"
         }
-        test "Ein Monatswechsel schließt das Detail" {
-            let model, _ = select NextMonth (fst opened)
-            Expect.isNone model.Detail "zu"
+    ]
+
+let private filterGroupsFixture =
+    let cat name available underfunded : BudgetCategory =
+        { detailCategoryFixture with
+            Id = System.Guid.NewGuid()
+            Name = name
+            Available = eur available
+            Underfunded = underfunded |> Option.map eur }
+    [ { Name = "Alltag"; Categories = [ cat "Essen" -5m None; cat "Kino" 10m (Some 20m); cat "Friseur" 10m None ] }
+      { Name = "Wohnen"; Categories = [ cat "Strom" 3m None ] } ]
+
+let private listFilterTests =
+    testList "Filter über der Liste" [
+        test "Fehlt plus Suche: nur Zeilen, die beides erfüllen, Gruppen ohne Treffer fallen weg" {
+            Expect.equal (names (shownGroups MissingOnly "kin" filterGroupsFixture)) [ "Alltag", [ "Kino" ] ] "beides"
+            Expect.equal (names (shownGroups RedOnly "" filterGroupsFixture)) [ "Alltag", [ "Essen" ] ] "rot"
         }
-        test "Schließen schließt das Detail" {
-            let model, _, _ = Components.Budget.State.update CloseCategoryDetail (fst opened)
-            Expect.isNone model.Detail "zu"
+        test "Ein Treffer im Gruppennamen hebt den Filter nicht auf" {
+            Expect.equal (names (shownGroups RedOnly "alltag" filterGroupsFixture)) [ "Alltag", [ "Essen" ] ] "Filter gilt weiter"
         }
-        test "Fehlt die Kategorie im neu gelesenen Monat, schließt das Detail" {
-            let model = applyLoaded 0 (Ok { detailMonth with Groups = [] }) (fst opened)
-            Expect.isNone model.Detail "zu"
+        test "Die Zahlen bleiben die des ganzen Monats" {
+            Expect.equal (filterCount MissingOnly filterGroupsFixture) 2 "fehlt"
+            Expect.equal (filterCount RedOnly filterGroupsFixture) 1 "rot"
+        }
+        test "Der Filter bleibt beim Monatswechsel, Betreten setzt ihn zurück" {
+            let red = { framed with Filter = RedOnly }
+            let switched, _ = select "2026-09-01" red
+            Expect.equal switched.Filter RedOnly "bleibt"
+            let entered, _ = enterPage red
+            Expect.equal entered.Filter AllCategories "Alle"
+        }
+    ]
+
+let private monthOrderTests =
+    let groupA = { Name = "A"; Categories = [ detailCategoryFixture ] }
+    let other = { detailCategoryFixture with Id = System.Guid.NewGuid(); Name = "Zweite" }
+    let groupB = { Name = "B"; Categories = [ other ] }
+    let frame = { frameK7wmd with CategoryOrder = [ detailCategoryFixture.Id; other.Id ] }
+    let model = { framed with Frame = Success frame }
+    let groupNames (m: Model) =
+        match m.Month with
+        | Success month -> month.Groups |> List.map (fun g -> g.Name)
+        | _ -> []
+    testList "Reihenfolge im Client" [
+        test "Zwei Monate mit verschiedener YNAB-Folge stehen beide Male gleich, auch nach Reloaded" {
+            let first = { monthK7wmd with Groups = [ groupB; groupA ] }
+            let second = { monthK7wmd with Groups = [ groupA; groupB ] }
+            let loadedFirst = applyLoaded 0 (Ok first) model
+            let loadedSecond = applyLoaded 0 (Ok second) loadedFirst
+            let reloaded, _ = applyReloaded 0 (Ok first) loadedSecond
+            Expect.equal (groupNames loadedFirst) [ "A"; "B" ] "erster Monat"
+            Expect.equal (groupNames loadedSecond) [ "A"; "B" ] "zweiter Monat"
+            Expect.equal (groupNames reloaded) [ "A"; "B" ] "nach dem Neu-Lesen"
+        }
+        test "Die Vorschau-Anzeige folgt dem Rang, das Modell behält die Folge des Servers" {
+            let lineOf (id: System.Guid) name : TargetLine =
+                { CategoryId = id; CategoryName = name; GroupName = "G"; OldAssigned = eur 0m
+                  Underfunded = eur 1m; NewAssigned = eur 1m; Target = None }
+            let serverOrder = [ lineOf other.Id "Zweite"; lineOf detailCategoryFixture.Id "Erste" ]
+            let preview : TargetPreview =
+                { Month = "2026-10-01"; Lines = serverOrder; Skipped = []
+                  Total = eur 2m; ToBeBudgeted = eur 2m; ToBeBudgetedAfter = eur 0m }
+            let shown = orderedPreviewLines frame.CategoryOrder preview.Lines
+            Expect.equal (shown |> List.map (fun l -> l.CategoryName)) [ "Erste"; "Zweite" ] "Anzeige"
+            let ready = { model with Targets = PreviewReady (preview, false) }
+            let _, sent = confirmTargets ready
+            Expect.equal (sent |> Option.map (fun p -> p.Lines)) (Some serverOrder) "Übernehmen sendet unverändert"
         }
     ]
 
@@ -348,33 +538,37 @@ let private totalTests =
     ]
 
 let private returnTests =
+    let onEntriesLoaded = { onEntries with Selected = Some { selectedOf onEntries with Entries = Success [ line -1m ] } }
     testList "Sprung ins Kassenbuch und zurück" [
-        test "Tipp auf eine Buchung springt, das Detail wartet auf die Rückkehr" {
-            let model, _, external = Components.Budget.State.update (OpenEntryInLedger entryId) (fst opened)
+        test "Tipp auf eine Buchung springt, die Auswahl wartet auf die Rückkehr" {
+            let model, _, external = Components.Budget.State.update (OpenEntryInLedger entryId) onEntriesLoaded
             Expect.equal external (JumpToEntry entryId) "Sprung"
             Expect.isTrue (returnPending model) "wartet"
         }
-        test "Zurück auf der Seite steht das Detail wieder da, die Liste wird neu geholt" {
-            let left = leaveForEntry (fst opened)
-            let model, month = enterPage left
-            Expect.equal (model.Detail |> Option.map (fun d -> d.CategoryId)) (Some categoryId) "wieder offen"
+        test "Zurück auf der Seite stehen Auswahl und Tab wieder, die Liste kommt neu, kein Rahmen wird gelesen" {
+            let left = leaveForEntry { onEntriesLoaded with Filter = RedOnly; CategorySearch = "leb" }
+            let model, how = enterPage left
+            Expect.equal how ReturnedFromLedger "kein Rahmen"
+            Expect.equal (selectedOf model).CategoryId categoryId "wieder gewählt"
+            Expect.equal model.Tab EntriesTab "Tab"
+            Expect.equal model.Filter RedOnly "kein Reset"
+            Expect.equal model.CategorySearch "leb" "kein Reset"
             Expect.isFalse (returnPending model) "angekommen"
-            Expect.equal (model.Detail |> Option.map (fun d -> d.Entries)) (Some Loading) "lädt neu"
-            Expect.equal month (Some "2026-10-01") "Monat der Liste"
-            Expect.isGreaterThan model.DetailGeneration left.DetailGeneration "neue Abfrage"
+            Expect.equal (entriesDue model) (Some (categoryId, "2026-10-01")) "Liste wird neu geholt"
         }
-        test "Ein gewöhnliches Betreten der Seite schließt das Detail" {
-            let model, month = enterPage (fst opened)
-            Expect.isNone model.Detail "zu"
-            Expect.isNone month "keine Abfrage"
+        test "Ein gewöhnliches Betreten der Seite beginnt von vorn" {
+            let model, how = enterPage { onEntriesLoaded with Filter = RedOnly }
+            Expect.isNone model.Selected "keine Auswahl"
+            Expect.equal model.Tab MoneyTab "Tab Geld"
+            Expect.equal how FreshEntry "Rahmen wird gelesen"
         }
         // F2: Nach einem Umweg über die Tab-Leiste ging das Detail wieder auf.
-        test "Ist die Rückkehr hinfällig, bleibt das Detail beim nächsten Betreten zu" {
-            let left = leaveForEntry (fst opened)
+        test "Ist die Rückkehr hinfällig, bleibt die Auswahl beim nächsten Betreten leer" {
+            let left = leaveForEntry onEntriesLoaded
             let abandoned, _, _ = Components.Budget.State.update ReturnAbandoned left
-            let model, month = enterPage abandoned
-            Expect.isNone model.Detail "zu"
-            Expect.isNone month "keine Abfrage"
+            let model, how = enterPage abandoned
+            Expect.isNone model.Selected "keine Auswahl"
+            Expect.equal how FreshEntry "normaler Aufruf"
         }
         test "Wer die Route auf eine andere Seite verlässt, gibt die Rückkehr auf" {
             for target in [ Budget; Settings; Ledger ] do
@@ -473,14 +667,18 @@ let private targetTextTests =
 let private targetStatusTests =
     let target = targetOf 1600m (Months 1)
     testList "Zusatz zum Target (kjsht)" [
-        test "Fehlbetrag größer 0 zeigt fehlt" {
-            Expect.equal (targetStatusText (targetCategory target (Some 1600m) false)) (Some "fehlt 1.600,00 €") "Zusatz"
+        test "Fehlbetrag größer 0 zeigt fehlt, der Zusatz schweigt" {
+            let c = targetCategory target (Some 1600m) false
+            Expect.equal (missingText c) (Some "fehlt 1.600,00 €") "fehlt"
+            Expect.equal (targetStatusText c) None "kein Zusatz"
         }
         test "Fehlbetrag 0 zeigt erfüllt" {
             Expect.equal (targetStatusText (targetCategory target (Some 0m) false)) (Some "erfüllt") "Zusatz"
         }
         test "Pausiert geht vor, auch mit Fehlbetrag" {
-            Expect.equal (targetStatusText (targetCategory target (Some 1600m) true)) (Some "pausiert") "Zusatz"
+            let c = targetCategory target (Some 1600m) true
+            Expect.equal (targetStatusText c) (Some "pausiert") "Zusatz"
+            Expect.equal (missingText c) None "der Fehlbetrag zählt nicht"
         }
         test "Pausiert gilt auch ohne Fehlbetrag von YNAB" {
             Expect.equal (targetStatusText (targetCategory target None true)) (Some "pausiert") "Zusatz"
@@ -514,12 +712,17 @@ let tests =
         targetTextTests
         targetStatusTests
         selectTests
+        frameLoadTests
         loadedTests
         labelTests
         routingTests
         filterTests
         searchStateTests
-        detailTests
+        selectionTests
+        stepTests
+        entriesDueTests
+        listFilterTests
+        monthOrderTests
         totalTests
         returnTests
     ]

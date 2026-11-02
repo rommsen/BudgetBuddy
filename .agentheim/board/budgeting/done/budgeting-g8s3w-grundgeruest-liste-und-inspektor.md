@@ -1,7 +1,7 @@
 ---
 id: budgeting-g8s3w
 title: "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
-status: doing
+status: done
 type: feature
 context: budgeting
 created: 2026-11-02
@@ -9,7 +9,7 @@ completed:
 depends_on: [design-system-001, budgeting-q7m2c, budgeting-v4ht9]
 blocks: [budgeting-c5w2n]
 tags: [budget, inspektor, monate, reihenfolge]
-related_adrs: [0005, 0043, 0049, 0065, 0072, 0073, 0074, 0075]
+related_adrs: [0005, 0043, 0049, 0065, 0072, 0073, 0074, 0075, 0076, 0077]
 related_research: [ynab-api-targets-zuweisung-2026-10-25, ynab-reihenfolge-monate-target-schreiben-2026-11-02]
 prior_art: [budgeting-k7wmd, budgeting-m1bce, budgeting-et7z8, budgeting-kjsht, budgeting-rxxb4]
 ---
@@ -273,3 +273,69 @@ Ebene in Klammern ist die Heimat nach `.claude/rules/test-doctrine.md`. Testname
 - **Kategorie-Detail** ersetzen durch den Verweis auf den Inspektor, Tab Buchungen. Der Satz zum Knopf "Verschieben" zieht in den Tab Geld um.
 - **Monat** ergänzen: Fenster aus `GET /months`, 404 heißt "Monat nicht offen".
 - **Anwendung:** "Erneut senden geht auch hinaus, wenn der Monat inzwischen der letzte ist" wird zu "ein vergangener ist". **Gegenseite:** "angetippte Kategorie" wird zu "gewählte Kategorie". **Verschieben:** die Aussage "gezeigter Monat" bleibt.
+## Verifier note (iteration 1)
+REASONS:
+- Check 1, Monatsname teal: `scripts/budget-page.test.mjs:302-303` prüft nur, dass `--color-neon-teal` definiert ist, Zeile 317 nur `notEqual(colorOf(), restColor)`. Jede andere Farbe bleibt grün.
+- Check 1, Zeile mit Rot und Gelb: `scripts/budget-page.test.mjs:398-411` belegt nur das Gelb, Rot wird nirgends geprüft.
+- Check 1, Bug D3: `scripts/budget-page.test.mjs:366-367` prüft nur `box.y >= 0 && box.y < 150`. Die Handy-Navbar ist fix (`Navigation.fs:218`, z-50, etwa 56 px). Mit `top: 0` läge die Leiste dahinter und der Wächter bliebe grün.
+- Check 1, Sheet: `scripts/budget-page.test.mjs:483-494` vergleicht nur die Lage der Tabs, der Kopf wird nicht gemessen, `scrollTop` wird erst nach `filler.remove()` gelesen und nie geprüft.
+- Check 1, Offene Verschiebung am Handy: `View.fs:982-984` zeigt das Inspektor-Sheet wieder, sobald `Move = None` ist, auch nach einem Fehlschlag. Die Abdunklung liegt über `move-retry`, nach Ablauf des Toasts ist "Erneut senden" nicht bedienbar. `failMove` in `scripts/move-money.test.mjs` schließt das Sheet vor dem Prüfen, die Tests beweisen das unveränderte Verhalten nicht mehr.
+- Check 6b, nachrangig: `scripts/export-design-system.mjs:838` sagt weiter "Sekundär/Abbrechen/Navigation: Teal" und widerspricht ADR 0075.
+- Checks 3 bis 7 nicht vollständig durchlaufen, `./verify.sh` lief bei Abgabe noch.
+
+SUGGESTED_FIX: Die vier Wächter schärfen: Monatsname gegen den Teal-Wert, Verfügbar gegen den Rot-Wert, Leiste gegen die Unterkante der Navbar samt echter Sichtbarkeit, Kopf und `scrollTop > 0` vor dem Entfernen des Fillers. Offene Verschiebung am Handy sichtbar und bedienbar machen, das Schließen aus `failMove` entfernen und einen Wächter ergänzen, der "Erneut senden" nach Ablauf des Toasts bei offener Auswahl bedient. Zeile 838 an ADR 0075 anpassen.
+
+ITERATION_HINT: likely-fixable
+
+Entscheidung des Conductors: Der Hinweis mit "Erneut senden" steht im Sheet im festen Bereich zwischen Kopf und `.sheet-body`, also in jedem Tab sichtbar. Der Inspektor schließt sich nicht.
+
+## Outcome
+
+Die Budget-Seite ist neu aufgebaut. `./verify.sh` zeigt `VERIFY: PASS` (dotnet 3311 grün, 10 opt-in übersprungen, node 434 grün). `npm run check:readme-delta -- --bc budgeting` Exit 0.
+
+**Wichtige Stellen:**
+- Shared: `src/Shared/Budgeting.fs` (`MonthKind`, `monthKind`, `targetsAllowed`, `BudgetFrame`, `orderGroups`, `missingAmount`, `isLastMonth`, `windowMayHaveGrown`), `YnabError.MonthNotOpen` in `src/Shared/Domain.fs`, `getBudgetFrame` in `src/Shared/Api.fs`. `BudgetMonthChoice`, `monthChoiceKey`, `parseMonthChoice` und `Domain.monthKey` sind weg.
+- Server: `src/Server/Budgeting/QueryHandlers.fs` (`BudgetFramePort`, `frame`), `Domain.currentMonthKey` und `toBudgetFrame`, `YnabClient.getMonths`, `Validation.validateMonthKey` und `validateTargetsMonth`, in `src/Server/Api.fs` `liveFramePort` und `framePortFor` in `budgetApiWith`.
+- Client: `src/Client/Components/Budget/{Types,State,View}.fs` (Rahmen, `shownMonth`, `Selected`, `Tab`, `Filter`, `entriesDue`, `stepCategory`, `shownGroups`).
+- Design-System: `DesignSystem/Tabs.fs`, `BottomSheet.inspector`, `Viewport.isInspectorPanelViewport`, Token `calm-yellow`, `Button.secondary` mit neutralem Hover, Styleguide und `/styleguide` nachgezogen, `Money.availableButton` entfernt.
+
+**Über den Wortlaut der Task hinaus:**
+- `Button.selectableListRow`, `stepArrow`, `stepArrowGap` und `homeLabel` sind neu, weil `Budget/View.fs` keine rohen Knöpfe enthalten darf. Dazu `ListRoles.missing`, weil `ListRoles.secondary` die Textfarbe mitbringt und das Gelb überstimmte. Ein Styleguide-Eintrag steht in §5, eine eigene Karte in `/styleguide` haben die vier Knöpfe nicht.
+- `TargetsRetried` liest den Rahmen ebenfalls nach. Die Task nennt nur `MoveAnswered`, `MoveRetried` und `TargetsApplied`, der Fall ist aber derselbe.
+- `liveBudgetApi` ist neu und nimmt die Settings als Parameter. So ruft der Integrationstest den echten `liveFramePort` auf, ohne das Token in die geteilte Testdatenbank zu schreiben, was die Negativtabelle gestört hätte. `budgetApi` ist nur noch ein Einzeiler darauf.
+- Bei `FrameLoaded` ohne vorhandenen Rahmen steht der Fehler auch in `Month`, die Seite zeigt ihn dadurch über denselben Zweig wie einen Monatsfehler.
+- Am PC rückt `fehlt` bei Platzmangel unter den Namen (`flex-wrap`). Sonst drückte es den Namen bei 768 px unter 80 px, das meldete der bestehende Wächter.
+
+**Live-Anschlüsse (Doktrin Punkt 3):** `liveFramePort` belegt der Integrationstest "Der echte Rahmen liefert das Fenster aufsteigend und die Reihenfolge". Der Conductor hat ihn einmal gefiltert gegen das echte Budget Test laufen lassen: 1 passed, rein lesend. Die Verdrahtung von `framePortFor` in `budgetApiWith` belegen die Tests in `TargetsApplyTests.fs` (Verdrahtung der BudgetApi).
+
+**TDD:** Nicht nach Rot-Grün gearbeitet. Die Tests entstanden zusammen mit dem Code oder danach. Rot belegt sind fünf Mutanten, und nur diese: Pausiert in `missingAmount` ignoriert, `NewAssigned <> 0` entfernt, `validateTargetsMonth` lässt alles durch, `ordered` in `applyLoaded` entfernt, `stepCategory Next` ohne `skipWhile`. Die Browser-Wächter entstanden gegen den fertigen Code. Eine Gegenprobe haben nur die fünf aus der Verifier-Note (unten), die übrigen nicht.
+
+**Iteration 2 (Verifier-FAIL, behoben):**
+- Offene Verschiebung am Handy: Der Hinweis mit "Erneut senden" steht bei offenem Inspektor-Sheet im festen Bereich zwischen Kopf und `.sheet-body`, in jedem Tab, der Inspektor bleibt offen. Sonst steht er auf der Seite, am PC unverändert. Beide nutzen `moveRetries`, es rendert immer genau eine Stelle. Neuer PC-Wächter dazu.
+- `scripts/export-design-system.mjs` folgt ADR 0075.
+- Wächter geschärft: Monatsname gegen den berechneten Teal-Wert, Verfügbar gegen den berechneten Rot-Wert, Bug D3 gegen die gemessene Unterkante der Navbar plus `elementFromPoint`, Sheet mit Kopf und `scrollTop > 0` vor dem Entfernen des Fillers. Der D3-Wächter blendet `.toast-layer` aus: die nicht gemockten Routen melden Fehler-Toasts, die oben über der Leiste liegen.
+
+Gegenprobe, je Mutante rot gesehen und zurückgenommen:
+| Wächter | Mutante | Ergebnis |
+|---|---|---|
+| Monatsname | `homeLabel` mit Orange statt Teal | "Monate: bis zum Rand blättern" rot |
+| Verfügbar Rot | Minus in `availableClass` Orange | "Filter: Rot zeigt nur rote Zeilen" rot |
+| Bug D3 | `.budget-month-bar` `top: 0`, dann `position: static` | beide rot, "die Leiste liegt unter der Navbar" |
+| Sheet | ganzes Sheet scrollt statt `.sheet-body` | rot |
+| Sheet | Tabs in den scrollenden Inhalt verlegt | rot, "die Tabs stehen fest" |
+| Offene Verschiebung | Hinweis nur auf der Seite, wie in Iteration 1 | zwei Wächter rot, darunter "Erneut senden bleibt im offenen Inspektor bedienbar" |
+
+Die Mutanten Monatsname, Verfügbar und "ganzes Sheet scrollt" liefen zusammen mit einem damals noch fehlerhaften D3-Wächter (Timeout auch ohne Mutante). Der jeweils genannte Wächter wurde zusätzlich rot, die Aussage bleibt gültig.
+
+**Bekannte Grenzen:**
+- Pfeil runter ohne gewählte Kategorie tut nichts. Die Tastatur gilt ab 1024 px, zwischen 768 und 1023 px gibt es sie nicht.
+- Die Höhen `top: 136px` und `calc(100dvh - 152px)` von `.budget-inspector-panel` sind von Hand aus Navbar und Leiste gerechnet, nicht gemessen.
+- Am Handy trägt ein `button` das Attribut `aria-selected`. Das verlangt die Task, ist für die Rolle `button` aber nicht vorgesehen.
+
+**[human-eye] offen für Roman.** Screenshots mit erfundenen, gemockten Daten, die Fehler-Toasts stammen von nicht gemockten Routen:
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/00b52e92-5098-4026-934e-5d968f116fd7/scratchpad/pc-liste.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/00b52e92-5098-4026-934e-5d968f116fd7/scratchpad/pc-inspektor.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/00b52e92-5098-4026-934e-5d968f116fd7/scratchpad/handy-liste.png`
+- `/private/tmp/claude-501/-Users-romansachse-src-BudgetBuddy/00b52e92-5098-4026-934e-5d968f116fd7/scratchpad/handy-inspektor.png`
+
+`pc-liste.png` habe ich nicht angesehen, die anderen drei schon. Am PC und am Handy sah das Layout stimmig aus. Das Urteil, ob Gelb dezent wirkt und Rot und Gelb in einer Zeile ruhig genug sind, bleibt bei Roman.

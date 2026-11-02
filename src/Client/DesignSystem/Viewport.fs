@@ -138,6 +138,13 @@ let isDesktopViewport () =
     let mq: obj = window?matchMedia ("(min-width: 768px)")
     unbox<bool> (mq?matches)
 
+/// Reicht die Breite für Liste und Inspektor-Panel nebeneinander (ab 1024 px)? Die 768 px von
+/// `isDesktopViewport` reichen nicht für fünf Spalten plus Panel. Einmal je Render gelesen, wie
+/// ADR 0043: es wird genau eine Hülle gerendert.
+let isInspectorPanelViewport () =
+    let mq: obj = window?matchMedia ("(min-width: 1024px)")
+    unbox<bool> (mq?matches)
+
 /// Light haptic feedback where supported (Android Chrome). Silently ignored
 /// elsewhere — iOS Safari does not implement navigator.vibrate.
 let vibrate (ms: int) =

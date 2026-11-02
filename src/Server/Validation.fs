@@ -173,18 +173,6 @@ let validateManualTransaction (today: DateTime) (request: ManualTransactionReque
 // Budget (budgeting-k7wmd)
 // ============================================
 
-/// Prüft den Monats-Schlüssel der Budget-Seite an der Grenze: "last", "current" oder "next".
-let validateBudgetMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
-    Shared.Budgeting.parseMonthChoice key
-
-/// Prüft den Monats-Schlüssel für "Targets anwenden". Strenger als das Lesen: der letzte
-/// Monat ist lesbar, aber dort werden keine Targets angewendet (budgeting-et7z8).
-let validateTargetsMonth (key: string) : Result<Shared.Budgeting.BudgetMonthChoice, string> =
-    match validateBudgetMonth key with
-    | Ok choice when Shared.Budgeting.targetsAllowed choice -> Ok choice
-    | Ok _ -> Error "Targets anwenden geht im letzten Monat nicht."
-    | Error _ -> Error $"Ungültiger Monat: '{key}'. Erlaubt sind 'current' und 'next'."
-
 /// Ein Monat an der Grenze ist sein Erster als "JJJJ-MM-01".
 let private tryParseMonthKey (key: string) : DateTime option =
     match
@@ -200,6 +188,23 @@ let private tryParseMonthKey (key: string) : DateTime option =
 
 let private monthKeyError (key: string) : string =
     $"Ungültiger Monat: '{key}'. Erwartet wird der Monatserste als JJJJ-MM-01."
+
+/// Prüft den Monat an der Grenze, ein Meldungstext für alle Endpoints (ADR 0074).
+let validateMonthKey (key: string) : Result<string, string> =
+    match tryParseMonthKey key with
+    | Some _ -> Ok key
+    | None -> Error (monthKeyError key)
+
+/// Prüft den Monat für "Targets anwenden". Strenger als das Lesen: ein vergangener Monat ist
+/// lesbar, dort werden aber keine Targets angewendet. Künftige Monate außerhalb des Fensters
+/// entscheidet YNAB (404).
+let validateTargetsMonth (current: string) (key: string) : Result<string, string> =
+    validateMonthKey key
+    |> Result.bind (fun month ->
+        if Shared.Budgeting.targetsAllowed (Shared.Budgeting.monthKind current month) then
+            Ok month
+        else
+            Error "Targets anwenden geht in vergangenen Monaten nicht.")
 
 /// Der Monat als Monatserster; eine Anfrage ohne Kategorie ist keine (budgeting-m1bce). Alle Fehler
 /// zugleich, wie an der übrigen API-Grenze.
@@ -224,8 +229,9 @@ let MaxMoveAmount = 1000000m
 /// es ihn prüft, ein großer negativer Betrag liefe dort über. Raster und Kategorien prüft `planMove`.
 let validateMoveRequest (monthKey: string) (request: Shared.Budgeting.MoveRequest) : Result<unit, string list> =
     let errors =
-        [ if (tryParseMonthKey monthKey).IsNone then
-              monthKeyError monthKey
+        [ match validateMonthKey monthKey with
+          | Error message -> message
+          | Ok _ -> ()
           if request.Amount.Currency <> "EUR" then
               $"Verschoben wird nur in EUR, nicht in '{request.Amount.Currency}'."
           if request.Amount.Amount <= 0m then

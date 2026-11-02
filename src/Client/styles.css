@@ -12,6 +12,8 @@
   --color-neon-purple: #a855f7;
   --color-neon-pink: #ff1f8f;
   --color-neon-red: #ff3b5c;
+  /* Gelb heißt "offen, kein Fehler" (ADR 0075). Kein Neon: es soll neben Rot ruhig bleiben. */
+  --color-calm-yellow: #cdb27a;
 
   /* Surface Colors (maps to CSS vars for Tailwind utilities) */
   --color-surface-app: var(--bg-app);
@@ -1123,6 +1125,30 @@ nav a:focus-visible {
   }
 }
 
+/* Die Leiste der Budget-Seite mit Monat und Zu verteilen: bleibt unter der fixen Kopfzeile stehen
+   (Bug D3), Werte wie `.ledger-filter-bar`. */
+.budget-month-bar {
+  position: sticky;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+  z-index: 20;
+  background: rgba(8, 8, 26, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+@media (min-width: 768px) {
+  .budget-month-bar {
+    top: 64px;
+  }
+}
+
+/* Das Inspektor-Panel ab 1024 px: feste Höhe, begrenzt auf die Sichthöhe unter Navbar und Leiste. */
+.budget-inspector-panel {
+  position: sticky;
+  top: 136px;
+  height: 640px;
+  max-height: calc(100dvh - 152px);
+}
+
 /* ============================================================
    Design System: Table with sticky header below the fixed navbar
    ============================================================ */
@@ -1654,6 +1680,19 @@ nav a:focus-visible {
                 top var(--sf-duration-base) var(--sf-ease-out-cubic),
                 max-height var(--sf-duration-base) var(--sf-ease-out-cubic);
   }
+}
+
+/* Feste Höhe (Inspektor der Budget-Seite, budgeting-g8s3w): das Sheet springt beim Tab-Wechsel
+   nicht. Mit offener Tastatur wird es über --vvh kleiner (ADR 0005). */
+.bottom-sheet.fixed-height {
+  height: min(500px, calc(var(--vvh, 100dvh) - 12px));
+  max-height: none;
+}
+
+/* Fester Bereich zwischen Kopf und .sheet-body, nur der Inhalt scrollt (Muster .sheet-search). */
+.sheet-pinned {
+  padding: 0 20px;
+  flex-shrink: 0;
 }
 
 .sheet-handle {

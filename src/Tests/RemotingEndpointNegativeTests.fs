@@ -325,15 +325,17 @@ let private rows : Row list = [
     // ---------------- BudgetApi ----------------
     { Endpoint = "BudgetApi.getBudgetMonth"; Case = "ungültiger Monat: Fehler"
       Run = fun () -> budget.getBudgetMonth "kein-monat" |> run |> expectError "Monat" }
-    { Endpoint = "BudgetApi.previewTargets"; Case = "letzter Monat: abgelehnt mit Grund, auch ohne Einrichtung"
+    { Endpoint = "BudgetApi.getBudgetFrame"; Case = "ohne Token Fehler"
+      Run = fun () -> budget.getBudgetFrame () |> run |> expectError "Rahmen" }
+    { Endpoint = "BudgetApi.previewTargets"; Case = "vergangener Monat: abgelehnt mit Grund, auch ohne Einrichtung"
       Run = fun () ->
-        match budget.previewTargets "last" |> run with
-        | Error message -> Expect.stringContains message "letzten Monat" "Grund"
+        match budget.previewTargets "2020-01-01" |> run with
+        | Error message -> Expect.stringContains message "vergangenen Monaten" "Grund"
         | Ok _ -> failtest "Vorschau hätte abgelehnt werden müssen" }
-    { Endpoint = "BudgetApi.applyTargets"; Case = "letzter Monat: abgelehnt mit Grund, auch ohne Einrichtung"
+    { Endpoint = "BudgetApi.applyTargets"; Case = "vergangener Monat: abgelehnt mit Grund, auch ohne Einrichtung"
       Run = fun () ->
-        match budget.applyTargets "last" emptyPreview |> run with
-        | Error message -> Expect.stringContains message "letzten Monat" "Grund"
+        match budget.applyTargets "2020-01-01" emptyPreview |> run with
+        | Error message -> Expect.stringContains message "vergangenen Monaten" "Grund"
         | Ok _ -> failtest "Anwenden hätte abgelehnt werden müssen" }
     { Endpoint = "BudgetApi.moveMoney"; Case = "negativer Betrag am Rand von decimal: Fehler statt Ausnahme"
       Run = fun () ->

@@ -205,25 +205,22 @@ let private groupingTests =
 
 let private berlin = TimeZoneInfo.FindSystemTimeZoneById "Europe/Berlin"
 
-let private monthKeyTests =
-    testList "Monatsumrechnung (k7wmd)" [
-        test "Dieser Monat ist der Erste des laufenden Monats" {
-            Expect.equal (Domain.monthKey (DateOnly(2026, 10, 26)) CurrentMonth) "2026-10-01" "dieser"
+let private monthKindTests =
+    testList "Monatsart (ADR 0074)" [
+        test "Vergangen, aktuell und künftig folgen aus dem Vergleich, auch über den Jahreswechsel" {
+            let current = "2026-11-01"
+            Expect.equal (monthKind current "2026-10-01") PastMonth "Vormonat"
+            Expect.equal (monthKind current "2026-11-01") CurrentMonth "laufend"
+            Expect.equal (monthKind current "2026-12-01") FutureMonth "Folgemonat"
+            Expect.equal (monthKind current "2025-12-01") PastMonth "Vorjahr"
         }
-        test "Nächster Monat ist der Erste des Folgemonats" {
-            Expect.equal (Domain.monthKey (DateOnly(2026, 10, 30)) NextMonth) "2026-11-01" "nächster"
+        test "Targets anwenden geht nur in vergangenen Monaten nicht" {
+            Expect.isFalse (targetsAllowed PastMonth) "vergangen"
+            Expect.isTrue (targetsAllowed CurrentMonth) "aktuell"
+            Expect.isTrue (targetsAllowed FutureMonth) "künftig"
         }
-        test "Von Dezember geht es in den Januar des Folgejahres" {
-            Expect.equal (Domain.monthKey (DateOnly(2026, 12, 15)) NextMonth) "2027-01-01" "Jahreswechsel"
-        }
-        test "Am Monatsletzten bleibt der Schlüssel im selben Monat" {
-            Expect.equal (Domain.monthKey (DateOnly(2026, 1, 31)) NextMonth) "2026-02-01" "31. Januar"
-        }
-        test "Letzter Monat ist der Erste des Vormonats" {
-            Expect.equal (Domain.monthKey (DateOnly(2026, 11, 1)) LastMonth) "2026-10-01" "letzter"
-        }
-        test "Von Januar geht es in den Dezember des Vorjahres" {
-            Expect.equal (Domain.monthKey (DateOnly(2026, 1, 15)) LastMonth) "2025-12-01" "Jahreswechsel"
+        test "Der laufende Monat ist der Erste des Kalendertags" {
+            Expect.equal (Domain.currentMonthKey (DateOnly(2026, 1, 31))) "2026-01-01" "Monatsletzter"
         }
         // Bug B1: der Monat hing an `DateTime.Today`. Im UTC-Container war am Monatsersten bis
         // 02:00 Uhr Berliner Zeit noch der Vormonat "dieser Monat", Targets anwenden schrieb dorthin.
@@ -231,7 +228,7 @@ let private monthKeyTests =
             let utc = DateTime(2026, 11, 30, 23, 30, 0, DateTimeKind.Utc)
             let today = Server.Api.berlinToday berlin utc
             Expect.equal today (DateOnly(2026, 12, 1)) "Berliner Tag"
-            Expect.equal (Domain.monthKey today CurrentMonth) "2026-12-01" "dieser Monat"
+            Expect.equal (Domain.currentMonthKey today) "2026-12-01" "laufender Monat"
         }
         test "Kurz vor Mitternacht in Berlin bleibt es beim alten Monat" {
             let today = Server.Api.berlinToday berlin (DateTime(2026, 11, 30, 22, 30, 0, DateTimeKind.Utc))
@@ -240,50 +237,34 @@ let private monthKeyTests =
     ]
 
 let private validationTests =
-    testList "Monats-Schlüssel an der Grenze (k7wmd)" [
-        test "current und next sind gültig" {
-            Expect.equal (Server.Validation.validateBudgetMonth "current") (Ok CurrentMonth) "current"
-            Expect.equal (Server.Validation.validateBudgetMonth "next") (Ok NextMonth) "next"
-        }
-        test "Die Fehlermeldung nennt alle drei Schlüssel" {
-            match parseMonthChoice "gestern" with
-            | Error msg ->
-                for key in [ "last"; "current"; "next" ] do
-                    Expect.stringContains msg $"'{key}'" key
-            | Ok _ -> failtest "Fehler erwartet"
-        }
-        test "Alles andere wird abgelehnt" {
-            for bad in [ ""; "2026-10-01"; "previous"; "Current"; " next" ] do
-                match Server.Validation.validateBudgetMonth bad with
-                | Error msg -> Expect.stringContains msg "Ungültiger Monat" $"'{bad}' abgelehnt"
+    testList "Monat an der Grenze (ADR 0074)" [
+        test "Alles außer einem Monatsersten wird abgelehnt, die Meldung nennt den Wert" {
+            for bad in [ "last"; "current"; ""; "2026-13-01"; "2026-11-15"; " 2026-11-01" ] do
+                match Server.Validation.validateMonthKey bad with
+                | Error msg ->
+                    Expect.stringContains msg "Ungültiger Monat" $"'{bad}' abgelehnt"
+                    Expect.stringContains msg $"'{bad}'" "nennt den Wert"
                 | Ok _ -> failtest $"'{bad}' hätte abgelehnt werden müssen"
         }
-        test "Der Schlüssel einer Wahl liest sich wieder zur Wahl" {
-            for choice in [ LastMonth; CurrentMonth; NextMonth ] do
-                Expect.equal (parseMonthChoice (monthChoiceKey choice)) (Ok choice) "Rundlauf"
+        test "Ein alter Monatserster ist gültig" {
+            Expect.equal (Server.Validation.validateMonthKey "2019-03-01") (Ok "2019-03-01") "2019"
         }
-        test "Targets anwenden nimmt current und next an" {
-            Expect.equal (Server.Validation.validateTargetsMonth "current") (Ok CurrentMonth) "current"
-            Expect.equal (Server.Validation.validateTargetsMonth "next") (Ok NextMonth) "next"
+        test "Targets anwenden nimmt den laufenden und künftige Monate an" {
+            let validate = Server.Validation.validateTargetsMonth "2026-11-01"
+            Expect.equal (validate "2026-11-01") (Ok "2026-11-01") "laufend"
+            Expect.equal (validate "2031-02-01") (Ok "2031-02-01") "künftig, das Fenster entscheidet YNAB"
         }
-        test "Ein ungültiger Schlüssel an Targets anwenden nennt nur current und next" {
-            match Server.Validation.validateTargetsMonth "gestern" with
-            | Error msg ->
-                Expect.stringContains msg "'gestern'" "nennt die Eingabe"
-                Expect.stringContains msg "'current'" "current"
-                Expect.stringContains msg "'next'" "next"
-                Expect.isFalse (msg.Contains "'last'") "last ist hier nicht erlaubt"
-            | Ok _ -> failtest "gestern hätte abgelehnt werden müssen"
+        test "Targets anwenden lehnt vergangene Monate mit Grund ab" {
+            match Server.Validation.validateTargetsMonth "2026-11-01" "2026-10-01" with
+            | Error msg -> Expect.stringContains msg "vergangenen Monaten" "Grund"
+            | Ok _ -> failtest "Vormonat hätte abgelehnt werden müssen"
         }
-        test "Targets anwenden lehnt last ab und nennt den Grund" {
-            match Server.Validation.validateTargetsMonth "last" with
-            | Error msg -> Expect.stringContains msg "letzten Monat" "Grund"
-            | Ok _ -> failtest "last hätte abgelehnt werden müssen"
-        }
-        test "Targets anwenden lehnt ungültige Schlüssel ab" {
-            match Server.Validation.validateTargetsMonth "kein-monat" with
-            | Error msg -> Expect.stringContains msg "Ungültiger Monat" "Grenze"
-            | Ok _ -> failtest "Fehler erwartet"
+        test "Targets anwenden lehnt ungültige Monate mit demselben Text wie das Lesen ab" {
+            let key = "kein-monat"
+            Expect.equal
+                (Server.Validation.validateTargetsMonth "2026-11-01" key)
+                (Server.Validation.validateMonthKey key)
+                "ein Meldungstext"
         }
     ]
 
@@ -310,9 +291,10 @@ let private errorMappingTests =
             | Error (Shared.Domain.YnabError.Unauthorized _) -> ()
             | other -> failtestf "401: %A" other
         }
-        test "404 nennt den Monat" {
+        test "404 heißt Monat nicht offen" {
             match runMonth 404 "{}" with
-            | Error (Shared.Domain.YnabError.InvalidResponse msg) -> Expect.stringContains msg "2026-10-01" "Monat in der Meldung"
+            | Error ((Shared.Domain.YnabError.MonthNotOpen "2026-10-01") as e) ->
+                Expect.equal (Shared.Domain.ynabErrorText e) "Monat nicht offen" "Text"
             | other -> failtestf "404: %A" other
         }
         test "429 ist RateLimitExceeded" {
@@ -338,48 +320,202 @@ let private errorMappingTests =
 let private apiPathTests =
     let fetchWith result = fun (_: string) (_: Shared.Domain.YnabBudgetId) (_: string) -> async { return result }
     let call token budget key fetch =
-        Server.Api.budgetMonthFor token budget (DateOnly(2026, 10, 26)) key fetch |> Async.RunSynchronously
+        Server.Api.budgetMonthFor token budget key fetch |> Async.RunSynchronously
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
-            match call (Some "t") (Some "b") "current" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
+            match call (Some "t") (Some "b") "2026-10-01" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
             | Error msg -> Expect.equal msg "Rate-Limit (HTTP 429), erneut in 60 Sekunden" "deutsch"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Fehlender Token wird gemeldet, ohne YNAB zu fragen" {
             let fetch = fun _ _ _ -> async { return failwith "darf nicht aufgerufen werden" }
-            match call None (Some "b") "current" fetch with
+            match call None (Some "b") "2026-10-01" fetch with
             | Error msg -> Expect.stringContains msg "YNAB-Token" "Token fehlt"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Fehlendes Standard-Budget wird gemeldet" {
-            match call (Some "t") None "current" (fetchWith (Ok decoded)) with
+            match call (Some "t") None "2026-10-01" (fetchWith (Ok decoded)) with
             | Error msg -> Expect.stringContains msg "Standard-Budget" "Budget fehlt"
             | Ok _ -> failtest "Fehler erwartet"
         }
         test "Ungültiger Monat wird abgelehnt, bevor YNAB gefragt wird" {
             let fetch = fun _ _ _ -> async { return failwith "darf nicht aufgerufen werden" }
-            match call (Some "t") (Some "b") "2026-10-01" fetch with
+            match call (Some "t") (Some "b") "current" fetch with
             | Error msg -> Expect.stringContains msg "Ungültiger Monat" "Grenze"
             | Ok _ -> failtest "Fehler erwartet"
         }
-        test "Der nächste Monat fragt YNAB mit dem Ersten des Folgemonats" {
+        test "Ein freier Monat wird genau so gelesen" {
             let mutable seen = ""
             let fetch = fun _ _ key -> async { seen <- key; return Ok decoded }
-            match call (Some "t") (Some "b") "next" fetch with
+            match call (Some "t") (Some "b") "2019-03-01" fetch with
             | Ok m -> Expect.equal m.Groups.Length 2 "gruppiert"
             | Error e -> failtest e
-            Expect.equal seen "2026-11-01" "Schlüssel"
+            Expect.equal seen "2019-03-01" "genau dieser Monat"
         }
-        test "Der letzte Monat fragt YNAB mit dem Ersten des Vormonats" {
-            let mutable seen = ""
-            let fetch = fun _ _ key -> async { seen <- key; return Ok decoded }
-            match call (Some "t") (Some "b") "last" fetch with
-            | Ok m -> Expect.equal m.Groups.Length 2 "gruppiert"
-            | Error e -> failtest e
-            Expect.equal seen "2026-09-01" "Schlüssel"
+    ]
+
+let private runMonths status body =
+    Server.YnabClient.getMonthsWith (fun () -> async { return status, body }) "budget"
+    |> Async.RunSynchronously
+
+let private monthsJson =
+    """{"data":{"months":[
+        {"month":"2026-12-01","deleted":false},
+        {"month":"2026-09-01","deleted":true},
+        {"month":"2026-11-01","deleted":false}]}}"""
+
+let private monthsResponseTests =
+    testList "Monatsfenster aus GET /months" [
+        test "Ein gelöschter Monat fehlt" {
+            Expect.equal (runMonths 200 monthsJson) (Ok [ "2026-12-01"; "2026-11-01" ]) "ohne September"
+        }
+        test "401, 404, 429 und anderer Status werden wie bei getMonth abgebildet" {
+            match runMonths 401 "{}" with
+            | Error (Shared.Domain.YnabError.Unauthorized _) -> ()
+            | other -> failtestf "401: %A" other
+            match runMonths 404 "{}" with
+            | Error (Shared.Domain.YnabError.BudgetNotFound _) -> ()
+            | other -> failtestf "404 meint das Budget: %A" other
+            match runMonths 429 "{}" with
+            | Error (Shared.Domain.YnabError.RateLimitExceeded _) -> ()
+            | other -> failtestf "429: %A" other
+            match runMonths 503 "weg" with
+            | Error (Shared.Domain.YnabError.NetworkError msg) -> Expect.stringContains msg "503" "Status"
+            | other -> failtestf "503: %A" other
+        }
+        test "Kaputtes JSON ist eine ungültige Antwort" {
+            match runMonths 200 "{}" with
+            | Error (Shared.Domain.YnabError.InvalidResponse _) -> ()
+            | other -> failtestf "InvalidResponse erwartet: %A" other
+        }
+        test "Eine Ausnahme beim Abruf wird zum Netzfehler" {
+            let result =
+                Server.YnabClient.getMonthsWith
+                    (fun () -> async { return raise (System.Net.Http.HttpRequestException "kaputt") })
+                    "budget"
+                |> Async.RunSynchronously
+            match result with
+            | Error (Shared.Domain.YnabError.NetworkError msg) -> Expect.stringContains msg "kaputt" "Ursache"
+            | other -> failtestf "Netzfehler erwartet: %A" other
+        }
+    ]
+
+let private frameTests =
+    let today = DateOnly(2026, 11, 2)
+    let order = [ Guid.NewGuid() ]
+    let port months categories : QueryHandlers.BudgetFramePort =
+        { FetchMonths = fun () -> async { return months }
+          FetchCategoryOrder = fun () -> async { return categories } }
+    let frameOf p = QueryHandlers.frame p today |> Async.RunSynchronously
+    let limited : Shared.Domain.YnabResult<_> = Error (Shared.Domain.YnabError.RateLimitExceeded 60)
+    testList "Rahmen der Budget-Seite" [
+        test "Monate stehen aufsteigend, mit dem laufenden Monat" {
+            let frame = Domain.toBudgetFrame today [ "2026-12-01"; "2019-01-01"; "2026-11-01" ] order
+            Expect.equal frame.Months [ "2019-01-01"; "2026-11-01"; "2026-12-01" ] "aufsteigend"
+            Expect.equal frame.CurrentMonth "2026-11-01" "laufend"
+            Expect.equal frame.CategoryOrder order "Reihenfolge"
+        }
+        test "Beide Quellen ergeben den Rahmen" {
+            match frameOf (port (Ok [ "2026-11-01" ]) (Ok order)) with
+            | Ok frame -> Expect.equal frame.CategoryOrder order "Reihenfolge"
+            | Error e -> failtestf "Ok erwartet: %A" e
+        }
+        test "Scheitert das Monatsfenster mit 429, kommt der Fehler zurück" {
+            Expect.equal (frameOf (port (limited |> Result.map (fun _ -> [])) (Ok order))) (Error (Shared.Domain.YnabError.RateLimitExceeded 60)) "Monate"
+        }
+        test "Scheitert die Reihenfolge mit 429, kommt der Fehler zurück" {
+            Expect.equal (frameOf (port (Ok [ "2026-11-01" ]) (limited |> Result.map (fun _ -> [])))) (Error (Shared.Domain.YnabError.RateLimitExceeded 60)) "Reihenfolge"
+        }
+    ]
+
+
+let private euro amount : Shared.Domain.Money = { Amount = amount; Currency = "EUR" }
+
+let private budgetCategory (id: Guid) (name: string) : BudgetCategory =
+    { Id = id; Name = name; Assigned = euro 0m; Activity = euro 0m; Available = euro 0m
+      Underfunded = None; Target = None; Snoozed = false }
+
+let private orderTests =
+    let ids = List.init 5 (fun _ -> Guid.NewGuid())
+    let a, b, c, d, e = ids[0], ids[1], ids[2], ids[3], ids[4]
+    let names (groups: BudgetGroup list) =
+        groups |> List.map (fun g -> g.Name, g.Categories |> List.map (fun x -> x.Name))
+    testList "Reihenfolge der Kategorien (ADR 0074)" [
+        test "Gruppen und Kategorien stehen nach dem Rang, nicht in der Monatsfolge" {
+            let groups =
+                [ { Name = "Zwei"; Categories = [ budgetCategory d "d"; budgetCategory c "c" ] }
+                  { Name = "Eins"; Categories = [ budgetCategory b "b"; budgetCategory a "a" ] } ]
+            Expect.equal (names (orderGroups [ a; b; c; d ] groups)) [ "Eins", [ "a"; "b" ]; "Zwei", [ "c"; "d" ] ] "Rang"
+        }
+        test "Der Rang einer Gruppe ist der kleinste ihrer Kategorien" {
+            let groups =
+                [ { Name = "Spät"; Categories = [ budgetCategory c "c"; budgetCategory a "a" ] }
+                  { Name = "Mitte"; Categories = [ budgetCategory b "b" ] } ]
+            Expect.equal (names (orderGroups [ a; b; c ] groups) |> List.map fst) [ "Spät"; "Mitte" ] "a zieht die Gruppe nach vorn"
+        }
+        test "Ohne Rang stehen Kategorie und Gruppe am Ende nach Name, nichts fällt weg" {
+            let groups =
+                [ { Name = "Y neu"; Categories = [ budgetCategory (Guid.NewGuid()) "x" ] }
+                  { Name = "X neu"; Categories = [ budgetCategory (Guid.NewGuid()) "y" ] }
+                  { Name = "Alt"; Categories = [ budgetCategory (Guid.NewGuid()) "z neu"; budgetCategory (Guid.NewGuid()) "m neu"; budgetCategory a "a" ] } ]
+            Expect.equal
+                (names (orderGroups [ a ] groups))
+                [ "Alt", [ "a"; "m neu"; "z neu" ]; "X neu", [ "y" ]; "Y neu", [ "x" ] ]
+                "am Ende nach Name"
+        }
+        test "Eine Id ohne Kategorie im Monat stört nicht" {
+            let groups = [ { Name = "G"; Categories = [ budgetCategory e "e"; budgetCategory a "a" ] } ]
+            Expect.equal (names (orderGroups [ Guid.NewGuid(); a; Guid.NewGuid(); e ] groups)) [ "G", [ "a"; "e" ] ] "unbekannte Ids fallen nicht auf"
+        }
+    ]
+
+let private missingTests =
+    let target = { Goal = euro 900m; Rhythm = Months 1 }
+    let category available under snoozed =
+        { budgetCategory (Guid.NewGuid()) "k" with
+            Available = euro available
+            Underfunded = under |> Option.map euro
+            Target = under |> Option.map (fun _ -> target)
+            Snoozed = snoozed }
+    let missing c = missingAmount c |> Option.map (fun m -> m.Amount)
+    testList "Fehlt" [
+        test "Negatives Verfügbar ohne Target fehlt" {
+            Expect.equal (missing (category -12.30m None false)) (Some 12.30m) "ohne Target"
+        }
+        test "Das Größere zählt" {
+            Expect.equal (missing (category -12.30m (Some 900m) false)) (Some 900m) "Fehlbetrag größer"
+            Expect.equal (missing (category -20m (Some 10m) false)) (Some 20m) "Verfügbar größer"
+        }
+        test "Pausiert zählt der Fehlbetrag nicht, negatives Verfügbar bleibt" {
+            Expect.equal (missing (category 5m (Some 900m) true)) None "pausiert"
+            Expect.equal (missing (category -20m (Some 900m) true)) (Some 20m) "pausiert und rot"
+        }
+        test "Beides 0 fehlt nichts" {
+            Expect.equal (missing (category 0m (Some 0m) false)) None "nichts"
+        }
+    ]
+
+let private windowTests =
+    let line outcome amount : ApplyLineResult =
+        { CategoryId = Guid.NewGuid(); CategoryName = "k"; OldAssigned = euro 0m; NewAssigned = euro amount; Outcome = outcome }
+    let report month lines : ApplyReport =
+        { ApplicationId = "a"; Month = month; Lines = lines; ActualToBeBudgeted = None }
+    let months = [ "2026-11-01"; "2026-12-01" ]
+    testList "Fenster wächst (ADR 0074)" [
+        test "Geschrieben, ungleich 0, im letzten Monat: das Fenster kann gewachsen sein" {
+            Expect.isTrue (windowMayHaveGrown months (report "2026-12-01" [ line Written 10m ])) "gewachsen"
+        }
+        test "Mit neuem Zugewiesen 0 wächst es nicht" {
+            Expect.isFalse (windowMayHaveGrown months (report "2026-12-01" [ line Written 0m ])) "0"
+        }
+        test "Nur fehlgeschlagene Zeilen öffnen nichts" {
+            Expect.isFalse (windowMayHaveGrown months (report "2026-12-01" [ line (Failed "x") 10m; line ChangedInYnab 5m ])) "nichts geschrieben"
+        }
+        test "In einem anderen Monat wächst es nicht" {
+            Expect.isFalse (windowMayHaveGrown months (report "2026-11-01" [ line Written 10m ])) "nicht der letzte"
         }
     ]
 
 [<Tests>]
 let tests =
-    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKeyTests; validationTests; errorMappingTests; apiPathTests ]
+    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKindTests; validationTests; errorMappingTests; apiPathTests; monthsResponseTests; frameTests; orderTests; missingTests; windowTests ]

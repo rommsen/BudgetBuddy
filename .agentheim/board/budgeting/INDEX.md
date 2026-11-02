@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 5
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 11
+- **Doing:** 0
+- **Done:** 12
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-g8s3w** — "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt" (feature) — `doing/budgeting-g8s3w-grundgeruest-liste-und-inspektor.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-g8s3w** — "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt" (feature) — `done/budgeting-g8s3w-grundgeruest-liste-und-inspektor.md`
 - **budgeting-v4ht9** — "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen" (decision) — `done/budgeting-v4ht9-entscheidungen-budget-seite.md`
 - **budgeting-q7m2c** — "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?" (spike) — `done/budgeting-q7m2c-spike-ynab-reihenfolge-monate-target-schreiben.md`
 - **budgeting-kjsht** — "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag" (feature) — `done/budgeting-kjsht-targets-sichtbar.md`

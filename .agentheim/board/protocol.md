@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 14:23 -- Task verified and completed: budgeting-g8s3w - "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
+
+**Type:** Work / Task completion
+**Task:** budgeting-g8s3w - "Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Kategorie-Reihenfolge, Filter und Gelb für fehlt"
+**Summary:** Budget-Seite neu: Liste und Inspektor mit vier Tabs, freie Monate, Romans Reihenfolge, Filter und Gelb für Fehlt
+**Duration:** 1h30m
+**Verification:** PASS (iteration 2)
+**Files changed:** 38
+**Tests added:** 46
+**ADRs written:** 0076, 0077
+
+---
+
+## 2026-11-02 13:51 -- Verification failed: budgeting-g8s3w - Budget-Seite neu
+
+**Type:** Work / Verification failure
+**Task:** budgeting-g8s3w - Budget-Seite neu
+**Iteration:** 1 of 3
+**Reasons:** vier Browser-Wächter belegen ihr Kriterium nicht (Teal, Rot, Navbar, Sheet-Scroll), Offene Verschiebung am Handy nicht bedienbar, Export-Text widerspricht ADR 0075
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-02 12:52 -- Batch started: [budgeting-g8s3w]
 
 **Type:** Work / Batch start

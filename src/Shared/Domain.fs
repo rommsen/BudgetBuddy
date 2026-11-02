@@ -643,6 +643,9 @@ type YnabError =
     | RateLimitExceeded of retryAfterSeconds: int
     | NetworkError of message: string
     | InvalidResponse of message: string
+    /// 404 auf einen Monat: er liegt außerhalb des YNAB-Fensters (ADR 0074 Punkt 3). Beim PATCH ist
+    /// der 404 mehrdeutig (Monat oder Kategorie), er zählt ebenso.
+    | MonthNotOpen of month: string
 
 /// Der YNAB-Fehler als deutscher Satz. Die einzige Übersetzung, Server und Client nutzen sie. Der
 /// Text landet auch im Ereignis-Log und in der Antwort an Bob (`push_error`), deshalb stehen keine
@@ -656,6 +659,7 @@ let ynabErrorText (error: YnabError) : string =
     | BudgetNotFound _ -> "Budget in YNAB nicht gefunden"
     | AccountNotFound _ -> "Konto in YNAB nicht gefunden"
     | CategoryNotFound _ -> "Kategorie in YNAB nicht gefunden"
+    | MonthNotOpen _ -> "Monat nicht offen"
 
 /// Errors during rules operations.
 /// Purpose: Provides clear feedback for rule validation and compilation failures.

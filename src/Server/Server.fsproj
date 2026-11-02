@@ -47,6 +47,7 @@
     <Compile Include="Budgeting/Domain.fs" />
     <Compile Include="Budgeting/Persistence.fs" />
     <Compile Include="Budgeting/CommandHandlers.fs" />
+    <Compile Include="Budgeting/QueryHandlers.fs" />
     <Compile Include="Rules/CommandHandlers.fs" />
     <Compile Include="PushOutcomeClassification.fs" />
     <Compile Include="BotApi.fs" />

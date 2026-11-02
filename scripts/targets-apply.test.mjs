@@ -79,6 +79,9 @@ async function openPage(width, height, handlers) {
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
+  await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
+    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [guid(1)] } })
+  );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     calls.month += 1;
     json(route, { Ok: monthFixture() });
@@ -124,7 +127,7 @@ test("Handy: Summe und Zu verteilen danach sichtbar, Übernehmen ohne Scrollen e
   const { context, page, calls } = await openPage(390, 844, { preview, apply: () => ({ Error: "nicht erwartet" }), retry: () => ({ Error: "x" }) });
   try {
     await open(page);
-    assert.deepEqual(calls.preview, [["current"]], "Vorschau für den laufenden Monat");
+    assert.deepEqual(calls.preview, [["2026-11-01"]], "Vorschau für den laufenden Monat");
     assert.match(await text(page.locator('[data-testid="targets-total"]')), /400,00 €/);
     assert.match(await text(page.locator('[data-testid="targets-after"]')), /4\.600,00 €/);
     for (const id of ["targets-total", "targets-after"]) {
@@ -200,7 +203,7 @@ test("Übernehmen schickt die gezeigte Vorschau, zeigt X von N, erneutes Senden 
     await page.getByRole("button", { name: "Übernehmen" }).click();
     await page.locator('[data-testid="targets-count"]').waitFor();
     assert.equal(calls.apply.length, 1);
-    assert.equal(calls.apply[0][0], "current");
+    assert.equal(calls.apply[0][0], "2026-11-01");
     assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), preview.Lines.map((l) => l.CategoryId), "die gezeigte Vorschau geht mit");
     assert.match(await text(page.locator('[data-testid="targets-count"]')), /1 von 3 übernommen/);
     assert.match(await text(page.locator('[data-testid="targets-actual"]')), /4\.980,00 €/);

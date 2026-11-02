@@ -29,6 +29,9 @@ module Colors =
     let neonPink = "text-neon-pink"
     let neonPinkDim = "text-[#e6177f]"
 
+    // Offen, kein Fehler: fehlt und "Passt das Target noch?" (ADR 0075)
+    let calmYellow = "text-calm-yellow"
+
     // Error: Neon Red
     let neonRed = "text-neon-red"
     let neonRedDim = "text-[#e6324f]"
@@ -141,6 +144,8 @@ module ListRoles =
     let secondary = "text-xs text-text-secondary"
     /// Memo: 12px, noch stärker gedämpft
     let muted = "text-xs text-text-muted"
+    /// Klein in Gelb: offen, kein Fehler (`fehlt`, ADR 0075).
+    let missing = "text-xs text-calm-yellow"
     /// Datum: Mono 12px
     let date = "font-mono text-xs font-normal text-text-muted"
     /// Datumsgruppen-Kopf: Mono 600 10px, gesperrt

@@ -6,35 +6,28 @@ module Shared.Budgeting
 open System
 open Shared.Domain
 
-/// Welcher Monat gezeigt wird: der abgelaufene (Rückblick am Monatsersten, budgeting-et7z8),
-/// der laufende oder der nächste (Budgetieren am 30. für den 1.).
-/// Auf dem Draht ein Schlüssel: "last", "current" oder "next" (`monthChoiceKey`, `parseMonthChoice`).
-type BudgetMonthChoice =
-    | LastMonth
+/// Wie ein Monat zum laufenden steht (ADR 0074). Der Monat selbst ist ein String "YYYY-MM-01",
+/// wie `BudgetMonth.Month`: Client und Server tauschen ihn direkt aus.
+type MonthKind =
+    | PastMonth
     | CurrentMonth
-    | NextMonth
+    | FutureMonth
 
-let monthChoiceKey (choice: BudgetMonthChoice) : string =
-    match choice with
-    | LastMonth -> "last"
-    | CurrentMonth -> "current"
-    | NextMonth -> "next"
+/// Die Monatsart aus dem Vergleich mit dem laufenden Monat. "YYYY-MM-01" sortiert ordinal wie der
+/// Kalender. Der laufende Monat kommt als Parameter: Server `currentMonthKey`, Client `BudgetFrame`.
+let monthKind (current: string) (month: string) : MonthKind =
+    let order = compare month current
+    if order < 0 then PastMonth
+    elif order = 0 then CurrentMonth
+    else FutureMonth
 
-/// Geht "Targets anwenden" in diesem Monat? Im letzten Monat nicht (Romans Entscheidung vom
-/// 2026-11-01): dort wird korrigiert, nicht mehr verteilt. Gilt an der API-Grenze und für den Knopf.
-let targetsAllowed (choice: BudgetMonthChoice) : bool =
-    match choice with
-    | LastMonth -> false
+/// Geht "Targets anwenden" in dieser Monatsart? In vergangenen Monaten nicht (ADR 0074 Punkt 5).
+/// Gilt an der API-Grenze und für den Knopf.
+let targetsAllowed (kind: MonthKind) : bool =
+    match kind with
+    | PastMonth -> false
     | CurrentMonth
-    | NextMonth -> true
-
-/// Liest den Schlüssel vom Draht. Alles andere als "last", "current" und "next" ist ungültig.
-let parseMonthChoice (key: string) : Result<BudgetMonthChoice, string> =
-    match key with
-    | "last" -> Ok LastMonth
-    | "current" -> Ok CurrentMonth
-    | "next" -> Ok NextMonth
-    | other -> Error $"Ungültiger Monat: '{other}'. Erlaubt sind 'last', 'current' und 'next'."
+    | FutureMonth -> true
 
 /// In welchem Abstand ein Target wiederkehrt, in YNABs Kadenz gelesen (budgeting-kjsht).
 /// Die Zahl ist der Abstand: `Months 1` ist monatlich, `Months 3` alle 3 Monate.
@@ -76,7 +69,8 @@ type YnabMonthCategory = {
     Internal: bool
 }
 
-/// Der Monat roh aus YNAB: Zu verteilen und alle Kategorien in YNABs Reihenfolge.
+/// Der Monat roh aus YNAB: Zu verteilen und alle Kategorien. Die Folge der Antwort ist ungeordnet und
+/// je Monat anders (ADR 0074 Punkt 6), sie trägt keine Bedeutung.
 type YnabMonth = {
     /// Erster des Monats als "YYYY-MM-01".
     Month: string
@@ -99,7 +93,8 @@ type BudgetCategory = {
     Snoozed: bool
 }
 
-/// Eine Kategoriegruppe mit ihren sichtbaren Kategorien, in YNABs Reihenfolge.
+/// Eine Kategoriegruppe mit ihren sichtbaren Kategorien. Vom Server in der ungeordneten Folge der
+/// Monatsantwort, die Seite ordnet sie mit `orderGroups`.
 type BudgetGroup = {
     Name: string
     Categories: BudgetCategory list
@@ -112,6 +107,47 @@ type BudgetMonth = {
     ToBeBudgeted: Money
     Groups: BudgetGroup list
 }
+
+/// Der Rahmen der Budget-Seite (budgeting-g8s3w, ADR 0074): liegt je Seitenaufruf im Client, damit
+/// ein Monatswechsel nur eine Anfrage kostet.
+type BudgetFrame = {
+    /// Der laufende Monat "YYYY-MM-01" nach Berliner Kalender.
+    CurrentMonth: string
+    /// Das Monatsfenster aus `GET /months`, aufsteigend.
+    Months: string list
+    /// Alle Kategorie-Ids flach, Gruppe für Gruppe aus `GET /categories`.
+    CategoryOrder: Guid list
+}
+
+/// Ordnet Gruppen und Kategorien nach dem Rang in `order` (ADR 0074 Punkt 6). Der Rang einer Gruppe
+/// ist der kleinste ihrer Kategorien. Ohne Rang steht eine Kategorie am Ende ihrer Gruppe und eine
+/// Gruppe am Ende der Liste, jeweils nach Name, weil die Monatsfolge springt. Es fällt nichts weg.
+let orderGroups (order: Guid list) (groups: BudgetGroup list) : BudgetGroup list =
+    let ranks = order |> List.mapi (fun index id -> id, index) |> Map.ofList
+    let rankOf (category: BudgetCategory) = ranks |> Map.tryFind category.Id
+    let sortKey (rank: int option) (name: string) =
+        match rank with
+        | Some r -> 0, r, ""
+        | None -> 1, 0, name
+    groups
+    |> List.map (fun group ->
+        { group with
+            Categories = group.Categories |> List.sortBy (fun c -> sortKey (rankOf c) c.Name) })
+    |> List.sortBy (fun group ->
+        // Die Kategorien stehen schon nach Rang, die erste trägt den kleinsten.
+        sortKey (group.Categories |> List.tryHead |> Option.bind rankOf) group.Name)
+
+/// Fehlt: BBs Antwort je Kategorie, auch ohne Target. Das Größere aus negativem Verfügbar und
+/// Fehlbetrag, `None` ohne Betrag über 0. Bei einem pausierten Target zählt der Fehlbetrag nicht,
+/// negatives Verfügbar bleibt (ADR 0073 Punkt 4).
+let missingAmount (c: BudgetCategory) : Money option =
+    let negative = if c.Available.Amount < 0m then -c.Available.Amount else 0m
+    let underfunded =
+        match c.Underfunded with
+        | Some under when not c.Snoozed -> under.Amount
+        | _ -> 0m
+    let amount = if underfunded > negative then underfunded else negative
+    if amount > 0m then Some { c.Available with Amount = amount } else None
 
 // ============================================
 // Targets anwenden (budgeting-h2zfn)
@@ -200,6 +236,16 @@ let writtenCount (report: ApplyReport) : int =
 /// Anzahl der Zeilen im Zustand `Failed`.
 let failedCount (report: ApplyReport) : int =
     report.Lines |> List.filter (fun l -> match l.Outcome with Failed _ -> true | _ -> false) |> List.length
+
+/// Ist dieser Monat der letzte im Fenster? `months` steht aufsteigend.
+let isLastMonth (months: string list) (month: string) : bool =
+    List.tryLast months = Some month
+
+/// Kann dieser Bericht das Fenster geöffnet haben? Eine geschriebene Zuweisung ungleich 0 im letzten
+/// Monat öffnet den nächsten (ADR 0074). Nur dann liest der Client den Rahmen neu.
+let windowMayHaveGrown (months: string list) (report: ApplyReport) : bool =
+    isLastMonth months report.Month
+    && report.Lines |> List.exists (fun l -> l.Outcome = Written && l.NewAssigned.Amount <> 0m)
 
 // ============================================
 // Geld verschieben (budgeting-afd8h, ADR 0069)

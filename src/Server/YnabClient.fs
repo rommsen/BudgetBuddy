@@ -112,13 +112,22 @@ module Decoders =
                Internal = flag "internal" } : Shared.Budgeting.YnabMonthCategory))
 
     /// Der ganze Monat aus `GET /budgets/{id}/months/{month}`: Monat, Zu verteilen und
-    /// alle Kategorien in YNABs Reihenfolge (budgeting-k7wmd).
+    /// alle Kategorien in der Folge der Antwort (budgeting-k7wmd).
     let monthDecoder : Decoder<Shared.Budgeting.YnabMonth> =
         Decode.field "data" (Decode.field "month" (Decode.object (fun get ->
             ({ Month = get.Required.Field "month" Decode.string
                ToBeBudgeted = get.Required.Field "to_be_budgeted" Decode.int64 |> milliunitsMoney
                Categories = get.Required.Field "categories" (Decode.list monthCategoryDecoder) }
              : Shared.Budgeting.YnabMonth))))
+
+    /// Das Monatsfenster aus `GET /budgets/{id}/months`, ohne gelöschte Monate (budgeting-g8s3w).
+    let monthsDecoder : Decoder<string list> =
+        let entry =
+            Decode.object (fun get ->
+                get.Required.Field "month" Decode.string,
+                get.Optional.Field "deleted" Decode.bool |> Option.defaultValue false)
+        Decode.field "data" (Decode.field "months" (Decode.list entry))
+        |> Decode.map (List.filter (snd >> not) >> List.map fst)
 
     /// Decoder for categories when category_group_name is present (from /categories endpoint)
     let categoryDecoder : Decoder<YnabCategory> =
@@ -294,8 +303,8 @@ let getReadyToAssign (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Asy
 
 /// Liest einen Monat live aus YNAB (`GET /budgets/{id}/months/{YYYY-MM-01}`), mit Zu verteilen
 /// und je Kategorie Zugewiesen, Aktivität, Verfügbar, Fehlbetrag und Pausiert (budgeting-k7wmd).
-/// Schreibt nichts und merkt sich nichts. 429 kommt als `RateLimitExceeded`, ein Monat, den
-/// YNAB nicht kennt (404), als `InvalidResponse`.
+/// Schreibt nichts und merkt sich nichts. 429 kommt als `RateLimitExceeded`, ein Monat außerhalb
+/// des Fensters (404) als `MonthNotOpen`.
 let interpretMonthResponse (monthKey: string) (status: int) (bodyText: string) : YnabResult<Shared.Budgeting.YnabMonth> =
     match status with
     | 200 ->
@@ -303,7 +312,7 @@ let interpretMonthResponse (monthKey: string) (status: int) (bodyText: string) :
         | Ok month -> Ok month
         | Error err -> Error (YnabError.InvalidResponse $"Failed to parse month: {err}")
     | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
-    | 404 -> Error (YnabError.InvalidResponse $"YNAB kennt den Monat {monthKey} nicht")
+    | 404 -> Error (YnabError.MonthNotOpen monthKey)
     | 429 -> Error (YnabError.RateLimitExceeded 60)
     | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
 
@@ -339,6 +348,44 @@ let getMonth
         }
     getMonthWith fetch monthKey
 
+/// Das Monatsfenster aus `GET /budgets/{id}/months` (budgeting-g8s3w, ADR 0074). Gelöschte Monate
+/// fallen weg. Die Folge der Antwort zählt nicht, sortiert wird in `toBudgetFrame`. Ein 404 meint
+/// hier das Budget.
+let interpretMonthsResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<string list> =
+    match status with
+    | 200 ->
+        match Decode.fromString Decoders.monthsDecoder bodyText with
+        | Ok months -> Ok months
+        | Error err -> Error (YnabError.InvalidResponse $"Failed to parse months: {err}")
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
+    | 404 -> Error (YnabError.BudgetNotFound budgetId)
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
+
+/// Naht für Tests wie `getMonthWith`.
+let getMonthsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<string list>> =
+    async {
+        try
+            let! status, bodyText = fetch ()
+            return interpretMonthsResponse budgetId status bodyText
+        with ex ->
+            return Error (YnabError.NetworkError $"Failed to fetch months: {ex.Message}")
+    }
+
+let getMonths (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<string list>> =
+    let fetch () =
+        async {
+            let! response =
+                http {
+                    GET $"{baseUrl}/budgets/{budgetId}/months"
+                    Authorization $"Bearer {token}"
+                }
+                |> Request.sendAsync
+            let! bodyText = response |> Response.toTextAsync
+            return (response.statusCode |> int), bodyText
+        }
+    getMonthsWith fetch budgetId
+
 // ============================================
 // Zuweisung setzen (budgeting-h2zfn)
 // ============================================
@@ -357,13 +404,14 @@ let buildAssignBody (milliunits: int64) : string =
     |> Encode.toString 0
 
 /// Ordnet die Antwort von `PATCH .../months/{month}/categories/{id}` zu. 429 kommt als
-/// `RateLimitExceeded`, damit der Aufrufer den Lauf abbrechen kann.
+/// `RateLimitExceeded`, damit der Aufrufer den Lauf abbrechen kann. Der 404 ist mehrdeutig (Monat
+/// oder Kategorie) und heißt nach ADR 0074 Punkt 3 trotzdem "Monat nicht offen".
 let interpretAssignResponse (monthKey: string) (status: int) (bodyText: string) : YnabResult<unit> =
     match status with
     | 200 -> Ok ()
     | 400 -> Error (YnabError.InvalidResponse $"Bad request: {bodyText}")
     | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
-    | 404 -> Error (YnabError.InvalidResponse $"YNAB kennt Monat {monthKey} oder die Kategorie nicht")
+    | 404 -> Error (YnabError.MonthNotOpen monthKey)
     | 429 -> Error (YnabError.RateLimitExceeded 60)
     | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
 

@@ -1706,37 +1706,35 @@ let private NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
 let berlinToday (berlinZone: TimeZoneInfo) (utcNow: DateTime) : DateOnly =
     DateOnly.FromDateTime(Ledger.Bot.Domain.berlinDayOf berlinZone utcNow)
 
-/// Der Weg der Budget-Seite ohne Settings und Netz: Schlüssel prüfen, Token und Budget
+/// Der Weg der Budget-Seite ohne Settings und Netz: Monat prüfen, Token und Budget
 /// verlangen, Monat holen (`fetchMonth token budgetId monthKey`), Fehler lesbar machen.
 let budgetMonthFor
     (tokenOpt: string option)
     (budgetOpt: string option)
-    (today: DateOnly)
     (monthKeyText: string)
     (fetchMonth: string -> YnabBudgetId -> string -> Async<YnabResult<Shared.Budgeting.YnabMonth>>)
     : Async<Result<Shared.Budgeting.BudgetMonth, string>> =
     async {
-        match Validation.validateBudgetMonth monthKeyText with
+        match Validation.validateMonthKey monthKeyText with
         | Error message -> return Error message
-        | Ok choice ->
+        | Ok key ->
             match tokenOpt, budgetOpt with
             | None, _ -> return Error NoYnabToken
             | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
             | Some token, Some budgetId ->
-                let key = Server.Budgeting.Domain.monthKey today choice
                 match! fetchMonth token (YnabBudgetId budgetId) key with
                 | Error e -> return Error (ynabErrorText e)
                 | Ok month -> return Ok (Server.Budgeting.Domain.toBudgetMonth month)
     }
 
-/// Der Weg von "Targets anwenden" ohne Settings und Netz: Token und Budget verlangen, den
-/// YNAB-Port bauen (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden
-/// lesbar (`ynabErrorText`).
+/// Der Weg über Token und Budget ohne Settings und Netz: beide verlangen, den Port bauen
+/// (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden lesbar
+/// (`ynabErrorText`). Generisch über den Port: "Targets anwenden" und der Rahmen nutzen ihn.
 let targetsWith
     (tokenOpt: string option)
     (budgetOpt: string option)
-    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
-    (run: Server.Budgeting.CommandHandlers.YnabPort -> Async<Result<'a, YnabError>>)
+    (portFor: string -> YnabBudgetId -> 'port)
+    (run: 'port -> Async<Result<'a, YnabError>>)
     : Async<Result<'a, string>> =
     async {
         match tokenOpt, budgetOpt with
@@ -1748,13 +1746,12 @@ let targetsWith
             | Error e -> return Error (ynabErrorText e)
     }
 
-/// Prüft den Monats-Schlüssel von "Targets anwenden" und löst ihn gegen `today` auf.
+/// Prüft den Monat von "Targets anwenden" gegen den laufenden Monat.
 let private targetsMonthKey (today: DateOnly) (monthKeyText: string) : Result<string, string> =
-    Validation.validateTargetsMonth monthKeyText
-    |> Result.map (Server.Budgeting.Domain.monthKey today)
+    Validation.validateTargetsMonth (Server.Budgeting.Domain.currentMonthKey today) monthKeyText
 
-/// Vorschau von "Targets anwenden" ohne Settings und Netz. Der Monats-Schlüssel wird zuerst
-/// geprüft: ein abgelehnter Monat fragt YNAB nicht.
+/// Vorschau von "Targets anwenden" ohne Settings und Netz. Der Monat wird zuerst geprüft: ein
+/// abgelehnter Monat fragt YNAB nicht.
 let previewTargetsWith
     (tokenOpt: string option)
     (budgetOpt: string option)
@@ -1770,7 +1767,7 @@ let previewTargetsWith
     }
 
 /// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith`.
-/// `today` löst den Monat auf (Kalendertag in Berlin), `now` stempelt die Bewegung (UTC).
+/// `today` ist der Kalendertag in Berlin für die Monatsart, `now` stempelt die Bewegung (UTC).
 let applyTargetsWith
     (tokenOpt: string option)
     (budgetOpt: string option)
@@ -1816,12 +1813,27 @@ let private livePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting
     { FetchMonth = fun monthKey -> YnabClient.getMonth token budgetId monthKey
       SetAssigned = fun monthKey categoryId milliunits -> YnabClient.setAssigned token budgetId monthKey categoryId milliunits }
 
+/// Die Lese-Quellen des Rahmens (budgeting-g8s3w): echter Client für Monatsfenster und Reihenfolge.
+let private liveFramePort (token: string) (budgetId: YnabBudgetId) : Server.Budgeting.QueryHandlers.BudgetFramePort =
+    { FetchMonths = fun () -> YnabClient.getMonths token budgetId
+      FetchCategoryOrder =
+        fun () ->
+            async {
+                let! categories = YnabClient.getCategories token budgetId
+                return
+                    categories
+                    |> Result.map (List.map (fun c ->
+                        let (YnabCategoryId id) = c.Id
+                        id))
+            } }
+
 /// Die Budget-Seite ohne Settings, Netz und Uhr: liest den Monat live aus YNAB. Nur "Targets
 /// anwenden" und "Verschieben" schreiben (nach YNAB und in die Budget-Bewegungen). "Verschieben"
 /// braucht keinen Berliner Tag: der Monat kommt vom Client, die Uhr stempelt nur die Bewegung.
 let budgetApiWith
     (setting: string -> Async<string option>)
     (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    (framePortFor: string -> YnabBudgetId -> Server.Budgeting.QueryHandlers.BudgetFramePort)
     (utcNow: unit -> DateTime)
     (berlinZone: TimeZoneInfo)
     : BudgetApi =
@@ -1832,10 +1844,16 @@ let budgetApiWith
             return tokenOpt, budgetOpt
         }
     let today () = berlinToday berlinZone (utcNow ())
-    { getBudgetMonth = fun monthKeyText -> async {
+    { getBudgetFrame = fun () -> async {
+        let! tokenOpt, budgetOpt = ynabSettings ()
+        return! targetsWith tokenOpt budgetOpt framePortFor (fun port ->
+            Server.Budgeting.QueryHandlers.frame port (today ()))
+      }
+
+      getBudgetMonth = fun monthKeyText -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
         let fetchMonth token budgetId monthKey = (portFor token budgetId).FetchMonth monthKey
-        return! budgetMonthFor tokenOpt budgetOpt (today ()) monthKeyText fetchMonth
+        return! budgetMonthFor tokenOpt budgetOpt monthKeyText fetchMonth
       }
 
       previewTargets = fun monthKeyText -> async {
@@ -1863,9 +1881,14 @@ let budgetApiWith
         return! moveMoneyWith tokenOpt budgetOpt portFor (utcNow ()) monthKeyText request
       } }
 
+/// Die Budget-Seite mit den echten YNAB-Ports. Die Settings kommen als Parameter, damit der
+/// Integrationstest den Live-Anschluss ohne Eintrag in der Datenbank prüfen kann.
+let liveBudgetApi (setting: string -> Async<string option>) (berlinZone: TimeZoneInfo) : BudgetApi =
+    budgetApiWith setting livePort liveFramePort (fun () -> DateTime.UtcNow) berlinZone
+
 /// Die Budget-Seite der laufenden App. `berlinZone` wie in `webApp`.
 let budgetApi (berlinZone: TimeZoneInfo) : BudgetApi =
-    budgetApiWith Persistence.Settings.getSetting livePort (fun () -> DateTime.UtcNow) berlinZone
+    liveBudgetApi Persistence.Settings.getSetting berlinZone
 
 // ============================================
 // HTTP Handler

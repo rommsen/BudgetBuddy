@@ -96,11 +96,12 @@ let private colorSection =
         Primitives.Grid.three [
             // Volle Neon-Hintergründe (über bg-neon-* Klassen, nicht über text-Tokens)
             colorSwatch "bg-neon-orange" "Orange" "primär / CTA / Action"
-            colorSwatch "bg-neon-teal" "Teal" "sekundär / Navigation / Info"
+            colorSwatch "bg-neon-teal" "Teal" "Ausgewähltes / Navigation"
             colorSwatch "bg-neon-green" "Green" "Erfolg / positiv"
             colorSwatch "bg-neon-red" "Red" "Fehler / negativ"
             colorSwatch "bg-neon-purple" "Purple" "Akzent / Kategorie"
             colorSwatch "bg-neon-pink" "Pink" "Akzent / attention"
+            colorSwatch "bg-calm-yellow" "Gelb" "offen, kein Fehler"
         ]
 
         subTitle "Backgrounds (gestaffelte Tiefe)"
@@ -193,6 +194,7 @@ let private buttonSection =
                     Button.ghost "Ghost" ignore
                     Button.danger "Löschen" ignore
                 ]
+                note "Sekundär ist neutral mit grauem Rand, auch im Hover (ADR 0075). Teal steht für Ausgewähltes und Navigation."
                 row [
                     Button.primaryWithIcon "Hinzufügen" (Icons.plus Icons.SM Icons.Primary) ignore
                     Button.primaryLoading "Speichern…" true ignore
@@ -893,6 +895,7 @@ let private ToastDemo () =
 [<ReactComponent>]
 let private BottomSheetDemo () =
     let isOpen, setOpen = React.useState false
+    let inspectorOpen, setInspectorOpen = React.useState false
     let chosen, setChosen = React.useState ""
 
     section "18. BottomSheet (mobiles Picker-Muster)" [
@@ -920,6 +923,17 @@ let private BottomSheetDemo () =
                 BottomSheet.optionRow "Älteste zuerst" false ignore
             ]
         ]
+        subTitle "Feste Höhe (BottomSheet.inspector)"
+        note "500 px hoch, wird mit offener Tastatur kleiner. Der feste Bereich bleibt stehen, nur der Inhalt scrollt."
+        row [ Button.secondary "Sheet mit fester Höhe" (fun () -> setInspectorOpen true) ]
+        BottomSheet.inspector
+            { IsOpen = inspectorOpen
+              OnClose = fun () -> setInspectorOpen false
+              Title = "Lebensmittel"
+              Subtitle = None
+              Footer = None }
+            [ Html.p [ prop.className "text-sm text-text-secondary pb-2"; prop.text "Fester Bereich" ] ]
+            [ Html.p [ prop.className "text-sm text-text-muted"; prop.text "Scrollender Inhalt" ] ]
         BottomSheet.view
             {
                 IsOpen = isOpen
@@ -1134,14 +1148,6 @@ let private CategoryPickerSingleDemo () =
                     Money.available 35.45m "EUR"
                     Money.available -12.5m "EUR"
                     Money.available 0m "EUR"
-                ]
-            ]
-            Html.div [
-                prop.custom ("data-ds-demo", "money-available-button")
-                prop.className "flex items-center gap-4"
-                prop.children [
-                    Money.availableButton "Lebensmittel verschieben" Tokens.TouchTargets.minSize 35.45m "EUR" ignore
-                    Money.availableButton "Urlaub verschieben" Tokens.TouchTargets.minSize -12.5m "EUR" ignore
                 ]
             ]
             Html.div [
@@ -1417,6 +1423,26 @@ let private voiceSection =
 // ============================================
 // Filterleiste (ledger-j8xq4, design-system-bz0gn)
 // ============================================
+
+/// Tabs: gleich breite Segmente, der aktive in Teal. Hält den gewählten Tab selbst, damit die Karte
+/// ohne Msg-Fälle bedienbar ist.
+[<ReactComponent>]
+let private TabsDemo () =
+    let active, setActive = React.useState "Geld"
+    let tab label : Tabs.Tab =
+        { Label = label; IsActive = (active = label); OnClick = fun () -> setActive label }
+    section "23a. Tabs" [
+        note "Bereiche einer Sache in fester Höhe, erster Nutzer ist der Inspektor der Budget-Seite. styleguide.md §5."
+        Html.div [
+            prop.custom ("data-ds-card", "components-tabs")
+            prop.custom ("data-ds-card-name", "Tabs")
+            prop.custom ("data-ds-card-subtitle", "Gleich breite Segmente, aktiv in Teal")
+            prop.className "max-w-sm"
+            prop.children [
+                Tabs.bar "demo-tabs" "Beispiel" [ tab "Geld"; tab "Buchungen"; tab "Historie"; tab "Target" ]
+            ]
+        ]
+    ]
 
 /// ChipBar: aktive und inaktive Chips, mit und ohne "×", "Alle Filter löschen".
 let private chipBarSection =
@@ -1920,6 +1946,7 @@ let view () =
                         navigationSection
                         voiceSection
                         chipBarSection
+                        TabsDemo ()
                         FilterPopoverDemo()
                         FilterPopoverMenuDemo()
                         DetailDemo()

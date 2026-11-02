@@ -500,18 +500,21 @@ type LedgerApi = {
 /// anwenden" (`applyTargets`, `retryFailedTargets`) und "Verschieben" (`moveMoney`) schreiben,
 /// nach YNAB und in die Budget-Bewegungen.
 type BudgetApi = {
-    /// Holt den Monat mit Zu verteilen und den Kategorien nach Gruppe. Der Schlüssel ist
-    /// "last" (Vormonat), "current" (laufender Monat) oder "next" (nächster Monat); alles
-    /// andere lehnt die Grenze ab. Error mit lesbarer Meldung bei fehlendem Token oder Budget, bei YNAB-Fehlern
-    /// (auch 429) und bei ungültigem Monat.
+    /// Holt den Rahmen der Seite: laufender Monat, Monatsfenster und Kategorie-Reihenfolge
+    /// (ADR 0074). Error mit lesbarer Meldung bei fehlendem Token oder Budget und bei YNAB-Fehlern.
+    getBudgetFrame: unit -> Async<Result<Shared.Budgeting.BudgetFrame, string>>
+
+    /// Holt den Monat ("YYYY-MM-01") mit Zu verteilen und den Kategorien nach Gruppe. Ein ungültiger
+    /// Monat wird an der Grenze abgelehnt. Error mit lesbarer Meldung bei fehlendem Token oder
+    /// Budget und bei YNAB-Fehlern, auch 429 und "Monat nicht offen" (404).
     getBudgetMonth: string -> Async<Result<Shared.Budgeting.BudgetMonth, string>>
 
-    /// Vorschau von "Targets anwenden" für den Monatsschlüssel ("current"/"next"): liest den
-    /// Monat live, schreibt weder nach YNAB noch in die Datenbank. "last" lehnt die Grenze ab,
+    /// Vorschau von "Targets anwenden" für den Monat ("YYYY-MM-01"): liest den Monat live, schreibt
+    /// weder nach YNAB noch in die Datenbank. Ein vergangener Monat wird an der Grenze abgelehnt,
     /// ohne YNAB zu fragen.
     previewTargets: string -> Async<Result<Shared.Budgeting.TargetPreview, string>>
 
-    /// "Übernehmen" (Monatsschlüssel wie bei `previewTargets`, "last" wird abgelehnt): liest
+    /// "Übernehmen" (Monat wie bei `previewTargets`, ein vergangener wird abgelehnt): liest
     /// den Monat neu und vergleicht mit der übergebenen Vorschau. Weicht
     /// etwas ab, wird nichts geschrieben und die neue Vorschau kommt zurück. Sonst werden die
     /// Budget-Bewegungen festgehalten und die Zuweisungen nacheinander nach YNAB geschrieben.
