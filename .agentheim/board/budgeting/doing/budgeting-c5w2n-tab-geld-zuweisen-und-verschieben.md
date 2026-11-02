@@ -242,3 +242,11 @@ FAIL. `./verify.sh` war grün, die Gründe liegen im Verhalten und in der Abdeck
 - "Rahmen still nachziehen": der Test geht nicht durch `AssignAnswered`, `AssignCallLost` ist ungedeckt.
 - Esc im Feld Zugewiesen, Enter und Esc im Betragsfeld haben keinen Test der Verdrahtung.
 - Regel 3: die Live-Stellen von `assignMoneyWith` fehlen im Outcome.
+
+## Verifier-Note Iteration 2
+
+FAIL. `./verify.sh` war grün, die Punkte 1 bis 3 der ersten Note sind behoben.
+
+- Regel 3: `Api.fs:1913` (`livePort`, `liveFramePort`) und `Api.fs:1917` (`getSetting`) sind nicht belegt. Beleg per Strukturwächter in `apiWirings` (`StructureGuardTests.fs:635`), ohne Netz.
+- ADR 0078 Punkt 5 auf dem Weg "Erneut senden": `startMoveRetry` prüft die Schlange nicht, `inspectorBusy` kennt `RetryRunning` nicht, `applyMoveRetried` trägt den Bericht nicht ein. Fehlbetrag +12,30 scheitert bei 900, "Erneut senden" läuft, Schritt +10 reiht 910 ein und nimmt 912,30 zurück.
+- Nach `MoveCallLost` ist das Feld bis zum Neu-Lesen frei und rechnet vom alten Stand.
