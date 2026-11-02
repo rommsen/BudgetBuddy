@@ -5,6 +5,30 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:39 -- Task verified and completed: budgeting-v4ht9 - "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen"
+
+**Type:** Work / Task completion
+**Task:** budgeting-v4ht9 - "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen"
+**Summary:** Vier ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen.
+**Duration:** 9m
+**Verification:** PASS (iteration 2)
+**Files changed:** 0
+**Tests added:** 0
+**ADRs written:** 0072, 0073, 0074, 0075
+
+---
+
+## 2026-11-02 12:37 -- Verification failed: budgeting-v4ht9 - ADRs zur Budget-Seite
+
+**Type:** Work / Verification failure
+**Task:** budgeting-v4ht9 - ADRs zur Budget-Seite
+**Iteration:** 1 of 3
+**Reasons:** ADR 0073 nimmt die Aufzeichnung der Pause vorweg, README_DELTA doppelt die offene Frage, zwei Formulierungen in ADR 0074
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-02 12:31 -- Batch started: [budgeting-v4ht9]
 
 **Type:** Work / Batch start

@@ -186,8 +186,7 @@ Kassenbuch-Begriffe gelten unverändert; verbindliche Definitionen in den BC-REA
   pro Kategorie und Monat zu setzen?~~ Gelöst (Spike `budgeting-r4tkq`, 2026-10-25): ja,
   inklusive Fehlbetrag pro Kategorie (`goal_under_funded`); Bericht
   `research/ynab-api-targets-zuweisung-2026-10-25.md`.
-- **Wer führt die Targets?** Bis Stufe 3 YNAB (BB spiegelt und wendet an), danach BB.
-  Wie der Wechsel aussieht und was mit in YNAB geänderten Targets passiert, ist offen.
+- **Wer führt die Targets?** Für die Spiegel-Phase beantwortet (ADR 0072): YNAB führt, BB bearbeitet und zieht nach, die Pause liegt in BB (ADR 0073). Offen ist nur, wie der Wechsel zu BB als führendem System aussieht.
   (open since 2026-10-25)
 - **Woher kennt BB Verfügbar und Zu verteilen?** Selbst rechnen aus Kassenbuch und
   Budget-Bewegungen, oder von YNAB übernehmen und abgleichen? Eng verbunden mit

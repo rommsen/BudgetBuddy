@@ -12,8 +12,8 @@ Catalog of this bounded context's tasks by status.
 <!-- task-counts:start -->
 - **Backlog:** 6
 - **Todo:** 0
-- **Doing:** 1
-- **Done:** 10
+- **Doing:** 0
+- **Done:** 11
 <!-- task-counts:end -->
 
 ### Todo
@@ -22,11 +22,11 @@ Catalog of this bounded context's tasks by status.
 
 ### Doing
 <!-- doing-list:start -->
-- **budgeting-v4ht9** — "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen" (decision) — `doing/budgeting-v4ht9-entscheidungen-budget-seite.md`
 <!-- doing-list:end -->
 
 ### Done (most recent first; older entries kept for prior-art search)
 <!-- done-list:start -->
+- **budgeting-v4ht9** — "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen" (decision) — `done/budgeting-v4ht9-entscheidungen-budget-seite.md`
 - **budgeting-q7m2c** — "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?" (spike) — `done/budgeting-q7m2c-spike-ynab-reihenfolge-monate-target-schreiben.md`
 - **budgeting-kjsht** — "Targets sichtbar: Budget-Seite und Vorschau zeigen je Kategorie den Target-Betrag mit Rhythmus, die Budget-Seite auch den Fehlbetrag" (feature) — `done/budgeting-kjsht-targets-sichtbar.md`
 - **budgeting-et7z8** — "Budget-Seite: dritter Knopf Letzter Monat, Verschieben geht dort, Targets anwenden nicht" (feature) — `done/budgeting-et7z8-letzter-monat.md`
