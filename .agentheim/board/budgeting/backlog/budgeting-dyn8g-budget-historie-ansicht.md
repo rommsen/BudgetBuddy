@@ -49,3 +49,6 @@ Verfeinert am 2026-10-29. **Entscheidungen (Roman, 2026-10-29):**
 "Wer" aus der Vision entfällt vorerst: nur Roman budgetiert (README, Actors). Die Herkunft steht für "wie".
 
 **Gesamtkonzept (2026-11-02), Task 3 von 5, geht den Regeln oben vor:** Das Kategorie-Detail gibt es dann als Inspektor (budgeting-g8s3w). Der Abschnitt "Bewegungen" wird zum Tab Historie mit dem Aufbau von Verfügbar (Vortrag, Zugewiesen, Aktivität), den Bewegungen und einem Balken der Ausgaben der letzten 6 Monate aus dem Kassenbuch. Der Knopf Historie im Seitenkopf öffnet die allgemeine Ansicht. Die Regeln stehen in `docs/ux/budget/konzept.md`. Die Akzeptanzkriterien werden in der taktischen Modellierung darauf gezogen.
+
+## Hinweise aus dem Review von budgeting-g8s3w
+Das Lade-Muster gilt nur für Buchungen (`Types.fs:255`, `:791`, `:842`). Auf `tabDataDue` mit Schlüssel `(CategoryId, Monat)` verallgemeinern, sonst braucht die Historie dieselben drei Reset-Stellen und eine eigene Generation. `Reloaded` invalidiert nichts, die Historie wäre nach einer Verschiebung veraltet.

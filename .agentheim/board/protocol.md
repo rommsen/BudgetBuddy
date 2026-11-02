@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 14:29 -- Modeling / Promoted: budgeting-p4n6r - "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-02 14:24 -- Work session ended
 
 **Type:** Work / Session end

@@ -34,3 +34,6 @@ Werden in der taktischen Modellierung geschärft.
 - [ ] Target-Änderung, die YNAB ablehnt, wird konkret gemeldet.
 - [ ] Neue Spalten und Tabellen sind auf bestehender Datenbank wiederholbar angelegt.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Hinweise aus dem Review von budgeting-g8s3w
+`matchesFilter` (`Types.fs:409`) sieht nur die Kategorie. Der Prüf-Filter aus budgeting-m3x7f braucht ein Feld an `BudgetCategory` oder einen Parameter, das hier entscheiden.

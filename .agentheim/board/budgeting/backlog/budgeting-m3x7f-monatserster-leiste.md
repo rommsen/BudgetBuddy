@@ -30,3 +30,6 @@ Werden in der taktischen Modellierung geschärft.
 - [ ] Ausblenden überlebt das Neuladen im selben Monat, nicht den Monatswechsel.
 - [ ] Browser-Wächter: Happy Path am Handy von der Leiste bis zum Bericht.
 - [ ] `./verify.sh` zeigt `VERIFY: PASS`.
+
+## Hinweise aus dem Review von budgeting-g8s3w
+`PreviewReady` und `ApplyDone` (`Types.fs:22`, `:29`) für die abwählbaren Zeilen zu Records machen. `confirmTargets` schickt heute die ganze Vorschau.
