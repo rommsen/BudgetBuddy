@@ -14,12 +14,8 @@
 // "Verspätete Antworten"). Hier steht, was nur der echte Client belegt: der Ablauf mit Status 0
 // und dass jede Abfrage ihre Generation wirklich mitgibt.
 //
-// Tabelle "Aufrufstellen im Browser": getLedgerAccountBalances, getCategories (Kassenbuch),
-// getAllRules, getRecentQuickAddTemplates, getEntryHistory, getLedgerPayeeSuggestions. Dazu oben
-// getLedgerEntriesPage (Ladeweg). Nur im Inventar von `src/Tests/RetryTests.fs` stehen
-// getBudgetAccounts, getSettings (Quick-Add-Konto), getPayeeCategorySuggestions, getLedgerEntry,
-// getLedgerEntriesPage (Summen) und getCategories (Regeln): ihr Auslöser braucht hier einen
-// langen Klickweg.
+// Im Browser läuft hier nur der Ladeweg von getLedgerEntriesPage. Die Verdrahtung je Aufrufstelle
+// sichert das Inventar in `src/Tests/RetryTests.fs`.
 //
 // Ausführen: npm run test:scripts -- scripts/ledger-read-retry.test.mjs
 
@@ -32,7 +28,7 @@ import {
   buildBalancesFixture,
   buildEntryFixture,
 } from "./ledger-status-column.mjs";
-import { mockFilterBarApi, buildCategoriesFixture } from "./ledger-filter-bar.mjs";
+import { mockFilterBarApi } from "./ledger-filter-bar.mjs";
 
 const ERROR_TITLE = "Buchungen konnten nicht geladen werden";
 const PAYEE = "Wiederholungszeile";
@@ -200,77 +196,7 @@ test("Das späte Scheitern der alten Abfrage zeigt über der neueren Liste keine
   }
 });
 
-// --- Tabelle: Aufrufstellen im Browser. Der erste Aufruf bricht ab, der zweite liefert. ---
-
-const clickFirstRow = (page) => page.locator("tbody tr", { hasText: "REWE Mitte" }).filter({ visible: true }).first().locator("td").nth(2).click();
 const openPayeeChip = (page) => page.getByRole("button", { name: /^Payee/ }).filter({ visible: true }).first().click();
-
-/// Etwas unter der ersten Pause von `Retry.defaultDelaysMs` (400 ms).
-const RETRY_PAUSE_MS = 300;
-
-const CALL_SITES = [
-  { route: "/ledger", api: "LedgerApi", method: "getLedgerAccountBalances", answer: (a) => buildBalancesFixture(a.Accounts) },
-  // Die Seite ruft `getCategories` am Start doppelt: SyncFlow ungeschützt (gehört zu
-  // ynab-sync-k3vq8), das Kassenbuch über den Helfer. Das Fenster bricht beide ab.
-  { route: "/ledger", api: "YnabApi", method: "getCategories", answer: () => ({ Ok: buildCategoriesFixture() }), abortWindowMs: 200 },
-  { route: "/rules", api: "RulesApi", method: "getAllRules", answer: () => [] },
-  { route: "/quickadd", api: "YnabApi", method: "getRecentQuickAddTemplates", answer: () => ({ Ok: [] }) },
-  { route: "/ledger", api: "LedgerApi", method: "getEntryHistory", answer: () => [], act: clickFirstRow },
-  { route: "/ledger", api: "LedgerApi", method: "getLedgerPayeeSuggestions", answer: () => [], act: openPayeeChip },
-];
-
-for (const { route: path, api, method, answer, act, abortWindowMs = 0 } of CALL_SITES) {
-  test(`${method} (${path}) übersteht einen Abbruch`, async () => {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const page = await context.newPage();
-    page.setDefaultTimeout(15000);
-    const accounts = buildAccountsFixture(2);
-    await page.route("**/api/**", (route) =>
-      route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
-    );
-    await mockFilterBarApi(page, { accountsFixture: accounts, balancesFixture: buildBalancesFixture(accounts.Accounts) });
-    await page.route("**/api/LedgerApi/mirrorYnabBudget", () => {});
-    // Beleg ist nur ein Aufruf nach der Pause des Helfers, ein zweiter Start-Aufruf zählt nicht.
-    let abortedAt = null;
-    let retried;
-    let rejectRetry;
-    let retryTimer;
-    let firstCall;
-    let firstCallTimer;
-    const retry = new Promise((resolve, reject) => {
-      retried = resolve;
-      rejectRetry = reject;
-    });
-    const called = new Promise((resolve, reject) => {
-      firstCall = resolve;
-      firstCallTimer = setTimeout(() => reject(new Error(`${method}: kein erster Aufruf`)), 30000);
-    });
-    await page.route(`**/api/${api}/${method}`, async (route) => {
-      if (abortedAt === null) {
-        abortedAt = Date.now();
-        // Die 5 Sekunden gelten der Wiederholung und laufen erst ab dem ersten Aufruf.
-        retryTimer = setTimeout(() => rejectRetry(new Error(`${method}: keine Wiederholung`)), 5000);
-        firstCall();
-      }
-      if (Date.now() - abortedAt <= abortWindowMs) return route.abort("connectionreset");
-      await json(route, answer(accounts));
-      if (Date.now() - abortedAt >= RETRY_PAUSE_MS) retried();
-    });
-    try {
-      await page.goto(`http://127.0.0.1:${frontendPort}/#${path}`, { waitUntil: "load" });
-      if (act) {
-        await waitForPageLoaded(page, path);
-        await act(page);
-      }
-      await called;
-      await retry;
-    } finally {
-      clearTimeout(firstCallTimer);
-      clearTimeout(retryTimer);
-      await context.close();
-    }
-  });
-}
 
 // Beide Ausgänge der Abfrage geben ihre Generation mit: sonst gälte die Antwort als alt, und das
 // offene Popover fragte ohne Ende neu.

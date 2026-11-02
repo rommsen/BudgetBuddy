@@ -5,6 +5,19 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 21:24 -- Task verified and completed: infrastructure-h4q8v - "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
+
+**Type:** Work / Task completion
+**Task:** infrastructure-h4q8v - "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
+**Summary:** Wackeltabelle aus ledger-read-retry gelöscht, das Inventar in RetryTests.fs sichert die Aufrufstellen
+**Duration:** unter 30m
+**Verification:** PASS (iteration 1)
+**Files changed:** 2
+**Tests added:** 0
+**ADRs written:** none
+
+---
+
 ## 2026-11-02 21:14 -- Batch started: [infrastructure-h4q8v]
 
 **Type:** Work / Batch start

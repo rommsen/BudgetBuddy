@@ -129,7 +129,9 @@ let tests =
         // nach einem Verbindungsabbruch, die Buchungsliste war nicht geschützt). Der
         // Fable.Remoting-Proxy läuft unter .NET nicht, deshalb hält der Test das Inventar je
         // Datei im Quelltext fest. Die Listen sind vollständig: fehlt `Retry.reading` an einer
-        // Aufrufstelle oder kommt ein Schreibaufruf dazu, weicht die Datei ab.
+        // Aufrufstelle oder kommt ein Schreibaufruf dazu, weicht die Datei ab. Das Inventar ist die
+        // einzige Absicherung der Aufrufstellen, ein Browser-Wächter je Aufrufstelle besteht nicht
+        // (infrastructure-h4q8v).
         test "die Inventare der lesenden Abfragen laufen über den Helfer, kein Schreibaufruf" {
             // Gegenbeweis: der Abgleich erkennt beide Schreibweisen und lässt rohe Aufrufe aus.
             Expect.equal (wrappedCalls "(Retry.reading\n  Api.ledger.a)") [ "a" ] "direkt umhüllt"

@@ -1,7 +1,7 @@
 ---
 id: infrastructure-h4q8v
 title: "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
-status: doing
+status: done
 type: bug
 context: infrastructure
 created: 2026-11-02
@@ -53,3 +53,11 @@ In `scripts/ledger-read-retry.test.mjs` die Tabelle mit allem entfernen, was nur
 Kein neuer Regressionstest: Der Bug saß im gelöschten Test.
 
 infrastructure-v3tqk beschreibt denselben Bug. Die Ursache steht hier, mit der Tabelle entfällt das Flackern.
+
+## Outcome
+
+Die Tabelle "übersteht einen Abbruch" ist aus `scripts/ledger-read-retry.test.mjs` entfernt, damit entfällt das Flackern des Gates. Gelöscht sind `CALL_SITES`, die Schleife, `RETRY_PAUSE_MS`, `clickFirstRow` und der Import `buildCategoriesFixture`. `openPayeeChip` bleibt und steht jetzt direkt vor `openPayeePopover`, `mockFilterBarApi` und die übrigen Importe bleiben, weil sie weiter benutzt werden.
+
+Der Kopfkommentar der Datei beschreibt die Tabelle nicht mehr und verweist für die Verdrahtung je Aufrufstelle auf das Inventar in `src/Tests/RetryTests.fs`. Der Kommentar am Inventar nennt es als einzige Absicherung der Aufrufstellen.
+
+Geprüft: `./verify.sh` zeigt `VERIFY: PASS` (dotnet 3339, node 458). Kein neuer Regressionstest, der Bug saß im gelöschten Test.
