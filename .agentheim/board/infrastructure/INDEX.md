@@ -10,7 +10,7 @@ research touching this BC, and concept synthesis pages.
 ## Tasks by status
 
 <!-- task-counts:start -->
-- **Backlog:** 10
+- **Backlog:** 11
 - **Todo:** 1
 - **Doing:** 0
 - **Done:** 37
@@ -32,6 +32,7 @@ research touching this BC, and concept synthesis pages.
 
 ### Backlog
 <!-- backlog-list:start -->
+- **infrastructure-h4q8v** — "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200" (bug) — `backlog/infrastructure-h4q8v-w-chter-ledger-read-retry-m-gliches-lastrennen-bei-abortwind.md`
 - **infrastructure-v3tqk** — "Wächter ledger-read-retry flackert bei getLedgerPayeeSuggestions unter Last" (bug) — `backlog/infrastructure-v3tqk-ledger-read-retry-flackert.md`
 - **infrastructure-w7d2c** — "YnabClient.createTransactions hat keinen Aufrufer mehr und fliegt raus" (chore) — `backlog/infrastructure-w7d2c-ynabclient-createtransactions-hat-keinen-aufrufer-mehr-und-f.md`
 - **infrastructure-p9kd4** — "Kassenbuch: Nachladen mit eingefrorener Query kann eine Zeile überspringen, wenn währenddessen eine Zeile aus der Liste fällt" (bug) — `backlog/infrastructure-p9kd4-kassenbuch-nachladen-mit-eingefrorener-query-kann-eine-zeile.md`

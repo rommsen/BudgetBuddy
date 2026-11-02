@@ -100,16 +100,17 @@ type Model = {
     Frame: RemoteData<BudgetFrame>
     /// Der gewählte Monat. `None` heißt laufender Monat: ein offener Tab springt am Monatsersten mit.
     ChosenMonth: string option
-    /// Der geladene Monat, Gruppen und Kategorien in Romans Reihenfolge.
+    /// Der geladene Monat, Gruppen und Kategorien in Romans Reihenfolge. Beim Blättern bleibt der alte
+    /// Monat hier stehen, bis die Antwort kommt (`monthChanging`).
     Month: RemoteData<BudgetMonth>
     /// Der Dialog "Targets anwenden".
     Targets: TargetsState
-    /// Suchtext über der Kategorie-Liste (budgeting-rxxb4). Bleibt beim Monatswechsel stehen,
-    /// wird nicht gespeichert.
+    /// Suchtext über der Kategorie-Liste (budgeting-rxxb4). Bleibt beim Monatswechsel stehen, wird
+    /// nicht gespeichert.
     CategorySearch: string
     /// Filter über der Liste. Bleibt beim Monatswechsel stehen.
     Filter: CategoryFilter
-    /// Das offene Sheet "Verschieben".
+    /// Das offene "Verschieben", am Handy als Sheet, am PC als Dialog.
     Move: MoveForm option
     /// Verschiebungen, die noch erneut gesendet werden können.
     OpenRetries: OpenMoveRetry list
@@ -236,6 +237,20 @@ let shownMonthKind (model: Model) : MonthKind option =
     | Success frame, Some month -> Some (monthKind frame.CurrentMonth month)
     | _ -> None
 
+/// Läuft ein Monatswechsel? `Month` zeigt noch den alten Monat, `shownMonth` schon den neuen. Das
+/// folgt aus beiden Feldern, ein eigener Merker könnte auseinanderlaufen.
+let monthChanging (model: Model) : bool =
+    match model.Month, shownMonth model with
+    | Success month, Some shown -> month.Month <> shown
+    | _ -> false
+
+/// Die Monatsart des Monats, den die Seite gerade darstellt. Während eines Wechsels ist das noch der
+/// alte: der Knopf "Targets anwenden" springt nicht vor der Antwort.
+let displayedMonthKind (model: Model) : MonthKind option =
+    match model.Frame, model.Month with
+    | Success frame, Success month -> Some (monthKind frame.CurrentMonth month.Month)
+    | _ -> None
+
 /// Der Monat davor im Fenster. Per Vergleich: trägt auch für einen Monat außerhalb des Fensters.
 let previousMonth (months: string list) (month: string) : string option =
     months |> List.filter (fun m -> compare m month < 0) |> List.tryLast
@@ -257,9 +272,28 @@ let private resetEntries (model: Model) : Model =
         Selected = model.Selected |> Option.map (fun s -> { s with Entries = NotAsked })
         EntriesGeneration = model.EntriesGeneration + 1 }
 
+/// Der Monat wechselt: neue Generation, eine laufende Antwort zählt nicht mehr. Fertige Buchungen
+/// bleiben bis zur Antwort des Monats zu sehen, laufende werden wieder ungefragt.
+let private invalidateEntries (model: Model) : Model =
+    { model with
+        Selected =
+            model.Selected
+            |> Option.map (fun s ->
+                match s.Entries with
+                | Loading -> { s with Entries = NotAsked }
+                | _ -> s)
+        EntriesGeneration = model.EntriesGeneration + 1 }
+
+/// Ist `month` ein anderer Monat als der bisher gezeigte? Dann gelten die Buchungen nicht mehr.
+let private entriesOutdated (model: Model) (month: BudgetMonth) : bool =
+    match model.Month with
+    | Success previous -> previous.Month <> month.Month
+    | _ -> true
+
 /// Antwort einnehmen. Eine Antwort einer älteren Abfrage wird verworfen, damit ein langsamer
 /// Aufruf den gerade gezeigten Monat nicht überschreibt. Fehlt X im neuen Stand, schließt ein
 /// offenes Sheet, außer während des Aufrufs. Fehlt die gewählte Kategorie, endet die Auswahl.
+/// Kommt ein anderer Monat, sind die Buchungen wieder fällig.
 let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: Model) : Model =
     if generation <> model.MonthGeneration then
         model
@@ -273,40 +307,48 @@ let applyLoaded (generation: int) (result: Result<BudgetMonth, string>) (model: 
             let selected =
                 model.Selected
                 |> Option.filter (fun s -> categoriesOf month |> List.exists (fun c -> c.Id = s.CategoryId))
-            { model with Month = Success month; Move = move; Selected = selected }
+            let settled = { model with Month = Success month; Move = move; Selected = selected }
+            if entriesOutdated model month then resetEntries settled else settled
         | Error message -> { model with Month = Failure message }
 
 /// Das stille Neu-Lesen nach einer Verschiebung. Scheitert es, bleibt die Liste stehen und ein
-/// Hinweis nennt den Grund: die Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel.
+/// Hinweis nennt den Grund: die Seite verliert nicht ihren Stand, weil ein Nachladen ausfiel. Das
+/// gilt nicht während eines Monatswechsels: dann fehlt der neue Monat, und die Fehlerkarte mit
+/// Wiederholen steht da.
 let applyReloaded
     (generation: int)
     (result: Result<BudgetMonth, string>)
     (model: Model)
     : Model * ExternalMsg =
     match model.Month, result with
-    | Success _, Error message when generation = model.MonthGeneration ->
+    | Success _, Error message when generation = model.MonthGeneration && not (monthChanging model) ->
         model, ShowToast ($"Beträge nicht neu gelesen, sie können veraltet sein: {message}", ToastWarning)
     | _ -> applyLoaded generation result model, NoOp
 
-/// Monat wählen. Derselbe Monat noch einmal ändert nichts (`false`); ein anderer setzt den
-/// Monat auf `Loading` (`true` heißt: der Aufrufer muss laden). Id und Tab bleiben, die Buchungen
-/// kommen neu. Der laufende Monat wird zu `ChosenMonth = None`.
+/// Monat wählen. Derselbe Monat noch einmal ändert nichts (`false`); ein anderer lädt (`true` heißt:
+/// der Aufrufer muss laden). Ein geladener Monat bleibt bis zur Antwort stehen, sonst steht `Loading`.
+/// Id und Tab bleiben. Der laufende Monat wird zu `ChosenMonth = None`.
 let select (month: string) (model: Model) : Model * bool =
     match model.Frame with
     | Success frame when shownMonth model <> Some month || model.Month = NotAsked ->
         let chosen = if month = frame.CurrentMonth then None else Some month
-        requestMonth (resetEntries { model with ChosenMonth = chosen; Month = Loading }), true
+        let month' =
+            match model.Month with
+            | Success _ -> model.Month
+            | _ -> Loading
+        requestMonth (invalidateEntries { model with ChosenMonth = chosen; Month = month' }), true
     | _ -> model, false
 
 /// Rahmen und Monat holen beginnt. Ein vorhandener Rahmen bleibt stehen, der Monat kommt nach der
-/// Antwort auf den Rahmen.
+/// Antwort auf den Rahmen. Eine noch laufende Monatsantwort zählt ab jetzt nicht mehr.
 let beginLoad (model: Model) : Model =
-    { model with
-        Month = Loading
-        Frame =
-            match model.Frame with
-            | Success _ -> model.Frame
-            | _ -> Loading }
+    requestMonth
+        { model with
+            Month = Loading
+            Frame =
+                match model.Frame with
+                | Success _ -> model.Frame
+                | _ -> Loading }
 
 /// Antwort auf den Rahmen. Der Monat folgt (`true`), außer der erste Rahmen scheiterte: dann gibt
 /// es keinen Monat zu zeigen, die Seite zeigt den Fehler mit Wiederholen. Gibt es schon einen
@@ -321,11 +363,17 @@ let applyFrameLoaded (result: Result<BudgetFrame, string>) (model: Model) : Mode
     | Error message, _ -> { model with Frame = Failure message; Month = Failure message }, NoOp, false
 
 /// Das stille Nachlesen. Scheitert es, bleibt das alte Fenster ohne Meldung, der nächste
-/// Seitenaufruf heilt es.
-let applyFrameRefreshed (result: Result<BudgetFrame, string>) (model: Model) : Model =
+/// Seitenaufruf heilt es. Ändert es den gezeigten Monat (Monatswechsel während die Seite offen ist),
+/// liest der Aufrufer ihn neu (`true`), wie nach `applyFrameLoaded`. Die Liste bleibt bis dahin stehen.
+let applyFrameRefreshed (result: Result<BudgetFrame, string>) (model: Model) : Model * bool =
     match result with
-    | Ok frame -> { model with Frame = Success frame }
-    | Error _ -> model
+    | Ok frame ->
+        let refreshed = { model with Frame = Success frame }
+        if shownMonth refreshed <> shownMonth model then
+            requestMonth (invalidateEntries refreshed), true
+        else
+            refreshed, false
+    | Error _ -> model, false
 
 /// Kann der Bericht das Fenster geöffnet haben?
 let frameDueAfterReport (report: ApplyReport) (model: Model) : bool =
@@ -338,6 +386,13 @@ let frameDueAfterLostCall (model: Model) : bool =
     match model.Frame, shownMonth model with
     | Success frame, Some month -> isLastMonth frame.Months month
     | _ -> false
+
+/// Nach "Erneut senden": mit Bericht wie nach `frameDueAfterReport`. Scheiterte der Aufruf, kann der
+/// Lauf YNAB trotzdem erreicht haben, der Ausgang ist unbekannt.
+let frameDueAfterRetry (result: Result<ApplyReport, string>) (model: Model) : bool =
+    match result with
+    | Ok report -> frameDueAfterReport report model
+    | Error _ -> frameDueAfterLostCall model
 
 let private monthNames =
     [| "Januar"; "Februar"; "März"; "April"; "Mai"; "Juni"
@@ -451,7 +506,8 @@ let categoryOrder (model: Model) : System.Guid list =
 /// Vorschau holen.
 let openTargets (model: Model) : Model * bool =
     match model.Month, model.Targets with
-    | Success _, (TargetsClosed | PreviewFailed _) when shownMonthKind model |> Option.exists targetsAllowed ->
+    | Success _, (TargetsClosed | PreviewFailed _)
+        when shownMonthKind model |> Option.exists targetsAllowed && not (monthChanging model) ->
         { model with Targets = PreviewLoading }, true
     | _ -> model, false
 
@@ -632,10 +688,11 @@ let moveHeadline (month: BudgetMonth) (form: MoveForm) : string =
     if form.IsSource then $"Von {name} nach {other}"
     else $"{name} decken aus {other}"
 
-/// Sheet öffnen, nur bei geladenem Monat, bekannter Kategorie und ohne offenen Dialog.
+/// Sheet öffnen, nur bei geladenem Monat, bekannter Kategorie und ohne offenen Dialog. Während eines
+/// Monatswechsels nicht: der Auftrag ginge in den alten Monat.
 let openMove (categoryId: System.Guid) (model: Model) : Model =
     match model.Month, model.Targets, model.Move with
-    | Success month, TargetsClosed, None ->
+    | Success month, TargetsClosed, None when not (monthChanging model) ->
         match categoriesOf month |> List.tryFind (fun c -> c.Id = categoryId) with
         | Some category -> { model with Move = Some (openMoveForm category) }
         | None -> model
@@ -826,11 +883,12 @@ let stepSelection (direction: Direction) (model: Model) : Model =
         | None -> model
     | _ -> model
 
-/// Sind die Buchungen fällig? Nur im Tab Buchungen, bei geladenem Monat und `NotAsked`. Das liest
-/// nur das Kassenbuch und kostet kein YNAB-Limit.
+/// Sind die Buchungen fällig? Nur im Tab Buchungen, bei geladenem Monat und `NotAsked`, nicht während
+/// eines Monatswechsels. Das liest nur das Kassenbuch und kostet kein YNAB-Limit.
 let entriesDue (model: Model) : (System.Guid * string) option =
     match model.Tab, model.Selected, model.Month with
-    | EntriesTab, Some { CategoryId = id; Entries = NotAsked }, Success month -> Some (id, month.Month)
+    | EntriesTab, Some { CategoryId = id; Entries = NotAsked }, Success month when not (monthChanging model) ->
+        Some (id, month.Month)
     | _ -> None
 
 /// Setzt die Buchungen auf `Loading`, wenn sie fällig sind. Gibt die Abfrage für den Aufrufer zurück.
@@ -875,7 +933,8 @@ type PageEntry =
 
 /// Die Seite wird betreten. Ein Sheet überlebt den Seitenwechsel nicht. Wartet die Auswahl auf die
 /// Rückkehr aus dem Kassenbuch, stehen Auswahl, Tab, Filter und Suche wieder da und die Liste kommt
-/// neu, weil die Buchung dort geändert worden sein kann. Sonst beginnt die Seite von vorn.
+/// neu, weil die Buchung dort geändert worden sein kann. Sonst beginnt die Seite von vorn, beim
+/// laufenden Monat.
 let enterPage (model: Model) : Model * PageEntry =
     let entered = { model with Move = None }
     if returnPending model then
@@ -886,6 +945,7 @@ let enterPage (model: Model) : Model * PageEntry =
         returned, ReturnedFromLedger
     else
         { entered with
+            ChosenMonth = None
             CategorySearch = ""
             Filter = AllCategories
             Selected = None

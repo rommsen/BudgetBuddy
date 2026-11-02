@@ -243,6 +243,81 @@ const failMove = async (page) => {
   assert.match(await text(page.locator('[data-testid="move-retry"]')), /Nicht vollständig verschoben \(November 2026\)/, "der Hinweis nennt seinen Monat");
 };
 
+// Bug 1 aus budgeting-p4n6r: Überholte die Antwort auf "Erneut senden" den Monatswechsel, kam der Monat
+// über `Reloaded`, die Buchungen wurden nicht geholt und das Skeleton blieb stehen.
+test("Überholt das Neu-Lesen nach Erneut senden einen Monatswechsel, kommen die Buchungen des neuen Monats", async () => {
+  const { context, page } = await openPage(390, 844, {
+    move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),
+    retry: () => ({ Error: "weg" }),
+  });
+  try {
+    await failMove(page);
+    const lists = [];
+    await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) => {
+      lists.push(route.request().postDataJSON()[0].Month);
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ Ok: [] }) });
+    });
+    await page.locator('.bottom-sheet.active [data-testid="inspector-tabs"]').getByRole("tab", { name: "Buchungen" }).click();
+    await page.locator('[data-testid="detail-empty"]').waitFor();
+
+    let releaseRetry;
+    const retryGate = new Promise((resolve) => {
+      releaseRetry = resolve;
+    });
+    await page.route("**/api/BudgetApi/retryFailedTargets", async (route) => {
+      await retryGate;
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ Error: "weg" }) });
+    });
+    // Die Antwort auf den Wechsel bleibt aus, nur das Neu-Lesen nach "Erneut senden" kommt durch.
+    const heldMonths = [];
+    await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
+      const [key] = JSON.parse(route.request().postData() ?? "[]");
+      if (key === "2026-10-01" && heldMonths.length === 0) {
+        heldMonths.push(route);
+        return undefined;
+      }
+      return route.fallback();
+    });
+    await page.locator('.bottom-sheet.active [data-testid="move-retry"] button').click();
+    // Per Skript geklickt: das Sheet liegt über der Leiste.
+    await page.locator('[data-testid="budget-month-previous"]').evaluate((el) => el.click());
+    await page.waitForFunction(() => document.querySelector('[data-testid="budget-month-name"]').textContent === "Oktober 2026");
+    releaseRetry();
+    await page.locator(".bottom-sheet.active").getByText("Oktober 2026").waitFor();
+    await page.waitForFunction(() => document.querySelector('.bottom-sheet.active [data-testid="detail-empty"]'));
+    assert.ok(lists.includes("2026-10-01"), `die Buchungen des neuen Monats sind geholt (${lists})`);
+    assert.equal(heldMonths.length, 1, "die Antwort auf den Wechsel blieb aus");
+  } finally {
+    await context.close();
+  }
+});
+
+// Punkt 21: ADR 0076 Punkt 6 im Browser. Der Bericht öffnet einen neuen Monat, der Pfeil erscheint.
+test("Fenster wächst: nach der Verschiebung im letzten Monat liest die Seite den Rahmen nach, der Pfeil erscheint", async () => {
+  const { context, page } = await openPage(390, 844, {
+    move: () => ({ Ok: report("Written") }),
+    retry: () => ({ Error: "ungenutzt" }),
+  });
+  try {
+    const next = page.locator('[data-testid="budget-month-next"]');
+    assert.equal(await next.count(), 0, "November ist der letzte Monat");
+    await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01", "2026-12-01"], CategoryOrder: [guid(1), guid(2), guid(3)] } }),
+      })
+    );
+    await openMoveFor(page, "Lebensmittel afd8h");
+    await page.locator('[data-testid="move-counterpart"] button').click();
+    await page.locator('.bottom-sheet.layer-2 [role="option"]').filter({ hasText: "Urlaub afd8h" }).click();
+    await afterPicker(page);
+    await page.locator('[data-testid="move-submit"] button').click();
+    await next.waitFor({ state: "attached" });
+  } finally {
+    await context.close();
+  }
+});
+
 test("Erneut senden scheitert: ein Toast nennt den Grund, der Monat lädt neu, der Hinweis bleibt", async () => {
   const { context, page, calls } = await openPage(390, 844, {
     move: () => ({ Ok: report({ Failed: "Rate-Limit" }) }),

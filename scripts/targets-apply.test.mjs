@@ -80,7 +80,7 @@ async function openPage(width, height, handlers) {
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
   );
   await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
-    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [guid(1)] } })
+    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: handlers.order ?? [guid(1)] } })
   );
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => {
     calls.month += 1;
@@ -184,6 +184,66 @@ test("Abbrechen schließt den Dialog, ohne zu schreiben", async () => {
     await page.locator('[data-testid="targets-summary"]').waitFor({ state: "detached" });
     assert.equal(calls.apply.length, 0);
     assert.equal(calls.month, 1, "kein Neuladen nach Abbrechen");
+  } finally {
+    await context.close();
+  }
+});
+
+test("Die Vorschau steht in Romans Reihenfolge, gesendet wird die Folge des Servers", async () => {
+  const preview = previewFixture(3);
+  const { context, page, calls } = await openPage(1440, 900, {
+    preview,
+    order: [guid(3), guid(1), guid(2)],
+    apply: () => ({ Ok: { Applied: reportFixture(preview, ["Written", "Written", "Written"], eur(4970)) } }),
+    retry: () => ({ Error: "ungenutzt" }),
+  });
+  try {
+    await open(page);
+    const names = await page.locator('[data-testid="targets-line"]').allInnerTexts();
+    assert.deepEqual(names.map((n) => n.match(/Kategorie \d/)[0]), ["Kategorie 3", "Kategorie 1", "Kategorie 2"]);
+    await page.getByRole("button", { name: "Übernehmen" }).click();
+    await page.locator('[data-testid="targets-count"]').waitFor();
+    assert.deepEqual(calls.apply[0][1].Lines.map((l) => l.CategoryId), preview.Lines.map((l) => l.CategoryId));
+  } finally {
+    await context.close();
+  }
+});
+
+test("Hinweise im Dialog stehen in Gelb, auf der Budget-Seite gibt es kein Pink (ADR 0075)", async () => {
+  const preview = previewFixture(2);
+  const answers = [
+    { Ok: { PreviewChanged: preview } },
+    { Ok: { Applied: reportFixture(preview, ["ChangedInYnab", "Written"], eur(1)) } },
+  ];
+  const { context, page } = await openPage(1440, 900, {
+    preview,
+    apply: (n) => answers[n - 1],
+    retry: () => ({ Error: "ungenutzt" }),
+  });
+  const yellow = () =>
+    page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--color-calm-yellow)";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+  const pinkCount = () => page.locator('[class*="neon-pink"]').count();
+  try {
+    await open(page);
+    assert.equal(await pinkCount(), 0, "kein Pink in der Vorschau");
+    await page.getByRole("button", { name: "Übernehmen" }).click();
+    const changed = page.locator('[data-testid="targets-changed"]');
+    await changed.waitFor();
+    assert.equal(await pinkCount(), 0, "kein Pink beim Hinweis Stand geändert");
+    assert.equal(await changed.locator("svg").first().evaluate((el) => getComputedStyle(el).color), await yellow());
+
+    await page.getByRole("button", { name: "Übernehmen" }).click();
+    await page.locator('[data-testid="targets-differs"]').waitFor();
+    assert.equal(await pinkCount(), 0, "kein Pink bei Abweichung und in YNAB geändert");
+    const badge = page.getByText("in YNAB geändert").first();
+    assert.equal(await badge.evaluate((el) => getComputedStyle(el).color), await yellow());
   } finally {
     await context.close();
   }

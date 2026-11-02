@@ -308,6 +308,20 @@ module ErrorDisplay =
     let simple (message: string) =
         card message None
 
+    /// Hinweis in Gelb: offen, kein Fehler, für die Budget-Seite ohne Pink (ADR 0075).
+    let notice (message: string) =
+        Html.div [
+            prop.className "rounded-lg bg-calm-yellow/5 border border-calm-yellow/20 px-4 py-3 flex items-start gap-3"
+            prop.role "alert"
+            prop.children [
+                Icons.warning MD CalmYellow
+                Html.p [
+                    prop.className "flex-1 text-text-secondary text-sm"
+                    prop.text message
+                ]
+            ]
+        ]
+
     /// Warning-style display (uses die Warn-Farbrolle Hot Pink, ADR 0031/design-system-thtpp:
     /// vorher `bg-warning`/`border-warning`/`text-warning`, ohne `--color-warning` in
     /// styles.css definiert und damit wirkungslos, wie die DaisyUI-Klassen aus ADR 0031)

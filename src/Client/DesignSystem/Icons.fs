@@ -41,6 +41,7 @@ type IconColor =
     | NeonPurple    // text-neon-purple
     | NeonPink      // text-neon-pink
     | NeonRed       // text-neon-red
+    | CalmYellow    // text-calm-yellow
     | Success       // same as NeonGreen
     | Warning       // same as NeonOrange
     | Error         // same as NeonRed
@@ -51,6 +52,7 @@ let private colorToClass = function
     | Primary -> "text-text-primary"
     | NeonGreen | Success -> "text-neon-green"
     | NeonOrange | Warning -> "text-neon-orange"
+    | CalmYellow -> "text-calm-yellow"
     | NeonTeal | Info -> "text-neon-teal"
     | NeonPurple -> "text-neon-purple"
     | NeonPink -> "text-neon-pink"

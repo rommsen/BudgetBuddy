@@ -267,13 +267,14 @@ let listRow (key: string) (testId: string) (ariaLabel: string) (onClick: unit ->
         prop.children children
     ]
 
-/// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-selected` und Teal (ADR 0075).
+/// Wie `listRow`, die Zeile wählt etwas aus: die gewählte trägt `aria-current` und Teal (ADR 0075).
+/// `aria-selected` gilt nur in Rollen wie `option` oder `tab`, nicht an einem `button`.
 let selectableListRow (key: string) (testId: string) (ariaLabel: string) (isSelected: bool) (onClick: unit -> unit) (children: ReactElement list) =
     Html.button [
         prop.key key
         prop.type' "button"
         prop.custom ("data-testid", testId)
-        prop.custom ("aria-selected", isSelected)
+        if isSelected then prop.custom ("aria-current", "true")
         prop.ariaLabel ariaLabel
         prop.className $"""{listRowClass} {if isSelected then Backgrounds.tealSubtle else "hover:bg-surface-hover"}"""
         prop.onClick (fun _ -> onClick ())

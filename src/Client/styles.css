@@ -105,7 +105,7 @@
   /* Text */
   --text-primary: #e8e8f0;
   --text-secondary: #a3a3bd;
-  --text-muted: #7a7a98;
+  --text-muted: #8787a5;
 
   /* Neon dim/glow variants */
   --neon-teal-dim: rgba(0, 212, 170, 0.15);
@@ -1111,7 +1111,10 @@ nav a:focus-visible {
    umbrechen (`md:flex-wrap`), eine feste Höhe passte dann nicht mehr zur
    echten und der Tabellenkopf überlappte die Leiste oder ließ eine Lücke
    darunter frei. */
-.ledger-filter-bar {
+.ledger-filter-bar,
+.budget-month-bar,
+.budget-filter-bar,
+.budget-filter-chips {
   position: sticky;
   top: calc(56px + env(safe-area-inset-top, 0px));
   z-index: 20;
@@ -1120,33 +1123,60 @@ nav a:focus-visible {
   -webkit-backdrop-filter: blur(12px);
 }
 @media (min-width: 768px) {
-  .ledger-filter-bar {
+  .ledger-filter-bar,
+  .budget-month-bar {
     top: 64px;
   }
 }
 
-/* Die Leiste der Budget-Seite mit Monat und Zu verteilen: bleibt unter der fixen Kopfzeile stehen
-   (Bug D3), Werte wie `.ledger-filter-bar`. */
-.budget-month-bar {
-  position: sticky;
-  top: calc(56px + env(safe-area-inset-top, 0px));
-  z-index: 20;
-  background: rgba(8, 8, 26, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+/* Die festen Zeilen der Budget-Seite stapeln sich unter der Navbar: Monatsleiste (Bug D3), dann die
+   Filter, dann der Spaltenkopf. Beide Höhen misst `MeasuredBar` in `Budget/View.fs`, die Leisten
+   brechen um und wachsen mit der Schrift. Am Handy haften nur die Chips, damit die festen Zeilen wenig
+   Höhe nehmen. `display: contents` nimmt die Reihe aus dem Layout: sonst wäre sie der Halter der
+   Chips, und die liefen mit ihr aus dem Bild. */
+.budget-page {
+  --budget-nav-height: calc(56px + env(safe-area-inset-top, 0px));
+  --budget-bar-bottom: calc(var(--budget-nav-height) + var(--budget-month-bar-height, 0px));
+  --budget-filter-bottom: calc(var(--budget-bar-bottom) + var(--budget-filter-bar-height, 0px));
+}
+.budget-filter-bar {
+  display: contents;
+}
+.budget-filter-chips {
+  top: var(--budget-bar-bottom);
+  z-index: 15;
+  padding-block: 4px;
+}
+.budget-row-anchor {
+  scroll-margin-top: calc(var(--budget-filter-bottom) + 3rem);
+}
+.budget-page .table-sticky-thead thead {
+  top: var(--budget-filter-bottom);
 }
 @media (min-width: 768px) {
-  .budget-month-bar {
-    top: 64px;
+  .budget-page {
+    --budget-nav-height: 64px;
+  }
+  .budget-filter-bar {
+    display: flex;
+    top: var(--budget-bar-bottom);
+    z-index: 15;
+  }
+  .budget-filter-chips {
+    position: static;
+    padding-block: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
 
 /* Das Inspektor-Panel ab 1024 px: feste Höhe, begrenzt auf die Sichthöhe unter Navbar und Leiste. */
 .budget-inspector-panel {
   position: sticky;
-  top: 136px;
+  top: calc(var(--budget-bar-bottom) + 8px);
   height: 640px;
-  max-height: calc(100dvh - 152px);
+  max-height: calc(100dvh - var(--budget-bar-bottom) - 24px);
 }
 
 /* ============================================================
@@ -1689,10 +1719,13 @@ nav a:focus-visible {
   max-height: none;
 }
 
-/* Fester Bereich zwischen Kopf und .sheet-body, nur der Inhalt scrollt (Muster .sheet-search). */
+/* Fester Bereich zwischen Kopf und .sheet-body, nur der Inhalt scrollt (Muster .sheet-search).
+   Viele offene Verschiebungen scrollen in sich, damit .sheet-body immer Platz behält. */
 .sheet-pinned {
   padding: 0 20px;
   flex-shrink: 0;
+  max-height: 55%;
+  overflow-y: auto;
 }
 
 .sheet-handle {
@@ -1712,22 +1745,34 @@ nav a:focus-visible {
   justify-content: space-between;
   gap: 12px;
 }
+/* 48 px Trefferfläche, das sichtbare Rund bleibt 32 px. Der negative Rand hält den Kopf so hoch wie
+   mit 32 px. */
 .sheet-close {
+  position: relative;
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -8px -8px -8px 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--sf-bg-card);
-  border: 1px solid var(--sf-border);
+  background: none;
+  border: none;
   color: var(--sf-text-secondary);
   cursor: pointer;
   touch-action: manipulation;
+}
+.sheet-close::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--sf-bg-card);
+  border: 1px solid var(--sf-border);
   transition: background var(--sf-duration-fast) ease, transform var(--sf-duration-fast) ease;
 }
-.sheet-close:active { background: var(--sf-bg-hover); transform: scale(0.92); }
+.sheet-close svg { position: relative; }
+.sheet-close:active::before { background: var(--sf-bg-hover); transform: scale(0.92); }
 .sheet-header h3 {
   font-family: var(--font-display);
   font-size: 17px;
@@ -2290,7 +2335,7 @@ nav a:focus-visible {
   font-size: 13px;
   color: var(--sf-text-primary);
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237a7a98' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238787a5' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   cursor: pointer;

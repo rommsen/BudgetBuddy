@@ -55,6 +55,8 @@ type TextInputProps = {
     Type: string
     /// Bildschirmtastatur am Handy, zum Beispiel "decimal" für Beträge. `None` lässt sie offen.
     InputMode: string option
+    /// Name für den Screenreader, wenn kein sichtbares Label dasteht.
+    AriaLabel: string option
     ClassName: string option
 }
 
@@ -67,6 +69,7 @@ let textInputDefaults = {
     Disabled = false
     Type = "text"
     InputMode = None
+    AriaLabel = None
     ClassName = None
 }
 
@@ -94,6 +97,9 @@ let text (props: TextInputProps) =
         prop.disabled props.Disabled
         match props.InputMode with
         | Some mode -> prop.custom ("inputMode", mode)
+        | None -> ()
+        match props.AriaLabel with
+        | Some label -> prop.ariaLabel label
         | None -> ()
         // Prevent iOS zoom on focus (Small regelt das über `text-base md:text-sm`)
         if usesInlineFontSize props.Size then

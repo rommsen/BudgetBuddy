@@ -5,6 +5,41 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 17:17 -- Task verified and completed: budgeting-p4n6r - "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken"
+
+**Type:** Work / Task completion
+**Task:** budgeting-p4n6r - "Review-Korrekturen zur neuen Budget-Seite: Monatswechsel ohne Sprung, Pink raus, Trefferflächen, sticky Filter, Testlücken"
+**Summary:** Review-Korrekturen: Monatswechsel ohne Sprung, kein Pink, Trefferflächen, sticky Filter, Barrierefreiheit, Testlücken
+**Duration:** 2h45m
+**Verification:** PASS (iteration 3)
+**Files changed:** 28
+**Tests added:** 32
+**ADRs written:** none
+
+---
+
+## 2026-11-02 16:54 -- Verification failed: budgeting-p4n6r - Review-Korrekturen
+
+**Type:** Work / Verification failure
+**Task:** budgeting-p4n6r - Review-Korrekturen
+**Iteration:** 2 of 3
+**Reasons:** Wächter Blättern am PC liest scrollY vor dem Ende der Animation, Vorbedingung entfallen
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
+## 2026-11-02 15:29 -- Verification failed: budgeting-p4n6r - Review-Korrekturen
+
+**Type:** Work / Verification failure
+**Task:** budgeting-p4n6r - Review-Korrekturen
+**Iteration:** 1 of 3
+**Reasons:** Styleguide nennt weiter aria-selected für selectableListRow
+**Iteration hint:** likely-fixable
+**Next:** re-dispatched worker
+
+---
+
 ## 2026-11-02 14:29 -- Batch started: [budgeting-p4n6r]
 
 **Type:** Work / Batch start

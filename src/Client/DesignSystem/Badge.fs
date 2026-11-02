@@ -11,6 +11,7 @@ open Client.DesignSystem.Tokens
 type BadgeVariant =
     | Success   // Neon green - completed, imported, positive
     | Warning   // Neon pink - needs attention, uncategorized
+    | Notice    // Calm Yellow - offen, kein Fehler, für die Budget-Seite ohne Pink (ADR 0075)
     | Error     // Neon red - failed, errors, negative
     | Info      // Neon teal - information, auto-categorized
     | Neutral   // Gray - default, inactive
@@ -58,6 +59,7 @@ let defaultProps = {
 let private variantToSoftClass = function
     | Success -> "bg-neon-green/10 text-neon-green border-neon-green/30"
     | Warning -> "bg-neon-pink/10 text-neon-pink border-neon-pink/30"
+    | Notice -> "bg-calm-yellow/10 text-calm-yellow border-calm-yellow/30"
     | Error -> "bg-neon-red/10 text-neon-red border-neon-red/30"
     | Info -> "bg-neon-teal/10 text-neon-teal border-neon-teal/30"
     | Neutral -> "bg-text-muted/10 text-text-secondary border-text-muted/20"
@@ -67,6 +69,7 @@ let private variantToSoftClass = function
 let private variantToFilledClass = function
     | Success -> $"bg-neon-green {Colors.onNeon} border-transparent"
     | Warning -> $"bg-neon-pink {Colors.onNeon} border-transparent"
+    | Notice -> $"bg-calm-yellow {Colors.onNeon} border-transparent"
     | Error -> "bg-neon-red text-white border-transparent"
     | Info -> $"bg-neon-teal {Colors.onNeon} border-transparent"
     | Neutral -> "bg-text-muted/20 text-text-primary border-transparent"
@@ -76,6 +79,7 @@ let private variantToFilledClass = function
 let private variantToOutlineClass = function
     | Success -> "bg-transparent text-neon-green border-neon-green"
     | Warning -> "bg-transparent text-neon-pink border-neon-pink"
+    | Notice -> "bg-transparent text-calm-yellow border-calm-yellow"
     | Error -> "bg-transparent text-neon-red border-neon-red"
     | Info -> "bg-transparent text-neon-teal border-neon-teal"
     | Neutral -> "bg-transparent text-text-secondary border-text-muted/30"
@@ -115,6 +119,10 @@ let view (props: BadgeProps) =
 /// Success badge (green)
 let success text =
     view { defaultProps with Text = text; Variant = Success }
+
+/// Hinweis-Badge in Gelb: offen, kein Fehler (ADR 0075).
+let notice text =
+    view { defaultProps with Text = text; Variant = Notice }
 
 /// Warning badge (pink)
 let warning text =
@@ -240,6 +248,7 @@ let dot variant =
         match variant with
         | Success -> "bg-neon-green"
         | Warning -> "bg-neon-pink"
+        | Notice -> "bg-calm-yellow"
         | Error -> "bg-neon-red"
         | Info -> "bg-neon-teal"
         | Neutral -> "bg-text-muted/30"
@@ -256,6 +265,7 @@ let pulsingDot variant =
         match variant with
         | Success -> "bg-neon-green"
         | Warning -> "bg-neon-pink"
+        | Notice -> "bg-calm-yellow"
         | Error -> "bg-neon-red"
         | Info -> "bg-neon-teal"
         | Neutral -> "bg-text-muted/30"

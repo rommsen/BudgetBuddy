@@ -93,7 +93,7 @@ Die Grenzen nach vorn und hinten kommen aus YNAB. Am Rand fehlt der Pfeil. Laut 
 ### Farben
 
 - **Orange:** die eine Hauptaktion. **Teal:** Ausgewähltes und Navigation.
-- Normale Knöpfe sind neutral mit grauem Rand. Das weicht von `Button.secondary` ab.
+- Normale Knöpfe sind neutral mit grauem Rand, das ist `Button.secondary` (ADR 0077).
 - **Rot:** nur Beträge im Minus. **Gelb** (dezent, Prototyp `#cdb27a`): offen, aber kein Fehler,
   also `fehlt` und "Passt das Target noch?". Gelb ist ein neuer Token. Eine Zeile darf Rot und Gelb
   zugleich tragen, das ist eine Ausnahme von "ein Akzent pro Zeile" für die Budget-Seite.

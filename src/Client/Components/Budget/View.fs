@@ -32,7 +32,37 @@ let private plainAmount (m: Money) =
 
 let private availableAmount (m: Money) = Money.available m.Amount m.Currency
 
-/// Kopfzahl im Kategorie-Detail: ruhig, ohne Warnfarbe und Glow.
+/// Der Inhalt, solange ein Monatswechsel läuft: gedimmt, ohne Spinner und ohne Sprung. Liste, Suche,
+/// Filter und Tabs bleiben bedienbar, Fokus und Scrollposition überstehen den Wechsel. "Verschieben"
+/// und "Targets anwenden" sind gesperrt, bis der neue Monat da ist (`monthChanging`).
+let private monthChangeClass (model: Model) =
+    if monthChanging model then "opacity-60 transition-opacity" else "transition-opacity"
+
+/// Schreibt die gemessene Höhe einer sticky Leiste als CSS-Variable auf die Seite, `styles.css` leitet
+/// daraus die Abstände darunter ab. Die Leisten brechen um, eine feste Höhe passte dann nicht. Der
+/// Callback-Ref bindet auch einen neuen DOM-Knoten (Grund in `Ledger.View.FilterBarColumn`).
+[<ReactComponent>]
+let private MeasuredBar (variable: string, attributes: IReactProperty list) =
+    let disconnect = React.useRef<(unit -> unit) option> None
+    let measure =
+        React.useCallback (
+            (fun (element: Browser.Types.Element) ->
+                disconnect.current |> Option.iter (fun stop -> stop ())
+                disconnect.current <- None
+                if not (isNull (box element)) then
+                    let page: obj = element?closest (".budget-page")
+                    let stopObserving =
+                        Viewport.observeHeight element (fun height ->
+                            page?style?setProperty (variable, $"{height}px"))
+                    disconnect.current <-
+                        Some (fun () ->
+                            stopObserving ()
+                            page?style?removeProperty (variable) |> ignore)),
+            [||]
+        )
+    Html.div (prop.ref measure :: attributes)
+
+/// Kopfzahl im Inspektor: ruhig, ohne Warnfarbe und Glow.
 let private detailAmount (m: Money) =
     Html.span [
         prop.className $"font-mono font-medium tabular-nums whitespace-nowrap {ListRoles.primarySize} {Colors.textPrimary}"
@@ -47,7 +77,7 @@ let private detailAmount (m: Money) =
 let private toBeBudgeted (m: Money) =
     Html.div [
         prop.custom ("data-testid", "budget-to-be-budgeted")
-        prop.className "flex flex-col items-end ml-auto"
+        prop.className "flex flex-col items-end"
         prop.children [
             Html.span [ prop.className ListRoles.groupHeader; prop.text "Zu verteilen" ]
             Money.view
@@ -73,7 +103,7 @@ let private monthStepper (frame: BudgetFrame) (month: string) (dispatch: Msg -> 
             arrow "budget-month-previous" "Vorheriger Monat" "‹" (previousMonth frame.Months month)
             Button.homeLabel
                 "budget-month-name"
-                "Zum laufenden Monat"
+                $"{monthLabel month}, zum laufenden Monat"
                 (month <> frame.CurrentMonth)
                 (monthLabel month)
                 (fun () -> dispatch (SelectMonth frame.CurrentMonth))
@@ -82,19 +112,25 @@ let private monthStepper (frame: BudgetFrame) (month: string) (dispatch: Msg -> 
     ]
 
 /// Die sticky Leiste: Monat links, Zu verteilen rechts. Bricht bei 320 px um, statt seitlich zu laufen.
+/// Der Name zeigt beim Blättern sofort das Ziel, Zu verteilen bleibt bis zur Antwort beim alten Monat.
 let private monthBar (model: Model) (dispatch: Msg -> unit) =
-    Html.div [
-        prop.custom ("data-testid", "budget-month-switcher")
-        prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
-        prop.children [
-            match model.Frame, shownMonth model with
-            | Success frame, Some month -> monthStepper frame month dispatch
-            | _ -> ()
-            match model.Month with
-            | Success month -> toBeBudgeted month.ToBeBudgeted
-            | _ -> ()
-        ]
-    ]
+    MeasuredBar (
+        "--budget-month-bar-height",
+        [ prop.custom ("data-testid", "budget-month-switcher")
+          prop.className "budget-month-bar flex flex-wrap items-center gap-x-3 py-2 -mx-1 px-1"
+          prop.children [
+              match model.Frame, shownMonth model with
+              | Success frame, Some month -> monthStepper frame month dispatch
+              | _ -> ()
+              match model.Month with
+              | Success month ->
+                  Html.div [
+                      prop.className $"ml-auto {monthChangeClass model}"
+                      prop.children [ toBeBudgeted month.ToBeBudgeted ]
+                  ]
+              | _ -> ()
+          ] ]
+    )
 
 // ============================================
 // Kategorien: Handy (Zeilen) und PC (Tabelle)
@@ -174,7 +210,7 @@ let private mobileGroup (selectedId: System.Guid option) (dispatch: Msg -> unit)
                           prop.className ListRoles.mobileLine2
                           prop.children [
                               Html.span [
-                                  prop.className $"{ListRoles.muted} truncate"
+                                  prop.className $"{ListRoles.muted} truncate tabular-nums"
                                   prop.text $"Zugewiesen {moneyText c.Assigned} · Aktivität {moneyText c.Activity}"
                               ]
                           ]
@@ -214,9 +250,9 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
     Html.tr [
         prop.key (string c.Id)
         prop.custom ("data-testid", "budget-category-row")
-        prop.custom ("aria-selected", isSelected)
-        // scroll-mt: die sticky Leiste verdeckt sonst die Zeile, die per Pfeiltaste ins Bild rückt.
-        prop.className $"{ListRoles.rowHeight} border-b border-border-subtle cursor-pointer scroll-mt-32 {rowColor}"
+        if isSelected then prop.custom ("aria-current", "true")
+        // `budget-row-anchor`: die sticky Leisten verdecken sonst die Zeile, die per Pfeiltaste ins Bild rückt.
+        prop.className $"{ListRoles.rowHeight} border-b border-border-subtle cursor-pointer budget-row-anchor {rowColor}"
         prop.onClick (fun _ -> dispatch (SelectCategory c.Id))
         prop.children [
             // max-w-0 und w-full: der Name nimmt den Restplatz und kürzt, statt die Tabelle aus
@@ -247,7 +283,7 @@ let private desktopRow (selectedId: System.Guid option) (dispatch: Msg -> unit) 
     ]
 
 let private desktopTable (selectedId: System.Guid option) (dispatch: Msg -> unit) (groups: BudgetGroup list) =
-    Table.view { Table.defaultTableProps with Variant = Table.Default; Responsive = false } [
+    Table.view { Table.defaultTableProps with Variant = Table.Default; Responsive = false; Sticky = true } [
         Table.thead [
             Table.calmHeaderCell "Kategorie" None
             Table.calmHeaderCell "Target" (Some "right")
@@ -282,6 +318,7 @@ let private categorySearchField (search: string) (dispatch: Msg -> unit) =
                     Value = search
                     OnChange = CategorySearchChanged >> dispatch
                     Placeholder = "Kategorie suchen…"
+                    AriaLabel = Some "Kategorie suchen"
                     Size = Input.Small
                     ClassName = Some "w-full pr-12" }
             if search <> "" then
@@ -307,7 +344,7 @@ let private filterChips (model: Model) (month: BudgetMonth) (dispatch: Msg -> un
               OnRemove = None }
     Html.div [
         prop.custom ("data-testid", "budget-filter")
-        prop.className "flex items-center gap-2"
+        prop.className "budget-filter-chips flex items-center gap-2"
         prop.children [
             chip "Alle" AllCategories
             chip $"Fehlt ({filterCount MissingOnly month.Groups})" MissingOnly
@@ -324,7 +361,7 @@ let private DesktopCategoryList (selectedId: System.Guid option, withKeyboard: b
         (fun () ->
             match listRef.current with
             | Some element ->
-                let row: obj = element?querySelector ("[aria-selected='true']")
+                let row: obj = element?querySelector ("[aria-current='true']")
                 if not (isNull row) then
                     row?scrollIntoView (createObj [ "block" ==> "nearest" ])
             | None -> ()),
@@ -332,7 +369,8 @@ let private DesktopCategoryList (selectedId: System.Guid option, withKeyboard: b
     )
     Html.div [
         prop.ref listRef
-        prop.className "hidden md:block rounded-xl border border-border-subtle bg-surface-card overflow-hidden"
+        // `overflow-clip` statt `overflow-hidden`: sonst haftet der Spaltenkopf an dieser Karte statt an der Seite.
+        prop.className "hidden md:block rounded-xl border border-border-subtle bg-surface-card overflow-clip"
         if withKeyboard then
             // Tasten in Inspektor oder Suchfeld erreichen die Liste nicht, beide liegen außerhalb.
             prop.tabIndex 0
@@ -476,7 +514,7 @@ let private previewBody (order: System.Guid list) (preview: TargetPreview) (chan
                 prop.custom ("data-testid", "targets-changed")
                 prop.className "p-4"
                 prop.children [
-                    ErrorDisplay.warning "Stand hat sich geändert. Die Vorschau ist neu geladen, es wurde nichts geschrieben." None
+                    ErrorDisplay.notice "Stand hat sich geändert. Die Vorschau ist neu geladen, es wurde nichts geschrieben."
                 ]
             ]
         if List.isEmpty preview.Lines then
@@ -495,7 +533,7 @@ let private outcomeLine (l: ApplyLineResult) =
         match l.Outcome with
         | Written -> $"{moneyText l.OldAssigned} auf {moneyText l.NewAssigned}", Badge.success "geschrieben"
         | Failed reason -> reason, Badge.error "fehlgeschlagen"
-        | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", Badge.warning "in YNAB geändert"
+        | ChangedInYnab -> "YNAB steht anders als erwartet, nichts überschrieben", Badge.notice "in YNAB geändert"
     Html.div [
         prop.key (string l.CategoryId)
         prop.custom ("data-testid", "targets-result-line")
@@ -556,7 +594,7 @@ let private doneBody (preview: TargetPreview) (report: ApplyReport) (retryError:
                     Html.div [
                         prop.custom ("data-testid", "targets-differs")
                         prop.children [
-                            ErrorDisplay.warning $"Zu verteilen weicht von der Vorschau ab (Vorschau: {moneyText preview.ToBeBudgetedAfter})." None
+                            ErrorDisplay.notice $"Zu verteilen weicht von der Vorschau ab (Vorschau: {moneyText preview.ToBeBudgetedAfter})."
                         ]
                     ]
                 | _ -> ()
@@ -933,34 +971,41 @@ let private targetTab (category: BudgetCategory) =
         ]
     ]
 
+let private inspectorTabs =
+    [ "Geld", MoneyTab
+      "Buchungen", EntriesTab
+      "Historie", HistoryTab
+      "Target", TargetTab ]
+
 /// Der Inhalt des gewählten Tabs, in Panel und Sheet derselbe.
 let private inspectorContent (model: Model) (selected: SelectedCategory) (category: BudgetCategory) (dispatch: Msg -> unit) =
-    match model.Tab with
-    | MoneyTab -> moneyTab category dispatch
-    | EntriesTab ->
-        Html.div [
-            prop.custom ("data-testid", "category-detail")
-            prop.children [ detailEntries category selected dispatch ]
-        ]
-    | HistoryTab ->
-        Html.p [
-            prop.custom ("data-testid", "inspector-history")
-            prop.className $"{ListRoles.muted} p-4"
-            prop.text "Die Historie dieser Kategorie folgt."
-        ]
-    | TargetTab -> targetTab category
-
-let private inspectorTabs (model: Model) (dispatch: Msg -> unit) =
-    let tab label value : Tabs.Tab =
-        { Label = label
-          IsActive = (model.Tab = value)
-          OnClick = fun () -> dispatch (SelectInspectorTab value) }
-    Tabs.bar "inspector-tabs" "Bereiche der Kategorie" [
-        tab "Geld" MoneyTab
-        tab "Buchungen" EntriesTab
-        tab "Historie" HistoryTab
-        tab "Target" TargetTab
+    let activeIndex = inspectorTabs |> List.findIndex (fun (_, tab) -> tab = model.Tab)
+    Tabs.panel "inspector-tabs" activeIndex [
+        match model.Tab with
+        | MoneyTab -> moneyTab category dispatch
+        | EntriesTab ->
+            Html.div [
+                prop.custom ("data-testid", "category-detail")
+                prop.children [ detailEntries category selected dispatch ]
+            ]
+        | HistoryTab ->
+            Html.p [
+                prop.custom ("data-testid", "inspector-history")
+                prop.className $"{ListRoles.muted} p-4"
+                prop.text "Die Historie dieser Kategorie folgt."
+            ]
+        | TargetTab -> targetTab category
     ]
+
+let private inspectorTabBar (model: Model) (dispatch: Msg -> unit) =
+    Tabs.bar
+        "inspector-tabs"
+        "Bereiche der Kategorie"
+        (inspectorTabs
+         |> List.map (fun (label, value) ->
+             { Label = label
+               IsActive = (model.Tab = value)
+               OnClick = fun () -> dispatch (SelectInspectorTab value) }))
 
 /// `‹ ›` im Sheet: wechselt die Kategorie ohne Schließen, am Rand fehlt der Pfeil.
 let private sheetStepper (model: Model) (shown: BudgetGroup list) (subtitle: string) (dispatch: Msg -> unit) =
@@ -996,28 +1041,33 @@ let private sheetCategory (model: Model) =
         selectedCategory month selected |> Option.map (fun found -> selected, month, found)
     | _ -> None
 
-/// Das Sheet unter 1024 px.
+/// Das Sheet unter 1024 px. Immer gerendert, damit es ein- und ausfährt. Beim Ausfahren hält
+/// `BottomSheet.inspector` den letzten Inhalt.
 let private inspectorSheet (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
+    let props title isOpen : BottomSheet.BottomSheetProps =
+        { IsOpen = isOpen
+          OnClose = fun () -> dispatch CloseInspector
+          Title = title
+          Subtitle = None
+          Footer = None }
     match sheetCategory model with
     | Some (selected, month, (category, groupName)) ->
         BottomSheet.inspector
-            { IsOpen = true
-              OnClose = fun () -> dispatch CloseInspector
-              Title = category.Name
-              Subtitle = None
-              Footer = None }
+            (props category.Name true)
             [ sheetRetries model.OpenRetries dispatch
               sheetStepper model shown $"{groupName} · {monthLabel month.Month}" dispatch
-              inspectorTabs model dispatch ]
+              inspectorTabBar model dispatch ]
             // `-mx-5` hebt den Rand von `.sheet-body` auf, die Zeilen tragen ihn selbst.
             [ Html.div [
                   prop.custom ("data-testid", "budget-inspector")
                   prop.className "-mx-5"
                   prop.children [ inspectorContent model selected category dispatch ]
               ] ]
-    | None -> Html.none
+    | None -> BottomSheet.inspector (props "" false) [] []
 
-/// Das Panel ab 1024 px. Ohne Auswahl steht der Hinweis da, die Höhe bleibt gleich.
+/// Das Panel ab 1024 px. Der Hinweis steht ohne Auswahl da, die Höhe bleibt gleich. Beim Blättern
+/// bleibt der Inhalt stehen. Lädt der Monat bei bestehender Auswahl, steht ein Skeleton da. Scheitert
+/// das Laden, bleibt das Panel neben der Fehlerkarte leer: es kommt kein Inhalt nach.
 let private inspectorPanel (model: Model) (dispatch: Msg -> unit) =
     let chosen =
         match model.Selected, model.Month with
@@ -1026,7 +1076,7 @@ let private inspectorPanel (model: Model) (dispatch: Msg -> unit) =
         | _ -> None
     Html.aside [
         prop.custom ("data-testid", "budget-inspector")
-        prop.className "budget-inspector-panel flex flex-col rounded-xl border border-border-subtle bg-surface-card overflow-hidden"
+        prop.className $"budget-inspector-panel flex flex-col rounded-xl border border-border-subtle bg-surface-card overflow-hidden {monthChangeClass model}"
         prop.children [
             match chosen with
             | Some (selected, month, (category, groupName)) ->
@@ -1037,11 +1087,13 @@ let private inspectorPanel (model: Model) (dispatch: Msg -> unit) =
                         Html.span [ prop.className $"{ListRoles.secondary} truncate"; prop.text $"{groupName} · {monthLabel month.Month}" ]
                     ]
                 ]
-                Html.div [ prop.className "shrink-0"; prop.children [ inspectorTabs model dispatch ] ]
+                Html.div [ prop.className "shrink-0"; prop.children [ inspectorTabBar model dispatch ] ]
                 Html.div [
                     prop.className "flex-1 min-h-0 overflow-y-auto"
                     prop.children [ inspectorContent model selected category dispatch ]
                 ]
+            | None when model.Selected.IsSome && model.Month = Loading -> Loading.txListSkeleton 3
+            | None when model.Selected.IsSome -> ()
             | None ->
                 Html.p [
                     prop.className $"{ListRoles.muted} p-4 m-auto text-center"
@@ -1056,20 +1108,24 @@ let private inspectorPanel (model: Model) (dispatch: Msg -> unit) =
 
 let private listArea (model: Model) (shown: BudgetGroup list) (dispatch: Msg -> unit) =
     Html.div [
-        prop.className "flex flex-col gap-4 min-w-0"
+        prop.custom ("data-testid", "budget-list-area")
+        prop.custom ("aria-busy", monthChanging model)
+        prop.className $"flex flex-col gap-4 min-w-0 {monthChangeClass model}"
         prop.children [
             match model.Month with
             | NotAsked
             | Loading -> Loading.centered "Lade Budget ..."
             | Failure message -> ErrorDisplay.card message (Some (fun () -> dispatch Load))
             | Success month ->
-                Html.div [
-                    prop.className "flex flex-col md:flex-row md:items-center gap-2"
-                    prop.children [
-                        categorySearchField model.CategorySearch dispatch
-                        filterChips model month dispatch
-                    ]
-                ]
+                // PC: Suche und Chips haften zusammen. Handy: `display: contents`, nur die Chips haften.
+                MeasuredBar (
+                    "--budget-filter-bar-height",
+                    [ prop.className "budget-filter-bar md:flex-row md:items-center gap-2 py-1"
+                      prop.children [
+                          categorySearchField model.CategorySearch dispatch
+                          filterChips model month dispatch
+                      ] ]
+                )
                 categories model month shown dispatch
         ]
     ]
@@ -1084,20 +1140,25 @@ let view (model: Model) (dispatch: Msg -> unit) =
 
     Html.div [
         prop.custom ("data-testid", "budget-page")
-        prop.className "flex flex-col gap-4"
+        prop.className "budget-page flex flex-col gap-4"
         prop.children [
             PageHeader.calm "Budget" None (
-                match model.Month with
-                | Success _ when shownMonthKind model |> Option.exists targetsAllowed ->
-                    [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
+                // Unsichtbar statt weg: sonst änderte der Kopf beim Blättern seine Höhe und die Liste sprang.
+                match model.Month, displayedMonthKind model |> Option.exists targetsAllowed with
+                | Success _, allowed ->
+                    [ Html.div [
+                          prop.className (if allowed then "" else "invisible")
+                          prop.children [ Button.secondary "Targets anwenden" (fun () -> dispatch OpenTargets) ]
+                      ] ]
                 | _ -> []
             )
             targetsDialog model dispatch
             moveDialog model dispatch
             monthBar model dispatch
-            // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide.
-            if isPanel || (sheetCategory model).IsNone then
-                moveRetries model.OpenRetries dispatch
+            // Steht das Sheet offen, trägt es den Hinweis. Genau eine Stelle, nie beide. Der Platz bleibt
+            // auch leer belegt: fiele er weg, rückten die Geschwister auf, React baute Liste und Sheet
+            // neu auf, und das Sheet führe nicht mehr ein.
+            moveRetries (if isPanel || (sheetCategory model).IsNone then model.OpenRetries else []) dispatch
             // ADR 0043: zur Renderzeit genau eine Hülle um denselben Inhalt.
             if isPanel then
                 Html.div [

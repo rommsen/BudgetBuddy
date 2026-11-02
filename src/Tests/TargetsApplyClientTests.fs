@@ -189,7 +189,7 @@ let private viewSourceTests =
         IO.File.ReadAllText(up AppContext.BaseDirectory)
     testList "Ansicht des Dialogs (h2zfn)" [
         test "Der Dialog benutzt Modal, Button, Money, Badge und ErrorDisplay" {
-            for literal in [ "Modal.view"; "Button.primary \"Übernehmen\""; "Button.ghost \"Abbrechen\""; "Money.view"; "Badge.neutral"; "ErrorDisplay.warning"; "Fehlgeschlagene erneut senden" ] do
+            for literal in [ "Modal.view"; "Button.primary \"Übernehmen\""; "Button.ghost \"Abbrechen\""; "Money.view"; "Badge.neutral"; "ErrorDisplay.notice"; "Fehlgeschlagene erneut senden" ] do
                 Expect.stringContains source literal $"{literal} fehlt"
         }
         test "Die Ansicht enthält keine Hex-Farben und keine rohen Knöpfe" {

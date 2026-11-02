@@ -320,7 +320,10 @@ let private errorMappingTests =
 let private apiPathTests =
     let fetchWith result = fun (_: string) (_: Shared.Domain.YnabBudgetId) (_: string) -> async { return result }
     let call token budget key fetch =
-        Server.Api.budgetMonthFor token budget key fetch |> Async.RunSynchronously
+        let portFor token budgetId : CommandHandlers.YnabPort =
+            { FetchMonth = fetch token budgetId
+              SetAssigned = fun _ _ _ -> async { return Ok () } }
+        Server.Api.budgetMonthFor token budget key portFor |> Async.RunSynchronously
     testList "Weg der Budget-Seite (k7wmd)" [
         test "429 kommt als lesbare Meldung an" {
             match call (Some "t") (Some "b") "2026-10-01" (fetchWith (Error (Shared.Domain.YnabError.RateLimitExceeded 60))) with
@@ -395,8 +398,49 @@ let private monthsResponseTests =
                     "budget"
                 |> Async.RunSynchronously
             match result with
-            | Error (Shared.Domain.YnabError.NetworkError msg) -> Expect.stringContains msg "kaputt" "Ursache"
+            | Error (Shared.Domain.YnabError.NetworkError msg) -> Expect.equal msg "YNAB nicht erreichbar" "fester Satz"
             | other -> failtestf "Netzfehler erwartet: %A" other
+        }
+    ]
+
+// budgeting-p4n6r: Der Antworttext stand im Fehler und kam so bis in die Oberfläche der Budget-Seite.
+let private responseTextTests =
+    let body = """{"error":{"detail":"interner Rumpf 4711"}}"""
+    let months status text = runMonths status text
+    let categories status text =
+        Server.YnabClient.getCategoriesWith (fun () -> async { return status, text }) "budget" |> Async.RunSynchronously
+    let readable (result: Result<'a, Shared.Domain.YnabError>) : string =
+        match result with
+        | Error e -> Shared.Domain.ynabErrorText e
+        | Ok _ -> failtest "Fehler erwartet"
+    testList "Kein Antworttext im Fehler des Rahmens" [
+        test "GET /months antwortet 500 mit Rumpf: deutscher Satz mit Status, ohne Rumpf" {
+            Expect.stringContains (readable (months 500 body)) "YNAB antwortet mit HTTP 500" "deutsch mit Status"
+            Expect.isFalse ((readable (months 500 body)).Contains "4711") "kein Rumpf"
+        }
+        test "GET /categories antwortet 500 mit Rumpf: deutscher Satz mit Status, ohne Rumpf" {
+            Expect.stringContains (readable (categories 500 body)) "YNAB antwortet mit HTTP 500" "deutsch mit Status"
+            Expect.isFalse ((readable (categories 500 body)).Contains "4711") "kein Rumpf"
+        }
+        test "Eine unlesbare 200-Antwort nennt ihren Inhalt nicht" {
+            Expect.isFalse ((readable (months 200 body)).Contains "4711") "Monate"
+            Expect.isFalse ((readable (categories 200 body)).Contains "4711") "Kategorien"
+        }
+        test "Eine Ausnahme beim Abruf der Kategorien nennt ihren Text nicht" {
+            let failing =
+                Server.YnabClient.getCategoriesWith
+                    (fun () -> async { return raise (System.Net.Http.HttpRequestException "kaputt") })
+                    "budget"
+                |> Async.RunSynchronously
+            Expect.isFalse ((readable failing).Contains "kaputt") "kein Ausnahmetext"
+        }
+        test "Die Kategorien kommen flach mit Gruppennamen" {
+            let json =
+                """{"data":{"category_groups":[{"name":"Alltag","categories":[
+                   {"id":"00000000-0000-0000-0000-000000000001","name":"Essen","category_group_name":"X","hidden":false,"deleted":false}]}]}}"""
+            match categories 200 json with
+            | Ok [ category ] -> Expect.equal category.GroupName "Alltag" "Gruppe"
+            | other -> failtestf "eine Kategorie erwartet: %A" other
         }
     ]
 
@@ -518,4 +562,4 @@ let private windowTests =
 
 [<Tests>]
 let tests =
-    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKindTests; validationTests; errorMappingTests; apiPathTests; monthsResponseTests; frameTests; orderTests; missingTests; windowTests ]
+    testList "Budgeting (k7wmd)" [ decoderTests; rhythmTests; groupingTests; monthKindTests; validationTests; errorMappingTests; apiPathTests; monthsResponseTests; responseTextTests; frameTests; orderTests; missingTests; windowTests ]

@@ -111,7 +111,10 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
             let loading = requestMonth { model' with Month = Loading }
             loading, loadCmd loading
     | Load -> beginLoad model, frameCmd ()
-    | FrameRefreshed result -> applyFrameRefreshed result model, Cmd.none
+    | FrameRefreshed result ->
+        match applyFrameRefreshed result model with
+        | model', true -> model', loadCmd model'
+        | model', false -> model', Cmd.none
     | SelectMonth month ->
         match select month model with
         | model', true -> model', loadCmd model'
@@ -148,11 +151,7 @@ let private updatePage (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         | model', Some applicationId -> model', retryCmd applicationId
         | model', None -> model', Cmd.none
     | TargetsRetried result ->
-        let due =
-            match result with
-            | Ok report -> frameDueAfterReport report model
-            | Error _ -> false
-        applyRetried result model, frameRefreshCmd due
+        applyRetried result model, frameRefreshCmd (frameDueAfterRetry result model)
     | CloseTargets ->
         match closeTargets model with
         | model', true ->
@@ -195,14 +194,12 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> * ExternalMsg =
         | model', false -> model', Cmd.none, NoOp
     | MoveRetried (applicationId, result) ->
         let model', external = applyMoveRetried applicationId result model
-        let due =
-            match result with
-            | Ok report -> frameDueAfterReport report model
-            | Error _ -> false
-        model', Cmd.batch [ reloadCmd model'; frameRefreshCmd due ], external
+        model', Cmd.batch [ reloadCmd model'; frameRefreshCmd (frameDueAfterRetry result model) ], external
+    // Gewinnt `Reloaded` den Lauf gegen `Loaded`, ist nur hier die Stelle, die Buchungen zu holen.
     | Reloaded (generation, result) ->
         let model', external = applyReloaded generation result model
-        model', Cmd.none, external
+        let withRequest, cmd = withEntries model'
+        withRequest, cmd, external
     | _ ->
         let model', cmd = updatePage msg model
         model', cmd, NoOp

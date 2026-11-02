@@ -1706,31 +1706,11 @@ let private NoYnabToken = "Kein YNAB-Token eingerichtet (Settings)"
 let berlinToday (berlinZone: TimeZoneInfo) (utcNow: DateTime) : DateOnly =
     DateOnly.FromDateTime(Ledger.Bot.Domain.berlinDayOf berlinZone utcNow)
 
-/// Der Weg der Budget-Seite ohne Settings und Netz: Monat prüfen, Token und Budget
-/// verlangen, Monat holen (`fetchMonth token budgetId monthKey`), Fehler lesbar machen.
-let budgetMonthFor
-    (tokenOpt: string option)
-    (budgetOpt: string option)
-    (monthKeyText: string)
-    (fetchMonth: string -> YnabBudgetId -> string -> Async<YnabResult<Shared.Budgeting.YnabMonth>>)
-    : Async<Result<Shared.Budgeting.BudgetMonth, string>> =
-    async {
-        match Validation.validateMonthKey monthKeyText with
-        | Error message -> return Error message
-        | Ok key ->
-            match tokenOpt, budgetOpt with
-            | None, _ -> return Error NoYnabToken
-            | _, None -> return Error "Kein Standard-Budget konfiguriert (Settings)"
-            | Some token, Some budgetId ->
-                match! fetchMonth token (YnabBudgetId budgetId) key with
-                | Error e -> return Error (ynabErrorText e)
-                | Ok month -> return Ok (Server.Budgeting.Domain.toBudgetMonth month)
-    }
-
 /// Der Weg über Token und Budget ohne Settings und Netz: beide verlangen, den Port bauen
 /// (`portFor token budgetId`) und `run` damit ausführen. YNAB-Fehler werden lesbar
-/// (`ynabErrorText`). Generisch über den Port: "Targets anwenden" und der Rahmen nutzen ihn.
-let targetsWith
+/// (`ynabErrorText`). Generisch über den Port: Budget-Monat, "Targets anwenden" und der Rahmen
+/// nutzen ihn.
+let withYnabPort
     (tokenOpt: string option)
     (budgetOpt: string option)
     (portFor: string -> YnabBudgetId -> 'port)
@@ -1744,6 +1724,21 @@ let targetsWith
             match! run (portFor token (YnabBudgetId budgetId)) with
             | Ok value -> return Ok value
             | Error e -> return Error (ynabErrorText e)
+    }
+
+/// Der Weg der Budget-Seite ohne Settings und Netz: Monat prüfen, dann lesen. Ein abgelehnter Monat
+/// fragt YNAB nicht.
+let budgetMonthFor
+    (tokenOpt: string option)
+    (budgetOpt: string option)
+    (monthKeyText: string)
+    (portFor: string -> YnabBudgetId -> Server.Budgeting.CommandHandlers.YnabPort)
+    : Async<Result<Shared.Budgeting.BudgetMonth, string>> =
+    async {
+        match Validation.validateMonthKey monthKeyText with
+        | Error message -> return Error message
+        | Ok key ->
+            return! withYnabPort tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.QueryHandlers.budgetMonth port key)
     }
 
 /// Prüft den Monat von "Targets anwenden" gegen den laufenden Monat.
@@ -1763,7 +1758,7 @@ let previewTargetsWith
         match targetsMonthKey today monthKeyText with
         | Error message -> return Error message
         | Ok key ->
-            return! targetsWith tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port key)
+            return! withYnabPort tokenOpt budgetOpt portFor (fun port -> Server.Budgeting.CommandHandlers.preview port key)
     }
 
 /// "Übernehmen" von "Targets anwenden" ohne Settings und Netz, Prüfung wie `previewTargetsWith`.
@@ -1782,7 +1777,7 @@ let applyTargetsWith
         | Error message -> return Error message
         | Ok key ->
             return!
-                targetsWith tokenOpt budgetOpt portFor (fun port ->
+                withYnabPort tokenOpt budgetOpt portFor (fun port ->
                     Server.Budgeting.CommandHandlers.apply port now key shown)
     }
 
@@ -1803,7 +1798,7 @@ let moveMoneyWith
         | Error errors -> return Error (String.concat " " errors)
         | Ok () ->
             let! result =
-                targetsWith tokenOpt budgetOpt portFor (fun port ->
+                withYnabPort tokenOpt budgetOpt portFor (fun port ->
                     Server.Budgeting.CommandHandlers.moveMoney port now monthKeyText request)
             return result |> Result.bind id
     }
@@ -1846,14 +1841,13 @@ let budgetApiWith
     let today () = berlinToday berlinZone (utcNow ())
     { getBudgetFrame = fun () -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
-        return! targetsWith tokenOpt budgetOpt framePortFor (fun port ->
+        return! withYnabPort tokenOpt budgetOpt framePortFor (fun port ->
             Server.Budgeting.QueryHandlers.frame port (today ()))
       }
 
       getBudgetMonth = fun monthKeyText -> async {
         let! tokenOpt, budgetOpt = ynabSettings ()
-        let fetchMonth token budgetId monthKey = (portFor token budgetId).FetchMonth monthKey
-        return! budgetMonthFor tokenOpt budgetOpt monthKeyText fetchMonth
+        return! budgetMonthFor tokenOpt budgetOpt monthKeyText portFor
       }
 
       previewTargets = fun monthKeyText -> async {
@@ -1872,7 +1866,7 @@ let budgetApiWith
         | true, applicationId ->
             let! tokenOpt, budgetOpt = ynabSettings ()
             return!
-                targetsWith tokenOpt budgetOpt portFor (fun port ->
+                withYnabPort tokenOpt budgetOpt portFor (fun port ->
                     Server.Budgeting.CommandHandlers.retryFailed port (utcNow ()) applicationId)
       }
 

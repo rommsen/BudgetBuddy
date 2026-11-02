@@ -164,6 +164,10 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
                 // Bottom sheet container
                 Html.div [
                     prop.className ("bottom-sheet" + layerClass + heightClass + activeClass)
+                    // Zu oder beim Ausfahren: nicht bedienbar, für den Screenreader nicht da.
+                    if input.FixedHeight && not props.IsOpen then
+                        prop.custom ("inert", "true")
+                        prop.custom ("aria-hidden", true)
                     prop.onClick (fun e -> e.stopPropagation())
                     prop.children [
                         // Drag handle
@@ -228,10 +232,50 @@ let private BottomSheetInternal (input: BottomSheetInternalProps) =
 let view (props: BottomSheetProps) (children: ReactElement list) : ReactElement =
     BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = false; Pinned = [] }
 
+type private InspectorContent = {
+    Title: string
+    Pinned: ReactElement list
+    Children: ReactElement list
+}
+
+/// Solange das Sheet ausfährt, steht sein letzter Inhalt noch da (`.bottom-sheet`, 450 ms).
+[<Literal>]
+let private ExitDurationMs = 500
+
+[<ReactComponent>]
+let private InspectorSheet (props: BottomSheetProps, pinned: ReactElement list, children: ReactElement list) =
+    let held = React.useRef<InspectorContent option> None
+    let released, setReleased = React.useState 0
+    if props.IsOpen then
+        held.current <- Some { Title = props.Title; Pinned = pinned; Children = children }
+    React.useEffect (
+        (fun () ->
+            if props.IsOpen then
+                React.createDisposable ignore
+            else
+                let timer =
+                    Fable.Core.JS.setTimeout
+                        (fun () ->
+                            held.current <- None
+                            setReleased (released + 1))
+                        ExitDurationMs
+                React.createDisposable (fun () -> Fable.Core.JS.clearTimeout timer)),
+        [| box props.IsOpen |]
+    )
+    let shown =
+        held.current |> Option.defaultValue { Title = props.Title; Pinned = []; Children = [] }
+    BottomSheetInternal
+        { Props = { props with Title = shown.Title }
+          Children = shown.Children
+          Elevated = false
+          FixedHeight = true
+          Pinned = shown.Pinned }
+
 /// Das Sheet für den Inspektor (budgeting-g8s3w): feste Höhe, `pinned` steht fest zwischen Kopf und
-/// Inhalt, nur `children` scrollt. Mit offener Tastatur wird es kleiner (ADR 0005).
+/// Inhalt, nur `children` scrollt. Mit offener Tastatur wird es kleiner (ADR 0005). Bleibt immer
+/// gerendert, `IsOpen` fährt es ein und aus, der Inhalt hält sich dabei selbst.
 let inspector (props: BottomSheetProps) (pinned: ReactElement list) (children: ReactElement list) : ReactElement =
-    BottomSheetInternal { Props = props; Children = children; Elevated = false; FixedHeight = true; Pinned = pinned }
+    InspectorSheet (props, pinned, children)
 
 /// Wie `view`, aber auf der erhöhten Ebene (`layer-2`): das Sheet öffnet über einem anderen
 /// Sheet, zum Beispiel der Kategorie-Picker über dem Buchungs-Detail.

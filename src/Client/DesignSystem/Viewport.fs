@@ -37,6 +37,20 @@ let private sync () =
     | Some vv -> setViewportVars vv.height vv.offsetTop
     | None -> ()
 
+// Minimale ResizeObserver-Bindung (nicht Teil von Fable.Browser.Dom, analog zu
+// `observeIntersection` im Kassenbuch und der visualViewport-Bindung oben): meldet die
+// aktuelle Rand-zu-Rand-Höhe des beobachteten Elements bei jeder Größenänderung.
+// Bewusst `getBoundingClientRect().height` statt `entries[0].contentRect.height`:
+// Letztere ist die Content-Box ohne Padding, hier `py-1` (8px) auf `ChipBar.bar`,
+// und genau diese Differenz reichte aus, um den Tabellenkopf wieder in die
+// Leiste hineinragen zu lassen (per Browsertest gefunden). `getBoundingClientRect()`
+// liefert dieselbe Rand-zu-Rand-Höhe, die auch der Tabellenkopf-Test unten misst.
+[<Emit(
+    "(function(el, cb) { var o = new ResizeObserver(function() { cb(el.getBoundingClientRect().height); }); o.observe(el); return function() { o.disconnect(); }; })($0, $1)"
+)>]
+let observeHeight (element: Element) (onResize: float -> unit) : (unit -> unit) =
+    jsNative
+
 let mutable private started = false
 
 /// Starts mirroring the visual viewport into CSS vars. Idempotent; call once at startup.

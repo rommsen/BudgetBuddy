@@ -3146,21 +3146,7 @@ let private deletedToggleRow (dispatch: Msg -> unit) (model: Model) =
             ]
         ]
 
-// Minimale ResizeObserver-Bindung (nicht Teil von Fable.Browser.Dom, analog zu
-// `observeIntersection` oben und `Viewport.fs`s visualViewport-Bindung): meldet die
-// aktuelle Rand-zu-Rand-Höhe des beobachteten Elements bei jeder Größenänderung.
-// Bewusst `getBoundingClientRect().height` statt `entries[0].contentRect.height`:
-// Letztere ist die Content-Box ohne Padding, hier `py-1` (8px) auf `ChipBar.bar`,
-// und genau diese Differenz reichte aus, um den Tabellenkopf wieder in die
-// Leiste hineinragen zu lassen (per Browsertest gefunden). `getBoundingClientRect()`
-// liefert dieselbe Rand-zu-Rand-Höhe, die auch der Tabellenkopf-Test unten misst.
-[<Emit(
-    "(function(el, cb) { var o = new ResizeObserver(function() { cb(el.getBoundingClientRect().height); }); o.observe(el); return function() { o.disconnect(); }; })($0, $1)"
-)>]
-let private observeHeight (element: Browser.Types.Element) (onResize: float -> unit) : (unit -> unit) =
-    jsNative
-
-// Wie `observeHeight`, nur für die Breite: die Tabellenbreite entscheidet, welche
+// Wie `Viewport.observeHeight`, nur für die Breite: die Tabellenbreite entscheidet, welche
 // Spalten sichtbar sind (`visibleColumns`, ledger-qh9qx).
 [<Emit(
     "(function(el, cb) { var o = new ResizeObserver(function() { cb(el.getBoundingClientRect().width); }); o.observe(el); return function() { o.disconnect(); }; })($0, $1)"
@@ -3254,7 +3240,7 @@ let private FilterBarColumn
                 | None -> ()
 
                 if not (isNull (box element)) then
-                    disconnectRef.current <- Some (observeHeight element setBarHeight)),
+                    disconnectRef.current <- Some (Viewport.observeHeight element setBarHeight)),
             [||]
         )
 

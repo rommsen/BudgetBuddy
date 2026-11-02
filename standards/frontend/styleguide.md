@@ -65,8 +65,8 @@ sie kommuniziert Zustand/Rolle. Belegt durch `Tokens.fs` (Modul `Colors`, `Glows
 | **Gelb** | offen, kein Fehler: `fehlt` und "Passt das Target noch?" (ADR 0075). Kein Neon, kontrastiert 9,03:1 auf `bg-card`, 8,23:1 auf `bg-elevated`, 7,84:1 auf `bg-hover` | `Colors.calmYellow` |
 
 Die Token-Kommentare in `Tokens.fs` sind die kanonische Begründung (z. B. *"Primary:
-Neon Green — Success, Growth, Positive"*, *"Accent: Cyber Teal — Info, Navigation,
-Interactive"*).
+Neon Green — Success, Growth, Positive"*, *"Accent: Cyber Teal - Ausgewähltes und
+Navigation (ADR 0075)"*).
 
 **Praktische Konsequenzen:**
 
@@ -109,7 +109,9 @@ Zeilen mit Target:
 - **Dritte Zeile am Handy:** Die Kategorie-Zeile trägt das Target als dritte Zeile. Sie hat dieselbe
   Klasse wie die zweite (`ListRoles.mobileLine2`) und fehlt, wenn es kein Target gibt. Das Target
   steht in `truncate min-w-0`, der Status (fehlt, erfüllt, pausiert) in `shrink-0 whitespace-nowrap`:
-  wird es eng, kürzt das Target und nie der Status. Beide in `ListRoles.secondary`.
+  wird es eng, kürzt das Target und nie der Status. Target, erfüllt und pausiert stehen in
+  `ListRoles.secondary`, `fehlt` in `ListRoles.missing`. Die Beträge der zweiten Zeile tragen
+  `tabular-nums`.
 - **Zweizeilige Zelle am PC:** Die Spalte Target zeigt oben Betrag und Rhythmus, darunter den Status
   in `ListRoles.secondary`. Der Betrag steht in Mono, der Rhythmus als eigener Span in Inter. Die
   Zeilenhöhe von 44px ist dann eine Mindesthöhe, die übrigen Zellen bleiben einzeilig.
@@ -238,7 +240,7 @@ nutzt die zweite Variante über `CategoryPicker.popoverInDialog`.
 
 ---
 
-## 5. Komponenten-Inventar (20 DS-Komponenten)
+## 5. Komponenten-Inventar (21 DS-Komponenten)
 
 Alle Komponenten liegen unter
 [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/). Konkrete API/Props stehen dort in den
@@ -250,9 +252,9 @@ steht nur **wann welche / wann nicht**.
 
 | Komponente | Wann nutzen | Wann **nicht** |
 |------------|-------------|----------------|
-| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-selected` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
+| **Button** | Jede klickbare Aktion: `primary` (Orange-CTA), `secondary` (neutral mit grauem Rand, ADR 0075), `ghost`, `danger`, `hero`/`heroTeal` (große CTAs), `*Loading`, `*WithIcon`, `group`, in Listen `selectableListRow` (Zeile, die etwas wählt, gewählt mit `aria-current` und Teal), `stepArrow`/`stepArrowGap` (`‹ ›`, der Platz bleibt am Rand frei), `homeLabel` (Name, der nach Hause führt und teal ist, wenn man woanders steht), `listName` (Name einer Zeile als Knopf, sieht aus wie der Name, am Handy 48 px Trefferfläche ohne höhere Zeile) und `listRow` (ganze zweizeilige Listenzeile als Knopf) | Navigation zwischen Seiten → `Navigation`; Link nach extern → eigener Anker mit `Icons.externalLink` |
 | **Card** | Inhaltsblöcke: `standard`, `glass`, `glow` (featured), `withAccent`, `emptyState`, plus `header`/`body`/`footer` | Volle Seiten-Layouts → `Primitives`; modale Inhalte → `Modal` |
-| **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
+| **Badge** | Kompakter Status/Label: semantisch (`success`/`warning`/`error`/`info`, `notice` in Gelb für die Budget-Seite, ADR 0075), Domänen-Status (`imported`, `pendingReview`, `autoCategorized`, `uncategorized`), `count` | Klickbare Filter → `Button.ghost`/Pills; lange Texte |
 | **Input** | Alle Formularelemente: `text`/`password`/`email`/`number`, `textarea`, `select`/`selectSimple`, `checkbox`, `toggle`, `searchableSelect`, plus `group`/`groupWithError`/`formSection` | Reine Anzeige; mobiles Kategorie-/Konto-Auswählen → `BottomSheet` (§7) |
 | **Modal** | Zentrierte Dialoge auf **Desktop**: `simple`, `custom`, `fullScreen`, `confirm`/`confirmDanger`, `alert`, `loading` | Mobile Auswahl-Flows → `BottomSheet` (keyboard-fest); persistente Inhalte |
 | **Toast** | Flüchtiges Feedback nach Aktion: `success`/`error`/`warning'`/`info'`, `renderList` | Blockierende Fehler → `ErrorDisplay`/`Modal`; persistenter Status → `Badge` |
@@ -260,15 +262,15 @@ steht nur **wann welche / wann nicht**.
 | **Money** | **Jede** Geldanzeige — setzt Vorzeichen-Farbe + Glow automatisch: `available` (Auswahl, §2), `simple`, `large`, `hero`, `noSign`, `fromMoney`, `accountBalance` (Kontostand ohne führendes Plus, für Kontostände-Leiste und -Liste), `accountListRow` (klickbare Kontozeile: Name links, farbcodierter Betrag rechts, aktiver Zustand mit Teal-Akzentlinie) | Nicht-monetäre Zahlen → `Presets.monoNumber` |
 | **Table** | Dichte tabellarische Daten (Desktop), inkl. `headerCell`/sortierbar/`sticky` | Mobile Listen mit Zeilen-Aktionen → Card-Liste + `Swipe`; einfache Key-Value-Paare → `Card` |
 | **Loading** | Ladezustände: `spinner`, `centered`, `neonPulse`, Skeletons (`txListSkeleton`, `tableSkeleton`, `statsGridSkeleton`, `cardSkeleton`) | Inhalt da → echten Inhalt zeigen; Fehler → `ErrorDisplay` |
-| **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning` | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
+| **ErrorDisplay** | Fehlerdarstellung: `inline'` (Feldfehler), `cardCompact`/`card`, `hero` (große Operation), `fullPage`, `forRemoteData`, `warning`, `notice` (Gelb, für die Budget-Seite statt `warning`, ADR 0075) | Kurzes Erfolgs-/Info-Feedback → `Toast`; Pflichtfeld-Hinweis → `Input.group*` |
 | **Icons** | SVG-Icons mit `Size`×`Color`-Tokens (`Icons.sync MD Teal`, …) | Eigene rohe `<svg>` inline (Drift) — fehlt ein Icon, hier ergänzen |
 | **Navigation** | Top-/Bottom-Nav, App-Wrapper, Page-Content-Container — einmal in der Haupt-`View.fs` | Aktionen innerhalb einer Seite → `Button` |
 | **PageHeader** | Seitentitel: `simple`, `withSubtitle`, `gradient*`, `withActions`, `gradientWithActions` | Karten-Titel → `Card.header`; Abschnittstitel → `Card.headerSimple`/`Presets.sectionHeader` |
 | **Primitives** | Layout-Bausteine: `Container`, `Stack`/`HStack`, `Grid`, `Spacer`, responsive Sichtbarkeit (`mobileOnly`/`desktopOnly`) | Visuell gestylte Blöcke → `Card`; Token-Klassen reichen für Spacing |
 | **Tokens** | Quelle aller Klassen-Konstanten (§3) — überall referenzieren | Niemals umgehen: rohe Tailwind-/Hex-Klassen sind Drift |
 | **Form** | Submit-Buttons mit Required-Field-Gating: `submitButton(WithIcon/Secondary)` deaktivieren bei fehlenden Pflichtfeldern | Reine Felder → `Input`; freie Buttons → `Button` |
-| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
-| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche: `bar` | Filter über einer Liste → `ChipBar` |
+| **BottomSheet** | **Mobile** Auswahl-/Picker-Flows (keyboard-aware): `view`, `inspector` (immer gerendert, fährt über `IsOpen` ein und aus und hält dabei seinen Inhalt, feste Höhe 500 px, fester Bereich zwischen Kopf und Inhalt, der ab 55 % Höhe in sich scrollt, wird mit Tastatur kleiner), `categoryPicker`, `categoryPickerLayered`, `chipButton`, `sectionTitle` | Desktop-Dialog → `Modal`; einfaches Dropdown → `Input.select` |
+| **Tabs** | Gleich breite Segmente mit `role=tablist`, aktiv in Teal, am Handy 48 px Trefferfläche, Pfeiltasten und roving `tabindex`: `bar`, dazu `panel` für `role=tabpanel` | Filter über einer Liste → `ChipBar` |
 | **Swipe** | Wischbare Listenzeilen mit enthüllter Aktion (mobile) | Statische Zeilen → Card/`Table`; Desktop-Hover-Aktionen → `Button.iconButton` |
 | **Viewport** | Infrastruktur für mobile Sheets (visualViewport→CSS-Vars, Scroll-Lock, Click-Swallow, Haptik) — von `BottomSheet` genutzt | Direkt nur, wenn du ein **neues** Sheet/Overlay baust (dann die Muster aus §7 erben) |
 
@@ -378,6 +380,12 @@ darunter neu verankert. Filterwechsel braucht kein Hochscrollen. Beleg:
 `infrastructure/done/2026-06-11-mobile-polish-sticky-filter-skeleton-springs`;
 Positionierung in `styles.css`. Sticky-Tabellenköpfe analog über `Table` (`Sticky=true`).
 
+Die Budget-Seite stapelt drei feste Zeilen: Monatsleiste, Filter, Spaltenkopf. Am PC haften Suche
+und Chips zusammen, am Handy nur die Chips, damit die festen Zeilen wenig Höhe nehmen. Die Höhen sind
+gemessen (`ResizeObserver`, `--budget-month-bar-height`, `--budget-filter-bar-height`), weil die
+Leisten umbrechen. Ein Halter mit `overflow-hidden` nimmt dem Spaltenkopf das Haften: dort
+`overflow-clip`.
+
 ---
 
 ## 8. Voice / Tonalität (Microcopy)
@@ -409,7 +417,7 @@ Die UI spricht **Deutsch, direkt, knapp, ohne Füllwörter** — wie Roman selbs
   Token-Wächter in `npm run test:scripts`.
 
 - [`src/Client/DesignSystem/Tokens.fs`](../../src/Client/DesignSystem/Tokens.fs) — Farb-/Glow-/Spacing-/Preset-Tokens.
-- [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 20 Komponenten.
+- [`src/Client/DesignSystem/`](../../src/Client/DesignSystem/) — die 21 Komponenten.
 - [`src/Client/styles.css`](../../src/Client/styles.css) / [`index.html`](../../src/Client/index.html) — Spring-Easing, `prefers-reduced-motion`, visualViewport-Anker, Viewport-Meta.
 - Route `/styleguide`: die echten DS-Komponenten als Live-Beispiele, die API steht in deren Doc-Kommentaren.
 - `.claude/rules/design-tokens.md` — die harte Token-only-Regel + Grep-Checks.

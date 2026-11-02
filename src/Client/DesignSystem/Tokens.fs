@@ -17,7 +17,7 @@ module Colors =
     let neonOrange = "text-neon-orange"
     let neonOrangeDim = "text-[#e55a1f]"
 
-    // Accent: Cyber Teal - Info, Navigation, Interactive
+    // Accent: Cyber Teal - Ausgewähltes und Navigation (ADR 0075)
     let neonTeal = "text-neon-teal"
     let neonTealDim = "text-[#00b894]"
 

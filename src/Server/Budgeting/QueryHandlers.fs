@@ -7,6 +7,14 @@ open Shared.Domain
 open Shared.Budgeting
 open Server.Budgeting.Domain
 
+/// Liest einen Monat für die Budget-Seite.
+let budgetMonth (port: CommandHandlers.YnabPort) (monthKey: string) : Async<YnabResult<BudgetMonth>> =
+    async {
+        match! port.FetchMonth monthKey with
+        | Error e -> return Error e
+        | Ok month -> return Ok (toBudgetMonth month)
+    }
+
 /// Die beiden Lese-Quellen des Rahmens.
 type BudgetFramePort = {
     FetchMonths: unit -> Async<YnabResult<string list>>

@@ -242,6 +242,40 @@ let private buttonSection =
                                 ]
                             ]
                         ]
+                        subTitle "Wählbare Zeile"
+                        note "Selectable: die gewählte Zeile trägt aria-current und Teal (ADR 0075). fehlt steht in ListRoles.missing."
+                        for selected, name in [ false, "Lebensmittel"; true, "Urlaub" ] do
+                            Button.selectableListRow $"styleguide-selectable-{name}" "styleguide-selectable-row" $"{name} wählen" selected ignore [
+                                Html.span [
+                                    prop.className Tokens.ListRoles.mobileLine1
+                                    prop.children [
+                                        Html.span [ prop.className $"{Tokens.ListRoles.primary} truncate min-w-0"; prop.text name ]
+                                        Money.available 120m "EUR"
+                                    ]
+                                ]
+                                Html.span [
+                                    prop.className Tokens.ListRoles.mobileLine2
+                                    prop.children [ Html.span [ prop.className Tokens.ListRoles.missing; prop.text "fehlt 12,30 €" ] ]
+                                ]
+                            ]
+                        subTitle "Blättern"
+                        note "stepArrow mit 48 px Trefferfläche am Handy. stepArrowGap hält den Platz, wenn am Rand der Pfeil fehlt. homeLabel führt nach Hause und ist teal, solange woanders."
+                        Html.div [
+                            prop.className "flex items-center"
+                            prop.children [
+                                Button.stepArrowGap ()
+                                Button.homeLabel "styleguide-home-label" "Oktober 2026, zum laufenden Monat" false "Oktober 2026" ignore
+                                Button.stepArrow "styleguide-step-next" "Nächster Monat" "›" ignore
+                            ]
+                        ]
+                        Html.div [
+                            prop.className "flex items-center"
+                            prop.children [
+                                Button.stepArrow "styleguide-step-previous" "Vorheriger Monat" "‹" ignore
+                                Button.homeLabel "styleguide-home-label-away" "September 2026, zum laufenden Monat" true "September 2026" ignore
+                                Button.stepArrow "styleguide-step-next-away" "Nächster Monat" "›" ignore
+                            ]
+                        ]
                     ]
                 ]
             ]
@@ -303,6 +337,7 @@ let private badgeSection =
                 row [
                     Badge.success "Aktiv"
                     Badge.warning "Review"
+                    Badge.notice "in YNAB geändert"
                     Badge.error "Fehler"
                     Badge.info "Neu"
                 ]
@@ -651,6 +686,7 @@ let private errorSection =
                 ErrorDisplay.inline' "Ungültige E-Mail-Adresse"
                 ErrorDisplay.cardCompact "Einstellungen konnten nicht geladen werden" (Some ignore)
                 ErrorDisplay.warning "Diese Aktion kann nicht rückgängig gemacht werden." None
+                ErrorDisplay.notice "Stand hat sich geändert, es wurde nichts geschrieben."
             ]
         ]
     ]

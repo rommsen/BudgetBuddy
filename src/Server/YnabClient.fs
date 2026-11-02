@@ -348,6 +348,20 @@ let getMonth
         }
     getMonthWith fetch monthKey
 
+// Antworttext und Ausnahmen bleiben im Server-Log (budgeting-p4n6r): der Fehler geht bis zur Oberfläche,
+// dort steht ein fester deutscher Satz.
+let private statusFailure (endpoint: string) (status: int) (bodyText: string) : YnabError =
+    printfn "[YNAB] GET %s: HTTP %d: %s" endpoint status bodyText
+    YnabError.NetworkError $"YNAB antwortet mit HTTP {status}"
+
+let private unreadableResponse (endpoint: string) (detail: string) : YnabError =
+    printfn "[YNAB] GET %s: Antwort nicht lesbar: %s" endpoint detail
+    YnabError.InvalidResponse "YNAB-Antwort nicht lesbar"
+
+let private fetchFailure (endpoint: string) (ex: exn) : YnabError =
+    printfn "[YNAB] GET %s: Abruf gescheitert: %s" endpoint ex.Message
+    YnabError.NetworkError "YNAB nicht erreichbar"
+
 /// Das Monatsfenster aus `GET /budgets/{id}/months` (budgeting-g8s3w, ADR 0074). Gelöschte Monate
 /// fallen weg. Die Folge der Antwort zählt nicht, sortiert wird in `toBudgetFrame`. Ein 404 meint
 /// hier das Budget.
@@ -356,11 +370,11 @@ let interpretMonthsResponse (budgetId: string) (status: int) (bodyText: string) 
     | 200 ->
         match Decode.fromString Decoders.monthsDecoder bodyText with
         | Ok months -> Ok months
-        | Error err -> Error (YnabError.InvalidResponse $"Failed to parse months: {err}")
+        | Error err -> Error (unreadableResponse "months" err)
     | 401 -> Error (YnabError.Unauthorized "Invalid YNAB Personal Access Token")
     | 404 -> Error (YnabError.BudgetNotFound budgetId)
     | 429 -> Error (YnabError.RateLimitExceeded 60)
-    | other -> Error (YnabError.NetworkError $"HTTP {other}: {bodyText}")
+    | other -> Error (statusFailure "months" other bodyText)
 
 /// Naht für Tests wie `getMonthWith`.
 let getMonthsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<string list>> =
@@ -369,7 +383,7 @@ let getMonthsWith (fetch: unit -> Async<int * string>) (budgetId: string) : Asyn
             let! status, bodyText = fetch ()
             return interpretMonthsResponse budgetId status bodyText
         with ex ->
-            return Error (YnabError.NetworkError $"Failed to fetch months: {ex.Message}")
+            return Error (fetchFailure "months" ex)
     }
 
 let getMonths (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<string list>> =
@@ -454,59 +468,54 @@ let setAssigned
         }
     setAssignedWith send budgetId monthKey categoryId milliunits
 
-/// Fetches all categories for a specific budget
-let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list>> =
+/// Die Kategorien aus `GET /budgets/{id}/categories`, flach mit Gruppennamen.
+let interpretCategoriesResponse (budgetId: string) (status: int) (bodyText: string) : YnabResult<YnabCategory list> =
+    match status with
+    | 200 ->
+        let decoder =
+            Decode.field "data" (
+                Decode.field "category_groups" (
+                    Decode.list (
+                        Decode.object (fun get ->
+                            let groupName = get.Required.Field "name" Decode.string
+                            let categories = get.Required.Field "categories" (Decode.list Decoders.categoryDecoder)
+                            categories |> List.map (fun cat -> { cat with GroupName = groupName })
+                        )
+                    )
+                )
+            )
+        match Decode.fromString decoder bodyText with
+        | Ok categoryGroups -> Ok (List.concat categoryGroups)
+        | Error err -> Error (unreadableResponse "categories" err)
+    | 401 -> Error (YnabError.Unauthorized "Invalid YNAB token")
+    | 404 -> Error (YnabError.BudgetNotFound budgetId)
+    | 429 -> Error (YnabError.RateLimitExceeded 60)
+    | other -> Error (statusFailure "categories" other bodyText)
+
+/// Naht für Tests wie `getMonthWith`.
+let getCategoriesWith (fetch: unit -> Async<int * string>) (budgetId: string) : Async<YnabResult<YnabCategory list>> =
     async {
         try
+            let! status, bodyText = fetch ()
+            return interpretCategoriesResponse budgetId status bodyText
+        with ex ->
+            return Error (fetchFailure "categories" ex)
+    }
+
+/// Fetches all categories for a specific budget
+let getCategories (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabCategory list>> =
+    let fetch () =
+        async {
             let! response =
                 http {
                     GET $"{baseUrl}/budgets/{budgetId}/categories"
                     Authorization $"Bearer {token}"
                 }
                 |> Request.sendAsync
-
             let! bodyText = response |> Response.toTextAsync
-            let statusCode = response.statusCode |> int
-
-            match statusCode with
-            | 200 ->
-                let decoder =
-                    Decode.field "data" (
-                        Decode.field "category_groups" (
-                            Decode.list (
-                                Decode.object (fun get ->
-                                    let groupName = get.Required.Field "name" Decode.string
-                                    let categories = get.Required.Field "categories" (Decode.list Decoders.categoryDecoder)
-                                    // Add group name to each category
-                                    categories |> List.map (fun cat -> { cat with GroupName = groupName })
-                                )
-                            )
-                        )
-                    )
-
-                match Decode.fromString decoder bodyText with
-                | Ok categoryGroups ->
-                    // Flatten the category groups into a single list
-                    return Ok (List.concat categoryGroups)
-                | Error err ->
-                    return Error (YnabError.InvalidResponse $"Failed to parse categories: {err}")
-
-            | 401 ->
-                return Error (YnabError.Unauthorized "Invalid YNAB token")
-
-            | 404 ->
-                return Error (YnabError.BudgetNotFound budgetId)
-
-            | 429 ->
-                return Error (YnabError.RateLimitExceeded 60)
-
-            | _ ->
-                return Error (YnabError.NetworkError $"HTTP {statusCode}: {bodyText}")
-
-        with
-        | ex ->
-            return Error (YnabError.NetworkError $"Failed to fetch categories: {ex.Message}")
-    }
+            return (response.statusCode |> int), bodyText
+        }
+    getCategoriesWith fetch budgetId
 
 /// Fetches all payees from YNAB for the given budget.
 let getPayees (token: string) (YnabBudgetId budgetId: YnabBudgetId) : Async<YnabResult<YnabPayee list>> =

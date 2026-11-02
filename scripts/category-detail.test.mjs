@@ -56,7 +56,7 @@ async function openPage(width, height, { lines = detailLines, entry = () => jump
   const context = await browser.newContext({ viewport: { width, height }, hasTouch: width < 768 });
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
-  const calls = { lists: [], accounts: 0 };
+  const calls = { lists: [], accounts: 0, frames: 0 };
   const json = (route, body) => route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   await page.route("**/api/**", (route) =>
     route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"not mocked in this test"}' })
@@ -70,9 +70,10 @@ async function openPage(width, height, { lines = detailLines, entry = () => jump
     calls.accounts += 1;
     return route.fallback();
   });
-  await page.route("**/api/BudgetApi/getBudgetFrame", (route) =>
-    json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [CATEGORY, guid(2)] } })
-  );
+  await page.route("**/api/BudgetApi/getBudgetFrame", (route) => {
+    calls.frames += 1;
+    return json(route, { Ok: { CurrentMonth: "2026-11-01", Months: ["2026-10-01", "2026-11-01"], CategoryOrder: [CATEGORY, guid(2)] } });
+  });
   await page.route("**/api/BudgetApi/getBudgetMonth", (route) => json(route, { Ok: month }));
   await page.route("**/api/LedgerApi/getCategoryMonthEntries", (route) => {
     calls.lists.push(route.request().postDataJSON()[0]);
@@ -146,6 +147,7 @@ test("Handy: Zeile tippen, Tab Buchungen, Buchung tippen, Kassenbuch-Detail ist 
     await page.goBack();
     await expectBackInDetail(page);
     assert.equal(calls.lists.length, 2, "die Liste wird nach der Rückkehr neu geholt");
+    assert.equal(calls.frames, 1, "die Rückkehr liest den Rahmen nicht neu (ADR 0076)");
   } finally {
     await context.close();
   }
@@ -176,6 +178,29 @@ test("Buchungen kommen erst im Tab: die Auswahl allein fragt das Kassenbuch nich
     assert.equal(calls.lists.length, 1, "genau eine Abfrage");
   } finally {
     await context.close();
+  }
+});
+
+test("Kategoriewechsel im Tab Buchungen: am PC per Zeile, im Sheet per Pfeil, je eine neue Abfrage", async () => {
+  const pc = await openPage(1440, 900);
+  try {
+    await openDetail(pc.page);
+    await row(pc.page, "Urlaub m1bce").click();
+    await pc.page.waitForFunction(() => document.querySelector("aside h2")?.textContent.startsWith("Urlaub"));
+    await pc.page.locator('[data-testid="detail-entry"]').first().waitFor();
+    assert.deepEqual(pc.calls.lists.map((l) => l.CategoryId), [CATEGORY, guid(2)]);
+  } finally {
+    await pc.context.close();
+  }
+  const phone = await openPage(390, 844);
+  try {
+    await openDetail(phone.page);
+    await phone.page.locator('[data-testid="inspector-next"]').click();
+    await phone.page.locator(".bottom-sheet.active").getByRole("heading", { name: "Urlaub m1bce" }).waitFor();
+    await phone.page.locator('[data-testid="detail-entry"]').first().waitFor();
+    assert.deepEqual(phone.calls.lists.map((l) => l.CategoryId), [CATEGORY, guid(2)]);
+  } finally {
+    await phone.context.close();
   }
 });
 

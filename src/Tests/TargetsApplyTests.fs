@@ -173,7 +173,7 @@ let private fakePortWith (result: YnabResult<unit>) : YnabPort =
 let private apiTests =
     let run port = async { return! Server.Budgeting.CommandHandlers.preview port "2026-11-01" }
     let call token budget =
-        Server.Api.targetsWith token budget (fun _ _ -> fakePortWith (Ok ())) run |> Async.RunSynchronously
+        Server.Api.withYnabPort token budget (fun _ _ -> fakePortWith (Ok ())) run |> Async.RunSynchronously
     testList "Weg von Targets anwenden im Api (h2zfn)" [
         test "Fehlender Token wird gemeldet, ohne YNAB zu fragen" {
             match call None (Some "b") with
