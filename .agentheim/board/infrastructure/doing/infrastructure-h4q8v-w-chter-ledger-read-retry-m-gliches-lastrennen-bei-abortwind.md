@@ -1,7 +1,7 @@
 ---
 id: infrastructure-h4q8v
 title: "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
-status: todo
+status: doing
 type: bug
 context: infrastructure
 created: 2026-11-02

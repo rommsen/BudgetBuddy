@@ -5,6 +5,14 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 21:14 -- Batch started: [infrastructure-h4q8v]
+
+**Type:** Work / Batch start
+**Tasks:** infrastructure-h4q8v - "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
+**Parallel:** scoped: Roman nannte infrastructure-h4q8v
+
+---
+
 ## 2026-11-02 21:11 -- Modeling / Promoted: infrastructure-h4q8v - "Wächter ledger-read-retry: mögliches Lastrennen bei abortWindowMs 200"
 
 **Type:** Modeling / Promote
