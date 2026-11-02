@@ -1,7 +1,7 @@
 ---
 id: budgeting-v4ht9
 title: "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen"
-status: backlog
+status: doing
 type: decision
 context: budgeting
 created: 2026-11-02

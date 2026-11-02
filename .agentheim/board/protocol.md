@@ -5,6 +5,22 @@ Newest entries on top.
 
 ---
 
+## 2026-11-02 12:31 -- Batch started: [budgeting-v4ht9]
+
+**Type:** Work / Batch start
+**Tasks:** budgeting-v4ht9 - "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen"
+**Parallel:** scoped — builder named the prep; budgeting-q7m2c done
+
+---
+
+## 2026-11-02 12:31 -- Modeling / Promoted: budgeting-v4ht9 - "ADRs zur Budget-Seite: Targets über BB, Pause nur in BB, freie Monate, Farbrollen mit Gelb und neutralen Knöpfen"
+
+**Type:** Modeling / Promote
+**BC:** budgeting
+**From → To:** backlog → todo
+
+---
+
 ## 2026-11-02 12:30 -- Task verified and completed: budgeting-q7m2c - "Spike: Liefert YNAB die Anzeigereihenfolge der Kategorien, wie weit reichen Monate, und erhält eine Target-Änderung Tag und Rhythmus?"
 
 **Type:** Work / Task completion
