@@ -233,3 +233,12 @@ Geteilt wird die Task nicht. Der Rückbau des Dialogs, das Feld und `leaveInspec
 
 ## Hinweise aus dem Review von budgeting-g8s3w
 Eingearbeitet: `Model.Move` (Innere Form, Modell), `leaveInspector` (Zwei Übergänge), `isInputActive`, Sammelzweige, Aufteilen, `height` in der Transition (Kriterium unter Tastatur, Fokus, Handy; die Zeilen stehen heute bei `styles.css:1683` und `:1698`).
+
+## Verifier-Note Iteration 1
+
+FAIL. `./verify.sh` war grün, die Gründe liegen im Verhalten und in der Abdeckung:
+
+- ADR 0078 Punkt 5: während des Fehlbetrag-Aufrufs ist das Feld Zugewiesen bedienbar. `editEntry` und `saveEntry` prüfen `inspectorBusy` nicht. Stand 900, Knopf +12,30, Schritt +10 sendet 910 statt 922,30.
+- "Rahmen still nachziehen": der Test geht nicht durch `AssignAnswered`, `AssignCallLost` ist ungedeckt.
+- Esc im Feld Zugewiesen, Enter und Esc im Betragsfeld haben keinen Test der Verdrahtung.
+- Regel 3: die Live-Stellen von `assignMoneyWith` fehlen im Outcome.
